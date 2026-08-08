@@ -4403,24 +4403,23 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
 
     # Reconcile the bug-only reproduction Progress row to the classification
     # (issue #449) — idempotent, runs on every Phase 1.3 entry.
-    if args.reconcile_reproduction:
+    # `--reconcile-extension-rows` repairs the prompt-extension Progress rows into
+    # a workpad created before they existed (issue #1462) — idempotent, and run
+    # on every Phase 1.3 entry like its reproduction sibling. Rows insert directly
+    # under their phase's top-level row, so they land above any note this same
+    # call already appended to that block. Both reconcilers share one section
+    # lookup because they run back to back over the same section.
+    _reconcile_ext = getattr(args, 'reconcile_extension_rows', False)
+    if args.reconcile_reproduction or _reconcile_ext:
         idx = _find_section(sections, 'Progress')
         if idx is None:
             raise _UpdateError("section '## Progress' not found")
         heading, content = sections[idx]
-        content = _reconcile_reproduction_row(content, args.reconcile_reproduction)
+        if args.reconcile_reproduction:
+            content = _reconcile_reproduction_row(content, args.reconcile_reproduction)
+        if _reconcile_ext:
+            content = _reconcile_extension_rows(content)
         sections[idx] = (heading, content)
-
-    # Repair the prompt-extension Progress rows into a workpad created before
-    # they existed (issue #1462) — idempotent, runs on every Phase 1.3 entry.
-    # Rows insert directly under their phase's top-level row, so they land above
-    # any note this same call already appended to that block.
-    if getattr(args, 'reconcile_extension_rows', False):
-        idx = _find_section(sections, 'Progress')
-        if idx is None:
-            raise _UpdateError("section '## Progress' not found")
-        heading, content = sections[idx]
-        sections[idx] = (heading, _reconcile_extension_rows(content))
 
     # Terminal self-record gate (issue #258): a `--status Complete` write is the
     # deterministic chokepoint that guarantees the workpad's Plan/AC self-record

@@ -24,7 +24,7 @@
     "scripts/section_parse.py": "9333d432e81365eb92e44709bf4317d4d0f37046098b0c0f0d866eb11cd33108",
     "scripts/stale-prose-lint.py": "93b6c0bdd5f940c7feabfe416df075683a7654bf1a82bacaeee6bff3e2d145fa",
     "scripts/update-branch-checkpoint.sh": "c60408fb8f9e2227aabf9cf1094462a946a1471230f8e9b5e598a490c5f290b5",
-    "scripts/workpad.py": "467237c2538ad34d90bc03ff73b96aaad0aed749082c6f225e9541cc6541aad2",
+    "scripts/workpad.py": "55e0745f1f6ac99724df3139920758b8820c6ed0ec45f8e2f5a86a93376c4197",
     "skills/docs-release-notes/SKILL.md": "bf34b7dacd22c4d6b26b1d88426e67074a44fe8cb2aec51c7d43a3c819960811",
     "skills/docs-sync-external/SKILL.md": "4055f2e72e73be7829bf94492652632a8e4d4d2696b6caf16bc421afeac5980b",
     "skills/docs-sync-internal/SKILL.md": "73b8a6d02242d27dbd9c502418d7ab9ff9696038626a381f94ae7dc219358dbc",

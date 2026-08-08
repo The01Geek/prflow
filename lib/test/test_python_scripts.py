@@ -2035,19 +2035,17 @@ def _progress_of(body):
     return body.split('## Progress', 1)[1].split('\n## ', 1)[0]
 
 
-def _unticked_matches(progress, substr):
-    """Count unticked rows in `progress` whose text contains `substr`, using the
-    SAME matcher `_tick_checkbox` applies — so this counts what a live
-    `--tick-progress` call would see, not an approximation of it."""
-    n = 0
-    for line in progress.split('\n'):
-        m = _re_1462.match(line)
-        if m and substr.lower() in m.group(3).lower():
-            n += 1
-    return n
+def _ticks_once(progress, substr):
+    """True when `substr` resolves to exactly one unticked row — driven through
+    the PRODUCTION matcher rather than a copy of its grammar, since that is the
+    precise condition under which a live `--tick-progress` call succeeds
+    (`_tick_checkbox` raises on zero matches and on more than one)."""
+    try:
+        workpad._tick_checkbox(progress, substr, 'Progress')
+    except workpad._TickMatchError:
+        return False
+    return True
 
-
-_re_1462 = re.compile(r'^(\s*[-*]\s+)\[ \](\s+)(.*)$')
 
 # --- the template emits every row, under its intended phase ------------------
 _nb_progress = _progress_of(_nb)
@@ -2095,10 +2093,10 @@ for _label, _body_1462 in (('repro present', _nb), ('repro absent', _nb3)):
         if 'reproduction captured' in _t and _label == 'repro absent':
             continue  # the row is legitimately absent on the non-bug skeleton
         assert_eq(f"#1462 live tick {_t!r} still matches exactly one row ({_label})",
-                  1, _unticked_matches(_p, _t))
+                  True, _ticks_once(_p, _t))
     for _r_phase, _r_text, _r_substr in _XR:
         assert_eq(f"#1462 extension tick {_r_substr!r} matches exactly one row ({_label})",
-                  1, _unticked_matches(_p, _r_substr))
+                  True, _ticks_once(_p, _r_substr))
 
 # The `Documentation` tick's OWN ordering point: `phase-4-documentation.md` ticks
 # it BEFORE the `pr-description` invocation that ticks the new Documentation row,
