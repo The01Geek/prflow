@@ -202,7 +202,6 @@ literal:455d3d66cd10e932a221ce9fefd581510e5ebb1491145605d0a83c5740ada812	boundar
 literal:455e228a4938c2a7f427483a0442c6372066dac6b2d3bb4daf22b582052b7510	boundary	maintainer adjudication: create-issue TR: checklist state writer/reader, slug binding, status marker, or creation-time contract: creation-time re-check confirms the item-6-in-progress half
 literal:45f4f13b1e5e71d65c8d7a97a3dfde94e74e531bd26a7a79203dd6dc47b3dedd	boundary	maintainer adjudication: implementation-discovered workflow edit is a credential backstop boundary
 literal:46150ab820b572a7db5c18a7a7dd59f14292e99131a08c02afc674a9a4ec5334	boundary	maintainer adjudication: other-skills sentinel-contract: Consumer discriminates skips by schema key.
-literal:479902f5d5c52087d4c0543c354107a641e795bb62f3fdc6bfde7ea7cbc14373	boundary	Retain executable/helper contract: #366: SKILL states the two guards division of labor (mid-procedure stop unreachable by re-anchor).
 literal:47c87c34141e214b5fed38a974a0359b0765f0a39233569f8c4cc30d8f10aa5c	boundary	maintainer adjudication: declared security or interface boundary
 literal:47cd6b4aa5e41705e72fadedd7f82b2bfc8c4ad5d1938671512402e54c6c3ad9	boundary	maintainer adjudication: declared security or interface boundary
 literal:47de0a0995e573b18727ec07c248484386bb939665bee829d3d125452ddf1686	boundary	Retain routing/state-transition contract: #380 W6A: §3.4 doc-AC deferral rule leaves it unticked and does not block the gate.

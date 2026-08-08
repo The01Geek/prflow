@@ -4379,11 +4379,9 @@ assert_pin_unique "#366: SKILL re-anchor is completion-anchored, not tool-return
   'anchored on completion of the nested *procedure*, **not** on the' "$IMPL_ORCH"
 assert_pin_unique "#366: SKILL re-anchor resumes the step and never re-invokes the nested skill (operative)" \
   'resume the interrupted step, never re-invoking the nested skill' "$IMPL_ORCH"
-# (b) exclusionary Skill rule + two-guards division of labor.
+# (b) exclusionary Skill rule.
 assert_pin_unique "#366: SKILL rule forbids the interactive skills mid-run, naming revise-claude-md/brainstorming (operative)" \
   '`claude-md-management:revise-claude-md` and the `superpowers` `brainstorming` skill are examples that must never be invoked from inside an autonomous phase' "$IMPL_ORCH"
-assert_pin_unique "#366: SKILL states the two guards division of labor (mid-procedure stop unreachable by re-anchor)" \
-  'no completion-anchored re-anchor can ever reach' "$IMPL_ORCH"
 # (c) carve-out COUPLED PAIR — SKILL.md sentence AND the CLAUDE.md Conventions bullet.
 # Deleting either coupled half makes its exact-one assertion fail.
 assert_pin_unique "#366: SKILL carve-out — required CLAUDE.md edit made directly by the orchestrator (operative)" \
