@@ -2202,6 +2202,8 @@ for _r_phase, _r_text, _r_substr in _XR:
 # constraint a future reword has to satisfy.
 for _r_phase, _r_text, _r_substr in _XR:
     for _t in _live_ticks:
+        if _t == _r_substr:
+            continue  # this row's OWN tick, asserted to be contained just below
         assert_eq(f"#1462 row {_r_substr!r} does not contain live tick {_t!r}", False,
                   _t.lower() in _r_text.lower())
     assert_eq(f"#1462 row text {_r_substr!r} contains its own tick substring", True,
