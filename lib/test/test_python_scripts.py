@@ -2083,7 +2083,7 @@ for _r_phase, _r_text, _r_substr in _XR:
 # this assertion instead of silently colliding with a row.
 _IMPL_SKILL_DIR = Path(__file__).resolve().parents[2] / 'skills' / 'implement'
 _tick_md = [(_p, _p.read_text(encoding='utf-8'))
-            for _p in sorted(_IMPL_SKILL_DIR.rglob('*.md'))]
+            for _p in sorted(_IMPL_SKILL_DIR.rglob('*.md'))]  # tree-walk-ok: anchored to skills/implement/, which cannot reach the sibling checkouts under .claude/worktrees/ a repo-root-anchored walk would descend into
 # Accept both quote styles, so a later site spelled with single quotes is not
 # invisible to this derivation.
 _TICK_RE_1462 = re.compile(r'''--tick-progress\s+(?:"([^"]+)"|'([^']+)')''')
