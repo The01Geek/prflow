@@ -1609,6 +1609,46 @@ _REPRODUCTION_ROW = f'  - [ ] {_REPRODUCTION_ROW_TEXT}'
 _REPRODUCTION_ROW_SUBSTR = 'reproduction captured'
 
 
+# One nested `## Progress` checkbox row per consumer prompt-extension surface an
+# implement run consumes through a skill body's own load block (issue #1462).
+# SINGLE SOURCE for the rows `cmd_new_body` renders AND the rows
+# `_reconcile_extension_rows` repairs into a workpad created before they existed:
+# each entry pairs the canonical row text with the stable substring both the tick
+# and the reconciliation detect it by, on the `_REPRODUCTION_ROW_TEXT` /
+# `_REPRODUCTION_ROW_SUBSTR` model, so a later reword of the text blinds neither.
+#
+# WORDING IS A HARD CONSTRAINT, not style. `_tick_checkbox` raises when more than
+# one unticked row matches, so a row whose text contained a substring a live
+# `--tick-progress` call passes would break that EXISTING tick rather than merely
+# failing its own — `Documentation` and `review-and-fix` already label rows.
+# `requesting-code-review` is deliberately absent: the dispatched final-pass
+# reviewer already fetches it unconditionally under its own return contract.
+#
+# Each entry is `(phase, text, substr)`; `phase` names the top-level `## Progress`
+# row the surface is reached under.
+_EXTENSION_ROWS = (
+    ('Setup', 'prompt extension resolved: implement',
+     'extension resolved: implement'),
+    ('Review', 'prompt extension resolved: review engine',
+     'extension resolved: review engine'),
+    ('Review', 'prompt extension resolved: fix loop',
+     'extension resolved: fix loop'),
+    ('Review', 'prompt extension resolved: code-review reception',
+     'extension resolved: code-review reception'),
+    ('Documentation', 'prompt extension resolved: PR description',
+     'extension resolved: PR description'),
+)
+
+
+def _extension_rows_block(phase: str) -> str:
+    """The rendered nested rows for one phase, newline-terminated (empty when the
+    phase owns none), for splicing into the `cmd_new_body` template."""
+    return ''.join(
+        f'  - [ ] {text}\n' for row_phase, text, _ in _EXTENSION_ROWS
+        if row_phase == phase
+    )
+
+
 def cmd_new_body(args):
     """Print the lean initial workpad skeleton to stdout, for piping into a file
     and `create`. Deliberately minimal — only what's available before the run
@@ -1647,15 +1687,15 @@ def cmd_new_body(args):
 
 ## Progress
 - [ ] **Setup** — branch & workpad
-  - {seed_ts} — /prflow:implement run started
+{_extension_rows_block('Setup')}  - {seed_ts} — /prflow:implement run started
 - [ ] **Implement**
 {repro}  - [ ] code + sweeps
 - [ ] **Review**
-  - [ ] `/simplify`
+{_extension_rows_block('Review')}  - [ ] `/simplify`
   - [ ] `review-and-fix`
   - [ ] acceptance-criteria gate
 - [ ] **Documentation**
-- [ ] **PR marked ready**
+{_extension_rows_block('Documentation')}- [ ] **PR marked ready**
 
 ## Plan
 - [ ] _(planning in progress)_
@@ -2232,6 +2272,43 @@ def _reconcile_reproduction_row(content: str, classification: str) -> str:
         return content
     new_lines = [ln for i, ln in enumerate(lines) if i not in drop]
     return _join_preserving_newline(new_lines, content)
+
+
+def _reconcile_extension_rows(content: str) -> str:
+    """Idempotently repair the missing prompt-extension `## Progress` rows into a
+    workpad created before they existed (issue #1462), mirroring the shape
+    `_reconcile_reproduction_row` uses.
+
+    A row is detected by its `_EXTENSION_ROWS` substring in ANY tick state, so a
+    present-and-ticked row is left exactly as it is and never duplicated; a
+    missing row is inserted directly under its phase's top-level row. Rows are
+    processed in reverse declared order and each insert lands at the anchor, so a
+    wholly-unrepaired phase ends up carrying them in declared order.
+
+    A phase whose top-level row is absent (a malformed or legacy skeleton) is
+    SKIPPED rather than raising: this runs inside Phase 1.3 hydration, and
+    failing the whole call would cost a resumed run its status reset over a row
+    whose only consequence is a later volatile tick miss. Operates on the
+    `## Progress` section content."""
+    lines = content.split('\n')
+    for phase, text, substr in reversed(_EXTENSION_ROWS):
+        if any(
+            (m := _CHECKBOX_ROW_RE.match(ln)) and substr.lower() in m.group(4).lower()
+            for ln in lines
+        ):
+            continue  # present in any tick state → idempotent no-op
+        anchor = next(
+            (
+                i for i, ln in enumerate(lines)
+                if (m := _TOP_LEVEL_CHECKBOX_RE.match(ln))
+                and phase.lower() in m.group(2).lower()
+            ),
+            None,
+        )
+        if anchor is None:
+            continue
+        lines = lines[:anchor + 1] + [f'  - [ ] {text}'] + lines[anchor + 1:]
+    return _join_preserving_newline(lines, content)
 
 
 def _remove_classification_notes(content: str) -> str:
@@ -3610,6 +3687,7 @@ def _has_non_checkpoint_mutation(args) -> bool:
         args.bind_scope_decisions, args.mark_deferred_filed,
         getattr(args, 'record_completion_evidence', None),
         getattr(args, 'strip_inherited_checkpoints', False),
+        getattr(args, 'reconcile_extension_rows', False),
     ])
 
 
@@ -4333,6 +4411,17 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         content = _reconcile_reproduction_row(content, args.reconcile_reproduction)
         sections[idx] = (heading, content)
 
+    # Repair the prompt-extension Progress rows into a workpad created before
+    # they existed (issue #1462) — idempotent, runs on every Phase 1.3 entry.
+    # Rows insert directly under their phase's top-level row, so they land above
+    # any note this same call already appended to that block.
+    if getattr(args, 'reconcile_extension_rows', False):
+        idx = _find_section(sections, 'Progress')
+        if idx is None:
+            raise _UpdateError("section '## Progress' not found")
+        heading, content = sections[idx]
+        sections[idx] = (heading, _reconcile_extension_rows(content))
+
     # Terminal self-record gate (issue #258): a `--status Complete` write is the
     # deterministic chokepoint that guarantees the workpad's Plan/AC self-record
     # matches reality. It runs LAST, over the *post-mutation* sections, so a call
@@ -4679,6 +4768,12 @@ def main():
                         'present and unticked (a ticked row is preserved), and it '
                         'no-ops when the skeleton already matches. Run on every '
                         'Phase 1.3 entry.')
+    u.add_argument('--reconcile-extension-rows', action='store_true',
+                   help='Idempotently repair the prompt-extension ## Progress '
+                        'rows (issue #1462) into a workpad created before they '
+                        'existed: a row missing in every tick state is inserted '
+                        'under its phase, a present one is left alone. Run on '
+                        'every Phase 1.3 entry.')
     u.add_argument('--checkpoint', nargs=2, metavar=('KEY', 'TEXT'),
                    action='append', default=[],
                    help='Write one timestamped ## Progress row carrying a hidden '

@@ -221,6 +221,8 @@ def make_args(**overrides):
         record_completion_evidence=None, repo_root=None, claim_identity=None,
         # issue #1347 inherited required-artifact strip — read on every call.
         strip_inherited_checkpoints=False,
+        # issue #1462 prompt-extension row reconciliation — read on every call.
+        reconcile_extension_rows=False,
         print_body=False,
     )
     base.update(overrides)
@@ -2017,6 +2019,193 @@ assert_eq("new-body: --no-reproduction omits the bug-only sub-item", False,
           'reproduction captured' in _nb3)
 assert_eq("new-body: --no-reproduction keeps code + sweeps under Implement", True,
           '**Implement**' in _nb3 and '- [ ] code + sweeps' in _nb3)
+
+
+print("workpad prompt-extension Progress rows (issue #1462)")
+
+# One nested `## Progress` checkbox row per consumer prompt-extension surface an
+# implement run consumes through a skill body's own load block. The row is the
+# durable record: `_tick_top_level_progress_phases` leaves nested rows alone at
+# finalization, so an unticked row survives to the finished workpad.
+_XR = workpad._EXTENSION_ROWS
+
+
+def _progress_of(body):
+    """The `## Progress` section content of a workpad body (up to `## Plan`)."""
+    return body.split('## Progress', 1)[1].split('\n## ', 1)[0]
+
+
+def _unticked_matches(progress, substr):
+    """Count unticked rows in `progress` whose text contains `substr`, using the
+    SAME matcher `_tick_checkbox` applies — so this counts what a live
+    `--tick-progress` call would see, not an approximation of it."""
+    n = 0
+    for line in progress.split('\n'):
+        m = _re_1462.match(line)
+        if m and substr.lower() in m.group(3).lower():
+            n += 1
+    return n
+
+
+_re_1462 = re.compile(r'^(\s*[-*]\s+)\[ \](\s+)(.*)$')
+
+# --- the template emits every row, under its intended phase ------------------
+_nb_progress = _progress_of(_nb)
+for _r_phase, _r_text, _r_substr in _XR:
+    assert_eq(f"new-body: emits the {_r_substr!r} extension row", True,
+              f'- [ ] {_r_text}' in _nb_progress)
+
+
+def _phase_block(progress, phase):
+    """The lines of `progress` belonging to `phase`'s top-level block — from its
+    own top-level row to the next top-level row (the same boundary
+    `_append_progress_note` uses), so a row's PHASE placement is asserted rather
+    than its mere presence somewhere in the section."""
+    lines = progress.split('\n')
+    start = next(i for i, ln in enumerate(lines)
+                 if (m := workpad._TOP_LEVEL_CHECKBOX_RE.match(ln))
+                 and phase.lower() in m.group(2).lower())
+    end = next((j for j in range(start + 1, len(lines))
+                if workpad._TOP_LEVEL_CHECKBOX_RE.match(lines[j])), len(lines))
+    return lines[start:end]
+
+
+for _r_phase, _r_text, _r_substr in _XR:
+    assert_eq(f"new-body: {_r_substr!r} row sits under **{_r_phase}**", True,
+              any(_r_text in ln for ln in _phase_block(_nb_progress, _r_phase)))
+
+# --- no new row breaks an EXISTING tick, and each new row ticks uniquely -----
+# The live tick-substring set is DERIVED from the implement phase files rather
+# than transcribed here, so a `--tick-progress` site added later is caught by
+# this assertion instead of silently colliding with a row.
+_PHASES_DIR = Path(__file__).resolve().parents[2] / 'skills' / 'implement' / 'phases'
+_live_ticks = sorted({
+    m.group(1)
+    for _pf in sorted(_PHASES_DIR.glob('*.md'))
+    for m in re.finditer(r'--tick-progress\s+"([^"]+)"',
+                         _pf.read_text(encoding='utf-8'))
+})
+assert_eq("#1462 live tick substrings were derived from the phase files", True,
+          len(_live_ticks) >= 10)
+
+# Both reproduction states, because the row's presence changes the candidate set.
+for _label, _body_1462 in (('repro present', _nb), ('repro absent', _nb3)):
+    _p = _progress_of(_body_1462)
+    for _t in _live_ticks:
+        if 'reproduction captured' in _t and _label == 'repro absent':
+            continue  # the row is legitimately absent on the non-bug skeleton
+        assert_eq(f"#1462 live tick {_t!r} still matches exactly one row ({_label})",
+                  1, _unticked_matches(_p, _t))
+    for _r_phase, _r_text, _r_substr in _XR:
+        assert_eq(f"#1462 extension tick {_r_substr!r} matches exactly one row ({_label})",
+                  1, _unticked_matches(_p, _r_substr))
+
+# The `Documentation` tick's OWN ordering point: `phase-4-documentation.md` ticks
+# it BEFORE the `pr-description` invocation that ticks the new Documentation row,
+# so at that moment the new row is still unticked and any wording containing
+# `Documentation` would give `_tick_checkbox` two candidates and raise.
+_doc_ordering = apply_mut(_nb, make_args(tick_progress=['Documentation']))
+assert_eq("#1462 `Documentation` tick lands with the extension row still unticked", True,
+          '- [x] **Documentation**' in _doc_ordering
+          and f'- [ ] {_XR[-1][1]}' in _doc_ordering)
+# `review-and-fix` is the second live collision: it already labels a Review row.
+_raf_ordering = apply_mut(_nb, make_args(tick_progress=['review-and-fix']))
+assert_eq("#1462 `review-and-fix` tick lands with the Review extension rows unticked", True,
+          '- [x] `review-and-fix`' in _raf_ordering
+          and all(f'- [ ] {t}' in _raf_ordering
+                  for p, t, s in _XR if p == 'Review'))
+
+# --- ticking one row leaves the others alone --------------------------------
+_ticked_one = apply_mut(_nb, make_args(tick_progress=[_XR[0][2]]))
+assert_eq("#1462 ticking an extension row ticks exactly that row", True,
+          f'- [x] {_XR[0][1]}' in _ticked_one
+          and all(f'- [ ] {t}' in _ticked_one for p, t, s in _XR[1:]))
+
+# --- notes still resolve to their phase and land AFTER the new rows ---------
+for _st, _phase in (('Setup', 'Setup'), ('Reviewing', 'Review'),
+                    ('Documenting', 'Documentation')):
+    _noted = apply_mut(_nb, make_args(status=_st, note=[f'n-{_st}']))
+    _blk = _phase_block(_progress_of(_noted), _phase)
+    _note_i = next(i for i, ln in enumerate(_blk) if f'n-{_st}' in ln)
+    _row_is = [i for i, ln in enumerate(_blk)
+               if any(t in ln for p, t, s in _XR if p == _phase)]
+    assert_eq(f"#1462 a {_st} note still nests under **{_phase}**", True, bool(_row_is))
+    assert_eq(f"#1462 a {_st} note lands after that phase's extension row(s)", True,
+              _note_i > max(_row_is))
+
+# --- reconciliation repairs a pre-change workpad, idempotently ---------------
+# Fixture 1: a `## Progress` predating the rows (none present).
+_pre_1462 = """<!-- devflow:workpad -->
+# PRFlow Workpad — Issue #1462
+
+**Status:** 🚀 Setup
+**Branch:** `x`
+**Last updated:** 2026-08-08 00:00 UTC
+
+## Progress
+- [ ] **Setup** — branch & workpad
+  - 00:00:00 — /prflow:implement run started
+- [ ] **Implement**
+  - [ ] code + sweeps
+- [ ] **Review**
+  - [ ] `/simplify`
+  - [ ] `review-and-fix`
+  - [ ] acceptance-criteria gate
+- [ ] **Documentation**
+- [ ] **PR marked ready**
+
+## Plan
+- [ ] a
+
+## Acceptance Criteria
+- [ ] a
+
+## Devflow Reflection
+<details>
+<summary>Devflow Reflection (click to expand)</summary>
+
+</details>
+"""
+_rec1 = apply_mut(_pre_1462, make_args(reconcile_extension_rows=True))
+_rec2 = apply_mut(_rec1, make_args(reconcile_extension_rows=True))
+for _r_phase, _r_text, _r_substr in _XR:
+    assert_eq(f"#1462 reconcile inserts {_r_substr!r} into a pre-change Progress", 1,
+              _rec1.count(f'- [ ] {_r_text}'))
+    assert_eq(f"#1462 reconcile is idempotent for {_r_substr!r}", 1,
+              _rec2.count(f'- [ ] {_r_text}'))
+    assert_eq(f"#1462 reconcile places {_r_substr!r} under **{_r_phase}**", True,
+              any(_r_text in ln
+                  for ln in _phase_block(_progress_of(_rec1), _r_phase)))
+# Fixture 2: rows present and already TICKED — reconcile must not re-insert.
+_ticked_1462 = _rec1
+for _r_phase, _r_text, _r_substr in _XR:
+    _ticked_1462 = _ticked_1462.replace(f'- [ ] {_r_text}', f'- [x] {_r_text}')
+_rec3 = apply_mut(_ticked_1462, make_args(reconcile_extension_rows=True))
+_rec4 = apply_mut(_rec3, make_args(reconcile_extension_rows=True))
+for _r_phase, _r_text, _r_substr in _XR:
+    assert_eq(f"#1462 reconcile leaves a ticked {_r_substr!r} row alone", 1,
+              _rec4.count(f'- [x] {_r_text}'))
+    assert_eq(f"#1462 reconcile adds no duplicate beside a ticked {_r_substr!r}", 0,
+              _rec4.count(f'- [ ] {_r_text}'))
+
+# --- an unticked row survives `--status Complete` ---------------------------
+# This is the property that makes the row durable evidence rather than a
+# transient one: the Complete backstop force-ticks TOP-LEVEL rows only.
+_complete_1462 = apply_mut(_nb, make_args(status='Complete'))
+for _r_phase, _r_text, _r_substr in _XR:
+    assert_eq(f"#1462 unticked {_r_substr!r} row survives Complete finalization", True,
+              f'- [ ] {_r_text}' in _complete_1462)
+
+# --- the wording constraint itself, stated as a property --------------------
+# A new row whose text contained a live tick substring would break that EXISTING
+# tick. Asserting it directly (not only through the match counts above) names the
+# constraint a future reword has to satisfy.
+for _r_phase, _r_text, _r_substr in _XR:
+    for _t in _live_ticks:
+        assert_eq(f"#1462 row {_r_substr!r} does not contain live tick {_t!r}", False,
+                  _t.lower() in _r_text.lower())
+    assert_eq(f"#1462 row text {_r_substr!r} contains its own tick substring", True,
+              _r_substr.lower() in _r_text.lower())
 
 
 print("workpad reproduction-row reconcile + classification-note supersede (issue #449)")
