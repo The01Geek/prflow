@@ -272,7 +272,7 @@
             "important",
             "suggestion"
           ],
-          "description": "Moves ONLY the REJECT line of the shared review engine's Phase 4.2 verdict computation: a finding at or above this severity (severity ordering: critical > important > suggestion), excluding deferral-demoted ones, drives REJECT. All other Phase 4.2 rules and verdict labels are untouched. At the default 'critical' (or when the key is absent) verdict computation is byte-identical to the historical behavior. Both standalone /prflow:review and the Phase-3 pass of /prflow:review-and-fix inherit this. A missing/wrong-type/unknown value falls back to the default with a stderr breadcrumb (never aborts a run).",
+          "description": "Moves the REJECT line of the shared review engine's Phase 4.2 verdict computation and, as its complement, the APPROVE-with-notes boundary: a finding at or above this severity (severity ordering: critical > important > suggestion), excluding deferral-demoted ones, drives REJECT, and a run whose findings all sit below it lands on APPROVE with notes. Those two rules are the only Phase 4.2 rules that read the key; every other Phase 4.2 rule and verdict label is untouched. At the default 'critical' (or when the key is absent) verdict computation is byte-identical to the historical behavior. Both standalone /prflow:review and the Phase-3 pass of /prflow:review-and-fix inherit this. A missing/wrong-type/unknown value falls back to the default with a stderr breadcrumb (never aborts a run).",
           "default": "critical"
         },
         "live_progress_comment_enabled": {

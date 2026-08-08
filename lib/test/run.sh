@@ -6427,9 +6427,8 @@ rm -rf "$S781"
 #
 # Scoped to FENCED command blocks, which is where an interpolation is executed.
 # The surrounding PROSE deliberately still says `$ARGUMENTS` — every occurrence is
-# the rule itself ("never the raw `$ARGUMENTS` string"), the two skill roots'
-# `**Input:**` parse instruction, or Phase 3's note naming the superseded
-# `gh pr diff $ARGUMENTS` form — so a whole-file grep would be RED on the very
+# the rule itself ("never the raw `$ARGUMENTS` string") or the two skill roots'
+# `**Input:**` parse instruction — so a whole-file grep would be RED on the very
 # sentences that state the contract, and could only be made green by deleting them.
 assert_eq "#781: no fenced command in the review engine interpolates the raw \$ARGUMENTS" "none" \
   "$(python3 - "$LIB/../skills/review/SKILL.md" \
