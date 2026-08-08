@@ -372,17 +372,24 @@ anchor-bearing placeholder at all.
    expansion. The design assumes the two differ in kind: Claude Code substitutes the
    anchor in skill markdown **before** the command is analyzed, so the analyzer should
    never see `${…}`, whereas `DEVFLOW_PROMPT_EXTENSION_ROOT` is not a template variable
-   and survives as literal text. **That distinction is assumed, not measured.** If
-   `Contains expansion` is instead a purely syntactic check over `${…}`, every
-   placeholder is refused at render time.
+   and survives as literal text. **Residual 2 is now MEASURED, and the hypothesis above
+   was wrong.** The refusal is real on the cloud headless tier, but its cause is a
+   **phase mismatch**, not a syntactic `${…}` check: `allowed-tools` grants authorize
+   the model's tool calls *after* the skill loads, while `` !`cmd` `` runs *during*
+   loading as a preprocessor, so no grant can reach it (`CLAUDE.md` records the
+   measurement; run `31236010867` / issue #1416 is the observed instance).
 
 **What a refusal costs, and why it is not the abort hazard.** A refused placeholder is
 not the zero-turn abort that a *non-zero exit* from a rendered command causes — the
-recorded refusals surfaced as errors on runs that continued. So the failure mode of
-residual 2 is a **silent degrade to the demoted fallback prose**, i.e. exactly the
-intermittent behavior this change exists to remove, while the changeset claims the load
-is deterministic. Nothing in CI, the suite, or the verdict distinguishes that from
-success. Issue #1264's two live-run acceptance criteria are therefore covering **two**
+recorded refusals surfaced as errors on runs that continued. The predicted failure mode
+of residual 2 was a **silent degrade to the demoted fallback prose**; run `31236010867`
+shows **that degrade did not occur** — the fallback arm was reachable and its predicate
+satisfied, and the run simply did not execute it, completing with the extension never
+loaded. That is why issue #1462 removed the fallback's entry condition entirely: the
+ladder is now invoked unconditionally at all five call sites, so there is no conditional
+arm left for a run to decline. Nothing in CI, the suite, or the verdict distinguishes a
+lost extension from a delivered one; the workpad's per-surface `prompt extension
+resolved: …` rows are the run-authored record that narrows — never closes — that gap. Issue #1264's two live-run acceptance criteria are therefore covering **two**
 unmeasured things rather than one, and the cheapest way to retire residual 2 ahead of
 them is a `matcher-probe.yml` arm carrying a bare-`${CLAUDE_SKILL_DIR}` placeholder.
 The anchor is used anyway because the alternative is worse: this repository has no
