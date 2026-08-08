@@ -360,9 +360,9 @@ slash-command prompt, and that the injected command inherits `$GITHUB_ENV`-expor
 values — so the injected load reads the #874/#1075 trusted base-ref closure rather than
 the working tree, inheriting that property rather than rebuilding it.
 
-**Two unmeasured residuals, stated rather than assumed — and the second is the sharper
-one.** That probe used a **bare literal** path, so no dispatched run has exercised an
-anchor-bearing placeholder at all.
+**Two residuals, stated rather than assumed — the first still unmeasured, the second
+since measured.** That probe used a **bare literal** path, so no dispatched run has
+exercised an anchor-bearing placeholder at all.
 
 1. **Substitution** of `${CLAUDE_SKILL_DIR}` inside placeholder text is inferred from its
    documented substitution in skill markdown content, not established by a dispatch.
@@ -389,9 +389,8 @@ loaded. That is why issue #1462 removed the fallback's entry condition entirely:
 ladder is now invoked unconditionally at all five call sites, so there is no conditional
 arm left for a run to decline. Nothing in CI, the suite, or the verdict distinguishes a
 lost extension from a delivered one; the workpad's per-surface `prompt extension
-resolved: …` rows are the run-authored record that narrows — never closes — that gap. Issue #1264's two live-run acceptance criteria are therefore covering **two**
-unmeasured things rather than one, and the cheapest way to retire residual 2 ahead of
-them is a `matcher-probe.yml` arm carrying a bare-`${CLAUDE_SKILL_DIR}` placeholder.
+resolved: …` rows are the run-authored record that narrows — never closes — that gap. With residual 2 measured, issue #1264's two live-run acceptance criteria now cover
+**one** unmeasured thing — residual 1, the substitution question — rather than two.
 The anchor is used anyway because the alternative is worse: this repository has no
 `.prflow/vendor/prflow/` on its own checkout, so a vendored-literal placeholder would be
 `command not found` here — and a non-zero exit from an injected command aborts the whole
@@ -399,13 +398,15 @@ skill invocation at zero turns, trading a silent policy loss for a silent total 
 failure. Issue #1264's two live-run acceptance criteria are the post-merge checks that
 settle it.
 
-**The three previously-recorded refused shapes are now unreachable on the Claude Code
-path.** The #1258 run's three refused loader invocations
+**The three previously-recorded refused shapes are reachable on every run again (issue
+#1462).** The #1258 run's three refused loader invocations
 (`<workspace-absolute>/skills/review/../../scripts/load-prompt-extension.sh review` with
 and without a trailing `echo`, and the repo-relative `scripts/…` form) were all the
-agent reaching for the loader itself. The agent no longer invokes it when the
-placeholder renders; those shapes survive only on the demoted non-Claude-Code-runner
-fallback path.
+agent reaching for the loader itself. An earlier revision of this page recorded them as
+unreachable because the agent only invoked the loader when the placeholder had *not*
+rendered; that gating is gone — the ladder now runs unconditionally at all five call
+sites — so a grant these shapes need must not be narrowed on the assumption that only a
+non-Claude-Code runner exercises them.
 
 ### Step-level `env:` propagation — still PENDING, but not on a dispatch (issue #874)
 

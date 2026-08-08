@@ -1861,6 +1861,15 @@ assert set(_STATUS_TO_PROGRESS_PHASE.values()) <= set(_PROGRESS_PHASES), (
     f'{set(_STATUS_TO_PROGRESS_PHASE.values()) - set(_PROGRESS_PHASES)}'
 )
 
+# Same guard for the prompt-extension rows (issue #1462): each names the phase it
+# anchors under, and a phase spelling the canonical list does not carry would make
+# `_extension_rows_block` render nothing and `_reconcile_extension_rows` find no
+# anchor — a surface silently absent from every workpad.
+assert {phase for phase, _text, _substr in _EXTENSION_ROWS} <= set(_PROGRESS_PHASES), (
+    'workpad: _EXTENSION_ROWS names a phase not in _PROGRESS_PHASES: '
+    f'{ {phase for phase, _t, _s in _EXTENSION_ROWS} - set(_PROGRESS_PHASES)}'
+)
+
 # A top-level (column-0, no leading whitespace) ## Progress checkbox — one row
 # per lifecycle phase. Nested sub-items (`  - [ ] code + sweeps`) and nested
 # note bullets carry leading whitespace and are deliberately not matched.
@@ -2306,6 +2315,14 @@ def _reconcile_extension_rows(content: str) -> str:
             None,
         )
         if anchor is None:
+            # Legible fail-open: a skip that emitted nothing would be indistinguishable
+            # from a surface that was never in scope, and an ABSENT row is worse than
+            # the unticked row this feature exists to leave behind.
+            sys.stderr.write(
+                f"workpad.py update: WARNING: no '**{phase}**' phase row in "
+                f"## Progress — the '{substr}' extension row was NOT repaired; "
+                f"a later --tick-progress for it will miss.\n"
+            )
             continue
         lines = lines[:anchor + 1] + [f'  - [ ] {text}'] + lines[anchor + 1:]
     return _join_preserving_newline(lines, content)
@@ -4076,6 +4093,27 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     # Section-level mutations.
     preamble, sections = _split_sections(body)
 
+    # ROW-SHAPE REPAIRS RUN BEFORE THE TICKS. Both reconcilers only insert or remove
+    # ## Progress rows, and Phase 1.3 issues them in the SAME `update` call as a tick
+    # — so running them after `_apply_section_ticks` would tick against the
+    # un-repaired section, record a volatile miss, and then insert the very row the
+    # tick wanted, leaving it unticked. `--reconcile-extension-rows` (issue #1462)
+    # repairs the prompt-extension rows into a workpad created before they existed;
+    # its `--reconcile-reproduction` sibling (issue #449) reconciles the bug-only row
+    # to the recorded classification. Both are idempotent and run on every Phase 1.3
+    # entry, and they share one section lookup because they run back to back.
+    _reconcile_ext = getattr(args, 'reconcile_extension_rows', False)
+    if args.reconcile_reproduction or _reconcile_ext:
+        idx = _find_section(sections, 'Progress')
+        if idx is None:
+            raise _UpdateError("section '## Progress' not found")
+        heading, content = sections[idx]
+        if args.reconcile_reproduction:
+            content = _reconcile_reproduction_row(content, args.reconcile_reproduction)
+        if _reconcile_ext:
+            content = _reconcile_extension_rows(content)
+        sections[idx] = (heading, content)
+
     # Progress has no index form (Progress checkboxes stay substring-addressed);
     # Plan/AC accept both the substring and `-n` index forms in one call.
     _apply_section_ticks(
@@ -4403,24 +4441,6 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
 
     # Reconcile the bug-only reproduction Progress row to the classification
     # (issue #449) — idempotent, runs on every Phase 1.3 entry.
-    # `--reconcile-extension-rows` repairs the prompt-extension Progress rows into
-    # a workpad created before they existed (issue #1462) — idempotent, and run
-    # on every Phase 1.3 entry like its reproduction sibling. Rows insert directly
-    # under their phase's top-level row, so they land above any note this same
-    # call already appended to that block. Both reconcilers share one section
-    # lookup because they run back to back over the same section.
-    _reconcile_ext = getattr(args, 'reconcile_extension_rows', False)
-    if args.reconcile_reproduction or _reconcile_ext:
-        idx = _find_section(sections, 'Progress')
-        if idx is None:
-            raise _UpdateError("section '## Progress' not found")
-        heading, content = sections[idx]
-        if args.reconcile_reproduction:
-            content = _reconcile_reproduction_row(content, args.reconcile_reproduction)
-        if _reconcile_ext:
-            content = _reconcile_extension_rows(content)
-        sections[idx] = (heading, content)
-
     # Terminal self-record gate (issue #258): a `--status Complete` write is the
     # deterministic chokepoint that guarantees the workpad's Plan/AC self-record
     # matches reality. It runs LAST, over the *post-mutation* sections, so a call
