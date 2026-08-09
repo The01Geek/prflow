@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+import copy
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -15,6 +17,21 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 HELPER = ROOT / "lib/test/reconcile-module-floors.py"
+REGISTRY = ROOT / "scripts/workflow-flight-recorder-registry.json"
+REAL_RUNNER = ROOT / "lib/test/run-module.sh"
+
+
+def _load_helper_module():
+    """Import reconcile-module-floors.py by path (its hyphenated name blocks a normal
+    import), so a test can reuse the helper's OWN compiled `SUMMARY` pattern and its
+    `_registry_floor_span` scanner rather than re-spelling either."""
+    spec = importlib.util.spec_from_file_location("reconcile_module_floors", HELPER)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+RMF = _load_helper_module()
 
 
 class FloorReconcilerTests(unittest.TestCase):
@@ -46,6 +63,13 @@ root = Path(sys.argv[1])
 args = sys.argv[2:]
 registry = Path(args[args.index("--registry") + 1])
 module_id = args[-1]
+if os.environ.get("DEVFLOW_TEST_EXPERIMENT_FORCE_FAILURE") == "1":
+    # Mirror lib/test/run-module.sh, which injects a failing assertion when this
+    # experiment variable is exported. reconcile() must scrub it from the environment
+    # it hands the focused runner; if it leaks through, the measurement is dirty and the
+    # run refuses. A test exports it to prove the scrub happens.
+    print(f"Module {module_id}: 0 passed, 1 failed")
+    raise SystemExit(1)
 mapping = json.loads(registry.read_text())["test_modules"][module_id]
 if mapping["minimum_assertions"] != 1:
     print("fixture runner: measurement floor was not lowered", file=sys.stderr)
@@ -474,6 +498,245 @@ fi
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         self.assertEqual(self.registry_path.read_bytes(), registry_before)
         self.assertIn("coupled patch was not applied", result.stderr)
+
+    def test_force_failure_experiment_variable_is_scrubbed_from_the_measurement(
+        self,
+    ) -> None:
+        # AC2 (issue #1498). run-module.sh injects a failing assertion when
+        # DEVFLOW_TEST_EXPERIMENT_FORCE_FAILURE is "1" (the fixture runner mirrors that).
+        # An operator who left it exported would get a refusal naming a module rather than
+        # the override, so reconcile() must scrub it from the environment it hands the
+        # focused runner. Exporting it here fails on the pre-fix code (the variable leaks,
+        # the fixture runner injects a failure, the run refuses at rc 2) and passes once
+        # the scrub lands (measurement clean, normal exit).
+        self.write_contract(alpha_floor=3, beta_floor=5)
+        self.settings_path.write_text(
+            json.dumps({"alpha": {"passed": 3}}), encoding="utf-8"
+        )
+        before = (self.registry_path.read_bytes(), self.run_path.read_bytes())
+        environment = os.environ.copy()
+        environment["DEVFLOW_TEST_EXPERIMENT_FORCE_FAILURE"] = "1"
+
+        result = self.run_helper(environment)
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("clean", result.stdout)
+        # A clean measurement equal to both floors writes nothing.
+        self.assertEqual(
+            (self.registry_path.read_bytes(), self.run_path.read_bytes()), before
+        )
+
+    def _write_raw_registry(self, text: str) -> None:
+        """Overwrite the registry with crafted SOURCE text (not json.dumps output), used
+        by the `_registry_floor_span` refusal tests that need a specific byte layout."""
+        self.registry_path.write_text(text, encoding="utf-8")
+
+    def test_duplicate_registry_key_refuses_and_writes_nothing(self) -> None:
+        # AC9 (issue #1498) — _registry_floor_span's first None return: the module key is
+        # matched more than once in the registry SOURCE. A measured raise reaches the span
+        # scanner, which refuses an ambiguous key match rather than rewrite the wrong
+        # object, and the reconciler exits under the INFRASTRUCTURE contract.
+        self.write_contract(alpha_floor=2, beta_floor=3)
+        self._write_raw_registry(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "test_modules": {
+                        "alpha": {
+                            "path": "lib/test/modules/alpha.sh",
+                            "minimum_assertions": 2,
+                            "assertion_floor_policy": "exact",
+                        },
+                        "beta": {
+                            "path": "lib/test/modules/beta.sh",
+                            "minimum_assertions": 3,
+                        },
+                    },
+                    # A decoy key of the same name in an unrelated object makes the source
+                    # match `"alpha"\s*:\s*{` twice while json still parses (one entry).
+                    "workflows": {"alpha": {}},
+                },
+                indent=2,
+            )
+            + "\n"
+        )
+        self.settings_path.write_text(
+            json.dumps({"alpha": {"passed": 4}}), encoding="utf-8"
+        )
+        before = (self.registry_path.read_bytes(), self.run_path.read_bytes())
+
+        result = self.run_helper()
+
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("could not uniquely locate its registry floor token", result.stderr)
+        self.assertEqual(
+            (self.registry_path.read_bytes(), self.run_path.read_bytes()), before
+        )
+
+    def test_duplicate_floor_token_in_module_object_refuses_and_writes_nothing(
+        self,
+    ) -> None:
+        # AC9 (issue #1498) — _registry_floor_span's third None return: a
+        # `minimum_assertions` token matched other than exactly once inside the module's
+        # own object. A nested object carrying a second `minimum_assertions` keeps the JSON
+        # valid (parsed floor is the top-level 2) while the span scan finds two candidates
+        # and refuses.
+        self.write_contract(alpha_floor=2, beta_floor=3)
+        self._write_raw_registry(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "test_modules": {
+                        "alpha": {
+                            "path": "lib/test/modules/alpha.sh",
+                            "minimum_assertions": 2,
+                            "assertion_floor_policy": "exact",
+                            "nested": {"minimum_assertions": 9},
+                        },
+                        "beta": {
+                            "path": "lib/test/modules/beta.sh",
+                            "minimum_assertions": 3,
+                        },
+                    },
+                },
+                indent=2,
+            )
+            + "\n"
+        )
+        self.settings_path.write_text(
+            json.dumps({"alpha": {"passed": 4}}), encoding="utf-8"
+        )
+        before = (self.registry_path.read_bytes(), self.run_path.read_bytes())
+
+        result = self.run_helper()
+
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("could not uniquely locate its registry floor token", result.stderr)
+        self.assertEqual(
+            (self.registry_path.read_bytes(), self.run_path.read_bytes()), before
+        )
+
+    def test_registry_with_no_exact_module_is_infrastructure_and_writes_nothing(
+        self,
+    ) -> None:
+        # AC10 (issue #1498) — a registry declaring no `exact` module makes the reconciler
+        # refuse under the INFRASTRUCTURE contract before any measurement, writing nothing.
+        self.write_contract(alpha_floor=2, beta_floor=3)
+        self._write_raw_registry(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "test_modules": {
+                        "alpha": {
+                            "path": "lib/test/modules/alpha.sh",
+                            "minimum_assertions": 2,
+                        },
+                        "beta": {
+                            "path": "lib/test/modules/beta.sh",
+                            "minimum_assertions": 3,
+                        },
+                    },
+                },
+                indent=2,
+            )
+            + "\n"
+        )
+        before = (self.registry_path.read_bytes(), self.run_path.read_bytes())
+
+        result = self.run_helper()
+
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn(
+            "the registry selects no exact assertion-floor modules", result.stderr
+        )
+        self.assertEqual(
+            (self.registry_path.read_bytes(), self.run_path.read_bytes()), before
+        )
+
+
+class RegistryFloorSpanUnitTests(unittest.TestCase):
+    def test_unbalanced_module_object_returns_none_from_the_span_scan(self) -> None:
+        # AC9 (issue #1498) — _registry_floor_span's second None return: the module
+        # object's brace scan never returns to depth zero.
+        #
+        # This branch is UNREACHABLE end-to-end through reconcile(): reconcile() runs
+        # json.loads(registry_text) before scanning the same text, and JSON and the
+        # string-aware scanner agree on string escaping, so any text whose scan overruns
+        # fails json.loads first (a different INFRASTRUCTURE refusal). The defensive guard
+        # is therefore driven directly against the scanner rather than through the
+        # reconciler's exit contract. See the issue's AC9 issue-accuracy note.
+        overrunning = '"alpha": { "nested": { "minimum_assertions": 2 }'
+        self.assertIsNone(RMF._registry_floor_span(overrunning, "alpha"))
+
+    def test_a_balanced_module_object_locates_its_floor(self) -> None:
+        # Positive control so the None assertion above is not vacuous.
+        balanced = (
+            '{ "test_modules": { "alpha": '
+            '{ "minimum_assertions": 2, "assertion_floor_policy": "exact" } } }'
+        )
+        span = RMF._registry_floor_span(balanced, "alpha")
+        self.assertIsNotNone(span)
+        self.assertEqual(balanced[span[0] : span[1]], "2")
+
+
+class RealRunnerContractTests(unittest.TestCase):
+    def test_reconciler_summary_matches_the_real_runner_for_the_cheapest_module(
+        self,
+    ) -> None:
+        # AC7 / AC8 (issue #1498). Drive the REAL lib/test/run-module.sh — never a double
+        # — over the exact-policy module with the lowest minimum_assertions (resolved from
+        # the registry, so the choice stays self-maintaining and cheap), passing the exact
+        # flag set reconcile() builds, and assert the reconciler's own compiled SUMMARY
+        # pattern matches exactly one line of that runner's stdout for that module id.
+        registry_data = json.loads(REGISTRY.read_text(encoding="utf-8"))
+        modules = registry_data["test_modules"]
+        exact = {
+            module_id: mapping
+            for module_id, mapping in modules.items()
+            if isinstance(mapping, dict)
+            and mapping.get("assertion_floor_policy") == "exact"
+        }
+        self.assertTrue(exact, "the registry declares no exact-policy modules")
+        module_id = min(exact, key=lambda mid: exact[mid]["minimum_assertions"])
+
+        with tempfile.TemporaryDirectory(prefix="devflow-ac7-") as temporary:
+            temporary_path = Path(temporary)
+            # Lower the target module's floor to 1 exactly as reconcile() does for its
+            # measurement registry, so a passing focused run cannot be refused for a floor.
+            measurement = copy.deepcopy(registry_data)
+            measurement["test_modules"][module_id]["minimum_assertions"] = 1
+            measurement_registry = temporary_path / "registry.json"
+            measurement_registry.write_text(
+                json.dumps(measurement, indent=2) + "\n", encoding="utf-8"
+            )
+            log_dir = temporary_path / f"logs-{module_id}"
+            proc = subprocess.run(
+                [
+                    os.environ.get("DEVFLOW_BASH") or "bash",
+                    str(REAL_RUNNER),
+                    "--registry",
+                    str(measurement_registry),
+                    "--log-dir",
+                    str(log_dir),
+                    module_id,
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        matches = [
+            match
+            for match in RMF.SUMMARY.finditer(proc.stdout)
+            if match.group("module") == module_id
+        ]
+        self.assertEqual(len(matches), 1, proc.stdout + proc.stderr)
+        summary = matches[0]
+        self.assertEqual(int(summary.group("failed")), 0, proc.stdout)
+        self.assertIn(summary.group("skipped"), (None, "0"), proc.stdout)
+        self.assertGreater(int(summary.group("passed")), 0, proc.stdout)
 
 
 if __name__ == "__main__":

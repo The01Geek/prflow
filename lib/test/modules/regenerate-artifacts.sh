@@ -1526,6 +1526,82 @@ assert_eq "#1055 a silent full write is infrastructure, never reconciled" \
 _ra_has "#1055 a silent full write is reported as unattributable" \
   "$RA_1055_SILENT" "without announcing a raise"
 
+# ── #1498 — the three unreached _monotonic_outcome classes and the clean text ──
+# Each plants a stand-in reconcile-module-floors.py (the RA_1055_PARTIAL/SILENT shape,
+# with RA_FLOOR_RUNNER still exported as the stub floor runner) so the batched row's
+# exact-module-floors classifier is driven to one specific outcome without running the
+# eleven real module measurements. Each pins the class's own distinguishing text AND the
+# batched pass's resulting exit code (2 for the three INFRASTRUCTURE classes, 0 for clean).
+
+# (1) A declared coupled output left absent after the run → INFRASTRUCTURE (exit 2). The
+# stand-in exits 0 (inside the row's `clean`/`exits`) but removes one declared output, so
+# the after-snapshot sees it absent — the branch checked before the clean/changed logic.
+RA_1498_ABSENT="$_ra_tmp_root/issue-1498-absent-output"; _ra_fixture "$RA_1498_ABSENT"
+cat > "$RA_1498_ABSENT/lib/test/reconcile-module-floors.py" <<'PY'
+#!/usr/bin/env python3
+from pathlib import Path
+
+# Remove one declared coupled output so the row's after-snapshot reads it as absent.
+Path("lib/test/run.sh").unlink()
+PY
+chmod 755 "$RA_1498_ABSENT/lib/test/reconcile-module-floors.py"
+_ra_run "$RA_1498_ABSENT"
+assert_eq "#1498 a declared output left absent is infrastructure (exit 2)" \
+  "2" "$(_ra_rc "$RA_1498_ABSENT")"
+_ra_has "#1498 the row reports the declared output(s) left absent" \
+  "$RA_1498_ABSENT" "left declared output(s) absent"
+
+# (2) A non-clean exit that nonetheless mutated a declared output → INFRASTRUCTURE (exit
+# 2), the classifier's most alarming state. The stand-in exits 1 (inside `exits`, outside
+# `clean`) after appending a byte to one coupled output.
+RA_1498_REFUSAL="$_ra_tmp_root/issue-1498-refusal-mutated"; _ra_fixture "$RA_1498_REFUSAL"
+cat > "$RA_1498_REFUSAL/lib/test/reconcile-module-floors.py" <<'PY'
+#!/usr/bin/env python3
+import sys
+from pathlib import Path
+
+path = Path("scripts/workflow-flight-recorder-registry.json")
+path.write_bytes(path.read_bytes() + b"\n")
+sys.exit(1)
+PY
+chmod 755 "$RA_1498_REFUSAL/lib/test/reconcile-module-floors.py"
+_ra_run "$RA_1498_REFUSAL"
+assert_eq "#1498 a non-clean run that mutated declared outputs is infrastructure (exit 2)" \
+  "2" "$(_ra_rc "$RA_1498_REFUSAL")"
+_ra_has "#1498 the row reports a mutation despite the refusal contract" \
+  "$RA_1498_REFUSAL" "despite its refusal contract"
+
+# (3) A non-clean exit that wrote nothing and announced no recognized refusal marker →
+# INFRASTRUCTURE (exit 2). The stand-in exits 1, changes nothing, prints nothing.
+RA_1498_NOMARKER="$_ra_tmp_root/issue-1498-no-marker"; _ra_fixture "$RA_1498_NOMARKER"
+cat > "$RA_1498_NOMARKER/lib/test/reconcile-module-floors.py" <<'PY'
+#!/usr/bin/env python3
+import sys
+
+sys.exit(1)
+PY
+chmod 755 "$RA_1498_NOMARKER/lib/test/reconcile-module-floors.py"
+_ra_run "$RA_1498_NOMARKER"
+assert_eq "#1498 a non-clean run with no refusal marker is infrastructure (exit 2)" \
+  "2" "$(_ra_rc "$RA_1498_NOMARKER")"
+_ra_has "#1498 the row reports the absent non-writing refusal marker" \
+  "$RA_1498_NOMARKER" "recognized non-writing refusal marker"
+
+# (4) AC4 — the clean class's OWN text. The stand-in exits 0 and changes nothing, so the
+# monotonic classifier reports every measured tally matching both floors and the batched
+# pass exits 0. (The A1 prefix loop above still covers the live tree; this pins the text.)
+RA_1498_CLEAN="$_ra_tmp_root/issue-1498-clean-text"; _ra_fixture "$RA_1498_CLEAN"
+cat > "$RA_1498_CLEAN/lib/test/reconcile-module-floors.py" <<'PY'
+#!/usr/bin/env python3
+# Clean: exit 0, change nothing.
+PY
+chmod 755 "$RA_1498_CLEAN/lib/test/reconcile-module-floors.py"
+_ra_run "$RA_1498_CLEAN"
+assert_eq "#1498 a clean measured tally exits 0" \
+  "0" "$(_ra_rc "$RA_1498_CLEAN")"
+_ra_has "#1498 the clean class pins its own text" \
+  "$RA_1498_CLEAN" "clean — every measured tally matches both floors"
+
 # ── A5 — exit 2 on an ABSENT generator, and exit 2 wins over a judgment item ─
 # An absent script is reported by the INTERPRETER as exit 2 ("can't open file"), which
 # the helper catches in its declared-set branch — NOT the OSError launch-failure branch

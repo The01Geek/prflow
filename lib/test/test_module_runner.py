@@ -1290,13 +1290,31 @@ class ModuleRunnerTests(unittest.TestCase):
                 encoding="utf-8"
             )
         )
-        exact_modules = [
+        exact_modules = sorted(
             module_id
             for module_id, mapping in registry["test_modules"].items()
             if mapping.get("assertion_floor_policy") == "exact"
-        ]
+        )
 
-        self.assertEqual(len(exact_modules), 11)
+        # Naming the population (rather than counting it) makes an accidental add or
+        # removal of an exact-policy module a diff a reviewer reads, not a bare number
+        # that two unrelated changes could keep at the same total.
+        self.assertEqual(
+            exact_modules,
+            [
+                "capability-profiles",
+                "create-issue-contract",
+                "efficiency-trace-telemetry",
+                "experiment-records",
+                "harness-python-guards",
+                "installer-wiring",
+                "issue-audit-state",
+                "prompt-extension-reader",
+                "review-and-fix-contract",
+                "review-stall-backstop",
+                "review-trigger-helpers",
+            ],
+        )
 
     def test_every_on_disk_module_is_fully_wired(self) -> None:
         # Issue #757: REVERSE orphan check. Enumerate the modules that exist ON DISK
