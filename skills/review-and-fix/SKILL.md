@@ -324,8 +324,6 @@ Every step reference loads at entry, **before any action in that step**, and a r
 
 **Failure-map (per reference):**
 
-<!-- Coupled mirror: the no-`Complete` predicate in the `shadow-review.md` row below is stated in full in `references/shadow-review.md` ("`coverage: "not_verified"` is never elective") too. The copy is intended — this row fires precisely when that reference cannot be read, so a pointer would resolve to nothing. Edit both together. -->
-
 | Unreadable reference | Outcome |
 | --- | --- |
 | `pre-fix-gates.md` | **STOP before any mutation.** No fix without gate coverage. Record a `blocked` reflection; report non-convergence. |
