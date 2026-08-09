@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1507",
+  "generated_at": "2026-08-09T21:44:10Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.31.62",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 6.971978999999999,
+    "tokens": {
+      "input_tokens": 39,
+      "output_tokens": 25922,
+      "cache_read_input_tokens": 2957274,
+      "cache_creation_input_tokens": 186657,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 110,
+        "outputTokens": 50968,
+        "cacheReadInputTokens": 4865193,
+        "cacheCreationInputTokens": 410347,
+        "webSearchRequests": 0,
+        "costUSD": 6.971978999999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 34,
+    "duration_ms": 539352
+  },
+  "permission_denials": {
+    "count": 16,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-UNSET}\"",
+      "RUN_ID=\"${GITHUB_RUN_ID:-local-$(date -u +%Y%m%dT%H%M%SZ)}-${GITHUB_RUN_ATTEMPT:-1}\"; echo \"run-id=$RUN_ID\"",
+      "echo \"run=$GITHUB_RUN_ID attempt=$GITHUB_RUN_ATTEMPT\"",
+      "/home/runner/work/prflow/prflow/skills/review/../../scripts/seed-review-progress.sh \"1507\" \"\" .prflow/tmp/review/pr-1507/31337161079-1/review-wp.md ; echo \"seed-rc=$?\"",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before",
+      ".prflow/vendor/prflow/scripts/resolve-review-overrides.py \"prflow:code-reviewer\" \"prflow:silent-failure-hunter\" \"prflow:comment-analyzer\" \"prflow:requesting-code-review\" 2>.prflow/tmp/review/pr-1507/31337161079-1/rv-ovr.phase3.err ; echo \"ovr-rc=$?\"; echo \"--- stderr ---\"; cat .prflow/tmp/review/pr-1507/31337161079-1/rv-ovr.phase3.err",
+      "tmp=$(mktemp -d) && cp -r skills \"$tmp/\" && cp .prflow/tmp/review/pr-1507/31337161079-1/diff.patch \"$tmp/d.patch\" && cd \"$tmp\" && git apply --include='skills/*' d.patch 2>&1 | head; echo \"---\"; sha256sum skills/review-and-fix/SKILL.md skills/review-and-fix/references/shadow-review.md",
+      "tmp=$(mktemp -d); cp -r skills \"$tmp/skills\"; git apply --directory=\"$tmp\" --include='skills/*' .prflow/tmp/review/pr-1507/31337161079-1/diff.patch; echo \"apply-rc=$?\"; sha256sum \"$tmp/skills/review-and-fix/SKILL.md\" \"$tmp/skills/review-and-fix/references/shadow-review.md\"",
+      "mkdir -p /tmp/w/skills && cp -r skills/review-and-fix /tmp/w/skills/ && git apply --directory=/tmp/w .prflow/tmp/review/pr-1507/31337161079-1/diff.patch --include skills/review-and-fix/SKILL.md --include skills/review-and-fix/references/shadow-review.md && sha256sum /tmp/w/skills/review-and-fix/SKILL.md /tmp/w/skills/review-and-fix/references/shadow-review.md",
+      "for f in skills/review-and-fix/SKILL.md skills/review-and-fix/references/shadow-review.md; do printf '%s  ' \"$f\"; sha256sum \"$f\" | cut -d' ' -f1; done",
+      "mkdir -p /tmp/w/skills/review-and-fix/references && cp skills/review-and-fix/SKILL.md /tmp/w/skills/review-and-fix/ && cp skills/review-and-fix/references/shadow-review.md /tmp/w/skills/review-and-fix/references/ && git apply --directory=/tmp/w .prflow/tmp/review/pr-1507/31337161079-1/diff.patch --include 'skills/review-and-fix/SKILL.md' --include 'skills/review-and-fix/references/shadow-review.md' && sha256sum /tmp/w/skills/review-and-fix/SKILL.md /tmp/w/skills/review-and-fix/references/shadow- …[per-command-truncated]",
+      "for f in skills/review-and-fix/SKILL.md skills/review-and-fix/references/shadow-review.md; do h=$(git show 407a766:\"$f\" | sha256sum | cut -d' ' -f1); echo \"$f $h\"; done",
+      "cd /tmp && rm -rf pr1507 && git -C /home/runner/work/prflow/prflow worktree add -q /tmp/pr1507 407a766 2>&1 | tail -2; ls /tmp/pr1507/scripts/validate-cloud-writer-contract.py 2>&1",
+      "git -C /home/runner/work/prflow/prflow worktree add -q /tmp/pr1507 407a766 2>&1 | tail -3",
+      "git -C /home/runner/work/prflow/prflow worktree add -q /tmp/pr1507 407a766",
+      "git -C /home/runner/work/prflow/prflow grep -l \"shadow-review\" -- 'lib/test/*' 2>/dev/null | head"
+    ],
+    "total": 16,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
