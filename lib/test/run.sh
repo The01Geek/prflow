@@ -3898,6 +3898,43 @@ if [ -d "$DT_E" ]; then
     "agent edit" "$(cat "$DT_E/plain.txt" 2>/dev/null)"
   rm -rf "$DT_E" "$DT_E_B" "$DT_E_AF"
 fi
+# Case D3 — the same central by-path property as case D, carried on a GLOB-metacharacter and a
+# NEWLINE-containing pathname. Every case above reaches the BEFORE-membership scan only through
+# the spaced path `my file.txt`, and a space is inert under glob pattern matching: a membership
+# test rewritten from `[ "$bp" = "${rec:3}" ]` to `[[ $bp == ${rec:3} ]]` leaves the spaced
+# fixtures GREEN while silently clobbering a concurrent orchestrator edit whose path contains
+# `[`, `*` or `?` (both directions measured on bash 3.2.57).
+DT_D3="$(dt_make_repo)"
+if [ -d "$DT_D3" ]; then
+  DT_D3_B="$(probe_tmp "#1470 case-D3 before")"; DT_D3_AF="$(probe_tmp "#1470 case-D3 after")"
+  DT_D3_NL="$(printf 'new\nline.txt')"
+  printf brack > "$DT_D3/g[ab].txt"; printf nl > "$DT_D3/$DT_D3_NL"; printf star > "$DT_D3/f*.txt"
+  git -C "$DT_D3" add -A; git -C "$DT_D3" commit -qm special
+  printf 'concurrent edit' > "$DT_D3/g[ab].txt"   # orchestrator's OWN edit — glob metacharacters
+  printf 'concurrent nl' > "$DT_D3/$DT_D3_NL"     # orchestrator's OWN edit — embedded newline
+  git -C "$DT_D3" status --porcelain -z > "$DT_D3_B"
+  printf 'agent edit' > "$DT_D3/f*.txt"           # a DIFFERENT glob path dirtied DURING the window
+  git -C "$DT_D3" status --porcelain -z > "$DT_D3_AF"
+  ( cd "$DT_D3" && GIT_SNAP_BEFORE="$DT_D3_B" GIT_SNAP_AFTER="$DT_D3_AF" bash "$DT_REGION" ) >/dev/null 2>&1
+  assert_eq "#1470 backstop: an already-dirty GLOB-metacharacter path is NOT clobbered by the restore" \
+    "concurrent edit" "$(cat "$DT_D3/g[ab].txt" 2>/dev/null)"
+  assert_eq "#1470 backstop: an already-dirty NEWLINE-containing path is NOT clobbered by the restore" \
+    "concurrent nl" "$(cat "$DT_D3/$DT_D3_NL" 2>/dev/null)"
+  assert_eq "#1470 backstop: a newly-dirtied glob-metacharacter path IS restored to HEAD" \
+    "star" "$(cat "$DT_D3/f*.txt" 2>/dev/null)"
+  rm -rf "$DT_D3" "$DT_D3_B" "$DT_D3_AF"
+fi
+# DEFERRAL (#1470 review, Important 2 — `set -u` guard coverage): deliberately NOT tested.
+# The `${before_paths[@]+…}` guard in the extracted region is defensive only. (1) No production
+# path runs that region under `set -u`: it is agent-executed prose from a Read-loaded phase
+# reference (never sourced into a workflow `run:` step), and no
+# `set -u` appears anywhere in the review prompt surface. (2) Bash stopped erroring on
+# `"${empty[@]}"` under `set -u` in 4.4, so the guard is a no-op on every bash the suite runs
+# (CI ubuntu 5.x; maintainer host PATH bash 5.3) — a committed case cannot go RED there, and a
+# vacuous guard is what this suite's mutation-check discipline forbids. (3) Measured on bash
+# 3.2.57, removing the guard fails CLOSED and loud: `unbound variable` on stderr and the region
+# aborts before restoring anything, so no concurrent edit is clobbered.
+# Revisit if the region ever gains a caller that sets `set -u`, or is relocated into a helper.
 rm -f "$DT_REGION"
 # #484: exercise the COMPLETE Phase 3.2 wrapper, including regular-file/OID authentication.
 # The older region above intentionally starts after those guards and cannot prove their behavior.
