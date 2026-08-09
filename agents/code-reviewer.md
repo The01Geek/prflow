@@ -80,5 +80,3 @@ Start by listing what you're reviewing. For each high-confidence issue provide:
 Group issues by severity (Critical: 90-100, Important: 80-89).
 
 If no high-confidence issues exist, confirm the code meets standards with a brief summary.
-
-Be thorough but filter aggressively - quality over quantity. Focus on issues that truly matter.
