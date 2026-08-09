@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1503",
+  "generated_at": "2026-08-09T22:55:51Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.31.66",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 6.344243250000002,
+    "tokens": {
+      "input_tokens": 47,
+      "output_tokens": 19409,
+      "cache_read_input_tokens": 3548201,
+      "cache_creation_input_tokens": 169778,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 73,
+        "outputTokens": 42674,
+        "cacheReadInputTokens": 4011584,
+        "cacheCreationInputTokens": 421531,
+        "webSearchRequests": 0,
+        "costUSD": 6.344243250000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 32,
+    "duration_ms": 377282
+  },
+  "permission_denials": {
+    "count": 4,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=$GITHUB_RUN_ID ATTEMPT=${GITHUB_RUN_ATTEMPT:-1}\"; gh pr view 1503 --json headRefName,baseRefName,baseRefOid,headRefOid,title,body,state,url --jq '{headRefName,baseRefName,baseRefOid,headRefOid,title,state,url}'",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve 1494 --pr 1503 2>.prflow/tmp/review/pr-1503/run/acs.err ; echo \"acs-rc=$?\"",
+      "rm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null; git status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before",
+      "cat /home/runner/work/prflow/prflow/.prflow/tmp/displaced-paths.txt 2>/dev/null; echo \"---HEADS---\"; git -C /home/runner/work/prflow/prflow log --oneline -3 2>/dev/null; echo \"---\"; ls /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1503/run/"
+    ],
+    "total": 4,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
