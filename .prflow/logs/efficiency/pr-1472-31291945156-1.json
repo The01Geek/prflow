@@ -113,5 +113,61 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.31.51",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 11.309359000000002,
+    "tokens": {
+      "input_tokens": 81,
+      "output_tokens": 47010,
+      "cache_read_input_tokens": 8061123,
+      "cache_creation_input_tokens": 250898,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 190,
+        "outputTokens": 86668,
+        "cacheReadInputTokens": 9192583,
+        "cacheCreationInputTokens": 576728,
+        "webSearchRequests": 0,
+        "costUSD": 11.309359000000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 65,
+    "duration_ms": 887079
+  },
+  "permission_denials": {
+    "count": 8,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-unset}\"",
+      "echo \"RUN_ID=$GITHUB_RUN_ID ATTEMPT=$GITHUB_RUN_ATTEMPT\"; echo \"---status---\"; git status --porcelain; echo \"---pr---\"; gh pr view 1472 --json headRefName,baseRefName,baseRefOid,headRefOid,body,closingIssuesReferences --jq '{head:.headRefName,base:.baseRefName,baseOid:.baseRefOid,headOid:.headRefOid,closes:.closingIssuesReferences}'",
+      ".prflow/vendor/prflow/scripts/workpad.py patch 5229532584 .prflow/tmp/review/pr-1472/31291945156-1/review-wp.md 2>.prflow/tmp/review/pr-1472/31291945156-1/rv-patch.err ; echo \"patch-rc=$?\"",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve \"1466\" --pr \"1472\" 2>.prflow/tmp/review/pr-1472/31291945156-1/acs.err ; echo \"acs-rc=$?\"",
+      "line=$(grep -nF '`init` → the pre-dispatch canonical-draft write' skills/create-issue/references/step-3-6-audit.md | cut -d: -f1); echo \"seq line: $line\"\nsed -n \"${line}p\" skills/create-issue/references/step-3-6-audit.md | grep -oE 'query-round-kind|record-staged-write|query-draft-binding|write-dispatch-scope|record-finding-evidence' | sort | uniq -c",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before && [ -f .prflow/tmp/review-dirty-tree-before ] && git hash-object .prflow/tmp/review-dirty-tree-before && echo \"snap-ok\" || echo \"snap-failed\"",
+      "cd /home/runner/work/prflow/prflow; for c in write-dispatch-scope record-finding-evidence; do echo \"== $c ==\"; grep -rn \"$c\" skills/create-issue/references/step-3-6-audit.md skills/create-issue/references/step-4-present-create.md; done",
+      "echo \"=== independent enumeration: issue-audit-state.py subcommands fenced in the two reference files ===\"\nfor f in skills/create-issue/references/step-3-6-audit.md skills/create-issue/references/step-4-present-create.md; do\n  echo \"--- $f ---\"\n  grep -nE 'issue-audit-state\\.py[[:space:]]+[a-z]' \"$f\" | grep -oE 'issue-audit-state\\.py[[:space:]]+[a-z-]+' | sort | uniq -c\ndone\necho \"=== _FENCE_EXEMPT and _CONDITIONAL constants ===\"\ngrep -nE '_FENCE_EXEMPT|_CONDITIONAL[[:space:]]*=' lib/test/check- …[per-command-truncated]"
+    ],
+    "total": 8,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
