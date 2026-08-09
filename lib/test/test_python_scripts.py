@@ -5632,6 +5632,23 @@ _ac2_1405 = _rows_1405(["see #402 checks for the list."] + _ASSERT2_1405)
 assert_eq("#1405/AC2: `see #402 checks` emits no STALE row (numeral lookbehind; noun is plural)",
           [], [(r.verdict, r.rule) for r in _ac2_1405 if r.verdict == stale_prose_lint.STALE])
 
+# AC2b (carried Suggestion from PR #1412) — AC2 above exercises only the `#` member of
+# _NUM_LOOKBEHIND, leaving its `§` / `.` / `-` members live but unasserted: dropping any one of
+# them from the character class re-admits its own fixture below as a gating count claim, so this
+# covers the rest of the class. Each line pairs a plural noun with an adjacent block of a
+# differing size, so a member that stops guarding surfaces as a STALE R3 rather than as silence.
+_ac2b_1405 = {
+    "-": "superseded by -5 checks in the table.",
+    "§": "see §5 checks for the list.",
+    ".": "see v1.5 checks for the list.",
+}
+assert_eq("#1405/AC2b: the `§` / `.` / `-` members of _NUM_LOOKBEHIND each block a glued numeral "
+          "(no STALE row for any of them)",
+          [(k, []) for k in _ac2b_1405],
+          [(k, [(r.verdict, r.rule) for r in _rows_1405([line] + _ASSERT2_1405)
+                if r.verdict == stale_prose_lint.STALE])
+           for k, line in _ac2b_1405.items()])
+
 # AC3 — a genuine PLURAL count claim still gates; its matched-count sibling is VERIFIED.
 _ac3_1405 = _rows_1405(["This header locks in 3 assertions below:"] + _ASSERT2_1405)
 assert_eq("#1405/AC3: a real plural count claim (`3 assertions`, block has 2) still gates STALE R3",
