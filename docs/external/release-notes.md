@@ -9,7 +9,7 @@ This page summarizes user-visible PRFlow changes. For a complete change history,
 
 **Legacy review tier:** Entries about automatic pull-request-triggered review apply only to repositories that installed that tier before July 29, 2026. Fresh installations do not receive it. Use a collaborator comment with `/prflow:review` for the supported cloud review path.
 
-## August 8, 2026
+## August 9, 2026
 
 - **Your prompt extensions are now fetched unconditionally, and an implementation run records what it resolved.** The August 5 change delivered `.prflow/prompt-extensions/<skill>.md` as prompt text prepared before the run starts, and demoted the older in-run load to a fallback taken only when that preparation had not delivered. On hosted runs the preparation is refused silently, and a run could then skip the fallback and complete having applied none of your policy — reporting success with nothing to distinguish it from a run that had applied all of it. Both channels now run every time, at all four skills that consume an extension: `/prflow:review`, `/prflow:review-and-fix` (its own extension and `receiving-code-review.md`), `/prflow:implement` and `/prflow:pr-description`. There is no longer a condition a run can decline to evaluate, and where both channels deliver they carry the same content. A `/prflow:implement` workpad's Progress checklist also gains one `prompt extension resolved: …` row per extension the run consumes, written whether or not the run cooperates; an unticked row is that run's own record that it did not establish that extension's state. A workpad created before this change has the rows repaired in on the next run that resumes it. [#1462](https://github.com/The01Geek/prflow/issues/1462)
 

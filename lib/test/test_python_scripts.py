@@ -2124,6 +2124,7 @@ for _label, _body_1462 in (('repro present', _nb), ('repro absent', _nb3)):
 # so at that moment the new row is still unticked and any wording containing
 # `Documentation` would give `_tick_checkbox` two candidates and raise.
 _doc_row_text = next(t for p, t, s in _XR if p == 'Documentation')
+_doc_row_substr = next(s for p, t, s in _XR if p == 'Documentation')
 _doc_ordering = apply_mut(_nb, make_args(tick_progress=['Documentation']))
 assert_eq("#1462 `Documentation` tick lands with the extension row still unticked", True,
           '- [x] **Documentation**' in _doc_ordering
@@ -2189,7 +2190,9 @@ _pre_1462 = """<!-- devflow:workpad -->
 
 </details>
 """
-_rec1 = apply_mut(_pre_1462, make_args(reconcile_extension_rows=True))
+_rec1_stderr_1462 = io.StringIO()
+with contextlib.redirect_stderr(_rec1_stderr_1462):
+    _rec1 = apply_mut(_pre_1462, make_args(reconcile_extension_rows=True))
 _rec2 = apply_mut(_rec1, make_args(reconcile_extension_rows=True))
 for _r_phase, _r_text, _r_substr in _XR:
     assert_eq(f"#1462 reconcile inserts {_r_substr!r} into a pre-change Progress", 1,
@@ -2236,7 +2239,9 @@ for _r_phase, _r_text, _r_substr in _XR:
 # — and the other phases' rows still land.
 _noanchor_1462 = '\n'.join(
     ln for ln in _pre_1462.split('\n') if ln != '- [ ] **Documentation**')
-_rec_na = apply_mut(_noanchor_1462, make_args(reconcile_extension_rows=True))
+_na_stderr_1462 = io.StringIO()
+with contextlib.redirect_stderr(_na_stderr_1462):
+    _rec_na = apply_mut(_noanchor_1462, make_args(reconcile_extension_rows=True))
 assert_eq("#1462 a missing phase anchor skips only that row, without raising", 0,
           _rec_na.count(f'- [ ] {_doc_row_text}'))
 for _r_phase, _r_text, _r_substr in _XR:
@@ -2244,6 +2249,15 @@ for _r_phase, _r_text, _r_substr in _XR:
         continue
     assert_eq(f"#1462 a missing anchor still lands the {_r_substr!r} row", 1,
               _rec_na.count(f'- [ ] {_r_text}'))
+# The skip is a LEGIBLE fail-open, not a silent one — asserting only non-raise and
+# non-insertion would leave the breadcrumb free to be deleted, and a silent skip is
+# indistinguishable from a surface that was never in scope.
+assert_eq("#1462 the missing-anchor skip emits a breadcrumb naming the phase and row",
+          True,
+          "no '**Documentation**' phase row" in _na_stderr_1462.getvalue()
+          and _doc_row_substr in _na_stderr_1462.getvalue())
+assert_eq("#1462 a reconcile that repairs every row emits no missing-anchor breadcrumb",
+          '', _rec1_stderr_1462.getvalue())
 
 # The ONLY live call shape: Phase 1.3 issues both reconcilers AND a tick in one call.
 # The repairs must run before the ticks, or the tick misses the row it is about to
@@ -2263,6 +2277,19 @@ assert_eq("#1462 a combined call still reconciles the reproduction row", True,
 for _r_phase, _r_text, _r_substr in _XR[1:]:
     assert_eq(f"#1462 a combined call still repairs the {_r_substr!r} row", 1,
               _combined.count(f'- [ ] {_r_text}'))
+
+# An ABSENT `## Progress` is structural — no PATCH — and the reconcile block now
+# reaches that raise for this flag independently of `--reconcile-reproduction`, so it
+# needs its own driver: a silent no-op here would let a legacy workpad take a Status
+# reset while the rows it was asked to repair were never created.
+_noprogress_1462 = _pre_1462.replace(
+    _pre_1462[_pre_1462.index('## Progress'):_pre_1462.index('## Plan')], '')
+assert_eq("#1462 the fixture for the absent-section arm really has no ## Progress",
+          False, '## Progress' in _noprogress_1462)
+assert_raises("#1462 --reconcile-extension-rows alone over a body with no ## Progress "
+              "raises structurally", workpad._UpdateError,
+              lambda: apply_mut(_noprogress_1462,
+                                make_args(reconcile_extension_rows=True)))
 
 # The argparse surface itself: the flag's CLI spelling is what `phase-1-setup.md`
 # emits, so a parser that no longer declares it exits 2 on "unrecognized arguments"
