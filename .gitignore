@@ -45,10 +45,12 @@
 # Committed declarative lint manifest (issue #1276) — the versioned, declarative
 # description of the bounded lint toolchain (exact ShellCheck/Ruff versions, per
 # platform artifact digests, selectors, exclusions, special-invocation IDs,
-# timeout bounds, full-profile IDs). Re-included past the /.prflow/* rule so the
-# plugin ships it and a clean checkout / ordinary `git add -A` keeps it tracked.
-# (The paired .prflow/install-state.json marker is added with the installer that
-# publishes it — see the follow-up issue.)
+# timeout bounds, full-profile IDs). Re-included past the /.prflow/* rule so a
+# clean checkout / ordinary `git add -A` keeps it tracked. It is NOT shipped to
+# consumers: devflow_copy_slice copies an explicit three-file list from .prflow/
+# (config.example.json, config.schema.json, tool-presets.json), so a consumer
+# installs scripts/lint_manifest.py with no manifest for it to read. Whether the
+# manifest should ship is issue #1388's decision.
 !/.prflow/lint-manifest.json
 # DevFlow's own consumer prompt extensions (e.g. the dogfooded versioning rule in
 # implement.md). Tracked so a clean checkout — and CI — sees the re-homed policy.

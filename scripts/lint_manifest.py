@@ -56,6 +56,8 @@ _FLAG_RE = re.compile(r"\A--[a-z0-9][a-z0-9-]*(=[A-Za-z0-9._-]+)?\Z")
 # A glob is a repo-relative selector pattern: path separators and glob
 # metacharacters only. `$` (env expansion), whitespace, and shell metacharacters
 # are rejected, so a URL template or command string can never masquerade as one.
+# The character class alone does NOT make a value repo-relative or argv-safe —
+# `_validate_path_shape` below enforces those two properties separately.
 _GLOB_RE = re.compile(r"\A[A-Za-z0-9._*/?\[\]{}-]+\Z")
 
 # Timeout bounds (seconds). A value outside the inclusive range is rejected.
@@ -337,22 +339,54 @@ def _validate_selectors(selectors, out_ids: set[str]) -> ManifestResult:
         out_ids.add(sid)
         if sel["language"] not in KNOWN_LANGUAGES:
             return _unestablished(f"unknown-enum: {where} language {sel['language']!r}")
-        glob_result = _validate_globs(where, sel["include_globs"])
+        glob_result = _validate_globs(where, sel["include_globs"], label="include_globs")
         if not glob_result.established:
             return glob_result
         if "exclude_globs" in sel:
-            glob_result = _validate_globs(where, sel["exclude_globs"])
+            glob_result = _validate_globs(where, sel["exclude_globs"], label="exclude_globs")
             if not glob_result.established:
                 return glob_result
     return _established(selectors)
 
 
-def _validate_globs(where, globs) -> ManifestResult:
+def _validate_path_shape(where, label, value) -> str | None:
+    """Reject a path-shaped value that is not a repo-relative, argv-safe pattern.
+
+    Returns a reason string on rejection, or `None` when the value is acceptable.
+    Three properties beyond `_GLOB_RE`'s character class:
+
+    * **argv-safe** — a leading `-` (`-x`, `-rf`, `--exclude`, a bare `-`) is
+      parsed as an *option* by ShellCheck/Ruff when the entry is spliced into an
+      argv, silently changing tool behavior instead of naming a file.
+    * **not absolute** — a leading `/` points the lint outside the repository.
+    * **no traversal** — a `..` path segment (`..`, `../../*.sh`,
+      `../../../etc/passwd`) likewise escapes the repository.
+
+    Without these a manifest selector can direct a lint at a path the repository
+    does not own, or turn a file argument into a tool flag.
+    """
+    if value.startswith("-"):
+        return (f"invalid-value: {where} {label} {value!r} starts with '-' "
+                "(would be parsed as an option, not a path)")
+    if value.startswith("/"):
+        return f"invalid-value: {where} {label} {value!r} is absolute, not repo-relative"
+    if any(seg == ".." for seg in value.split("/")):
+        return f"invalid-value: {where} {label} {value!r} escapes the repository via '..'"
+    return None
+
+
+def _validate_globs(where, globs, *, label="globs") -> ManifestResult:
+    """Validate a glob list. Empty is rejected: a selector that matches nothing
+    would let a caller report a clean lint having enumerated zero files."""
     if not isinstance(globs, list):
-        return _unestablished(f"wrong-type: {where} globs must be an array")
+        return _unestablished(f"wrong-type: {where} {label} must be an array")
+    if not globs:
+        return _unestablished(f"invalid-value: {where} {label} must be a non-empty array")
     for g in globs:
         if not isinstance(g, str) or not _GLOB_RE.match(g):
             return _unestablished(f"invalid-value: {where} glob {g!r}")
+        if (reason := _validate_path_shape(where, "glob", g)) is not None:
+            return _unestablished(reason)
     return _established(globs)
 
 
@@ -382,6 +416,8 @@ def _validate_special_invocations(sis) -> ManifestResult:
         path = si["path"]
         if not isinstance(path, str) or not _GLOB_RE.match(path):
             return _unestablished(f"invalid-value: {where} path {path!r}")
+        if (reason := _validate_path_shape(where, "path", path)) is not None:
+            return _unestablished(reason)
         flags = si["extra_flags"]
         if not isinstance(flags, list):
             return _unestablished(f"wrong-type: {where} extra_flags must be an array")

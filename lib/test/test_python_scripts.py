@@ -27527,6 +27527,86 @@ def _lm_cli_exit(argv):
 assert_eq("#1276 CLI usage error (missing path) exits 1, NOT 2 (no collision with unestablished)",
           1, _lm_cli_exit([]))
 
+# ── Audit finding H1: a manifest that lints NOTHING must not validate as
+#    `established`. A caller reading ESTABLISHED, enumerating zero files and
+#    reporting a clean lint is the canonical unknown-is-not-zero fail-open. Each
+#    non-empty guard gets its own assertion, so deleting any one of them goes RED.
+assert_eq("#1276 H1 empty selectors array rejected (non-empty guard is discriminated)",
+          (False, "invalid-value"), _lm_mut(lambda o: o.__setitem__("selectors", [])))
+assert_eq("#1276 H1 empty full_profiles array rejected (non-empty guard is discriminated)",
+          (False, "invalid-value"), _lm_mut(lambda o: o.__setitem__("full_profiles", [])))
+assert_eq("#1276 H1 empty tool artifacts array rejected (non-empty guard is discriminated)",
+          (False, "invalid-value"),
+          _lm_mut(lambda o: o["tools"]["ruff"].__setitem__("artifacts", [])))
+assert_eq("#1276 H1 empty include_globs rejected (a selector matching nothing lints nothing)",
+          (False, "invalid-value"),
+          _lm_mut(lambda o: o["selectors"][0].__setitem__("include_globs", [])))
+assert_eq("#1276 H1 EVERY selector with empty include_globs rejected (whole manifest lints nothing)",
+          (False, "invalid-value"),
+          _lm_mut(lambda o: [s.__setitem__("include_globs", []) for s in o["selectors"]]))
+assert_eq("#1276 H1 present-but-empty exclude_globs rejected (declares nothing)",
+          (False, "invalid-value"),
+          _lm_mut(lambda o: o["selectors"][0].__setitem__("exclude_globs", [])))
+assert_eq("#1276 H1 present-but-empty exclusions rejected (declares nothing)",
+          (False, "invalid-value"), _lm_mut(lambda o: o.__setitem__("exclusions", [])))
+# Positive control for H1: omitting the two OPTIONAL keys entirely still validates,
+# so the non-empty guards reject an empty declaration without banning absence.
+assert_eq("#1276 H1 positive control: omitting exclusions and exclude_globs still establishes",
+          (True, None),
+          _lm_mut(lambda o: (_lm_del(o, "exclusions"),
+                             _lm_del(o["selectors"][0], "exclude_globs"))))
+
+# ── Audit finding: the two isinstance(..., bool) guards are load-bearing because
+#    `True in {1}` is True and `1 <= True <= 3600` is True — without the bool
+#    exclusion a JSON `true` would validate as a version/timeout. ────────────────
+assert_eq("#1276 boolean true schema_version rejected (True in {1} is True)",
+          (False, "wrong-type"), _lm_mut(lambda o: o.__setitem__("schema_version", True)))
+assert_eq("#1276 boolean false schema_version rejected",
+          (False, "wrong-type"), _lm_mut(lambda o: o.__setitem__("schema_version", False)))
+assert_eq("#1276 boolean true timeout_seconds rejected (1 <= True <= 3600 is True)",
+          (False, "wrong-type"),
+          _lm_mut(lambda o: o["tools"]["ruff"].__setitem__("timeout_seconds", True)))
+
+# ── Audit finding M3: path-shaped fields must be repo-relative and argv-safe. A
+#    leading-dash entry spliced into a shellcheck/ruff argv is parsed as an OPTION
+#    rather than a path; a traversal or absolute entry points the lint outside the
+#    repository, contradicting the module's own "repo-relative selector pattern".
+_LM_BAD_PATHS = ("../../../etc/passwd", "/etc/passwd", "..", "../../*.sh",
+                 "-x", "-rf", "--exclude", "-")
+for _lm_bad in _LM_BAD_PATHS:
+    assert_eq(f"#1276 M3 include_globs rejects {_lm_bad!r}",
+              (False, "invalid-value"),
+              _lm_mut(lambda o, _b=_lm_bad: o["selectors"][0]["include_globs"].append(_b)))
+    assert_eq(f"#1276 M3 exclude_globs rejects {_lm_bad!r}",
+              (False, "invalid-value"),
+              _lm_mut(lambda o, _b=_lm_bad: o["selectors"][0]["exclude_globs"].append(_b)))
+    assert_eq(f"#1276 M3 exclusions rejects {_lm_bad!r}",
+              (False, "invalid-value"),
+              _lm_mut(lambda o, _b=_lm_bad: o["exclusions"].append(_b)))
+    assert_eq(f"#1276 M3 special_invocation path rejects {_lm_bad!r}",
+              (False, "invalid-value"),
+              _lm_mut(lambda o, _b=_lm_bad: o["special_invocations"][0].__setitem__("path", _b)))
+
+# Positive controls for M3: legitimate repo-relative patterns must STILL validate,
+# so the rejections above cannot pass vacuously by banning every path.
+_LM_GOOD_GLOBS = ("**/*.sh", "lib/test/**", "scripts/*.py", ".github/workflows/*.yml",
+                  "docs/**/*.md", "a-b/c_d.sh", "lib/test/fixtures/**", "..foo/*.py")
+for _lm_good in _LM_GOOD_GLOBS:
+    assert_eq(f"#1276 M3 positive control: include_globs still accepts {_lm_good!r}",
+              (True, None),
+              _lm_mut(lambda o, _g=_lm_good: o["selectors"][0]["include_globs"].append(_g)))
+    assert_eq(f"#1276 M3 positive control: exclusions still accepts {_lm_good!r}",
+              (True, None),
+              _lm_mut(lambda o, _g=_lm_good: o["exclusions"].append(_g)))
+assert_eq("#1276 M3 positive control: special_invocation path still accepts a repo-relative file",
+          (True, None),
+          _lm_mut(lambda o: o["special_invocations"][0].__setitem__("path", "scripts/config-get.sh")))
+# The shipped manifest is itself the end-to-end positive control for M3: every one
+# of its globs and paths is repo-relative and argv-safe, so it still establishes.
+assert_eq("#1276 M3 positive control: the shipped manifest still establishes",
+          True,
+          lint_manifest.load_manifest(SCRIPTS.parent / ".prflow" / "lint-manifest.json").established)
+
 
 print()
 print(f"{PASS} passed, {FAIL} failed")
