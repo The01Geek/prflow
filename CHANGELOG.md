@@ -4,6 +4,16 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.31.64] — 2026-08-09
+
+### Changed
+- **Editorially compressed the five vendored `pr-review-toolkit` review agents** (`code-reviewer`, `comment-analyzer`, `pr-test-analyzer`, `silent-failure-hunter`, `type-design-analyzer`) under the instruction-plus-consequence prose rule — dropping tone/register sections, closing exhortations, and redundant restatements while preserving every behavioral rule, the pinned literals, the frozen frontmatter, and the Apache §4(b) vendoring notices. Every Phase-3 dispatch, fix-loop re-dispatch, and shadow fan-out now carries less prose per reviewer, here and in every consumer repo, with no instruction lost. (#1504)
+
+## [2.31.63] — 2026-08-09
+
+### Fixed
+- **Name the legal exit for a run that cannot dispatch the Step 2.6 shadow.** The never-elective paragraph in `skills/review-and-fix/references/shadow-review.md` now names the state a run enters when it cannot fan out — a workpad-holding caller stops at a non-terminal or `Blocked` status naming what prevented the fan-out, and a caller with no workpad reports non-convergence and posts no clean approve-family verdict — so a cost-pressured run is never left reading a prohibition with no legal state to enter. The `skills/review-and-fix/SKILL.md` failure-map row is reconciled with the rewritten paragraph in the same change. (#1490)
+
 ## [2.31.62] — 2026-08-09
 
 ### Changed
