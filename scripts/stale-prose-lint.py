@@ -569,8 +569,9 @@ _CU_NOUN = (
     r"|consumers?|callers?|members?|mirrors?|occurrences?|instances?|surfaces?"
     r"|checkpoints?|rows?|entr(?:y|ies)|populations?|partners?|helpers?)"
 )
-# Up to two intervening bare-word modifiers, reusing `_RECOG_MOD`'s shape so a token carrying
-# sentence punctuation structurally breaks the match. Deliberately NOT routed through
+# Up to two intervening bare-word modifiers, matched by the CU-local `_CU_MOD` below (a widened
+# sibling of `_RECOG_MOD`'s shape) so a token carrying sentence punctuation structurally breaks
+# the match, while a leading hyphen / backtick-hyphen no longer does. Deliberately NOT routed through
 # `_mods_ok`: that guard disqualifies a NUMERAL-shaped modifier, which is correct for the R3
 # count tier (where the numeral IS the claim) but wrong here — `all four arms` is precisely the
 # coverage universal this tier exists to surface, and disqualifying it would blind the tier to
@@ -585,8 +586,11 @@ _CU_NOUN = (
 # the match and blinds the tier to `#1316`'s own worked example. This sibling tolerates a leading
 # hyphen (and an internal backtick/hyphen run) so such a modifier is spanned. It is used ONLY by
 # `_CU_RE`; `_RECOG_MOD` is left byte-identical because it is shared with the gating-adjacent R3
-# recognition tier and must not drift.
-_CU_MOD = r"[*`]{0,2}[-`A-Za-z][\w'`-]*[*`]{0,2}\s+"
+# recognition tier and must not drift. Only the two class widenings are load-bearing: a leading
+# `-` in the mandatory class, and `` ` `` in the inner run (for the `` ` `` inside `x`-gated`); a
+# leading backtick is already absorbed by the `[*`]{0,2}` emphasis wrapper, so it is NOT repeated
+# in the mandatory class.
+_CU_MOD = r"[*`]{0,2}[-A-Za-z][\w'`-]*[*`]{0,2}\s+"
 _CU_RE = re.compile(
     r"[*`_]{0,2}\b" + _CU_QUANT + r"\b[*`_]{0,2}\s+(?:" + _CU_MOD + r"){0,2}"
     + _CU_NOUN + r"\b",
