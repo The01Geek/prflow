@@ -21758,11 +21758,206 @@ assert_eq("#795 checker: a state-defaulted subcommand whose handler calls no res
                           tuple(mod._ROUND_DEFAULTED) + ('query-summary',)),
                   lambda: _alc795.check_round_defaulted(mod, reg, []))[1]))
 
-# ... and the SAME checker still passes untouched, so the five rows above are catching the
+# ... and the SAME checker still passes untouched, so the rows above are catching the
 # planted defect rather than a permanently-broken checker.
 assert_eq("#795 checker: over an unmutated tree every arm passes (the rows above are not "
           "grading a always-red checker)",
           0, _alc795.main())
+
+# --- #1466: the REVERSE-completeness arm, driven against crafted reference documents -----
+# `check_sequence` grades one direction only — every name the sequence prints is a registered
+# subcommand. Nothing required a call the reference documents MANDATE to appear in the
+# sequence, which is how `query-round-kind` and `record-staged-write` went missing from it
+# while the suite stayed green over a completeness sentence asserting the opposite.
+# `check_fenced_completeness` adds the other direction over the reach a fence scan has, so
+# these rows drive it against crafted documents rather than the shipped ones.
+#
+# Every fixture below is a whole reference document in miniature: the sequence anchor line,
+# one unbroken paragraph naming backticked subcommands, and ```bash fences invoking the state
+# owner. The state owner's own parser is NOT mocked — the registered-subcommand set is the
+# boundary this check proves against.
+
+_ALC_ANCHOR = _alc795._SEQUENCE_ANCHOR
+
+
+def _alc_doc(sequence, fenced=(), fence_info="bash", extra=""):
+    """A miniature reference document: an anchor, its sequence paragraph, and fences."""
+    body = [_ALC_ANCHOR, "", " -> ".join(f"`{name}`" for name in sequence), ""]
+    for line in fenced:
+        body += [f"```{fence_info}", line, "```", ""]
+    body.append(extra)
+    return "\n".join(body)
+
+
+def _alc_call(subcommand, prefix="python3 ", flags=""):
+    return (f"{prefix}{flags}"
+            f'"${{CLAUDE_SKILL_DIR:-/x}}"/../../scripts/issue-audit-state.py '
+            f'{subcommand} "<slug>" --nonce "<nonce>"')
+
+
+# `check_sequence` refuses when a `_CONDITIONAL` member is no longer named anywhere in the
+# step-3.6 text, so every fixture standing in for that file carries those mentions.
+_ALC_COND_MENTIONS = " ".join(f"`{c}`" for c in _alc795._CONDITIONAL)
+
+
+def _alc_fenced(step36=None, step4=None):
+    """Run the reverse check over two crafted documents; return None or the refusal text."""
+    mod = _alc795._load_module()
+    reg = mod.registered_subcommands()
+    try:
+        _alc795.check_fenced_completeness(
+            reg, [],
+            step36_text=step36 if step36 is not None else _alc_doc(
+                ["init"], [_alc_call("init")], extra=_ALC_COND_MENTIONS),
+            step4_text=step4 if step4 is not None else "")
+    except _alc795.Refusal as exc:
+        return str(exc)
+    return None
+
+
+# --- membership: a fenced call the sequence names passes; one it omits refuses ------------
+assert_eq("#1466 reverse check: a fenced subcommand the sequence names passes",
+          None,
+          _alc_fenced(step36=_alc_doc(["init", "query-arm"],
+                                      [_alc_call("init"), _alc_call("query-arm")],
+                                      extra=_ALC_COND_MENTIONS)))
+
+_alc_omitted = _alc_fenced(step36=_alc_doc(["init"],
+                                           [_alc_call("init"), _alc_call("query-arm")],
+                                           extra=_ALC_COND_MENTIONS))
+assert_eq("#1466 reverse check: a fenced subcommand named in neither the sequence nor the "
+          "exemption set refuses, naming that subcommand",
+          True, _alc_omitted is not None and "query-arm" in _alc_omitted)
+
+# The SECOND reference file is scanned too — the completeness sentence ranges over both, so
+# an omission living there must refuse identically.
+_alc_omitted4 = _alc_fenced(step36=_alc_doc(["init"], [_alc_call("init")],
+                                            extra=_ALC_COND_MENTIONS),
+                            step4=_alc_doc([], [_alc_call("query-summary")]).replace(
+                                _ALC_ANCHOR, "(no anchor here)"))
+assert_eq("#1466 reverse check: an omission in step-4-present-create.md refuses the same "
+          "way, proving both files are scanned",
+          True, _alc_omitted4 is not None and "query-summary" in _alc_omitted4)
+
+# --- membership ONLY: one naming satisfies whatever the run's real multiplicity is --------
+# `record-staged-write` is written in ONE shared fence yet fires at TWO sequence positions, so
+# a rule derived from fence counts would turn the repaired document red.
+assert_eq("#1466 reverse check: a subcommand named once in the sequence satisfies a fence "
+          "regardless of multiplicity (the check tests membership and nothing else)",
+          None,
+          _alc_fenced(step36=_alc_doc(["init", "record-staged-write", "record-staged-write"],
+                                      [_alc_call("record-staged-write"), _alc_call("init")],
+                                      extra=_ALC_COND_MENTIONS)))
+
+# --- exemptions: the declared set, and the pre-existing conditional set -------------------
+assert_eq("#1466 reverse check: a fenced subcommand absent from the sequence but present in "
+          "the declared exemption set passes",
+          None,
+          _alc_fenced(step36=_alc_doc(
+              ["init"],
+              [_alc_call("init"), _alc_call(_alc795._FENCE_EXEMPT[0])],
+              extra=_ALC_COND_MENTIONS)))
+
+# A `_CONDITIONAL` member is a LEGAL home on its own: without this, a call that later gains a
+# fence would be refused by every list at once — `check_sequence` already refuses it in the
+# sequence, so an exemption entry would be its only repair.
+assert_eq("#1466 reverse check: a fenced subcommand named in the existing _CONDITIONAL "
+          "constant passes without an exemption entry",
+          None,
+          _alc_fenced(step36=_alc_doc(
+              ["init"],
+              [_alc_call("init"), _alc_call(_alc795._CONDITIONAL[0])],
+              extra=_ALC_COND_MENTIONS)))
+
+_alc_unregistered = None
+_alc_saved_exempt = _alc795._FENCE_EXEMPT
+try:
+    _alc795._FENCE_EXEMPT = tuple(_alc_saved_exempt) + ("record-not-a-real-subcommand",)
+    _alc_unregistered = _alc_fenced()
+finally:
+    _alc795._FENCE_EXEMPT = _alc_saved_exempt
+assert_eq("#1466 reverse check: an exemption-set member the parser does not register is "
+          "refused",
+          True,
+          _alc_unregistered is not None
+          and "record-not-a-real-subcommand" in _alc_unregistered)
+
+_alc_both = _alc_fenced(step36=_alc_doc(
+    ["init", _alc795._FENCE_EXEMPT[0]], [_alc_call("init")], extra=_ALC_COND_MENTIONS))
+assert_eq("#1466 reverse check: a subcommand named in BOTH the exemption set and the call "
+          "sequence is refused, so the two cannot disagree about conditionality",
+          True, _alc_both is not None and _alc795._FENCE_EXEMPT[0] in _alc_both)
+
+# --- defect reproduction: today's document, before the repair ----------------------------
+# The sequence as it shipped named neither call while both sat in fences and in no exemption
+# set. This fixture is the reason the check exists, so it must refuse naming BOTH.
+_alc_today = _alc_fenced(step36=_alc_doc(
+    ["init", "query-draft-binding", "record-draft-binding", "query-arm"],
+    [_alc_call("init"), _alc_call("query-round-kind"), _alc_call("record-staged-write"),
+     _alc_call("query-arm"), _alc_call("record-draft-binding")],
+    extra=_ALC_COND_MENTIONS))
+assert_eq("#1466 reverse check: the pre-repair document (query-round-kind and "
+          "record-staged-write fenced, listed nowhere) refuses naming both",
+          True,
+          _alc_today is not None
+          and "query-round-kind" in _alc_today and "record-staged-write" in _alc_today)
+
+# --- attribution: an interpreter flag ahead of the script path ---------------------------
+# `extract-command-heads.py` truncates a head to three argv words, so reusing ITS head
+# extraction would yield `python3 -X importtime <path>` and drop the subcommand entirely —
+# the check would then pass green over exactly the drift it exists to catch. This row is that
+# fail-open's regression control.
+_alc_flagged = _alc_fenced(step36=_alc_doc(
+    ["init"], [_alc_call("init"), _alc_call("query-arm", flags="-X importtime ")],
+    extra=_ALC_COND_MENTIONS))
+assert_eq("#1466 reverse check: a fence placing an interpreter flag ahead of the script path "
+          "is still attributed to its subcommand",
+          True, _alc_flagged is not None and "query-arm" in _alc_flagged)
+
+# --- degenerate and out-of-scope inputs ---------------------------------------------------
+assert_eq("#1466 reverse check: a document with no fenced blocks at all passes",
+          None,
+          _alc_fenced(step36=_alc_doc(["init"], [], extra=_ALC_COND_MENTIONS)))
+
+assert_eq("#1466 reverse check: a fence carrying no state-owner invocation passes",
+          None,
+          _alc_fenced(step36=_alc_doc(["init"], ["git status --porcelain"],
+                                      extra=_ALC_COND_MENTIONS)))
+
+# The DISCLOSED RESIDUAL, asserted rather than left to be discovered: the reused enumeration
+# reaches only fences whose info string is exactly `bash`, so an invocation written in prose
+# backticks or in any other fence is invisible to this check.
+assert_eq("#1466 reverse check RESIDUAL: an invocation in a non-`bash` fence is invisible to "
+          "the check (its declared scope boundary, not coverage)",
+          None,
+          _alc_fenced(step36=_alc_doc(["init"], [_alc_call("query-arm")],
+                                      fence_info="console", extra=_ALC_COND_MENTIONS)))
+
+assert_eq("#1466 reverse check RESIDUAL: an invocation named only in inline prose backticks "
+          "is invisible to the check",
+          None,
+          _alc_fenced(step36=_alc_doc(["init"], [], extra=_ALC_COND_MENTIONS
+                                      + " see `" + _alc_call("query-arm") + "`")))
+
+# --- error paths keep their own named refusals, never a traceback -------------------------
+assert_eq("#1466 reverse check: a duplicated anchor line refuses rather than selecting the "
+          "wrong paragraph",
+          True,
+          (lambda r: r is not None and "anchor" in r)(
+              _alc_fenced(step36=_alc_doc(["init"], [], extra=_ALC_COND_MENTIONS)
+                          + "\n" + _ALC_ANCHOR + "\n\n`init`\n")))
+
+assert_eq("#1466 reverse check: a sequence paragraph split by a blank line is read short "
+          "and refuses on the calls the truncated paragraph no longer names",
+          True,
+          (lambda r: r is not None and "query-arm" in r)(
+              _alc_fenced(step36="\n".join([
+                  _ALC_ANCHOR, "", "`init`", "", "`query-arm`", "",
+                  "```bash", _alc_call("query-arm"), "```", "", _ALC_COND_MENTIONS]))))
+
+# --- state and idempotency ----------------------------------------------------------------
+assert_eq("#1466 reverse check: two consecutive runs over the real tree agree",
+          (0, 0), (_alc795.main(), _alc795.main()))
 
 # ---------------------------------------------------------------------------
 # issue #868 — scripts/check-verified-premises.py

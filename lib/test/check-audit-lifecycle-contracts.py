@@ -19,6 +19,15 @@ plus the measurement figure derived from the second:
                unconditional calls that paragraph plus `step-4-present-create.md` jointly
                mandate is reported.
 
+  fenced-      The REVERSE of `sequence` (issue #1466): every state-owner subcommand invoked
+  completeness inside a ```bash fence of either reference file is required to be named in the
+               call sequence, in the declared `_FENCE_EXEMPT` set, or in `_CONDITIONAL` — so a
+               call the documents mandate can no longer go missing from the sequence while the
+               completeness sentence beneath it still claims otherwise. It NARROWS the gap
+               rather than closing it: its reach is the ```bash fences alone, and most of the
+               sequence's calls are written in prose backticks instead. See the function's own
+               docstring for that disclosed residual.
+
   figure       The per-round measurement figure the suite pins, derived from `sequence`
                rather than hand-transcribed — so a later addition of an unconditional call
                MOVES the figure instead of leaving a stale literal behind.
@@ -75,6 +84,24 @@ _DOCSTRING_ANCHOR = "TWO-CLASS CLI CONTRACT"
 # ordered sequence therefore prescribed a call that cannot succeed on the clean path.
 _CONDITIONAL = ("record-offer", "query-adjudication-records",
                 "record-adjudication-render")
+
+# Fenced state-owner invocations the reference files gate on a run-shape condition, so
+# the clean single-round run never makes them and the unconditional sequence must not name
+# them. This is the reverse check's declared exemption set — the counterpart of `_CONDITIONAL`
+# for calls that DO appear in a ```bash fence. Each member, and why it is here:
+#   write-dispatch-scope    written only on `kind=targeted`, which a discovery round is not.
+#   record-finding-evidence writes a per-finding record, which a zero-finding round never has.
+# A member is required to be a registered subcommand and is required NOT to be named in the
+# sequence, so this set and the sequence can never disagree about whether a call is
+# conditional. `_CONDITIONAL` members need no entry here: they are a legal home of their own.
+_FENCE_EXEMPT = ("write-dispatch-scope", "record-finding-evidence")
+
+# The fence enumeration is REUSED from the repository's existing Markdown scanner rather than
+# reimplemented, so what counts as a scanned block is defined in exactly one place.
+_ECH = Path(__file__).resolve().parent / "extract-command-heads.py"
+
+# The state owner as a fence writes it: `python3 <anchor>/../../scripts/issue-audit-state.py`.
+_STATE_OWNER_SCRIPT = "issue-audit-state.py"
 
 
 class Refusal(Exception):
@@ -638,6 +665,118 @@ def check_sequence(registered, report):
     return len(named)
 
 
+def _load_extractor():
+    spec = importlib.util.spec_from_file_location("_ech1466", _ECH)
+    if spec is None or spec.loader is None:
+        raise Refusal(f"could not load {_ECH.relative_to(REPO)} as a module "
+                      "(missing file or unloadable spec)")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _fenced_state_owner_calls(extractor, text: str,
+                              registered: frozenset[str]) -> list[str]:
+    """The state-owner subcommands invoked inside `text`'s ```bash fences, in order.
+
+    Subcommand attribution is performed HERE, against `registered`, rather than through the
+    extractor's own command-head extraction: that returns at most `_MAX_HEAD_WORDS` argv
+    words, so a fence placing an interpreter flag ahead of the script path yields the
+    interpreter, the flag and the path and drops the subcommand entirely — and the check
+    would then pass green over exactly the drift it exists to catch. Scanning the whole
+    token list for the script path and taking the first registered token after it reaches
+    that shape.
+    """
+    found: list[str] = []
+
+    def walk(statements_source: str) -> None:
+        for statement in extractor._split_statements(statements_source):  # noqa: SLF001
+            for body in extractor._substitutions(statement):              # noqa: SLF001
+                walk(body)
+            tokens = [extractor._normalize(t)                             # noqa: SLF001
+                      for t in extractor._tokenize(statement)]            # noqa: SLF001
+            for index, token in enumerate(tokens):
+                if not token.endswith(_STATE_OWNER_SCRIPT):
+                    continue
+                for candidate in tokens[index + 1:]:
+                    if candidate in registered:
+                        found.append(candidate)
+                        break
+                    if not candidate.startswith("-"):
+                        # The first non-flag operand is where the subcommand must sit; a
+                        # token that is not registered there is not a subcommand at all
+                        # (`--help`-less usage, a placeholder), so stop rather than scanning
+                        # on into arguments and attributing an unrelated word.
+                        break
+
+    for block in extractor._fenced_bash_blocks(text):                     # noqa: SLF001
+        cleaned = extractor._strip_case_patterns(                         # noqa: SLF001
+            extractor._strip_comments_and_heredocs(block))                # noqa: SLF001
+        walk(extractor._join_continuations(cleaned))                      # noqa: SLF001
+    return found
+
+
+def check_fenced_completeness(registered, report, step36_text=None, step4_text=None):
+    """The REVERSE of `check_sequence`: a call the documents FENCE must be accounted for.
+
+    `check_sequence` grades one direction — every name the sequence prints is a registered
+    subcommand. Nothing required a call the reference documents mandate to appear IN the
+    sequence, so the sequence could omit an enforced call while the suite stayed green over
+    a completeness sentence asserting the opposite (issue #1466). This arm closes that
+    direction over the reach a fence scan has: every state-owner subcommand invoked inside a
+    ```bash fence of either reference file must be named in the call sequence, in
+    `_FENCE_EXEMPT`, or in `_CONDITIONAL`.
+
+    DISCLOSED RESIDUAL — this NARROWS the completeness gap, it does not close it. The reused
+    enumeration reaches only fences whose info string is exactly ``bash``, so an invocation
+    written in inline prose backticks, or in a fence with any other info string, is invisible
+    here — and most of the sequence's calls are written exactly that way. A call mandated in
+    prose without a fence therefore escapes this check entirely; re-deriving the
+    unconditional set still requires reading both documents' prose, which no scanner does.
+
+    `step36_text`/`step4_text` exist so crafted reference documents can drive this arm; both
+    default to the shipped files.
+    """
+    seq_text = _read(STEP36) if step36_text is None else step36_text
+    step4 = _read(STEP4) if step4_text is None else step4_text
+    named = frozenset(_invocations(
+        _sole_paragraph(seq_text, _SEQUENCE_ANCHOR, "fenced-completeness"),
+        registered, "fenced-completeness"))
+
+    unregistered = sorted(c for c in _FENCE_EXEMPT if c not in registered)
+    if unregistered:
+        raise Refusal(
+            f"fenced-completeness: {unregistered} appear in _FENCE_EXEMPT but the parser "
+            "registers no such subcommand — an exemption naming no real call exempts "
+            "nothing, so the reverse check it was meant to relax is silently absent")
+    contradicted = sorted(c for c in _FENCE_EXEMPT if c in named)
+    if contradicted:
+        raise Refusal(
+            f"fenced-completeness: {contradicted} are named in BOTH _FENCE_EXEMPT and the "
+            "unconditional call sequence, so the two disagree about whether the call is "
+            "conditional; remove it from whichever is wrong")
+
+    extractor = _load_extractor()
+    accounted = named | frozenset(_FENCE_EXEMPT) | frozenset(_CONDITIONAL)
+    scanned = 0
+    orphans: list[str] = []
+    for label, text in (("step-3-6-audit.md", seq_text),
+                        ("step-4-present-create.md", step4)):
+        for call in _fenced_state_owner_calls(extractor, text, registered):
+            scanned += 1
+            if call not in accounted and f"{label}: {call}" not in orphans:
+                orphans.append(f"{label}: {call}")
+    if orphans:
+        raise Refusal(
+            f"fenced-completeness: {orphans} are invoked in a ```bash fence of the reference "
+            "files but named in neither the call sequence, _FENCE_EXEMPT, nor _CONDITIONAL — "
+            "either the sequence is missing a call the run makes, or the call is conditional "
+            "and belongs in _FENCE_EXEMPT with its condition recorded")
+    report.append(f"fenced-completeness: all {scanned} fenced state-owner invocations across "
+                  "both reference files are named in the call sequence, the declared "
+                  "exemption set, or the conditional set")
+
+
 def main():
     report: list[str] = []
     try:
@@ -650,6 +789,7 @@ def main():
         check_next_action_routing_totality(module, report)
         check_flag_vocabulary(module, module.build_parser(), registered, report)
         unconditional = check_sequence(registered, report)
+        check_fenced_completeness(registered, report)
     except Refusal as exc:
         sys.stderr.write(f"check-audit-lifecycle-contracts: {exc}\n")
         return 1
