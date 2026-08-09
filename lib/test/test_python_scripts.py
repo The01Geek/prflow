@@ -22260,6 +22260,25 @@ assert_eq("#1466 reverse check: a `<placeholder>` operand is a documented placeh
               ["init"], [_alc_call("init"), _alc_call("<subcommand>")],
               extra=_ALC_COND_MENTIONS)))
 
+# A `$`-shaped operand is NOT that allowance: in command position it is a shell variable —
+# a real invocation whose subcommand cannot be named. Unknown is not absent, so it refuses.
+_alc_var = _alc_fenced(step36=_alc_doc(
+    ["init"], [_alc_call("init"), _alc_call("$SUBCOMMAND")], extra=_ALC_COND_MENTIONS))
+assert_eq("#1466 reverse check: a `$`-parameterized operand refuses (a shell variable in "
+          "command position is an unresolvable call, not a placeholder)",
+          True, _alc_var is not None and "SUBCOMMAND" in _alc_var)
+
+# The other way attribution can come up empty: the operand list runs out with no non-flag
+# token, so nothing is appended. Dropping it would be the same silent shrink by another path.
+_alc_noop = _alc_fenced(step36=_alc_doc(
+    ["init"],
+    [_alc_call("init"),
+     'python3 "${CLAUDE_SKILL_DIR:-/x}"/../../scripts/issue-audit-state.py --help'],
+    extra=_ALC_COND_MENTIONS))
+assert_eq("#1466 reverse check: a state-owner fence with NO non-flag operand refuses rather "
+          "than contributing nothing",
+          True, _alc_noop is not None and "no non-flag operand" in _alc_noop)
+
 # --- attribution: an interpreter flag ahead of the script path ---------------------------
 # `extract-command-heads.py` truncates a head to three argv words, so reusing ITS head
 # extraction would yield `python3 -X importtime <path>` and drop the subcommand entirely —
@@ -22335,6 +22354,45 @@ assert_eq("#1466 reverse check: a sequence paragraph split by a blank line is re
               _alc_fenced(step36="\n".join([
                   _ALC_ANCHOR, "", "`init`", "", "`query-arm`", "",
                   "```bash", _alc_call("query-arm"), "```", "", _ALC_COND_MENTIONS]))))
+
+# --- the reused-API and module-load guards are driven, not merely stated -------------------
+# `_load_extractor`'s name check and `_load_module`'s load guard are this arm's answer to
+# "a rename in that general-purpose scanner must be a named RED breadcrumb, never a
+# traceback". Both are fail-closed guards with a stated purpose, so both get a planted row.
+_alc_api_saved = _alc795._EXTRACTOR_API
+_alc_api_refusal = None
+try:
+    _alc795._EXTRACTOR_API = tuple(_alc_api_saved) + ("_not_a_real_extractor_helper",)
+    try:
+        _alc795._load_extractor()
+    except _alc795.Refusal as _exc:
+        _alc_api_refusal = str(_exc)
+finally:
+    _alc795._EXTRACTOR_API = _alc_api_saved
+assert_eq("#1466: an _EXTRACTOR_API name the reused scanner no longer exposes is refused by "
+          "name, not raised as an AttributeError",
+          True,
+          _alc_api_refusal is not None
+          and "_not_a_real_extractor_helper" in _alc_api_refusal)
+
+# A renamed or REMOVED FILE is the other half, and `spec_from_file_location` does NOT catch
+# it — it returns a populated spec for a nonexistent path and the failure lands in
+# `exec_module`. Without the load guard that escapes `main()` (which catches only Refusal).
+_alc_ech_saved = _alc795._ECH
+_alc_load_refusal = None
+try:
+    _alc795._ECH = _alc795.REPO / "lib" / "test" / "no-such-scanner-1466.py"
+    try:
+        _alc795._load_extractor()
+    except _alc795.Refusal as _exc:
+        _alc_load_refusal = str(_exc)
+finally:
+    _alc795._ECH = _alc_ech_saved
+assert_eq("#1466: a REMOVED reused-scanner file is refused by name too (the spec guard alone "
+          "never fires for a missing path)",
+          True,
+          _alc_load_refusal is not None
+          and "no-such-scanner-1466.py" in _alc_load_refusal)
 
 # --- the arm is actually WIRED, and the pinned count still counts with multiplicity --------
 # Every row above calls `check_fenced_completeness` directly, so deleting its call from
