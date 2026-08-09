@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1480",
+  "generated_at": "2026-08-09T06:20:09Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.31.55",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 8.786455249999996,
+    "tokens": {
+      "input_tokens": 97,
+      "output_tokens": 28578,
+      "cache_read_input_tokens": 7720073,
+      "cache_creation_input_tokens": 200453,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 128,
+        "outputTokens": 37194,
+        "cacheReadInputTokens": 8260683,
+        "cacheCreationInputTokens": 475828,
+        "webSearchRequests": 0,
+        "costUSD": 8.786455249999996,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 57,
+    "duration_ms": 530864
+  },
+  "permission_denials": {
+    "count": 8,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      "echo \"$CLAUDE_SKILL_DIR\"",
+      "echo \"run=${GITHUB_RUN_ID:-none} attempt=${GITHUB_RUN_ATTEMPT:-none} actions=${GITHUB_ACTIONS:-none}\"; echo \"wc:\"; wc -l /tmp/pr1480.diff",
+      "env | grep -E '^GITHUB_(RUN_ID|RUN_ATTEMPT|ACTIONS|SERVER_URL|REPOSITORY)=' || echo \"no github env\"; wc -l /tmp/pr1480.diff",
+      "mkdir -p .prflow/tmp/review/pr-1480/31298265256-1 && cp /tmp/pr1480.diff .prflow/tmp/review/pr-1480/31298265256-1/diff.patch && wc -l .prflow/tmp/review/pr-1480/31298265256-1/diff.patch",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve 1464 --pr 1480 2>.prflow/tmp/review/pr-1480/31298265256-1/acs.err ; echo \"acs-rc=$?\"",
+      "mkdir -p .prflow/tmp\nif rm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null &&\n   git status --porcelain -z > .prflow/tmp/review-dirty-tree-before &&\n   [ -f .prflow/tmp/review-dirty-tree-before ] &&\n   [ ! -L .prflow/tmp/review-dirty-tree-before ] &&\n   git hash-object .prflow/tmp/review-dirty-tree-before; then\n  echo \"snap-ok\"\nelse\n  printf '%s\\n' disabled > .prflow/tmp/review-dirty-tree-disabled\n  echo \"snap-failed\"\nfi",
+      "git status --porcelain -z > .prflow/tmp/review-dirty-tree-before; git hash-object .prflow/tmp/review-dirty-tree-before"
+    ],
+    "total": 8,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
