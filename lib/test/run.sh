@@ -34059,7 +34059,7 @@ P530_ROOT="$LIB/../skills/review-and-fix/SKILL.md"
 assert_pin_unique "#530 continuation: loop-control has an explicit current_step route" \
   '| `loop-control` — Iteration setup + Steps 0.5–2 | `references/loop-control.md` |' "$P530_ROOT"
 assert_pin_unique "#530 continuation: pending dispatch is stamped before every dispatch" \
-  'Immediately before every `Agent`/`Task`/`Skill` dispatch **this reference issues**, also write `pending_dispatch:' "$P530_ROOT"
+  'Immediately before every `Agent`/`Task`/`Skill` dispatch, also write `pending_dispatch:' "$P530_ROOT"
 assert_pin_unique "#530 continuation: pending dispatch clears only after parse and join" \
   'Clear it after the returned attempt is joined or dispositioned, including failure, timeout, exhausted-retry, and not-verified outcomes' "$P530_ROOT"
 # Inline recovery — the fused per-iteration emit that survives a dropped Loop Exit.
