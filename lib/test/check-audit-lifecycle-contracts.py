@@ -766,6 +766,18 @@ def check_fenced_completeness(registered, report, step36_text=None, step4_text=N
             scanned += 1
             if call not in accounted and f"{label}: {call}" not in orphans:
                 orphans.append(f"{label}: {call}")
+    if scanned == 0 and step36_text is None and step4_text is None:
+        # FAIL CLOSED over the shipped files, exactly as the other prose readers do. The
+        # scanned population is an operand this arm READS but does not own — it comes from
+        # the reused fence enumeration — so a change there that stopped yielding blocks
+        # would leave every call trivially accounted for and this check green over the drift
+        # it exists to catch. A crafted fixture may legitimately carry no fence; the shipped
+        # documents may not.
+        raise Refusal(
+            "fenced-completeness: no state-owner invocation was extracted from any ```bash "
+            "fence of either reference file — the fences were removed, or the reused fence "
+            "enumeration stopped reaching them; refusing rather than reporting an empty "
+            "population as a clean pass")
     if orphans:
         raise Refusal(
             f"fenced-completeness: {orphans} are invoked in a ```bash fence of the reference "

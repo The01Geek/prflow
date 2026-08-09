@@ -21902,6 +21902,19 @@ assert_eq("#1466 reverse check: the pre-repair document (query-round-kind and "
           _alc_today is not None
           and "query-round-kind" in _alc_today and "record-staged-write" in _alc_today)
 
+# The refusal's operand list is ordered and deduped, so it needs a multi-element case with a
+# repeat: a call fenced twice must be named once, and the names must arrive in document order.
+_alc_dedup = _alc_fenced(step36=_alc_doc(
+    ["init"],
+    [_alc_call("record-adjudication"), _alc_call("query-arm"),
+     _alc_call("record-adjudication"), _alc_call("init")],
+    extra=_ALC_COND_MENTIONS))
+assert_eq("#1466 reverse check: a call fenced twice is reported once, and the orphans arrive "
+          "in document order",
+          (1, True),
+          (_alc_dedup.count("record-adjudication"),
+           _alc_dedup.index("record-adjudication") < _alc_dedup.index("query-arm")))
+
 # --- attribution: an interpreter flag ahead of the script path ---------------------------
 # `extract-command-heads.py` truncates a head to three argv words, so reusing ITS head
 # extraction would yield `python3 -X importtime <path>` and drop the subcommand entirely —
@@ -21954,6 +21967,32 @@ assert_eq("#1466 reverse check: a sequence paragraph split by a blank line is re
               _alc_fenced(step36="\n".join([
                   _ALC_ANCHOR, "", "`init`", "", "`query-arm`", "",
                   "```bash", _alc_call("query-arm"), "```", "", _ALC_COND_MENTIONS]))))
+
+# --- the scanned population is itself an operand, and it fails closed over the real files --
+# The population comes from the REUSED fence enumeration, which this check reads but does not
+# own. A change there that stopped yielding blocks would leave every call trivially accounted
+# for and this check green over exactly the drift it exists to catch, so an empty population
+# over the SHIPPED documents is a refusal rather than a clean pass. (A crafted fixture may
+# legitimately carry no fence — the rows above rely on that.)
+_alc_empty_pop = None
+_alc_saved_36, _alc_saved_4 = _alc795.STEP36, _alc795.STEP4
+with tempfile.TemporaryDirectory() as _alc_tmp:
+    _alc_p36 = _alc795.Path(_alc_tmp) / "step-3-6-audit.md"
+    _alc_p4 = _alc795.Path(_alc_tmp) / "step-4-present-create.md"
+    _alc_p36.write_text(_alc_doc(["init"], [], extra=_ALC_COND_MENTIONS), encoding="utf-8")
+    _alc_p4.write_text("", encoding="utf-8")
+    try:
+        _alc795.STEP36, _alc795.STEP4 = _alc_p36, _alc_p4
+        _alc_mod = _alc795._load_module()
+        try:
+            _alc795.check_fenced_completeness(_alc_mod.registered_subcommands(), [])
+        except _alc795.Refusal as _alc_exc:
+            _alc_empty_pop = str(_alc_exc)
+    finally:
+        _alc795.STEP36, _alc795.STEP4 = _alc_saved_36, _alc_saved_4
+assert_eq("#1466 reverse check: an EMPTY fenced population over the shipped files is refused, "
+          "not reported as a clean pass",
+          True, _alc_empty_pop is not None and "empty population" in _alc_empty_pop)
 
 # --- state and idempotency ----------------------------------------------------------------
 assert_eq("#1466 reverse check: two consecutive runs over the real tree agree",
