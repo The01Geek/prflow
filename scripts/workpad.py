@@ -3409,11 +3409,11 @@ def _review_coverage_disposition_reason_re(gap: str):
 # `_REQUIRED_ARTIFACTS` established, with every view below DERIVED from it — so a
 # fifth axis is added in one literal rather than in every derived view below, where
 # omitting the `clean` entry would make the axis unconditionally dirty and omitting
-# `gap` would raise inside the gap derivation at Complete time. Two PROSE mirrors of
-# these vocabularies exist and cannot import them — the producer instruction in
-# `skills/implement/phases/phase-3-review.md` §3.3 and the publish precondition in
-# `skills/implement/phases/phase-4-documentation.md` §4.3 — so a vocabulary change
-# edits them in the same commit.
+# `gap` would raise inside the gap derivation at Complete time. Prose mirrors of
+# these vocabularies live in the implement phase files and the review-and-fix
+# references and cannot import them, so before changing a vocabulary grep
+# `record-review-coverage` and `dispatch=` across `skills/**` and reconcile every
+# hit in the same commit.
 #   `values` — the axis's CLOSED vocabulary. `unestablished` is a first-class member
 #     of every axis because an unresolvable fact must be recordable as unknown;
 #     collapsing it onto a clean value is the fail-open this gate exists to close.
@@ -3425,15 +3425,27 @@ def _review_coverage_disposition_reason_re(gap: str):
 #     human actually reasons about.
 _REVIEW_COVERAGE_AXIS_SPECS = (
     {
+        # `not-applicable` is the REJECT arm: the loop routes a REJECT straight to
+        # Loop Exit without a convergence-time shadow trigger, so no shadow was owed
+        # and there is no coverage to report. It is CLEAN because reporting a gap
+        # here would refuse a pass that skipped nothing — see the `dispatch` axis
+        # below, which carries the same value for the same reason.
         'name': 'coverage',
-        'values': ('full', 'not-verified', 'unestablished'),
-        'clean': ('full',),
+        'values': ('full', 'not-applicable', 'not-verified', 'unestablished'),
+        'clean': ('full', 'not-applicable'),
         'gap': 'shadow-coverage',
     },
     {
+        # `not-applicable` is CLEAN and `never` is not, because they are different
+        # facts: `never` is a shadow the run OWED and did not dispatch (the #1230
+        # abuse this gate refuses), while `not-applicable` is a pass whose shadow
+        # was never owed — a REJECT verdict, which the loop routes straight to Loop
+        # Exit without a convergence-time shadow trigger. Without the distinction the
+        # severity-aware soft-proceed, whose whole contract is "do NOT block; the PR
+        # is review-ready", could never reach Complete.
         'name': 'dispatch',
-        'values': ('attempted', 'never', 'unestablished'),
-        'clean': ('attempted',),
+        'values': ('attempted', 'not-applicable', 'never', 'unestablished'),
+        'clean': ('attempted', 'not-applicable'),
         'gap': 'shadow-coverage',
     },
     {
@@ -3467,20 +3479,55 @@ _REVIEW_COVERAGE_GAPS = tuple(
 # record, so blocking the word would contradict it (issue #1230 AC8). The only
 # predicate that gates the disposition is the recorded dispatch-attempted fact.
 _REVIEW_COVERAGE_REASON_MIN_LEN = 20
+# Placeholders that clear the length floor above — the set exists to catch the ones
+# a floor alone cannot, so every member is deliberately at least that long. Short
+# placeholders (`n/a`, `TBD`) are already refused by the floor.
 _REVIEW_COVERAGE_BOILERPLATE = frozenset({
-    '', '-', '--', 'n/a', 'na', 'none', 'tbd', 'todo', 'unknown', 'other',
-    'various', 'reason', 'no reason', 'see above', 'see below', 'as above',
-    'not applicable', 'placeholder', 'xxx',
+    'not applicable to this run',
+    'no specific reason recorded',
+    'see the notes above for details',
+    'see the discussion above for details',
+    'this is a placeholder reason',
+    'reason to be determined later',
+    'nothing further to record here',
 })
+
+
+# Either family's marker, in either namespace — the pattern the free-text guard
+# below screens for, so no free-text field can smuggle one into `## Progress`.
+_REVIEW_COVERAGE_ANY_MARKER_RE = re.compile(
+    _MARKER_NS_RE + r'checkpoint review-coverage(?:-disposition)?:'
+)
+
+
+def _review_coverage_marker_rows(progress_content: str, pattern):
+    """Yield `pattern`'s capture for each `## Progress` bullet whose note text ENDS
+    with that marker — the shape the producer writes (`<text> <marker>`).
+
+    Tail-anchoring to a canonical timestamped bullet is what stops a marker buried
+    mid-sentence inside unrelated prose from being read as a record. It is
+    defence-in-depth beside the free-text guard in `_apply_mutations`, which refuses
+    to write such prose in the first place; either alone would leave the gate
+    readable from text no producer validated."""
+    for line in (progress_content or '').splitlines():
+        bullet = _PROGRESS_BULLET_RE.match(line)
+        if not bullet:
+            continue
+        note = bullet.group(1).rstrip()
+        m = pattern.search(note)
+        if m and m.end() == len(note):
+            yield m.group(1)
 
 
 def _review_coverage_payloads(progress_content: str) -> list[str]:
     """Every `review-coverage:` payload carried by a checkpoint marker in the
     `## Progress` content. A marker outside `## Progress` is not found here (the
-    caller passes only that section), so it reads as absent — fail closed.
-    Duplicates surface as a >1-length list, which the verdict treats as
-    unestablished rather than picking one."""
-    return _REVIEW_COVERAGE_MARKER_RE.findall(progress_content or '')
+    caller passes only that section), so it reads as absent — fail closed; so is one
+    that is not the trailing marker of a canonical bullet. Duplicates surface as a
+    >1-length list, which the verdict treats as unestablished rather than picking
+    one."""
+    return list(_review_coverage_marker_rows(
+        progress_content, _REVIEW_COVERAGE_MARKER_RE))
 
 
 def _parse_review_coverage_payload(payload: str):
@@ -3532,19 +3579,39 @@ def _review_coverage_dispositions(progress_content: str) -> dict:
     stated one."""
     out = {}
     for line in (progress_content or '').splitlines():
-        m = _REVIEW_COVERAGE_DISPOSITION_MARKER_RE.search(line)
-        if not m:
+        bullet = _PROGRESS_BULLET_RE.match(line)
+        if not bullet:
+            continue
+        note = bullet.group(1).rstrip()
+        m = _REVIEW_COVERAGE_DISPOSITION_MARKER_RE.search(note)
+        if not m or m.end() != len(note):
             continue
         gap = m.group(1)
-        rm = _review_coverage_disposition_reason_re(gap).search(line)
+        if gap in out:
+            # Two rows for one gap: which reason the gate judges would depend on row
+            # order, so refuse rather than pick one — the same fail-closed posture
+            # `_review_coverage_payloads`' duplicate handling takes for the record.
+            # The producer already refuses a repeated gap within a call; this arm
+            # covers a row planted by hand or by an older workpad.py.
+            out[gap] = _REVIEW_COVERAGE_DUPLICATE_DISPOSITION
+            continue
+        rm = _review_coverage_disposition_reason_re(gap).search(note)
         out[gap] = (rm.group(1).strip() if rm else '')
     return out
 
 
-def _review_coverage_reason_rejection(reason: str):
+# The sentinel a duplicated gap resolves to. It is not a reason, so it can never
+# satisfy the reason check; the rejection below names it specifically.
+_REVIEW_COVERAGE_DUPLICATE_DISPOSITION = object()
+
+
+def _review_coverage_reason_rejection(reason):
     """Why a disposition reason is unacceptable, or None when it is acceptable.
     Returns a message fragment so both the write-time validation and the read-time
     verdict refuse identically."""
+    if reason is _REVIEW_COVERAGE_DUPLICATE_DISPOSITION:
+        return ('two rows disposition that gap, so which reason applies is '
+                'unresolvable')
     stripped = (reason or '').strip()
     if '<!--' in stripped or '-->' in stripped:
         # The reason rides the row's visible text, ahead of the row's own marker, so
@@ -3572,8 +3639,9 @@ def _review_coverage_disposition_marker(gap: str) -> str:
 
 def _render_review_coverage_disposition(gap: str, reason: str) -> str:
     """The disposition row's visible text. Coupled to
-    `_REVIEW_COVERAGE_DISPOSITION_REASON_RE`, which reads the reason back off this
-    exact rendering — change one and the other stops resolving."""
+    `_review_coverage_disposition_reason_re()`, which builds the per-gap pattern that
+    reads the reason back off this exact rendering — change one and the other stops
+    resolving."""
     return f'review-coverage disposition — gap={gap}; reason: {reason}'
 
 
@@ -3586,8 +3654,9 @@ def _strip_review_coverage_reflection_bullets(content: str) -> str:
     Runs wherever the rows those bullets accompany are stripped, so a superseded or
     inherited disposition does not leave a permanent `### ⚠️ Action required` bullet
     that keeps tripping the retrospective friction gate after the gap it named is
-    gone. Matches on the fixed prefix `_render_review_coverage_disposition`'s
-    reflection writer emits, so the two move together."""
+    gone. Matches on `_REVIEW_COVERAGE_REFLECTION_PREFIX`, the same constant the
+    disposition's reflection writer in `_apply_mutations` emits, so the two move
+    together."""
     kept = [ln for ln in content.splitlines(keepends=True)
             if _REVIEW_COVERAGE_REFLECTION_PREFIX not in ln]
     return ''.join(kept)
@@ -4432,6 +4501,25 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     # rows are written below beside the completion-evidence marker. Read via getattr
     # so a standalone `workpad.py` copy invoked with an older arg shape degrades to
     # "flag absent" rather than raising AttributeError.
+    # Free-text marker guard (issue #1453). The reserved-key guard in
+    # `_plan_checkpoints` covers only a `--checkpoint` KEY; the readers locate their
+    # marker inside a `## Progress` bullet, so a `--note` (or a `--checkpoint` TEXT)
+    # carrying the marker in its prose would write a record that passed none of the
+    # producer validation below and filed none of the accompanying evidence. Refuse
+    # every free-text field that can reach `## Progress`, before any mutation.
+    for _field, _values in (
+        ('--note', list(args.note or [])),
+        ('--checkpoint text', [t for _k, t in checkpoint_reqs]),
+    ):
+        for _text in _values:
+            if _REVIEW_COVERAGE_ANY_MARKER_RE.search(_text or ''):
+                raise _UpdateError(
+                    f"{_field}: the text carries a reserved review-coverage "
+                    "checkpoint marker; record coverage with "
+                    "`--record-review-coverage` and a gap with "
+                    "`--review-coverage-disposition`, which validate the record and "
+                    "write the accompanying evidence. No PATCH was made."
+                )
     review_coverage = getattr(args, 'record_review_coverage', None)
     review_coverage_payload = None
     if review_coverage:
