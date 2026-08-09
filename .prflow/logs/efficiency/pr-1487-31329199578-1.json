@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1487",
+  "generated_at": "2026-08-09T18:37:07Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.31.60",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 3.3560665000000003,
+    "tokens": {
+      "input_tokens": 30,
+      "output_tokens": 15110,
+      "cache_read_input_tokens": 1947166,
+      "cache_creation_input_tokens": 129840,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 48,
+        "outputTokens": 21303,
+        "cacheReadInputTokens": 2350803,
+        "cacheCreationInputTokens": 185752,
+        "webSearchRequests": 0,
+        "costUSD": 3.3560665000000003,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 25,
+    "duration_ms": 319170
+  },
+  "permission_denials": {
+    "count": 6,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-EMPTY} ATTEMPT=${GITHUB_RUN_ATTEMPT:-EMPTY} ACTIONS=${GITHUB_ACTIONS:-EMPTY}\"",
+      "printenv | grep -E '^GITHUB_(RUN_ID|RUN_ATTEMPT|ACTIONS|SERVER_URL|REPOSITORY)=' | sort || echo \"no github env\"",
+      "git fetch origin 1fa508e13c2af1fcf6385fc11c9e179796e8f1f4 2>&1 | tail -2; echo \"---\"; for p in skills/review-and-fix/SKILL.md skills/review-and-fix/references/loop-control.md; do echo -n \"$p \"; git cat-file blob 1fa508e13c2af1fcf6385fc11c9e179796e8f1f4:$p | python3 -c \"import sys,hashlib;print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest())\"; done",
+      "for f in skills/review-and-fix/references/shadow-review.md skills/review-and-fix/references/fixing.md; do echo \"=== $f ===\"; git cat-file blob 1fa508e13c2af1fcf6385fc11c9e179796e8f1f4:$f | grep -niE \"re-read rule|resident|after every.*(return|dispatch)|re-read the active reference\" ; done",
+      "for f in skills/review-and-fix/SKILL.md skills/review-and-fix/references/loop-control.md; do h=$(git cat-file blob 1fa508e13c2af1fcf6385fc11c9e179796e8f1f4:$f | sha256sum | cut -d' ' -f1); echo \"$h  $f\"; done"
+    ],
+    "total": 6,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
