@@ -22220,8 +22220,8 @@ assert_eq("#1466 reverse check: a subcommand named in BOTH the exemption set and
 # The DEAD-ENTRY direction, mirroring check_next_action_routing_totality's stale check: an
 # exemption whose fence has gone away keeps pre-accounting a call the sequence may now be
 # omitting, so the arm would go green over exactly the drift it exists to catch. (Every
-# fixture above fences no _FENCE_EXEMPT member, so this refusal is the one they all hit
-# first — which is why _alc_fenced's default step-3.6 doc fences them.)
+# fixture above fences no _FENCE_EXEMPT member in its step-3.6 doc, so this refusal is the
+# one they would all hit first — which is why _alc_fenced's synthesized step-4 fences them.)
 _alc_dead = _alc_fenced(step36=_alc_doc(
     ["init"], [_alc_call("init")], extra=_ALC_COND_MENTIONS), fence_exempt=False)
 assert_eq("#1466 reverse check: a _FENCE_EXEMPT member invoked in no fence is refused as a "

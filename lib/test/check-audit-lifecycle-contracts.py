@@ -729,8 +729,10 @@ def _fenced_state_owner_calls(extractor, text: str,
     a typo, or a subcommand renamed in the state owner without updating the fence, would
     otherwise contribute nothing, leave the orphan list empty, and let the success line
     report a population the drift had silently shrunk — the identical fail-open
-    `_invocations` was hardened against on the sequence side. A `<`- or `$`-shaped operand
-    is a documented placeholder rather than a call, and is the one declared allowance.
+    `_invocations` was hardened against on the sequence side. A `<`-shaped operand is the
+    reference files' own placeholder convention, and is the one declared allowance; a
+    `$`-shaped one is a shell variable — an unresolvable call, not a placeholder — and
+    refuses like any other unregistered operand.
     """
     found: list[str] = []
     for block in extractor._fenced_bash_blocks(text):                     # noqa: SLF001
