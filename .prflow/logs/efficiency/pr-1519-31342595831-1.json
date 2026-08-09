@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1519",
+  "generated_at": "2026-08-09T23:49:00Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.31.67",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 3.3128795,
+    "tokens": {
+      "input_tokens": 51,
+      "output_tokens": 15716,
+      "cache_read_input_tokens": 3255409,
+      "cache_creation_input_tokens": 129202,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 51,
+        "outputTokens": 15716,
+        "cacheReadInputTokens": 3255409,
+        "cacheCreationInputTokens": 129202,
+        "webSearchRequests": 0,
+        "costUSD": 3.3128795,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 31,
+    "duration_ms": 241356
+  },
+  "permission_denials": {
+    "count": 4,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      "printf '%s\\n' \"$CLAUDE_SKILL_DIR\"; ls /home/runner/work/prflow/prflow/skills/review/phases/",
+      "echo \"=== comment-discipline mirror-fact rule in ANY extension at PR head? ===\"\nfor f in $(git show f2a7aef:.prflow/prompt-extensions/ 2>/dev/null | grep '\\.md$'); do\n  c=$(git show f2a7aef:.prflow/prompt-extensions/$f 2>/dev/null | grep -c 'mirror fact\\|Comment discipline\\|mirror-fact')\n  echo \"$f: $c\"\ndone\necho \"=== base skill reference to the removed §2.3 rule still resolves? ===\"\ngit show f2a7aef:skills/implement/phases/phase-2-implement.md 2>/dev/null | grep -n '2.3' | grep -i 'author\\|comm …[per-command-truncated]",
+      "for f in create-issue docs-bootstrap-external docs-sync-external docs-sync-internal implement pr-description receiving-code-review review-and-fix review; do\n  printf '%s: ' \"$f\"\n  git show \"f2a7aef:.prflow/prompt-extensions/$f.md\" 2>/dev/null | grep -ic 'mirror fact\\|Comment discipline\\|mirror-fact'\ndone"
+    ],
+    "total": 4,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
