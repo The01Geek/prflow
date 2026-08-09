@@ -5655,6 +5655,7 @@ cat > "$S258/all-ticked.md" <<WPMD
 - [x] **Setup**
   - 00:00:00 — completion verification recorded <!-- prflow:checkpoint completion-verification:$S258_KEY -->
   - 00:00:01 — checkpoint 4 clean <!-- prflow:checkpoint base-update-checkpoint-4 --> (issue #1348: the required-artifact gate needs this row before a Complete finalize)
+  - 00:00:02 — review coverage recorded (issue #1453: the gate needs a complete record before a Complete finalize, and it runs BEFORE the AC hard-fail, so without this row (a)'s abort would name the coverage refusal rather than the offending AC row; the marker must be the note's LAST token — the reader accepts only a trailing marker) <!-- prflow:checkpoint review-coverage:full:attempted:complete:complete -->
 
 ## Plan
 - [x] Plan step one

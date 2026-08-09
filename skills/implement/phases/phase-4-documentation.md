@@ -299,6 +299,8 @@ Handle the printed token **per the implement-driven outcome-handling contract in
 
 The off-switch is honored per this issue: with `.verification_flight.enabled` set to `false`, an implement run still runs this claim/mark-running/finish sequence to **produce** the machine record completion requires — `false` suppresses only flight *reuse* (attaching to another owner's terminal evidence), not the record's production.
 
+**Review-coverage precondition — before the publish decision.** Read the review-coverage record §3.3 stamped on the workpad (`## Progress`, `<!-- prflow:checkpoint review-coverage:… -->`). If it is **complete** — either a measured clean pass (`coverage=full`, `dispatch=attempted`, `roster=complete`, `checklist=complete` or `skipped-intentional`) or the no-shadow-owed record §3.3 stamps on the `REJECT` branch and the severity-aware soft-proceed (`not-applicable` on all four axes; a mixture of `not-applicable` and measured values is refused as `[review-coverage-unestablished]`) — proceed unchanged. If it records a **gap** and this run holds for each gap a true reason that **names that specific gap** and is **at least 20 characters** — a generic placeholder or a shorter reason is refused at the finalize write as `[review-coverage-boilerplate]`, publishing the PR beside a `Blocked` workpad — **over a record reading `dispatch=attempted`**, pass one `--review-coverage-disposition <gap> "<reason>"` per gap (`shadow-coverage`, `roster`, `checklist`) on the finalize `--status Complete` call below and publish. Otherwise — an absent, duplicated, malformed, or `dispatch`≠`attempted` record, or a gap with no true, specific reason statable at that length — **refuse to run `gh pr ready` and refuse to flip `Status` to `Complete`**: record `workpad.py update $ISSUE_NUMBER --status Blocked --reflection-kind blocked --reflection "Phase 4.3: review coverage is incomplete or unestablished (<the observed record, verbatim>) and gap(s) <gaps> carry no statable disposition — not publishing and not completing"`, emit the 👎 outcome reaction, and stop. The ordering matters because `gh pr ready` runs **before** the finalize write, so gating only the workpad would publish a PR beside a `Blocked` workpad.
+
 **Publish decision — `implement_pr_state`.** Whether the run publishes the PR or leaves it the draft created in Phase 3.1 is a per-consumer config choice. Read it (default `ready_for_review`), then publish **only** when it is not the exact literal `draft` — default-to-publish is the safe direction, so a missing key, empty string, or any unrecognized value publishes, and a hard read failure (malformed config) falls back to publishing. **Capture whether `gh pr ready` actually succeeded** so the finalize wording reflects the *real* end state — a fallen-through failure (the `else` arm catches *any* non-zero exit — auth scope, GitHub 5xx, rate limit, a race that already merged/closed the PR) would otherwise leave the workpad falsely claiming the PR was published when it is still a draft:
 
 ```bash
@@ -343,13 +345,22 @@ Then finalize the workpad — tick the final `## Progress` item and flip `Status
 #       "refusing to finalize Status: Complete — … Acceptance Criteria row(s) still unticked"). The
 #       Phase 3.4 gate should have ticked every non-post-merge AC, so this is a drift; do NOT retry
 #       verbatim — resolve the AC as Phase 3.4 does (`--tick-ac-n {N}`, or the Blocked path), THEN
-#       re-issue. (post-merge AC rows never trip this; an unticked `## Plan` row, or an
+#       re-issue. The same structural abort also fires on the review-coverage record —
+#       "[review-coverage-unestablished]" (absent/duplicated/malformed record),
+#       "[review-coverage-gap]" (a recorded gap with no disposition), or
+#       "[review-coverage-undispatched]" (a disposition over a record whose dispatch is not
+#       `attempted`), or "[review-coverage-boilerplate]" (a disposition reason that is generic
+#       boilerplate or shorter than the reason floor, remedied by restating the reason so it
+#       names this run's specific gap) — whose remedy is to stamp or disposition the record per
+#       §3.3 and the precondition above, never a re-tick; the undispatched arm has no in-run
+#       remedy at all and routes to the Blocked path. (post-merge AC rows never trip this; an unticked `## Plan` row, or an
 #       `## Acceptance Criteria` section still holding the un-mirrored placeholder, only prints a
 #       non-blocking warning — if that fires, investigate the mirroring, don't just re-run.)
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER \
     --status Complete \
     --tick-progress "PR marked ready" \
     --note "{PR_OUTCOME-specific note above}" \
+    [--review-coverage-disposition <gap> "<reason>" ...repeat per gap] \
     [--reflection-kind note --reflection "{noteworthy event}" ...repeat --reflection per event]
 # Check the exit code of the finalize update above (per the failure-isolation
 # contract): exit 0 means the "PR marked ready" box is now `- [x]` and the run is
