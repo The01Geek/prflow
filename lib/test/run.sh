@@ -12086,7 +12086,7 @@ echo "load-prompt-extension.sh (consumer prompt-extension reader)"
 # module owns the whole former in-file section; see its .inventory.md for the
 # coverage map back to this location.
 if ! devflow_run_full_suite_module "$LIB/test/modules/prompt-extension-reader.sh" \
-  "prompt-extension-reader" 157; then
+  "prompt-extension-reader" 158; then
   printf 'ERROR: prompt-extension-reader boundary could not record its result\n'
   exit 1
 fi
@@ -14971,22 +14971,14 @@ PA_FILE_COUNT=0
 for PA_FILE in "$LIB"/../skills/*/SKILL.md "$LIB"/../skills/implement/phases/phase-*.md; do
   PA_NAME="skills/${PA_FILE#"$LIB"/../skills/}"
   PA_FILE_COUNT=$((PA_FILE_COUNT + 1))
-  # The render-time placeholder (issue #1264) is the ONE sanctioned bare-anchor shape, and it
-  # is excluded by its own full-line form rather than by relaxing the ERE. P1's rationale is
-  # that a bare anchor "collapses to a broken path when the var is empty" — which is a claim
-  # about a SHELL INVOCATION. A `!`…`` placeholder is not one: Claude Code substitutes the
-  # anchor before the model sees the skill, and on a runner where the variable is empty the
-  # placeholder is not a supported construct at all, so it stays inert literal text and the
-  # demoted fallback ladder (which still carries the portable `:-` form, pinned by P3 below)
-  # is what runs. The portable form is also unavailable here: `${VAR:-default}` inside
-  # placeholder text is refused with `Contains expansion` (measured, run 31058109064), so the
-  # bare anchor is the only shape that can work. The exclusion is anchored to the whole line
-  # and names the helper, so it cannot widen to an ordinary fenced call site. It covers only
-  # the files that still carry a placeholder — skills/review/SKILL.md no longer does, which
-  # lib/test/modules/prompt-extension-reader.sh pins as an absence — so this exclusion is
-  # inert there and the file is held to the unqualified no-bare-anchor rule.
-  assert_eq "#275 pin (P1): $PA_NAME has no bare \$CLAUDE_SKILL_DIR/../../ expansion outside the #1264 render-time placeholder" "yes" \
-    "$([ -z "$(grep -E "$PA_BARE_ERE" "$PA_FILE" | grep -vE '^!`\$\{CLAUDE_SKILL_DIR\}/\.\./\.\./scripts/render-prompt-extension\.sh [a-z-]+`$')" ] && echo yes || echo no)"  # raw-guard-ok: loop body: absence pin over the enumerated $PA_FILE loop variable, not a static pin
+  # P1 formerly carved out the issue #1264 render-time `!`…`` placeholder as the one sanctioned
+  # bare-anchor shape. No skill body carries a placeholder any more — a Skill-tool load of one
+  # that does returns no skill body at all — and lib/test/modules/prompt-extension-reader.sh
+  # pins that absence per site, so the carve-out is removed rather than retained inert: an
+  # exclusion matching a shape nothing emits would silently re-permit a bare anchor the moment
+  # a placeholder-shaped line reappeared. Every enumerated file is held to the unqualified rule.
+  assert_eq "#275 pin (P1): $PA_NAME has no bare \$CLAUDE_SKILL_DIR/../../ expansion" "yes" \
+    "$([ -z "$(grep -E "$PA_BARE_ERE" "$PA_FILE")" ] && echo yes || echo no)"  # raw-guard-ok: loop body: absence pin over the enumerated $PA_FILE loop variable, not a static pin
   assert_eq "#275 pin (P2): $PA_NAME has no cross-statement \$CLAUDE_SKILL_DIR anchor assignment" "yes" \
     "$(! grep -qE "$PA_XSTMT_ERE" "$PA_FILE" && echo yes || echo no)"  # raw-guard-ok: loop body: absence pin over the enumerated $PA_FILE loop variable, not a static pin
   # P3 is a PRESENCE pin, so it presupposes the file has at least one helper call site.

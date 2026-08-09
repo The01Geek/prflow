@@ -215,7 +215,7 @@ Once that invocation returns, tick the PR-description extension row, applying th
 ```bash
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --tick-progress "extension resolved: PR description"
 ```
-The `--tick-progress "Documentation"` call above runs *before* this invocation, so at that moment this row is still unticked. Where neither channel established the state, leave the row unticked and say so with `--note`.
+The `--tick-progress "Documentation"` call above runs *before* this invocation, so at that moment this row is still unticked. Where the state was not established, leave the row unticked and say so with `--note`.
 
 Verify the PR Description update landed before moving to the next step.
 

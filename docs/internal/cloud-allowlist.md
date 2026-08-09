@@ -321,17 +321,29 @@ a command prefix (a leading `VAR=value` is a denied matcher shape), and the new
 than an agent command — so `lib/review-profile.tokens` is byte-identical and
 `lib/generate-capability-profiles.py --check` stays green.
 
-### Render-time `` !`…` `` placeholder injection — the accepted shape (issue #1264)
+### Render-time `` !`…` `` placeholder injection — RETIRED (issues #1264, #1472)
 
-The consumer prompt extension is no longer delivered by a command the agent chooses to
-run. `skills/review/SKILL.md`, `skills/review-and-fix/SKILL.md` (both its blocks) and
-`skills/implement/SKILL.md` each carry a render-time placeholder whose command is
-`scripts/render-prompt-extension.sh <skill-name>`; Claude Code executes it before the
-model sees the skill and substitutes its stdout. There is no tool call for the matcher
-to refuse and no decision for the agent to make — which is the point, since the load
-reached the agent in only 8 of 18 sampled review runs and 1 of 4 sampled implement runs.
+**No skill body carries a placeholder any more.** Issue #1472 removed the last four,
+after a forensic audit of run `31287654057` established that a `Skill`-tool load of a
+body carrying one **fails outright**: it returns `is_error=true` whose entire content is
+a permission-refusal string and no skill body at all (`prflow:implement` 208 chars;
+`review-and-fix` and `pr-description` 218 chars each), while the two skills without a
+placeholder in the same run loaded clean. Issue #1462 had already made the
+`load-prompt-extension.sh` ladder unconditional at all five call sites, so the
+placeholder was redundant where it worked and fatal where it did not. The refusal
+surfaces as a `Skill` tool result rather than a `permission_denied` event, so it does
+**not** increment `permission_denials_count` — the failure class is invisible to a run's
+own denial telemetry (issue #1446 carries the machine-observability half).
+`scripts/render-prompt-extension.sh` and its `Bash(*/render-prompt-extension.sh:*)`
+grants are **retained**: narrowing the read-only `review` profile is a security-boundary
+change requiring a same-PR `lib/review-profile.tokens` move, and nothing needs it.
 
-**The accepted shape, and the two constraints it satisfies.** The placeholder is a
+The rest of this section is the **historical measurement record** — the shapes, probe
+run IDs and residuals that were established while the channel was live. It is retained
+as a past-time snapshot so a future proposal to reintroduce render-time injection starts
+from what was measured rather than re-deriving it.
+
+**The accepted shape, and the two constraints it satisfied.** The placeholder was a
 single inline command, un-fenced, carrying the bare `${CLAUDE_SKILL_DIR}` anchor and
 **no other expansion**:
 
@@ -390,13 +402,14 @@ ladder is now invoked unconditionally at all five call sites, so there is no con
 arm left for a run to decline. Nothing in CI, the suite, or the verdict distinguishes a
 lost extension from a delivered one; the workpad's per-surface `prompt extension
 resolved: …` rows are the run-authored record that narrows — never closes — that gap.
-With residual 2 measured, issue #1264's two live-run acceptance criteria now cover
-**one** unmeasured thing — residual 1, the substitution question — rather than two, and
-they remain the post-merge checks that settle it. The anchor is used anyway because the
-alternative is worse: this repository has no `.prflow/vendor/prflow/` on its own
-checkout, so a vendored-literal placeholder would be `command not found` here — and a
-non-zero exit from an injected command aborts the whole skill invocation at zero turns,
-trading a silent policy loss for a silent total run failure.
+Residual 1 — whether `${CLAUDE_SKILL_DIR}` is substituted inside placeholder text — was
+never measured and now never will be: with the channel retired there is no call site to
+dispatch it against. The anchor was used rather than a vendored literal because this
+repository has no `.prflow/vendor/prflow/` on its own checkout, so a vendored-literal
+placeholder would have been `command not found` here — and a non-zero exit from an
+injected command aborts the whole skill invocation at zero turns, trading a silent
+policy loss for a silent total run failure. Run `31287654057` then showed the outright
+`Skill`-load failure above, which is a **third** and worse cost than either.
 
 **The three previously-recorded refused shapes are reachable on every run again (issue
 #1462).** The #1258 run's three refused loader invocations
