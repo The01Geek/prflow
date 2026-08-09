@@ -239,17 +239,18 @@ else
     # devflow:dirty-tree-restore BEGIN (self-contained given the fixed before/after snapshot
     # files and cwd=repo; extracted + exercised as one unit by the project's own test suite)
     mkdir -p .prflow/tmp
-    # NOTE (runtime assumption): the NUL-mode grep operand below is a GNU extension — this region
-    # runs in the review engine's own GNU/Linux agent runtime (same env as CI), NOT a committed
-    # macOS/BSD helper, so the no-GNU-flags convention (governing lib/ + scripts/) does not bind
-    # it. On a non-GNU host those flags error, routing through the fail-closed branches below
-    # (restore nothing + a breadcrumb) — a degradation, never a clobber.
+    # NOTE (portability): the membership test below is pure bash (an exact-string scan over an
+    # in-memory array), so this region carries NO GNU-only flag and no non-preflight PATH tool
+    # decides which paths get restored. The earlier rationale for keeping the region inline —
+    # that its NUL-mode membership test needed a GNU-only grep flag a committed helper under lib/
+    # or scripts/ could not carry — is therefore retired; relocating it is out of scope here, but
+    # the portability objection to doing so no longer applies.
     rm -f ".prflow/tmp/review-dirty-tree-before-paths" ".prflow/tmp/review-dirty-tree-changed-paths" ".prflow/tmp/review-dirty-tree-renamed-paths" 2>/dev/null
     if ! printf '%s' '' > ".prflow/tmp/review-dirty-tree-before-paths" ||
        ! printf '%s' '' > ".prflow/tmp/review-dirty-tree-changed-paths" ||
        ! printf '%s' '' > ".prflow/tmp/review-dirty-tree-renamed-paths"; then
-      # Repo-local scratch allocation failed (quota/perms). Do NOT proceed: an empty before-paths
-      # file reports every membership test absent (rc 1) and fails OPEN (every dirty path, incl.
+      # Repo-local scratch allocation failed (quota/perms). Do NOT proceed: an unbuilt BEFORE
+      # membership set reports every path absent and fails OPEN (every dirty path, incl.
       # the orchestrator's own edits, treated as newly-dirty and restored). Fail closed with a
       # distinct breadcrumb and restore nothing.
       echo "::warning::devflow review: could not allocate repo-local scratch files for the dirty-tree restore; dirty-tree restore SKIPPED this dispatch — this is NOT an agent mutation, nothing auto-restored" >&2
@@ -257,16 +258,24 @@ else
     else
       # 1. BEFORE membership set: every path (incl. rename new + orig), prefix stripped and NUL-
       #    delimited. `read -r -d ''` reads NUL records so a spaced/special path never splits.
+      #    Each path is collected BOTH into the repo-local scratch file (whose rc-checked writes
+      #    detect a scratch failure mid-loop) and into the `before_paths` array the AFTER pass
+      #    scans — building it here, once, keeps the AFTER pass free of a nested read loop that
+      #    would consume its own input. Indexed array + linear scan, never `declare -A`: the
+      #    associative form is bash 4+ and this region must run under bash 3.2.
       before_extract_rc=0
       before_orig=0
+      before_paths=()
       rec=
       while IFS= read -r -d '' rec; do
         if [ "$before_orig" = 1 ]; then
           before_orig=0
+          before_paths+=("$rec")
           printf '%s\0' "$rec" >> ".prflow/tmp/review-dirty-tree-before-paths" || { before_extract_rc=$?; break; }
           continue
         fi
         case "${rec:0:1}" in [RC]) before_orig=1 ;; esac   # index column (X) only: the two-record shape is emitted iff X is R/C
+        before_paths+=("${rec:3}")
         printf '%s\0' "${rec:3}" >> ".prflow/tmp/review-dirty-tree-before-paths" || { before_extract_rc=$?; break; }
       done < "${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}" || before_extract_rc=$?
       [ -z "$rec" ] || before_extract_rc=65
@@ -274,12 +283,15 @@ else
         echo "::warning::devflow review: could not extract the before-snapshot path set (rc=$before_extract_rc); dirty-tree restore SKIPPED this dispatch — nothing auto-restored" >&2
       else
         # 2. AFTER: rename/copy → surfaced-not-restored (renamed-paths file); a normal entry
-        #    classified by its BEFORE membership. Membership reads NUL records (`grep -z`); the
-        #    THREE grep outcomes are handled distinctly so an error never clobbers:
-        #      rc 0  = present in BEFORE (already dirty) → never restore (left to the human);
-        #      rc 1  = absent from BEFORE → newly dirtied → restore set;
-        #      rc>=2 = grep ERROR → fail closed (do NOT restore — an error must not be read as
-        #              "absent → restore", which would clobber a live orchestrator edit).
+        #    classified by its BEFORE membership. Membership is a whole-record exact-string scan
+        #    over the `before_paths` array built above — `[ "$bp" = "${rec:3}" ]` compares the
+        #    complete path, so a spaced/newline/glob-character pathname matches itself and
+        #    nothing else, exactly as the NUL-delimited snapshot intends. TWO outcomes only:
+        #      present in BEFORE (already dirty) → never restore (left to the human);
+        #      absent from BEFORE → newly dirtied → restore set.
+        #    There is no third error outcome to fail closed on: the scan is bash builtins, so
+        #    unlike the external membership tool it replaced it cannot fail while the pipeline
+        #    keeps running and misreport "absent → restore" against a live orchestrator edit.
         after_extract_rc=0
         after_orig=0
         rec=
@@ -288,15 +300,14 @@ else
           case "${rec:0:1}" in   # index column (X) only: a rename/copy (X = R/C) emits the two-record shape
             [RC]) printf '%s\0' "${rec:3}" >> ".prflow/tmp/review-dirty-tree-renamed-paths" || { after_extract_rc=$?; break; }; after_orig=1; continue ;;
           esac
-          if grep -qzxF -- "${rec:3}" ".prflow/tmp/review-dirty-tree-before-paths"; then
+          member=0
+          for bp in ${before_paths[@]+"${before_paths[@]}"}; do   # `${a[@]+…}` so an empty set is not an unbound-variable error under `set -u`
+            if [ "$bp" = "${rec:3}" ]; then member=1; break; fi
+          done
+          if [ "$member" -eq 1 ]; then
             : # present in BEFORE (already dirty) → never restore
           else
-            gmrc=$?
-            if [ "$gmrc" -eq 1 ]; then
-              printf '%s\0' "${rec:3}" >> ".prflow/tmp/review-dirty-tree-changed-paths" || { after_extract_rc=$?; break; } # absent from BEFORE → newly dirtied → restore set
-            else
-              echo "::warning::devflow review: membership test errored (grep rc=$gmrc) for a dispatch-window path; NOT auto-restoring it (fail-closed) — left for the human" >&2
-            fi
+            printf '%s\0' "${rec:3}" >> ".prflow/tmp/review-dirty-tree-changed-paths" || { after_extract_rc=$?; break; } # absent from BEFORE → newly dirtied → restore set
           fi
         done < "${GIT_SNAP_AFTER:-.prflow/tmp/review-dirty-tree-after}" || after_extract_rc=$?
         [ -z "$rec" ] || after_extract_rc=65

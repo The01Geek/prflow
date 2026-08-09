@@ -3844,7 +3844,7 @@ if [ -d "$DT_C" ]; then
 fi
 # Case D — the CENTRAL by-path safety property end-to-end: a path the orchestrator had
 # ALREADY modified before dispatch is left untouched (NOT clobbered) while a DIFFERENT path an
-# agent newly dirtied during the window IS restored. This exercises the `! grep`/rc-1
+# agent newly dirtied during the window IS restored. This exercises the absent-from-BEFORE
 # membership direction against a non-empty BEFORE set — the one scenario cases A/B/C don't
 # build — so a subtle regression in BEFORE-set construction or the membership direction that
 # clobbers a concurrent edit fails here, not only at the literal-presence direction pin.
@@ -3868,24 +3868,13 @@ fi
 DT_D2="$(dt_make_repo)"
 if [ -d "$DT_D2" ]; then
   DT_D2_B="$(probe_tmp "#192 case-D2 before")"; DT_D2_AF="$(probe_tmp "#192 case-D2 after")"
-  DT_D2_ERR="$(probe_tmp "#192 case-D2 stderr")"; DT_D2_BIN="$DT_D2/bin"; mkdir -p "$DT_D2_BIN"
-  # The production review runtime is GNU/Linux and uses grep -z. Supply that
-  # one membership operation on BSD/macOS too so this behavioral check reaches
-  # the restore/re-check boundary instead of taking the documented degradation.
-  DT_REAL_GREP="$(command -v grep)"
-  printf '%s\n' '#!/usr/bin/env bash' \
-    'if [ "${1:-}" = -qzxF ]; then' \
-    '  shift; [ "${1:-}" != -- ] || shift' \
-    '  python3 -c '"'"'import pathlib,sys; needle=sys.argv[1].encode(); records=pathlib.Path(sys.argv[2]).read_bytes().split(b"\\0"); raise SystemExit(0 if needle in records else 1)'"'"' "$1" "$2"' \
-    '  exit $?' \
-    'fi' \
-    'exec "$DT_REAL_GREP" "$@"' > "$DT_D2_BIN/grep"
-  chmod +x "$DT_D2_BIN/grep"
+  DT_D2_ERR="$(probe_tmp "#192 case-D2 stderr")"
+  # No membership shim: the region's BEFORE-membership test is pure bash (issue #1470), so this
+  # behavioral check reaches the restore/re-check boundary unaided on GNU and BSD/macOS alike.
   git -C "$DT_D2" status --porcelain -z > "$DT_D2_B"
   printf 'agent-created' > "$DT_D2/untracked.txt"
   git -C "$DT_D2" status --porcelain -z > "$DT_D2_AF"
-  ( cd "$DT_D2" && PATH="$DT_D2_BIN:$PATH" DT_REAL_GREP="$DT_REAL_GREP" \
-      GIT_SNAP_BEFORE="$DT_D2_B" GIT_SNAP_AFTER="$DT_D2_AF" bash "$DT_REGION" ) >/dev/null 2>"$DT_D2_ERR"
+  ( cd "$DT_D2" && GIT_SNAP_BEFORE="$DT_D2_B" GIT_SNAP_AFTER="$DT_D2_AF" bash "$DT_REGION" ) >/dev/null 2>"$DT_D2_ERR"
   assert_eq "#192 backstop: an untracked dispatch-window file is never auto-deleted" \
     "agent-created" "$(cat "$DT_D2/untracked.txt")"
   assert_eq "#192 backstop: failed restore is detected from live tree state and breadcrumbed" "yes" \
@@ -31826,7 +31815,7 @@ echo "#284 portability wave 3: rc-capture guard migration"
 # (1) ABSENCE (AC5): the banned recipe is a line carrying a command substitution `=$(` AND
 # an uppercase `<IDENT>_RC=$?` capture (or a `<subst>); rc=$?` lowercase capture). This is
 # precisely the AC1 target and does NOT match the intentionally-exempt `cmd; rc=$?` survivors
-# (review's #216-pinned dirty-tree cmp_rc/gmrc, init's grep rc), whose rc line carries no
+# (review's #216-pinned dirty-tree cmp_rc, init's grep rc), whose rc line carries no
 # `=$(`. Assert ZERO such lines in every migrated skill body — a reintroduced
 # capture-then-discriminate recipe turns this RED. (The grep targets `"$1"`, carrying no
 # `_SKILL`/echo, so the #157 raw-guard scanner does not match this helper's body.)
@@ -31877,7 +31866,7 @@ count_284_twoline_rc_recipe() {  # file -> count of the banned recipe split acro
   # continues all of these without a backslash, and the historical recipe this PR removed
   # literally PIPED `printf … | extractor`, so the pipe-continuation form is at least as likely
   # a reintroduction as the backslash one. Neither rule matches the exempt same-line
-  # `cmd; rc=$?` survivors (cmp_rc/gmrc/init grep) — their rc line carries no `=$(`, does not
+  # `cmd; rc=$?` survivors (cmp_rc/init grep) — their rc line carries no `=$(`, does not
   # start with the rc token, and is not preceded by a continued `=$(` assignment.
   awk '
     {
