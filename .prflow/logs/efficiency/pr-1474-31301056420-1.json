@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1474",
+  "generated_at": "2026-08-09T07:32:56Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.31.56",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 7.960889000000001,
+    "tokens": {
+      "input_tokens": 41,
+      "output_tokens": 23860,
+      "cache_read_input_tokens": 3366074,
+      "cache_creation_input_tokens": 190932,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 233,
+        "outputTokens": 58307,
+        "cacheReadInputTokens": 5309508,
+        "cacheCreationInputTokens": 501008,
+        "webSearchRequests": 0,
+        "costUSD": 7.960889000000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 33,
+    "duration_ms": 448784
+  },
+  "permission_denials": {
+    "count": 12,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-unset}\"; echo \"---PR---\"; gh pr view 1474 --json number,title,headRefOid,baseRefName,state,url,closingIssuesReferences,body 2>&1 | head -60",
+      "mkdir -p .prflow/tmp\nrm -f \".prflow/tmp/review-dirty-tree-before\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null\ngit status --porcelain -z > \".prflow/tmp/review-dirty-tree-before\" && [ -f \".prflow/tmp/review-dirty-tree-before\" ] && git hash-object \".prflow/tmp/review-dirty-tree-before\"",
+      "for f in skills/implement/phases/phase-3-review.md skills/review-and-fix/SKILL.md skills/review-and-fix/references/shadow-review.md; do printf \"%s  \" \"$f\"; sha256sum \"$f\" | cut -d' ' -f1; done",
+      "tmp=$(mktemp -d)\ncp .prflow/tmp/review/pr-1474/run/diff.patch \"$tmp/d.patch\"\ngit worktree add -q \"$tmp/wt\" HEAD 2>/dev/null\ncd \"$tmp/wt\" && git apply \"$tmp/d.patch\" 2>&1 | head\nsha256sum skills/implement/phases/phase-3-review.md skills/review-and-fix/SKILL.md skills/review-and-fix/references/shadow-review.md\ngit worktree remove --force \"$tmp/wt\" 2>/dev/null; rm -rf \"$tmp\"",
+      "git worktree add -q /tmp/wt1474 HEAD && git -C /tmp/wt1474 apply /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1474/run/diff.patch && sha256sum /tmp/wt1474/skills/implement/phases/phase-3-review.md /tmp/wt1474/skills/review-and-fix/SKILL.md /tmp/wt1474/skills/review-and-fix/references/shadow-review.md; git worktree remove --force /tmp/wt1474",
+      "git worktree add -q /tmp/wt1474 HEAD",
+      "rm -rf /tmp/rev1474 && mkdir -p /tmp/rev1474 && git archive --format=tar HEAD | tar -x -C /tmp/rev1474 && git apply --directory=/tmp/rev1474 .prflow/tmp/review/pr-1474/run/diff.patch && echo APPLIED_OK",
+      "rm -rf /tmp/rev1474; mkdir -p /tmp/rev1474",
+      "mkdir -p /tmp/rev1474",
+      "git archive --format=tar HEAD | tar -x -C .prflow/tmp/rev1474",
+      "git apply --directory=.prflow/tmp/rev1474 --unsafe-paths .prflow/tmp/review/pr-1474/run/diff.patch",
+      ".prflow/vendor/prflow/scripts/workpad.py patch 5230357816 .prflow/tmp/review/pr-1474/run/review-wp.md 2>.prflow/tmp/review/pr-1474/run/rv-patch.err; echo \"patch-rc=$?\"; cat .prflow/tmp/review/pr-1474/run/rv-patch.err"
+    ],
+    "total": 12,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
