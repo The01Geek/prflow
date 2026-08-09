@@ -4,6 +4,15 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.31.58] — 2026-08-09
+
+### Changed
+Review engine: the Phase 3.2 dirty-tree backstop's BEFORE-membership test is now pure bash
+(an exact-string scan over an indexed array) instead of a GNU-only `grep` NUL-mode invocation,
+so the value that decides which paths get restored no longer depends on a non-preflight PATH
+tool or a GNU-specific flag. Behaviour is unchanged for spaced, newline and glob-character
+pathnames.
+
 ## [2.31.57] — 2026-08-09
 
 ### Changed
