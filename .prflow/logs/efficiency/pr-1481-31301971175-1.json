@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1481",
+  "generated_at": "2026-08-09T07:55:58Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.31.57",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 4.596641,
+    "tokens": {
+      "input_tokens": 21,
+      "output_tokens": 15673,
+      "cache_read_input_tokens": 1344490,
+      "cache_creation_input_tokens": 135489,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 69,
+        "outputTokens": 38870,
+        "cacheReadInputTokens": 2486262,
+        "cacheCreationInputTokens": 299733,
+        "webSearchRequests": 0,
+        "costUSD": 4.596641,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 22,
+    "duration_ms": 424107
+  },
+  "permission_denials": {
+    "count": 9,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      "git status --porcelain | head; echo \"---env---\"; echo \"run=${GITHUB_RUN_ID:-none} attempt=${GITHUB_RUN_ATTEMPT:-none}\"",
+      "tmp=$(mktemp -d) && cp skills/review/phases/phase-3-agents.md \"$tmp/f.md\" && git apply --include='skills/review/phases/phase-3-agents.md' --directory=. -p1 <(sed -n '/^diff --git a\\/skills\\/review\\/phases\\/phase-3-agents.md/,/^diff --git/p' .prflow/tmp/review/pr-1481/run/diff.patch | sed '/^diff --git a\\/scripts/d') 2>&1 | head; echo \"---apply attempt done---\"",
+      "sed -n '/^diff --git a\\/skills\\/review\\/phases\\/phase-3-agents.md/,$p' .prflow/tmp/review/pr-1481/run/diff.patch > /tmp/p3.patch && git apply --check /tmp/p3.patch && cp skills/review/phases/phase-3-agents.md /tmp/p3orig.md && git apply /tmp/p3.patch && sha256sum skills/review/phases/phase-3-agents.md && git checkout -- skills/review/phases/phase-3-agents.md",
+      "sed -n '188,$p' .prflow/tmp/review/pr-1481/run/diff.patch > /tmp/p3.patch; wc -l /tmp/p3.patch",
+      "sed -n '188,$p' .prflow/tmp/review/pr-1481/run/diff.patch > /tmp/p3.patch",
+      "mkdir -p .prflow/tmp/rev && sed -n '188,$p' .prflow/tmp/review/pr-1481/run/diff.patch > .prflow/tmp/rev/p3.patch",
+      "git apply --check .prflow/tmp/review/pr-1481/run/diff.patch && echo APPLIES_CLEAN",
+      "git apply --check .prflow/tmp/review/pr-1481/run/diff.patch"
+    ],
+    "total": 9,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
