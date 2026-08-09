@@ -1,0 +1,298 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-08T12:00:00Z",
+  "fix_commit_sha": "a037c25e0",
+  "fix_files": [
+    "lib/test/loop-verdict-marker-test.py",
+    "skills/review-and-fix/SKILL.md",
+    "skills/review-and-fix/references/shadow-review.md",
+    ".changeset/issue-1230-shadow-coverage-never-elective.md",
+    "scripts/devflow-cloud-writer-contract.json"
+  ],
+  "loop_role": "fix",
+  "current_step": "3.5",
+  "current_substep": null,
+  "pending_dispatch": null,
+  "sweep_defs_read": [
+    "phase-2-implement.md"
+  ],
+  "sweep_evidence": {
+    "status": "run"
+  },
+  "checklist": [],
+  "dispatched_effort": [],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": "intentional"
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Critical",
+      "description": "The SKILL.md failure-map clause contradicted the arm of the row it sits on: an unreadable shadow-review.md IS a run that cannot dispatch, and is an enumerated degradation cause, so the row's own not-verified arm was forbidden by the appended clause.",
+      "defect_signature": {
+        "file": "skills/review-and-fix/SKILL.md",
+        "line_range": [
+          330,
+          330
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Critical",
+      "description": "The no-Complete rule named no observable operand and gave the unresolvable outcome no route, so it failed open where it claimed to fail closed.",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/shadow-review.md",
+        "line_range": [
+          88,
+          88
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "Narrowing the fail-safe residual removed the budget-truncated fan-out from the fail-closed bucket without giving it a landing state.",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/shadow-review.md",
+        "line_range": [
+          88,
+          88
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "The 'structured disposition' sentence constrained a mechanism absent from the tree, so the constraint bound nothing.",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/shadow-review.md",
+        "line_range": [
+          88,
+          88
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 3,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "The 'Derived, never transcribed' comment claimed a derivation the code did not perform: _CLEAN_APPROVE_RESULTS filtered a hand-transcribed local list, so a newly-added clean result would silently go unexercised — the exact failure the comment claimed was impossible.",
+      "defect_signature": {
+        "file": "lib/test/loop-verdict-marker-test.py",
+        "line_range": [
+          135,
+          143
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 5,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Important",
+      "description": "The comment claimed all four not-verified rows are shapes loop-exit.md emits; the reason-parenthetical row is synthetic and rendered nowhere.",
+      "defect_signature": {
+        "file": "lib/test/loop-verdict-marker-test.py",
+        "line_range": [
+          128,
+          133
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 3,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "The changeset narrowed the shipped rule's terminal set to Blocked only, where both shipped surfaces say a non-terminal or Blocked status.",
+      "defect_signature": {
+        "file": ".changeset/issue-1230-shadow-coverage-never-elective.md",
+        "line_range": [
+          6,
+          6
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 2,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "'the assertion is on the marker bytes rather than an exit status' was contradicted three lines later, where the loop asserts both.",
+      "defect_signature": {
+        "file": "lib/test/loop-verdict-marker-test.py",
+        "line_range": [
+          144,
+          146
+        ],
+        "kind": "comment_drift"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Important",
+      "description": "AC6 is unsatisfied: the PR description records no explicit non-goal that the fix loop's own review pass is unchanged and no reviewer is dropped from any roster.",
+      "defect_signature": {
+        "file": "(pull request #1474 description)",
+        "line_range": null,
+        "kind": "other"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "deferred"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "AC4's framing asserts lib/efficiency-trace.sh/.jq gate on coverage; against the tree they read only shadow_synthesized and promoted_to_iter_next, so that consumer premise does not hold.",
+      "defect_signature": {
+        "file": "lib/efficiency-trace.jq",
+        "line_range": null,
+        "kind": "other"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "pushed_back"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-9",
+      "decision": "deferred",
+      "source_file": "(pull request #1474 description)",
+      "claim_text": "AC6 non-goal record missing from the PR body",
+      "skip_category": "out-of-scope",
+      "evidence": "the PR body is the designated surface and is authored at Phase 4.2, which has not run yet; no reviewer is dropped anywhere in the diff, so this is a recording obligation carried to that phase",
+      "parking_evidence": {
+        "basis": "the acceptance criterion names the PR description as its surface, and that surface is written by a later phase of this same run",
+        "failing_input": "the placeholder PR body at review time",
+        "source": "skills/implement/phases/phase-4-documentation.md §4.2",
+        "finding_ref": {
+          "iter": 1,
+          "index": 8
+        }
+      }
+    },
+    {
+      "finding_id": "F-10",
+      "decision": "pushed_back",
+      "source_file": "lib/efficiency-trace.jq",
+      "claim_text": "efficiency-trace gates on shadow coverage",
+      "skip_category": "claim-quality",
+      "evidence": "verified against the tree: neither lib/efficiency-trace.sh nor lib/efficiency-trace.jq reads shadow.coverage; their shadow surface is shadow_synthesized and promoted_to_iter_next, and synthesize_shadow_markers gates on .shadow absence. The consumer is unaffected rather than uncovered, so no test is owed",
+      "parking_evidence": {
+        "basis": "the issue's AC4 framing names a consumer relationship the tree does not have",
+        "failing_input": "a not_verified shadow block passed to the efficiency-trace consumers",
+        "source": "lib/efficiency-trace.jq shadow_promoted derivation; lib/efficiency-trace.sh SHADOW_SYNTH_EXPECTED_FIELDS",
+        "finding_ref": {
+          "iter": 1,
+          "index": 9
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 8,
+    "fix_diff_lines": 46,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "verification_evidence": {
+    "focused_selection": {
+      "single_flight_consulted": null,
+      "surfaces": [
+        {
+          "surface": "scripts/loop-verdict-marker.py",
+          "coverage_map_entry": "owner=unmodularized; no focused_test key",
+          "target": "lib/test/loop-verdict-marker-test.py"
+        },
+        {
+          "surface": "skills/review-and-fix/SKILL.md",
+          "coverage_map_entry": "no entry (map covers lib/ and scripts/)",
+          "target": "lib/test/run-module.sh review-and-fix-contract"
+        },
+        {
+          "surface": "skills/review-and-fix/references/shadow-review.md",
+          "coverage_map_entry": "no entry (map covers lib/ and scripts/)",
+          "target": "lib/test/run-module.sh review-and-fix-contract"
+        }
+      ]
+    },
+    "skipped_checks": []
+  },
+  "shadow": {
+    "ran_at": null,
+    "reviewed_sha": null,
+    "verdict": null,
+    "coverage": null,
+    "prompt_addenda": null,
+    "reviewers_dispatched": [],
+    "expected_reviewers": [],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "telemetry": {
+    "phase_0": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 2
+    },
+    "phase_3": {
+      "calls": 5,
+      "tokens": 420000,
+      "wall_clock_s": 530
+    },
+    "step_2_6": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 0
+    }
+  },
+  "synthesized": false
+}
