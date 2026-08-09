@@ -424,6 +424,8 @@ The engine used to be a single `skills/review/SKILL.md` that every caller read e
 
 On any identity or boundary stop the engine reports the label with the phase id and reference path and does **not** act on the body, improvise the phase from its orientation text, or repair the file. This is the point of the contract: a body can read as complete and correct and still fail these checks, and that case *is* the reason they exist — a defective boundary or identity means what the engine holds is not the bundle it was built against, so the body's plausibility is worth nothing.
 
+**The bundle's failure mode when the root itself never loads (measured 2026-08-06 → 2026-08-09).** Every protection above begins at the root, so a root the `Skill` tool fails to load protects nothing: the agent holds no routing table and no reason to open a phase file, improvises from its surrounding prompt, and posts a merge-gating verdict having executed none of the engine — exiting `success`. A render-time `` !`cmd` `` placeholder in `skills/review/SKILL.md` did exactly that for ≈67 hours; 72 of 72 in-window `Skill{prflow:review}` loads returned `is_error=true` with no body. The closed incident record — population, blast radius, the discriminating field a detector must key on, and what the measurement does *not* establish — is [`docs/internal/review-skill-load-outage-2026-08.md`](review-skill-load-outage-2026-08.md). The surviving observability residual is issue #1446.
+
 Because the bundle is the engine, the **reviewed surface is every source in it, not just the root**: the command-head and command-shape scanners take the whole bundle in one call, and the suite asserts engine-content pins against the concatenated bundle, so a sentence may move between references without breaking its pin.
 
 > **The thesis (good for a technical-deck slide):** don't trust a single review pass. Build an *independent, evidence-based* checklist of every claim the diff makes, verify each claim against the actual source, run a panel of specialized reviewers, and use cross-reviewer corroboration to *calibrate confidence* in each finding, a single-source finding is flagged for extra human scrutiny, never silently dropped.
@@ -1066,9 +1068,9 @@ The plugin install above runs **no installer script** — `install.sh` belongs t
 
 **Cloud tier (optional, from repo root)** — download, read, then run, with both refs pinned to a release tag:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.31.53/install.sh -o devflow-install.sh
+curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.31.55/install.sh -o devflow-install.sh
 # review devflow-install.sh, then:
-DEVFLOW_REF=v2.31.53 bash devflow-install.sh
+DEVFLOW_REF=v2.31.55 bash devflow-install.sh
 ```
 The URL ref fixes which installer bytes you review and run; `DEVFLOW_REF` (default `main`; a tag, SHA, or branch) fixes which ref the installer clones its payload from — pinning the URL alone leaves the payload on `main`. Substitute a newer tag in both places to move the pin; every version is tagged, so the [Tags page](https://github.com/The01Geek/prflow/tags) names the current one, while the [Releases page](https://github.com/The01Geek/prflow/releases) announces the feature releases — see [`docs/internal/install.md`](install.md#pinning-the-installer). Piping the download straight to `bash` works but forfeits the review step. Thin by default (installs workflows, actions, a local marketplace, a config scaffold, and pins `prflow_version`). `DEVFLOW_VENDOR=1` commits the tree instead.
 

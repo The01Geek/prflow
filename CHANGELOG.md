@@ -4,6 +4,23 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.31.55] — 2026-08-09
+
+### Changed
+Unify the `load-prompt-extension.sh` failure contract across all eight shipped ladder call sites: the three docs skills (`docs-sync-internal`, `docs-sync-external`, `docs-release-notes`) now scope the anchor-resolution arm to an exhausted ladder and carry the permission-denial arm that records a refused load as **unestablished** rather than as a repo with no extension.
+
+## [2.31.54] — 2026-08-09
+
+### Changed
+State the prompt-extension whole-read constraint at every `load-prompt-extension.sh`
+ladder call site, not only `skills/implement/SKILL.md`. PR #1473 added "read the
+ladder's output whole — no `>/dev/null`, no `| head -<n>`" where the failure was
+measured; `skills/review/SKILL.md`, `skills/review-and-fix/SKILL.md` (both its own
+extension and `receiving-code-review`) and `skills/pr-description/SKILL.md` invoke the
+same ladder and could truncate its output the same way, with no equivalent constraint.
+The sentence is byte-identical at all five sites so they read as one rule. The ladder
+rungs are unchanged.
+
 ## [2.31.53] — 2026-08-09
 
 ### Changed
