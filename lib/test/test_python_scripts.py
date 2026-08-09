@@ -9903,7 +9903,7 @@ for _terminal in ("Blocked", "Failed"):
     try:
         _res = apply_mut(_rc_row("not-verified:never:short:skipped"),
                          make_args(status=_terminal), [])
-    except workpad._UpdateError as e:
+    except workpad._UpdateError:
         _res = None
         assert_eq(f"#1453 AC10: --status {_terminal} must not be gated", True, False)
     assert_eq(f"#1453 AC10: --status {_terminal} applies over an incomplete record",
