@@ -22356,6 +22356,29 @@ assert_eq("#1466 reverse check RESIDUAL: an invocation named only in inline pros
                                       extra=_ALC_COND_MENTIONS
                                       + " see `" + _alc_call("query-arm") + "`")))
 
+# The bare-`(…)`-subshell residual, pinned in BOTH directions because the boundary is not
+# where "subshells are invisible" would put it: the trailing `)` attaches to the unit's last
+# token, so it defeats the end-anchored basename match only when the state-owner PATH is that
+# last token. The positive control is what makes the pair meaningful — without it the
+# invisibility row below would equally pass against a checker that had gone blind to every
+# subshell.
+assert_eq("#1466 reverse check: an unaccounted invocation nested in a bare `(…)` subshell is "
+          "still VISIBLE and refuses — the subshell is not an escape route",
+          True,
+          (lambda r: r is not None and "query-arm" in r)(
+              _alc_fenced(step36=_alc_doc(
+                  ["init"], [_alc_call("init"), "(" + _alc_call("query-arm") + ")"],
+                  extra=_ALC_COND_MENTIONS))))
+
+assert_eq("#1466 reverse check RESIDUAL: the trailing `)` hides a subshell unit only when the "
+          "state-owner PATH is its last token — a shape that names no subcommand to account",
+          None,
+          _alc_fenced(step36=_alc_doc(
+              ["init"],
+              [_alc_call("init"),
+               '(python3 "${CLAUDE_SKILL_DIR:-/x}"/../../scripts/issue-audit-state.py)'],
+              extra=_ALC_COND_MENTIONS)))
+
 # --- error paths keep their own named refusals, never a traceback -------------------------
 assert_eq("#1466 reverse check: a duplicated anchor line refuses rather than selecting the "
           "wrong paragraph",
@@ -22399,10 +22422,15 @@ _alc_ech_saved = _alc795._ECH
 _alc_load_refusal = None
 try:
     _alc795._ECH = _alc795.REPO / "lib" / "test" / "no-such-scanner-1466.py"
+    # Catch broadly, then ATTRIBUTE: the defect this row plants is the load guard's absence,
+    # whose signature is a raw `FileNotFoundError` escaping instead of a `Refusal`. A bare
+    # `except Refusal` would let that escape abort this module's remaining rows (including
+    # the wiring assertion below) rather than turning this one row RED, so the row grades
+    # `isinstance(..., Refusal)` explicitly — the same shape the `_alc_dedup` row uses.
     try:
         _alc795._load_extractor()
-    except _alc795.Refusal as _exc:
-        _alc_load_refusal = str(_exc)
+    except Exception as _exc:  # noqa: BLE001 - the row's subject is WHICH exception type escapes
+        _alc_load_refusal = str(_exc) if isinstance(_exc, _alc795.Refusal) else None
 finally:
     _alc795._ECH = _alc_ech_saved
 assert_eq("#1466: a REMOVED reused-scanner file is refused by name too (the spec guard alone "

@@ -115,18 +115,34 @@ class Refusal(Exception):
     """A reconciliation could not be established — never reported as a clean result."""
 
 
+def _display_path(path: Path) -> str:
+    """A repo-relative spelling for a refusal message, falling back to the absolute path.
+
+    `Path.relative_to` RAISES `ValueError` for a path outside `REPO`, and every caller here
+    is building the text of a `Refusal` — so the naive call turns a fail-closed refusal into
+    the bare traceback `main()`'s `except Refusal` exists to prevent. Every path this file
+    currently formats is under `REPO`, but the module-level path constants are rebindable
+    (the planted-defect rows rebind them), so the fallback keeps the guard closed by
+    construction rather than by the caller's discipline.
+    """
+    try:
+        return str(path.relative_to(REPO))
+    except ValueError:
+        return str(path)
+
+
 def _load_module(path: Path = IAS, name: str = "_ias795"):
     """Load a bundled helper as a module. Deliberately NOT cached: the planted-defect
     test rows call this for a FRESH object per row and mutate its constants, so a shared
     cached module would leak one row's planted defect into the next."""
     spec = importlib.util.spec_from_file_location(name, path)
     if spec is None or spec.loader is None:
-        raise Refusal(f"could not load {path.relative_to(REPO)} as a module "
+        raise Refusal(f"could not load {_display_path(path)} as a module "
                       "(unloadable spec)")
     module = importlib.util.module_from_spec(spec)
     try:
         spec.loader.exec_module(module)
-    except Exception as exc:  # noqa: BLE001 - ANY load failure is a Refusal, not a traceback
+    except Exception as exc:  # noqa: BLE001 - any ORDINARY load failure is a Refusal, not a traceback
         # The spec guard above does NOT cover a missing file: `spec_from_file_location`
         # returns a fully-populated spec for a path that does not exist, and the failure
         # surfaces here as `FileNotFoundError`. `main()` catches only `Refusal`, so without
@@ -134,7 +150,7 @@ def _load_module(path: Path = IAS, name: str = "_ias795"):
         # module-level import in the general-purpose scanner this file now reuses — escapes
         # as a bare traceback: the one shape this file's own "FAIL CLOSED, NEVER CLEAN-ZERO"
         # contract promises never to produce.
-        raise Refusal(f"could not load {path.relative_to(REPO)} as a module "
+        raise Refusal(f"could not load {_display_path(path)} as a module "
                       f"({type(exc).__name__}: {exc})") from exc
     return module
 
@@ -143,7 +159,7 @@ def _read(path: Path) -> str:
     try:
         return path.read_text(encoding="utf-8")
     except OSError as exc:
-        raise Refusal(f"could not read {path.relative_to(REPO)}: {exc}") from exc
+        raise Refusal(f"could not read {_display_path(path)}: {exc}") from exc
 
 
 def _sole_paragraph(text: str, anchor: str, where: str) -> str:
@@ -699,7 +715,7 @@ def _load_extractor():
     missing = sorted(name for name in _EXTRACTOR_API if not hasattr(module, name))
     if missing:
         raise Refusal(
-            f"fenced-completeness: {_ECH.relative_to(REPO)} no longer exposes {missing} — the "
+            f"fenced-completeness: {_display_path(_ECH)} no longer exposes {missing} — the "
             "reused fence enumeration cannot be composed, so the scanned population would be "
             "unestablished rather than empty; refusing instead of reporting a clean pass")
     return module
@@ -797,11 +813,15 @@ def check_fenced_completeness(registered, report, named):
     here — and a sizeable minority of the sequence's distinct calls are written exactly that
     way. A call mandated in prose without a fence therefore escapes this check entirely;
     re-deriving the unconditional set still requires reading both documents' prose, which no
-    scanner does. A third escape route is inherited from `_boundary_units`: an invocation
-    nested in a bare `(…)` subshell keeps a trailing `)` that `_helper_basename`'s
-    end-anchored match drops, so such a fence is invisible here — and a partial loss of that
-    shape is not caught by the empty-population guard, whose trigger is a reference file
-    contributing nothing at all.
+    scanner does. A third escape route is inherited from `_boundary_units`, and it is
+    NARROWER than a bare "subshells are invisible": the trailing `)` of a bare `(…)` subshell
+    attaches to the unit's LAST token, so it defeats `_helper_basename`'s end-anchored match
+    only when the state-owner path is itself that last token — a shape that names no
+    subcommand and so mandates no call to account. An ordinary subshell-nested invocation,
+    where the subcommand and its operands follow the path, stays VISIBLE and is graded
+    exactly as an unwrapped one; both arms are pinned in the suite. A partial loss of any of
+    these shapes is not caught by the empty-population guard, whose trigger is a reference
+    file contributing nothing at all.
 
     `named` is the sequence's invocation list, produced ONCE by `check_sequence` and passed
     on rather than re-parsed here — two parses of the same paragraph are two things that can
