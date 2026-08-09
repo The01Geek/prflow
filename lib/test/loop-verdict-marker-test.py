@@ -33,8 +33,8 @@ from pathlib import Path
 
 HELPER = str(Path(__file__).resolve().parent.parent.parent / "scripts" / "loop-verdict-marker.py")
 
-# Import the helper's own constants, so the roster this file drives is the helper's set
-# rather than a transcription of it. The subprocess drives remain the behavioural surface;
+# Import the helper's own constants, so the clean/non-clean split is the helper's and a
+# drifted transcription goes RED below. The subprocess drives remain the behavioural surface;
 # this import exists only to read the vocabulary, and the hyphenated filename is why it
 # goes through spec_from_file_location (the idiom lib/test/test_import_review_verdict_handoff.py
 # already uses for a hyphen-named script).
@@ -139,9 +139,9 @@ check("read nonexistent file not CLEAN-FULL", False, out.startswith("CLEAN-FULL"
 # What this block owns is narrow, and saying so is the point: the helper receives an
 # already-RENDERED shadow-status phrase, so it can only be held to normalizing every
 # non-clean phrase away from `full` and carrying that through `read`. The upstream
-# guarantee — that a clean phrase is rendered ONLY on loop-exit.md's two-operand
-# conjunction (`coverage == "full"` AND `prompt_addenda == "none"`) — is agent-executed
-# prose this file cannot reach: a green run here is NOT coverage of that conjunction.
+# guarantee — that on loop-exit.md's APPROVE-family line a clean phrase is rendered only
+# on its two-operand conjunction (`coverage == "full"` AND `prompt_addenda == "none"`) —
+# is agent-executed prose this file cannot reach: a green run here is NOT coverage of it.
 # The first three rows are the shapes loop-exit.md renders when it does not hold; the
 # fourth is a phrase it renders nowhere, standing in for a future variant. The normalizer
 # is one equality against the full-coverage phrase, so these document rendered shapes
