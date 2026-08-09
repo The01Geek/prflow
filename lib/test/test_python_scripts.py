@@ -9783,6 +9783,29 @@ assert_eq("#1453 AC1: the gap vocabulary is DERIVED from the axis table, not tra
 assert_eq("#1453 AC1: every axis declares all four member keys",
           True, all(set(s) == {"name", "values", "clean", "gap"}
                     for s in workpad._REVIEW_COVERAGE_AXIS_SPECS))
+# The table's invariants are ENFORCED at import, not merely documented: the edit that
+# would fail the gate open is adding 'unestablished' to an axis's clean tuple.
+for _bad_label, _bad in (
+    ("'unestablished' treated as clean (the fail-OPEN edit)",
+     ({"name": "a", "values": ("x", "unestablished"),
+       "clean": ("x", "unestablished"), "gap": "g"},)),
+    ("a clean value outside the vocabulary (a typo)",
+     ({"name": "a", "values": ("x", "unestablished"), "clean": ("X",), "gap": "g"},)),
+    ("an axis that cannot record 'unestablished'",
+     ({"name": "a", "values": ("x",), "clean": ("x",), "gap": "g"},)),
+    ("a value that does not round-trip through the payload encoding",
+     ({"name": "a", "values": ("x:y", "unestablished"), "clean": ("x:y",),
+       "gap": "g"},)),
+    ("a duplicate axis name",
+     ({"name": "a", "values": ("x", "unestablished"), "clean": ("x",), "gap": "g"},
+      {"name": "a", "values": ("y", "unestablished"), "clean": ("y",), "gap": "g"})),
+):
+    assert_raises(f"#1453: the axis table refuses {_bad_label}",
+                  AssertionError,
+                  lambda b=_bad: workpad._validate_review_coverage_axis_specs(b))
+assert_eq("#1453: ...and accepts the shipped table (positive control)",
+          None, workpad._validate_review_coverage_axis_specs(
+              workpad._REVIEW_COVERAGE_AXIS_SPECS))
 assert_eq("#1453 AC1: shadow-review.md's intentional checklist skip is a CLEAN value",
           True, "skipped-intentional" in workpad._REVIEW_COVERAGE_CLEAN["checklist"])
 assert_eq("#1453 AC1: a bare skipped checklist is NOT clean",
@@ -10108,6 +10131,12 @@ for _fld, _kw in (
         "full:attempted:complete:complete")]}),
     ("--checkpoint text", {"checkpoint": [["some-key", "x " +
         workpad._review_coverage_disposition_marker("roster")]]}),
+    # The guard lives at the `_append_progress_note` chokepoint, so a channel it was
+    # never hand-listed for — the classification rationale, whose text lands at the
+    # bullet's tail — is screened by construction rather than by enumeration.
+    ("--record-classification rationale",
+     {"record_classification": ["bug-report", "because " +
+        workpad._review_coverage_marker("full:attempted:complete:complete")]}),
 ):
     _ferr = None
     try:
@@ -10116,6 +10145,10 @@ for _fld, _kw in (
         _ferr = str(_e)
     assert_eq(f"#1453: {_fld} carrying a reserved coverage marker is refused",
               True, _ferr is not None and "reserved review-coverage" in _ferr)
+# ...while the producer's OWN validated rows still write through the same chokepoint.
+assert_eq("#1453: the validated producer's rows are still admitted (positive control)",
+          1, len(workpad._review_coverage_payloads(apply_mut(_CP_BODY, make_args(
+              record_review_coverage=["full", "attempted", "complete", "complete"])))))
 # Read-time isolation: a marker buried mid-sentence, or on a non-bullet line, is not
 # a record. (The producer refuses to write either; this is the defence in depth.)
 _MK_RC = workpad._review_coverage_marker("full:attempted:complete:complete")

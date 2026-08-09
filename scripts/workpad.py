@@ -2177,7 +2177,8 @@ def _rewrap_details(head: str, new_inner: str, tail: str) -> str:
 
 
 def _append_progress_note(
-    content: str, note: str, timestamp: str, phase_label: str | None
+    content: str, note: str, timestamp: str, phase_label: str | None,
+    reserved_marker_ok: bool = False,
 ) -> str:
     """Insert a `  - {timestamp} — {note}` bullet nested under the ## Progress
     top-level phase whose row text contains `phase_label`.
@@ -2188,7 +2189,24 @@ def _append_progress_note(
     phase — so a phase's notes stay grouped and chronological across many
     update calls. `timestamp` is the time-only `HH:MM:SS` string. When
     `phase_label` is None, or no row matches it, the note is appended flat at
-    the end of the section so it is never dropped."""
+    the end of the section so it is never dropped.
+
+    **Reserved-marker guard (issue #1453).** Every caller-supplied text that reaches
+    `## Progress` passes through here, so the screen for a reserved review-coverage
+    marker lives here rather than at each writing flag: the gate's readers locate
+    their marker inside a `## Progress` bullet, so any free-text channel — `--note`,
+    a `--checkpoint` TEXT, a `--record-classification` rationale, or a channel added
+    later — could otherwise write a record that passed none of the producer
+    validation and filed none of the accompanying evidence. The rows the producer
+    itself writes carry their marker and reach this function too, so they are
+    admitted by an explicit opt-in argument rather than by pattern."""
+    if not reserved_marker_ok and _REVIEW_COVERAGE_ANY_MARKER_RE.search(note or ''):
+        raise _UpdateError(
+            "the note text carries a reserved review-coverage checkpoint marker; "
+            "record coverage with `--record-review-coverage` and a gap with "
+            "`--review-coverage-disposition`, which validate the record and write "
+            "the accompanying evidence. No PATCH was made."
+        )
     lines = content.split('\n')
     start = None
     if phase_label:
@@ -3464,6 +3482,48 @@ _REVIEW_COVERAGE_AXIS_SPECS = (
         'gap': 'checklist',
     },
 )
+def _validate_review_coverage_axis_specs(specs) -> None:
+    """Enforce the axis table's own invariants at import, so a table edit cannot make
+    the gate fail OPEN silently.
+
+    The dangerous edit is adding `unestablished` to an axis's `clean` tuple: that
+    turns the one value the whole design exists to refuse into a passing one, and no
+    test of the gate's behavior would necessarily notice. A typo in `clean` is the
+    mirror-image failure (an axis permanently dirty). The value-shape rule keeps the
+    colon-joined payload and the marker grammar round-trippable: a value carrying a
+    colon or whitespace would be written by the producer and then read back as a
+    malformed record, refusing the run for a reason no message could explain."""
+    seen = set()
+    for spec in specs:
+        if set(spec) != {'name', 'values', 'clean', 'gap'}:
+            raise AssertionError(
+                f'review-coverage axis spec {spec!r} must declare exactly '
+                'name/values/clean/gap')
+        name = spec['name']
+        if name in seen:
+            raise AssertionError(f'duplicate review-coverage axis {name!r}')
+        seen.add(name)
+        if not spec['gap']:
+            raise AssertionError(f'review-coverage axis {name!r} declares no gap')
+        if not set(spec['clean']) <= set(spec['values']):
+            raise AssertionError(
+                f"review-coverage axis {name!r} has clean values outside its "
+                'vocabulary')
+        if 'unestablished' not in spec['values']:
+            raise AssertionError(
+                f"review-coverage axis {name!r} must admit 'unestablished'")
+        if 'unestablished' in spec['clean']:
+            raise AssertionError(
+                f"review-coverage axis {name!r} treats 'unestablished' as clean, "
+                'which would fail the gate OPEN on an unresolved fact')
+        for value in spec['values']:
+            if not re.fullmatch(r'[A-Za-z0-9._-]+', value):
+                raise AssertionError(
+                    f'review-coverage value {value!r} does not round-trip through '
+                    'the colon-joined payload and the marker grammar')
+
+
+_validate_review_coverage_axis_specs(_REVIEW_COVERAGE_AXIS_SPECS)
 _REVIEW_COVERAGE_AXES = tuple(s['name'] for s in _REVIEW_COVERAGE_AXIS_SPECS)
 _REVIEW_COVERAGE_VOCABULARY = {s['name']: s['values']
                                for s in _REVIEW_COVERAGE_AXIS_SPECS}
@@ -4501,25 +4561,6 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     # rows are written below beside the completion-evidence marker. Read via getattr
     # so a standalone `workpad.py` copy invoked with an older arg shape degrades to
     # "flag absent" rather than raising AttributeError.
-    # Free-text marker guard (issue #1453). The reserved-key guard in
-    # `_plan_checkpoints` covers only a `--checkpoint` KEY; the readers locate their
-    # marker inside a `## Progress` bullet, so a `--note` (or a `--checkpoint` TEXT)
-    # carrying the marker in its prose would write a record that passed none of the
-    # producer validation below and filed none of the accompanying evidence. Refuse
-    # every free-text field that can reach `## Progress`, before any mutation.
-    for _field, _values in (
-        ('--note', list(args.note or [])),
-        ('--checkpoint text', [t for _k, t in checkpoint_reqs]),
-    ):
-        for _text in _values:
-            if _REVIEW_COVERAGE_ANY_MARKER_RE.search(_text or ''):
-                raise _UpdateError(
-                    f"{_field}: the text carries a reserved review-coverage "
-                    "checkpoint marker; record coverage with "
-                    "`--record-review-coverage` and a gap with "
-                    "`--review-coverage-disposition`, which validate the record and "
-                    "write the accompanying evidence. No PATCH was made."
-                )
     review_coverage = getattr(args, 'record_review_coverage', None)
     review_coverage_payload = None
     if review_coverage:
@@ -4868,18 +4909,20 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     # Review-coverage record + dispositions (issue #1453): validated above; the prior
     # rows were stripped just before the append loop, mirroring the completion-evidence
     # marker's replace-rather-than-accumulate semantics.
+    _review_coverage_rows: set[str] = set()
     if review_coverage_payload:
         _state = _render_review_coverage_state(
             dict(zip(_REVIEW_COVERAGE_AXES, review_coverage)))
-        progress_notes.append(
+        _review_coverage_rows.add(
             f'review coverage recorded ({_state}) '
             f'{_review_coverage_marker(review_coverage_payload)}'
         )
     for _gap, _reason in review_dispositions:
-        progress_notes.append(
+        _review_coverage_rows.add(
             f'{_render_review_coverage_disposition(_gap, _reason)} '
             f'{_review_coverage_disposition_marker(_gap)}'
         )
+    progress_notes.extend(sorted(_review_coverage_rows))
     # Inherited required-artifact strip (issue #1347). Runs on BOTH resume arms —
     # it rides its own flag rather than the cloud-only `--checkpoint`/`--expect-*`
     # set the local arm drops — and BEFORE the note append below, so a row this
@@ -4953,7 +4996,12 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
                 content, [g for g, _r in review_dispositions])
         phase_label = _progress_phase_for_status(content, current_phase)
         for text in progress_notes:
-            content = _append_progress_note(content, text, now_time, phase_label)
+            # `_review_coverage_rows` holds exactly the rows the validated producer
+            # above composed, so the chokepoint guard admits those and refuses a
+            # marker arriving through any caller-supplied text.
+            content = _append_progress_note(
+                content, text, now_time, phase_label,
+                reserved_marker_ok=text in _review_coverage_rows)
         sections[idx] = (heading, content)
 
     if args.reflection or args.reflection_file:
