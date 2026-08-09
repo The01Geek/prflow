@@ -118,44 +118,56 @@ check("read nonexistent file rc", 2, rc)
 check("read nonexistent file out", "NO-MARKER\n", out)
 check("read nonexistent file not CLEAN-FULL", False, out.startswith("CLEAN-FULL"))
 
-# ── issue #1230: a clean APPROVE is unreachable on a not-verified shadow block ──
-# The elective path is closed: `coverage: "not_verified"` is a consequence of a shadow
-# shortfall, never a budget choice. What that decision must never do is weaken the
-# coverage gate itself, so this drives the compose -> read ROUND TRIP (the checks above
-# drive each subcommand alone) over the helper's clean-approve token set paired with the
-# not-verified phrase shapes enumerated from loop-exit.md's shadow-status render rules.
-# A CLEAN-FULL out of any of these would mean a run reported as not independently audited
-# had reached the clean-completion path.
-#
-# The `prompt addenda` / `attestation not recorded` phrases are the #497 attestation half
-# of loop-exit.md's TWO-operand clean-agreement conjunction (`coverage == "full"` AND
-# `prompt_addenda == "none"`): on those arms coverage IS full while the rendered phrase is
-# not the clean one, so they are what proves the addenda half is still load-bearing here.
+# ── issue #1230: the marker's coverage direction is fail-closed end to end ──
+# What this block owns is narrow, and saying so is the point: the helper receives an
+# already-RENDERED shadow-status phrase, so it can only be held to normalizing every
+# non-clean phrase away from `full` and carrying that through `read`. The upstream
+# guarantee — that a clean phrase is rendered ONLY on loop-exit.md's two-operand
+# conjunction (`coverage == "full"` AND `prompt_addenda == "none"`) — is agent-executed
+# prose this file cannot reach: a green run here is NOT coverage of that conjunction.
+# The rows below are the render shapes loop-exit.md emits when it does not hold.
 _NOT_VERIFIED_PHRASES = [
     ("bare", "shadow agreement not verified"),
     ("reason", "shadow agreement not verified (roster short: 3 of 5 reviewers returned)"),
     ("addenda-array", 'shadow agreement not verified (prompt addenda: ["topic-priming"])'),
-    ("attestation-absent", "shadow agreement not verified (attestation not recorded)"),
-    ("attestation-invalid", "shadow agreement not verified"),
+    ("attestation-absent", NV),
 ]
+# Derived, never transcribed: the helper single-sources its clean-approve set as
+# `_RESULT_TOKENS - {reject, approve-unresolved-shadow-findings}` so a newly-added clean
+# result joins it automatically, and a second literal list here would silently not grow.
 _CLEAN_APPROVE_RESULTS = [
-    ("APPROVE", "approve"),
-    ("APPROVE with notes", "approve-with-notes"),
-    ("APPROVE WITH CAVEAT", "approve-with-caveat"),
-    ("APPROVE WITH ADVISORY NOTES", "approve-with-advisory-notes"),
+    (human, token)
+    for human, token in _compose_result_cases
+    if token not in ("reject", "approve-unresolved-shadow-findings")
 ]
+
+# Every non-clean phrase must compose to the SAME not-verified marker, so the assertion is
+# on the marker bytes rather than an exit status — a normalizer that admitted one of these
+# phrases would emit `coverage=full` here.
 for _label, _phrase in _NOT_VERIFIED_PHRASES:
-    for _human, _token in _CLEAN_APPROVE_RESULTS:
-        rc, marker, _ = _run(["compose", "--result", _human, "--coverage", _phrase])
-        check(f"#1230 compose [{_label}/{_token}] rc", 0, rc)
-        rc, out, _ = _run(["read"], stdin=marker)
-        check(f"#1230 round trip [{_label}/{_token}] out", f"CLEAN-NOT-VERIFIED {_token}\n", out)
-        check(f"#1230 round trip [{_label}/{_token}] not CLEAN-FULL", False, out.startswith("CLEAN-FULL"))
+    rc, out, _ = _run(["compose", "--result", "APPROVE", "--coverage", _phrase])
+    check(f"#1230 compose [{_label}] rc", 0, rc)
+    check(
+        f"#1230 compose [{_label}] marker",
+        "<!-- prflow:loop-verdict result=approve coverage=not-verified -->\n",
+        out,
+    )
+
+# ...and carrying a not-verified marker through `read` must reach CLEAN-NOT-VERIFIED for
+# every clean-approve result, never CLEAN-FULL: a CLEAN-FULL here would route a run
+# reported as not independently audited onto the clean-completion path.
+for _human, _token in _CLEAN_APPROVE_RESULTS:
+    rc, marker, _ = _run(["compose", "--result", _human, "--coverage", NV])
+    check(f"#1230 compose [{_token}] rc", 0, rc)
+    rc, out, _ = _run(["read"], stdin=marker)
+    check(f"#1230 round trip [{_token}] out", f"CLEAN-NOT-VERIFIED {_token}\n", out)
+    check(f"#1230 round trip [{_token}] not CLEAN-FULL", False, out.startswith("CLEAN-FULL"))
 
 # The converse direction, so the guard above cannot be satisfied by a normalizer that
 # calls everything not-verified: the exact clean-agreement phrase still round-trips to
 # CLEAN-FULL. A run that narrowed the phrase would silently strip every clean completion.
 rc, marker, _ = _run(["compose", "--result", "APPROVE", "--coverage", FULL])
+check("#1230 converse compose rc", 0, rc)
 rc, out, _ = _run(["read"], stdin=marker)
 check("#1230 round trip [full/approve] out", "CLEAN-FULL approve\n", out)
 
