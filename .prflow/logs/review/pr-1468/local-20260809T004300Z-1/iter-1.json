@@ -281,12 +281,18 @@
     }
   },
   "shadow": {
-    "ran_at": null,
-    "reviewed_sha": null,
-    "verdict": null,
-    "coverage": "not_verified",
-    "reason": "the run reached its context budget before the Step 2.6 shadow fan-out could be dispatched; recorded not_verified rather than claimed",
-    "reviewers_dispatched": [],
+    "ran_at": "2026-08-09T02:05:00Z",
+    "reviewed_sha": "17e984ce5b51317e47b6c56e022738e2a088b058",
+    "verdict": "REJECT",
+    "coverage": "full",
+    "prompt_addenda": [],
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
     "expected_reviewers": [
       "prflow:code-reviewer",
       "prflow:silent-failure-hunter",
@@ -294,8 +300,196 @@
       "prflow:pr-test-analyzer",
       "prflow:requesting-code-review"
     ],
-    "phase3_findings": [],
-    "promoted_to_iter_next": false
+    "reason": null,
+    "checklist_skipped": "intentional",
+    "phase3_findings": [
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Critical",
+        "description": "_load_module's spec guard never fires for a MISSING FILE (spec_from_file_location returns a populated spec); the failure lands in exec_module as FileNotFoundError and escapes main(), which catches only Refusal — and _load_extractor's docstring claimed the opposite",
+        "defect_signature": {
+          "file": "lib/test/check-audit-lifecycle-contracts.py",
+          "line_range": [
+            118,
+            131
+          ],
+          "kind": "unhandled_exception"
+        },
+        "corroboration_count": 1,
+        "fix_decision": "applied"
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Important",
+        "description": "_fenced_state_owner_calls silently drops a state-owner invocation carrying no non-flag operand — the same silent-shrink fail-open the arm above refuses, reached by another path",
+        "defect_signature": {
+          "file": "lib/test/check-audit-lifecycle-contracts.py",
+          "line_range": [
+            737,
+            752
+          ],
+          "kind": "logic_error"
+        },
+        "corroboration_count": 1,
+        "fix_decision": "applied"
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Important",
+        "description": "the $-shaped placeholder allowance swallows a parameterized real call: a $ operand in command position is a shell variable, i.e. unknown rather than absent",
+        "defect_signature": {
+          "file": "lib/test/check-audit-lifecycle-contracts.py",
+          "line_range": [
+            742,
+            743
+          ],
+          "kind": "logic_error"
+        },
+        "corroboration_count": 2,
+        "fix_decision": "applied"
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "severity": "Suggestion",
+        "description": "the DISCLOSED RESIDUAL paragraph omits a third escape route inherited from _boundary_units: a bare (…) subshell whose trailing ) defeats _helper_basename",
+        "defect_signature": {
+          "file": "lib/test/check-audit-lifecycle-contracts.py",
+          "line_range": [
+            277,
+            301
+          ],
+          "kind": "comment_drift"
+        },
+        "corroboration_count": 1,
+        "fix_decision": "applied"
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "severity": "Suggestion",
+        "description": "'for the same reason' has no single antecedent — the preceding sentence gives two different reasons",
+        "defect_signature": {
+          "file": "skills/create-issue/references/step-3-6-audit.md",
+          "line_range": [
+            374,
+            374
+          ],
+          "kind": "comment_drift"
+        },
+        "corroboration_count": 1,
+        "fix_decision": "applied"
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "severity": "Suggestion",
+        "description": "the cutovers paragraph runs two sentences onto one line, breaking the file's wrap convention",
+        "defect_signature": {
+          "file": "docs/internal/cutovers/issue-795-audit-state-round-trips.md",
+          "line_range": [
+            73,
+            82
+          ],
+          "kind": "style"
+        },
+        "corroboration_count": 1,
+        "fix_decision": "applied"
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Important",
+        "description": "_load_extractor's _EXTRACTOR_API refusal has no planted-defect row — the only new arm with a stated fail-closed purpose and zero driven coverage",
+        "defect_signature": {
+          "file": "lib/test/test_python_scripts.py",
+          "line_range": null,
+          "kind": "test_gap"
+        },
+        "corroboration_count": 1,
+        "fix_decision": "applied"
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Suggestion",
+        "description": "the placeholder allowance is half-covered: only the < form has a row, the $ arm ships unexercised",
+        "defect_signature": {
+          "file": "lib/test/check-audit-lifecycle-contracts.py",
+          "line_range": [
+            262,
+            264
+          ],
+          "kind": "test_gap"
+        },
+        "corroboration_count": 2,
+        "fix_decision": "applied"
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "severity": "Important",
+        "description": "_FENCE_EXEMPT has no dead-entry check: a member that stops being conditional stays pre-accounted, and the arm goes green over the sequence omission it exists to catch",
+        "defect_signature": {
+          "file": "lib/test/check-audit-lifecycle-contracts.py",
+          "line_range": [
+            812,
+            823
+          ],
+          "kind": "test_gap"
+        },
+        "corroboration_count": 1,
+        "fix_decision": "applied"
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "severity": "Important",
+        "description": "the release note calls query-round-kind a recording step; it is a read-only query proved unable to reach save_state",
+        "defect_signature": {
+          "file": "docs/external/release-notes.md",
+          "line_range": [
+            16,
+            16
+          ],
+          "kind": "documented_falsehood"
+        },
+        "corroboration_count": 1,
+        "fix_decision": "applied"
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "severity": "Suggestion",
+        "description": "'turned away twice per audit round' states an arm-scoped refusal unconditionally; file-arm-requires-staged-write is scoped to a fresh file-arm dispatch",
+        "defect_signature": {
+          "file": "docs/external/release-notes.md",
+          "line_range": [
+            16,
+            16
+          ],
+          "kind": "documented_falsehood"
+        },
+        "corroboration_count": 1,
+        "fix_decision": "applied"
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "severity": "Suggestion",
+        "description": "the no-non-flag-operand breadcrumb misdirects on a fenced line that does not invoke the tool at all",
+        "defect_signature": {
+          "file": "lib/test/check-audit-lifecycle-contracts.py",
+          "line_range": [
+            767,
+            780
+          ],
+          "kind": "other"
+        },
+        "corroboration_count": 1,
+        "fix_decision": "applied"
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 12,
+      "overlap_with_iter_N": 0,
+      "new": 12,
+      "new_critical": 1,
+      "new_important": 5
+    },
+    "promoted_to_iter_next": true
   },
   "synthesized": false,
   "telemetry": "unavailable"
