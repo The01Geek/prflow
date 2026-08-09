@@ -142,16 +142,21 @@ dead entry, both flag vocabularies against registered options, and — since iss
 a ```bash fence must be named in the ordered sequence, in the declared `_FENCE_EXEMPT` set, or in
 `_CONDITIONAL`. That reverse arm is what stops the sequence from *omitting* a call the documents
 mandate; its reach is the ```bash fences alone, so a call written only in prose backticks stays
-outside it, as most of the sequence's calls are. It **refuses** a
+outside it — a sizeable minority of the sequence's distinct calls. It **refuses** a
 subcommand-shaped token in the ordered sequence that the parser does not register rather than
 silently skipping it — skipping is selection, not validation, and a typo had lowered the derived
 figure by one while the success line still claimed "every one a registered subcommand".
 
 The checker's own fail-closed arms are driven: every prior run was over a clean tree, so it had
-only ever been observed passing. One planted-defect row per refusal arm requires that Refusal, and
-a further row requires the unmutated checker to still pass, so the rows grade a live guard rather
-than a permanently-red one. Issue #1466's reverse arm arrived with its own planted-defect rows on
-the same pattern, driven against crafted reference documents rather than mutated constants.
+only ever been observed passing. Planted-defect rows drive the `flag-vocabulary`,
+`next-action-routing`, `read-backs` and `round-defaulted` refusals, and a further row requires the
+unmutated checker to still pass, so those rows grade a live guard rather than a permanently-red one.
+The arms are **sampled, not exhaustively covered** — `readonly-complement`, `emitting-complement`
+and `sequence` have no planted-defect row and are observed only on the passing path. Read the driven
+set from the `#795 checker:` rows in `lib/test/test_python_scripts.py`, not from a count copied
+here. Issue #1466's reverse arm arrived with its own rows on the same pattern, driven mostly
+against crafted reference documents, with one mutating `_FENCE_EXEMPT` to plant an unregistered
+exemption.
 
 ## Measurement
 
@@ -162,8 +167,10 @@ unconditional call turns the suite RED rather than only moving a printed figure.
 
 **The figure rose by three at issue #1466, and that rise is a correction, not a regression.** The
 repaired sequence adds `query-round-kind` once and `record-staged-write` twice, so the derived
-count moved from 18 to 21. No behavior changed: those three calls were always being made — both
-are enforced by the state owner, which refuses a dispatch without them — and only the document
+count moved from 18 to 21. No behavior changed: those three calls were always being made — the
+state owner refuses a fresh file-arm dispatch that finds no recorded staged write, and refuses a
+`record-dispatch` with no `--kind`, so the pre-dispatch pair is tool-enforced; the presentation
+write's `record-staged-write` is prose-mandated by the shared write procedure. Only the document
 omitted them, so the rise measures the prose catching up with the run. Read a later green MEASURE
 line against that baseline rather than against the pre-#1466 one.
 

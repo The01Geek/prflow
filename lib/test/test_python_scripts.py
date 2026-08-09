@@ -21817,10 +21817,13 @@ def _alc_fenced(step36=None, step4=None):
         p36 = _alc795.Path(tmp) / "step-3-6-audit.md"
         p4 = _alc795.Path(tmp) / "step-4-present-create.md"
         p36.write_text(step36, encoding="utf-8")
-        # `check_sequence` requires step-4 to still mandate the binding re-detect its joint
-        # scope counts, so every crafted step-4 carries that mention.
-        p4.write_text(("" if step4 is None else step4) + "\n`query-draft-binding`\n",
-                      encoding="utf-8")
+        # Two things every crafted step-4 needs unless the caller overrides it: the
+        # `query-draft-binding` mention `check_sequence` requires, and one accounted ```bash
+        # fence, because the empty-population guard is PER FILE — a fence-less step-4 would
+        # otherwise refuse every row rather than the one testing that guard.
+        if step4 is None:
+            step4 = "```bash\n" + _alc_call("init") + "\n```\n"
+        p4.write_text(step4 + "\n`query-draft-binding`\n", encoding="utf-8")
         try:
             _alc795.STEP36, _alc795.STEP4 = p36, p4
             named = _alc795.check_sequence(reg, [])
@@ -21925,9 +21928,33 @@ _alc_dedup = _alc_fenced(step36=_alc_doc(
     extra=_ALC_COND_MENTIONS))
 assert_eq("#1466 reverse check: a call fenced twice is reported once, and the orphans arrive "
           "in document order",
-          (1, True),
-          (_alc_dedup.count("record-adjudication"),
-           _alc_dedup.index("record-adjudication") < _alc_dedup.index("query-arm")))
+          (True, 1, True),
+          # Guard the refusal-text reads: on a regression `_alc_fenced` returns None, and an
+          # unguarded `.count()` would raise AttributeError — aborting the run at this line
+          # instead of failing this one row.
+          (_alc_dedup is not None,
+           (_alc_dedup or "").count("record-adjudication"),
+           _alc_dedup is not None
+           and _alc_dedup.index("record-adjudication") < _alc_dedup.index("query-arm")))
+
+# The attribution's OWN fail-open control. Taking the first *registered* token after the
+# helper (and skipping anything else) would drop a typo'd or renamed subcommand entirely: no
+# orphan, no refusal, and a success line reporting a population the drift had shrunk — the
+# same "skipping is selection, not validation" defect `_invocations` was hardened against.
+_alc_typo = _alc_fenced(step36=_alc_doc(
+    ["init"], [_alc_call("init"), _alc_call("record-staged-writes")],
+    extra=_ALC_COND_MENTIONS))
+assert_eq("#1466 reverse check: a fenced operand the parser registers as no subcommand is "
+          "REFUSED, not silently dropped",
+          True, _alc_typo is not None and "record-staged-writes" in _alc_typo)
+
+# ... and the one declared allowance: a documented placeholder operand is not a call.
+assert_eq("#1466 reverse check: a `<placeholder>` operand is a documented placeholder, not an "
+          "unregistered subcommand, and does not refuse",
+          None,
+          _alc_fenced(step36=_alc_doc(
+              ["init"], [_alc_call("init"), _alc_call("<subcommand>")],
+              extra=_ALC_COND_MENTIONS)))
 
 # --- attribution: an interpreter flag ahead of the script path ---------------------------
 # `extract-command-heads.py` truncates a head to three argv words, so reusing ITS head
@@ -21958,6 +21985,18 @@ assert_eq("#1466 reverse check: a fence carrying no state-owner invocation is li
           (lambda r: r is not None and "empty population" in r)(
               _alc_fenced(step36=_alc_doc(["init"], ["git status --porcelain"],
                                           extra=_ALC_COND_MENTIONS))))
+
+# The guard is PER FILE, not per pair: summing would let the larger document keep the total
+# non-zero while the smaller one went dark, under a success line still claiming both.
+_alc_one_dark = _alc_fenced(
+    step36=_alc_doc(["init"], [_alc_call("init")], extra=_ALC_COND_MENTIONS),
+    step4="(this file carries no bash fence)")
+assert_eq("#1466 reverse check: ONE reference file contributing nothing refuses, naming that "
+          "file, even while the other file's population is non-empty",
+          True,
+          _alc_one_dark is not None
+          and "empty population" in _alc_one_dark
+          and "step-4-present-create.md" in _alc_one_dark)
 
 # --- the DISCLOSED RESIDUAL, asserted rather than left to be discovered --------------------
 # The reused enumeration reaches only fences whose info string is exactly `bash`. Each
@@ -21992,6 +22031,41 @@ assert_eq("#1466 reverse check: a sequence paragraph split by a blank line is re
               _alc_fenced(step36="\n".join([
                   _ALC_ANCHOR, "", "`init`", "", "`query-arm`", "",
                   "```bash", _alc_call("query-arm"), "```", "", _ALC_COND_MENTIONS]))))
+
+# --- the arm is actually WIRED, and the pinned count still counts with multiplicity --------
+# Every row above calls `check_fenced_completeness` directly, so deleting its call from
+# `main()` would leave them all green while the arm went inert on the shipped documents —
+# the same inertness the reverse arm exists to prevent. Grade the report `main()` builds.
+_alc_main_out = io.StringIO()
+with contextlib.redirect_stdout(_alc_main_out):
+    _alc_main_rc = _alc795.main()
+assert_eq("#1466: main() actually dispatches the reverse arm — its report line is on the "
+          "report main() prints (unwiring the call would leave every row above green)",
+          (0, True),
+          (_alc_main_rc,
+           any(line.startswith("fenced-completeness:")
+               for line in _alc_main_out.getvalue().splitlines())))
+
+# `check_sequence` returns the invocation LIST, and the pinned figure is its length — so a
+# dedup slipped into it (an easy "cleanup", since the reverse arm immediately takes a
+# frozenset) would silently LOWER the derived count and read as a legitimate reduction.
+_alc_multi = None
+_alc_saved36b, _alc_saved4b = _alc795.STEP36, _alc795.STEP4
+with tempfile.TemporaryDirectory() as _alc_tmp2:
+    _p36b = _alc795.Path(_alc_tmp2) / "a.md"
+    _p4b = _alc795.Path(_alc_tmp2) / "b.md"
+    _p36b.write_text(_alc_doc(["init", "query-arm", "init"], [], extra=_ALC_COND_MENTIONS),
+                     encoding="utf-8")
+    _p4b.write_text("`query-draft-binding`\n", encoding="utf-8")
+    try:
+        _alc795.STEP36, _alc795.STEP4 = _p36b, _p4b
+        _alc_multi = _alc795.check_sequence(
+            _alc795._load_module().registered_subcommands(), [])
+    finally:
+        _alc795.STEP36, _alc795.STEP4 = _alc_saved36b, _alc_saved4b
+assert_eq("#1466: check_sequence counts a repeated call with MULTIPLICITY (a dedup would "
+          "silently lower the pinned figure)",
+          3, len(_alc_multi))
 
 # --- state and idempotency ----------------------------------------------------------------
 assert_eq("#1466 reverse check: two consecutive runs over the real tree agree",

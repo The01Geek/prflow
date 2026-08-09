@@ -328,11 +328,10 @@ Read the current figure there rather than from a number copied into this page.
 **A live figure moves for two reasons, and only one of them is this change.** Issue #1466
 raised the derived count by three — `query-round-kind` once and `record-staged-write` twice
 — by *repairing the sequence prose*, which had omitted three positions the run always
-executed and the state owner already enforces. That rise is a documentation correction, not
-a regression in the reduction below: no call was added to the run. Read a MEASURE line taken
-after #1466 against that corrected baseline; comparing it to a figure recorded before the
-repair overstates the per-round list by exactly those three. Three reductions compose into
-the reduction this change made:
+executed. That rise is a documentation correction, not a regression in the reduction below:
+no call was added to the run. Read a MEASURE line taken after #1466 against that corrected
+baseline; comparing it to a figure recorded before the repair overstates the per-round list
+by exactly those three. Three reductions compose into the reduction **#795** made:
 
 - The four back-to-back boundary reads (`query-triggers`, `query-convergence`,
   `query-coverage`, `query-calibration`) collapse to one `query-boundary` call plus the
