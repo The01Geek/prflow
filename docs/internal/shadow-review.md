@@ -291,6 +291,22 @@ back to a single-agent pass and does **not** report a clean verdict. It records
 Step 2.6's Decide step: the loop's tentative verdict stands but is reported as *unverified*, never
 as agreement.
 
+**`not_verified` is a consequence, never a choice (issue #1230).** A run may not elect it as a budget
+decision. A run under cost pressure that could dispatch the shadow dispatches it, and a fan-out that
+*was* dispatched and fell short records `not_verified` and its true cause, cost included — the
+coverage record reports coverage, not blame. What is refused is a budget or elective cause offered in
+place of a dispatch that was never attempted, and a run that never dispatched may not report its
+result as independently audited. The rule binds the local and cloud tiers identically. The decision
+was settled empirically: on the run for issue #1466 (PR #1468) an orchestrator elected `not_verified`
+under budget pressure and disclosed it honestly; the shadow, run afterwards on that same converged and
+unchanged diff, returned 12 findings with zero overlap with the loop's own pass, four of them genuine
+fail-opens in already-shipped code — blinding, not freshness, is what the pass buys, since those
+defects were in code the first pass had itself written and blessed. Those counts are a **past-time
+snapshot** of that one run, not a live measurement — they are not re-derivable and a later editor
+should not refresh them. Enforcement at the
+terminal-status boundary is a separate concern tracked by #1453; the rule here is stated on the prompt
+surfaces and asserts no terminal-status routing of its own.
+
 One bounded exception applies before outcome 3 is recorded (Step 2.6's *Transient vs. structural*
 rule): a **single** dispatched reviewer that returned garbage / empty while the rest of the roster
 returned cleanly gets **exactly one** targeted re-dispatch first; only if that retry also fails (or

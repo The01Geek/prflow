@@ -4,6 +4,16 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.31.57] — 2026-08-09
+
+### Changed
+- **The fix loop's shadow pass is now stated to be never electively skippable.** `coverage: "not_verified"` is never elective — a consequence of a shadow shortfall rather than a cost lever — so a run that cannot afford the pass dispatches it anyway, a fan-out that ran and fell short records the shortfall and its true cause, cost included, and a run that never dispatched may not report its result as independently audited. `/prflow:implement`'s Phase 3.3 wording, which described that path as something the loop chose, now describes it as the shortfall it is. (#1474)
+
+## [2.31.56] — 2026-08-09
+
+### Fixed
+- **Corrected the stale labeling rationale in the create-issue issue template.** The "Posting the issue" section of `skills/create-issue/references/issue-template.md` no longer attributes label application to maintainers; it now points to Step 4, which applies the reserved `PRFlow` provenance label after creation, so passing `--label` on the create call is redundant. (#1480)
+
 ## [2.31.55] — 2026-08-09
 
 ### Changed
