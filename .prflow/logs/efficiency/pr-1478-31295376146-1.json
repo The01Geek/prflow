@@ -100,5 +100,64 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.31.54",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 11.46933525,
+    "tokens": {
+      "input_tokens": 1515,
+      "output_tokens": 42417,
+      "cache_read_input_tokens": 10638588,
+      "cache_creation_input_tokens": 224491,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 1573,
+        "outputTokens": 68554,
+        "cacheReadInputTokens": 11800858,
+        "cacheCreationInputTokens": 480856,
+        "webSearchRequests": 0,
+        "costUSD": 11.46933525,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 70,
+    "duration_ms": 849865
+  },
+  "permission_denials": {
+    "count": 11,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---ENV---\"; echo \"RUN_ID=$GITHUB_RUN_ID ATTEMPT=$GITHUB_RUN_ATTEMPT\"; echo \"---BASE---\"; .prflow/vendor/prflow/scripts/config-get.sh .base_branch main",
+      "mkdir -p .prflow/tmp/review/pr-1478/31295376146-1\ngh pr diff 1478 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1478/31295376146-1/diff.patch | tail -5\necho \"---rc=${PIPESTATUS[0]}---\"",
+      ".prflow/vendor/prflow/scripts/workpad.py patch 5229833769 .prflow/tmp/review/pr-1478/31295376146-1/review-wp.md 2>.prflow/tmp/review/pr-1478/31295376146-1/rv-patch.err; echo \"patch-rc=$?\"",
+      ".prflow/vendor/prflow/scripts/resolve-review-overrides.py \"prflow:checklist-generator\" 2>.prflow/tmp/review/pr-1478/31295376146-1/rv-ovr.phase1.err; echo \"ovr-rc=$?\"; echo \"---err---\"; cat .prflow/tmp/review/pr-1478/31295376146-1/rv-ovr.phase1.err",
+      "echo \"=== shallow? ===\"; git rev-parse --is-shallow-repository\necho \"=== count ===\"; git rev-list --count HEAD\necho \"=== do the cited commits exist? ===\"\nfor c in 7b2943c94 9a79f02e8 adc88267f b7e3bc867 8836e08457 a688e739f 1248e5e624 395e2c620 76772a133 47a4751639; do\n  printf '%s: ' \"$c\"; git cat-file -t \"$c\" 2>/dev/null || echo \"MISSING\"\ndone",
+      "mkdir -p .prflow/tmp\nif rm -f \".prflow/tmp/review-dirty-tree-before\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \".prflow/tmp/review-dirty-tree-before\" &&\n   [ -f \".prflow/tmp/review-dirty-tree-before\" ] &&\n   [ ! -L \".prflow/tmp/review-dirty-tree-before\" ] &&\n   git hash-object \".prflow/tmp/review-dirty-tree-before\"; then\n  echo \"SNAP-OK\"\nelse\n  printf '%s\\n' disabled > \".prflow/tmp/review-dirty-tree-disabled\"\n  echo \"SNAP-DISABLED\"\nfi",
+      "git status --porcelain -z > .prflow/tmp/review-dirty-tree-before",
+      "for c in 7b2943c94 adc88267f 9a79f02e8 b7e3bc867 8836e08457 a688e739f 76772a133 1248e5e624 395e2c620; do printf \"%s \" \"$c\"; git cat-file -t \"$c\" 2>/dev/null || echo MISSING; done",
+      "for c in 7b2943c94 adc88267f 9a79f02e8 b7e3bc867 8836e08457 a688e739f 76772a133 1248e5e624 395e2c620; do t=$(git cat-file -t \"$c\" 2>/dev/null || echo MISSING); echo \"$c $t\"; done",
+      "cd /home/runner/work/prflow/prflow\nfor c in 7b2943c94 adc88267f 9a79f02e8 b7e3bc867 8836e08457 a688e739f 76772a133 1248e5e624 395e2c620; do\n  printf '%s ' \"$c\"; git log -1 --format='%ci %s' \"$c\" 2>&1 | head -1\ndone",
+      "for c in 7b2943c94 adc88267f 9a79f02e8 b7e3bc867 8836e08457 a688e739f 76772a133 1248e5e624 395e2c620; do printf '%s ' \"$c\"; git log -1 --format='%ci %s' \"$c\" 2>&1 | head -1; done"
+    ],
+    "total": 11,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
