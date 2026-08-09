@@ -769,10 +769,12 @@ def _fenced_state_owner_calls(extractor, text: str,
                     # subcommand could be attributed at all. Dropping it here would be the
                     # same silent shrink the arm above refuses, reached by a different path.
                     raise Refusal(
-                        "fenced-completeness: a ```bash fence invokes the state owner with "
-                        f"no non-flag operand ({statement.strip()!r}) — no subcommand could "
-                        "be attributed, so the scanned population would silently shrink; "
-                        "refusing instead of reporting a short population as complete")
+                        "fenced-completeness: a ```bash fence names the state owner with no "
+                        f"non-flag operand ({statement.strip()!r}) — either the statement "
+                        "does not invoke the tool at all (a `--help` or error transcript, a "
+                        "`chmod` line), or its subcommand was edited away; refusing rather "
+                        "than dropping it, which would shrink the scanned population "
+                        "silently. Move a non-invoking line out of a ```bash fence")
     return found
 
 
@@ -827,12 +829,14 @@ def check_fenced_completeness(registered, report, named):
     scanned = 0
     empty: list[str] = []
     orphans: list[str] = []
+    all_calls: set[str] = set()
     for label, text in (("step-3-6-audit.md", seq_text),
                         ("step-4-present-create.md", step4)):
         calls = _fenced_state_owner_calls(extractor, text, registered)
         if not calls:
             empty.append(label)
         scanned += len(calls)
+        all_calls.update(calls)
         for call in calls:
             if call not in accounted and f"{label}: {call}" not in orphans:
                 orphans.append(f"{label}: {call}")
@@ -855,6 +859,17 @@ def check_fenced_completeness(registered, report, named):
             "files but named in neither the call sequence, _FENCE_EXEMPT, nor _CONDITIONAL — "
             "either the sequence is missing a call the run makes, or the call is conditional "
             "and belongs in _FENCE_EXEMPT with its condition recorded")
+    dead = sorted(c for c in _FENCE_EXEMPT if c not in all_calls)
+    if dead:
+        # The dead-entry direction, mirroring `check_next_action_routing_totality`'s stale
+        # check. Without it a member that stops being conditional — reappearing as an
+        # unconditional fenced call — stays pre-accounted by its own exemption, and this arm
+        # goes green over exactly the sequence omission it was added to catch. An exemption
+        # whose fence legitimately went away is retired here, not left to rot.
+        raise Refusal(
+            f"fenced-completeness: {dead} appear in _FENCE_EXEMPT but are invoked in no "
+            "```bash fence of either reference file — a stale exemption pre-accounts a call "
+            "the sequence may now be omitting; retire the entry, or restore the fence")
     report.append(f"fenced-completeness: all {scanned} fenced state-owner invocations across "
                   "both reference files are named in the call sequence, the declared "
                   "exemption set, or the conditional set")

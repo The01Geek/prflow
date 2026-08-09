@@ -22104,13 +22104,17 @@ def _alc_call(subcommand, prefix="python3 ", flags=""):
 _ALC_COND_MENTIONS = " ".join(f"`{c}`" for c in _alc795._CONDITIONAL)
 
 
-def _alc_fenced(step36=None, step4=None):
+def _alc_fenced(step36=None, step4=None, fence_exempt=True):
     """Run the reverse check over two crafted documents; return None or the refusal text.
 
     The documents are written to real files and `STEP36`/`STEP4` rebound to them, which is
     the checker's ONLY injection seam — so a crafted run grades under byte-identical rules
     to the shipped one, including the fail-closed empty-population arm. The sequence set is
     produced by `check_sequence` over the same crafted document, exactly as `main()` does.
+
+    `fence_exempt` controls whether the synthesized step-4 fences the `_FENCE_EXEMPT`
+    members. It defaults on because the dead-entry arm refuses an exemption invoked in no
+    fence, which every other row would otherwise hit first; the dead-entry row turns it off.
     """
     if step36 is None:
         step36 = _alc_doc(["init"], [_alc_call("init")], extra=_ALC_COND_MENTIONS)
@@ -22121,12 +22125,14 @@ def _alc_fenced(step36=None, step4=None):
         p36 = _alc795.Path(tmp) / "step-3-6-audit.md"
         p4 = _alc795.Path(tmp) / "step-4-present-create.md"
         p36.write_text(step36, encoding="utf-8")
-        # Two things every crafted step-4 needs unless the caller overrides it: the
-        # `query-draft-binding` mention `check_sequence` requires, and one accounted ```bash
+        # Three things every crafted step-4 needs unless the caller overrides it: the
+        # `query-draft-binding` mention `check_sequence` requires; one accounted ```bash
         # fence, because the empty-population guard is PER FILE — a fence-less step-4 would
-        # otherwise refuse every row rather than the one testing that guard.
+        # otherwise refuse every row rather than the one testing that guard; and a fence per
+        # `_FENCE_EXEMPT` member, so the dead-entry arm is satisfied.
         if step4 is None:
-            step4 = "```bash\n" + _alc_call("init") + "\n```\n"
+            calls = ["init"] + (list(_alc795._FENCE_EXEMPT) if fence_exempt else [])
+            step4 = "".join(f"```bash\n{_alc_call(c)}\n```\n" for c in calls)
         p4.write_text(step4 + "\n`query-draft-binding`\n", encoding="utf-8")
         try:
             _alc795.STEP36, _alc795.STEP4 = p36, p4
@@ -22210,6 +22216,17 @@ _alc_both = _alc_fenced(step36=_alc_doc(
 assert_eq("#1466 reverse check: a subcommand named in BOTH the exemption set and the call "
           "sequence is refused, so the two cannot disagree about conditionality",
           True, _alc_both is not None and _alc795._FENCE_EXEMPT[0] in _alc_both)
+
+# The DEAD-ENTRY direction, mirroring check_next_action_routing_totality's stale check: an
+# exemption whose fence has gone away keeps pre-accounting a call the sequence may now be
+# omitting, so the arm would go green over exactly the drift it exists to catch. (Every
+# fixture above fences no _FENCE_EXEMPT member, so this refusal is the one they all hit
+# first — which is why _alc_fenced's default step-3.6 doc fences them.)
+_alc_dead = _alc_fenced(step36=_alc_doc(
+    ["init"], [_alc_call("init")], extra=_ALC_COND_MENTIONS), fence_exempt=False)
+assert_eq("#1466 reverse check: a _FENCE_EXEMPT member invoked in no fence is refused as a "
+          "stale exemption",
+          True, _alc_dead is not None and _alc795._FENCE_EXEMPT[0] in _alc_dead)
 
 # --- defect reproduction: today's document, before the repair ----------------------------
 _alc_today = _alc_fenced(step36=_alc_doc(
