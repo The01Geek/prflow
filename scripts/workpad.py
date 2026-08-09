@@ -3353,6 +3353,203 @@ def _strip_completion_marker_rows(content: str) -> str:
     return ''.join(kept)
 
 
+# ── Review-coverage record + disposition (issue #1453) ─────────────────────────
+#
+# A run's Phase 3 review pass can fall short — a shadow that was not verified, a
+# reviewer roster short of the expected set, a skipped checklist step — and before
+# this record the only trace was free-text prose in a `## Progress` note, which no
+# reader could resolve. These constants give the fact a machine-readable home so the
+# terminal `--status Complete` gate can refuse a silent shortfall.
+#
+# The record rides the EXISTING keyed-checkpoint marker family (issue #537) under a
+# fixed `review-coverage:` key namespace carrying a four-axis payload, exactly as
+# `completion-verification:` carries a flight key. That family — not the
+# `_REQUIRED_ARTIFACTS` literal-key family — is the right precedent: the payload
+# legitimately CHANGES between calls, and `--checkpoint`'s replay semantics key on
+# the whole key string, so a second call with a different payload would insert a
+# SECOND independent row rather than replacing the first, leaving two records of
+# different vintage with nothing to say which is authoritative. So the producer
+# strips the prior row and appends a fresh one, and the reader refuses on anything
+# other than exactly one record.
+_REVIEW_COVERAGE_KEY_PREFIX = 'review-coverage:'
+_REVIEW_COVERAGE_DISPOSITION_KEY_PREFIX = 'review-coverage-disposition:'
+# Both the current `prflow:` and superseded `devflow:` spellings are read per record
+# (issue #1003 renamed the marker namespace and rewrote no history). The coverage
+# pattern cannot collide with the disposition one: `review-coverage:` requires the
+# colon immediately after `review-coverage`, which `review-coverage-disposition:`
+# does not have.
+_REVIEW_COVERAGE_MARKER_RE = re.compile(
+    r'<!--\s*(?:pr|dev)flow:checkpoint\s+review-coverage:([^\s]+?)\s*-->'
+)
+_REVIEW_COVERAGE_DISPOSITION_MARKER_RE = re.compile(
+    r'<!--\s*(?:pr|dev)flow:checkpoint\s+review-coverage-disposition:([^\s]+?)\s*-->'
+)
+# The disposition's REASON lives in the row's visible text rather than the marker
+# key, because `_CHECKPOINT_KEY_RE`'s grammar (`[A-Za-z0-9._:-]`) admits neither
+# spaces nor any of base64's `+/=`, so an encoded reason could not ride the key at
+# all. This literal is therefore a producer/consumer contract: the producer renders
+# it and this pattern reads it back off the same line.
+_REVIEW_COVERAGE_DISPOSITION_REASON_RE = re.compile(
+    r'review-coverage disposition — gap=[a-z-]+; reason: (.*?)\s*<!--'
+)
+# The four axes, each a CLOSED vocabulary. `unestablished` is a first-class member of
+# every axis because an unresolvable fact must be recordable as unknown — collapsing
+# it onto a clean value is the fail-open this gate exists to close.
+_REVIEW_COVERAGE_AXES = ('coverage', 'dispatch', 'roster', 'checklist')
+_REVIEW_COVERAGE_VOCABULARY = {
+    'coverage': ('full', 'not-verified', 'unestablished'),
+    'dispatch': ('attempted', 'never', 'unestablished'),
+    'roster': ('complete', 'short', 'unestablished'),
+    # `skipped-intentional` is shadow-review.md's diff-profile-driven checklist skip
+    # (small_diff + config_only), which that reference makes explicitly NOT a
+    # coverage shortfall — so it is a CLEAN value, unlike a bare `skipped`.
+    'checklist': ('complete', 'skipped-intentional', 'skipped', 'unestablished'),
+}
+# The clean value(s) of each axis. A record is COMPLETE only when every axis is clean.
+_REVIEW_COVERAGE_CLEAN = {
+    'coverage': ('full',),
+    'dispatch': ('attempted',),
+    'roster': ('complete',),
+    'checklist': ('complete', 'skipped-intentional'),
+}
+# Which gap token each axis reports. `coverage` and `dispatch` are two facts about the
+# same shadow pass, so both report `shadow-coverage` — keeping the disposition
+# vocabulary to the three gaps a human actually reasons about.
+_REVIEW_COVERAGE_AXIS_GAP = {
+    'coverage': 'shadow-coverage',
+    'dispatch': 'shadow-coverage',
+    'roster': 'roster',
+    'checklist': 'checklist',
+}
+_REVIEW_COVERAGE_GAPS = ('shadow-coverage', 'roster', 'checklist')
+# A disposition reason must name the specific gap, so a placeholder is refused
+# (issue #1453 AC9). This is deliberately NOT a cost/budget word blocklist: shipped
+# `shadow-review.md` permits cost as a TRUE cause on a dispatched-and-fell-short
+# record, so blocking the word would contradict it (issue #1230 AC8). The only
+# predicate that gates the disposition is the recorded dispatch-attempted fact.
+_REVIEW_COVERAGE_REASON_MIN_LEN = 20
+_REVIEW_COVERAGE_BOILERPLATE = frozenset({
+    '', '-', '--', 'n/a', 'na', 'none', 'tbd', 'todo', 'unknown', 'other',
+    'various', 'reason', 'no reason', 'see above', 'see below', 'as above',
+    'not applicable', 'placeholder', 'xxx',
+})
+
+
+def _review_coverage_payloads(progress_content: str) -> list[str]:
+    """Every `review-coverage:` payload carried by a checkpoint marker in the
+    `## Progress` content. A marker outside `## Progress` is not found here (the
+    caller passes only that section), so it reads as absent — fail closed.
+    Duplicates surface as a >1-length list, which the verdict treats as
+    unestablished rather than picking one."""
+    return _REVIEW_COVERAGE_MARKER_RE.findall(progress_content or '')
+
+
+def _parse_review_coverage_payload(payload: str):
+    """Split a `<coverage>:<dispatch>:<roster>:<checklist>` payload into an axis dict,
+    or return None when it is malformed — the wrong field count, or any field outside
+    its axis vocabulary. A malformed payload is unestablished, never a partial read:
+    accepting the fields that happened to parse would let a truncated record answer
+    for axes it never carried."""
+    fields = (payload or '').split(':')
+    if len(fields) != len(_REVIEW_COVERAGE_AXES):
+        return None
+    record = dict(zip(_REVIEW_COVERAGE_AXES, fields))
+    for axis, value in record.items():
+        if value not in _REVIEW_COVERAGE_VOCABULARY[axis]:
+            return None
+    return record
+
+
+def _review_coverage_gaps(record) -> list[str]:
+    """The distinct gap tokens a coverage record reports, in `_REVIEW_COVERAGE_GAPS`
+    order. An empty list means the record is complete. A None record (absent,
+    duplicated, or malformed) reports every gap — unestablished is never clean."""
+    if record is None:
+        return list(_REVIEW_COVERAGE_GAPS)
+    gaps = {
+        _REVIEW_COVERAGE_AXIS_GAP[axis]
+        for axis in _REVIEW_COVERAGE_AXES
+        if record[axis] not in _REVIEW_COVERAGE_CLEAN[axis]
+    }
+    return [g for g in _REVIEW_COVERAGE_GAPS if g in gaps]
+
+
+def _review_coverage_dispositions(progress_content: str) -> dict:
+    """The recorded dispositions as `{gap: reason}`, read from the `## Progress`
+    content. Each is one row carrying a `review-coverage-disposition:<gap>` marker
+    whose visible text holds the reason; the reason is re-read here rather than
+    trusted from the writing call, so a disposition recorded by an earlier phase
+    still reaches the Phase 4.3 finalize call, which repeats no coverage flags.
+    A row whose reason cannot be re-read maps to the empty string, which the
+    verdict's boilerplate check then refuses — an unreadable reason is not a
+    stated one."""
+    out = {}
+    for line in (progress_content or '').splitlines():
+        m = _REVIEW_COVERAGE_DISPOSITION_MARKER_RE.search(line)
+        if not m:
+            continue
+        gap = m.group(1)
+        rm = _REVIEW_COVERAGE_DISPOSITION_REASON_RE.search(line)
+        out[gap] = (rm.group(1).strip() if rm else '')
+    return out
+
+
+def _review_coverage_reason_rejection(reason: str):
+    """Why a disposition reason is unacceptable, or None when it is acceptable.
+    Returns a message fragment so both the write-time validation and the read-time
+    verdict refuse identically."""
+    stripped = (reason or '').strip()
+    if stripped.lower() in _REVIEW_COVERAGE_BOILERPLATE:
+        return 'it is a generic placeholder'
+    if len(stripped) < _REVIEW_COVERAGE_REASON_MIN_LEN:
+        return (f'it is shorter than {_REVIEW_COVERAGE_REASON_MIN_LEN} characters '
+                'and so cannot name the specific gap')
+    return None
+
+
+def _review_coverage_marker(payload: str) -> str:
+    """The hidden marker a review-coverage record row carries."""
+    return _checkpoint_marker(_REVIEW_COVERAGE_KEY_PREFIX + payload)
+
+
+def _review_coverage_disposition_marker(gap: str) -> str:
+    """The hidden marker a review-coverage disposition row carries."""
+    return _checkpoint_marker(_REVIEW_COVERAGE_DISPOSITION_KEY_PREFIX + gap)
+
+
+def _render_review_coverage_disposition(gap: str, reason: str) -> str:
+    """The disposition row's visible text. Coupled to
+    `_REVIEW_COVERAGE_DISPOSITION_REASON_RE`, which reads the reason back off this
+    exact rendering — change one and the other stops resolving."""
+    return f'review-coverage disposition — gap={gap}; reason: {reason}'
+
+
+def _strip_review_coverage_marker_rows(content: str, record: bool = True,
+                                       gaps=None) -> str:
+    """Remove `## Progress` rows carrying review-coverage markers.
+
+    `record=True` removes the coverage record row and EVERY disposition row, because
+    a fresh record supersedes dispositions written against the previous one — a
+    surviving disposition would answer for a gap the new record may not report.
+    `gaps` (when given) additionally removes only those gaps' disposition rows, which
+    is what a dispositions-only call needs: re-stating one gap's reason must replace
+    that row rather than leaving two rows for one gap.
+
+    Three callers, one regex pair: the producer's record write, the producer's
+    disposition write, and the Phase 1.3 resume strip — a coverage record describes
+    *this* attempt, so a resumed run must not inherit an earlier attempt's answer."""
+    wanted = set(gaps or ())
+    kept = []
+    for ln in content.splitlines(keepends=True):
+        if record and _REVIEW_COVERAGE_MARKER_RE.search(ln):
+            continue
+        m = _REVIEW_COVERAGE_DISPOSITION_MARKER_RE.search(ln)
+        if m and (record or m.group(1) in wanted):
+            continue
+        kept.append(ln)
+    return ''.join(kept)
+
+
 def _validate_flight_key(args, flight_key: str) -> None:
     """Validate a specific completion flight key against its canonical record.
 
@@ -3454,6 +3651,86 @@ def _required_artifact_verdict(progress_content: str) -> None:
             )
 
 
+def _review_coverage_verdict(progress_content: str) -> None:
+    """The review-coverage half of the terminal gate (issue #1453): a terminal
+    `--status Complete` must carry a `## Progress` review-coverage record showing the
+    Phase 3 review pass ran in full — or, for each gap it does show, an accepted
+    disposition naming that gap and stating a reason.
+
+    Reads ONLY the `## Progress` content, exactly like `_required_artifact_verdict`:
+    the Phase 4.3 finalize call is a plain `--status Complete` that repeats no
+    coverage flags, so a verdict keyed on `args` would see nothing on every real run.
+    Both the record and its dispositions are durable rows, so a disposition written in
+    Phase 3.3 still reaches this read — and one passed on the Complete call itself is
+    equally visible, because the gate runs over the POST-mutation sections.
+
+    An absent, duplicated, or malformed record is UNESTABLISHED, never complete: the
+    fail-open this gate exists to close is precisely a run that shipped Complete with
+    no resolvable coverage fact.
+
+    The disposition is gated on the recorded DISPATCH-ATTEMPTED fact, never on a
+    reason-string blocklist: a fan-out that was dispatched and fell short may state
+    any true cause, cost included (shipped `shadow-review.md`, issue #1230), while a
+    run that never dispatched the shadow has no legal way to record a shortfall and
+    complete — it stops at a non-terminal or `Blocked` status instead.
+
+    A PURE READ: it raises a structural `_UpdateError` (no PATCH — `cmd_update`
+    aborts before the temp-file/PATCH block) and mutates nothing on any path.
+    Returns None on a clean pass."""
+    payloads = _review_coverage_payloads(progress_content)
+    record = (_parse_review_coverage_payload(payloads[0])
+              if len(payloads) == 1 else None)
+    if record is None:
+        if not payloads:
+            why = 'no review-coverage record is present'
+        elif len(payloads) > 1:
+            why = (f'{len(payloads)} review-coverage records are present; exactly '
+                   'one is required')
+        else:
+            why = f'the review-coverage record {payloads[0]!r} is malformed'
+        raise _UpdateError(
+            "refusing to finalize Status: Complete — "
+            f"{why}, so the run's review coverage is UNESTABLISHED "
+            "[review-coverage-unestablished]. Record it with `workpad.py update "
+            "<issue> --record-review-coverage <coverage> <dispatch> <roster> "
+            "<checklist>` at the Phase 3.3 review exit. No PATCH was made."
+        )
+    gaps = _review_coverage_gaps(record)
+    if not gaps:
+        return
+    state = ', '.join(f'{axis}={record[axis]}' for axis in _REVIEW_COVERAGE_AXES)
+    dispositions = _review_coverage_dispositions(progress_content)
+    missing = [g for g in gaps if g not in dispositions]
+    if missing:
+        raise _UpdateError(
+            "refusing to finalize Status: Complete — the recorded review coverage is "
+            f"incomplete ({state}) and gap(s) {', '.join(missing)} carry no "
+            "disposition [review-coverage-gap]. Either complete the review pass, or "
+            "record one `--review-coverage-disposition <gap> \"<reason>\"` per gap "
+            "naming what was not verified and why. No PATCH was made."
+        )
+    # #1230: the disposition is an honest-degradation record, never an election
+    # channel. It is available only over a fan-out that WAS dispatched — a run that
+    # never dispatched (or cannot establish that it did) stops instead of completing.
+    if record['dispatch'] != 'attempted':
+        raise _UpdateError(
+            "refusing to finalize Status: Complete — the review-coverage record reads "
+            f"dispatch={record['dispatch']}, so no shadow fan-out is on record as "
+            "having been attempted; a disposition cannot carry an undispatched pass "
+            "[review-coverage-undispatched]. Stop at a non-terminal or Blocked status "
+            "naming the cause instead. No PATCH was made."
+        )
+    for gap in gaps:
+        rejection = _review_coverage_reason_rejection(dispositions[gap])
+        if rejection:
+            raise _UpdateError(
+                "refusing to finalize Status: Complete — the disposition for gap "
+                f"{gap!r} does not state an acceptable reason: {rejection} "
+                "[review-coverage-boilerplate]. Name the specific gap and why it is "
+                "being carried forward. No PATCH was made."
+            )
+
+
 def _terminal_complete_gate(sections, args) -> list[str]:
     """Reconcile the workpad self-record on a terminal `--status Complete` write.
 
@@ -3481,7 +3758,14 @@ def _terminal_complete_gate(sections, args) -> list[str]:
     base-update checkpoint-4 record, satisfiable by its clean OR tier-refused
     marker). A missing row is a structural `_UpdateError` (no PATCH) whose message
     names the exact producing command. Like every other check here it is a pure read
-    that never mutates a row — every repair lives earlier in the producer."""
+    that never mutates a row — every repair lives earlier in the producer.
+
+    Also enforces the review-coverage gate (issue #1453): the ## Progress section must
+    carry exactly one resolvable review-coverage record showing the Phase 3 review
+    pass ran in full, or a disposition for each gap it records, over a fan-out that
+    was actually dispatched. An unestablished record, an undispositioned gap, an
+    undispatched pass, or a boilerplate reason is a structural `_UpdateError` (no
+    PATCH), like every other member here."""
     # Completion-evidence gate first: it is the strictest precondition and its
     # failure is the one issue #1087 exists to enforce. `args` is REQUIRED (never
     # defaulted) so the gate can never be silently skipped by an argument omission —
@@ -3491,6 +3775,7 @@ def _terminal_complete_gate(sections, args) -> list[str]:
     prog_content = sections[prog_idx][1] if prog_idx is not None else ''
     _completion_evidence_verdict(args, prog_content)
     _required_artifact_verdict(prog_content)
+    _review_coverage_verdict(prog_content)
     ac_idx = _find_section(sections, 'Acceptance Criteria')
     if ac_idx is not None:
         ac_content = sections[ac_idx][1]
@@ -3703,6 +3988,8 @@ def _has_non_checkpoint_mutation(args) -> bool:
         args.scope_decision_deferred, args.scope_decision_rewritten,
         args.bind_scope_decisions, args.mark_deferred_filed,
         getattr(args, 'record_completion_evidence', None),
+        getattr(args, 'record_review_coverage', None),
+        getattr(args, 'review_coverage_disposition', None),
         getattr(args, 'strip_inherited_checkpoints', False),
         getattr(args, 'reconcile_extension_rows', False),
     ])
@@ -4045,6 +4332,56 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     if record_flight_key:
         _validate_flight_key(args, record_flight_key)
 
+    # Review-coverage record + dispositions (issue #1453). Validated here, BEFORE any
+    # body mutation, for the same all-or-nothing reason as the flight key above; the
+    # rows are written below beside the completion-evidence marker. Read via getattr
+    # so a standalone `workpad.py` copy invoked with an older arg shape degrades to
+    # "flag absent" rather than raising AttributeError.
+    review_coverage = getattr(args, 'record_review_coverage', None)
+    review_coverage_payload = None
+    if review_coverage:
+        for axis, value in zip(_REVIEW_COVERAGE_AXES, review_coverage):
+            if value not in _REVIEW_COVERAGE_VOCABULARY[axis]:
+                raise _UpdateError(
+                    f"--record-review-coverage: unknown {axis} value {value!r}; "
+                    f"expected one of "
+                    f"{', '.join(_REVIEW_COVERAGE_VOCABULARY[axis])}. "
+                    "No PATCH was made."
+                )
+        review_coverage_payload = ':'.join(review_coverage)
+    review_dispositions = list(getattr(args, 'review_coverage_disposition', []) or [])
+    _seen_gaps: set[str] = set()
+    for gap, reason in review_dispositions:
+        if gap not in _REVIEW_COVERAGE_GAPS:
+            raise _UpdateError(
+                f"--review-coverage-disposition: unknown gap {gap!r}; expected one "
+                f"of {', '.join(_REVIEW_COVERAGE_GAPS)}. No PATCH was made."
+            )
+        if gap in _seen_gaps:
+            # A repeated gap would write two rows for one gap, and the reader keeps
+            # only the last — so the reason a human sees would not be the reason the
+            # gate judged. Reject the ambiguity rather than silently picking one.
+            raise _UpdateError(
+                f"--review-coverage-disposition: gap {gap!r} given more than once; "
+                "pass one disposition per gap. No PATCH was made."
+            )
+        _seen_gaps.add(gap)
+        if not _is_single_line(reason):
+            # A line boundary would split the row and orphan its marker, the same
+            # hazard `--checkpoint`'s single-line TEXT rule guards against.
+            raise _UpdateError(
+                f"--review-coverage-disposition: the reason for gap {gap!r} must be "
+                "a single line (a line boundary would split the row and orphan its "
+                "marker). No PATCH was made."
+            )
+        _rejection = _review_coverage_reason_rejection(reason)
+        if _rejection:
+            raise _UpdateError(
+                f"--review-coverage-disposition: the reason for gap {gap!r} is "
+                f"unacceptable: {_rejection} [review-coverage-boilerplate]. Name the "
+                "specific gap and why it is being carried forward. No PATCH was made."
+            )
+
     # Scope-decision records (issue #781). Validate + render them BEFORE any body
     # mutation, so a malformed PR value or an empty criterion text is a structural
     # failure that changes nothing — the same all-or-nothing contract
@@ -4333,6 +4670,22 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
             f'completion verification recorded (flight {record_flight_key[:12]}…, '
             f'validated) {_checkpoint_marker(_ck)}'
         )
+    # Review-coverage record + dispositions (issue #1453): validated above; the prior
+    # rows were stripped just before the append loop, mirroring the completion-evidence
+    # marker's replace-rather-than-accumulate semantics.
+    if review_coverage_payload:
+        _state = ', '.join(
+            f'{axis}={value}'
+            for axis, value in zip(_REVIEW_COVERAGE_AXES, review_coverage))
+        progress_notes.append(
+            f'review coverage recorded ({_state}) '
+            f'{_review_coverage_marker(review_coverage_payload)}'
+        )
+    for _gap, _reason in review_dispositions:
+        progress_notes.append(
+            f'{_render_review_coverage_disposition(_gap, _reason)} '
+            f'{_review_coverage_disposition_marker(_gap)}'
+        )
     # Inherited required-artifact strip (issue #1347). Runs on BOTH resume arms —
     # it rides its own flag rather than the cloud-only `--checkpoint`/`--expect-*`
     # set the local arm drops — and BEFORE the note append below, so a row this
@@ -4342,8 +4695,17 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         idx = _find_section(sections, 'Progress')
         if idx is not None:
             heading, content = sections[idx]
+            # The review-coverage record (issue #1453) is stripped by the same flag
+            # and for the same reason: it describes THIS attempt's review pass, so a
+            # resumed run must re-establish it rather than inherit an earlier
+            # attempt's answer. Its key carries a run-varying payload, so it cannot
+            # join the literal `_REQUIRED_ARTIFACT_CHECKPOINT_KEYS` derivation; the
+            # non-transcription guarantee comes instead from one regex pair powering
+            # the reader, the producer and this strip.
             sections[idx] = (
-                heading, _strip_required_artifact_checkpoint_rows(content),
+                heading,
+                _strip_review_coverage_marker_rows(
+                    _strip_required_artifact_checkpoint_rows(content)),
             )
         # Writer and reader disagree on scope, so never let a survivor pass in
         # silence. This strip rewrites the FIRST `## Progress` section, while the
@@ -4374,6 +4736,17 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         heading, content = sections[idx]
         if record_flight_key:
             content = _strip_completion_marker_rows(content)
+        if review_coverage_payload:
+            # A fresh record REPLACES the prior one (and its now-stale dispositions),
+            # so the reader's "exactly one record" contract holds across a re-recorded
+            # Phase 3.3 exit.
+            content = _strip_review_coverage_marker_rows(content)
+        elif review_dispositions:
+            # Dispositions alone must NOT strip the record — that would erase the very
+            # fact they explain and leave the gate reading "unestablished". Replace
+            # only the rows for the gaps being re-stated.
+            content = _strip_review_coverage_marker_rows(
+                content, record=False, gaps=[g for g, _r in review_dispositions])
         phase_label = _progress_phase_for_status(content, current_phase)
         for text in progress_notes:
             content = _append_progress_note(content, text, now_time, phase_label)
@@ -4402,6 +4775,29 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         if args.reflection_file:
             content = _append_reflection(
                 content, kind, _reflection_file_payload(args))
+        sections[idx] = (heading, content)
+
+    # Every accepted review-coverage disposition also files its own `dropped-failed`
+    # reflection bullet (issue #1453). Synthesized HERE rather than left to a paired
+    # `--reflection-kind dropped-failed --reflection …` the caller must remember: the
+    # routing this satisfies — `lib/cheap-gate.jq` counts every kind except `note` as
+    # friction, so an incomplete-coverage run always reaches the retrospective — must
+    # not be defeatable by a caller omission. The kind is fixed, so a call's own
+    # `--reflection-kind` never applies to these bullets.
+    if review_dispositions:
+        idx = _find_section(sections, 'Devflow Reflection')
+        if idx is None:
+            raise _UpdateError(
+                "--review-coverage-disposition: section '## Devflow Reflection' not "
+                "found, so the disposition's friction reflection cannot be recorded; "
+                "refusing to record a disposition that would not route to the "
+                "retrospective. No PATCH was made."
+            )
+        heading, content = sections[idx]
+        for _gap, _reason in review_dispositions:
+            content = _append_reflection(
+                content, 'dropped-failed',
+                f'review coverage gap carried forward — gap={_gap}: {_reason}')
         sections[idx] = (heading, content)
 
     # Record the reproduce-first content classification (issue #449) as a
@@ -4821,6 +5217,36 @@ def main():
                         'written (replacing any prior completion-verification row). A '
                         'non-pass record aborts the whole call before any PATCH. This '
                         'marker is what a later "--status Complete" write requires.')
+    u.add_argument('--record-review-coverage', nargs=4, default=None,
+                   metavar=('COVERAGE', 'DISPATCH', 'ROSTER', 'CHECKLIST'),
+                   help='Record this run\'s resolved Phase 3 review-coverage state '
+                        '(issue #1453) as a machine-readable "<!-- prflow:checkpoint '
+                        'review-coverage:<coverage>:<dispatch>:<roster>:<checklist> '
+                        '-->" ## Progress row, replacing any prior one. COVERAGE: '
+                        + '|'.join(_REVIEW_COVERAGE_VOCABULARY['coverage'])
+                        + '. DISPATCH (was a shadow fan-out attempted): '
+                        + '|'.join(_REVIEW_COVERAGE_VOCABULARY['dispatch'])
+                        + '. ROSTER: '
+                        + '|'.join(_REVIEW_COVERAGE_VOCABULARY['roster'])
+                        + '. CHECKLIST: '
+                        + '|'.join(_REVIEW_COVERAGE_VOCABULARY['checklist'])
+                        + '. An unresolvable axis is recorded "unestablished", never '
+                          'a clean value. A later "--status Complete" write is refused '
+                          'unless this record is complete or every gap it reports '
+                          'carries a --review-coverage-disposition.')
+    u.add_argument('--review-coverage-disposition', nargs=2, action='append',
+                   default=[], metavar=('GAP', 'REASON'),
+                   help='Carry a recorded review-coverage gap forward under a stated '
+                        'reason (issue #1453). GAP: '
+                        + '|'.join(_REVIEW_COVERAGE_GAPS)
+                        + '. Repeatable — one per gap; every gap the record reports '
+                          'must be dispositioned. Accepted ONLY over a record reading '
+                          'dispatch=attempted: a run that never dispatched the shadow '
+                          'has no legal way to complete (issue #1230). REASON must '
+                          'name the specific gap — a generic placeholder is refused. '
+                          'Each accepted disposition also appends a dropped-failed '
+                          'reflection bullet, so an incomplete-coverage run always '
+                          'routes to the retrospective.')
     u.add_argument('--repo-root', default=None,
                    help='Repository root for resolving the canonical '
                         'verification-flights directory and re-deriving the '

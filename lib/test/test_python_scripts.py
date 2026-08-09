@@ -75,6 +75,13 @@ workpad._completion_evidence_verdict = lambda args, prog_content: None
 # this bypass afterwards.
 _REAL_REQUIRED_ARTIFACT_VERDICT = workpad._required_artifact_verdict
 workpad._required_artifact_verdict = lambda prog_content: None
+# issue #1453: the terminal `--status Complete` gate ALSO now requires a resolvable
+# review-coverage record (shadow coverage, dispatch-attempted, roster, checklist).
+# Bypassed by default for the same reason as the two halves above — the pre-#1453
+# Complete tests exercise the other gate members, not this one; the dedicated #1453
+# block near the end restores the real function and re-installs this bypass after.
+_REAL_REVIEW_COVERAGE_VERDICT = workpad._review_coverage_verdict
+workpad._review_coverage_verdict = lambda prog_content: None
 parse_acs = _load('parse_acs', SCRIPTS / 'parse-acs.py')
 section_parse = _load('section_parse', SCRIPTS / 'section_parse.py')
 file_deferrals = _load('file_deferrals', SCRIPTS / 'file-deferrals.py')
@@ -221,6 +228,8 @@ def make_args(**overrides):
         record_completion_evidence=None, repo_root=None, claim_identity=None,
         # issue #1347 inherited required-artifact strip — read on every call.
         strip_inherited_checkpoints=False,
+        # issue #1453 review-coverage record + dispositions — read on every call.
+        record_review_coverage=None, review_coverage_disposition=[],
         # issue #1462 prompt-extension row reconciliation — read on every call.
         reconcile_extension_rows=False,
         print_body=False,
@@ -9708,6 +9717,226 @@ assert_raises("#1348 AC3: the verdict raises _UpdateError on an unsatisfied ## P
 
 # Restore the module-load bypass so any later Complete tests are not gated on the row.
 workpad._required_artifact_verdict = lambda prog_content: None
+
+# ── issue #1453: the terminal --status Complete review-coverage gate ───────────
+# The gate refuses a Complete write whose ## Progress carries no resolvable
+# review-coverage record, or one recording a gap with no accepted disposition.
+# Restore the real verdict for this block (globally no-op'd above so the pre-#1453
+# Complete tests are not burdened with the record); the evidence and required-artifact
+# halves stay no-op'd so this block exercises the coverage member in isolation.
+print()
+print("issue #1453: terminal --status Complete review-coverage gate")
+workpad._review_coverage_verdict = _REAL_REVIEW_COVERAGE_VERDICT
+
+_RC_BASE = _CP_BODY.replace("- [ ] AC1", "- [x] AC1")
+_RC_REASONS = {
+    "shadow-coverage": "the shadow fan-out returned 3 of 5 agents before the "
+                       "orchestrator context budget ran out",
+    "roster": "the type-design reviewer was not dispatched; the diff touches no "
+              "type definitions",
+    "checklist": "checklist verification stopped at item 11 of 27 under cost "
+                 "pressure after the fan-out was dispatched",
+}
+
+
+def _rc_row(payload):
+    """A ## Progress body carrying one review-coverage record for `payload`."""
+    return _RC_BASE.replace(
+        "  - 02:00:00 — /devflow:implement run started",
+        "  - 02:00:00 — /devflow:implement run started\n"
+        "  - 03:00:00 — review coverage recorded "
+        + workpad._review_coverage_marker(payload))
+
+
+def _rc_complete(body, **overrides):
+    """Drive a `--status Complete` write over `body`, returning the _UpdateError
+    message or None when the write applied cleanly."""
+    try:
+        apply_mut(body, make_args(status="Complete", **overrides), [])
+    except workpad._UpdateError as e:
+        return str(e)
+    return None
+
+
+# AC1: the record's axes and their clean values are module-level closed vocabularies
+# the producer validates against and the verdict reads — one source, not two lists.
+assert_eq("#1453 AC1: the record carries four axes in a fixed order",
+          ("coverage", "dispatch", "roster", "checklist"), workpad._REVIEW_COVERAGE_AXES)
+assert_eq("#1453 AC1: every axis has a closed vocabulary including 'unestablished'",
+          True, all("unestablished" in workpad._REVIEW_COVERAGE_VOCABULARY[a]
+                    for a in workpad._REVIEW_COVERAGE_AXES))
+assert_eq("#1453 AC1: every axis's clean value(s) are a subset of its vocabulary",
+          True, all(set(workpad._REVIEW_COVERAGE_CLEAN[a])
+                    <= set(workpad._REVIEW_COVERAGE_VOCABULARY[a])
+                    for a in workpad._REVIEW_COVERAGE_AXES))
+assert_eq("#1453 AC1: shadow-review.md's intentional checklist skip is a CLEAN value",
+          True, "skipped-intentional" in workpad._REVIEW_COVERAGE_CLEAN["checklist"])
+assert_eq("#1453 AC1: a bare skipped checklist is NOT clean",
+          False, "skipped" in workpad._REVIEW_COVERAGE_CLEAN["checklist"])
+
+# AC1/AC7: the producer writes exactly one marker-carrying row, and a full record
+# then satisfies the gate through the ordinary call path (the positive control).
+_rc_full = apply_mut(_CP_BODY, make_args(
+    record_review_coverage=["full", "attempted", "complete", "complete"]))
+assert_eq("#1453 AC1: the producer writes exactly one review-coverage marker",
+          1, _rc_full.count(
+              workpad._review_coverage_marker("full:attempted:complete:complete")))
+assert_eq("#1453 AC1: the recorded row states every axis in readable form",
+          True, "coverage=full, dispatch=attempted, roster=complete, checklist=complete"
+          in _rc_full)
+assert_eq("#1453 AC7: a full-coverage record completes with no disposition",
+          None, _rc_complete(_rc_row("full:attempted:complete:complete")))
+assert_eq("#1453 AC7: an intentionally-skipped checklist is not a shortfall",
+          None, _rc_complete(_rc_row("full:attempted:complete:skipped-intentional")))
+
+# AC2/AC6: the absent-record shape is UNESTABLISHED, never complete.
+_rc_absent = _rc_complete(_RC_BASE)
+assert_eq("#1453 AC2/AC6: a Complete with no review-coverage record is refused",
+          True, _rc_absent is not None
+          and "[review-coverage-unestablished]" in _rc_absent)
+assert_eq("#1453 AC2: the refusal names the exact producing command",
+          True, _rc_absent is not None and "--record-review-coverage" in _rc_absent)
+# AC2 at the process level: the refusal aborts before any PATCH.
+_code, _out, _err, _patched = _drive_cmd_update(_RC_BASE, status="Complete")
+assert_eq("#1453 AC2: the refused Complete makes NO PATCH and exits non-zero",
+          (1, None), (_code, _patched))
+
+# AC2/AC6: a duplicated or malformed record is likewise unestablished — never a
+# partial read that lets a truncated record answer for axes it never carried.
+_rc_dup = _rc_complete(_rc_row("full:attempted:complete:complete").replace(
+    "- [ ] **Implement**",
+    "  - 04:00:00 — review coverage recorded "
+    + workpad._review_coverage_marker("not-verified:never:short:skipped")
+    + "\n- [ ] **Implement**"))
+assert_eq("#1453 AC6: two review-coverage records read as unestablished",
+          True, _rc_dup is not None
+          and "[review-coverage-unestablished]" in _rc_dup)
+assert_eq("#1453 AC6: a malformed record (too few fields) reads as unestablished",
+          True, (_rc_complete(_rc_row("full:attempted:complete")) or "").find(
+              "[review-coverage-unestablished]") >= 0)
+assert_eq("#1453 AC6: an out-of-vocabulary axis value reads as unestablished",
+          True, (_rc_complete(_rc_row("full:attempted:complete:bogus")) or "").find(
+              "[review-coverage-unestablished]") >= 0)
+
+# AC6: each incomplete axis, alone, is refused when no disposition is present.
+for _payload, _gap in (
+        ("not-verified:attempted:complete:complete", "shadow-coverage"),
+        ("full:attempted:short:complete", "roster"),
+        ("full:attempted:complete:skipped", "checklist"),
+):
+    _msg = _rc_complete(_rc_row(_payload))
+    assert_eq(f"#1453 AC6: {_payload} is refused with no disposition",
+              True, _msg is not None and "[review-coverage-gap]" in _msg)
+    assert_eq(f"#1453 AC6/AC9: the refusal names the specific gap {_gap!r}",
+              True, _msg is not None and _gap in _msg)
+
+# AC2/AC9: a disposition covering only ONE of two gaps is refused, naming the other.
+_two_gaps = _rc_row("full:attempted:short:skipped")
+_msg = _rc_complete(_two_gaps, review_coverage_disposition=[
+    ["roster", _RC_REASONS["roster"]]])
+assert_eq("#1453 AC9: a partial gap-set disposition is refused naming the uncovered gap",
+          True, _msg is not None and "[review-coverage-gap]" in _msg
+          and "checklist" in _msg)
+assert_eq("#1453 AC2: a disposition covering EVERY gap is accepted",
+          None, _rc_complete(_two_gaps, review_coverage_disposition=[
+              ["roster", _RC_REASONS["roster"]],
+              ["checklist", _RC_REASONS["checklist"]]]))
+
+# AC3: the predicate is the recorded dispatch-attempted operand, NOT a reason-string
+# blocklist — paired controls on both operand values with the same class of reason.
+_cost_reason = ("the shadow fan-out was dispatched and returned 2 of 5 agents "
+                "before the run's cost budget was exhausted")
+assert_eq("#1453 AC3: a cost-naming reason over a DISPATCHED record is ACCEPTED",
+          None, _rc_complete(_rc_row("not-verified:attempted:complete:complete"),
+                             review_coverage_disposition=[
+                                 ["shadow-coverage", _cost_reason]]))
+for _dispatch in ("never", "unestablished"):
+    _msg = _rc_complete(_rc_row(f"not-verified:{_dispatch}:complete:complete"),
+                        review_coverage_disposition=[
+                            ["shadow-coverage", _cost_reason]])
+    assert_eq(f"#1453 AC3: a disposition over dispatch={_dispatch} is REFUSED",
+              True, _msg is not None
+              and "[review-coverage-undispatched]" in _msg)
+    _msg2 = _rc_complete(_rc_row(f"not-verified:{_dispatch}:complete:complete"),
+                         review_coverage_disposition=[
+                             ["shadow-coverage",
+                              "the roster fell short for a reason unrelated to cost"]])
+    assert_eq(f"#1453 AC3: dispatch={_dispatch} is refused regardless of the reason",
+              True, _msg2 is not None
+              and "[review-coverage-undispatched]" in _msg2)
+assert_eq("#1453 AC3: 'never' and 'unestablished' are both non-clean dispatch values",
+          True, all(v not in workpad._REVIEW_COVERAGE_CLEAN["dispatch"]
+                    for v in ("never", "unestablished")))
+
+# AC9: a generic placeholder reason is refused at write time, before any mutation.
+for _boiler in ("n/a", "TBD", "  ", "see above", "budget"):
+    _err_msg = None
+    try:
+        apply_mut(_RC_BASE, make_args(
+            review_coverage_disposition=[["roster", _boiler]]), [])
+    except workpad._UpdateError as e:
+        _err_msg = str(e)
+    assert_eq(f"#1453 AC9: the boilerplate reason {_boiler!r} is refused",
+              True, _err_msg is not None
+              and "[review-coverage-boilerplate]" in _err_msg)
+assert_eq("#1453 AC9: a specific, gap-naming reason is accepted at write time",
+          True, workpad._review_coverage_reason_rejection(_RC_REASONS["roster"]) is None)
+
+# AC8: an accepted disposition files its own dropped-failed reflection — the kind
+# `lib/cheap-gate.jq` counts as friction — without the caller passing --reflection-kind.
+_rc_disp = apply_mut(_RC_BASE, make_args(
+    review_coverage_disposition=[["roster", _RC_REASONS["roster"]]]))
+_DF_GLYPH, _DF_LABEL, _ = workpad._REFLECTION_KINDS["dropped-failed"]
+assert_eq("#1453 AC8: the disposition files a dropped-failed reflection bullet",
+          True, _DF_GLYPH in _rc_disp and _DF_LABEL in _rc_disp
+          and "review coverage gap carried forward — gap=roster" in _rc_disp)
+assert_eq("#1453 AC8: dropped-failed is a friction kind (not the exempt 'note')",
+          True, "dropped-failed" != "note"
+          and "dropped-failed" in workpad._REFLECTION_KINDS)
+assert_eq("#1453 AC8: a compliant full-coverage run files NO such reflection",
+          False, "review coverage gap carried forward" in _rc_full)
+
+# AC10: the gate is scoped to Complete — Blocked and Failed stay reachable over an
+# incomplete record, which is exactly the #1230 exit the gate must not foreclose.
+for _terminal in ("Blocked", "Failed"):
+    _res = None
+    try:
+        _res = apply_mut(_rc_row("not-verified:never:short:skipped"),
+                         make_args(status=_terminal), [])
+    except workpad._UpdateError as e:
+        _res = None
+        assert_eq(f"#1453 AC10: --status {_terminal} must not be gated", True, False)
+    assert_eq(f"#1453 AC10: --status {_terminal} applies over an incomplete record",
+              True, _res is not None
+              and workpad._status_glyph(_terminal) in _statusline(_res))
+
+# The pure-read invariant, directly: the verdict takes only its progress-content
+# argument, returns None on a satisfied record and raises on an unsatisfied one.
+assert_eq("#1453: the verdict returns None on a complete record",
+          None, workpad._review_coverage_verdict(
+              "- 03:00:00 — "
+              + workpad._review_coverage_marker("full:attempted:complete:complete")))
+assert_raises("#1453: the verdict raises _UpdateError on an absent record",
+              workpad._UpdateError,
+              lambda: workpad._review_coverage_verdict("- 03:00:00 — nothing here"))
+
+# The resume strip reaches the coverage record: it describes THIS attempt, so a
+# resumed run re-establishes it rather than inheriting the previous attempt's answer.
+_rc_stripped = apply_mut(
+    _rc_row("full:attempted:complete:complete"),
+    make_args(strip_inherited_checkpoints=True, note=["resumed"]))
+assert_eq("#1453: --strip-inherited-checkpoints removes an inherited coverage record",
+          0, len(workpad._review_coverage_payloads(_rc_stripped)))
+# ...and a dispositions-only call must NOT strip the record it explains.
+_rc_kept = apply_mut(
+    _rc_row("full:attempted:short:complete"),
+    make_args(review_coverage_disposition=[["roster", _RC_REASONS["roster"]]]))
+assert_eq("#1453: a dispositions-only write preserves the coverage record",
+          ["full:attempted:short:complete"],
+          workpad._review_coverage_payloads(_rc_kept))
+
+# Restore the module-load bypass so any later Complete tests are not gated on the record.
+workpad._review_coverage_verdict = lambda prog_content: None
 
 # ── issue #548: cmd_record_adjudication reject-path coverage (the agreement invariant is the
 #    feature's core new safety gate — every _fail guard is driven, plus the unestablished
