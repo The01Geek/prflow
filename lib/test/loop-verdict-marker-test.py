@@ -19,12 +19,23 @@ Coverage:
 """
 from __future__ import annotations
 
+import importlib.util
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
 HELPER = str(Path(__file__).resolve().parent.parent.parent / "scripts" / "loop-verdict-marker.py")
+
+# Import the helper's own constants, so the roster this file drives is the helper's set
+# rather than a transcription of it. The subprocess drives remain the behavioural surface;
+# this import exists only to read the vocabulary, and the hyphenated filename is why it
+# goes through spec_from_file_location (the idiom lib/test/test_import_review_verdict_handoff.py
+# already uses for a hyphen-named script).
+_spec = importlib.util.spec_from_file_location("loop_verdict_marker", HELPER)
+assert _spec and _spec.loader
+helper = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(helper)
 
 _failures: list[str] = []
 
@@ -125,25 +136,32 @@ check("read nonexistent file not CLEAN-FULL", False, out.startswith("CLEAN-FULL"
 # guarantee — that a clean phrase is rendered ONLY on loop-exit.md's two-operand
 # conjunction (`coverage == "full"` AND `prompt_addenda == "none"`) — is agent-executed
 # prose this file cannot reach: a green run here is NOT coverage of that conjunction.
-# The rows below are the render shapes loop-exit.md emits when it does not hold.
+# The first three rows are the shapes loop-exit.md renders when it does not hold; the
+# fourth is a deliberately unrendered phrase, standing in for any future variant, so the
+# normalizer's catch-all is exercised rather than only its known inputs.
 _NOT_VERIFIED_PHRASES = [
     ("bare", "shadow agreement not verified"),
-    ("reason", "shadow agreement not verified (roster short: 3 of 5 reviewers returned)"),
     ("addenda-array", 'shadow agreement not verified (prompt addenda: ["topic-priming"])'),
     ("attestation-absent", NV),
+    ("unrendered", "shadow agreement not verified (roster short: 3 of 5 reviewers returned)"),
 ]
-# Derived, never transcribed: the helper single-sources its clean-approve set as
-# `_RESULT_TOKENS - {reject, approve-unresolved-shadow-findings}` so a newly-added clean
-# result joins it automatically, and a second literal list here would silently not grow.
+# Read from the helper's own clean-approve set, so a seventh result token added to
+# `_RESULT_TO_TOKEN` is driven here automatically instead of silently going unexercised.
 _CLEAN_APPROVE_RESULTS = [
-    (human, token)
-    for human, token in _compose_result_cases
-    if token not in ("reject", "approve-unresolved-shadow-findings")
+    (human, token) for human, token in _compose_result_cases if token in helper._CLEAN_APPROVE_TOKENS
 ]
+# ...and the transcribed roster above must still cover the helper's, or the derivation
+# would narrow silently to whatever this file happens to list. Compared on tokens, since
+# the helper keys `_RESULT_TO_TOKEN` by its own normalized spelling of each result.
+check(
+    "#1230 compose-case roster covers the helper's result vocabulary",
+    set(),
+    set(helper._RESULT_TO_TOKEN.values()) - {token for _, token in _compose_result_cases},
+)
 
-# Every non-clean phrase must compose to the SAME not-verified marker, so the assertion is
-# on the marker bytes rather than an exit status — a normalizer that admitted one of these
-# phrases would emit `coverage=full` here.
+# Every non-clean phrase must compose to the SAME not-verified marker, so the load-bearing
+# assertion is on the marker bytes — an exit status alone would not catch a normalizer that
+# admitted one of these phrases and emitted `coverage=full`.
 for _label, _phrase in _NOT_VERIFIED_PHRASES:
     rc, out, _ = _run(["compose", "--result", "APPROVE", "--coverage", _phrase])
     check(f"#1230 compose [{_label}] rc", 0, rc)
