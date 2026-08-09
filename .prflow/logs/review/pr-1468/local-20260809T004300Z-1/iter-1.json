@@ -1,0 +1,302 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-09T00:43:00Z",
+  "fix_commit_sha": "9920c345afcac23ac26f9aacb17e2ce7849b4269",
+  "fix_files": [
+    "lib/test/check-audit-lifecycle-contracts.py",
+    "lib/test/test_python_scripts.py",
+    "skills/create-issue/references/step-3-6-audit.md",
+    "docs/internal/cutovers/issue-795-audit-state-round-trips.md",
+    "docs/internal/create-issue-context.md"
+  ],
+  "loop_role": "fix",
+  "current_step": "3.5",
+  "current_substep": null,
+  "pending_dispatch": null,
+  "checklist": [],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": "intentional"
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "'One planted-defect row per refusal arm' generalizes a true count into a false universal",
+      "defect_signature": {
+        "file": "docs/internal/cutovers/issue-795-audit-state-round-trips.md",
+        "line_range": [
+          151,
+          153
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 3,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "the fence scanner silently skips a subcommand-shaped token the parser does not register",
+      "defect_signature": {
+        "file": "lib/test/check-audit-lifecycle-contracts.py",
+        "line_range": [
+          701,
+          711
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 2,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "the empty-population guard is aggregate, so one file going dark passes green",
+      "defect_signature": {
+        "file": "lib/test/check-audit-lifecycle-contracts.py",
+        "line_range": [
+          757,
+          786
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 2,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "'most of the sequence's calls are written in prose backticks' is false against HEAD",
+      "defect_signature": {
+        "file": "lib/test/check-audit-lifecycle-contracts.py",
+        "line_range": [
+          26,
+          27
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "private-API reuse produces a raw AttributeError traceback, the shape the FAIL-CLOSED contract forbids",
+      "defect_signature": {
+        "file": "lib/test/check-audit-lifecycle-contracts.py",
+        "line_range": [
+          673,
+          712
+        ],
+        "kind": "unhandled_exception"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "a test row dereferences a possibly-None refusal, aborting the run instead of failing its own row",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          21921,
+          21930
+        ],
+        "kind": "null_deref"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Critical",
+      "description": "the presentation write's record-staged-write is not dispatch-enforced in a clean single-round run",
+      "defect_signature": {
+        "file": "skills/create-issue/references/step-3-6-audit.md",
+        "line_range": [
+          374,
+          374
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Important",
+      "description": "'driven against crafted reference documents rather than mutated constants' contradicted by the _FENCE_EXEMPT row",
+      "defect_signature": {
+        "file": "docs/internal/cutovers/issue-795-audit-state-round-trips.md",
+        "line_range": [
+          154,
+          154
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "'the reduction this change made' misattributes #795's reduction to #1466",
+      "defect_signature": {
+        "file": "docs/internal/create-issue-context.md",
+        "line_range": [
+          335,
+          335
+        ],
+        "kind": "comment_drift"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "nothing fails if check_fenced_completeness is unwired from main()",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          573,
+          575
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "check_sequence's changed return type is not tested for multiplicity",
+      "defect_signature": {
+        "file": "lib/test/check-audit-lifecycle-contracts.py",
+        "line_range": [
+          655,
+          669
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "fixtures hardcode live subcommand names",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          412,
+          507
+        ],
+        "kind": "style"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "pushed_back"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "the two RESIDUAL rows assert a pass for out-of-scope invocations",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          539,
+          555
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "pushed_back"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-12",
+      "decision": "pushed_back",
+      "source_file": "lib/test/test_python_scripts.py",
+      "claim_text": "fixtures hardcode live subcommand names",
+      "skip_category": "claim-quality",
+      "evidence": "the fixtures must name REGISTERED subcommands — the check grades fence operands against the real parser, and the new unregistered-operand refusal means an arbitrary token would now refuse rather than stand in; the reporting agent itself graded it 'not worth restructuring'",
+      "parking_evidence": {
+        "basis": "the hardcoding is required by the check's own contract: attribution is graded against the live registered set, so a fixture operand must be a real subcommand",
+        "failing_input": "substituting an arbitrary non-registered token for `init`/`query-arm` in a fixture",
+        "source": "lib/test/check-audit-lifecycle-contracts.py _fenced_state_owner_calls' unregistered-operand Refusal",
+        "finding_ref": {
+          "iter": 1,
+          "index": 11
+        }
+      }
+    },
+    {
+      "finding_id": "F-13",
+      "decision": "pushed_back",
+      "source_file": "lib/test/test_python_scripts.py",
+      "claim_text": "the two RESIDUAL rows assert None (a pass) for out-of-scope invocations",
+      "skip_category": "claim-quality",
+      "evidence": "the reporting agent states this is not a defect — the rows deliberately encode the declared scope boundary and their comments say so; no change owed",
+      "parking_evidence": {
+        "basis": "the finding is explicitly filed as a forward-looking note, not a defect",
+        "failing_input": null,
+        "source": "the pr-test-analyzer return: 'They correctly encode the declared scope boundary ... this is not a defect'",
+        "finding_ref": {
+          "iter": 1,
+          "index": 12
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 11,
+    "fix_diff_lines": 148,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "verification_evidence": {
+    "focused_selection": "lib/test/test_python_scripts.py (the covering Python surface) + lib/test/run-module.sh create-issue-contract; whole-suite deferred to CI's 'lib + python tests' per this checkout's standing operator rule",
+    "skipped_checks": []
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "ran_at": null,
+    "reviewed_sha": null,
+    "verdict": null,
+    "coverage": "not_verified",
+    "reason": "the run reached its context budget before the Step 2.6 shadow fan-out could be dispatched; recorded not_verified rather than claimed",
+    "reviewers_dispatched": [],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "phase3_findings": [],
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
