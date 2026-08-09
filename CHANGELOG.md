@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.31.61] — 2026-08-09
+
+### Changed
+Scope the fix loop's always-resident re-read rule to the dispatches its own active reference stamped, so the returns produced by the review engine's own phases, while the loop executes the engine inline, no longer read as re-read triggers — the engine's own phase procedure governs its phases. The loop's own stamped dispatches keep firing the rule, the Step 2.6 shadow fan-out among them, and so does the handback that ends an engine entry. Without the scope the rule could be read as re-reading `loop-control.md` after every dispatch return an engine entry produces.
+
 ## [2.31.60] — 2026-08-09
 
 ### Changed
