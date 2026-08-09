@@ -118,6 +118,47 @@ check("read nonexistent file rc", 2, rc)
 check("read nonexistent file out", "NO-MARKER\n", out)
 check("read nonexistent file not CLEAN-FULL", False, out.startswith("CLEAN-FULL"))
 
+# ── issue #1230: a clean APPROVE is unreachable on a not-verified shadow block ──
+# The elective path is closed: `coverage: "not_verified"` is a consequence of a shadow
+# shortfall, never a budget choice. What that decision must never do is weaken the
+# coverage gate itself, so this drives the compose -> read ROUND TRIP (the checks above
+# drive each subcommand alone) over the helper's clean-approve token set paired with the
+# not-verified phrase shapes enumerated from loop-exit.md's shadow-status render rules.
+# A CLEAN-FULL out of any of these would mean a run reported as not independently audited
+# had reached the clean-completion path.
+#
+# The `prompt addenda` / `attestation not recorded` phrases are the #497 attestation half
+# of loop-exit.md's TWO-operand clean-agreement conjunction (`coverage == "full"` AND
+# `prompt_addenda == "none"`): on those arms coverage IS full while the rendered phrase is
+# not the clean one, so they are what proves the addenda half is still load-bearing here.
+_NOT_VERIFIED_PHRASES = [
+    ("bare", "shadow agreement not verified"),
+    ("reason", "shadow agreement not verified (roster short: 3 of 5 reviewers returned)"),
+    ("addenda-array", 'shadow agreement not verified (prompt addenda: ["topic-priming"])'),
+    ("attestation-absent", "shadow agreement not verified (attestation not recorded)"),
+    ("attestation-invalid", "shadow agreement not verified"),
+]
+_CLEAN_APPROVE_RESULTS = [
+    ("APPROVE", "approve"),
+    ("APPROVE with notes", "approve-with-notes"),
+    ("APPROVE WITH CAVEAT", "approve-with-caveat"),
+    ("APPROVE WITH ADVISORY NOTES", "approve-with-advisory-notes"),
+]
+for _label, _phrase in _NOT_VERIFIED_PHRASES:
+    for _human, _token in _CLEAN_APPROVE_RESULTS:
+        rc, marker, _ = _run(["compose", "--result", _human, "--coverage", _phrase])
+        check(f"#1230 compose [{_label}/{_token}] rc", 0, rc)
+        rc, out, _ = _run(["read"], stdin=marker)
+        check(f"#1230 round trip [{_label}/{_token}] out", f"CLEAN-NOT-VERIFIED {_token}\n", out)
+        check(f"#1230 round trip [{_label}/{_token}] not CLEAN-FULL", False, out.startswith("CLEAN-FULL"))
+
+# The converse direction, so the guard above cannot be satisfied by a normalizer that
+# calls everything not-verified: the exact clean-agreement phrase still round-trips to
+# CLEAN-FULL. A run that narrowed the phrase would silently strip every clean completion.
+rc, marker, _ = _run(["compose", "--result", "APPROVE", "--coverage", FULL])
+rc, out, _ = _run(["read"], stdin=marker)
+check("#1230 round trip [full/approve] out", "CLEAN-FULL approve\n", out)
+
 # A file argument path is exercised too (round-trips through compose).
 with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False) as fh:
     fh.write(_marker("reject", "not-verified") + "\nsome report body\n")
