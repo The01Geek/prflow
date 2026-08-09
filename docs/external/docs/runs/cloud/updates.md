@@ -46,6 +46,6 @@ In thin mode, `prflow_version` controls the plugin fetched by the installed work
 
 Updating only the workflows or only `prflow_version` can leave two halves of a feature out of sync. Prefer running the installer with the new tag and reviewing the resulting pin in the same change.
 
-Prompt-extension delivery is a current example. The skills that consume `.prflow/prompt-extensions/` ship in the plugin, while the permission entry their delivery mechanism needs ships in the workflow files. Bumping only `prflow_version` leaves the mechanism unpermitted and the affected runs fall back to the older, less reliable path without reporting a failure.
+Prompt-extension delivery is a current example. The skills that consume `.prflow/prompt-extensions/` ship in the plugin, while the permission entries their delivery mechanisms need ship in the workflow files. Bumping only `prflow_version` leaves a mechanism unpermitted, and a refused delivery is not reported as a failure.
 
 In vendored mode, `prflow_version` is ignored because the committed `.prflow/vendor/prflow/` tree supplies the runtime.

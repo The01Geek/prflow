@@ -389,14 +389,14 @@ loaded. That is why issue #1462 removed the fallback's entry condition entirely:
 ladder is now invoked unconditionally at all five call sites, so there is no conditional
 arm left for a run to decline. Nothing in CI, the suite, or the verdict distinguishes a
 lost extension from a delivered one; the workpad's per-surface `prompt extension
-resolved: …` rows are the run-authored record that narrows — never closes — that gap. With residual 2 measured, issue #1264's two live-run acceptance criteria now cover
-**one** unmeasured thing — residual 1, the substitution question — rather than two.
-The anchor is used anyway because the alternative is worse: this repository has no
-`.prflow/vendor/prflow/` on its own checkout, so a vendored-literal placeholder would be
-`command not found` here — and a non-zero exit from an injected command aborts the whole
-skill invocation at zero turns, trading a silent policy loss for a silent total run
-failure. Issue #1264's two live-run acceptance criteria are the post-merge checks that
-settle it.
+resolved: …` rows are the run-authored record that narrows — never closes — that gap.
+With residual 2 measured, issue #1264's two live-run acceptance criteria now cover
+**one** unmeasured thing — residual 1, the substitution question — rather than two, and
+they remain the post-merge checks that settle it. The anchor is used anyway because the
+alternative is worse: this repository has no `.prflow/vendor/prflow/` on its own
+checkout, so a vendored-literal placeholder would be `command not found` here — and a
+non-zero exit from an injected command aborts the whole skill invocation at zero turns,
+trading a silent policy loss for a silent total run failure.
 
 **The three previously-recorded refused shapes are reachable on every run again (issue
 #1462).** The #1258 run's three refused loader invocations
