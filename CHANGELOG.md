@@ -4,6 +4,12 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.31.67] — 2026-08-09
+
+### Changed
+- **Bring the two retrospective subagent briefs into instruction-plus-consequence prose conformance.** Swept `skills/retrospective/SKILL.md` and `skills/retrospective-audit/SKILL.md` end to end, removing reviewer-pre-emption, design-record and history-voice prose along with same-file restatements: the inert scope-of-the-anchor-rule apparatus, the by-value Configuration essays, the producer-side redaction essay and the schema-table explanatory tails in Stage A, and the duplicated prompt-extension handoff, the orchestrator-behavior notes and the surface-targeting restatement in Stage B. Also gave the bare `lib/intervention-surfaces.md` pointer its `[[PLUGIN_ROOT]]/` prefix and dropped a dangling in-file step reference. No behavioral change; every load-bearing contract, breadcrumb literal, enum value and the frozen portable-anchor paragraph are preserved byte-identical. (#1503)
+- **Editorially compressed six create-issue fallback references and two prompt extensions.** Removed over-explanatory prose (inference proofs, chained consequence clauses, reviewer-misreading pre-emptions, mechanism archaeology, and a maintainer note) from the six never-scoped `/prflow:create-issue` fallback references and two of the four never-scoped prompt extensions (the remaining two were already instruction-lean), under CLAUDE.md's instruction-plus-consequence rule. Every behavioral rule, marker id, and pinned literal is preserved unchanged. (#1505)
+
 ## [2.31.66] — 2026-08-09
 
 ### Fixed
