@@ -65,7 +65,7 @@ When the block IS present:
 
 This discipline reduces the early-quit frequency; the workflow-level `prflow_review.stall_backstop` is the deterministic backstop guaranteeing convergence when a run stalls anyway (a bounded, App-token-authored `/prflow:review` re-trigger).
 
-**Consumer prompt extension (load first).** This skill's consumer extension reaches you through exactly one channel — the invocation ladder below — so load it yourself with that ladder, unconditionally, at the start of the run; nothing else delivers consumer policy into this skill. From the repo root, run the **granted vendored-literal leading token** — the matcher denies the unexpanded anchor as a leading token (recorded in `CLAUDE.md`; run `30695072336` for the argument-position sibling), so on the cloud tiers this form is the one that executes:
+**Consumer prompt extension (load first).** This skill's consumer extension reaches you through exactly one channel — the invocation ladder below — so load it yourself with that ladder, unconditionally, at the start of the run; nothing else delivers consumer policy into this skill. **Read the ladder's output whole** — no `>/dev/null`, no `| head -<n>`, no truncation of any kind — because an extension whose text you never observed governs nothing in this run, including the rules that say so. From the repo root, run the **granted vendored-literal leading token** — the matcher denies the unexpanded anchor as a leading token (recorded in `CLAUDE.md`; run `30695072336` for the argument-position sibling), so on the cloud tiers this form is the one that executes:
 
 ```bash
 .prflow/vendor/prflow/scripts/load-prompt-extension.sh review
