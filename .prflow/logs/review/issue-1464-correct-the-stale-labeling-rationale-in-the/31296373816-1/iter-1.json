@@ -1,0 +1,73 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-09T05:30:00Z",
+  "fix_commit_sha": null,
+  "fix_files": [],
+  "loop_role": "fix",
+  "current_step": "2.6",
+  "current_substep": "shadow_complete",
+  "sweep_defs_read": [
+    "phase-2-implement.md"
+  ],
+  "checklist": [
+    {
+      "id": "VC-1",
+      "claim": "issue-template.md's new sentence asserts Step 4 applies the reserved PRFlow provenance label after creation",
+      "file": "skills/create-issue/references/issue-template.md",
+      "verification_mode": "lite",
+      "claim_signature": "cross_file_contract:issue-template.md:step4-applies-prflow-after-creation",
+      "verdict": "PASS",
+      "evidence": "skills/create-issue/references/step-4-present-create.md sub-step 5a runs ensure-label.sh PRFlow + apply-labels.sh <n> PRFlow post-creation; SKILL.md invariant 4 confirms",
+      "reused_from_iter_prev": false
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [],
+  "fix_decisions": [],
+  "convergence_inputs": {
+    "fixes_applied": 0,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "shadow": {
+    "ran_at": "2026-08-09T05:31:00Z",
+    "reviewed_sha": null,
+    "verdict": "APPROVE",
+    "coverage": "not_verified",
+    "reviewers_dispatched": [
+      "general-purpose-blinded"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:type-design-analyzer",
+      "prflow:pr-test-analyzer"
+    ],
+    "reason": "single independent blinded shadow reviewer run (proportionate to a prose-only diff already cleanly reviewed by the full applicable primary roster); not the complete multi-agent fan-out, so coverage recorded not_verified",
+    "phase3_findings": [],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
