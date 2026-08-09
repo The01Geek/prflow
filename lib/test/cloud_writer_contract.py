@@ -267,8 +267,10 @@ REQUIRED_HELPER_HEADS = {
         ".prflow/vendor/prflow/scripts/match-lint-adjudications.py",
         ".prflow/vendor/prflow/scripts/load-prompt-extension.sh",
         # The prompt-extension render wrapper (scripts/render-prompt-extension.sh,
-        # issue #1264), reached from every entry SKILL.md through the render-time
-        # `!`…`` placeholder that injects the consumer extension. Registered at the
+        # issue #1264). PRs #1471 and #1473 removed every render-time `!`…``
+        # placeholder, so no entry SKILL.md reaches it today; the grant is retained
+        # deliberately rather than narrowed, since removing it is a security-boundary
+        # change. Registered at the
         # issue-#1359 baseline bump: it first shipped in 2.31.13, and the baseline now
         # advances past that release, so the AC19 pairing-2 invariant (an N-1 workflow
         # paired with the current plugin still validates cleanly) is satisfied by the
@@ -300,10 +302,10 @@ REQUIRED_HELPER_HEADS = {
         ".prflow/vendor/prflow/scripts/dismiss-stale-rejections.sh",
         ".prflow/vendor/prflow/scripts/load-prompt-extension.sh",
         # The prompt-extension render wrapper (issue #1264), registered at the
-        # issue-#1359 baseline bump like its implement-profile sibling above — every
-        # entry SKILL.md the light-command listener dispatches injects it through the
-        # render-time placeholder. Its basename-wildcard companion grant is sanctioned
-        # per profile below.
+        # issue-#1359 baseline bump like its implement-profile sibling above. The
+        # render-time placeholders that reached it were removed by PRs #1471/#1473;
+        # the grant is retained deliberately. Its basename-wildcard companion grant
+        # is sanctioned per profile below.
         ".prflow/vendor/prflow/scripts/render-prompt-extension.sh",
         ".prflow/vendor/prflow/lib/efficiency-trace.sh",
     ],
@@ -316,9 +318,10 @@ REQUIRED_HELPER_HEADS = {
         ".prflow/vendor/prflow/scripts/config-get.sh",
         ".prflow/vendor/prflow/scripts/load-prompt-extension.sh",
         # The prompt-extension render wrapper (issue #1264), registered at the
-        # issue-#1359 baseline bump like its siblings above — the review engine's
-        # entry SKILL.md injects it through the render-time placeholder. Its
-        # basename-wildcard companion grant is sanctioned per profile below.
+        # issue-#1359 baseline bump like its siblings above. The render-time
+        # placeholder the review engine's entry SKILL.md used was removed by PRs
+        # #1471/#1473; the grant is retained deliberately. Its basename-wildcard
+        # companion grant is sanctioned per profile below.
         ".prflow/vendor/prflow/scripts/render-prompt-extension.sh",
         ".prflow/vendor/prflow/scripts/resolve-review-overrides.py",
         ".prflow/vendor/prflow/scripts/stale-prose-lint.py",

@@ -6,6 +6,9 @@
 # Usage: render-prompt-extension.sh SKILL_NAME
 #
 # This is the command behind a `!`…`` render-time placeholder in a SKILL.md body.
+# No SKILL.md carries such a placeholder today — PRs #1471 and #1473 removed every
+# one — so nothing currently reaches this script; the description below is of the
+# mechanism it was built for, not of a live call path.
 # Claude Code executes such a placeholder BEFORE the model sees the skill and
 # substitutes this script's stdout in its place, so the extension arrives as prompt
 # text rather than as a command the agent must choose to run (issue #1264: the load
