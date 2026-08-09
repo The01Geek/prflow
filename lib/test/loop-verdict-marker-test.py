@@ -168,6 +168,23 @@ check(
 # An empty roster would run the round-trip loop zero times and pass vacuously.
 check("#1230 clean-approve roster is non-empty", True, bool(_CLEAN_APPROVE_RESULTS))
 
+# The clean/non-clean split is what decides whether a result routes as an approval, and
+# the helper derives it by SUBTRACTION — so a non-clean token added to `_RESULT_TO_TOKEN`
+# and forgotten from the exclusion is silently clean, and the coverage check above would
+# ratify it rather than catch it. Pin the resulting set so any change to it goes RED and a
+# human confirms the new token's bucket; and pin that every excluded token is a real one,
+# so renaming a result without updating the exclusion cannot quietly stop excluding it.
+check(
+    "#1230 helper clean-approve set matches the reviewed expectation",
+    {"approve", "approve-with-notes", "approve-with-caveat", "approve-with-advisory-notes"},
+    set(helper._CLEAN_APPROVE_TOKENS),
+)
+check(
+    "#1230 every excluded non-clean token is a real result token",
+    set(),
+    set(helper._NON_CLEAN_TOKENS) - set(helper._RESULT_TOKENS),
+)
+
 # Every non-clean phrase must compose to the SAME not-verified marker, so the load-bearing
 # assertion is on the marker bytes — an exit status alone would not catch a normalizer that
 # admitted one of these phrases and emitted `coverage=full`.
