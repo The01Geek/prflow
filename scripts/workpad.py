@@ -3395,14 +3395,25 @@ _REVIEW_COVERAGE_DISPOSITION_MARKER_RE = re.compile(
 # spaces nor any of base64's `+/=`, so an encoded reason could not ride the key at
 # all. This literal is therefore a producer/consumer contract: the producer renders
 # it and this pattern reads it back off the same line.
-_REVIEW_COVERAGE_DISPOSITION_REASON_RE = re.compile(
-    r'review-coverage disposition — gap=[a-z-]+; reason: (.*?)\s*<!--'
-)
+def _review_coverage_disposition_reason_re(gap: str):
+    """The reason pattern for ONE gap, anchored on that gap's own name.
+
+    Anchoring on the gap the marker reported — rather than accepting any
+    `gap=[a-z-]+` — is what stops a row whose marker says one gap and whose visible
+    text says another from binding the wrong reason to the wrong gap."""
+    return re.compile(
+        r'review-coverage disposition — gap=' + re.escape(gap)
+        + r'; reason: (.*?)\s*<!--'
+    )
 # The record's axes, declared ONCE as a member table in the shape
 # `_REQUIRED_ARTIFACTS` established, with every view below DERIVED from it — so a
-# fifth axis is added in one literal rather than in four parallel ones, where
+# fifth axis is added in one literal rather than in every derived view below, where
 # omitting the `clean` entry would make the axis unconditionally dirty and omitting
-# `gap` would raise inside the gap derivation at Complete time.
+# `gap` would raise inside the gap derivation at Complete time. Two PROSE mirrors of
+# these vocabularies exist and cannot import them — the producer instruction in
+# `skills/implement/phases/phase-3-review.md` §3.3 and the publish precondition in
+# `skills/implement/phases/phase-4-documentation.md` §4.3 — so a vocabulary change
+# edits them in the same commit.
 #   `values` — the axis's CLOSED vocabulary. `unestablished` is a first-class member
 #     of every axis because an unresolvable fact must be recordable as unknown;
 #     collapsing it onto a clean value is the fail-open this gate exists to close.
@@ -3525,7 +3536,7 @@ def _review_coverage_dispositions(progress_content: str) -> dict:
         if not m:
             continue
         gap = m.group(1)
-        rm = _REVIEW_COVERAGE_DISPOSITION_REASON_RE.search(line)
+        rm = _review_coverage_disposition_reason_re(gap).search(line)
         out[gap] = (rm.group(1).strip() if rm else '')
     return out
 
@@ -3566,14 +3577,29 @@ def _render_review_coverage_disposition(gap: str, reason: str) -> str:
     return f'review-coverage disposition — gap={gap}; reason: {reason}'
 
 
+_REVIEW_COVERAGE_REFLECTION_PREFIX = 'review coverage gap carried forward — gap='
+
+
+def _strip_review_coverage_reflection_bullets(content: str) -> str:
+    """Remove the disposition-filed reflection bullets from `## Devflow Reflection`.
+
+    Runs wherever the rows those bullets accompany are stripped, so a superseded or
+    inherited disposition does not leave a permanent `### ⚠️ Action required` bullet
+    that keeps tripping the retrospective friction gate after the gap it named is
+    gone. Matches on the fixed prefix `_render_review_coverage_disposition`'s
+    reflection writer emits, so the two move together."""
+    kept = [ln for ln in content.splitlines(keepends=True)
+            if _REVIEW_COVERAGE_REFLECTION_PREFIX not in ln]
+    return ''.join(kept)
+
+
 def _strip_review_coverage_marker_rows(content: str) -> str:
     """Remove the `## Progress` review-coverage record row and EVERY disposition row.
 
-    Two callers: the producer's record write, because a fresh record supersedes the
-    dispositions written against the previous one — a surviving disposition would
-    answer for a gap the new record may not report; and the Phase 1.3 resume strip,
-    because a coverage record describes *this* attempt and a resumed run must not
-    inherit an earlier attempt's answer."""
+    Called both when a fresh record supersedes the previous one — a surviving
+    disposition would answer for a gap the new record may not report — and by the
+    Phase 1.3 resume strip, because a coverage record describes *this* attempt and a
+    resumed run must not inherit an earlier attempt's answer."""
     kept = [ln for ln in content.splitlines(keepends=True)
             if not _REVIEW_COVERAGE_MARKER_RE.search(ln)
             and not _REVIEW_COVERAGE_DISPOSITION_MARKER_RE.search(ln)]
@@ -3594,6 +3620,16 @@ def _strip_review_coverage_disposition_rows(content: str, gaps) -> str:
             continue
         kept.append(ln)
     return ''.join(kept)
+
+
+# The checkpoint key namespaces that belong to a validated marker family, each paired
+# with the flag that owns it. `_plan_checkpoints` refuses a generic `--checkpoint` in
+# any of them, so a family's validation cannot be bypassed through the generic head.
+_RESERVED_CHECKPOINT_KEY_PREFIXES = (
+    (_REVIEW_COVERAGE_DISPOSITION_KEY_PREFIX, '`--review-coverage-disposition`'),
+    (_REVIEW_COVERAGE_KEY_PREFIX, '`--record-review-coverage`'),
+    (_COMPLETION_MARKER_KEY_PREFIX, '`--record-completion-evidence`'),
+)
 
 
 def _validate_flight_key(args, flight_key: str) -> None:
@@ -4071,6 +4107,19 @@ def _plan_checkpoints(body: str, checkpoint_reqs) -> list[tuple[str, str]]:
                 f"--checkpoint key {key!r} appears more than once in a single "
                 f"batch; keys must be unique per call. No PATCH was made."
             )
+        # Reserved key namespaces (issue #1453). The generic `--checkpoint` head would
+        # otherwise write a row in one of the validated marker families, bypassing that
+        # family's own validation — for a review-coverage disposition that includes the
+        # `dropped-failed` reflection the disposition writer files by construction, so
+        # the retrospective routing the dedicated flag guarantees would be defeatable
+        # through a different flag. Refuse, naming the flag that owns the namespace.
+        for _prefix, _owner in _RESERVED_CHECKPOINT_KEY_PREFIXES:
+            if key.startswith(_prefix):
+                raise _UpdateError(
+                    f"--checkpoint key {key!r} is in the reserved {_prefix!r} "
+                    f"namespace; record it with {_owner} instead, which validates the "
+                    "record and writes the accompanying evidence. No PATCH was made."
+                )
         # A line boundary splits the row across physical lines and leaves the marker
         # on the LAST one — so a line-filtering strip (`--strip-inherited-checkpoints`,
         # `_strip_completion_marker_rows`) removes the marker while orphaning the
@@ -4386,6 +4435,18 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     review_coverage = getattr(args, 'record_review_coverage', None)
     review_coverage_payload = None
     if review_coverage:
+        # Arity is guaranteed by argparse's nargs=4 from the CLI, but a programmatic
+        # caller (the suite builds `args` directly) can pass a short list, which `zip`
+        # would silently truncate — validating only the axes present and then raising
+        # a bare KeyError in the renderer instead of a named refusal. Check it here so
+        # the guarantee is local rather than inherited from a distant declaration.
+        if len(review_coverage) != len(_REVIEW_COVERAGE_AXES):
+            raise _UpdateError(
+                f"--record-review-coverage takes exactly "
+                f"{len(_REVIEW_COVERAGE_AXES)} values "
+                f"({', '.join(_REVIEW_COVERAGE_AXES)}); got "
+                f"{len(review_coverage)}. No PATCH was made."
+            )
         for axis, value in zip(_REVIEW_COVERAGE_AXES, review_coverage):
             if value not in _REVIEW_COVERAGE_VOCABULARY[axis]:
                 raise _UpdateError(
@@ -4761,7 +4822,20 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         # would then be credited with a reconciliation an earlier attempt performed.
         # Breadcrumb rather than raise: the caller is Phase 1.3's hydration write, and
         # a non-canonical workpad must not be able to wedge a resume at setup.
-        _survivors = sorted(
+        # The review-coverage family (issue #1453) is scanned by its own regexes
+        # rather than by a variant literal, because its keys carry a run-varying
+        # payload; the justification is the same — the strip rewrites the FIRST
+        # `## Progress` section, so a record surviving elsewhere must not pass in
+        # silence.
+        _joined = _join_sections(preamble, sections)
+        _rc_survivors = (
+            ['review-coverage record']
+            if _REVIEW_COVERAGE_MARKER_RE.search(_joined) else []
+        ) + (
+            ['review-coverage disposition']
+            if _REVIEW_COVERAGE_DISPOSITION_MARKER_RE.search(_joined) else []
+        )
+        _survivors = _rc_survivors + sorted(
             v for v in _REQUIRED_ARTIFACT_MARKER_VARIANTS
             if v in _join_sections(preamble, sections)
         )
@@ -4823,24 +4897,40 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     # reflection bullet (issue #1453). Synthesized HERE rather than left to a paired
     # `--reflection-kind dropped-failed --reflection …` the caller must remember: the
     # routing this satisfies — `lib/cheap-gate.jq` counts every kind except `note` as
-    # friction, so an incomplete-coverage run always reaches the retrospective — must
-    # not be defeatable by a caller omission. The kind is fixed, so a call's own
-    # `--reflection-kind` never applies to these bullets.
-    if review_dispositions:
+    # friction — must not be defeatable by a caller omission, so a disposition can
+    # never be recorded without its friction bullet. The kind is fixed, so a call's
+    # own `--reflection-kind` never applies to these bullets. A write that supersedes
+    # the prior dispositions strips their bullets first, so a gap that no longer
+    # exists stops asserting itself in `### ⚠️ Action required`.
+    if review_coverage_payload or review_dispositions or strip_inherited:
         idx = _find_section(sections, 'Devflow Reflection')
         if idx is None:
-            raise _UpdateError(
-                "--review-coverage-disposition: section '## Devflow Reflection' not "
-                "found, so the disposition's friction reflection cannot be recorded; "
-                "refusing to record a disposition that would not route to the "
-                "retrospective. No PATCH was made."
-            )
-        heading, content = sections[idx]
-        for _gap, _reason in review_dispositions:
-            content = _append_reflection(
-                content, 'dropped-failed',
-                f'review coverage gap carried forward — gap={_gap}: {_reason}')
-        sections[idx] = (heading, content)
+            if review_dispositions:
+                raise _UpdateError(
+                    "--review-coverage-disposition: section '## Devflow Reflection' "
+                    "not found, so the disposition's friction reflection cannot be "
+                    "recorded; refusing to record a disposition that would not route "
+                    "to the retrospective. No PATCH was made."
+                )
+        else:
+            heading, content = sections[idx]
+            if review_coverage_payload or strip_inherited:
+                content = _strip_review_coverage_reflection_bullets(content)
+            else:
+                # A dispositions-only write replaces only the bullets for the gaps it
+                # re-states, mirroring its row-level strip.
+                _restated = {
+                    f'{_REVIEW_COVERAGE_REFLECTION_PREFIX}{g}:'
+                    for g, _r in review_dispositions
+                }
+                content = ''.join(
+                    ln for ln in content.splitlines(keepends=True)
+                    if not any(p in ln for p in _restated))
+            for _gap, _reason in review_dispositions:
+                content = _append_reflection(
+                    content, 'dropped-failed',
+                    f'{_REVIEW_COVERAGE_REFLECTION_PREFIX}{_gap}: {_reason}')
+            sections[idx] = (heading, content)
 
     # Record the reproduce-first content classification (issue #449) as a
     # superseding `classification: ` Progress note — exactly one at all times.

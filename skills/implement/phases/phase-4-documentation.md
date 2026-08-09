@@ -345,13 +345,20 @@ Then finalize the workpad — tick the final `## Progress` item and flip `Status
 #       "refusing to finalize Status: Complete — … Acceptance Criteria row(s) still unticked"). The
 #       Phase 3.4 gate should have ticked every non-post-merge AC, so this is a drift; do NOT retry
 #       verbatim — resolve the AC as Phase 3.4 does (`--tick-ac-n {N}`, or the Blocked path), THEN
-#       re-issue. (post-merge AC rows never trip this; an unticked `## Plan` row, or an
+#       re-issue. The same structural abort also fires on the review-coverage record —
+#       "[review-coverage-unestablished]" (absent/duplicated/malformed record),
+#       "[review-coverage-gap]" (a recorded gap with no disposition), or
+#       "[review-coverage-undispatched]" (a disposition over a record whose dispatch is not
+#       `attempted`) — whose remedy is to stamp or disposition the record per §3.3 and the
+#       precondition above, never a re-tick; the undispatched arm has no in-run remedy at all
+#       and routes to the Blocked path. (post-merge AC rows never trip this; an unticked `## Plan` row, or an
 #       `## Acceptance Criteria` section still holding the un-mirrored placeholder, only prints a
 #       non-blocking warning — if that fires, investigate the mirroring, don't just re-run.)
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER \
     --status Complete \
     --tick-progress "PR marked ready" \
     --note "{PR_OUTCOME-specific note above}" \
+    [--review-coverage-disposition <gap> "<reason>" ...repeat per gap] \
     [--reflection-kind note --reflection "{noteworthy event}" ...repeat --reflection per event]
 # Check the exit code of the finalize update above (per the failure-isolation
 # contract): exit 0 means the "PR marked ready" box is now `- [x]` and the run is
