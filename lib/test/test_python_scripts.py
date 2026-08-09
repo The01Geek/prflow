@@ -9836,9 +9836,12 @@ assert_eq("#1453: an unowed shadow is CLEAN and an undispatched owed one is NOT"
            "not-applicable" in workpad._REVIEW_COVERAGE_CLEAN["dispatch"],
            "never" in workpad._REVIEW_COVERAGE_CLEAN["dispatch"],
            "not-verified" in workpad._REVIEW_COVERAGE_CLEAN["coverage"]))
+# A pass that owed no shadow measured no roster and no checklist either, so the
+# record it stamps holds `not-applicable` on all four axes (see the all-or-none
+# coherence rule below); the two-axis shape this once asserted is now refused.
 assert_eq("#1453: a REJECT/soft-proceed record reaches Complete with no disposition",
           None, _rc_complete(_rc_row(
-              "not-applicable:not-applicable:complete:complete")))
+              "not-applicable:not-applicable:not-applicable:not-applicable")))
 # ...while the record it must not be confused with still cannot.
 assert_eq("#1453: an undispatched owed shadow still cannot reach Complete",
           True, (_rc_complete(_rc_row("not-verified:never:complete:complete")) or "")
@@ -9954,6 +9957,71 @@ for _dispatch in ("never", "unestablished"):
 assert_eq("#1453 AC3: 'never' and 'unestablished' are both non-clean dispatch values",
           True, all(v not in workpad._REVIEW_COVERAGE_CLEAN["dispatch"]
                     for v in ("never", "unestablished")))
+
+# The no-shadow-owed record: the Phase 3.3 REJECT branch and the severity-aware
+# soft-proceed owe no shadow, so all four axes read `not-applicable` and the pass
+# reaches Complete with no disposition. Before this, `roster`/`checklist` had no
+# clean no-measurement value, so that exit recorded `unestablished` on them and the
+# gate refused it as [review-coverage-undispatched] — dead-ending the very exit whose
+# contract is "do NOT block; the PR is review-ready".
+assert_eq("#1453 soft-proceed: an all-not-applicable record reaches Complete",
+          None, _rc_complete(_rc_row(
+              "not-applicable:not-applicable:not-applicable:not-applicable")))
+assert_eq("#1453 soft-proceed: an all-not-applicable record reports NO gap",
+          [], workpad._review_coverage_gaps(dict.fromkeys(
+              workpad._REVIEW_COVERAGE_AXES, "not-applicable")))
+# ...and the widening cannot launder a partial record: `not-applicable` describes the
+# whole pass, so a proper subset of the axes holding it is incoherent, refused
+# identically at read time and at write time.
+for _mixed in ("full:attempted:not-applicable:not-applicable",
+               "not-applicable:not-applicable:short:skipped",
+               "not-applicable:not-applicable:unestablished:unestablished",
+               "not-applicable:attempted:complete:complete"):
+    _msg = _rc_complete(_rc_row(_mixed))
+    assert_eq(f"#1453 soft-proceed: the mixed record {_mixed!r} is refused at read time",
+              True, _msg is not None
+              and "[review-coverage-unestablished]" in _msg
+              and "all 4 axes or none" in _msg)
+    _wmsg = None
+    try:
+        apply_mut(_RC_BASE, make_args(
+            record_review_coverage=_mixed.split(":")), [])
+    except workpad._UpdateError as e:
+        _wmsg = str(e)
+    assert_eq(f"#1453 soft-proceed: the mixed record {_mixed!r} is refused at write time",
+              True, _wmsg is not None and "all 4 axes or none" in _wmsg)
+assert_eq("#1453 soft-proceed: the coherent all-not-applicable record writes cleanly",
+          True, workpad._review_coverage_marker(
+              "not-applicable:not-applicable:not-applicable:not-applicable")
+          in apply_mut(_RC_BASE, make_args(record_review_coverage=[
+              "not-applicable"] * 4)))
+# DEFERRED (review of PR #1486, note S3b): the NEGATIVE real-CLI path — a genuine
+# `workpad.py update --status Complete` subprocess refused for a missing coverage row —
+# is exercised only in-process here, because this module no-ops `_review_coverage_verdict`
+# globally at import (see the top-of-file stub) and every real-CLI Complete fixture in
+# `lib/test/run.sh` is a POSITIVE one. WHY carried forward: the un-bypassed gate is
+# already reached end-to-end by that positive fixture, and each refusal arm is covered
+# in-process against the real verdict function, so the residual gap is the CLI plumbing
+# rather than the gate logic. REVISIT if a refusal arm is ever reported reaching a run
+# as a PATCH-applied Complete, or when a run.sh fixture needs a Complete write refused
+# for any reason — add the subprocess case then.
+#
+# Gate-member ORDER, asserted rather than merely accommodated by the fixture: the
+# coverage verdict runs after the completion-evidence and required-artifact verdicts
+# and before the Acceptance Criteria reconciliation. A body deficient on two members
+# at once refuses on the earlier one, so each pairing names its position directly and
+# a reordering goes RED here instead of silently changing which message a run sees.
+_rc_unticked_ac = _rc_row("not-verified:never:short:skipped").replace(
+    "- [x] AC1", "- [ ] AC1", 1)
+assert_eq("#1453 order: coverage is judged BEFORE the AC reconciliation",
+          True, "[review-coverage-" in (_rc_complete(_rc_unticked_ac) or ""))
+assert_eq("#1453 order: the AC reconciliation still fires once coverage is clean",
+          True, "Acceptance Criteria row(s) still unticked" in (_rc_complete(
+              _rc_row("full:attempted:complete:complete").replace(
+                  "- [x] AC1", "- [ ] AC1", 1)) or ""))
+assert_eq("#1453 soft-proceed: 'not-applicable' is clean on every axis that admits it",
+          True, all("not-applicable" in workpad._REVIEW_COVERAGE_CLEAN[a]
+                    for a in workpad._REVIEW_COVERAGE_AXES))
 
 # AC9: a generic placeholder reason is refused at write time, before any mutation.
 for _boiler in ("n/a", "TBD", "  ", "see above", "not applicable to this run",

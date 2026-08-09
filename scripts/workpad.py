@@ -3467,18 +3467,26 @@ _REVIEW_COVERAGE_AXIS_SPECS = (
         'gap': 'shadow-coverage',
     },
     {
+        # `not-applicable` is CLEAN for the same reason it is on the two axes above,
+        # and only ever alongside them: a pass that owed no shadow measured no roster,
+        # so `unestablished` would report a gap against a measurement nobody skipped.
+        # `_review_coverage_incoherence` refuses it in any other combination, so it
+        # cannot launder a short roster on a pass that DID dispatch.
         'name': 'roster',
-        'values': ('complete', 'short', 'unestablished'),
-        'clean': ('complete',),
+        'values': ('complete', 'not-applicable', 'short', 'unestablished'),
+        'clean': ('complete', 'not-applicable'),
         'gap': 'roster',
     },
     {
         # `skipped-intentional` is the shadow reference's diff-profile-driven
         # checklist skip (small_diff + config_only), which that reference makes
         # explicitly NOT a coverage shortfall — so it is CLEAN, unlike bare `skipped`.
+        # `not-applicable` carries the no-shadow-owed meaning it carries on the other
+        # three axes, and is likewise legal only when all four hold it.
         'name': 'checklist',
-        'values': ('complete', 'skipped-intentional', 'skipped', 'unestablished'),
-        'clean': ('complete', 'skipped-intentional'),
+        'values': ('complete', 'not-applicable', 'skipped-intentional', 'skipped',
+                   'unestablished'),
+        'clean': ('complete', 'not-applicable', 'skipped-intentional'),
         'gap': 'checklist',
     },
 )
@@ -3628,6 +3636,25 @@ def _review_coverage_gaps(record: dict) -> list[str]:
     return [g for g in _REVIEW_COVERAGE_GAPS if g in gaps]
 
 
+def _review_coverage_incoherence(record: dict) -> str | None:
+    """Why a vocabulary-valid coverage record is internally incoherent, or None.
+
+    `not-applicable` is a single fact about the whole pass — no shadow was owed, so
+    none of the four axes measured anything — and it is CLEAN on every axis. Held on
+    a proper subset it would launder the axes it does NOT cover: a dispatched pass
+    could record `full attempted not-applicable not-applicable` and pass the gate with
+    its real roster and checklist shortfalls never stated. So it is all-four or none,
+    checked identically at write time and at read time."""
+    na = [axis for axis in _REVIEW_COVERAGE_AXES
+          if record[axis] == 'not-applicable']
+    if na and len(na) != len(_REVIEW_COVERAGE_AXES):
+        return (
+            "'not-applicable' is the no-shadow-owed record and describes the whole "
+            f"pass, so it is legal on all {len(_REVIEW_COVERAGE_AXES)} axes or none; "
+            f"here it is held only by {', '.join(na)}")
+    return None
+
+
 def _review_coverage_dispositions(progress_content: str) -> dict:
     """The recorded dispositions as `{gap: reason}`, read from the `## Progress`
     content. Each is one row carrying a `review-coverage-disposition:<gap>` marker
@@ -3670,8 +3697,8 @@ def _review_coverage_reason_rejection(reason):
     Returns a message fragment so both the write-time validation and the read-time
     verdict refuse identically."""
     if reason is _REVIEW_COVERAGE_DUPLICATE_DISPOSITION:
-        return ('two rows disposition that gap, so which reason applies is '
-                'unresolvable')
+        return ('two disposition rows name that gap, so which reason applies is '
+                'unresolvable; remove the duplicate row')
     stripped = (reason or '').strip()
     if '<!--' in stripped or '-->' in stripped:
         # The reason rides the row's visible text, ahead of the row's own marker, so
@@ -3905,6 +3932,15 @@ def _review_coverage_verdict(progress_content: str) -> None:
             "[review-coverage-unestablished]. Record it with `workpad.py update "
             "<issue> --record-review-coverage <coverage> <dispatch> <roster> "
             "<checklist>` at the Phase 3.3 review exit. No PATCH was made."
+        )
+    incoherent = _review_coverage_incoherence(record)
+    if incoherent:
+        raise _UpdateError(
+            "refusing to finalize Status: Complete — the review-coverage record "
+            f"({_render_review_coverage_state(record)}) is internally incoherent: "
+            f"{incoherent}, so the run's review coverage is UNESTABLISHED "
+            "[review-coverage-unestablished]. Re-stamp it at the Phase 3.3 review "
+            "exit. No PATCH was made."
         )
     gaps = _review_coverage_gaps(record)
     if not gaps:
@@ -4584,6 +4620,12 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
                     f"{', '.join(_REVIEW_COVERAGE_VOCABULARY[axis])}. "
                     "No PATCH was made."
                 )
+        incoherent = _review_coverage_incoherence(
+            dict(zip(_REVIEW_COVERAGE_AXES, review_coverage)))
+        if incoherent:
+            raise _UpdateError(
+                f"--record-review-coverage: {incoherent}. No PATCH was made."
+            )
         review_coverage_payload = ':'.join(review_coverage)
     review_dispositions = list(getattr(args, 'review_coverage_disposition', []) or [])
     _seen_gaps: set[str] = set()
