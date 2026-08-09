@@ -4,6 +4,23 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.31.65] — 2026-08-09
+
+### Changed
+**The coverage-universal detector now seeds §2.3.4b on the referent nouns and modifier shape the recurring `incomplete-edit` failures actually used.** `scripts/stale-prose-lint.py`'s `CU` tier matched its quantifiers against a closed referent-noun set that carried no `row`, `entry`, `population`, `partner`, or `helper`, so sentences built on those nouns produced no `CU` seed row and the implement engine's §2.3.4b enumeration sweep under-represented the claims the diff authored.
+
+`_CU_NOUN` now additionally recognises `row` / `entry` (spelling the irregular `entries` plural) / `population` / `partner` / `helper`, singular and plural. A new CU-local `_CU_MOD` modifier constant tolerates an intervening modifier token that leads with a hyphen or backtick-hyphen (e.g. `` `-x`-gated ``), so a line like "on any `` `-x`-gated `` bundled helper …" is recognised; `_RECOG_MOD` is left byte-identical because it is shared with the gating-adjacent R3 recognition tier. Both prose statements of the closed noun set — the comment above `_CU_NOUN` and the module-header spec paragraph — are updated in the same commit. The tier stays non-gating: every `CU` row is `UNRESOLVABLE`, so this only widens the seed floor and flips no exit code. (#1451)
+
+## [2.31.64] — 2026-08-09
+
+### Changed
+- **Editorially compressed the five vendored `pr-review-toolkit` review agents** (`code-reviewer`, `comment-analyzer`, `pr-test-analyzer`, `silent-failure-hunter`, `type-design-analyzer`) under the instruction-plus-consequence prose rule — dropping tone/register sections, closing exhortations, and redundant restatements while preserving every behavioral rule, the pinned literals, the frozen frontmatter, and the Apache §4(b) vendoring notices. Every Phase-3 dispatch, fix-loop re-dispatch, and shadow fan-out now carries less prose per reviewer, here and in every consumer repo, with no instruction lost. (#1504)
+
+## [2.31.63] — 2026-08-09
+
+### Fixed
+- **Name the legal exit for a run that cannot dispatch the Step 2.6 shadow.** The never-elective paragraph in `skills/review-and-fix/references/shadow-review.md` now names the state a run enters when it cannot fan out — a workpad-holding caller stops at a non-terminal or `Blocked` status naming what prevented the fan-out, and a caller with no workpad reports non-convergence and posts no clean approve-family verdict — so a cost-pressured run is never left reading a prohibition with no legal state to enter. The `skills/review-and-fix/SKILL.md` failure-map row is reconciled with the rewritten paragraph in the same change. (#1490)
+
 ## [2.31.62] — 2026-08-09
 
 ### Changed
