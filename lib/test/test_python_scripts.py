@@ -11391,6 +11391,19 @@ for _hb_name, (_hb_txt, _hb_expect) in sorted(_hb_matrix.items()):
         assert_eq("#701 AC3: '%s' is classified '%s'" % (_hb_name, _hb_expect),
                   True, _hb_expect in _hb_got)
 
+# #1470: bash's APPEND assignment form is an assignment, not a command head. Without the
+# `\+?` in _ASSIGNMENT the scanner reports `arr+=(x)` / `s+=text` as ungranted commands
+# literally named `arr+=(x)`. Asserted as an isolated fixture so the parser change is
+# self-guarding rather than covered only transitively by the live review-bundle head guard.
+_ap_txt = ("```bash\n"
+           "before_paths=()\n"
+           "before_paths+=(\"${rec:3}\")\n"
+           "s+=text\n"
+           "printf %s x\n"
+           "```")
+assert_eq("#1470: the append assignment form is not reported as a command head",
+          [["printf", "%s", "x"]], _hb_ech.extract_heads(_ap_txt))
+
 # A vendored helper NOT carrying a per-helper grant in this profile is exempt: the
 # guard governs only REQUIRED_HELPER_HEADS basenames, so a `python3 <helper>` form
 # for an interpreter-run helper (refresh-pr-run-link.py) is not flagged.
