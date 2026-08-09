@@ -18,19 +18,13 @@ object printed to stdout — the retrospective entry the orchestrator will appen
 Nothing else on stdout.
 
 **Configuration (handed to you by value — resolve nothing).** Your dispatch prompt
-supplies two absolute values: the **bundled-helper root**, used wherever this skill
-writes `[[PLUGIN_ROOT]]`, and the **internal-documentation root**, used wherever it
-writes `[[INTERNAL_DOC_LOCATION]]`. Use them verbatim. Do **not** invoke a helper to
-derive either: as a subagent you receive neither `$CLAUDE_SKILL_DIR` nor a `Base
-directory for this skill:` context line, so no anchor of yours resolves — and the
-config reader itself resolves its default path with `git rev-parse --show-toplevel`,
-which this brief forbids you to run. If your dispatch prompt carries no bundled-helper
-root, fall back to `jq` on `PATH` for the one construction in *§ Output schema* — a
-degraded arm, not a stop: it loses the bundled wrapper's execution-verified jq selection,
-so on a host whose `PATH` jq is present but unrunnable (a shim-shadowed Windows/WSL host
-is the case the wrapper exists for) the construction fails, and you report that failure as
-the `{"error": "<reason>"}` object of *§ If the bundle is unusable* rather than silently
-producing nothing. If it carries no
+supplies two absolute values: the **bundled-helper root** (used wherever this skill
+writes `[[PLUGIN_ROOT]]`) and the **internal-documentation root** (used wherever it
+writes `[[INTERNAL_DOC_LOCATION]]`); use them verbatim. Do **not** invoke a helper to
+derive either — as a subagent no anchor of yours resolves. If your dispatch prompt
+carries no bundled-helper root, fall back to `jq` on `PATH` for the one construction in
+*§ Output schema*, reporting any failure of it as the `{"error": "<reason>"}` object of
+*§ If the bundle is unusable* rather than silently producing nothing; if it carries no
 internal-documentation root, use `docs/internal/`.
 Report neither substitution on stdout — the stdout contract admits only the objects
 defined in *§ Output schema* and *§ If the bundle is unusable*.
@@ -45,13 +39,7 @@ BUNDLE="$(cat "$BUNDLE_PATH")"
 
 **Scope of the anchor rule in this brief.** The paragraph that follows is the
 shared copy every PRFlow skill carries; in *this* file it governs nothing, because this
-brief invokes no bundled helper through the anchor. Every path you need is handed to you
-**by value** by the dispatching orchestrator — `[[PLUGIN_ROOT]]`,
-`[[INTERNAL_DOC_LOCATION]]`, and the absolute prompt-extension path — so the anchor's
-stop-and-report arm is unreachable here, and it must stay unreachable: prose on stdout
-would break the exactly-one-JSON-object contract above. Report any failure you cannot
-recover from as the `{"error": "<reason>"}` object in *§ If the bundle is unusable*,
-never as free prose.
+brief invokes no bundled helper through the anchor.
 
 **Portable helper anchor (single-statement).** The bundled-helper commands in this skill resolve the skill directory inline at each call site via `${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}`. When `$CLAUDE_SKILL_DIR` is set and non-empty (Claude Code), run each command exactly as written. On a runner where it is unset or empty, replace the placeholder with the skill base directory the runner reports in context (e.g. a `Base directory for this skill:` line) before running the command; if that reported path is Windows-form (`C:\...`), first convert it to this shell's POSIX form with one standalone `wslpath -u '<path>'` (WSL) or `cygpath -u '<path>'` (Git Bash/MSYS2) command and substitute the printed result **only if the command succeeds and prints a non-empty path — otherwise fall through to the drive-letter rules exactly as if the tool were absent, the same success-and-non-empty acceptance the platform's path-normalization rules apply** (if neither tool exists: lowercase the drive letter, map `C:\` to `/mnt/c` on WSL or `/c` on MSYS2, and turn backslashes into `/`; if the environment is neither WSL nor MSYS2, use the path unchanged and report that it could not be normalized — the same arm the platform's path-normalization rules take). Resolve the anchor inline at every call site — never capture it into a shell variable that a later statement reads, because some runners' inline-bash marshaling drops such variables (observed on Copilot CLI). If neither `$CLAUDE_SKILL_DIR` nor a runner-reported base directory is available, stop and report that the helper anchor could not be resolved rather than running a command with a broken path.
 
@@ -109,7 +97,7 @@ Schema of `.prflow/tmp/pr-<n>.context.json` produced by `fetch-pr-context.sh`:
 | `review_comments_count` | number | Total inline review comments |
 | `post_bot_commits` | number | Substantive commits by a human AFTER the bot's last commit — pure merge commits (`Merge branch 'main'` etc.) are not counted |
 | `ci_failures_during_pr` | number | Non-success check-runs on the head SHA |
-| `workpad_final_status` | string | Parsed Status line from the workpad, e.g. `"Complete"`, `"Blocked"`, `"Cancelled"`, or one of the three absent/corrupt sentinels `"Unparsed"` / `"Absent"` / `"NoIssue"`. The producer always emits a non-empty value — `""` no longer appears. |
+| `workpad_final_status` | string | Parsed Status line from the workpad, e.g. `"Complete"`, `"Blocked"`, `"Cancelled"`, or one of the three absent/corrupt sentinels `"Unparsed"` / `"Absent"` / `"NoIssue"`. |
 | `pr_devflow_provenance` | boolean | True iff the `PRFlow` provenance label (or its superseded `DevFlow` spelling) is on the PR or the resolved linked issue — i.e. this was one of DevFlow's own runs. Drives the workpad-absent analysis rule below. |
 | `ttm_hours` | number | Time from PR creation to merge, in decimal hours |
 | `review_reject_outstanding` | boolean | True when the chronologically-last review verdict (from either conversation comments or durable PR reviews) is REJECT |
@@ -150,10 +138,9 @@ One of `imperfect` or `blocked`. (`clean` never reaches you — the orchestrator
 handled those mechanically.)
 
 - **`imperfect`** — the PR shipped but then needed substantive human commits
-  after the bot's last commit (`signals.post_bot_commits > 0` — this count
-  already excludes pure merge commits like `Merge branch 'main'`, so it reflects
-  real fixups, not branch hygiene), or a `/prflow:review` REJECT was left outstanding,
-  or acceptance criteria from the linked issue were unmet.
+  after the bot's last commit (`signals.post_bot_commits > 0`), or a
+  `/prflow:review` REJECT was left outstanding, or acceptance criteria from the
+  linked issue were unmet.
 - **`blocked`** — `signals.workpad_final_status == "Blocked"` or the workpad /
   PR thread shows work was abandoned mid-task with no shipped fix.
 
@@ -243,7 +230,7 @@ any). The reader should understand what went wrong without opening the PR.
 
 ### suggested_interventions
 
-Array of up to 2 objects. Consult `lib/intervention-surfaces.md` when
+Array of up to 2 objects. Consult `[[PLUGIN_ROOT]]/lib/intervention-surfaces.md` when
 reasoning. Each object:
 
 ```json
