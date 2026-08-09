@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1476",
+  "generated_at": "2026-08-09T04:29:53Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.31.53",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 5.938223500000002,
+    "tokens": {
+      "input_tokens": 41,
+      "output_tokens": 25981,
+      "cache_read_input_tokens": 3006055,
+      "cache_creation_input_tokens": 181062,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 85,
+        "outputTokens": 38962,
+        "cacheReadInputTokens": 3889357,
+        "cacheCreationInputTokens": 374414,
+        "webSearchRequests": 0,
+        "costUSD": 5.938223500000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 33,
+    "duration_ms": 434379
+  },
+  "permission_denials": {
+    "count": 10,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      "git status --porcelain; echo \"---BASE---\"; .prflow/vendor/prflow/scripts/config-get.sh .base_branch main 2>&1; echo \"---RUNENV---\"; echo \"RUN_ID=${GITHUB_RUN_ID:-none} ATTEMPT=${GITHUB_RUN_ATTEMPT:-none}\"",
+      "git fetch origin efebd83b86a1fab8c96404e022641f158c18b062 2>&1 | tail -1\necho \"=== unique core-sentence variants at PR head across skills/ ===\"\nfor f in skills/pr-description/SKILL.md skills/review/SKILL.md skills/review-and-fix/SKILL.md skills/implement/SKILL.md; do\n  echo \"--- $f ---\"\n  git show efebd83b86a1fab8c96404e022641f158c18b062:$f | grep -o 'Read the ladder’*.s output whole\\*\\* — no `>/dev/null`, no `| head -<n>`, no truncation of any kind — because an extension whose text you never ob …[per-command-truncated]",
+      "git show efebd83b:skills/pr-description/SKILL.md > .prflow/tmp/review/pr-1476/local/prdesc.md\ngit show efebd83b:skills/review/SKILL.md > .prflow/tmp/review/pr-1476/local/review.md\ngit show efebd83b:skills/review-and-fix/SKILL.md > .prflow/tmp/review/pr-1476/local/raf.md\ngit show efebd83b:skills/implement/SKILL.md > .prflow/tmp/review/pr-1476/local/impl.md\necho \"=== unique variants of core sentence (through 'say so.') ===\"\ngrep -rho 'Read the ladder’s output whole\\*\\* — no `>/dev/null`, no `| hea …[per-command-truncated]",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before",
+      "for f in skills/pr-description/SKILL.md skills/review/SKILL.md skills/review-and-fix/SKILL.md; do printf \"%s \" \"$f\"; git show efebd83b:$f | sha256sum | cut -d' ' -f1; done",
+      "for f in skills/pr-description/SKILL.md skills/review-and-fix/SKILL.md skills/review/SKILL.md; do\n  h=$(git show efebd83b86a1fab8c96404e022641f158c18b062:$f | sha256sum | cut -d' ' -f1)\n  echo \"$h  $f\"\ndone",
+      "for f in implement pr-description review review-and-fix; do git show efebd83b:skills/$f/SKILL.md | grep -o \"Read the ladder.s output whole\\*\\* — no \\`>/dev/null\\`, no \\`| head -<n>\\`, no truncation of any kind — because an extension whose text you never observed governs nothing in this run, including the rules that say so\\.\" | sort -u; done",
+      "for f in implement pr-description review; do printf \"%s: \" $f; git show efebd83b:skills/$f/SKILL.md | grep -c \"Read the ladder's output whole\\*\\* — no .>/dev/null., no .| head -<n>., no truncation of any kind — because an extension whose text you never observed governs nothing in this run, including the rules that say so\\.\"; done",
+      "for f in skills/pr-description/SKILL.md skills/review-and-fix/SKILL.md skills/review/SKILL.md; do printf \"%s \" \"$f\"; git show efebd83b86a1fab8c96404e022641f158c18b062:$f | sha256sum | cut -c1-64; done"
+    ],
+    "total": 10,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
