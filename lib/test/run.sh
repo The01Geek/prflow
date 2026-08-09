@@ -14981,7 +14981,10 @@ for PA_FILE in "$LIB"/../skills/*/SKILL.md "$LIB"/../skills/implement/phases/pha
   # is what runs. The portable form is also unavailable here: `${VAR:-default}` inside
   # placeholder text is refused with `Contains expansion` (measured, run 31058109064), so the
   # bare anchor is the only shape that can work. The exclusion is anchored to the whole line
-  # and names the helper, so it cannot widen to an ordinary fenced call site.
+  # and names the helper, so it cannot widen to an ordinary fenced call site. It covers only
+  # the files that still carry a placeholder — skills/review/SKILL.md no longer does, which
+  # lib/test/modules/prompt-extension-reader.sh pins as an absence — so this exclusion is
+  # inert there and the file is held to the unqualified no-bare-anchor rule.
   assert_eq "#275 pin (P1): $PA_NAME has no bare \$CLAUDE_SKILL_DIR/../../ expansion outside the #1264 render-time placeholder" "yes" \
     "$([ -z "$(grep -E "$PA_BARE_ERE" "$PA_FILE" | grep -vE '^!`\$\{CLAUDE_SKILL_DIR\}/\.\./\.\./scripts/render-prompt-extension\.sh [a-z-]+`$')" ] && echo yes || echo no)"  # raw-guard-ok: loop body: absence pin over the enumerated $PA_FILE loop variable, not a static pin
   assert_eq "#275 pin (P2): $PA_NAME has no cross-statement \$CLAUDE_SKILL_DIR anchor assignment" "yes" \
