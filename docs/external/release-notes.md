@@ -9,6 +9,10 @@ This page summarizes user-visible PRFlow changes. For a complete change history,
 
 **Legacy review tier:** Entries about automatic pull-request-triggered review apply only to repositories that installed that tier before July 29, 2026. Fresh installations do not receive it. Use a collaborator comment with `/prflow:review` for the supported cloud review path.
 
+## August 8, 2026
+
+- **`/prflow:create-issue` no longer stumbles through its pre-filing audit.** The audit step follows a documented order of operations, and that order left out two steps the audit itself requires: recording the round's kind before the auditor is dispatched, and recording the staged draft write the dispatch depends on. A run following the written order was therefore turned away twice per audit round and had to recover before it could continue, which showed up as wasted turns and stray error output during issue creation. The written order now names those steps, and presents the final review-and-create steps in the order they actually run. No behavior of the audit changed — only the instructions the run follows, which now match it. [#1466](https://github.com/The01Geek/prflow/issues/1466)
+
 ## August 7, 2026
 
 - **`/prflow:review-and-fix` no longer re-raises a finding the previous pass already recorded.** Before it approves, the fix loop runs one more independent review and compares those findings against the pass before it. A finding that names a whole file rather than a specific line range — the form used when a defect has no single location, such as a missing test file — was compared under a narrower rule than the review engine's own, so it read as brand new even when the previous pass had already recorded it. That spent an extra fix iteration, and at the iteration cap it could reach you as `APPROVE WITH UNRESOLVED SHADOW FINDINGS` on a finding that was not new. The comparison now applies the engine's own matching rule instead of a restatement of it. The same change repairs a pointer in the loop's severity-calibration gate that named the wrong file for the definition it cites. [#1406](https://github.com/The01Geek/prflow/issues/1406)
