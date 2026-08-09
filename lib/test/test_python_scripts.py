@@ -27541,9 +27541,12 @@ assert_eq("#1276 H1 empty tool artifacts array rejected (non-empty guard is disc
 assert_eq("#1276 H1 empty include_globs rejected (a selector matching nothing lints nothing)",
           (False, "invalid-value"),
           _lm_mut(lambda o: o["selectors"][0].__setitem__("include_globs", [])))
-assert_eq("#1276 H1 EVERY selector with empty include_globs rejected (whole manifest lints nothing)",
+# selectors[0] deliberately stays VALID here: _validate_selectors returns on the
+# first non-established selector, so emptying every selector would only ever
+# exercise selectors[0]. Emptying the SECOND alone proves the guard runs per selector.
+assert_eq("#1276 H1 a LATER selector's empty include_globs is rejected too (guard runs per selector)",
           (False, "invalid-value"),
-          _lm_mut(lambda o: [s.__setitem__("include_globs", []) for s in o["selectors"]]))
+          _lm_mut(lambda o: o["selectors"][1].__setitem__("include_globs", [])))
 assert_eq("#1276 H1 present-but-empty exclude_globs rejected (declares nothing)",
           (False, "invalid-value"),
           _lm_mut(lambda o: o["selectors"][0].__setitem__("exclude_globs", [])))
@@ -27558,7 +27561,9 @@ assert_eq("#1276 H1 positive control: omitting exclusions and exclude_globs stil
 
 # ── Audit finding: the two isinstance(..., bool) guards are load-bearing because
 #    `True in {1}` is True and `1 <= True <= 3600` is True — without the bool
-#    exclusion a JSON `true` would validate as a version/timeout. ────────────────
+#    exclusion a JSON `true` would validate as a version/timeout. `true` is the
+#    only input that discriminates either guard, so no `false` timeout case is
+#    pinned: `1 <= False <= 3600` is already False, so it is rejected either way.
 assert_eq("#1276 boolean true schema_version rejected (True in {1} is True)",
           (False, "wrong-type"), _lm_mut(lambda o: o.__setitem__("schema_version", True)))
 assert_eq("#1276 boolean false schema_version rejected",
@@ -27571,7 +27576,9 @@ assert_eq("#1276 boolean true timeout_seconds rejected (1 <= True <= 3600 is Tru
 #    leading-dash entry spliced into a shellcheck/ruff argv is parsed as an OPTION
 #    rather than a path; a traversal or absolute entry points the lint outside the
 #    repository, contradicting the module's own "repo-relative selector pattern".
-_LM_BAD_PATHS = ("../../../etc/passwd", "/etc/passwd", "..", "../../*.sh",
+# `a/../b` is the INTERIOR-traversal case: it locks the per-segment semantics of
+# `_validate_path_shape`, which a `value.startswith("..")` rewrite would silently lose.
+_LM_BAD_PATHS = ("../../../etc/passwd", "/etc/passwd", "..", "../../*.sh", "a/../b",
                  "-x", "-rf", "--exclude", "-")
 for _lm_bad in _LM_BAD_PATHS:
     assert_eq(f"#1276 M3 include_globs rejects {_lm_bad!r}",

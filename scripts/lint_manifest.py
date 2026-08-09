@@ -359,8 +359,9 @@ def _validate_path_shape(where, label, value) -> str | None:
       parsed as an *option* by ShellCheck/Ruff when the entry is spliced into an
       argv, silently changing tool behavior instead of naming a file.
     * **not absolute** — a leading `/` points the lint outside the repository.
-    * **no traversal** — a `..` path segment (`..`, `../../*.sh`,
-      `../../../etc/passwd`) likewise escapes the repository.
+    * **no traversal** — a `..` path segment anywhere in the value, leading
+      (`..`, `../../*.sh`) or interior (`a/../b`), likewise escapes the
+      repository. The check is per segment, so `..foo` is a normal name.
 
     Without these a manifest selector can direct a lint at a path the repository
     does not own, or turn a file argument into a tool flag.
@@ -391,7 +392,9 @@ def _validate_globs(where, globs, *, label="globs") -> ManifestResult:
 
 
 def _validate_exclusions(exclusions) -> ManifestResult:
-    return _validate_globs("exclusions", exclusions)
+    # `where` already names the field, so the label must not repeat the word
+    # "globs" — the default would render the doubled "exclusions globs".
+    return _validate_globs("exclusions", exclusions, label="entries")
 
 
 def _validate_special_invocations(sis) -> ManifestResult:
