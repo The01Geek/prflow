@@ -9769,6 +9769,19 @@ assert_eq("#1453 AC1: every axis's clean value(s) are a subset of its vocabulary
           True, all(set(workpad._REVIEW_COVERAGE_CLEAN[a])
                     <= set(workpad._REVIEW_COVERAGE_VOCABULARY[a])
                     for a in workpad._REVIEW_COVERAGE_AXES))
+assert_eq("#1453 AC1: every derived axis view comes from the one member table",
+          (tuple(s["name"] for s in workpad._REVIEW_COVERAGE_AXIS_SPECS),
+           {s["name"]: s["values"] for s in workpad._REVIEW_COVERAGE_AXIS_SPECS},
+           {s["name"]: s["clean"] for s in workpad._REVIEW_COVERAGE_AXIS_SPECS},
+           {s["name"]: s["gap"] for s in workpad._REVIEW_COVERAGE_AXIS_SPECS}),
+          (workpad._REVIEW_COVERAGE_AXES, workpad._REVIEW_COVERAGE_VOCABULARY,
+           workpad._REVIEW_COVERAGE_CLEAN, workpad._REVIEW_COVERAGE_AXIS_GAP))
+assert_eq("#1453 AC1: the gap vocabulary is DERIVED from the axis table, not transcribed",
+          tuple(dict.fromkeys(s["gap"] for s in workpad._REVIEW_COVERAGE_AXIS_SPECS)),
+          workpad._REVIEW_COVERAGE_GAPS)
+assert_eq("#1453 AC1: every axis declares all four member keys",
+          True, all(set(s) == {"name", "values", "clean", "gap"}
+                    for s in workpad._REVIEW_COVERAGE_AXIS_SPECS))
 assert_eq("#1453 AC1: shadow-review.md's intentional checklist skip is a CLEAN value",
           True, "skipped-intentional" in workpad._REVIEW_COVERAGE_CLEAN["checklist"])
 assert_eq("#1453 AC1: a bare skipped checklist is NOT clean",
@@ -9869,7 +9882,8 @@ assert_eq("#1453 AC3: 'never' and 'unestablished' are both non-clean dispatch va
                     for v in ("never", "unestablished")))
 
 # AC9: a generic placeholder reason is refused at write time, before any mutation.
-for _boiler in ("n/a", "TBD", "  ", "see above", "budget"):
+for _boiler in ("n/a", "TBD", "  ", "see above", "budget",
+                "the fan-out fell short <!-- and this would eat the marker -->"):
     _err_msg = None
     try:
         apply_mut(_RC_BASE, make_args(
@@ -9890,9 +9904,10 @@ _DF_GLYPH, _DF_LABEL, _ = workpad._REFLECTION_KINDS["dropped-failed"]
 assert_eq("#1453 AC8: the disposition files a dropped-failed reflection bullet",
           True, _DF_GLYPH in _rc_disp and _DF_LABEL in _rc_disp
           and "review coverage gap carried forward — gap=roster" in _rc_disp)
-assert_eq("#1453 AC8: dropped-failed is a friction kind (not the exempt 'note')",
-          True, "dropped-failed" != "note"
-          and "dropped-failed" in workpad._REFLECTION_KINDS)
+assert_eq("#1453 AC8: dropped-failed is a recognized reflection kind and is not 'note'",
+          True, "dropped-failed" in workpad._REFLECTION_KINDS
+          and workpad._REFLECTION_KINDS["dropped-failed"]
+          != workpad._REFLECTION_KINDS["note"])
 assert_eq("#1453 AC8: a compliant full-coverage run files NO such reflection",
           False, "review coverage gap carried forward" in _rc_full)
 

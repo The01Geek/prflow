@@ -3378,11 +3378,17 @@ _REVIEW_COVERAGE_DISPOSITION_KEY_PREFIX = 'review-coverage-disposition:'
 # pattern cannot collide with the disposition one: `review-coverage:` requires the
 # colon immediately after `review-coverage`, which `review-coverage-disposition:`
 # does not have.
+# Composed from `_MARKER_NS_RE` rather than re-spelling the alternation, so the
+# confirmation-gated retirement of the superseded spelling reaches these grammars
+# too. That constant fixes the single space `_checkpoint_marker` writes, making
+# these two stricter than the older hand-rolled `_COMPLETION_MARKER_RE` — which is
+# the safe direction here: a marker shape this gate cannot read is UNESTABLISHED,
+# which refuses the Complete write rather than admitting it.
 _REVIEW_COVERAGE_MARKER_RE = re.compile(
-    r'<!--\s*(?:pr|dev)flow:checkpoint\s+review-coverage:([^\s]+?)\s*-->'
+    _MARKER_NS_RE + r'checkpoint review-coverage:([^\s]+?) -->'
 )
 _REVIEW_COVERAGE_DISPOSITION_MARKER_RE = re.compile(
-    r'<!--\s*(?:pr|dev)flow:checkpoint\s+review-coverage-disposition:([^\s]+?)\s*-->'
+    _MARKER_NS_RE + r'checkpoint review-coverage-disposition:([^\s]+?) -->'
 )
 # The disposition's REASON lives in the row's visible text rather than the marker
 # key, because `_CHECKPOINT_KEY_RE`'s grammar (`[A-Za-z0-9._:-]`) admits neither
@@ -3392,36 +3398,58 @@ _REVIEW_COVERAGE_DISPOSITION_MARKER_RE = re.compile(
 _REVIEW_COVERAGE_DISPOSITION_REASON_RE = re.compile(
     r'review-coverage disposition — gap=[a-z-]+; reason: (.*?)\s*<!--'
 )
-# The four axes, each a CLOSED vocabulary. `unestablished` is a first-class member of
-# every axis because an unresolvable fact must be recordable as unknown — collapsing
-# it onto a clean value is the fail-open this gate exists to close.
-_REVIEW_COVERAGE_AXES = ('coverage', 'dispatch', 'roster', 'checklist')
-_REVIEW_COVERAGE_VOCABULARY = {
-    'coverage': ('full', 'not-verified', 'unestablished'),
-    'dispatch': ('attempted', 'never', 'unestablished'),
-    'roster': ('complete', 'short', 'unestablished'),
-    # `skipped-intentional` is shadow-review.md's diff-profile-driven checklist skip
-    # (small_diff + config_only), which that reference makes explicitly NOT a
-    # coverage shortfall — so it is a CLEAN value, unlike a bare `skipped`.
-    'checklist': ('complete', 'skipped-intentional', 'skipped', 'unestablished'),
-}
-# The clean value(s) of each axis. A record is COMPLETE only when every axis is clean.
-_REVIEW_COVERAGE_CLEAN = {
-    'coverage': ('full',),
-    'dispatch': ('attempted',),
-    'roster': ('complete',),
-    'checklist': ('complete', 'skipped-intentional'),
-}
-# Which gap token each axis reports. `coverage` and `dispatch` are two facts about the
-# same shadow pass, so both report `shadow-coverage` — keeping the disposition
-# vocabulary to the three gaps a human actually reasons about.
-_REVIEW_COVERAGE_AXIS_GAP = {
-    'coverage': 'shadow-coverage',
-    'dispatch': 'shadow-coverage',
-    'roster': 'roster',
-    'checklist': 'checklist',
-}
-_REVIEW_COVERAGE_GAPS = ('shadow-coverage', 'roster', 'checklist')
+# The record's axes, declared ONCE as a member table in the shape
+# `_REQUIRED_ARTIFACTS` established, with every view below DERIVED from it — so a
+# fifth axis is added in one literal rather than in four parallel ones, where
+# omitting the `clean` entry would make the axis unconditionally dirty and omitting
+# `gap` would raise inside the gap derivation at Complete time.
+#   `values` — the axis's CLOSED vocabulary. `unestablished` is a first-class member
+#     of every axis because an unresolvable fact must be recordable as unknown;
+#     collapsing it onto a clean value is the fail-open this gate exists to close.
+#   `clean`  — the value(s) that are not a shortfall. A record is COMPLETE only when
+#     every axis holds one of its own.
+#   `gap`    — the gap token the axis reports when it is not clean. `coverage` and
+#     `dispatch` are two facts about the same shadow pass, so both report
+#     `shadow-coverage`, keeping the disposition vocabulary to the three gaps a
+#     human actually reasons about.
+_REVIEW_COVERAGE_AXIS_SPECS = (
+    {
+        'name': 'coverage',
+        'values': ('full', 'not-verified', 'unestablished'),
+        'clean': ('full',),
+        'gap': 'shadow-coverage',
+    },
+    {
+        'name': 'dispatch',
+        'values': ('attempted', 'never', 'unestablished'),
+        'clean': ('attempted',),
+        'gap': 'shadow-coverage',
+    },
+    {
+        'name': 'roster',
+        'values': ('complete', 'short', 'unestablished'),
+        'clean': ('complete',),
+        'gap': 'roster',
+    },
+    {
+        # `skipped-intentional` is the shadow reference's diff-profile-driven
+        # checklist skip (small_diff + config_only), which that reference makes
+        # explicitly NOT a coverage shortfall — so it is CLEAN, unlike bare `skipped`.
+        'name': 'checklist',
+        'values': ('complete', 'skipped-intentional', 'skipped', 'unestablished'),
+        'clean': ('complete', 'skipped-intentional'),
+        'gap': 'checklist',
+    },
+)
+_REVIEW_COVERAGE_AXES = tuple(s['name'] for s in _REVIEW_COVERAGE_AXIS_SPECS)
+_REVIEW_COVERAGE_VOCABULARY = {s['name']: s['values']
+                               for s in _REVIEW_COVERAGE_AXIS_SPECS}
+_REVIEW_COVERAGE_CLEAN = {s['name']: s['clean'] for s in _REVIEW_COVERAGE_AXIS_SPECS}
+_REVIEW_COVERAGE_AXIS_GAP = {s['name']: s['gap'] for s in _REVIEW_COVERAGE_AXIS_SPECS}
+# `dict.fromkeys` preserves first-seen order, so the gap vocabulary keeps the axis
+# table's own order rather than a hand-maintained second one.
+_REVIEW_COVERAGE_GAPS = tuple(
+    dict.fromkeys(s['gap'] for s in _REVIEW_COVERAGE_AXIS_SPECS))
 # A disposition reason must name the specific gap, so a placeholder is refused
 # (issue #1453 AC9). This is deliberately NOT a cost/budget word blocklist: shipped
 # `shadow-review.md` permits cost as a TRUE cause on a dispatched-and-fell-short
@@ -3460,12 +3488,20 @@ def _parse_review_coverage_payload(payload: str):
     return record
 
 
-def _review_coverage_gaps(record) -> list[str]:
+def _render_review_coverage_state(record: dict) -> str:
+    """The `axis=value, …` rendering of a coverage record, in axis order.
+
+    One spelling for both readers of it — the producer's visible `## Progress` row
+    and the gate's refusal message — so the row a human sees and the state the
+    refusal quotes cannot drift apart."""
+    return ', '.join(f'{axis}={record[axis]}' for axis in _REVIEW_COVERAGE_AXES)
+
+
+def _review_coverage_gaps(record: dict) -> list[str]:
     """The distinct gap tokens a coverage record reports, in `_REVIEW_COVERAGE_GAPS`
-    order. An empty list means the record is complete. A None record (absent,
-    duplicated, or malformed) reports every gap — unestablished is never clean."""
-    if record is None:
-        return list(_REVIEW_COVERAGE_GAPS)
+    order. An empty list means the record is complete. Takes a parsed record: an
+    absent, duplicated, or malformed one never reaches here — the verdict refuses it
+    as unestablished first."""
     gaps = {
         _REVIEW_COVERAGE_AXIS_GAP[axis]
         for axis in _REVIEW_COVERAGE_AXES
@@ -3499,6 +3535,12 @@ def _review_coverage_reason_rejection(reason: str):
     Returns a message fragment so both the write-time validation and the read-time
     verdict refuse identically."""
     stripped = (reason or '').strip()
+    if '<!--' in stripped or '-->' in stripped:
+        # The reason rides the row's visible text, ahead of the row's own marker, so
+        # an embedded comment delimiter would truncate the read-back or swallow the
+        # marker. Refuse at write time rather than storing a reason the gate will
+        # later fail to resolve.
+        return 'it contains an HTML-comment delimiter, which the row cannot carry'
     if stripped.lower() in _REVIEW_COVERAGE_BOILERPLATE:
         return 'it is a generic placeholder'
     if len(stripped) < _REVIEW_COVERAGE_REASON_MIN_LEN:
@@ -3524,27 +3566,31 @@ def _render_review_coverage_disposition(gap: str, reason: str) -> str:
     return f'review-coverage disposition — gap={gap}; reason: {reason}'
 
 
-def _strip_review_coverage_marker_rows(content: str, record: bool = True,
-                                       gaps=None) -> str:
-    """Remove `## Progress` rows carrying review-coverage markers.
+def _strip_review_coverage_marker_rows(content: str) -> str:
+    """Remove the `## Progress` review-coverage record row and EVERY disposition row.
 
-    `record=True` removes the coverage record row and EVERY disposition row, because
-    a fresh record supersedes dispositions written against the previous one — a
-    surviving disposition would answer for a gap the new record may not report.
-    `gaps` (when given) additionally removes only those gaps' disposition rows, which
-    is what a dispositions-only call needs: re-stating one gap's reason must replace
-    that row rather than leaving two rows for one gap.
+    Two callers: the producer's record write, because a fresh record supersedes the
+    dispositions written against the previous one — a surviving disposition would
+    answer for a gap the new record may not report; and the Phase 1.3 resume strip,
+    because a coverage record describes *this* attempt and a resumed run must not
+    inherit an earlier attempt's answer."""
+    kept = [ln for ln in content.splitlines(keepends=True)
+            if not _REVIEW_COVERAGE_MARKER_RE.search(ln)
+            and not _REVIEW_COVERAGE_DISPOSITION_MARKER_RE.search(ln)]
+    return ''.join(kept)
 
-    Three callers, one regex pair: the producer's record write, the producer's
-    disposition write, and the Phase 1.3 resume strip — a coverage record describes
-    *this* attempt, so a resumed run must not inherit an earlier attempt's answer."""
-    wanted = set(gaps or ())
+
+def _strip_review_coverage_disposition_rows(content: str, gaps) -> str:
+    """Remove only the named gaps' disposition rows, leaving the coverage record.
+
+    What a dispositions-only write needs: re-stating one gap's reason replaces that
+    row rather than leaving two rows for one gap, while the record those dispositions
+    explain survives — stripping it would leave the gate reading 'unestablished'."""
+    wanted = set(gaps)
     kept = []
     for ln in content.splitlines(keepends=True):
-        if record and _REVIEW_COVERAGE_MARKER_RE.search(ln):
-            continue
         m = _REVIEW_COVERAGE_DISPOSITION_MARKER_RE.search(ln)
-        if m and (record or m.group(1) in wanted):
+        if m and m.group(1) in wanted:
             continue
         kept.append(ln)
     return ''.join(kept)
@@ -3698,13 +3744,13 @@ def _review_coverage_verdict(progress_content: str) -> None:
     gaps = _review_coverage_gaps(record)
     if not gaps:
         return
-    state = ', '.join(f'{axis}={record[axis]}' for axis in _REVIEW_COVERAGE_AXES)
     dispositions = _review_coverage_dispositions(progress_content)
     missing = [g for g in gaps if g not in dispositions]
     if missing:
         raise _UpdateError(
             "refusing to finalize Status: Complete — the recorded review coverage is "
-            f"incomplete ({state}) and gap(s) {', '.join(missing)} carry no "
+            f"incomplete ({_render_review_coverage_state(record)}) and gap(s) "
+            f"{', '.join(missing)} carry no "
             "disposition [review-coverage-gap]. Either complete the review pass, or "
             "record one `--review-coverage-disposition <gap> \"<reason>\"` per gap "
             "naming what was not verified and why. No PATCH was made."
@@ -4674,9 +4720,8 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     # rows were stripped just before the append loop, mirroring the completion-evidence
     # marker's replace-rather-than-accumulate semantics.
     if review_coverage_payload:
-        _state = ', '.join(
-            f'{axis}={value}'
-            for axis, value in zip(_REVIEW_COVERAGE_AXES, review_coverage))
+        _state = _render_review_coverage_state(
+            dict(zip(_REVIEW_COVERAGE_AXES, review_coverage)))
         progress_notes.append(
             f'review coverage recorded ({_state}) '
             f'{_review_coverage_marker(review_coverage_payload)}'
@@ -4742,11 +4787,8 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
             # Phase 3.3 exit.
             content = _strip_review_coverage_marker_rows(content)
         elif review_dispositions:
-            # Dispositions alone must NOT strip the record — that would erase the very
-            # fact they explain and leave the gate reading "unestablished". Replace
-            # only the rows for the gaps being re-stated.
-            content = _strip_review_coverage_marker_rows(
-                content, record=False, gaps=[g for g, _r in review_dispositions])
+            content = _strip_review_coverage_disposition_rows(
+                content, [g for g, _r in review_dispositions])
         phase_label = _progress_phase_for_status(content, current_phase)
         for text in progress_notes:
             content = _append_progress_note(content, text, now_time, phase_label)
