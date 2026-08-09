@@ -113,5 +113,74 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.31.58",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 16.98878815000001,
+    "tokens": {
+      "input_tokens": 111,
+      "output_tokens": 49143,
+      "cache_read_input_tokens": 9732524,
+      "cache_creation_input_tokens": 395689,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 190,
+        "outputTokens": 81411,
+        "cacheReadInputTokens": 11593214,
+        "cacheCreationInputTokens": 719470,
+        "webSearchRequests": 0,
+        "costUSD": 13.813353250000006,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 178,
+        "outputTokens": 23993,
+        "cacheReadInputTokens": 3637278,
+        "cacheCreationInputTokens": 459686,
+        "webSearchRequests": 0,
+        "costUSD": 3.1754348999999995,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 77,
+    "duration_ms": 1051749
+  },
+  "permission_denials": {
+    "count": 9,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      "echo \"$CLAUDE_SKILL_DIR\"",
+      "git status --porcelain ; echo \"---RUNID---\" ; printf 'run=%s attempt=%s\\n' \"${GITHUB_RUN_ID:-none}\" \"${GITHUB_RUN_ATTEMPT:-1}\"",
+      "gh pr diff 1482 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' > .prflow/tmp/review/pr-1482/31320960364-1/diff.patch ; wc -l .prflow/tmp/review/pr-1482/31320960364-1/diff.patch",
+      ".prflow/vendor/prflow/scripts/resolve-review-overrides.py \"prflow:checklist-generator\" 2>.prflow/tmp/review/pr-1482/31320960364-1/rv-ovr.phase1.err ; echo \"ovr-rc=$?\"; echo \"---stderr---\"; cat .prflow/tmp/review/pr-1482/31320960364-1/rv-ovr.phase1.err",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1482/31320960364-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1482/31320960364-1/verdicts/iter-1/VC-2-n2b.json << 'EOF'\n{\"id\":\"VC-2\",\"verdict\":\"FAIL\",\"evidence\":\"No function named _validate_path_shape or _lm_member exists anywhere in the repository (grep found zero matches for both names), and the strings \\\"escapes the repository via\\\" and \\\"would be parsed as an option, not a path\\\" do not appear in  …[per-command-truncated]",
+      "mkdir -p .prflow/tmp/review/pr-1482/31320960364-1/verdicts/iter-1\ncat > .prflow/tmp/review/pr-1482/31320960364-1/verdicts/iter-1/VC-7-n7g.json << 'EOF'\n{\"id\":\"VC-7\",\"verdict\":\"PASS\",\"evidence\":\"Grepped entire skills/ and agents/ trees for 'render-prompt-extension.sh' references and for backtick-exec placeholders (!`...`), excluding the many unrelated 'if !' shell idioms. No SKILL.md or phases/*.md file contains a render-time !`...` placeholder invoking render-prompt-extension.sh; all hits are un …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1482/31320960364-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1482/31320960364-1/verdicts/iter-1/VC-9-n9i.json << 'EOF'\n{\"id\":\"VC-9\",\"verdict\":\"PASS\",\"evidence\":\"devflow_copy_slice() in .github/actions/vendor-plugin/vendor-slice.sh:68-70 copies exactly 'config.example.json', 'config.schema.json', 'tool-presets.json' from src/.prflow/ into stage/.prflow/ (line 65-66 comment confirms 'Only the committed …[per-command-truncated]",
+      "git show e39974b5e766f14784d08b2a6d5d2ff9ef4f84eb --stat 2>/dev/null | grep -iE \"slice|copy_slice\"; echo \"---\"; grep -rln \"devflow_copy_slice\" $(git rev-parse --show-toplevel) 2>/dev/null | head"
+    ],
+    "total": 9,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
