@@ -4,7 +4,7 @@
 
 **Recovery on disagreement (revision writes)**
 
-When `agree=no` after a revision write, record `record-write-failure --ordinal <N>` (N from the `record-revision --stdin-digest` step of the **Staged canonical-draft write** procedure in `references/step-3-6-audit.md`, same turn), present from the in-context revision bytes rather than the canonical file, and re-run `apply` **exactly once** from the still-present staging artifact — **named from the durably recorded path, never "the newest artifact on disk"**, because the byte history means a run can now hold several. Resolve it with:
+When `agree=no` after a revision write, record `record-write-failure --ordinal <N>` (N from the `record-revision --stdin-digest` step of the **Staged canonical-draft write** procedure in `references/step-3-6-audit.md`, same turn), present from the in-context revision bytes rather than the canonical file, and re-run `apply` **exactly once** from the still-present staging artifact — **named from the durably recorded path, never "the newest artifact on disk"**. Resolve it with:
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/issue-audit-state.py query-staged-write "<slug>" --nonce "<nonce>" --digest "<the revision's stdin_digest>"

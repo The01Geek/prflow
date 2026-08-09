@@ -7,7 +7,7 @@ intent ambiguous. Handle the visual specification as part of this Step 2 clarifi
 **prose guidance you follow, not a new hard gate** (it adds no enforcement mechanism; an
 unresolved item lands in the existing Blocked section like any other):
 
-1. **Infer whether the issue involves user-visible UI changes** as part of the normal scope assessment in `references/step-2-clarify.md` — an inference, not a dedicated "is this UI?" question. When the issue is obviously non-UI (a script, a config key, an internal doc, a CLI-only change), **the whole path below is skipped and adds no new questions**; a false positive here is the failure to avoid, so do not ask visual questions on a non-UI issue.
+1. **Infer whether the issue involves user-visible UI changes** as part of the normal scope assessment in `references/step-2-clarify.md` — an inference, not a dedicated "is this UI?" question. When the issue is obviously non-UI (a script, a config key, an internal doc, a CLI-only change), **the whole path below is skipped and adds no new questions** — do not ask visual questions on a non-UI issue.
 2. **On a UI change, check the user-provided resources/context** — pasted images, attached files, URLs, and design-tool links such as Figma — for an existing screenshot or mockup before asking for anything.
 3. **If a screenshot/mockup is present, record it** in the issue's Visual Specification section (see `references/issue-template.md`): embed it when a hosted URL is available, otherwise reference it with a one-line note on how the implementer can obtain it. Do not then ask the user for one they already supplied.
 4. **If none is present, ask the user to provide a screenshot or mockup** via the runner's user-question tool (the same tool Step 2 uses elsewhere).
