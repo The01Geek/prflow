@@ -1,0 +1,119 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-09T20:30:00Z",
+  "fix_commit_sha": "5cf6cea91",
+  "fix_files": [
+    "lib/test/test_python_scripts.py"
+  ],
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": false
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:pr-test-analyzer",
+    "prflow:comment-analyzer"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "No negative control proving _RECOG_MOD / the R3 tier did not change behavior (isolation boundary the change depends on)",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          5800,
+          5812
+        ],
+        "kind": "test_coverage_gap"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "No negative control that the rewritten _CU_MOD still breaks on sentence punctuation",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          5800,
+          5812
+        ],
+        "kind": "test_coverage_gap"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Widened noun set + no/any quantifier produces non-gating advisory rows for common English phrases (expected over-recognition noise, no code change)",
+      "defect_signature": {
+        "file": "scripts/stale-prose-lint.py",
+        "line_range": [
+          560,
+          570
+        ],
+        "kind": "advisory_noise"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "5cf6cea91"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "5cf6cea91"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "advisory",
+      "source_file": "scripts/stale-prose-lint.py",
+      "claim_text": "non-gating over-recognition noise from broadening the noun set into common words",
+      "skip_category": "advisory-parked",
+      "evidence": "inherent to the quant x noun cross-product and the tier's deliberate over-recognition posture; strictly non-gating (UNRESOLVABLE only), so noise not a defect"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 2,
+    "fix_diff_lines": 20,
+    "new_corroborated_critical_count": 0
+  },
+  "shadow": {
+    "ran_at": "2026-08-09T20:35:00Z",
+    "reviewed_sha": "5cf6cea91",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "reviewers_dispatched": [
+      "prflow:silent-failure-hunter"
+    ],
+    "expected_reviewers": [
+      "prflow:silent-failure-hunter"
+    ],
+    "phase3_findings": [],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
