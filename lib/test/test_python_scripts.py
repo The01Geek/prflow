@@ -5813,6 +5813,24 @@ assert_eq("#1451 AC2: a `-x`-gated leading-hyphen modifier is recognised before 
           stale_prose_lint._recognize_coverage_universal(
               "A lost executable bit on any `-x`-gated bundled helper is now caught")
           is not None)
+# issue #1451 — the CU-local `_CU_MOD` widening must NOT have leaked into the gating-adjacent R3
+# recognition tier, whose `_RECOG_MOD` is left byte-identical. `_recognize_count` still spans a
+# plain modifier but still BREAKS on a `-x`-gated one — a future "unify the two siblings" refactor
+# that routed the widening into `_RECOG_MOD` would turn the second assertion RED.
+assert_eq("#1451 R3 isolation: the R3 count tier spans a plain modifier but a leading-hyphen "
+          "modifier still breaks it (_RECOG_MOD unchanged)",
+          [(4, "files"), None],
+          [stale_prose_lint._recognize_count("four bundled files"),
+           stale_prose_lint._recognize_count("four `-x`-gated files")])
+# issue #1451 — the rewritten `_CU_MOD` must still break on sentence punctuation: a comma-bearing
+# modifier token is not spanned, so "every stale, helper" is unrecognised while a plain modifier
+# ("every bundled helper") is recognised. Proves the widening did not over-widen into swallowing
+# punctuated tokens.
+assert_eq("#1451: the widened _CU_MOD still breaks on a comma-bearing modifier, so only the "
+          "punctuation-free modifier is spanned",
+          [None, "every bundled helper"],
+          [stale_prose_lint._recognize_coverage_universal("every stale, helper is reached"),
+           stale_prose_lint._recognize_coverage_universal("every bundled helper is reached")])
 # Emphasis wrapping on the quantifier is this repo's dominant way of WRITING a universal, so a
 # tier blind to it would be seeded from the wrong population. Non-universals stay unrecognised.
 assert_eq("#818: the quantifier is recognised through `**…**` emphasis, and a scoped hedge "
