@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.31.66] — 2026-08-09
+
+### Fixed
+- **`reconcile-module-floors.py` no longer leaks `DEVFLOW_TEST_EXPERIMENT_FORCE_FAILURE` into the focused-runner measurement.** The reconciler now scrubs that experiment variable from the environment it hands each exact-policy module's measurement, so an operator who left it exported gets a real measurement rather than a refusal that names a module instead of the override. The `exact-module-floors` batched-pass classifier and the reconciler's registry-scan and empty-population refusals also gain full test coverage. (#1506)
+
 ## [2.31.65] — 2026-08-09
 
 ### Changed
