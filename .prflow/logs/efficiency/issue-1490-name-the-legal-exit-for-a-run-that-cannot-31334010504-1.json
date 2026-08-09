@@ -100,5 +100,70 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.31.62",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 31.651529750000005,
+    "tokens": {
+      "input_tokens": 3927,
+      "output_tokens": 67653,
+      "cache_read_input_tokens": 38233956,
+      "cache_creation_input_tokens": 379945,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 4064,
+        "outputTokens": 104817,
+        "cacheReadInputTokens": 41367157,
+        "cacheCreationInputTokens": 1104386,
+        "webSearchRequests": 0,
+        "costUSD": 31.651529750000005,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 165,
+    "duration_ms": 3976901
+  },
+  "permission_denials": {
+    "count": 17,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/.prflow/vendor/prflow/skills/implement}\"",
+      "echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-unset} RUN_ID=${GITHUB_RUN_ID:-unset} ATTEMPT=${GITHUB_RUN_ATTEMPT:-unset}\"; echo \"---\"; gh issue view 1490 --json title,labels,number,state",
+      "DEVFLOW_ROOT=\"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\"\nif .prflow/vendor/prflow/scripts/preflight.py ignore-precondition --path \"$DEVFLOW_ROOT/.prflow/tmp/issue-body/issue-1490.md\"; then\n  mkdir -p \"$DEVFLOW_ROOT/.prflow/tmp/issue-body\"\n  rm -f \"$DEVFLOW_ROOT/.prflow/tmp/issue-body/issue-1490.md\"\n  gh issue view 1490 --json body --jq '.body' > \"$DEVFLOW_ROOT/.prflow/tmp/issue-body/issue-1490.md\" \\\n    || gh issue view 1490 --json body --jq '.body' > \"$DEVFLOW_ROOT/.prflow/tmp/issue-b …[per-command-truncated]",
+      "DEVFLOW_ROOT=\"$(git rev-parse --show-toplevel)\"\nmkdir -p \"$DEVFLOW_ROOT/.prflow/tmp/issue-body\"\nrm -f \"$DEVFLOW_ROOT/.prflow/tmp/issue-body/issue-1490.md\"\ngh issue view 1490 --json body --jq '.body' > \"$DEVFLOW_ROOT/.prflow/tmp/issue-body/issue-1490.md\"\nwc -l \"$DEVFLOW_ROOT/.prflow/tmp/issue-body/issue-1490.md\"; head -c 20 \"$DEVFLOW_ROOT/.prflow/tmp/issue-body/issue-1490.md\"",
+      "mkdir -p .prflow/tmp/issue-body; rm -f .prflow/tmp/issue-body/issue-1490.md; gh issue view 1490 --json body --jq '.body' > .prflow/tmp/issue-body/issue-1490.md; wc -l .prflow/tmp/issue-body/issue-1490.md",
+      ".prflow/vendor/prflow/scripts/check-verified-premises.py --body-file \".prflow/tmp/issue-body/issue-1490.md\" --repo-root \"$(git rev-parse --show-toplevel)\"; echo \"exit=$?\"",
+      "git status --porcelain; echo \"---clean check done---\"; grep -nE \"^#{2,4} 2\\.\" skills/review-and-fix/../../.prflow/vendor/prflow/skills/implement/phases/phase-2-implement.md 2>/dev/null | head -50 || grep -nE \"^#{2,4} 2\\.\" .prflow/vendor/prflow/skills/implement/phases/phase-2-implement.md | head -60",
+      "lib/test/regenerate-artifacts.py 2>&1 | tail -30; echo \"exit=${PIPESTATUS[0]}\"",
+      "git diff origin/main -- skills/ | .prflow/vendor/prflow/scripts/stale-prose-lint.py --mode post 2>&1 | tail -20; echo \"exit=${PIPESTATUS[1]}\"",
+      "git diff origin/main -- skills/ > .prflow/tmp/diff-1490.txt 2>/dev/null; echo \"diff blocked?\"",
+      ".prflow/vendor/prflow/scripts/phase2-durability-checkpoint.sh \"feat: name the legal exit for a run that cannot dispatch the shadow (#1490)\" skills/review-and-fix/references/shadow-review.md skills/review-and-fix/SKILL.md scripts/devflow-cloud-writer-contract.json .changeset/issue-1490-shadow-legal-exit.md 2>&1 | tail -8; echo \"exit=${PIPESTATUS[0]}\"",
+      "RUN_URL=\"https://github.com/The01Geek/prflow/actions/runs/31334010504\"\nBODY=$(printf '%s\\n' \"Work in progress — automated review pending.\" \"\" \"Resolves #1490\" \"[View run]($RUN_URL)\" \"\" 'Generated via `/prflow:implement 1490`')\nif CREATE_OUT=$(gh pr create --base main --draft --title \"Name the legal exit for a run that cannot dispatch the shadow, on the surface it reads\" --body \"$BODY\" 2>&1); then\n  printf '%s\\ncreate: ok\\n' \"$CREATE_OUT\"\nelse\n  printf '%s\\ncreate: failed\\n' \"$CREATE_OUT\"\nfi",
+      "python3 scripts/validate-cloud-writer-contract.py; echo \"validate rc=$?\"; echo \"=====\" && for f in skills/review-and-fix/SKILL.md skills/review-and-fix/references/shadow-review.md; do printf '%s  ' \"$(python3 -c \"import hashlib,sys;print(hashlib.sha256(open('$f','rb').read()).hexdigest())\")\"; echo \"$f\"; done",
+      "for f in skills/review-and-fix/SKILL.md skills/review-and-fix/references/shadow-review.md; do echo \"$f: $(sha256sum \"$f\" | cut -d' ' -f1)\"; done",
+      "git add docs/internal/shadow-review.md && git commit -m \"docs: update documentation for issue #1490\" >/dev/null && git push 2>&1 | tail -2; echo \"HEAD==@{u}?\"; test \"$(git rev-parse HEAD)\" = \"$(git rev-parse @{u})\" && echo yes || echo no",
+      "TRIGGER_COMMENT_ID=$(.prflow/vendor/prflow/scripts/run-jq.sh -r '.comment.id // empty' \"$GITHUB_EVENT_PATH\" 2>/dev/null || true)\nif [ -z \"$TRIGGER_COMMENT_ID\" ]; then\n  TRIGGER_COMMENT_ID=$(gh api \"repos/{owner}/{repo}/issues/1490/comments?per_page=100\" --jq 'map(select((.body | contains(\"/prflow:implement\")) and ((.body | test(\"(pr|dev)flow:workpad\")) | not))) | last | .id' 2>/dev/null || true)\nfi\necho \"trigger comment: $TRIGGER_COMMENT_ID\"\nif [ -n \"$TRIGGER_COMMENT_ID\" ] && [ -z \"${TRIGGER_COM …[per-command-truncated]",
+      ".prflow/vendor/prflow/scripts/run-jq.sh -r '.comment.id // empty' \"$GITHUB_EVENT_PATH\" 2>/dev/null || echo \"(none in event)\""
+    ],
+    "total": 17,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
