@@ -143,9 +143,9 @@ check("read nonexistent file not CLEAN-FULL", False, out.startswith("CLEAN-FULL"
 # conjunction (`coverage == "full"` AND `prompt_addenda == "none"`) — is agent-executed
 # prose this file cannot reach: a green run here is NOT coverage of that conjunction.
 # The first three rows are the shapes loop-exit.md renders when it does not hold; the
-# fourth is a phrase it renders nowhere, standing in for a future variant. All four share
-# the rendered prefix, so none of them reaches a distinct branch — the phrases that do
-# (empty, near-miss, unrelated) are driven by the compose checks above.
+# fourth is a phrase it renders nowhere, standing in for a future variant. The normalizer
+# is one equality against the full-coverage phrase, so these document rendered shapes
+# rather than distinct branches — every phrase but that one is the same input class.
 _NOT_VERIFIED_PHRASES = [
     ("bare", "shadow agreement not verified"),
     ("addenda-array", 'shadow agreement not verified (prompt addenda: ["topic-priming"])'),
