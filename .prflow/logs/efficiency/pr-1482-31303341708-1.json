@@ -123,5 +123,71 @@
       "iter": 5,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.31.58",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 12.829730950000005,
+    "tokens": {
+      "input_tokens": 74,
+      "output_tokens": 37544,
+      "cache_read_input_tokens": 6588006,
+      "cache_creation_input_tokens": 226836,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 140,
+        "outputTokens": 64654,
+        "cacheReadInputTokens": 8011024,
+        "cacheCreationInputTokens": 579258,
+        "webSearchRequests": 0,
+        "costUSD": 10.093559499999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 152,
+        "outputTokens": 21313,
+        "cacheReadInputTokens": 3087789,
+        "cacheCreationInputTokens": 397249,
+        "webSearchRequests": 0,
+        "costUSD": 2.73617145,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 64,
+    "duration_ms": 696913
+  },
+  "permission_denials": {
+    "count": 6,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-EMPTY}\"",
+      "git status --porcelain; echo \"---\"; echo \"RUN_ID=${GITHUB_RUN_ID:-none} ATTEMPT=${GITHUB_RUN_ATTEMPT:-none}\"",
+      ".prflow/vendor/prflow/scripts/resolve-review-overrides.py \"prflow:checklist-generator\" 2>.prflow/tmp/review/pr-1482/31303341708-1/rv-ovr.phase1.err; echo \"ovr-rc=$?\"; echo \"--- stderr:\"; cat .prflow/tmp/review/pr-1482/31303341708-1/rv-ovr.phase1.err",
+      "for f in /home/runner/work/prflow/prflow/skills/review-and-fix/references/loop-exit.md /home/runner/work/prflow/prflow/skills/review-and-fix/references/loop-control.md /home/runner/work/prflow/prflow/skills/implement/phases/phase-1-setup.md /home/runner/work/prflow/prflow/skills/implement/phases/phase-4-documentation.md /home/runner/work/prflow/prflow/skills/implement/references/deferred-ac-followups.md /home/runner/work/prflow/prflow/skills/implement/references/deferred-review-findings.md /home …[per-command-truncated]",
+      "cat /home/runner/work/prflow/prflow/.prflow/tmp/displaced-paths.txt 2>/dev/null; echo \"---\"; git -C /home/runner/work/prflow/prflow log --oneline -3; git -C /home/runner/work/prflow/prflow status --short | head",
+      "git status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before"
+    ],
+    "total": 6,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
