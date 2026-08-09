@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.31.55] — 2026-08-09
+
+### Changed
+Unify the `load-prompt-extension.sh` failure contract across all eight shipped ladder call sites: the three docs skills (`docs-sync-internal`, `docs-sync-external`, `docs-release-notes`) now scope the anchor-resolution arm to an exhausted ladder and carry the permission-denial arm that records a refused load as **unestablished** rather than as a repo with no extension.
+
 ## [2.31.54] — 2026-08-09
 
 ### Changed
