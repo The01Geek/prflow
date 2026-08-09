@@ -15,7 +15,7 @@ This page summarizes user-visible PRFlow changes. For a complete change history,
 
 ## August 8, 2026
 
-- **`/prflow:create-issue` no longer stumbles through its pre-filing audit.** The audit step follows a documented order of operations, and that order left out two steps the audit itself requires: recording the round's kind before the auditor is dispatched, and recording the staged draft write the dispatch depends on. A run following the written order was therefore turned away twice per audit round and had to recover before it could continue, which showed up as wasted turns and stray error output during issue creation. The written order now names those steps, and presents the final review-and-create steps in the order they actually run. No behavior of the audit changed — only the instructions the run follows, which now match it. [#1466](https://github.com/The01Geek/prflow/issues/1466)
+- **`/prflow:create-issue` no longer stumbles through its pre-filing audit.** The audit step follows a documented order of operations, and that order left out two steps the audit itself requires: reading the round's kind that the dispatch will not accept without, and recording the staged draft write the dispatch depends on. A run following the written order was therefore turned away — twice per round on the file arm a clean run takes — and had to recover before it could continue, which showed up as wasted turns and stray error output during issue creation. The written order now names those steps, and presents the final review-and-create steps in the order they actually run. No behavior of the audit changed — only the instructions the run follows, which now match it. [#1466](https://github.com/The01Geek/prflow/issues/1466)
 
 ## August 7, 2026
 

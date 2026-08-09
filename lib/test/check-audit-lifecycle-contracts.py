@@ -121,13 +121,21 @@ def _load_module(path: Path = IAS, name: str = "_ias795"):
     cached module would leak one row's planted defect into the next."""
     spec = importlib.util.spec_from_file_location(name, path)
     if spec is None or spec.loader is None:
-        # Without this, a moved or renamed helper surfaces as an
-        # `AttributeError: 'NoneType'` traceback — the one shape this file's own
-        # "FAIL CLOSED, NEVER CLEAN-ZERO" contract promises never to produce.
         raise Refusal(f"could not load {path.relative_to(REPO)} as a module "
-                      "(missing file or unloadable spec)")
+                      "(unloadable spec)")
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    try:
+        spec.loader.exec_module(module)
+    except Exception as exc:  # noqa: BLE001 - ANY load failure is a Refusal, not a traceback
+        # The spec guard above does NOT cover a missing file: `spec_from_file_location`
+        # returns a fully-populated spec for a path that does not exist, and the failure
+        # surfaces here as `FileNotFoundError`. `main()` catches only `Refusal`, so without
+        # this arm a moved or renamed helper — and equally a SyntaxError or a raising
+        # module-level import in the general-purpose scanner this file now reuses — escapes
+        # as a bare traceback: the one shape this file's own "FAIL CLOSED, NEVER CLEAN-ZERO"
+        # contract promises never to produce.
+        raise Refusal(f"could not load {path.relative_to(REPO)} as a module "
+                      f"({type(exc).__name__}: {exc})") from exc
     return module
 
 
@@ -681,10 +689,11 @@ def _load_extractor():
     """The Markdown scanner, with the `_EXTRACTOR_API` names proved present before use.
 
     The reuse is of private helpers of a general-purpose scanner whose internals are
-    expected to change. `_load_module` guards only the import, and `main()` catches only
-    `Refusal`, so a renamed or removed helper would surface as a bare `AttributeError`
-    traceback — the one shape this file's "FAIL CLOSED, NEVER CLEAN-ZERO" contract promises
-    never to produce. Resolving the names here turns that into a named RED breadcrumb.
+    expected to change. This check covers a renamed or removed HELPER NAME: without it a
+    missing attribute would surface as a bare `AttributeError` traceback rather than the
+    named RED breadcrumb this file's "FAIL CLOSED, NEVER CLEAN-ZERO" contract promises. A
+    renamed or removed FILE is a different failure and is caught upstream, by
+    `_load_module`'s own load guard.
     """
     module = _load_module(_ECH, "_ech1466")
     missing = sorted(name for name in _EXTRACTOR_API if not hasattr(module, name))
@@ -720,8 +729,10 @@ def _fenced_state_owner_calls(extractor, text: str,
     a typo, or a subcommand renamed in the state owner without updating the fence, would
     otherwise contribute nothing, leave the orphan list empty, and let the success line
     report a population the drift had silently shrunk — the identical fail-open
-    `_invocations` was hardened against on the sequence side. A `<`- or `$`-shaped operand
-    is a documented placeholder rather than a call, and is the one declared allowance.
+    `_invocations` was hardened against on the sequence side. A `<`-shaped operand is the
+    reference files' own placeholder convention, and is the one declared allowance; a
+    `$`-shaped one is a shell variable — an unresolvable call, not a placeholder — and
+    refuses like any other unregistered operand.
     """
     found: list[str] = []
     for block in extractor._fenced_bash_blocks(text):                     # noqa: SLF001
@@ -739,16 +750,33 @@ def _fenced_state_owner_calls(extractor, text: str,
                         continue
                     if candidate in registered:
                         found.append(candidate)
-                    elif candidate[:1] in ("<", "$"):
-                        pass          # a documented placeholder, not a call
+                    elif candidate.startswith("<"):
+                        # The reference files' own placeholder convention (`<subcommand>`),
+                        # which is documentation rather than a call. A `$`-shaped operand is
+                        # NOT this: in command position it is a shell variable, i.e. a real
+                        # invocation whose subcommand this scanner cannot name — unknown, not
+                        # absent — so it refuses below rather than being waved through.
+                        pass
                     else:
                         raise Refusal(
                             f"fenced-completeness: a ```bash fence invokes the state owner "
                             f"with the operand {candidate!r}, which the parser registers as "
-                            "no subcommand — a typo, or a subcommand renamed without "
-                            "updating the fence; refusing rather than dropping the "
-                            "invocation, which would shrink the scanned population silently")
+                            "no subcommand — a typo, a subcommand renamed without updating "
+                            "the fence, or a parameterized subcommand this scanner cannot "
+                            "resolve; refusing rather than dropping the invocation, which "
+                            "would shrink the scanned population silently")
                     break
+                else:
+                    # The operand list was exhausted without a non-flag token, so no
+                    # subcommand could be attributed at all. Dropping it here would be the
+                    # same silent shrink the arm above refuses, reached by a different path.
+                    raise Refusal(
+                        "fenced-completeness: a ```bash fence names the state owner with no "
+                        f"non-flag operand ({statement.strip()!r}) — either the statement "
+                        "does not invoke the tool at all (a `--help` or error transcript, a "
+                        "`chmod` line), or its subcommand was edited away; refusing rather "
+                        "than dropping it, which would shrink the scanned population "
+                        "silently. Move a non-invoking line out of a ```bash fence")
     return found
 
 
@@ -769,7 +797,11 @@ def check_fenced_completeness(registered, report, named):
     here — and a sizeable minority of the sequence's distinct calls are written exactly that
     way. A call mandated in prose without a fence therefore escapes this check entirely;
     re-deriving the unconditional set still requires reading both documents' prose, which no
-    scanner does.
+    scanner does. A third escape route is inherited from `_boundary_units`: an invocation
+    nested in a bare `(…)` subshell keeps a trailing `)` that `_helper_basename`'s
+    end-anchored match drops, so such a fence is invisible here — and a partial loss of that
+    shape is not caught by the empty-population guard, whose trigger is a reference file
+    contributing nothing at all.
 
     `named` is the sequence's invocation list, produced ONCE by `check_sequence` and passed
     on rather than re-parsed here — two parses of the same paragraph are two things that can
@@ -799,12 +831,14 @@ def check_fenced_completeness(registered, report, named):
     scanned = 0
     empty: list[str] = []
     orphans: list[str] = []
+    all_calls: set[str] = set()
     for label, text in (("step-3-6-audit.md", seq_text),
                         ("step-4-present-create.md", step4)):
         calls = _fenced_state_owner_calls(extractor, text, registered)
         if not calls:
             empty.append(label)
         scanned += len(calls)
+        all_calls.update(calls)
         for call in calls:
             if call not in accounted and f"{label}: {call}" not in orphans:
                 orphans.append(f"{label}: {call}")
@@ -827,6 +861,17 @@ def check_fenced_completeness(registered, report, named):
             "files but named in neither the call sequence, _FENCE_EXEMPT, nor _CONDITIONAL — "
             "either the sequence is missing a call the run makes, or the call is conditional "
             "and belongs in _FENCE_EXEMPT with its condition recorded")
+    dead = sorted(c for c in _FENCE_EXEMPT if c not in all_calls)
+    if dead:
+        # The dead-entry direction, mirroring `check_next_action_routing_totality`'s stale
+        # check. Without it a member that stops being conditional — reappearing as an
+        # unconditional fenced call — stays pre-accounted by its own exemption, and this arm
+        # goes green over exactly the sequence omission it was added to catch. An exemption
+        # whose fence legitimately went away is retired here, not left to rot.
+        raise Refusal(
+            f"fenced-completeness: {dead} appear in _FENCE_EXEMPT but are invoked in no "
+            "```bash fence of either reference file — a stale exemption pre-accounts a call "
+            "the sequence may now be omitting; retire the entry, or restore the fence")
     report.append(f"fenced-completeness: all {scanned} fenced state-owner invocations across "
                   "both reference files are named in the call sequence, the declared "
                   "exemption set, or the conditional set")

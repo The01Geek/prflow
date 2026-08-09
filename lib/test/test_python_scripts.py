@@ -22104,13 +22104,17 @@ def _alc_call(subcommand, prefix="python3 ", flags=""):
 _ALC_COND_MENTIONS = " ".join(f"`{c}`" for c in _alc795._CONDITIONAL)
 
 
-def _alc_fenced(step36=None, step4=None):
+def _alc_fenced(step36=None, step4=None, fence_exempt=True):
     """Run the reverse check over two crafted documents; return None or the refusal text.
 
     The documents are written to real files and `STEP36`/`STEP4` rebound to them, which is
     the checker's ONLY injection seam — so a crafted run grades under byte-identical rules
     to the shipped one, including the fail-closed empty-population arm. The sequence set is
     produced by `check_sequence` over the same crafted document, exactly as `main()` does.
+
+    `fence_exempt` controls whether the synthesized step-4 fences the `_FENCE_EXEMPT`
+    members. It defaults on because the dead-entry arm refuses an exemption invoked in no
+    fence, which every other row would otherwise hit first; the dead-entry row turns it off.
     """
     if step36 is None:
         step36 = _alc_doc(["init"], [_alc_call("init")], extra=_ALC_COND_MENTIONS)
@@ -22121,12 +22125,14 @@ def _alc_fenced(step36=None, step4=None):
         p36 = _alc795.Path(tmp) / "step-3-6-audit.md"
         p4 = _alc795.Path(tmp) / "step-4-present-create.md"
         p36.write_text(step36, encoding="utf-8")
-        # Two things every crafted step-4 needs unless the caller overrides it: the
-        # `query-draft-binding` mention `check_sequence` requires, and one accounted ```bash
+        # Three things every crafted step-4 needs unless the caller overrides it: the
+        # `query-draft-binding` mention `check_sequence` requires; one accounted ```bash
         # fence, because the empty-population guard is PER FILE — a fence-less step-4 would
-        # otherwise refuse every row rather than the one testing that guard.
+        # otherwise refuse every row rather than the one testing that guard; and a fence per
+        # `_FENCE_EXEMPT` member, so the dead-entry arm is satisfied.
         if step4 is None:
-            step4 = "```bash\n" + _alc_call("init") + "\n```\n"
+            calls = ["init"] + (list(_alc795._FENCE_EXEMPT) if fence_exempt else [])
+            step4 = "".join(f"```bash\n{_alc_call(c)}\n```\n" for c in calls)
         p4.write_text(step4 + "\n`query-draft-binding`\n", encoding="utf-8")
         try:
             _alc795.STEP36, _alc795.STEP4 = p36, p4
@@ -22211,6 +22217,17 @@ assert_eq("#1466 reverse check: a subcommand named in BOTH the exemption set and
           "sequence is refused, so the two cannot disagree about conditionality",
           True, _alc_both is not None and _alc795._FENCE_EXEMPT[0] in _alc_both)
 
+# The DEAD-ENTRY direction, mirroring check_next_action_routing_totality's stale check: an
+# exemption whose fence has gone away keeps pre-accounting a call the sequence may now be
+# omitting, so the arm would go green over exactly the drift it exists to catch. (Every
+# fixture above fences no _FENCE_EXEMPT member in its step-3.6 doc, so this refusal is the
+# one they would all hit first — which is why _alc_fenced's synthesized step-4 fences them.)
+_alc_dead = _alc_fenced(step36=_alc_doc(
+    ["init"], [_alc_call("init")], extra=_ALC_COND_MENTIONS), fence_exempt=False)
+assert_eq("#1466 reverse check: a _FENCE_EXEMPT member invoked in no fence is refused as a "
+          "stale exemption",
+          True, _alc_dead is not None and _alc795._FENCE_EXEMPT[0] in _alc_dead)
+
 # --- defect reproduction: today's document, before the repair ----------------------------
 _alc_today = _alc_fenced(step36=_alc_doc(
     ["init", "query-draft-binding", "record-draft-binding", "query-arm"],
@@ -22259,6 +22276,25 @@ assert_eq("#1466 reverse check: a `<placeholder>` operand is a documented placeh
           _alc_fenced(step36=_alc_doc(
               ["init"], [_alc_call("init"), _alc_call("<subcommand>")],
               extra=_ALC_COND_MENTIONS)))
+
+# A `$`-shaped operand is NOT that allowance: in command position it is a shell variable —
+# a real invocation whose subcommand cannot be named. Unknown is not absent, so it refuses.
+_alc_var = _alc_fenced(step36=_alc_doc(
+    ["init"], [_alc_call("init"), _alc_call("$SUBCOMMAND")], extra=_ALC_COND_MENTIONS))
+assert_eq("#1466 reverse check: a `$`-parameterized operand refuses (a shell variable in "
+          "command position is an unresolvable call, not a placeholder)",
+          True, _alc_var is not None and "SUBCOMMAND" in _alc_var)
+
+# The other way attribution can come up empty: the operand list runs out with no non-flag
+# token, so nothing is appended. Dropping it would be the same silent shrink by another path.
+_alc_noop = _alc_fenced(step36=_alc_doc(
+    ["init"],
+    [_alc_call("init"),
+     'python3 "${CLAUDE_SKILL_DIR:-/x}"/../../scripts/issue-audit-state.py --help'],
+    extra=_ALC_COND_MENTIONS))
+assert_eq("#1466 reverse check: a state-owner fence with NO non-flag operand refuses rather "
+          "than contributing nothing",
+          True, _alc_noop is not None and "no non-flag operand" in _alc_noop)
 
 # --- attribution: an interpreter flag ahead of the script path ---------------------------
 # `extract-command-heads.py` truncates a head to three argv words, so reusing ITS head
@@ -22335,6 +22371,45 @@ assert_eq("#1466 reverse check: a sequence paragraph split by a blank line is re
               _alc_fenced(step36="\n".join([
                   _ALC_ANCHOR, "", "`init`", "", "`query-arm`", "",
                   "```bash", _alc_call("query-arm"), "```", "", _ALC_COND_MENTIONS]))))
+
+# --- the reused-API and module-load guards are driven, not merely stated -------------------
+# `_load_extractor`'s name check and `_load_module`'s load guard are this arm's answer to
+# "a rename in that general-purpose scanner must be a named RED breadcrumb, never a
+# traceback". Both are fail-closed guards with a stated purpose, so both get a planted row.
+_alc_api_saved = _alc795._EXTRACTOR_API
+_alc_api_refusal = None
+try:
+    _alc795._EXTRACTOR_API = tuple(_alc_api_saved) + ("_not_a_real_extractor_helper",)
+    try:
+        _alc795._load_extractor()
+    except _alc795.Refusal as _exc:
+        _alc_api_refusal = str(_exc)
+finally:
+    _alc795._EXTRACTOR_API = _alc_api_saved
+assert_eq("#1466: an _EXTRACTOR_API name the reused scanner no longer exposes is refused by "
+          "name, not raised as an AttributeError",
+          True,
+          _alc_api_refusal is not None
+          and "_not_a_real_extractor_helper" in _alc_api_refusal)
+
+# A renamed or REMOVED FILE is the other half, and `spec_from_file_location` does NOT catch
+# it — it returns a populated spec for a nonexistent path and the failure lands in
+# `exec_module`. Without the load guard that escapes `main()` (which catches only Refusal).
+_alc_ech_saved = _alc795._ECH
+_alc_load_refusal = None
+try:
+    _alc795._ECH = _alc795.REPO / "lib" / "test" / "no-such-scanner-1466.py"
+    try:
+        _alc795._load_extractor()
+    except _alc795.Refusal as _exc:
+        _alc_load_refusal = str(_exc)
+finally:
+    _alc795._ECH = _alc_ech_saved
+assert_eq("#1466: a REMOVED reused-scanner file is refused by name too (the spec guard alone "
+          "never fires for a missing path)",
+          True,
+          _alc_load_refusal is not None
+          and "no-such-scanner-1466.py" in _alc_load_refusal)
 
 # --- the arm is actually WIRED, and the pinned count still counts with multiplicity --------
 # Every row above calls `check_fenced_completeness` directly, so deleting its call from

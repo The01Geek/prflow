@@ -155,9 +155,10 @@ The arms are **sampled, not exhaustively covered** — `readonly-complement`, `e
 and `sequence` have no `#795 checker:` planted-defect row of their own, and the first two are
 observed only on the passing path. (`sequence` is driven to a Refusal by the #1466 rows below, which
 reach it through the same crafted documents.) Read the driven set from those rows in
-`lib/test/test_python_scripts.py`, not from a count copied here. Issue #1466's reverse arm arrived with its own rows on the same pattern, driven mostly
-against crafted reference documents, with one mutating `_FENCE_EXEMPT` to plant an unregistered
-exemption.
+`lib/test/test_python_scripts.py`, not from a count copied here.
+
+Issue #1466's reverse arm arrived with its own rows on the same pattern, driven mostly against
+crafted reference documents, with one mutating `_FENCE_EXEMPT` to plant an unregistered exemption.
 
 ## Measurement
 
