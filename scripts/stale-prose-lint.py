@@ -80,8 +80,8 @@ gating ``_COUNT_RE``) claims emits a single ``UNRESOLVABLE`` ``R3`` row whose de
 ``count-locked: recognition-only (<n> <noun>) — pin or drift-proof this claim``.
 The widened shape is: a spelled-out numeral word (``two`` … ``twelve``, case-insensitive ASCII)
 or a digit run; up to two intervening modifier words (each optionally wrapped in ``**…**`` /
-``*…*`` / backticks); and a noun from the *widened* set — the seven ``_COUNT_RE`` nouns plus
-the plural-only additions ``tags`` / ``members`` / ``fields`` / ``rows`` / ``columns`` /
+``*…*`` / backticks); and a noun from the *widened* set — every noun in the gating
+``_COUNT_NOUNS`` constant (interpolated in its ``s?`` form) plus the plural-only additions ``tags`` / ``members`` / ``fields`` / ``rows`` / ``columns`` /
 ``arms`` / ``files`` / ``rules`` / ``sites``. This tier is **non-gating by construction**: it
 runs **no** referent resolution (no adjacency walk, no table parsing), never emits STALE, and
 never affects the exit code (``UNRESOLVABLE`` never gates). Its only job is to surface the

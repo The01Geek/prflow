@@ -4,6 +4,30 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.31.60] — 2026-08-09
+
+### Changed
+Stale-prose lint: the module-header recognition-tier spec now names `_COUNT_NOUNS` — the constant the widened noun set is actually interpolated from — instead of `_COUNT_RE`, and states it without a transcribed count that rots when a noun is added. Adds discriminating unit coverage for the `§` / `.` / `-` members of `_NUM_LOOKBEHIND`, which were live but unasserted (only the `#` member was covered).
+
+## [2.31.59] — 2026-08-09
+
+### Fixed
+- **Close two schema-side fail-opens in the lint-manifest validator
+  (`scripts/lint_manifest.py`).** A manifest that selects no files at all —
+  `include_globs: []`, or a present-but-empty `exclude_globs` / `exclusions` —
+  validated as `established`, so a consumer would enumerate zero files and report
+  a clean lint having linted nothing; the glob lists now enforce non-emptiness
+  like their `selectors` / `full_profiles` / `artifacts` siblings. Separately, the
+  path-shaped fields (`include_globs`, `exclude_globs`, `exclusions`,
+  `special_invocations[].path`) accepted `../../../etc/passwd`, `/etc/passwd`,
+  `..`, and leading-dash tokens such as `-x` / `--exclude`, the last of which a
+  ShellCheck/Ruff argv parses as an *option* rather than a path; they are now
+  required to be repo-relative and argv-safe. An artifact's `member` — the name
+  an extractor pulls out of the archive and then invokes — is path-shaped too and
+  now takes that same guard: `.`, `..` and a leading-dash value such as `-rf` are
+  rejected where all three previously validated. Every one of these defects was
+  latent — nothing consumes the manifest yet. (#1276, #1484)
+
 ## [2.31.58] — 2026-08-09
 
 ### Changed
