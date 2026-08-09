@@ -15275,12 +15275,17 @@ assert_eq "#795: the registered subcommand count was established" "1" \
   "$(printf '%s' "$ALC_795_SUBS" | grep -c '^[0-9][0-9]*$')"
 # PIN the derived figure, do not merely print it. The AC requires that an addition raising
 # the count "turns the suite RED"; a shape-only check (is it a number?) plus a MEASURE line
-# is not that — the count could drift from 18 to 19 with the suite green, and the round-trip
-# metric this change exists to reduce would regress unnoticed. This is CLAUDE.md's
-# "enforcement constant" exception to prefer-generated-evidence: the literal IS the gate, so
-# it is pinned rather than rendered. Moving the sequence legitimately? Update this number in
-# the same commit — that is the review prompt this pin exists to force.
-assert_eq "#795: the per-round unconditional state-owner call count is 18" "18" "$ALC_795_CALLS"
+# is not that — the count could drift with the suite green, and the round-trip metric this
+# change exists to reduce would regress unnoticed. This is CLAUDE.md's "enforcement constant"
+# exception to prefer-generated-evidence: the literal IS the gate, so it is pinned rather than
+# rendered. Moving the sequence legitimately? Update this ONE number in the same commit — that
+# is the review prompt this pin exists to force. The assertion label reads the same variable,
+# so the printed name can never report a figure the assertion is not enforcing.
+# Issue #1466 raised it from 18 as a CORRECTION rather than a regression; the rationale is in
+# docs/internal/cutovers/issue-795-audit-state-round-trips.md's Measurement section.
+ALC_795_EXPECT=21
+assert_eq "#795: the per-round unconditional state-owner call count is $ALC_795_EXPECT" \
+  "$ALC_795_EXPECT" "$ALC_795_CALLS"
 printf '  MEASURE  #795 create-issue Step 3.6: unconditional_call_count=%s registered_subcommand_count=%s\n' \
   "$ALC_795_CALLS" "$ALC_795_SUBS"
 

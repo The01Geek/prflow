@@ -323,8 +323,15 @@ call list is the figure this change moves, and it is **derived live, not transcr
 `lib/test/check-audit-lifecycle-contracts.py` extracts it from the shipped prose and
 `lib/test/run.sh` prints it on every green run as
 `MEASURE  #795 create-issue Step 3.6: unconditional_call_count=… registered_subcommand_count=…`.
-Read the current figure there rather than from a number copied into this page. Three
-reductions compose into it:
+Read the current figure there rather than from a number copied into this page.
+
+**A live figure moves for two reasons, and only one of them is this change.** Issue #1466
+raised the derived count by three — `query-round-kind` once and `record-staged-write` twice
+— by *repairing the sequence prose*, which had omitted three positions the run always
+executed. That rise is a documentation correction, not a regression in the reduction below:
+no call was added to the run. Read a MEASURE line taken after #1466 against that corrected
+baseline; comparing it to a figure recorded before the repair overstates the per-round list
+by exactly those three. Three reductions compose into the reduction **#795** made:
 
 - The four back-to-back boundary reads (`query-triggers`, `query-convergence`,
   `query-coverage`, `query-calibration`) collapse to one `query-boundary` call plus the
