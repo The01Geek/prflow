@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1463",
+  "generated_at": "2026-08-09T00:38:53Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.31.48",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 13.31505475,
+    "tokens": {
+      "input_tokens": 76,
+      "output_tokens": 51425,
+      "cache_read_input_tokens": 7281542,
+      "cache_creation_input_tokens": 282090,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 137,
+        "outputTokens": 96179,
+        "cacheReadInputTokens": 9054227,
+        "cacheCreationInputTokens": 851991,
+        "webSearchRequests": 0,
+        "costUSD": 13.31505475,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 57,
+    "duration_ms": 1084852
+  },
+  "permission_denials": {
+    "count": 10,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-none} ATTEMPT=${GITHUB_RUN_ATTEMPT:-none}\"; echo \"SERVER=${GITHUB_SERVER_URL:-none} REPO=${GITHUB_REPOSITORY:-none}\"; echo \"ACTIONS=${GITHUB_ACTIONS:-none}\"",
+      "gh pr diff 1463 > .prflow/tmp/review/pr-1463/31285911071-1/diff.raw\nwc -l .prflow/tmp/review/pr-1463/31285911071-1/diff.raw\necho \"=== files in raw ===\"\ngrep -c '^diff --git' .prflow/tmp/review/pr-1463/31285911071-1/diff.raw\ngrep '^diff --git' .prflow/tmp/review/pr-1463/31285911071-1/diff.raw",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve \"1462\" --pr \"1463\" 2>.prflow/tmp/review/pr-1463/31285911071-1/acs.err ; echo \"acs-rc=$?\"",
+      ".prflow/vendor/prflow/scripts/workpad.py patch 5228964352 .prflow/tmp/review/pr-1463/31285911071-1/review-wp.md 2>.prflow/tmp/review/pr-1463/31285911071-1/rv-patch.err && echo \"patch-ok\" || echo \"patch-fail: $(cat .prflow/tmp/review/pr-1463/31285911071-1/rv-patch.err)\"",
+      ".prflow/vendor/prflow/scripts/workpad.py patch 5228964352 .prflow/tmp/review/pr-1463/31285911071-1/review-wp.md && echo \"patch-ok\" || echo \"patch-fail\"\nD=.prflow/tmp/review/pr-1463/31285911071-1\nawk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' $D/diff.patch > $D/batch-1.patch && test -s $D/batch-1.patch && echo \"slice-ok batch-1 $(grep -c '^diff --git' $D/batch-1.patch)\"\nawk -v s=11 -v e=17 '/^diff --git/{n++} n>=s && n<=e' $D/diff.patch > $D/batch-2.patch && test -s $D/batch-2.patch && echo …[per-command-truncated]",
+      "awk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1463/31285911071-1/diff.patch > .prflow/tmp/review/pr-1463/31285911071-1/batch-1.patch && grep -c '^diff --git' .prflow/tmp/review/pr-1463/31285911071-1/batch-1.patch\nawk -v s=11 -v e=17 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1463/31285911071-1/diff.patch > .prflow/tmp/review/pr-1463/31285911071-1/batch-2.patch && grep -c '^diff --git' .prflow/tmp/review/pr-1463/31285911071-1/batch-2.patch",
+      "awk '/^diff --git/{n++} n>=1 && n<=10' .prflow/tmp/review/pr-1463/31285911071-1/diff.patch > .prflow/tmp/review/pr-1463/31285911071-1/batch-1.patch\ngrep -c '^diff --git' .prflow/tmp/review/pr-1463/31285911071-1/batch-1.patch",
+      "awk '/^diff --git/{n++} n>=11 && n<=17' .prflow/tmp/review/pr-1463/31285911071-1/diff.patch > .prflow/tmp/review/pr-1463/31285911071-1/batch-2.patch\ngrep -c '^diff --git' .prflow/tmp/review/pr-1463/31285911071-1/batch-2.patch",
+      "for f in skills/implement/SKILL.md skills/review/SKILL.md skills/review-and-fix/SKILL.md skills/pr-description/SKILL.md; do\n  echo \"=== $f ===\"\n  echo -n \"old-fallback-wording: \"; git cat-file -p 55ba8776d54de7b296ac5267fe94f6b93e47cbce:$f | grep -c \"Fallback — applies ONLY when the placeholder did not render\"\n  echo -n \"also-load-unconditional: \"; git cat-file -p 55ba8776d54de7b296ac5267fe94f6b93e47cbce:$f | grep -c \"Also load\\|Also load the extension\\|Also load this extension\"\n  echo -n \"rende …[per-command-truncated]",
+      "for f in skills/requesting-code-review/SKILL.md skills/create-issue/SKILL.md; do echo \"=== $f ===\"; git cat-file -p 55ba8776d54de7b296ac5267fe94f6b93e47cbce:$f 2>/dev/null | grep -niE \"fallback|applies ONLY|load-prompt-extension|unconditional|placeholder did not render\" || echo \"(no matches / file absent)\"; done"
+    ],
+    "total": 10,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
