@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1486",
+  "generated_at": "2026-08-09T20:01:22Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.31.61",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 9.207641749999999,
+    "tokens": {
+      "input_tokens": 5233,
+      "output_tokens": 19364,
+      "cache_read_input_tokens": 2935855,
+      "cache_creation_input_tokens": 166606,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 5307,
+        "outputTokens": 75263,
+        "cacheReadInputTokens": 5774606,
+        "cacheCreationInputTokens": 605993,
+        "webSearchRequests": 0,
+        "costUSD": 9.207641749999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 37,
+    "duration_ms": 627259
+  },
+  "permission_denials": {
+    "count": 5,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      "echo \"RUN_ID=$GITHUB_RUN_ID ATTEMPT=$GITHUB_RUN_ATTEMPT\"; git status --porcelain; echo \"---PRVIEW---\"; gh pr view 1486 --json headRefName,baseRefName,baseRefOid,headRefOid,body,title,state --jq '.'",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve 1453 --pr 1486 2>.prflow/tmp/review/pr-1486/cloud/acs.err ; echo \"acs-rc=$?\"",
+      "for f in \"a/lib/test/run.sh\" \"a/skills/implement/phases/phase-3-review.md\" \"a/skills/implement/phases/phase-4-documentation.md\" \"a/skills/review-and-fix/references/loop-exit.md\" \"a/skills/review-and-fix/references/shadow-review.md\" \"a/scripts/devflow-cloud-writer-contract.json\"; do echo \"===== $f =====\"; awk -v tgt=\"diff --git $f \" '$0 ~ \"^diff --git \" {p=($0 ~ tgt)} p' .prflow/tmp/review/pr-1486/cloud/diff.patch; done",
+      "ls .changeset/ 2>/dev/null; echo \"---\"; cat .changeset/config.json 2>/dev/null | head -20; echo \"---existing sample---\"; for f in .changeset/*.md; do [ \"$(basename $f)\" != \"issue-1453-review-coverage-gate.md\" ] && head -5 \"$f\" && break; done"
+    ],
+    "total": 5,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
