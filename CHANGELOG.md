@@ -4,6 +4,15 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.31.51] — 2026-08-09
+
+### Changed
+Remove the render-time prompt-extension placeholder from `skills/review/SKILL.md` and reconcile
+its surrounding prose to the single `load-prompt-extension.sh` invocation ladder. The placeholder's
+permission check aborts a `Skill`-tool load of `prflow:review` on the cloud tier, so the engine root
+returned no body at all and the run improvised past its phase references. Single-variable experiment:
+the other three placeholder sites are unchanged.
+
 ## [2.31.50] — 2026-08-09
 
 ### Changed
