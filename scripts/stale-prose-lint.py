@@ -163,9 +163,13 @@ tokens are **exactly these — complete by construction**: ``every`` / ``all`` /
 ``entire`` / ``whole``. The coverage-referent nouns are **exactly these — complete by
 construction**, singular and plural alike: ``site`` / ``arm`` / ``branch`` / ``case`` / ``path``
 / ``file`` / ``rule`` / ``peer`` / ``consumer`` / ``caller`` / ``member`` / ``mirror`` /
-``occurrence`` / ``instance`` / ``surface`` / ``checkpoint`` / ``call site``. Both sets follow
+``occurrence`` / ``instance`` / ``surface`` / ``checkpoint`` / ``call site`` / ``row`` /
+``entry`` / ``population`` / ``partner`` / ``helper`` (the last five added for issue #1451, the
+referent nouns the recurring ``incomplete-edit`` failures used). Both sets follow
 the ``_COUNT_RE`` widened-noun-set precedent: they live as module-level constants and this
-header is their authoritative spec.
+header is their authoritative spec. A modifier token may lead with a hyphen or backtick-hyphen
+(e.g. `` `-x`-gated ``) via the CU-local ``_CU_MOD`` sibling of ``_RECOG_MOD`` (issue #1451),
+which is left byte-identical because the gating-adjacent R3 tier shares it.
 
 *Precedence, decided explicitly (against the R3 recognition tier).* The two non-gating tiers
 **overlap by design** — ``arms`` / ``files`` / ``rules`` / ``sites`` sit in both noun sets, so
@@ -556,14 +560,18 @@ _CU_QUANT = r"(?:every|all|each|any|both|no|none|exactly|only|complete|entire|wh
 # The coverage-referent nouns — exactly these, complete by construction. Each matches singular
 # or plural. `call site` is expressed as an OPTIONAL prefix on `site` rather than as a separate
 # earlier alternative, so the alternation is order-independent: a leftmost-first `|` cannot let
-# a bare `sites?` claim `call site`'s tail and misname the reported referent.
+# a bare `sites?` claim `call site`'s tail and misname the reported referent. The issue-#1451
+# additions — `row` / `entry` / `population` / `partner` / `helper` — are the referent nouns the
+# recurring `incomplete-edit` failures actually used; `entr(?:y|ies)` spells the irregular plural
+# rather than relying on `s?`.
 _CU_NOUN = (
     r"(?:(?:call )?sites?|arms?|branch(?:es)?|cases?|paths?|files?|rules?|peers?"
     r"|consumers?|callers?|members?|mirrors?|occurrences?|instances?|surfaces?"
-    r"|checkpoints?)"
+    r"|checkpoints?|rows?|entr(?:y|ies)|populations?|partners?|helpers?)"
 )
-# Up to two intervening bare-word modifiers, reusing `_RECOG_MOD`'s shape so a token carrying
-# sentence punctuation structurally breaks the match. Deliberately NOT routed through
+# Up to two intervening bare-word modifiers, matched by the CU-local `_CU_MOD` below (a widened
+# sibling of `_RECOG_MOD`'s shape) so a token carrying sentence punctuation structurally breaks
+# the match, while a leading hyphen / backtick-hyphen no longer does. Deliberately NOT routed through
 # `_mods_ok`: that guard disqualifies a NUMERAL-shaped modifier, which is correct for the R3
 # count tier (where the numeral IS the claim) but wrong here — `all four arms` is precisely the
 # coverage universal this tier exists to surface, and disqualifying it would blind the tier to
@@ -573,8 +581,18 @@ _CU_NOUN = (
 # A repo-wide search at authoring time returned 16 emphasised occurrences against 515 bare
 # ones, so this is a real minority shape rather than the majority one — it is recognised
 # because a missed line is a line the sweep never grades, not because it is the common form.
+# The CU-local modifier (issue #1451): `_RECOG_MOD` requires each intervening modifier to begin
+# `[*`]{0,2}[A-Za-z]`, so a `-x`-gated token beginning with a backtick-hyphen structurally breaks
+# the match and blinds the tier to `#1316`'s own worked example. This sibling tolerates a leading
+# hyphen (and an internal backtick/hyphen run) so such a modifier is spanned. It is used ONLY by
+# `_CU_RE`; `_RECOG_MOD` is left byte-identical because it is shared with the gating-adjacent R3
+# recognition tier and must not drift. Only the two class widenings are load-bearing: a leading
+# `-` in the mandatory class, and `` ` `` in the inner run (for the `` ` `` inside `x`-gated`); a
+# leading backtick is already absorbed by the `[*`]{0,2}` emphasis wrapper, so it is NOT repeated
+# in the mandatory class.
+_CU_MOD = r"[*`]{0,2}[-A-Za-z][\w'`-]*[*`]{0,2}\s+"
 _CU_RE = re.compile(
-    r"[*`_]{0,2}\b" + _CU_QUANT + r"\b[*`_]{0,2}\s+(?:" + _RECOG_MOD + r"){0,2}"
+    r"[*`_]{0,2}\b" + _CU_QUANT + r"\b[*`_]{0,2}\s+(?:" + _CU_MOD + r"){0,2}"
     + _CU_NOUN + r"\b",
     re.IGNORECASE,
 )

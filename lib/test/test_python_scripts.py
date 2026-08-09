@@ -5788,12 +5788,49 @@ _CU_NOUN_FORMS_818 = [
     ("caller", "callers"), ("member", "members"), ("mirror", "mirrors"),
     ("occurrence", "occurrences"), ("instance", "instances"), ("surface", "surfaces"),
     ("checkpoint", "checkpoints"),
+    # issue #1451 — the incomplete-edit nouns the recurring failures actually used. `entry`
+    # pluralises `entries`, which is why the pairs are spelled out rather than derived by
+    # appending `s`.
+    ("row", "rows"), ("entry", "entries"), ("population", "populations"),
+    ("partner", "partners"), ("helper", "helpers"),
 ]
 assert_eq("#818 closed sets: every declared coverage-referent noun is recognised after a "
           "quantifier, singular and plural alike",
           [], [pair for pair in _CU_NOUN_FORMS_818
                if any(stale_prose_lint._recognize_coverage_universal(
                    f"every {form} is reached") is None for form in pair)])
+# issue #1451 — one near-miss negative control per added noun: the noun appears with NO adjacent
+# quantifier, so the tier must NOT recognise it. A bare-noun match would flood §2.3.4b's seed
+# list with lines that assert no coverage universal at all.
+assert_eq("#1451 near-miss: each added noun with no adjacent quantifier stays unrecognised",
+          [], [s for s in ("the tracked population is audited", "this row is stale",
+                           "the helper resolves", "an entry was added", "its partner file")
+               if stale_prose_lint._recognize_coverage_universal(s) is not None])
+# issue #1451 AC2 — a modifier token whose first character is a backtick-hyphen (the recorded
+# #1316 worked example) is unrecognised before the CU-local modifier lands and recognised after.
+assert_eq("#1451 AC2: a `-x`-gated leading-hyphen modifier is recognised before the noun",
+          True,
+          stale_prose_lint._recognize_coverage_universal(
+              "A lost executable bit on any `-x`-gated bundled helper is now caught")
+          is not None)
+# issue #1451 — the CU-local `_CU_MOD` widening must NOT have leaked into the gating-adjacent R3
+# recognition tier, whose `_RECOG_MOD` is left byte-identical. `_recognize_count` still spans a
+# plain modifier but still BREAKS on a `-x`-gated one — a future "unify the two siblings" refactor
+# that routed the widening into `_RECOG_MOD` would turn the second assertion RED.
+assert_eq("#1451 R3 isolation: the R3 count tier spans a plain modifier but a leading-hyphen "
+          "modifier still breaks it (_RECOG_MOD unchanged)",
+          [(4, "files"), None],
+          [stale_prose_lint._recognize_count("four bundled files"),
+           stale_prose_lint._recognize_count("four `-x`-gated files")])
+# issue #1451 — the rewritten `_CU_MOD` must still break on sentence punctuation: a comma-bearing
+# modifier token is not spanned, so "every stale, helper" is unrecognised while a plain modifier
+# ("every bundled helper") is recognised. Proves the widening did not over-widen into swallowing
+# punctuated tokens.
+assert_eq("#1451: the widened _CU_MOD still breaks on a comma-bearing modifier, so only the "
+          "punctuation-free modifier is spanned",
+          [None, "every bundled helper"],
+          [stale_prose_lint._recognize_coverage_universal("every stale, helper is reached"),
+           stale_prose_lint._recognize_coverage_universal("every bundled helper is reached")])
 # Emphasis wrapping on the quantifier is this repo's dominant way of WRITING a universal, so a
 # tier blind to it would be seeded from the wrong population. Non-universals stay unrecognised.
 assert_eq("#818: the quantifier is recognised through `**…**` emphasis, and a scoped hedge "
