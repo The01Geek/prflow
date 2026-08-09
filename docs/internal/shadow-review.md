@@ -296,7 +296,12 @@ decision. A run under cost pressure that could dispatch the shadow dispatches it
 *was* dispatched and fell short records `not_verified` and its true cause, cost included — the
 coverage record reports coverage, not blame. What is refused is a budget or elective cause offered in
 place of a dispatch that was never attempted, and a run that never dispatched may not report its
-result as independently audited. The rule binds the local and cloud tiers identically. The decision
+result as independently audited. A run that *cannot* dispatch at all has a named legal state to enter
+(issue #1490), so a cost-pressured run is never left reading the prohibition with no state to enter:
+a workpad-holding caller (the `/prflow:implement` orchestrator) stops at a non-terminal or `Blocked`
+status naming what prevented the fan-out — budget exhaustion included — and a caller with no workpad
+(standalone `/prflow:review-and-fix`) reports non-convergence and posts no clean approve-family
+verdict. The rule binds the local and cloud tiers identically. The decision
 was settled empirically: on the run for issue #1466 (PR #1468) an orchestrator elected `not_verified`
 under budget pressure and disclosed it honestly; the shadow, run afterwards on that same converged and
 unchanged diff, returned 12 findings with zero overlap with the loop's own pass, four of them genuine
