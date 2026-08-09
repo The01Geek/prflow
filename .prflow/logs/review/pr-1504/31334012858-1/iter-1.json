@@ -27,22 +27,42 @@
     "new_corroborated_critical_count": 0
   },
   "shadow": {
-    "ran_at": null,
-    "reviewed_sha": null,
-    "verdict": null,
-    "coverage": null,
-    "reviewers_dispatched": [],
+    "ran_at": "2026-08-09T21:05:00Z",
+    "reviewed_sha": "dafd1a15c",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
     "expected_reviewers": [
       "prflow:code-reviewer",
       "prflow:silent-failure-hunter",
       "prflow:comment-analyzer",
       "prflow:requesting-code-review"
     ],
-    "phase3_findings": [],
+    "phase3_findings": [
+      {
+        "agent": "prflow:requesting-code-review",
+        "severity": "Suggestion",
+        "description": "silent-failure-hunter Step 5 dropped the illustrative path-hint 'often under skills/, prompts/, or agents/ path' — illustrative, not a behavioral rule; no action required",
+        "defect_signature": {
+          "file": "agents/silent-failure-hunter.md",
+          "line_range": [
+            118,
+            118
+          ],
+          "kind": "style"
+        },
+        "fix_decision": "advisory"
+      }
+    ],
     "comparison": {
-      "shadow_total": 0,
+      "shadow_total": 1,
       "overlap_with_iter_N": 0,
-      "new": 0,
+      "new": 1,
       "new_critical": 0,
       "new_important": 0
     },
