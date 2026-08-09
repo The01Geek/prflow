@@ -137,15 +137,27 @@ reconciliation, not prose presence. Its arms compare the shipped enumerations ag
 parser and the handlers actually expose: read-backs vs. `_MULTILINE_READBACKS`, the exclusion set
 vs. the emitter's refusals, `_ROUND_DEFAULTED` vs. parser optionality **and** the handlers'
 resolver calls, every `_NEXT_ACTIONS` member routed by one of the two `next_call=` tables with no
-dead entry, and both flag vocabularies against registered options. It **refuses** a
+dead entry, both flag vocabularies against registered options, and — since issue #1466 — the
+**reverse** of the sequence arm: every state-owner subcommand either reference file invokes inside
+a ```bash fence must be named in the ordered sequence, in the declared `_FENCE_EXEMPT` set, or in
+`_CONDITIONAL`. That reverse arm is what stops the sequence from *omitting* a call the documents
+mandate; its reach is the ```bash fences alone, so a call written only in prose backticks stays
+outside it — a sizeable minority of the sequence's distinct calls. It **refuses** a
 subcommand-shaped token in the ordered sequence that the parser does not register rather than
 silently skipping it — skipping is selection, not validation, and a typo had lowered the derived
 figure by one while the success line still claimed "every one a registered subcommand".
 
 The checker's own fail-closed arms are driven: every prior run was over a clean tree, so it had
-only ever been observed passing. Five planted-defect rows require each Refusal and a sixth
-requires the unmutated checker to still pass, so the rows grade a live guard rather than a
-permanently-red one.
+only ever been observed passing. Planted-defect rows drive the `flag-vocabulary`,
+`next-action-routing`, `read-backs` and `round-defaulted` refusals, and a further row requires the
+unmutated checker to still pass, so those rows grade a live guard rather than a permanently-red one.
+The arms are **sampled, not exhaustively covered** — `readonly-complement`, `emitting-complement`
+and `sequence` have no `#795 checker:` planted-defect row of their own, and the first two are
+observed only on the passing path. (`sequence` is driven to a Refusal by the #1466 rows below, which
+reach it through the same crafted documents.) Read the driven set from those rows in
+`lib/test/test_python_scripts.py`, not from a count copied here. Issue #1466's reverse arm arrived with its own rows on the same pattern, driven mostly
+against crafted reference documents, with one mutating `_FENCE_EXEMPT` to plant an unregistered
+exemption.
 
 ## Measurement
 
@@ -153,6 +165,15 @@ The per-round unconditional call count is **derived from the shipped prose, not 
 `lib/test/run.sh` prints it on every green run as a `MEASURE  #795 …` line carrying
 `unconditional_call_count=` and `registered_subcommand_count=`. It is also *pinned*, so an added
 unconditional call turns the suite RED rather than only moving a printed figure.
+
+**The figure rose by three at issue #1466, and that rise is a correction, not a regression.** The
+repaired sequence adds `query-round-kind` once and `record-staged-write` twice, so the derived
+count moved from 18 to 21. No behavior changed: those three calls were always being made — the
+state owner refuses a fresh file-arm dispatch that finds no recorded staged write, and refuses a
+`record-dispatch` with no `--kind`, so the pre-dispatch pair is tool-enforced; the presentation
+write's `record-staged-write` is prose-mandated by the shared write procedure. Only the document
+omitted them, so the rise measures the prose catching up with the run. Read a later green MEASURE
+line against that baseline rather than against the pre-#1466 one.
 
 The real-corpus before/after record, the stated reason its "after" row is a post-merge obligation
 rather than a pre-merge figure, and the reproduction recipe that produces it are in
@@ -190,6 +211,9 @@ two-artifact skew of the #502/#455 class.
 - `lib/test/check-audit-lifecycle-contracts.py`, `lib/test/run.sh`,
   `lib/test/modules/create-issue-contract.sh`, `lib/test/test_python_scripts.py`,
   `lib/test/test_render_audit_prompt.py` — the guards, the pin deletions and the behavioral rows.
+  Issue #1466 added `lib/test/extract-command-heads.py` to that set as a *read* dependency: the
+  reverse arm imports its fence enumeration rather than carrying a second Markdown scanner, so a
+  change to what counts as a scanned block reaches this gate too.
 - `docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md` §11 — the two-class-contract paraphrase, which carried the
   same short read-back enumeration as a third uncovered carrier and is why that clause drifted
   unseen.
