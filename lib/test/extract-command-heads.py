@@ -107,7 +107,10 @@ WRAPPERS_WITH_OPERAND = frozenset({"timeout", "nice"})
 # and any placeholder text inside the `:-` default.
 _ANCHOR = re.compile(r'^"?\$\{CLAUDE_SKILL_DIR:-[^}]*\}"?/\.\./\.\./')
 
-_ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+# A shell assignment token. The optional `+` covers bash's append form (`arr+=(x)`,
+# `s+=text`), which is an assignment and not a command head — without it the scanner
+# reports `arr+=(x)` as an ungranted command named `arr+=(x)`.
+_ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*\+?=")
 
 # `Bash(spec:*)` / `Bash(spec)` — the command-position token is everything before
 # the first `:` (mirrors the deny-list-floor parsing in devflow-runner.yml).
