@@ -4,7 +4,9 @@
 """Unit tests for scripts/loop-verdict-marker.py (issue #1212).
 
 Drives the SHIPPED helper as a subprocess over the compose + read matrix and
-every AC5 safe-direction branch. Exit 0 == all green; exit 1 with a diff on the
+every AC5 safe-direction branch. The helper is additionally imported in-process,
+for its result vocabulary only — never to exercise behaviour, which stays on the
+subprocess drives. Exit 0 == all green; exit 1 with a diff on the
 first failure, matching the lib/test/normalize-verdicts-test.py idiom (run.sh
 drives it with a single assert_eq). Stdlib-only; no gh/network/git.
 
@@ -16,6 +18,10 @@ Coverage:
     routes to its closed-vocabulary token; and every AC5 fail-closed branch
     (no marker, malformed grammar, unknown result token, unknown coverage token,
     empty input) never yields CLEAN-FULL.
+  * #1230 fail-closed direction: every rendered not-verified phrase composes to
+    coverage=not-verified and round-trips to CLEAN-NOT-VERIFIED for every clean-approve
+    token, never CLEAN-FULL, with the converse full-coverage round trip so a
+    normalize-everything-away regression cannot satisfy it.
 """
 from __future__ import annotations
 
@@ -137,27 +143,30 @@ check("read nonexistent file not CLEAN-FULL", False, out.startswith("CLEAN-FULL"
 # conjunction (`coverage == "full"` AND `prompt_addenda == "none"`) — is agent-executed
 # prose this file cannot reach: a green run here is NOT coverage of that conjunction.
 # The first three rows are the shapes loop-exit.md renders when it does not hold; the
-# fourth is a deliberately unrendered phrase, standing in for any future variant, so the
-# normalizer's catch-all is exercised rather than only its known inputs.
+# fourth is a phrase it renders nowhere, standing in for a future variant. All four share
+# the rendered prefix, so none of them reaches a distinct branch — the phrases that do
+# (empty, near-miss, unrelated) are driven by the compose checks above.
 _NOT_VERIFIED_PHRASES = [
     ("bare", "shadow agreement not verified"),
     ("addenda-array", 'shadow agreement not verified (prompt addenda: ["topic-priming"])'),
     ("attestation-absent", NV),
     ("unrendered", "shadow agreement not verified (roster short: 3 of 5 reviewers returned)"),
 ]
-# Read from the helper's own clean-approve set, so a seventh result token added to
-# `_RESULT_TO_TOKEN` is driven here automatically instead of silently going unexercised.
+# Filtered against the helper's own clean-approve set, so a token the helper stops treating
+# as clean drops out here with no edit. A NEW helper token is not driven automatically — the
+# roster-coverage check below goes RED until it is added to `_compose_result_cases`.
 _CLEAN_APPROVE_RESULTS = [
     (human, token) for human, token in _compose_result_cases if token in helper._CLEAN_APPROVE_TOKENS
 ]
-# ...and the transcribed roster above must still cover the helper's, or the derivation
-# would narrow silently to whatever this file happens to list. Compared on tokens, since
-# the helper keys `_RESULT_TO_TOKEN` by its own normalized spelling of each result.
+# Compared on tokens, since the helper keys `_RESULT_TO_TOKEN` by its own normalized
+# spelling of each result.
 check(
     "#1230 compose-case roster covers the helper's result vocabulary",
     set(),
     set(helper._RESULT_TO_TOKEN.values()) - {token for _, token in _compose_result_cases},
 )
+# An empty roster would run the round-trip loop zero times and pass vacuously.
+check("#1230 clean-approve roster is non-empty", True, bool(_CLEAN_APPROVE_RESULTS))
 
 # Every non-clean phrase must compose to the SAME not-verified marker, so the load-bearing
 # assertion is on the marker bytes — an exit status alone would not catch a normalizer that
