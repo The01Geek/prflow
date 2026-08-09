@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import copy
 import importlib.util
 import json
 import os
@@ -702,7 +703,7 @@ class RealRunnerContractTests(unittest.TestCase):
             temporary_path = Path(temporary)
             # Lower the target module's floor to 1 exactly as reconcile() does for its
             # measurement registry, so a passing focused run cannot be refused for a floor.
-            measurement = json.loads(REGISTRY.read_text(encoding="utf-8"))
+            measurement = copy.deepcopy(registry_data)
             measurement["test_modules"][module_id]["minimum_assertions"] = 1
             measurement_registry = temporary_path / "registry.json"
             measurement_registry.write_text(
