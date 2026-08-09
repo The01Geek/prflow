@@ -18,19 +18,13 @@ object printed to stdout — the retrospective entry the orchestrator will appen
 Nothing else on stdout.
 
 **Configuration (handed to you by value — resolve nothing).** Your dispatch prompt
-supplies two absolute values: the **bundled-helper root**, used wherever this skill
-writes `[[PLUGIN_ROOT]]`, and the **internal-documentation root**, used wherever it
-writes `[[INTERNAL_DOC_LOCATION]]`. Use them verbatim. Do **not** invoke a helper to
-derive either: as a subagent you receive neither `$CLAUDE_SKILL_DIR` nor a `Base
-directory for this skill:` context line, so no anchor of yours resolves — and the
-config reader itself resolves its default path with `git rev-parse --show-toplevel`,
-which this brief forbids you to run. If your dispatch prompt carries no bundled-helper
-root, fall back to `jq` on `PATH` for the one construction in *§ Output schema* — a
-degraded arm, not a stop: it loses the bundled wrapper's execution-verified jq selection,
-so on a host whose `PATH` jq is present but unrunnable (a shim-shadowed Windows/WSL host
-is the case the wrapper exists for) the construction fails, and you report that failure as
-the `{"error": "<reason>"}` object of *§ If the bundle is unusable* rather than silently
-producing nothing. If it carries no
+supplies two absolute values: the **bundled-helper root** (used wherever this skill
+writes `[[PLUGIN_ROOT]]`) and the **internal-documentation root** (used wherever it
+writes `[[INTERNAL_DOC_LOCATION]]`); use them verbatim. Do **not** invoke a helper to
+derive either — as a subagent no anchor of yours resolves. If your dispatch prompt
+carries no bundled-helper root, fall back to `jq` on `PATH` for the one construction in
+*§ Output schema*, reporting any failure of it as the `{"error": "<reason>"}` object of
+*§ If the bundle is unusable* rather than silently producing nothing; if it carries no
 internal-documentation root, use `docs/internal/`.
 Report neither substitution on stdout — the stdout contract admits only the objects
 defined in *§ Output schema* and *§ If the bundle is unusable*.
@@ -45,13 +39,7 @@ BUNDLE="$(cat "$BUNDLE_PATH")"
 
 **Scope of the anchor rule in this brief.** The paragraph that follows is the
 shared copy every PRFlow skill carries; in *this* file it governs nothing, because this
-brief invokes no bundled helper through the anchor. Every path you need is handed to you
-**by value** by the dispatching orchestrator — `[[PLUGIN_ROOT]]`,
-`[[INTERNAL_DOC_LOCATION]]`, and the absolute prompt-extension path — so the anchor's
-stop-and-report arm is unreachable here, and it must stay unreachable: prose on stdout
-would break the exactly-one-JSON-object contract above. Report any failure you cannot
-recover from as the `{"error": "<reason>"}` object in *§ If the bundle is unusable*,
-never as free prose.
+brief invokes no bundled helper through the anchor.
 
 **Portable helper anchor (single-statement).** The bundled-helper commands in this skill resolve the skill directory inline at each call site via `${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}`. When `$CLAUDE_SKILL_DIR` is set and non-empty (Claude Code), run each command exactly as written. On a runner where it is unset or empty, replace the placeholder with the skill base directory the runner reports in context (e.g. a `Base directory for this skill:` line) before running the command; if that reported path is Windows-form (`C:\...`), first convert it to this shell's POSIX form with one standalone `wslpath -u '<path>'` (WSL) or `cygpath -u '<path>'` (Git Bash/MSYS2) command and substitute the printed result **only if the command succeeds and prints a non-empty path — otherwise fall through to the drive-letter rules exactly as if the tool were absent, the same success-and-non-empty acceptance the platform's path-normalization rules apply** (if neither tool exists: lowercase the drive letter, map `C:\` to `/mnt/c` on WSL or `/c` on MSYS2, and turn backslashes into `/`; if the environment is neither WSL nor MSYS2, use the path unchanged and report that it could not be normalized — the same arm the platform's path-normalization rules take). Resolve the anchor inline at every call site — never capture it into a shell variable that a later statement reads, because some runners' inline-bash marshaling drops such variables (observed on Copilot CLI). If neither `$CLAUDE_SKILL_DIR` nor a runner-reported base directory is available, stop and report that the helper anchor could not be resolved rather than running a command with a broken path.
 
@@ -60,11 +48,11 @@ read the consumer-supplied prompt extension for this skill and honor it — your
 prompt names that file at an absolute `.prflow/prompt-extensions/retrospective.md` path.
 Read it with your **file-read tool** — never a shell invocation, and never
 `load-prompt-extension.sh`, whose anchor you cannot resolve. Treat any content as
-instructions appended to the end of this skill's own prompt for this run; it is
-upgrade-safe, consumer-owned customization. *§ Output schema* states in full how the
-absent, empty, and present-but-unreadable cases are handled — follow it there rather than
-re-deriving them here. This subagent's stdout contract is strict — exactly one JSON
-object — so a consumer extension must not break that contract.
+instructions appended to the end of this skill's own prompt for this run. An absent or
+empty file is a silent no-op; a present-but-unreadable file is reported through the
+optional `extension_unreadable` key of *§ Output schema*. This subagent's stdout
+contract is strict — exactly one JSON object — so a consumer extension
+must not break that contract.
 
 ## § The context bundle
 
@@ -98,7 +86,7 @@ Schema of `.prflow/tmp/pr-<n>.context.json` produced by `fetch-pr-context.sh`:
 | `commits` | array | `[{sha,author_login,committer_login,committed_at,message}]` |
 | `workpad_body` | string\|null | Full text of the `<!-- prflow:workpad -->` comment, read from the **issue** thread (where the workpad lives), not the PR thread |
 | `reflections` | array | The bullet lines from the workpad's `## Devflow Reflection` `<details>` block — the bot's own self-reported friction notes (`[]` when none) |
-| `review_verdicts` | array | Verdict entries in time order, drawn from the **union** of the PR conversation comments and the durable bot PR reviews: `[{verdict,createdAt,source}]` where `verdict` is APPROVE or REJECT and `source` is `pr_comment` or `pr_review`. Any verdict heading in either source qualifies (not only `/prflow:review` output). A single review round can contribute **two** entries — a stub review body and its progress comment — so entry count is not round count. |
+| `review_verdicts` | array | Verdict entries in time order, drawn from the **union** of the PR conversation comments and the durable bot PR reviews: `[{verdict,createdAt,source}]` where `verdict` is APPROVE or REJECT and `source` is `pr_comment` or `pr_review`. Any verdict heading in either source qualifies (not only `/prflow:review` output). |
 | `implement_summary_comment` | string\|null | The `/prflow:implement` completion summary comment body |
 | `signals` | object | See below |
 
@@ -109,16 +97,14 @@ Schema of `.prflow/tmp/pr-<n>.context.json` produced by `fetch-pr-context.sh`:
 | `review_comments_count` | number | Total inline review comments |
 | `post_bot_commits` | number | Substantive commits by a human AFTER the bot's last commit — pure merge commits (`Merge branch 'main'` etc.) are not counted |
 | `ci_failures_during_pr` | number | Non-success check-runs on the head SHA |
-| `workpad_final_status` | string | Parsed Status line from the workpad, e.g. `"Complete"`, `"Blocked"`, `"Cancelled"`, or one of the three absent/corrupt sentinels `"Unparsed"` / `"Absent"` / `"NoIssue"`. The producer always emits a non-empty value — `""` no longer appears. |
-| `pr_devflow_provenance` | boolean | True iff the `PRFlow` provenance label (or its superseded `DevFlow` spelling) is on the PR or the resolved linked issue — i.e. this was one of DevFlow's own runs. Drives the workpad-absent analysis rule below. |
+| `workpad_final_status` | string | Parsed Status line from the workpad, e.g. `"Complete"`, `"Blocked"`, `"Cancelled"`, or one of the absent/corrupt sentinels `"Unparsed"` / `"Absent"` / `"NoIssue"`. |
+| `pr_devflow_provenance` | boolean | True iff the `PRFlow` provenance label (or its superseded `DevFlow` spelling) is on the PR or the resolved linked issue. |
 | `ttm_hours` | number | Time from PR creation to merge, in decimal hours |
 | `review_reject_outstanding` | boolean | True when the chronologically-last review verdict (from either conversation comments or durable PR reviews) is REJECT |
 
 **Source priority.** The **issue workpad** is your highest-signal primary source,
-and you treat its three facets as primary analysis input:
-- `reflections` — the bot's own `## Devflow Reflection` bullets. These are the
-  most direct friction signal in the whole bundle: the bot recorded, in its own
-  words, what was unclear, blocked, or deferred. **Read every reflection bullet
+and you treat each of its facets as primary analysis input:
+- `reflections` — the bot's own `## Devflow Reflection` bullets. **Read every reflection bullet
   and let it drive the verdict, categories, and descriptors** — if this run
   left any reflection bullet, the cheap-gate forces it into analysis UNLESS
   every bullet is an informational `note`-kind (`ℹ️`) one (those are exempted
@@ -129,12 +115,7 @@ and you treat its three facets as primary analysis input:
   under each phase. Mine its append-only notes for the moment-to-moment story.
 
 The bot wrote all of this for itself, so friction sanitized out of commit
-messages and PR descriptions survives here — with one redaction: operator
-home-directory path prefixes (`/Users/<account>/`, `/home/<account>/`,
-`C:\Users\<account>\`) are rewritten to `~` on the merge write path before the
-corpus is committed, because they identify an account and machine layout while
-adding nothing the loop consumes (GitHub-Actions runner paths and every other
-string are preserved unchanged). When the workpad conflicts with the
+messages and PR descriptions survives here. When the workpad conflicts with the
 polished narrative elsewhere, favor the workpad and quote concrete passages.
 After the workpad, the strongest signals are `review_verdicts` / `pr_reviews` /
 `review_comments` (reviewer pushback), then `human_postbot_diff` (what humans
@@ -150,10 +131,9 @@ One of `imperfect` or `blocked`. (`clean` never reaches you — the orchestrator
 handled those mechanically.)
 
 - **`imperfect`** — the PR shipped but then needed substantive human commits
-  after the bot's last commit (`signals.post_bot_commits > 0` — this count
-  already excludes pure merge commits like `Merge branch 'main'`, so it reflects
-  real fixups, not branch hygiene), or a `/prflow:review` REJECT was left outstanding,
-  or acceptance criteria from the linked issue were unmet.
+  after the bot's last commit (`signals.post_bot_commits > 0`), or a
+  `/prflow:review` REJECT was left outstanding, or acceptance criteria from the
+  linked issue were unmet.
 - **`blocked`** — `signals.workpad_final_status == "Blocked"` or the workpad /
   PR thread shows work was abandoned mid-task with no shipped fix.
 
@@ -162,14 +142,11 @@ handled those mechanically.)
 — it is an incomplete run, not a quality issue. If `workpad_final_status` is one
 of those, print `{"skip": "incomplete run — workpad_final_status is <status>; skipping"}` and stop.
 
-A **`Cancelled`** final status is a deliberate stop, not a quality issue — the run
-was cancelled (an operator stop or a platform-initiated teardown), not
-abandoned mid-task. It takes a defined skip mirroring the interim skip: print
+A **`Cancelled`** final status takes a defined skip, not a `blocked` verdict: print
 `{"skip": "operator-cancelled run — workpad_final_status is Cancelled; a deliberate stop, not a quality signal; skipping"}`
-and stop. A deliberate cancel is never improvised into a `blocked` verdict feeding
-the pattern loop.
+and stop.
 
-**Defined-skip vs. genuine-failure key.** These two defined skips —
+**Defined-skip vs. genuine-failure key.** Both defined skips —
 the interim-state skip and the `Cancelled` skip — emit a dedicated top-level
 `"skip"` key carrying the reason. A **genuine failure** (you could not analyze the
 bundle at all — a malformed bundle, a crash) still prints `{"error": "<reason>"}`.
@@ -179,9 +156,7 @@ distinct and a skip must never be emitted under `"error"`.
 
 **Workpad-absent analysis rule.** The absent-workpad sentinels
 `"Absent"` (the linked issue resolved but carried no workpad comment) and
-`"NoIssue"` (no linked issue resolved at all) are **NOT** added to the incomplete-run
-skip arms — a bundle carrying one of them reaches you only because the orchestrator's
-mechanical pre-dispatch disposition decided it warranted analysis. When
+`"NoIssue"` (no linked issue resolved at all) are analyzed, never skipped. When
 `workpad_final_status` is `"Absent"` or `"NoIssue"`:
 - If `pr_devflow_provenance` is `true`, this was one of DevFlow's own runs that lost
   its audit trail (and, for `"NoIssue"`, its issue linkage). Analyze from the remaining
@@ -190,17 +165,14 @@ mechanical pre-dispatch disposition decided it warranted analysis. When
   as friction in the entry's `descriptors`. Follow the existing `imperfect` / `blocked`
   verdict definitions; when neither strictly fits, **default to `imperfect`** with a
   descriptor naming the absent workpad.
-- A dispatched sentinel bundle *without* provenance (reachable only via a non-workpad
-  gate reason such as a CI failure or outstanding REJECT) is analyzed under the same
-  rule, minus the lost-audit-trail framing.
-Neither sentinel is ever improvised into a defined skip here.
+- A sentinel bundle *without* provenance is analyzed under the same rule, minus the
+  lost-audit-trail framing.
 
 ### categories
 
 The single most important field — pattern detection groups occurrences by
-`categories`. You **must** pick from this fixed vocabulary (one or more; pick
-every category that genuinely applies — a PR with three distinct failure
-aspects gets three categories). Do **not** coin new slugs: a unique slug forms
+`categories`. You **must** pick from this fixed vocabulary — every category that
+genuinely applies, one or more. Do **not** coin new slugs: a unique slug forms
 no pattern and the loop never acts on it. If nothing fits, use `other` and
 explain why in `descriptors`.
 
@@ -224,10 +196,8 @@ explain why in `descriptors`.
 One or more short free-text phrases (no slug rules — write for a human reading
 the weekly report) that say, concretely, *what* went wrong inside the chosen
 category. e.g. for `incomplete-edit`: `"unused EnvironmentService fetch left in
-NexioWebhook::handleEvent after the call site was deleted"`. These do not drive
-any logic — they are the human-readable nuance, and Stage B reads the
-descriptors of a category's occurrences to decide whether the cluster is really
-one fixable thing or several. Be specific; "code quality issue" is useless.
+NexioWebhook::handleEvent after the call site was deleted"`. Be specific; "code
+quality issue" is useless.
 
 ### summary
 
@@ -243,7 +213,7 @@ any). The reader should understand what went wrong without opening the PR.
 
 ### suggested_interventions
 
-Array of up to 2 objects. Consult `lib/intervention-surfaces.md` when
+Array of up to 2 objects. Consult `[[PLUGIN_ROOT]]/lib/intervention-surfaces.md` when
 reasoning. Each object:
 
 ```json
@@ -271,15 +241,11 @@ include `tooling-gap` and point `suggested_interventions` at the plugin file:
 - **Mis-categorized?** Was the failure forced into `other` or into a category
   that doesn't really fit? → points at this skill's `categories` vocabulary.
 - **Cache miss?** Was a primary source absent from the bundle that would have
-  changed your verdict? → points at `fetch-pr-context.sh` and/or Step 4 of
-  this skill.
+  changed your verdict? → points at `fetch-pr-context.sh`.
 
 If yes to any of the above, your intervention MUST target the plugin file
 directly. Do not silently downgrade to a smaller surface — that hides the
 blind spot that let the failure through.
-
-These suggestions are advisory. The orchestrator re-derives interventions from
-primary sources for any pattern that hits the recurrence threshold.
 
 ---
 
@@ -309,15 +275,10 @@ newlines that break naive serialization).
 ```
 
 **Optional `extension_unreadable` key (consumer prompt-extension handoff).**
-When the dispatching parent supplies a by-path consumer prompt-extension handoff (a
-sentence naming your extension file at an absolute `.prflow/prompt-extensions/retrospective.md`
-path and instructing you to read it with your file-read tool), honor it: read that
-file and treat any content as instructions appended to this skill's prompt. An absent
-or empty file is a no-op you report nothing about. If the file is **present but you
-cannot read it**, add **one** optional string key `extension_unreadable` to the object
-above (naming the path and the read failure) so the orchestrator can relay it — the
-returned value stays **exactly one JSON object** with nothing else on stdout. Omit the
-key entirely in every other case.
+When the consumer prompt-extension file is **present but you cannot read it**, add
+**one** optional string key `extension_unreadable` to the object above, naming the path
+and the read failure; the return stays **exactly one JSON object** with nothing else on
+stdout. Omit the key entirely in every other case.
 
 `categories` must be drawn from the fixed vocabulary above; `descriptors` is
 free text. Echo `pr`, `issue`, `branch`, `head_sha`, `merge_commit_sha`,
