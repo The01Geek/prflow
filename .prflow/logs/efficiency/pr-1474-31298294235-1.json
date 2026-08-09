@@ -113,5 +113,80 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.31.55",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 17.700462550000005,
+    "tokens": {
+      "input_tokens": 20656,
+      "output_tokens": 66706,
+      "cache_read_input_tokens": 11002077,
+      "cache_creation_input_tokens": 275053,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 20720,
+        "outputTokens": 98556,
+        "cacheReadInputTokens": 12591997,
+        "cacheCreationInputTokens": 621778,
+        "webSearchRequests": 0,
+        "costUSD": 13.781059750000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 5039,
+        "outputTokens": 25962,
+        "cacheReadInputTokens": 3610536,
+        "cacheCreationInputTokens": 648452,
+        "webSearchRequests": 0,
+        "costUSD": 3.9194028000000003,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 87,
+    "duration_ms": 1170719
+  },
+  "permission_denials": {
+    "count": 15,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      "git status --porcelain; echo \"---RUNID---\"; echo \"run_id=${GITHUB_RUN_ID:-none} attempt=${GITHUB_RUN_ATTEMPT:-none}\"",
+      "echo \"run=$GITHUB_RUN_ID att=$GITHUB_RUN_ATTEMPT server=$GITHUB_SERVER_URL repo=$GITHUB_REPOSITORY\"",
+      "rm -f .prflow/tmp/review/pr-1474/31298294235-1/diff.patch; gh pr diff 1474 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' > .prflow/tmp/review/pr-1474/31298294235-1/diff.patch; echo \"rc=$? lines=$(wc -l < .prflow/tmp/review/pr-1474/31298294235-1/diff.patch)\"",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve \"1230\" --pr \"1474\" 2>.prflow/tmp/review/pr-1474/31298294235-1/acs.err ; echo \"acs-rc=$?\"",
+      "grep -rn \"1230\" /home/runner/work/prflow/prflow/lib/test/run.sh 2>/dev/null | head -5\ngit -C /home/runner/work/prflow/prflow log --oneline --all | grep -i \"1230\" | head -5",
+      "mkdir -p .prflow/tmp/review/pr-1474/31298294235-1/verdicts/iter-1\ncat > .prflow/tmp/review/pr-1474/31298294235-1/verdicts/iter-1/VC-11-j9b3n6.json << 'EOF'\n{\"id\":\"VC-11\",\"verdict\":\"PASS\",\"evidence\":\"skills/review-and-fix/SKILL.md line 330 (PR head 98a55f5) failure-map row for shadow-review.md reads: 'Record shadow.coverage: \\\"not_verified\\\" ... prohibits a clean approve. Then branch on the trigger context: a convergence-time trigger proceeds to Loop Exit reported not-verified; an early engine_se …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1474/31298294235-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1474/31298294235-1/verdicts/iter-1/VC-12-k1c4z7.json << 'EOF'\n{\"id\":\"VC-12\",\"verdict\":\"PASS\",\"evidence\":\"scripts/loop-verdict-marker.py:84 defines _RESULT_TO_TOKEN as a dict; line 93 derives _RESULT_TOKENS = frozenset(_RESULT_TO_TOKEN.values()); line 101 defines _CLEAN_APPROVE_TOKENS = _RESULT_TOKENS - {...} (a set/frozenset). The PR-head t …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\nfor f in skills/implement/phases/phase-3-review.md skills/review-and-fix/SKILL.md skills/review-and-fix/references/shadow-review.md; do\necho \"== $f ==\"\ngit show 98a55f529e7f8c72dd2d6586a06d6c44e9c8e5d4:\"$f\" | sha256sum\ndone\ngit show 98a55f529e7f8c72dd2d6586a06d6c44e9c8e5d4:scripts/devflow-cloud-writer-contract.json",
+      "for f in skills/implement/phases/phase-3-review.md skills/review-and-fix/SKILL.md skills/review-and-fix/references/shadow-review.md; do echo -n \"$f \"; git show 98a55f529e7f8c72dd2d6586a06d6c44e9c8e5d4:$f | sha256sum | cut -d' ' -f1; done",
+      "cd /home/runner/work/prflow/prflow\nfor f in skills/implement/phases/phase-3-review.md skills/review-and-fix/SKILL.md skills/review-and-fix/references/shadow-review.md; do\n  h=$(git show 98a55f529e7f8c72dd2d6586a06d6c44e9c8e5d4:\"$f\" | sha256sum | cut -d' ' -f1)\n  echo \"$h  $f\"\ndone\necho \"=== manifest values at head ===\"\ngit show 98a55f529e7f8c72dd2d6586a06d6c44e9c8e5d4:scripts/devflow-cloud-writer-contract.json | grep -E 'phase-3-review|review-and-fix/SKILL|references/shadow-review'\necho \"=== AC2 …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\nfor f in skills/implement/phases/phase-3-review.md skills/review-and-fix/SKILL.md skills/review-and-fix/references/shadow-review.md; do\n  git show 98a55f529e7f8c72dd2d6586a06d6c44e9c8e5d4:\"$f\" > /tmp/hf.txt\n  printf '%s  %s\\n' \"$(sha256sum /tmp/hf.txt | cut -d\" \" -f1)\" \"$f\"\ndone\necho \"=== manifest ===\"\ngit show 98a55f529e7f8c72dd2d6586a06d6c44e9c8e5d4:scripts/devflow-cloud-writer-contract.json | grep -E 'phase-3-review|review-and-fix/SKILL|references/shadow-rev …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\ngit show 98a55f529e7f8c72dd2d6586a06d6c44e9c8e5d4:skills/implement/phases/phase-3-review.md > /tmp/a.txt\ngit show 98a55f529e7f8c72dd2d6586a06d6c44e9c8e5d4:skills/review-and-fix/SKILL.md > /tmp/b.txt\ngit show 98a55f529e7f8c72dd2d6586a06d6c44e9c8e5d4:skills/review-and-fix/references/shadow-review.md > /tmp/c.txt\nsha256sum /tmp/a.txt /tmp/b.txt /tmp/c.txt",
+      "git show 98a55f529e7f8c72dd2d6586a06d6c44e9c8e5d4:skills/review-and-fix/references/shadow-review.md > /tmp/c.txt; sha256sum /tmp/c.txt; grep -c 'falls short of the expected roster for any other reason' /tmp/c.txt",
+      "git show 98a55f529e7f8c72dd2d6586a06d6c44e9c8e5d4:skills/implement/phases/phase-3-review.md > /tmp/p3.txt; grep -nE 'chose to proceed|intentionally proceeds|already chose|elect' /tmp/p3.txt"
+    ],
+    "total": 15,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
