@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1482",
+  "generated_at": "2026-08-09T15:11:03Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.31.58",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 5.831507750000002,
+    "tokens": {
+      "input_tokens": 44,
+      "output_tokens": 17110,
+      "cache_read_input_tokens": 2936990,
+      "cache_creation_input_tokens": 175191,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 90,
+        "outputTokens": 35173,
+        "cacheReadInputTokens": 3874908,
+        "cacheCreationInputTokens": 377170,
+        "webSearchRequests": 0,
+        "costUSD": 5.831507750000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 29,
+    "duration_ms": 340873
+  },
+  "permission_denials": {
+    "count": 2,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-unset} ATTEMPT=${GITHUB_RUN_ATTEMPT:-unset}\"; mkdir -p .prflow/tmp/review/pr-1482/run-local\ngh pr diff 1482 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1482/run-local/diff.patch | head -5\necho \"=== files changed ===\"\ngrep -E '^diff --git' .prflow/tmp/review/pr-1482/run-local/diff.patch\necho \"=== stat ===\"\nwc -l .prflow/tmp/review/pr-1482/run-local/diff.patch"
+    ],
+    "total": 2,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
