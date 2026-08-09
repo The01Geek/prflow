@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.31.50] — 2026-08-09
+
+### Changed
+**Repair the create-issue audit call sequence and make its completeness claim machine-checked.** `skills/create-issue/references/step-3-6-audit.md`'s ordered call sequence omitted two state-owner calls the same file mandates without condition — `query-round-kind`, whose tool-owned answer `record-dispatch` requires, and `record-staged-write`, without which a fresh file-arm dispatch is refused `file-arm-requires-staged-write` — so an agent following the documented order was refused before it could proceed, twice. The sequence now names them (`record-staged-write` at each of the two canonical-draft writes a clean single-round run reaches), puts the Step 4 tail in the sub-step order `references/step-4-present-create.md` states, and its completeness sentence describes the repaired set. `lib/test/check-audit-lifecycle-contracts.py` gains the reverse of its existing sequence arm: a state-owner subcommand invoked inside a ```bash fence of either reference file must be named in the sequence, in a declared exemption set recording why it is conditional, or in the pre-existing conditional set — so an omission of this class turns the suite red instead of shipping green under a false claim. The reverse arm reuses the repository's existing fence enumeration and attributes subcommands itself, which reaches a fence placing an interpreter flag ahead of the script path; its reach is those fences alone, a residual its own docstring discloses. The derived per-round unconditional call count rises 18 → 21 as a documentation correction — those calls were always being made — and `lib/test/run.sh`'s pin moves with it. (#1466)
+
 ## [2.31.49] — 2026-08-09
 
 ### Changed
