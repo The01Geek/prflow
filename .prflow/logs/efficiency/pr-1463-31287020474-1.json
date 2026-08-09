@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1463",
+  "generated_at": "2026-08-09T00:56:52Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.31.48",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 5.296398000000001,
+    "tokens": {
+      "input_tokens": 38,
+      "output_tokens": 12747,
+      "cache_read_input_tokens": 2563288,
+      "cache_creation_input_tokens": 179175,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 68,
+        "outputTokens": 27793,
+        "cacheReadInputTokens": 3235316,
+        "cacheCreationInputTokens": 369867,
+        "webSearchRequests": 0,
+        "costUSD": 5.296398000000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 24,
+    "duration_ms": 310897
+  },
+  "permission_denials": {
+    "count": 2,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "mkdir -p .prflow/tmp/review/pr1463/run1 ; gh pr diff 1463 --patch > .prflow/tmp/review/pr1463/run1/diff.patch 2>&1 ; wc -l .prflow/tmp/review/pr1463/run1/diff.patch",
+      "sed -n '1,60p' .prflow/vendor/prflow/scripts/post-review-verdict.sh 2>&1 | grep -iE \"usage|argument|verdict|head|marker|\\\\$1|\\\\$2|\\\\$3|\\\\$4|\\\\$5\" | head -40"
+    ],
+    "total": 2,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
