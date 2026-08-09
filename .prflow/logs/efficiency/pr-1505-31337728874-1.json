@@ -100,5 +100,66 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.31.62",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 11.43176575,
+    "tokens": {
+      "input_tokens": 114,
+      "output_tokens": 48058,
+      "cache_read_input_tokens": 10543995,
+      "cache_creation_input_tokens": 235479,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 156,
+        "outputTokens": 70127,
+        "cacheReadInputTokens": 11341879,
+        "cacheCreationInputTokens": 499812,
+        "webSearchRequests": 0,
+        "costUSD": 11.43176575,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 67,
+    "duration_ms": 951956
+  },
+  "permission_denials": {
+    "count": 13,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-unset}\"; ls -d .prflow/vendor/prflow/skills/review 2>/dev/null; ls -d skills/review 2>/dev/null",
+      "echo \"SKILL_DIR=$CLAUDE_SKILL_DIR\"; test -d .prflow/vendor/prflow/skills/review && echo \"vendored: yes\" || echo \"vendored: no\"; test -d skills/review && echo \"repo: yes\" || echo \"repo: no\"",
+      "test -d .prflow/vendor/prflow/skills/review && echo \"vendored: yes\" || echo \"vendored: no\"; test -d skills/review && echo \"repo: yes\" || echo \"repo: no\"; echo \"anchor:\"; printf '%s\\n' \"${CLAUDE_SKILL_DIR}\"",
+      "printf 'run_id=%s attempt=%s\\n' \"${GITHUB_RUN_ID:-none}\" \"${GITHUB_RUN_ATTEMPT:-none}\"",
+      "gh api repos/{owner}/{repo}/issues/1495/comments --jq '.[] | select(.body | test(\"prflow:workpad|devflow:workpad\")) | .body' > .prflow/tmp/review/pr-1505/31337728874-1/wp1495.txt 2>.prflow/tmp/review/pr-1505/31337728874-1/wp1495.err; echo \"rc=$?\"; echo \"bytes=$(wc -c < .prflow/tmp/review/pr-1505/31337728874-1/wp1495.txt)\"; grep -c 'Writing-skills evidence:' .prflow/tmp/review/pr-1505/31337728874-1/wp1495.txt || echo \"marker-count=0\"",
+      "body=$(gh api repos/{owner}/{repo}/issues/1495/comments --jq '.[] | select(.body | test(\"prflow:workpad|devflow:workpad\")) | .body')\nprintf '%s\\n' \"$body\" | grep -c 'Verification evidence:' | sed 's/^/verif-evidence-count=/'\nprintf '%s\\n' \"$body\" | grep -cE 'prflow:checkpoint gha:|devflow:checkpoint gha:' | sed 's/^/gha-checkpoint-count=/'",
+      ".prflow/vendor/prflow/scripts/workpad.py patch 5234022248 .prflow/tmp/review/pr-1505/31337728874-1/review-wp.md 2>.prflow/tmp/review/pr-1505/31337728874-1/rv-patch.err && echo \"patched\"",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before && test -f .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review 1>/tmp/ext_stdout.txt 2>/tmp/ext_stderr.txt; echo \"EXIT=$?\"; echo \"---STDOUT---\"; cat /tmp/ext_stdout.txt; echo \"---STDERR---\"; cat /tmp/ext_stderr.txt",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >/tmp/ext_stdout.txt 2>/tmp/ext_stderr.txt; echo \"EXIT=$?\"",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >.prflow/tmp/ext_stdout.txt 2>.prflow/tmp/ext_stderr.txt; echo \"EXIT=$?\"",
+      "grep -nF -- '\"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}\"/../../scripts/issue-audit-state.py' skills/create-issue/references/fallback-draft-write-recovery.md\necho \"--- VC-6 #559 wired site present at base (unchanged by diff) ---\"\ngrep -c 'no-options gate' skills/create-issue/references/fallback-audit-boundary-offer.md\necho \"--- markers present in all six Part A files ---\"\nfor f in fallback-audit-boundary-offer fallback-audit-evidence-degraded fallback-aud …[per-command-truncated]",
+      "echo \"--- VC-6 #559 wired site (no-options gate) present ---\"\ngrep -c 'no-options gate' skills/create-issue/references/fallback-audit-boundary-offer.md\necho \"--- markers count per Part A file ---\"\nfor f in fallback-audit-boundary-offer fallback-audit-evidence-degraded fallback-audit-round-reconciliation fallback-draft-write-recovery fallback-implement-offer-tier-read fallback-visual-specification; do printf '%s ' \"$f\"; grep -c 'prflow:create-issue-ref' \"skills/create-issue/references/$f.md\"; don …[per-command-truncated]"
+    ],
+    "total": 13,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
