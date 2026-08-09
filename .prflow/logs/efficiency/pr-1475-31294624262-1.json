@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1475",
+  "generated_at": "2026-08-09T04:35:39Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.31.53",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 4.139447250000001,
+    "tokens": {
+      "input_tokens": 59,
+      "output_tokens": 18295,
+      "cache_read_input_tokens": 3882225,
+      "cache_creation_input_tokens": 133550,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 65,
+        "outputTokens": 21309,
+        "cacheReadInputTokens": 3965182,
+        "cacheCreationInputTokens": 179679,
+        "webSearchRequests": 0,
+        "costUSD": 4.139447250000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 33,
+    "duration_ms": 350164
+  },
+  "permission_denials": {
+    "count": 5,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"CLAUDE_SKILL_DIR=${CLAUDE_SKILL_DIR}\"; echo \"---\"; ls skills/review/phases/ 2>&1; echo \"---vendor---\"; ls .prflow/vendor/prflow/skills/review/phases/ 2>&1",
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-unset} ATTEMPT=${GITHUB_RUN_ATTEMPT:-unset}\"",
+      "printf 'RUN_ID=[%s] ATTEMPT=[%s]\\n' \"$GITHUB_RUN_ID\" \"$GITHUB_RUN_ATTEMPT\"",
+      "git rev-parse HEAD; echo \"---branch---\"; git branch --show-current 2>/dev/null; echo \"---is head the reviewed commit?---\"; git log --oneline -3; echo \"---.claude-pr?---\"; ls -la .claude-pr/ 2>&1 | head; git check-ignore .claude-pr 2>&1",
+      ".prflow/vendor/prflow/scripts/workpad.py patch 5229774403 .prflow/tmp/review/pr-1475/31294624262-1/review-wp.md 2>.prflow/tmp/review/pr-1475/31294624262-1/rv-patch.err ; echo \"patch-rc=$?\""
+    ],
+    "total": 5,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
