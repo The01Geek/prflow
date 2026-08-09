@@ -268,6 +268,6 @@ drafting time; omit it entirely otherwise)
 BODY
 ```
 
-**Do NOT add labels** — never pass `--label`. Labeling is handled separately by maintainers.
+**Do NOT add labels** — never pass `--label`. Step 4 applies the reserved `PRFlow` provenance label after creation, so passing it on the create call is redundant.
 
 `gh issue create` prints the new issue URL on success. Report that URL back to the caller.

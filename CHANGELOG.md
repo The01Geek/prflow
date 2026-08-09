@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.31.56] — 2026-08-09
+
+### Fixed
+- **Corrected the stale labeling rationale in the create-issue issue template.** The "Posting the issue" section of `skills/create-issue/references/issue-template.md` no longer attributes label application to maintainers; it now points to Step 4, which applies the reserved `PRFlow` provenance label after creation, so passing `--label` on the create call is redundant. (#1480)
+
 ## [2.31.55] — 2026-08-09
 
 ### Changed
