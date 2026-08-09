@@ -5,8 +5,8 @@
 
 Drives the SHIPPED helper as a subprocess over the compose + read matrix and
 every AC5 safe-direction branch. The helper is additionally imported in-process,
-for its result vocabulary only — never to exercise behaviour, which stays on the
-subprocess drives. Exit 0 == all green; exit 1 with a diff on the
+for its result vocabulary only — never to exercise behaviour, which the subprocess
+invocations remain the sole surface for. Exit 0 == all green; exit 1 with a diff on the
 first failure, matching the lib/test/normalize-verdicts-test.py idiom (run.sh
 drives it with a single assert_eq). Stdlib-only; no gh/network/git.
 

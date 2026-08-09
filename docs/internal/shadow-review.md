@@ -300,7 +300,8 @@ result as independently audited. The rule binds the local and cloud tiers identi
 was settled empirically: on the run for issue #1466 (PR #1468) an orchestrator elected `not_verified`
 under budget pressure and disclosed it honestly; the shadow, run afterwards on that same converged and
 unchanged diff, returned 12 findings with zero overlap with the loop's own pass, four of them genuine
-fail-opens in already-shipped code. Blinding, not freshness, is what the pass buys. Enforcement at the
+fail-opens in already-shipped code. Those counts are a **past-time snapshot** of that one run, not a
+live measurement — they are not re-derivable and a later editor should not refresh them. Blinding, not freshness, is what the pass buys. Enforcement at the
 terminal-status boundary is a separate concern tracked by #1453; the rule here is stated on the prompt
 surfaces and asserts no terminal-status routing of its own.
 

@@ -97,7 +97,10 @@ _COVERAGE_TOKENS = frozenset({"full", "not-verified"})
 # Derived from _RESULT_TOKENS so a genuinely-clean approve result added to
 # _RESULT_TO_TOKEN joins this set automatically — no second literal list to keep in
 # sync — while the read routing still fails CLOSED on any token that is somehow in
-# neither bucket.
+# neither bucket. The derivation runs the other way too, and that direction is NOT
+# automatic: a NON-clean result added to _RESULT_TO_TOKEN must be added to the
+# exclusion below in the same change, or it is classified clean and routed as an
+# approval.
 _CLEAN_APPROVE_TOKENS = _RESULT_TOKENS - {"reject", "approve-unresolved-shadow-findings"}
 
 # The read subcommand's closed OUTPUT vocabulary — the routing tokens the reader in
