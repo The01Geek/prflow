@@ -4629,6 +4629,18 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         review_coverage_payload = ':'.join(review_coverage)
     review_dispositions = list(getattr(args, 'review_coverage_disposition', []) or [])
     _seen_gaps: set[str] = set()
+    for _pair in review_dispositions:
+        # Arity is guaranteed by argparse's nargs=2 from the CLI, but a programmatic
+        # caller (the suite builds `args` directly) can pass an element of any other
+        # length, which the `gap, reason` unpack below would surface as a bare
+        # ValueError traceback instead of a named refusal. Checked here for the same
+        # reason `--record-review-coverage` checks its own arity above: the guarantee
+        # is local rather than inherited from a distant declaration.
+        if len(_pair) != 2:
+            raise _UpdateError(
+                "--review-coverage-disposition takes exactly 2 values "
+                f"(gap, reason); got {len(_pair)}. No PATCH was made."
+            )
     for gap, reason in review_dispositions:
         if gap not in _REVIEW_COVERAGE_GAPS:
             raise _UpdateError(
