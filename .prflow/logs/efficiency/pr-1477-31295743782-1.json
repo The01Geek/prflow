@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1477",
+  "generated_at": "2026-08-09T05:09:44Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.31.54",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 5.930021,
+    "tokens": {
+      "input_tokens": 1587,
+      "output_tokens": 20409,
+      "cache_read_input_tokens": 2883698,
+      "cache_creation_input_tokens": 173142,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 1627,
+        "outputTokens": 40119,
+        "cacheReadInputTokens": 3804332,
+        "cacheCreationInputTokens": 378794,
+        "webSearchRequests": 0,
+        "costUSD": 5.930021,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 26,
+    "duration_ms": 490206
+  },
+  "permission_denials": {
+    "count": 5,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      "echo \"$CLAUDE_SKILL_DIR\"",
+      "for f in skills/docs-release-notes/SKILL.md skills/docs-sync-external/SKILL.md skills/docs-sync-internal/SKILL.md; do printf '%s  ' \"$f\"; python3 -c \"import hashlib,sys;print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())\" \"$f\"; done",
+      "for f in docs-bootstrap-external docs-bootstrap-internal docs-verify docs; do echo \"=== $f ===\"; grep -n \"anchor-resolution\" skills/$f/SKILL.md; done",
+      "for f in skills/review/SKILL.md skills/pr-description/SKILL.md skills/docs-bootstrap-external/SKILL.md skills/docs-bootstrap-internal/SKILL.md skills/docs-verify/SKILL.md skills/docs/SKILL.md skills/implement/SKILL.md; do echo \"=== $f ===\"; grep -n \"anchor-resolution\" \"$f\"; done"
+    ],
+    "total": 5,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
