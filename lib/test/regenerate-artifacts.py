@@ -646,9 +646,12 @@ def run_row(row, root, report):
     # that is present — a misdirected diagnosis on an already-failing path. When no
     # script can be identified, claim no absence at all.
     target_rel = next((a for a in row["argv"][1:] if not a.startswith("-")), None)
-    # The mechanical generator writes unconditionally on success, so "did anything
-    # change?" is answered by bracketing the run with byte snapshots — never by the
-    # generator's own wording, which says "wrote <path>" either way.
+    # Both command-backed kinds this block heads answer "did anything change?" by
+    # bracketing the run with byte snapshots, never by the command's own wording. The
+    # mechanical generator writes unconditionally on success, so its snapshot pair alone
+    # decides the change; the monotonic reconciler additionally couples that change to an
+    # announced `RAISED` marker, so a mutation without the marker is unattributable rather
+    # than a successful reconciliation (see `_monotonic_outcome`).
     writes = row.get("writes", ())
     if isinstance(writes, str):
         writes = (writes,)

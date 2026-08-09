@@ -172,6 +172,12 @@ def reconcile(root: Path, runner: Path) -> int:
     runner_environment = os.environ.copy()
     if temp_root := runner_environment.get("TMPDIR"):
         runner_environment["TMPDIR"] = temp_root.rstrip("/") or "/"
+    # `lib/test/run-module.sh` injects a failing assertion when
+    # DEVFLOW_TEST_EXPERIMENT_FORCE_FAILURE is "1", so an operator who left it exported
+    # would turn every exact-policy module's measurement here into a refusal that names
+    # the module rather than the override. Scrub it from the environment the focused
+    # runner receives so the measurement reflects the module, never the experiment knob.
+    runner_environment.pop("DEVFLOW_TEST_EXPERIMENT_FORCE_FAILURE", None)
     measurement_registry = copy.deepcopy(registry)
     for module_id in exact_ids:
         measurement_registry["test_modules"][module_id]["minimum_assertions"] = 1
