@@ -21801,17 +21801,34 @@ _ALC_COND_MENTIONS = " ".join(f"`{c}`" for c in _alc795._CONDITIONAL)
 
 
 def _alc_fenced(step36=None, step4=None):
-    """Run the reverse check over two crafted documents; return None or the refusal text."""
+    """Run the reverse check over two crafted documents; return None or the refusal text.
+
+    The documents are written to real files and `STEP36`/`STEP4` rebound to them, which is
+    the checker's ONLY injection seam — so a crafted run grades under byte-identical rules
+    to the shipped one, including the fail-closed empty-population arm. The sequence set is
+    produced by `check_sequence` over the same crafted document, exactly as `main()` does.
+    """
+    if step36 is None:
+        step36 = _alc_doc(["init"], [_alc_call("init")], extra=_ALC_COND_MENTIONS)
     mod = _alc795._load_module()
     reg = mod.registered_subcommands()
-    try:
-        _alc795.check_fenced_completeness(
-            reg, [],
-            step36_text=step36 if step36 is not None else _alc_doc(
-                ["init"], [_alc_call("init")], extra=_ALC_COND_MENTIONS),
-            step4_text=step4 if step4 is not None else "")
-    except _alc795.Refusal as exc:
-        return str(exc)
+    saved36, saved4 = _alc795.STEP36, _alc795.STEP4
+    with tempfile.TemporaryDirectory() as tmp:
+        p36 = _alc795.Path(tmp) / "step-3-6-audit.md"
+        p4 = _alc795.Path(tmp) / "step-4-present-create.md"
+        p36.write_text(step36, encoding="utf-8")
+        # `check_sequence` requires step-4 to still mandate the binding re-detect its joint
+        # scope counts, so every crafted step-4 carries that mention.
+        p4.write_text(("" if step4 is None else step4) + "\n`query-draft-binding`\n",
+                      encoding="utf-8")
+        try:
+            _alc795.STEP36, _alc795.STEP4 = p36, p4
+            named = _alc795.check_sequence(reg, [])
+            _alc795.check_fenced_completeness(reg, [], named)
+        except _alc795.Refusal as exc:
+            return str(exc)
+        finally:
+            _alc795.STEP36, _alc795.STEP4 = saved36, saved4
     return None
 
 
@@ -21839,7 +21856,6 @@ assert_eq("#1466 reverse check: an omission in step-4-present-create.md refuses 
           "way, proving both files are scanned",
           True, _alc_omitted4 is not None and "query-summary" in _alc_omitted4)
 
-# --- membership ONLY: one naming satisfies whatever the run's real multiplicity is --------
 # `record-staged-write` is written in ONE shared fence yet fires at TWO sequence positions, so
 # a rule derived from fence counts would turn the repaired document red.
 assert_eq("#1466 reverse check: a subcommand named once in the sequence satisfies a fence "
@@ -21889,8 +21905,6 @@ assert_eq("#1466 reverse check: a subcommand named in BOTH the exemption set and
           True, _alc_both is not None and _alc795._FENCE_EXEMPT[0] in _alc_both)
 
 # --- defect reproduction: today's document, before the repair ----------------------------
-# The sequence as it shipped named neither call while both sat in fences and in no exemption
-# set. This fixture is the reason the check exists, so it must refuse naming BOTH.
 _alc_today = _alc_fenced(step36=_alc_doc(
     ["init", "query-draft-binding", "record-draft-binding", "query-arm"],
     [_alc_call("init"), _alc_call("query-round-kind"), _alc_call("record-staged-write"),
@@ -21927,29 +21941,40 @@ assert_eq("#1466 reverse check: a fence placing an interpreter flag ahead of the
           "is still attributed to its subcommand",
           True, _alc_flagged is not None and "query-arm" in _alc_flagged)
 
-# --- degenerate and out-of-scope inputs ---------------------------------------------------
-assert_eq("#1466 reverse check: a document with no fenced blocks at all passes",
-          None,
-          _alc_fenced(step36=_alc_doc(["init"], [], extra=_ALC_COND_MENTIONS)))
+# --- degenerate inputs: an empty scanned population is a refusal, never a clean pass -------
+# The population comes from the REUSED fence enumeration, which this check reads but does not
+# own. A change there that stopped yielding blocks would leave every call trivially accounted
+# for and the check green over exactly the drift it exists to catch, so an empty population
+# fails closed — and it does so unconditionally, on a crafted document as on a shipped one.
+assert_eq("#1466 reverse check: a document with no fenced blocks at all refuses on the empty "
+          "population, rather than passing vacuously",
+          True,
+          (lambda r: r is not None and "empty population" in r)(
+              _alc_fenced(step36=_alc_doc(["init"], [], extra=_ALC_COND_MENTIONS))))
 
-assert_eq("#1466 reverse check: a fence carrying no state-owner invocation passes",
-          None,
-          _alc_fenced(step36=_alc_doc(["init"], ["git status --porcelain"],
-                                      extra=_ALC_COND_MENTIONS)))
+assert_eq("#1466 reverse check: a fence carrying no state-owner invocation is likewise an "
+          "empty population and refuses",
+          True,
+          (lambda r: r is not None and "empty population" in r)(
+              _alc_fenced(step36=_alc_doc(["init"], ["git status --porcelain"],
+                                          extra=_ALC_COND_MENTIONS))))
 
-# The DISCLOSED RESIDUAL, asserted rather than left to be discovered: the reused enumeration
-# reaches only fences whose info string is exactly `bash`, so an invocation written in prose
-# backticks or in any other fence is invisible to this check.
+# --- the DISCLOSED RESIDUAL, asserted rather than left to be discovered --------------------
+# The reused enumeration reaches only fences whose info string is exactly `bash`. Each
+# fixture below pairs the out-of-scope invocation with one accounted `bash` fence, so the
+# population is non-empty and the row grades visibility rather than the guard above.
 assert_eq("#1466 reverse check RESIDUAL: an invocation in a non-`bash` fence is invisible to "
           "the check (its declared scope boundary, not coverage)",
           None,
-          _alc_fenced(step36=_alc_doc(["init"], [_alc_call("query-arm")],
-                                      fence_info="console", extra=_ALC_COND_MENTIONS)))
+          _alc_fenced(step36=_alc_doc(["init"], [_alc_call("init")],
+                                      extra=_ALC_COND_MENTIONS + "\n\n```console\n"
+                                      + _alc_call("query-arm") + "\n```\n")))
 
 assert_eq("#1466 reverse check RESIDUAL: an invocation named only in inline prose backticks "
           "is invisible to the check",
           None,
-          _alc_fenced(step36=_alc_doc(["init"], [], extra=_ALC_COND_MENTIONS
+          _alc_fenced(step36=_alc_doc(["init"], [_alc_call("init")],
+                                      extra=_ALC_COND_MENTIONS
                                       + " see `" + _alc_call("query-arm") + "`")))
 
 # --- error paths keep their own named refusals, never a traceback -------------------------
@@ -21967,32 +21992,6 @@ assert_eq("#1466 reverse check: a sequence paragraph split by a blank line is re
               _alc_fenced(step36="\n".join([
                   _ALC_ANCHOR, "", "`init`", "", "`query-arm`", "",
                   "```bash", _alc_call("query-arm"), "```", "", _ALC_COND_MENTIONS]))))
-
-# --- the scanned population is itself an operand, and it fails closed over the real files --
-# The population comes from the REUSED fence enumeration, which this check reads but does not
-# own. A change there that stopped yielding blocks would leave every call trivially accounted
-# for and this check green over exactly the drift it exists to catch, so an empty population
-# over the SHIPPED documents is a refusal rather than a clean pass. (A crafted fixture may
-# legitimately carry no fence — the rows above rely on that.)
-_alc_empty_pop = None
-_alc_saved_36, _alc_saved_4 = _alc795.STEP36, _alc795.STEP4
-with tempfile.TemporaryDirectory() as _alc_tmp:
-    _alc_p36 = _alc795.Path(_alc_tmp) / "step-3-6-audit.md"
-    _alc_p4 = _alc795.Path(_alc_tmp) / "step-4-present-create.md"
-    _alc_p36.write_text(_alc_doc(["init"], [], extra=_ALC_COND_MENTIONS), encoding="utf-8")
-    _alc_p4.write_text("", encoding="utf-8")
-    try:
-        _alc795.STEP36, _alc795.STEP4 = _alc_p36, _alc_p4
-        _alc_mod = _alc795._load_module()
-        try:
-            _alc795.check_fenced_completeness(_alc_mod.registered_subcommands(), [])
-        except _alc795.Refusal as _alc_exc:
-            _alc_empty_pop = str(_alc_exc)
-    finally:
-        _alc795.STEP36, _alc795.STEP4 = _alc_saved_36, _alc_saved_4
-assert_eq("#1466 reverse check: an EMPTY fenced population over the shipped files is refused, "
-          "not reported as a clean pass",
-          True, _alc_empty_pop is not None and "empty population" in _alc_empty_pop)
 
 # --- state and idempotency ----------------------------------------------------------------
 assert_eq("#1466 reverse check: two consecutive runs over the real tree agree",

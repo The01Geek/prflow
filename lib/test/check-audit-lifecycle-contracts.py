@@ -108,13 +108,16 @@ class Refusal(Exception):
     """A reconciliation could not be established — never reported as a clean result."""
 
 
-def _load_module():
-    spec = importlib.util.spec_from_file_location("_ias795", IAS)
+def _load_module(path: Path = IAS, name: str = "_ias795"):
+    """Load a bundled helper as a module. Deliberately NOT cached: the planted-defect
+    test rows call this for a FRESH object per row and mutate its constants, so a shared
+    cached module would leak one row's planted defect into the next."""
+    spec = importlib.util.spec_from_file_location(name, path)
     if spec is None or spec.loader is None:
-        # Without this, a moved or renamed state owner surfaces as an
+        # Without this, a moved or renamed helper surfaces as an
         # `AttributeError: 'NoneType'` traceback — the one shape this file's own
         # "FAIL CLOSED, NEVER CLEAN-ZERO" contract promises never to produce.
-        raise Refusal(f"could not load {IAS.relative_to(REPO)} as a module "
+        raise Refusal(f"could not load {path.relative_to(REPO)} as a module "
                       "(missing file or unloadable spec)")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -637,7 +640,9 @@ def check_flag_vocabulary(module, parser, registered, report):
 
 def check_sequence(registered, report):
     """The ordered call sequence vs. the invocations the helper accepts. Returns the
-    unconditional joint count."""
+    invocation list itself — with multiplicity, in document order — so its length is the
+    unconditional joint count and `check_fenced_completeness` can grade the same parse
+    rather than repeating it."""
     seq_text = _read(STEP36)
     paragraph = _sole_paragraph(seq_text, _SEQUENCE_ANCHOR, "sequence")
     # `_invocations` REFUSES on a subcommand-shaped token that is not registered, so the
@@ -662,41 +667,38 @@ def check_sequence(registered, report):
                       "query-draft-binding re-detect the sequence's joint scope counts")
     report.append(f"sequence: {len(named)} unconditional invocations jointly mandated, "
                   "every one a registered subcommand")
-    return len(named)
-
-
-def _load_extractor():
-    spec = importlib.util.spec_from_file_location("_ech1466", _ECH)
-    if spec is None or spec.loader is None:
-        raise Refusal(f"could not load {_ECH.relative_to(REPO)} as a module "
-                      "(missing file or unloadable spec)")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+    return named
 
 
 def _fenced_state_owner_calls(extractor, text: str,
                               registered: frozenset[str]) -> list[str]:
     """The state-owner subcommands invoked inside `text`'s ```bash fences, in order.
 
-    Subcommand attribution is performed HERE, against `registered`, rather than through the
-    extractor's own command-head extraction: that returns at most `_MAX_HEAD_WORDS` argv
-    words, so a fence placing an interpreter flag ahead of the script path yields the
-    interpreter, the flag and the path and drops the subcommand entirely — and the check
-    would then pass green over exactly the drift it exists to catch. Scanning the whole
-    token list for the script path and taking the first registered token after it reaches
-    that shape.
+    The fence enumeration, the block cleaning and the split into leaf statements are the
+    extractor's own — the same `_fenced_bash_blocks` → clean → `_boundary_units` shape its
+    other consumers use, so its stated limitations (the `bash`-only info string, the bare
+    subshell the splitter does not descend) are inherited with their documentation rather
+    than re-derived here.
+
+    Only the SUBCOMMAND ATTRIBUTION is local, and deliberately so: the extractor's own head
+    extraction returns at most `_MAX_HEAD_WORDS` argv words, so a fence placing an
+    interpreter flag ahead of the script path yields the interpreter, the flag and the path
+    and drops the subcommand entirely — the check would then pass green over exactly the
+    drift it exists to catch. Attribution therefore scans the whole token list for the
+    helper and takes the first registered token after it. The helper itself is recognised
+    through the extractor's `_helper_basename`, the repository's one definition of "this
+    token names bundled helper X", rather than a looser suffix test.
     """
     found: list[str] = []
-
-    def walk(statements_source: str) -> None:
-        for statement in extractor._split_statements(statements_source):  # noqa: SLF001
-            for body in extractor._substitutions(statement):              # noqa: SLF001
-                walk(body)
+    for block in extractor._fenced_bash_blocks(text):                     # noqa: SLF001
+        cleaned = extractor._join_continuations(                          # noqa: SLF001
+            extractor._strip_case_patterns(                               # noqa: SLF001
+                extractor._strip_comments_and_heredocs(block)))           # noqa: SLF001
+        for statement in extractor._boundary_units(cleaned):              # noqa: SLF001
             tokens = [extractor._normalize(t)                             # noqa: SLF001
                       for t in extractor._tokenize(statement)]            # noqa: SLF001
             for index, token in enumerate(tokens):
-                if not token.endswith(_STATE_OWNER_SCRIPT):
+                if extractor._helper_basename(token) != _STATE_OWNER_SCRIPT:  # noqa: SLF001
                     continue
                 for candidate in tokens[index + 1:]:
                     if candidate in registered:
@@ -705,18 +707,13 @@ def _fenced_state_owner_calls(extractor, text: str,
                     if not candidate.startswith("-"):
                         # The first non-flag operand is where the subcommand must sit; a
                         # token that is not registered there is not a subcommand at all
-                        # (`--help`-less usage, a placeholder), so stop rather than scanning
+                        # (a placeholder, a redirect target), so stop rather than scanning
                         # on into arguments and attributing an unrelated word.
                         break
-
-    for block in extractor._fenced_bash_blocks(text):                     # noqa: SLF001
-        cleaned = extractor._strip_case_patterns(                         # noqa: SLF001
-            extractor._strip_comments_and_heredocs(block))                # noqa: SLF001
-        walk(extractor._join_continuations(cleaned))                      # noqa: SLF001
     return found
 
 
-def check_fenced_completeness(registered, report, step36_text=None, step4_text=None):
+def check_fenced_completeness(registered, report, named):
     """The REVERSE of `check_sequence`: a call the documents FENCE must be accounted for.
 
     `check_sequence` grades one direction — every name the sequence prints is a registered
@@ -734,14 +731,15 @@ def check_fenced_completeness(registered, report, step36_text=None, step4_text=N
     prose without a fence therefore escapes this check entirely; re-deriving the
     unconditional set still requires reading both documents' prose, which no scanner does.
 
-    `step36_text`/`step4_text` exist so crafted reference documents can drive this arm; both
-    default to the shipped files.
+    `named` is the sequence's invocation list, produced ONCE by `check_sequence` and passed
+    on rather than re-parsed here — two parses of the same paragraph are two things that can
+    drift, and only one of them would be the figure the suite pins. The reference files are
+    read from `STEP36`/`STEP4`, the same module-level source `check_sequence` reads, so a
+    crafted document drives this arm by rebinding those and grades under identical rules.
     """
-    seq_text = _read(STEP36) if step36_text is None else step36_text
-    step4 = _read(STEP4) if step4_text is None else step4_text
-    named = frozenset(_invocations(
-        _sole_paragraph(seq_text, _SEQUENCE_ANCHOR, "fenced-completeness"),
-        registered, "fenced-completeness"))
+    seq_text = _read(STEP36)
+    step4 = _read(STEP4)
+    named = frozenset(named)
 
     unregistered = sorted(c for c in _FENCE_EXEMPT if c not in registered)
     if unregistered:
@@ -756,7 +754,7 @@ def check_fenced_completeness(registered, report, step36_text=None, step4_text=N
             "unconditional call sequence, so the two disagree about whether the call is "
             "conditional; remove it from whichever is wrong")
 
-    extractor = _load_extractor()
+    extractor = _load_module(_ECH, "_ech1466")
     accounted = named | frozenset(_FENCE_EXEMPT) | frozenset(_CONDITIONAL)
     scanned = 0
     orphans: list[str] = []
@@ -766,13 +764,13 @@ def check_fenced_completeness(registered, report, step36_text=None, step4_text=N
             scanned += 1
             if call not in accounted and f"{label}: {call}" not in orphans:
                 orphans.append(f"{label}: {call}")
-    if scanned == 0 and step36_text is None and step4_text is None:
-        # FAIL CLOSED over the shipped files, exactly as the other prose readers do. The
-        # scanned population is an operand this arm READS but does not own — it comes from
-        # the reused fence enumeration — so a change there that stopped yielding blocks
-        # would leave every call trivially accounted for and this check green over the drift
-        # it exists to catch. A crafted fixture may legitimately carry no fence; the shipped
-        # documents may not.
+    if scanned == 0:
+        # FAIL CLOSED, exactly as the other prose readers do — and unconditionally, so a
+        # crafted document grades under the same rule the shipped one does. The scanned
+        # population is an operand this arm READS but does not own (it comes from the reused
+        # fence enumeration), so a change there that stopped yielding blocks would leave
+        # every call trivially accounted for and this check green over the drift it exists
+        # to catch.
         raise Refusal(
             "fenced-completeness: no state-owner invocation was extracted from any ```bash "
             "fence of either reference file — the fences were removed, or the reused fence "
@@ -800,8 +798,9 @@ def main():
         check_round_defaulted(module, registered, report)
         check_next_action_routing_totality(module, report)
         check_flag_vocabulary(module, module.build_parser(), registered, report)
-        unconditional = check_sequence(registered, report)
-        check_fenced_completeness(registered, report)
+        sequence = check_sequence(registered, report)
+        unconditional = len(sequence)
+        check_fenced_completeness(registered, report, sequence)
     except Refusal as exc:
         sys.stderr.write(f"check-audit-lifecycle-contracts: {exc}\n")
         return 1

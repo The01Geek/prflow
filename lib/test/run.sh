@@ -15278,14 +15278,14 @@ assert_eq "#795: the registered subcommand count was established" "1" \
 # is not that — the count could drift with the suite green, and the round-trip metric this
 # change exists to reduce would regress unnoticed. This is CLAUDE.md's "enforcement constant"
 # exception to prefer-generated-evidence: the literal IS the gate, so it is pinned rather than
-# rendered. Moving the sequence legitimately? Update this number in the same commit — that is
-# the review prompt this pin exists to force — and the FIGURE APPEARS TWICE on the assertion
-# line below, in the compared literal and in the assertion label, so update both: leaving the
-# label behind yields a passing assertion whose printed name reports a stale count.
-# Issue #1466 raised it by three (`query-round-kind` once, `record-staged-write` twice) as a
-# CORRECTION: those calls were always being made and only the document omitted them, so the
-# rise measures the prose catching up with the run rather than the run growing.
-assert_eq "#795: the per-round unconditional state-owner call count is 21" "21" "$ALC_795_CALLS"
+# rendered. Moving the sequence legitimately? Update this ONE number in the same commit — that
+# is the review prompt this pin exists to force. The assertion label reads the same variable,
+# so the printed name can never report a figure the assertion is not enforcing.
+# Issue #1466 raised it from 18 as a CORRECTION rather than a regression; the rationale is in
+# docs/internal/cutovers/issue-795-audit-state-round-trips.md's Measurement section.
+ALC_795_EXPECT=21
+assert_eq "#795: the per-round unconditional state-owner call count is $ALC_795_EXPECT" \
+  "$ALC_795_EXPECT" "$ALC_795_CALLS"
 printf '  MEASURE  #795 create-issue Step 3.6: unconditional_call_count=%s registered_subcommand_count=%s\n' \
   "$ALC_795_CALLS" "$ALC_795_SUBS"
 
