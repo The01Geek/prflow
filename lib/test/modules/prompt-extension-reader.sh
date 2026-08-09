@@ -772,21 +772,19 @@ done
 assert_eq "rpe grant: the review-profile lock carries the wrapper's wildcard head" "yes" \
   "$(grep -Fxq 'Bash(*/render-prompt-extension.sh:*)' "$RPE_LOCK" && echo yes || echo no)"
 
-# Each skill that carries a placeholder must name ITS OWN extension. A copy-paste that left
-# a sibling's skill name behind would render the wrong consumer policy into that skill and
-# nothing else in the suite would notice.
-for RPE_SKILL in review-and-fix implement pr-description; do
-  assert_eq "rpe placeholder: skills/$RPE_SKILL/SKILL.md renders its own extension" "yes" \
-    "$(grep -Fq '!`${CLAUDE_SKILL_DIR}/../../scripts/render-prompt-extension.sh '"$RPE_SKILL"'`' \
-       "$LIB/../skills/$RPE_SKILL/SKILL.md" && echo yes || echo no)"  # raw-guard-ok: loop body — the target is the $RPE_SKILL loop variable, not a static pin
+# No skill body carries a render-time placeholder any more. A Skill-tool load of one that does
+# aborts on the placeholder's permission check and returns no skill body at all — measured on
+# every placeholder-bearing skill and on neither skill without one (run 31287654057) — so the
+# loader ladder is each site's sole channel. These are ABSENCE pins, one per former call site,
+# each naming the extension that site loaded, so a reflexive "restore the missing placeholder"
+# edit goes RED at the site it lands on rather than anywhere in the family.
+for RPE_SITE in review:review review-and-fix:review-and-fix review-and-fix:receiving-code-review \
+                implement:implement pr-description:pr-description; do
+  RPE_BODY="${RPE_SITE%%:*}"
+  RPE_NAME="${RPE_SITE#*:}"
+  assert_eq "rpe placeholder: skills/$RPE_BODY/SKILL.md carries no render-time placeholder for '$RPE_NAME'" "yes" \
+    "$(grep -Fq '!`${CLAUDE_SKILL_DIR}/../../scripts/render-prompt-extension.sh '"$RPE_NAME"'`' \
+       "$LIB/../skills/$RPE_BODY/SKILL.md" && echo no || echo yes)"  # raw-guard-ok: loop body — the target is the $RPE_NAME loop variable, not a static pin
 done
-
-# skills/review/SKILL.md deliberately carries NO placeholder: a Skill-tool load of it aborts
-# on the placeholder's permission check, returning no skill body at all, so the engine root
-# never reaches its phase references (run 31288133212). The loader ladder is its sole channel,
-# and this is an ABSENCE pin so a reflexive "restore the missing placeholder" edit goes RED.
-assert_eq "rpe placeholder: skills/review/SKILL.md carries no render-time placeholder" "yes" \
-  "$(grep -Fq '!`${CLAUDE_SKILL_DIR}/../../scripts/render-prompt-extension.sh' \
-     "$LIB/../skills/review/SKILL.md" && echo no || echo yes)"
 
 rm -rf "$LPE_DIR"
