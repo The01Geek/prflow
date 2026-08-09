@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1487",
+  "generated_at": "2026-08-09T19:02:30Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.31.60",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 5.7590155,
+    "tokens": {
+      "input_tokens": 36,
+      "output_tokens": 32856,
+      "cache_read_input_tokens": 2541716,
+      "cache_creation_input_tokens": 166269,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 62,
+        "outputTokens": 62660,
+        "cacheReadInputTokens": 3190031,
+        "cacheCreationInputTokens": 315789,
+        "webSearchRequests": 0,
+        "costUSD": 5.7590155,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 29,
+    "duration_ms": 739689
+  },
+  "permission_denials": {
+    "count": 3,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      "echo \"run=${GITHUB_RUN_ID:-none} attempt=${GITHUB_RUN_ATTEMPT:-none}\"; mkdir -p .prflow/tmp/review/pr-1487/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}; echo \"made dir\"",
+      ".prflow/vendor/prflow/scripts/config-get.sh .prflow_review.verdict_severity_threshold critical 2>/dev/null || scripts/config-get.sh .prflow_review.verdict_severity_threshold critical 2>/dev/null || echo \"critical(default-unresolved)\""
+    ],
+    "total": 3,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
