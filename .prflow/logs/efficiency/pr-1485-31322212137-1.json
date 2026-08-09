@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1485",
+  "generated_at": "2026-08-09T16:00:48Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.31.59",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 6.889451749999997,
+    "tokens": {
+      "input_tokens": 46,
+      "output_tokens": 29144,
+      "cache_read_input_tokens": 3500359,
+      "cache_creation_input_tokens": 186771,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 82,
+        "outputTokens": 53604,
+        "cacheReadInputTokens": 4140551,
+        "cacheCreationInputTokens": 444524,
+        "webSearchRequests": 0,
+        "costUSD": 6.889451749999997,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 37,
+    "duration_ms": 507186
+  },
+  "permission_denials": {
+    "count": 5,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      "git status --porcelain; echo \"---ENV---\"; echo \"RUN_ID=$GITHUB_RUN_ID ATTEMPT=${GITHUB_RUN_ATTEMPT:-1}\"; echo \"---BASE---\"; .prflow/vendor/prflow/scripts/config-get.sh .base_branch main",
+      "mkdir -p .prflow/tmp\nif rm -f \".prflow/tmp/review-dirty-tree-before\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \".prflow/tmp/review-dirty-tree-before\" &&\n   [ -f \".prflow/tmp/review-dirty-tree-before\" ] &&\n   [ ! -L \".prflow/tmp/review-dirty-tree-before\" ] &&\n   git hash-object \".prflow/tmp/review-dirty-tree-before\"; then\n  echo \"snap-ok\"\nelse\n  echo \"snap-failed\"\nfi",
+      ".prflow/vendor/prflow/scripts/resolve-review-overrides.py \"prflow:code-reviewer\" \"prflow:silent-failure-hunter\" \"prflow:comment-analyzer\" \"prflow:pr-test-analyzer\" \"prflow:requesting-code-review\" 2>.prflow/tmp/review/pr-1485/31322212137-1/rv-ovr.phase3.err ; echo \"ovr-rc=$?\"; echo \"---stderr---\"; cat .prflow/tmp/review/pr-1485/31322212137-1/rv-ovr.phase3.err",
+      "grep -n \"_ASSERT2_1405\\|def _rows_1405\\|_ac2_1405\\b\" scripts/../lib/test/test_python_scripts.py | head; sed -n '5590,5640p' lib/test/test_python_scripts.py"
+    ],
+    "total": 5,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
