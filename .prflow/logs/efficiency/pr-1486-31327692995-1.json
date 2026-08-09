@@ -113,5 +113,74 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.31.60",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 16.672913,
+    "tokens": {
+      "input_tokens": 102,
+      "output_tokens": 64294,
+      "cache_read_input_tokens": 10539877,
+      "cache_creation_input_tokens": 315590,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 178,
+        "outputTokens": 116058,
+        "cacheReadInputTokens": 12858359,
+        "cacheCreationInputTokens": 949817,
+        "webSearchRequests": 0,
+        "costUSD": 16.451338250000003,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 2,
+        "outputTokens": 4803,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 39873,
+        "webSearchRequests": 0,
+        "costUSD": 0.22157475,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 85,
+    "duration_ms": 1232500
+  },
+  "permission_denials": {
+    "count": 9,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-none} ATTEMPT=${GITHUB_RUN_ATTEMPT:-none} ACTIONS=${GITHUB_ACTIONS:-none}\"; git status --porcelain | head; echo \"---base---\"; .prflow/vendor/prflow/scripts/config-get.sh .base_branch main 2>&1 || echo \"cfg-rc=$?\"",
+      "echo \"RUN_ID=$GITHUB_RUN_ID ATTEMPT=$GITHUB_RUN_ATTEMPT ACTIONS=$GITHUB_ACTIONS\"",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve \"1453\" --pr \"1486\" 2>.prflow/tmp/review/pr-1486/31327692995-1/acs.err ; echo \"acs-rc=$?\"; echo \"---err---\"; head -5 .prflow/tmp/review/pr-1486/31327692995-1/acs.err",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve \"1453\" --pr \"1486\" 2>.prflow/tmp/review/pr-1486/31327692995-1/acs.err ; echo \"acs-rc=$?\"",
+      "D=.prflow/tmp/review/pr-1486/31327692995-1\nawk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' $D/diff.patch > $D/batch-1.patch && test -s $D/batch-1.patch && echo \"slice-ok: batch-1\" || echo \"slice-failed: batch-1\"\nawk -v s=11 -v e=11 '/^diff --git/{n++} n>=s && n<=e' $D/diff.patch > $D/batch-2.patch && test -s $D/batch-2.patch && echo \"slice-ok: batch-2\" || echo \"slice-failed: batch-2\"\nwc -l $D/batch-1.patch $D/batch-2.patch",
+      "awk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1486/31327692995-1/diff.patch > .prflow/tmp/review/pr-1486/31327692995-1/batch-1.patch && test -s .prflow/tmp/review/pr-1486/31327692995-1/batch-1.patch && echo \"slice-ok: batch-1\" || echo \"slice-failed\"\nawk -v s=11 -v e=11 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1486/31327692995-1/diff.patch > .prflow/tmp/review/pr-1486/31327692995-1/batch-2.patch && test -s .prflow/tmp/review/pr-1486/31327692995-1/batch- …[per-command-truncated]",
+      "awk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1486/31327692995-1/diff.patch > .prflow/tmp/review/pr-1486/31327692995-1/batch-1.patch; test -s .prflow/tmp/review/pr-1486/31327692995-1/batch-1.patch && echo ok-b1",
+      "cd /home/runner/work/prflow/prflow\n.prflow/vendor/prflow/lib/efficiency-trace.sh --workpad-dir .prflow/tmp/review/pr-1486/31327692995-1 --slug pr-1486 --mode trace 2>/tmp/et.err; echo \"et-rc=$?\"; head -3 /tmp/et.err 2>/dev/null"
+    ],
+    "total": 9,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
