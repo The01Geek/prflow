@@ -113,5 +113,79 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.31.58",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 12.14972715,
+    "tokens": {
+      "input_tokens": 98,
+      "output_tokens": 46631,
+      "cache_read_input_tokens": 9022235,
+      "cache_creation_input_tokens": 225041,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 157,
+        "outputTokens": 68719,
+        "cacheReadInputTokens": 10311927,
+        "cacheCreationInputTokens": 518013,
+        "webSearchRequests": 0,
+        "costUSD": 10.956208499999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 62,
+        "outputTokens": 8425,
+        "cacheReadInputTokens": 1223638,
+        "cacheCreationInputTokens": 186631,
+        "webSearchRequests": 0,
+        "costUSD": 1.1935186499999997,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 71,
+    "duration_ms": 1055196
+  },
+  "permission_denials": {
+    "count": 14,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      "git status --porcelain; echo \"---ENV---\"; echo \"RUN_ID=${GITHUB_RUN_ID:-} ATTEMPT=${GITHUB_RUN_ATTEMPT:-} REPO=${GITHUB_REPOSITORY:-}\"",
+      "cat .prflow/tmp/review/pr-1485/31321103951-1/../local-run/diff.patch 2>/dev/null | head -1; echo \"===\"; cat .prflow/tmp/review/pr-1485/local-run/diff.patch | .prflow/vendor/prflow/scripts/stale-prose-lint.py --rev HEAD; echo \"sp-rc=$?\"",
+      ".prflow/vendor/prflow/scripts/resolve-review-overrides.py \"prflow:checklist-generator\" 2>.prflow/tmp/review/pr-1485/31321103951-1/rv-ovr.phase1.err; echo \"ovr-rc=$?\"; echo \"--stderr--\"; cat .prflow/tmp/review/pr-1485/31321103951-1/rv-ovr.phase1.err",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1485/31321103951-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1485/31321103951-1/verdicts/iter-1/VC-2-n2b8.json << 'EOF'\n{\"id\": \"VC-2\", \"verdict\": \"PASS\", \"evidence\": \"scripts/stale-prose-lint.py:479 defines _COUNT_NOUNS as the shared gating noun alternation; line 503-504 shows _RECOG_NOUN interpolates _COUNT_NOUNS directly in its 's?' plural-optional form plus plural-only additions (tags/members/fiel …[per-command-truncated]",
+      "git show 9d9a86084ec6b466b565310d4e3e1382023ad003:lib/test/test_python_scripts.py > /tmp/base_test.py\ngrep -n \"_ac2_1405\\|ac2_1405\\|§\\|LOOKBEHIND\" /tmp/base_test.py",
+      "git show 9d9a86084ec6b466b565310d4e3e1382023ad003:lib/test/test_python_scripts.py > /tmp/base_test.py",
+      "git show 9d9a86084ec6b466b565310d4e3e1382023ad003:lib/test/test_python_scripts.py > /home/runner/work/prflow/prflow/base_test.py 2>&1\ngrep -n \"_ac2_1405\\|ac2_1405\" /home/runner/work/prflow/prflow/base_test.py",
+      "git show 9d9a86084ec6b466b565310d4e3e1382023ad003:lib/test/test_python_scripts.py > base_test.py\ngrep -n \"ac2_1405\\|LOOKBEHIND\\|§\" base_test.py",
+      "mkdir -p .prflow/tmp/review/pr-1485/31321103951-1/verdicts/iter-1\ncat > .prflow/tmp/review/pr-1485/31321103951-1/verdicts/iter-1/VC-5-n5e1.json << 'EOF'\n{\n  \"id\": \"VC-5\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"Base commit 9d9a86084 (git show 9d9a86084:lib/test/test_python_scripts.py, lines ~5628-5631) shows _ac2_1405 = _rows_1405([\\\"see #402 checks for the list.\\\"] + _ASSERT2_1405) was the ONLY AC2 fixture; it exercises solely the `#` member of _NUM_LOOKBEHIND. No prior assertion in the base file t …[per-command-truncated]",
+      "mkdir -p .prflow/tmp\nif rm -f \".prflow/tmp/review-dirty-tree-before\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \".prflow/tmp/review-dirty-tree-before\" &&\n   [ -f \".prflow/tmp/review-dirty-tree-before\" ] &&\n   [ ! -L \".prflow/tmp/review-dirty-tree-before\" ]; then\n  git hash-object \".prflow/tmp/review-dirty-tree-before\"\nelse\n  echo \"SNAP-FAILED\"\nfi",
+      "lib/test/test_python_scripts.py 2>&1 | grep -iE \"1405|fail|error\" | head -30",
+      "python3 -c \"\nimport importlib.util\nspec = importlib.util.spec_from_file_location('spl','scripts/stale-prose-lint.py')\nm = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)\nbody=['assert x','assert y']\nfor k,line in {'-':'superseded by -5 checks in the table.','§':'see §5 checks for the list.','.':'see v1.5 checks for the list.'}.items():\n    lines=[line]+body\n    added=set(range(1,len(lines)+1))\n    rows=[]\n    m.examine_file('docs/x.md', added, lines, rows)\n    stale=[(r.verdict …[per-command-truncated]",
+      ".prflow/vendor/prflow/lib/efficiency-trace.sh --workpad-dir \".prflow/tmp/review/pr-1485/31321103951-1\" --slug \"pr-1485\" --mode trace 2>.prflow/tmp/review/pr-1485/31321103951-1/rv-et.err; echo \"et-rc=$?\"; echo \"--stderr--\"; cat .prflow/tmp/review/pr-1485/31321103951-1/rv-et.err 2>/dev/null"
+    ],
+    "total": 14,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
