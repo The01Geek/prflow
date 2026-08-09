@@ -13,5 +13,8 @@ type: Fixed
   `special_invocations[].path`) accepted `../../../etc/passwd`, `/etc/passwd`,
   `..`, and leading-dash tokens such as `-x` / `--exclude`, the last of which a
   ShellCheck/Ruff argv parses as an *option* rather than a path; they are now
-  required to be repo-relative and argv-safe. Both defects were latent — nothing
-  consumes the manifest yet. (#1276)
+  required to be repo-relative and argv-safe. An artifact's `member` — the name
+  an extractor pulls out of the archive and then invokes — is path-shaped too and
+  now takes that same guard: `.`, `..` and a leading-dash value such as `-rf` are
+  rejected where all three previously validated. Every one of these defects was
+  latent — nothing consumes the manifest yet. (#1276, #1484)

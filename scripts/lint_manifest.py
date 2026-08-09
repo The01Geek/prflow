@@ -318,6 +318,18 @@ def _validate_artifact(name, idx, art) -> ManifestResult:
     member = art["member"]
     if not isinstance(member, str) or not _MEMBER_RE.match(member):
         return _unestablished(f"invalid-value: {where} member {member!r}")
+    # `_MEMBER_RE`'s character class admits `.`, `..` and `-rf`, so the member —
+    # the name the extractor pulls out of the archive and then invokes — takes
+    # the same path-shape guard as every other path-shaped field. `.` is the one
+    # remaining directory spelling that guard does not cover (`/` is already
+    # barred by `_MEMBER_RE`, so `.` cannot be a segment of a longer path here),
+    # and a directory name is not an extractable executable.
+    if member == ".":
+        return _unestablished(
+            f"invalid-value: {where} member {member!r} names a directory entry, "
+            "not an extractable file")
+    if (reason := _validate_path_shape(where, "member", member)) is not None:
+        return _unestablished(reason)
     return _established(art)
 
 
@@ -364,7 +376,9 @@ def _validate_path_shape(where, label, value) -> str | None:
       repository. The check is per segment, so `..foo` is a normal name.
 
     Without these a manifest selector can direct a lint at a path the repository
-    does not own, or turn a file argument into a tool flag.
+    does not own, or turn a file argument into a tool flag. Shared by every
+    path-shaped field — selector globs, exclusions, special-invocation paths and
+    an artifact `member` — so their accepted sets cannot drift apart.
     """
     if value.startswith("-"):
         return (f"invalid-value: {where} {label} {value!r} starts with '-' "

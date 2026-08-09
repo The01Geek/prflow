@@ -27627,6 +27627,41 @@ assert_eq("#1276 M3 positive control: the shipped manifest still establishes",
           True,
           lint_manifest.load_manifest(SCRIPTS.parent / ".prflow" / "lint-manifest.json").established)
 
+# ── Issue #1484: an artifact `member` is path-shaped too — it is the name the
+#    extractor pulls out of the archive and then invokes — yet `_MEMBER_RE`'s
+#    character class admitted `.`, `..` and `-rf`, each of which established.
+# These are their OWN cases rather than members of the _LM_BAD_PATHS fan-out:
+# every `/`-bearing entry in that tuple is already rejected by `_MEMBER_RE`, so
+# reusing it would attribute the rejection to the wrong guard. Each assertion
+# therefore pins the FULL reason, so a different guard rejecting the same input
+# cannot masquerade as this one.
+def _lm_member(value):
+    """Set the ruff artifact's member and return (established, full reason)."""
+    obj = _lm_valid()
+    obj["tools"]["ruff"]["artifacts"][0]["member"] = value
+    r = lint_manifest.validate_manifest(obj)
+    return (r.established, r.reason)
+
+
+_LM_MEMBER_WHERE = "invalid-value: tool 'ruff' artifact #0 member"
+assert_eq("#1484 member '.' rejected as a directory entry",
+          (False, f"{_LM_MEMBER_WHERE} '.' names a directory entry, not an extractable file"),
+          _lm_member("."))
+assert_eq("#1484 member '..' rejected by the shared traversal arm",
+          (False, f"{_LM_MEMBER_WHERE} '..' escapes the repository via '..'"),
+          _lm_member(".."))
+assert_eq("#1484 dash-leading member rejected by the shared argv-safety arm",
+          (False, f"{_LM_MEMBER_WHERE} '-rf' starts with '-' "
+                  "(would be parsed as an option, not a path)"),
+          _lm_member("-rf"))
+# Positive controls: the three rejections above must not pass vacuously by
+# banning every member. The shipped manifest's own end-to-end `established`
+# assertions above cover the third control the criterion names.
+assert_eq("#1484 positive control: member 'shellcheck' still establishes",
+          (True, None), _lm_member("shellcheck"))
+assert_eq("#1484 positive control: member 'ruff.exe' still establishes",
+          (True, None), _lm_member("ruff.exe"))
+
 
 print()
 print(f"{PASS} passed, {FAIL} failed")
