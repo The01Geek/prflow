@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1469",
+  "generated_at": "2026-08-09T02:31:57Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.31.51",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 10.746967249999997,
+    "tokens": {
+      "input_tokens": 72,
+      "output_tokens": 37089,
+      "cache_read_input_tokens": 6123650,
+      "cache_creation_input_tokens": 218119,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 101,
+        "outputTokens": 55359,
+        "cacheReadInputTokens": 6628313,
+        "cacheCreationInputTokens": 476097,
+        "webSearchRequests": 0,
+        "costUSD": 8.492189,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 100,
+        "outputTokens": 14806,
+        "cacheReadInputTokens": 2056915,
+        "cacheCreationInputTokens": 377417,
+        "webSearchRequests": 0,
+        "costUSD": 2.2547782500000007,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 57,
+    "duration_ms": 667210
+  },
+  "permission_denials": {
+    "count": 6,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      "ls /home/runner/work/prflow/prflow/skills/review/phases/ 2>&1; echo \"---\"; echo \"CLAUDE_SKILL_DIR=[${CLAUDE_SKILL_DIR}]\"",
+      "echo \"run_id=[$GITHUB_RUN_ID] attempt=[$GITHUB_RUN_ATTEMPT] actions=[$GITHUB_ACTIONS]\"; .prflow/vendor/prflow/scripts/config-get.sh .prflow_review.live_progress_comment_enabled true",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve 1465 --pr 1469 2>.prflow/tmp/review/pr-1469/31290098875-1/acs.err ; echo \"acs-rc=$?\"",
+      "cat /home/runner/work/prflow/prflow/.prflow/tmp/displaced-paths.txt 2>/dev/null; echo ---; git -C /home/runner/work/prflow/prflow diff origin/main...HEAD -- docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md | grep -n \"placed before\" ",
+      "rm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before\ngit hash-object .prflow/tmp/review-dirty-tree-before"
+    ],
+    "total": 6,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
