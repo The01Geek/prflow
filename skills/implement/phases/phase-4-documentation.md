@@ -211,6 +211,12 @@ Then tick the Documentation phase in the workpad: `workpad.py update $ISSUE_NUMB
 
 Invoke the **Skill tool** with `skill: "pr-description"` and `args: "$ARGUMENTS"` (the issue number). The skill detects the existing PR and updates its body directly.
 
+Once that invocation returns, tick the PR-description extension row, applying the extension-row tick rule stated in `phase-1-setup.md` §1.3:
+```bash
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --tick-progress "extension resolved: PR description"
+```
+The `--tick-progress "Documentation"` call above runs *before* this invocation, so at that moment this row is still unticked. Where neither channel established the state, leave the row unticked and say so with `--note`.
+
 Verify the PR Description update landed before moving to the next step.
 
 ```bash

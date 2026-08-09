@@ -22,7 +22,7 @@ Read the `PROMPT-EXTENSION-STATUS:` line rendered above and route on it:
 - `present-empty` — this consumer configured no extension. Proceed unchanged.
 - `unestablished (<reason>)` — the extension's state could not be established. **Report it in the run's output**; never treat it as a clean policy pass (*unknown is not zero*).
 
-**Fallback — applies ONLY when the placeholder did not render**, i.e. no `PROMPT-EXTENSION-STATUS:` line appears above, or it appears as literal placeholder text. On that path only, load the extension yourself. From the repo root, emit the granted vendored-literal leading token first:
+**Also load the extension yourself with the invocation ladder below — unconditionally, whether or not the placeholder rendered**, because the render-time placeholder is a Claude-Code-specific preprocessing step that other runners (Copilot CLI, Cursor, Codex CLI, Gemini CLI) do not support and that the cloud headless tier refuses silently, so this ladder is the portable channel. Where both channels deliver, the two copies carry the **same extension content** — the placeholder channel prefixing it with a `PROMPT-EXTENSION-STATUS:` line the ladder does not emit — so treat them as one set of instructions, not two to reconcile. From the repo root, emit the granted vendored-literal leading token first:
 
 ```bash
 .prflow/vendor/prflow/scripts/load-prompt-extension.sh pr-description
@@ -34,7 +34,7 @@ On a `command not found` / `No such file` / exit-127 reading (this repository's 
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/load-prompt-extension.sh pr-description
 ```
 
-If the invocation fails because the helper path does not exist (`No such file`, exit 127, or the platform equivalent), that is the **anchor-resolution** failure described in the *Portable helper anchor* note above — fix the anchor, don't report a missing extension. Otherwise, if the helper exits non-zero, a consumer extension exists but could not be loaded — surface its stderr message and do not silently proceed as if none existed. If it exits 0 and prints text, treat that text as additional instructions appended to the end of this skill's own prompt for this run — it is upgrade-safe, consumer-owned customization committed under `.prflow/prompt-extensions/`. If it exits 0 and prints nothing, proceed unchanged.
+**The extension-state failure arms below fire only where the placeholder did not already resolve this extension's state**; where it did resolve it, record a ladder refusal or non-zero exit **in the run's output** as an ordinary diagnostic note and proceed on the placeholder's outcome. If the invocation fails because the helper path does not exist (`No such file`, exit 127, or the platform equivalent), that is the **anchor-resolution** failure described in the *Portable helper anchor* note above — report it in the run's output whatever the placeholder returned, since it breaks every other bundled-helper call site in this run; fix the anchor, don't report a missing extension. Otherwise, if the helper exits non-zero, a consumer extension exists but could not be loaded — surface its stderr message and do not silently proceed as if none existed. If it exits 0 and prints text, treat that text as additional instructions appended to the end of this skill's own prompt for this run — it is upgrade-safe, consumer-owned customization committed under `.prflow/prompt-extensions/`. If it exits 0 and prints nothing, proceed unchanged.
 
 ## Step 1: Gather Context
 
