@@ -1,0 +1,83 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-10T00:00:00Z",
+  "fix_commit_sha": null,
+  "fix_files": [],
+  "loop_role": "fix",
+  "current_step": "loop-control",
+  "current_substep": null,
+  "sweep_defs_read": [
+    "phase-2-implement.md"
+  ],
+  "sweep_evidence": {
+    "status": "run"
+  },
+  "checklist": [],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": "intentional"
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:comment-analyzer"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "CLAUDE.md summary compresses the four-population scope of the new §2.3 to 'This governs prose comments only'; the summary is explicitly non-authoritative and points at §2.3 as canonical, so no operative contradiction.",
+      "defect_signature": {
+        "file": "CLAUDE.md",
+        "line_range": [
+          160,
+          160
+        ],
+        "kind": "doc_scope_compression"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "below-threshold"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "below-threshold",
+      "source_file": "CLAUDE.md",
+      "claim_text": "summary drops the four-population scope",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold; Suggestion below verdict_severity_threshold=critical and fix_severity_threshold=important; AC17 mandates the CLAUDE.md bullet stay a compact non-authoritative summary, so expanding it would work against the criterion"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 0,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": "no fix applied this iteration"
+    }
+  },
+  "shadow": {
+    "ran_at": null,
+    "reviewed_sha": null,
+    "verdict": null,
+    "coverage": "not_verified",
+    "reason": "engine driven inline on a trivial, fully-verified prose/doc diff (110 lines, no executable code); two independent first-party reviewers (code-reviewer, comment-analyzer) plus four /simplify cleanup agents returned no Critical/Important findings; an independent full shadow fan-out was not dispatched, so coverage is reported not_verified rather than full",
+    "reviewers_dispatched": [],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer"
+    ],
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
