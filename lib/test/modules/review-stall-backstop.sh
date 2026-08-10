@@ -934,8 +934,8 @@ assert_eq "#801 barrier-cloud-scoped: implement root's barrier sits inside the c
 # the block and appending it after the block reproduces exactly the relocation the check exists
 # to catch, so the check is proven to bind on placement, not mere presence. Both roots need
 # their own control because the awk end-anchor `/^This discipline/` matches a DIFFERENT closing
-# sentence in each ("This discipline reduces…" in the review root, "This discipline only
-# reduces…" in the implement root): a control that binds on one carries no evidence that the
+# sentence in each ("This discipline reduces…" in the review root, "This discipline is scoped to
+# the cloud tier…" in the implement root): a control that binds on one carries no evidence that the
 # other's range is still bounded, and an unbounded range silently degrades the scoped check
 # into the whole-file presence check it was written to be stronger than.
 for _root801 in "$REVIEW_ROOT801" "$IMPL_SKILL415"; do
