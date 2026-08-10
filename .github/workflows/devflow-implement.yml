@@ -1332,7 +1332,7 @@ jobs:
       # The three-way selection (renderer absent / renderer produced nothing / compose
       # and publish) lives in scripts/compose-implement-prompt.sh, NOT inline here, so the
       # suite can drive each arm and the arm ORDER — CLAUDE.md's inline-shell-extraction
-      # convention: a grep-pin on one of the two ::error:: literals is not coverage of
+      # convention: a grep-pin on any one of the ::error:: literals is not coverage of
       # the selection that chooses between them. Vendored copy, repo-path fallback for a
       # self-repo run, exactly like the Stop-refresher step below.
       - name: Compose implement grounding block
