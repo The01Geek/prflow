@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1520",
+  "generated_at": "2026-08-10T02:51:56Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.31.67",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 20.0502185,
+    "tokens": {
+      "input_tokens": 100,
+      "output_tokens": 47220,
+      "cache_read_input_tokens": 10587184,
+      "cache_creation_input_tokens": 297148,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 269,
+        "outputTokens": 128081,
+        "cacheReadInputTokens": 16808437,
+        "cacheCreationInputTokens": 1172532,
+        "webSearchRequests": 0,
+        "costUSD": 20.0502185,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 71,
+    "duration_ms": 1321312
+  },
+  "permission_denials": {
+    "count": 16,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-unset}\"",
+      "echo \"run=${GITHUB_RUN_ID:-none}-${GITHUB_RUN_ATTEMPT:-1}\"; echo \"actions=${GITHUB_ACTIONS:-none}\"; git status --porcelain | head; echo \"---BASE---\"; .prflow/vendor/prflow/scripts/config-get.sh .base_branch main",
+      "echo \"run=$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT\"; echo \"actions=$GITHUB_ACTIONS\"; git status --porcelain | head",
+      ".prflow/vendor/prflow/scripts/workpad.py patch 5235247504 .prflow/tmp/review/pr-1520/31349889147-1/review-wp.md 2>.prflow/tmp/review/pr-1520/31349889147-1/rv-patch.err && echo \"patch-ok\" || echo \"patch-fail rc=$?\"",
+      "cd /home/runner/work/prflow/prflow\nD=.prflow/tmp/review/pr-1520/31349889147-1/diff.patch\nfor k in 1 2 3 4; do\n  s=$(( (k-1)*10+1 )); e=$(( k*10 ))\n  awk -v s=$s -v e=$e '/^diff --git/{n++} n>=s && n<=e' \"$D\" > .prflow/tmp/review/pr-1520/31349889147-1/batch-$k.patch\n  test -s .prflow/tmp/review/pr-1520/31349889147-1/batch-$k.patch && echo \"slice-ok batch-$k ($(grep -c '^diff --git' .prflow/tmp/review/pr-1520/31349889147-1/batch-$k.patch) files)\" || echo \"slice-empty batch-$k\"\ndone",
+      "D=.prflow/tmp/review/pr-1520/31349889147-1/diff.patch\nD2=.prflow/tmp/review/pr-1520/31349889147-1\nawk '/^diff --git/{n++} n>=1 && n<=10' \"$D\" > \"$D2/batch-1.patch\"\nawk '/^diff --git/{n++} n>=11 && n<=20' \"$D\" > \"$D2/batch-2.patch\"\nawk '/^diff --git/{n++} n>=21 && n<=30' \"$D\" > \"$D2/batch-3.patch\"\nawk '/^diff --git/{n++} n>=31 && n<=40' \"$D\" > \"$D2/batch-4.patch\"\nfor f in batch-1 batch-2 batch-3 batch-4; do test -s \"$D2/$f.patch\" && echo \"$f ok: $(grep -c '^diff --git' \"$D2/$f.patch\") files\" || e …[per-command-truncated]",
+      "awk '/^diff --git/{n++} n>=1 && n<=10' .prflow/tmp/review/pr-1520/31349889147-1/diff.patch > .prflow/tmp/review/pr-1520/31349889147-1/batch-1.patch\nawk '/^diff --git/{n++} n>=11 && n<=20' .prflow/tmp/review/pr-1520/31349889147-1/diff.patch > .prflow/tmp/review/pr-1520/31349889147-1/batch-2.patch\nawk '/^diff --git/{n++} n>=21 && n<=30' .prflow/tmp/review/pr-1520/31349889147-1/diff.patch > .prflow/tmp/review/pr-1520/31349889147-1/batch-3.patch\nawk '/^diff --git/{n++} n>=31 && n<=40' .prflow/tmp/re …[per-command-truncated]",
+      "awk '/^diff --git/{n++} n>=1 && n<=10' .prflow/tmp/review/pr-1520/31349889147-1/diff.patch > .prflow/tmp/review/pr-1520/31349889147-1/batch-1.patch",
+      "awk '/^diff --git/{n++} n>=11 && n<=20' .prflow/tmp/review/pr-1520/31349889147-1/diff.patch > .prflow/tmp/review/pr-1520/31349889147-1/batch-2.patch",
+      "awk '/^diff --git/{n++} n>=21 && n<=30' .prflow/tmp/review/pr-1520/31349889147-1/diff.patch > .prflow/tmp/review/pr-1520/31349889147-1/batch-3.patch",
+      "awk '/^diff --git/{n++} n>=31 && n<=40' .prflow/tmp/review/pr-1520/31349889147-1/diff.patch > .prflow/tmp/review/pr-1520/31349889147-1/batch-4.patch",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before 2>/dev/null && git hash-object .prflow/tmp/review-dirty-tree-before || echo \"snap-fail\"",
+      "git apply --stat .prflow/tmp/review/pr-1520/31349889147-1/diff.patch 2>/dev/null | tail -60",
+      "git apply --stat .prflow/tmp/review/pr-1520/31349889147-1/diff.patch",
+      "for f in .github/workflows/devflow.yml .github/workflows/devflow-runner.yml .github/workflows/devflow-implement.yml; do echo \"=== $f ===\"; git show f6759c352904486481516935688e82c077a7f08d:$f | grep -n 'render-grounding-block\\|compose-implement-prompt\\|GROUNDING\\|grounding' ; done",
+      "for p in \"barrier statement in the engine root\" \"Cloud headless-wait discipline\" \"Cloud command-shape discipline\"; do echo \"=== $p ===\"; git grep -n -F \"$p\" f6759c352904486481516935688e82c077a7f08d -- 'skills/**' '.prflow/**' 'docs/**' 2>/dev/null | head -40; done"
+    ],
+    "total": 16,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
