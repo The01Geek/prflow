@@ -6,7 +6,7 @@ Step 1's review and Step 2.6's shadow both audit the *whole* diff; neither re-au
 
 **Fires** after Step 3 commits the iteration's fixes and captures `fix_commit_sha`, and before Step 4 / the Step 4.5 convergence check — on **every iteration unconditionally**, not gated on the verdict. The gate, and its inner re-fix → re-gate attempts, are **not counted toward the `$MAX_ITERS` cap** — they verify the current iteration rather than starting a new fix iteration (the same accounting the Step 2.6 shadow uses).
 
-**Dispatch barrier.** Every subagent dispatch described here is bound by the dispatch-collection requirement in the engine-ground-truth block injected into this run's prompt — read it there (a run whose prompt carries no such block is under no barrier); it is deliberately not restated here.
+**Dispatch barrier.** Every subagent dispatch described here is bound by the dispatch-collection requirement in the engine-ground-truth block injected into this run's prompt — read it there (if your prompt carries no such block, collect every dispatch before the turn ends anyway); it is deliberately not restated here.
 
 **No-fix iteration → no delta → no-op.** The gate is **not gated on the verdict**, and it does not manufacture a delta where none exists. Key the skip on the **direct** signal — *Step 3 applied no fixes this iteration* (every finding pushed back / deferred, so Step 3 item 6 produced no new fix commit) — not on a derived SHA comparison: when no fix commit was made this iteration there is no `<iter_fix_base>..HEAD` span to review, so **skip the gate for that iteration** and proceed to Step 4.
 

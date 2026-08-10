@@ -57,7 +57,7 @@ Record the result in the same JSON shape as agent verdicts:
 
 ### 2.1b Launch verifier agents in batches
 
-**Dispatch barrier.** Every subagent dispatch described here is bound by the dispatch-collection requirement in the engine-ground-truth block injected into this run's prompt — read it there (a run whose prompt carries no such block is under no barrier); it is deliberately not restated here.
+**Dispatch barrier.** Every subagent dispatch described here is bound by the dispatch-collection requirement in the engine-ground-truth block injected into this run's prompt — read it there (if your prompt carries no such block, collect every dispatch before the turn ends anyway); it is deliberately not restated here.
 
 Split the *agent* items into batches of up to 8; launch each batch's agents in parallel via multiple Agent tool calls in one message.
 

@@ -34,7 +34,7 @@ Record the single object ID printed by `git hash-object` as `{GIT_SNAP_BEFORE_OI
 
 This scopes the assertion to the agent-dispatch window only, so it never flags the orchestrator's own edits outside it. The same fence is executed on **every** tier — including the write-enabled `/prflow:review-and-fix` and `/prflow:implement` tiers and the Step 2.6 shadow pass, which re-executes these same Phases 0–4.3.
 
-**Dispatch barrier.** Every subagent dispatch described here is bound by the dispatch-collection requirement in the engine-ground-truth block injected into this run's prompt — read it there (a run whose prompt carries no such block is under no barrier); it is deliberately not restated here.
+**Dispatch barrier.** Every subagent dispatch described here is bound by the dispatch-collection requirement in the engine-ground-truth block injected into this run's prompt — read it there (if your prompt carries no such block, collect every dispatch before the turn ends anyway); it is deliberately not restated here.
 
 Launch all agents in a single message using multiple Agent tool calls, passing each a prompt to review the changes.
 
