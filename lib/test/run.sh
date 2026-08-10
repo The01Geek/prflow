@@ -35798,20 +35798,21 @@ _cip_promptkeys() { grep -c '^prompt' "$1" 2>/dev/null || true; }  # ghout -> co
 
 # Arm 1 — the renderer is absent at BOTH paths.
 _c="$(_cip_case - -)"
-assert_eq "#1170 composer arm1 (renderer absent at both paths) exits 0" "0" "$(cat "$_c/rc")"
-assert_eq "#1170 composer arm1 warns that the renderer was found at neither path" "yes" \
+assert_eq "#1170 composer arm1 (renderer absent at both paths) exits 1 (fail-loud)" "1" "$(cat "$_c/rc")"
+assert_eq "#1170 composer arm1 errors that the renderer was found at neither path" "yes" \
   "$(_cip_has "$_c/err" 'render-grounding-block.sh not found at either the vendored or repo path')"
 assert_eq "#1170 composer arm1 does NOT misattribute the miss to the empty-block arm" "no" \
   "$(_cip_has "$_c/err" 'render-grounding-block.sh produced no output')"
-# Load-bearing: NO `prompt` key at all, so devflow-implement.yml's `|| format(…)` default
-# fires. Publishing an empty `prompt=` here would silently defeat that fallback.
+# Load-bearing: NO `prompt` key at all. The step now fails the job before the action runs,
+# so devflow-implement.yml's `|| format(…)` default is a last line of defense rather than the
+# expected path — but publishing an empty `prompt=` here would still defeat it.
 assert_eq "#1170 composer arm1 writes NO prompt output (the bare-prompt default must fire)" "0" \
   "$(_cip_promptkeys "$_c/ghout")"
 
 # Arm 2 — the renderer resolves but produces an empty block (the truncated-vendored-copy case).
 _c="$(_cip_case 'exit 0' -)"
-assert_eq "#1170 composer arm2 (renderer produced no output) exits 0" "0" "$(cat "$_c/rc")"
-assert_eq "#1170 composer arm2 warns that the renderer produced no output" "yes" \
+assert_eq "#1170 composer arm2 (renderer produced no output) exits 1 (fail-loud)" "1" "$(cat "$_c/rc")"
+assert_eq "#1170 composer arm2 errors that the renderer produced no output" "yes" \
   "$(_cip_has "$_c/err" 'render-grounding-block.sh produced no output')"
 assert_eq "#1170 composer arm2 does NOT misattribute an empty block to the not-found arm" "no" \
   "$(_cip_has "$_c/err" 'not found at either the vendored or repo path')"
@@ -35821,7 +35822,7 @@ assert_eq "#1170 composer arm2 writes NO prompt output (the bare-prompt default 
 # Arm 2, second input shape — a renderer that FAILS after printing a partial block. The
 # capture's `|| GROUNDING=""` must route it to the empty arm, never publish the partial.
 _c="$(_cip_case 'printf "> partial\n"; exit 3' -)"
-assert_eq "#1170 composer arm2 (renderer exited non-zero) exits 0" "0" "$(cat "$_c/rc")"
+assert_eq "#1170 composer arm2 (renderer exited non-zero) exits 1 (fail-loud)" "1" "$(cat "$_c/rc")"
 assert_eq "#1170 composer arm2 (renderer exited non-zero) takes the empty-block arm" "yes" \
   "$(_cip_has "$_c/err" 'render-grounding-block.sh produced no output')"
 assert_eq "#1170 composer arm2 (renderer exited non-zero) publishes no partial block" "0" \
@@ -35865,7 +35866,7 @@ assert_eq "#1170 composer invokes the renderer in MODE=implement with the resolv
 # hard failure and never a redirect somewhere arbitrary.
 _c="$(_cip_case 'printf "> GROUND-TRUTH-BLOCK\n---\n"')"
 _cip_rc_noout="$( cd "$_c" && GITHUB_OUTPUT='' ALLOWED_TOOLS='Read' NUMBER=7 bash "$_CIP_SH" >/dev/null 2>"$_c/err2"; echo $? )"
-assert_eq "#1170 composer exits 0 when GITHUB_OUTPUT is unset/empty" "0" "$_cip_rc_noout"
+assert_eq "#1170 composer exits 1 when GITHUB_OUTPUT is unset/empty" "1" "$_cip_rc_noout"
 assert_eq "#1170 composer breadcrumbs an unpublishable GITHUB_OUTPUT" "yes" \
   "$(_cip_has "$_c/err2" 'GITHUB_OUTPUT is unset or empty')"
 rm -rf "$_CIP_ROOT"
