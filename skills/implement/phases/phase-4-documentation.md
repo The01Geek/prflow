@@ -2,7 +2,7 @@
 
 Output: `Phase 4/4: Documentation — updating docs and finalizing PR...`
 
-**Writing standard.** Before composing this phase's first `--reflection` bullet, read the shared writing standard `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/writing-standard.md` and follow it. A failed load emits a breadcrumb naming the file and the failure kind, and you compose the reflection without it.
+**Writing standard.** Before composing this phase's first `--reflection` bullet, read the shared writing standard and follow it.
 
 `workpad.py update $ISSUE_NUMBER --status Documenting`.
 

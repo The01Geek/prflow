@@ -2,7 +2,7 @@
 
 Output: `Phase 2/4: Discover, Plan & Implement...`
 
-**Writing standard.** Before composing this phase's first `--reflection` bullet, read the shared writing standard `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/writing-standard.md` and follow it (the always-loaded Reflection style contract absorbed those rules into this read, so the read is what keeps them present). A failed load emits a breadcrumb naming the file and the failure kind, and you compose the reflection without it.
+**Writing standard.** Before composing this phase's first `--reflection` bullet, read the shared writing standard and follow it.
 
 **Configuration.** This phase reads the internal-documentation root from the `.docs.internal` key of `.prflow/config.json`, resolved through `config-get.sh` in the Phase 2 explicit-instruction block below. Bind that resolved value to `[[INTERNAL_DOC_LOCATION]]` and use the placeholder wherever this file names the configured internal-docs root.
 
