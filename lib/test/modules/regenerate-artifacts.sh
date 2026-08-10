@@ -1573,6 +1573,25 @@ _ra_same "#optin the skipped measurement writes no floor on an already-red tree"
   "$(cat "$RA_OPTIN_RED/scripts/workflow-flight-recorder-registry.json")" \
   "the skipped measurement wrote a floor anyway"
 
+# The guard's SECOND disjunct, independent of the judgment-item one above: an earlier row
+# that hit the INFRASTRUCTURE state also makes this tree unmeasurable. Stripping .git makes
+# coverage-map-ratchet report an input failure (the A5g technique) with no judgment item
+# raised, so a regression narrowing the guard to `forces_one` alone fails only here.
+RA_OPTIN_INFRA="$_ra_tmp_root/optin-after-infrastructure"; _ra_fixture "$RA_OPTIN_INFRA"
+rm -rf "$RA_OPTIN_INFRA/.git"
+RA_OPTIN_INFRA_REG_BEFORE="$(cat "$RA_OPTIN_INFRA/scripts/workflow-flight-recorder-registry.json")"
+DEVFLOW_FLOOR_TEST_DELTA=1 _ra_run "$RA_OPTIN_INFRA"
+_ra_has "#optin the infrastructure disjunct's positive control: an earlier row went INFRASTRUCTURE" \
+  "$RA_OPTIN_INFRA" "[coverage-map-ratchet] INFRASTRUCTURE"
+assert_eq "#optin a pass whose earlier row hit INFRASTRUCTURE exits 2" \
+  "2" "$(_ra_rc "$RA_OPTIN_INFRA")"
+_ra_has "#optin --with-floors skips the measurement after an INFRASTRUCTURE row" \
+  "$RA_OPTIN_INFRA" "[exact-module-floors] not measured -- an earlier row already reported"
+_ra_same "#optin the skipped measurement writes no floor after an INFRASTRUCTURE row" \
+  "$RA_OPTIN_INFRA_REG_BEFORE" \
+  "$(cat "$RA_OPTIN_INFRA/scripts/workflow-flight-recorder-registry.json")" \
+  "the skipped measurement wrote a floor anyway"
+
 RA_1055_PARTIAL="$_ra_tmp_root/issue-1055-partial"; _ra_fixture "$RA_1055_PARTIAL"
 cat > "$RA_1055_PARTIAL/lib/test/reconcile-module-floors.py" <<'PY'
 #!/usr/bin/env python3
@@ -2213,6 +2232,12 @@ _ra_bind_fails_closed "an unsupported row kind" \
 _ra_bind_fails_closed "a non-bool preflight_eligible" \
   's/"preflight_eligible": False/"preflight_eligible": 0/' \
   "not a bool"
+# `opt_in` is optional, but a PRESENT non-bool must fail closed too: a truthy string
+# would silently opt its row out of the default pass with no flag able to opt it back
+# in. `"opt_in": True` occurs exactly once (the exact-module-floors row).
+_ra_bind_fails_closed "a non-bool opt_in" \
+  's/"opt_in": True/"opt_in": "yes"/' \
+  "declares opt_in 'yes'" "not a bool"
 # The write-nothing invariant is enforced in data: deleting the cloud-writer row's
 # non-writing `preflight_argv` line (its `"verify"` tuple is the file's only `"verify"`)
 # leaves an eligible row that declares `writes` with no read-only preflight command.

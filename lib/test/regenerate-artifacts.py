@@ -375,13 +375,9 @@ ROWS = (
             "scripts/workflow-flight-recorder-registry.json",
             "lib/test/run.sh",
         ),
-        # OPT-IN: this row alone measures the real focused module runners, which costs
-        # minutes where every other row costs milliseconds, so the default pass SKIPS it
-        # and prints `OPT-IN not measured` in its place. Deferring it cannot leave a
-        # silently-stale committed artifact — an unraised floor surfaces as a LOUD RED
-        # suite (`module-harness.sh`: `executed N assertions; minimum is M`), which no
-        # completion gate may be claimed over. Run the pass with `--with-floors` once
-        # before the completion-gate whole-suite launch.
+        # Do not clear `opt_in`: this row alone runs the real focused module runners,
+        # costing minutes where every other row costs milliseconds, which would make the
+        # default pass unusable as the after-every-edit reconciler it exists to be.
         "opt_in": True,
         # Preflight (issue #1244): INELIGIBLE. Two independent disqualifiers: this row
         # WRITES its declared outputs, so it can never run in a write-nothing preflight;
