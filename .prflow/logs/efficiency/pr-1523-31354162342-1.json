@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1523",
+  "generated_at": "2026-08-10T04:18:08Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.1",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 9.937976499999998,
+    "tokens": {
+      "input_tokens": 73,
+      "output_tokens": 44450,
+      "cache_read_input_tokens": 6580930,
+      "cache_creation_input_tokens": 228232,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 130,
+        "outputTokens": 70047,
+        "cacheReadInputTokens": 7869388,
+        "cacheCreationInputTokens": 543294,
+        "webSearchRequests": 0,
+        "costUSD": 9.937976499999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 62,
+    "duration_ms": 917417
+  },
+  "permission_denials": {
+    "count": 11,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=$GITHUB_RUN_ID ATTEMPT=${GITHUB_RUN_ATTEMPT:-1}\"; git status --porcelain; echo \"---PRVIEW---\"; gh pr view 1523 --json headRefName,baseRefName,baseRefOid,headRefOid,body,closingIssuesReferences --jq '.' ; echo \"pr-rc=$?\"",
+      "RUNID=$(printf '%s' \"${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}\"); echo \"run-id=$RUNID\"; mkdir -p \".prflow/tmp/review/pr-1523/$RUNID\"; gh pr diff 1523 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee \".prflow/tmp/review/pr-1523/$RUNID/diff.patch\" | wc -l; echo \"cached to run-id=$RUNID\"",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve 1501 --pr 1523 2>.prflow/tmp/review/pr-1523/r1/acs.err ; echo \"acs-rc=$?\"",
+      ".prflow/vendor/prflow/scripts/resolve-review-overrides.py \"prflow:checklist-generator\" \"prflow:checklist-verifier\" \"prflow:code-reviewer\" \"prflow:silent-failure-hunter\" \"prflow:comment-analyzer\" \"prflow:pr-test-analyzer\" 2>.prflow/tmp/review/pr-1523/r1/rv-ovr.err; echo \"ovr-rc=$?\"; echo \"---err---\"; cat .prflow/tmp/review/pr-1523/r1/rv-ovr.err",
+      "git diff --stat a7f88d8b -- scripts/workpad.py lib/test/test_python_scripts.py scripts/devflow-cloud-writer-contract.json 2>&1 | tail -5; echo \"=== working tree vs head for changed code files ===\"; for f in scripts/workpad.py lib/test/test_python_scripts.py scripts/devflow-cloud-writer-contract.json; do git diff --quiet a7f88d8b -- \"$f\" 2>/dev/null && echo \"$f: MATCHES head\" || echo \"$f: differs from head (or untracked-state)\"; done",
+      "mkdir -p .prflow/tmp\nif rm -f \".prflow/tmp/review-dirty-tree-before\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \".prflow/tmp/review-dirty-tree-before\" &&\n   [ -f \".prflow/tmp/review-dirty-tree-before\" ] &&\n   [ ! -L \".prflow/tmp/review-dirty-tree-before\" ] &&\n   git hash-object \".prflow/tmp/review-dirty-tree-before\"; then\n  :\nelse\n  echo \"SNAP-FAILED\"\n  rm -f \".prflow/tmp/review-dirty-tree-before\" 2>/dev/null\n  printf '%s\\n' disabled > \".prflow/tmp/rev …[per-command-truncated]",
+      "git status --porcelain -z > .prflow/tmp/review-dirty-tree-before; git hash-object .prflow/tmp/review-dirty-tree-before",
+      "cd /home/runner/work/prflow/prflow\nH=a7f88d8b357499b4ebf4a5efcc340258b20f5ae1\necho \"== actual sha256 of HEAD workpad.py ==\"\ngit show $H:scripts/workpad.py | python3 -c \"import sys,hashlib;print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest())\"\necho \"== contract records ==\"\ngit show $H:scripts/devflow-cloud-writer-contract.json | grep workpad.py",
+      "cd /home/runner/work/prflow/prflow; git show a7f88d8b357499b4ebf4a5efcc340258b20f5ae1:scripts/workpad.py > /tmp/wp.py; python3 -c \"import hashlib;print(hashlib.sha256(open('/tmp/wp.py','rb').read()).hexdigest())\"",
+      "cd /home/runner/work/prflow/prflow; git show a7f88d8b357499b4ebf4a5efcc340258b20f5ae1:scripts/workpad.py > .prflow/tmp/wp.py; python3 -c \"import hashlib;print(hashlib.sha256(open('.prflow/tmp/wp.py','rb').read()).hexdigest())\"; git show a7f88d8b357499b4ebf4a5efcc340258b20f5ae1:scripts/devflow-cloud-writer-contract.json | grep workpad.py",
+      "git -C /home/runner/work/prflow/prflow show a7f88d8b357499b4ebf4a5efcc340258b20f5ae1:scripts/workpad.py > /home/runner/work/prflow/prflow/.prflow/tmp/wp.py; python3 -c \"import hashlib;print('actual', hashlib.sha256(open('/home/runner/work/prflow/prflow/.prflow/tmp/wp.py','rb').read()).hexdigest())\""
+    ],
+    "total": 11,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
