@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1572",
+  "generated_at": "2026-08-10T23:45:59Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.18",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 4.922595999999999,
+    "tokens": {
+      "input_tokens": 1353,
+      "output_tokens": 15330,
+      "cache_read_input_tokens": 2556866,
+      "cache_creation_input_tokens": 147820,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 1387,
+        "outputTokens": 32447,
+        "cacheReadInputTokens": 3171147,
+        "cacheCreationInputTokens": 314334,
+        "webSearchRequests": 0,
+        "costUSD": 4.922595999999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 25,
+    "duration_ms": 397308
+  },
+  "permission_denials": {
+    "count": 3,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      "echo \"$CLAUDE_SKILL_DIR\"",
+      "gh pr diff 1572 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' > .prflow/tmp/review/pr-1572/local-run/diff.patch; wc -l .prflow/tmp/review/pr-1572/local-run/diff.patch"
+    ],
+    "total": 3,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
