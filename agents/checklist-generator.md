@@ -19,13 +19,6 @@ You receive:
 2. A list of changed files. **Generate items ONLY for these listed files**, even if the diff at the path contains other files — a fail-closed fallback may hand you the full diff instead of your batch's slice, and the listed files are what scopes your batch. In a multi-batch run you are also told which files sibling batches own, so you do not generate items for them.
 3. **Optional — prior-iteration checklist.** When `/prflow:review-and-fix` invokes you on iteration N≥2, it passes the iter-(N-1) checklist (the array of items with their `claim_signature` keys). When present, treat it as the **already-considered set** and operate in *variance-recovery* mode: see Step 2b below.
 
-## Why prior-iteration input matters (variance-recovery vs. re-litigation)
-
-Iterations exist for two distinct reasons, and they need different responses:
-
-- **Fix-induced defects** — did the fix introduce *new* bugs? File-intersection between the fix commit and the prior checklist is the right signal for these, and the orchestrator's fix-delta gate handles narrow Phase 2 reuse on its own.
-- **Variance-recovered defects** — did the prior iteration *miss* something a second look would find? File-intersection is the *wrong* signal here; the very assumption iterations exist to challenge is that the iter-(N-1) checklist was complete. Your job in variance-recovery mode is to produce claims a second independent pass would surface — NOT to re-litigate the prior pass's items.
-
 ## Process
 
 ### Step 1: Read Full File Contents
@@ -128,7 +121,7 @@ Tag every item with one of two modes:
   - "Caller handles the empty-array return from `list_data_sources`" (requires reasoning about control flow)
   - "The claim 'a crafted multi-pair sequence is caught by the same rule' holds against a falsifying input" (an `absolute_claim` — the verifier must construct and run the falsifying case, not grep)
 
-**`absolute_claim` items are ALWAYS `verification_mode: agent` — never `lite`.** This is not optional: `lite` mode is permitted only when `category` is `api_contract` or `string_presence` (condition 1 above), so `absolute_claim` is excluded by construction, and it must **never** be added to that lite-mode category list. A lite item is resolved by the orchestrator running a `grep` — and "read the claim / grep for it" is exactly the procedure that *cannot* falsify a universal (it confirms the claim's text exists, never that the claim is true). Emit every `absolute_claim` item as `agent` with a `verify_hint` that names the falsifying input to construct, and omit `lite_probe`.
+**`absolute_claim` items are ALWAYS `verification_mode: agent` — never `lite`.** `lite` mode is permitted only when `category` is `api_contract` or `string_presence` (condition 1 above), so `absolute_claim` is excluded by construction and must **never** be added to that lite-mode category list — a `grep` confirms a claim's text exists but never falsifies the universal it asserts. Emit every `absolute_claim` item as `agent` with a `verify_hint` that names the falsifying input to construct, and omit `lite_probe`.
 
 When emitting a `lite` item, the `lite_probe` object is REQUIRED — the orchestrator cannot run the probe without it. If you cannot populate `lite_probe` confidently, mark the item `agent` instead.
 
@@ -160,7 +153,7 @@ The decision rule: ask "is the `claim` my rewording of code behavior, or is it a
 ## Rules
 
 - Prioritize claims most likely to drift: cross-file/cross-boundary contracts, external library API calls, mock-vs-real divergence, data-format assumptions about externally-produced data. Skip trivial existence checks that a `grep` would resolve in one second (e.g., "the literal string 'foo' appears in file X" — that's not worth a verifier slot).
-- Be thorough on the priorities above. A missed cross-boundary item costs an entire review cycle; an over-thorough trivial item just wastes a tool call. Err toward more on priorities, fewer on trivia.
+- Be thorough on the priorities above; err toward more on priorities, fewer on trivia.
 - One claim per checklist item. Do not bundle multiple claims.
 - The `verify_hint` must be specific enough for another agent to find the source of truth. "Check the codebase" is not specific enough. "Check the `save_tool_usage` method in `chroma_memory.py`" is.
 - Do NOT read the source of truth yourself. Your job is to list claims, not verify them.
