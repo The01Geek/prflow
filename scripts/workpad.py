@@ -68,6 +68,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 if sys.version_info < (3, 11):  # fail fast, before any PEP 604 annotation is evaluated below
@@ -435,17 +436,22 @@ def cmd_id(args):
     sys.exit(2)
 
 
+def _comment_body(repo, comment_id):
+    """The live body of one comment. Raises; each caller picks its own arm."""
+    return _run([
+        GH, 'api',
+        f'/repos/{repo}/issues/comments/{comment_id}',
+        '--jq', '.body',
+    ]).stdout
+
+
 def cmd_body(args):
     repo = _repo_full()
     try:
-        r = _run([
-            GH, 'api',
-            f'/repos/{repo}/issues/comments/{args.comment_id}',
-            '--jq', '.body',
-        ])
+        out = _comment_body(repo, args.comment_id)
     except (subprocess.CalledProcessError, OSError) as e:
         _fail('body', e)
-    sys.stdout.write(r.stdout)
+    sys.stdout.write(out)
 
 
 def _is_recognized_status_word(word: str) -> bool:
@@ -1042,14 +1048,21 @@ _LEADING_MARKER_RE = re.compile(
 
 
 def _leading_markers(body):
-    """`[(kind, line)]` for the leading run of PRFlow marker-comment lines."""
+    """`(markers, tail)` — the leading PRFlow marker-comment lines, then the rest.
+
+    `markers` is `[(kind, line)]`; `tail` is the remaining lines, already split,
+    so a caller that rebuilds the body never re-splits it.
+    """
+    # Bounded split: the scan needs at most `_LEADING_MARKER_SCAN` lines, and the
+    # remainder comes back as one unsplit trailing element.
+    lines = body.split('\n', _LEADING_MARKER_SCAN)
     found = []
-    for line in (body or '').split('\n')[:_LEADING_MARKER_SCAN]:
+    for line in lines[:_LEADING_MARKER_SCAN]:
         m = _LEADING_MARKER_RE.match(line.strip())
         if not m:
             break
         found.append((m.group(1), line))
-    return found
+    return found, lines[len(found):]
 
 
 def _merge_leading_markers(live_body, new_body):
@@ -1058,26 +1071,52 @@ def _merge_leading_markers(live_body, new_body):
     Returns `(body, reinserted_kinds)`. The live body's ORDER is authoritative
     (the run key stays line 1), while the caller's line wins for any kind it
     supplies — that is what keeps a deliberate re-stamp or a `--marker`
-    migration landing rather than being reverted to the live value.
+    migration landing rather than being reverted to the live value. The
+    consequence a caller must know: this can CHANGE a leading marker but never
+    REMOVE one, so a deliberate removal goes through a different write path.
+
+    `scripts/post-review-verdict.sh`'s `_prv_stamp_progress` encodes the same
+    ordering rule in jq for the stamp it writes; the two are a coupled pair —
+    change the window or the precedence here and it changes there too.
     """
-    live = _leading_markers(live_body)
+    live, _ = _leading_markers(live_body)
     if not live:
         return new_body, []
-    supplied = _leading_markers(new_body)
-    by_kind = {kind: line for kind, line in supplied}
-    merged, seen, reinserted = [], set(), []
-    for kind, line in live:
-        merged.append(by_kind.get(kind, line))
-        if kind not in by_kind:
-            reinserted.append(kind)
-        seen.add(kind)
-    for kind, line in supplied:
-        if kind not in seen:
-            merged.append(line)
-            seen.add(kind)
+    supplied, tail = _leading_markers(new_body)
+    by_kind = dict(supplied)
+    reinserted = [kind for kind, _ in live if kind not in by_kind]
     if not reinserted:
         return new_body, []
-    return '\n'.join(merged + (new_body or '').split('\n')[len(supplied):]), reinserted
+    live_kinds = {kind for kind, _ in live}
+    merged = [by_kind.get(kind, line) for kind, line in live]
+    merged += [line for kind, line in supplied if kind not in live_kinds]
+    return '\n'.join(merged + tail), reinserted
+
+
+def _patch_comment_body(repo, comment_id, text):
+    """Stage `text` and PATCH it onto `comment_id`; return the response body.
+
+    Owns the temp file so no caller repeats the staging/cleanup: a private temp
+    file, never a sibling of any caller's path, because that directory may be
+    read-only and a sibling would be visible to a `git add` scoped to it.
+    """
+    with tempfile.NamedTemporaryFile(
+        'w', suffix='.md', delete=False, encoding='utf-8',
+    ) as tf:
+        tf.write(text)
+        staged = Path(tf.name)
+    try:
+        return _run([
+            GH, 'api', '-X', 'PATCH',
+            f'/repos/{repo}/issues/comments/{comment_id}',
+            '-F', f'body=@{staged}',
+            '--jq', '.body',
+        ]).stdout
+    finally:
+        try:
+            staged.unlink()
+        except OSError:
+            pass
 
 
 def cmd_patch(args):
@@ -1097,11 +1136,7 @@ def cmd_patch(args):
     # working rewrite into a failure, so it degrades to the caller's bytes —
     # the behaviour this subcommand had before the preservation above existed.
     try:
-        live = _run([
-            GH, 'api',
-            f'/repos/{repo}/issues/comments/{args.comment_id}',
-            '--jq', '.body',
-        ]).stdout
+        live = _comment_body(repo, args.comment_id)
     except (subprocess.CalledProcessError, OSError) as e:
         live = ''
         sys.stderr.write(
@@ -1110,47 +1145,16 @@ def cmd_patch(args):
             'omits will be lost\n'
         )
     merged, reinserted = _merge_leading_markers(live, composed)
-    written = body_path
-    if reinserted:
-        # A private temp file, never a sibling of the caller's: the caller's
-        # directory may be read-only, and a sibling would also be visible to a
-        # `git add` the caller scopes by directory.
-        import tempfile
-        try:
-            with tempfile.NamedTemporaryFile(
-                'w', suffix='.md', delete=False, encoding='utf-8',
-            ) as tf:
-                tf.write(merged)
-                written = Path(tf.name)
-        except OSError as e:
-            written = body_path
-            reinserted = []
-            sys.stderr.write(
-                'workpad.py patch: could not stage the marker-preserved body '
-                f'({e}); patching the composed body unchanged — the marker '
-                'line(s) it omits will be lost\n'
-            )
     if reinserted:
         sys.stderr.write(
             'workpad.py patch: re-inserted leading marker(s) the composed body '
             f'omitted: {", ".join(reinserted)}\n'
         )
     try:
-        r = _run([
-            GH, 'api', '-X', 'PATCH',
-            f'/repos/{repo}/issues/comments/{args.comment_id}',
-            '-F', f'body=@{written}',
-            '--jq', '.body',
-        ])
+        out = _patch_comment_body(repo, args.comment_id, merged)
     except (subprocess.CalledProcessError, OSError) as e:
         _fail('patch', e)
-    finally:
-        if written != body_path:
-            try:
-                written.unlink()
-            except OSError:
-                pass
-    sys.stdout.write(r.stdout)
+    sys.stdout.write(out)
 
 
 _COMMENT_URL_RE = re.compile(r'#issuecomment-(\d+)\s*$')
@@ -3126,10 +3130,11 @@ def cmd_update(args):
             )
         sys.exit(1)
 
-    # Write to a temp file and PATCH (same path as cmd_patch). The body always
-    # carries at least the refreshed `Last updated`, so the PATCH is never a
-    # no-op even when every requested tick was volatile.
-    import tempfile
+    # Write to a temp file and PATCH. The body always carries at least the
+    # refreshed `Last updated`, so the PATCH is never a no-op even when every
+    # requested tick was volatile. This path needs no leading-marker merge (the
+    # one `_patch_comment_body` applies for cmd_patch): `body` is mutated from
+    # the live body re-fetched above, so a marker line it carries is still there.
     with tempfile.NamedTemporaryFile(
         'w', suffix='.md', delete=False, encoding="utf-8",
     ) as tf:

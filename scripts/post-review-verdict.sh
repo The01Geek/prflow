@@ -341,6 +341,9 @@ _prv_stamp_progress() {
   # Rewrite: keep line 1 (the run key), put the marker on line 2, drop a marker line already
   # sitting at line 2 so a re-post does not accumulate two of them, and preserve every other
   # line verbatim.
+  # Coupled pair: `scripts/workpad.py`'s `_merge_leading_markers` encodes this same two-line
+  # ordering rule for the rewrites it preserves — change the window or the precedence in one
+  # and change it in the other, or the two silently disagree.
   if ! err="$( { "$DEVFLOW_JQ" -n --arg marker "$MARKER" --argjson b "$bjson" \
                    '{body: ($b | split("\n")
                      | (if (length == 0) then [$marker]
