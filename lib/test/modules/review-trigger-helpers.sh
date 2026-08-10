@@ -2600,6 +2600,14 @@ echo "review-progress marker ownership and dead-run diagnosis (#1054)"
 S1054_ROOT="$(mktemp -d)"
 mkdir -p "$S1054_ROOT/scripts" "$S1054_ROOT/state"
 cp "$LIB/../scripts/seed-review-progress.sh" "$S1054_ROOT/scripts/seed-review-progress.sh"
+# compose-run-url.sh (#1536) lives beside the seed helper, which execs it by SCRIPT_DIR to
+# compose the RUNLINK line and rewrite the created body's `**Run:**` line. These rows set only
+# GITHUB_RUN_ID (not GITHUB_SERVER_URL/GITHUB_REPOSITORY), and a live Actions runner exports
+# the latter two ambiently — so unset them here to keep the composed link deterministically
+# `_(local run)_` regardless of the host, matching the RUNLINK expectations below.
+cp "$LIB/../scripts/compose-run-url.sh" "$S1054_ROOT/scripts/compose-run-url.sh"
+chmod +x "$S1054_ROOT/scripts/compose-run-url.sh"
+unset GITHUB_SERVER_URL GITHUB_REPOSITORY
 cat > "$S1054_ROOT/scripts/workpad.py" <<'PY'
 #!/usr/bin/env python3
 import os
@@ -2660,9 +2668,13 @@ printf '%s\n' '<!-- prflow:review-progress run=local-improvised-1 -->' '**Status
 S1054_OUT="$(GITHUB_RUN_ID=306999 GITHUB_RUN_ATTEMPT=4 S1054_STATE="$S1054_ROOT/state" \
   bash "$S1054_SEED" 7 '<!-- prflow:review-progress run=caller-wrong-1 -->' "$S1054_BODY" 2>/dev/null)"
 S1054_REPORTED_MARKER="${S1054_OUT#*$'\n'MARKER }"
+# The success shape now carries a trailing RUNLINK line (#1536); strip it so the marker parse
+# yields the marker alone.
+S1054_REPORTED_MARKER="${S1054_REPORTED_MARKER%%$'\n'*}"
 assert_eq "seed #1054: cloud marker is derived from run id+attempt and reported after CREATED" \
   "CREATED 9002
-MARKER $S1054_EXPECTED" "$S1054_OUT"
+MARKER $S1054_EXPECTED
+RUNLINK _(local run)_" "$S1054_OUT"
 assert_eq "seed #1054: identity lookup uses the cloud-derived marker" "$S1054_EXPECTED" \
   "$(cat "$S1054_ROOT/state/id-marker")"
 assert_eq "seed #1054: create rewrites the body's first line to the derived marker" "$S1054_EXPECTED" \
@@ -2677,8 +2689,10 @@ S1054_OUT="$(GITHUB_RUN_ID=306999 GITHUB_RUN_ATTEMPT=4 S1054_STATE="$S1054_ROOT/
   bash "$S1054_SEED" 7 '' "$S1054_BODY" 2>/dev/null)"
 assert_eq "seed #1054: cloud caller may omit all marker material and still creates the authoritative line" \
   "$S1054_EXPECTED" "$(sed -n '1p' "$S1054_ROOT/state/created-body")"
+S1054_OMITTED_MARKER="${S1054_OUT#*$'\n'MARKER }"
+S1054_OMITTED_MARKER="${S1054_OMITTED_MARKER%%$'\n'*}"
 assert_eq "seed #1054: omitted caller marker still receives the helper's reported marker" \
-  "$S1054_EXPECTED" "${S1054_OUT#*$'\n'MARKER }"
+  "$S1054_EXPECTED" "$S1054_OMITTED_MARKER"
 printf '%s\n' "$S1054_EXPECTED" '# PRFlow Review' '**Status:** 🚀 Reviewing' > "$S1054_BODY"
 GITHUB_RUN_ID=306999 GITHUB_RUN_ATTEMPT=4 S1054_STATE="$S1054_ROOT/state" \
   bash "$S1054_SEED" 7 'ignored' "$S1054_BODY" >/dev/null 2>&1
@@ -2691,7 +2705,8 @@ S1054_OUT="$(GITHUB_RUN_ID=306999 GITHUB_RUN_ATTEMPT=4 S1054_RESUME=1 \
   S1054_STATE="$S1054_ROOT/state" bash "$S1054_SEED" 7 'caller-is-ignored' "$S1054_BODY" 2>/dev/null)"
 assert_eq "seed #1054: RESUME reports the authoritative marker on a separate line" \
   "RESUME 9001
-MARKER $S1054_EXPECTED" "$S1054_OUT"
+MARKER $S1054_EXPECTED
+RUNLINK _(local run)_" "$S1054_OUT"
 
 # Local callers keep their explicit positional-slot marker when no usable
 # GitHub run id exists, including the whitespace-only cloud value.
@@ -2701,24 +2716,28 @@ S1054_OUT="$(env -u GITHUB_RUN_ID -u GITHUB_RUN_ATTEMPT S1054_STATE="$S1054_ROOT
   bash "$S1054_SEED" 7 "$S1054_LOCAL" "$S1054_BODY" 2>/dev/null)"
 assert_eq "seed #1054: absent cloud run id falls back to the existing marker slot" \
   "CREATED 9002
-MARKER $S1054_LOCAL" "$S1054_OUT"
+MARKER $S1054_LOCAL
+RUNLINK _(local run)_" "$S1054_OUT"
 assert_eq "seed #1054: local body receives its explicit fallback marker as line one" "$S1054_LOCAL" \
   "$(sed -n '1p' "$S1054_ROOT/state/created-body")"
 S1054_OUT="$(GITHUB_RUN_ID=$' \t ' GITHUB_RUN_ATTEMPT=9 S1054_RESUME=1 \
   S1054_STATE="$S1054_ROOT/state" bash "$S1054_SEED" 7 "$S1054_LOCAL" "$S1054_BODY" 2>/dev/null)"
 assert_eq "seed #1054: whitespace-only cloud run id also falls back to the marker slot" \
   "RESUME 9001
-MARKER $S1054_LOCAL" "$S1054_OUT"
+MARKER $S1054_LOCAL
+RUNLINK _(local run)_" "$S1054_OUT"
 S1054_OUT="$(GITHUB_RUN_ID='' GITHUB_RUN_ATTEMPT=9 S1054_RESUME=1 \
   S1054_STATE="$S1054_ROOT/state" bash "$S1054_SEED" 7 "$S1054_LOCAL" "$S1054_BODY" 2>/dev/null)"
 assert_eq "seed #1054: explicitly empty cloud run id falls back to the marker slot" \
   "RESUME 9001
-MARKER $S1054_LOCAL" "$S1054_OUT"
+MARKER $S1054_LOCAL
+RUNLINK _(local run)_" "$S1054_OUT"
 S1054_OUT="$(env -u GITHUB_RUN_ATTEMPT GITHUB_RUN_ID=307000 S1054_RESUME=1 \
   S1054_STATE="$S1054_ROOT/state" bash "$S1054_SEED" 7 "$S1054_LOCAL" "$S1054_BODY" 2>/dev/null)"
 assert_eq "seed #1054: an absent cloud attempt defaults to one inside the helper" \
   "RESUME 9001
-MARKER <!-- prflow:review-progress run=307000-1 -->" "$S1054_OUT"
+MARKER <!-- prflow:review-progress run=307000-1 -->
+RUNLINK _(local run)_" "$S1054_OUT"
 
 # Stateful local run: the engine computes one timestamp-bearing fallback, and a
 # second seed invocation resolves the first comment instead of creating another.
@@ -2728,12 +2747,14 @@ S1054_OUT="$(env -u GITHUB_RUN_ID -u GITHUB_RUN_ATTEMPT S1054_STATEFUL=1 \
   S1054_STATE="$S1054_ROOT/state" bash "$S1054_SEED" 7 "$S1054_LOCAL" "$S1054_BODY" 2>/dev/null)"
 assert_eq "seed #1054: first local invocation creates under the engine-computed marker" \
   "CREATED 9002
-MARKER $S1054_LOCAL" "$S1054_OUT"
+MARKER $S1054_LOCAL
+RUNLINK _(local run)_" "$S1054_OUT"
 S1054_OUT="$(env -u GITHUB_RUN_ID -u GITHUB_RUN_ATTEMPT S1054_STATEFUL=1 \
   S1054_STATE="$S1054_ROOT/state" bash "$S1054_SEED" 7 "$S1054_LOCAL" "$S1054_BODY" 2>/dev/null)"
 assert_eq "seed #1054: second local invocation resumes the same marker" \
   "RESUME 9002
-MARKER $S1054_LOCAL" "$S1054_OUT"
+MARKER $S1054_LOCAL
+RUNLINK _(local run)_" "$S1054_OUT"
 
 # Three full-body rewrites retain the held marker, so exact lookup survives every
 # phase boundary rather than only the initial seed.
@@ -2745,7 +2766,8 @@ for S1054_PHASE in 1 2 3; do
     S1054_STATE="$S1054_ROOT/state" bash "$S1054_SEED" 7 "$S1054_LOCAL" "$S1054_BODY" 2>/dev/null)"
   assert_eq "seed #1054: phase-$S1054_PHASE full-body rewrite remains discoverable by held marker" \
     "RESUME 9002
-MARKER $S1054_LOCAL" "$S1054_OUT"
+MARKER $S1054_LOCAL
+RUNLINK _(local run)_" "$S1054_OUT"
 done
 
 S1054_RC=0
