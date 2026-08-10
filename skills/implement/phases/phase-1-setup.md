@@ -185,7 +185,7 @@ fi
 
 After this step, every later phase boundary touches the workpad via `workpad.py update $ISSUE_NUMBER ...` — no `WORKPAD_ID` variable to track across calls.
 
-**Record the classification and reconcile the skeleton (every entry — fresh run, in-flight resume, and terminal re-trigger).** The 2.1.5 gate reads the recorded classification, and the gate/`new-body` skeleton is rendered deterministically from the *label*, so it can disagree with the *content* classification (1.1). Resume semantics decide whether to classify afresh or read the recorded verdict:
+**Record the classification and reconcile the skeleton (every entry — fresh run, in-flight resume, and terminal re-trigger).** The 2.1.5 gate reads the recorded classification, and the reproduction skeleton's pre-rendered default is whatever **caller** invoked `new-body` decided — the cloud `gate` job from the `bug` label, §1.3's own `new-body` calls from the recorded *content* classification (1.1) — so either default can disagree with the §1.1 content classification. `--reconcile-reproduction` below is the authoritative correction, run on every entry. Resume semantics decide whether to classify afresh or read the recorded verdict:
 
 - **Fresh run** (`WORKPAD_ID` was empty), **or a resume that finds no `classification: ` note** (a gate-created skeleton that only carries the run-started note, or a prior run that died before recording), **or a re-trigger after a *terminal* workpad `Status`** (🎉/👎/💥/🛑 — the operator's correction channel is editing the issue and re-triggering) → **classify now** (per 1.1, from the issue's *current* content and labels) and **record** it, which also supersedes any stale note from a prior verdict:
   ```bash
