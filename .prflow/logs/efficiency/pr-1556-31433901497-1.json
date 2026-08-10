@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1556",
+  "generated_at": "2026-08-10T21:35:51Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.12",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 4.636000749999999,
+    "tokens": {
+      "input_tokens": 45,
+      "output_tokens": 19246,
+      "cache_read_input_tokens": 2968739,
+      "cache_creation_input_tokens": 139989,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 67,
+        "outputTokens": 33826,
+        "cacheReadInputTokens": 3411314,
+        "cacheCreationInputTokens": 249504,
+        "webSearchRequests": 0,
+        "costUSD": 4.636000749999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 27,
+    "duration_ms": 423481
+  },
+  "permission_denials": {
+    "count": 5,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      "echo \"$CLAUDE_SKILL_DIR\"",
+      "echo \"RUN_ID=$GITHUB_RUN_ID ATT=$GITHUB_RUN_ATTEMPT\"; mkdir -p .prflow/tmp/review/pr-1556/local-run; gh pr diff 1556 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1556/local-run/diff.patch | tail -5; echo \"=== files ===\"; grep '^diff --git' .prflow/tmp/review/pr-1556/local-run/diff.patch",
+      "git fetch origin 67d4c68556629a25259f0e1341a2b6ef136a2449 --depth=1 2>&1 | tail -1; for f in skills/implement/phases/phase-2-implement.md skills/review/phases/phase-3-agents.md; do git cat-file blob 67d4c68:$f | python3 -c \"import sys,hashlib; print('$f', hashlib.sha256(sys.stdin.buffer.read()).hexdigest())\"; done",
+      "for f in skills/implement/phases/phase-2-implement.md skills/review/phases/phase-3-agents.md; do printf '%s ' \"$f\"; git cat-file blob 67d4c68:\"$f\" | sha256sum | cut -d' ' -f1; done"
+    ],
+    "total": 5,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
