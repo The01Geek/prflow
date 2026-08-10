@@ -25,8 +25,10 @@
 #   10  no-deliverables    |  12  extract-failed
 #
 # A usage error (a missing or non-numeric issue number) prints NO token and exits
-# 2, which is outside the closed set above and is the caller's residual arm — as
-# is any status this header does not pair with the token that was printed.
+# 64 (EX_USAGE), which is outside the closed set above and is the caller's residual
+# arm — as is any status this header does not pair with the token that was printed.
+# 64 rather than 2 keeps the arm from colliding with `scripts/preflight.py`'s
+# three-class contract, where 2 means BLOCKED — a decided answer, not a bad call.
 #
 # Usage: read-doc-needed-deliverables.sh <issue-number>
 # stdout: line 1 = the token; on `deliverables`, one path per line after it.
@@ -42,13 +44,13 @@
 # DEVFLOW_DOC_NEEDED_EXTRACTOR selects the extractor, so the suite can drive the
 # extractor-failure arm without a failing `gh`.
 
-set -uo pipefail
+set -u
 
 ISSUE="${1:-}"
 case "$ISSUE" in
   '' | *[!0-9]*)
     echo "devflow: read-doc-needed-deliverables.sh: usage: read-doc-needed-deliverables.sh <issue-number>" >&2
-    exit 2
+    exit 64
     ;;
 esac
 
@@ -67,7 +69,6 @@ EXTRACTOR="${DEVFLOW_DOC_NEEDED_EXTRACTOR:-$_RDND_DIR/extract-doc-needed-paths.s
 DEVFLOW_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 SCRATCH="$DEVFLOW_ROOT/.prflow/tmp"
 BODY_FILE="$SCRATCH/devflow-docgate-body-$ISSUE.txt"
-GH_ERR_FILE="$SCRATCH/devflow-docgate-gh.err"
 
 # An unusable scratch leaf leaves the body unread, which is a read failure and
 # never an empty deliverable list.
@@ -76,11 +77,13 @@ if ! mkdir -p "$SCRATCH"; then
   printf '%s\n' body-read-failed
   exit 11
 fi
-rm -f "$BODY_FILE" "$GH_ERR_FILE"
+rm -f "$BODY_FILE"
 
-# Read and retry, each attempt judged by its own exit status inline.
-if ! "$DEVFLOW_GH" issue view "$ISSUE" --json body --jq '.body' > "$BODY_FILE" 2>"$GH_ERR_FILE" \
-   && ! "$DEVFLOW_GH" issue view "$ISSUE" --json body --jq '.body' > "$BODY_FILE" 2>"$GH_ERR_FILE"; then
+# Read and retry, each attempt judged by its own exit status inline. gh's stderr
+# is deliberately NOT captured to a file: it flows to the caller, where the run
+# can actually read why a failed read failed.
+if ! "$DEVFLOW_GH" issue view "$ISSUE" --json body --jq '.body' > "$BODY_FILE" \
+   && ! "$DEVFLOW_GH" issue view "$ISSUE" --json body --jq '.body' > "$BODY_FILE"; then
   printf '%s\n' body-read-failed
   exit 11
 fi

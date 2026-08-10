@@ -1227,36 +1227,31 @@ Stage B emits.
 
 ### The read boundary: `scripts/read-doc-needed-deliverables.sh`
 
-Issue #1554 moved the read itself out of the phase file. Both stages used to carry the same twelve
-lines of inline shell — a `gh issue view` into a fixed scratch file, an invocation of
-`extract-doc-needed-paths.sh` over that file, and a folded retry on each — captured into a
-`DOC_NEEDED_PATHS` shell variable. That shape had three costs: the value never reached the run (a
-`VAR=$(…)` capture does not survive to the next Bash tool call, so the dispatch briefing and the
-diff check both read a value nobody observed), the branch logic was reachable by no test because
-prose has no executable boundary, and the rule was stated twice in two paragraphs that were never
-the same text.
+`scripts/read-doc-needed-deliverables.sh <issue-number>` owns the read both stages perform — the
+`gh issue view` fetch, its scratch file, the invocation of `extract-doc-needed-paths.sh` over it, and
+a retry on each. It prints an **outcome token** as line 1 of stdout and, on success with paths, the
+deliverable paths one per line after it. **That helper's own header is the canonical statement of its
+token vocabulary and the exit status paired with each; read it there rather than from a copy.** Each
+token has its own status, and the success statuses are disjoint from the failure ones, so a token
+paired with the wrong status is detectable.
 
-`scripts/read-doc-needed-deliverables.sh <issue-number>` now owns that read — the fetch, the scratch
-file, the extractor invocation, and both retries. It prints an **outcome token** as line 1 of stdout
-and, on success with paths, the deliverable paths one per line after it, so the caller reads the list
-from the tool result. Each token is paired with its own exit status, and the success statuses are
-disjoint from the failure ones so a token paired with the wrong status is detectable:
+Why the read is a helper at all (issue #1554): both stages previously carried the same inline shell,
+byte-for-byte, capturing the paths into a `DOC_NEEDED_PATHS` shell variable. That cost three things
+at once. The value never reached the run — a `VAR=$(…)` capture does not survive to the next Bash
+tool call, so the dispatch briefing that names the mandatory deliverables and the per-path diff check
+both read a value the run never observed. The branch logic was reachable by no test, because a fence
+in agent-executed prose has no executable boundary to drive. And the governing rule was stated twice,
+in two paragraphs that had never been the same text. Printing the outcome fixes the first, an
+executable CLI fixes the second, and one shared contract paragraph in the phase file fixes the third.
 
-| Token | Exit | Meaning |
-| --- | --- | --- |
-| `deliverables` | 0 | the body was read; the extraction returned one or more paths, printed below the token |
-| `no-deliverables` | 10 | the body was read; the extraction returned no path (absent section, or only non-path prose) |
-| `body-read-failed` | 11 | both `gh issue view` attempts failed |
-| `extract-failed` | 12 | both extractor attempts failed |
-
-A usage error prints no token and exits 2. Both failure tokens fail **closed**: the deliverable list
-is unknown, never empty, so §4.1 routes them to `Blocked`. The phase file also carries a **residual
-arm** for every observation outside that contract — no output at all, an unrecognized token, a token
-paired with a status the contract does not pair it with, a status outside `{0, 10, 11, 12}`, and any
-reading that the helper did not run (`command not found`, `No such file`, `Permission denied`,
-rc 126, rc 127) — which routes to the same `Blocked` path, because a deliverable gate that continues
-on an unestablished read is not a gate. `gh` writes HTTP error bodies to stdout, so the helper judges
-each attempt by its own exit status and never by the capture being non-empty.
+Both failure tokens fail **closed**: the deliverable list is unknown, never empty, so §4.1 routes
+them to `Blocked`. The phase file also carries a **residual arm** for every observation outside the
+token-and-status contract — no output at all, an unrecognized token, a token paired with a status the
+contract does not pair it with, a status outside the closed set, and any reading that the helper did
+not run (`command not found`, `No such file`, `Permission denied`, rc 126, rc 127) — routing to that
+same `Blocked` path, because a deliverable gate that continues on an unestablished read is not a
+gate. `gh` writes HTTP error bodies to stdout, so the helper judges each attempt by its own exit
+status and never by the capture being non-empty.
 
 The helper honours two overrides verbatim with no probe: `DEVFLOW_GH` (the shared resolver's own
 override) selects the `gh` binary, and `DEVFLOW_DOC_NEEDED_EXTRACTOR` selects the extractor — the

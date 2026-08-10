@@ -11063,7 +11063,7 @@ assert_eq "#1554 helper exists and is executable" "yes" \
 # $RDND_FAIL_TIMES calls the way gh really fails: an HTTP error BODY on stdout
 # with a non-zero status, so a caller testing capture-emptiness instead of the
 # exit status would read the error blob as an issue body.
-rdnd_dir="$(mktemp -d)"
+rdnd_dir="$(git_sandbox '#1554 read-doc-needed-deliverables fixture matrix')"
 cat > "$rdnd_dir/gh" <<'RDND_GH_STUB'
 #!/usr/bin/env bash
 n=$(cat "$RDND_COUNT_FILE" 2>/dev/null || echo 0); n=$((n + 1)); echo "$n" > "$RDND_COUNT_FILE"
@@ -11150,7 +11150,7 @@ assert_eq "#1554 idempotency: a second invocation over the same body reports the
 rdnd_usage_out="$(DEVFLOW_GH="$rdnd_dir/gh" bash "$RDND_HELPER" 2>/dev/null)"; rdnd_usage_rc=$?
 assert_eq "#1554 residual arm: a missing issue number prints no token" "" "$rdnd_usage_out"
 assert_eq "#1554 residual arm: a missing issue number exits outside the closed status set {0,10,11,12}" \
-  "2" "$rdnd_usage_rc"
+  "64" "$rdnd_usage_rc"
 rm -rf "$rdnd_dir"
 
 # ── issue #380: the `### Documentation Needed` HEADING as a third scope-opening ─
@@ -44798,11 +44798,12 @@ ibr_run() {  # <root> <path…> -> "rc=<n>|<stdout+stderr>"
   printf 'rc=%s|%s' "$rc" "$out"
 }
 
-# Discrimination: the §1.1 producer fetch and §4.1 gate fences are the two named in-file
-# allowances — a green run over exactly those (plus a clean file) proves the guard discriminates.
-assert_eq "#693 scanner: the §1.1 producer fetch and §4.1 gate fences are not flagged" \
-  "rc=0|lint-issue-body-refetch: audited 3 of 3 files" \
-  "$(ibr_run "$IBR_FX" skills/implement/clean.md skills/implement/producer.md skills/implement/docgate.md)"
+# Discrimination: the §1.1 producer fetch is the named in-file allowance — a green run over
+# it (plus a clean file) proves the guard discriminates. Issue #1554 retired the §4.1 gate's
+# own allowance with the fence that needed it, so the docgate fixture went with it.
+assert_eq "#693 scanner: the §1.1 producer fetch is not flagged" \
+  "rc=0|lint-issue-body-refetch: audited 2 of 2 files" \
+  "$(ibr_run "$IBR_FX" skills/implement/clean.md skills/implement/producer.md)"
 
 # Planted-defect positive control, one per detected form (the coverage-claim rule).
 while IFS=: read -r _ibr_file _ibr_slug _ibr_what; do
