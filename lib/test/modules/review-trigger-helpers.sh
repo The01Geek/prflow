@@ -2306,6 +2306,39 @@ DRC_TERMINAL='[{"body":"<!-- devflow:review-progress run=555-1 -->\n'"$DRC_SEEDK
 assert_eq "drc: terminal (past 🚀 Reviewing) progress comment → no suppress" "suppress=false" \
   "$(drc "$DRC_TERMINAL")"
 
+# ── pre-seed window / unseeded-peer negative controls (issue #1479) ─────────────
+# A peer review run has STARTED but not yet seeded its prflow:review-progress
+# comment (the engine seeds it at Phase 0.3.5, inside its agent job — a ~141s
+# window measured on PR #1469, 2026-08-09). The detector's DECIDED behavior in that
+# window is to FAIL OPEN (suppress=false), unchanged: keying suppression on the
+# comment's ABSENCE has no updated_at to age out and would wedge every later request
+# forever if a peer's seed silently failed, and a head-blind thread scope suppresses
+# unrelated conversation and legitimate re-requests. The assertions below are
+# NEGATIVE CONTROLS that guard the narrowness of isprogress against a future arm
+# that admits a per-head comment which is not a live review-progress comment.
+
+# (a) DISCRIMINATING boundary for the review-progress-MARKER conjunct: a bot, fresh
+# comment at THIS head, carrying the seed-time head key and the 🚀 Reviewing status
+# but NO review-progress marker. isprogress rejects it on the marker conjunct alone
+# (the 🚀 Reviewing/liveness/bot conjuncts all hold), so this is not a relabelled
+# duplicate of the terminal/frozen controls — it fails on a DIFFERENT conjunct.
+# The single widening that turns it RED: dropping isprogress's
+# `(contains($marker) or contains($marker_superseded))` conjunct would admit this
+# unmarked comment as an in-flight peer and flip the result to suppress=true.
+# (Verified by the copy-based mutation-check recorded on issue #1479's workpad.)
+DRC_UNMARKED='[{"body":"'"$DRC_SEEDKEY"'\n**Status:** 🚀 Reviewing","user":{"type":"Bot"},"updated_at":"'"$DRC_FRESH"'"}]'
+assert_eq "drc(#1479): unseeded-peer window — bot/fresh/🚀 comment carrying no review-progress marker (isprogress rejects on the marker conjunct) → fail open, no suppress" "suppress=false" \
+  "$(drc "$DRC_UNMARKED")"
+
+# (b) The requesting run's own prflow:ci-review-trigger marker is a per-head note
+# recording that a review was REQUESTED (scripts/post-ci-review-trigger.sh), not a
+# peer claim, and no detector reads it. A timeline whose only per-head comment is
+# that marker must not suppress: isprogress rejects it (neither a review-progress
+# marker nor the 🚀 Reviewing status), so it never counts as an in-flight peer.
+DRC_CITRIG='[{"body":"<!-- prflow:ci-review-trigger sha='"$DRC_HEADSHA"' -->","user":{"type":"Bot"},"updated_at":"'"$DRC_FRESH"'"}]'
+assert_eq "drc(#1479): unseeded-peer window — only per-head comment is the run's own ci-review-trigger marker (not a peer claim) → fail open, no suppress" "suppress=false" \
+  "$(drc "$DRC_CITRIG")"
+
 # does-not-suppress-a-backstop-resume — the fixture carries the transitional
 # /devflow:review token (what scripts/post-review-backstop-comment.sh writes) AND
 # the devflow:review-backstop marker (composed by scripts/request-review-backstop.sh),
