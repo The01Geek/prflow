@@ -48,9 +48,19 @@ allowances, recognized by a literal in the offending logical line:
 
   * the §1.1 producer fetch — it redirects into the cache path, so its statement
     carries the `issue-body/issue-` cache-path literal; and
-  * §4.1's Documentation-Needed gate fences — they redirect to
-    `.prflow/tmp/devflow-docgate-body-<n>.txt`, carrying the `devflow-docgate-body`
-    literal.
+  * §4.1's Documentation-Needed gate — the `devflow-docgate-body` literal.
+
+Recorded disposition of that second allowance (issue #1554). §4.1's gate no
+longer fetches the body in the phase file: the fetch, its scratch file and both
+retries moved into a bundled helper under `scripts/`, which the audited
+population (`skills/implement/`) does not cover — so that re-fetch site is now
+OUT of this lint's audited population entirely and nothing here checks it. The
+allowance is RETAINED rather than removed because it is scoped to a literal, not
+to a line that must exist: retaining it costs nothing while the literal is
+absent, and keeps §4.1 free to reintroduce a docgate scratch capture without
+tripping a lint that never audited the read it replaced. Read this lint's green
+result as covering the phase files' own fetches only, never as covering the
+helper's.
 
 A detected form anywhere ELSE in an audited file is a failure.
 
@@ -160,9 +170,9 @@ AUDITED_PREFIX = "skills/implement/"
 MARKDOWN_SUFFIXES = (".md", ".md.example")
 
 #: A logical line carrying one of these literals is a named in-file allowance —
-#: the §1.1 producer fetch (which writes the cache) or §4.1's Documentation-Needed
-#: gate fences (which redirect to the docgate scratch file). Findings on such a
-#: line are suppressed. See the module docstring.
+#: the §1.1 producer fetch (which writes the cache) or a §4.1 Documentation-Needed
+#: docgate scratch capture. Findings on such a line are suppressed. The second
+#: literal matches nothing today; see the module docstring for why it is retained.
 ALLOW_SITE_LITERALS = ("issue-body/issue-", "devflow-docgate-body")
 
 #: A head token naming the gh binary directly, or through a resolver variable

@@ -10183,18 +10183,19 @@ assert_eq "#350: the DEVFLOW_APP_ID env export lives in the Run Claude Code step
 #   Stage 2 post-hoc: cross-check each path against the PR diff; self-heal or
 #     route to Blocked for absent paths.
 # The Addendum (2026-06-29) SUPERSEDES LLM prose-extraction: a deterministic
-# helper (scripts/extract-doc-needed-paths.sh) is the single extraction boundary
-# BOTH stages consume, and its behavior is verified by the fixture matrix below
-# (not by detailed prose pins). The retained boundaries cover the mandatory
-# deliverable dispatch, helper invocation shape, no-op escape, diff range, and
-# Blocked arm.
+# helper is the single extraction boundary BOTH stages consume, and its behavior
+# is verified by the fixture matrix below (not by detailed prose pins). Issue
+# #1554 then moved the read itself — the gh fetch, the extractor invocation and
+# both retries — behind scripts/read-doc-needed-deliverables.sh, whose token and
+# exit-status contract the matrix below drives directly. The retained boundaries
+# cover the mandatory deliverable dispatch, helper invocation shape, no-op
+# escape, diff range, and Blocked arm.
 assert_pin_unique "#185: Phase 4.1 Stage 1 requires docs subagent to treat named paths as mandatory (D)" \
   'treat each as a mandatory deliverable' "$IMPL_SKILL"
-# Both stages consume the SAME deterministic helper (not re-derived). Issue #284
-# folded the once-only retry into each stage's `if ! A && ! B` extractor guard, so the
-# helper is now invoked twice per stage (read + retry) × 2 stages = 4 occurrences.
-assert_eq "#185A: Phase 4.1 calls extract-doc-needed-paths.sh in BOTH stages (read+retry each)" \
-  "4" "$(pin_count 'extract-doc-needed-paths.sh' "$IMPL_SKILL")"
+# Both stages consume the SAME deterministic helper (not re-derived): one
+# single-statement invocation each, so the count is the number of stages.
+assert_eq "#1554: Phase 4.1 invokes read-doc-needed-deliverables.sh in BOTH stages" \
+  "2" "$(pin_count '/../../scripts/read-doc-needed-deliverables.sh $ISSUE_NUMBER' "$IMPL_SKILL")"
 assert_pin_unique "#185: Phase 4.1 Stage 2 no-op escape hatch when no paths extracted (E)" \
   'this cross-check is a no-op' "$IMPL_SKILL"
 # Issue #284 folded the once-only retry into the Stage-2 diff `if ! A && { fetch; ! B; }`
@@ -10214,17 +10215,12 @@ assert_pin_unique "#185: Phase 4.1 Stage 2 Blocked arm names the missing-content
 # extractor in the next) — a residual fail-OPEN on a value-stripping runner. The
 # fix-delta gate then flagged that a `set -o pipefail`-pipe alternative would rest on
 # SHELL-OPTION state surviving between statements inside $(...), the same marshaling class.
-# So the body is now passed through a FIXED TEMP FILE: gh writes it (statement 1, if!-guarded
-# on gh's own rc), the extractor reads it (statement 2, if!-guarded on the extractor's rc) —
-# a literal disk PATH, neither a variable nor an option, so NO marshaled cross-statement
-# state has to survive. Assert the temp-file form in BOTH stages (coupled site) and that the
-# old captured-rc recipe, the ISSUE_BODY value-hop, AND the pipefail-option form are all GONE.
-assert_eq "#284 fix-loop: Phase 4.1 gh body read is if!-guarded in BOTH stages" \
-  "2" "$(pin_count 'if ! gh issue view $ISSUE_NUMBER --json body' "$IMPL_SKILL")"
-assert_eq "#284 fix-loop: Phase 4.1 gh writes the body to a fixed temp file (read+retry x2 stages)" \
-  "4" "$(pin_count '> .prflow/tmp/devflow-docgate-body-$ISSUE_NUMBER.txt 2>' "$IMPL_SKILL")"
-assert_eq "#284 fix-loop: Phase 4.1 extractor reads that temp file (read+retry x2 stages)" \
-  "4" "$(pin_count 'extract-doc-needed-paths.sh < .prflow/tmp/devflow-docgate-body-$ISSUE_NUMBER.txt' "$IMPL_SKILL")"
+# The body then travelled through a FIXED TEMP FILE written inline in the phase file. Issue
+# #1554 moved that whole read — the gh fetch, its temp file, the extractor invocation, and
+# both retries — into scripts/read-doc-needed-deliverables.sh, so the phase file states the
+# routing and the helper owns the shell; the read's arms are driven by the fixture matrix
+# below rather than pinned as prose here. The three "form is GONE" pins remain, because each
+# names a marshaling recipe that must not come back on either side of that move.
 assert_eq "#284 fix-loop: Phase 4.1 no longer carries the old GH_RC/HELPER_RC capture-then-read recipe" \
   "0" "$(pin_count 'GH_RC=$?' "$IMPL_SKILL")"
 # The ISSUE_BODY value-hop the shadow flagged, and the pipefail-option form the fix-delta gate
@@ -10235,8 +10231,8 @@ assert_eq "#284 shadow-fix: Phase 4.1 no longer reads ISSUE_BODY across statemen
   "0" "$(pin_count 'printf '"'"'%s'"'"' "$ISSUE_BODY" |' "$IMPL_SKILL")"
 assert_eq "#284 delta-gate-fix: Phase 4.1 doc gate does not rest on set -o pipefail option state" \
   "0" "$(pin_count 'set -o pipefail; gh issue view' "$IMPL_SKILL")"
-assert_eq "#190 fix-loop: Phase 4.1 fail-closed extraction contract pinned in BOTH stages" \
-  "2" "$(pin_count 'never treat its empty stdout as a no-op' "$IMPL_SKILL")"
+assert_eq "#190 fix-loop: Phase 4.1 states the fail-closed extraction contract exactly once" \
+  "1" "$(pin_count 'never treat its empty stdout as a no-op' "$IMPL_SKILL")"
 
 # ── issue #230: narrative is a starting point; only Desired Behavior + ACs are ──
 # authoritative downstream, and the Documentation Needed bullet is a floor-not-a-
@@ -11049,6 +11045,113 @@ Update \`docs/guide.md\` here."
 assert_eq "#327 Shape 2 fail-open pin: a list item whose only ext token is a rooted path (Stage-B-dropped) does NOT arm the close; the trailing-prose deliverable is captured" \
   "docs/guide.md" \
   "$(printf '%s\n' "$fx_327_arms_rooted" | bash "$EXTRACT_HELPER")"
+
+# ── issue #1554: read-doc-needed-deliverables.sh — the Phase 4.1 read boundary ──
+# Phase 4.1's Documentation-Needed read used to be inline shell written twice in
+# the phase file: it captured its result into a shell variable no later Bash call
+# could see, and its retry / fail-closed arms were reachable by no test. The read
+# now lives in this helper, which prints an outcome token from a closed vocabulary
+# and pairs each token with its own exit status, so the phase file routes on what
+# it observed. This matrix drives every token and the two arm-ordering questions
+# a caller's correctness rests on: a failed READ must not read as an EMPTY
+# extraction, and a read that recovers on its retry must not read as a failure.
+RDND_HELPER="$LIB/../scripts/read-doc-needed-deliverables.sh"
+assert_eq "#1554 helper exists and is executable" "yes" \
+  "$([ -x "$RDND_HELPER" ] && echo yes || echo no)"
+
+# The gh stub answers from a fixture body file, and fails its first
+# $RDND_FAIL_TIMES calls the way gh really fails: an HTTP error BODY on stdout
+# with a non-zero status, so a caller testing capture-emptiness instead of the
+# exit status would read the error blob as an issue body.
+rdnd_dir="$(mktemp -d)"
+cat > "$rdnd_dir/gh" <<'RDND_GH_STUB'
+#!/usr/bin/env bash
+n=$(cat "$RDND_COUNT_FILE" 2>/dev/null || echo 0); n=$((n + 1)); echo "$n" > "$RDND_COUNT_FILE"
+if [ "$n" -le "${RDND_FAIL_TIMES:-0}" ]; then
+  echo '{"message":"Not Found","documentation_url":"https://docs.github.com/rest"}'
+  echo "gh: HTTP 404" >&2
+  exit 1
+fi
+cat "$RDND_BODY_FILE"
+RDND_GH_STUB
+chmod +x "$rdnd_dir/gh"
+cat > "$rdnd_dir/bad-extractor" <<'RDND_EXTRACTOR_STUB'
+#!/usr/bin/env bash
+echo "extract-doc-needed-paths.sh: token scan error" >&2
+exit 3
+RDND_EXTRACTOR_STUB
+chmod +x "$rdnd_dir/bad-extractor"
+
+printf '%s\n' "## Implementation Notes" "" \
+  "- **Documentation Needed** — update \`docs/internal/implement-skill.md\`." \
+  > "$rdnd_dir/body-paths.md"
+printf '%s\n' "## Implementation Notes" "" \
+  "- **Approach** — nothing to document." > "$rdnd_dir/body-nosection.md"
+printf '%s\n' "## Implementation Notes" "" \
+  "- **Documentation Needed** — none; describe it in the pull request instead." \
+  > "$rdnd_dir/body-prose.md"
+printf '%s\n' "## Implementation Notes" "" \
+  "- **Documentation Needed** — update \`docs/internal/implement-skill.md\`; verify with \`bash lib/test/run.sh\` and grant \`Bash(scripts/x.sh:*)\`." \
+  > "$rdnd_dir/body-adversarial.md"
+
+# rdnd_run BODY_FILE FAIL_TIMES [EXTRACTOR] -> prints the helper's stdout, then a
+# final line `rc=<status>`, so one capture carries both halves of the contract.
+rdnd_run() {
+  local _body="$1" _fails="${2:-0}" _extractor="${3:-}" _out _rc
+  : > "$rdnd_dir/count"
+  _out="$(RDND_COUNT_FILE="$rdnd_dir/count" RDND_BODY_FILE="$_body" RDND_FAIL_TIMES="$_fails" \
+          DEVFLOW_GH="$rdnd_dir/gh" DEVFLOW_DOC_NEEDED_EXTRACTOR="$_extractor" \
+          bash "$RDND_HELPER" 1554 2>/dev/null)"
+  _rc=$?
+  printf '%s\nrc=%s\n' "$_out" "$_rc"
+}
+
+# Token 1 of 4 — `deliverables` (0): the paths are printed after the token, one
+# per line, which is what makes them readable from the tool result at all.
+assert_eq "#1554 token vocabulary: a non-empty extraction prints \`deliverables\`, its paths, and exit 0" \
+  "$(printf 'deliverables\ndocs/internal/implement-skill.md\nrc=0')" \
+  "$(rdnd_run "$rdnd_dir/body-paths.md")"
+# Token 2 of 4 — `no-deliverables` (10), reached two ways: no section at all, and
+# a section carrying only non-path prose.
+assert_eq "#1554 token vocabulary: an absent Documentation Needed section prints \`no-deliverables\` and exit 10" \
+  "$(printf 'no-deliverables\nrc=10')" \
+  "$(rdnd_run "$rdnd_dir/body-nosection.md")"
+assert_eq "#1554 token vocabulary: a section holding only non-path prose prints \`no-deliverables\` and exit 10" \
+  "$(printf 'no-deliverables\nrc=10')" \
+  "$(rdnd_run "$rdnd_dir/body-prose.md")"
+# Token 3 of 4 — `body-read-failed` (11). This is the arm ordering the gate rests
+# on: both attempts fail, and the HTTP error blob the stub left on stdout must NOT
+# be read as a body, so the outcome is a READ FAILURE and never an empty extraction.
+assert_eq "#1554 arm order: a body read failing BOTH attempts is a read failure, not an empty extraction" \
+  "$(printf 'body-read-failed\nrc=11')" \
+  "$(rdnd_run "$rdnd_dir/body-paths.md" 2)"
+# The other half of that ordering: one failure is not a failure. A read that
+# succeeds on its retry yields the success token, so a flaky fetch never Blocks.
+assert_eq "#1554 arm order: a read succeeding on its SECOND attempt yields the success token" \
+  "$(printf 'deliverables\ndocs/internal/implement-skill.md\nrc=0')" \
+  "$(rdnd_run "$rdnd_dir/body-paths.md" 1)"
+# Token 4 of 4 — `extract-failed` (12), driven with a failing extractor and a
+# WORKING read, so the two failure tokens are told apart by their own cause.
+assert_eq "#1554 token vocabulary: an extractor failing BOTH attempts prints \`extract-failed\` and exit 12" \
+  "$(printf 'extract-failed\nrc=12')" \
+  "$(rdnd_run "$rdnd_dir/body-paths.md" 0 "$rdnd_dir/bad-extractor")"
+# Adversarial input: the block carries a command span and a grant literal, which
+# the extractor suppresses — they must not surface as phantom deliverables.
+assert_eq "#1554 adversarial input: a command span and a grant literal in the block are not deliverables" \
+  "$(printf 'deliverables\ndocs/internal/implement-skill.md\nrc=0')" \
+  "$(rdnd_run "$rdnd_dir/body-adversarial.md")"
+# Idempotency: a second invocation over the same body reports the same outcome,
+# so the helper's own scratch management cannot make the second read differ.
+assert_eq "#1554 idempotency: a second invocation over the same body reports the same outcome" \
+  "$(rdnd_run "$rdnd_dir/body-paths.md")" \
+  "$(rdnd_run "$rdnd_dir/body-paths.md")"
+# A usage error prints NO token and exits outside the closed status set, which is
+# exactly the observation Phase 4.1's residual arm exists to catch.
+rdnd_usage_out="$(DEVFLOW_GH="$rdnd_dir/gh" bash "$RDND_HELPER" 2>/dev/null)"; rdnd_usage_rc=$?
+assert_eq "#1554 residual arm: a missing issue number prints no token" "" "$rdnd_usage_out"
+assert_eq "#1554 residual arm: a missing issue number exits outside the closed status set {0,10,11,12}" \
+  "2" "$rdnd_usage_rc"
+rm -rf "$rdnd_dir"
 
 # ── issue #380: the `### Documentation Needed` HEADING as a third scope-opening ─
 # shape. Bug-class fix — reproduced RED first at authoring time: against today's

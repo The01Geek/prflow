@@ -1225,11 +1225,50 @@ false-positives). The Stage A `emitted` proxy (`arms()`) applies the same span/c
 (extension-only, since it cannot run the filesystem in-tree rescue) so it stays in lockstep with what
 Stage B emits.
 
-**Stage 1 — Pre-flight briefing (before dispatch).** The orchestrator runs the helper over the issue
-body and treats its output as the required deliverables. If the helper emits one or more paths, the
+### The read boundary: `scripts/read-doc-needed-deliverables.sh`
+
+Issue #1554 moved the read itself out of the phase file. Both stages used to carry the same twelve
+lines of inline shell — a `gh issue view` into a fixed scratch file, an invocation of
+`extract-doc-needed-paths.sh` over that file, and a folded retry on each — captured into a
+`DOC_NEEDED_PATHS` shell variable. That shape had three costs: the value never reached the run (a
+`VAR=$(…)` capture does not survive to the next Bash tool call, so the dispatch briefing and the
+diff check both read a value nobody observed), the branch logic was reachable by no test because
+prose has no executable boundary, and the rule was stated twice in two paragraphs that were never
+the same text.
+
+`scripts/read-doc-needed-deliverables.sh <issue-number>` now owns that read — the fetch, the scratch
+file, the extractor invocation, and both retries. It prints an **outcome token** as line 1 of stdout
+and, on success with paths, the deliverable paths one per line after it, so the caller reads the list
+from the tool result. Each token is paired with its own exit status, and the success statuses are
+disjoint from the failure ones so a token paired with the wrong status is detectable:
+
+| Token | Exit | Meaning |
+| --- | --- | --- |
+| `deliverables` | 0 | the body was read; the extraction returned one or more paths, printed below the token |
+| `no-deliverables` | 10 | the body was read; the extraction returned no path (absent section, or only non-path prose) |
+| `body-read-failed` | 11 | both `gh issue view` attempts failed |
+| `extract-failed` | 12 | both extractor attempts failed |
+
+A usage error prints no token and exits 2. Both failure tokens fail **closed**: the deliverable list
+is unknown, never empty, so §4.1 routes them to `Blocked`. The phase file also carries a **residual
+arm** for every observation outside that contract — no output at all, an unrecognized token, a token
+paired with a status the contract does not pair it with, a status outside `{0, 10, 11, 12}`, and any
+reading that the helper did not run (`command not found`, `No such file`, `Permission denied`,
+rc 126, rc 127) — which routes to the same `Blocked` path, because a deliverable gate that continues
+on an unestablished read is not a gate. `gh` writes HTTP error bodies to stdout, so the helper judges
+each attempt by its own exit status and never by the capture being non-empty.
+
+The helper honours two overrides verbatim with no probe: `DEVFLOW_GH` (the shared resolver's own
+override) selects the `gh` binary, and `DEVFLOW_DOC_NEEDED_EXTRACTOR` selects the extractor — the
+seams the suite drives its token-and-arm-ordering matrix through, including that a body read failing
+both attempts reports a read failure rather than an empty extraction, and that a read recovering on
+its second attempt yields a success token.
+
+**Stage 1 — Pre-flight briefing (before dispatch).** The orchestrator invokes that helper and routes
+on the token it printed. On `deliverables` the printed paths are the required deliverables and the
 dispatch instruction sent to the `prflow:docs` subagent is extended with "The issue requires the
 following files to be updated; treat each as a mandatory deliverable: `<path1>`, `<path2>`, …". If the
-helper emits nothing **but** the issue body still contains a Documentation Needed section **in either
+helper reports `no-deliverables` **but** the issue body still contains a Documentation Needed section **in either
 accepted form** — the bold-bullet `**Documentation Needed**` form **or** a `### Documentation Needed`
 heading (the safety-net grep matches both, carrying the same `\*{0,2}` bold-tolerance as the extractor's
 own opener so the two heading recognizers cannot drift) — the orchestrator records an auditable workpad
@@ -1238,9 +1277,10 @@ here would leave a heading-form issue's empty extraction silently unrecorded —
 paths are extractable the subagent receives the normal instruction unchanged.
 
 **Stage 2 — Post-hoc diff gate (after the subagent commits).** After the subagent completes and before
-ticking `Documentation`, the orchestrator **re-runs the same helper** — the single source of truth, so
-the two passes can never disagree about which files were named — and checks each path against the PR's
-cumulative diff:
+ticking `Documentation`, the orchestrator **re-runs `read-doc-needed-deliverables.sh`** — the single
+source of truth, so the two passes can never disagree about which files were named — routes its token
+by the same shared read contract Stage 1 states (residual arm included), and on `deliverables` checks
+each printed path against the PR's cumulative diff:
 
 ```bash
 if ! DIFF_OUT=$(git diff --name-only "origin/$BASE...HEAD") \
@@ -1267,8 +1307,8 @@ Bare-filename paths (containing no `/`) are considered satisfied if any diff ent
 `DEVFLOW_SYSTEM_OVERVIEW.md`. (Because basename matching is intentionally lenient, issue authors should
 use a qualified path — e.g. `docs/README.md` rather than bare `README.md` — when a specific file, not
 any same-named file, is the deliverable.) Paths containing a `/` must appear as an exact match. If
-Stage 1 extracted no paths, this cross-check is a no-op and the orchestrator proceeds directly to
-applying the post-docs labels and ticking `Documentation`.
+the helper reported `no-deliverables`, this cross-check is a no-op and the orchestrator proceeds
+directly to applying the post-docs labels and ticking `Documentation`.
 
 **For each absent path the orchestrator either self-heals or blocks:**
 

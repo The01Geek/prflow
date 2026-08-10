@@ -70,6 +70,8 @@
       "Bash(/home/runner/work/prflow/prflow/scripts/apply-issue-dependencies.py:*)",
       "Bash(scripts/extract-doc-needed-paths.sh:*)",
       "Bash(/home/runner/work/prflow/prflow/scripts/extract-doc-needed-paths.sh:*)",
+      "Bash(scripts/read-doc-needed-deliverables.sh:*)",
+      "Bash(/home/runner/work/prflow/prflow/scripts/read-doc-needed-deliverables.sh:*)",
       "Bash(scripts/file-deferrals.py:*)",
       "Bash(/home/runner/work/prflow/prflow/scripts/file-deferrals.py:*)",
       "Bash(scripts/load-prompt-extension.sh:*)",
