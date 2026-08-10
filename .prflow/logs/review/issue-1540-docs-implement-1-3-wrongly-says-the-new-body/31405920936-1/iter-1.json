@@ -1,0 +1,107 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-10T16:00:00Z",
+  "fix_commit_sha": null,
+  "fix_files": [],
+  "loop_role": "fix",
+  "current_step": "2.6",
+  "current_substep": "decide",
+  "pending_dispatch": null,
+  "sweep_defs_read": [
+    "phase-2-implement.md"
+  ],
+  "checklist": [],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [],
+  "fix_decisions": [],
+  "convergence_inputs": {
+    "fixes_applied": 0,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "shadow": {
+    "ran_at": "2026-08-10T16:05:00Z",
+    "reviewed_sha": "78b4833ff",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:requesting-code-review",
+        "severity": "Suggestion",
+        "description": "The clause 'either default can disagree with the §1.1 content classification' is slightly imprecise: §1.3's own new-body callers pass --no-reproduction from the content classification, so their default matches it by construction on a fresh run; only the gate default (from the label) or a stale recorded classification on resume can disagree. Non-blocking; the issue's Desired Behavior and AC2 sanction 'a pre-rendered default can disagree', and the reconcile-on-every-entry rationale holds via the gate case and the stale-recorded-resume case.",
+        "defect_signature": {
+          "file": "skills/implement/phases/phase-1-setup.md",
+          "line_range": [
+            188,
+            188
+          ],
+          "kind": "other"
+        }
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 1,
+      "overlap_with_iter_N": 0,
+      "new": 1,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false,
+    "step_2_6": {
+      "calls": 4,
+      "tokens": 224000,
+      "wall_clock_s": 77
+    }
+  },
+  "park_calibration": {
+    "evidence_comparisons": []
+  },
+  "telemetry": {
+    "phase_3": {
+      "calls": 4,
+      "tokens": 218000,
+      "wall_clock_s": 60
+    },
+    "step_2_6": {
+      "calls": 4,
+      "tokens": 224000,
+      "wall_clock_s": 77
+    }
+  },
+  "verification_evidence": {
+    "focused_selection": "no covering focused module for phase-1-setup.md prose or the regenerated JSON artifact; whole-suite gate owned by Phase 4.3"
+  },
+  "synthesized": false
+}
