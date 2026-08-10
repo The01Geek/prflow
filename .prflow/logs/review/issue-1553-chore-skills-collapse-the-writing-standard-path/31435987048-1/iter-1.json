@@ -1,0 +1,53 @@
+{
+  "iter": 1,
+  "loop_role": "fix",
+  "fix_commit_sha": null,
+  "fix_files": [],
+  "current_step": "loop-exit",
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": "intentional"
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:comment-analyzer",
+    "prflow:silent-failure-hunter",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [],
+  "fix_decisions": [],
+  "convergence_inputs": {
+    "fixes_applied": 0,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "shadow": {
+    "ran_at": "2026-08-10",
+    "reviewed_sha": "HEAD",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:comment-analyzer"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:comment-analyzer"
+    ],
+    "checklist_skipped": "intentional",
+    "phase3_findings": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
