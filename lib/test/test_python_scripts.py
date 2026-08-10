@@ -2106,8 +2106,8 @@ _live_ticks = sorted({
 # shipped implement surface must have parsed, so a call site written in a quoting
 # style this regex cannot read fails CLOSED here instead of silently escaping the
 # collision assertions below. The opening-quote probe is what separates a real call
-# site from SKILL.md's flag-table prose (`--tick-progress TEXT`), which names no
-# operand; a site whose operand is a shell variable is outside both counts and is
+# site from a prose mention that names the flag without an operand
+# (`--tick-progress TEXT`); a site whose operand is a shell variable is outside both counts and is
 # the disclosed residual.
 _tick_quoted = sum(len(re.findall(r'''--tick-progress\s+["']''', _txt))
                    for _p, _txt in _tick_md)
