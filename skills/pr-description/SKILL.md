@@ -12,7 +12,7 @@ Generate a structured PR description by analyzing the current branch's changes a
 
 **Portable helper anchor (single-statement).** The bundled-helper commands in this skill resolve the skill directory inline at each call site via `${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}`. When `$CLAUDE_SKILL_DIR` is set and non-empty (Claude Code), run each command exactly as written. On a runner where it is unset or empty, replace the placeholder with the skill base directory the runner reports in context (e.g. a `Base directory for this skill:` line) before running the command; if that reported path is Windows-form (`C:\...`), first convert it to this shell's POSIX form with one standalone `wslpath -u '<path>'` (WSL) or `cygpath -u '<path>'` (Git Bash/MSYS2) command and substitute the printed result **only if the command succeeds and prints a non-empty path — otherwise fall through to the drive-letter rules exactly as if the tool were absent, the same success-and-non-empty acceptance the platform's path-normalization rules apply** (if neither tool exists: lowercase the drive letter, map `C:\` to `/mnt/c` on WSL or `/c` on MSYS2, and turn backslashes into `/`; if the environment is neither WSL nor MSYS2, use the path unchanged and report that it could not be normalized — the same arm the platform's path-normalization rules take). Resolve the anchor inline at every call site — never capture it into a shell variable that a later statement reads, because some runners' inline-bash marshaling drops such variables (observed on Copilot CLI). If neither `$CLAUDE_SKILL_DIR` nor a runner-reported base directory is available, stop and report that the helper anchor could not be resolved rather than running a command with a broken path.
 
-**Consumer prompt extension (load first).** This skill's consumer extension reaches you through exactly one channel — the invocation ladder below — so load it yourself with that ladder, unconditionally, at the start of the run; nothing else delivers consumer policy into this skill. **Read the ladder's output whole** — no `>/dev/null`, no `| head -<n>`, no truncation of any kind — because an extension whose text you never observed governs nothing in this run, including the rules that say so. From the repo root, emit the granted vendored-literal leading token first:
+**Consumer prompt extension (load first).** This skill's consumer extension reaches you through exactly one channel — the invocation ladder below — so load it yourself with that ladder, unconditionally, at the start of the run. **Read the ladder's output whole** — no `>/dev/null`, no `| head -<n>`, no truncation of any kind — because an extension whose text you never observed governs nothing in this run. From the repo root, emit the granted vendored-literal leading token first:
 
 ```bash
 .prflow/vendor/prflow/scripts/load-prompt-extension.sh pr-description
@@ -75,7 +75,7 @@ If `WORKPAD_BODY` is set, scan its `## Acceptance Criteria` section for lines ma
 
 If no workpad exists, no issue number is available, or no `(post-merge)`-tagged items are found, `POST_MERGE_ITEMS` stays empty and the template's Post-Merge Verification section is omitted entirely. The lookup is best-effort — never fail the run on a missing workpad.
 
-**Best-effort: pull deferred review findings from the manifest.** /prflow:review-and-fix now writes each run's manifest **run-scoped** (`.prflow/tmp/review/<slug>/<run-id>/deferrals.json`), and /prflow:implement Phase 4.0.5 merges every run-scoped manifest into one **slug-level aggregate** at `.prflow/tmp/review/pr-<N>/deferrals.json`, then files follow-up issues and updates that aggregate in place with `id` and `follow_up` fields per entry. Read the slug-level aggregate (the single hydrated path Phase 4.0.5 produces) and surface its entries in the PR body as a Scope-Acknowledged Findings block so /prflow:review (run later as a formal merge signal) can match them and demote the corresponding findings to Informational. (Ordinary entries render only with a populated `follow_up.issue` — and only Phase 4.0.5 populates that, so the aggregate is the authoritative source; the run-scoped per-run files are raw, un-hydrated inputs to the merge. **A `settled-by-disclosure` foreclosure entry is the exception: it renders WITHOUT a `follow_up.issue`** — the shipped disclosure is its deliverable, no follow-up issue is ever filed, and the PR-body block is the foreclosure's *sole* durable record.)
+**Best-effort: pull deferred review findings from the manifest.** /prflow:review-and-fix writes each run's manifest **run-scoped** (`.prflow/tmp/review/<slug>/<run-id>/deferrals.json`), and /prflow:implement Phase 4.0.5 merges every run-scoped manifest into one **slug-level aggregate** at `.prflow/tmp/review/pr-<N>/deferrals.json`, then files follow-up issues and updates that aggregate in place with `id` and `follow_up` fields per entry. Read the slug-level aggregate and surface its entries in the PR body as a Scope-Acknowledged Findings block so /prflow:review (run later as a formal merge signal) can match them and demote the corresponding findings to Informational.
 
 ```bash
 PR_NUMBER=$(gh pr view --json number --jq '.number' 2>/dev/null || true)
@@ -89,7 +89,7 @@ fi
 
 If `DEFERRALS_BODY` is set and the parsed JSON has at least one **renderable** entry under `deferrals[]`, render the Deferred Findings section in Step 2's template — a human-readable Markdown table (one row per deferral) for readers, plus the exact machine payload (the same `schema_version: 1` / `deferrals[]` YAML shape) inside the hidden `DEVFLOW_DEFERRED_PAYLOAD` HTML comment that `scripts/match-deferrals.py` parses. An entry is **renderable** when it has a populated `follow_up.issue` **OR** its `reason.category` (equivalently the aggregate's flat `category`) is `settled-by-disclosure` (a foreclosure, which never has a `follow_up.issue`). An ordinary entry (one of the three non-foreclosure categories) lacking a `follow_up.issue` is a stale half-written manifest — skip it silently.
 
-**Carry-forward safety (the foreclosure block is a sole durable record).** Because a `settled-by-disclosure` foreclosure files no follow-up issue, the PR-body Scope-Acknowledged block is its *only* durable record — a regeneration from a fresh environment (where `.prflow/tmp/review/…` is empty) must therefore **never** silently wipe it. So:
+**Carry-forward safety.** Because a `settled-by-disclosure` foreclosure files no follow-up issue, the PR-body Scope-Acknowledged block is its *only* durable record — a regeneration from a fresh environment (where `.prflow/tmp/review/…` is empty) must therefore **never** silently wipe it. So:
 - When the slug aggregate is **absent or unparseable** (`DEFERRALS_BODY` empty/invalid), do **not** omit the section: read the **existing PR body's** `DEVFLOW_DEFERRED_PAYLOAD` block and preserve it verbatim (re-emit its entries unchanged). Only when neither an aggregate nor an existing block exists is the section omitted.
 - When **both** an aggregate and an existing PR-body block exist, merge them: render the aggregate's entries, then **carry forward** any entry present in the existing body's `DEVFLOW_DEFERRED_PAYLOAD` but **absent from the aggregate** (matched by its `dfr-` id) so a foreclosure recorded on an earlier pass is never dropped by a later regeneration that no longer sees its manifest.
 
@@ -113,7 +113,7 @@ Fetch the existing body and apply these merge rules:
 - Visual Changes
 - Breaking Changes
 - Post-Merge Verification (when `POST_MERGE_ITEMS` is non-empty — re-derived from the workpad on every run so the list stays in sync with the latest /prflow:implement parse)
-- Deferred Findings (when there is at least one renderable entry — an entry with `follow_up.issue`, or a `settled-by-disclosure` foreclosure — re-derived from the manifest on every run so the block stays in sync with the latest /prflow:implement Phase 4.0.5 filing; **carry-forward-safe**: a regeneration with no manifest present preserves the existing block's foreclosure entries verbatim rather than wiping them, per the carry-forward rule in Step 1)
+- Deferred Findings (when there is at least one renderable entry, as defined in Step 1 — re-derived from the manifest on every run so the block stays in sync with the latest /prflow:implement Phase 4.0.5 filing; **carry-forward-safe**: a regeneration with no manifest present preserves the existing block's entries verbatim rather than wiping them, per the carry-forward rule in Step 1)
 
 **Merge** (keep existing items that are still relevant, add new ones, remove stale ones):
 - Test Plan — preserve human-added checklist items; add items for new changes; remove items for changes that no longer exist
@@ -155,7 +155,7 @@ The following items can only be verified after this PR is merged or deployed. Ti
 - [ ] [...]
 
 ## Deferred Findings
-[Omit this entire section only when there are NO renderable entries AND no existing PR-body block to carry forward. An entry is renderable when it has a populated follow_up.issue, OR its reason.category is `settled-by-disclosure` (a foreclosure — no follow_up.issue). When rendering, render with the markers — the /prflow:review verdict matcher parses them exactly. The visible content is a human-readable Markdown table; the exact machine payload lives in a hidden HTML comment (`DEVFLOW_DEFERRED_PAYLOAD`) so it does not appear in the rendered PR body. One table row per deferral; one payload entry per deferral, in the same order. A foreclosure row cites the disclosure path in the Follow-up column (e.g. `disclosure: docs/…`) instead of a `#<N>` issue reference. Carry forward any existing-body foreclosure entry absent from the aggregate, per Step 1's carry-forward rule:]
+[Omit this entire section only when there are NO renderable entries (as defined in Step 1) AND no existing PR-body block to carry forward. When rendering, render with the markers — the /prflow:review verdict matcher parses them exactly. The visible content is a human-readable Markdown table; the exact machine payload lives in a hidden HTML comment (`DEVFLOW_DEFERRED_PAYLOAD`) so it does not appear in the rendered PR body. One table row per deferral; one payload entry per deferral, in the same order. A foreclosure row cites the disclosure path in the Follow-up column (e.g. `disclosure: docs/…`) instead of a `#<N>` issue reference. Carry forward any existing-body entry absent from the aggregate, per Step 1's carry-forward rule:]
 
 <!-- DEVFLOW_DEFERRED_FINDINGS_START -->
 These review-agent findings were deferred under the Scope-Acknowledged Findings contract. /prflow:review honors matching entries as Informational; closing a linked follow-up issue invalidates the deferral and forces re-verification. A `settled-by-disclosure` foreclosure has no follow-up issue — the cited disclosure is its deliverable, and a review re-verifies the disclosure phrase against the tree.
@@ -204,7 +204,7 @@ deferrals:
 <!-- PR_BODY_END -->
 
 **Rules:**
-- Follow the shared writing standard read at the top of this step for how the prose reads — the concision and plain-opening rules this line used to state now live there.
+- Follow the shared writing standard read at the top of this step for how the prose reads.
 - Summary bullets should explain *what* and *why*, not list files.
 - Changes section groups by logical area (e.g., "Orders module", "Frontend", "Database"), not individual files.
 - Test Plan items must be concrete and actionable, not generic ("Run tests").
@@ -215,7 +215,7 @@ deferrals:
 
 ## Step 3: Apply the Description
 
-- **If an existing PR was found (Mode B):** Update it directly via REST (repo-scope only — `gh pr edit --body` resolves the repo through org-scoped GraphQL and fails under a repo-scoped token). The `-F body=@-` form reads the field value literally from stdin, so the quoted-heredoc's no-expansion guarantee (backticks and `$` preserved) holds exactly as `gh pr edit --body` did:
+- **If an existing PR was found (Mode B):** Update it directly via REST (repo-scope only — `gh pr edit --body` resolves the repo through org-scoped GraphQL and fails under a repo-scoped token). The `-F body=@-` form reads the field value literally from stdin, so the quoted-heredoc's no-expansion guarantee (backticks and `$` preserved) holds:
   ```bash
   gh api --method PATCH "repos/{owner}/{repo}/pulls/$PR_NUMBER" -F body=@- <<'EOF'
   [full output including any pre/post-marker content]

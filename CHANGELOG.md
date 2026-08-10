@@ -4,6 +4,32 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.5] — 2026-08-10
+
+### Changed
+Editorially compress `skills/pr-description/SKILL.md` under the instruction-plus-consequence prose rule: remove the manifest-hydration mechanism explanation, the repeated statements of the renderable-entry predicate and the foreclosure's no-follow-up-issue fact, the migration-history framing, and a maintainer note. The edits are same-line rewrites of surrounding prose; no fenced command block, marker literal or payload field name was touched, the content pins over this file are untouched and still pass, and the cloud-writer contract's SHA-256 entry for it is regenerated in this change. The Deferred Findings carry-forward wording is also widened from `foreclosure entry` to `entry` in Step 2's rules list and in the template, matching the entry-scoped rule Step 1 states.
+Widen `lint-ungranted-helper-spelling.py`'s audited population from `skills/**`+`agents/**`
+to the other prompt surfaces a cloud review run auto-loads: the consumer prompt-extension
+prefix, `CLAUDE.md` (project memory at the review workspace root), and the internal overview
+page `CLAUDE.md` cites as the canonical verdict-marker statement. The latter two each taught
+a review run the repo-relative `scripts/post-review-verdict.sh` spelling the cloud matcher denies before
+it runs — a denial that produces no output, after which the engine takes its silence arm and
+records no verdict (PR #1533, issue #1526). The widened lint now reports clean on them, the
+occurrences it named having been reconciled to the bare-filename naming form it prescribes.
+
+## [2.32.4] — 2026-08-10
+
+### Changed
+Trim two single-sourced blocks from `/prflow:implement`'s Workpad Reference: the
+`Helper invariants baked into the script:` list, which the orchestrator is told it need not
+enforce, and the workpad markdown skeleton fence, whose sole producer is
+`scripts/workpad.py new-body`. The `## Progress` row texts that `--tick-progress` matches and
+the rule keeping `## Acceptance Criteria` outside any `<details>` block survive inline, as does the
+marker-first invariant for the two paths that write a whole body by hand. The surrounding narration
+is condensed with it: reflection rendering is now carried solely by the `--reflection-kind` CLI-table
+row, and the run-link derivation solely by Phase 1.3, whose legacy-workpad migration now renders its
+`## Progress` section from `workpad.py new-body` instead of splicing the deleted fence.
+
 ## [2.32.3] — 2026-08-10
 
 ### Fixed
