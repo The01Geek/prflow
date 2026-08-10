@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1522",
+  "generated_at": "2026-08-10T03:59:45Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.0",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 5.391331250000001,
+    "tokens": {
+      "input_tokens": 35,
+      "output_tokens": 18953,
+      "cache_read_input_tokens": 2407329,
+      "cache_creation_input_tokens": 135744,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 77,
+        "outputTokens": 39228,
+        "cacheReadInputTokens": 3249325,
+        "cacheCreationInputTokens": 364247,
+        "webSearchRequests": 0,
+        "costUSD": 5.391331250000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 29,
+    "duration_ms": 387129
+  },
+  "permission_denials": {
+    "count": 3,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-unset}\"",
+      "git status --porcelain ; echo \"---RUN---\" ; echo \"RUN_ID=${GITHUB_RUN_ID:-none} ATTEMPT=${GITHUB_RUN_ATTEMPT:-none}\"",
+      ".prflow/vendor/prflow/scripts/workpad.py patch 5235680907 .prflow/tmp/review/pr-1522/31353787973-1/review-wp.md 2>.prflow/tmp/review/pr-1522/31353787973-1/rv-patch.err ; echo \"patch-rc=$?\""
+    ],
+    "total": 3,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
