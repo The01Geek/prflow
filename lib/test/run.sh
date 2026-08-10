@@ -50235,6 +50235,24 @@ assert_eq "#1526 lint: the cited overview page is audited and reported" "yes" \
 # than being scanned. Without this the widening could silently become a docs/ sweep.
 assert_eq "#1526 lint: a sibling docs/internal page is NOT audited (exact-path, not a prefix)" "yes" \
   "$(case "$(uh_run docs/internal/clean-overview.md)" in "rc=1|"*"selected no file under"*) echo yes ;; *) echo no ;; esac)"
+# The other half of exact-path: a NESTED file whose basename is an audited member is
+# outside the population. The fixture carries the forbidden spelling, so a regression
+# loosening the exact-path arm to a basename comparison reports it as a finding instead
+# of hitting the floor — and both outcomes are rc=1, which is why this matches the floor
+# MESSAGE rather than the status.
+assert_eq "#1526 lint: a nested CLAUDE.md is NOT audited (exact path, not a basename)" "yes" \
+  "$(case "$(uh_run nested/CLAUDE.md)" in "rc=1|"*"selected no file under"*) echo yes ;; *) echo no ;; esac)"
+# is_audited normalizes Windows-form separators before deciding, on BOTH arms. Driven as a
+# unit because the fixture path lists above ride through the enumeration, which never
+# yields a backslash form. Fails closed: a module-load or attribute failure prints `no`.
+assert_eq "#1526 lint: is_audited normalizes Windows-form separators on both arms" "yes" \
+  "$(cd "$LIB/.." && python3 -c 'import importlib.util, sys
+spec = importlib.util.spec_from_file_location("uh", sys.argv[1])
+mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+ok = mod.is_audited(r"docs\internal\DEVFLOW_SYSTEM_OVERVIEW.md")      # exact-path arm
+ok = ok and mod.is_audited(r"skills\review\SKILL.md")                  # prefix arm
+ok = ok and not mod.is_audited(r"nested\CLAUDE.md")                    # still exact, not basename
+print("yes" if ok else "no")' "$UH_LINT" || echo no)"
 # Every declared population member must appear in the SELECTION the real-tree gate makes —
 # the lint's own enumeration, filtered by its own is_audited — or that member is inert on
 # the very surface it was written for while every fixture assertion above stays green: those

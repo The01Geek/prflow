@@ -162,6 +162,10 @@ AUDITED_PREFIXES = ("skills/", "agents/", ".prflow/prompt-extensions/")
 #: Exact repo-relative paths that join the population without their whole directory
 #: joining with them. Hand-maintained: see the module docstring's AUDITED POPULATION
 #: section for the membership rule, the depth-1 boundary, and its disclosed residual.
+#: Deriving this tuple from `CLAUDE.md`'s canonical-pointer set was considered and
+#: deferred: those pointers are ordinary prose links with no machine-readable shape, so a
+#: derivation would be a heuristic whose own miss is equally silent. Revisit if a canonical
+#: pointer gains a parseable form, or if a real denial is ever traced to an unlisted page.
 AUDITED_PATHS = (
     "CLAUDE.md",
     "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
