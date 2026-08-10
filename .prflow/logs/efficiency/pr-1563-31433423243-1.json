@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1563",
+  "generated_at": "2026-08-10T21:42:43Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.12",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 12.161977999999994,
+    "tokens": {
+      "input_tokens": 142,
+      "output_tokens": 40719,
+      "cache_read_input_tokens": 15664509,
+      "cache_creation_input_tokens": 260637,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 153,
+        "outputTokens": 44288,
+        "cacheReadInputTokens": 15992136,
+        "cacheCreationInputTokens": 332889,
+        "webSearchRequests": 0,
+        "costUSD": 12.161977999999994,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 93,
+    "duration_ms": 1213510
+  },
+  "permission_denials": {
+    "count": 9,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-} RUN_ID=${GITHUB_RUN_ID:-} APP_ID=${DEVFLOW_APP_ID:-} REPO=${GITHUB_REPOSITORY:-}\"; git branch --show-current; git status --porcelain | head",
+      "DEVFLOW_ROOT=\"$(git rev-parse --show-toplevel)\"\nif .prflow/vendor/prflow/scripts/preflight.py ignore-precondition --path \"$DEVFLOW_ROOT/.prflow/tmp/issue-body/issue-1553.md\"; then\n  mkdir -p \"$DEVFLOW_ROOT/.prflow/tmp/issue-body\"\n  rm -f \"$DEVFLOW_ROOT/.prflow/tmp/issue-body/issue-1553.md\"\n  gh issue view 1553 --json body --jq '.body' > \"$DEVFLOW_ROOT/.prflow/tmp/issue-body/issue-1553.md\" \\\n    || gh issue view 1553 --json body --jq '.body' > \"$DEVFLOW_ROOT/.prflow/tmp/issue-body/issue-1553.md\"\n …[per-command-truncated]",
+      "gh issue view 1553 --json body --jq '.body' > .prflow/tmp/issue-body/issue-1553.md; wc -c .prflow/tmp/issue-body/issue-1553.md; head -c 1 .prflow/tmp/issue-body/issue-1553.md",
+      "gh issue view 1553 --json body --jq '.body' > .prflow/tmp/issue-body/issue-1553.md; wc -c .prflow/tmp/issue-body/issue-1553.md",
+      ".prflow/vendor/prflow/scripts/workpad.py update 1553 --branch \"$(git branch --show-current)\"",
+      "for f in phase-1-setup phase-2-implement phase-3-review phase-4-documentation; do echo \"=== $f ===\"; grep -n 'Writing standard' skills/implement/phases/$f.md; done",
+      "cd /home/runner/work/prflow/prflow\necho \"=== grep 1: Writing standard lines ===\"\ngrep -n 'Writing standard' skills/implement/phases/phase-1-setup.md skills/implement/phases/phase-2-implement.md skills/implement/phases/phase-3-review.md skills/implement/phases/phase-4-documentation.md\necho \"=== grep 2: hyphenated writing-standard (expect nothing) ===\"\ngrep -rlF 'writing-standard' skills/implement/phases; echo \"rc=$?\"\necho \"=== grep 3: anchor literal counts (expect >=1 each) ===\"\nfor f in phase-1- …[per-command-truncated]",
+      "git diff --no-index -U0 /dev/null .changeset/issue-1553-collapse-writing-standard.md | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree 2>&1 | tail -15; echo \"exit=$?\"",
+      "git diff --no-index -U0 /dev/null .changeset/issue-1553-collapse-writing-standard.md | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree 2>&1 | tail -15"
+    ],
+    "total": 9,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
