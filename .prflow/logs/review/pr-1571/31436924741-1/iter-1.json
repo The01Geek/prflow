@@ -1,0 +1,216 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-10T00:00:00Z",
+  "fix_commit_sha": "1ac5d07e33125b9cb8cc5cdea67638a017826615",
+  "fix_files": [
+    "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+    "lib/test/regenerate-artifacts.py",
+    ".github/workflows/version-consolidate.yml",
+    "lib/test/test_python_scripts.py"
+  ],
+  "loop_role": "fix",
+  "current_step": "2.6",
+  "current_substep": "run_shadow_fanout",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:pr-test-analyzer",
+    "prflow:comment-analyzer",
+    "prflow:type-design-analyzer"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "DEVFLOW_SYSTEM_OVERVIEW.md self-contradicting 'can never silently drift' clause",
+      "defect_signature": {
+        "file": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+        "line_range": [
+          1107,
+          1107
+        ],
+        "kind": "documented_falsehood"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "no-changeset window: a changeset-less pinned-file merge would leave main manifest stale",
+      "defect_signature": {
+        "file": ".github/workflows/version-consolidate.yml",
+        "line_range": [
+          129,
+          147
+        ],
+        "kind": "coverage_gap"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Important",
+      "description": "env-seam comment falsely claims parallel-suite-runner.sh sets DEVFLOW_RA_TEST_MECHANICAL_ROW",
+      "defect_signature": {
+        "file": "lib/test/regenerate-artifacts.py",
+        "line_range": [
+          389,
+          395
+        ],
+        "kind": "documented_falsehood"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "detect_mutation fail-closed arms and classify_outcome unestablished-without-violations arm uncovered vs the 'drives every arm' docstring",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          14594,
+          14613
+        ],
+        "kind": "test_coverage_gap"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "no pin that ci.yml wires the mutation check (branch-side enforcement could vanish silently)",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          14588,
+          14589
+        ],
+        "kind": "test_coverage_gap"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:type-design-analyzer",
+      "severity": "Suggestion",
+      "description": "classify_outcome 5-param signature with correlated unestablished/comparand_substituted (family-consistent; compensated by exhaustive arm tests)",
+      "defect_signature": {
+        "file": "lib/test/cloud-writer-retention-check.py",
+        "line_range": [
+          86,
+          92
+        ],
+        "kind": "design_smell"
+      },
+      "fix_decision": "advisory"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "env-gated import-time ROWS mutation (contained, validated, documented)",
+      "defect_signature": {
+        "file": "lib/test/regenerate-artifacts.py",
+        "line_range": [
+          416,
+          417
+        ],
+        "kind": "design_smell"
+      },
+      "fix_decision": "advisory"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "retention check on main + branch-that-merged-main untested (docstring safety claim)",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          14615,
+          14640
+        ],
+        "kind": "test_coverage_gap"
+      },
+      "fix_decision": "deferred"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "1ac5d07e"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "1ac5d07e"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "1ac5d07e"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "1ac5d07e"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "applied",
+      "commit": "1ac5d07e"
+    },
+    {
+      "finding_id": "F-6",
+      "decision": "advisory",
+      "skip_category": "advisory-parked",
+      "evidence": "type-design: family-consistent signature mirroring coverage-map-retention-check.py; compensated by exhaustive arm-order tests",
+      "parking_evidence": {
+        "basis": "family-consistent design choice mirrored from the sibling retention check; tightening would desync the two-member family",
+        "failing_input": null,
+        "source": "lib/test/coverage-map-retention-check.py:198",
+        "finding_ref": {
+          "iter": 1,
+          "index": 5
+        }
+      }
+    },
+    {
+      "finding_id": "F-7",
+      "decision": "advisory",
+      "skip_category": "advisory-parked",
+      "evidence": "env-gated ROWS mutation is contained, validated by _validate_registry, and documented; production-inert",
+      "parking_evidence": {
+        "basis": "documented, validated, production-inert test seam; a DI alternative would diverge from the module-level ROWS convention",
+        "failing_input": null,
+        "source": "lib/test/regenerate-artifacts.py:384-417",
+        "finding_ref": {
+          "iter": 1,
+          "index": 6
+        }
+      }
+    },
+    {
+      "finding_id": "F-8",
+      "decision": "deferred",
+      "skip_category": "uncategorized",
+      "evidence": "Suggestion (severity 4, below the important threshold): a main-side retention fixture would strengthen the docstring's never-flagged-on-main claim; the merge-base semantics it rests on are sound and the forked-branch e2e already covers clean+mutated"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 5,
+    "fix_diff_lines": 60,
+    "new_corroborated_critical_count": 0
+  },
+  "shadow": {
+    "shadow_synthesized": true,
+    "promoted_to_iter_next": true
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

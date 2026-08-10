@@ -1,0 +1,135 @@
+{
+  "iter": 2,
+  "started_at": "2026-08-10T00:30:00Z",
+  "fix_commit_sha": "582ed3e19b798530a90bef28f7b920e4062e2b26",
+  "fix_files": [
+    ".github/workflows/version-consolidate.yml",
+    "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+    "lib/test/cloud-writer-retention-check.py",
+    "lib/test/test_python_scripts.py"
+  ],
+  "loop_role": "promoted",
+  "promotion_provenance": "shadow",
+  "current_step": "loop-exit",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Important",
+      "description": "version-consolidate no-changeset-window comment omitted lib/efficiency-trace.sh (lib/ pinned source)",
+      "defect_signature": {
+        "file": ".github/workflows/version-consolidate.yml",
+        "line_range": [
+          141,
+          142
+        ],
+        "kind": "documented_falsehood"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "main() fail-closed CLI arms (unresolvable base/read failure) untested",
+      "defect_signature": {
+        "file": "lib/test/cloud-writer-retention-check.py",
+        "line_range": [
+          185,
+          202
+        ],
+        "kind": "test_coverage_gap"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "sentence-start typo 'the'->'The' in DEVFLOW_SYSTEM_OVERVIEW.md",
+      "defect_signature": {
+        "file": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+        "line_range": [
+          1107,
+          1107
+        ],
+        "kind": "typo"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "docstring 'drives every arm' over-states one unreachable sub-branch",
+      "defect_signature": {
+        "file": "lib/test/cloud-writer-retention-check.py",
+        "line_range": [
+          39,
+          93
+        ],
+        "kind": "doc_accuracy"
+      },
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "S-1",
+      "decision": "applied",
+      "commit": "582ed3e1"
+    },
+    {
+      "finding_id": "S-2",
+      "decision": "applied",
+      "commit": "582ed3e1"
+    },
+    {
+      "finding_id": "S-3",
+      "decision": "applied",
+      "commit": "582ed3e1"
+    },
+    {
+      "finding_id": "S-4",
+      "decision": "applied",
+      "commit": "582ed3e1"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 4,
+    "fix_diff_lines": 18,
+    "new_corroborated_critical_count": 0
+  },
+  "shadow": {
+    "ran_at": "2026-08-10T00:20:00Z",
+    "reviewed_sha": "1ac5d07e33125b9cb8cc5cdea67638a017826615",
+    "verdict": "APPROVE WITH CAVEAT",
+    "coverage": "not_verified",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:type-design-analyzer",
+      "prflow:pr-test-analyzer"
+    ],
+    "reason": "partial fan-out (3 of 5 reviewers dispatched, scoped to the fix deltas) — silent-failure-hunter and type-design-analyzer not re-run in the shadow; coverage reported not_verified rather than full",
+    "comparison": {
+      "shadow_total": 4,
+      "overlap_with_iter_N": 1,
+      "new": 3,
+      "new_critical": 0,
+      "new_important": 2
+    },
+    "promoted_to_iter_next": true
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
