@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.19] — 2026-08-10
+
+### Changed
+`workpad.py patch` no longer duplicates a leading marker kind that only the caller supplied: a composed body carrying one kind twice inside the two-line scan window now keeps its first copy alone, the same first-wins rule already applied to a kind the live comment body also carries.
+
 ## [2.32.18] — 2026-08-10
 
 ### Changed
