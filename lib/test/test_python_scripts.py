@@ -21722,7 +21722,8 @@ def _drive_cmd_patch(payload):
     # rather than answered by the same lambda, so the repo is not the payload string.
     workpad._repo_full = lambda *a, **kw: 'owner/repo'
     workpad._run = lambda cmd, **kw: _FakeRun(
-        payload if ('-X' in cmd and 'PATCH' in cmd) else 'live body, no marker\n')
+        payload if ('-X' in cmd and 'PATCH' in cmd)
+        else _json.dumps({'id': 7, 'body': 'live body, no marker\n'}))
     out = io.StringIO()
     with _tempfile.NamedTemporaryFile('w', suffix='.md', delete=False) as tf:
         tf.write('body file contents\n')
@@ -21769,12 +21770,14 @@ def _drive_cmd_patch_body(existing_body, new_body, *, want=None):
             sent['path'] = Path(operand[len('body=@'):])
             sent['body'] = sent['path'].read_text(encoding='utf-8')
             return _FakeRun(sent['body'])
-        # The stub sees the GET's argv, so a read aimed at the wrong comment, the
-        # wrong repo, or one that lost `--jq .body` (handing the merge a JSON
-        # envelope) fails here instead of passing as a well-formed live body.
+        # The stub sees the GET's argv, so a read aimed at the wrong comment or the
+        # wrong repo fails here instead of passing as a well-formed live body. The
+        # read must NOT carry `--jq .body`: jq renders a missing key as `null`, so
+        # that shape cannot express presence and the merge would treat an error
+        # envelope as a marker-less body.
         assert '/repos/owner/repo/issues/comments/7' in cmd, cmd
-        assert '--jq' in cmd and '.body' in cmd, cmd
-        return _FakeRun(existing_body)
+        assert '--jq' not in cmd, cmd
+        return _FakeRun(_json.dumps({'id': 7, 'body': existing_body}))
 
     workpad._run = _fake
     workpad._repo_full = lambda *a, **kw: 'owner/repo'
@@ -21847,8 +21850,10 @@ assert_eq("#1508: a superseded-namespace marker is preserved per record",
 def _drive_cmd_patch_read_failure(new_body=None, live=None):
     """cmd_patch when the live body cannot be established.
 
-    `live=None` raises from the read; `live=''` models `gh` exiting 0 with an
-    error envelope carrying no `.body`. Returns (sent body, stderr, exit code).
+    `live=None` raises from the read; any other value is the raw stdout the stubbed
+    read returns, so an arm can model exactly what `gh` emits — an error envelope
+    carrying no `.body` key, or the literal `null` a `--jq .body` read would render
+    for one. Returns (sent body, stderr, exit code).
     """
     saved = (workpad._run, workpad._repo_full)
     sent = {}
@@ -21901,8 +21906,26 @@ assert_eq("#1508: an unestablished live body REFUSES a composed body carrying no
 
 # `gh` can emit an error envelope with no `.body` key while exiting 0. Unknown is not
 # zero: that must take the same arm as a raised read, never read as "no markers".
-_sent, _stderr, _code = _drive_cmd_patch_read_failure(new_body=_HEADING, live='')
-assert_eq("#1508: an exit-0 read that returns no body is unestablished, not an empty body",
+# Driven with the envelope `gh` actually emits, not an empty stdout that cannot occur.
+_sent, _stderr, _code = _drive_cmd_patch_read_failure(
+    new_body=_HEADING, live='{"message":"Not Found","status":"404"}\n')
+assert_eq("#1508: an exit-0 read whose envelope carries no `body` key is unestablished",
+          (None, True, 1),
+          (_sent, 'refusing the PATCH' in _stderr, _code))
+
+# The `--jq .body` rendering of that same envelope: jq prints the literal `null`, which
+# a presence check reading jq's output cannot tell from a body. A read that regressed to
+# `--jq .body` would hand the merge "null" as an established marker-less body and PATCH
+# the composed body as typed — the exact clobber this preservation prevents.
+_sent, _stderr, _code = _drive_cmd_patch_read_failure(new_body=_HEADING, live='null\n')
+assert_eq("#1508: a `null` live read is unestablished, never a marker-less body",
+          (None, True, 1),
+          (_sent, 'refusing the PATCH' in _stderr, _code))
+
+# A present-but-JSON-null `body` (GitHub can return one) is likewise not a body.
+_sent, _stderr, _code = _drive_cmd_patch_read_failure(
+    new_body=_HEADING, live='{"id":7,"body":null}\n')
+assert_eq("#1508: a JSON-null `body` value is unestablished, never an empty body",
           (None, True, 1),
           (_sent, 'refusing the PATCH' in _stderr, _code))
 
@@ -21974,6 +21997,15 @@ assert_eq("#1508: a live body carrying one kind twice names it once in the bread
 assert_eq("#1508: the staged PATCH body is private to the helper and is cleaned up",
           (True, False),
           _drive_cmd_patch_body(_RUNKEY + '\n' + _HEADING, _HEADING, want='staged'))
+
+# Nothing to re-insert (the caller re-supplied every live marker) takes the other PATCH
+# route: the caller's own file is the operand, with no staged copy at all. A merge that
+# re-staged unconditionally would still send the right bytes and pass every body
+# assertion above, so the route is asserted by which path the PATCH addressed.
+assert_eq("#1508: a caller that re-supplies every live marker PATCHes its own file",
+          False,
+          _drive_cmd_patch_body(_RUNKEY + '\n' + _HEADING, _RUNKEY + '\n' + _HEADING,
+                                want='staged')[0])
 
 # Echo SOURCE, not merely echo presence. `--print-body` must reproduce what the PATCH
 # RESPONSE carried — the bytes the pre-#814 code wrote — never the body this process

@@ -445,6 +445,30 @@ def _comment_body(repo, comment_id):
     ]).stdout
 
 
+def _comment_body_established(repo, comment_id):
+    """(body, established) for one comment, read WITHOUT `--jq .body`.
+
+    `--jq .body` cannot express presence: jq renders a missing key as the literal
+    `null`, so an error envelope carrying no `.body` at exit 0 is indistinguishable
+    from a comment whose body is the four characters `null`. Reading the raw object
+    and testing `'body' in obj` shares the presence question with the data itself,
+    so the accepted set cannot drift. Raises like `_comment_body`; a non-object
+    payload, an absent `body` key, or a non-string `body` all return established
+    False rather than a value the caller would treat as the live body.
+    """
+    out = _run([
+        GH, 'api',
+        f'/repos/{repo}/issues/comments/{comment_id}',
+    ]).stdout
+    try:
+        obj = json.loads(out)
+    except ValueError:
+        return '', False
+    if not isinstance(obj, dict) or not isinstance(obj.get('body'), str):
+        return '', False
+    return obj['body'], True
+
+
 def cmd_body(args):
     repo = _repo_full()
     try:
@@ -1180,14 +1204,17 @@ def cmd_patch(args):
     except OSError as e:
         sys.stderr.write(f"workpad.py patch: body file unreadable: {e}\n")
         sys.exit(1)
-    # An empty stdout at exit 0 is UNESTABLISHED, not "this comment has no
-    # markers": `gh` can emit an error envelope carrying no `.body` key while
+    # A body the read could not establish is UNESTABLISHED, not "this comment has
+    # no markers": `gh` can emit an error envelope carrying no `.body` key while
     # exiting 0, and reading that as an empty live body would silently restore
-    # the clobber this preservation exists to prevent.
+    # the clobber this preservation exists to prevent. Presence is decided by the
+    # raw object's key, never by `--jq .body`, whose `null` rendering cannot
+    # express it.
     live, live_read_failed = '', None
     try:
-        live = _comment_body(repo, args.comment_id)
-        if not live.strip():
+        live, established = _comment_body_established(repo, args.comment_id)
+        if not established:
+            live = ''
             live_read_failed = 'the read returned no body (an error envelope at exit 0?)'
     except (subprocess.CalledProcessError, OSError) as e:
         live_read_failed = getattr(e, 'stderr', None) or e
