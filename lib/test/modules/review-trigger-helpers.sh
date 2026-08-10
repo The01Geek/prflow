@@ -2307,15 +2307,12 @@ assert_eq "drc: terminal (past 🚀 Reviewing) progress comment → no suppress"
   "$(drc "$DRC_TERMINAL")"
 
 # ── pre-seed window / unseeded-peer negative controls (issue #1479) ─────────────
-# A peer review run has STARTED but not yet seeded its prflow:review-progress
-# comment (the engine seeds it at Phase 0.3.5, inside its agent job — a ~141s
-# window measured on PR #1469, 2026-08-09). The detector's DECIDED behavior in that
-# window is to FAIL OPEN (suppress=false), unchanged: keying suppression on the
-# comment's ABSENCE has no updated_at to age out and would wedge every later request
-# forever if a peer's seed silently failed, and a head-blind thread scope suppresses
-# unrelated conversation and legitimate re-requests. The assertions below are
-# NEGATIVE CONTROLS that guard the narrowness of isprogress against a future arm
-# that admits a per-head comment which is not a live review-progress comment.
+# In the window after a peer review run starts but before it seeds its
+# prflow:review-progress comment, the detector fails open (suppress=false),
+# unchanged — scripts/dedupe-review-command.sh's header records why that is the
+# decided behavior. The assertions below are NEGATIVE CONTROLS guarding the
+# narrowness of isprogress against a future arm that admits a per-head comment
+# which is not a live review-progress comment.
 
 # (a) DISCRIMINATING boundary for the review-progress-MARKER conjunct: a bot, fresh
 # comment at THIS head, carrying the seed-time head key and the 🚀 Reviewing status
