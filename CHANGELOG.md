@@ -4,6 +4,16 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.2] — 2026-08-10
+
+### Changed
+- **Bound the `exact-module-floors` reconciliation measurement where a bound actually saves time.** `lib/test/reconcile-module-floors.py` now measures the exact-policy modules that read `MODULE_HEAVY_UNIT_MODE` under `--heavy-units smoke` (today just `harness-python-guards`, whose bounded and full tallies are equal), cutting that module's measurement from roughly 268 s to 54 s while leaving every other exact-policy module's measurement argv byte-identical. (#1522)
+
+## [2.32.1] — 2026-08-10
+
+### Changed
+- **Editorially compressed the checklist-trio and feature-dev subagent bodies under the instruction-plus-consequence prose rule.** Trimmed rationale, restated instructions, and consequence-doubling prose from the `checklist-generator`, `checklist-verifier`, `checklist-deduper`, and `code-architect` bodies, while preserving the behavioral rules and machine-consumed output fields those agents rely on. Each dispatched subagent reads less prose per invocation, both here and where the bodies ship to consumers. (#1521)
+
 ## [2.32.0] — 2026-08-10
 
 ### Changed

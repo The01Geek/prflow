@@ -63,6 +63,10 @@ root = Path(sys.argv[1])
 args = sys.argv[2:]
 registry = Path(args[args.index("--registry") + 1])
 module_id = args[-1]
+# Record the exact argv this measurement received, so a test can assert reconcile()
+# passed `--heavy-units smoke` for a module in the smoke-bound constant ("with the bound
+# in effect"). Benign for every other test, which simply never reads the file.
+(root / f"received-argv-{module_id}.json").write_text(json.dumps(args))
 if os.environ.get("DEVFLOW_TEST_EXPERIMENT_FORCE_FAILURE") == "1":
     # Mirror lib/test/run-module.sh, which injects a failing assertion when this
     # experiment variable is exported. reconcile() must scrub it from the environment
@@ -130,6 +134,7 @@ PY
         alpha_description: str | None = None,
         run_alpha_floor: int | None = None,
         run_beta_floor: int | None = None,
+        alpha_id: str = "alpha",
     ) -> None:
         """Write the coupled registry/run.sh pair the reconciler reads.
 
@@ -137,9 +142,13 @@ PY
         common case keeps both coupled sites in sync; passing them explicitly is how a
         test reproduces real-world DESYNC (a hand-edited call site, or a merge that
         resolved only one side), which the reconciler's `or`-joined guards must handle.
+
+        `alpha_id` renames the first exact module so a test can drive a module the
+        reconciler recognizes as smoke-bound (a member of `HEAVY_UNIT_SMOKE_MODULES`)
+        through the same fixture, proving the `--heavy-units smoke` bound is in effect.
         """
         alpha: dict[str, object] = {
-            "path": "lib/test/modules/alpha.sh",
+            "path": f"lib/test/modules/{alpha_id}.sh",
             "minimum_assertions": alpha_floor,
             "assertion_floor_policy": "exact",
         }
@@ -155,7 +164,7 @@ PY
             json.dumps(
                 {
                     "schema_version": 1,
-                    "test_modules": {"alpha": alpha, "beta": beta},
+                    "test_modules": {alpha_id: alpha, "beta": beta},
                     "workflows": {"placeholder": {}},
                 },
                 indent=2,
@@ -164,8 +173,8 @@ PY
             encoding="utf-8",
         )
         self.run_path.write_text(
-            """if ! devflow_run_full_suite_module "$LIB/test/modules/alpha.sh" \\
-  "alpha" %s; then
+            """if ! devflow_run_full_suite_module "$LIB/test/modules/%s.sh" \\
+  "%s" %s; then
   exit 1
 fi
 if ! devflow_run_full_suite_module "$LIB/test/modules/beta.sh" \\
@@ -174,6 +183,8 @@ if ! devflow_run_full_suite_module "$LIB/test/modules/beta.sh" \\
 fi
 """
             % (
+                alpha_id,
+                alpha_id,
                 alpha_floor if run_alpha_floor is None else run_alpha_floor,
                 beta_floor if run_beta_floor is None else run_beta_floor,
             ),
@@ -526,6 +537,107 @@ fi
             (self.registry_path.read_bytes(), self.run_path.read_bytes()), before
         )
 
+    def test_measurement_argv_appends_heavy_units_only_for_constant_members(
+        self,
+    ) -> None:
+        # AC1/AC2 (issue #1499). _measurement_argv appends `--heavy-units smoke` for a
+        # module in HEAVY_UNIT_SMOKE_MODULES and, for a module absent from it, returns an
+        # argv byte-identical to today's with no --heavy-units token — both directions.
+        self.assertTrue(
+            RMF.HEAVY_UNIT_SMOKE_MODULES, "the smoke-bound constant is empty"
+        )
+        runner = Path("/x/run-module.sh")
+        registry = Path("/x/registry.json")
+        log_dir = Path("/x/logs")
+        head = os.environ.get("DEVFLOW_BASH") or "bash"
+        baseline_prefix = [
+            head,
+            str(runner),
+            "--registry",
+            str(registry),
+            "--log-dir",
+            str(log_dir),
+        ]
+
+        member = sorted(RMF.HEAVY_UNIT_SMOKE_MODULES)[0]
+        member_argv = RMF._measurement_argv(runner, registry, log_dir, member)
+        # The flag pair is present, adjacent, and sits immediately before the module id,
+        # which stays last (the fixture runner and reconcile() both read args[-1]).
+        self.assertEqual(member_argv, baseline_prefix + ["--heavy-units", "smoke", member])
+
+        absent = "definitely-not-a-smoke-bound-module"
+        self.assertNotIn(absent, RMF.HEAVY_UNIT_SMOKE_MODULES)
+        absent_argv = RMF._measurement_argv(runner, registry, log_dir, absent)
+        self.assertNotIn("--heavy-units", absent_argv)
+        # Byte-identical to the pre-change argv: prefix plus the module id, nothing else.
+        self.assertEqual(absent_argv, baseline_prefix + [absent])
+
+    def test_every_smoke_bound_module_reads_the_heavy_unit_mode(self) -> None:
+        # AC3 (issue #1499). Every module in the constant must be an exact-policy module
+        # whose module file actually reads MODULE_HEAVY_UNIT_MODE — derived from the tree,
+        # so a module that ignores the flag can never be listed (a bound that bounds
+        # nothing would be a no-op that only adds the runner's notice line to the log).
+        self.assertTrue(
+            RMF.HEAVY_UNIT_SMOKE_MODULES, "the smoke-bound constant is empty"
+        )
+        modules = json.loads(REGISTRY.read_text(encoding="utf-8"))["test_modules"]
+        modules_dir = ROOT / "lib/test/modules"
+        # Derive, from the tree, the set of exact-policy modules whose source consumes
+        # MODULE_HEAVY_UNIT_MODE, then assert the constant is a subset of it — so a module
+        # that ignores the flag can never be listed (its bound would be a no-op). Building
+        # the set from the tree (rather than asserting presence per module) is what keeps
+        # this contract self-maintaining as the constant or the module set changes.
+        mode_readers = {
+            module_id
+            for module_id, mapping in modules.items()
+            if isinstance(mapping, dict)
+            and mapping.get("assertion_floor_policy") == "exact"
+            and (modules_dir / f"{module_id}.sh").is_file()
+            and "MODULE_HEAVY_UNIT_MODE"
+            in (modules_dir / f"{module_id}.sh").read_text(encoding="utf-8")
+        }
+        smoke_set = set(RMF.HEAVY_UNIT_SMOKE_MODULES)
+        self.assertLessEqual(
+            smoke_set,
+            mode_readers,
+            "smoke-bound modules that are not exact-policy MODULE_HEAVY_UNIT_MODE "
+            f"readers: {sorted(smoke_set - mode_readers)}",
+        )
+
+    def test_decrease_refused_with_the_heavy_unit_bound_in_effect(self) -> None:
+        # AC7 (issue #1499). A measured tally below either coupled floor still exits
+        # non-clean with DECREASE REFUSED and leaves both declared outputs byte-unchanged
+        # — asserted with the bound in effect (the measured module is a real constant
+        # member, and the fixture records that reconcile passed --heavy-units smoke), so
+        # the bound cannot silently lower a floor.
+        smoke_module = sorted(RMF.HEAVY_UNIT_SMOKE_MODULES)[0]
+        self.write_contract(alpha_floor=4, beta_floor=5, alpha_id=smoke_module)
+        self.settings_path.write_text(
+            json.dumps({smoke_module: {"passed": 3}}), encoding="utf-8"
+        )
+        before = (self.registry_path.read_bytes(), self.run_path.read_bytes())
+
+        result = self.run_helper()
+
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("DECREASE REFUSED", result.stderr)
+        self.assertEqual(
+            (self.registry_path.read_bytes(), self.run_path.read_bytes()), before
+        )
+        # The bound was actually in effect: reconcile passed `--heavy-units smoke`, with
+        # the module id still last.
+        received = json.loads(
+            (self.root / f"received-argv-{smoke_module}.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        # `received` is the runtime argv the fixture recorded (what THIS run produced),
+        # not repository source, so these are executable-argv-contract assertions: the
+        # index() lookup raises if reconcile did not pass `--heavy-units`, and the
+        # assertEqual then pins that it was followed by `smoke` and the module id last.
+        self.assertEqual(received[received.index("--heavy-units") + 1], "smoke")
+        self.assertEqual(received[-1], smoke_module)
+
     def _write_raw_registry(self, text: str) -> None:
         """Overwrite the registry with crafted SOURCE text (not json.dumps output), used
         by the `_registry_floor_span` refusal tests that need a specific byte layout."""
@@ -737,6 +849,63 @@ class RealRunnerContractTests(unittest.TestCase):
         self.assertEqual(int(summary.group("failed")), 0, proc.stdout)
         self.assertIn(summary.group("skipped"), (None, "0"), proc.stdout)
         self.assertGreater(int(summary.group("passed")), 0, proc.stdout)
+
+    def test_reconciler_summary_matches_the_real_runner_for_a_smoke_bounded_module(
+        self,
+    ) -> None:
+        # AC6 (issue #1499). Drive the REAL run-module.sh over a module in the
+        # smoke-bound constant, under `--heavy-units smoke`, and assert the reconciler's
+        # own SUMMARY pattern still matches exactly one line for that module id — the
+        # runner's extra `heavy units REQUESTED bounded` notice line, printed only on a
+        # bounded run, must not break reconcile()'s parse.
+        smoke_modules = sorted(RMF.HEAVY_UNIT_SMOKE_MODULES)
+        self.assertTrue(smoke_modules, "the smoke-bound constant is empty")
+        module_id = smoke_modules[0]
+        registry_data = json.loads(REGISTRY.read_text(encoding="utf-8"))
+
+        with tempfile.TemporaryDirectory(prefix="devflow-ac6-") as temporary:
+            temporary_path = Path(temporary)
+            # Lower the target module's floor to 1 exactly as reconcile() does, so a
+            # passing bounded run cannot be refused for a floor.
+            measurement = copy.deepcopy(registry_data)
+            measurement["test_modules"][module_id]["minimum_assertions"] = 1
+            measurement_registry = temporary_path / "registry.json"
+            measurement_registry.write_text(
+                json.dumps(measurement, indent=2) + "\n", encoding="utf-8"
+            )
+            log_dir = temporary_path / f"logs-{module_id}"
+            # Mirror the exact argv reconcile() builds for a smoke-bound module (module id
+            # last, `--heavy-units smoke` immediately before it).
+            proc = subprocess.run(
+                [
+                    os.environ.get("DEVFLOW_BASH") or "bash",
+                    str(REAL_RUNNER),
+                    "--registry",
+                    str(measurement_registry),
+                    "--log-dir",
+                    str(log_dir),
+                    "--heavy-units",
+                    "smoke",
+                    module_id,
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        matches = [
+            match
+            for match in RMF.SUMMARY.finditer(proc.stdout)
+            if match.group("module") == module_id
+        ]
+        self.assertEqual(len(matches), 1, proc.stdout + proc.stderr)
+        self.assertEqual(int(matches[0].group("failed")), 0, proc.stdout)
+        self.assertGreater(int(matches[0].group("passed")), 0, proc.stdout)
+        # The bounded-run notice WAS emitted (proving smoke was in effect) yet did not
+        # itself register as a SUMMARY match above — the parse-safety AC6 pins.
+        self.assertIn("heavy units REQUESTED bounded", proc.stdout)
 
 
 if __name__ == "__main__":
