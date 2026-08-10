@@ -36,7 +36,7 @@ DIAGNOSTIC_TAIL_CHARS = 2000
 # the wall clock, so this set is a strict subset of exact_ids — do not add a module that
 # ignores the mode (test_every_smoke_bound_module_reads_the_heavy_unit_mode enforces it
 # from the tree). A module qualifies only when its bounded and full tallies are equal;
-# harness-python-guards' one heavy unit (devflow_run_sharded_python_test) is a
+# harness-python-guards' heavy unit (devflow_run_sharded_python_test) is a
 # single-assert_eq contract in lib/test/module-harness.sh, so its tally cannot move with
 # the mode.
 #
@@ -55,8 +55,10 @@ def _measurement_argv(
     A module in HEAVY_UNIT_SMOKE_MODULES is measured under `--heavy-units smoke` so its
     heavy unit is bounded; every other module gets an argv byte-identical to the
     pre-#1499 form and carries no `--heavy-units` token. The flag pair sits immediately
-    before `module_id`, which stays the trailing token — reconcile()'s SUMMARY filter and
-    the focused-test fixture both read the module id as the last argv element.
+    before `module_id`, which stays the trailing token — the focused-test fixture reads
+    `args[-1]`, and `run-module.sh` takes the module id as its trailing positional
+    argument. (reconcile() itself matches the module id in the runner's stdout SUMMARY
+    line, not in argv, so it is indifferent to argv order.)
     """
     argv = [
         # The shell that RUNS a .sh helper is chosen at the invocation boundary via
