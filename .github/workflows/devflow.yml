@@ -733,7 +733,7 @@ jobs:
       id-token: write
       actions: write # write scope so actions/cache can save the pip cache (read alone → "cache write denied: token has no writable scopes"); superset still lets Claude read CI results on PRs
       # Required by summarize-ci-checks.sh's commits/{sha}/check-runs query, run by
-      # the `Compose review grounding block` step (issue #363). Without it that query
+      # the `Compose engine grounding block` step (issue #363). Without it that query
       # 403s and the block correctly degrades to `CI status unavailable` — but the
       # engine then loses the CI ground truth the block exists to give it. The
       # actions/runs + jobs queries ride the `actions: write` superset above.
@@ -838,6 +838,31 @@ jobs:
         with:
           ref: ${{ needs.config.outputs.prflow_version }}
 
+      # Incomplete-vendor guard for the grounding renderer. Runs AFTER
+      # vendor-materialization and BEFORE the Claude step so a broken vendor tree fails
+      # here rather than launching an agent whose prompt carries no
+      # engine-ground-truth block — this run's only statement of the headless-run
+      # discipline and of the commands it may execute. A directory's presence is not
+      # proof the helper exists, so probe the file itself.
+      #
+      # UNCONDITIONAL, exactly like `Compose engine grounding block` below: every
+      # command the gate dispatches now composes a block, so an unconditional guard
+      # fails exactly the runs that compose one and never a run that composes none.
+      # It carried a `/prflow:review ` predicate while the block did — do NOT restore
+      # one here without narrowing the compose step in the same edit, and note that
+      # this file's OTHER occurrences of that predicate select the github_token and
+      # are a security boundary, not a grounding gate. Probed vendored-then-repo-root,
+      # exactly as that step resolves the renderer, so this guard fails only where the
+      # compose step would itself have failed.
+      - name: Validate vendored grounding renderer
+        run: |
+          set -euo pipefail
+          if [ ! -f .prflow/vendor/prflow/scripts/render-grounding-block.sh ] \
+             && [ ! -f scripts/render-grounding-block.sh ]; then
+            echo "::error::incomplete vendor: render-grounding-block.sh is missing from both .prflow/vendor/prflow/scripts/ and scripts/ after materialization — this run's prompt would carry no engine-ground-truth block, its only statement of the headless-run discipline and of the commands it may execute. Repair the committed .prflow/vendor/prflow tree, or check the vendor-plugin fetch (prflow_version). Failing BEFORE Run Claude Code rather than launching an ungrounded agent." >&2
+            exit 1
+          fi
+
       # ── Trusted prompt-extension closure (issue #1075, extending #874) ────────
       # `scripts/load-prompt-extension.sh` prints an extension file byte-for-byte and
       # every skill treats that stdout as instructions appended to its OWN prompt for
@@ -916,7 +941,8 @@ jobs:
             exit 1
           fi
 
-          # Same parse the `Compose review grounding block` step below uses, for the
+          # Same parse the `Compose engine grounding block` step below uses on its
+          # review-mode path, for the
           # same reason (this job is command-driven, and the gate's resolver fails
           # closed rather than emitting a command with no number). A missing `grep`
           # or `head` empties PR_NUM, which routes to the warn-and-empty-closure arm —
@@ -1061,68 +1087,113 @@ jobs:
           TOOLS='Read, Write, Edit, Glob, Grep, LS, Skill, Agent, TodoWrite, EnterPlanMode, ExitPlanMode, WebFetch, WebSearch, Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(git pull:*), Bash(git fetch:*), Bash(git ls-remote:*), Bash(git status:*), Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git checkout:*), Bash(git cat-file:*), Bash(git hash-object:*), Bash(git branch:*), Bash(git stash:*), Bash(git rm:*), Bash(git mv:*), Bash(git restore:*), Bash(git revert:*), Bash(git blame:*), Bash(git ls-files:*), Bash(git rev-parse:*), Bash(git merge-base:*), Bash(git merge:*), Bash(gh pr create:*), Bash(gh pr edit:*), Bash(gh pr comment:*), Bash(gh pr diff:*), Bash(gh pr view:*), Bash(gh pr ready:*), Bash(gh pr list:*), Bash(gh pr checks:*), Bash(gh pr status:*), Bash(gh pr reopen:*), Bash(gh pr checkout:*), Bash(gh issue view:*), Bash(gh issue comment:*), Bash(gh issue list:*), Bash(gh issue edit:*), Bash(gh issue create:*), Bash(gh issue reopen:*), Bash(gh issue status:*), Bash(gh search:*), Bash(gh label list:*), Bash(gh repo view:*), Bash(gh run view:*), Bash(gh run list:*), Bash(gh workflow view:*), Bash(gh workflow list:*), Bash(gh api:*), Bash(jq:*), Bash(.prflow/vendor/prflow/scripts/run-jq.sh:*), Bash(.prflow/vendor/prflow/scripts/config-get.sh:*), Bash(.prflow/vendor/prflow/scripts/workpad.py:*), Bash(.prflow/vendor/prflow/scripts/seed-review-progress.sh:*), Bash(.prflow/vendor/prflow/scripts/verification-flight.py:*), Bash(.prflow/vendor/prflow/scripts/reception-record.py:*), Bash(.prflow/vendor/prflow/scripts/checkout-fingerprint.py:*), Bash(.prflow/vendor/prflow/scripts/check-completion-evidence.py:*), Bash(.prflow/vendor/prflow/scripts/parse-acs.py:*), Bash(.prflow/vendor/prflow/scripts/check-verified-premises.py:*), Bash(.prflow/vendor/prflow/scripts/branch-for-issue.py:*), Bash(.prflow/vendor/prflow/scripts/update-branch-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/phase2-durability-checkpoint.sh:*), Bash(.prflow/vendor/prflow/scripts/file-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/match-deferrals.py:*), Bash(.prflow/vendor/prflow/scripts/match-lint-adjudications.py:*), Bash(.prflow/vendor/prflow/scripts/normalize-verdicts.py:*), Bash(.prflow/vendor/prflow/scripts/resolve-review-overrides.py:*), Bash(.prflow/vendor/prflow/scripts/stale-prose-lint.py:*), Bash(.prflow/vendor/prflow/scripts/dismiss-stale-rejections.sh:*), Bash(.prflow/vendor/prflow/scripts/post-review-verdict.sh:*), Bash(.prflow/vendor/prflow/scripts/loop-verdict-marker.py:*), Bash(.prflow/vendor/prflow/scripts/prompt-surface-growth.py:*), Bash(.prflow/vendor/prflow/lib/efficiency-trace.sh:*), Bash(pip install:*), Bash(pip:*), Bash(python:*), Bash(python3:*), Bash(python -m:*), Bash(python3 -m:*), Bash(ruff:*), Bash(ruff check:*), Bash(ruff format:*), Bash(pytest:*), Bash(mypy:*), Bash(grep:*), Bash(rg:*), Bash(find:*), Bash(wc:*), Bash(sort:*), Bash(uniq:*), Bash(cut:*), Bash(tr:*), Bash(xargs:*), Bash(awk:*), Bash(sed:*), Bash(diff:*), Bash(comm:*), Bash(cat:*), Bash(head:*), Bash(tail:*), Bash(less:*), Bash(ls:*), Bash(tree:*), Bash(file:*), Bash(stat:*), Bash(date:*), Bash(pwd:*), Bash(realpath:*), Bash(dirname:*), Bash(basename:*), Bash(which:*), Bash(type:*), Bash(env:*), Bash(echo:*), Bash(printf:*), Bash(test:*), Bash(touch:*), Bash(mkdir:*), Bash(rmdir:*), Bash(rm:*), Bash(mv:*), Bash(cp:*), Bash(mktemp:*), Bash(cmp:*), Bash(.prflow/vendor/prflow/scripts/load-prompt-extension.sh:*), Bash(*/load-prompt-extension.sh:*), Bash(.prflow/vendor/prflow/scripts/render-prompt-extension.sh:*), Bash(*/render-prompt-extension.sh:*), Bash(tee:*)'
           printf 'tools=%s\n' "${TOOLS}${EXTRA}" >> "$GITHUB_OUTPUT"
 
-      # Ground the manual `/devflow:review` engine in the same two facts the
-      # automated path gets from devflow-runner.yml's `Compose review prompt`:
-      # the commands it may run, and the CI already observed for this head.
+      # Ground EVERY command this tier dispatches in the same facts the automated
+      # path gets from devflow-runner.yml's `Compose review prompt`: the commands the
+      # run may execute, the shapes its harness accepts, the headless-run discipline,
+      # and — where a reviewed commit exists — the CI already observed for it.
       #
-      # Gated on the resolved command, reusing this file's existing idiom. The
-      # trailing space in `/devflow:review ` excludes `/devflow:review-and-fix`,
-      # which holds a different (write-enabled) tool set and gets no block — this
-      # is what keeps the block's instructions conditional on its own presence.
-      # Every other command falls through to the bare prompt, byte-for-byte.
-      - name: Compose review grounding block
+      # UNCONDITIONAL. The gate dispatches exactly three commands
+      # (scripts/resolve-command-trigger.sh's allowlist: `/prflow:review`,
+      # `/prflow:review-and-fix`, `/prflow:pr-description`) and this job runs only
+      # when one of them resolved, so composing for every run of this job composes for
+      # every command. `/prflow:review-and-fix` in particular drives the review engine
+      # inline and fans out the most parallel subagents, so leaving it on the bare
+      # prompt left the run with no statement of the discipline that keeps those
+      # dispatches collected.
+      #
+      # WHICH MODE, and why only ONE command gets `review`. The renderer's `review` mode
+      # adds the CI-results section, whose operative instruction is "cite these
+      # conclusions as the authoritative test evidence for this commit, and do not
+      # re-derive them by running builds or tests". That is right for `/prflow:review`,
+      # which reviews a fixed head and pushes nothing. It is WRONG for
+      # `/prflow:review-and-fix`, which edits and pushes: its own prompt extension makes
+      # the in-environment whole-suite pass the run's gate and forbids the loop to cite
+      # CI for its own progress (issue #405), and this job raises BASH_MAX_TIMEOUT_MS to
+      # 20 minutes precisely so that suite can finish here — so injecting the CI section
+      # would contradict the run's own verification contract. It is equally wrong for
+      # `/prflow:pr-description`, which reviews no commit at all. Both therefore render
+      # in `generic`: the tier-agnostic sections only — the permitted commands, the
+      # command shapes, the headless-run discipline — with no claim about a reviewed
+      # commit and none of the implement tier's Phase 3 scope clause.
+      #
+      # `generic` is the ELSE operand, so the selection fails SAFE: a command the
+      # resolver's allowlist gains later cannot silently inherit a CI section asserting
+      # test evidence for a commit it never reviewed.
+      #
+      # NOTE for anyone sweeping `startsWith(needs.gate.outputs.command, '/prflow:review ')`
+      # in this file: the OTHER occurrences select the run's github_token (read-only
+      # reviewer vs. write-capable App) and are a security boundary. This one selects
+      # prompt CONTENT for a block every command now receives; the two are not the same
+      # edit, and changing them together is how the reviewer token reaches a command
+      # that pushes.
+      - name: Compose engine grounding block
         id: reviewcompose
-        if: ${{ startsWith(needs.gate.outputs.command, '/prflow:review ') }}
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           SELF_WORKFLOW_NAME: ${{ github.workflow }}
           ALLOWED_TOOLS: ${{ steps.tools.outputs.tools }}
           CMD: ${{ needs.gate.outputs.command }}
+          MODE: ${{ startsWith(needs.gate.outputs.command, '/prflow:review ') && 'review' || 'generic' }}
         run: |
           set -euo pipefail
-          # `github.sha`/`GITHUB_REF` reflect the TRIGGERING EVENT, not the checkout:
-          # on the sole `issue_comment` trigger `github.sha` is the default branch's
-          # head commit at trigger time, and pinning the checkout `ref:` (issue #1163)
-          # does not change it. Either way it is NOT the reviewed PR's head, so resolve
-          # the head SHA from the PR the command names rather than from `github.sha`.
-          PR_NUM=$(printf '%s' "$CMD" | grep -oE '[0-9]+' | head -1 || true)
-          HEAD_SHA=""
-          if [ -n "$PR_NUM" ]; then
-            HEAD_SHA=$(gh pr view "$PR_NUM" --repo "$REPO" --json headRefOid -q .headRefOid 2>/dev/null || true)
+          # The CI section exists only in `review` mode, so resolve its inputs only
+          # there: on a `generic` run the two gh queries below would burn API calls for
+          # a section that is never rendered, and their breadcrumbs would name a "CI
+          # section" the prompt does not carry.
+          CI_SUMMARY=""
+          if [ "$MODE" = review ]; then
+            # `github.sha`/`GITHUB_REF` reflect the TRIGGERING EVENT, not the checkout:
+            # on the sole `issue_comment` trigger `github.sha` is the default branch's
+            # head commit at trigger time, and pinning the checkout `ref:` (issue #1163)
+            # does not change it. Either way it is NOT the reviewed PR's head, so resolve
+            # the head SHA from the PR the command names rather than from `github.sha`.
+            PR_NUM=$(printf '%s' "$CMD" | grep -oE '[0-9]+' | head -1 || true)
+            HEAD_SHA=""
+            if [ -n "$PR_NUM" ]; then
+              HEAD_SHA=$(gh pr view "$PR_NUM" --repo "$REPO" --json headRefOid -q .headRefOid 2>/dev/null || true)
+            fi
+            export HEAD_SHA
+            SCC=.prflow/vendor/prflow/scripts/summarize-ci-checks.sh
+            [ -f "$SCC" ] || SCC=scripts/summarize-ci-checks.sh
+            # Each no-op branch names the condition that fired. Two different causes
+            # converging on one breadcrumb would leave a reader unable to tell a missing
+            # helper from an unresolved head — both render the same `CI status
+            # unavailable`, which is the point: an unknown CI state must never render
+            # as a passing one.
+            if [ ! -f "$SCC" ]; then
+              echo "::warning::devflow: summarize-ci-checks.sh not found at either the vendored or repo path — the review prompt's CI section will report it unavailable" >&2
+              CI_SUMMARY="CI status unavailable"
+            elif [ -z "$HEAD_SHA" ]; then
+              echo "::warning::devflow: could not resolve a head SHA for PR '${PR_NUM:-<none parsed from the command>}' (gh pr view failed, or the command carried no PR number) — the review prompt's CI section will report it unavailable" >&2
+              CI_SUMMARY="CI status unavailable"
+            else
+              CI_SUMMARY=$(bash "$SCC") || CI_SUMMARY="CI status unavailable"
+            fi
+            [ -n "$CI_SUMMARY" ] || CI_SUMMARY="CI status unavailable"
           fi
-          export HEAD_SHA
-          SCC=.prflow/vendor/prflow/scripts/summarize-ci-checks.sh
-          [ -f "$SCC" ] || SCC=scripts/summarize-ci-checks.sh
-          # Each no-op branch names the condition that fired. Two different causes
-          # converging on one breadcrumb would leave a reader unable to tell a missing
-          # helper from an unresolved head — both render the same `CI status
-          # unavailable`, which is the point: an unknown CI state must never render
-          # as a passing one.
-          if [ ! -f "$SCC" ]; then
-            echo "::warning::devflow: summarize-ci-checks.sh not found at either the vendored or repo path — the review prompt's CI section will report it unavailable" >&2
-            CI_SUMMARY="CI status unavailable"
-          elif [ -z "$HEAD_SHA" ]; then
-            echo "::warning::devflow: could not resolve a head SHA for PR '${PR_NUM:-<none parsed from the command>}' (gh pr view failed, or the command carried no PR number) — the review prompt's CI section will report it unavailable" >&2
-            CI_SUMMARY="CI status unavailable"
-          else
-            CI_SUMMARY=$(bash "$SCC") || CI_SUMMARY="CI status unavailable"
-          fi
-          [ -n "$CI_SUMMARY" ] || CI_SUMMARY="CI status unavailable"
 
           RGB=.prflow/vendor/prflow/scripts/render-grounding-block.sh
           [ -f "$RGB" ] || RGB=scripts/render-grounding-block.sh
           if [ ! -f "$RGB" ]; then
-            echo "::warning::devflow: render-grounding-block.sh not found at either the vendored or repo path — falling back to the bare command prompt" >&2
-            exit 0
+            echo "::error::devflow: render-grounding-block.sh not found at either the vendored or repo path — this run's prompt would carry no engine-ground-truth block, its only statement of the headless-run discipline and of the commands it may execute. Repair the vendored .prflow/vendor/prflow tree, or check the vendor-plugin fetch (prflow_version). Refusing to run." >&2
+            exit 1
           fi
-          GROUNDING=$(CI_SUMMARY="$CI_SUMMARY" ALLOWED_TOOLS="$ALLOWED_TOOLS" bash "$RGB") || GROUNDING=""
-          # Verify the OUTCOME, not the file's existence (see devflow-runner.yml).
-          # An empty block means the engine gets the bare command prompt back, which
-          # is the pre-#363 behavior — degraded, but never a silently-empty block.
+          # MODE is forwarded EXPLICITLY even though the step env already carries it, so
+          # the tier the block renders for is readable at the call site — the same
+          # cross-file contract scripts/compose-implement-prompt.sh states with
+          # `MODE=implement`. It sits after ALLOWED_TOOLS because devflow-runner.yml
+          # forwards HARDENED_PATHS at that same position, keeping the two files'
+          # shared prefix byte-identical.
+          GROUNDING=$(CI_SUMMARY="$CI_SUMMARY" ALLOWED_TOOLS="$ALLOWED_TOOLS" MODE="$MODE" bash "$RGB") || GROUNDING=""
+          # Verify the OUTCOME, not the file's existence (see devflow-runner.yml). A
+          # present-but-truncated renderer that exits 0 printing nothing FAILS the job
+          # rather than degrading to the bare command prompt: the block is the single
+          # home of the headless-run discipline, so a block-less run is not a
+          # degraded run but an ungrounded one.
           if [ -z "$GROUNDING" ]; then
-            echo "::warning::devflow: render-grounding-block.sh produced no output — falling back to the bare command prompt for this review" >&2
-            exit 0
+            echo "::error::devflow: render-grounding-block.sh produced no output — this run's prompt would carry no engine-ground-truth block, its only statement of the headless-run discipline and of the commands it may execute. The renderer resolved at '$RGB' but printed nothing or exited non-zero: repair that copy, or check the vendor-plugin fetch (prflow_version). Refusing to run." >&2
+            exit 1
           fi
           PROMPT="${GROUNDING}
 
@@ -1604,8 +1675,10 @@ jobs:
           # run and synthesised a clean prompt (no @claude needed; extra
           # free-text in the comment is intentionally dropped, matching the
           # implement path). The skills read PR/issue context themselves.
-          # Block-prepended for `/devflow:review`; the bare command for every other
-          # command (reviewcompose is skipped, so its output is empty).
+          # The engine-ground-truth block is prepended for EVERY command this tier
+          # dispatches. The bare-command fallback is now a last line of defense
+          # rather than the expected path for the non-review commands: the compose
+          # step fails the job instead of publishing an empty prompt output.
           prompt: ${{ steps.reviewcompose.outputs.prompt || needs.gate.outputs.command }}
 
           # This is an optional setting that allows Claude to read CI results on PRs

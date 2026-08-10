@@ -292,7 +292,6 @@ assert_eq "#408 grounding block renders the headless-run semantics sentence" "ye
   "$(printf '%s\n' "$GB408_OUT" | grep -qF 'This is a headless run: ending your turn ends the process' && echo yes || echo no)"
 assert_eq "#408 grounding block renders the ScheduleWakeup-unavailable rule" "yes" \
   "$(printf '%s\n' "$GB408_OUT" | grep -qF 'ScheduleWakeup' && echo yes || echo no)"
-IMPL_SKILL415="$REPO_ROOT/skills/implement/SKILL.md"
 WFI415="$REPO_ROOT/.github/workflows/devflow-implement.yml"
 # ── #415 review finding #1 + #2: the schedulewakeup-probe verdict core is extracted
 # ── into scripts/schedulewakeup-probe-verdict.py so every arm — and the fail-open
@@ -873,23 +872,29 @@ assert_eq "#435 AC5 mktemp-fail: NO fired-re-trigger ::notice::" "no" \
 # contract that does not exist rather than the one that was lost.
 
 
-# ── #801: harness floor + runner-agnostic dispatch barrier ───────────────────
+# ── #801: harness floor + injected dispatch barrier ──────────────────────────
 # Two coordinated layers keep a cloud engine run from ending its turn with dispatched
 # subagents still in flight. (1) The HARNESS FLOOR: each cloud workflow step that runs a
 # DevFlow engine sets CLAUDE_CODE_DISABLE_BACKGROUND_TASKS, which the vendor documents as
 # keeping subagents in the foreground — so results are in hand before the turn continues,
-# without depending on the model choosing correctly. (2) The RUNNER-AGNOSTIC BARRIER: each
-# engine root states, once, that every dispatched result is in hand before the run proceeds and
-# that a launch acknowledgment is never the return — with the per-runner mechanism named as a
-# current example, so the requirement survives a parameter rename and holds on runtimes with
-# no equivalent switch. The barrier pins target each ROOT's own path rather than
+# without depending on the model choosing correctly. (2) The DISPATCH BARRIER: the injected
+# engine-ground-truth block states, once, that every dispatched result is in hand before the
+# run proceeds past the dispatch point and that a launch acknowledgment is never the return,
+# naming `run_in_background: false` — the per-dispatch lever the engine itself controls — as
+# the lever to reach for. It names that one lever outright rather than hedging across
+# runtimes, because the cloud tier supports Claude Code headless only.
+# NEITHER ENGINE ROOT CARRIES A COPY: scripts/render-grounding-block.sh is the barrier's sole
+# home, so the coverage below is BEHAVIORAL — it drives the renderer and reads its output, in
+# every mode a tier renders, since a mode that dropped the section would now leave that tier's
+# run with no statement of the rule at all. Each dispatch site carries a POINTER to the
+# injected block rather than a copy, but that pointer prose is deliberately UNPINNED — see the
+# retirement record below the renderer checks.
 echo "#801 harness floor + dispatch barrier"
 # Only the paths this block is the first to need get a new variable. devflow.yml,
-# devflow-implement.yml, skills/implement/SKILL.md and the grounding renderer already have
-# module-scoped variables ($WFD408, $WFI415, $IMPL_SKILL415, $RGB408) — reuse them so a
-# workflow or skill rename has one home in this module rather than two that can diverge.
+# devflow-implement.yml and the grounding renderer already have module-scoped variables
+# ($WFD408, $WFI415, $RGB408) — reuse them so a workflow or renderer rename has one home in
+# this module rather than two that can diverge.
 WFRUN801="$REPO_ROOT/.github/workflows/devflow-runner.yml"
-REVIEW_ROOT801="$REPO_ROOT/skills/review/SKILL.md"
 INSTALL801="$REPO_ROOT/install.sh"
 
 cca_step_env801() {  # file -> yes|no : the env line present inside the Run Claude Code step
@@ -908,104 +913,85 @@ for _wf801 in "$WFRUN801" "$WFI415" "$WFD408"; do
 done
 unset _wf801 _t801
 
-# barrier-cloud-scoped — the barrier must sit INSIDE each root's cloud-conditioned block, not
-# float free as an unconditional rule. Bound the region by the block's own first and last
-# lines (its heading and its closing "This discipline" paragraph) rather than by the next
-# markdown heading, which is many paragraphs away and would accept a barrier moved out of the
-# block. Keeping the barrier cloud-scoped is what keeps step-3-6-audit.md's cross-reference —
-# which contrasts its own unconditional wait with "the cloud-tier headless-wait discipline" —
-# accurate without editing that file.
-# The literal is the barrier's acknowledgment clause rather than its lead sentence: the lead is
-# reworded independently per root (#1254 for implement, #1365 for review), while this clause is
-# the barrier's in both and is what a relocation would carry with it. So these checks bind the
-# PLACEMENT of the acknowledgment
-# clause and assert nothing about the collect requirement's own wording — do not read their
-# green as coverage of it.
+# barrier-in-headless-section — the barrier must sit INSIDE the rendered block's headless-run
+# section, in EVERY mode a cloud tier renders, not float free elsewhere in the block. Bound the
+# region by that section's own opening sentence and the block's `---` terminator: a clause
+# lifted into the command-shapes section, or pushed past the terminator into the prompt body,
+# then reads as ordinary prose while every dispatch site's pointer still says "read it there".
+#
+# THE THREE MODES ARE THE POPULATION, and checking each is the point. devflow-runner.yml and
+# devflow.yml's `/prflow:review` render `review`; devflow.yml's other two dispatched commands
+# render `generic`; scripts/compose-implement-prompt.sh renders `implement`. The engine roots
+# used to carry their own copy, so a mode that stopped emitting the section degraded one tier
+# to the roots' prose; with the copies gone it un-grounds that tier outright.
+#
+# The renders below pass no HARDENED_PATHS, so nothing is emitted between the headless section
+# and the terminator and the awk range is exactly that section. The literal is the barrier's
+# acknowledgment clause rather than its lead sentence, because that clause is what a relocation
+# carries with it — so these checks bind PLACEMENT and per-mode presence of the acknowledgment
+# clause and assert nothing about the collect requirement's own wording; do not read their green
+# as coverage of it.
 BARRIER_LIT801="a launch acknowledgment is never treated as the return"
-barrier_in_cloud_block801() {  # file -> yes|no
-  awk '/Cloud headless-wait discipline/,/^This discipline/' "$1" | \
+HEADLESS_HEAD801="This is a headless run: ending your turn ends the process"
+render_block801() {  # renderer-path mode -> the rendered block on stdout
+  MODE="$2" HEAD_SHA=x CI_SUMMARY='c: success' ALLOWED_TOOLS='Read' bash "$1"
+}
+barrier_in_headless_section801() {  # rendered-block-text -> yes|no
+  printf '%s\n' "$1" | \
+    awk -v h="$HEADLESS_HEAD801" 'index($0,h){f=1} f{print} f&&/^---$/{exit}' | \
     grep -qF -- "$BARRIER_LIT801" && echo yes || echo no
 }
-assert_eq "#801 barrier-cloud-scoped: review root's barrier sits inside the cloud-conditioned block" \
-  "yes" "$(barrier_in_cloud_block801 "$REVIEW_ROOT801")"
-assert_eq "#801 barrier-cloud-scoped: implement root's barrier sits inside the cloud-conditioned block" \
-  "yes" "$(barrier_in_cloud_block801 "$IMPL_SKILL415")"
-# Positive control, run over BOTH roots rather than one. Deleting the barrier only from within
-# the block and appending it after the block reproduces exactly the relocation the check exists
-# to catch, so the check is proven to bind on placement, not mere presence. Both roots need
-# their own control because the awk end-anchor `/^This discipline/` matches a DIFFERENT closing
-# sentence in each ("This discipline reduces…" in the review root, "This discipline only
-# reduces…" in the implement root): a control that binds on one carries no evidence that the
-# other's range is still bounded, and an unbounded range silently degrades the scoped check
-# into the whole-file presence check it was written to be stronger than.
-for _root801 in "$REVIEW_ROOT801" "$IMPL_SKILL415"; do
-  _root801_label="${_root801#*/skills/}"   # e.g. review/SKILL.md — the basename alone is SKILL.md for BOTH roots
-  _t801s="$(probe_tmp "#801 barrier-cloud-scoped relocation control ($_root801_label)")"
-  grep -vF -- "$BARRIER_LIT801" "$_root801" > "$_t801s"
-  printf '%s\n' "$BARRIER_LIT801" >> "$_t801s"
-  assert_eq "#801 barrier-cloud-scoped: a barrier relocated outside the cloud-conditioned block turns the scoped check RED ($_root801_label)" \
-    "no" "$(barrier_in_cloud_block801 "$_t801s")"
-  rm -f "$_t801s"
+# Positive control A, per mode (relocation): delete the clause from the rendered block and
+# re-append it after the terminator. That is exactly the defect the bounded range exists to
+# catch, and the whole-block presence check further down stays green through it — so running
+# it per mode proves each mode's range is still bounded rather than degraded into that
+# weaker check.
+for _mode801 in review implement generic; do
+  _b801="$(render_block801 "$RGB408" "$_mode801")"
+  assert_eq "#801 barrier-in-headless-section: MODE=$_mode801 renders the barrier inside the headless section" \
+    "yes" "$(barrier_in_headless_section801 "$_b801")"
+  _b801reloc="$(printf '%s\n' "$_b801" | grep -vF -- "$BARRIER_LIT801"; printf '%s\n' "$BARRIER_LIT801")"
+  assert_eq "#801 barrier-in-headless-section: a barrier relocated past the block terminator turns the check RED (MODE=$_mode801)" \
+    "no" "$(barrier_in_headless_section801 "$_b801reloc")"
 done
-unset _root801 _root801_label _t801s
-# Like the two placement checks above, this binds the acknowledgment clause only — a rendered
+# Positive control B, per mode (renderer regression): strip the clause from a COPY of the
+# renderer and re-render. With no copy left in either engine root, a renderer edit that drops
+# the clause IS the whole regression — this proves each mode's check reads the renderer's live
+# emission rather than a constant that would stay green through it.
+_t801g="$(probe_tmp '#801 barrier-in-headless-section renderer-drop control')"
+sed -E "/$BARRIER_LIT801/d" "$RGB408" > "$_t801g"
+for _mode801 in review implement generic; do
+  assert_eq "#801 barrier-in-headless-section: a renderer that drops the clause turns the check RED (MODE=$_mode801)" \
+    "no" "$(barrier_in_headless_section801 "$(render_block801 "$_t801g" "$_mode801")")"
+done
+rm -f "$_t801g"
+unset _mode801 _b801 _b801reloc _t801g
+# Like the placement checks above, this binds the acknowledgment clause only — a rendered
 # collect requirement reworded or dropped is not covered here.
 assert_eq "#801 grounding block renders the launch-acknowledgment clause" "yes" \
   "$(printf '%s\n' "$GB408_OUT" | grep -qF "$BARRIER_LIT801" && echo yes || echo no)"
 
-# barrier-pointer-coverage — every LISTED dispatch site carries a pointer to its engine root's
-# barrier statement rather than a copy. The check matches the pointer phrase AND the root path
-# that pointer names, on the same line: matching the root-agnostic phrase alone would stay green
-# while a review-tier reference pointed at the implement root, or while a backtick path rotted to
-# a moved root — the reader then follows a wrong or dead pointer and the barrier goes unread.
+# RETIRED (this change): barrier-pointer-coverage — the 12 per-site assertions that each
+# listed dispatch-site file CONTAINS the "Dispatch barrier." pointer sentence, plus its two
+# planted-defect controls. It was a documentation-presence pin over agent-executed prompt
+# prose, the class CLAUDE.md's Recorded decision for issues #843/#876 places outside automated
+# regression coverage by design, with the review pass as the compensating control.
 #
-# The population is a closed path list, NOT a live grep: no repo artifact enumerates dispatch
-# sites, so a detector claiming to catch a site added later would be unbacked. It is NOT
-# identical to issue #801's acceptance criterion, which enumerated ten paths as "complete by
-# construction" — review found that enumeration under-inclusive, so `pre-fix-gates.md` (the
-# parked-class sweep's semantic-batch dispatch) and `fixing.md` (its comment-analyzer
-# re-dispatch) are carried here beyond the criterion's ten. Two residuals, stated rather than
-# hidden:
-#   1. FORWARD-LOOKING — a dispatch added in a file outside this list is not caught; the list is
-#      revisited whenever a phase or reference file is added to either engine.
-#   2. PRESENT-DAY — `skills/requesting-code-review/SKILL.md` is a cloud-reachable dispatcher
-#      (phase-3-agents.md's final pass dispatches it, and it dispatches a reviewer of its own),
-#      deliberately EXCLUDED rather than missed: it is a vendored skill whose body must stay
-#      repo-agnostic (CLAUDE.md), so it may carry no DevFlow-internal pointer. Its impact is
-#      bounded — an acknowledgment-as-return there yields an evidence-empty return that
-#      phase-3-agents.md already handles fail-closed as a failed agent.
-_dispatch_sites801=(
-  "skills/review/phases/phase-1-checklist.md|skills/review/SKILL.md"
-  "skills/review/phases/phase-2-verification.md|skills/review/SKILL.md"
-  "skills/review/phases/phase-3-agents.md|skills/review/SKILL.md"
-  "skills/review/phases/phase-0-3-6-blocker-recheck.md|skills/review/SKILL.md"
-  "skills/review-and-fix/references/shadow-review.md|skills/review/SKILL.md"
-  "skills/review-and-fix/references/fix-delta-gate.md|skills/review/SKILL.md"
-  "skills/review-and-fix/references/loop-exit.md|skills/review/SKILL.md"
-  "skills/review-and-fix/references/loop-control.md|skills/review/SKILL.md"
-  "skills/review-and-fix/references/pre-fix-gates.md|skills/review/SKILL.md"
-  "skills/review-and-fix/references/fixing.md|skills/review/SKILL.md"
-  "skills/implement/phases/phase-2-implement.md|skills/implement/SKILL.md"
-  "skills/implement/phases/phase-4-documentation.md|skills/implement/SKILL.md"
-)
-has_barrier_pointer801() {  # file expected-root -> yes|no : both on ONE line
-  grep -F -- 'barrier statement in the engine root' "$1" | grep -qF -- "$2" && echo yes || echo no
-}
-for _site801 in "${_dispatch_sites801[@]}"; do
-  assert_eq "#801 barrier-pointer-coverage: ${_site801%%|*} points at ${_site801##*|}" \
-    "yes" "$(has_barrier_pointer801 "$REPO_ROOT/${_site801%%|*}" "${_site801##*|}")"
-done
-# Two planted-defect positive controls on a COPY, so neither half of the matcher can be vacuous:
-# stripping the pointer entirely, and repointing it at the OTHER engine root.
-_t801p="$(probe_tmp '#801 barrier-pointer-coverage positive control')"
-sed -E '/barrier statement in the engine root/d' "$REPO_ROOT/skills/review/phases/phase-1-checklist.md" > "$_t801p"
-assert_eq "#801 barrier-pointer-coverage: stripping the pointer from a listed site turns the coverage check RED" \
-  "no" "$(has_barrier_pointer801 "$_t801p" "skills/review/SKILL.md")"
-sed -E 's#skills/review/SKILL\.md#skills/implement/SKILL.md#' "$REPO_ROOT/skills/review/phases/phase-1-checklist.md" > "$_t801p"
-assert_eq "#801 barrier-pointer-coverage: repointing a review-tier site at the implement root turns the coverage check RED" \
-  "no" "$(has_barrier_pointer801 "$_t801p" "skills/review/SKILL.md")"
-rm -f "$_t801p"
-unset _site801 _t801p
+# It sat OUTSIDE the existence-pin census, so CONTRIBUTING.md's ordered retirement arms did not
+# decide it: the matcher was a bespoke `grep -F | grep -qF` presence check, not a call to
+# pin-corpus-classifier.py's EXISTENCE_HELPERS, so no census row is obtainable and none may be
+# added by hand. Its disposition was therefore taken directly under the parent prose-pin policy,
+# on that policy's own question — does any tool or consumer read the pinned content? The search
+# run over pin-corpus-lint.py's own machine-consumer surface found the pointer sentence in NO
+# consumer file; only its single hyphenated token `engine-ground-truth` appears there, inside
+# devflow-implement.yml's human-facing vendor-guard error strings, which emit that phrase rather
+# than read this sentence. Nothing parses, routes on, or otherwise consumes it.
+#
+# WHAT STOPS BEING ASSERTED: that each of the 12 dispatch-site files still carries a pointer to
+# the injected block rather than a copy of the barrier, and that the pointer keeps its
+# fail-closed null case. Retirement owes no replacement coverage (#843/#876); the review pass
+# reading the prose narrows that gap and does not close it. The barrier's own delivery IS still
+# covered, behaviorally, by the renderer checks above.
 
 # install-loop-unchanged — consumers receive the harness floor with no install.sh edit,
 # because the copy loop still carries the engine workflows it ships; matcher-probe.yml stays

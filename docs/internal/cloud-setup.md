@@ -108,9 +108,9 @@ writes changes into your repository, so download it, read it, then run the file 
 read:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.31.67/install.sh -o devflow-install.sh
+curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.32.0/install.sh -o devflow-install.sh
 # review devflow-install.sh, then:
-DEVFLOW_REF=v2.31.67 bash devflow-install.sh
+DEVFLOW_REF=v2.32.0 bash devflow-install.sh
 ```
 
 Both refs are pinned to the same **release tag**, so the install is reproducible.
@@ -920,6 +920,20 @@ its liveness cannot be verified — or its most recent cycle failed) — so a ru
 credentials is visible without log archaeology. The agent-side wrapper degrades loudly
 too: a substitute decision that finds no token file (a refresher defeated at startup
 never writes one) emits a stderr breadcrumb before riding the ambient token.
+
+**Agent-side fail-fast — the last line of defense when the refresher is defeated
+(issue #487).** The refresher can be defeated by sustained mint failure, so
+`skills/implement/SKILL.md` carries an always-resident *Expired-credential fail-fast*
+rule: after **two** consecutive `git push` / `gh` failures carrying the bad-credential
+signature (`401`, `Bad credentials`, `Authentication failed`) the run stops retrying
+that operation, records a `blocked` reflection, sets `Status: Blocked` and ends there.
+The motivating evidence is the ~$60 run **29299441781**, which spent its remainder
+iterating on dead credentials. That prose rule is **best-effort under context
+compaction** — a >60-minute run is the maximally compaction-likely population — and its
+compaction-immune sibling is `scripts/gh-fresh.sh`, which appends a distinctive
+`devflow-gh-fresh: gh call failed with an expired/bad credential …` line to stderr at
+every `gh` call failing with that signature, so the signal is re-derivable from the tool
+result even if the rule has been evicted from the agent's context.
 
 **Disclosed residual.** This refresher keeps PRFlow's own `git push` and `gh` calls
 fresh, but `claude-code-action`'s **own internal API calls** still ride the static

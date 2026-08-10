@@ -65,7 +65,7 @@ where `M` is the total dropped count (`N - 100`) and per-category counts sum to 
 
 ### 1.2 Launch checklist-generator agent(s)
 
-**Dispatch barrier.** Every subagent dispatch described here is bound by the barrier statement in the engine root's *Cloud headless-wait discipline* block (`skills/review/SKILL.md`) — read the requirement there; it is deliberately not restated here.
+**Dispatch barrier.** Every subagent dispatch described here is bound by the dispatch-collection requirement in the engine-ground-truth block injected into this run's prompt — read it there (if your prompt carries no such block, collect every dispatch before the turn ends anyway); it is deliberately not restated here.
 
 Use the **Agent tool** with `subagent_type: "prflow:checklist-generator"`. First resolve overrides for `prflow:checklist-generator` per **Per-Subagent Model/Effort Overrides** above, applying any resolved `model` as the Agent tool's `model` override.
 
