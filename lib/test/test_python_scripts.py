@@ -21716,6 +21716,11 @@ def _drive_cmd_patch_body(existing_body, new_body):
             operand = [c for c in cmd if c.startswith('body=@')][0]
             sent['body'] = Path(operand[len('body=@'):]).read_text(encoding='utf-8')
             return _FakeRun(sent['body'])
+        # The stub sees the GET's argv, so a read aimed at the wrong comment, the
+        # wrong repo, or one that lost `--jq .body` (handing the merge a JSON
+        # envelope) fails here instead of passing as a well-formed live body.
+        assert '/repos/owner/repo/issues/comments/7' in cmd, cmd
+        assert '--jq' in cmd and '.body' in cmd, cmd
         return _FakeRun(existing_body)
 
     workpad._run = _fake
@@ -21771,8 +21776,12 @@ assert_eq("#1508: a superseded-namespace marker is preserved per record",
            or '\n').split('\n')[0])
 
 
-def _drive_cmd_patch_read_failure():
-    """cmd_patch when the live-body read fails: returns (sent body, stderr)."""
+def _drive_cmd_patch_read_failure(new_body=None, live=None):
+    """cmd_patch when the live body cannot be established.
+
+    `live=None` raises from the read; `live=''` models `gh` exiting 0 with an
+    error envelope carrying no `.body`. Returns (sent body, stderr, exit code).
+    """
     saved = (workpad._run, workpad._repo_full)
     sent = {}
 
@@ -21781,27 +21790,85 @@ def _drive_cmd_patch_read_failure():
             operand = [c for c in cmd if c.startswith('body=@')][0]
             sent['body'] = Path(operand[len('body=@'):]).read_text(encoding='utf-8')
             return _FakeRun(sent['body'])
-        raise _sp295.CalledProcessError(1, cmd)
+        if live is None:
+            raise _sp295.CalledProcessError(1, cmd)
+        return _FakeRun(live)
 
     workpad._run = _fake
     workpad._repo_full = lambda *a, **kw: 'owner/repo'
     err = io.StringIO()
+    code = None
     with _tempfile.NamedTemporaryFile('w', suffix='.md', delete=False) as tf:
-        tf.write(_HEADING)
+        tf.write(_RUNKEY + '\n' + _HEADING if new_body is None else new_body)
         path = tf.name
     try:
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
-            workpad.cmd_patch(argparse.Namespace(comment_id=7, body_file=path))
+            try:
+                workpad.cmd_patch(argparse.Namespace(comment_id=7, body_file=path))
+            except SystemExit as e:
+                code = e.code
     finally:
         workpad._run, workpad._repo_full = saved
         _os.unlink(path)
-    return sent.get('body'), err.getvalue()
+    return sent.get('body'), err.getvalue(), code
 
 
-_sent, _stderr = _drive_cmd_patch_read_failure()
-assert_eq("#1508: an unreadable live body degrades to the caller's bytes and says so",
-          (_HEADING, True),
-          (_sent, 'could not read the live comment body' in _stderr))
+_sent, _stderr, _code = _drive_cmd_patch_read_failure()
+assert_eq("#1508: an unestablished live body still patches a composed body that carries "
+          "its own marker, and says so",
+          (_RUNKEY + '\n' + _HEADING, True, None),
+          (_sent, 'could not establish the live body' in _stderr, _code))
+
+# The other arm of the same unknown: nothing downstream can tell a dropped marker from
+# "there was no such comment", so a composed body carrying none refuses rather than
+# restoring the very clobber this preservation exists to prevent.
+_sent, _stderr, _code = _drive_cmd_patch_read_failure(new_body=_HEADING)
+assert_eq("#1508: an unestablished live body REFUSES a composed body carrying no marker",
+          (None, True, 1),
+          (_sent, 'refusing the PATCH' in _stderr, _code))
+
+# `gh` can emit an error envelope with no `.body` key while exiting 0. Unknown is not
+# zero: that must take the same arm as a raised read, never read as "no markers".
+_sent, _stderr, _code = _drive_cmd_patch_read_failure(new_body=_HEADING, live='')
+assert_eq("#1508: an exit-0 read that returns no body is unestablished, not an empty body",
+          (None, True, 1),
+          (_sent, 'refusing the PATCH' in _stderr, _code))
+
+# The whole body, not just its first lines: the bounded split reconstructs the tail by
+# index, so a regression that drops or duplicates a line after the markers would pass
+# every line-slice assertion above.
+assert_eq("#1508: re-inserting a marker leaves every other byte of the composed body intact",
+          _RUNKEY + '\n' + _HEADING,
+          _drive_cmd_patch_body(_RUNKEY + '\n' + 'old body\ntext\n', _HEADING))
+
+# The scan window is the safety property: widening it would hoist a marker the producer
+# never stamped into a stamp position.
+_THIRD = '<!-- prflow:review-seeded-head ' + 'c' * 40 + ' -->'
+assert_eq("#1508: a marker below the two-line scan window is never hoisted",
+          _RUNKEY + '\n' + _VERDICT + '\n' + _HEADING,
+          _drive_cmd_patch_body(_RUNKEY + '\n' + _VERDICT + '\n' + _THIRD + '\n', _HEADING))
+
+# The readers resolve a marker with a column-0 `startswith`, so an indented line is not
+# one: recognising it would let a composed body claim a marker no reader can find.
+assert_eq("#1508: an indented line is not a marker on either side of the merge",
+          [_RUNKEY, '  ' + _RUNKEY],
+          (_drive_cmd_patch_body(_RUNKEY + '\n' + _HEADING, '  ' + _RUNKEY + '\n' + _HEADING)
+           or '').split('\n')[:2])
+
+# A CRLF live body (GitHub returns one for a body last edited in the web UI) must not
+# inject a stray \r into an LF body the caller composed.
+assert_eq("#1508: a CRLF live marker is re-inserted without its carriage return",
+          _RUNKEY,
+          (_drive_cmd_patch_body(_RUNKEY + '\r\n' + _HEADING, _HEADING)
+           or '\n').split('\n')[0])
+
+# A composed body whose own marker sits behind a blank line leaves `supplied` empty, so
+# its copies would ride along in the tail beside the re-inserted ones.
+assert_eq("#1508: a composed body whose marker is not at line 1 gains no duplicate",
+          1,
+          (_drive_cmd_patch_body(_RUNKEY + '\n' + _VERDICT + '\n' + _HEADING,
+                                 '\n' + _RUNKEY + '\n' + _VERDICT + '\n' + _HEADING)
+           or '').count(_RUNKEY))
 
 # Echo SOURCE, not merely echo presence. `--print-body` must reproduce what the PATCH
 # RESPONSE carried — the bytes the pre-#814 code wrote — never the body this process
