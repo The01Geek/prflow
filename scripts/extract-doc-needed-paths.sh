@@ -10,10 +10,11 @@
 # `## Implementation Notes` section. THREE scope-opening shapes are accepted, per
 # the scope note below: (1) a `- **Documentation Needed**` list item (issue #185),
 # (2) a bare blank-line-preceded `**Documentation Needed**` bold paragraph (issue
-# #309), and (3) a `### Documentation Needed` level-3 heading (issue #380). Both Phase 4.1
-# Stage 1 (pre-flight briefing) and Stage 2 (post-hoc diff gate) consume THIS
-# output rather than re-deriving paths by LLM prose interpretation — so the two
-# passes can never disagree about which paths were named (issue #185 Addendum).
+# #309), and (3) a `### Documentation Needed` level-3 heading (issue #380). The direct
+# consumer is scripts/read-doc-needed-deliverables.sh, which Phase 4.1 Stage 1
+# (pre-flight briefing) and Stage 2 (post-hoc diff gate) each invoke rather than
+# re-deriving paths by LLM prose interpretation — so the two passes can never disagree
+# about which paths were named (issue #185 Addendum; issue #1554 interposed the helper).
 #
 # Extraction is intentionally deterministic and scoped:
 #   * scope — only the text between the Documentation Needed opener (a `- **…**`
