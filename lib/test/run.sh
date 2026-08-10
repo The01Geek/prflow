@@ -45982,9 +45982,12 @@ fi
 # ────────────────────────────────────────────────────────────────────────────
 echo "#619 batched-regeneration instruction surfaces"
 # ────────────────────────────────────────────────────────────────────────────
-# Surface-presence pins: each of the three instruction surfaces must carry the
+# Surface-presence pins: each orchestrating instruction surface must carry the
 # batched-regeneration invocation, so a loop's context cannot silently revert to
 # serial per-artifact discovery because one extension lost the instruction. The
+# receiving-code-review extension deliberately carries NO such invocation: it is
+# loaded by dispatched subagents, which were each re-running the multi-minute pass
+# inside the orchestrator's own iteration. The
 # pinned literal is a single unwrapped line in each file (a sentence wrapped across a
 # line break lives on no single line and this line-based pin would find nothing —
 # the issue-375 wrapped-literal hazard).
@@ -46007,10 +46010,7 @@ assert_pin_unique "#619 .prflow/prompt-extensions/implement.md carries the batch
 assert_pin_unique "#619 .prflow/prompt-extensions/review-and-fix.md carries the batched-regeneration invocation" \
   'run the granted direct leading-token form once' \
   "$LIB/../.prflow/prompt-extensions/review-and-fix.md"  # structural-pin-ok: cross-file-phase-contract -- the cloud-only config grant and the prompt invocation must stay coupled
-assert_pin_unique "#619 .prflow/prompt-extensions/receiving-code-review.md carries the batched-regeneration invocation" \
-  'run the granted direct leading-token form once' \
-  "$LIB/../.prflow/prompt-extensions/receiving-code-review.md"  # structural-pin-ok: cross-file-phase-contract -- the cloud-only config grant and the prompt invocation must stay coupled
-for _ra_ext in implement review-and-fix receiving-code-review; do
+for _ra_ext in implement review-and-fix; do
   assert_pin_unique "#619 .prflow/prompt-extensions/$_ra_ext.md carries the batched-regeneration discharge record" \
     '`batched-regeneration: run|refused|skipped`' \
     "$LIB/../.prflow/prompt-extensions/$_ra_ext.md"

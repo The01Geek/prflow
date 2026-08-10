@@ -559,18 +559,31 @@ check is the backstop for the commonest shape.
 
 Several suite gates compare a checked-in generated artifact against what the tree
 implies, so a source edit can turn the suite red until the artifact is refreshed.
-Run one batched pass before re-running the suite:
+Run one batched pass after each edit batch:
 
 ```bash
 lib/test/regenerate-artifacts.py
 ```
 
-It regenerates the one mechanically-safe artifact (the cloud-writer runtime manifest,
-`scripts/devflow-cloud-writer-contract.json`), may raise the exact-module assertion
-floors in `scripts/workflow-flight-recorder-registry.json` and their coupled
-`lib/test/run.sh` call sites from a measured tally (never lowering either), and runs a
-**non-writing** check for each judgment-gated artifact, reporting every judgment item
-together in one pass instead of one red run at a time. The registry inside the helper is
+and one more with the opt-in floors row immediately before the whole-suite pass you
+intend to claim completion on:
+
+```bash
+lib/test/regenerate-artifacts.py --with-floors
+```
+
+The bare form regenerates the one mechanically-safe artifact (the cloud-writer runtime
+manifest, `scripts/devflow-cloud-writer-contract.json`) and runs a **non-writing** check
+for each judgment-gated artifact, reporting every judgment item together in one pass
+instead of one red run at a time — about a second in total. `--with-floors` adds the one
+opt-in row, which measures every exact-policy module through the real focused runners
+(minutes, not milliseconds) and may raise the assertion floors in
+`scripts/workflow-flight-recorder-registry.json` and their coupled `lib/test/run.sh` call
+sites from that measured tally, never lowering either. The default pass prints an
+explicit `not measured` line for that row rather than staying silent about it, and skips
+it even under the flag when an earlier row has already reported the tree red. Deferring
+it cannot ship a stale artifact: an unraised floor fails the suite loudly at the module
+harness, which no completion claim may stand on. The registry inside the helper is
 the sole enumeration point — run `--list` for the current set rather than trusting a
 copy here, which would go stale the next time an artifact is added. Judgment items are yours to resolve deliberately — the helper never
 edits them. Exit codes: `0` clean, `1` action required, `2` infrastructure failure

@@ -267,9 +267,7 @@ reasoning about the artifact, not that run, so the slot is `no`.
 
 This section's trigger is a **merge conflict**, not an edit: whenever a rebase, base merge, or branch
 update leaves a conflict in a checked-in file, resolve it as follows before touching the conflicted
-bytes. It is a different trigger from the Batched artifact regeneration section, whose trigger is
-post-edit and pre-suite — no in-run conflict arm routes through that section, so the conflict rule
-lives here on its own.
+bytes. No post-edit pass routes through this rule, so it stands on its own.
 
 The listing this rule reads comes from the granted direct leading-token form:
 
@@ -311,11 +309,19 @@ drift.
 
 ## Batched artifact regeneration
 
-After applying edits and before each full-suite re-verify run, run the granted direct leading-token form once:
+After each edit batch, run the granted direct leading-token form once:
 
 ```bash
 lib/test/regenerate-artifacts.py
 ```
+
+Then, once and only immediately before the completion-gate whole-suite pass, run it with the opt-in floors row:
+
+```bash
+lib/test/regenerate-artifacts.py --with-floors
+```
+
+The bare form takes about a second; the floors row measures every exact-policy module through the real focused runners and takes minutes, so running it after every batch spends most of an iteration re-measuring a tree that keeps changing. A `not measured` line for that row is the expected default-pass outcome and needs no action there — an unraised floor fails the suite loudly rather than shipping stale, and the gate pass is where it is caught.
 
 Loop-induced edits drift the repo's checked-in generated records — editing a reached skill asset drifts the cloud-writer runtime manifest, and editing the capability manifest drifts the generated workflow literals — and discovering each one a full suite run at a time is the dominant cost of a Phase 2-3 iteration. The helper is the sole enumeration point for this repo's suite-owned generated artifacts, so this section deliberately lists no artifact inventory of its own — an inventory duplicated into prose is one that silently goes stale as artifacts are added. This batched pass does not discharge the existing Phase 2 stale-prose sweep: `scripts/stale-prose-lint.py` consumes a caller-selected diff on stdin and needs the correct post-image mode, so that separate sweep remains a completion-claim obligation.
 
