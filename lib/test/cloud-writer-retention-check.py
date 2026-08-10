@@ -36,7 +36,7 @@ to exit 0; it is never silent (the reasons are printed and the run is reported a
 acknowledged-degraded). CI keeps a real comparand with `fetch-depth: 0`, so the default
 direction is fail-closed.
 
-Pure core (`detect_mutation`, `classify_outcome`) so the focused test drives every arm — and
+Pure core (`detect_mutation`, `classify_outcome`) so the focused test drives every reachable arm — and
 the arm ORDER of the outcome selection — from in-memory fixtures; the CLI resolves the base
 manifest through git and reads the head manifest from the working tree.
 """
@@ -90,7 +90,7 @@ def classify_outcome(
     base_ref: str,
     comparand_substituted: bool,
 ) -> "tuple[int, list[str]]":
-    """Select the outcome. Pure — the focused test drives every arm and the arm ORDER.
+    """Select the outcome. Pure — the focused test drives every reachable arm and the arm ORDER.
 
     COMPARAND_SUBSTITUTED says the comparison ran against BASE_REF's own tip rather than a
     computed merge base (see `common.merge_base`). It separates arm 1 from arm 2: the same

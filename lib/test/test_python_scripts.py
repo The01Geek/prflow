@@ -14663,6 +14663,11 @@ with tempfile.TemporaryDirectory(prefix='cwr1445-') as _cwr_repo_str:
     _rc_mut_1445 = _cwr1445.main(['x', str(_cwr_repo), '--base-ref', 'origin/main'])
     assert_eq("#1445 AC3.2 e2e: a hand-mutated manifest fails the check (exit 1)",
               _cwr1445.EXIT_MUTATED, _rc_mut_1445)
+    # main()'s fail-closed CLI arm: an unresolvable base ref (merge_base None) must exit
+    # EXIT_MUTATED, never EXIT_CLEAN — a genuinely-unverifiable run never reports green.
+    _rc_nobase_1445 = _cwr1445.main(['x', str(_cwr_repo), '--base-ref', 'origin/does-not-exist-1445'])
+    assert_eq("#1445 AC3.2 e2e: an unresolvable base ref fails closed (exit 1), never clean",
+              _cwr1445.EXIT_MUTATED, _rc_nobase_1445)
 
 # ── AC1 / AC2: two branches editing disjoint regions of the SAME pinned file (AC1) or two
 # ADJACENT-sorted pinned files (AC2), each running the regeneration pass, merge into main in
