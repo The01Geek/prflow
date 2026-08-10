@@ -130,11 +130,9 @@ def _blank_noise(text: str) -> str:
             # A `#` starts a comment only at a token boundary (start of line, or after
             # whitespace / a command separator / a group opener). Otherwise it is literal
             # (e.g. `${x#prefix}` already lost its `$`/`{` to nothing here, but `a#b` is a word).
-            pc = None
-            for prev in reversed(out):
-                if prev:
-                    pc = prev[-1]
-                    break
+            # Every entry appended to `out` is a non-empty string, so the previous emitted
+            # character is just the last entry's last character.
+            pc = out[-1][-1] if out else None
             if pc is None or pc in " \t\n;&|(){":
                 while i < n and text[i] != "\n":
                     out.append(" ")
@@ -202,7 +200,7 @@ def scan_text(text: str) -> list[tuple[int, str]]:
         if not rmatch:
             continue
         target = rmatch.group("target")
-        if target == "/dev/null" or target.startswith("/dev/null"):
+        if target.startswith("/dev/null"):
             continue
         open_line = _line_of(text, open_index)
         close_line = _line_of(text, close_index)
