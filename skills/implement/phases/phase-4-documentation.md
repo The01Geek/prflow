@@ -1,3 +1,4 @@
+<!-- prflow:implement-ref phase=4 file=skills/implement/phases/phase-4-documentation.md start -->
 ## Phase 4: Documentation
 
 Output: `Phase 4/4: Documentation — updating docs and finalizing PR...`
@@ -371,3 +372,5 @@ Then finalize the workpad — tick the final `## Progress` item and flip `Status
 Add one `--reflection` flag per noteworthy event a human should know for troubleshooting: a failed step that was skipped, a subagent that returned no useful output, a permission denial, a test you couldn't run, an ambiguity you resolved with an assumption, or any deviation from the planned flow. Kind each by the reflection style contract's routing rule (see `skills/implement/SKILL.md`): a deviation you worked around is the *informational* `note` kind (`--reflection-kind note`); an engine/process-improvement proposal is `improvement`; feedback that the driving issue's claims were wrong or underspecified is `issue-accuracy`; genuinely actionable failures (a dropped manifest entry, a publish failure) are emitted at the point they occur with `--reflection-kind dropped-failed` so they land under `### ⚠️ Action required`. `--reflection` is repeatable so all the same-kind events land in a single atomic update. (No separate "Notes from /prflow:implement run" comment is posted — the workpad replaces it.)
 
 Finally, emit the 🎉 outcome reaction on the triggering comment (`REACTION=hooray`; see *Outcome reaction* in the Workpad Reference) — the implement lifecycle completed regardless of the publish decision (`draft`, `published`, or `publish_failed`; the publish failure is surfaced via the `--reflection` above, not by suppressing the reaction) — then output the PR URL and a one- or two-line summary of what was accomplished (state whether the PR was published, left a draft, or whether `gh pr ready` failed).
+
+<!-- prflow:implement-ref phase=4 file=skills/implement/phases/phase-4-documentation.md end -->
