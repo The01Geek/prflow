@@ -37,7 +37,7 @@
     "skills/implement/references/deferred-ac-followups.md": "3a154fd71a43024cc0546d9010b880fdb3f8ed9b0ed340a37c00cf25a36e1469",
     "skills/implement/references/deferred-review-findings.md": "96c7fa440d1f053319ddb843e9e6cae6881b8f6da2b848f494d561fe81bb1290",
     "skills/pr-description/SKILL.md": "a12988e5eb475fb6e91a1c80a5ace84c5aa84b7d8577e2500c2ebfafa757f995",
-    "skills/receiving-code-review/SKILL.md": "c126ea9ab8c1ecf7f895f2cbf9abe3f0e816eca86e65e2cb0031c7d686acd185",
+    "skills/receiving-code-review/SKILL.md": "df181f3b1a0bd6f51574f3da4618f5224aff1db74d0b8523e93ddc93fef39b63",
     "skills/requesting-code-review/SKILL.md": "ac70eccb031cab4a200111291094109e392e49426e1ca70d4ee2006bce18244d",
     "skills/requesting-code-review/code-reviewer.md": "154ea0bd0ad74329b20bc230f0acb6fbdfe06a3a0e8b369bf2f63dc9101b54b6",
     "skills/review-and-fix/SKILL.md": "f4aa9da2d2ef7ae63725094b453b1c1ae1f8029e209f4c5f16b5de5af7f0134e",
@@ -58,7 +58,7 @@
     "skills/review/phases/phase-3-agents.md": "36b4c907317c49e4e4d4144af5859533be4d4f37f6efd309ddf1c91c979741c8",
     "skills/review/phases/phase-4-1-7-stale-adjudication.md": "1bd847a5d4ef33ad57c03e590924630236bd2b2c8f70ac1896b20b389d707e1f",
     "skills/review/phases/phase-4-4-github-post.md": "dd90c63a08f43eebff99fbfd2bb72870d7023610899f41be023c52a76a2b23de",
-    "skills/review/phases/phase-4-verdict.md": "f12b9c8ec69c13b22519dfe02b9112548554e306b837e1790cc680cc116ed010"
+    "skills/review/phases/phase-4-verdict.md": "58d523ea652788b132e16552f2c7116a50750a481fd9b2aa195bf8910a3be587"
   },
   "legacy_profile_baseline": "2.31.16",
   "protocol": "devflow-cloud-writer-contract-v1",
