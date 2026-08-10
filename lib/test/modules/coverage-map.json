@@ -1155,6 +1155,10 @@
       "note": "",
       "owner": "unmodularized"
     },
+    "1526": {
+      "note": "the widened audited population of lint-ungranted-helper-spelling.py: the prompt-extension prefix and the two exact auto-loaded paths are reported like a skills/ path, the exact-path half is not a docs/internal/ prefix, and every declared exact path is tracked and selected by the default index enumeration",
+      "owner": "unmodularized"
+    },
     "157": {
       "note": "",
       "owner": "unmodularized"

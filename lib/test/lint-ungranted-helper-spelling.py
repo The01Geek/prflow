@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-"""Fail the suite when a shipped prompt surface names a bundled verdict-post helper
-by a repo-relative `scripts/`/`lib/` spelling the cloud matcher does not grant (issue
-#1248).
+"""Fail the suite when a prompt surface a cloud review run auto-loads names a bundled
+verdict-post helper by a repo-relative `scripts/`/`lib/` spelling the cloud matcher does
+not grant (issues #1248, #1526).
 
 Why this exists: the cloud permission matcher grants each bundled helper ONLY as the
 repo-relative vendored literal `.prflow/vendor/prflow/scripts/<name>` (and `…/lib/…`).
@@ -20,9 +20,33 @@ only fenced `bash` blocks, and these spellings live in inline-backtick prose, ou
 its reach (matching prose would resurrect the false-positive class it exists to
 avoid). A repo-relative path to a bundled helper is not English text, though: it is an
 unambiguous, closed shape that cannot occur by accident in prose, so it can be audited
-without that hazard. This lint does exactly that, over the same `skills/**` /
-`agents/**` shipped surface, with the same declaration-marker escape hatch as
-`lib/test/lint-shipped-pruned-path.py` (issue #1072), which is its structural sibling.
+without that hazard. This lint does exactly that, with the same declaration-marker escape
+hatch as `lib/test/lint-shipped-pruned-path.py` (issue #1072), which is its structural
+sibling.
+
+AUDITED POPULATION, and where its boundary sits (issue #1526). The population is every
+surface whose text reaches a cloud review run's context by the run's own machinery, not
+by an agent choosing to open a file:
+
+  * `skills/**` and `agents/**` — the shipped prompt bodies (the issue-#1248 population).
+  * `.prflow/prompt-extensions/**` — consumer policy the loader ladder appends verbatim
+    to a skill's prompt.
+  * `CLAUDE.md` — auto-loaded as project memory at the workspace root of every review
+    run, and read on instruction by `agents/code-reviewer.md`,
+    `agents/silent-failure-hunter.md` and `agents/pr-test-analyzer.md`.
+  * `docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md` — in scope only because `CLAUDE.md` names
+    it as the canonical statement of the verdict-marker contract, so a run following that
+    pointer reads it with project-memory authority.
+
+The boundary stops there deliberately, and the standing convention that documentation
+names a helper by its canonical `scripts/<name>` source path is why. Auditing `docs/**`
+or the tree at large would flag dozens of legitimate naming mentions on pages no run
+loads — the same over-reach FORBIDDEN SET below rejects for the ~30 other vendored-only
+helpers. What survives both narrowings is small by construction: two basenames whose
+repo-relative spelling was OBSERVED causing a silent cloud denial, on the handful of
+surfaces a run reads without being asked to. A surface later added to that auto-load set
+belongs in `AUDITED_PREFIXES`/`AUDITED_PATHS`; one merely *linked* from an audited page
+does not, or the population would close over the whole documentation graph.
 
 MATCHED SHAPE (the thing that FAILS the lint). For each forbidden helper, a repo-
 relative path token whose first segment is exactly `scripts/` or `lib/` immediately
@@ -66,7 +90,7 @@ only in the manifest (a bare grant was added, or the vendored grant removed), th
 premise no longer holds: the lint REFUSES non-zero naming the helper, so the scope is
 revisited rather than silently mis-auditing.
 
-Population is enumerated from the git index over `skills/**` and `agents/**`
+Population is enumerated from the git index and filtered to the surfaces above
 (`lib/test/lint_population.py`'s `enumerate_population` with the index-reading argv —
 no `--others`, no repository-root-anchored recursive walk, per issue #711).
 
@@ -117,7 +141,19 @@ EnumerationError = _pop.EnumerationError
 _SKIP_NUL = True
 
 #: Path prefixes whose files make up the audited population.
-AUDITED_PREFIXES = ("skills/", "agents/")
+AUDITED_PREFIXES = ("skills/", "agents/", ".prflow/prompt-extensions/")
+
+#: Exact repo-relative paths that join the population without their whole directory
+#: joining with them. `CLAUDE.md` is auto-loaded as project memory at the workspace root
+#: of every cloud review run, and three review agents direct their subagent to read it;
+#: the overview page is in scope only because `CLAUDE.md` cites it as the canonical
+#: statement of the verdict-marker contract, so a run that follows that pointer reads it
+#: with the same authority. Neither `docs/` nor the repository at large is audited —
+#: see the docstring's population section for why that boundary is where it is.
+AUDITED_PATHS = (
+    "CLAUDE.md",
+    "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+)
 
 #: The default capability manifest, relative to the resolved root.
 DEFAULT_MANIFEST_REL = "lib/capability-profiles.json"
@@ -264,15 +300,22 @@ def scan_text(text: str, patterns: list[tuple[str, re.Pattern]]) -> list[tuple[i
     return found
 
 
+def population_description() -> str:
+    """One phrase naming the audited population, for the refusal message."""
+    return " or ".join(AUDITED_PREFIXES + AUDITED_PATHS)
+
+
 def is_audited(path: str) -> bool:
     normalized = path.replace("\\", "/")
+    if normalized in AUDITED_PATHS:
+        return True
     return any(normalized.startswith(p) for p in AUDITED_PREFIXES)
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Fail when a shipped prompt surface (skills/**, agents/**) names a bundled "
+            "Fail when a prompt surface a cloud review run auto-loads names a bundled "
             "verdict-post helper by its ungranted repo-relative scripts/ or lib/ "
             "spelling without a declaration marker."
         )
@@ -340,8 +383,8 @@ def main(argv: list[str] | None = None) -> int:
     if not audited:
         print(
             "lint-ungranted-helper-spelling: the enumeration selected no file under "
-            f"{' or '.join(AUDITED_PREFIXES)} — refusing to report clean over an "
-            "unaudited shipped surface",
+            f"{population_description()} — refusing to report clean over an "
+            "unaudited prompt surface",
             file=sys.stderr,
         )
         return 1

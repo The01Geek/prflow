@@ -50193,8 +50193,8 @@ assert_eq "#1248 lint: an agents/ path is audited and reported like skills/" "ye
 # Empty-audited floor: a list naming only a non-audited path refuses rather than
 # reporting a clean pass over an unchecked surface; adding one audited path audits 1 of 1
 # (floor control + is_audited negative half).
-assert_eq "#1248 lint: an enumeration selecting no skills/agents path refuses (empty-audited floor)" "yes" \
-  "$(case "$(uh_run manifests/vendored-only.json)" in "rc=1|"*"selected no file under skills/ or agents/"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#1248 lint: an enumeration selecting no audited path refuses (empty-audited floor)" "yes" \
+  "$(case "$(uh_run manifests/vendored-only.json)" in "rc=1|"*"selected no file under skills/ or agents/ or .prflow/prompt-extensions/ or CLAUDE.md or docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md"*) echo yes ;; *) echo no ;; esac)"
 assert_eq "#1248 lint: the same list plus one audited path audits 1 of 1 (floor control + is_audited negative)" \
   "$UH_CLEAN1" \
   "$(uh_run manifests/vendored-only.json skills/clean.md)"
@@ -50206,6 +50206,34 @@ assert_eq "#1248 lint: the same list plus one audited path audits 1 of 1 (floor 
 # clean.md alongside it proves the run still scanned the readable member (audited 1 of 2).
 assert_eq "#1248 lint: an unreadable/absent audited path is a fail-closed skip, not a silent exclusion" "yes" \
   "$(case "$(uh_run skills/does-not-exist.md skills/clean.md)" in "rc=1|"*"SKIPPED skills/does-not-exist.md"*"refusing to report clean"*) echo yes ;; *) echo no ;; esac)"
+
+# issue #1526: the audited population also covers the prompt surfaces a cloud review run
+# auto-loads outside skills/+agents/ — the consumer prompt-extension prefix, CLAUDE.md
+# (project memory at the review workspace root), and the overview page CLAUDE.md cites as
+# the canonical verdict-marker statement. Before this widening the fixture files asserted
+# below selected NOTHING and the run refused on the empty-audited floor; each is now
+# audited and reported, which is what makes the widening non-vacuous.
+assert_eq "#1526 lint: a prompt-extension path is audited and reported" "yes" \
+  "$(case "$(uh_run .prflow/prompt-extensions/review.md)" in "rc=1|"*".prflow/prompt-extensions/review.md:1:"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#1526 lint: CLAUDE.md is audited and reported" "yes" \
+  "$(case "$(uh_run CLAUDE.md)" in "rc=1|"*"CLAUDE.md:1:"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#1526 lint: the cited overview page is audited and reported" "yes" \
+  "$(case "$(uh_run docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md)" in "rc=1|"*"docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md:1:"*) echo yes ;; *) echo no ;; esac)"
+# The exact-path half is EXACT, not a docs/internal/ prefix: a sibling page under the same
+# directory is outside the population, so it alone hits the empty-audited floor rather
+# than being scanned. Without this the widening could silently become a docs/ sweep.
+assert_eq "#1526 lint: a sibling docs/internal page is NOT audited (exact-path, not a prefix)" "yes" \
+  "$(case "$(uh_run docs/internal/clean-overview.md)" in "rc=1|"*"selected no file under"*) echo yes ;; *) echo no ;; esac)"
+# The widened members ride the same real-tree gate as the original population. Asserted
+# against the DEFAULT enumeration (no --files-from), because the widening is only real if
+# the index-reading population actually selects them: each declared exact path must be
+# both tracked here and admitted by the population filter.
+assert_eq "#1526 lint: every declared exact path is tracked and selected by the default enumeration" "yes" \
+  "$(cd "$LIB/.." && git ls-files -z | python3 -c 'import importlib.util, pathlib, sys
+spec = importlib.util.spec_from_file_location("uh", pathlib.Path("lib/test/lint-ungranted-helper-spelling.py"))
+mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+tracked = set(sys.stdin.buffer.read().decode("utf-8").split("\0"))
+print("yes" if all(p in tracked and mod.is_audited(p) for p in mod.AUDITED_PATHS) else "no")')"
 
 # AC5: this repository's own local tier resolves the repo-root form (the vendored tree is
 # materialized only at runtime and is absent from the working tree), so the repo-root
