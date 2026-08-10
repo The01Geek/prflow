@@ -21677,17 +21677,23 @@ assert_eq("#814: a failed --expect-comment-id precondition makes no PATCH and wr
 # capture it (scripts/flip-review-progress-failed.sh, skills/pr-description). Driven
 # behaviourally too, so a later "let's be consistent" gate on it turns this RED.
 def _drive_cmd_patch(payload):
-    saved = workpad._run
-    workpad._run = lambda cmd, **kw: _FakeRun(payload)
+    saved = (workpad._run, workpad._repo_full)
+    # Per-leg payloads, so the echo SOURCE stays discriminating: a payload-independent
+    # stub would answer the live-body GET with the same bytes, and a regression echoing
+    # the GET's body instead of the PATCH response would pass. `_repo_full` is stubbed
+    # rather than answered by the same lambda, so the repo is not the payload string.
+    workpad._repo_full = lambda *a, **kw: 'owner/repo'
+    workpad._run = lambda cmd, **kw: _FakeRun(
+        payload if ('-X' in cmd and 'PATCH' in cmd) else 'live body, no marker\n')
     out = io.StringIO()
     with _tempfile.NamedTemporaryFile('w', suffix='.md', delete=False) as tf:
         tf.write('body file contents\n')
         path = tf.name
     try:
-        with contextlib.redirect_stdout(out):
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
             workpad.cmd_patch(argparse.Namespace(comment_id=7, body_file=path))
     finally:
-        workpad._run = saved
+        workpad._run, workpad._repo_full = saved
         _os.unlink(path)
     return out.getvalue()
 
@@ -21706,15 +21712,24 @@ _RUNKEY = '<!-- prflow:review-progress run=31356552464-1 -->'
 _VERDICT = '<!-- prflow:review-verdict head=' + 'a' * 40 + ' verdict=REJECT -->'
 
 
-def _drive_cmd_patch_body(existing_body, new_body):
-    """Return the body cmd_patch PATCHes when the live comment reads `existing_body`."""
+def _drive_cmd_patch_body(existing_body, new_body, *, want=None):
+    """Return the body cmd_patch PATCHes when the live comment reads `existing_body`.
+
+    `want='stderr'` returns the run's stderr instead, and `want='staged'` the
+    directory the PATCH operand lived in beside whether it survived the call.
+    """
     saved = (workpad._run, workpad._repo_full)
     sent = {}
 
     def _fake(cmd, **kw):
         if '-X' in cmd and 'PATCH' in cmd:
+            # Asserted on the PATCH leg too, not the GET alone: a PATCH that lost
+            # `--jq .body` or addressed another comment would otherwise pass.
+            assert '/repos/owner/repo/issues/comments/7' in cmd, cmd
+            assert '--jq' in cmd and '.body' in cmd, cmd
             operand = [c for c in cmd if c.startswith('body=@')][0]
-            sent['body'] = Path(operand[len('body=@'):]).read_text(encoding='utf-8')
+            sent['path'] = Path(operand[len('body=@'):])
+            sent['body'] = sent['path'].read_text(encoding='utf-8')
             return _FakeRun(sent['body'])
         # The stub sees the GET's argv, so a read aimed at the wrong comment, the
         # wrong repo, or one that lost `--jq .body` (handing the merge a JSON
@@ -21725,16 +21740,22 @@ def _drive_cmd_patch_body(existing_body, new_body):
 
     workpad._run = _fake
     workpad._repo_full = lambda *a, **kw: 'owner/repo'
+    err = io.StringIO()
     with _tempfile.NamedTemporaryFile('w', suffix='.md', delete=False) as tf:
         tf.write(new_body)
         path = tf.name
     try:
         with contextlib.redirect_stdout(io.StringIO()), \
-                contextlib.redirect_stderr(io.StringIO()):
+                contextlib.redirect_stderr(err):
             workpad.cmd_patch(argparse.Namespace(comment_id=7, body_file=path))
     finally:
         workpad._run, workpad._repo_full = saved
         _os.unlink(path)
+    if want == 'stderr':
+        return err.getvalue()
+    if want == 'staged':
+        staged = sent.get('path')
+        return (staged != Path(path), staged.exists())
     return sent.get('body')
 
 
@@ -21749,14 +21770,23 @@ assert_eq("#1508: a rewrite after a verdict stamp keeps BOTH markers at their "
           "contracted positions",
           [_RUNKEY, _VERDICT], _both.split('\n')[:2])
 
-# The caller stays authoritative for a marker it does supply — that is how a deliberate
-# marker change (a `--marker` migration, a re-stamped verdict) still lands.
+# The caller stays authoritative for a marker it does supply — that is how a re-stamped
+# verdict still lands. The composed body deliberately OMITS the run key, so precedence
+# and re-insertion must both fire: a merge that returned the caller's bytes untouched
+# (the whole pre-fix behaviour) would leave the new verdict at line 1.
 _NEWVERDICT = '<!-- prflow:review-verdict head=' + 'b' * 40 + ' verdict=APPROVE -->'
 _re_stamped = _drive_cmd_patch_body(
     _RUNKEY + '\n' + _VERDICT + '\n' + _HEADING,
-    _RUNKEY + '\n' + _NEWVERDICT + '\n' + _HEADING) or ''
+    _NEWVERDICT + '\n' + _HEADING) or ''
 assert_eq("#1508: a marker the caller supplies wins over the live one of the same kind",
           [_RUNKEY, _NEWVERDICT], _re_stamped.split('\n')[:2])
+
+# A kind only the caller supplies — the first verdict stamp, whose live body carries the
+# run key alone — is appended after the live markers, never ahead of the run key.
+assert_eq("#1508: a kind only the caller supplies lands after the live markers",
+          [_RUNKEY, _VERDICT],
+          (_drive_cmd_patch_body(_RUNKEY + '\n' + _HEADING, _VERDICT + '\n' + _HEADING)
+           or '').split('\n')[:2])
 
 # The implement workpad's single-marker family must not gain a second marker line, and
 # a comment that never carried a marker must not gain one.
@@ -21792,6 +21822,10 @@ def _drive_cmd_patch_read_failure(new_body=None, live=None):
             return _FakeRun(sent['body'])
         if live is None:
             raise _sp295.CalledProcessError(1, cmd)
+        if live is OSError:
+            # An absent `gh` binary — the other arm of the same `except`, and the one
+            # whose exception carries no `.stderr` for the breadcrumb to read.
+            raise OSError(2, 'No such file or directory')
         return _FakeRun(live)
 
     workpad._run = _fake
@@ -21834,6 +21868,13 @@ assert_eq("#1508: an exit-0 read that returns no body is unestablished, not an e
           (None, True, 1),
           (_sent, 'refusing the PATCH' in _stderr, _code))
 
+# The other exception the same `except` catches — an absent `gh` binary — carries no
+# `.stderr`, so it exercises the other limb of the breadcrumb's cause selection.
+_sent, _stderr, _code = _drive_cmd_patch_read_failure(new_body=_HEADING, live=OSError)
+assert_eq("#1508: an OSError from the live read takes the same unestablished arm",
+          (None, True, 1),
+          (_sent, 'No such file or directory' in _stderr, _code))
+
 # The whole body, not just its first lines: the bounded split reconstructs the tail by
 # index, so a regression that drops or duplicates a line after the markers would pass
 # every line-slice assertion above.
@@ -21862,13 +21903,39 @@ assert_eq("#1508: a CRLF live marker is re-inserted without its carriage return"
           (_drive_cmd_patch_body(_RUNKEY + '\r\n' + _HEADING, _HEADING)
            or '\n').split('\n')[0])
 
-# A composed body whose own marker sits behind a blank line leaves `supplied` empty, so
-# its copies would ride along in the tail beside the re-inserted ones.
-assert_eq("#1508: a composed body whose marker is not at line 1 gains no duplicate",
-          1,
-          (_drive_cmd_patch_body(_RUNKEY + '\n' + _VERDICT + '\n' + _HEADING,
-                                 '\n' + _RUNKEY + '\n' + _VERDICT + '\n' + _HEADING)
-           or '').count(_RUNKEY))
+# A composed body whose own markers sit behind a blank line leaves `supplied` empty, so
+# its copies would ride along in the tail beside the re-inserted ones. Asserted as the
+# whole body: counting one kind alone would miss the second, which the bounded split
+# leaves inside an unsplit tail element the dedupe scan cannot reach.
+assert_eq("#1508: a composed body whose markers are not at line 1 gains no duplicate",
+          _RUNKEY + '\n' + _VERDICT + '\n\n' + _HEADING,
+          _drive_cmd_patch_body(_RUNKEY + '\n' + _VERDICT + '\n' + _HEADING,
+                                '\n' + _RUNKEY + '\n' + _VERDICT + '\n' + _HEADING))
+
+# The readers accept trailing whitespace on a marker line, so refusing it here would
+# leave a live marker they DO resolve unpreserved — the silent clobber, one space wide.
+assert_eq("#1508: a live marker with trailing whitespace is preserved, whitespace stripped",
+          _RUNKEY,
+          (_drive_cmd_patch_body(_RUNKEY + '  \n' + _HEADING, _HEADING)
+           or '\n').split('\n')[0])
+
+# The breadcrumb is the only signal an operator gets that a rewrite was repaired, and a
+# live body carrying one kind twice names that kind once.
+assert_eq("#1508: the re-insertion breadcrumb names each re-inserted kind exactly once",
+          True,
+          'omitted: review-progress, review-verdict' in _drive_cmd_patch_body(
+              _RUNKEY + '\n' + _VERDICT + '\n' + _HEADING, _HEADING, want='stderr'))
+assert_eq("#1508: a live body carrying one kind twice names it once in the breadcrumb",
+          True,
+          'omitted: review-progress\n' in _drive_cmd_patch_body(
+              _RUNKEY + '\n' + _RUNKEY + '\n' + _HEADING, _HEADING, want='stderr'))
+
+# The merged body is staged into the helper's own file rather than over the caller's,
+# and does not outlive the call — the two claims that keep a read-only caller directory
+# and a `git add` scoped to it out of the failure set.
+assert_eq("#1508: the staged PATCH body is private to the helper and is cleaned up",
+          (True, False),
+          _drive_cmd_patch_body(_RUNKEY + '\n' + _HEADING, _HEADING, want='staged'))
 
 # Echo SOURCE, not merely echo presence. `--print-body` must reproduce what the PATCH
 # RESPONSE carried — the bytes the pre-#814 code wrote — never the body this process

@@ -1043,22 +1043,24 @@ def cmd_acs_resolve(args):
 # (docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md §8) — a marker deeper in a body is
 # prose, so hoisting one would invent a stamp the producer never made.
 _LEADING_MARKER_SCAN = 2
-# Anchored at column 0 with no strip, because that is the predicate every reader
-# uses (`_find_workpad_comment`'s `body.startswith(...)`). A `.strip()` here would
-# recognise an indented marker the readers cannot resolve, and conclude the caller
-# already supplied one. Only a trailing `\r` is tolerated: GitHub returns CRLF for
-# a body last edited through the web UI.
+# Anchored at column 0, because that is where the readers' predicate anchors
+# (`_find_workpad_comment`'s `body.startswith(...)`): recognising an INDENTED marker
+# would let a composed body claim one no reader can resolve. Trailing whitespace goes
+# the other way — the readers accept it, so refusing it here would leave a live marker
+# they resolve unpreserved — and is tolerated and stripped off the re-inserted line,
+# which also covers the CRLF GitHub returns for a body last edited in the web UI.
 _LEADING_MARKER_RE = re.compile(
-    r'^' + _MARKER_NS_RE + r'([A-Za-z0-9_.:-]+)[^\n]*-->\r?$')
+    r'^' + _MARKER_NS_RE + r'([A-Za-z0-9_.:-]+)[^\n]*-->[ \t\r]*$')
 
 
 def _leading_markers(body):
     """`(markers, tail)` — the leading PRFlow marker-comment lines, then the rest.
 
-    `markers` is `[(kind, line)]` with each line's trailing `\\r` removed, so a
-    CRLF live body never injects a stray `\\r` into an LF one. `tail` is the
+    `markers` is `[(kind, line)]` with each line's trailing whitespace removed, so
+    a CRLF live body never injects a stray `\\r` into an LF one. `tail` is the
     remaining lines, already split, so a caller that rebuilds the body never
-    re-splits it.
+    re-splits it — but the bounded split below leaves its LAST element unsplit,
+    so a caller that matches line-by-line over `tail` must re-split it first.
     """
     # Bounded split: the scan needs at most `_LEADING_MARKER_SCAN` lines, and the
     # remainder comes back as one unsplit trailing element.
@@ -1068,7 +1070,7 @@ def _leading_markers(body):
         m = _LEADING_MARKER_RE.match(line)
         if not m:
             break
-        found.append((m.group(1), line.rstrip('\r')))
+        found.append((m.group(1), line.rstrip(' \t\r')))
     return found, lines[len(found):]
 
 
@@ -1082,8 +1084,10 @@ def _merge_leading_markers(live_body, new_body):
     caller supplied every live kind nothing is re-inserted and its own body —
     and its own order — is returned untouched. The consequence a caller must
     know: this can CHANGE a leading marker of a kind the live body already
-    carries, but never REMOVE one, so a deliberate removal, and a migration that
-    changes a marker's KIND, go through a different write path.
+    carries, but never REMOVE one it holds, so a deliberate removal, and a
+    migration that changes a marker's KIND, go through a different write path.
+    A same-kind marker the CALLER placed out of position — behind a blank line
+    rather than at line 1 — is dropped rather than duplicated.
 
     `scripts/post-review-verdict.sh`'s `_prv_stamp_progress` writes the stamp
     this preserves. The two agree only on the POSITIONS — run key line 1, verdict
@@ -1106,9 +1110,12 @@ def _merge_leading_markers(live_body, new_body):
     # heading ahead of it — leaves `supplied` empty, so its own copies would ride
     # along in the tail beside the ones just prepended. Drop a marker line of an
     # already-merged kind from the tail's leading run, stopping at the first line
-    # that is neither blank nor such a marker so no content is touched.
+    # that is neither blank nor such a marker so no ordinary content is touched.
+    # `_leading_markers` leaves the tail's last element unsplit, and the regex is
+    # not multiline, so it must be re-split or the scan stops at the blob and the
+    # second out-of-position marker survives.
     kept_tail, dropping = [], True
-    for line in tail:
+    for line in '\n'.join(tail).split('\n') if tail else []:
         if dropping:
             m = _LEADING_MARKER_RE.match(line)
             if m and m.group(1) in merged_kinds:
@@ -1133,6 +1140,8 @@ def _patch_comment_body(repo, comment_id, text=None, *, body_path=None):
     """
     staged = None
     if body_path is None:
+        if text is None:
+            raise ValueError('_patch_comment_body: pass text= or body_path=')
         tf = tempfile.NamedTemporaryFile(
             'w', suffix='.md', delete=False, encoding='utf-8')
         staged = Path(tf.name)
@@ -1182,6 +1191,8 @@ def cmd_patch(args):
             live_read_failed = 'the read returned no body (an error envelope at exit 0?)'
     except (subprocess.CalledProcessError, OSError) as e:
         live_read_failed = getattr(e, 'stderr', None) or e
+        if isinstance(live_read_failed, bytes):
+            live_read_failed = live_read_failed.decode('utf-8', 'replace')
         if isinstance(live_read_failed, str):
             live_read_failed = live_read_failed.strip()
         live = ''
@@ -1193,8 +1204,9 @@ def cmd_patch(args):
         if _leading_markers(composed)[0]:
             sys.stderr.write(
                 'workpad.py patch: could not establish the live body of comment '
-                f'{args.comment_id} ({live_read_failed}); the composed body '
-                "carries its own leading marker(s), so it is patched as typed\n"
+                f'{args.comment_id} ({live_read_failed}); patching the composed '
+                'body as typed — only the marker(s) it carries are preserved, and '
+                'any OTHER leading marker this comment holds is dropped\n'
             )
         else:
             sys.stderr.write(
