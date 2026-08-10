@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1521",
+  "generated_at": "2026-08-10T03:57:53Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.0",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 4.0091789,
+    "tokens": {
+      "input_tokens": 47,
+      "output_tokens": 22066,
+      "cache_read_input_tokens": 3135683,
+      "cache_creation_input_tokens": 134141,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 47,
+        "outputTokens": 22066,
+        "cacheReadInputTokens": 3135683,
+        "cacheCreationInputTokens": 134141,
+        "webSearchRequests": 0,
+        "costUSD": 3.4611365000000003,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 20,
+        "outputTokens": 4103,
+        "cacheReadInputTokens": 385133,
+        "cacheCreationInputTokens": 98906,
+        "webSearchRequests": 0,
+        "costUSD": 0.5480424,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 35,
+    "duration_ms": 406597
+  },
+  "permission_denials": {
+    "count": 4,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-none} ATTEMPT=${GITHUB_RUN_ATTEMPT:-none} SERVER=${GITHUB_SERVER_URL:-none} REPO=${GITHUB_REPOSITORY:-none} ACTIONS=${GITHUB_ACTIONS:-none}\"",
+      "rm -f .prflow/tmp/review/pr-1521/31353677690-1/diff.patch\ngh pr diff 1521 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' > .prflow/tmp/review/pr-1521/31353677690-1/diff.patch\necho \"=== changed files ===\"\ngrep '^diff --git' .prflow/tmp/review/pr-1521/31353677690-1/diff.patch | sed -E 's#^diff --git a/(.*) b/.*#\\1#'\necho \"=== + / - / total lines ===\"\ngrep -c '^+' .prflow/tmp/review/pr-1521/31353677690-1/diff.patch\ngrep -c '^-' .prflow/tmp/review/pr-1521/31353677690-1/diff.patch\n …[per-command-truncated]",
+      ".prflow/vendor/prflow/scripts/workpad.py patch 5235677511 .prflow/tmp/review/pr-1521/31353677690-1/review-wp.md 2>.prflow/tmp/review/pr-1521/31353677690-1/rv-patch.err ; echo \"patch-rc=$?\"; cat .prflow/tmp/review/pr-1521/31353677690-1/rv-patch.err"
+    ],
+    "total": 4,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
