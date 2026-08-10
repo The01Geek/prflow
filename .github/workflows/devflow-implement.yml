@@ -1522,7 +1522,7 @@ jobs:
           # successfully within 600000 ms, so nothing measured needs more. (b) Keeping a gap
           # between the free allowance and the ceiling means a genuinely hung UNPARAMETERIZED
           # command costs ten minutes rather than twenty. (c) The effective per-command wall
-          # is documented as the LARGER of the two, so a default at or above the max would
+          # resolves to the LARGER of the two, so a default at or above the max would
           # silently redefine the bound #1179 chose — which is why lib/test/run.sh asserts
           # default < max per step rather than merely asserting the key is present.
           settings: |

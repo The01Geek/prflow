@@ -48882,7 +48882,7 @@ PY
   # workflow reading as changed. Both values are read from the SAME step — never a
   # cross-step comparison, which would clear a step whose own pair is inverted.
   cat > "$_WFG_D/default-check.py" <<'PY'
-import sys, yaml, json
+import re, sys, yaml, json
 
 doc = yaml.safe_load(open(sys.argv[1]))
 pairs = []
@@ -48907,14 +48907,28 @@ for job in doc.get("jobs", {}).values():
         pairs.append((env.get("BASH_DEFAULT_TIMEOUT_MS"), env.get("BASH_MAX_TIMEOUT_MS")))
 
 
+def strict_int(value):
+    # `int()` alone accepts shapes the action does NOT: it strips surrounding whitespace and
+    # honors PEP 515 underscores, so `" 600000 "` and `"600_000"` both parse here while
+    # claude-code-action forwards the string verbatim and the CLI reads neither as 600000.
+    # A float scalar (an unquoted `600000.0`) is refused for the same reason. Accepting any
+    # of them would report `ok` for a bound that is inert at runtime.
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and re.fullmatch(r"-?[0-9]+", value):
+        return int(value)
+    return None
+
+
 def ok(pair):
-    default, ceiling = pair
     # An absent or non-numeric value on EITHER side is refused, never coerced to the CLI
     # default it is meant to replace: an unestablished bound cannot be compared against.
-    try:
-        return 120000 < int(default) < int(ceiling)
-    except (ValueError, TypeError):
+    default, ceiling = (strict_int(v) for v in pair)
+    if default is None or ceiling is None:
         return False
+    return 120000 < default < ceiling
 
 
 print("ok" if pairs and all(ok(p) for p in pairs) else "no")
@@ -49127,6 +49141,25 @@ YML
           settings: |
             {"env": {"BASH_DEFAULT_TIMEOUT_MS": "ten-minutes", "BASH_MAX_TIMEOUT_MS": "1200000"}}
 YML
+  # Shapes bare `int()` accepts but the action does not: it strips whitespace and honors PEP
+  # 515 underscores, while claude-code-action forwards the string verbatim. Either would report
+  # a bound that is inert at runtime — the "guard passes while the real bound is unestablished"
+  # class the guard exists to prevent.
+  _wfg_fx default-padded <<'YML'
+          settings: |
+            {"env": {"BASH_DEFAULT_TIMEOUT_MS": " 600000 ", "BASH_MAX_TIMEOUT_MS": "1200000"}}
+YML
+  _wfg_fx default-underscored <<'YML'
+          settings: |
+            {"env": {"BASH_DEFAULT_TIMEOUT_MS": "600_000", "BASH_MAX_TIMEOUT_MS": "1200000"}}
+YML
+  # A float scalar reaches the CLI as `600000.0`, which is not the integer the bound claims.
+  _wfg_fx default-float <<'YML'
+          settings:
+            env:
+              BASH_DEFAULT_TIMEOUT_MS: 600000.0
+              BASH_MAX_TIMEOUT_MS: "1200000"
+YML
   # A default present with no ceiling beside it: there is no bound to compare against, so the
   # guard refuses rather than treating the missing max as unlimited.
   _wfg_fx default-without-max <<'YML'
@@ -49147,6 +49180,21 @@ jobs:
         with:
           settings: |
             {"env": {"BASH_DEFAULT_TIMEOUT_MS": "1200000", "BASH_MAX_TIMEOUT_MS": "1200000"}}
+YML
+  # The symmetric case: the inverted step FIRST. `all()` is order-independent, but asserting
+  # only one ordering cannot distinguish that from a guard that inspects the first step alone.
+  cat > "$_WFG_D/default-two-steps-swapped.yml" <<'YML'
+jobs:
+  claude:
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          settings: |
+            {"env": {"BASH_DEFAULT_TIMEOUT_MS": "1200000", "BASH_MAX_TIMEOUT_MS": "1200000"}}
+      - uses: anthropics/claude-code-action@v1
+        with:
+          settings: |
+            {"env": {"BASH_DEFAULT_TIMEOUT_MS": "600000", "BASH_MAX_TIMEOUT_MS": "1200000"}}
 YML
   # A bounded value on a step that is NOT claude-code-action must not satisfy the ceiling
   # guard: the raise reaches the CLI only through the action's own input. This fixture also
@@ -49324,6 +49372,14 @@ YML
     "$(_wfg_default "$_WFG_D/ceiling-other-step.yml")"
   assert_eq "free-allowance matrix: a well-formed step ahead of an inverted one fails (per-step pairing)" "no" \
     "$(_wfg_default "$_WFG_D/default-two-steps.yml")"
+  assert_eq "free-allowance matrix: an inverted step AHEAD of a well-formed one fails (order-independence)" "no" \
+    "$(_wfg_default "$_WFG_D/default-two-steps-swapped.yml")"
+  assert_eq "free-allowance matrix: a whitespace-padded default fails (the action forwards the string verbatim)" "no" \
+    "$(_wfg_default "$_WFG_D/default-padded.yml")"
+  assert_eq "free-allowance matrix: an underscore-separated default fails (PEP 515 is a Python-side reading only)" "no" \
+    "$(_wfg_default "$_WFG_D/default-underscored.yml")"
+  assert_eq "free-allowance matrix: a float default fails rather than being truncated to an integer bound" "no" \
+    "$(_wfg_default "$_WFG_D/default-float.yml")"
   rm -rf "$_WFG_D"
 else
   assert_eq "#908 AC1: devflow-implement.yml registers no PreToolUse guard (env-only settings allowed)" "yes" \
