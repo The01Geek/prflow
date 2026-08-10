@@ -79,6 +79,6 @@ The `merged_from` entries are strings of the form `<batch-label>:<original-id>` 
 ## Rules
 
 - Do NOT rewrite claims. Do NOT re-tag `category`, `verification_mode`, or `claim_signature`. Do NOT add or remove fields beyond `id` (renumbered), `merged_from` (added), and — on a merge group that disagrees on `claim_provenance` — reconciling `claim_provenance` to `source_authored` and carrying that duplicate's `source_excerpt` per the provenance-reconciliation rule in Step 2 (the sole `claim_provenance`/`source_excerpt` change you may make; on an agreeing group these two fields pass through unchanged).
-- When in doubt about whether two items match, **leave them separate.** Over-merging hides distinct defects; under-merging just costs a few extra verifier slots.
-- Preserve original ordering as much as possible — verifiers downstream are calibrated to the generator's emission order.
+- When in doubt about whether two items match, **leave them separate.**
+- Preserve original ordering as much as possible.
 - Wrap the output JSON array in a markdown code fence tagged `json`.
