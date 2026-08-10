@@ -8778,16 +8778,16 @@ assert_eq "#338: workpad.py carries the (post-merge)-retag rationale guard" "yes
 # two-argument, string-only predicate re-introduces the T3c false refusal.
 assert_eq "#338: the retag guard resolves the target row via _find_checkbox_row" "yes" \
   "$(grep -q '_find_checkbox_row' "$WP_PY" && echo yes || echo no)"
-# Coupled-invariant pin: SKILL.md's --rewrite-ac row publishes the row-scoped exemption
+# Coupled-invariant pin: SKILL.md publishes the row-scoped --rewrite-ac exemption
 # (not the stale OLD-only form). Edited in lockstep with the predicate above.
 assert_eq "#338: SKILL.md publishes the row-scoped (post-merge) exemption" "yes" \
   "$(grep -q 'neither OLD nor the row it targets already does' \
        "$LIB/../skills/implement/SKILL.md" && echo yes || echo no)"
 # ...and the NEGATIVE half. `grep -q` reports presence, not exhaustiveness, so the positive
 # assertion above can stay GREEN across a partial reversion to the stale OLD-only form.
-# Asserting the stale form
-# is ABSENT catches a partial reversion at either site — and does so without a brittle
-# occurrence-count pin that a third legitimate mention would break. Same for the docs mirror.
+# Asserting the stale form is ABSENT catches such a reversion in either file the loop below
+# covers — and does so without a brittle occurrence-count pin that a further legitimate
+# mention would break.
 for _f338 in "$LIB/../skills/implement/SKILL.md" "$LIB/../docs/internal/implement-skill.md"; do
   assert_eq "#338: $(basename "$_f338") carries no stale OLD-only (post-merge) contract sentence" "yes" \
     "$(grep -q 'NEW ends with it, OLD does not' "$_f338" && echo no || echo yes)"

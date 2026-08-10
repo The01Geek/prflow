@@ -163,9 +163,9 @@ The bug-only row is rendered by `new-body` unless `--no-reproduction` is passed 
 
 Every workpad operation goes through the bundled `workpad.py` helper at `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py`. The helper is stateless — each subcommand re-derives `REPO_FULL` and the marker on every invocation, so it works across Claude Code's per-call fresh-shell model without any env var or shell function needing to survive between Bash tool calls.
 
-Run `workpad.py --help` and `workpad.py update --help` when you need the helper's full subcommand and flag surface — the phase files' call sites are already complete invocations, so no run composes a call from a reference table.
+For the helper's full subcommand and flag surface, run `workpad.py --help` and `workpad.py update --help` at the path above — a bare `workpad.py` token may not resolve, leaving you without either the help output or a reference table.
 
-The marker-locating subcommands (`id`, `new-body`, `update`) also accept `--marker M` to target a non-default marker comment (precedence: `--marker` > `DEVFLOW_WORKPAD_MARKER` env > `.prflow/config.json` > the built-in default). `/implement` does not pass it — it uses the default workpad marker; the flag exists for `/prflow:review`, which drives its own `prflow:review-progress` comment with the same helper.
+The marker-locating subcommands (`id`, `new-body`, `update`) accept `--marker M` to target a non-default marker comment (precedence: `--marker` > `DEVFLOW_WORKPAD_MARKER` env > `.prflow/config.json` > the built-in default). `/implement` does not pass it — it uses the default workpad marker; the flag exists for `/prflow:review`, which drives its own `prflow:review-progress` comment with the same helper.
 
 The helper reads `prflow.workpad_marker` from `.prflow/config.json`, falling back to the built-in default `<!-- prflow:workpad -->` when the config file or key is absent (so it works with no config).
 
