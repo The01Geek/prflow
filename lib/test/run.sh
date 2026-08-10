@@ -50234,9 +50234,8 @@ assert_eq "#1526 lint: a sibling docs/internal page is NOT audited (exact-path, 
 # enumeration, or that member is inert on the very surface it was written for while every
 # fixture assertion above stays green — they ride --files-from, which bypasses enumeration
 # entirely. Both halves are single-sourced out of the module rather than retyped, and the
-# probe is one interpreter reading the index on stdin: it must see the whole index, because
-# the prefix half asks "does ANY tracked path start with this prefix", which a per-path
-# --error-unmatch probe cannot answer.
+# probe is one interpreter reading the index on stdin, so both halves are decided by the
+# same fail-closed expression rather than by two shells' exit statuses.
 #
 # Every arm fails CLOSED, which is the point: an emptied or renamed tuple, a failed module
 # load, and an empty index all print `no`. The earlier `xargs git ls-files --error-unmatch`

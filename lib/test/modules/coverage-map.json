@@ -1156,7 +1156,7 @@
       "owner": "unmodularized"
     },
     "1526": {
-      "note": "the widened audited population of lint-ungranted-helper-spelling.py: the prompt-extension prefix and the two exact auto-loaded paths are reported like a skills/ path, the exact-path half is not a docs/internal/ prefix, and every declared exact path is tracked and selected by the default index enumeration",
+      "note": "the widened audited population of lint-ungranted-helper-spelling.py: the prompt-extension prefix and the two exact auto-loaded paths are reported like a skills/ path, the exact-path half is not a docs/internal/ prefix, every declared population member (exact paths and prefixes alike) is reachable by the default index enumeration, and the empty-audited floor message names the widened members",
       "owner": "unmodularized"
     },
     "157": {
