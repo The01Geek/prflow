@@ -5571,14 +5571,14 @@ assert_eq "implement finalize: workpad.py owns the 'PR marked ready' label (temp
   "$(grep -qF '**PR marked ready**' "$WP_PY" && grep -qF "'PR marked ready'" "$WP_PY" && echo yes || echo no)"
 
 # ── issue #169: workpad.py tick failure-isolation + index ticking ─────────────
-# Coupled contract across three files: scripts/workpad.py (the volatile-vs-structural
-# behavior + the --tick-ac-n/--tick-plan-n flags) ↔ the implement-skill bundle (the
-# orchestrator SKILL.md's failure-isolation contract AND the Phase 3.4 AC-tick call
-# sites in phases/phase-3-review.md) ↔ this suite.
-# The SKILL.md bundle must carry the failure-isolation contract, and the Phase 3.4
-# gate must tick ACs by index rather than hand-picked substrings (the fragile-substring
-# foot-gun this issue removes). Editing one side without the others goes red here. The
-# index flags themselves are documented by workpad.py's own --help, not by SKILL.md.
+# Coupled contract spanning scripts/workpad.py (the volatile-vs-structural behavior +
+# the --tick-ac-n/--tick-plan-n flags) ↔ the implement-skill bundle ↔ this suite.
+# Two clauses below go red on an edit to either side: workpad.py must define the index
+# flags, and the SKILL.md bundle must carry the named failure-isolation contract. The
+# Phase 3.4 hand-picked-substring foot-gun is guarded only by an ABSENCE pin — the
+# superseded example must stay gone; the index call site itself is not positively pinned,
+# so rewording it to any other form leaves this block green. The index flags themselves
+# are documented by workpad.py's own --help, not by SKILL.md.
 # (workpad.py's runtime behavior is pinned exhaustively in
 # lib/test/test_python_scripts.py; these are the doc-mirror pins.)
 assert_eq "#169: workpad.py defines the --tick-ac-n / --tick-plan-n index flags" "yes" \
@@ -6929,7 +6929,7 @@ chmod 644 "$S356/lonely/workpad.py" 2>/dev/null || true
 # enumerates that model must name it. These two sites are operative (an agent reads them at
 # runtime), unpinned before this change, and were left stale by the first pass — pin them so
 # a future glyph addition cannot silently desync them again.
-assert_pin_unique "#356: implement SKILL's --status row names the full canonical glyph set (incl. 💥 and 🛑)" \
+assert_pin_unique "#356: implement SKILL's Status-glyph paragraph names the full canonical glyph set (incl. 💥 and 🛑)" \
   'the helper prepends the canonical glyph (🚀/🎉/👎/💥/🛑)' "$LIB/../skills/implement/SKILL.md"
 assert_pin_unique "#356: retrospective SKILL enumerates the terminal workpad_final_status values (incl. Cancelled)" \
   '`Complete` / `Blocked` / `Failed` / `Cancelled`' "$LIB/../skills/retrospective/SKILL.md"
@@ -8785,9 +8785,10 @@ assert_eq "#338: SKILL.md publishes the row-scoped (post-merge) exemption" "yes"
        "$LIB/../skills/implement/SKILL.md" && echo yes || echo no)"
 # ...and the NEGATIVE half. `grep -q` reports presence, not exhaustiveness, so the positive
 # assertion above can stay GREEN across a partial reversion to the stale OLD-only form.
-# Asserting the stale form is ABSENT catches such a reversion in either file the loop below
-# covers — and does so without a brittle occurrence-count pin that a further legitimate
-# mention would break.
+# The positive half also reads only skills/implement/SKILL.md, so a reversion confined to the
+# docs mirror is invisible to it. Asserting the stale form is ABSENT catches a reversion in
+# either file the loop below covers — and does so without a brittle occurrence-count pin that
+# a further legitimate mention would break.
 for _f338 in "$LIB/../skills/implement/SKILL.md" "$LIB/../docs/internal/implement-skill.md"; do
   assert_eq "#338: $(basename "$_f338") carries no stale OLD-only (post-merge) contract sentence" "yes" \
     "$(grep -q 'NEW ends with it, OLD does not' "$_f338" && echo no || echo yes)"
