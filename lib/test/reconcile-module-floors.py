@@ -30,6 +30,52 @@ SUMMARY = re.compile(
 DIAGNOSTIC_TAIL_CHARS = 2000
 
 
+# Exact-policy modules whose module file actually reads MODULE_HEAVY_UNIT_MODE, so
+# measuring them under `--heavy-units smoke` bounds a heavy unit that really runs. For
+# every other exact-policy module `smoke` is a no-op that changes neither the tally nor
+# the wall clock, so this set is a strict subset of exact_ids — do not add a module that
+# ignores the mode (test_every_smoke_bound_module_reads_the_heavy_unit_mode enforces it
+# from the tree). A module qualifies only when its bounded and full tallies are equal;
+# harness-python-guards' one heavy unit (devflow_run_sharded_python_test) is a
+# single-assert_eq contract in lib/test/module-harness.sh, so its tally cannot move with
+# the mode.
+#
+# Past-time snapshot — measured at origin/main 7d9691ecb (never machine-rendered):
+#   lib/test/run-module.sh --heavy-units full  harness-python-guards -> 45 passed (~268 s wall)
+#   lib/test/run-module.sh --heavy-units smoke harness-python-guards -> 45 passed (~54 s wall)
+# The two `passed` tallies are equal, so the module is listed and the bound is real time.
+HEAVY_UNIT_SMOKE_MODULES = frozenset({"harness-python-guards"})
+
+
+def _measurement_argv(
+    runner: Path, temporary_registry: Path, log_dir: Path, module_id: str
+) -> list[str]:
+    """Build the focused-runner argv for one exact-policy module's measurement.
+
+    A module in HEAVY_UNIT_SMOKE_MODULES is measured under `--heavy-units smoke` so its
+    heavy unit is bounded; every other module gets an argv byte-identical to the
+    pre-#1499 form and carries no `--heavy-units` token. The flag pair sits immediately
+    before `module_id`, which stays the trailing token — reconcile()'s SUMMARY filter and
+    the focused-test fixture both read the module id as the last argv element.
+    """
+    argv = [
+        # The shell that RUNS a .sh helper is chosen at the invocation boundary via
+        # DEVFLOW_BASH, never by a sourced resolver (#248): a hardcoded `bash` head would
+        # ignore the operator's selected WSL/Git-Bash/MSYS2 interpreter and measure under
+        # a different shell than the suite itself runs under.
+        os.environ.get("DEVFLOW_BASH") or "bash",
+        str(runner),
+        "--registry",
+        str(temporary_registry),
+        "--log-dir",
+        str(log_dir),
+    ]
+    if module_id in HEAVY_UNIT_SMOKE_MODULES:
+        argv += ["--heavy-units", "smoke"]
+    argv.append(module_id)
+    return argv
+
+
 def _fail(message: str) -> int:
     print(f"floor-reconciliation: INFRASTRUCTURE {message}", file=sys.stderr)
     return 2
@@ -198,20 +244,7 @@ def reconcile(root: Path, runner: Path) -> int:
             log_dir = temporary_path / f"logs-{module_id}"
             try:
                 proc = subprocess.run(
-                    [
-                        # The shell that RUNS a .sh helper is chosen at the invocation
-                        # boundary via DEVFLOW_BASH, never by a sourced resolver (#248):
-                        # a hardcoded `bash` head would ignore the operator's selected
-                        # WSL/Git-Bash/MSYS2 interpreter and measure under a different
-                        # shell than the suite itself runs under.
-                        os.environ.get("DEVFLOW_BASH") or "bash",
-                        str(runner),
-                        "--registry",
-                        str(temporary_registry),
-                        "--log-dir",
-                        str(log_dir),
-                        module_id,
-                    ],
+                    _measurement_argv(runner, temporary_registry, log_dir, module_id),
                     cwd=root,
                     env=runner_environment,
                     text=True,
