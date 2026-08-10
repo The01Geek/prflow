@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1546",
+  "generated_at": "2026-08-10T22:40:32Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.15",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 7.8463854999999985,
+    "tokens": {
+      "input_tokens": 54,
+      "output_tokens": 24293,
+      "cache_read_input_tokens": 4063098,
+      "cache_creation_input_tokens": 167092,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 100,
+        "outputTokens": 58627,
+        "cacheReadInputTokens": 5184531,
+        "cacheCreationInputTokens": 505816,
+        "webSearchRequests": 0,
+        "costUSD": 7.8463854999999985,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 46,
+    "duration_ms": 455364
+  },
+  "permission_denials": {
+    "count": 5,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-unset}\"",
+      "printf '%s\\n' \"$CLAUDE_SKILL_DIR\"",
+      ".prflow/vendor/prflow/scripts/config-get.sh .base_branch main; echo \"---\"; .prflow/vendor/prflow/scripts/config-get.sh .prflow_review.live_progress_comment_enabled true; echo \"---rid---\"; echo \"${GITHUB_RUN_ID:-none}-${GITHUB_RUN_ATTEMPT:-1}\"",
+      "gh pr diff 1546 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' > .prflow/tmp/review/pr-1546/31438650817-1/diff.patch; wc -l < .prflow/tmp/review/pr-1546/31438650817-1/diff.patch; grep -c '^diff --git' .prflow/tmp/review/pr-1546/31438650817-1/diff.patch",
+      ".prflow/vendor/prflow/scripts/resolve-review-overrides.py \"prflow:code-reviewer\" \"prflow:silent-failure-hunter\" \"prflow:comment-analyzer\" \"prflow:pr-test-analyzer\" 2>.prflow/tmp/review/pr-1546/31438650817-1/rv-ovr.phase3.err; echo \"ovr-rc=$?\"; echo \"---stderr---\"; cat .prflow/tmp/review/pr-1546/31438650817-1/rv-ovr.phase3.err"
+    ],
+    "total": 5,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
