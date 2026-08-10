@@ -11114,51 +11114,58 @@ chmod +x "$rdnd_dir/flaky-extractor"
 # gets — and the helper's prefixed stdout shape is exactly what has to survive that
 # merge. Non-`docgate-` lines are dropped so a stub's or the extractor's own
 # breadcrumb is not mistaken for a helper assertion failure.
+# The helper's status is stamped INSIDE the command substitution, immediately after
+# the helper returns. Reading `${PIPESTATUS[0]}` after the assignment would report the
+# ASSIGNMENT's pipeline (i.e. grep's status), not the helper's — every non-zero token
+# would then be asserted against rc=0.
 rdnd_run() {
-  local _body="$1" _fails="${2:-0}" _extractor="${3:-}" _out _rc
+  local _body="$1" _fails="${2:-0}" _extractor="${3:-}"
   : > "$rdnd_dir/count"
   : > "$rdnd_dir/extract-count"
-  _out="$(RDND_COUNT_FILE="$rdnd_dir/count" RDND_BODY_FILE="$_body" RDND_FAIL_TIMES="$_fails" \
-          RDND_EXTRACT_COUNT_FILE="$rdnd_dir/extract-count" RDND_REAL_EXTRACTOR="$EXTRACT_HELPER" \
-          DEVFLOW_GH="$rdnd_dir/gh" DEVFLOW_DOC_NEEDED_EXTRACTOR="$_extractor" \
-          bash "$RDND_HELPER" 1554 2>&1 | grep '^docgate-')"
-  _rc=${PIPESTATUS[0]}
-  printf '%s\nrc=%s\n' "$_out" "$_rc"
+  RDND_COUNT_FILE="$rdnd_dir/count" RDND_BODY_FILE="$_body" RDND_FAIL_TIMES="$_fails" \
+  RDND_EXTRACT_COUNT_FILE="$rdnd_dir/extract-count" RDND_REAL_EXTRACTOR="$EXTRACT_HELPER" \
+  DEVFLOW_GH="$rdnd_dir/gh" DEVFLOW_DOC_NEEDED_EXTRACTOR="$_extractor" \
+  bash "$RDND_HELPER" 1554 2>&1
+  printf 'rc=%s\n' "$?"
 }
+# rdnd_lines FILTERS the merged stream down to the helper's own contract lines plus
+# that rc stamp, so a stub's or the extractor's breadcrumb is not mistaken for an
+# assertion failure — while still passing THROUGH the merge the caller experiences.
+rdnd_lines() { rdnd_run "$@" | grep -E '^(docgate-|rc=)'; }
 
 # Token 1 of 4 — `deliverables` (0): the paths follow the outcome line, each on its
 # own prefixed line, which is what makes them readable from the tool result at all.
 assert_eq "#1554 token vocabulary: a non-empty extraction prints \`deliverables\`, its paths, and exit 0" \
   "$(printf 'docgate-outcome: deliverables\ndocgate-path: docs/internal/implement-skill.md\nrc=0')" \
-  "$(rdnd_run "$rdnd_dir/body-paths.md")"
+  "$(rdnd_lines "$rdnd_dir/body-paths.md")"
 # Token 2 of 4 — `no-deliverables` (10), reached two ways: no section at all, and
 # a section carrying only non-path prose.
 assert_eq "#1554 token vocabulary: an absent Documentation Needed section prints \`no-deliverables\` and exit 10" \
   "$(printf 'docgate-outcome: no-deliverables\nrc=10')" \
-  "$(rdnd_run "$rdnd_dir/body-nosection.md")"
+  "$(rdnd_lines "$rdnd_dir/body-nosection.md")"
 assert_eq "#1554 token vocabulary: a section holding only non-path prose prints \`no-deliverables\` and exit 10" \
   "$(printf 'docgate-outcome: no-deliverables\nrc=10')" \
-  "$(rdnd_run "$rdnd_dir/body-prose.md")"
+  "$(rdnd_lines "$rdnd_dir/body-prose.md")"
 # Token 3 of 4 — `body-read-failed` (11). This is the arm ordering the gate rests
 # on: both attempts fail, and the HTTP error blob the stub left on stdout must NOT
 # be read as a body, so the outcome is a READ FAILURE and never an empty extraction.
 assert_eq "#1554 arm order: a body read failing BOTH attempts is a read failure, not an empty extraction" \
   "$(printf 'docgate-outcome: body-read-failed\nrc=11')" \
-  "$(rdnd_run "$rdnd_dir/body-paths.md" 2)"
+  "$(rdnd_lines "$rdnd_dir/body-paths.md" 2)"
 # The other half of that ordering: one failure is not a failure. A read that
 # succeeds on its retry yields the success token, so a flaky fetch never Blocks.
 assert_eq "#1554 arm order: a read succeeding on its SECOND attempt yields the success token" \
   "$(printf 'docgate-outcome: deliverables\ndocgate-path: docs/internal/implement-skill.md\nrc=0')" \
-  "$(rdnd_run "$rdnd_dir/body-paths.md" 1)"
+  "$(rdnd_lines "$rdnd_dir/body-paths.md" 1)"
 # Token 4 of 4 — `extract-failed` (12), driven with a failing extractor and a
 # WORKING read, so the two failure tokens are told apart by their own cause.
 assert_eq "#1554 token vocabulary: an extractor failing BOTH attempts prints \`extract-failed\` and exit 12" \
   "$(printf 'docgate-outcome: extract-failed\nrc=12')" \
-  "$(rdnd_run "$rdnd_dir/body-paths.md" 0 "$rdnd_dir/bad-extractor")"
+  "$(rdnd_lines "$rdnd_dir/body-paths.md" 0 "$rdnd_dir/bad-extractor")"
 # The extractor retry's other ordering, symmetric with the gh retry above.
 assert_eq "#1554 arm order: an extractor succeeding on its SECOND attempt yields the success token" \
   "$(printf 'docgate-outcome: deliverables\ndocgate-path: docs/internal/implement-skill.md\nrc=0')" \
-  "$(rdnd_run "$rdnd_dir/body-paths.md" 0 "$rdnd_dir/flaky-extractor")"
+  "$(rdnd_lines "$rdnd_dir/body-paths.md" 0 "$rdnd_dir/flaky-extractor")"
 # Adversarial input: the block carries a command span and a grant literal, which
 # the extractor suppresses. Two things are asserted at once, because rdnd_run
 # merges stderr: the literals are not phantom deliverables, AND the extractor's
@@ -11167,7 +11174,7 @@ assert_eq "#1554 arm order: an extractor succeeding on its SECOND attempt yields
 # reason the stdout shape is prefixed rather than positional.
 assert_eq "#1554 adversarial input: a command span and a grant literal in the block are not deliverables, and the extractor's stderr breadcrumb does not corrupt the outcome" \
   "$(printf 'docgate-outcome: deliverables\ndocgate-path: docs/internal/implement-skill.md\nrc=0')" \
-  "$(rdnd_run "$rdnd_dir/body-adversarial.md")"
+  "$(rdnd_lines "$rdnd_dir/body-adversarial.md")"
 # Stale-capture isolation (what "idempotent" has to mean here to be worth testing):
 # seed the scratch body file with a DIFFERENT body, then fail both read attempts.
 # A helper that extracted from whatever was already on disk would report that stale
@@ -11177,7 +11184,7 @@ printf '%s\n' "## Implementation Notes" "" \
   > "$(git rev-parse --show-toplevel)/.prflow/tmp/devflow-docgate-body-1554.txt"
 assert_eq "#1554 stale-capture isolation: a failed read never extracts from a body left by a prior invocation" \
   "$(printf 'docgate-outcome: body-read-failed\nrc=11')" \
-  "$(rdnd_run "$rdnd_dir/body-paths.md" 2)"
+  "$(rdnd_lines "$rdnd_dir/body-paths.md" 2)"
 # The scratch-leaf failure arm — the one arm this helper ADDED (the superseded
 # inline fence warned and carried on). Point the root at a directory whose
 # `.prflow` leaf is a regular file, so `mkdir -p` cannot succeed, and require the
@@ -11186,8 +11193,8 @@ rdnd_nodir="$(git_sandbox '#1554 scratch-leaf failure arm')"
 : > "$rdnd_nodir/.prflow"
 assert_eq "#1554 fail-closed: an uncreatable scratch leaf is a read failure, not an empty extraction" \
   "$(printf 'docgate-outcome: body-read-failed\nrc=11')" \
-  "$(cd "$rdnd_nodir" && RDND_COUNT_FILE="$rdnd_dir/count" RDND_BODY_FILE="$rdnd_dir/body-paths.md" \
-       DEVFLOW_GH="$rdnd_dir/gh" bash "$RDND_HELPER" 1554 2>&1 | grep '^docgate-'; printf 'rc=%s\n' "${PIPESTATUS[0]}")"
+  "$( { cd "$rdnd_nodir" && RDND_COUNT_FILE="$rdnd_dir/count" RDND_BODY_FILE="$rdnd_dir/body-paths.md" \
+          DEVFLOW_GH="$rdnd_dir/gh" bash "$RDND_HELPER" 1554 2>&1; printf 'rc=%s\n' "$?"; } | grep -E '^(docgate-|rc=)')"
 rm -rf "$rdnd_nodir"
 # A usage error prints NO token and exits outside the closed status set, which is
 # exactly the observation Phase 4.1's residual arm exists to catch. Both halves of
@@ -11210,7 +11217,7 @@ rm -rf "$rdnd_dir"
 while IFS='|' read -r _rdnd_tok _rdnd_status; do
   [ -n "$_rdnd_tok" ] || continue
   assert_eq "#1554 cross-file contract: the helper's header pairs \`$_rdnd_tok\` with $_rdnd_status" "1" \
-    "$(grep -cF -- "$_rdnd_status  $_rdnd_tok" "$LIB/../scripts/read-doc-needed-deliverables.sh")"
+    "$(grep -cE -- "(^|[^0-9])${_rdnd_status}[[:space:]]+${_rdnd_tok}([^-]|\$)" "$LIB/../scripts/read-doc-needed-deliverables.sh")"
   assert_eq "#1554 cross-file contract: Phase 4.1 routes \`$_rdnd_tok\` ($_rdnd_status)" "yes" \
     "$(case "$(cat "$IMPL_SKILL")" in *"\`$_rdnd_tok\` ($_rdnd_status)"*) echo yes ;; *) echo no ;; esac)"
 done <<'RDND_CONTRACT'

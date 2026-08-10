@@ -16,8 +16,9 @@
 #
 #   deliverables       the body was read and the extraction returned >=1 path
 #   no-deliverables    the body was read and the extraction returned no path
-#   body-read-failed   the body could not be read — the scratch leaf was
-#                      uncreatable, or both `gh issue view` attempts failed
+#   body-read-failed   the body could not be read — the gh resolver was
+#                      unsourceable, the scratch leaf was uncreatable, or both
+#                      `gh issue view` attempts failed
 #   extract-failed     both extractor attempts failed
 #
 # EXIT STATUSES (closed; one status per token, success disjoint from failure):
@@ -73,17 +74,20 @@ case "${BASH_SOURCE[0]}" in
   *)   _RDND_DIR="$(pwd)" ;;
 esac
 
-# Guarded source with an outcome check (never a bare `[ -f ]` precondition): a
-# partial deployment missing lib/resolve-gh.sh would otherwise leave DEVFLOW_GH
-# empty and surface as `body-read-failed`, naming GitHub for a packaging fault.
+# Guarded source with an OUTCOME check (never a bare `[ -f ]` precondition, which
+# proves the path exists and nothing about whether the function is callable). The
+# resolver owns every fallback, including the bare-`gh` one, so this caller invents
+# none: an unsourceable resolver is a packaging fault, and reporting it as its own
+# breadcrumb plus the read-failure token beats naming GitHub for it.
 # shellcheck source=../lib/resolve-gh.sh
 if [ -f "$_RDND_DIR/../lib/resolve-gh.sh" ] \
    && . "$_RDND_DIR/../lib/resolve-gh.sh" \
    && type devflow_resolve_gh >/dev/null 2>&1; then
   : "${DEVFLOW_GH:=$(devflow_resolve_gh)}"
 else
-  echo "devflow: resolve-gh.sh not found or not sourceable beside read-doc-needed-deliverables.sh — gh resolution degraded to DEVFLOW_GH-or-bare-gh" >&2
-  : "${DEVFLOW_GH:=gh}"
+  echo "devflow: lib/resolve-gh.sh is not sourceable beside read-doc-needed-deliverables.sh (partial deployment) — the issue body cannot be read" >&2
+  printf 'docgate-outcome: %s\n' body-read-failed
+  exit 11
 fi
 
 EXTRACTOR="${DEVFLOW_DOC_NEEDED_EXTRACTOR:-$_RDND_DIR/extract-doc-needed-paths.sh}"
