@@ -47,10 +47,24 @@ that fetch is the cache producer. So the scanner carries two named in-file
 allowances, recognized by a literal in the offending logical line:
 
   * the §1.1 producer fetch — it redirects into the cache path, so its statement
-    carries the `issue-body/issue-` cache-path literal; and
-  * §4.1's Documentation-Needed gate fences — they redirect to
-    `.prflow/tmp/devflow-docgate-body-<n>.txt`, carrying the `devflow-docgate-body`
-    literal.
+    carries the `issue-body/issue-` cache-path literal.
+
+Recorded disposition of the former second allowance, `devflow-docgate-body`
+(issue #1554). §4.1's Documentation-Needed gate no longer performs the
+*redirected* body read in the phase file: that fetch, its scratch file and both
+retries moved into a bundled helper under `scripts/`, which the audited
+population (`skills/implement/`) does not cover — so that read is outside this
+lint's reach and nothing here checks it. The allowance is REMOVED rather than
+retained: a literal matching nothing is dead configuration, and removing it means
+a future §4.1 scratch capture is caught and re-allowed deliberately rather than
+admitted silently.
+
+**§4.1 is not read-free, and a green run here does not say it is.** The section
+retains a non-redirecting `gh issue view … | grep -qE` section-presence probe,
+which survives because it matches no detected form — not because it stopped
+existing. So read this lint's green result as covering the detected re-fetch
+forms in the phase files only: never as covering the helper's read, and never as
+evidence that §4.1 performs no body read at all.
 
 A detected form anywhere ELSE in an audited file is a failure.
 
@@ -160,10 +174,9 @@ AUDITED_PREFIX = "skills/implement/"
 MARKDOWN_SUFFIXES = (".md", ".md.example")
 
 #: A logical line carrying one of these literals is a named in-file allowance —
-#: the §1.1 producer fetch (which writes the cache) or §4.1's Documentation-Needed
-#: gate fences (which redirect to the docgate scratch file). Findings on such a
-#: line are suppressed. See the module docstring.
-ALLOW_SITE_LITERALS = ("issue-body/issue-", "devflow-docgate-body")
+#: today only the §1.1 producer fetch, which writes the cache. Findings on such a
+#: line are suppressed. See the module docstring for the retired second entry.
+ALLOW_SITE_LITERALS = ("issue-body/issue-",)
 
 #: A head token naming the gh binary directly, or through a resolver variable
 #: whose name ends in `GH` (the repo's resolver contract, mirrored from

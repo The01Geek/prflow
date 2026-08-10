@@ -12048,10 +12048,10 @@ _STEM_HOMES = {
     "skills/implement/phases/phase-1-setup.md": ("acs-", "devflow-issue-", "-title.txt"),
     "skills/implement/phases/phase-2-implement.md": ("repro-", "plan-", "narrowed-acs-"),
     # issue #1374 moved §4.0.5's filing procedure into its own gated reference, and the two
-    # deferrals captures went with the fence that writes them; the §4.1 documentation-gate
-    # captures stayed behind in the phase file.
-    "skills/implement/phases/phase-4-documentation.md":
-        ("devflow-docgate-body-", "devflow-docgate-gh.err"),
+    # deferrals captures went with the fence that writes them; issue #1554 then moved §4.1's
+    # documentation-gate captures into scripts/read-doc-needed-deliverables.sh, which owns
+    # that scratch file now — so phase-4-documentation.md names no stem of its own and takes
+    # no row here. The negative half above still binds it.
     "skills/implement/references/deferred-review-findings.md":
         ("devflow-dm.err", "devflow-fd.err"),
     "skills/review-and-fix/references/loop-control.md": ("devflow-maxiter.err",),
