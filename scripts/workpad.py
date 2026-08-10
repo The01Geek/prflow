@@ -4436,9 +4436,7 @@ def _require_arity(flag: str, value: object, n: int, labels: tuple[str, ...]) ->
     for the programmatic caller (the suite builds `args` directly and can pass a short
     list, a long one, or a bare string). A `str` is rejected explicitly: it is a
     sequence, so a 2-char string like `"k1"` would otherwise unpack silently into
-    `('k', '1')` and write a corrupt row rather than raising (issue #1501). The
-    established `--record-review-coverage` / `--review-coverage-disposition` guards are
-    the message shape this mirrors."""
+    `('k', '1')` and write a corrupt row rather than raising (issue #1501)."""
     labels_txt = ', '.join(labels)
     if isinstance(value, str) or not isinstance(value, (list, tuple)):
         raise _UpdateError(
@@ -4829,16 +4827,13 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     if review_coverage:
         # Arity is guaranteed by argparse's nargs=4 from the CLI, but a programmatic
         # caller (the suite builds `args` directly) can pass a short list, which `zip`
-        # would silently truncate — validating only the axes present and then raising
-        # a bare KeyError in the renderer instead of a named refusal. Check it here so
-        # the guarantee is local rather than inherited from a distant declaration.
-        if len(review_coverage) != len(_REVIEW_COVERAGE_AXES):
-            raise _UpdateError(
-                f"--record-review-coverage takes exactly "
-                f"{len(_REVIEW_COVERAGE_AXES)} values "
-                f"({', '.join(_REVIEW_COVERAGE_AXES)}); got "
-                f"{len(review_coverage)}. No PATCH was made."
-            )
+        # would silently truncate — or a bare str, which `len()` alone would wave
+        # through to a character-wise unpack. `_require_arity` rejects the non-sequence
+        # explicitly and enforces the count, so the guarantee is local rather than
+        # inherited from a distant declaration.
+        _require_arity(
+            '--record-review-coverage', review_coverage,
+            len(_REVIEW_COVERAGE_AXES), _REVIEW_COVERAGE_AXES)
         for axis, value in zip(_REVIEW_COVERAGE_AXES, review_coverage):
             if value not in _REVIEW_COVERAGE_VOCABULARY[axis]:
                 raise _UpdateError(
@@ -4859,15 +4854,12 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     for _pair in review_dispositions:
         # Arity is guaranteed by argparse's nargs=2 from the CLI, but a programmatic
         # caller (the suite builds `args` directly) can pass an element of any other
-        # length, which the `gap, reason` unpack below would surface as a bare
-        # ValueError traceback instead of a named refusal. Checked here for the same
-        # reason `--record-review-coverage` checks its own arity above: the guarantee
-        # is local rather than inherited from a distant declaration.
-        if len(_pair) != 2:
-            raise _UpdateError(
-                "--review-coverage-disposition takes exactly 2 values "
-                f"(gap, reason); got {len(_pair)}. No PATCH was made."
-            )
+        # length — or a bare str, whose `gap, reason` unpack would silently split it
+        # into single characters. `_require_arity` rejects the non-sequence explicitly
+        # and enforces the count, for the same reason `--record-review-coverage` uses
+        # it above: the guarantee is local rather than inherited from a distant
+        # declaration.
+        _require_arity('--review-coverage-disposition', _pair, 2, ('gap', 'reason'))
     for gap, reason in review_dispositions:
         if gap not in _REVIEW_COVERAGE_GAPS:
             raise _UpdateError(

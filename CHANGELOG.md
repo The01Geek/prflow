@@ -4,6 +4,26 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.10] — 2026-08-10
+
+### Changed
+- **Reworded a stale count in the `compose-implement-prompt.sh` extraction rationale.** The comment claimed "the two `::error::` literals" when the helper emits four; both the helper's own comment and its mirror in `devflow-implement.yml`'s `Compose implement grounding block` step are now count-free, preserving the extraction rationale without a figure that drifts. (#1543)
+
+## [2.32.9] — 2026-08-10
+
+### Fixed
+- **Route the two review-coverage arity guards in `scripts/workpad.py` through `_require_arity`.** The `--record-review-coverage` and `--review-coverage-disposition` operand-arity checks were bare `len()` tests that let a bare `str` of the right character count slip through and unpack character-wise, producing a misleading `unknown coverage value` / `unknown gap` refusal instead of naming the non-sequence. Both now call `_require_arity`, which rejects the non-sequence explicitly; the refusal messages are byte-identical for the count-mismatch case. (#1547)
+
+## [2.32.8] — 2026-08-10
+
+### Fixed
+- **Correct the `/prflow:implement` Phase 1.3 note attributing the reproduction-row default.** The §1.3 sentence in `skills/implement/phases/phase-1-setup.md` no longer says the `new-body` skeleton renders the reproduction row "from the label"; it now attributes the pre-rendered default to whichever caller invoked `new-body` — the cloud `gate` job from the `bug` label, §1.3's own `new-body` calls from the §1.1 content classification — matching the attribution already used in `skills/implement/SKILL.md`, while still stating that either default can disagree with the content classification and that `--reconcile-reproduction` is the authoritative correction. (#1545)
+
+## [2.32.7] — 2026-08-10
+
+### Changed
+Editorially compress the review-and-fix engine's Step 2.6 shadow-review reference under the instruction-plus-consequence prose rule. Justification prose, superseded design notes, and maintainer asides are removed from `skills/review-and-fix/references/shadow-review.md`, and the dangling `fixing.md` pointer to the deleted Cost note goes with them. Alongside the removals, the Over-grade calibration gate's pointer to the canonical over-grade shape list gains a read-if-absent fallback. The changes are prose-only: the shadow pass's behavior is unchanged, and every suite-pinned literal resident in the file survives verbatim and uniquely. The file is loaded into the fix loop's own context at Step 2.6 and again on the `engine_self_modifying` early trigger, so the reduction lowers the context cost of every converging run.
+
 ## [2.32.6] — 2026-08-10
 
 ### Fixed

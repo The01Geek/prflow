@@ -8,7 +8,7 @@
 # Why a helper rather than inline shell in devflow-implement.yml's `Compose implement
 # grounding block` step: this file makes a three-way SELECTION (renderer absent /
 # renderer produced nothing / compose and publish), and inline shell inside YAML cannot
-# be unit-tested. A grep-pin on one of the two `::error::` literals is not coverage of
+# be unit-tested. A grep-pin on any one of the `::error::` literals is not coverage of
 # the selection that chooses between them — a reordered or inverted arm would ship green.
 # Extracted here so lib/test/run.sh drives every arm and the arm ORDER directly. Same
 # reasoning, and same shape, as scripts/describe-denial-count.sh (issue #363).

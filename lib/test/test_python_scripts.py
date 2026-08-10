@@ -10236,6 +10236,44 @@ for _label, _kwargs, _needle in (
     assert_eq(f"#1453: the producer refuses {_label}, naming the specific cause",
               True, _perr is not None and _needle in _perr)
 
+# #1544: a bare str operand is a non-sequence — caught by _require_arity BEFORE the
+# value/gap vocabulary checks. A 4-char str would otherwise pass the old `len()` arity
+# check and zip-unpack into single characters, misreported as an unknown value/gap.
+_s_cov = None
+try:
+    apply_mut(_RC_BASE, make_args(record_review_coverage="abcd"), [])
+except workpad._UpdateError as _e:
+    _s_cov = str(_e)
+assert_eq("#1544: record_review_coverage as a bare str names the non-sequence, not the vocabulary",
+          True, _s_cov is not None and "non-sequence" in _s_cov and "unknown coverage value" not in _s_cov)
+
+_s_disp = None
+try:
+    apply_mut(_RC_BASE, make_args(review_coverage_disposition=["ab"]), [])
+except workpad._UpdateError as _e:
+    _s_disp = str(_e)
+assert_eq("#1544: a review_coverage_disposition element as a bare str names the non-sequence, not the gap vocabulary",
+          True, _s_disp is not None and "non-sequence" in _s_disp and "unknown gap" not in _s_disp)
+
+# #1544: a non-str non-sequence (an int) at these two call sites hits _require_arity's
+# `not isinstance(value, (list, tuple))` branch — the same branch the --checkpoint site
+# already exercises — so the guard is named directly at both new sites too.
+_i_cov = None
+try:
+    apply_mut(_RC_BASE, make_args(record_review_coverage=5), [])
+except workpad._UpdateError as _e:
+    _i_cov = str(_e)
+assert_eq("#1544: record_review_coverage as a non-sequence int names the non-sequence",
+          True, _i_cov is not None and "non-sequence" in _i_cov)
+
+_i_disp = None
+try:
+    apply_mut(_RC_BASE, make_args(review_coverage_disposition=[5]), [])
+except workpad._UpdateError as _e:
+    _i_disp = str(_e)
+assert_eq("#1544: a review_coverage_disposition element as a non-sequence int names the non-sequence",
+          True, _i_disp is not None and "non-sequence" in _i_disp)
+
 # The `--checkpoint` head cannot forge a record or a disposition, which would bypass
 # the producer's validation AND the mandatory dropped-failed reflection.
 for _rk in ("review-coverage:full:attempted:complete:complete",
