@@ -4242,7 +4242,7 @@ def _has_non_checkpoint_mutation(args) -> bool:
     ])
 
 
-def _require_arity(flag: str, value, n: int, labels) -> None:
+def _require_arity(flag: str, value: object, n: int, labels: tuple[str, ...]) -> None:
     """Validate that a fixed-`nargs` operand is a length-`n` sequence before any
     positional unpack, raising a named `_UpdateError` (structural — no PATCH) on a
     wrong shape. argparse enforces this for every CLI invocation, so the guard exists
@@ -4584,6 +4584,13 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     # carries no other mutation is a pure no-op: raise `_NoOpReplay` here so
     # `cmd_update` skips the `Last updated` refresh and the PATCH entirely.
     checkpoint_reqs = getattr(args, 'checkpoint', None) or []
+    # Arity before ANY positional unpack of a checkpoint request (issue #1501): the
+    # --strip-inherited-checkpoints clash set below unpacks `k, _t` before
+    # _plan_checkpoints runs, so a wrong-length element on the strip path would raise a
+    # bare ValueError there rather than the named refusal. Validate every element here,
+    # above that unpack; _plan_checkpoints keeps its own guard for its standalone contract.
+    for _req in checkpoint_reqs:
+        _require_arity('--checkpoint', _req, 2, ('KEY', 'TEXT'))
     checkpoint_inserts: list[tuple[str, str]] = []
     # Bound here, not inside the `if checkpoint_reqs:` arm below, because the
     # deferred announce at this function's return reads it on EVERY path.

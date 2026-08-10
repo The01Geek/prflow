@@ -10360,6 +10360,24 @@ assert_eq("#1501: record_classification=[] is a safe no-op (writes no classifica
 assert_eq("#1501 AC2: checkpoint=['k1'] raises (no corrupt row for key='k')",
           True, "non-sequence" in _arity_msg(checkpoint=["k1"]))
 
+# The `not isinstance(value, (list, tuple))` clause (not only the `str` clause) is
+# exercised by a genuinely non-sequence element — an int, which is neither str nor
+# list/tuple — so a future edit dropping that predicate is caught.
+assert_eq("#1501: a non-str non-sequence checkpoint element hits the non-sequence branch",
+          True, "non-sequence" in _arity_msg(checkpoint=[123]))
+
+# AC1 on the --strip-inherited-checkpoints path: the clash-detection set unpacks each
+# checkpoint element BEFORE _plan_checkpoints runs, so a wrong-length element there must
+# still raise the named _UpdateError, not a bare ValueError.
+assert_eq("#1501 AC1: a long checkpoint element with --strip-inherited-checkpoints "
+          "raises the named refusal (not a bare ValueError)",
+          True, "--checkpoint takes exactly 2 values (KEY, TEXT)" in
+          _arity_msg(strip_inherited_checkpoints=True, checkpoint=[["a", "b", "c"]]))
+assert_eq("#1501 AC1: a bare-string checkpoint element with --strip-inherited-checkpoints "
+          "raises the named refusal",
+          True, "non-sequence" in
+          _arity_msg(strip_inherited_checkpoints=True, checkpoint=["k1"]))
+
 # AC3 valid-falsy: the new arity guards must NOT capture any of these four. Two are
 # accepted outright; two already raise their OWN named refusal (empty text / empty
 # rationale), which must not be the arity message.
@@ -10371,6 +10389,9 @@ assert_eq("#1501 AC3 valid-falsy: rewrite_ac=[['AC1','']] is accepted (no arity 
 assert_eq("#1501 AC3 valid-falsy: scope_decision_deferred=[['7','']] keeps its OWN refusal",
           True, "takes exactly 2 values (PR, TEXT)" not in
           _arity_msg(scope_decision_deferred=[["7", ""]]))
+assert_eq("#1501 AC3 valid-falsy: scope_decision_rewritten=[['7','old','']] keeps its OWN refusal",
+          True, "takes exactly 3 values (PR, OLD, NEW)" not in
+          _arity_msg(scope_decision_rewritten=[["7", "old", ""]]))
 assert_eq("#1501 AC3 valid-falsy: record_classification=['bug-report',''] keeps its OWN refusal",
           True, "takes exactly 2 values (class, rationale)" not in
           _arity_msg(record_classification=["bug-report", ""]))
