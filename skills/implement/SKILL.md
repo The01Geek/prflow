@@ -135,9 +135,9 @@ rm -f "$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.prflow/tmp/issue-bod
 
 ### Workpad section template
 
-`scripts/workpad.py new-body` produces the workpad comment body (marker line, header, front-matter lines, `## Progress`, `## Plan`, `## Acceptance Criteria`, an empty `## Devflow Reflection`, and `Reproduction` when the classification is bug-report) — never hand-author it. Append-only notes (`--note`) nest under their lifecycle phase *inside* `## Progress`; there is no separate Decisions / Notes section. **Keep `## Acceptance Criteria` outside any `<details>`** — the Phase 3.4 gate reads it.
+`scripts/workpad.py new-body` produces the workpad comment body — never hand-author it. Append-only notes (`--note`) nest under their lifecycle phase *inside* `## Progress`; there is no separate Decisions / Notes section. **Keep `## Acceptance Criteria` outside any `<details>`** — the Phase 3.4 gate reads it.
 
-The `## Progress` rows the skeleton carries, and the substrings `--tick-progress` matches:
+The `## Progress` row texts the skeleton carries — `--tick-progress` matches any stable substring of a row:
 
 - `**Setup** — branch & workpad`
   - `prompt extension resolved: implement`
@@ -155,7 +155,7 @@ The `## Progress` rows the skeleton carries, and the substrings `--tick-progress
   - `prompt extension resolved: PR description`
 - `**PR marked ready**`
 
-The nested `prompt extension resolved: …` rows record that each of those extension surfaces had its state resolved during the run. The `reproduction captured (bug issues only)` sub-item is bug-only. The **deterministic** skeleton producers pre-render it from the `bug` *label* — the local fresh-issue path passes `--no-reproduction` to `new-body` (1.3) when the 1.1 classification is non-bug, and the cloud `gate` job does its own label lookup (rendering the row on a lookup failure) — but the label is only a pre-render heuristic. Phase 1.3's `--reconcile-reproduction` (keyed on the recorded **content** classification, not the label) is the authoritative correction that reconciles the skeleton on every entry, so a bug report filed without the label still gets the row and a mislabelled feature request loses it.
+The bug-only row is pre-rendered from the `bug` label, and Phase 1.3's `--reconcile-reproduction`, keyed on the recorded content classification, is the authoritative correction; the operative directive lives in `skills/implement/phases/phase-1-setup.md` §1.3.
 
 ### Workpad helper CLI
 
