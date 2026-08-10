@@ -35731,18 +35731,48 @@ assert_pin_unique "#363 devflow.yml's claude_args consumes the hoisted allowed-t
 # expression, which select the run's github_token (read-only reviewer vs. write-capable
 # App — a security boundary, pinned separately in the #300 block) and must never be
 # swept along with the grounding gate.
-_gb363_gates() {  # -> "<guard-if>|<compose-if>"; any unreadable input yields a non-matching sentinel
-  python3 - "$DEVFLOW_YML" 2>/dev/null <<'PY' || echo 'unestablished|unestablished'
+#
+# Both engine workflows carry the guard, so both are read the same way — devflow-runner.yml
+# grounds the auto-review tier, where a deleted guard relaunches an ungrounded REVIEWER
+# instead of failing before the Claude step. The same parse also counts each step's fail
+# arms, so a silent revert of either `::error:: … exit 1` to a warn-and-continue (which
+# leaves every message literal in place, and which the pins above therefore cannot see)
+# comes back as a changed count.
+_gb363_gates() {  # <file> <job> <compose-step-name>
+  # -> "<guard-if>|<compose-if>|<guard-arms>|<compose-arms>", each arms field
+  #    "<::error:: lines naming the renderer>/<bare `exit 1` lines>/<::warning:: lines
+  #    naming the renderer>". Any unreadable input yields a non-matching sentinel.
+  python3 - "$1" "$2" "$3" 2>/dev/null <<'PY' || echo 'unestablished|unestablished|unestablished|unestablished'
 import sys, yaml
-steps = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))["jobs"]["command"]["steps"]
-def gate(name):
+steps = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))["jobs"][sys.argv[2]]["steps"]
+GUARD = "Validate vendored grounding renderer"
+def one(name):
     found = [s for s in steps if s.get("name") == name]
-    return "absent-step" if len(found) != 1 else repr(found[0].get("if"))
-print(gate("Validate vendored grounding renderer") + "|" + gate("Compose engine grounding block"))
+    return found[0] if len(found) == 1 else None
+def gate(name):
+    step = one(name)
+    return "absent-step" if step is None else repr(step.get("if"))
+def arms(name):
+    step = one(name)
+    if step is None:
+        return "absent-step"
+    lines = (step.get("run") or "").splitlines()
+    def n(pred):
+        return sum(1 for line in lines if pred(line))
+    return "%d/%d/%d" % (
+        n(lambda l: "::error::" in l and "render-grounding-block.sh" in l),
+        n(lambda l: l.strip() == "exit 1"),
+        n(lambda l: "::warning::" in l and "render-grounding-block.sh" in l),
+    )
+print("|".join([gate(GUARD), gate(sys.argv[3]), arms(GUARD), arms(sys.argv[3])]))
 PY
 }
-assert_eq "#363 devflow.yml composes a block for every dispatched command, and its vendored-renderer guard covers exactly those runs" \
-  "None|None" "$(_gb363_gates)"
+assert_eq "#363 devflow.yml composes a block for every dispatched command, its vendored-renderer guard covers exactly those runs, and both fail the job rather than warning" \
+  "None|None|1/1/0|2/2/0" "$(_gb363_gates "$DEVFLOW_YML" command 'Compose engine grounding block')"
+# Symmetric coverage for the auto-review tier: the same guard, the same unconditional
+# reach over its own compose step, and the same fail-loud arms.
+assert_eq "#363 devflow-runner.yml carries the same vendored-renderer guard over exactly the runs its compose step grounds, and both fail the job rather than warning" \
+  "None|None|1/1/0|2/2/0" "$(_gb363_gates "$RUNNER_YML" run 'Compose review prompt')"
 
 # Which MODE each command renders in. `review` adds the CI-results section, whose
 # operative instruction is to cite those conclusions as the run's authoritative test
@@ -35928,13 +35958,45 @@ _c="$(_cip_case 'printf "SEEN MODE=%s TOOLS=%s\n" "$MODE" "$ALLOWED_TOOLS"')"
 assert_eq "#1170 composer invokes the renderer in MODE=implement with the resolved tool list" "yes" \
   "$(_cip_has "$_c/ghout" 'SEEN MODE=implement TOOLS=Read, Bash(git add:*)')"
 
-# An unpublishable output channel degrades to the bare prompt with a breadcrumb, never a
-# hard failure and never a redirect somewhere arbitrary.
+# An unpublishable output channel is refused like every other block-less end state — a
+# job failure, never a degrade to the bare prompt, and never a redirect somewhere
+# arbitrary.
 _c="$(_cip_case 'printf "> GROUND-TRUTH-BLOCK\n---\n"')"
 _cip_rc_noout="$( cd "$_c" && GITHUB_OUTPUT='' ALLOWED_TOOLS='Read' NUMBER=7 bash "$_CIP_SH" >/dev/null 2>"$_c/err2"; echo $? )"
 assert_eq "#1170 composer exits 1 when GITHUB_OUTPUT is unset/empty" "1" "$_cip_rc_noout"
 assert_eq "#1170 composer breadcrumbs an unpublishable GITHUB_OUTPUT" "yes" \
   "$(_cip_has "$_c/err2" 'GITHUB_OUTPUT is unset or empty')"
+
+# Arm 4 — GITHUB_OUTPUT is SET but the append FAILS (a present, wholly-unwritable
+# destination). Distinct from the unset/empty arm above: the path resolves, so every
+# earlier arm passes and the refusal must come from the write itself. Load-bearing
+# because the natural spelling of that guard does not work — bash does not propagate a
+# failed redirection on a COMPOUND command through `!`, so `if ! { …; } >> "$f"` reads
+# as success and the composer exits 0 having published nothing. Posed with the #458
+# unwritable-destination fixture (chmod 400 file inside a chmod 500 directory) and
+# skipped, never silently passed, under a uid that ignores the mode bits.
+mkdir -p "$_c/ro"
+: > "$_c/ro/ghout"
+chmod 400 "$_c/ro/ghout" 2>/dev/null || true
+chmod 500 "$_c/ro" 2>/dev/null || true
+if [ "$(id -u)" -ne 0 ] && [ ! -w "$_c/ro/ghout" ] && [ ! -w "$_c/ro" ]; then
+  _cip_rc_ro="$( cd "$_c" && GITHUB_OUTPUT="$_c/ro/ghout" ALLOWED_TOOLS='Read' NUMBER=7 bash "$_CIP_SH" >/dev/null 2>"$_c/err3"; echo $? )"
+  assert_eq "#1170 composer exits 1 when the GITHUB_OUTPUT append fails (unwritable destination)" "1" "$_cip_rc_ro"
+  assert_eq "#1170 composer errors that the composed prompt could not be appended" "yes" \
+    "$(_cip_has "$_c/err3" 'could not append the composed implement prompt to GITHUB_OUTPUT')"
+  assert_eq "#1170 composer refuses a failed append on the ::error:: channel, never a warn-and-continue" "0" \
+    "$(grep -c '::warning::' "$_c/err3" || true)"
+  assert_eq "#1170 composer does NOT misattribute a failed append to the unset/empty arm" "no" \
+    "$(_cip_has "$_c/err3" 'GITHUB_OUTPUT is unset or empty')"
+  assert_eq "#1170 composer publishes NO prompt output when the append fails" "0" \
+    "$(_cip_promptkeys "$_c/ro/ghout")"
+  unset _cip_rc_ro
+else
+  skip "#1170 composer arm4 (GITHUB_OUTPUT set but unappendable)" host-capability \
+    "this uid ignores the mode bits — the chmod 400/500 destination stayed writable, so a failing append could not be posed"
+fi
+chmod 700 "$_c/ro" 2>/dev/null || true
+chmod 700 "$_c/ro/ghout" 2>/dev/null || true
 rm -rf "$_CIP_ROOT"
 unset _cip_rc_noout
 
