@@ -341,6 +341,10 @@ _prv_stamp_progress() {
   # Rewrite: keep line 1 (the run key), put the marker on line 2, drop a marker line already
   # sitting at line 2 so a re-post does not accumulate two of them, and preserve every other
   # line verbatim.
+  # Related: `scripts/workpad.py`'s `_merge_leading_markers` re-inserts these same two leading
+  # marker lines after a full-body rewrite. It agrees with this stamp only on the POSITIONS —
+  # run key line 1, verdict line 2; its matching and precedence rules differ, so a change to
+  # either position must be made in both.
   if ! err="$( { "$DEVFLOW_JQ" -n --arg marker "$MARKER" --argjson b "$bjson" \
                    '{body: ($b | split("\n")
                      | (if (length == 0) then [$marker]

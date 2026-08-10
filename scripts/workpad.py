@@ -68,6 +68,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 if sys.version_info < (3, 11):  # fail fast, before any PEP 604 annotation is evaluated below
@@ -192,7 +193,18 @@ def _fail(prefix, exc, code=1):
     # auth/transport READ failure — the workpad or issue may be perfectly
     # healthy — apart from a genuinely unreadable/absent workpad. Callers that do
     # not override keep exit 1 unchanged.
-    msg = exc.stderr.strip() if isinstance(exc, subprocess.CalledProcessError) else str(exc)
+    # `_run` sets `encoding`, so `.stderr` is normally str — but an exception
+    # raised without capture carries None, and one built elsewhere can carry
+    # bytes, which would render as a `b'...'` repr. Both are handled the same way
+    # `cmd_patch`'s live-body read arm handles them (`getattr(e, 'stderr', None)
+    # or e`, then decode-and-strip), so the two error surfaces of one command
+    # cannot diverge: an absent or empty stderr falls back to the exception
+    # itself rather than printing a breadcrumb that names no failure.
+    msg = getattr(exc, 'stderr', None) if isinstance(exc, subprocess.CalledProcessError) else None
+    if isinstance(msg, bytes):
+        msg = msg.decode('utf-8', 'replace')
+    msg = msg.strip() if isinstance(msg, str) else ''
+    msg = msg or str(exc)
     sys.stderr.write(f"workpad.py {prefix}: {msg}\n")
     sys.exit(code)
 
@@ -435,17 +447,46 @@ def cmd_id(args):
     sys.exit(2)
 
 
+def _comment_body(repo, comment_id):
+    """The live body of one comment. Raises; each caller picks its own arm."""
+    return _run([
+        GH, 'api',
+        f'/repos/{repo}/issues/comments/{comment_id}',
+        '--jq', '.body',
+    ]).stdout
+
+
+def _comment_body_established(repo, comment_id):
+    """(body, established) for one comment, read WITHOUT `--jq .body`.
+
+    `--jq .body` cannot express presence: jq renders a missing key as the literal
+    `null`, so an error envelope carrying no `.body` at exit 0 is indistinguishable
+    from a comment whose body is the four characters `null`. Reading the raw object
+    and testing `'body' in obj` shares the presence question with the data itself,
+    so the accepted set cannot drift. Raises like `_comment_body`; a non-object
+    payload, an absent `body` key, or a non-string `body` all return established
+    False rather than a value the caller would treat as the live body.
+    """
+    out = _run([
+        GH, 'api',
+        f'/repos/{repo}/issues/comments/{comment_id}',
+    ]).stdout
+    try:
+        obj = json.loads(out)
+    except ValueError:
+        return '', False
+    if not isinstance(obj, dict) or not isinstance(obj.get('body'), str):
+        return '', False
+    return obj['body'], True
+
+
 def cmd_body(args):
     repo = _repo_full()
     try:
-        r = _run([
-            GH, 'api',
-            f'/repos/{repo}/issues/comments/{args.comment_id}',
-            '--jq', '.body',
-        ])
+        out = _comment_body(repo, args.comment_id)
     except (subprocess.CalledProcessError, OSError) as e:
         _fail('body', e)
-    sys.stdout.write(r.stdout)
+    sys.stdout.write(out)
 
 
 def _is_recognized_status_word(word: str) -> bool:
@@ -1027,6 +1068,139 @@ def cmd_acs_resolve(args):
         print('not-applicable')
 
 
+# ── Leading-marker preservation across a full-body rewrite (issue #1508) ────
+# A comment's identity is its line-1 marker, and a verdict stamp is the line
+# after it. A caller that re-authors the whole body from state it holds drops
+# whatever it does not retype, and a marker-resolving reader does not error on
+# the result: its scan finds nothing and reads "there was no such comment".
+#
+# The scan stops at two lines because that is the window every reader uses
+# (docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md §8) — a marker deeper in a body is
+# prose, so hoisting one would invent a stamp the producer never made.
+_LEADING_MARKER_SCAN = 2
+# Anchored at column 0, because that is where the readers' predicate anchors
+# (`_find_workpad_comment`'s `body.startswith(...)`): recognising an INDENTED marker
+# would let a composed body claim one no reader can resolve. Trailing whitespace goes
+# the other way — the readers accept it, so refusing it here would leave a live marker
+# they resolve unpreserved — and is tolerated and stripped off the re-inserted line,
+# which also covers the CRLF GitHub returns for a body last edited in the web UI.
+_LEADING_MARKER_RE = re.compile(
+    r'^' + _MARKER_NS_RE + r'([A-Za-z0-9_.:-]+)[^\n]*-->[ \t\r]*$')
+
+
+def _leading_markers(body):
+    """`(markers, tail)` — the leading PRFlow marker-comment lines, then the rest.
+
+    `markers` is `[(kind, line)]` with each line's trailing whitespace removed, so
+    a CRLF live body never injects a stray `\\r` into an LF one. `tail` is every
+    remaining line, fully split, so a caller may both rebuild the body and match
+    over it line-by-line without re-splitting.
+    """
+    lines = body.split('\n')
+    found = []
+    for line in lines[:_LEADING_MARKER_SCAN]:
+        m = _LEADING_MARKER_RE.match(line)
+        if not m:
+            break
+        found.append((m.group(1), line.rstrip(' \t\r')))
+    return found, lines[len(found):]
+
+
+def _merge_leading_markers(live_body, new_body):
+    """Re-insert into `new_body` any leading marker `live_body` carries.
+
+    Returns `(body, reinserted_kinds)`. When anything is re-inserted the live
+    body's ORDER governs the result (the run key stays line 1) and the caller's
+    line wins for any kind it supplied — its FIRST line of that kind, so a
+    composed body carrying one kind twice inside the scan window keeps the copy
+    at the contracted position — so a same-kind re-stamp still lands;
+    a kind only the caller supplied is appended after the live ones. When the
+    caller supplied every live kind nothing is re-inserted and its own body —
+    and its own order — is returned untouched. The consequence a caller must
+    know: this can CHANGE a leading marker of a kind the live body already
+    carries, but never REMOVE one it holds, so a deliberate removal, and a
+    migration that changes a marker's KIND, go through a different write path.
+    A same-kind marker the CALLER placed out of position — behind a blank line
+    rather than at line 1 — is dropped rather than duplicated.
+
+    `scripts/post-review-verdict.sh`'s `_prv_stamp_progress` writes the stamp
+    this preserves. The two agree only on the POSITIONS — run key line 1, verdict
+    line 2 — and their matching and precedence rules differ, so a change to
+    either position must be made in both.
+    """
+    live, _ = _leading_markers(live_body)
+    if not live:
+        return new_body, []
+    supplied, tail = _leading_markers(new_body)
+    # Reversed, so the FIRST supplied line of a repeated kind is the one that
+    # survives: a plain `dict(supplied)` would let a line-2 copy displace the
+    # line-1 one the caller placed at the contracted position.
+    by_kind = {kind: line for kind, line in reversed(supplied)}
+    reinserted = [kind for kind, _ in live if kind not in by_kind]
+    if not reinserted:
+        return new_body, []
+    live_kinds = {kind for kind, _ in live}
+    merged = [by_kind.get(kind, line) for kind, line in live]
+    merged += [line for kind, line in supplied if kind not in live_kinds]
+    merged_kinds = {kind for kind, _ in live} | {kind for kind, _ in supplied}
+    # A composed body whose marker does not begin at line 1 — a blank line or a
+    # heading ahead of it — leaves `supplied` empty, so its own copies would ride
+    # along in the tail beside the ones just prepended. Drop a marker line of an
+    # already-merged kind from the tail's leading run, stopping at the first line
+    # that is neither blank nor such a marker so no ordinary content is touched.
+    kept_tail, dropping = [], True
+    for line in tail:
+        if dropping:
+            m = _LEADING_MARKER_RE.match(line)
+            if m and m.group(1) in merged_kinds:
+                continue
+            if line.strip() == '':
+                kept_tail.append(line)
+                continue
+            dropping = False
+        kept_tail.append(line)
+    # A live body carrying two markers of one kind re-inserts that kind twice;
+    # the breadcrumb names each kind once.
+    return '\n'.join(merged + kept_tail), sorted(set(reinserted))
+
+
+def _patch_comment_body(repo, comment_id, text=None, *, body_path=None):
+    """PATCH a comment's body from `text` or from `body_path`; return the response.
+
+    A `text` payload is staged into a private temp file, never a sibling of the
+    caller's path, because that directory may be read-only and a sibling would be
+    visible to a `git add` scoped to it. Passing `body_path` PATCHes that file
+    directly, so an unchanged body needs no writable temp directory at all.
+    """
+    staged = None
+    if body_path is None:
+        if text is None:
+            raise ValueError('_patch_comment_body: pass text= or body_path=')
+        tf = tempfile.NamedTemporaryFile(
+            'w', suffix='.md', delete=False, encoding='utf-8')
+        staged = Path(tf.name)
+        try:
+            with tf:
+                tf.write(text)
+        except OSError:
+            staged.unlink(missing_ok=True)
+            raise
+        body_path = staged
+    try:
+        return _run([
+            GH, 'api', '-X', 'PATCH',
+            f'/repos/{repo}/issues/comments/{comment_id}',
+            '-F', f'body=@{body_path}',
+            '--jq', '.body',
+        ]).stdout
+    finally:
+        if staged is not None:
+            try:
+                staged.unlink()
+            except OSError:
+                pass
+
+
 def cmd_patch(args):
     repo = _repo_full()
     body_path = Path(args.body_file)
@@ -1036,15 +1210,64 @@ def cmd_patch(args):
         )
         sys.exit(1)
     try:
-        r = _run([
-            GH, 'api', '-X', 'PATCH',
-            f'/repos/{repo}/issues/comments/{args.comment_id}',
-            '-F', f'body=@{body_path}',
-            '--jq', '.body',
-        ])
+        composed = body_path.read_text(encoding='utf-8')
+    except OSError as e:
+        sys.stderr.write(f"workpad.py patch: body file unreadable: {e}\n")
+        sys.exit(1)
+    # A body the read could not establish is UNESTABLISHED, not "this comment has
+    # no markers": `gh` can emit an error envelope carrying no `.body` key while
+    # exiting 0, and reading that as an empty live body would silently restore
+    # the clobber this preservation exists to prevent. Presence is decided by the
+    # raw object's key, never by `--jq .body`, whose `null` rendering cannot
+    # express it.
+    live, live_read_failed = '', None
+    try:
+        live, established = _comment_body_established(repo, args.comment_id)
+        if not established:
+            live = ''
+            live_read_failed = 'the read returned no body (an error envelope at exit 0?)'
+    except (subprocess.CalledProcessError, OSError) as e:
+        live_read_failed = getattr(e, 'stderr', None) or e
+        if isinstance(live_read_failed, bytes):
+            live_read_failed = live_read_failed.decode('utf-8', 'replace')
+        if isinstance(live_read_failed, str):
+            live_read_failed = live_read_failed.strip()
+        live = ''
+    if live_read_failed is not None:
+        # Whether that unknown costs anything is decidable: a composed body that
+        # carries its own leading marker is already safe, so degrade. One that
+        # does not would drop a marker the comment may hold, unrecoverably and
+        # with nothing downstream able to tell — so refuse instead.
+        if _leading_markers(composed)[0]:
+            sys.stderr.write(
+                'workpad.py patch: could not establish the live body of comment '
+                f'{args.comment_id} ({live_read_failed}); patching the composed '
+                'body as typed — only the marker(s) it carries are preserved, and '
+                'any OTHER leading marker this comment holds is dropped\n'
+            )
+        else:
+            sys.stderr.write(
+                'workpad.py patch: could not establish the live body of comment '
+                f'{args.comment_id} ({live_read_failed}) and the composed body '
+                'carries no leading marker, so a marker this comment may hold '
+                'would be dropped unrecoverably; refusing the PATCH. Retry, or '
+                're-author the body with its marker as line 1.\n'
+            )
+            sys.exit(1)
+    merged, reinserted = _merge_leading_markers(live, composed)
+    if reinserted:
+        sys.stderr.write(
+            'workpad.py patch: re-inserted leading marker(s) the composed body '
+            f'omitted: {", ".join(reinserted)}\n'
+        )
+    try:
+        if reinserted:
+            out = _patch_comment_body(repo, args.comment_id, merged)
+        else:
+            out = _patch_comment_body(repo, args.comment_id, body_path=body_path)
     except (subprocess.CalledProcessError, OSError) as e:
         _fail('patch', e)
-    sys.stdout.write(r.stdout)
+    sys.stdout.write(out)
 
 
 _COMMENT_URL_RE = re.compile(r'#issuecomment-(\d+)\s*$')
@@ -3020,10 +3243,11 @@ def cmd_update(args):
             )
         sys.exit(1)
 
-    # Write to a temp file and PATCH (same path as cmd_patch). The body always
-    # carries at least the refreshed `Last updated`, so the PATCH is never a
-    # no-op even when every requested tick was volatile.
-    import tempfile
+    # Write to a temp file and PATCH. The body always carries at least the
+    # refreshed `Last updated`, so the PATCH is never a no-op even when every
+    # requested tick was volatile. This path needs no leading-marker merge (the
+    # one `cmd_patch` applies via `_merge_leading_markers`): `body` is mutated
+    # from the live body re-fetched above, so a marker line it carries survives.
     with tempfile.NamedTemporaryFile(
         'w', suffix='.md', delete=False, encoding="utf-8",
     ) as tf:
