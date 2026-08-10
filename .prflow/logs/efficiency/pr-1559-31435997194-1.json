@@ -100,5 +100,59 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.13",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 10.818442750000004,
+    "tokens": {
+      "input_tokens": 92,
+      "output_tokens": 46978,
+      "cache_read_input_tokens": 8841504,
+      "cache_creation_input_tokens": 242179,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 141,
+        "outputTokens": 70582,
+        "cacheReadInputTokens": 9969708,
+        "cacheCreationInputTokens": 505626,
+        "webSearchRequests": 0,
+        "costUSD": 10.818442750000004,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 62,
+    "duration_ms": 905500
+  },
+  "permission_denials": {
+    "count": 6,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      "echo \"run_id=${GITHUB_RUN_ID:-none} attempt=${GITHUB_RUN_ATTEMPT:-none} actions=${GITHUB_ACTIONS:-none}\"",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve \"1552\" --pr \"1559\" 2>.prflow/tmp/review/pr-1559/31435997194-1/acs.err ; echo \"acs-rc=$?\"",
+      "OVERRIDES=$(.prflow/vendor/prflow/scripts/resolve-review-overrides.py \"prflow:checklist-generator\" 2>.prflow/tmp/review/pr-1559/31435997194-1/rv-ovr.phase1.err); echo \"overrides=$OVERRIDES\"; echo \"---err---\"; cat .prflow/tmp/review/pr-1559/31435997194-1/rv-ovr.phase1.err\necho \"===issue===\"\ngh issue view 1552 --json title,body --jq '\"TITLE: \" + .title + \"\\n---BODY---\\n\" + (.body|split(\"\\n\")[0:200]|join(\"\\n\"))'",
+      "git show e8f6cde:scripts/stale-prose-lint.py | tr -s ' \\n\\t' ' ' > .prflow/tmp/review/pr-1559/31435997194-1/helper-norm.txt\nif grep -qF \"UNRESOLVABLE rows are informational and never gate\" .prflow/tmp/review/pr-1559/31435997194-1/helper-norm.txt; then echo \"PRESENT (false-attribution NOT substantiated)\"; else echo \"ABSENT (false-attribution substantiated — VC-16 PASS)\"; fi\necho \"--- also confirm the old worked-examples block is gone from head §2.3.4b ---\"\ngit show e8f6cde:skills/implement/phases …[per-command-truncated]",
+      ".prflow/vendor/prflow/scripts/run-jq.sh -n \\\n  --argjson checklist '[{\"verification_mode\":\"agent\",\"verdict\":\"PASS\"},{\"verification_mode\":\"agent\",\"verdict\":\"PASS\"},{\"verification_mode\":\"agent\",\"verdict\":\"PASS\"},{\"verification_mode\":\"agent\",\"verdict\":\"PASS\"},{\"verification_mode\":\"agent\",\"verdict\":\"PASS\"},{\"verification_mode\":\"agent\",\"verdict\":\"PASS\"},{\"verification_mode\":\"agent\",\"verdict\":\"PASS\"},{\"verification_mode\":\"lite\",\"verdict\":\"PASS\"},{\"verification_mode\":\"agent\",\"verdict\":\"PASS\"},{\"verific …[per-command-truncated]"
+    ],
+    "total": 6,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
