@@ -42945,6 +42945,8 @@ defect-brace-oneline.sh:3:brace group, single line
 defect-subshell-oneline.sh:3:subshell, single line
 defect-brace-multiline.sh:5:brace group across lines, redirect on the close line
 defect-input.sh:3:an input redirect (< "$f") whose first redirect is non-/dev/null
+defect-append.sh:3:an append redirect (>> "$f")
+defect-devnull-then-data.sh:3:a data redirect hidden behind a leading 2>/dev/null (scan every clause, not just the first)
 NCR_VIOLATIONS
 # Shapes that must NOT be flagged, each for its own reason.
 while IFS=: read -r _ncr_file _ncr_why; do
@@ -42955,8 +42957,11 @@ done <<'NCR_CLEAN'
 safe-inside.sh:a redirect placed INSIDE the group (close followed by ;)
 safe-devnull.sh:a redirect to /dev/null on the compound (cannot fail to open)
 safe-not-negated.sh:the correct rc-capture idiom with no ! negation
-safe-marker.sh:a suppressed finding carrying the negated-compound-redirect-ok marker
+safe-marker.sh:a suppressed finding carrying the negated-compound-redirect-ok marker (above the opener)
+safe-marker-trailing.sh:a suppressed finding whose marker is a trailing comment on the opener/close line
 safe-string.sh:the defect shape appearing only inside a quoted string
+safe-fddup.sh:a descriptor dup (>&2) on the compound, which opens no file
+safe-heredoc.sh:a heredoc (<<EOF) on the compound, whose body is in-memory
 NCR_CLEAN
 # An unreadable selected path is named and fails closed, never absorbed into a clean pass.
 assert_eq "#1524 scanner: an unreadable selected path is named, not silently skipped" "yes" \

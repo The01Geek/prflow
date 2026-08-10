@@ -16,11 +16,15 @@ Detected shape (deliberately narrow, to keep false positives to zero):
 * A group opener `{` or `(` **immediately preceded by `!`** (`! {`, `! (`,
   `if ! {`). A `!` further from the opener is not tracked — a false negative this
   guard accepts, because every real instance of the defect writes `! {` / `! (`.
-* whose matching close (`}` / `)`, brace/paren nesting balanced) is **immediately
-  followed on the same physical line** by a data-carrying redirect: an optional fd
-  number, then `>`, `>>`, or `<` (never `>&` / `<&`, which dup a descriptor and open
-  no file), to a target that is not `/dev/null` (a redirect to `/dev/null` cannot
-  meaningfully fail to open, so the swallowed-failure defect does not apply).
+* one of whose redirect clauses **on the close's own physical line** is a data-carrying
+  redirect: an optional fd number, then `>`, `>>`, `>|`, or `<`, to a target that is not
+  `/dev/null`. Every consecutive clause on that line is scanned — not just the first — so a
+  leading inert clause cannot hide a real data redirect behind it (`} 2>/dev/null > "$f"`
+  is flagged). Inert clauses are skipped and scanning continues past them: a descriptor dup
+  (`>&` / `<&`, which opens no file), a heredoc / here-string (`<<` / `<<<`, whose body is
+  in-memory), and a `/dev/null` target (which cannot meaningfully fail to open). The first
+  non-redirect token (a `;`, `then`, `&&`, a command word, or the end of the line) stops the
+  scan.
 
 A redirect placed **inside** the group (`{ printf … > "$f" && mv …; }`) is correct —
 the group's own exit status carries that failure — and its close is followed by `;`
@@ -32,8 +36,8 @@ physical line suppresses that finding.
 
 Scope: shell sources only (`*.sh`, `*.bash`) — every live instance the issue's
 sweep found lives in one. Embedded shell in `.github/workflows/*.yml` is an accepted
-residual (the one workflow instance the sweep found puts its redirect inside the
-group). `.claude/worktrees/` is excluded because the population is a working-tree
+residual, not scanned (any workflow instances the sweep found place their redirect
+inside the group). `.claude/worktrees/` is excluded because the population is a working-tree
 enumeration that would otherwise sweep sibling worktrees (issue #711), and this
 lint's own fixture corpus (which carries intentional violations) is excluded.
 
@@ -83,10 +87,56 @@ EXCLUDED_PREFIXES = (
 
 _MARKER = "negated-compound-redirect-ok:"
 
-#: A redirect immediately following a group close: optional fd digits, then `>`/`>>`/`<`,
-#: NOT a `>&`/`<&` descriptor dup, then the target. Anchored at the start of the
-#: post-close remainder (leading horizontal whitespace already consumed by the caller).
-_REDIRECT = re.compile(r"^[0-9]*(?:>>|>|<)(?![&])[ \t]*(?P<target>[^ \t;&|)]+)")
+#: A descriptor dup (`>&2`, `2>&1`, `<&-`) — inert: it opens no file, so a failure of it
+#: is not the swallowed-open defect. Skipped, and scanning continues past it.
+_FD_DUP = re.compile(r"^[0-9]*[<>]&[0-9-]*")
+#: A heredoc or here-string (`<<EOF`, `<<-EOF`, `<<< word`) — inert: the body is in-memory,
+#: with no open-failure mode. Skipped (operator plus its delimiter/word), scanning continues.
+_HEREDOC = re.compile(r"^[0-9]*<<-?<?")
+#: A data-carrying redirect: optional fd digits, then `>|` / `>>` / `>` / `<`, NOT a `>&`/`<&`
+#: descriptor dup nor a `<<` heredoc (`(?![&<])`), then the target. Anchored at the start of
+#: the post-close remainder (leading horizontal whitespace already consumed by the caller).
+_DATA_REDIR = re.compile(r"^[0-9]*(?:>\||>>|>|<)(?![&<])[ \t]*(?P<target>[^ \t;&|<>)]+)")
+
+
+def _has_data_redirect_after(text: str, start: int) -> bool:
+    """Scan the consecutive redirect clauses on the close's own physical line, from `start`
+    (just after the group close). Return True iff any is a data-carrying redirect to a
+    non-`/dev/null` target. Inert clauses — fd dups (`>&`/`<&`), heredocs/here-strings
+    (`<<`/`<<<`), and `/dev/null` targets — are skipped and scanning continues past them, so a
+    leading `2>/dev/null` (or `>&2`) can never hide a real data redirect behind it. The first
+    non-redirect token (a `;`, `then`, `&&`, a command word, or the end of the line) stops the
+    scan with no finding. Only horizontal whitespace is consumed between clauses, so the scan
+    never crosses a newline off the close's line."""
+    j, n = start, len(text)
+    while True:
+        while j < n and text[j] in " \t":
+            j += 1
+        if j >= n:
+            return False
+        rest = text[j:]
+        m = _FD_DUP.match(rest)
+        if m:
+            j += m.end()
+            continue
+        m = _HEREDOC.match(rest)
+        if m:
+            j += m.end()
+            while j < n and text[j] in " \t":
+                j += 1
+            while j < n and text[j] not in " \t;&|\n":  # consume the delimiter/word token
+                j += 1
+            continue
+        m = _DATA_REDIR.match(rest)
+        if m:
+            # A quoted target ("/dev/null") is stripped before the exemption test so the
+            # quoting does not defeat it; an unquoted /dev/null (and the /dev/null* prefix) is
+            # exempt because such a redirect cannot meaningfully fail to open.
+            if m.group("target").strip("\"'").startswith("/dev/null"):
+                j += m.end()
+                continue
+            return True
+        return False
 
 
 def is_scanned(path: str) -> bool:
@@ -187,20 +237,13 @@ def scan_text(text: str) -> list[tuple[int, str]]:
         close_index = _match_close(blanked, open_index, open_ch)
         if close_index is None:
             continue
-        # The redirect must sit on the SAME physical line as the close; consume only
-        # horizontal whitespace after it before testing for a redirect operator. The
-        # redirect operator and its target are read from the ORIGINAL text, not the blanked
-        # copy — a quoted target ("$f") is blanked to spaces and would read as empty — and
-        # the positions align because _blank_noise preserves every character position.
-        after = close_index + 1
-        j = after
-        while j < len(text) and text[j] in " \t":
-            j += 1
-        rmatch = _REDIRECT.match(text[j:])
-        if not rmatch:
-            continue
-        target = rmatch.group("target")
-        if target.startswith("/dev/null"):
+        # The redirect must sit on the SAME physical line as the close. Scan the consecutive
+        # redirect clauses there from the ORIGINAL text, not the blanked copy — a quoted target
+        # ("$f") is blanked to spaces and would read as empty — and the positions align because
+        # _blank_noise preserves every character position. Scanning every consecutive clause
+        # (not just the first) is what stops a leading inert redirect (`2>/dev/null`, `>&2`)
+        # from hiding a real data redirect behind it.
+        if not _has_data_redirect_after(text, close_index + 1):
             continue
         open_line = _line_of(text, open_index)
         close_line = _line_of(text, close_index)
