@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1521",
+  "generated_at": "2026-08-10T03:09:06Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.31.67",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 8.53974275,
+    "tokens": {
+      "input_tokens": 59,
+      "output_tokens": 35335,
+      "cache_read_input_tokens": 5008655,
+      "cache_creation_input_tokens": 213399,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 127,
+        "outputTokens": 56354,
+        "cacheReadInputTokens": 6646423,
+        "cacheCreationInputTokens": 481088,
+        "webSearchRequests": 0,
+        "costUSD": 8.53974275,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 49,
+    "duration_ms": 784333
+  },
+  "permission_denials": {
+    "count": 13,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-none} ATTEMPT=${GITHUB_RUN_ATTEMPT:-none} ACTIONS=${GITHUB_ACTIONS:-none}\"; echo \"---status---\"; git status --porcelain",
+      "git status --porcelain; echo \"---env---\"; printenv GITHUB_RUN_ID GITHUB_RUN_ATTEMPT GITHUB_ACTIONS 2>/dev/null; echo \"---end---\"",
+      "mkdir -p .prflow/tmp/review/pr-1521/31351064734-1; gh pr diff 1521 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1521/31351064734-1/diff.patch | tail -5; echo \"diff-rc=${PIPESTATUS[0]}\"",
+      ".prflow/vendor/prflow/scripts/workpad.py patch 5235385770 .prflow/tmp/review/pr-1521/31351064734-1/review-wp.md 2>.prflow/tmp/review/pr-1521/31351064734-1/rv-patch.err; echo \"patch-rc=$?\"",
+      ".prflow/vendor/prflow/scripts/workpad.py patch 5235385770 .prflow/tmp/review/pr-1521/31351064734-1/review-wp.md 2>.prflow/tmp/review/pr-1521/31351064734-1/rv-patch.err; echo \"patch-rc=$?\"; cat .prflow/tmp/review/pr-1521/31351064734-1/rv-patch.err",
+      "mkdir -p .prflow/tmp; rm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null; git status --porcelain -z > .prflow/tmp/review-dirty-tree-before; git hash-object .prflow/tmp/review-dirty-tree-before",
+      ".prflow/vendor/prflow/scripts/resolve-review-overrides.py \"prflow:code-reviewer\" \"prflow:silent-failure-hunter\" \"prflow:comment-analyzer\" \"prflow:requesting-code-review\" 2>.prflow/tmp/review/pr-1521/31351064734-1/rv-ovr.phase3.err; echo \"ovr-rc=$?\"; cat .prflow/tmp/review/pr-1521/31351064734-1/rv-ovr.phase3.err",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review > /tmp/ext_out.txt 2> /tmp/ext_err.txt; echo \"EXIT=$?\"; echo \"--- STDOUT ---\"; cat /tmp/ext_out.txt; echo \"--- STDERR ---\"; cat /tmp/ext_err.txt",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review 1>/tmp/ext_out.txt 2>/tmp/ext_err.txt; echo \"EXIT=$?\"",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review 1>.prflow/tmp/ext_out.txt 2>.prflow/tmp/ext_err.txt; echo \"EXIT=$?\"",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review | tee .prflow/tmp/ext_out.txt; echo \"PIPEEXIT=${PIPESTATUS[0]}\"",
+      "ls -la /home/runner/work/_temp/devflow-trusted-prompt-ext/ 2>&1 | head -30"
+    ],
+    "total": 13,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
