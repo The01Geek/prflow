@@ -22106,6 +22106,97 @@ assert_eq("#1508: a live body carrying one kind twice names it once in the bread
           'omitted: review-progress\n' in _drive_cmd_patch_body(
               _RUNKEY + '\n' + _RUNKEY + '\n' + _HEADING, _HEADING, want='stderr'))
 
+# A kind ONLY the caller supplied takes the append limb rather than the `by_kind`
+# lookup, so first-wins has to be enforced there too: filtering that limb on the kind
+# alone appended a caller's duplicate twice. The live body supplies the run key (so
+# something is re-inserted and the merge runs at all) and the caller supplies the
+# verdict kind twice inside the scan window.
+_VERDICT2 = '<!-- prflow:review-verdict head=' + 'b' * 40 + ' verdict=APPROVE -->'
+# Line 3 is the discriminating one and must be asserted: the duplicate rides BEHIND the
+# first copy, so a two-line assertion passes against the un-deduped code too.
+assert_eq("#1508: a kind ONLY the caller supplied is appended once, its first line winning",
+          [_RUNKEY, _VERDICT, _HEADING.split('\n')[0]],
+          (_drive_cmd_patch_body(_RUNKEY + '\n' + _HEADING,
+                                 _VERDICT + '\n' + _VERDICT2 + '\n' + _HEADING)
+           or '\n\n\n').split('\n')[:3])
+
+
+def _drive_fail(stderr):
+    """`(message, exit code)` from `_fail` for one `CalledProcessError.stderr` payload."""
+    exc = _subprocess.CalledProcessError(1, ['gh'])
+    exc.stderr = stderr
+    err = io.StringIO()
+    try:
+        with contextlib.redirect_stderr(err):
+            workpad._fail('patch', exc)
+    except SystemExit as e:
+        return err.getvalue(), e.code
+    return err.getvalue(), None
+
+
+# `_fail`'s own decode-and-strip limb, asserted on `_fail` rather than only on
+# `cmd_patch`'s inline copy: the two are the error surfaces of one command and the
+# reason the limb exists is that they must not diverge, so the copy passing proves
+# nothing about this one. A bytes payload must not render as a `b'...'` repr, and an
+# absent or whitespace-only one must fall back to the exception rather than printing a
+# breadcrumb that names no failure.
+assert_eq("#1508: _fail decodes a bytes .stderr instead of printing its repr",
+          ("workpad.py patch: boom\n", 1),
+          _drive_fail(b'  boom \n'))
+assert_eq("#1508: _fail strips a str .stderr the same way",
+          ("workpad.py patch: boom\n", 1),
+          _drive_fail(' boom\n'))
+assert_eq("#1508: _fail falls back to the exception when .stderr is None",
+          (True, 1),
+          (_drive_fail(None)[0].startswith('workpad.py patch: Command '),
+           _drive_fail(None)[1]))
+assert_eq("#1508: _fail falls back to the exception when .stderr is whitespace-only",
+          (True, 1),
+          (_drive_fail('   \n')[0].startswith('workpad.py patch: Command '),
+           _drive_fail('   \n')[1]))
+
+
+def _drive_cmd_patch_write_failure():
+    """`(stderr, code)` when the MERGED-body PATCH itself fails.
+
+    The live body carries a marker the composed body omits, so the run takes the
+    staged-merged-body PATCH route rather than the caller's-own-file one — the route
+    whose failure arm the other read-failure drivers never reach.
+    """
+    saved = (workpad._run, workpad._repo_full)
+
+    def _fake(cmd, **kw):
+        if '-X' in cmd and 'PATCH' in cmd:
+            exc = _subprocess.CalledProcessError(1, cmd)
+            exc.stderr = b'gh: PATCH refused\n'
+            raise exc
+        return _FakeRun(_json.dumps({'id': 7, 'body': _RUNKEY + '\n' + _HEADING}))
+
+    workpad._run = _fake
+    workpad._repo_full = lambda *a, **kw: 'owner/repo'
+    err = io.StringIO()
+    with _tempfile.NamedTemporaryFile('w', suffix='.md', delete=False) as tf:
+        tf.write(_HEADING)
+        path = tf.name
+    try:
+        with contextlib.redirect_stdout(io.StringIO()), \
+                contextlib.redirect_stderr(err):
+            workpad.cmd_patch(argparse.Namespace(comment_id=7, body_file=path))
+    except SystemExit as e:
+        return err.getvalue(), e.code
+    finally:
+        workpad._run, workpad._repo_full = saved
+        _os.unlink(path)
+    return err.getvalue(), None
+
+
+_stderr, _code = _drive_cmd_patch_write_failure()
+assert_eq("#1508: a failing merged-body PATCH exits 1 naming the transport failure",
+          (True, True, 1),
+          ('re-inserted leading marker(s)' in _stderr,
+           'workpad.py patch: gh: PATCH refused' in _stderr,
+           _code))
+
 # The merged body is staged into the helper's own file rather than over the caller's,
 # and does not outlive the call — the two claims that keep a read-only caller directory
 # and a `git add` scoped to it out of the failure set.
