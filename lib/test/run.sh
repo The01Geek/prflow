@@ -50194,7 +50194,7 @@ assert_eq "#1248 lint: an agents/ path is audited and reported like skills/" "ye
 # reporting a clean pass over an unchecked surface; adding one audited path audits 1 of 1
 # (floor control + is_audited negative half).
 assert_eq "#1248 lint: an enumeration selecting no audited path refuses (empty-audited floor)" "yes" \
-  "$(case "$(uh_run manifests/vendored-only.json)" in "rc=1|"*"selected no file under skills/ or agents/ or .prflow/prompt-extensions/ or CLAUDE.md or docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md"*) echo yes ;; *) echo no ;; esac)"
+  "$(case "$(uh_run manifests/vendored-only.json)" in "rc=1|"*"selected no file under skills/ or agents/"*) echo yes ;; *) echo no ;; esac)"
 assert_eq "#1248 lint: the same list plus one audited path audits 1 of 1 (floor control + is_audited negative)" \
   "$UH_CLEAN1" \
   "$(uh_run manifests/vendored-only.json skills/clean.md)"
@@ -50213,27 +50213,35 @@ assert_eq "#1248 lint: an unreadable/absent audited path is a fail-closed skip, 
 # the canonical verdict-marker statement. Before this widening the fixture files asserted
 # below selected NOTHING and the run refused on the empty-audited floor; each is now
 # audited and reported, which is what makes the widening non-vacuous.
+# Captured once, asserted three times (the AF_RED_OUT idiom below): the lint reports every
+# finding in one run, so three separate invocations would buy nothing but three interpreter
+# starts.
+UH_1526_OUT="$(uh_run .prflow/prompt-extensions/review.md CLAUDE.md docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md)"
 assert_eq "#1526 lint: a prompt-extension path is audited and reported" "yes" \
-  "$(case "$(uh_run .prflow/prompt-extensions/review.md)" in "rc=1|"*".prflow/prompt-extensions/review.md:1:"*) echo yes ;; *) echo no ;; esac)"
+  "$(case "$UH_1526_OUT" in "rc=1|"*".prflow/prompt-extensions/review.md:1:"*) echo yes ;; *) echo no ;; esac)"
 assert_eq "#1526 lint: CLAUDE.md is audited and reported" "yes" \
-  "$(case "$(uh_run CLAUDE.md)" in "rc=1|"*"CLAUDE.md:1:"*) echo yes ;; *) echo no ;; esac)"
+  "$(case "$UH_1526_OUT" in *"
+CLAUDE.md:1:"*) echo yes ;; *) echo no ;; esac)"
 assert_eq "#1526 lint: the cited overview page is audited and reported" "yes" \
-  "$(case "$(uh_run docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md)" in "rc=1|"*"docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md:1:"*) echo yes ;; *) echo no ;; esac)"
+  "$(case "$UH_1526_OUT" in *"docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md:1:"*) echo yes ;; *) echo no ;; esac)"
 # The exact-path half is EXACT, not a docs/internal/ prefix: a sibling page under the same
 # directory is outside the population, so it alone hits the empty-audited floor rather
 # than being scanned. Without this the widening could silently become a docs/ sweep.
 assert_eq "#1526 lint: a sibling docs/internal page is NOT audited (exact-path, not a prefix)" "yes" \
   "$(case "$(uh_run docs/internal/clean-overview.md)" in "rc=1|"*"selected no file under"*) echo yes ;; *) echo no ;; esac)"
-# The widened members ride the same real-tree gate as the original population. Asserted
-# against the DEFAULT enumeration (no --files-from), because the widening is only real if
-# the index-reading population actually selects them: each declared exact path must be
-# both tracked here and admitted by the population filter.
-assert_eq "#1526 lint: every declared exact path is tracked and selected by the default enumeration" "yes" \
-  "$(cd "$LIB/.." && git ls-files -z | python3 -c 'import importlib.util, pathlib, sys
-spec = importlib.util.spec_from_file_location("uh", pathlib.Path("lib/test/lint-ungranted-helper-spelling.py"))
+# The widened members must be reachable by the DEFAULT (index-reading) enumeration, or the
+# hand-maintained AUDITED_PATHS list names a path the real-tree run never sees and the
+# widening is inert on the surface it was written for. The declared list is single-sourced
+# out of the module rather than retyped, so a renamed or dropped member turns this RED;
+# `git ls-files --error-unmatch` is the block's established tracked-path probe and answers
+# without a second interpreter or a whole-index dump. (That each declared path satisfies
+# is_audited is tautological — the positive assertions above are what prove the filter
+# admits them — so it is deliberately not re-asserted here.)
+assert_eq "#1526 lint: every declared exact path is tracked and reachable by the default enumeration" "yes" \
+  "$(cd "$LIB/.." && python3 -c 'import importlib.util, sys
+spec = importlib.util.spec_from_file_location("uh", sys.argv[1])
 mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
-tracked = set(sys.stdin.buffer.read().decode("utf-8").split("\0"))
-print("yes" if all(p in tracked and mod.is_audited(p) for p in mod.AUDITED_PATHS) else "no")')"
+print("\n".join(mod.AUDITED_PATHS))' "$UH_LINT" | xargs git ls-files --error-unmatch >/dev/null 2>&1 && echo yes || echo no)"
 
 # AC5: this repository's own local tier resolves the repo-root form (the vendored tree is
 # materialized only at runtime and is absent from the working tree), so the repo-root

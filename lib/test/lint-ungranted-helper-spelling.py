@@ -43,10 +43,21 @@ names a helper by its canonical `scripts/<name>` source path is why. Auditing `d
 or the tree at large would flag dozens of legitimate naming mentions on pages no run
 loads — the same over-reach FORBIDDEN SET below rejects for the ~30 other vendored-only
 helpers. What survives both narrowings is small by construction: two basenames whose
-repo-relative spelling was OBSERVED causing a silent cloud denial, on the handful of
-surfaces a run reads without being asked to. A surface later added to that auto-load set
-belongs in `AUDITED_PREFIXES`/`AUDITED_PATHS`; one merely *linked* from an audited page
-does not, or the population would close over the whole documentation graph.
+repo-relative spelling was OBSERVED causing a silent cloud denial, on the surfaces a run
+reads without being asked to.
+
+The membership rule, stated so a maintainer can apply it rather than re-argue it: a
+surface is audited when the run's own machinery loads it (a prefix above), or when it is
+at **depth 1** from `CLAUDE.md` — a page `CLAUDE.md` designates as the *canonical*
+statement of a rule whose non-authoritative summary it carries, so a run following the
+pointer reads it with project-memory authority. Depth stops at 1: a page linked from a
+depth-1 page is not audited, or the population would close over the whole documentation
+graph. **Disclosed residual, and it is the direction that fails silently:** `CLAUDE.md`
+designates several `docs/internal/*.md` pages that way, and `AUDITED_PATHS` is
+hand-maintained rather than derived from those pointers, so a canonical page not listed
+below is unaudited and can teach a run the denied spelling while this lint reports clean.
+A maintainer who moves a helper-invocation rule to a new canonical page adds that page
+here in the same change.
 
 MATCHED SHAPE (the thing that FAILS the lint). For each forbidden helper, a repo-
 relative path token whose first segment is exactly `scripts/` or `lib/` immediately
@@ -144,12 +155,8 @@ _SKIP_NUL = True
 AUDITED_PREFIXES = ("skills/", "agents/", ".prflow/prompt-extensions/")
 
 #: Exact repo-relative paths that join the population without their whole directory
-#: joining with them. `CLAUDE.md` is auto-loaded as project memory at the workspace root
-#: of every cloud review run, and three review agents direct their subagent to read it;
-#: the overview page is in scope only because `CLAUDE.md` cites it as the canonical
-#: statement of the verdict-marker contract, so a run that follows that pointer reads it
-#: with the same authority. Neither `docs/` nor the repository at large is audited —
-#: see the docstring's population section for why that boundary is where it is.
+#: joining with them. Hand-maintained: see the module docstring's AUDITED POPULATION
+#: section for the membership rule, the depth-1 boundary, and its disclosed residual.
 AUDITED_PATHS = (
     "CLAUDE.md",
     "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
