@@ -136,7 +136,13 @@ jobs:
             # digests it publishes derive from the exact bytes this commit ships. Feature
             # branches never regenerate it (its regenerate-artifacts.py batched-pass row was
             # removed) and a hand-authored divergence on a branch is caught by
-            # lib/test/cloud-writer-retention-check.py. Staged on its own line below (never
+            # lib/test/cloud-writer-retention-check.py. This runs AFTER the no-changesets
+            # early-exit above, so it only fires on a changeset-bearing merge — which is safe
+            # because every closure-pinned path (skills/** assets, and the scripts/ helper
+            # sources in REQUIRED_HELPER_HEADS / PROTECTED_IMPORT_SOURCES) is engine surface
+            # and so mandates a changeset per the versioning policy; a pinned-file edit can
+            # therefore never reach main without a changeset, so no changeset-less merge can
+            # leave the manifest stale. Staged on its own line below (never
             # `git add -A`); the unstaged-writes backstop further down fails closed if it is
             # left unstaged, so a regeneration is never silently discarded by the next
             # attempt's reset.

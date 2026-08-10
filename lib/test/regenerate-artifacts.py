@@ -387,9 +387,10 @@ ROWS = (
 # coordinator preflight touches it. But the `mechanical` machinery below (`run_row`'s
 # mechanical arm, `_mechanical_outcome`, `_validate_registry`'s single-write check) is
 # retained and must stay tested. The focused module lib/test/modules/regenerate-artifacts.sh
-# and the coordinator-preflight module lib/test/modules/parallel-suite-runner.sh re-inject
-# the historical cloud-writer row to exercise that machinery, by setting
-# DEVFLOW_RA_TEST_MECHANICAL_ROW=1 in their own process. NOTHING in a production run ever
+# re-injects the historical cloud-writer row to exercise that machinery, by setting
+# DEVFLOW_RA_TEST_MECHANICAL_ROW=1 in its own process. (lib/test/modules/parallel-suite-runner.sh
+# exercises the coordinator's preflight *selection* logic with synthetic DEVFLOW_ARTIFACT_PREFLIGHT
+# stubs, not this seam — it does not set this env var.) NOTHING in a production run ever
 # sets it — the batched pass, the coordinator preflight, and every consumer run without it —
 # so production never regenerates or gates on the manifest, which is the whole point of
 # issue #1445. The re-injected row is validated by `_validate_registry()` below exactly like

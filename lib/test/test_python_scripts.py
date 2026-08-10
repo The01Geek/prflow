@@ -14587,6 +14587,12 @@ assert_eq("#1445 AC3.1: version-consolidate.yml regenerates the manifest before 
           True, 0 <= _gen_idx_1445 < _commit_idx_1445)
 assert_eq("#1445 AC3.1: version-consolidate.yml stages the regenerated manifest",
           True, "git add scripts/devflow-cloud-writer-contract.json" in _vc_yml_1445)
+# The branch-side half of AC3.2/AC7 is the CI invocation of the mutation check; pin that
+# ci.yml actually wires it, so deleting the step (silently dropping the only branch-side
+# guard) turns the suite RED rather than passing on the check's own unit tests alone.
+_ci_yml_1445 = (_REPO / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+assert_eq("#1445 AC3.2/AC7: ci.yml wires the cloud-writer mutation check into the lint job",  # structural-pin-ok: routing-dispatch-contract -- the CI step is the sole branch-side enforcement of the merge-base mutation check; without it the guard vanishes silently
+          True, "python3 lib/test/cloud-writer-retention-check.py" in _ci_yml_1445)
 
 # ── AC3 check 2 / AC7 (main-side protection): the merge-base mutation check.
 # Pure-core arms (no git): unchanged → clean; a mutation against a SOUND comparand → exit 1;
@@ -14611,6 +14617,21 @@ assert_eq("#1445 AC3.2: --allow-degraded-base acknowledges the substituted compa
 assert_eq("#1445 AC3.2: a clean comparand exits 0",
           _cwr1445.EXIT_CLEAN,
           _cwr1445.classify_outcome([], [], False, "origin/main", False)[0])
+# detect_mutation's fail-closed arms: a non-object base or head is a comparand-unestablished
+# violation, never silently read as 'unchanged' (the docstring's "drives every arm" claim).
+assert_eq("#1445 AC3.2: a non-object base manifest is flagged (fail closed, not 'unchanged')",
+          1, len(_cwr1445.detect_mutation("not-a-dict", {"files": {}})))
+assert_eq("#1445 AC3.2: a non-object head manifest is flagged (fail closed, not 'unchanged')",
+          1, len(_cwr1445.detect_mutation({"files": {}}, ["not-a-dict"])))
+# classify_outcome's unestablished-WITHOUT-violations arm: a shallow clone whose manifest
+# happens to match the substitute tip is still not clean (unknown is not zero) — exit 3, and
+# exit 0 only when the degraded base is explicitly acknowledged.
+assert_eq("#1445 AC3.2: unestablished base with no difference is still not clean (exit 3)",
+          _cwr1445.EXIT_UNESTABLISHED,
+          _cwr1445.classify_outcome([], ["shallow"], False, "origin/main", True)[0])
+assert_eq("#1445 AC3.2: --allow-degraded-base acknowledges an unchanged-but-degraded base (exit 0)",
+          _cwr1445.EXIT_CLEAN,
+          _cwr1445.classify_outcome([], ["shallow"], True, "origin/main", True)[0])
 
 # End-to-end git fixture: a branch that mutates the manifest FAILS the check; one that
 # leaves it untouched PASSES — and it needs NO local git configuration to do either (AC6).
