@@ -181,12 +181,15 @@ A tier-conditional split of each phase file into a "cloud" version and a "local"
 is a **declared non-goal** of issue #1209, recorded here with its three reasons so it is
 not re-proposed:
 
-1. **The two existing load-on-demand systems fail in opposite directions by design.**
+1. **The three existing load-on-demand systems fail in deliberately chosen directions.**
    The review engine's phase bundle fails **closed** (an unreadable reference stops the
-   run); the create-issue skill deliberately degrades **open** (issue #614 — a failed
-   read leaves a breadcrumb and the run continues, because nothing may block issue
-   creation). Adding a tier dimension on top of either creates a new way to halt a
-   working run, or a new way to silently skip a phase.
+   run); implement's own phase read is itself a marker-gated, load-on-demand system that
+   likewise fails **closed** (issue #1551 — a phase file whose boundary markers are absent,
+   partial, or name a different phase halts that phase under a `boundary:` stop label
+   rather than executing a bad body); and the create-issue skill deliberately degrades
+   **open** (issue #614 — a failed read leaves a breadcrumb and the run continues, because
+   nothing may block issue creation). Adding a tier dimension on top of any of them creates
+   a new way to halt a working run, or a new way to silently skip a phase.
 2. **A wrong-tier read cannot fail closed.** Detecting the current tier from inside
    prompt text is unreliable, and the failure is undetectable: reading the cloud file
    while local *succeeds*, and reading the local file while cloud *succeeds*. Both reads
