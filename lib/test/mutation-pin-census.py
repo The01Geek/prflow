@@ -242,9 +242,15 @@ def _audited_sources(repo_root: Path) -> tuple[str, ...]:
 # population from 71 to 79 — past the old bound of 76, so entries were evicted
 # before extraction re-asked for them and
 # test_census_outer_memos_are_reused_across_builds went RED with zero hits on
-# _definition_scan, exactly as its remedy text predicts. The bound is now 84: five
-# above the swept population, the same few-files headroom the raises above kept.
-_SOURCE_PARSE_CACHE_SIZE = 84
+# _definition_scan, exactly as its remedy text predicts.
+#
+# Bound raise, issue #1524 (negated-compound-redirect lint). That lint's fixture
+# corpus adds seventeen tracked shell sources under
+# lib/test/fixtures/lint-negated-compound-redirect/, taking the swept population
+# from 80 to 97 — past the old bound of 84, tripping the same memo-reuse contract.
+# The bound is now 102: five above the swept population, the same few-files
+# headroom the raises above kept.
+_SOURCE_PARSE_CACHE_SIZE = 102
 
 
 @functools.lru_cache(maxsize=_SOURCE_PARSE_CACHE_SIZE)

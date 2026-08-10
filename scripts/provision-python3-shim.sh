@@ -171,12 +171,17 @@ TMP="$(mktemp "$TARGET_DIR/.python3-shim.XXXXXX")" || { warn "could not create a
 trap 'rm -f "$TMP"' EXIT
 # The shim execs the resolved ALTERNATE directly (never python3) so it cannot recurse into
 # itself; `exec` replaces the process, so the alternate's exit code forwards unchanged.
-if ! {
+# Capture the status rather than negating the compound with `if ! { … } > "$TMP"`: bash
+# does not propagate a failed redirect on a compound command through `!` (issue #1524), so
+# the negated form reported the shim written when the body never landed.
+shim_write_rc=0
+{
   printf '#!/usr/bin/env bash\n'
   printf '# %s — forwards to the resolved Python (%s).\n' "$SHIM_MARKER" "$RESOLVED"
   printf '# Execs the alternate interpreter directly (never python3) so it cannot recurse.\n'
   printf 'exec %s "$@"\n' "$RESOLVED"
-} > "$TMP"; then
+} > "$TMP" || shim_write_rc=$?
+if [ "$shim_write_rc" -ne 0 ]; then
   warn "could not write the shim body to $TMP; wrote no shim."
   exit 2
 fi

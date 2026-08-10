@@ -4,6 +4,20 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.6] — 2026-08-10
+
+### Fixed
+- **Propagate a failed redirect on a `!`-negated compound command.** bash does not carry a
+  redirection failure on a compound command (`{ …; }` / `( … )`) through `!`, so
+  `if ! { …; } > "$f"` read as success when the redirect could not open and the failure arm
+  never ran. Four sites now capture the group's status and branch on it instead:
+  `scripts/check-verdict-post-reached.sh` (the `receipt-read-failed` arm),
+  `scripts/seed-review-progress.sh` (the normalize-body write, on every cloud review path),
+  `scripts/provision-python3-shim.sh` (the shim-body write), and the
+  `regenerate-artifacts.sh` fixture builder's index write. A new
+  `lib/test/lint-negated-compound-redirect.py` guard fails the suite if the idiom is
+  reintroduced. (#1539)
+
 ## [2.32.5] — 2026-08-10
 
 ### Changed

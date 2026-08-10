@@ -136,7 +136,14 @@ fi
 # keeps that a successful read; a redirection that cannot open the file leaves the
 # variable empty and fails both limbs, which is the read-failure arm.
 CVR_FIRST=""
-if ! { IFS= read -r CVR_FIRST || [ -n "$CVR_FIRST" ]; } < "$RECEIPT" 2>/dev/null; then
+# Capture the status rather than negating the compound with `if ! { … } < "$RECEIPT"`:
+# bash does not propagate a failed redirect on a compound command through `!` (issue #1524),
+# so the negated form read a redirect that could not open "$RECEIPT" as success and this arm
+# never fired. A redirection that cannot open the file leaves CVR_FIRST empty and fails both
+# inner limbs, which is the read-failure arm.
+cvr_read_rc=0
+{ IFS= read -r CVR_FIRST || [ -n "$CVR_FIRST" ]; } < "$RECEIPT" 2>/dev/null || cvr_read_rc=$?
+if [ "$cvr_read_rc" -ne 0 ]; then
   echo "UNESTABLISHED receipt-read-failed"
   exit 0
 fi

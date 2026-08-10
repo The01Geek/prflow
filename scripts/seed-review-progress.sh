@@ -90,10 +90,14 @@ normalize_body() {
     return 1
   fi
 
-  if ! {
+  # Capture the status rather than negating the compound with `if ! { … } > "$normalized_body"`:
+  # bash does not propagate a failed redirect on a compound command through `!` (issue #1524),
+  # so the negated form returned success having written nothing when the redirect could not open.
+  local first_line=true
+  local body_line
+  local normalize_rc=0
+  {
     printf '%s\n' "$marker"
-    local first_line=true
-    local body_line
     while IFS= read -r body_line || [ -n "$body_line" ]; do
       if [ "$first_line" = true ]; then
         first_line=false
@@ -103,7 +107,8 @@ normalize_body() {
       fi
       printf '%s\n' "$body_line"
     done < "$body_file"
-  } > "$normalized_body"; then
+  } > "$normalized_body" || normalize_rc=$?
+  if [ "$normalize_rc" -ne 0 ]; then
     echo "could not normalize the review-progress body at '$body_file'" >> "$error_file"
     return 1
   fi
