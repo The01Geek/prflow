@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1549",
+  "generated_at": "2026-08-10T20:21:09Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.10",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 9.25110375,
+    "tokens": {
+      "input_tokens": 49,
+      "output_tokens": 24574,
+      "cache_read_input_tokens": 3695686,
+      "cache_creation_input_tokens": 194044,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 168,
+        "outputTokens": 59182,
+        "cacheReadInputTokens": 7584510,
+        "cacheCreationInputTokens": 520127,
+        "webSearchRequests": 0,
+        "costUSD": 9.25110375,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 32,
+    "duration_ms": 1019724
+  },
+  "permission_denials": {
+    "count": 10,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      "echo \"$CLAUDE_SKILL_DIR\"",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve 1531 --pr 1549 2>.prflow/tmp/review/pr-1549/run1/acs.err ; echo \"acs-rc=$?\"",
+      "for p in 'Failure-isolation contract (volatile vs. structural)' 'never advance on the stdout body alone' '--tick-ac \"{substring of AC text}\"'; do printf '%s => ' \"$p\"; grep -cF -- \"$p\" skills/implement/SKILL.md; done",
+      "cd /home/runner/work/prflow/prflow\necho \"=== shellcheck run.sh ===\"\nshellcheck --severity=warning -e SC1091 --extended-analysis=false lib/test/run.sh 2>&1 | head -20; echo \"SC_RC=${PIPESTATUS[0]}\"\necho \"=== pin-corpus-lint ===\"\npython3 lib/test/pin-corpus-lint.py 2>&1 | tail -20; echo \"PIN_RC=$?\"",
+      "cd /home/runner/work/prflow/prflow\ntimeout 300 lib/test/run-shard.sh monolith 2>&1 | tail -25; echo \"RC=${PIPESTATUS[0]}\"",
+      "cd /home/runner/work/prflow/prflow; lib/test/run-shard.sh monolith > /tmp/mono.log 2>&1; echo \"RC=$?\"; tail -15 /tmp/mono.log",
+      "cd /home/runner/work/prflow/prflow; lib/test/run-shard.sh monolith > /tmp/mono.log 2>&1; echo \"RC=$?\"",
+      "cd /home/runner/work/prflow/prflow; lib/test/run-shard.sh monolith > .prflow/tmp/mono.log 2>&1; echo \"RC=$?\"",
+      "cd /home/runner/work/prflow/prflow; for t in test_red_on_removal_retirement_manifest test_residual_prose_retirement_manifest test_mutation_pin_census test_pin_corpus_lint; do echo \"=== $t ===\"; python3 lib/test/$t.py 2>&1 | tail -6; echo \"RC=$?\"; done"
+    ],
+    "total": 10,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
