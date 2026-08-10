@@ -4539,8 +4539,7 @@ def _render_scope_decisions(args) -> list[str]:
         _require_section_parse('update --scope-decision-*')
     for _elem in getattr(args, 'scope_decision_deferred', None) or []:
         flag = '--scope-decision-deferred'
-        # Arity before the positional unpack (issue #1501).
-        _require_arity(flag, _elem, 2, ('PR', 'TEXT'))
+        _require_arity(flag, _elem, 2, ('PR', 'TEXT'))  # issue #1501
         pr, text = _elem
         notes.append(_render_scope_decision(
             _validate_scope_decision_pr(pr, flag),
@@ -4549,8 +4548,7 @@ def _render_scope_decisions(args) -> list[str]:
         ))
     for _elem in getattr(args, 'scope_decision_rewritten', None) or []:
         flag = '--scope-decision-rewritten'
-        # Arity before the positional unpack (issue #1501).
-        _require_arity(flag, _elem, 3, ('PR', 'OLD', 'NEW'))
+        _require_arity(flag, _elem, 3, ('PR', 'OLD', 'NEW'))  # issue #1501
         pr, old, new = _elem
         notes.append(_render_scope_decision(
             _validate_scope_decision_pr(pr, flag),
@@ -5167,8 +5165,7 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     # Record the reproduce-first content classification (issue #449) as a
     # superseding `classification: ` Progress note — exactly one at all times.
     if args.record_classification:
-        # Arity before the positional unpack (issue #1501).
-        _require_arity(
+        _require_arity(  # issue #1501
             '--record-classification', args.record_classification, 2,
             ('class', 'rationale'))
         cls, rationale = args.record_classification
