@@ -1,0 +1,465 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-10T20:32:00Z",
+  "fix_commit_sha": "5cf2ed532",
+  "fix_files": [
+    "skills/implement/phases/phase-2-implement.md",
+    "scripts/devflow-cloud-writer-contract.json"
+  ],
+  "loop_role": "fix",
+  "current_step": "2.6",
+  "current_substep": "run_shadow_fanout",
+  "pending_dispatch": null,
+  "sweep_defs_read": [
+    "phase-2-implement.md"
+  ],
+  "sweep_evidence": {
+    "status": "run"
+  },
+  "verification_evidence": {
+    "focused_selection": "no coverage-map entry (the map covers lib/ and scripts/ only); the governing pins are run.sh-resident. Whole-suite evidence taken from CI's complete shard partition per the operator's push-and-read-CI directive.",
+    "single_flight_consulted": false
+  },
+  "checklist": [
+    {
+      "id": "VC-1",
+      "category": "issue_acceptance",
+      "claim": "AC1 no --worktree explanation, no CU/RT definitions, no exit-2 catalog",
+      "file": "skills/implement/phases/phase-2-implement.md",
+      "verification_mode": "lite",
+      "claim_signature": "issue_acceptance:phase-2-implement.md:no-helper-doc-restatement",
+      "verdict": "PASS",
+      "evidence": "whitespace-normalized scan of the span: all four literals absent"
+    },
+    {
+      "id": "VC-2",
+      "category": "issue_acceptance",
+      "claim": "AC2 exit codes only as arm observables",
+      "file": "skills/implement/phases/phase-2-implement.md",
+      "verification_mode": "lite",
+      "claim_signature": "issue_acceptance:phase-2-implement.md:exit-codes-only-as-observables",
+      "verdict": "PASS",
+      "evidence": "arm2 exit 0 present, bare 2 present, leg-2 exit-1 note present"
+    },
+    {
+      "id": "VC-3",
+      "category": "issue_acceptance",
+      "claim": "AC3 pointer sentence with the portable anchor, no docs/internal",
+      "file": "skills/implement/phases/phase-2-implement.md",
+      "verification_mode": "lite",
+      "claim_signature": "issue_acceptance:phase-2-implement.md:self-documenting-pointer-sentence",
+      "verdict": "PASS",
+      "evidence": "anchor occurs 3x in the span (2 fence legs + the pointer); --help and module header both named; no docs/internal reference"
+    },
+    {
+      "id": "VC-4",
+      "category": "issue_acceptance",
+      "claim": "AC4 no worked examples, no false attribution",
+      "file": "skills/implement/phases/phase-2-implement.md",
+      "verification_mode": "lite",
+      "claim_signature": "issue_acceptance:phase-2-implement.md:no-false-quote-attribution",
+      "verdict": "PASS",
+      "evidence": "examples absent; the single surviving attributed quote passes a whitespace-normalized containment test against scripts/stale-prose-lint.py"
+    },
+    {
+      "id": "VC-5",
+      "category": "issue_acceptance",
+      "claim": "AC5 sweep instruction, coverage-universal definition, operand, both legs",
+      "file": "skills/implement/phases/phase-2-implement.md",
+      "verification_mode": "lite",
+      "claim_signature": "issue_acceptance:phase-2-implement.md:procedure-and-legs-survive",
+      "verdict": "PASS",
+      "evidence": "--worktree occurs twice (both legs); 'uncommitted' and 'coverage universal' present"
+    },
+    {
+      "id": "VC-6",
+      "category": "issue_acceptance",
+      "claim": "AC6 outcomes and all deciding observables incl. hunks-in-pipe",
+      "file": "skills/implement/phases/phase-2-implement.md",
+      "verification_mode": "lite",
+      "claim_signature": "issue_acceptance:phase-2-implement.md:three-observables-survive",
+      "verdict": "PASS",
+      "evidence": "'put hunks into the pipe' present; three arms present"
+    },
+    {
+      "id": "VC-7",
+      "category": "issue_acceptance",
+      "claim": "AC7 twelve retained rules",
+      "file": "skills/implement/phases/phase-2-implement.md",
+      "verification_mode": "lite",
+      "claim_signature": "issue_acceptance:phase-2-implement.md:twelve-retained-elements",
+      "verdict": "PASS",
+      "evidence": "all twelve literals located in the span"
+    },
+    {
+      "id": "VC-8",
+      "category": "issue_acceptance",
+      "claim": "AC8 line 497 verbatim",
+      "file": "skills/implement/phases/phase-2-implement.md",
+      "verification_mode": "lite",
+      "claim_signature": "issue_acceptance:phase-2-implement.md:reflection-bullet-sentence-verbatim",
+      "verdict": "PASS",
+      "evidence": "diff against merge-base 55b34c48f line 497: byte-identical"
+    },
+    {
+      "id": "VC-9",
+      "category": "issue_acceptance",
+      "claim": "AC9 sole file changed under skills/",
+      "file": "skills/implement/phases/phase-2-implement.md",
+      "verification_mode": "lite",
+      "claim_signature": "issue_acceptance:phase-2-implement.md:sole-skills-file-changed",
+      "verdict": "PASS",
+      "evidence": "git diff --name-only <merge-base> -- skills/ returns exactly one path"
+    },
+    {
+      "id": "VC-10",
+      "category": "issue_acceptance",
+      "claim": "AC10 manifest regenerated, no drift",
+      "file": "scripts/devflow-cloud-writer-contract.json",
+      "verification_mode": "lite",
+      "claim_signature": "issue_acceptance:devflow-cloud-writer-contract.json:regenerated-no-drift",
+      "verdict": "PASS",
+      "raw_verdict": "FAIL",
+      "normalized": true,
+      "evidence": "initially FAIL (stale against the uncommitted fix hunks) — corroborated by code-reviewer and silent-failure-hunter; regenerated via lib/test/regenerate-artifacts.py and committed with the edits in 5cf2ed532; validate-cloud-writer-contract.py now reports 'manifest valid' rc 0"
+    },
+    {
+      "id": "VC-11",
+      "category": "issue_acceptance",
+      "claim": "AC11 one uniquely-named changeset with bump: patch",
+      "file": ".changeset/issue-1552-phase2-2-3-4b-restatement.md",
+      "verification_mode": "lite",
+      "claim_signature": "issue_acceptance:issue-1552-phase2-2-3-4b-restatement.md:changeset-bump-patch",
+      "verdict": "PASS",
+      "evidence": "frontmatter reads 'bump: patch'; the only non-README member of .changeset/"
+    },
+    {
+      "id": "VC-12",
+      "category": "issue_acceptance",
+      "claim": "AC12 whole-suite zero failed, zero blocking-gate skips",
+      "file": "skills/implement/phases/phase-2-implement.md",
+      "verification_mode": "lite",
+      "claim_signature": "issue_acceptance:phase-2-implement.md:whole-suite-clean",
+      "verdict": "PASS",
+      "evidence": "CI run 31429443185 on this branch: all five shards (modules-large, modules-pin, modules-rest, monolith, python-pool) pass, and the required 'lib + python tests' aggregate passes"
+    },
+    {
+      "id": "VC-13",
+      "category": "issue_acceptance",
+      "claim": "AC13 shellcheck x2 and ruff pass",
+      "file": "skills/implement/phases/phase-2-implement.md",
+      "verification_mode": "lite",
+      "claim_signature": "issue_acceptance:phase-2-implement.md:lints-pass",
+      "verdict": "PASS",
+      "evidence": "CI 'lint (shellcheck + actionlint + ruff)' job passes on this branch; the diff touches no .sh or .py file"
+    },
+    {
+      "id": "VC-14",
+      "category": "absolute_claim",
+      "claim": "the Population paragraph's attribution to the helper's own header",
+      "file": "skills/implement/phases/phase-2-implement.md",
+      "verification_mode": "lite",
+      "claim_signature": "absolute_claim:phase-2-implement.md:header-declares-changeset-in-scope",
+      "verdict": "PASS",
+      "evidence": "falsification attempt failed: the quoted sentence IS present in scripts/stale-prose-lint.py under whitespace normalization (wrapped across two source lines). The generator's flagged concern is refuted."
+    },
+    {
+      "id": "VC-15",
+      "category": "absolute_claim",
+      "claim": "the changeset's universal that the sweep's procedure is unchanged",
+      "file": ".changeset/issue-1552-phase2-2-3-4b-restatement.md",
+      "verification_mode": "agent",
+      "claim_signature": "absolute_claim:issue-1552-phase2-2-3-4b-restatement.md:nothing-behavioral-removed",
+      "verdict": "PASS",
+      "raw_verdict": "FAIL",
+      "normalized": true,
+      "evidence": "initially FAIL: the enumeration found two dropped conditions — arm 2's hunk-less --no-index clause and arm 3's repository-root-unresolvable stderr condition (confirmed distinct from a coverage-drop line by reading the helper's own stderr message at scripts/stale-prose-lint.py:1187). Both restored; the universal is now true, and comment-analyzer independently re-enumerated it as true at HEAD."
+    },
+    {
+      "id": "VC-16",
+      "category": "absolute_claim",
+      "claim": "the changeset's claim that a deleted example misattributed a quote",
+      "file": ".changeset/issue-1552-phase2-2-3-4b-restatement.md",
+      "verification_mode": "lite",
+      "claim_signature": "absolute_claim:issue-1552-phase2-2-3-4b-restatement.md:removed-example-quote-absent-from-helper",
+      "verdict": "PASS",
+      "evidence": "the quoted string is absent from scripts/stale-prose-lint.py under whitespace normalization; the helper's own wording is 'UNRESOLVABLE rows never affect the exit code'"
+    },
+    {
+      "id": "VC-17",
+      "category": "data_format_assumption",
+      "claim": "the manifest entry is the sha256 of the post-change bytes",
+      "file": "scripts/devflow-cloud-writer-contract.json",
+      "verification_mode": "lite",
+      "claim_signature": "data_format_assumption:devflow-cloud-writer-contract.json:phase2-sha256-matches",
+      "verdict": "PASS",
+      "evidence": "validate-cloud-writer-contract.py rc 0 at the fix commit"
+    },
+    {
+      "id": "VC-18",
+      "category": "dependency_interaction",
+      "claim": "the pointer's anchor is prose, not a new call site needing a vendored fallback arm",
+      "file": "skills/implement/phases/phase-2-implement.md",
+      "verification_mode": "lite",
+      "claim_signature": "dependency_interaction:phase-2-implement.md:anchor-prose-not-a-call-site",
+      "verdict": "PASS",
+      "evidence": "CI's lint and full shard partition are green at this head, which is where lint-anchor-fallback-arm.py and the command head/shape extractors run"
+    },
+    {
+      "id": "VC-19",
+      "category": "dependency_interaction",
+      "claim": "no suite assertion pins a removed literal",
+      "file": "skills/implement/phases/phase-2-implement.md",
+      "verification_mode": "lite",
+      "claim_signature": "dependency_interaction:phase-2-implement.md:removed-prose-not-pinned",
+      "verdict": "PASS",
+      "evidence": "the single lib/test hit ('working-tree post-image mode', test_python_scripts.py:5697) is a code comment about the helper's own mode, not an assertion operand; CI green corroborates"
+    }
+  ],
+  "dispatched_effort": [
+    {
+      "agent": "prflow:checklist-generator",
+      "phase": "1",
+      "requested": "low",
+      "resolved": "low",
+      "application_point": "session-fallback",
+      "effective": null,
+      "fallback_reason": "no in-session per-agent effort seam"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "phase": "3",
+      "requested": "low",
+      "resolved": "low",
+      "application_point": "session-fallback",
+      "effective": null,
+      "fallback_reason": "no in-session per-agent effort seam"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "phase": "3",
+      "requested": "low",
+      "resolved": "low",
+      "application_point": "session-fallback",
+      "effective": null,
+      "fallback_reason": "no in-session per-agent effort seam"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "phase": "3",
+      "requested": "low",
+      "resolved": "low",
+      "application_point": "session-fallback",
+      "effective": null,
+      "fallback_reason": "no in-session per-agent effort seam"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "phase": "3",
+      "requested": "low",
+      "resolved": "low",
+      "application_point": "session-fallback",
+      "effective": null,
+      "fallback_reason": "no in-session per-agent effort seam"
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Critical",
+      "description": "scripts/devflow-cloud-writer-contract.json is stale against the working tree: the uncommitted arm-2/arm-3 restoration hunks re-hash phase-2-implement.md, so the manifest pins a superseded digest and the required check would go RED on commit.",
+      "defect_signature": {
+        "file": "scripts/devflow-cloud-writer-contract.json",
+        "line_range": [
+          34,
+          34
+        ],
+        "kind": "other"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "The untracked-leg paragraph lost the observation that `git ls-files --others`'s apparent emptiness in this repository rests on an untracked exclude entry no clone inherits, so an agent that runs it here and sees nothing has nothing telling it why.",
+      "defect_signature": {
+        "file": "skills/implement/phases/phase-2-implement.md",
+        "line_range": [
+          518,
+          518
+        ],
+        "kind": "other"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "The pointer sentence uses the full portable anchor as its grammatical subject; a bare `scripts/stale-prose-lint.py` path would read more easily.",
+      "defect_signature": {
+        "file": "skills/implement/phases/phase-2-implement.md",
+        "line_range": [
+          516,
+          516
+        ],
+        "kind": "style"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "pushed_back"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "5cf2ed532"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "5cf2ed532"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "pushed_back",
+      "source_file": "skills/implement/phases/phase-2-implement.md",
+      "claim_text": "refer to the helper by bare path rather than the portable anchor",
+      "skip_category": "claim-quality",
+      "evidence": "AC3 of issue #1552 mandates the portable single-statement anchor verbatim and states outright that a bare repo-relative scripts/ path does not resolve in a consumer checkout; applying this would fail the criterion",
+      "parking_evidence": {
+        "basis": "the suggested change is forbidden by the driving issue's acceptance criteria, which the cleanup agent does not see",
+        "failing_input": "a consumer checkout, where a bare repo-relative scripts/ path does not resolve",
+        "source": "issue #1552 acceptance criterion 3",
+        "finding_ref": {
+          "iter": 1,
+          "index": 2
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 2,
+    "fix_diff_lines": 4,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "parked_class_sweep": {
+    "classes": [
+      {
+        "source_finding_ids": [
+          "F-3"
+        ],
+        "kind_literal": "style",
+        "sites_examined": [
+          "skills/implement/phases/phase-2-implement.md:499-546"
+        ],
+        "new_siblings": []
+      }
+    ],
+    "truncation": null,
+    "dispatch": "verified"
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "ran_at": null,
+    "reviewed_sha": null,
+    "verdict": null,
+    "coverage": null,
+    "prompt_addenda": null,
+    "reviewers_dispatched": [],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "telemetry": {
+    "phase_0": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 40
+    },
+    "phase_0_5": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 5
+    },
+    "phase_1": {
+      "calls": 1,
+      "tokens": 67677,
+      "wall_clock_s": 81
+    },
+    "phase_1_5": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 0
+    },
+    "phase_2": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 90
+    },
+    "phase_3": {
+      "calls": 4,
+      "tokens": 282400,
+      "wall_clock_s": 151
+    },
+    "step_2_5": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 2,
+      "webfetches": 0
+    },
+    "step_2_6": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 0
+    },
+    "phase_4_x": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 5
+    }
+  },
+  "synthesized": false
+}
