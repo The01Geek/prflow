@@ -4278,10 +4278,10 @@ for _pf in $IMPL_PHASE_STEMS; do
     "$(grep -qE "^## Phase ${_n}:" "$IMPL_PHASES_DIR/${_pf}.md" && echo yes || echo no)"
   # ── issue #1551: boundary-marker gating. Assert each phase file carries its self-naming
   # start marker as the literal FIRST line and its end marker as the literal LAST line, with
-  # exactly one of each. Mirrors the REVIEW_PHASE_STEMS boundary-marker loop above and is
-  # driven from the SAME IMPL_PHASE_STEMS list, so a phase file added to phases/ later is
-  # asserted by this loop with no further edit. The check is structural — the runtime
-  # accept-or-reject contract in skills/implement/SKILL.md asserts these same marker rows.
+  # exactly one of each. Mirrors the REVIEW_PHASE_STEMS boundary-marker loop (the `#529 AC6
+  # desk` block) and is driven from the SAME IMPL_PHASE_STEMS list, so a phase file added to
+  # phases/ later is asserted by this loop with no further edit. The check is structural — the
+  # runtime accept-or-reject contract in skills/implement/SKILL.md asserts these same marker rows.
   assert_eq "implement boundary: phases/${_pf}.md start marker is the literal FIRST line and names its own path" "yes" \
     "$(head -1 "$IMPL_PHASES_DIR/${_pf}.md" | grep -qF -- "<!-- prflow:implement-ref phase=" \
         && head -1 "$IMPL_PHASES_DIR/${_pf}.md" | grep -qF -- "file=skills/implement/phases/${_pf}.md start -->" && echo yes || echo no)"
