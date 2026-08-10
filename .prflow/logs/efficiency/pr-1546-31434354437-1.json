@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1546",
+  "generated_at": "2026-08-10T21:42:53Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.12",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 7.791531249999999,
+    "tokens": {
+      "input_tokens": 39,
+      "output_tokens": 27941,
+      "cache_read_input_tokens": 2669767,
+      "cache_creation_input_tokens": 183757,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 10558,
+        "outputTokens": 62097,
+        "cacheReadInputTokens": 3771705,
+        "cacheCreationInputTokens": 577820,
+        "webSearchRequests": 0,
+        "costUSD": 7.791531249999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 34,
+    "duration_ms": 504849
+  },
+  "permission_denials": {
+    "count": 5,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"CLAUDE_SKILL_DIR=${CLAUDE_SKILL_DIR:-<unset>}\"; echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-<unset>}\"; echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-<unset>}\"; echo \"PWD=$(pwd)\"",
+      "printf 'CLAUDE_SKILL_DIR=%s\\n' \"$CLAUDE_SKILL_DIR\"",
+      "printf 'RUN_ID=%s ACTIONS=%s\\n' \"$GITHUB_RUN_ID\" \"$GITHUB_ACTIONS\"",
+      "gh api repos/{owner}/{repo}/issues/1508/comments --jq '.[] | select(.body | test(\"prflow:workpad|devflow:workpad\")) | .body' > .prflow/tmp/review/pr-1546/31434354437-1/workpad.md\necho \"=== Verification evidence markers ===\"; grep -c \"Verification evidence:\" .prflow/tmp/review/pr-1546/31434354437-1/workpad.md\necho \"=== Writing-skills evidence markers ===\"; grep -c \"Writing-skills evidence:\" .prflow/tmp/review/pr-1546/31434354437-1/workpad.md\necho \"=== Acceptance Criteria section ===\"; grep -nA20  …[per-command-truncated]",
+      "git status --porcelain -z > .prflow/tmp/review-dirty-tree-before 2>&1; git hash-object .prflow/tmp/review-dirty-tree-before"
+    ],
+    "total": 5,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
