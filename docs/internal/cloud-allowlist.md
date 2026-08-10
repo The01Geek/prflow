@@ -78,8 +78,8 @@ runs *after* vendor-materialization and *before* `Run Claude Code`, failing the 
 when the renderer is absent: `Validate vendored grounding renderer` on the two
 review-engine tiers (`devflow.yml`, `devflow-runner.yml`), and `Validate vendored
 helpers + write handoff record` on the implement tier (`devflow-implement.yml`), which
-extends the same check to the two prompt-composition helpers. Second — and separately —
-each tier's composition step fails on its own when the renderer is **absent or produces
+extends the same check to the two prompt-composition helpers. Second, each tier's
+composition step **separately** fails when the renderer is **absent or produces
 nothing**: inline in `devflow.yml`'s `Compose engine grounding block` step and
 `devflow-runner.yml`'s `Compose review prompt` step, and in
 `scripts/compose-implement-prompt.sh` for the implement tier, every arm of which emits
