@@ -133,11 +133,13 @@ rm -f "$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.prflow/tmp/issue-bod
 
 **GitHub autolink hygiene** (every GitHub surface you write — workpad comment, PR body, follow-up issue bodies, completion summary): never put a bare `#` immediately before a number unless it is a real issue or PR reference — GitHub renders `#2` as a link to issue/PR 2, which misleads readers. For an ordinal, count, or list position, spell it out ("item 2", "step 3"), never `#2`. Genuine references like `#123` stay as-is. <!-- pruned-path-ok: illustrative autolink examples, not citations -->
 
-### Workpad section template
+### Workpad sections
 
-`scripts/workpad.py new-body` produces the workpad comment body — never hand-author it. Append-only notes (`--note`) nest under their lifecycle phase *inside* `## Progress`; there is no separate Decisions / Notes section. **Keep `## Acceptance Criteria` outside any `<details>`** — the Phase 3.4 gate reads it.
+`scripts/workpad.py new-body` produces the workpad skeleton — never hand-author the skeleton. Append-only notes (`--note`) nest under their lifecycle phase *inside* `## Progress`; there is no separate Decisions / Notes section. **Keep `## Acceptance Criteria` outside any `<details>`** — the Phase 3.4 gate reads it.
 
-The `## Progress` row texts the skeleton carries — `--tick-progress` matches any stable substring of a row:
+A whole body written by `workpad.py patch COMMENT_ID BODY_FILE` or by a hand-rolled `gh api` PATCH keeps the marker line as its own first line and keeps `## Progress` and `## Acceptance Criteria` present — neither path validates it, and a dropped marker makes every later `workpad.py id` miss and open a second workpad.
+
+The `## Progress` row texts the skeleton carries — `--tick-progress` needs a substring that resolves to exactly one **unticked** row, so pass one unique to a single row; zero, already-ticked, or multiple matches is a volatile miss:
 
 - `**Setup** — branch & workpad`
   - `prompt extension resolved: implement`
@@ -155,7 +157,7 @@ The `## Progress` row texts the skeleton carries — `--tick-progress` matches a
   - `prompt extension resolved: PR description`
 - `**PR marked ready**`
 
-The bug-only row is pre-rendered from the `bug` label, and Phase 1.3's `--reconcile-reproduction`, keyed on the recorded content classification, is the authoritative correction; the operative directive lives in `skills/implement/phases/phase-1-setup.md` §1.3.
+The bug-only row is rendered by `new-body` unless `--no-reproduction` is passed — which the local fresh-issue path passes from the §1.1 content classification, while the cloud `gate` job decides from the `bug` label and renders the row when that lookup fails. Phase 1.3's `--reconcile-reproduction`, keyed on the recorded content classification, is the authoritative correction; the operative directive lives in the Phase 1.3 entry gate.
 
 ### Workpad helper CLI
 
