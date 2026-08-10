@@ -82,8 +82,8 @@ extends the same check to the two prompt-composition helpers. Second, each tier'
 composition step **separately** fails when the renderer is **absent or produces
 nothing**: inline in `devflow.yml`'s `Compose engine grounding block` step and
 `devflow-runner.yml`'s `Compose review prompt` step, and in
-`scripts/compose-implement-prompt.sh` for the implement tier, every arm of which emits
-`::error::` and exits non-zero rather than publishing an ungrounded prompt.
+`scripts/compose-implement-prompt.sh` for the implement tier, every **failure** arm of
+which emits `::error::` and exits non-zero rather than publishing an ungrounded prompt.
 
 The consumer-visible consequence: **a repository whose vendored tree lacks the renderer
 goes from a degraded run to a failed job.** It used to surface as a warning in the
