@@ -50107,8 +50107,10 @@ assert_eq "#1402 lint: no tracked skills/**+agents/** line names a never-shipped
 # verdict-post helper scripts/<name> is a leading token no profile grants — a cloud run
 # that emits it is silently denied and finishes with no verdict marker (the three review
 # runs of issue #1248). extract-command-heads.py cannot see it (fence-only by design);
-# this lint audits skills/**+agents/** for the ungranted repo-relative spelling of the
-# two in-scope verdict helpers, its forbidden set DERIVED from capability-profiles.json
+# this lint audits the prompt surfaces a cloud review run auto-loads — the population its
+# module docstring's AUDITED POPULATION section defines and bounds — for the ungranted
+# repo-relative spelling of the two in-scope verdict helpers, its forbidden set DERIVED
+# from capability-profiles.json
 # (vendored-only) intersected with the documented in-scope basenames. Sibling of the
 # #1072 pruned-path lint; driven the same way (real tree as the live gate, plus synthetic
 # fixtures through --root/--files-from/--manifest).
@@ -50155,9 +50157,9 @@ assert_eq "#1248 lint: an in-scope helper absent from the manifest refuses" "yes
 assert_eq "#1248 lint: a non-JSON manifest refuses, attributed to the JSON parse" "yes" \
   "$(case "$(uh_forbidden "$UH_FX/manifests/bad.json")" in "rc=1|"*"not valid JSON"*) echo yes ;; *) echo no ;; esac)"
 
-# Audited-population behavior, driven over the fixture skills/agents tree with the
-# fixture vendored-only manifest. Every list rides through probe_tmp so the fixtures stay
-# unreachable from the default index enumeration.
+# Audited-population behavior, driven over the fixture tree with the fixture vendored-only
+# manifest. Every list rides through probe_tmp so the fixtures stay unreachable from the
+# default index enumeration.
 uh_run() {  # <path…> -> "rc=<n>|<stdout+stderr>"
   local list out rc
   list="$(probe_tmp '#1248 fixture list')" || return 0
@@ -50220,8 +50222,7 @@ UH_1526_OUT="$(uh_run .prflow/prompt-extensions/review.md CLAUDE.md docs/interna
 assert_eq "#1526 lint: a prompt-extension path is audited and reported" "yes" \
   "$(case "$UH_1526_OUT" in "rc=1|"*".prflow/prompt-extensions/review.md:1:"*) echo yes ;; *) echo no ;; esac)"
 assert_eq "#1526 lint: CLAUDE.md is audited and reported" "yes" \
-  "$(case "$UH_1526_OUT" in *"
-CLAUDE.md:1:"*) echo yes ;; *) echo no ;; esac)"
+  "$(case "$UH_1526_OUT" in *"CLAUDE.md:1: names bundled helper"*) echo yes ;; *) echo no ;; esac)"
 assert_eq "#1526 lint: the cited overview page is audited and reported" "yes" \
   "$(case "$UH_1526_OUT" in *"docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md:1:"*) echo yes ;; *) echo no ;; esac)"
 # The exact-path half is EXACT, not a docs/internal/ prefix: a sibling page under the same
@@ -50229,19 +50230,37 @@ assert_eq "#1526 lint: the cited overview page is audited and reported" "yes" \
 # than being scanned. Without this the widening could silently become a docs/ sweep.
 assert_eq "#1526 lint: a sibling docs/internal page is NOT audited (exact-path, not a prefix)" "yes" \
   "$(case "$(uh_run docs/internal/clean-overview.md)" in "rc=1|"*"selected no file under"*) echo yes ;; *) echo no ;; esac)"
-# The widened members must be reachable by the DEFAULT (index-reading) enumeration, or the
-# hand-maintained AUDITED_PATHS list names a path the real-tree run never sees and the
-# widening is inert on the surface it was written for. The declared list is single-sourced
-# out of the module rather than retyped, so a renamed or dropped member turns this RED;
-# `git ls-files --error-unmatch` is the block's established tracked-path probe and answers
-# without a second interpreter or a whole-index dump. (That each declared path satisfies
-# is_audited is tautological — the positive assertions above are what prove the filter
-# admits them — so it is deliberately not re-asserted here.)
-assert_eq "#1526 lint: every declared exact path is tracked and reachable by the default enumeration" "yes" \
-  "$(cd "$LIB/.." && python3 -c 'import importlib.util, sys
+# Every declared population member must be reachable by the DEFAULT (index-reading)
+# enumeration, or that member is inert on the very surface it was written for while every
+# fixture assertion above stays green — they ride --files-from, which bypasses enumeration
+# entirely. Both halves are single-sourced out of the module rather than retyped, and the
+# probe is one interpreter reading the index on stdin: it must see the whole index, because
+# the prefix half asks "does ANY tracked path start with this prefix", which a per-path
+# --error-unmatch probe cannot answer.
+#
+# Every arm fails CLOSED, which is the point: an emptied or renamed tuple, a failed module
+# load, and an empty index all print `no`. The earlier `xargs git ls-files --error-unmatch`
+# form did the opposite — xargs runs its command once on empty input and --error-unmatch
+# with no pathspec exits 0, so an emptied AUDITED_PATHS passed vacuously. The prefix half
+# matters most for .prflow/prompt-extensions/, which sits under this repo's /.prflow/*
+# ignore rule and is in the index only because it was force-added, so it can drop out
+# without any other assertion noticing.
+assert_eq "#1526 lint: every declared population member is reachable by the default index enumeration" "yes" \
+  "$(cd "$LIB/.." && git ls-files -z | python3 -c 'import importlib.util, sys
 spec = importlib.util.spec_from_file_location("uh", sys.argv[1])
 mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
-print("\n".join(mod.AUDITED_PATHS))' "$UH_LINT" | xargs git ls-files --error-unmatch >/dev/null 2>&1 && echo yes || echo no)"
+tracked = [p for p in sys.stdin.buffer.read().decode("utf-8").split("\0") if p]
+paths, prefixes = tuple(mod.AUDITED_PATHS), tuple(mod.AUDITED_PREFIXES)
+ok = bool(tracked) and bool(paths) and bool(prefixes)
+ok = ok and all(p in tracked for p in paths)
+ok = ok and all(any(t.startswith(pre) for t in tracked) for pre in prefixes)
+print("yes" if ok else "no")' "$UH_LINT" 2>/dev/null || echo no)"
+# The floor message is what tells a maintainer WHICH surfaces were audited, so pin that it
+# actually names the widened members. The #1248 assertion above matches only the leading
+# 'skills/ or agents/' substring, which a regression dropping AUDITED_PATHS from
+# population_description() would still satisfy.
+assert_eq "#1526 lint: the empty-audited floor message names the widened members" "yes" \
+  "$(case "$(uh_run manifests/vendored-only.json)" in *".prflow/prompt-extensions/ or CLAUDE.md or docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md"*) echo yes ;; *) echo no ;; esac)"
 
 # AC5: this repository's own local tier resolves the repo-root form (the vendored tree is
 # materialized only at runtime and is absent from the working tree), so the repo-root

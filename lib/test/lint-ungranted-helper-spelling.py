@@ -32,8 +32,7 @@ by an agent choosing to open a file:
   * `.prflow/prompt-extensions/**` — consumer policy the loader ladder appends verbatim
     to a skill's prompt.
   * `CLAUDE.md` — auto-loaded as project memory at the workspace root of every review
-    run, and read on instruction by `agents/code-reviewer.md`,
-    `agents/silent-failure-hunter.md` and `agents/pr-test-analyzer.md`.
+    run, and read on instruction by several `agents/*.md` reviewers besides.
   * `docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md` — in scope only because `CLAUDE.md` names
     it as the canonical statement of the verdict-marker contract, so a run following that
     pointer reads it with project-memory authority.
