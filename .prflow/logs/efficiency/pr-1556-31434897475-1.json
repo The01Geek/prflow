@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1556",
+  "generated_at": "2026-08-10T21:42:48Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.13",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 1.662858,
+    "tokens": {
+      "input_tokens": 22,
+      "output_tokens": 3247,
+      "cache_read_input_tokens": 1118546,
+      "cache_creation_input_tokens": 102230,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 22,
+        "outputTokens": 3247,
+        "cacheReadInputTokens": 1118546,
+        "cacheCreationInputTokens": 102230,
+        "webSearchRequests": 0,
+        "costUSD": 1.662858,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 14,
+    "duration_ms": 65191
+  },
+  "permission_denials": {
+    "count": 3,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      "printf '%s\\n' \"$CLAUDE_SKILL_DIR\"; ls /home/runner/work/prflow/prflow/skills/review/phases/",
+      "gh pr diff 1556 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' > .prflow/tmp/review/pr-1556/local-run/diff.patch\nwc -l .prflow/tmp/review/pr-1556/local-run/diff.patch\necho \"---FILES---\"\ngrep '^diff --git' .prflow/tmp/review/pr-1556/local-run/diff.patch"
+    ],
+    "total": 3,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
