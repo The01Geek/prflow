@@ -133,70 +133,31 @@ rm -f "$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.prflow/tmp/issue-bod
 
 **GitHub autolink hygiene** (every GitHub surface you write — workpad comment, PR body, follow-up issue bodies, completion summary): never put a bare `#` immediately before a number unless it is a real issue or PR reference — GitHub renders `#2` as a link to issue/PR 2, which misleads readers. For an ordinal, count, or list position, spell it out ("item 2", "step 3"), never `#2`. Genuine references like `#123` stay as-is. <!-- pruned-path-ok: illustrative autolink examples, not citations -->
 
-### Workpad section template
+### Workpad sections
 
-The workpad comment body MUST start with the marker line on its own line, followed by these sections (omit `Reproduction` when the recorded classification is non-bug):
+`scripts/workpad.py new-body` produces the workpad skeleton — never hand-author the skeleton. Append-only notes (`--note`) nest under their lifecycle phase *inside* `## Progress`; there is no separate Decisions / Notes section. **Keep `## Acceptance Criteria` outside any `<details>`** — the Phase 3.4 gate reads it.
 
-The always-visible region (marker line, header, `Status`, links, `## Progress`, `## Plan`, `## Acceptance Criteria`) stays uncollapsed so the comment is scannable at a glance. Append-only notes (`--note`) nest under their lifecycle phase *inside* `## Progress` — there is no separate Decisions / Notes section. Only `## Devflow Reflection` is wrapped in a `<details>` block so its accumulating bullets don't push the rest of the comment out of view. **Keep `## Acceptance Criteria` outside any `<details>`** — the Phase 3.4 gate reads it. The nested `prompt extension resolved: …` rows record that each of those extension surfaces had its state resolved during the run.
+A whole body written by `workpad.py patch COMMENT_ID BODY_FILE` or by a hand-rolled `gh api` PATCH keeps the marker line as its own first line — neither path validates it, and a dropped marker makes every later `workpad.py id` miss (exit 2), which the create paths read as "not yet seeded" and act on by opening a second workpad — and preserves every section and header line the failure-isolation contract below lists as a structural abort.
 
-```markdown
-<!-- prflow:workpad -->
-# PRFlow Workpad — Issue #{number}
+The `## Progress` row texts the skeleton carries, mirrored from `workpad.py`'s `cmd_new_body` template and `_EXTENSION_ROWS`, which win on any disagreement — `--tick-progress` needs a substring that resolves to exactly one **unticked** row, so pass one unique to a single row; zero, already-ticked, or multiple matches is a volatile miss:
 
-**Status:** 🚀 Setup
-**Branch:** `{branch}`
-**Run:** [View run]({run_url})
-**PR:** _not yet created_
-**Last updated:** {friendly UTC, auto-refreshed by `update`, e.g. 2026-05-05 17:42 UTC}
+- `**Setup** — branch & workpad`
+  - `prompt extension resolved: implement`
+- `**Implement**`
+  - `reproduction captured (bug issues only)`
+  - `code + sweeps`
+- `**Review**`
+  - `prompt extension resolved: review engine`
+  - `prompt extension resolved: fix loop`
+  - `prompt extension resolved: code-review reception`
+  - `` `/simplify` ``
+  - `` `review-and-fix` ``
+  - `acceptance-criteria gate`
+- `**Documentation**`
+  - `prompt extension resolved: PR description`
+- `**PR marked ready**`
 
-## Progress
-- [ ] **Setup** — branch & workpad
-  - [ ] prompt extension resolved: implement
-  - {HH:MM:SS} — {append-only note, nested under the phase it was logged in}
-- [ ] **Implement**
-  - [ ] reproduction captured (bug issues only)
-  - [ ] code + sweeps
-- [ ] **Review**
-  - [ ] prompt extension resolved: review engine
-  - [ ] prompt extension resolved: fix loop
-  - [ ] prompt extension resolved: code-review reception
-  - [ ] `/simplify`
-  - [ ] `review-and-fix`
-  - [ ] acceptance-criteria gate
-- [ ] **Documentation**
-  - [ ] prompt extension resolved: PR description
-- [ ] **PR marked ready**
-
-## Plan
-- [ ] {step}
-
-## Acceptance Criteria
-- [ ] {criterion mirrored from issue body}
-
-## Reproduction
-{captured signal — failing test, error log, or repro command. Section only present when the recorded classification is bug-report.}
-
-## Devflow Reflection
-<details>
-<summary>Devflow Reflection (click to expand)</summary>
-
-### ⚠️ Action required
-- ⛔ **Blocked:** {a Blocked status — see Phase 1/2.1.5/3.3/3.4}
-- ⏭️ **Deferred:** {deferred ACs/findings — Phase 4.0 / 4.0.5}
-- ❗ **Dropped/Failed:** {a dropped manifest entry, a subagent/commit/label failure}
-
-### 💡 Improvements
-- 💡 {an engine/process-improvement proposal — glyph-only, the heading names the kind}
-
-### ℹ️ Notes
-- 📝 **Issue accuracy:** {feedback that the driving issue's claims were wrong or underspecified}
-- ℹ️ {informational — a subagent retried once, a phase under-committed but was corrected, an unverified-boundary caveat; glyph-only, the heading names the kind}
-</details>
-```
-
-The `### ` sub-sections (and their bullets) are rendered by the helper from `--reflection-kind`, **not** authored by hand — `new-body` seeds an *empty* `<details>` block and each sub-heading appears only once its group has a bullet, in the canonical order `### ⚠️ Action required` → `### 💡 Improvements` → `### ℹ️ Notes`. The block above shows the shape a populated reflection takes. Note the two glyph-only kinds (`note`, `improvement`): their heading already names the kind, so the redundant bold label is dropped (`- ℹ️ …`, `- 💡 …`); `issue-accuracy` keeps its `**Issue accuracy:**` label because it renders under `### ℹ️ Notes`, which does not name it.
-
-`{run_url}` is `$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID` (standard runner env vars; no workflow change needed). When those env vars are absent (a local-tier run outside Actions), use a plain `_(local run)_` placeholder for the `Run` line. The `reproduction captured (bug issues only)` sub-item is bug-only. The **deterministic** skeleton producers pre-render it from the `bug` *label* — the local fresh-issue path passes `--no-reproduction` to `new-body` (1.3) when the 1.1 classification is non-bug, and the cloud `gate` job does its own label lookup (rendering the row on a lookup failure) — but the label is only a pre-render heuristic. Phase 1.3's `--reconcile-reproduction` (keyed on the recorded **content** classification, not the label) is the authoritative correction that reconciles the skeleton on every entry, so a bug report filed without the label still gets the row and a mislabelled feature request loses it.
+The bug-only row is rendered by `new-body` unless `--no-reproduction` is passed — which the local fresh-issue path passes only when the §1.1 content classification is non-bug, while the cloud `gate` job decides from the `bug` label and renders the row when that lookup fails. Phase 1.3's `--reconcile-reproduction`, keyed on the recorded content classification, is the authoritative correction; the operative directive lives in the Phase 1.3 entry gate.
 
 ### Workpad helper CLI
 
@@ -244,16 +205,6 @@ The marker-locating subcommands (`id`, `new-body`, `update`) also accept `--mark
 | `--expect-comment-id ID` / `--expect-status WORD` | Hydration-race preconditions: after re-resolving the marker comment and re-fetching its body, abort **before any mutation/PATCH** (exit **4**) if the live comment ID or stripped Status word differs from the supplied value. Phase 1.3 passes the comment ID and Status word it observed in triage, so a concurrent terminal-backstop flip, status change, or delete/recreate cannot be overwritten by the stale reset. |
 
 `update` always re-fetches the live body before mutating (this narrows but does not eliminate the clobber window for concurrent edits; acceptable because the orchestrator is the single writer in practice), always refreshes `Last updated`, and PATCHes once per call. Mutations are **all-or-nothing for structural changes** — a structural failure (a missing target section, a missing `Status`/`Last updated` line, an unreadable `--*-file`) aborts the whole call before any PATCH. The **one** exception is a *volatile* per-row tick miss (see the failure-isolation contract below), which is isolated rather than aborting: the call PATCHes its other mutations and exits non-zero naming the miss. **The success signal for every mutation is the exit code**, not stdout: the call writes **nothing to stdout** by default and instead emits one short stderr breadcrumb naming the PATCHed comment — `workpad.py update: PATCHed comment <id>`, with `; Status: <value>` (read back from the PATCH response) appended on a `--status` call — so a successful call is never byte-identical to one a permission matcher silently refused. Pass `--print-body` when you actually need the body echoed. The **one** exception is the volatile-tick-miss path, which still echoes the body under the default because the caller must re-resolve the shifted checkbox index it is about to re-tick (see the failure-isolation contract's "check the exit code" rule below).
-
-Helper invariants baked into the script (orchestrator doesn't need to enforce them):
-- Notes are append-only — `--note` only appends, never rewrites; each bullet nests under its lifecycle phase inside `## Progress` and carries a time-only `HH:MM:SS` prefix.
-- `--reflection` is **`<details>`-aware**: because `## Devflow Reflection` is wrapped in a `<details>` block, the new bullet is inserted *inside* the block (before `</details>`), never after — so the collapsible region stays intact and the marker-first / AC-parseable invariants hold. (`--note` writes plain bullets into the un-wrapped `## Progress` section, so this doesn't apply to it.)
-- **Reflections are grouped by kind, helper-owned.** The helper (the single chokepoint every reflection flows through) owns the glyph, bold label (or none, for the glyph-only kinds), and sub-section placement: `--reflection-kind` selects one of three `### ` sub-sections — the three actionable kinds (`blocked`/`deferred`/`dropped-failed`) under `### ⚠️ Action required`, `improvement` under `### 💡 Improvements`, and `issue-accuracy`/`note` under `### ℹ️ Notes` — so a human scanning the run sees actionable items, improvement proposals, and informational notes separated regardless of how the orchestrator phrases the text. A kind whose heading already names it renders **glyph-only** (`note` → `- ℹ️ …`, `improvement` → `- 💡 …`); the others keep a bold label. Sub-headings are `### ` (level-3), **never** `## `, so `lib/fetch-pr-context.sh` (which terminates the reflection parse at the first `## `) is not truncated; a sub-heading is emitted only when its group has at least one bullet, and a second bullet of an existing kind nests under the existing heading without duplicating it.
-- The `Status` glyph is owned by the helper — `--status` derives and prepends it, and a note's phase is resolved from the bare (glyph-stripped) Status word.
-- Devflow Reflection accumulates bullets — `--reflection` only appends.
-- `--tick-*` flags edit only the box character and preserve the rest of the line.
-- `--rewrite-ac` preserves the original checkbox state (don't tick during a 2.2.6 rewrite — the gate ticks later via `--tick-ac-n`).
-- Heredoc / shell-interpolation hazards are eliminated — body content never traverses bash quoting; everything goes through files.
 
 The helper reads `prflow.workpad_marker` from `.prflow/config.json`, falling back to the built-in default `<!-- prflow:workpad -->` when the config file or key is absent (so it works with no config).
 
