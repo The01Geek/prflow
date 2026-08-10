@@ -426,6 +426,28 @@ jobs:
         with:
           ref: ${{ steps.baseversion.outputs.prflow_version }}
 
+      # Incomplete-vendor guard for the grounding renderer. Runs AFTER
+      # vendor-materialization and BEFORE Run Claude Code so a broken vendor tree fails
+      # here rather than launching a reviewing agent whose prompt carries no
+      # engine-ground-truth block — this run's only statement of the headless-run
+      # discipline and of the commands it may execute. A directory's presence is not
+      # proof the helper exists, so probe the file itself. Unconditional: this job
+      # composes a review prompt on every path it runs.
+      #
+      # Probed vendored-then-repo-root, exactly as `Compose review prompt` resolves the
+      # renderer, so this guard fails only where that step would itself have failed. No
+      # trusted-source ranking here, deliberately: this is an AVAILABILITY check, and the
+      # trust decision about which copy executes stays with the compose step (whose
+      # resolution this mirrors) and with the deny-list floor's own ladder.
+      - name: Validate vendored grounding renderer
+        run: |
+          set -euo pipefail
+          if [ ! -f .prflow/vendor/prflow/scripts/render-grounding-block.sh ] \
+             && [ ! -f scripts/render-grounding-block.sh ]; then
+            echo "::error::incomplete vendor: render-grounding-block.sh is missing from both .prflow/vendor/prflow/scripts/ and scripts/ after materialization — the review prompt would carry no engine-ground-truth block, this run's only statement of the headless-run discipline and of the commands it may execute. Repair the committed .prflow/vendor/prflow tree, or check the vendor-plugin fetch (prflow_version). Failing BEFORE Run Claude Code rather than launching an ungrounded reviewer." >&2
+            exit 1
+          fi
+
       - name: Read trusted base-ref provisioning config
         id: baseprovision
         env:
@@ -2051,13 +2073,18 @@ jobs:
           if [ -f "$RGB" ]; then
             GROUNDING=$(CI_SUMMARY="$CI_SUMMARY" ALLOWED_TOOLS="$ALLOWED_TOOLS" HARDENED_PATHS="$HARDENED_PATHS" bash "$RGB") || GROUNDING=""
           else
-            echo "::warning::devflow: render-grounding-block.sh not found at either the vendored or repo path — the review prompt carries no engine-ground-truth block this run" >&2
-            GROUNDING=""
+            echo "::error::devflow: render-grounding-block.sh not found at either the vendored or repo path — the review prompt would carry no engine-ground-truth block, this run's only statement of the headless-run discipline and of the commands it may execute. Repair the vendored .prflow/vendor/prflow tree, or check the vendor-plugin fetch (prflow_version). Failing the job BEFORE Run Claude Code." >&2
+            exit 1
           fi
           # Verify the OUTCOME, not the file's existence: a present-but-truncated
           # renderer that exits 0 printing nothing would silently strip the block's
-          # prompt-injection defense from the prompt with no breadcrumb.
-          [ -n "$GROUNDING" ] || echo "::warning::devflow: render-grounding-block.sh produced no output — the review prompt carries no engine-ground-truth block this run (the engine will rediscover its tool boundary by trial and denial)" >&2
+          # prompt-injection defense from the prompt. That is a job failure, not a
+          # breadcrumb — the block is also the single home of the headless-run
+          # discipline, so a block-less review is ungrounded rather than degraded.
+          if [ -z "$GROUNDING" ]; then
+            echo "::error::devflow: render-grounding-block.sh produced no output — the review prompt would carry no engine-ground-truth block, this run's only statement of the headless-run discipline and of the commands it may execute. The renderer resolved at '$RGB' but printed nothing or exited non-zero: repair that copy, or check the vendor-plugin fetch (prflow_version). Failing the job BEFORE Run Claude Code." >&2
+            exit 1
+          fi
           # The grounding block is ALWAYS present. When the infra-health block is also
           # present, both are prepended — grounding first, then health, then the base
           # prompt — so neither displaces the other.

@@ -61,7 +61,7 @@ Coverage-map ownership for the moved labels is recorded in
 
 ## Post-extraction additions
 
-- **`#801` — harness floor + runner-agnostic dispatch barrier.** Authored in this
+- **`#801` — harness floor + injected dispatch barrier.** Authored in this
   module rather than extracted from `run.sh`. It is the natural home despite
   reaching beyond the review tier: the layers it asserts are the direct successors
   of the `#408`/`#415` headless-wait pin family this module already owns, and the
@@ -69,8 +69,7 @@ Coverage-map ownership for the moved labels is recorded in
   those pre-existing mutation pins) is only checkable where they live. Its targets
   therefore include implement-tier and installer surfaces the rest of the module
   does not own: `.github/workflows/devflow-runner.yml` (new `$WFRUN801`), plus the
-  already-owned `$WFI415` / `$WFD408` / `$IMPL_SKILL415` / `$RGB408`, and
-  `skills/review/SKILL.md` (`$REVIEW_ROOT801`) and `install.sh`
+  already-owned `$WFI415` / `$WFD408` / `$RGB408` and `install.sh`
   (`$INSTALL801`). Consequence to know when running this module as the focused test
   for an implement-tier change: `coverage-map.json` routes label `801` here, so an
   implement-side regression in those surfaces surfaces in a review-scoped module.
@@ -87,8 +86,13 @@ Coverage-map ownership for the moved labels is recorded in
   module as the focused test: `coverage-map.json` routes label `1156` and all three
   new files here, so a regression in the emitter's receipt write surfaces in a
   stall-backstop-scoped module.
-- The `#801` barrier pins target each engine ROOT's own path rather than
-  `$REVIEW_BUNDLE`, unlike the two `#408` pins above: that criterion is
-  location-sensitive (the statement is canonical in the root and the dispatch sites
-  carry pointers, never copies), so a bundle pin would stay green on a sentence
-  surviving anywhere in the bundle.
+- The `#801` barrier coverage is BEHAVIORAL, not a pin over any file's text: the
+  barrier's sole home is now the executable `scripts/render-grounding-block.sh`, so
+  the checks run the renderer in each of its three modes (`review`, `implement`,
+  `generic` — the population the three cloud tiers render) and bound the awk range to
+  the rendered headless section, which is location-sensitive in a way a whole-block
+  presence check is not. Its two engine-root placement pins retired with the roots'
+  copies, and the 12 dispatch-site pointer-presence assertions retired as a
+  documentation-presence pin over agent-executed prompt prose (issues #843/#876); the
+  module carries the disposition record and the machine-consumer evidence inline, and
+  the declared floor decrease sits in `lib/test/assertion-floor-retention-allow.json`.
