@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.10] — 2026-08-10
+
+### Changed
+- **Reworded a stale count in the `compose-implement-prompt.sh` extraction rationale.** The comment claimed "the two `::error::` literals" when the helper emits four; both the helper's own comment and its mirror in `devflow-implement.yml`'s `Compose implement grounding block` step are now count-free, preserving the extraction rationale without a figure that drifts. (#1543)
+
 ## [2.32.9] — 2026-08-10
 
 ### Fixed
