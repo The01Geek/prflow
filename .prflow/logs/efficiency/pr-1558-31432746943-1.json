@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1558",
+  "generated_at": "2026-08-10T21:18:46Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.11",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 4.162248,
+    "tokens": {
+      "input_tokens": 53,
+      "output_tokens": 18165,
+      "cache_read_input_tokens": 3831156,
+      "cache_creation_input_tokens": 179228,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 53,
+        "outputTokens": 18165,
+        "cacheReadInputTokens": 3831156,
+        "cacheCreationInputTokens": 179228,
+        "webSearchRequests": 0,
+        "costUSD": 4.162248,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 34,
+    "duration_ms": 303712
+  },
+  "permission_denials": {
+    "count": 4,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      "git fetch origin pull/1558/head 2>&1 | tail -1\necho \"=== mb(main, head) ===\"; MB=$(git merge-base origin/main FETCH_HEAD); echo \"$MB\"\necho \"=== main tip ===\"; git rev-parse origin/main\necho \"=== is main tip == merge-base? (i.e. head contains all of main) ===\"; [ \"$MB\" = \"$(git rev-parse origin/main)\" ] && echo \"YES head is ahead of main\" || echo \"NO - main has commits not in head (branch is BEHIND)\"",
+      "MB=$(git merge-base origin/main FETCH_HEAD); MAIN=$(git rev-parse origin/main); echo \"merge-base=$MB\"; echo \"main=$MAIN\"; if [ \"$MB\" = \"$MAIN\" ]; then echo \"head contains all of main\"; else echo \"BRANCH BEHIND: main has commits not in head\"; fi",
+      "git diff 5051e79e911f53ac61ae40b8bd5b264435a59e50 dd31422bb7f58838d1018b506ba3175093a7dd9c | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' > .prflow/tmp/review/pr-1558/local-run/diff.patch\ngrep -c '^diff --git' .prflow/tmp/review/pr-1558/local-run/diff.patch\nwc -l .prflow/tmp/review/pr-1558/local-run/diff.patch"
+    ],
+    "total": 4,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
