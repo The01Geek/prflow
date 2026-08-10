@@ -73,7 +73,7 @@ HEAD_NOW=$(git rev-parse HEAD)
 
 This gate is also `reviewed_sha`-absent fail-closed: if no shadow block carries a `reviewed_sha` (older/partial workpad), treat the verdict's shadow status as `shadow agreement not verified` rather than assuming the shadow covered HEAD.
 
-**Dispatch barrier.** Every subagent dispatch described here is bound by the barrier statement in the engine root's *Cloud headless-wait discipline* block (`skills/review/SKILL.md`) — read the requirement there; it is deliberately not restated here.
+**Dispatch barrier.** Every subagent dispatch described here is bound by the dispatch-collection requirement in the engine-ground-truth block injected into this run's prompt — read it there (a run whose prompt carries no such block is under no barrier); it is deliberately not restated here.
 
 **The cheapest way to never trip this gate is the discipline it enforces — make the shadow-reviewed commit the deliverable.** Outcome-1 convergence means *converged*: Suggestion-level findings from the final shadow become notes / follow-up issues, **not** post-convergence code edits. If a final-shadow finding is worth *fixing*, it is worth *re-reviewing* — route it through a promoted iteration (which re-shadows), never a quiet flush after the verdict.
 

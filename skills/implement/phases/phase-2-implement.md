@@ -66,7 +66,7 @@ Every checkpoint — and §2.5's own final commit — goes through the bundled h
 
 ### 2.1 Discovery
 
-**Dispatch barrier.** Every subagent dispatch described here is bound by the barrier statement in the engine root's *Cloud headless-wait discipline* block (`skills/implement/SKILL.md`) — read the requirement there; it is deliberately not restated here.
+**Dispatch barrier.** Every subagent dispatch described here is bound by the dispatch-collection requirement in the engine-ground-truth block injected into this run's prompt — read it there (a run whose prompt carries no such block is under no barrier); it is deliberately not restated here.
 
 Use the **Agent tool** with `subagent_type: prflow:code-explorer` to explore the codebase and understand the system as it relates to the issue.
 
