@@ -10236,6 +10236,25 @@ for _label, _kwargs, _needle in (
     assert_eq(f"#1453: the producer refuses {_label}, naming the specific cause",
               True, _perr is not None and _needle in _perr)
 
+# #1544: a bare str operand is a non-sequence — caught by _require_arity BEFORE the
+# value/gap vocabulary checks. A 4-char str would otherwise pass the old `len()` arity
+# check and zip-unpack into single characters, misreported as an unknown value/gap.
+_s_cov = None
+try:
+    apply_mut(_RC_BASE, make_args(record_review_coverage="abcd"), [])
+except workpad._UpdateError as _e:
+    _s_cov = str(_e)
+assert_eq("#1544: record_review_coverage as a bare str names the non-sequence, not the vocabulary",
+          True, _s_cov is not None and "non-sequence" in _s_cov and "unknown coverage value" not in _s_cov)
+
+_s_disp = None
+try:
+    apply_mut(_RC_BASE, make_args(review_coverage_disposition=["ab"]), [])
+except workpad._UpdateError as _e:
+    _s_disp = str(_e)
+assert_eq("#1544: a review_coverage_disposition element as a bare str names the non-sequence, not the gap vocabulary",
+          True, _s_disp is not None and "non-sequence" in _s_disp and "unknown gap" not in _s_disp)
+
 # The `--checkpoint` head cannot forge a record or a disposition, which would bypass
 # the producer's validation AND the mandatory dropped-failed reflection.
 for _rk in ("review-coverage:full:attempted:complete:complete",
