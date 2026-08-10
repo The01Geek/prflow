@@ -27,6 +27,11 @@
 # gate would then certify green.
 
 RA_HELPER="$LIB/test/regenerate-artifacts.py"
+# issue #1445: the production registry has no `mechanical` row (main is the sole writer of
+# the cloud-writer manifest). This module exercises the retained mechanical machinery by
+# asking regenerate-artifacts.py to re-inject the historical cloud-writer row; the seam is
+# read only by the helper this module invokes and never by a production run.
+export DEVFLOW_RA_TEST_MECHANICAL_ROW=1
 RA_REPO="$LIB/.."
 RA_CAPMUT="$LIB/test/cap-mutate.py"
 RA_LIVE_MANIFEST="$RA_REPO/scripts/devflow-cloud-writer-contract.json"

@@ -92,6 +92,7 @@ states above and no row report accompanies it.
 
 import argparse
 import importlib.util
+import os
 import subprocess
 import sys
 import traceback
@@ -379,6 +380,41 @@ ROWS = (
         "preflight_eligible": True,
     },
 )
+
+# ── Test-only mechanical-row seam (issue #1445) ──────────────────────────────
+# The production registry above has NO `mechanical` row: `main` is the sole writer of the
+# cloud-writer manifest (version-consolidate.yml), so no feature-branch batched pass or
+# coordinator preflight touches it. But the `mechanical` machinery below (`run_row`'s
+# mechanical arm, `_mechanical_outcome`, `_validate_registry`'s single-write check) is
+# retained and must stay tested. The focused module lib/test/modules/regenerate-artifacts.sh
+# and the coordinator-preflight module lib/test/modules/parallel-suite-runner.sh re-inject
+# the historical cloud-writer row to exercise that machinery, by setting
+# DEVFLOW_RA_TEST_MECHANICAL_ROW=1 in their own process. NOTHING in a production run ever
+# sets it — the batched pass, the coordinator preflight, and every consumer run without it —
+# so production never regenerates or gates on the manifest, which is the whole point of
+# issue #1445. The re-injected row is validated by `_validate_registry()` below exactly like
+# a real row, so the seam cannot smuggle in a malformed row.
+_TEST_MECHANICAL_ROW = {
+    "name": "cloud-writer-manifest",
+    "kind": "mechanical",
+    "argv": ("python3", "lib/test/cloud_writer_contract.py", "generate"),
+    "clean": (0,),
+    "exits": (0, 1),
+    "writes": MECHANICAL_ARTIFACT,
+    "policy": (
+        "the closure data in lib/test/cloud_writer_contract.py "
+        "(ROOTS / DISPATCH_EDGES / SKILL_ASSETS / required helper heads) — "
+        "regenerate against the merged tree with "
+        "`python3 lib/test/cloud_writer_contract.py generate`"
+    ),
+    "conflict_class": "regenerate",
+    "preflight_eligible": True,
+    "preflight_argv": ("python3", "lib/test/cloud_writer_contract.py", "verify"),
+    "preflight_positive_marker": "cloud-writer-contract:",
+}
+
+if os.environ.get("DEVFLOW_RA_TEST_MECHANICAL_ROW") == "1":
+    ROWS = (_TEST_MECHANICAL_ROW,) + ROWS
 
 # ── Coupled-site registry (issue #1206) ──────────────────────────────────────
 # The question `--list` answers today is "what did a generator write?". This second
