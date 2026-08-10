@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1564",
+  "generated_at": "2026-08-10T23:13:25Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.17",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 4.203407,
+    "tokens": {
+      "input_tokens": 41,
+      "output_tokens": 18862,
+      "cache_read_input_tokens": 3394284,
+      "cache_creation_input_tokens": 203451,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 41,
+        "outputTokens": 18862,
+        "cacheReadInputTokens": 3394284,
+        "cacheCreationInputTokens": 203451,
+        "webSearchRequests": 0,
+        "costUSD": 4.203407,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 29,
+    "duration_ms": 345558
+  },
+  "permission_denials": {
+    "count": 3,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-unset}\"",
+      "git status --porcelain; echo \"---RUNENV---\"; echo \"run_id=${GITHUB_RUN_ID:-none} attempt=${GITHUB_RUN_ATTEMPT:-none}\"",
+      "mkdir -p .prflow/tmp/review/pr-1564/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT:-1}; echo \"runid=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT:-1}\""
+    ],
+    "total": 3,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
