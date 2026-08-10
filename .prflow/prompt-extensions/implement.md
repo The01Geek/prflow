@@ -45,15 +45,6 @@ one; a tool *added* to the preflight set is reconciled into this run's sweep by 
 enumeration-reconciliation sweep. This concrete instantiation is what the base skill's generic
 wording means — the base skill stays repo-agnostic and names no tools.
 
-## Comment discipline — do not preserve mirror facts with wording pins
-
-The base skill's §2.3 authoring rule keeps mirror-fact comments — an exact count, an enumerated
-list of sites or values, a scope word restating a predicate, narration of what adjacent code does —
-out of the diff, or makes them drift-proof. Remove or rewrite a mirror fact as a lower bound or a
-pointer to the defining symbol, and where the underlying claim is load-bearing prefer a behavioral
-test at the executable boundary that fails when the implementation drifts. Header and contract
-comments stay load-bearing prose, but their prose presence alone is not a test target.
-
 ## Behavioral regressions — executable evidence, not attestation
 
 When a test protects a **named behavioral regression**, exercise the rendered interface or
