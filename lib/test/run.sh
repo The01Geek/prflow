@@ -32150,7 +32150,7 @@ echo "#408 cloud review no-verdict auto-resume backstop + #414 post-and-annotate
 # module re-derives REPO_ROOT and rebuilds the review-engine bundle itself;
 # see its .inventory.md for the coverage map back to this location.
 if ! devflow_run_full_suite_module "$LIB/test/modules/review-stall-backstop.sh" \
-  "review-stall-backstop" 459; then
+  "review-stall-backstop" 450; then
   printf 'ERROR: review-stall-backstop boundary could not record its result\n'
   exit 1
 fi
@@ -35687,11 +35687,12 @@ for _b363 in "$RUNNER_YML" "$DEVFLOW_YML"; do
     '[ -n "$CI_SUMMARY" ] || CI_SUMMARY="CI status unavailable"' "$_b363"
   assert_pin_unique "#363 $_w renders the block through the shared renderer (no hand-copied prose)" \
     'RGB=.prflow/vendor/prflow/scripts/render-grounding-block.sh' "$_b363"
-  # Pin the common render-call prefix through ALLOWED_TOOLS: devflow-runner.yml additionally
-  # forwards HARDENED_PATHS after it (issue #504), so the two files' GROUNDING lines diverge
-  # past this point — the shared, byte-identical prefix is what proves both pass the resolved
-  # allowed-tools string into the renderer. The runner's HARDENED_PATHS forwarding is pinned
-  # separately by the #504 AC5 assertion below.
+  # Pin the common render-call prefix through ALLOWED_TOOLS: each file forwards one more
+  # variable after it — devflow-runner.yml HARDENED_PATHS (issue #504), devflow.yml MODE
+  # (the light tier renders three commands, only one of them in `review` mode) — so the
+  # two GROUNDING lines diverge past this point, and the shared, byte-identical prefix is
+  # what proves both pass the resolved allowed-tools string into the renderer. Each
+  # file's own trailing forwarding is pinned separately below.
   assert_pin_unique "#363 $_w passes the resolved allowed-tools string into the renderer" \
     'GROUNDING=$(CI_SUMMARY="$CI_SUMMARY" ALLOWED_TOOLS="$ALLOWED_TOOLS" ' "$_b363"
   # Guard-class shape 1 (existence-vs-sourceability): `[ -f "$RGB" ]` proves the path
@@ -35715,10 +35716,105 @@ assert_pin_unique "#363 devflow.yml's block quotes steps.tools.outputs.tools ver
 # would otherwise parse it as an option and silently count zero.
 assert_pin_unique "#363 devflow.yml's claude_args consumes the hoisted allowed-tools output (no second copy to drift)" \
   'allowed-tools "${{ steps.tools.outputs.tools }}"' "$DEVFLOW_YML"
-# The block is gated to /devflow:review; the trailing space excludes review-and-fix,
-# which runs the same skill under a different profile with no block injected.
-assert_pin_unique "#363 devflow.yml gates the block on /devflow:review (trailing space excludes review-and-fix)" \
-  "if: \${{ startsWith(needs.gate.outputs.command, '/prflow:review ') }}" "$DEVFLOW_YML"
+# ── The block is composed for EVERY command this tier dispatches. It used to be gated
+# ── on `startsWith(…, '/prflow:review ')`, whose trailing space excluded
+# ── `/prflow:review-and-fix` — the command that drives the review engine INLINE and
+# ── fans out the most parallel subagents, and therefore the worst one to leave with no
+# ── tool list, no shape rules and no headless-run discipline. Both the compose step and
+# ── the vendored-renderer guard beside it are now unconditional.
+#
+# Read out of the PARSED workflow rather than grepped, because the invariant is about
+# which runs each step fires on: the guard must fail exactly the runs that compose a
+# block and never one that composes none, which is expressible only as "neither step
+# carries an `if:`". Grepping for the ABSENCE of a predicate would also have to reason
+# about this file's OTHER occurrences of the same `startsWith(…, '/prflow:review ')`
+# expression, which select the run's github_token (read-only reviewer vs. write-capable
+# App — a security boundary, pinned separately in the #300 block) and must never be
+# swept along with the grounding gate.
+#
+# Both engine workflows carry the guard, so both are read the same way — devflow-runner.yml
+# grounds the auto-review tier, where a deleted guard relaunches an ungrounded REVIEWER
+# instead of failing before the Claude step. The same parse also counts each step's fail
+# arms, so a silent revert of either `::error:: … exit 1` to a warn-and-continue (which
+# leaves every message literal in place, and which the pins above therefore cannot see)
+# comes back as a changed count.
+_gb363_gates() {  # <file> <job> <compose-step-name>
+  # -> "<guard-if>|<compose-if>|<guard-arms>|<compose-arms>", each arms field
+  #    "<::error:: lines naming the renderer>/<bare `exit 1` lines>/<::warning:: lines
+  #    naming the renderer>". Any unreadable input yields a non-matching sentinel.
+  python3 - "$1" "$2" "$3" 2>/dev/null <<'PY' || echo 'unestablished|unestablished|unestablished|unestablished'
+import sys, yaml
+steps = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))["jobs"][sys.argv[2]]["steps"]
+GUARD = "Validate vendored grounding renderer"
+def one(name):
+    found = [s for s in steps if s.get("name") == name]
+    return found[0] if len(found) == 1 else None
+def gate(name):
+    step = one(name)
+    return "absent-step" if step is None else repr(step.get("if"))
+def arms(name):
+    step = one(name)
+    if step is None:
+        return "absent-step"
+    lines = (step.get("run") or "").splitlines()
+    def n(pred):
+        return sum(1 for line in lines if pred(line))
+    return "%d/%d/%d" % (
+        n(lambda l: "::error::" in l and "render-grounding-block.sh" in l),
+        n(lambda l: l.strip() == "exit 1"),
+        n(lambda l: "::warning::" in l and "render-grounding-block.sh" in l),
+    )
+print("|".join([gate(GUARD), gate(sys.argv[3]), arms(GUARD), arms(sys.argv[3])]))
+PY
+}
+assert_eq "#363 devflow.yml composes a block for every dispatched command, its vendored-renderer guard covers exactly those runs, and both fail the job rather than warning" \
+  "None|None|1/1/0|2/2/0" "$(_gb363_gates "$DEVFLOW_YML" command 'Compose engine grounding block')"
+# Symmetric coverage for the auto-review tier: the same guard, the same unconditional
+# reach over its own compose step, and the same fail-loud arms.
+assert_eq "#363 devflow-runner.yml carries the same vendored-renderer guard over exactly the runs its compose step grounds, and both fail the job rather than warning" \
+  "None|None|1/1/0|2/2/0" "$(_gb363_gates "$RUNNER_YML" run 'Compose review prompt')"
+
+# Which MODE each command renders in. `review` adds the CI-results section, whose
+# operative instruction is to cite those conclusions as the run's authoritative test
+# evidence and not re-derive them by running tests. Only `/prflow:review` earns that:
+# `/prflow:review-and-fix` edits and pushes, and its own prompt extension makes the
+# in-environment whole-suite pass the run's gate while forbidding the loop to cite CI
+# for its own progress, so a CI section there would contradict the run's verification
+# contract; `/prflow:pr-description` reviews no commit at all. Both take `generic`.
+# The selection is one declarative expression in the step env — no shell branch chain —
+# and `generic` is the ELSE operand, so it fails SAFE: a command the resolver's
+# allowlist gains later cannot silently inherit a section asserting CI evidence for a
+# commit it never reviewed.
+assert_pin_unique "#363 devflow.yml selects the renderer MODE per command, defaulting to generic for every command that must not cite CI" \
+  "MODE: \${{ startsWith(needs.gate.outputs.command, '/prflow:review ') && 'review' || 'generic' }}" "$DEVFLOW_YML"
+# devflow.yml renders three commands through one renderer, so — like the implement
+# composer's `MODE=implement` — the tier must be forwarded at the call site. Dropping
+# it would fall back to the renderer's `review` default and tell /prflow:pr-description
+# that a CI fence is its authoritative test evidence for a commit it never reviewed.
+assert_pin_unique "#363 devflow.yml forwards the selected MODE into the renderer" \
+  'ALLOWED_TOOLS="$ALLOWED_TOOLS" MODE="$MODE" bash "$RGB"' "$DEVFLOW_YML"
+# The renderer's own generic mode: the tier-agnostic sections only, renumbered, with
+# NO CI section, no #504 displaced-paths section, and none of the implement tier's
+# Phase 3 scope clause. Driven executably against the real renderer.
+_GB363_GEN="$(HEAD_SHA=deadbeef CI_SUMMARY='ci: success' ALLOWED_TOOLS='Read' HARDENED_PATHS='a/b.md' MODE=generic bash "$RGB_SH")"
+_gb363_gen_has() {  # literal -> yes/no, over the captured generic-mode render
+  case "$_GB363_GEN" in *"$1"*) echo yes ;; *) echo no ;; esac
+}
+assert_eq "#363 generic mode emits no CI-results section (there is no reviewed commit to observe)" "no" \
+  "$(_gb363_gen_has 'CI results already observed for the reviewed commit')"
+assert_eq "#363 generic mode emits no trusted-source-displacement section (a review-only concept)" "no" \
+  "$(_gb363_gen_has 'Trusted-source displacement')"
+assert_eq "#363 generic mode carries none of the implement tier's Phase 3 scope clause" "no" \
+  "$(_gb363_gen_has "including Phase 3's inline")"
+assert_eq "#363 generic mode still states the permitted commands, the shapes, and the headless-run discipline (renumbered 1/2/3)" "yes-yes-yes" \
+  "$(_gb363_gen_has '**1. The exact commands this run is permitted to execute.**')-$(_gb363_gen_has "**2. Command shapes this run's harness accepts.**")-$(_gb363_gen_has '**3. This is a headless run: ending your turn ends the process.**')"
+# Positive control for the two absence rows above: the SAME literals resolve in review
+# mode, so an empty/garbled render cannot pass them vacuously.
+_GB363_REV="$(HEAD_SHA=deadbeef CI_SUMMARY='ci: success' ALLOWED_TOOLS='Read' HARDENED_PATHS='a/b.md' MODE=review bash "$RGB_SH")"
+assert_eq "#363 review mode still emits both sections generic mode omits (the absence rows' positive control)" "yes-yes" \
+  "$(case "$_GB363_REV" in *'CI results already observed for the reviewed commit'*) echo yes ;; *) echo no ;; esac)-$(case "$_GB363_REV" in *'Trusted-source displacement'*) echo yes ;; *) echo no ;; esac)"
+unset _GB363_GEN _GB363_REV
+
 assert_pin_unique "#363 devflow.yml falls back to the bare command when no block is composed" \
   'prompt: ${{ steps.reviewcompose.outputs.prompt || needs.gate.outputs.command }}' "$DEVFLOW_YML"
 
@@ -35798,20 +35894,21 @@ _cip_promptkeys() { grep -c '^prompt' "$1" 2>/dev/null || true; }  # ghout -> co
 
 # Arm 1 — the renderer is absent at BOTH paths.
 _c="$(_cip_case - -)"
-assert_eq "#1170 composer arm1 (renderer absent at both paths) exits 0" "0" "$(cat "$_c/rc")"
-assert_eq "#1170 composer arm1 warns that the renderer was found at neither path" "yes" \
+assert_eq "#1170 composer arm1 (renderer absent at both paths) exits 1 (fail-loud)" "1" "$(cat "$_c/rc")"
+assert_eq "#1170 composer arm1 errors that the renderer was found at neither path" "yes" \
   "$(_cip_has "$_c/err" 'render-grounding-block.sh not found at either the vendored or repo path')"
 assert_eq "#1170 composer arm1 does NOT misattribute the miss to the empty-block arm" "no" \
   "$(_cip_has "$_c/err" 'render-grounding-block.sh produced no output')"
-# Load-bearing: NO `prompt` key at all, so devflow-implement.yml's `|| format(…)` default
-# fires. Publishing an empty `prompt=` here would silently defeat that fallback.
+# Load-bearing: NO `prompt` key at all. The step now fails the job before the action runs,
+# so devflow-implement.yml's `|| format(…)` default is a last line of defense rather than the
+# expected path — but publishing an empty `prompt=` here would still defeat it.
 assert_eq "#1170 composer arm1 writes NO prompt output (the bare-prompt default must fire)" "0" \
   "$(_cip_promptkeys "$_c/ghout")"
 
 # Arm 2 — the renderer resolves but produces an empty block (the truncated-vendored-copy case).
 _c="$(_cip_case 'exit 0' -)"
-assert_eq "#1170 composer arm2 (renderer produced no output) exits 0" "0" "$(cat "$_c/rc")"
-assert_eq "#1170 composer arm2 warns that the renderer produced no output" "yes" \
+assert_eq "#1170 composer arm2 (renderer produced no output) exits 1 (fail-loud)" "1" "$(cat "$_c/rc")"
+assert_eq "#1170 composer arm2 errors that the renderer produced no output" "yes" \
   "$(_cip_has "$_c/err" 'render-grounding-block.sh produced no output')"
 assert_eq "#1170 composer arm2 does NOT misattribute an empty block to the not-found arm" "no" \
   "$(_cip_has "$_c/err" 'not found at either the vendored or repo path')"
@@ -35821,7 +35918,7 @@ assert_eq "#1170 composer arm2 writes NO prompt output (the bare-prompt default 
 # Arm 2, second input shape — a renderer that FAILS after printing a partial block. The
 # capture's `|| GROUNDING=""` must route it to the empty arm, never publish the partial.
 _c="$(_cip_case 'printf "> partial\n"; exit 3' -)"
-assert_eq "#1170 composer arm2 (renderer exited non-zero) exits 0" "0" "$(cat "$_c/rc")"
+assert_eq "#1170 composer arm2 (renderer exited non-zero) exits 1 (fail-loud)" "1" "$(cat "$_c/rc")"
 assert_eq "#1170 composer arm2 (renderer exited non-zero) takes the empty-block arm" "yes" \
   "$(_cip_has "$_c/err" 'render-grounding-block.sh produced no output')"
 assert_eq "#1170 composer arm2 (renderer exited non-zero) publishes no partial block" "0" \
@@ -35861,13 +35958,45 @@ _c="$(_cip_case 'printf "SEEN MODE=%s TOOLS=%s\n" "$MODE" "$ALLOWED_TOOLS"')"
 assert_eq "#1170 composer invokes the renderer in MODE=implement with the resolved tool list" "yes" \
   "$(_cip_has "$_c/ghout" 'SEEN MODE=implement TOOLS=Read, Bash(git add:*)')"
 
-# An unpublishable output channel degrades to the bare prompt with a breadcrumb, never a
-# hard failure and never a redirect somewhere arbitrary.
+# An unpublishable output channel is refused like every other block-less end state — a
+# job failure, never a degrade to the bare prompt, and never a redirect somewhere
+# arbitrary.
 _c="$(_cip_case 'printf "> GROUND-TRUTH-BLOCK\n---\n"')"
 _cip_rc_noout="$( cd "$_c" && GITHUB_OUTPUT='' ALLOWED_TOOLS='Read' NUMBER=7 bash "$_CIP_SH" >/dev/null 2>"$_c/err2"; echo $? )"
-assert_eq "#1170 composer exits 0 when GITHUB_OUTPUT is unset/empty" "0" "$_cip_rc_noout"
+assert_eq "#1170 composer exits 1 when GITHUB_OUTPUT is unset/empty" "1" "$_cip_rc_noout"
 assert_eq "#1170 composer breadcrumbs an unpublishable GITHUB_OUTPUT" "yes" \
   "$(_cip_has "$_c/err2" 'GITHUB_OUTPUT is unset or empty')"
+
+# Arm 4 — GITHUB_OUTPUT is SET but the append FAILS (a present, wholly-unwritable
+# destination). Distinct from the unset/empty arm above: the path resolves, so every
+# earlier arm passes and the refusal must come from the write itself. Load-bearing
+# because the natural spelling of that guard does not work — bash does not propagate a
+# failed redirection on a COMPOUND command through `!`, so `if ! { …; } >> "$f"` reads
+# as success and the composer exits 0 having published nothing. Posed with the #458
+# unwritable-destination fixture (chmod 400 file inside a chmod 500 directory) and
+# skipped, never silently passed, under a uid that ignores the mode bits.
+mkdir -p "$_c/ro"
+: > "$_c/ro/ghout"
+chmod 400 "$_c/ro/ghout" 2>/dev/null || true
+chmod 500 "$_c/ro" 2>/dev/null || true
+if [ "$(id -u)" -ne 0 ] && [ ! -w "$_c/ro/ghout" ] && [ ! -w "$_c/ro" ]; then
+  _cip_rc_ro="$( cd "$_c" && GITHUB_OUTPUT="$_c/ro/ghout" ALLOWED_TOOLS='Read' NUMBER=7 bash "$_CIP_SH" >/dev/null 2>"$_c/err3"; echo $? )"
+  assert_eq "#1170 composer exits 1 when the GITHUB_OUTPUT append fails (unwritable destination)" "1" "$_cip_rc_ro"
+  assert_eq "#1170 composer errors that the composed prompt could not be appended" "yes" \
+    "$(_cip_has "$_c/err3" 'could not append the composed implement prompt to GITHUB_OUTPUT')"
+  assert_eq "#1170 composer refuses a failed append on the ::error:: channel, never a warn-and-continue" "0" \
+    "$(grep -c '::warning::' "$_c/err3" || true)"
+  assert_eq "#1170 composer does NOT misattribute a failed append to the unset/empty arm" "no" \
+    "$(_cip_has "$_c/err3" 'GITHUB_OUTPUT is unset or empty')"
+  assert_eq "#1170 composer publishes NO prompt output when the append fails" "0" \
+    "$(_cip_promptkeys "$_c/ro/ghout")"
+  unset _cip_rc_ro
+else
+  skip "#1170 composer arm4 (GITHUB_OUTPUT set but unappendable)" host-capability \
+    "this uid ignores the mode bits — the chmod 400/500 destination stayed writable, so a failing append could not be posed"
+fi
+chmod 700 "$_c/ro" 2>/dev/null || true
+chmod 700 "$_c/ro/ghout" 2>/dev/null || true
 rm -rf "$_CIP_ROOT"
 unset _cip_rc_noout
 
