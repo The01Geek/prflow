@@ -17,8 +17,9 @@ Detected shape (deliberately narrow, to keep false positives to zero):
   `if ! {`). A `!` further from the opener is not tracked — a false negative this
   guard accepts, because every real instance of the defect writes `! {` / `! (`.
 * one of whose redirect clauses **on the close's own physical line** is a data-carrying
-  redirect: an optional fd number, then `>`, `>>`, `>|`, or `<`, to a target that is not
-  `/dev/null`. Every consecutive clause on that line is scanned — not just the first — so a
+  redirect: `&>` / `&>>` (both streams to a file), or an optional fd number then `>`, `>>`,
+  `>|`, or `<`, to a target that is not `/dev/null`. Every consecutive clause on that line is
+  scanned — not just the first — so a
   leading inert clause cannot hide a real data redirect behind it (`} 2>/dev/null > "$f"`
   is flagged). Inert clauses are skipped and scanning continues past them: a descriptor dup
   (`>&` / `<&`, which opens no file), a heredoc / here-string (`<<` / `<<<`, whose body is
@@ -29,6 +30,11 @@ Detected shape (deliberately narrow, to keep false positives to zero):
 A redirect placed **inside** the group (`{ printf … > "$f" && mv …; }`) is correct —
 the group's own exit status carries that failure — and its close is followed by `;`
 or `then`, not a redirect, so it is not flagged.
+
+Accepted residuals (marker-suppressible, none present on the tree): a non-numeric
+`>&word` (an obscure both-streams-to-file bashism — `&>` is the modern spelling this
+lint does catch) reads as a descriptor dup and is not flagged; and a `find … ! ( … ) > out`
+whose `)` closes a find predicate rather than a compound command can false-positive.
 
 Escape hatch: a `# negated-compound-redirect-ok: <reason>` marker on the line
 immediately above the opener, the opener's own physical line, or the close's
@@ -93,10 +99,12 @@ _FD_DUP = re.compile(r"^[0-9]*[<>]&[0-9-]*")
 #: A heredoc or here-string (`<<EOF`, `<<-EOF`, `<<< word`) — inert: the body is in-memory,
 #: with no open-failure mode. Skipped (operator plus its delimiter/word), scanning continues.
 _HEREDOC = re.compile(r"^[0-9]*<<-?<?")
-#: A data-carrying redirect: optional fd digits, then `>|` / `>>` / `>` / `<`, NOT a `>&`/`<&`
-#: descriptor dup nor a `<<` heredoc (`(?![&<])`), then the target. Anchored at the start of
-#: the post-close remainder (leading horizontal whitespace already consumed by the caller).
-_DATA_REDIR = re.compile(r"^[0-9]*(?:>\||>>|>|<)(?![&<])[ \t]*(?P<target>[^ \t;&|<>)]+)")
+#: A data-carrying redirect: `&>>`/`&>` (both streams to a file), or optional fd digits then
+#: `>|` / `>>` / `>` / `<`, NOT a `>&`/`<&` descriptor dup nor a `<<` heredoc (`(?![&<])`),
+#: then the target. `&>>`/`&>` open a file exactly like `>` and so must be caught. Anchored at
+#: the start of the post-close remainder (leading horizontal whitespace already consumed by
+#: the caller).
+_DATA_REDIR = re.compile(r"^(?:&>>|&>|[0-9]*(?:>\||>>|>|<)(?![&<]))[ \t]*(?P<target>[^ \t;&|<>)]+)")
 
 
 def _has_data_redirect_after(text: str, start: int) -> bool:

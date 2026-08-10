@@ -42948,6 +42948,7 @@ defect-input.sh:3:an input redirect (< "$f") whose first redirect is non-/dev/nu
 defect-append.sh:3:an append redirect (>> "$f")
 defect-devnull-then-data.sh:3:a data redirect hidden behind a leading 2>/dev/null (scan every clause, not just the first)
 defect-clobber.sh:3:a clobber-override redirect (>| "$f")
+defect-ampredirect.sh:3:a both-streams-to-file redirect (&> "$f")
 NCR_VIOLATIONS
 # Shapes that must NOT be flagged, each for its own reason.
 while IFS=: read -r _ncr_file _ncr_why; do
