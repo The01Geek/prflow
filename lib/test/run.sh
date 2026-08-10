@@ -49168,6 +49168,10 @@ YML
 YML
   # Order-independence and per-step pairing: a well-formed step ahead of one whose own pair is
   # inverted must fail, and must fail on ITS OWN pair rather than borrowing the first step's max.
+  # The second step's max (900000) is DELIBERATELY different from the first's: with equal maxes
+  # a cross-step borrowing bug still yields `no` and the fixture proves only order-independence.
+  # Here a guard borrowing 1200000 would read 120000 < 1000000 < 1200000 and answer `ok`, so the
+  # expected `no` is reachable only by comparing each default against its own step's ceiling.
   cat > "$_WFG_D/default-two-steps.yml" <<'YML'
 jobs:
   claude:
@@ -49179,7 +49183,7 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         with:
           settings: |
-            {"env": {"BASH_DEFAULT_TIMEOUT_MS": "1200000", "BASH_MAX_TIMEOUT_MS": "1200000"}}
+            {"env": {"BASH_DEFAULT_TIMEOUT_MS": "1000000", "BASH_MAX_TIMEOUT_MS": "900000"}}
 YML
   # The symmetric case: the inverted step FIRST. `all()` is order-independent, but asserting
   # only one ordering cannot distinguish that from a guard that inspects the first step alone.
@@ -49190,7 +49194,7 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         with:
           settings: |
-            {"env": {"BASH_DEFAULT_TIMEOUT_MS": "1200000", "BASH_MAX_TIMEOUT_MS": "1200000"}}
+            {"env": {"BASH_DEFAULT_TIMEOUT_MS": "1000000", "BASH_MAX_TIMEOUT_MS": "900000"}}
       - uses: anthropics/claude-code-action@v1
         with:
           settings: |
@@ -49374,6 +49378,13 @@ YML
     "$(_wfg_default "$_WFG_D/default-two-steps.yml")"
   assert_eq "free-allowance matrix: an inverted step AHEAD of a well-formed one fails (order-independence)" "no" \
     "$(_wfg_default "$_WFG_D/default-two-steps-swapped.yml")"
+  # The extractor's two settings-parse refusal arms, routed through the free-allowance guard.
+  # Both already have hook-guard rows; without these each arm was deletable from default-check.py
+  # with the suite still green, since no default-guard assertion reached it.
+  assert_eq "free-allowance matrix: a settings string that is not JSON fails rather than crashing the extractor" "no" \
+    "$(_wfg_default "$_WFG_D/unparseable-settings.yml")"
+  assert_eq "free-allowance matrix: a settings string parsing to a non-object fails rather than being indexed" "no" \
+    "$(_wfg_default "$_WFG_D/json-non-object-settings.yml")"
   assert_eq "free-allowance matrix: a whitespace-padded default fails (the action forwards the string verbatim)" "no" \
     "$(_wfg_default "$_WFG_D/default-padded.yml")"
   assert_eq "free-allowance matrix: an underscore-separated default fails (PEP 515 is a Python-side reading only)" "no" \
