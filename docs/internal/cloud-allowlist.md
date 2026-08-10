@@ -72,6 +72,25 @@ helper, and prepended to the prompt on **every** tier:
   (the review-only CI-results and trusted-source-displacement sections are omitted,
   and the survivors renumber 1/2/3).
 
+**A missing or empty renderer fails the job — it no longer degrades (issue #1520).**
+Two independent controls enforce this on every tier. First, a dedicated guard step
+runs *after* vendor-materialization and *before* `Run Claude Code`, failing the job
+when the renderer is absent: `Validate vendored grounding renderer` on the two
+review-engine tiers (`devflow.yml`, `devflow-runner.yml`), and `Validate vendored
+helpers + write handoff record` on the implement tier (`devflow-implement.yml`), which
+extends the same check to the two prompt-composition helpers. Second — and separately —
+each tier's composition step fails on its own when the renderer is **absent or produces
+nothing**: inline in `devflow.yml`'s `Compose engine grounding block` step and
+`devflow-runner.yml`'s `Compose review prompt` step, and in
+`scripts/compose-implement-prompt.sh` for the implement tier, every arm of which emits
+`::error::` and exits non-zero rather than publishing an ungrounded prompt.
+
+The consumer-visible consequence: **a repository whose vendored tree lacks the renderer
+goes from a degraded run to a failed job.** It used to surface as a warning in the
+Actions log while the agent launched on a bare prompt; now the job stops with an error
+before the agent starts. The diagnostics name the remedy — repair the committed
+`.prflow/vendor/prflow` tree, or check the `vendor-plugin` fetch (`prflow_version`).
+
 Every tier consumes the **same** hoisted `TOOLS='…'` step output for both
 `claude_args`'s `--allowed-tools` **and** the injected block, so the block quotes the
 exact string the run resolved by construction — there is **no second, hand-copied
