@@ -15446,6 +15446,124 @@ with tempfile.TemporaryDirectory() as _pm_base:
 
 _IAS603 = str(SCRIPTS / 'issue-audit-state.py')
 
+# Whether the fork-based in-process CLI driver below is available. `os.fork` does not
+# exist on Windows, where every call falls back to the real-subprocess spawn.
+_IAS_FORK_OK = hasattr(os, 'fork') and os.environ.get('DEVFLOW_IAS_NO_FORK') != '1'
+
+
+def _ias_reset_module_state():
+    """Return the already-imported `issue_audit_state` to its cold-import state.
+
+    The fork child inherits the PARENT's module globals rather than re-importing, so any
+    process-scoped memo the parent warmed would answer for the child's own cwd and its own
+    first-emission bookkeeping. `_repo_root` is the load-bearing one: it is memoized and
+    cwd-derived, so a warm entry would resolve this repository instead of the child's temp
+    sandbox. A monkeypatched stand-in carries no `cache_clear`, hence the guard.
+    """
+    rr = getattr(issue_audit_state, '_repo_root', None)
+    clear = getattr(rr, 'cache_clear', None)
+    if clear is not None:
+        clear()
+    emitted = getattr(issue_audit_state, '_STATE_BREADCRUMB_EMITTED', None)
+    if isinstance(emitted, set):
+        emitted.clear()
+
+
+def _ias_run(argv, cwd, stdin=None):
+    """Drive `issue-audit-state.py`'s CLI in a forked child, or spawn it for real.
+
+    Returns the same `CompletedProcess` shape the subprocess spawn returns, and preserves
+    everything the rows grade: the real exit status, the real stdout/stderr bytes, the real
+    working directory, and full process isolation (the child `os._exit`s, so no state it
+    mutates can reach the parent). What it drops is ~79ms of interpreter startup and import
+    of a 9000-line module per call, which no assertion examines — measured at 79% of this
+    file's runtime across ~1500 spawns.
+    """
+    if not _IAS_FORK_OK:
+        return _subprocess.run([sys.executable, _IAS603, *argv], cwd=cwd, input=stdin,
+                               capture_output=True, text=True)
+    args = [_IAS603, *argv]
+    # stdin arrives through a temp FILE, never a pipe: a pipe would deadlock the pair once
+    # a payload exceeded the kernel buffer, since the parent cannot write and drain at once.
+    stdin_file = None
+    if stdin is not None:
+        stdin_file = tempfile.NamedTemporaryFile('w', encoding='utf-8', delete=False)
+        stdin_file.write(stdin)
+        stdin_file.close()
+    out_r, out_w = os.pipe()
+    err_r, err_w = os.pipe()
+    # Flush before forking, or the child inherits the parent's buffered bytes and emits a
+    # second copy of everything already written to this file's own stdout/stderr.
+    sys.stdout.flush()
+    sys.stderr.flush()
+    pid = os.fork()
+    if pid == 0:
+        rc = 1
+        try:
+            os.close(out_r)
+            os.close(err_r)
+            os.dup2(out_w, 1)
+            os.dup2(err_w, 2)
+            os.close(out_w)
+            os.close(err_w)
+            fd0 = os.open(stdin_file.name if stdin_file is not None else os.devnull,
+                          os.O_RDONLY)
+            os.dup2(fd0, 0)
+            os.close(fd0)
+            sys.stdin = os.fdopen(0, 'r', encoding='utf-8')
+            sys.stdout = os.fdopen(1, 'w', encoding='utf-8')
+            sys.stderr = os.fdopen(2, 'w', encoding='utf-8')
+            os.chdir(cwd)
+            sys.argv = [_IAS603, *[str(a) for a in argv]]
+            _ias_reset_module_state()
+            rc = 0
+            try:
+                issue_audit_state.main()
+            except SystemExit as exc:
+                rc = 0 if exc.code is None else (
+                    exc.code if isinstance(exc.code, int) else 1)
+            except BaseException:  # noqa: BLE001 - mirrors the interpreter's own top level
+                import traceback
+                traceback.print_exc()
+                rc = 1
+            sys.stdout.flush()
+            sys.stderr.flush()
+        finally:
+            os._exit(rc if isinstance(rc, int) else 1)
+    os.close(out_w)
+    os.close(err_w)
+    chunks = {}
+
+    def _drain(key, fd):
+        buf = []
+        with os.fdopen(fd, 'rb') as fh:
+            while True:
+                b = fh.read(65536)
+                if not b:
+                    break
+                buf.append(b)
+        chunks[key] = b''.join(buf)
+
+    # Both streams drain concurrently: a child that fills one pipe's buffer while the
+    # parent is blocked reading the other would wedge the pair.
+    threads = [_threading1040.Thread(target=_drain, args=(k, fd))
+               for k, fd in (('out', out_r), ('err', err_r))]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    _, status = os.waitpid(pid, 0)
+    if stdin_file is not None:
+        os.unlink(stdin_file.name)
+    if os.WIFSIGNALED(status):
+        rc = -os.WTERMSIG(status)
+    else:
+        rc = os.WEXITSTATUS(status)
+    return _subprocess.CompletedProcess(
+        args, rc,
+        chunks.get('out', b'').decode('utf-8', 'replace'),
+        chunks.get('err', b'').decode('utf-8', 'replace'))
+
 
 def _stage_bytes(run, path):
     """Record the staged write for a draft file's CURRENT bytes (issue #1104).
@@ -15544,11 +15662,10 @@ class _Run603:
                 and '--arm' in argv and '--draft-file' in argv
                 and argv[argv.index('--arm') + 1] == 'file'):
             art = _stage_bytes(self, argv[argv.index('--draft-file') + 1])
-        args = [sys.executable, _IAS603, *argv]
+        args = list(argv)
         if nonce:
             args += ['--nonce', self.nonce]
-        out = _subprocess.run(args, cwd=self.tmp, input=stdin, capture_output=True,
-                              text=True)
+        out = _ias_run(args, self.tmp, stdin=stdin)
         if art is not None:
             # Retire the artifact once it has done its job. Retained, it would let the
             # NEXT round's kind selection reconstruct these bytes and answer `targeted`,
@@ -22401,9 +22518,6 @@ assert_eq("#1214 AC11: a real 401/Bad credentials DOES still match (positive con
 print()
 print("issue-audit-state: round resolution, next_call=, query-boundary (issue #795)")
 
-_IAS795 = str(SCRIPTS / 'issue-audit-state.py')
-
-
 class _Run795:
     """A scratch run driven through the real CLI in its own temp git repo."""
 
@@ -22416,11 +22530,10 @@ class _Run795:
         self.nonce = out.stdout.splitlines()[0].split('nonce=', 1)[1].strip()
 
     def __call__(self, *argv, nonce=False, stdin=None):
-        args = [sys.executable, _IAS795, *argv]
+        args = list(argv)
         if nonce:
             args += ['--nonce', self.nonce]
-        return _subprocess.run(args, cwd=self.tmp, input=stdin, capture_output=True,
-                               text=True)
+        return _ias_run(args, self.tmp, stdin=stdin)
 
     def state_bytes(self):
         return Path(self.tmp, '.prflow/tmp', f'issue-audit-state-{self.slug}.json').read_bytes()
@@ -24520,8 +24633,7 @@ with tempfile.TemporaryDirectory() as _t793:
 # arm needs after the turn that computed the path is gone.
 
 def _793_ias(tmp, *argv, stdin=None):
-    return _subprocess.run([sys.executable, _IAS603, *argv], cwd=tmp, input=stdin,
-                           capture_output=True, text=True)
+    return _ias_run(list(argv), tmp, stdin=stdin)
 
 
 with tempfile.TemporaryDirectory() as _t793b:
