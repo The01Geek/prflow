@@ -1168,7 +1168,8 @@ decided spec). The two-stage gate described below is unchanged by this framing �
 of named deliverables; it does not decide whether the doc pass runs.
 
 Path extraction is **deterministic, not LLM-interpreted** (issue #185 Addendum): a bundled helper,
-`scripts/extract-doc-needed-paths.sh`, is the single extraction boundary both stages consume. It reads
+`scripts/extract-doc-needed-paths.sh`, is the single extraction boundary, reached by both stages through
+the read helper described below (issue #1554). It reads
 the issue body, scopes strictly to the Documentation Needed block under `## Implementation
 Notes` — recognized in **any** of the three scope-opening shapes real bodies use: the template's
 canonical `- **Documentation Needed** — …` list item (issue #185), a bare, blank-line-preceded
@@ -1267,8 +1268,9 @@ executable CLI fixes the second, and one shared contract paragraph in the phase 
 
 Both failure tokens fail **closed**: the deliverable list is unknown, never empty, so §4.1 routes
 them to `Blocked`. The phase file also carries a **residual arm** for every observation outside the
-token-and-status contract — no output at all, an unrecognized token, a token paired with a status the
-contract does not pair it with, a status outside the closed set, and any reading that the helper did
+token-and-status contract — no output at all, no `docgate-outcome: ` line in the result, more than one
+such line, an unrecognized token, a token paired with a status the contract does not pair it with, a
+status outside the closed set, and any reading that the helper did
 not run (`command not found`, `No such file`, `Permission denied`, rc 126, rc 127) — routing to that
 same `Blocked` path, because a deliverable gate that continues on an unestablished read is not a
 gate. `gh` writes HTTP error bodies to stdout, so the helper judges each attempt by its own exit
