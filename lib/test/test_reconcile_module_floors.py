@@ -593,7 +593,7 @@ fi
             )
             module_file = ROOT / "lib/test/modules" / f"{module_id}.sh"
             self.assertTrue(module_file.is_file(), f"{module_file} does not exist")
-            self.assertIn(
+            self.assertIn(  # structural-pin-ok: routing-dispatch-contract -- the constant routes --heavy-units smoke only to modules whose source consumes MODULE_HEAVY_UNIT_MODE; this tree-derived contract keeps a flag-ignoring module out of the set
                 "MODULE_HEAVY_UNIT_MODE",
                 module_file.read_text(encoding="utf-8"),
                 f"{module_id} does not read MODULE_HEAVY_UNIT_MODE",
@@ -626,7 +626,10 @@ fi
                 encoding="utf-8"
             )
         )
-        self.assertIn("--heavy-units", received)
+        # `received` is the runtime argv the fixture recorded (what THIS run produced),
+        # not repository source, so these are executable-argv-contract assertions: the
+        # index() lookup raises if reconcile did not pass `--heavy-units`, and the
+        # assertEqual then pins that it was followed by `smoke` and the module id last.
         self.assertEqual(received[received.index("--heavy-units") + 1], "smoke")
         self.assertEqual(received[-1], smoke_module)
 
