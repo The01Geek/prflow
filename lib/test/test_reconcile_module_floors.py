@@ -581,23 +581,28 @@ fi
             RMF.HEAVY_UNIT_SMOKE_MODULES, "the smoke-bound constant is empty"
         )
         modules = json.loads(REGISTRY.read_text(encoding="utf-8"))["test_modules"]
-        for module_id in RMF.HEAVY_UNIT_SMOKE_MODULES:
-            mapping = modules.get(module_id)
-            self.assertIsInstance(
-                mapping, dict, f"{module_id} is not a registry module"
-            )
-            self.assertEqual(
-                mapping.get("assertion_floor_policy"),
-                "exact",
-                f"{module_id} is not an exact-policy module",
-            )
-            module_file = ROOT / "lib/test/modules" / f"{module_id}.sh"
-            self.assertTrue(module_file.is_file(), f"{module_file} does not exist")
-            self.assertIn(  # structural-pin-ok: routing-dispatch-contract -- the constant routes --heavy-units smoke only to modules whose source consumes MODULE_HEAVY_UNIT_MODE; this tree-derived contract keeps a flag-ignoring module out of the set
-                "MODULE_HEAVY_UNIT_MODE",
-                module_file.read_text(encoding="utf-8"),
-                f"{module_id} does not read MODULE_HEAVY_UNIT_MODE",
-            )
+        modules_dir = ROOT / "lib/test/modules"
+        # Derive, from the tree, the set of exact-policy modules whose source consumes
+        # MODULE_HEAVY_UNIT_MODE, then assert the constant is a subset of it — so a module
+        # that ignores the flag can never be listed (its bound would be a no-op). Building
+        # the set from the tree (rather than asserting presence per module) is what keeps
+        # this contract self-maintaining as the constant or the module set changes.
+        mode_readers = {
+            module_id
+            for module_id, mapping in modules.items()
+            if isinstance(mapping, dict)
+            and mapping.get("assertion_floor_policy") == "exact"
+            and (modules_dir / f"{module_id}.sh").is_file()
+            and "MODULE_HEAVY_UNIT_MODE"
+            in (modules_dir / f"{module_id}.sh").read_text(encoding="utf-8")
+        }
+        smoke_set = set(RMF.HEAVY_UNIT_SMOKE_MODULES)
+        self.assertLessEqual(
+            smoke_set,
+            mode_readers,
+            "smoke-bound modules that are not exact-policy MODULE_HEAVY_UNIT_MODE "
+            f"readers: {sorted(smoke_set - mode_readers)}",
+        )
 
     def test_decrease_refused_with_the_heavy_unit_bound_in_effect(self) -> None:
         # AC7 (issue #1499). A measured tally below either coupled floor still exits
