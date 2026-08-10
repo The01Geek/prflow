@@ -1741,6 +1741,29 @@ assert_eq "#1054 seed helper: the create body begins with the effective marker" 
 assert_eq "#857 seed helper: argv-recording stub still yields the normal CREATED token" \
   "CREATED 1234
 MARKER mark-xyz" "$(srp857_run 7 mark-xyz)"
+# #1524 — normalize_body's redirect-open-failure arm is reachable. The function's
+# `> "$normalized_body"` group was previously negated with `if ! { … } > f`, which bash reads
+# as success when the redirect cannot open (a failed redirect on a compound is not propagated
+# through `!`), so `normalize_body` returned 0 having written nothing. Extract the function from
+# the copied script and call it with a DIRECTORY destination — an unopenable `>` target,
+# deterministic and uid-independent — and assert it now selects its `return 1` failure arm with
+# the diagnostic breadcrumb. Extraction is by the function's own `name() {` … `}` boundary (not a
+# line number) so it survives the function moving within the file.
+SRP857_FN="$SRP857/normalize_body.sh"
+awk '/^normalize_body\(\) \{/{f=1} f{print} f&&/^\}/{exit}' "$SRP857_SH" > "$SRP857_FN"
+mkdir -p "$SRP857/nb-dest-as-dir"
+printf 'first line\nsecond line\n' > "$SRP857/nb-body.md"
+: > "$SRP857/nb-err.log"
+SRP857_NB_OUT="$(
+  # shellcheck disable=SC1090
+  source "$SRP857_FN"
+  nb_rc=0
+  normalize_body "$SRP857/nb-dest-as-dir" "<!-- prflow:review-progress run=x -->" "$SRP857/nb-body.md" "$SRP857/nb-err.log" || nb_rc=$?
+  if grep -q 'could not normalize the review-progress body' "$SRP857/nb-err.log"; then nb_msg=yes; else nb_msg=no; fi
+  printf '%s|%s' "$nb_rc" "$nb_msg"
+)"
+assert_eq "#1524 normalize_body selects its return-1 failure arm when the normalized-body redirect cannot open (rc + breadcrumb)" \
+  "1|yes" "$SRP857_NB_OUT"
 # ────────────────────────────────────────────────────────────────────────────
 echo "self-contradicting-diff verdict carve-out (Phase 4.2, threshold-independent) (#263)"
 # ────────────────────────────────────────────────────────────────────────────
@@ -42885,6 +42908,72 @@ assert_eq "#664 scanner: a non-repository root fails closed naming git ls-files"
      E664_RC3=$?
      rmdir "$E664_SB" 2>/dev/null || true
      case "$E664_RC3:$E664_OUT3" in 0:*) echo "no: exited 0" ;; *"git ls-files exited"*) echo yes ;; *) echo no ;; esac)"
+
+echo "#1524 negated-compound-redirect: a !-negated compound must not carry a redirect on the compound"
+# ────────────────────────────────────────────────────────────────────────────
+# bash does not propagate a failed redirect on a COMPOUND command through `!`, so
+# `if ! { …; } > "$f"` reads as success when the redirect cannot open and the failure arm
+# never runs. This lint guards against reintroducing the idiom the four #1524 fixes removed.
+NCR_LINT="$LIB/test/lint-negated-compound-redirect.py"
+NCR_FX="$LIB/test/fixtures/lint-negated-compound-redirect"
+# Real-tree run: clean, and auditing a positive number of files (a collapsed-to-zero audit
+# would read "clean" while scanning nothing).
+NCR_OUT="$(python3 "$NCR_LINT" 2>&1)"; NCR_RC=$?
+assert_eq "#1524 scanner: clean on the tree as it stands" "rc=0" \
+  "$([ "$NCR_RC" -eq 0 ] && printf 'rc=0' || printf 'rc=%s | %s' "$NCR_RC" "$NCR_OUT")"
+assert_eq "#1524 scanner: the real-tree run audited a positive number of files" "yes" \
+  "$(printf '%s' "$NCR_OUT" | python3 -c 'import re,sys
+m = re.search(r"audited (\d+) of", sys.stdin.read())
+print("yes" if m and int(m.group(1)) > 0 else "no")')"
+# Fixture-driven behavior. Each case is driven through --files-from over a path list rooted
+# at the fixture directory, because the audited population excludes that directory by design.
+ncr_run() {  # <path…>  -> prints "rc=<n>|<stdout+stderr>"
+  local list out rc
+  list="$(probe_tmp '#1524 fixture list')" || return 0
+  printf '%s\n' "$@" > "$list"
+  out="$(python3 "$NCR_LINT" --root "$NCR_FX" --files-from "$list" 2>&1)"; rc=$?
+  rm -f "$list"
+  printf 'rc=%s|%s' "$rc" "$out"
+}
+# Planted defects — each named form flags on the close line.
+while IFS=: read -r _ncr_file _ncr_line _ncr_what; do
+  [ -n "$_ncr_file" ] || continue
+  assert_eq "#1524 scanner: flags a violation $_ncr_what ($_ncr_file)" "yes" \
+    "$(case "$(ncr_run "$_ncr_file")" in *"|$_ncr_file:$_ncr_line: a !-negated compound"*) echo yes ;; *) echo no ;; esac)"
+done <<'NCR_VIOLATIONS'
+defect-brace-oneline.sh:3:brace group, single line
+defect-subshell-oneline.sh:3:subshell, single line
+defect-brace-multiline.sh:5:brace group across lines, redirect on the close line
+defect-input.sh:3:an input redirect (< "$f") whose first redirect is non-/dev/null
+defect-append.sh:3:an append redirect (>> "$f")
+defect-devnull-then-data.sh:3:a data redirect hidden behind a leading 2>/dev/null (scan every clause, not just the first)
+defect-clobber.sh:3:a clobber-override redirect (>| "$f")
+defect-ampredirect.sh:3:a both-streams-to-file redirect (&> "$f")
+NCR_VIOLATIONS
+# Shapes that must NOT be flagged, each for its own reason.
+while IFS=: read -r _ncr_file _ncr_why; do
+  [ -n "$_ncr_file" ] || continue
+  assert_eq "#1524 scanner: does not flag $_ncr_why ($_ncr_file)" \
+    "rc=0|lint-negated-compound-redirect: audited 1 of 1 files" "$(ncr_run "$_ncr_file")"
+done <<'NCR_CLEAN'
+safe-inside.sh:a redirect placed INSIDE the group (close followed by ;)
+safe-devnull.sh:a redirect to /dev/null on the compound (cannot fail to open)
+safe-not-negated.sh:the correct rc-capture idiom with no ! negation
+safe-marker.sh:a suppressed finding carrying the negated-compound-redirect-ok marker (above the opener)
+safe-marker-trailing.sh:a suppressed finding whose marker is a trailing comment on the opener/close line
+safe-string.sh:the defect shape appearing only inside a quoted string
+safe-fddup.sh:a descriptor dup (>&2) on the compound, which opens no file
+safe-heredoc.sh:a heredoc (<<EOF) on the compound, whose body is in-memory
+safe-herestring.sh:a here-string (<<< word) on the compound, whose body is in-memory
+NCR_CLEAN
+# An unreadable selected path is named and fails closed, never absorbed into a clean pass.
+assert_eq "#1524 scanner: an unreadable selected path is named, not silently skipped" "yes" \
+  "$(case "$(ncr_run no-such-file.sh)" in *"SKIPPED no-such-file.sh"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#1524 scanner: a wholly unreadable population fails closed rather than reporting clean" "rc=1|0 of 1" \
+  "$(ncr_run no-such-file.sh | python3 -c 'import re,sys
+t = sys.stdin.read()
+m = re.search(r"audited (\d+ of \d+)", t)
+print("rc=" + re.match(r"rc=(\d+)", t).group(1) + "|" + (m.group(1) if m else "no-tally"))')"
 
 echo "#1312 executable-helper-mode: an -x-gated bundled helper must be tracked 100755"
 # Mechanical guard (issue #1312): scripts/dedupe-review-command.sh shipped 100644 while
