@@ -10378,6 +10378,30 @@ assert_eq("#1501 AC1: a bare-string checkpoint element with --strip-inherited-ch
           True, "non-sequence" in
           _arity_msg(strip_inherited_checkpoints=True, checkpoint=["k1"]))
 
+# `_plan_checkpoints` keeps its OWN arity guard for its standalone contract, and
+# `_apply_mutations` validates every element before calling it — so no apply-path
+# assertion above can reach it. Drive the function directly, or deleting that guard
+# leaves the suite green.
+for _shape, _reqs, _detail in (
+    ("short element", [["onlykey"]], "got "),
+    ("long element", [["k", "t", "x"]], "got "),
+    ("empty element []", [[]], "got "),
+    ("string-instead-of-sequence", ["k1"], "non-sequence"),
+):
+    try:
+        workpad._plan_checkpoints(_CP_BODY, _reqs)
+        _msg = "ok"
+    except workpad._UpdateError as _e:
+        _msg = str(_e)
+    assert_eq(f"#1501: _plan_checkpoints called directly refuses a {_shape}",
+              True, "--checkpoint takes exactly 2 values (KEY, TEXT)" in _msg)
+    assert_eq(f"#1501: _plan_checkpoints direct-call {_shape} message names {_detail}",
+              True, _detail in _msg)
+# Positive control on the same fixture: a well-formed pair is planned, so the four
+# refusals above cannot be an unrelated precondition rejecting the body.
+assert_eq("#1501: _plan_checkpoints direct-call positive control plans a well-formed pair",
+          [("k1", "t")], workpad._plan_checkpoints(_CP_BODY, [["k1", "t"]]))
+
 # AC3 valid-falsy: the new arity guards must NOT capture any of these four. Two are
 # accepted outright; two already raise their OWN named refusal (empty text / empty
 # rationale), which must not be the arity message.
