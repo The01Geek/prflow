@@ -50,15 +50,21 @@ allowances, recognized by a literal in the offending logical line:
     carries the `issue-body/issue-` cache-path literal.
 
 Recorded disposition of the former second allowance, `devflow-docgate-body`
-(issue #1554). §4.1's Documentation-Needed gate no longer fetches the body in
-the phase file: the fetch, its scratch file and both retries moved into a
-bundled helper under `scripts/`, which the audited population
-(`skills/implement/`) does not cover — so that read is now outside this lint's
-audited population and nothing here checks it. The allowance is REMOVED rather
-than retained: a literal matching nothing is dead configuration, and removing it
-means a future §4.1 scratch capture is caught and re-allowed deliberately rather
-than admitted silently. Read this lint's green result as covering the phase
-files' own fetches only, never as covering the helper's.
+(issue #1554). §4.1's Documentation-Needed gate no longer performs the
+*redirected* body read in the phase file: that fetch, its scratch file and both
+retries moved into a bundled helper under `scripts/`, which the audited
+population (`skills/implement/`) does not cover — so that read is outside this
+lint's reach and nothing here checks it. The allowance is REMOVED rather than
+retained: a literal matching nothing is dead configuration, and removing it means
+a future §4.1 scratch capture is caught and re-allowed deliberately rather than
+admitted silently.
+
+**§4.1 is not read-free, and a green run here does not say it is.** The section
+retains a non-redirecting `gh issue view … | grep -qE` section-presence probe,
+which survives because it matches no detected form — not because it stopped
+existing. So read this lint's green result as covering the detected re-fetch
+forms in the phase files only: never as covering the helper's read, and never as
+evidence that §4.1 performs no body read at all.
 
 A detected form anywhere ELSE in an audited file is a failure.
 

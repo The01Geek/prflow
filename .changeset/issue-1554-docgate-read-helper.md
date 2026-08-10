@@ -7,8 +7,10 @@ Phase 4.1's Documentation-Needed read is now a bundled helper,
 twelve lines of inline shell written twice. The helper owns the issue-body fetch,
 its scratch file, the extractor invocation and both retries, and prints an outcome
 token paired with its own exit status — `deliverables` (0), `no-deliverables` (10),
-`body-read-failed` (11), `extract-failed` (12) — with the deliverable paths printed
-one per line after a `deliverables` token. Stage 1's dispatch briefing and Stage 2's
+`body-read-failed` (11), `extract-failed` (12) — on a `docgate-outcome: ` line, with
+one `docgate-path: ` line per deliverable. Those prefixes keep the outcome readable
+in a tool result that merges the helper's stdout with `gh`'s and the extractor's
+stderr. Stage 1's dispatch briefing and Stage 2's
 per-path diff check now read that list from the command's output rather than from a
 shell variable the runner does not carry between calls, the retry-and-fail-closed
 rule is stated once instead of in two paragraphs that had drifted apart, and a

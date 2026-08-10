@@ -1229,11 +1229,19 @@ Stage B emits.
 
 `scripts/read-doc-needed-deliverables.sh <issue-number>` owns the read both stages perform — the
 `gh issue view` fetch, its scratch file, the invocation of `extract-doc-needed-paths.sh` over it, and
-a retry on each. It prints an **outcome token** as line 1 of stdout and, on success with paths, the
-deliverable paths one per line after it. **That helper's own header is the canonical statement of its
-token vocabulary and the exit status paired with each; read it there rather than from a copy.** Each
-token has its own status, and the success statuses are disjoint from the failure ones, so a token
-paired with the wrong status is detectable.
+a retry on each. It prints an **outcome token** on a `docgate-outcome: ` line and, on success with
+paths, one `docgate-path: ` line per deliverable. **That helper's own header is the canonical
+statement of its token vocabulary and the exit status paired with each; read it there rather than
+from a copy.** Each token has its own status, and the success statuses are disjoint from the failure
+ones, so a token paired with the wrong status is detectable.
+
+**Why the output lines are prefixed rather than positional.** The caller is an agent reading a Bash
+tool result, which merges the helper's stdout with the stderr of `gh` and of the extractor — and the
+extractor emits a `suppressed a span` breadcrumb on stderr for exactly the adversarial bodies this
+gate exists to handle. Under a "line 1 is the token" contract that breadcrumb could present itself as
+the outcome on a read that *succeeded*, routing a good read into the residual `Blocked` arm, and an
+interleaved stderr line could be read as a deliverable path. The suite's fixture harness therefore
+merges the two streams too, rather than isolating them into a contract the caller never gets.
 
 Why the read is a helper at all (issue #1554): both stages previously carried the same inline shell,
 byte-for-byte, capturing the paths into a `DOC_NEEDED_PATHS` shell variable. That cost three things
