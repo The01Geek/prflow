@@ -265,6 +265,10 @@
       "note": "issue #1170 implement-tier prompt composer (renderer-absent / empty-block / compose-and-publish selection extracted out of devflow-implement.yml); every arm and the arm order driven by the #1170 block in lib/test/run.sh",
       "owner": "unmodularized"
     },
+    "scripts/compose-run-url.sh": {
+      "note": "issue #1536 review-progress run-link composer (single source for the `**Run:**` link); unit arms plus the seed body-rewrite driven by the #1536 block in lib/test/run.sh (monolith) and exercised through scripts/seed-review-progress.sh in the #1054 block of lib/test/modules/review-trigger-helpers.sh",
+      "owner": "unmodularized"
+    },
     "scripts/compose-vendor-marketplace.sh": {
       "note": "issue #1049 implement-tier vendored-marketplace composition; covered by the #1049 block in lib/test/run.sh",
       "owner": "unmodularized"
@@ -1161,6 +1165,10 @@
     },
     "1526": {
       "note": "the widened audited population of lint-ungranted-helper-spelling.py: the prompt-extension prefix and the two exact auto-loaded paths are reported like a skills/ path, the exact-path half is not a docs/internal/ prefix, every declared population member (exact paths and prefixes alike) is reachable by the default index enumeration, and the empty-audited floor message names the widened members",
+      "owner": "unmodularized"
+    },
+    "1536": {
+      "note": "compose-run-url.sh unit arms and the seed body-rewrite / RUNLINK assertions (the review-progress Run link is helper-composed, not agent-fabricated)",
       "owner": "unmodularized"
     },
     "157": {
