@@ -359,6 +359,19 @@ of sites/values, or a predicate-restating scope word is rewritten or removed per
 treatments before commit — even when it is currently accurate — because an accurate-today mirror-fact comment
 is precisely the one that silently rots once a later change updates the code and not the comment.
 
+Beside the mirror-fact clause the sweep carries two further always-on steps, both enforcing the §2.3
+prevention-only comment standard on the diff's own added or changed comments. The **prevention** step
+moves or deletes, before commit, every comment that names no specific wrong change it prevents — including
+one that is accurate, interesting and true, because an explanation no reader would mis-edit without is not
+prevention. The **restatement** step forbids a fact stated in one comment the change adds or modifies from
+being restated in another, keeping the docstring as the retained site where one states it; it is distinct
+from the mirror-fact step — that one governs a comment mirroring the *code* beside it, this one a comment
+mirroring *another comment*, and neither subsumes the other. Each step carries its own routing and
+fail-closed arm in its own text: displaced rationale goes to the project's internal-documentation location,
+and where no such location is available to the run the comment is compressed to the three-line cap or
+deleted rather than silently kept at length — self-contained so the fix loop, which imports the sweep
+bodies from the sweep-selection preamble down, carries them intact.
+
 ## Coverage-claim enumeration sweep (2.3.4b)
 
 2.3.4b exists because a **coverage claim is a different claim type from a behavioral one**, and the

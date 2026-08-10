@@ -1427,6 +1427,11 @@ SRP857="$(git_sandbox '#857 seed-review-progress driver')"
 mkdir -p "$SRP857/scripts"
 cp "$LIB/../scripts/seed-review-progress.sh" "$SRP857/scripts/seed-review-progress.sh"
 chmod +x "$SRP857/scripts/seed-review-progress.sh"
+# compose-run-url.sh lives beside the seed helper and the seed helper execs it by SCRIPT_DIR
+# (#1536); copy it in so the RUNLINK line and the created body's rewritten `**Run:**` line are
+# exercised by the real helper rather than the seed's fail-closed `_(local run)_` fallback.
+cp "$LIB/../scripts/compose-run-url.sh" "$SRP857/scripts/compose-run-url.sh"
+chmod +x "$SRP857/scripts/compose-run-url.sh"
 SRP857_SH="$SRP857/scripts/seed-review-progress.sh"
 : > "$SRP857/body.md"
 # Emit a stub workpad.py whose `id`/`create` exit behavior each row selects via env vars.
@@ -1464,13 +1469,15 @@ srp857_expect() {   # $1=label $2=expected refusal token $3=actual stdout
 srp857_stub 0 "999" "" 0 ""
 assert_eq "#857/#1054 seed helper: existing comment reports RESUME <id> and authoritative marker" \
   "RESUME 999
-MARKER m" "$(srp857_run 7 m)"
+MARKER m
+RUNLINK _(local run)_" "$(srp857_run 7 m)"
 assert_eq "#857 seed helper: RESUME exits 0" "0" "$(srp857_run 7 m >/dev/null; echo $?)"
 # CREATED: id exit 2 silent (clean absence) -> create prints the new id.
 srp857_stub 2 "" "" 0 "1234"
 assert_eq "#857/#1054 seed helper: clean absence reports CREATED <id> and authoritative marker" \
   "CREATED 1234
-MARKER m" "$(srp857_run 7 m)"
+MARKER m
+RUNLINK _(local run)_" "$(srp857_run 7 m)"
 assert_eq "#857 seed helper: CREATED exits 0" "0" "$(srp857_run 7 m >/dev/null; echo $?)"
 # S1: a non-numeric / empty PR number is refused BEFORE the id call.
 srp857_stub 0 "999" "" 0 ""   # stub would RESUME if reached — it must not be
@@ -1507,7 +1514,8 @@ chmod 755 "$SRP857/scripts/workpad.py"
 srp857_stub 0 "999" "" 0 ""
 assert_eq "#857 seed helper (S2): positive control -- the same fixture RESUMEs once readable" \
   "RESUME 999
-MARKER m" "$(srp857_run 7 m)"
+MARKER m
+RUNLINK _(local run)_" "$(srp857_run 7 m)"
 # The scratch-file arm IS drivable, and driving it beats declaring it: the helper calls a
 # BARE `mktemp` resolved on PATH, so a PATH-shadowing stub that exits 1 reaches the arm on any
 # POSIX host -- no root, no GNU flag, and no dependence on whether this host's mktemp honors
@@ -1524,7 +1532,8 @@ printf '%s\n' '#!/bin/sh' 'printf "%s\\n" "$TMPDIR/srp857-ok"; : > "$TMPDIR/srp8
 srp857_stub 0 "999" "" 0 ""
 assert_eq "#871 seed helper (mktemp arm): positive control -- a PATH-shadowed mktemp that SUCCEEDS still RESUMEs" \
   "RESUME 999
-MARKER m" "$(TMPDIR="$SRP857" PATH="$SRP857/bin:$PATH" srp857_run 7 m)"
+MARKER m
+RUNLINK _(local run)_" "$(TMPDIR="$SRP857" PATH="$SRP857/bin:$PATH" srp857_run 7 m)"
 printf '%s\n' '#!/bin/sh' 'exit 1' > "$SRP857/bin/mktemp"
 srp857_expect "#871 seed helper: the id-stderr scratch file could not be created -> SKIP api-error-scratch-file" \
   "SKIP api-error-scratch-file" "$(TMPDIR="$SRP857" PATH="$SRP857/bin:$PATH" srp857_run 7 m)"
@@ -1564,7 +1573,8 @@ srp857_expect "#857/#1054 seed helper: no cloud or local marker -> SKIP no-run-k
 assert_eq "#857/#1054 seed helper: SKIP no-run-key exits 3" "3" "$(srp857_run 7 '' >/dev/null; echo $?)"
 assert_eq "#857 seed helper: positive control -- the same fixture RESUMEs with a non-empty marker" \
   "RESUME 999
-MARKER m" "$(srp857_run 7 m)"
+MARKER m
+RUNLINK _(local run)_" "$(srp857_run 7 m)"
 # exit 0 with an EMPTY printed id never becomes a bare `RESUME `/`CREATED ` — an empty
 # $WP would make every later patch call a silent no-op (the frozen-comment failure).
 srp857_stub 0 "" "" 0 ""
@@ -1575,11 +1585,103 @@ srp857_stub 2 "" "" 0 ""
 srp857_expect "#857/#871 seed helper: create exit 0 with no printed id -> SKIP api-error-create-empty-id, never a bare CREATED" \
   "SKIP api-error-create-empty-id" "$(srp857_run 7 m)"
 assert_eq "#871 seed helper: SKIP api-error-create-empty-id exits 3" "3" "$(srp857_run 7 m >/dev/null; echo $?)"
-# No silent path: every success prints its outcome and marker lines (refusals
-# remain one attributed SKIP line).
+# No silent path: every success prints its outcome, marker, and run-link lines (refusals
+# remain one attributed SKIP line). The RUNLINK line (#1536) makes the success shape three
+# lines, not two.
 srp857_stub 0 "999" "" 0 ""
-assert_eq "#857/#1054 seed helper: success stdout has exactly outcome + marker lines" "2" \
+assert_eq "#857/#1054/#1536 seed helper: success stdout has exactly outcome + marker + runlink lines" "3" \
   "$(srp857_run 7 m | grep -c .)"
+
+# ── #1536: the review progress comment's run link is HELPER-composed, not agent-fabricated ──
+# The run link was assembled in agent prose from an unobservable shell assignment, so the agent
+# filled it in from a guess. compose-run-url.sh is now the single place it is composed, and the
+# seed helper rewrites the body's `**Run:**` line to that value at create time and reports it on
+# a RUNLINK line. RED-first: against today's code the created body still carries the literal
+# `$GITHUB_` placeholder (compose-run-url.sh is absent and the helper never rewrote the line).
+S1536_COMPOSE="$LIB/../scripts/compose-run-url.sh"
+# compose-run-url.sh unit arms (criterion 1): full cloud env -> the link; all empty -> _(local run)_; exit 0.
+assert_eq "#1536 compose-run-url: full cloud env prints the [View run] link" \
+  "[View run](https://github.com/o/r/actions/runs/9)" \
+  "$(GITHUB_SERVER_URL=https://github.com GITHUB_REPOSITORY=o/r GITHUB_RUN_ID=9 "$S1536_COMPOSE")"
+assert_eq "#1536 compose-run-url: all three empty prints _(local run)_" "_(local run)_" \
+  "$(env -u GITHUB_SERVER_URL -u GITHUB_REPOSITORY -u GITHUB_RUN_ID "$S1536_COMPOSE")"
+assert_eq "#1536 compose-run-url: exits 0 on the full-env arm" "0" \
+  "$(GITHUB_SERVER_URL=https://github.com GITHUB_REPOSITORY=o/r GITHUB_RUN_ID=9 "$S1536_COMPOSE" >/dev/null; echo $?)"
+assert_eq "#1536 compose-run-url: exits 0 on the all-empty arm" "0" \
+  "$(env -u GITHUB_SERVER_URL -u GITHUB_REPOSITORY -u GITHUB_RUN_ID "$S1536_COMPOSE" >/dev/null; echo $?)"
+# Each single-variable-empty permutation fails CLOSED to _(local run)_ with no https:// (criterion 2).
+# Pass the missing var as an explicit EMPTY string (not `env -u VAR VAR=val`, where the
+# assignment would re-set the var env just unset), so exactly one segment is empty per pass.
+for S1536_MISS in GITHUB_SERVER_URL GITHUB_REPOSITORY GITHUB_RUN_ID; do
+  S1536_S=https://github.com; S1536_R=o/r; S1536_I=9
+  case "$S1536_MISS" in
+    GITHUB_SERVER_URL) S1536_S="" ;;
+    GITHUB_REPOSITORY) S1536_R="" ;;
+    GITHUB_RUN_ID)     S1536_I="" ;;
+  esac
+  S1536_OUT="$(GITHUB_SERVER_URL="$S1536_S" GITHUB_REPOSITORY="$S1536_R" GITHUB_RUN_ID="$S1536_I" "$S1536_COMPOSE")"
+  assert_eq "#1536 compose-run-url: $S1536_MISS empty -> _(local run)_" "_(local run)_" "$S1536_OUT"
+  assert_eq "#1536 compose-run-url: $S1536_MISS empty output carries no https://" "0" \
+    "$(printf '%s' "$S1536_OUT" | grep -c 'https://')"
+done
+# A WHITESPACE-ONLY GITHUB_RUN_ID is treated as empty (fail closed), matching the seed helper's
+# own `${RUN_ID//[[:space:]]/}` marker normalization — so an effectively-local run whose SERVER/REPO
+# happen to be set never gets a broken `.../actions/runs/ ` link. Server/repo set, run id all spaces.
+S1536_WS_OUT="$(GITHUB_SERVER_URL=https://github.com GITHUB_REPOSITORY=o/r GITHUB_RUN_ID='   ' "$S1536_COMPOSE")"
+assert_eq "#1536 compose-run-url: whitespace-only GITHUB_RUN_ID -> _(local run)_ (fail closed)" \
+  "_(local run)_" "$S1536_WS_OUT"
+assert_eq "#1536 compose-run-url: whitespace-only run id output carries no https://" "0" \
+  "$(printf '%s' "$S1536_WS_OUT" | grep -c 'https://')"
+# Seed body rewrite: a body-recording stub captures the created body so the rewritten `**Run:**`
+# line and the RUNLINK<->body agreement are asserted directly (criteria 3, 4, 5).
+S1536="$(git_sandbox '#1536 run-link seed body rewrite')"
+mkdir -p "$S1536/scripts" "$S1536/state"
+cp "$LIB/../scripts/seed-review-progress.sh" "$S1536/scripts/seed-review-progress.sh"
+cp "$LIB/../scripts/compose-run-url.sh" "$S1536/scripts/compose-run-url.sh"
+chmod +x "$S1536/scripts/seed-review-progress.sh" "$S1536/scripts/compose-run-url.sh"
+cat > "$S1536/scripts/workpad.py" <<'PY1536'
+#!/usr/bin/env python3
+import os, sys, shutil
+state = os.environ["S1536_STATE"]
+if sys.argv[1] == "id":
+    raise SystemExit(2)   # clean absence -> create arm
+if sys.argv[1] == "create":
+    shutil.copyfile(sys.argv[-1], os.path.join(state, "created-body"))
+    print("9002"); raise SystemExit(0)
+raise SystemExit(2)
+PY1536
+chmod +x "$S1536/scripts/workpad.py"
+# The body handed to the helper carries the literal placeholder text (single-quoted heredoc,
+# so $GITHUB_* stays literal) — exactly the agent-authored shape that shipped a wrong link.
+cat > "$S1536/body.md" <<'BODY1536'
+# PRFlow Review
+**Run:** [View run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)
+**Status:** 🚀 Reviewing
+BODY1536
+S1536_SEED="$S1536/scripts/seed-review-progress.sh"
+# Criterion 3 + 5 (CREATED arm): stub cloud env -> body Run line is the composed URL, no $GITHUB_,
+# and the RUNLINK literal equals the created body's Run value.
+S1536_OUT="$(GITHUB_SERVER_URL=https://example.test GITHUB_REPOSITORY=acme/widgets GITHUB_RUN_ID=555 GITHUB_RUN_ATTEMPT=1 \
+  S1536_STATE="$S1536/state" "$S1536_SEED" 7 '' "$S1536/body.md" 2>/dev/null)"
+assert_eq "#1536 seed: created body Run line carries the helper-composed link (not the placeholder)" \
+  "**Run:** [View run](https://example.test/acme/widgets/actions/runs/555)" \
+  "$(grep '^\*\*Run:\*\*' "$S1536/state/created-body")"
+assert_eq "#1536 seed: created body carries no \$GITHUB_ placeholder substring" "0" \
+  "$(grep -c 'GITHUB_' "$S1536/state/created-body")"
+assert_eq "#1536 seed: CREATED emits exactly one RUNLINK line" "1" \
+  "$(printf '%s\n' "$S1536_OUT" | grep -c '^RUNLINK ')"
+assert_eq "#1536 seed: the RUNLINK literal equals the created body's Run value" \
+  "RUNLINK [View run](https://example.test/acme/widgets/actions/runs/555)" \
+  "$(printf '%s\n' "$S1536_OUT" | grep '^RUNLINK ')"
+# Criterion 4: all three env empty -> body Run line reads _(local run)_ and no empty [View run]() link.
+# A local fallback marker ('m') is supplied since no cloud run id can derive one.
+env -u GITHUB_SERVER_URL -u GITHUB_REPOSITORY -u GITHUB_RUN_ID -u GITHUB_RUN_ATTEMPT \
+  S1536_STATE="$S1536/state" "$S1536_SEED" 7 'm' "$S1536/body.md" >/dev/null 2>&1
+assert_eq "#1536 seed: all env empty -> created body Run line reads _(local run)_" \
+  "**Run:** _(local run)_" "$(grep '^\*\*Run:\*\*' "$S1536/state/created-body")"
+assert_eq "#1536 seed: all env empty -> created body carries no empty [View run]() link" "0" \
+  "$(grep -cF '[View run]()' "$S1536/state/created-body")"
+
 # (#871) GROUNDED COVERAGE. The rows above are only as complete as the helper's arms, so
 # derive the emitted refusal-token vocabulary from the helper's OWN source and assert it
 # equals the set those rows exercised, widened by the one arm declared undrivable above.
@@ -1740,7 +1842,8 @@ assert_eq "#1054 seed helper: the create body begins with the effective marker" 
 # rows above cannot pass against a stub the helper never actually reached.
 assert_eq "#857 seed helper: argv-recording stub still yields the normal CREATED token" \
   "CREATED 1234
-MARKER mark-xyz" "$(srp857_run 7 mark-xyz)"
+MARKER mark-xyz
+RUNLINK _(local run)_" "$(srp857_run 7 mark-xyz)"
 # #1524 — normalize_body's redirect-open-failure arm is reachable. The function's
 # `> "$normalized_body"` group was previously negated with `if ! { … } > f`, which bash reads
 # as success when the redirect cannot open (a failed redirect on a compound is not propagated
@@ -1758,7 +1861,7 @@ SRP857_NB_OUT="$(
   # shellcheck disable=SC1090
   source "$SRP857_FN"
   nb_rc=0
-  normalize_body "$SRP857/nb-dest-as-dir" "<!-- prflow:review-progress run=x -->" "$SRP857/nb-body.md" "$SRP857/nb-err.log" || nb_rc=$?
+  normalize_body "$SRP857/nb-dest-as-dir" "<!-- prflow:review-progress run=x -->" "$SRP857/nb-body.md" "$SRP857/nb-err.log" "_(local run)_" || nb_rc=$?
   if grep -q 'could not normalize the review-progress body' "$SRP857/nb-err.log"; then nb_msg=yes; else nb_msg=no; fi
   printf '%s|%s' "$nb_rc" "$nb_msg"
 )"
@@ -34233,8 +34336,8 @@ assert_eq "#363 every already-pinned arm shape (incl. optional-leading-paren) st
 # Regression guard: the arm-position fix is a NO-OP on today's Review engine BUNDLE
 # (root + skills/review/phases/*.md — #529 split the engine, so the reviewed surface
 # is every source, not just the root).
-assert_eq "#363 the review-skill head set matches the reviewed count (33 distinct names over the whole bundle; #529 moved fences into references and added only already-counted heads (git hash-object, echo); #857 added seed-review-progress.sh; #1054 moved marker derivation out of the cloud fence, removing date; #1059 added post-review-verdict.sh as the Phase 4.4 verdict-post head)" \
-  "33" "$(python3 -c 'import importlib.util,sys
+assert_eq "#363 the review-skill head set matches the reviewed count (34 distinct names over the whole bundle; #529 moved fences into references and added only already-counted heads (git hash-object, echo); #857 added seed-review-progress.sh; #1054 moved marker derivation out of the cloud fence, removing date; #1059 added post-review-verdict.sh as the Phase 4.4 verdict-post head; #1536 added compose-run-url.sh as the run-link composer)" \
+  "34" "$(python3 -c 'import importlib.util,sys
 s=importlib.util.spec_from_file_location("e",sys.argv[1]);m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
 h=m.extract_heads(open(sys.argv[2],encoding="utf-8").read());print(len({m.name_of(x) for x in h}))' "$ECH" "$REVIEW_BUNDLE")"
 
