@@ -50215,14 +50215,19 @@ assert_eq "#1248 lint: an unreadable/absent audited path is a fail-closed skip, 
 # the canonical verdict-marker statement. Before this widening the fixture files asserted
 # below selected NOTHING and the run refused on the empty-audited floor; each is now
 # audited and reported, which is what makes the widening non-vacuous.
-# Captured once, asserted three times (the AF_RED_OUT idiom below): the lint reports every
-# finding in one run, so three separate invocations would buy nothing but three interpreter
-# starts.
+# Captured once and asserted against below (the AF_RED_OUT idiom): the lint reports every
+# finding in one run, so a separate invocation per assertion would buy nothing but extra
+# interpreter starts.
 UH_1526_OUT="$(uh_run .prflow/prompt-extensions/review.md CLAUDE.md docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md)"
 assert_eq "#1526 lint: a prompt-extension path is audited and reported" "yes" \
   "$(case "$UH_1526_OUT" in "rc=1|"*".prflow/prompt-extensions/review.md:1:"*) echo yes ;; *) echo no ;; esac)"
+# Anchored at a path boundary (the `rc=<n>|` prefix or a newline), never a bare substring:
+# `AUDITED_PATHS` is exact-path, so a regression that audited by BASENAME would report a
+# nested `…/CLAUDE.md` and a bare-substring pattern would call that a pass. The alternation
+# keeps it independent of which position the finding lands in.
 assert_eq "#1526 lint: CLAUDE.md is audited and reported" "yes" \
-  "$(case "$UH_1526_OUT" in *"CLAUDE.md:1: names bundled helper"*) echo yes ;; *) echo no ;; esac)"
+  "$(case "$UH_1526_OUT" in *"|CLAUDE.md:1:"*|*"
+CLAUDE.md:1:"*) echo yes ;; *) echo no ;; esac)"
 assert_eq "#1526 lint: the cited overview page is audited and reported" "yes" \
   "$(case "$UH_1526_OUT" in *"docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md:1:"*) echo yes ;; *) echo no ;; esac)"
 # The exact-path half is EXACT, not a docs/internal/ prefix: a sibling page under the same
@@ -50230,30 +50235,30 @@ assert_eq "#1526 lint: the cited overview page is audited and reported" "yes" \
 # than being scanned. Without this the widening could silently become a docs/ sweep.
 assert_eq "#1526 lint: a sibling docs/internal page is NOT audited (exact-path, not a prefix)" "yes" \
   "$(case "$(uh_run docs/internal/clean-overview.md)" in "rc=1|"*"selected no file under"*) echo yes ;; *) echo no ;; esac)"
-# Every declared population member must be reachable by the DEFAULT (index-reading)
-# enumeration, or that member is inert on the very surface it was written for while every
-# fixture assertion above stays green — they ride --files-from, which bypasses enumeration
-# entirely. Both halves are single-sourced out of the module rather than retyped, and the
-# probe is one interpreter reading the index on stdin, so both halves are decided by the
-# same fail-closed expression rather than by two shells' exit statuses.
+# Every declared population member must appear in the SELECTION the real-tree gate makes —
+# the lint's own enumeration, filtered by its own is_audited — or that member is inert on
+# the very surface it was written for while every fixture assertion above stays green: those
+# ride --files-from, which bypasses enumeration entirely. The probe drives the lint's own
+# `enumerate_population` rather than re-deriving one from a bare `git ls-files`, so a future
+# divergence in `LS_FILES_INDEX` or in the filter cannot leave the probe green while the
+# gate selects nothing. Both tuples are single-sourced out of the module, never retyped.
 #
-# Every arm fails CLOSED, which is the point: an emptied or renamed tuple, a failed module
-# load, and an empty index all print `no`. The earlier `xargs git ls-files --error-unmatch`
-# form did the opposite — xargs runs its command once on empty input and --error-unmatch
-# with no pathspec exits 0, so an emptied AUDITED_PATHS passed vacuously. The prefix half
-# matters most for .prflow/prompt-extensions/, which sits under this repo's /.prflow/*
-# ignore rule and is in the index only because it was force-added, so it can drop out
-# without any other assertion noticing.
-assert_eq "#1526 lint: every declared population member is reachable by the default index enumeration" "yes" \
-  "$(cd "$LIB/.." && git ls-files -z | python3 -c 'import importlib.util, sys
+# Every arm fails CLOSED: an emptied or renamed tuple, a failed module load, an enumeration
+# error, and an empty selection each print `no`. stderr is deliberately NOT suppressed, so a
+# maintainer who trips this reads the discriminating cause in the suite log rather than a
+# bare `no`. The prefix half matters most for `.prflow/prompt-extensions/`, whose tracking
+# depends on an explicit `!` re-inclusion in `.gitignore` rather than on the ordinary
+# default, so it can drop out of the index without any other assertion noticing.
+assert_eq "#1526 lint: every declared population member is in the real-tree audited selection" "yes" \
+  "$(cd "$LIB/.." && python3 -c 'import importlib.util, sys
 spec = importlib.util.spec_from_file_location("uh", sys.argv[1])
 mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
-tracked = [p for p in sys.stdin.buffer.read().decode("utf-8").split("\0") if p]
+sel = [p for p in mod._pop.enumerate_population(mod._REPO_ROOT, None, ls_files_argv=mod._pop.LS_FILES_INDEX) if mod.is_audited(p)]
 paths, prefixes = tuple(mod.AUDITED_PATHS), tuple(mod.AUDITED_PREFIXES)
-ok = bool(tracked) and bool(paths) and bool(prefixes)
-ok = ok and all(p in tracked for p in paths)
-ok = ok and all(any(t.startswith(pre) for t in tracked) for pre in prefixes)
-print("yes" if ok else "no")' "$UH_LINT" 2>/dev/null || echo no)"
+ok = bool(sel) and bool(paths) and bool(prefixes)
+ok = ok and all(p in sel for p in paths)
+ok = ok and all(any(s.startswith(pre) for s in sel) for pre in prefixes)
+print("yes" if ok else "no")' "$UH_LINT" || echo no)"
 # The floor message is what tells a maintainer WHICH surfaces were audited, so pin that it
 # actually names the widened members. The #1248 assertion above matches only the leading
 # 'skills/ or agents/' substring, which a regression dropping AUDITED_PATHS from

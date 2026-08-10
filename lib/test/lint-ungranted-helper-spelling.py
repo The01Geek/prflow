@@ -30,7 +30,9 @@ by an agent choosing to open a file:
 
   * `skills/**` and `agents/**` — the shipped prompt bodies (the issue-#1248 population).
   * `.prflow/prompt-extensions/**` — consumer policy the loader ladder appends verbatim
-    to a skill's prompt.
+    to a skill's prompt. The prefix also takes in the `*.md.example` templates, which no
+    run loads; that over-inclusion is deliberate and fail-safe (a finding on one would be
+    loud, never a missed surface).
   * `CLAUDE.md` — auto-loaded as project memory at the workspace root of every review
     run, and read on instruction by several `agents/*.md` reviewers besides.
   * `docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md` — in scope only because `CLAUDE.md` names
@@ -41,9 +43,10 @@ The boundary stops there deliberately, and the standing convention that document
 names a helper by its canonical `scripts/<name>` source path is why. Auditing `docs/**`
 or the tree at large would flag dozens of legitimate naming mentions on pages no run
 loads — the same over-reach FORBIDDEN SET below rejects for the ~30 other vendored-only
-helpers. What survives both narrowings is small by construction: two basenames whose
-repo-relative spelling was OBSERVED causing a silent cloud denial, on the surfaces a run
-reads without being asked to.
+helpers. What survives both narrowings is small by construction: the two verdict-post
+basenames — one of which was OBSERVED causing a silent cloud denial, both of which are
+in scope by the policy `IN_SCOPE_BASENAMES` records — on the surfaces a run reads without
+being asked to.
 
 The membership rule, stated so a maintainer can apply it rather than re-argue it: a
 surface is audited when the run's own machinery loads it (a prefix above), or when it is
@@ -51,12 +54,15 @@ at **depth 1** from `CLAUDE.md` — a page `CLAUDE.md` designates as the *canoni
 statement of a rule whose non-authoritative summary it carries, so a run following the
 pointer reads it with project-memory authority. Depth stops at 1: a page linked from a
 depth-1 page is not audited, or the population would close over the whole documentation
-graph. **Disclosed residual, and it is the direction that fails silently:** `CLAUDE.md`
-designates several `docs/internal/*.md` pages that way, and `AUDITED_PATHS` is
-hand-maintained rather than derived from those pointers, so a canonical page not listed
-below is unaudited and can teach a run the denied spelling while this lint reports clean.
-A maintainer who moves a helper-invocation rule to a new canonical page adds that page
-here in the same change.
+graph. **Two disclosed residuals, both in the direction that fails silently.** First:
+`CLAUDE.md` designates several `docs/internal/*.md` pages as canonical, and `AUDITED_PATHS`
+is hand-maintained rather than derived from those pointers, so a canonical page not listed
+below is unaudited and can teach a run the denied spelling while this lint reports clean —
+a maintainer who moves a helper-invocation rule to a new canonical page adds that page here
+in the same change. Second: the population is files the run loads, so the **machine-composed**
+prompt text a run also receives — the rendered grounding block, and the workflows' inline
+`prompt:` bodies — is loaded by the run's own machinery yet audited nowhere here. Both are
+clean today; neither is guarded.
 
 MATCHED SHAPE (the thing that FAILS the lint). For each forbidden helper, a repo-
 relative path token whose first segment is exactly `scripts/` or `lib/` immediately
