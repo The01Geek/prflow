@@ -50107,8 +50107,10 @@ assert_eq "#1402 lint: no tracked skills/**+agents/** line names a never-shipped
 # verdict-post helper scripts/<name> is a leading token no profile grants — a cloud run
 # that emits it is silently denied and finishes with no verdict marker (the three review
 # runs of issue #1248). extract-command-heads.py cannot see it (fence-only by design);
-# this lint audits skills/**+agents/** for the ungranted repo-relative spelling of the
-# two in-scope verdict helpers, its forbidden set DERIVED from capability-profiles.json
+# this lint audits the prompt surfaces a cloud review run auto-loads — the population its
+# module docstring's AUDITED POPULATION section defines and bounds — for the ungranted
+# repo-relative spelling of the two in-scope verdict helpers, its forbidden set DERIVED
+# from capability-profiles.json
 # (vendored-only) intersected with the documented in-scope basenames. Sibling of the
 # #1072 pruned-path lint; driven the same way (real tree as the live gate, plus synthetic
 # fixtures through --root/--files-from/--manifest).
@@ -50155,9 +50157,9 @@ assert_eq "#1248 lint: an in-scope helper absent from the manifest refuses" "yes
 assert_eq "#1248 lint: a non-JSON manifest refuses, attributed to the JSON parse" "yes" \
   "$(case "$(uh_forbidden "$UH_FX/manifests/bad.json")" in "rc=1|"*"not valid JSON"*) echo yes ;; *) echo no ;; esac)"
 
-# Audited-population behavior, driven over the fixture skills/agents tree with the
-# fixture vendored-only manifest. Every list rides through probe_tmp so the fixtures stay
-# unreachable from the default index enumeration.
+# Audited-population behavior, driven over the fixture tree with the fixture vendored-only
+# manifest. Every list rides through probe_tmp so the fixtures stay unreachable from the
+# default index enumeration.
 uh_run() {  # <path…> -> "rc=<n>|<stdout+stderr>"
   local list out rc
   list="$(probe_tmp '#1248 fixture list')" || return 0
@@ -50193,7 +50195,7 @@ assert_eq "#1248 lint: an agents/ path is audited and reported like skills/" "ye
 # Empty-audited floor: a list naming only a non-audited path refuses rather than
 # reporting a clean pass over an unchecked surface; adding one audited path audits 1 of 1
 # (floor control + is_audited negative half).
-assert_eq "#1248 lint: an enumeration selecting no skills/agents path refuses (empty-audited floor)" "yes" \
+assert_eq "#1248 lint: an enumeration selecting no audited path refuses (empty-audited floor)" "yes" \
   "$(case "$(uh_run manifests/vendored-only.json)" in "rc=1|"*"selected no file under skills/ or agents/"*) echo yes ;; *) echo no ;; esac)"
 assert_eq "#1248 lint: the same list plus one audited path audits 1 of 1 (floor control + is_audited negative)" \
   "$UH_CLEAN1" \
@@ -50206,6 +50208,81 @@ assert_eq "#1248 lint: the same list plus one audited path audits 1 of 1 (floor 
 # clean.md alongside it proves the run still scanned the readable member (audited 1 of 2).
 assert_eq "#1248 lint: an unreadable/absent audited path is a fail-closed skip, not a silent exclusion" "yes" \
   "$(case "$(uh_run skills/does-not-exist.md skills/clean.md)" in "rc=1|"*"SKIPPED skills/does-not-exist.md"*"refusing to report clean"*) echo yes ;; *) echo no ;; esac)"
+
+# issue #1526: the audited population also covers the prompt surfaces a cloud review run
+# auto-loads outside skills/+agents/ — the consumer prompt-extension prefix, CLAUDE.md
+# (project memory at the review workspace root), and the overview page CLAUDE.md cites as
+# the canonical verdict-marker statement. Before this widening the fixture files asserted
+# below selected NOTHING and the run refused on the empty-audited floor; each is now
+# audited and reported, which is what makes the widening non-vacuous.
+# Captured once and asserted against below (the AF_RED_OUT idiom): the lint reports every
+# finding in one run, so a separate invocation per assertion would buy nothing but extra
+# interpreter starts.
+UH_1526_OUT="$(uh_run .prflow/prompt-extensions/review.md CLAUDE.md docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md)"
+assert_eq "#1526 lint: a prompt-extension path is audited and reported" "yes" \
+  "$(case "$UH_1526_OUT" in "rc=1|"*".prflow/prompt-extensions/review.md:1:"*) echo yes ;; *) echo no ;; esac)"
+# Anchored at a path boundary (the `rc=<n>|` prefix or a newline), never a bare substring:
+# `AUDITED_PATHS` is exact-path, so a regression that audited by BASENAME would report a
+# nested `…/CLAUDE.md` and a bare-substring pattern would call that a pass. The alternation
+# keeps it independent of which position the finding lands in.
+assert_eq "#1526 lint: CLAUDE.md is audited and reported" "yes" \
+  "$(case "$UH_1526_OUT" in *"|CLAUDE.md:1:"*|*"
+CLAUDE.md:1:"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#1526 lint: the cited overview page is audited and reported" "yes" \
+  "$(case "$UH_1526_OUT" in *"docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md:1:"*) echo yes ;; *) echo no ;; esac)"
+# The exact-path half is EXACT, not a docs/internal/ prefix: a sibling page under the same
+# directory is outside the population, so it alone hits the empty-audited floor rather
+# than being scanned. Without this the widening could silently become a docs/ sweep.
+assert_eq "#1526 lint: a sibling docs/internal page is NOT audited (exact-path, not a prefix)" "yes" \
+  "$(case "$(uh_run docs/internal/clean-overview.md)" in "rc=1|"*"selected no file under"*) echo yes ;; *) echo no ;; esac)"
+# The other half of exact-path: a NESTED file whose basename is an audited member is
+# outside the population. The fixture carries the forbidden spelling, so a regression
+# loosening the exact-path arm to a basename comparison reports it as a finding instead
+# of hitting the floor — and both outcomes are rc=1, which is why this matches the floor
+# MESSAGE rather than the status.
+assert_eq "#1526 lint: a nested CLAUDE.md is NOT audited (exact path, not a basename)" "yes" \
+  "$(case "$(uh_run nested/CLAUDE.md)" in "rc=1|"*"selected no file under"*) echo yes ;; *) echo no ;; esac)"
+# is_audited normalizes Windows-form separators before deciding, on BOTH arms. Driven as a
+# unit because the fixture path lists above ride through the enumeration, which never
+# yields a backslash form. Fails closed: a module-load or attribute failure prints `no`.
+assert_eq "#1526 lint: is_audited normalizes Windows-form separators on both arms" "yes" \
+  "$(cd "$LIB/.." && python3 -c 'import importlib.util, sys
+spec = importlib.util.spec_from_file_location("uh", sys.argv[1])
+mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+ok = mod.is_audited(r"docs\internal\DEVFLOW_SYSTEM_OVERVIEW.md")      # exact-path arm
+ok = ok and mod.is_audited(r"skills\review\SKILL.md")                  # prefix arm
+ok = ok and not mod.is_audited(r"nested\CLAUDE.md")                    # still exact, not basename
+print("yes" if ok else "no")' "$UH_LINT" || echo no)"
+# Every declared population member must appear in the SELECTION the real-tree gate makes —
+# the lint's own enumeration, filtered by its own is_audited — or that member is inert on
+# the very surface it was written for while every fixture assertion above stays green: those
+# ride --files-from, which bypasses enumeration entirely. The probe drives the lint's own
+# `enumerate_population` rather than re-deriving one from a bare `git ls-files`, so a future
+# divergence in `LS_FILES_INDEX` or in the filter cannot leave the probe green while the
+# gate selects nothing. Both tuples are single-sourced out of the module, never retyped.
+#
+# Every arm fails CLOSED: an emptied or renamed tuple, a failed module load, an enumeration
+# error, and an empty selection each print `no`. stderr is deliberately NOT suppressed, so a
+# maintainer who trips this reads the discriminating cause in the suite log rather than a
+# bare `no`. The prefix half matters most for `.prflow/prompt-extensions/`, whose tracking
+# depends on an explicit `!` re-inclusion in `.gitignore` rather than on the ordinary
+# default, so it can drop out of the index without any other assertion noticing.
+assert_eq "#1526 lint: every declared population member is in the real-tree audited selection" "yes" \
+  "$(cd "$LIB/.." && python3 -c 'import importlib.util, sys
+spec = importlib.util.spec_from_file_location("uh", sys.argv[1])
+mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+sel = [p for p in mod._pop.enumerate_population(mod._REPO_ROOT, None, ls_files_argv=mod._pop.LS_FILES_INDEX) if mod.is_audited(p)]
+paths, prefixes = tuple(mod.AUDITED_PATHS), tuple(mod.AUDITED_PREFIXES)
+ok = bool(sel) and bool(paths) and bool(prefixes)
+ok = ok and all(p in sel for p in paths)
+ok = ok and all(any(s.startswith(pre) for s in sel) for pre in prefixes)
+print("yes" if ok else "no")' "$UH_LINT" || echo no)"
+# The floor message is what tells a maintainer WHICH surfaces were audited, so pin that it
+# actually names the widened members. The #1248 assertion above matches only the leading
+# 'skills/ or agents/' substring, which a regression dropping AUDITED_PATHS from
+# population_description() would still satisfy.
+assert_eq "#1526 lint: the empty-audited floor message names the widened members" "yes" \
+  "$(case "$(uh_run manifests/vendored-only.json)" in *".prflow/prompt-extensions/ or CLAUDE.md or docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md"*) echo yes ;; *) echo no ;; esac)"
 
 # AC5: this repository's own local tier resolves the repo-root form (the vendored tree is
 # materialized only at runtime and is absent from the working tree), so the repo-root
