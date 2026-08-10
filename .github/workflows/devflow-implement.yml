@@ -1509,9 +1509,26 @@ jobs:
           #
           # The #1132 shard-decomposition fallback stays the in-run route if a command
           # is ever terminated at this raised ceiling.
+          #
+          # THE FREE ALLOWANCE IS A SECOND, DISTINCT VARIABLE. Claude Code documents
+          # BASH_DEFAULT_TIMEOUT_MS (the timeout a Bash call gets when it requests none,
+          # default 120000 ms) separately from BASH_MAX_TIMEOUT_MS (the largest timeout the
+          # model may request). #1179 raised only the ceiling, so an unparameterized command
+          # still died at two minutes: Actions run 31424543691 spent 480 s — 9.2% of an
+          # 87-minute run — on four commands killed at 120000 ms and then re-issued with an
+          # explicit longer timeout. All four succeeded on retry at <= 600000 ms.
+          #
+          # 600000 and not 1200000, for three reasons. (a) Every observed kill retried
+          # successfully within 600000 ms, so nothing measured needs more. (b) Keeping a gap
+          # between the free allowance and the ceiling means a genuinely hung UNPARAMETERIZED
+          # command costs ten minutes rather than twenty. (c) The effective per-command wall
+          # is documented as the LARGER of the two, so a default at or above the max would
+          # silently redefine the bound #1179 chose — which is why lib/test/run.sh asserts
+          # default < max per step rather than merely asserting the key is present.
           settings: |
             {
               "env": {
+                "BASH_DEFAULT_TIMEOUT_MS": "600000",
                 "BASH_MAX_TIMEOUT_MS": "1200000"
               }
             }

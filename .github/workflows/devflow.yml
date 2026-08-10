@@ -1718,9 +1718,21 @@ jobs:
           # never by re-deriving the mechanism here. The #1132 shard-decomposition
           # fallback stays the in-run route if a command is ever terminated at this
           # raised ceiling.
+          #
+          # BASH_DEFAULT_TIMEOUT_MS is the separate variable governing a Bash call that
+          # requests no timeout of its own (Claude Code's default: 120000 ms). #1179 raised
+          # only the ceiling, so unparameterized commands still died at two minutes — measured
+          # on the implement tier as 480 s of pure re-issue waste in one 87-minute run. The
+          # 600000 ms value and the deliberate gap below the ceiling are justified beside the
+          # `settings:` input in devflow-implement.yml; the two tiers are mirrored, so edit
+          # that block. CONSUMER NOTE: install.sh ships THIS workflow, so this raises the free
+          # allowance for every unparameterized Bash call in a consumer run too — a permissive
+          # upper bound, never a prediction about their commands, and a consumer wanting the
+          # two-minute default back removes the key in their own copy.
           settings: |
             {
               "env": {
+                "BASH_DEFAULT_TIMEOUT_MS": "600000",
                 "BASH_MAX_TIMEOUT_MS": "1200000"
               }
             }
