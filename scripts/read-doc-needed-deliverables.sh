@@ -12,11 +12,12 @@
 # caller reads the deliverable list from this command's stdout rather than from a
 # shell variable that does not survive to the next tool call.
 #
-# TOKEN VOCABULARY (closed; line 1 of stdout is always one of these):
+# TOKEN VOCABULARY (closed):
 #
 #   deliverables       the body was read and the extraction returned >=1 path
 #   no-deliverables    the body was read and the extraction returned no path
-#   body-read-failed   both `gh issue view` attempts failed
+#   body-read-failed   the body could not be read — the scratch leaf was
+#                      uncreatable, or both `gh issue view` attempts failed
 #   extract-failed     both extractor attempts failed
 #
 # EXIT STATUSES (closed; one status per token, success disjoint from failure):
@@ -31,7 +32,19 @@
 # three-class contract, where 2 means BLOCKED — a decided answer, not a bad call.
 #
 # Usage: read-doc-needed-deliverables.sh <issue-number>
-# stdout: line 1 = the token; on `deliverables`, one path per line after it.
+#
+# STDOUT SHAPE — each line is SELF-IDENTIFYING BY PREFIX, never by position:
+#
+#   docgate-outcome: <token>     exactly one, on every non-usage exit
+#   docgate-path: <path>         zero or more, one per deliverable, after the
+#                                outcome line and only on `deliverables`
+#
+# The prefixes are load-bearing, not decoration. The caller is an agent reading a
+# tool result that merges this command's stdout with the stderr of `gh` and of the
+# extractor — and the extractor emits a `suppressed a span` breadcrumb on stderr for
+# exactly the adversarial bodies this gate exists to handle. A positional "line 1 is
+# the token" contract would read that breadcrumb as the token on a read that
+# succeeded, and would read an interleaved stderr line as a deliverable path.
 #
 # Failing the read means the deliverable list is UNKNOWN, never empty: a caller
 # that treats a failure token as `no-deliverables` waves the gate through exactly
@@ -60,9 +73,18 @@ case "${BASH_SOURCE[0]}" in
   *)   _RDND_DIR="$(pwd)" ;;
 esac
 
+# Guarded source with an outcome check (never a bare `[ -f ]` precondition): a
+# partial deployment missing lib/resolve-gh.sh would otherwise leave DEVFLOW_GH
+# empty and surface as `body-read-failed`, naming GitHub for a packaging fault.
 # shellcheck source=../lib/resolve-gh.sh
-. "$_RDND_DIR/../lib/resolve-gh.sh"
-: "${DEVFLOW_GH:=$(devflow_resolve_gh)}"
+if [ -f "$_RDND_DIR/../lib/resolve-gh.sh" ] \
+   && . "$_RDND_DIR/../lib/resolve-gh.sh" \
+   && type devflow_resolve_gh >/dev/null 2>&1; then
+  : "${DEVFLOW_GH:=$(devflow_resolve_gh)}"
+else
+  echo "devflow: resolve-gh.sh not found or not sourceable beside read-doc-needed-deliverables.sh — gh resolution degraded to DEVFLOW_GH-or-bare-gh" >&2
+  : "${DEVFLOW_GH:=gh}"
+fi
 
 EXTRACTOR="${DEVFLOW_DOC_NEEDED_EXTRACTOR:-$_RDND_DIR/extract-doc-needed-paths.sh}"
 
@@ -74,31 +96,38 @@ BODY_FILE="$SCRATCH/devflow-docgate-body-$ISSUE.txt"
 # never an empty deliverable list.
 if ! mkdir -p "$SCRATCH"; then
   echo "devflow: could not create $SCRATCH for the Documentation Needed gate" >&2
-  printf '%s\n' body-read-failed
+  printf 'docgate-outcome: %s\n' body-read-failed
   exit 11
 fi
+# Drop any stale capture first, so a body left by a prior invocation can never be
+# extracted from after a read that failed.
 rm -f "$BODY_FILE"
 
 # Read and retry, each attempt judged by its own exit status inline. gh's stderr
 # is deliberately NOT captured to a file: it flows to the caller, where the run
-# can actually read why a failed read failed.
+# can actually read why a failed read failed. The prefixed stdout shape above is
+# what keeps that interleaving from corrupting the outcome the caller reads.
 if ! "$DEVFLOW_GH" issue view "$ISSUE" --json body --jq '.body' > "$BODY_FILE" \
    && ! "$DEVFLOW_GH" issue view "$ISSUE" --json body --jq '.body' > "$BODY_FILE"; then
-  printf '%s\n' body-read-failed
+  printf 'docgate-outcome: %s\n' body-read-failed
   exit 11
 fi
 
 if ! DOC_NEEDED_PATHS="$("$EXTRACTOR" < "$BODY_FILE")" \
    && ! DOC_NEEDED_PATHS="$("$EXTRACTOR" < "$BODY_FILE")"; then
-  printf '%s\n' extract-failed
+  printf 'docgate-outcome: %s\n' extract-failed
   exit 12
 fi
 
 if [ -z "$DOC_NEEDED_PATHS" ]; then
-  printf '%s\n' no-deliverables
+  printf 'docgate-outcome: %s\n' no-deliverables
   exit 10
 fi
 
-printf '%s\n' deliverables
-printf '%s\n' "$DOC_NEEDED_PATHS"
+printf 'docgate-outcome: %s\n' deliverables
+# Read line-wise rather than word-splitting, so a path carrying whitespace stays
+# one deliverable instead of becoming several.
+printf '%s\n' "$DOC_NEEDED_PATHS" | while IFS= read -r _rdnd_path; do
+  printf 'docgate-path: %s\n' "$_rdnd_path"
+done
 exit 0

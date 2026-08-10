@@ -11094,64 +11094,131 @@ printf '%s\n' "## Implementation Notes" "" \
   "- **Documentation Needed** — update \`docs/internal/implement-skill.md\`; verify with \`bash lib/test/run.sh\` and grant \`Bash(scripts/x.sh:*)\`." \
   > "$rdnd_dir/body-adversarial.md"
 
+# An extractor stub that fails only its FIRST call, so the extractor retry has the
+# same both-orderings coverage the gh retry does.
+cat > "$rdnd_dir/flaky-extractor" <<'RDND_FLAKY_STUB'
+#!/usr/bin/env bash
+n=$(cat "$RDND_EXTRACT_COUNT_FILE" 2>/dev/null || echo 0); n=$((n + 1)); echo "$n" > "$RDND_EXTRACT_COUNT_FILE"
+if [ "$n" -le 1 ]; then
+  echo "extract-doc-needed-paths.sh: token scan error" >&2
+  exit 3
+fi
+exec "$RDND_REAL_EXTRACTOR"
+RDND_FLAKY_STUB
+chmod +x "$rdnd_dir/flaky-extractor"
+
 # rdnd_run BODY_FILE FAIL_TIMES [EXTRACTOR] -> prints the helper's stdout, then a
 # final line `rc=<status>`, so one capture carries both halves of the contract.
+# stderr is MERGED, not discarded: the caller is an agent reading a merged tool
+# result, so isolating the streams here would assert a contract the caller never
+# gets — and the helper's prefixed stdout shape is exactly what has to survive that
+# merge. Non-`docgate-` lines are dropped so a stub's or the extractor's own
+# breadcrumb is not mistaken for a helper assertion failure.
 rdnd_run() {
   local _body="$1" _fails="${2:-0}" _extractor="${3:-}" _out _rc
   : > "$rdnd_dir/count"
+  : > "$rdnd_dir/extract-count"
   _out="$(RDND_COUNT_FILE="$rdnd_dir/count" RDND_BODY_FILE="$_body" RDND_FAIL_TIMES="$_fails" \
+          RDND_EXTRACT_COUNT_FILE="$rdnd_dir/extract-count" RDND_REAL_EXTRACTOR="$EXTRACT_HELPER" \
           DEVFLOW_GH="$rdnd_dir/gh" DEVFLOW_DOC_NEEDED_EXTRACTOR="$_extractor" \
-          bash "$RDND_HELPER" 1554 2>/dev/null)"
-  _rc=$?
+          bash "$RDND_HELPER" 1554 2>&1 | grep '^docgate-')"
+  _rc=${PIPESTATUS[0]}
   printf '%s\nrc=%s\n' "$_out" "$_rc"
 }
 
-# Token 1 of 4 — `deliverables` (0): the paths are printed after the token, one
-# per line, which is what makes them readable from the tool result at all.
+# Token 1 of 4 — `deliverables` (0): the paths follow the outcome line, each on its
+# own prefixed line, which is what makes them readable from the tool result at all.
 assert_eq "#1554 token vocabulary: a non-empty extraction prints \`deliverables\`, its paths, and exit 0" \
-  "$(printf 'deliverables\ndocs/internal/implement-skill.md\nrc=0')" \
+  "$(printf 'docgate-outcome: deliverables\ndocgate-path: docs/internal/implement-skill.md\nrc=0')" \
   "$(rdnd_run "$rdnd_dir/body-paths.md")"
 # Token 2 of 4 — `no-deliverables` (10), reached two ways: no section at all, and
 # a section carrying only non-path prose.
 assert_eq "#1554 token vocabulary: an absent Documentation Needed section prints \`no-deliverables\` and exit 10" \
-  "$(printf 'no-deliverables\nrc=10')" \
+  "$(printf 'docgate-outcome: no-deliverables\nrc=10')" \
   "$(rdnd_run "$rdnd_dir/body-nosection.md")"
 assert_eq "#1554 token vocabulary: a section holding only non-path prose prints \`no-deliverables\` and exit 10" \
-  "$(printf 'no-deliverables\nrc=10')" \
+  "$(printf 'docgate-outcome: no-deliverables\nrc=10')" \
   "$(rdnd_run "$rdnd_dir/body-prose.md")"
 # Token 3 of 4 — `body-read-failed` (11). This is the arm ordering the gate rests
 # on: both attempts fail, and the HTTP error blob the stub left on stdout must NOT
 # be read as a body, so the outcome is a READ FAILURE and never an empty extraction.
 assert_eq "#1554 arm order: a body read failing BOTH attempts is a read failure, not an empty extraction" \
-  "$(printf 'body-read-failed\nrc=11')" \
+  "$(printf 'docgate-outcome: body-read-failed\nrc=11')" \
   "$(rdnd_run "$rdnd_dir/body-paths.md" 2)"
 # The other half of that ordering: one failure is not a failure. A read that
 # succeeds on its retry yields the success token, so a flaky fetch never Blocks.
 assert_eq "#1554 arm order: a read succeeding on its SECOND attempt yields the success token" \
-  "$(printf 'deliverables\ndocs/internal/implement-skill.md\nrc=0')" \
+  "$(printf 'docgate-outcome: deliverables\ndocgate-path: docs/internal/implement-skill.md\nrc=0')" \
   "$(rdnd_run "$rdnd_dir/body-paths.md" 1)"
 # Token 4 of 4 — `extract-failed` (12), driven with a failing extractor and a
 # WORKING read, so the two failure tokens are told apart by their own cause.
 assert_eq "#1554 token vocabulary: an extractor failing BOTH attempts prints \`extract-failed\` and exit 12" \
-  "$(printf 'extract-failed\nrc=12')" \
+  "$(printf 'docgate-outcome: extract-failed\nrc=12')" \
   "$(rdnd_run "$rdnd_dir/body-paths.md" 0 "$rdnd_dir/bad-extractor")"
+# The extractor retry's other ordering, symmetric with the gh retry above.
+assert_eq "#1554 arm order: an extractor succeeding on its SECOND attempt yields the success token" \
+  "$(printf 'docgate-outcome: deliverables\ndocgate-path: docs/internal/implement-skill.md\nrc=0')" \
+  "$(rdnd_run "$rdnd_dir/body-paths.md" 0 "$rdnd_dir/flaky-extractor")"
 # Adversarial input: the block carries a command span and a grant literal, which
-# the extractor suppresses — they must not surface as phantom deliverables.
-assert_eq "#1554 adversarial input: a command span and a grant literal in the block are not deliverables" \
-  "$(printf 'deliverables\ndocs/internal/implement-skill.md\nrc=0')" \
+# the extractor suppresses. Two things are asserted at once, because rdnd_run
+# merges stderr: the literals are not phantom deliverables, AND the extractor's
+# `suppressed a span` stderr breadcrumb — emitted on exactly this body — does not
+# displace the outcome line or masquerade as a deliverable path. That is the whole
+# reason the stdout shape is prefixed rather than positional.
+assert_eq "#1554 adversarial input: a command span and a grant literal in the block are not deliverables, and the extractor's stderr breadcrumb does not corrupt the outcome" \
+  "$(printf 'docgate-outcome: deliverables\ndocgate-path: docs/internal/implement-skill.md\nrc=0')" \
   "$(rdnd_run "$rdnd_dir/body-adversarial.md")"
-# Idempotency: a second invocation over the same body reports the same outcome,
-# so the helper's own scratch management cannot make the second read differ.
-assert_eq "#1554 idempotency: a second invocation over the same body reports the same outcome" \
-  "$(rdnd_run "$rdnd_dir/body-paths.md")" \
-  "$(rdnd_run "$rdnd_dir/body-paths.md")"
+# Stale-capture isolation (what "idempotent" has to mean here to be worth testing):
+# seed the scratch body file with a DIFFERENT body, then fail both read attempts.
+# A helper that extracted from whatever was already on disk would report that stale
+# body's deliverables; the contract is that a failed read reports a failed read.
+printf '%s\n' "## Implementation Notes" "" \
+  "- **Documentation Needed** — update \`docs/internal/STALE.md\`." \
+  > "$(git rev-parse --show-toplevel)/.prflow/tmp/devflow-docgate-body-1554.txt"
+assert_eq "#1554 stale-capture isolation: a failed read never extracts from a body left by a prior invocation" \
+  "$(printf 'docgate-outcome: body-read-failed\nrc=11')" \
+  "$(rdnd_run "$rdnd_dir/body-paths.md" 2)"
+# The scratch-leaf failure arm — the one arm this helper ADDED (the superseded
+# inline fence warned and carried on). Point the root at a directory whose
+# `.prflow` leaf is a regular file, so `mkdir -p` cannot succeed, and require the
+# fail-CLOSED outcome rather than a silent fall-through to an empty extraction.
+rdnd_nodir="$(git_sandbox '#1554 scratch-leaf failure arm')"
+: > "$rdnd_nodir/.prflow"
+assert_eq "#1554 fail-closed: an uncreatable scratch leaf is a read failure, not an empty extraction" \
+  "$(printf 'docgate-outcome: body-read-failed\nrc=11')" \
+  "$(cd "$rdnd_nodir" && RDND_COUNT_FILE="$rdnd_dir/count" RDND_BODY_FILE="$rdnd_dir/body-paths.md" \
+       DEVFLOW_GH="$rdnd_dir/gh" bash "$RDND_HELPER" 1554 2>&1 | grep '^docgate-'; printf 'rc=%s\n' "${PIPESTATUS[0]}")"
+rm -rf "$rdnd_nodir"
 # A usage error prints NO token and exits outside the closed status set, which is
-# exactly the observation Phase 4.1's residual arm exists to catch.
+# exactly the observation Phase 4.1's residual arm exists to catch. Both halves of
+# the guard are driven: a missing argument and a non-numeric one.
 rdnd_usage_out="$(DEVFLOW_GH="$rdnd_dir/gh" bash "$RDND_HELPER" 2>/dev/null)"; rdnd_usage_rc=$?
 assert_eq "#1554 residual arm: a missing issue number prints no token" "" "$rdnd_usage_out"
 assert_eq "#1554 residual arm: a missing issue number exits outside the closed status set {0,10,11,12}" \
   "64" "$rdnd_usage_rc"
+rdnd_nonnum_out="$(DEVFLOW_GH="$rdnd_dir/gh" bash "$RDND_HELPER" not-a-number 2>/dev/null)"; rdnd_nonnum_rc=$?
+assert_eq "#1554 residual arm: a non-numeric issue number prints no token" "" "$rdnd_nonnum_out"
+assert_eq "#1554 residual arm: a non-numeric issue number exits outside the closed status set" \
+  "64" "$rdnd_nonnum_rc"
 rm -rf "$rdnd_dir"
+
+# Cross-file phase contract: the helper's token/status pairs are the operands
+# Phase 4.1's Shared read contract routes on, so a rename or a renumber on either
+# side must not pass silently — the phase file would route a live outcome into its
+# residual Blocked arm on every run, a whole-gate outage that reads as green.
+# structural-pin-ok: cross-file-phase-contract -- the four token/status pairs are the machine-consumed contract between scripts/read-doc-needed-deliverables.sh and the Phase 4.1 routing arms; reconciled here in both directions
+while IFS='|' read -r _rdnd_tok _rdnd_status; do
+  [ -n "$_rdnd_tok" ] || continue
+  assert_eq "#1554 cross-file contract: the helper's header pairs \`$_rdnd_tok\` with $_rdnd_status" "1" \
+    "$(grep -cF -- "$_rdnd_status  $_rdnd_tok" "$LIB/../scripts/read-doc-needed-deliverables.sh")"
+  assert_eq "#1554 cross-file contract: Phase 4.1 routes \`$_rdnd_tok\` ($_rdnd_status)" "yes" \
+    "$(case "$(cat "$IMPL_SKILL")" in *"\`$_rdnd_tok\` ($_rdnd_status)"*) echo yes ;; *) echo no ;; esac)"
+done <<'RDND_CONTRACT'
+deliverables|0
+no-deliverables|10
+body-read-failed|11
+extract-failed|12
+RDND_CONTRACT
 
 # ── issue #380: the `### Documentation Needed` HEADING as a third scope-opening ─
 # shape. Bug-class fix — reproduced RED first at authoring time: against today's
