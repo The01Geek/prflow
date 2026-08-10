@@ -137,9 +137,9 @@ rm -f "$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.prflow/tmp/issue-bod
 
 `scripts/workpad.py new-body` produces the workpad skeleton — never hand-author the skeleton. Append-only notes (`--note`) nest under their lifecycle phase *inside* `## Progress`; there is no separate Decisions / Notes section. **Keep `## Acceptance Criteria` outside any `<details>`** — the Phase 3.4 gate reads it.
 
-A whole body written by `workpad.py patch COMMENT_ID BODY_FILE` or by a hand-rolled `gh api` PATCH keeps the marker line as its own first line and keeps `## Progress` and `## Acceptance Criteria` present — neither path validates it, and a dropped marker makes every later `workpad.py id` miss and open a second workpad.
+A whole body written by `workpad.py patch COMMENT_ID BODY_FILE` or by a hand-rolled `gh api` PATCH keeps the marker line as its own first line and keeps `## Progress` and `## Acceptance Criteria` present — neither path validates it, and a dropped marker makes every later `workpad.py id` miss (exit 2), which the create paths read as "not yet seeded" and act on by opening a second workpad.
 
-The `## Progress` row texts the skeleton carries — `--tick-progress` needs a substring that resolves to exactly one **unticked** row, so pass one unique to a single row; zero, already-ticked, or multiple matches is a volatile miss:
+The `## Progress` row texts the skeleton carries, mirrored from `workpad.py`'s `cmd_new_body` template and `_EXTENSION_ROWS`, which win on any disagreement — `--tick-progress` needs a substring that resolves to exactly one **unticked** row, so pass one unique to a single row; zero, already-ticked, or multiple matches is a volatile miss:
 
 - `**Setup** — branch & workpad`
   - `prompt extension resolved: implement`
@@ -157,7 +157,7 @@ The `## Progress` row texts the skeleton carries — `--tick-progress` needs a s
   - `prompt extension resolved: PR description`
 - `**PR marked ready**`
 
-The bug-only row is rendered by `new-body` unless `--no-reproduction` is passed — which the local fresh-issue path passes from the §1.1 content classification, while the cloud `gate` job decides from the `bug` label and renders the row when that lookup fails. Phase 1.3's `--reconcile-reproduction`, keyed on the recorded content classification, is the authoritative correction; the operative directive lives in the Phase 1.3 entry gate.
+The bug-only row is rendered by `new-body` unless `--no-reproduction` is passed — which the local fresh-issue path passes only when the §1.1 content classification is non-bug, while the cloud `gate` job decides from the `bug` label and renders the row when that lookup fails. Phase 1.3's `--reconcile-reproduction`, keyed on the recorded content classification, is the authoritative correction; the operative directive lives in the Phase 1.3 entry gate.
 
 ### Workpad helper CLI
 
