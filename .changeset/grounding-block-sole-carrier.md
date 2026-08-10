@@ -25,6 +25,12 @@ silently, so this lands in that order:
 - The dispatch-barrier pointers across both engines now name the injected block rather than
   an engine-root path, and state the safe default when no block is present.
 
+Beyond the consolidation, the implement root's always-resident plumbing prose is trimmed to the
+repo's instruction-plus-consequence rule: the cloud command-shape discipline, the helper-invocation
+form and the expired-credential rule keep every operative instruction, while probe-row provenance,
+adjudication commentary and maintainer notes about tests are removed — a shipped skill may not cite
+this repository's internal measurement record, which a consumer's checkout does not carry.
+
 **Consumer-visible behaviour change:** a repository whose vendored plugin tree is missing
 the renderer previously ran degraded, with only a warning in the Actions log; it now fails
 the job with an error naming the remedy. The vendored tree is materialized per run, so this
