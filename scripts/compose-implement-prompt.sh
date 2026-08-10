@@ -30,7 +30,8 @@
 #   2. renderer resolved but produced no block (empty stdout, or a non-zero exit)
 #        -> ::error::, write NO `prompt` output, exit 1
 #   3. otherwise
-#        -> append `prompt<<DELIM … DELIM` to $GITHUB_OUTPUT, exit 0
+#        -> append `prompt<<DELIM … DELIM` to $GITHUB_OUTPUT, exit 0 — and an append
+#           that FAILS is refused exactly like arms 1 and 2: ::error::, exit 1
 #
 # FAIL-LOUD, not best-effort — the deliberate reversal of this helper's original
 # always-exit-0 contract. The engine-ground-truth block is the single home of the cloud
@@ -93,7 +94,13 @@ PROMPT="${GROUNDING}
 # prerequisite, but it decides nothing here — a missing one only shortens the delimiter,
 # which stays unique through `$$`.
 delim="PROMPT_EOF_$(date +%s%N)_$$"
-if ! { printf 'prompt<<%s\n' "$delim"; printf '%s\n' "$PROMPT"; printf '%s\n' "$delim"; } >> "$GITHUB_OUTPUT"; then
+# Capture the append's status; never `if ! { …; } >> "$f"`. Bash does not propagate a
+# failed redirection ON A COMPOUND COMMAND through `!` (measured on bash 3.2 and 5.3:
+# the group alone reports 1, the negated form reads 0), which left this arm unreachable —
+# an unwritable GITHUB_OUTPUT exited 0 having published nothing.
+append_rc=0
+{ printf 'prompt<<%s\n' "$delim"; printf '%s\n' "$PROMPT"; printf '%s\n' "$delim"; } >> "$GITHUB_OUTPUT" || append_rc=$?
+if [ "$append_rc" -ne 0 ]; then
   echo "::error::devflow: could not append the composed implement prompt to GITHUB_OUTPUT ('$GITHUB_OUTPUT') — the run would launch on the bare prompt with no engine-ground-truth block. Refusing to run." >&2
   exit 1
 fi
