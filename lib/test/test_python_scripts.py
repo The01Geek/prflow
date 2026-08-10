@@ -15572,13 +15572,18 @@ def _ias_run(argv, cwd, stdin=None):
         err_w = None
         chunks = {}
         failures = {}
+        owned = set()
 
         def _drain(key, fd):
             # A drain thread that dies without recording WHY would leave chunks[key]
             # absent, and an empty-string stdout would then be graded as real output.
             try:
                 buf = []
-                with os.fdopen(fd, 'rb') as fh:
+                fh = os.fdopen(fd, 'rb')
+                # Recorded only once `os.fdopen` has taken the fd: an earlier failure
+                # leaves the parent's finally arm as the only closer of this pipe end.
+                owned.add(key)
+                with fh:
                     while True:
                         b = fh.read(65536)
                         if not b:
@@ -15596,11 +15601,11 @@ def _ias_run(argv, cwd, stdin=None):
             t.start()
         for t in threads:
             t.join()
-        # The fds are owned by the closed `os.fdopen` wrappers once a thread ran to
-        # completion; a thread that failed before that leaves the finally arm to close them.
-        if 'out' in chunks or 'out' in failures:
+        # Clear only the ends `os.fdopen` actually took: clearing on a failure that
+        # happened before that leaks the pipe end past this call's finally arm.
+        if 'out' in owned:
             out_r = None
-        if 'err' in chunks or 'err' in failures:
+        if 'err' in owned:
             err_r = None
         _, status = os.waitpid(pid, 0)
         pid = None

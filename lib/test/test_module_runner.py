@@ -15,6 +15,7 @@ import shutil
 import subprocess
 import tempfile
 import time
+from typing import NamedTuple
 import unittest
 from unittest import mock
 
@@ -28,15 +29,9 @@ WORKFLOW_MODULE_SOURCE = ROOT / "lib/test/modules/workflow-flight-recorder.sh"
 CREATE_ISSUE_MODULE_SOURCE = ROOT / "lib/test/modules/create-issue-contract.sh"
 CAPABILITY_PROFILES_MODULE_SOURCE = ROOT / "lib/test/modules/capability-profiles.sh"
 
-# The exact-policy modules test_exact_floor_modules_run_green_through_the_real_runner
-# additionally EXECUTES through the real focused runner. Every exact-policy module's
-# static run.sh coupling (call site plus floor literal) is still checked for the whole
-# population there; execution is deliberately reduced to these two because the modules-*
-# shards already run every module and assert its exact floor on the same suite pass, so
-# executing all of them here is a straight duplicate of that work. Two are kept, not
-# zero, so the runner-invocation path itself (argv, log dir, tally line, and the
-# `--heavy-units smoke` arm that only harness-python-guards exercises) still has smoke
-# coverage. Do NOT restore the full fan-out believing coverage was lost.
+# Do NOT restore the full exact-policy fan-out here (the modules-* shards already run it)
+# and do NOT empty this set: a named pair keeps smoke coverage of the runner-invocation
+# path, and an id that stops existing fails loudly instead of fanning out over nothing.
 REAL_EXECUTION_MODULES = ("harness-python-guards", "review-trigger-helpers")
 
 
@@ -1628,7 +1623,15 @@ class ModuleRunnerTests(unittest.TestCase):
             "a REAL_EXECUTION_MODULES member is no longer an exact-policy module",
         )
 
-        def _run_one(item: tuple[str, int]) -> tuple[str, int, int, str, str, bool]:
+        class _RunResult(NamedTuple):
+            module_id: str
+            floor: int
+            returncode: int
+            stdout: str
+            stderr: str
+            log_had_files: bool
+
+        def _run_one(item: tuple[str, int]) -> _RunResult:
             module_id, floor = item
             environment = os.environ.copy()
             environment.pop("DEVFLOW_TEST_EXPERIMENT_FORCE_FAILURE", None)
@@ -1656,13 +1659,13 @@ class ModuleRunnerTests(unittest.TestCase):
                 # torn down, and return the boolean — the assertion lives in the main
                 # thread below.
                 log_had_files = bool(list(Path(log_dir).iterdir()))
-            return (
-                module_id,
-                floor,
-                result.returncode,
-                result.stdout,
-                result.stderr,
-                log_had_files,
+            return _RunResult(
+                module_id=module_id,
+                floor=floor,
+                returncode=result.returncode,
+                stdout=result.stdout,
+                stderr=result.stderr,
+                log_had_files=log_had_files,
             )
 
         # Bound the fan-out. Under the parallel coordinator `run-parallel.sh` the
