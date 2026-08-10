@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1543",
+  "generated_at": "2026-08-10T17:09:34Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.7",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 8.0361065,
+    "tokens": {
+      "input_tokens": 76,
+      "output_tokens": 32330,
+      "cache_read_input_tokens": 6134236,
+      "cache_creation_input_tokens": 203174,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 113,
+        "outputTokens": 41288,
+        "cacheReadInputTokens": 6726928,
+        "cacheCreationInputTokens": 460476,
+        "webSearchRequests": 0,
+        "costUSD": 8.0361065,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 49,
+    "duration_ms": 547595
+  },
+  "permission_denials": {
+    "count": 7,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      "echo \"run=${GITHUB_RUN_ID:-none}-${GITHUB_RUN_ATTEMPT:-1}\"; RID=\"${GITHUB_RUN_ID:-local-$(date -u +%Y%m%dT%H%M%SZ)}-${GITHUB_RUN_ATTEMPT:-1}\"; echo \"RID=$RID\"; mkdir -p \".prflow/tmp/review/pr-1543/$RID\"; gh pr diff 1543 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee \".prflow/tmp/review/pr-1543/$RID/diff.patch\"",
+      "echo \"RUN=${GITHUB_RUN_ID:-none} ATTEMPT=${GITHUB_RUN_ATTEMPT:-none}\"",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve 1541 --pr 1543 2>.prflow/tmp/review/pr-1543/31411717238-1/acs.err ; echo \"acs-rc=$?\"",
+      "mkdir -p .prflow/tmp\nif rm -f \".prflow/tmp/review-dirty-tree-before\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \".prflow/tmp/review-dirty-tree-before\" &&\n   [ -f \".prflow/tmp/review-dirty-tree-before\" ] &&\n   [ ! -L \".prflow/tmp/review-dirty-tree-before\" ] &&\n   git hash-object \".prflow/tmp/review-dirty-tree-before\"; then\n  : \nelse\n  echo \"SNAP-FAILED\"; printf '%s\\n' disabled > \".prflow/tmp/review-dirty-tree-disabled\"\nfi",
+      "git status --porcelain -z > .prflow/tmp/review-dirty-tree-before; git hash-object .prflow/tmp/review-dirty-tree-before",
+      "git status --porcelain -z > .prflow/tmp/review-dirty-tree-before; git hash-object .prflow/tmp/review-dirty-tree-before; echo \"wc=$(wc -c < .prflow/tmp/review-dirty-tree-before)\""
+    ],
+    "total": 7,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
