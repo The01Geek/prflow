@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1567",
+  "generated_at": "2026-08-10T23:12:48Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.17",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 22.55855235,
+    "tokens": {
+      "input_tokens": 3585,
+      "output_tokens": 74130,
+      "cache_read_input_tokens": 11558435,
+      "cache_creation_input_tokens": 459794,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 3653,
+        "outputTokens": 122905,
+        "cacheReadInputTokens": 13271613,
+        "cacheCreationInputTokens": 958360,
+        "webSearchRequests": 0,
+        "costUSD": 17.440674,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 224,
+        "outputTokens": 33714,
+        "cacheReadInputTokens": 4557967,
+        "cacheCreationInputTokens": 865095,
+        "webSearchRequests": 0,
+        "costUSD": 5.117878349999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 107,
+    "duration_ms": 1309516
+  },
+  "permission_denials": {
+    "count": 16,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-unset} ATTEMPT=${GITHUB_RUN_ATTEMPT:-unset} GH_ACTIONS=${GITHUB_ACTIONS:-unset}\"",
+      "printf 'RUN_ID=%s ATTEMPT=%s GH_ACTIONS=%s\\n' \"${GITHUB_RUN_ID:-unset}\" \"${GITHUB_RUN_ATTEMPT:-unset}\" \"${GITHUB_ACTIONS:-unset}\"",
+      "printf '%s' \"$(gh pr view 1567 --json body --jq '.body')\" | grep -c 'Writing-skills evidence:' ; echo \"---verdict-markers---\"; gh api repos/{owner}/{repo}/issues/1567/comments --jq '.[] | select(.body | test(\"prflow:review-verdict\")) | .body' 2>/dev/null | head -20 || echo \"none\"",
+      "cd /home/runner/work/prflow/prflow\nawk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1567/31439902167-1/diff.patch > .prflow/tmp/review/pr-1567/31439902167-1/batch-1.patch && test -s .prflow/tmp/review/pr-1567/31439902167-1/batch-1.patch && echo \"slice-ok: batch-1\" || echo \"slice-failed: batch-1\"\nawk -v s=11 -v e=13 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1567/31439902167-1/diff.patch > .prflow/tmp/review/pr-1567/31439902167-1/batch-2.patch && test -s .pr …[per-command-truncated]",
+      "awk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1567/31439902167-1/diff.patch > .prflow/tmp/review/pr-1567/31439902167-1/batch-1.patch",
+      "awk -v s=11 -v e=13 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1567/31439902167-1/diff.patch > .prflow/tmp/review/pr-1567/31439902167-1/batch-2.patch",
+      "awk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1567/31439902167-1/diff.patch > .prflow/tmp/review/pr-1567/31439902167-1/batch-1.patch && echo ok1\nawk -v s=11 -v e=13 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1567/31439902167-1/diff.patch > .prflow/tmp/review/pr-1567/31439902167-1/batch-2.patch && echo ok2",
+      "awk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1567/31439902167-1/diff.patch > .prflow/tmp/review/pr-1567/31439902167-1/batch-1.patch",
+      ".prflow/vendor/prflow/scripts/resolve-review-overrides.py \"prflow:checklist-generator\" 2>.prflow/tmp/review/pr-1567/31439902167-1/rv-ovr.phase1.err; echo \"ovr-rc=$?\"; echo \"---stderr---\"; cat .prflow/tmp/review/pr-1567/31439902167-1/rv-ovr.phase1.err",
+      "git show d694a70990820c3c28b66e92fd3b709c19524a79:lib/test/regenerate-artifacts.py | grep -nF -- \"--with-floors\"; echo \"vc1-exit=${PIPESTATUS[1]}\"",
+      "git show d694a70990820c3c28b66e92fd3b709c19524a79:.prflow/prompt-extensions/receiving-code-review.md | grep -nF -- \"## Batched artifact regeneration\"; echo \"vc9-exit=${PIPESTATUS[1]}\"",
+      "git show d694a70990820c3c28b66e92fd3b709c19524a79:.prflow/prompt-extensions/implement.md | grep -nF -- \"run the granted direct leading-token form once\"; echo \"vc8-exit=${PIPESTATUS[1]}\"",
+      "find / -name \"reconcile-module-floors.py\" 2>/dev/null",
+      "python3 -c \"import json; d=json.load(open('scripts/workflow-flight-recorder-registry.json')); mods=d if isinstance(d,list) else d.get('modules', d); import sys\n# find exact-policy modules\ndef walk(o):\n    out=[]\n    if isinstance(o,dict):\n        if o.get('assertion_floor_policy')=='exact' and ('id' in o or 'module' in o or 'name' in o):\n            out.append(o.get('id') or o.get('module') or o.get('name'))\n        for v in o.values(): out+=walk(v)\n    elif isinstance(o,list):\n        for v in  …[per-command-truncated]",
+      "for f in implement receiving-code-review review-and-fix; do echo \"=== $f ===\"; grep -nF \"No post-edit pass routes through this rule\" .prflow/prompt-extensions/$f.md; done"
+    ],
+    "total": 16,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
