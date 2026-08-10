@@ -10286,6 +10286,108 @@ assert_eq("#1453: the canonical trailing-marker bullet IS read (positive control
           ["full:attempted:complete:complete"],
           workpad._review_coverage_payloads("  - 03:00:00 — recorded " + _MK_RC))
 
+# ---------------------------------------------------------------------------
+# issue #1501: guard the remaining fixed-arity argument unpacks. Every flag with a
+# fixed nargs and a positional unpack validates its arity BEFORE that unpack, raising
+# a named _UpdateError (flag, expected count, operand labels, received count,
+# "No PATCH was made.") — mirroring the established --record-review-coverage /
+# --review-coverage-disposition guards above. argparse enforces this for the CLI, so
+# the reachable caller is the programmatic one this suite exercises.
+#
+# Matrix per append-flag: short element, long element, empty element ([]), and
+# string-instead-of-sequence. The string row is AC2's silent-corruption case
+# (checkpoint=["k1"] used to unpack to key='k').
+_ARITY_APPEND = (
+    # (arg-attr, needle, short_elem, long_elem)
+    ("rewrite_ac", "--rewrite-ac takes exactly 2 values (OLD, NEW)",
+     ["OLD"], ["a", "b", "c"]),
+    ("scope_decision_deferred",
+     "--scope-decision-deferred takes exactly 2 values (PR, TEXT)",
+     ["7"], ["7", "x", "y"]),
+    ("scope_decision_rewritten",
+     "--scope-decision-rewritten takes exactly 3 values (PR, OLD, NEW)",
+     ["7", "old"], ["7", "old", "new", "extra"]),
+    ("checkpoint", "--checkpoint takes exactly 2 values (KEY, TEXT)",
+     ["onlykey"], ["k", "t", "x"]),
+)
+for _attr, _needle, _short, _long in _ARITY_APPEND:
+    for _shape, _elem, _detail in (
+        ("short element", _short, "got "),
+        ("long element", _long, "got "),
+        ("empty element []", [], "got "),
+        ("string-instead-of-sequence", "k1", "non-sequence"),
+    ):
+        _perr = None
+        try:
+            apply_mut(_CP_BODY, make_args(**{_attr: [_elem]}), [])
+        except workpad._UpdateError as _e:
+            _perr = str(_e)
+        assert_eq(f"#1501: {_attr} refuses a {_shape}, naming the flag and arity",
+                  True, _perr is not None and _needle in _perr)
+        # A string element reports "non-sequence"; every other bad shape reports a
+        # received length — the flag-specific message, never a generic one.
+        assert_eq(f"#1501: {_attr} {_shape} message names {_detail}",
+                  True, _perr is not None and _detail in _perr)
+
+# --record-classification takes the pair DIRECTLY (nargs=2, not append), so its bad
+# shapes are the value itself, not an element of a list.
+for _shape, _val, _detail in (
+    ("short list", ["bug-report"], "got "),
+    ("long list", ["bug-report", "rationale", "extra"], "got "),
+    ("bare string", "bug-report", "non-sequence"),
+):
+    _rcerr = None
+    try:
+        apply_mut(_CP_BODY, make_args(record_classification=_val), [])
+    except workpad._UpdateError as _e:
+        _rcerr = str(_e)
+    assert_eq(f"#1501: record_classification refuses a {_shape}, naming flag and arity",
+              True, _rcerr is not None and
+              "--record-classification takes exactly 2 values (class, rationale)"
+              in _rcerr)
+    assert_eq(f"#1501: record_classification {_shape} message names {_detail}",
+              True, _rcerr is not None and _detail in _rcerr)
+# An empty value is falsy, so the `if args.record_classification:` gate skips it — a
+# safe no-op (no raise, no classification note), not a crash.
+_rc_empty = apply_mut(_CP_BODY, make_args(record_classification=[]), [])
+assert_eq("#1501: record_classification=[] is a safe no-op (writes no classification note)",
+          False, workpad._CLASSIFICATION_NOTE_PREFIX in _rc_empty)
+
+# AC2 (explicit): checkpoint=["k1"] RAISES rather than silently writing key='k'. The
+# body is never produced, so the corrupt marker cannot land.
+_ac2 = None
+try:
+    apply_mut(_CP_BODY, make_args(checkpoint=["k1"]), [])
+except workpad._UpdateError as _e:
+    _ac2 = str(_e)
+assert_eq("#1501 AC2: checkpoint=['k1'] raises (no corrupt row for key='k')",
+          True, _ac2 is not None and "non-sequence" in _ac2)
+
+
+def _no_arity_raise(**kw):
+    """apply_mut, returning the raised message (or 'ok'), for valid-falsy assertions."""
+    try:
+        apply_mut(_CP_BODY, make_args(**kw))
+        return "ok"
+    except workpad._UpdateError as _e:
+        return str(_e)
+
+
+# AC3 valid-falsy: the new arity guards must NOT capture any of these four. Two are
+# accepted outright; two already raise their OWN named refusal (empty text / empty
+# rationale), which must not be the arity message.
+assert_eq("#1501 AC3 valid-falsy: checkpoint=[['k1','']] still writes its row",
+          1, apply_mut(_CP_BODY, make_args(checkpoint=[["k1", ""]])).count(
+              workpad._checkpoint_marker("k1")))
+assert_eq("#1501 AC3 valid-falsy: rewrite_ac=[['AC1','']] is accepted (no arity raise)",
+          "ok", _no_arity_raise(rewrite_ac=[["AC1", ""]], note=["clearing"]))
+assert_eq("#1501 AC3 valid-falsy: scope_decision_deferred=[['7','']] keeps its OWN refusal",
+          True, "takes exactly 2 values (PR, TEXT)" not in
+          _no_arity_raise(scope_decision_deferred=[["7", ""]]))
+assert_eq("#1501 AC3 valid-falsy: record_classification=['bug-report',''] keeps its OWN refusal",
+          True, "takes exactly 2 values (class, rationale)" not in
+          _no_arity_raise(record_classification=["bug-report", ""]))
+
 # Two rows for one gap are unresolvable, not last-wins — the record's fail-closed
 # duplicate posture applied to the disposition reader.
 _dup_disp = _planted_disposition(

@@ -4242,6 +4242,29 @@ def _has_non_checkpoint_mutation(args) -> bool:
     ])
 
 
+def _require_arity(flag: str, value, n: int, labels) -> None:
+    """Validate that a fixed-`nargs` operand is a length-`n` sequence before any
+    positional unpack, raising a named `_UpdateError` (structural — no PATCH) on a
+    wrong shape. argparse enforces this for every CLI invocation, so the guard exists
+    for the programmatic caller (the suite builds `args` directly and can pass a short
+    list, a long one, or a bare string). A `str` is rejected explicitly: it is a
+    sequence, so a 2-char string like `"k1"` would otherwise unpack silently into
+    `('k', '1')` and write a corrupt row rather than raising (issue #1501). The
+    established `--record-review-coverage` / `--review-coverage-disposition` guards are
+    the message shape this mirrors."""
+    labels_txt = ', '.join(labels)
+    if isinstance(value, str) or not isinstance(value, (list, tuple)):
+        raise _UpdateError(
+            f"{flag} takes exactly {n} values ({labels_txt}); got a non-sequence "
+            f"{value!r}. No PATCH was made."
+        )
+    if len(value) != n:
+        raise _UpdateError(
+            f"{flag} takes exactly {n} values ({labels_txt}); got {len(value)}. "
+            f"No PATCH was made."
+        )
+
+
 def _plan_checkpoints(body: str, checkpoint_reqs) -> list[tuple[str, str]]:
     """Validate `--checkpoint` requests against `body` and return the (key, text)
     pairs that must be INSERTED (their marker is absent). A request whose marker is
@@ -4261,7 +4284,13 @@ def _plan_checkpoints(body: str, checkpoint_reqs) -> list[tuple[str, str]]:
     #    _apply_mutations would write the marker twice — wedging every future replay
     #    of that key on the `in_prog > 1` check below. Reject it up front instead.
     _seen_keys: set[str] = set()
-    for key, _text in checkpoint_reqs:
+    for _req in checkpoint_reqs:
+        # Arity before the positional unpack (issue #1501): a wrong-length element —
+        # or a bare string like `"k1"`, which would unpack silently into `key='k',
+        # text='1'` and write a corrupt checkpoint row — raises a named refusal here
+        # rather than a bare traceback below.
+        _require_arity('--checkpoint', _req, 2, ('KEY', 'TEXT'))
+        key, _text = _req
         if not _CHECKPOINT_KEY_RE.match(key):
             raise _UpdateError(
                 f"--checkpoint key {key!r} is invalid; keys must match "
@@ -4508,15 +4537,21 @@ def _render_scope_decisions(args) -> list[str]:
         # the review engine's normalized sets, so a record written without it
         # would be silently uncomparable rather than merely unformatted.
         _require_section_parse('update --scope-decision-*')
-    for pr, text in getattr(args, 'scope_decision_deferred', None) or []:
+    for _elem in getattr(args, 'scope_decision_deferred', None) or []:
         flag = '--scope-decision-deferred'
+        # Arity before the positional unpack (issue #1501).
+        _require_arity(flag, _elem, 2, ('PR', 'TEXT'))
+        pr, text = _elem
         notes.append(_render_scope_decision(
             _validate_scope_decision_pr(pr, flag),
             'deferred',
             _validate_scope_decision_text(text, flag, 'criterion'),
         ))
-    for pr, old, new in getattr(args, 'scope_decision_rewritten', None) or []:
+    for _elem in getattr(args, 'scope_decision_rewritten', None) or []:
         flag = '--scope-decision-rewritten'
+        # Arity before the positional unpack (issue #1501).
+        _require_arity(flag, _elem, 3, ('PR', 'OLD', 'NEW'))
+        pr, old, new = _elem
         notes.append(_render_scope_decision(
             _validate_scope_decision_pr(pr, flag),
             'rewritten',
@@ -4793,6 +4828,13 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         # Scope: this covers the `--rewrite-ac` retag channel only; the Phase 2.2.5
         # `--replace-acs-file` channel can introduce `(post-merge)` rows wholesale —
         # a deliberate, known limitation left open here, not closed by this guard.
+        # Arity before the first positional read (issue #1501): the `p[1]` read in the
+        # `offending_nl` generator below, and the `for old, new` loop later, both unpack
+        # each pair. Guard every pair here — above both — so a short pair (an IndexError
+        # on `p[1]`) or a long/non-sequence one raises a named refusal, not a bare
+        # traceback. A bare string is rejected too (it would `p[1]`-index a character).
+        for _pair in args.rewrite_ac:
+            _require_arity('--rewrite-ac', _pair, 2, ('OLD', 'NEW'))
         has_note = any(n.strip() for n in args.note)
         # A multi-line NEW is structurally invalid, and rejecting it here is load-bearing
         # for BOTH guards below (issue #338). `_rewrite_checkbox` writes NEW verbatim into
@@ -5125,6 +5167,10 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     # Record the reproduce-first content classification (issue #449) as a
     # superseding `classification: ` Progress note — exactly one at all times.
     if args.record_classification:
+        # Arity before the positional unpack (issue #1501).
+        _require_arity(
+            '--record-classification', args.record_classification, 2,
+            ('class', 'rationale'))
         cls, rationale = args.record_classification
         if cls not in _CLASSIFICATION_VALUES:
             raise _UpdateError(
