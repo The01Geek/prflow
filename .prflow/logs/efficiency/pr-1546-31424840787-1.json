@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1546",
+  "generated_at": "2026-08-10T19:50:36Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.10",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 9.965364749999999,
+    "tokens": {
+      "input_tokens": 49,
+      "output_tokens": 36510,
+      "cache_read_input_tokens": 4812571,
+      "cache_creation_input_tokens": 228707,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 109,
+        "outputTokens": 81653,
+        "cacheReadInputTokens": 6244437,
+        "cacheCreationInputTokens": 630980,
+        "webSearchRequests": 0,
+        "costUSD": 9.965364749999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 45,
+    "duration_ms": 820458
+  },
+  "permission_denials": {
+    "count": 6,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-UNSET}\"",
+      ".prflow/vendor/prflow/scripts/config-get.sh .base_branch main 2>&1; echo \"---rc=$?---\"; echo \"RUN_ID=${GITHUB_RUN_ID:-none} ATTEMPT=${GITHUB_RUN_ATTEMPT:-none}\"",
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-none} ATTEMPT=${GITHUB_RUN_ATTEMPT:-none}\"",
+      "rm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null; git status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve \"1508\" --pr \"1546\" 2>.prflow/tmp/review/pr-1546/31424840787-1/acs.err ; echo \"acs-rc=$?\"; echo \"=== stderr ===\"; cat .prflow/tmp/review/pr-1546/31424840787-1/acs.err 2>/dev/null | head -20",
+      "cd /home/runner/work/prflow/prflow\nfor f in scripts/workpad.py skills/implement/SKILL.md; do\n  h=$(git show 3f32234915d4b6e73700e485874e70c8952c38df:$f | sha256sum | cut -d' ' -f1)\n  echo \"$f: $h\"\ndone"
+    ],
+    "total": 6,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
