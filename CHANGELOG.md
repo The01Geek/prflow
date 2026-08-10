@@ -4,6 +4,23 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.3] — 2026-08-10
+
+### Fixed
+- **Guard the remaining fixed-arity argument unpacks in `scripts/workpad.py`.** A shared
+  `_require_arity()` helper now validates arity before the positional unpack in every
+  `update` flag that had a fixed `nargs` but no guard — `--checkpoint`,
+  `--scope-decision-deferred`, `--scope-decision-rewritten`, `--rewrite-ac`, and
+  `--record-classification`. A programmatic caller passing a wrong-length or bare-string
+  element now gets a named `_UpdateError` ("… takes exactly N values …; No PATCH was made.")
+  instead of a bare `ValueError`/`IndexError` traceback, and `checkpoint=["k1"]` no longer
+  unpacks silently into a corrupt `key='k'` row. (#1523)
+
+## [2.32.2] — 2026-08-10
+
+### Changed
+- **Bound the `exact-module-floors` reconciliation measurement where a bound actually saves time.** `lib/test/reconcile-module-floors.py` now measures the exact-policy modules that read `MODULE_HEAVY_UNIT_MODE` under `--heavy-units smoke` (today just `harness-python-guards`, whose bounded and full tallies are equal), cutting that module's measurement from roughly 268 s to 54 s while leaving every other exact-policy module's measurement argv byte-identical. (#1522)
+
 ## [2.32.1] — 2026-08-10
 
 ### Changed
