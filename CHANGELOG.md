@@ -4,6 +4,18 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.15] — 2026-08-10
+
+### Changed
+Trim `/prflow:implement` Phase 2 §2.3.4b (the coverage-claim enumeration sweep) down to its procedure. The `--worktree` flag's semantics, the TSV row-token definitions, and the catalog of conditions behind the helper's exit `2` are no longer restated in the phase file; one sentence now points at `scripts/stale-prose-lint.py`'s own `--help` output and module header instead. The section's three worked examples are deleted — one of them attributed a quoted sentence to that helper that the helper does not contain.
+
+The sweep's procedure survives the trim: its invocation legs, its outcome arms and their deciding observables, which of the helper's rows seed it, the grounding treatments, the carve-out, and the `--note` record obligation on the clean path as well as the dirty one. One arm-2 sentence is corrected rather than preserved — it claimed a hunk-less `git diff --no-index` lands on the clean arm with exit `0`, where that producer exits 1 and, emitting no hunks, fails the clean arm's own third conjunct.
+
+## [2.32.14] — 2026-08-10
+
+### Changed
+- **Adopt a prevention-only comment standard for added/changed comments.** The `/prflow:implement` §2.3 comment-discipline authoring rule now survives a comment inline only when a competent agent would otherwise make a specific, nameable wrong change at that line or at a named coupled site; comments are written as the prohibition and its consequence, capped at three physical source lines, with everything else routed to the project's internal documentation or deleted. Two always-on §2.3.4a commit-time steps (prevention and cross-comment restatement) and one `Suggestion`-graded `comment-analyzer` review criterion enforce it, and the reliably-loaded `CLAUDE.md` summary is reconciled to match. (#1556)
+
 ## [2.32.13] — 2026-08-10
 
 ### Fixed
