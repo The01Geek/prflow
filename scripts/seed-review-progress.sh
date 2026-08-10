@@ -17,14 +17,15 @@
 # invocation the matcher permits, and lets lib/test/run.sh drive every screen as
 # ordinary shell (the same pattern as classify-id-exit.sh / describe-denial-count.sh).
 #
-# CONTRACT — exactly one outcome line per reachable path, plus a MARKER line after
-# each successful outcome. The vocabulary is closed and has no silent path (a fence
-# that prints NOTHING is therefore a harness refusal the caller routes to its
-# fallback arm, never read as a create authorization):
+# CONTRACT — exactly one outcome line per reachable path, plus a MARKER line and a RUNLINK
+# line after each successful outcome (the RUNLINK line carries the compose-run-url.sh run
+# link this run composed, issue #1536). The vocabulary is closed and has no silent path (a
+# fence that prints NOTHING is therefore a harness refusal the caller routes to its fallback
+# arm, never read as a create authorization):
 #
-#   stdout                              exit  meaning
-#   RESUME <comment-id> + MARKER <...>  0     this run's comment already exists (cmd_id exit 0)
-#   CREATED <comment-id> + MARKER <...> 0     clean absence confirmed; comment created
+#   stdout                                         exit  meaning
+#   RESUME <id> + MARKER <...> + RUNLINK <...>      0     this run's comment already exists (cmd_id exit 0)
+#   CREATED <id> + MARKER <...> + RUNLINK <...>     0     clean absence confirmed; comment created
 #   SKIP not-numeric                    3     S1 refused a non-numeric PR number
 #   SKIP no-run-key                     3     neither a usable GitHub run id nor the local
 #                                             fallback marker slot was available
@@ -84,6 +85,7 @@ normalize_body() {
   local marker="$2"
   local body_file="$3"
   local error_file="$4"
+  local run_link="$5"
 
   if [ -z "$normalized_body" ]; then
     echo "could not create a scratch file for the normalized review-progress body" >> "$error_file"
@@ -105,6 +107,14 @@ normalize_body() {
           '<!-- prflow:review-progress run='*|'<!-- devflow:review-progress run='*) continue ;;
         esac
       fi
+      # Rewrite the `**Run:**` line to the helper-composed run link (issue #1536), so a
+      # caller-authored placeholder — an unexpanded `$GITHUB_…` literal, a wrong owner, or a
+      # stale `_(local run)_` — never survives into the created comment. The `case` glob is a
+      # bash builtin (no PATH tool), and the run link came from compose-run-url.sh, the single
+      # place it is composed. Preserve every other line verbatim.
+      case "$body_line" in
+        '**Run:**'*) printf '%s\n' "**Run:** $run_link"; continue ;;
+      esac
       printf '%s\n' "$body_line"
     done < "$body_file"
   } > "$normalized_body" || normalize_rc=$?
@@ -142,6 +152,16 @@ if [ -z "$SCRIPT_DIR" ]; then
   exit 3
 fi
 WORKPAD_PY="$SCRIPT_DIR/workpad.py"
+
+# Compose THIS run's link once, at the helper boundary (issue #1536), from the single place
+# it is composed: compose-run-url.sh, which lives beside this helper in scripts/. Its own
+# guard fails closed to `_(local run)_` when the cloud env is partial, and it always exits 0
+# printing one line, so a present helper yields a non-empty RUN_LINK on every path. Should the
+# bundled helper be absent (a partial deploy), fall back to the same closed default rather
+# than writing an empty `**Run:**` line. The RESUME and CREATED arms both report this literal
+# on a `RUNLINK` line so the agent re-emits an observed value instead of guessing one.
+RUN_LINK="$("$SCRIPT_DIR/compose-run-url.sh" 2>/dev/null)" || RUN_LINK=""
+[ -n "$RUN_LINK" ] || RUN_LINK="_(local run)_"
 
 # (S1) Refuse an empty or non-digit PR number before the id call. The `case` glob is a
 # bash builtin (no PATH tool), so the screen holds even on a stripped-down host.
@@ -204,6 +224,7 @@ if WP="$("$WORKPAD_PY" id "$PR_NUMBER" --marker "$MARKER" 2>"$ERRF")"; then
   fi
   echo "RESUME $WP"
   echo "MARKER $MARKER"
+  echo "RUNLINK $RUN_LINK"
   exit 0
 elif [ "$?" -eq 2 ] && [ ! -s "$ERRF" ]; then
   # exit 2 AND silent ⇒ cmd_id's clean absence. This run's first write: create it. The
@@ -211,7 +232,7 @@ elif [ "$?" -eq 2 ] && [ ! -s "$ERRF" ]; then
   # remove a caller-authored current or superseded marker from line one. Preserve
   # every other line verbatim (apart from normalizing a missing final newline).
   NORMALIZED_BODY="$(mktemp 2>/dev/null)" || NORMALIZED_BODY=""
-  if normalize_body "$NORMALIZED_BODY" "$MARKER" "$BODY_FILE" "$ERRF" \
+  if normalize_body "$NORMALIZED_BODY" "$MARKER" "$BODY_FILE" "$ERRF" "$RUN_LINK" \
      && WP="$("$WORKPAD_PY" create "$PR_NUMBER" "$NORMALIZED_BODY" 2>>"$ERRF")"; then
     # Same non-empty validation as the RESUME arm above.
     if [ -z "$WP" ]; then
@@ -221,6 +242,7 @@ elif [ "$?" -eq 2 ] && [ ! -s "$ERRF" ]; then
     fi
     echo "CREATED $WP"
     echo "MARKER $MARKER"
+    echo "RUNLINK $RUN_LINK"
     exit 0
   fi
   # Fold the captured stderr into the breadcrumb (the inline seed this helper replaced
