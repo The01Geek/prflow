@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1556",
+  "generated_at": "2026-08-10T21:23:28Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.11",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 8.034292,
+    "tokens": {
+      "input_tokens": 63,
+      "output_tokens": 37381,
+      "cache_read_input_tokens": 5223811,
+      "cache_creation_input_tokens": 201573,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 109,
+        "outputTokens": 60956,
+        "cacheReadInputTokens": 6262359,
+        "cacheCreationInputTokens": 419643,
+        "webSearchRequests": 0,
+        "costUSD": 8.034292,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 46,
+    "duration_ms": 738580
+  },
+  "permission_denials": {
+    "count": 9,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      ".prflow/vendor/prflow/scripts/config-get.sh .base_branch main; echo \"---RUNID---\"; echo \"run=${GITHUB_RUN_ID:-none} attempt=${GITHUB_RUN_ATTEMPT:-none}\"",
+      "printf 'run=%s attempt=%s base=' \"$GITHUB_RUN_ID\" \"$GITHUB_RUN_ATTEMPT\"; .prflow/vendor/prflow/scripts/config-get.sh .base_branch main",
+      "gh issue view 1518 --json comments --jq '.comments[] | select(.body | test(\"prflow:workpad|devflow:workpad\")) | .body' > .prflow/tmp/review/pr-1556/31432541463-1/workpad.txt\ngrep -c 'Verification evidence:' .prflow/tmp/review/pr-1556/31432541463-1/workpad.txt || echo 0\necho \"---checkpoint(cloud tier?)---\"\ngrep -c 'prflow:checkpoint gha:\\|devflow:checkpoint gha:' .prflow/tmp/review/pr-1556/31432541463-1/workpad.txt || echo 0\necho \"---final status---\"\ngrep -iE 'Complete|Failed|Cancelled|workpad_fi …[per-command-truncated]",
+      "mkdir -p .prflow/tmp\nif rm -f \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\" &&\n   [ -f \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\" ] &&\n   [ ! -L \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\" ] &&\n   git hash-object \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\"; then\n  :\nelse\n  echo \"::warning::snap …[per-command-truncated]",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before\ngit hash-object .prflow/tmp/review-dirty-tree-before",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve \"1518\" --pr \"1556\" 2>.prflow/tmp/review/pr-1556/31432541463-1/acs.err ; echo \"acs-rc=$?\"",
+      "for f in skills/implement/phases/phase-2-implement.md skills/review/phases/phase-3-agents.md; do printf '%s ' \"$f\"; git show 95600e98f51456a001d576634ac4d95766050f30:$f | sha256sum | cut -d' ' -f1; done",
+      "cd /home/runner/work/prflow/prflow\nfor f in skills/implement/phases/phase-2-implement.md skills/review/phases/phase-3-agents.md; do\n  echo \"$f: $(git show 95600e98f51456a001d576634ac4d95766050f30:$f | sha256sum | cut -d' ' -f1)\"\ndone\necho \"--- contract entries ---\"\ngit show 95600e98f51456a001d576634ac4d95766050f30:scripts/devflow-cloud-writer-contract.json | grep -E \"phase-2-implement|phase-3-agents\""
+    ],
+    "total": 9,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
