@@ -1,0 +1,214 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-10T02:00:00Z",
+  "fix_commit_sha": "3209d616c",
+  "fix_files": [
+    "lib/test/reconcile-module-floors.py"
+  ],
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "current_substep": null,
+  "pending_dispatch": null,
+  "sweep_defs_read": [
+    "phase-2-implement.md"
+  ],
+  "sweep_evidence": {
+    "status": "run"
+  },
+  "checklist": [],
+  "dispatched_effort": [],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:type-design-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "_measurement_argv docstring misattributed reconcile()'s SUMMARY filter as reading module id from argv",
+      "defect_signature": {
+        "file": "lib/test/reconcile-module-floors.py",
+        "line_range": [
+          56,
+          59
+        ],
+        "kind": "self_authored_claim_inaccuracy"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "'one heavy unit' exact-count mirror-fact can rot",
+      "defect_signature": {
+        "file": "lib/test/reconcile-module-floors.py",
+        "line_range": [
+          37,
+          39
+        ],
+        "kind": "mirror_fact_count"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "tally-equality invariant is prose-only, not tested (deliberate: full-mode automated test would defeat the issue's cost goal; AC4/AC5 make it a manual snapshot gate)",
+      "defect_signature": {
+        "file": "lib/test/reconcile-module-floors.py",
+        "line_range": [
+          44,
+          52
+        ],
+        "kind": "prose_only_invariant"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "3209d616c"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "3209d616c"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "advisory",
+      "source_file": "lib/test/reconcile-module-floors.py",
+      "claim_text": "tally-equality invariant is prose-only",
+      "skip_category": "advisory-parked",
+      "evidence": "AC4/AC5 make this a hand-written past-time snapshot by design; an automated full-mode equality test would run harness-python-guards full (~268s) every suite run, defeating the issue's cost-reduction goal. Fail direction is safe (DECREASE REFUSED still fires; a floor can only be under-tightened, never lowered).",
+      "parking_evidence": {
+        "basis": "the issue's AC4/AC5 deliberately scope tally-equality to a manual snapshot gate, not an automated test",
+        "failing_input": "a future edit making harness-python-guards' smoke tally differ from full",
+        "source": "issue #1499 AC4/AC5; DECREASE REFUSED guard in reconcile-module-floors.py",
+        "finding_ref": {
+          "iter": 1,
+          "index": 2
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 2,
+    "fix_diff_lines": 8,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "ran_at": "2026-08-10T02:05:00Z",
+    "reviewed_sha": "3209d616c",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": null,
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:pr-test-analyzer",
+      "prflow:comment-analyzer",
+      "prflow:type-design-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:pr-test-analyzer",
+      "prflow:comment-analyzer",
+      "prflow:type-design-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "telemetry": {
+    "phase_0": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 1
+    },
+    "phase_0_5": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 1
+    },
+    "phase_1": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 0
+    },
+    "phase_1_5": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 0
+    },
+    "phase_2": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 0
+    },
+    "phase_3": {
+      "calls": 6,
+      "tokens": 340000,
+      "wall_clock_s": 160
+    },
+    "step_2_5": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 1,
+      "webfetches": 0
+    },
+    "step_2_6": {
+      "calls": 6,
+      "tokens": 335000,
+      "wall_clock_s": 165
+    },
+    "phase_4_x": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 1
+    }
+  },
+  "synthesized": false
+}
