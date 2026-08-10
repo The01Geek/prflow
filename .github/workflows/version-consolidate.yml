@@ -130,6 +130,21 @@ jobs:
               echo "No pending changesets consolidated — nothing to commit."
               exit 0
             fi
+            # issue #1445: `main` is the SOLE writer of the cloud-writer manifest. Regenerate
+            # it here — after `git reset --hard origin/main` above, so the tree carries the
+            # just-merged pinned-file changes — immediately before the bump commit, so the
+            # digests it publishes derive from the exact bytes this commit ships. Feature
+            # branches never regenerate it (its regenerate-artifacts.py batched-pass row was
+            # removed) and a hand-authored divergence on a branch is caught by
+            # lib/test/cloud-writer-retention-check.py. Staged on its own line below (never
+            # `git add -A`); the unstaged-writes backstop further down fails closed if it is
+            # left unstaged, so a regeneration is never silently discarded by the next
+            # attempt's reset.
+            if python3 lib/test/cloud_writer_contract.py generate; then :; else
+              echo "::error::cloud-writer manifest regeneration failed"
+              exit 1
+            fi
+            git add scripts/devflow-cloud-writer-contract.json
             # Coupled site of scripts/consolidate-changesets.py's write-set: every file the
             # consolidator writes must be staged here, or its edit is silently discarded by the
             # next attempt's `git reset --hard origin/main`. Deliberately explicit (never
