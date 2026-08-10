@@ -21978,7 +21978,17 @@ def _drive_cmd_patch_unreadable_body_file():
     test — leaving the mode question out of the assertion entirely.
     """
     class _UnreadablePath(type(Path())):
+        # Every read route is closed, not just `read_text`: were `cmd_patch`'s
+        # early-read arm to reach the body another way, an unclosed route would
+        # fall through to the real filesystem and this test would pass while
+        # asserting nothing about the unreadable arm.
         def read_text(self, *a, **kw):
+            raise OSError(13, 'Permission denied')
+
+        def read_bytes(self, *a, **kw):
+            raise OSError(13, 'Permission denied')
+
+        def open(self, *a, **kw):
             raise OSError(13, 'Permission denied')
 
     saved = (workpad.Path, workpad._run, workpad._repo_full)
@@ -22045,12 +22055,28 @@ assert_eq("#1508: a CRLF live marker is re-inserted without its carriage return"
 
 # A composed body whose own markers sit behind a blank line leaves `supplied` empty, so
 # its copies would ride along in the tail beside the re-inserted ones. Asserted as the
-# whole body: counting one kind alone would miss the second, which the bounded split
-# leaves inside an unsplit tail element the dedupe scan cannot reach.
+# whole body: counting one kind alone would miss the second.
 assert_eq("#1508: a composed body whose markers are not at line 1 gains no duplicate",
           _RUNKEY + '\n' + _VERDICT + '\n\n' + _HEADING,
           _drive_cmd_patch_body(_RUNKEY + '\n' + _VERDICT + '\n' + _HEADING,
                                 '\n' + _RUNKEY + '\n' + _VERDICT + '\n' + _HEADING))
+
+# The dedupe scan drops only a kind the merge already carries. An out-of-position marker
+# of an UNMERGED kind is ordinary content and survives — the fall-through arm the
+# assertion above cannot witness, because there every out-of-position kind is dropped.
+assert_eq("#1508: an out-of-position marker of an unmerged kind is kept, not dropped",
+          _RUNKEY + '\n\n' + '<!-- prflow:workpad -->' + '\n' + _HEADING,
+          _drive_cmd_patch_body(_RUNKEY + '\n' + _HEADING,
+                                '\n' + '<!-- prflow:workpad -->' + '\n' + _HEADING))
+
+# An established live body that is EMPTY is not the unestablished case: the read
+# succeeded, so there is no marker to lose and the composed body patches untouched with
+# no refusal. Folding the two arms together would refuse this PATCH.
+assert_eq("#1508: an established-but-empty live body patches the composed body untouched",
+          (_HEADING, False),
+          (_drive_cmd_patch_body('', _HEADING),
+           'could not establish the live body' in _drive_cmd_patch_body(
+               '', _HEADING, want='stderr')))
 
 # The readers accept trailing whitespace on a marker line, so refusing it here would
 # leave a live marker they DO resolve unpreserved — the silent clobber, one space wide.

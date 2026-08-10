@@ -193,7 +193,14 @@ def _fail(prefix, exc, code=1):
     # auth/transport READ failure — the workpad or issue may be perfectly
     # healthy — apart from a genuinely unreadable/absent workpad. Callers that do
     # not override keep exit 1 unchanged.
-    msg = exc.stderr.strip() if isinstance(exc, subprocess.CalledProcessError) else str(exc)
+    msg = exc.stderr if isinstance(exc, subprocess.CalledProcessError) else str(exc)
+    # `_run` sets `encoding`, so `.stderr` is normally str — but a caller that
+    # built the exception without one hands over bytes, which would render as a
+    # `b'...'` repr. Decode it the same way `cmd_patch`'s live-body read arm does,
+    # so the two error surfaces of one command cannot diverge.
+    if isinstance(msg, bytes):
+        msg = msg.decode('utf-8', 'replace')
+    msg = msg.strip() if isinstance(msg, str) else str(msg)
     sys.stderr.write(f"workpad.py {prefix}: {msg}\n")
     sys.exit(code)
 
@@ -1081,14 +1088,11 @@ def _leading_markers(body):
     """`(markers, tail)` — the leading PRFlow marker-comment lines, then the rest.
 
     `markers` is `[(kind, line)]` with each line's trailing whitespace removed, so
-    a CRLF live body never injects a stray `\\r` into an LF one. `tail` is the
-    remaining lines, already split, so a caller that rebuilds the body never
-    re-splits it — but the bounded split below leaves its LAST element unsplit,
-    so a caller that matches line-by-line over `tail` must re-split it first.
+    a CRLF live body never injects a stray `\\r` into an LF one. `tail` is every
+    remaining line, fully split, so a caller may both rebuild the body and match
+    over it line-by-line without re-splitting.
     """
-    # Bounded split: the scan needs at most `_LEADING_MARKER_SCAN` lines, and the
-    # remainder comes back as one unsplit trailing element.
-    lines = body.split('\n', _LEADING_MARKER_SCAN)
+    lines = body.split('\n')
     found = []
     for line in lines[:_LEADING_MARKER_SCAN]:
         m = _LEADING_MARKER_RE.match(line)
@@ -1135,11 +1139,8 @@ def _merge_leading_markers(live_body, new_body):
     # along in the tail beside the ones just prepended. Drop a marker line of an
     # already-merged kind from the tail's leading run, stopping at the first line
     # that is neither blank nor such a marker so no ordinary content is touched.
-    # `_leading_markers` leaves the tail's last element unsplit, and the regex is
-    # not multiline, so it must be re-split or the scan stops at the blob and the
-    # second out-of-position marker survives.
     kept_tail, dropping = [], True
-    for line in '\n'.join(tail).split('\n') if tail else []:
+    for line in tail:
         if dropping:
             m = _LEADING_MARKER_RE.match(line)
             if m and m.group(1) in merged_kinds:
