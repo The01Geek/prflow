@@ -171,7 +171,13 @@ _ra_build_image() {  # <src-repo> <dest>
   _tab=$'\t'
   mkdir -p "$_dest" || return 1
   _idx="$_dest.index"
-  if ! (cd "$_src" && git ls-files -s -z) >"$_idx" 2>/dev/null; then
+  # Capture the status rather than negating the compound with `if ! (...) >"$_idx"`: bash
+  # does not propagate a failed redirect on a compound command through `!` (issue #1524), so
+  # the negated form swallowed an unopenable "$_idx" and walked on to a vacuous total=0. This
+  # arm must fire for BOTH the subshell failing (git ls-files) and the redirect failing to open.
+  local _idx_rc=0
+  (cd "$_src" && git ls-files -s -z) >"$_idx" 2>/dev/null || _idx_rc=$?
+  if [ "$_idx_rc" -ne 0 ]; then
     printf 'regenerate-artifacts fixture: could not establish the index for %s (git ls-files -s -z failed)\n' "$_src" >&2
     printf 'total=unestablished copied=unestablished fail_copy=unestablished fail_mode=unestablished skip_missing=unestablished skip_gitlink=unestablished skip_symlink=unestablished\n'
     rm -f "$_idx"
@@ -411,6 +417,18 @@ _ra_same "#619 the oracle reports unestablished (never a vacuous extra=0) when t
 _ra_unest_summary="$(_ra_build_image "$_ra_tmp_root/no-such-src" "$_ra_tmp_root/unestimg" 2>/dev/null)"
 _ra_same "#619 the fixture builder reports unestablished (never a vacuous total=0) when the index cannot be read" \
   unestablished "$(_ra_field "$_ra_unest_summary" total)" "summary: $_ra_unest_summary"
+# #1524 — the redirect-open half of the index-write guard, distinct from the #619
+# subshell-failure half above. Here `git ls-files` SUCCEEDS (the src is a real repo) and
+# only the `> "$_idx"` redirect fails, because "$_dest.index" is pre-created as a directory
+# (never openable for `>` truncation, so this is deterministic and uid-independent). On the
+# pre-#1524 code the failed redirect was swallowed — bash does not propagate a failed
+# redirect on a compound command through `!` — so the builder walked on and printed a
+# vacuous `total=0` instead of the unestablished sentinel.
+_ra_ridx_dest="$_ra_tmp_root/ridximg"
+mkdir -p "$_ra_ridx_dest.index"
+_ra_ridx_summary="$(_ra_build_image "$RA_REPO" "$_ra_ridx_dest" 2>/dev/null)"
+_ra_same "#1524 the fixture builder reports unestablished (never a vacuous total=0) when the index redirect cannot be opened though git ls-files itself succeeds" \
+  unestablished "$(_ra_field "$_ra_ridx_summary" total)" "summary: $_ra_ridx_summary"
 # The `fail_copy` channel, driven: a regular file sitting where a nested entry's parent
 # directory must go makes `mkdir -p` fail, so the entry is counted and breadcrumbed on
 # its own channel instead of vanishing into the gap between `total` and `copied`.
