@@ -23,7 +23,10 @@
 #   ALLOWED_TOOLS  the exact --allowed-tools string this run resolved.
 #
 # Prints the block, terminated by a `---` separator, so the caller appends its own
-# prompt body directly. Always exits 0 — it must never fail a review.
+# prompt body directly. Always exits 0 — the block is unconditional, so there is no
+# failure this renderer can report. All three callers now FAIL THEIR JOB when no block
+# comes back, because this block is each run's only statement of the headless-run
+# discipline; do not reintroduce a caller-side degradation around an empty result.
 
 set -u
 
@@ -76,8 +79,10 @@ HEAD_SHA="${HEAD_SHA//\`/}"
 # as before. `implement` renders the tier-agnostic sections only — the permitted
 # commands, the command shapes, and the headless-run discipline — omitting the CI
 # section (the implement tier has no reviewed commit to observe) and the
-# trusted-source-displacement section (a review-only concept), and renumbering the
-# survivors. The section PROSE is single-sourced across both tiers (issue #1170):
+# trusted-source-displacement section (a review-only concept), renumbering the
+# survivors, and adding the one implement-only clause built below as
+# IMPLEMENT_SCOPE_CLAUSE.
+# The section PROSE is single-sourced across both tiers (issue #1170):
 # the implement tier reuses this one renderer rather than a second hand-copied copy
 # of the allowed-tools text — the coupled-mirror hazard the block was built to avoid.
 MODE="${MODE:-review}"
@@ -157,6 +162,29 @@ __DISP_PROSE_EOF__
   _DISP_PROSE="${_DISP_PROSE//__HEAD_SHA__/${HEAD_SHA:-unknown}}"
   DISPLACED_SECTION="${_DISP_PROSE}
 ${DISPLACED_LIST}>"
+fi
+
+# The headless section's implement-only scope clause. Same mechanism as
+# DISPLACED_SECTION above — a MODE-gated variable interpolated into the shared tail —
+# so nothing new is invented for it. It names what the implement orchestrator's own
+# dispatch surface includes, which is non-obvious: Phase 3's `review-and-fix` pass
+# arrives through the Skill tool and runs INLINE in that orchestrator's context, so
+# the review engine's checklist agents, verifier batches and reviewers are all its
+# own dispatches. It is implement-only because on the review tiers the orchestrator
+# IS the review engine, which runs no Phase 3 of its own.
+#
+# The value opens with a newline and is appended to the last headless line, so review
+# mode's rendered bytes are unchanged. Quoted heredoc, like _DISP_PROSE: the clause
+# carries backticks and an apostrophe that must both stay literal.
+IMPLEMENT_SCOPE_CLAUSE=''
+if [ "$MODE" = implement ]; then
+  IMPLEMENT_SCOPE_CLAUSE=$(cat <<'__IMPL_SCOPE_EOF__'
+
+> This binds **every** phase and **every** subagent this orchestrator dispatches —
+> including Phase 3's inline `review-and-fix` pass, whose checklist and review agents
+> dispatch from your own context — at every dispatch point.
+__IMPL_SCOPE_EOF__
+)
 fi
 
 # Section numbers depend on the tier. The implement block omits the CI section and
@@ -266,11 +294,9 @@ ${ALLOWED_TOOLS}
 > An acknowledgment means the work STARTED, not that it finished, so never proceed
 > past a dispatch point on one and never create a pending dispatch you cannot collect
 > within this turn; more than one dispatch may be outstanding at a time, provided
-> every one of them is collected within it. How that obligation is met is a per-runner detail, not the
-> requirement itself — on this runner, keeping subagents in the foreground and passing
-> run_in_background: false on an individual dispatch are the current mechanisms, named as
-> examples rather than as the definition. The per-dispatch one is the lever YOU can pull;
-> reach for it rather than assuming the workflow-level one is in force.
+> every one of them is collected within it. Pass run_in_background: false on a dispatch —
+> that is the lever YOU control, rather than assuming the workflow-level foreground
+> setting is in force.${IMPLEMENT_SCOPE_CLAUSE}
 ${DISPLACED_SECTION}
 ---
 EOF

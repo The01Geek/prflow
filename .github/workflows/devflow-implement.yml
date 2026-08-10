@@ -673,12 +673,12 @@ jobs:
         with:
           ref: ${{ needs.config.outputs.prflow_version }}
 
-      # Validate the vendored workpad helper AND write the ephemeral handoff record
-      # (issue #537). Runs AFTER vendor-materialization and BEFORE the action so a
-      # broken vendor tree fails loud here rather than launching an agent that
-      # cannot maintain its workpad (AC25), and so Phase 1 can read truthful
-      # provenance (AC3).
-      - name: Validate vendored workpad + write handoff record
+      # Validate the vendored helpers this run cannot degrade around AND write the
+      # ephemeral handoff record (issue #537). Runs AFTER vendor-materialization and
+      # BEFORE the action so a broken vendor tree fails loud here rather than launching
+      # an agent that cannot maintain its workpad (AC25) or one whose prompt carries no
+      # engine-ground-truth block, and so Phase 1 can read truthful provenance (AC3).
+      - name: Validate vendored helpers + write handoff record
         env:
           NUMBER: ${{ needs.gate.outputs.number }}
           RUN_ID: ${{ github.run_id }}
@@ -687,12 +687,26 @@ jobs:
         run: |
           set -euo pipefail
           WP=.prflow/vendor/prflow/scripts/workpad.py
-          # AC25: incomplete-vendor guard. A committed plugin directory missing this
-          # helper would launch an agent that cannot maintain the workpad — a
-          # directory's presence is not proof the helper exists. Fail BEFORE the
+          # AC25: incomplete-vendor guard, extended past workpad.py to the two helpers
+          # that compose the agent's own prompt. A committed plugin directory missing
+          # any of them launches an agent that cannot maintain its workpad, or one whose
+          # prompt carries no engine-ground-truth block — the block being this run's only
+          # statement of the headless-run discipline and of the commands it may execute.
+          # A directory's presence is not proof a helper exists, so fail BEFORE the
           # action with an actionable diagnostic.
-          if [ ! -f "$WP" ]; then
-            echo "::error::incomplete vendor: $WP is missing after materialization — the /devflow:implement agent cannot maintain its workpad. Check the committed .prflow/vendor/prflow tree, or the vendor-plugin fetch (prflow_version)." >&2
+          #
+          # workpad.py is required at the VENDORED path alone, the only path the agent is
+          # granted to invoke it at. The two prompt-composition helpers are probed
+          # vendored-then-repo-root, exactly as compose-implement-prompt.sh probes them,
+          # so this guard fails only where the compose step would itself have failed.
+          MISSING=""
+          [ -f "$WP" ] || MISSING="$WP (the agent cannot maintain its workpad)"
+          for _h in render-grounding-block.sh compose-implement-prompt.sh; do
+            [ -f ".prflow/vendor/prflow/scripts/$_h" ] || [ -f "scripts/$_h" ] \
+              || MISSING="${MISSING:+$MISSING; }.prflow/vendor/prflow/scripts/$_h (the implement prompt would carry no engine-ground-truth block)"
+          done
+          if [ -n "$MISSING" ]; then
+            echo "::error::incomplete vendor: missing after materialization: $MISSING. Repair the committed .prflow/vendor/prflow tree, or check the vendor-plugin fetch (prflow_version). Failing BEFORE Run Claude Code rather than launching a degraded agent." >&2
             exit 1
           fi
           # AC3: normalize the gate provenance to exactly one of the three origin
@@ -1309,15 +1323,16 @@ jobs:
       # copy of the allowed-tools text (the coupled-mirror hazard the block avoids). The
       # implement mode omits the review-only CI and trusted-source-displacement sections.
       # Verify the OUTCOME (a non-empty block), not the file's existence: a truncated
-      # vendored copy that exits 0 printing nothing falls back to the bare prompt — the
-      # pre-#1170 behavior — rather than shipping an empty block. This does NOT make a
-      # denial visible at the moment it happens and does not change the matcher's
-      # response; it only gives the agent the list to check against.
+      # vendored copy that exits 0 printing nothing FAILS THE JOB rather than shipping an
+      # empty block or a bare prompt. The block is the single home of the cloud
+      # headless-run discipline, so there is no acceptable degraded prompt here. This does
+      # NOT make a denial visible at the moment it happens and does not change the
+      # matcher's response; it only gives the agent the list to check against.
       #
       # The three-way selection (renderer absent / renderer produced nothing / compose
       # and publish) lives in scripts/compose-implement-prompt.sh, NOT inline here, so the
       # suite can drive each arm and the arm ORDER — CLAUDE.md's inline-shell-extraction
-      # convention: a grep-pin on one of the two ::warning:: literals is not coverage of
+      # convention: a grep-pin on one of the two ::error:: literals is not coverage of
       # the selection that chooses between them. Vendored copy, repo-path fallback for a
       # self-repo run, exactly like the Stop-refresher step below.
       - name: Compose implement grounding block
@@ -1329,11 +1344,17 @@ jobs:
           set -euo pipefail
           H=.prflow/vendor/prflow/scripts/compose-implement-prompt.sh
           [ -f "$H" ] || H=scripts/compose-implement-prompt.sh
-          # The helper always exits 0 by contract (a missing/empty block degrades to the
-          # bare prompt, it never fails the job), so this tail can only absorb a composer
-          # absent from BOTH paths — a partial vendor slice — which must degrade the same
-          # way rather than failing the step under the runner's `-e` shell.
-          bash "$H" || echo "::warning::devflow: compose-implement-prompt.sh could not be invoked at either the vendored or repo path — the implement prompt carries no engine-ground-truth block this run" >&2
+          # The helper is FAIL-LOUD by contract: it exits non-zero on every arm that
+          # cannot publish a grounded prompt, and the runner's `-e` shell propagates that
+          # here — so no `||` tail may absorb it. This check covers only the one case the
+          # helper cannot report, a composer absent from BOTH paths (a partial vendor
+          # slice); the guard step above already fails on it, so reaching this line means
+          # the tree changed under the job.
+          if [ ! -f "$H" ]; then
+            echo "::error::devflow: compose-implement-prompt.sh is absent from both .prflow/vendor/prflow/scripts/ and scripts/ — the implement prompt would carry no engine-ground-truth block, this run's only statement of the headless-run discipline and of the commands it may execute. Repair the vendored .prflow/vendor/prflow tree, or check the vendor-plugin fetch (prflow_version). Refusing to run." >&2
+            exit 1
+          fi
+          bash "$H"
 
       - name: Run Claude Code
         id: claude
@@ -1385,9 +1406,11 @@ jobs:
           # Anthropic's stock claude.yml (tag mode) therefore never double-fires
           # on a bare `/devflow:implement <n>` comment.
           # The `Compose implement grounding block` step prepends the
-          # engine-ground-truth block (issue #1170); it falls back to the bare
-          # `/prflow:implement <n>` prompt whenever the block could not be composed,
-          # so a missing/empty renderer never blocks the run.
+          # engine-ground-truth block (issue #1170) and FAILS the job when it cannot,
+          # because that block is this run's only statement of the headless-run
+          # discipline. The `||` bare-prompt default is therefore unreachable in
+          # practice; it is kept as the last line of defense so a future step that
+          # publishes no `prompt` output cannot hand the action an empty prompt.
           prompt: ${{ steps.compose.outputs.prompt || format('/prflow:implement {0}', needs.gate.outputs.number) }}
 
           # Agent mode is silent by default; surface a progress comment so the

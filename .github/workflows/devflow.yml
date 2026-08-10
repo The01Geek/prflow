@@ -838,6 +838,28 @@ jobs:
         with:
           ref: ${{ needs.config.outputs.prflow_version }}
 
+      # Incomplete-vendor guard for the grounding renderer. Runs AFTER
+      # vendor-materialization and BEFORE the Claude step so a broken vendor tree fails
+      # here rather than launching a reviewing agent whose prompt carries no
+      # engine-ground-truth block — this run's only statement of the headless-run
+      # discipline and of the commands it may execute. A directory's presence is not
+      # proof the helper exists, so probe the file itself.
+      #
+      # Gated on the SAME predicate as `Compose review grounding block` below (the
+      # trailing space in `/prflow:review ` excludes `/prflow:review-and-fix`), so this
+      # fails exactly the runs that compose a block and never a command that composes
+      # none. Probed vendored-then-repo-root, exactly as that step resolves the renderer,
+      # so this guard fails only where the compose step would itself have failed.
+      - name: Validate vendored grounding renderer
+        if: ${{ startsWith(needs.gate.outputs.command, '/prflow:review ') }}
+        run: |
+          set -euo pipefail
+          if [ ! -f .prflow/vendor/prflow/scripts/render-grounding-block.sh ] \
+             && [ ! -f scripts/render-grounding-block.sh ]; then
+            echo "::error::incomplete vendor: render-grounding-block.sh is missing from both .prflow/vendor/prflow/scripts/ and scripts/ after materialization — the review prompt would carry no engine-ground-truth block, this run's only statement of the headless-run discipline and of the commands it may execute. Repair the committed .prflow/vendor/prflow tree, or check the vendor-plugin fetch (prflow_version). Failing BEFORE Run Claude Code rather than launching an ungrounded reviewer." >&2
+            exit 1
+          fi
+
       # ── Trusted prompt-extension closure (issue #1075, extending #874) ────────
       # `scripts/load-prompt-extension.sh` prints an extension file byte-for-byte and
       # every skill treats that stdout as instructions appended to its OWN prompt for
@@ -1113,16 +1135,18 @@ jobs:
           RGB=.prflow/vendor/prflow/scripts/render-grounding-block.sh
           [ -f "$RGB" ] || RGB=scripts/render-grounding-block.sh
           if [ ! -f "$RGB" ]; then
-            echo "::warning::devflow: render-grounding-block.sh not found at either the vendored or repo path — falling back to the bare command prompt" >&2
-            exit 0
+            echo "::error::devflow: render-grounding-block.sh not found at either the vendored or repo path — the review prompt would carry no engine-ground-truth block, this run's only statement of the headless-run discipline and of the commands it may execute. Repair the vendored .prflow/vendor/prflow tree, or check the vendor-plugin fetch (prflow_version). Refusing to run." >&2
+            exit 1
           fi
           GROUNDING=$(CI_SUMMARY="$CI_SUMMARY" ALLOWED_TOOLS="$ALLOWED_TOOLS" bash "$RGB") || GROUNDING=""
-          # Verify the OUTCOME, not the file's existence (see devflow-runner.yml).
-          # An empty block means the engine gets the bare command prompt back, which
-          # is the pre-#363 behavior — degraded, but never a silently-empty block.
+          # Verify the OUTCOME, not the file's existence (see devflow-runner.yml). A
+          # present-but-truncated renderer that exits 0 printing nothing FAILS the job
+          # rather than degrading to the bare command prompt: the block is the single
+          # home of the headless-run discipline, so a block-less review is not a
+          # degraded review but an ungrounded one.
           if [ -z "$GROUNDING" ]; then
-            echo "::warning::devflow: render-grounding-block.sh produced no output — falling back to the bare command prompt for this review" >&2
-            exit 0
+            echo "::error::devflow: render-grounding-block.sh produced no output — the review prompt would carry no engine-ground-truth block, this run's only statement of the headless-run discipline and of the commands it may execute. The renderer resolved at '$RGB' but printed nothing or exited non-zero: repair that copy, or check the vendor-plugin fetch (prflow_version). Refusing to run." >&2
+            exit 1
           fi
           PROMPT="${GROUNDING}
 
