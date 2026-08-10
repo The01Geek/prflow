@@ -193,14 +193,18 @@ def _fail(prefix, exc, code=1):
     # auth/transport READ failure — the workpad or issue may be perfectly
     # healthy — apart from a genuinely unreadable/absent workpad. Callers that do
     # not override keep exit 1 unchanged.
-    msg = exc.stderr if isinstance(exc, subprocess.CalledProcessError) else str(exc)
-    # `_run` sets `encoding`, so `.stderr` is normally str — but a caller that
-    # built the exception without one hands over bytes, which would render as a
-    # `b'...'` repr. Decode it the same way `cmd_patch`'s live-body read arm does,
-    # so the two error surfaces of one command cannot diverge.
+    # `_run` sets `encoding`, so `.stderr` is normally str — but an exception
+    # raised without capture carries None, and one built elsewhere can carry
+    # bytes, which would render as a `b'...'` repr. Both are handled the same way
+    # `cmd_patch`'s live-body read arm handles them (`getattr(e, 'stderr', None)
+    # or e`, then decode-and-strip), so the two error surfaces of one command
+    # cannot diverge: an absent or empty stderr falls back to the exception
+    # itself rather than printing a breadcrumb that names no failure.
+    msg = getattr(exc, 'stderr', None) if isinstance(exc, subprocess.CalledProcessError) else None
     if isinstance(msg, bytes):
         msg = msg.decode('utf-8', 'replace')
-    msg = msg.strip() if isinstance(msg, str) else str(msg)
+    msg = msg.strip() if isinstance(msg, str) else ''
+    msg = msg or str(exc)
     sys.stderr.write(f"workpad.py {prefix}: {msg}\n")
     sys.exit(code)
 
@@ -1107,7 +1111,9 @@ def _merge_leading_markers(live_body, new_body):
 
     Returns `(body, reinserted_kinds)`. When anything is re-inserted the live
     body's ORDER governs the result (the run key stays line 1) and the caller's
-    line wins for any kind it supplied, so a same-kind re-stamp still lands;
+    line wins for any kind it supplied — its FIRST line of that kind, so a
+    composed body carrying one kind twice inside the scan window keeps the copy
+    at the contracted position — so a same-kind re-stamp still lands;
     a kind only the caller supplied is appended after the live ones. When the
     caller supplied every live kind nothing is re-inserted and its own body —
     and its own order — is returned untouched. The consequence a caller must
@@ -1126,7 +1132,10 @@ def _merge_leading_markers(live_body, new_body):
     if not live:
         return new_body, []
     supplied, tail = _leading_markers(new_body)
-    by_kind = dict(supplied)
+    # Reversed, so the FIRST supplied line of a repeated kind is the one that
+    # survives: a plain `dict(supplied)` would let a line-2 copy displace the
+    # line-1 one the caller placed at the contracted position.
+    by_kind = {kind: line for kind, line in reversed(supplied)}
     reinserted = [kind for kind, _ in live if kind not in by_kind]
     if not reinserted:
         return new_body, []

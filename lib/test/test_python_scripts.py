@@ -22061,6 +22061,16 @@ assert_eq("#1508: a composed body whose markers are not at line 1 gains no dupli
           _drive_cmd_patch_body(_RUNKEY + '\n' + _VERDICT + '\n' + _HEADING,
                                 '\n' + _RUNKEY + '\n' + _VERDICT + '\n' + _HEADING))
 
+# A composed body carrying one kind twice inside the scan window keeps the copy the
+# caller put at the contracted position: a plain dict() over the supplied pairs would
+# let the line-2 copy displace it, silently re-stamping a different value.
+_RUNKEY2 = '<!-- prflow:review-progress run=2-2 -->'
+assert_eq("#1508: the FIRST supplied line of a repeated kind wins, not the last",
+          _RUNKEY,
+          (_drive_cmd_patch_body(_RUNKEY2 + '\n' + _VERDICT + '\n' + _HEADING,
+                                 _RUNKEY + '\n' + _RUNKEY2 + '\n' + _HEADING)
+           or '\n').split('\n')[0])
+
 # The dedupe scan drops only a kind the merge already carries. An out-of-position marker
 # of an UNMERGED kind is ordinary content and survives — the fall-through arm the
 # assertion above cannot witness, because there every out-of-position kind is dropped.
