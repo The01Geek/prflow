@@ -13,7 +13,8 @@
 # CONTRACT — one line on stdout, exit 0 on every path:
 #   [View run](<server>/<repo>/actions/runs/<id>)   when GITHUB_SERVER_URL, GITHUB_REPOSITORY,
 #                                                    and GITHUB_RUN_ID are ALL non-empty
-#   _(local run)_                                    when ANY one of them is empty/unset
+#   _(local run)_                                    when ANY one of them is empty/unset OR
+#                                                    whitespace-only
 #
 # The guard fails CLOSED: with a single segment empty it prints `_(local run)_` rather than a
 # URL carrying an empty segment (`https://…//actions/runs/…` or a run id-less tail), so a
@@ -27,7 +28,13 @@ server="${GITHUB_SERVER_URL:-}"
 repo="${GITHUB_REPOSITORY:-}"
 run_id="${GITHUB_RUN_ID:-}"
 
-if [ -n "$server" ] && [ -n "$repo" ] && [ -n "$run_id" ]; then
+# A whitespace-only segment is treated as empty (fail closed): otherwise a whitespace-only
+# GITHUB_RUN_ID would compose a broken `.../actions/runs/ ` link on a run that
+# seed-review-progress.sh's own marker derivation (`${RUN_ID//[[:space:]]/}`) already treats as
+# local — so the two helpers agree on "what counts as a usable cloud run." The `//[[:space:]]/`
+# strip is applied to the emptiness TEST only; the emitted URL uses the original values, and it
+# is bash parameter substitution (no non-preflight PATH tool).
+if [ -n "${server//[[:space:]]/}" ] && [ -n "${repo//[[:space:]]/}" ] && [ -n "${run_id//[[:space:]]/}" ]; then
   printf '%s\n' "[View run](${server}/${repo}/actions/runs/${run_id})"
 else
   printf '%s\n' "_(local run)_"

@@ -1624,6 +1624,14 @@ for S1536_MISS in GITHUB_SERVER_URL GITHUB_REPOSITORY GITHUB_RUN_ID; do
   assert_eq "#1536 compose-run-url: $S1536_MISS empty output carries no https://" "0" \
     "$(printf '%s' "$S1536_OUT" | grep -c 'https://')"
 done
+# A WHITESPACE-ONLY GITHUB_RUN_ID is treated as empty (fail closed), matching the seed helper's
+# own `${RUN_ID//[[:space:]]/}` marker normalization — so an effectively-local run whose SERVER/REPO
+# happen to be set never gets a broken `.../actions/runs/ ` link. Server/repo set, run id all spaces.
+S1536_WS_OUT="$(GITHUB_SERVER_URL=https://github.com GITHUB_REPOSITORY=o/r GITHUB_RUN_ID='   ' "$S1536_COMPOSE")"
+assert_eq "#1536 compose-run-url: whitespace-only GITHUB_RUN_ID -> _(local run)_ (fail closed)" \
+  "_(local run)_" "$S1536_WS_OUT"
+assert_eq "#1536 compose-run-url: whitespace-only run id output carries no https://" "0" \
+  "$(printf '%s' "$S1536_WS_OUT" | grep -c 'https://')"
 # Seed body rewrite: a body-recording stub captures the created body so the rewritten `**Run:**`
 # line and the RUNLINK<->body agreement are asserted directly (criteria 3, 4, 5).
 S1536="$(git_sandbox '#1536 run-link seed body rewrite')"
@@ -34058,8 +34066,8 @@ assert_eq "#363 every already-pinned arm shape (incl. optional-leading-paren) st
 # Regression guard: the arm-position fix is a NO-OP on today's Review engine BUNDLE
 # (root + skills/review/phases/*.md — #529 split the engine, so the reviewed surface
 # is every source, not just the root).
-assert_eq "#363 the review-skill head set matches the reviewed count (33 distinct names over the whole bundle; #529 moved fences into references and added only already-counted heads (git hash-object, echo); #857 added seed-review-progress.sh; #1054 moved marker derivation out of the cloud fence, removing date; #1059 added post-review-verdict.sh as the Phase 4.4 verdict-post head)" \
-  "33" "$(python3 -c 'import importlib.util,sys
+assert_eq "#363 the review-skill head set matches the reviewed count (34 distinct names over the whole bundle; #529 moved fences into references and added only already-counted heads (git hash-object, echo); #857 added seed-review-progress.sh; #1054 moved marker derivation out of the cloud fence, removing date; #1059 added post-review-verdict.sh as the Phase 4.4 verdict-post head; #1536 added compose-run-url.sh as the run-link composer)" \
+  "34" "$(python3 -c 'import importlib.util,sys
 s=importlib.util.spec_from_file_location("e",sys.argv[1]);m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
 h=m.extract_heads(open(sys.argv[2],encoding="utf-8").read());print(len({m.name_of(x) for x in h}))' "$ECH" "$REVIEW_BUNDLE")"
 
