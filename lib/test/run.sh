@@ -4276,19 +4276,17 @@ for _pf in $IMPL_PHASE_STEMS; do
   # position, not just "the digit appears somewhere in the file".
   assert_eq "implement split: phases/${_pf}.md carries its own Phase ${_n} heading (not a cross-phase swap)" "yes" \
     "$(grep -qE "^## Phase ${_n}:" "$IMPL_PHASES_DIR/${_pf}.md" && echo yes || echo no)"
-  # ── issue #1551: boundary-marker gating. Assert each phase file carries its self-naming
-  # start marker as the literal FIRST line and its end marker as the literal LAST line, with
-  # exactly one of each. Mirrors the REVIEW_PHASE_STEMS boundary-marker loop (the `#529 AC6
-  # desk` block) and is driven from the SAME IMPL_PHASE_STEMS list, so a phase file added to
-  # phases/ later is asserted by this loop with no further edit. The check is structural — the
-  # runtime accept-or-reject contract in skills/implement/SKILL.md asserts these same marker rows.
-  assert_eq "implement boundary: phases/${_pf}.md start marker is the literal FIRST line and names its own path" "yes" \
-    "$(head -1 "$IMPL_PHASES_DIR/${_pf}.md" | grep -qF -- "<!-- prflow:implement-ref phase=" \
-        && head -1 "$IMPL_PHASES_DIR/${_pf}.md" | grep -qF -- "file=skills/implement/phases/${_pf}.md start -->" && echo yes || echo no)"
-  assert_eq "implement boundary: phases/${_pf}.md end marker is the literal LAST line and names its own path" "yes" \
-    "$(tail -1 "$IMPL_PHASES_DIR/${_pf}.md" | grep -qF -- "file=skills/implement/phases/${_pf}.md end -->" && echo yes || echo no)"
+  # issue #1551: match the WHOLE canonical marker line, never the path or a bare `start -->`
+  # tail: a marker naming the wrong phase number is the `boundary: misrouted` shape that halts
+  # every /prflow:implement run at runtime, and a path-only assertion stays green on it.
+  _impl_start_marker="<!-- prflow:implement-ref phase=${_n} file=skills/implement/phases/${_pf}.md start -->"
+  _impl_end_marker="<!-- prflow:implement-ref phase=${_n} file=skills/implement/phases/${_pf}.md end -->"
+  assert_eq "implement boundary: phases/${_pf}.md start marker is the literal FIRST line and names its own phase and path" "yes" \
+    "$(head -1 "$IMPL_PHASES_DIR/${_pf}.md" | grep -qxF -- "$_impl_start_marker" && echo yes || echo no)"
+  assert_eq "implement boundary: phases/${_pf}.md end marker is the literal LAST line and names its own phase and path" "yes" \
+    "$(tail -1 "$IMPL_PHASES_DIR/${_pf}.md" | grep -qxF -- "$_impl_end_marker" && echo yes || echo no)"
   assert_eq "implement boundary: phases/${_pf}.md carries exactly one start and one end marker (no duplicate)" "1|1" \
-    "$(grep -cF -- 'start -->' "$IMPL_PHASES_DIR/${_pf}.md" | tr -d ' ')|$(grep -cF -- 'end -->' "$IMPL_PHASES_DIR/${_pf}.md" | tr -d ' ')"
+    "$(grep -cxF -- "$_impl_start_marker" "$IMPL_PHASES_DIR/${_pf}.md" | tr -d ' ')|$(grep -cxF -- "$_impl_end_marker" "$IMPL_PHASES_DIR/${_pf}.md" | tr -d ' ')"
 done
 # Misregistration guard: a present-but-empty stdout from find means NO SKILL.md under
 # phases/. find over a missing dir also prints nothing (2>/dev/null), but the existence
