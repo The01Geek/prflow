@@ -1,0 +1,64 @@
+{
+  "pairs": [
+    {
+      "item": {"id": "VC-1", "verification_mode": "agent", "claim_provenance": "generated_paraphrase"},
+      "verdict_path": ".prflow/tmp/review/worktree-issue-1526/local-20260810T042408Z-1/verdicts/iter-1/VC-1-n7a3.json",
+      "response_text": "```json\n{\"id\":\"VC-1\",\"verdict\":\"FAIL\",\"evidence\":\"real-tree lint clean (rc 0, audited 99 of 99); the claim's five-vs-six hunk shortfall is fabricated - all six occurrences were fixed across 3 hunks\",\"file_checked\":\"docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md\",\"property_proven\":false,\"inaccuracy_scope\":\"generated_claim_text\"}\n```"
+    },
+    {
+      "item": {"id": "VC-2", "verification_mode": "agent", "claim_provenance": "generated_paraphrase"},
+      "verdict_path": ".prflow/tmp/review/worktree-issue-1526/local-20260810T042408Z-1/verdicts/iter-1/VC-2-k2q9.json",
+      "response_text": "```json\n{\"id\":\"VC-2\",\"verdict\":\"PASS\",\"evidence\":\"skills/ and agents/ remain the first two members; substring survives\",\"file_checked\":\"lib/test/lint-ungranted-helper-spelling.py\",\"property_proven\":true,\"inaccuracy_scope\":\"none\"}\n```"
+    },
+    {
+      "item": {"id": "VC-3", "verification_mode": "agent", "claim_provenance": "generated_paraphrase"},
+      "verdict_path": ".prflow/tmp/review/worktree-issue-1526/local-20260810T042408Z-1/verdicts/iter-1/VC-3-w8z1.json",
+      "response_text": "```json\n{\"id\":\"VC-3\",\"verdict\":\"FAIL\",\"evidence\":\"finding order is fixed by the call site's argument order, so CLAUDE.md can never lead; and the newline anchor PREVENTS a path merely ending in CLAUDE.md from matching - the claim asserts the opposite\",\"file_checked\":\"lib/test/run.sh\",\"property_proven\":false,\"inaccuracy_scope\":\"generated_claim_text\"}\n```"
+    },
+    {
+      "item": {"id": "VC-4", "verification_mode": "agent", "claim_provenance": "generated_paraphrase"},
+      "verdict_path": ".prflow/tmp/review/worktree-issue-1526/local-20260810T042408Z-1/verdicts/iter-1/VC-4-r5t2.json",
+      "response_text": "```json\n{\"id\":\"VC-4\",\"verdict\":\"PASS\",\"evidence\":\"fixtures reachable via --root/--files-from and not selected by the real-tree enumeration\",\"file_checked\":\"lib/test/run.sh\",\"property_proven\":true,\"inaccuracy_scope\":\"none\"}\n```"
+    },
+    {
+      "item": {"id": "VC-5", "verification_mode": "agent", "claim_provenance": "generated_paraphrase"},
+      "verdict_path": ".prflow/tmp/review/worktree-issue-1526/local-20260810T042408Z-1/verdicts/iter-1/VC-5-m4v6.json",
+      "response_text": "```json\n{\"id\":\"VC-5\",\"verdict\":\"PASS\",\"evidence\":\"all three assumptions hold; the assertion prints yes\",\"file_checked\":\"lib/test/run.sh\",\"property_proven\":true,\"inaccuracy_scope\":\"none\"}\n```"
+    },
+    {
+      "item": {"id": "VC-6", "verification_mode": "agent", "claim_provenance": "generated_paraphrase"},
+      "verdict_path": ".prflow/tmp/review/worktree-issue-1526/local-20260810T042408Z-1/verdicts/iter-1/VC-69-t8n2.json",
+      "response_text": "```json\n{\"id\":\"VC-6\",\"verdict\":\"PASS\",\"evidence\":\"rc 0, audited 99 of 99 (was 70 of 70); prompt-extensions in the audited set\",\"file_checked\":\"lib/test/lint-ungranted-helper-spelling.py\",\"property_proven\":true,\"inaccuracy_scope\":\"none\"}\n```"
+    },
+    {
+      "item": {"id": "VC-7", "verification_mode": "agent", "claim_provenance": "generated_paraphrase"},
+      "verdict_path": ".prflow/tmp/review/worktree-issue-1526/local-20260810T042408Z-1/verdicts/iter-1/VC-7-j9c8.json",
+      "response_text": "```json\n{\"id\":\"VC-7\",\"verdict\":\"PASS\",\"evidence\":\"copy-based mutation reverting the filter flips all three #1526 assertions to no\",\"file_checked\":\"lib/test/run.sh\",\"property_proven\":true,\"inaccuracy_scope\":\"none\"}\n```"
+    },
+    {
+      "item": {"id": "VC-8", "verification_mode": "agent", "claim_provenance": "source_authored", "source_excerpt": "a surface is audited when the run's own machinery loads it (a prefix above), or when it is at depth 1 from CLAUDE.md"},
+      "verdict_path": ".prflow/tmp/review/worktree-issue-1526/local-20260810T042408Z-1/verdicts/iter-1/VC-8-p3h5.json",
+      "response_text": "```json\n{\"id\":\"VC-8\",\"verdict\":\"PASS\",\"evidence\":\"three canonical depth-1 pages exist; the two omitted carry neither forbidden literal, exactly the disclosed residual\",\"file_checked\":\"lib/test/lint-ungranted-helper-spelling.py\",\"property_proven\":true,\"inaccuracy_scope\":\"none\"}\n```"
+    },
+    {
+      "item": {"id": "VC-9", "verification_mode": "agent", "claim_provenance": "source_authored", "source_excerpt": "Before this widening the fixture files asserted below selected NOTHING and the run refused on the empty-audited floor"},
+      "verdict_path": ".prflow/tmp/review/worktree-issue-1526/local-20260810T042408Z-1/verdicts/iter-1/VC-69-t8n2.json",
+      "response_text": "```json\n{\"id\":\"VC-9\",\"verdict\":\"PASS\",\"evidence\":\"pre-change filter returns False for all three paths; not an overclaim\",\"file_checked\":\"lib/test/run.sh\",\"property_proven\":true,\"inaccuracy_scope\":\"none\"}\n```"
+    },
+    {
+      "item": {"id": "VC-10", "verification_mode": "agent", "claim_provenance": "generated_paraphrase"},
+      "verdict_path": ".prflow/tmp/review/worktree-issue-1526/local-20260810T042408Z-1/verdicts/iter-1/VC-101112-x6b4.json",
+      "response_text": "```json\n{\"id\":\"VC-10\",\"verdict\":\"PASS\",\"evidence\":\"coverage_map_guard.py exits 0; string-sort order is canonical\",\"file_checked\":\"lib/test/modules/coverage-map.json\",\"property_proven\":true,\"inaccuracy_scope\":\"none\"}\n```"
+    },
+    {
+      "item": {"id": "VC-11", "verification_mode": "agent", "claim_provenance": "generated_paraphrase"},
+      "verdict_path": ".prflow/tmp/review/worktree-issue-1526/local-20260810T042408Z-1/verdicts/iter-1/VC-101112-x6b4.json",
+      "response_text": "```json\n{\"id\":\"VC-11\",\"verdict\":\"PASS\",\"evidence\":\"no suite pin quotes the changed CLAUDE.md/overview prose\",\"file_checked\":\"CLAUDE.md\",\"property_proven\":true,\"inaccuracy_scope\":\"none\"}\n```"
+    },
+    {
+      "item": {"id": "VC-12", "verification_mode": "agent", "claim_provenance": "generated_paraphrase"},
+      "verdict_path": ".prflow/tmp/review/worktree-issue-1526/local-20260810T042408Z-1/verdicts/iter-1/VC-101112-x6b4.json",
+      "response_text": "```json\n{\"id\":\"VC-12\",\"verdict\":\"PASS\",\"evidence\":\"_parse_changeset returns Changeset(bump='patch', ...)\",\"file_checked\":\".changeset/issue-1526-ungranted-spelling-population.md\",\"property_proven\":true,\"inaccuracy_scope\":\"none\"}\n```"
+    }
+  ]
+}
