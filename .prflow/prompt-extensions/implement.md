@@ -197,8 +197,9 @@ been established as satisfied; anywhere it has not, that convention's own degrad
 dispatch instead of this permission, and are deliberately not restated here — a concurrent dispatch
 made outside the established condition can lose the orchestrator's uncommitted work. Those
 concurrent dispatches are bound by the rule governing when a dispatched subagent's result must be in
-hand, stated in the *Cloud headless-wait discipline* block in `skills/implement/SKILL.md` — read the
-requirement there; it lives there and is deliberately not restated here.
+hand, stated in the engine-ground-truth block injected into this run's prompt — read it there (if your
+prompt carries no such block, collect every dispatch before the turn ends anyway); it is
+deliberately not restated here.
 
 **A coupled set is one helper's work.** Trigger-glob files that must change together are one unit of
 work dispatched to a single helper. Which files those are is stated by the files themselves, in the

@@ -921,6 +921,20 @@ credentials is visible without log archaeology. The agent-side wrapper degrades 
 too: a substitute decision that finds no token file (a refresher defeated at startup
 never writes one) emits a stderr breadcrumb before riding the ambient token.
 
+**Agent-side fail-fast — the last line of defense when the refresher is defeated
+(issue #487).** The refresher can be defeated by sustained mint failure, so
+`skills/implement/SKILL.md` carries an always-resident *Expired-credential fail-fast*
+rule: after **two** consecutive `git push` / `gh` failures carrying the bad-credential
+signature (`401`, `Bad credentials`, `Authentication failed`) the run stops retrying
+that operation, records a `blocked` reflection, sets `Status: Blocked` and ends there.
+The motivating evidence is the ~$60 run **29299441781**, which spent its remainder
+iterating on dead credentials. That prose rule is **best-effort under context
+compaction** — a >60-minute run is the maximally compaction-likely population — and its
+compaction-immune sibling is `scripts/gh-fresh.sh`, which appends a distinctive
+`devflow-gh-fresh: gh call failed with an expired/bad credential …` line to stderr at
+every `gh` call failing with that signature, so the signal is re-derivable from the tool
+result even if the rule has been evicted from the agent's context.
+
 **Disclosed residual.** This refresher keeps PRFlow's own `git push` and `gh` calls
 fresh, but `claude-code-action`'s **own internal API calls** still ride the static
 `github_token` input passed to the action, which is not refreshed. That is an upstream

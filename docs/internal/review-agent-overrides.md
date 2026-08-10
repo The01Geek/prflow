@@ -279,12 +279,16 @@ documentation alone — a `background-tasks-probe` job in `.github/workflows/mat
 observed the variable's effect inside `claude-code-action`; the dated verdict, its run identifiers,
 and its re-probe caveat are recorded once, in
 [`DEVFLOW_SYSTEM_OVERVIEW.md`](DEVFLOW_SYSTEM_OVERVIEW.md)'s `prflow_implement.stall_backstop`
-bullet); and each engine root states the requirement behaviorally, so
-it holds on runtimes with no equivalent switch. The workflow variable is the floor, not the only
-lever: the corresponding **per-dispatch** parameter (`run_in_background: false` on this runner) is
-the one the dispatching engine can set itself, and the injected review grounding block names it as
-the lever to reach for rather than assuming the workflow-level one is in force. Both are named as
-current mechanisms, not as the definition of the requirement. A second consequence is relevant to *this* doc's
+bullet); and the injected grounding block (`scripts/render-grounding-block.sh`) states the
+requirement behaviorally, in every mode it renders. That block is the requirement's **sole home** —
+neither engine root carries a copy any more — so every cloud tier gets it from one place, and a run
+whose prompt carries no block is the case each dispatch site's pointer handles fail-closed. The
+workflow variable is the floor, not the only lever: the corresponding **per-dispatch** parameter
+(`run_in_background: false` on this runner) is the one the dispatching engine can set itself, and
+the block names that one lever as the one to reach for rather than assuming the workflow-level one
+is in force. It is named as the current mechanism, not as the definition of the requirement; the
+cloud tier supports Claude Code headless only, so the block no longer hedges the requirement across
+runtimes with no equivalent switch. A second consequence is relevant to *this* doc's
 subject: a background subagent keeps its MCP tools but is restricted to a narrower set of built-in
 tools than its definition grants, so forcing foreground also restores the roster's full declared
 tool surface — an agent-behavior change independent of the stall itself.
