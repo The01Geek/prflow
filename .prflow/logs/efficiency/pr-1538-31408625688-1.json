@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1538",
+  "generated_at": "2026-08-10T16:30:45Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.6",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 7.03117175,
+    "tokens": {
+      "input_tokens": 46,
+      "output_tokens": 15565,
+      "cache_read_input_tokens": 3205991,
+      "cache_creation_input_tokens": 170370,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 85,
+        "outputTokens": 40492,
+        "cacheReadInputTokens": 4376081,
+        "cacheCreationInputTokens": 510643,
+        "webSearchRequests": 0,
+        "costUSD": 7.03117175,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 32,
+    "duration_ms": 377188
+  },
+  "permission_denials": {
+    "count": 2,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=$GITHUB_RUN_ID ATTEMPT=$GITHUB_RUN_ATTEMPT\"; git status --porcelain; echo \"---diff---\"; gh pr view 1538 --json headRefName,baseRefName,baseRefOid,headRefOid,title,body,closingIssuesReferences --jq '{head:.headRefName,base:.baseRefName,baseOid:.baseRefOid,headOid:.headRefOid,title:.title,closes:.closingIssuesReferences}'",
+      "rm -f .prflow/tmp/review/pr-1538/31408625688-1/diff.patch; gh pr diff 1538 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' > .prflow/tmp/review/pr-1538/31408625688-1/diff.patch; wc -l .prflow/tmp/review/pr-1538/31408625688-1/diff.patch"
+    ],
+    "total": 2,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
