@@ -102,11 +102,10 @@ A criterion that is partially live (mixed code + live concerns) is tagged post-m
 
 ### 1.3 Initialize or Load the Workpad
 
-The workpad is created before the branch exists so the requester sees an acknowledgment immediately. In a cloud run the `gate` job already posted a lean workpad; in a local run you create it here. Set `ISSUE_NUMBER=$ARGUMENTS`, derive the run link, and check whether a workpad already exists:
+The workpad is created before the branch exists so the requester sees an acknowledgment immediately. In a cloud run the `gate` job already posted a lean workpad; in a local run you create it here. Set `ISSUE_NUMBER=$ARGUMENTS` and check whether a workpad already exists (the create/resume arms below compose their own `RUN_URL` inline, since each bash fence runs as its own shell):
 
 ```bash
 ISSUE_NUMBER=$ARGUMENTS
-RUN_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"   # "/actions/runs/" segment is literal; empty env (local run) → use a "_(local run)_" placeholder
 # Branch on all THREE `workpad.py id` exit codes inline — reading the command's OWN
 # exit status in the if/elif chain (never capture the exit status into a
 # variable read in a later statement, which some inline-bash runners drop).
@@ -160,10 +159,16 @@ fi
   ```bash
   DEVFLOW_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
   BODY=$(mktemp)
+  # Compose the run link INLINE (this fence is its own shell); empty on a local run
+  # (no GITHUB_RUN_ID) → the --run-link argument is omitted rather than passing "[View run]()".
+  RUN_URL=""
+  [ -n "$GITHUB_RUN_ID" ] && RUN_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
   # Add --no-reproduction when the 1.1 classification is non-bug so the bug-only
   # "reproduction captured" sub-item isn't rendered; omit the flag when it is
   # bug-report. Decide from the CLASSIFICATION (1.1), not the label.
-  "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py new-body $ISSUE_NUMBER --run-link "[View run]($RUN_URL)" > "$BODY"   # + --no-reproduction when the 1.1 classification is non-bug; omit --run-link for a local run
+  set --
+  [ -n "$RUN_URL" ] && set -- --run-link "[View run]($RUN_URL)"
+  "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py new-body $ISSUE_NUMBER "$@" > "$BODY"
   "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py create $ISSUE_NUMBER "$BODY"
   "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --replace-acs-file "$DEVFLOW_ROOT/.prflow/tmp/acs-${ARGUMENTS}.md"
   ```
@@ -171,10 +176,16 @@ fi
 - **`WORKPAD_ID` non-empty (resume — the normal cloud path, since `gate` pre-created it; or a re-run)** → Read the live body with `workpad.py body $WORKPAD_ID`. Treat its `## Progress` notes and `Devflow Reflection` as load-bearing context (see Workpad Reference). Reset for this run **and populate the Acceptance Criteria** (a `gate`-created workpad carries only a placeholder AC section, so always replace it):
   ```bash
   DEVFLOW_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+  # Compose the run link INLINE (this fence is its own shell); empty on a local run
+  # (no GITHUB_RUN_ID) → the --run-link argument is omitted rather than passing "[View run]()".
+  RUN_URL=""
+  [ -n "$GITHUB_RUN_ID" ] && RUN_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+  set --
+  [ -n "$RUN_URL" ] && set -- --run-link "[View run]($RUN_URL)"
   "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER \
       --expect-comment-id "$WORKPAD_ID" --expect-status "<observed status word>" \
       --status Setup \
-      --run-link "[View run]($RUN_URL)" \
+      "$@" \
       --replace-acs-file "$DEVFLOW_ROOT/.prflow/tmp/acs-${ARGUMENTS}.md" \
       --checkpoint "gha:${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}:phase1-hydrated" "<selected lifecycle event>" \
       --strip-inherited-checkpoints \
