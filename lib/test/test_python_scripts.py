@@ -14506,6 +14506,241 @@ assert_eq("#703 AC19 pairing2: no AC1-reached fence emits a denied shape (the 'o
           [], cwc.check_shape_conformance())
 
 # ─────────────────────────────────────────────────────────────────────────────
+# issue #1445: the cloud-writer manifest is a merge chokepoint no more. `main` is its
+# sole writer (version-consolidate.yml), no feature branch regenerates it, and a CI-side
+# merge-base check catches a hand-authored branch mutation. The seven acceptance criteria
+# are exercised end to end below.
+# ─────────────────────────────────────────────────────────────────────────────
+import hashlib as _h1445  # noqa: E402
+_regen1445 = _load('regenerate_artifacts_1445', _LIBTEST / 'regenerate-artifacts.py')
+_cwr1445 = _load('cloud_writer_retention_1445', _LIBTEST / 'cloud-writer-retention-check.py')
+
+
+def _git1445(cwd, *args):
+    return _subprocess.run(('git',) + args, cwd=cwd, capture_output=True, text=True)
+
+
+def _sha1445(text):
+    return _h1445.sha256(text.encode('utf-8')).hexdigest()
+
+
+def _canon1445(files):
+    # Canonical one-key-per-line JSON, matching cwc.canonical_json's shape, so adjacent
+    # manifest entries land on adjacent lines exactly as the real artifact does.
+    return json.dumps({"files": files}, sort_keys=True, indent=2, ensure_ascii=False) + "\n"
+
+
+def _mt_conflict1445(repo, ref_a, ref_b):
+    # `git merge-tree --write-tree` exits 0 on a clean merge and 1 on a conflict; a
+    # non-zero exit or any 'CONFLICT' line in its output means the paths conflict.
+    r = _git1445(repo, 'merge-tree', '--write-tree', ref_a, ref_b)
+    return r.returncode != 0 or 'CONFLICT' in r.stdout or 'CONFLICT' in r.stderr
+
+
+# ── AC7 (branch-side): the batched artifact-regeneration pass does not write the manifest.
+_regen_writes_1445 = [
+    w for row in _regen1445.ROWS
+    for w in ((row.get("writes"),) if isinstance(row.get("writes"), str) else tuple(row.get("writes") or ()))
+]
+assert_eq("#1445 AC7: no regenerate-artifacts.py row writes the cloud-writer manifest",
+          False, _regen1445.MECHANICAL_ARTIFACT in _regen_writes_1445)
+assert_eq("#1445 AC7: no regenerate-artifacts.py row is named cloud-writer-manifest",
+          False, "cloud-writer-manifest" in [r["name"] for r in _regen1445.ROWS])
+# emit_list output (the coordinator/batched-pass consumer surface) never names it either.
+_regen_list_1445 = _subprocess.run(
+    ('python3', 'lib/test/regenerate-artifacts.py', '--list'),
+    cwd=str(_REPO), capture_output=True, text=True)
+assert_eq("#1445 AC7: --list emits no cloud-writer-manifest row",
+          False, "cloud-writer-manifest" in _regen_list_1445.stdout)
+
+# ── AC3 check 1: the published digests are derived from the live bytes of the SAME tree.
+# build_manifest() hashes each pinned path's current bytes, so every digit matches a fresh
+# sha256 of that path — the derivation-from-live-bytes property version-consolidate.yml
+# relies on (it runs `generate` against the merged tree immediately before its commit).
+_bm1445 = cwc.build_manifest()
+assert_eq("#1445 AC3.1: every published digest is the sha256 of the live file bytes",
+          True, all(_bm1445["files"][p] == cwc.sha256_of(p) for p in cwc.manifest_file_paths()))
+# The publishing step regenerates from the tree BEFORE it commits (so the digests derive
+# from the exact bytes the commit ships), and stages the artifact explicitly.
+_vc_yml_1445 = (_REPO / ".github" / "workflows" / "version-consolidate.yml").read_text(encoding="utf-8")
+_gen_idx_1445 = _vc_yml_1445.find("cloud_writer_contract.py generate")
+_commit_idx_1445 = _vc_yml_1445.find('git commit -m "chore: bump version')
+assert_eq("#1445 AC3.1: version-consolidate.yml regenerates the manifest before its commit",  # structural-pin-ok: cross-file-phase-contract -- the main-side publish must regenerate from the merged tree before committing, or the published digests do not derive from the bytes they ship
+          True, 0 <= _gen_idx_1445 < _commit_idx_1445)
+assert_eq("#1445 AC3.1: version-consolidate.yml stages the regenerated manifest",
+          True, "git add scripts/devflow-cloud-writer-contract.json" in _vc_yml_1445)
+
+# ── AC3 check 2 / AC7 (main-side protection): the merge-base mutation check.
+# Pure-core arms (no git): unchanged → clean; a mutation against a SOUND comparand → exit 1;
+# the same difference against a SUBSTITUTED comparand → unestablished (exit 3), acknowledgeable.
+_cwr_base_1445 = {"files": {"skills/x/SKILL.md": "aa"}}
+_cwr_head_same_1445 = {"files": {"skills/x/SKILL.md": "aa"}}
+_cwr_head_diff_1445 = {"files": {"skills/x/SKILL.md": "bb"}}
+assert_eq("#1445 AC3.2: retention core reports no violation for an unchanged manifest",
+          [], _cwr1445.detect_mutation(_cwr_base_1445, _cwr_head_same_1445))
+_cwr_viol_1445 = _cwr1445.detect_mutation(_cwr_base_1445, _cwr_head_diff_1445)
+assert_eq("#1445 AC3.2: retention core reports a violation for a mutated manifest",
+          1, len(_cwr_viol_1445))
+assert_eq("#1445 AC3.2: a mutation against a sound comparand exits 1 (mutated)",
+          _cwr1445.EXIT_MUTATED,
+          _cwr1445.classify_outcome(_cwr_viol_1445, [], False, "origin/main", False)[0])
+assert_eq("#1445 AC3.2: a mutation against a substituted comparand is unestablished (exit 3)",
+          _cwr1445.EXIT_UNESTABLISHED,
+          _cwr1445.classify_outcome(_cwr_viol_1445, ["shallow"], False, "origin/main", True)[0])
+assert_eq("#1445 AC3.2: --allow-degraded-base acknowledges the substituted comparand (exit 0)",
+          _cwr1445.EXIT_CLEAN,
+          _cwr1445.classify_outcome(_cwr_viol_1445, ["shallow"], True, "origin/main", True)[0])
+assert_eq("#1445 AC3.2: a clean comparand exits 0",
+          _cwr1445.EXIT_CLEAN,
+          _cwr1445.classify_outcome([], [], False, "origin/main", False)[0])
+
+# End-to-end git fixture: a branch that mutates the manifest FAILS the check; one that
+# leaves it untouched PASSES — and it needs NO local git configuration to do either (AC6).
+with tempfile.TemporaryDirectory(prefix='cwr1445-') as _cwr_repo_str:
+    _cwr_repo = Path(_cwr_repo_str)
+    _git1445(_cwr_repo, 'init', '-q', '-b', 'main')
+    _git1445(_cwr_repo, 'config', 'user.email', 'a@b.c')
+    _git1445(_cwr_repo, 'config', 'user.name', 'T')
+    (_cwr_repo / 'scripts').mkdir()
+    _man_rel_1445 = 'scripts/devflow-cloud-writer-contract.json'
+    (_cwr_repo / _man_rel_1445).write_text(_canon1445({"skills/a.md": _sha1445("a")}), encoding='utf-8')
+    (_cwr_repo / 'skills').mkdir()
+    (_cwr_repo / 'skills' / 'a.md').write_text("a", encoding='utf-8')
+    _git1445(_cwr_repo, 'add', '-A')
+    _git1445(_cwr_repo, 'commit', '-qm', 'base')
+    _git1445(_cwr_repo, 'branch', 'origin/main')  # local stand-in for the base ref
+    # Untouched branch: edit a source file, leave the manifest alone → clean (exit 0).
+    _git1445(_cwr_repo, 'checkout', '-q', '-b', 'feat-clean')
+    (_cwr_repo / 'skills' / 'a.md').write_text("a changed", encoding='utf-8')
+    _git1445(_cwr_repo, 'commit', '-qam', 'edit source, not the manifest')
+    _rc_clean_1445 = _cwr1445.main(['x', str(_cwr_repo), '--base-ref', 'origin/main'])
+    assert_eq("#1445 AC3.2 e2e: an untouched manifest passes the check (exit 0), no local config",
+              _cwr1445.EXIT_CLEAN, _rc_clean_1445)
+    # Mutating branch: hand-edit the manifest → mutated (exit 1).
+    _git1445(_cwr_repo, 'checkout', '-q', 'main')
+    _git1445(_cwr_repo, 'checkout', '-q', '-b', 'feat-mutated')
+    (_cwr_repo / _man_rel_1445).write_text(_canon1445({"skills/a.md": _sha1445("tampered")}), encoding='utf-8')
+    _git1445(_cwr_repo, 'commit', '-qam', 'hand-edit the manifest')
+    _rc_mut_1445 = _cwr1445.main(['x', str(_cwr_repo), '--base-ref', 'origin/main'])
+    assert_eq("#1445 AC3.2 e2e: a hand-mutated manifest fails the check (exit 1)",
+              _cwr1445.EXIT_MUTATED, _rc_mut_1445)
+
+# ── AC1 / AC2: two branches editing disjoint regions of the SAME pinned file (AC1) or two
+# ADJACENT-sorted pinned files (AC2), each running the regeneration pass, merge into main in
+# BOTH orders with no conflict — because the pass no longer rewrites the manifest. The
+# discriminating control: the OLD writer (manifest rewritten per branch) DID conflict.
+with tempfile.TemporaryDirectory(prefix='mt1445-') as _mt_repo_str:
+    _mt_repo = Path(_mt_repo_str)
+    _git1445(_mt_repo, 'init', '-q', '-b', 'main')
+    _git1445(_mt_repo, 'config', 'user.email', 'a@b.c')
+    _git1445(_mt_repo, 'config', 'user.name', 'T')
+    (_mt_repo / 'skills').mkdir()
+    # A pinned file with many lines so top/bottom edits are textually disjoint (AC1), and two
+    # sibling files whose manifest entries sort adjacent (AC2 — same directory).
+    _a_lines = "\n".join(f"line {i}" for i in range(1, 41)) + "\n"
+    (_mt_repo / 'skills' / 'a.md').write_text(_a_lines, encoding='utf-8')
+    (_mt_repo / 'skills' / 'b.md').write_text("b base\n", encoding='utf-8')
+    (_mt_repo / 'skills' / 'c.md').write_text("c base\n", encoding='utf-8')
+    _base_files_1445 = {
+        "skills/a.md": _sha1445(_a_lines),
+        "skills/b.md": _sha1445("b base\n"),
+        "skills/c.md": _sha1445("c base\n"),
+    }
+    (_mt_repo / 'manifest.json').write_text(_canon1445(_base_files_1445), encoding='utf-8')
+    _git1445(_mt_repo, 'add', '-A')
+    _git1445(_mt_repo, 'commit', '-qm', 'base')
+
+    def _branch_edit_1445(name, path, new_text, rewrite_manifest):
+        _git1445(_mt_repo, 'checkout', '-q', 'main')
+        _git1445(_mt_repo, 'checkout', '-q', '-b', name)
+        (_mt_repo / path).write_text(new_text, encoding='utf-8')
+        if rewrite_manifest:  # the OLD, rejected behavior — the branch is a manifest writer
+            files = dict(_base_files_1445)
+            files[path] = _sha1445(new_text)
+            (_mt_repo / 'manifest.json').write_text(_canon1445(files), encoding='utf-8')
+        # else: the NEW behavior — the regeneration pass leaves the manifest untouched.
+        _git1445(_mt_repo, 'commit', '-qam', f'{name} edit')
+
+    # AC1 — same file, disjoint regions (top vs bottom).
+    _a_top = _a_lines.replace("line 1\n", "line 1 EDITED\n", 1)
+    _a_bot = _a_lines.replace("line 40\n", "line 40 EDITED\n", 1)
+    _branch_edit_1445('ac1-new-A', 'skills/a.md', _a_top, False)
+    _branch_edit_1445('ac1-new-B', 'skills/a.md', _a_bot, False)
+    assert_eq("#1445 AC1: same-file disjoint edits, no manifest rewrite → no conflict (order 1)",
+              False, _mt_conflict1445(_mt_repo, 'ac1-new-A', 'ac1-new-B'))
+    assert_eq("#1445 AC1: same-file disjoint edits, no manifest rewrite → no conflict (order 2)",
+              False, _mt_conflict1445(_mt_repo, 'ac1-new-B', 'ac1-new-A'))
+    # Discriminating control: the OLD writer rewrote the manifest on each side → conflict.
+    _branch_edit_1445('ac1-old-A', 'skills/a.md', _a_top, True)
+    _branch_edit_1445('ac1-old-B', 'skills/a.md', _a_bot, True)
+    assert_eq("#1445 AC1 control: the OLD manifest-writer behavior DID conflict (test is discriminating)",
+              True, _mt_conflict1445(_mt_repo, 'ac1-old-A', 'ac1-old-B'))
+
+    # AC2 — two different pinned files whose manifest entries sort adjacent (b.md, c.md).
+    _branch_edit_1445('ac2-new-A', 'skills/b.md', "b EDITED\n", False)
+    _branch_edit_1445('ac2-new-B', 'skills/c.md', "c EDITED\n", False)
+    assert_eq("#1445 AC2: adjacent-sorted different pinned files, no manifest rewrite → no conflict (order 1)",
+              False, _mt_conflict1445(_mt_repo, 'ac2-new-A', 'ac2-new-B'))
+    assert_eq("#1445 AC2: adjacent-sorted different pinned files, no manifest rewrite → no conflict (order 2)",
+              False, _mt_conflict1445(_mt_repo, 'ac2-new-B', 'ac2-new-A'))
+    _branch_edit_1445('ac2-old-A', 'skills/b.md', "b EDITED\n", True)
+    _branch_edit_1445('ac2-old-B', 'skills/c.md', "c EDITED\n", True)
+    assert_eq("#1445 AC2 control: the OLD manifest-writer behavior DID conflict on adjacent entries",
+              True, _mt_conflict1445(_mt_repo, 'ac2-old-A', 'ac2-old-B'))
+
+# ── AC4: the sorted list of pinned paths is stable — sorted, de-duplicated, and equal to the
+# keys the generator writes (however it exposes the list). #1445 changes none of the inputs
+# (SKILL_ASSETS / REQUIRED_HELPER_HEADS / PROTECTED_IMPORT_SOURCES) that feed it.
+_paths1445 = cwc.manifest_file_paths()
+assert_eq("#1445 AC4: manifest_file_paths() is sorted and de-duplicated",
+          True, _paths1445 == sorted(set(_paths1445)) and len(_paths1445) > 0)
+assert_eq("#1445 AC4: the artifact pins exactly the generator's exposed path list",
+          _paths1445, sorted(cwc.build_manifest()["files"].keys()))
+
+# ── AC5: against the post-change (unchanged) shape, validate-cloud-writer-contract.py is
+# clean for a consumer whose grants cover every required_helper_heads entry, and emits
+# HEAD_ABSENT naming an uncovered head for one missing a head.
+_cover_grants_1445 = {p: set(h) for p, h in cwc.build_manifest()["required_helper_heads"].items()}
+_p5_clean = vcwc.validate(
+    _REPO / cwc.MANIFEST_PATH, base_dir=_REPO,
+    expected_assets=cwc.manifest_file_paths(),
+    required_profiles=list(cwc.ROOTS),
+    profile_grants=_cover_grants_1445,
+)
+assert_eq("#1445 AC5: validator is clean when grants cover every required_helper_heads entry",
+          [], _p5_clean)
+_missing_grants_1445 = {p: set(h) for p, h in _cover_grants_1445.items()}
+_dropped_profile_1445 = next(p for p, h in _missing_grants_1445.items() if h)
+_missing_grants_1445[_dropped_profile_1445] = set(list(_missing_grants_1445[_dropped_profile_1445])[1:])
+_p5_missing = vcwc.validate(
+    _REPO / cwc.MANIFEST_PATH, base_dir=_REPO,
+    expected_assets=cwc.manifest_file_paths(),
+    required_profiles=list(cwc.ROOTS),
+    profile_grants=_missing_grants_1445,
+)
+assert_eq("#1445 AC5: validator emits HEAD_ABSENT for a fixture missing a required head",
+          True, vcwc.HEAD_ABSENT in _codes(_p5_missing))
+
+# ── AC6: the chosen mechanism needs NO per-clone local git configuration. An executable
+# check asserts no merge driver is registered for the manifest path (unlike the coverage
+# map, which does need `--register`), so a fresh clone's automatic setup path needs no
+# manual step. The retention e2e above already proved the check runs with no local config.
+_gitattributes_1445 = (_REPO / ".gitattributes").read_text(encoding="utf-8")
+assert_eq("#1445 AC6: .gitattributes registers no merge= driver for the cloud-writer manifest",
+          True, not any(
+              "devflow-cloud-writer-contract" in ln and "merge=" in ln
+              for ln in _gitattributes_1445.splitlines()))
+_cwr_src_1445 = (_LIBTEST / "cloud-writer-retention-check.py").read_text(encoding="utf-8")
+assert_eq("#1445 AC6: the mutation check registers no git config (no --register / git config --local)",
+          True, "--register" not in _cwr_src_1445 and "config --local" not in _cwr_src_1445)
+
+# ── AC7 (no-config clone): the generator is deterministic and its output verifies clean with
+# no local git configuration — regenerating twice yields byte-identical output, so a fresh
+# clone (which registers nothing) produces exactly what `main` publishes.
+assert_eq("#1445 AC7: the generator is deterministic (byte-identical across two renders)",
+          cwc.canonical_json(cwc.build_manifest()), cwc.canonical_json(cwc.build_manifest()))
+
+# ─────────────────────────────────────────────────────────────────────────────
 # issue #703 AC20: consumer-provisioning fixtures — fresh install, in-place
 # install.sh refresh, and /devflow:init backfill. Complete by construction for the
 # three supported consumer setup flows: each is asserted to (a) deliver a valid
@@ -14527,11 +14762,13 @@ _scaffold_sh = (_REPO / "scripts" / "scaffold-config.sh").read_text(encoding="ut
 # (a) Runtime manifest. Fresh install and in-place refresh deliver the manifest as
 # a byte-copied asset of the vendored scripts/ tree — install.sh and the vendor
 # slice run NO regeneration (regeneration is a maintainer-side operation), so the
-# artifact each flow delivers is exactly the checked-in one, which must itself be
-# internally consistent. /devflow:init never touches the manifest (it preserves
-# whatever the vendored plugin already carries).
-assert_eq("#703 AC20: the checked-in runtime manifest is internally consistent (verify)",
-          0, cwc.main(["verify"]))
+# artifact each flow delivers is exactly the checked-in one. Its internal consistency
+# is guaranteed on `main` (issue #1445 moved the `verify` drift gate off this per-branch
+# check onto version-consolidate.yml, which regenerates it from the merged tree before
+# every bump commit); the branch-side `cwc.main(["verify"])` assertion that used to sit
+# here was removed so a feature branch is never gated on a manifest it no longer writes.
+# /devflow:init never touches the manifest (it preserves whatever the vendored plugin
+# already carries).
 assert_eq("#703 AC20: install.sh runs no manifest regeneration (byte-copies the vendored artifact)",
           False, "cloud_writer_contract.py generate" in _install_sh)
 assert_eq("#703 AC20: the vendor slice runs no manifest regeneration",
