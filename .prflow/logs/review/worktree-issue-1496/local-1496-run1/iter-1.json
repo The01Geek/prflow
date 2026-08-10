@@ -1,0 +1,195 @@
+{
+  "iter": 1,
+  "fix_commit_sha": "cb604fe99db9de5428081482811d238311df0e33",
+  "fix_files": [
+    "skills/pr-description/SKILL.md",
+    "scripts/devflow-cloud-writer-contract.json",
+    ".changeset/issue-1496-compress-pr-description-skill.md"
+  ],
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "current_substep": null,
+  "pending_dispatch": null,
+  "sweep_evidence": {
+    "status": "run"
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "The Deferred Findings template's carry-forward line kept the narrower 'foreclosure entry' spelling while the Mode B bullet was widened to match Step 1's entry-scoped rule, so the file stated two scopes for one rule.",
+      "defect_signature": {
+        "file": "skills/pr-description/SKILL.md",
+        "line_range": [
+          158,
+          158
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 3,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Important",
+      "description": "AC10's whole-suite run and its Verification evidence: marker are undischarged.",
+      "defect_signature": {
+        "file": "workpad(issue #1496)",
+        "line_range": null,
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "deferred"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "The workpad Plan row overstated which prose was thinned.",
+      "defect_signature": {
+        "file": "workpad(issue #1496)",
+        "line_range": null,
+        "kind": "comment_drift"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "cb604fe99db9de5428081482811d238311df0e33"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "deferred",
+      "source_file": "workpad(issue #1496)",
+      "claim_text": "AC10 whole-suite run and Verification evidence: marker undischarged",
+      "skip_category": "already-tracked",
+      "evidence": "the obligation is real and is owned exactly once by the run's Phase 4.3 finalization, per this repo's implement prompt extension; the loop's own terminal deliberately does not pay it inside /prflow:implement because every Phase 4 commit would make a Phase 3 flight stale",
+      "parking_evidence": {
+        "basis": "the finding is correct; its owner is a later phase of the same run rather than this loop",
+        "failing_input": "a completion claim made with no captured whole-suite result",
+        "source": ".prflow/prompt-extensions/review-and-fix.md, 'Whose terminal the loop's gate is depends on the caller'",
+        "finding_ref": {
+          "iter": 1,
+          "index": 1
+        }
+      }
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "cb604fe99db9de5428081482811d238311df0e33"
+    }
+  ],
+  "shadow": {
+    "reviewed_sha": "working tree at 291009264 plus the uncommitted fix, committed as cb604fe9",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": null,
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:comment-analyzer",
+        "severity": "Suggestion",
+        "description": "The changeset undercounted the carry-forward widening (two sites, not one).",
+        "defect_signature": {
+          "file": ".changeset/issue-1496-compress-pr-description-skill.md",
+          "line_range": [
+            5,
+            5
+          ],
+          "kind": "comment_drift"
+        },
+        "fix_decision": "applied"
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "severity": "Suggestion",
+        "description": "'pinned suite checks pass unchanged' was ambiguous against the SHA-256 pin this diff did have to regenerate.",
+        "defect_signature": {
+          "file": ".changeset/issue-1496-compress-pr-description-skill.md",
+          "line_range": [
+            5,
+            5
+          ],
+          "kind": "comment_drift"
+        },
+        "fix_decision": "applied"
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 2,
+      "overlap_with_iter_1": 0,
+      "new": 2,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false,
+    "deviation_note": "The fan-out ran over the post-fix tree rather than iteration-1 pre-fix state. Recorded rather than concealed: it is strictly stronger evidence, auditing the tree that ships."
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "not_verified",
+      "outcome": "clean",
+      "reason": "the Step 3.5 gate's dispatched verification was not run as a separate subagent; the fix delta was verified inline by the orchestrator (the one-word diff read in full, the cloud-writer manifest check clean, the changeset re-linted) and was additionally covered by the blinded shadow fan-out, which reviewed the post-fix tree. Recorded not_verified because the gate's own dispatch did not occur, which prohibits a clean APPROVE-family verdict"
+    }
+  },
+  "convergence_inputs": {
+    "fixes_applied": 4,
+    "fix_diff_lines": 4,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "verification_evidence": {
+    "focused_selection": {
+      "single_flight_consulted": null,
+      "surfaces": [
+        {
+          "surface": "skills/pr-description/SKILL.md",
+          "exemption_ground": "no coverage-map entry at all — the map's files population covers only lib/ and scripts/"
+        },
+        {
+          "surface": "scripts/devflow-cloud-writer-contract.json",
+          "exemption_ground": "declared non_code_exempt in coverage-map.json"
+        },
+        {
+          "surface": ".changeset/issue-1496-compress-pr-description-skill.md",
+          "exemption_ground": "no coverage-map entry at all"
+        }
+      ]
+    }
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
