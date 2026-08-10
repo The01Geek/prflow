@@ -1538,6 +1538,20 @@ _ra_same "#optin the default pass leaves the coupled run.sh byte-unchanged" \
   "$RA_OPTIN_RUN_BEFORE" "$(cat "$RA_OPTIN/lib/test/run.sh")" \
   "the default pass wrote a coupled floor site it never measured"
 
+# The paired positive control on the SAME fixture: without it, a `--with-floors` that had
+# become a no-op would satisfy every arm above. The floor runner here is the fixture stub
+# driven by DEVFLOW_FLOOR_TEST_DELTA, not the real modules.
+RA_OPTIN_ON="$_ra_tmp_root/optin-with-floors"; _ra_fixture "$RA_OPTIN_ON"
+RA_OPTIN_ON_REG_BEFORE="$(cat "$RA_OPTIN_ON/scripts/workflow-flight-recorder-registry.json")"
+DEVFLOW_FLOOR_TEST_DELTA=1 _ra_run "$RA_OPTIN_ON"
+_ra_has "#optin --with-floors runs the measurement the default pass reported unmeasured" \
+  "$RA_OPTIN_ON" "[exact-module-floors] RECONCILED"
+assert_eq "#optin the measuring pass is action-required over the same floor delta" \
+  "1" "$(_ra_rc "$RA_OPTIN_ON")"
+_ra_ok "#optin --with-floors raises the measured floor in the registry" \
+  "$([ "$RA_OPTIN_ON_REG_BEFORE" != "$(cat "$RA_OPTIN_ON/scripts/workflow-flight-recorder-registry.json")" ] && printf yes)" \
+  "the measuring pass left the registry byte-unchanged"
+
 # ── The ordering guard: never measure a tree this pass already reported red ──
 # The coverage-map drift below makes an EARLIER row emit an exit-1-forcing judgment item,
 # so the opt-in row is skipped even under the flag — measuring a tree that is about to

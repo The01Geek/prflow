@@ -15446,9 +15446,17 @@ with tempfile.TemporaryDirectory() as _pm_base:
 
 _IAS603 = str(SCRIPTS / 'issue-audit-state.py')
 
-# Whether the fork-based in-process CLI driver below is available. `os.fork` does not
-# exist on Windows, where every call falls back to the real-subprocess spawn.
-_IAS_FORK_OK = hasattr(os, 'fork') and os.environ.get('DEVFLOW_IAS_NO_FORK') != '1'
+def _ias_fork_selected(env):
+    """Decide whether the fork driver below is usable, given an environment mapping.
+
+    Taken as a function of an explicit mapping rather than reading `os.environ` inline so
+    the `DEVFLOW_IAS_NO_FORK=1` escape hatch is assertable without re-importing this file.
+    """
+    return hasattr(os, 'fork') and env.get('DEVFLOW_IAS_NO_FORK') != '1'
+
+
+# `os.fork` does not exist on Windows, where every call falls back to the real spawn.
+_IAS_FORK_OK = _ias_fork_selected(os.environ)
 
 
 def _ias_reset_module_state():
@@ -15469,100 +15477,171 @@ def _ias_reset_module_state():
         emitted.clear()
 
 
+def _ias_spawn(argv, cwd, stdin=None):
+    """Spawn `issue-audit-state.py` as a real subprocess.
+
+    This is both the Windows/opt-out fallback for `_ias_run` and the fidelity REFERENCE the
+    A/B row below grades the fork driver against, so the two must stay one call shape.
+    """
+    return _subprocess.run([sys.executable, _IAS603, *argv], cwd=cwd, input=stdin,
+                           capture_output=True, text=True)
+
+
 def _ias_run(argv, cwd, stdin=None):
     """Drive `issue-audit-state.py`'s CLI in a forked child, or spawn it for real.
 
-    Returns the same `CompletedProcess` shape the subprocess spawn returns, and preserves
-    everything the rows grade: the real exit status, the real stdout/stderr bytes, the real
-    working directory, and full process isolation (the child `os._exit`s, so no state it
-    mutates can reach the parent). What it drops is ~79ms of interpreter startup and import
-    of a 9000-line module per call, which no assertion examines — measured at 79% of this
-    file's runtime across ~1500 spawns.
+    Returns the same `CompletedProcess` shape `_ias_spawn` returns, and preserves everything
+    the rows grade: the real exit status, the real stdout/stderr bytes, the real working
+    directory, and full process isolation (the child `os._exit`s, so no state it mutates can
+    reach the parent). What it drops is the interpreter startup and module import a spawn
+    pays per call, which no assertion examines.
+
+    Known divergence from `_ias_spawn`, inert for every input these rows drive: the child's
+    streams are fixed UTF-8 rather than the locale encoding, and `stdin=None` gives the child
+    `/dev/null` (immediate EOF) where the spawn inherits this process's own stdin.
     """
     if not _IAS_FORK_OK:
-        return _subprocess.run([sys.executable, _IAS603, *argv], cwd=cwd, input=stdin,
-                               capture_output=True, text=True)
+        return _ias_spawn(argv, cwd, stdin=stdin)
     args = [_IAS603, *argv]
     # stdin arrives through a temp FILE, never a pipe: a pipe would deadlock the pair once
     # a payload exceeded the kernel buffer, since the parent cannot write and drain at once.
     stdin_file = None
-    if stdin is not None:
-        stdin_file = tempfile.NamedTemporaryFile('w', encoding='utf-8', delete=False)
-        stdin_file.write(stdin)
-        stdin_file.close()
-    out_r, out_w = os.pipe()
-    err_r, err_w = os.pipe()
-    # Flush before forking, or the child inherits the parent's buffered bytes and emits a
-    # second copy of everything already written to this file's own stdout/stderr.
-    sys.stdout.flush()
-    sys.stderr.flush()
-    pid = os.fork()
-    if pid == 0:
-        rc = 1
-        try:
-            os.close(out_r)
-            os.close(err_r)
-            os.dup2(out_w, 1)
-            os.dup2(err_w, 2)
-            os.close(out_w)
-            os.close(err_w)
-            fd0 = os.open(stdin_file.name if stdin_file is not None else os.devnull,
-                          os.O_RDONLY)
-            os.dup2(fd0, 0)
-            os.close(fd0)
-            sys.stdin = os.fdopen(0, 'r', encoding='utf-8')
-            sys.stdout = os.fdopen(1, 'w', encoding='utf-8')
-            sys.stderr = os.fdopen(2, 'w', encoding='utf-8')
-            os.chdir(cwd)
-            sys.argv = [_IAS603, *[str(a) for a in argv]]
-            _ias_reset_module_state()
-            rc = 0
+    out_r = out_w = err_r = err_w = None
+    pid = None
+    try:
+        if stdin is not None:
+            stdin_file = tempfile.NamedTemporaryFile('w', encoding='utf-8', delete=False)
+            stdin_file.write(stdin)
+            stdin_file.close()
+        out_r, out_w = os.pipe()
+        err_r, err_w = os.pipe()
+        # Flush before forking, or the child inherits the parent's buffered bytes and emits
+        # a second copy of everything already written to this file's own stdout/stderr.
+        sys.stdout.flush()
+        sys.stderr.flush()
+        pid = os.fork()
+        if pid == 0:
+            rc = 1
             try:
-                issue_audit_state.main()
-            except SystemExit as exc:
-                rc = 0 if exc.code is None else (
-                    exc.code if isinstance(exc.code, int) else 1)
-            except BaseException:  # noqa: BLE001 - mirrors the interpreter's own top level
-                import traceback
-                traceback.print_exc()
-                rc = 1
-            sys.stdout.flush()
-            sys.stderr.flush()
-        finally:
-            os._exit(rc if isinstance(rc, int) else 1)
-    os.close(out_w)
-    os.close(err_w)
-    chunks = {}
+                # A failure anywhere in this setup must still say WHY on the child's stderr:
+                # a bare `os._exit(1)` here is indistinguishable from a genuine CLI exit 1.
+                try:
+                    os.close(out_r)
+                    os.close(err_r)
+                    os.dup2(out_w, 1)
+                    os.dup2(err_w, 2)
+                    os.close(out_w)
+                    os.close(err_w)
+                    fd0 = os.open(
+                        stdin_file.name if stdin_file is not None else os.devnull,
+                        os.O_RDONLY)
+                    os.dup2(fd0, 0)
+                    os.close(fd0)
+                    sys.stdin = os.fdopen(0, 'r', encoding='utf-8')
+                    sys.stdout = os.fdopen(1, 'w', encoding='utf-8')
+                    sys.stderr = os.fdopen(2, 'w', encoding='utf-8')
+                    os.chdir(cwd)
+                    sys.argv = [_IAS603, *[str(a) for a in argv]]
+                    _ias_reset_module_state()
+                except BaseException:  # noqa: BLE001 - the child has no other reporter
+                    import traceback
+                    try:
+                        with os.fdopen(os.dup(2), 'w', encoding='utf-8') as _diag:
+                            _diag.write('_ias_run: fork-child setup failed\n')
+                            traceback.print_exc(file=_diag)
+                    except BaseException:  # noqa: BLE001 - diagnostics are best-effort
+                        pass
+                    raise
+                rc = 0
+                try:
+                    issue_audit_state.main()
+                except SystemExit as exc:
+                    rc = 0 if exc.code is None else (
+                        exc.code if isinstance(exc.code, int) else 1)
+                except BaseException:  # noqa: BLE001 - mirrors the interpreter's top level
+                    import traceback
+                    traceback.print_exc()
+                    rc = 1
+                sys.stdout.flush()
+                sys.stderr.flush()
+            finally:
+                os._exit(rc if isinstance(rc, int) else 1)
+        os.close(out_w)
+        out_w = None
+        os.close(err_w)
+        err_w = None
+        chunks = {}
+        failures = {}
 
-    def _drain(key, fd):
-        buf = []
-        with os.fdopen(fd, 'rb') as fh:
-            while True:
-                b = fh.read(65536)
-                if not b:
-                    break
-                buf.append(b)
-        chunks[key] = b''.join(buf)
+        def _drain(key, fd):
+            # A drain thread that dies without recording WHY would leave chunks[key]
+            # absent, and an empty-string stdout would then be graded as real output.
+            try:
+                buf = []
+                with os.fdopen(fd, 'rb') as fh:
+                    while True:
+                        b = fh.read(65536)
+                        if not b:
+                            break
+                        buf.append(b)
+                chunks[key] = b''.join(buf)
+            except BaseException as exc:  # noqa: BLE001 - re-raised in the parent below
+                failures[key] = exc
 
-    # Both streams drain concurrently: a child that fills one pipe's buffer while the
-    # parent is blocked reading the other would wedge the pair.
-    threads = [_threading1040.Thread(target=_drain, args=(k, fd))
-               for k, fd in (('out', out_r), ('err', err_r))]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
-    _, status = os.waitpid(pid, 0)
-    if stdin_file is not None:
-        os.unlink(stdin_file.name)
-    if os.WIFSIGNALED(status):
-        rc = -os.WTERMSIG(status)
-    else:
-        rc = os.WEXITSTATUS(status)
-    return _subprocess.CompletedProcess(
-        args, rc,
-        chunks.get('out', b'').decode('utf-8', 'replace'),
-        chunks.get('err', b'').decode('utf-8', 'replace'))
+        # Both streams drain concurrently: a child that fills one pipe's buffer while the
+        # parent is blocked reading the other would wedge the pair.
+        threads = [_threading1040.Thread(target=_drain, args=(k, fd))
+                   for k, fd in (('out', out_r), ('err', err_r))]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        # The fds are owned by the closed `os.fdopen` wrappers once a thread ran to
+        # completion; a thread that failed before that leaves the finally arm to close them.
+        if 'out' in chunks or 'out' in failures:
+            out_r = None
+        if 'err' in chunks or 'err' in failures:
+            err_r = None
+        _, status = os.waitpid(pid, 0)
+        pid = None
+        for key in ('out', 'err'):
+            if key in failures:
+                raise AssertionError(
+                    f'_ias_run: the {key} drain thread failed for {args!r}') \
+                    from failures[key]
+        if os.WIFSIGNALED(status):
+            rc = -os.WTERMSIG(status)
+        else:
+            rc = os.WEXITSTATUS(status)
+        return _subprocess.CompletedProcess(
+            args, rc,
+            _ias_decode(chunks.get('out', b'')), _ias_decode(chunks.get('err', b'')))
+    finally:
+        for fd in (out_r, out_w, err_r, err_w):
+            if fd is not None:
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
+        if pid:
+            try:
+                os.waitpid(pid, 0)
+            except OSError:
+                pass
+        if stdin_file is not None:
+            try:
+                os.unlink(stdin_file.name)
+            except OSError:
+                pass
+
+
+def _ias_decode(raw):
+    """Decode a captured stream the way `subprocess.run(text=True)` presents one.
+
+    Universal-newline translation is applied here because the rows were authored against the
+    spawn, which translates; a fork path that did not would diverge on any CR-carrying byte.
+    """
+    return raw.decode('utf-8', 'replace').replace('\r\n', '\n').replace('\r', '\n')
 
 
 def _stage_bytes(run, path):
@@ -15705,6 +15784,72 @@ class _Run603:
 def _with_run603(fn):
     with tempfile.TemporaryDirectory() as tmp:
         fn(_Run603(tmp))
+
+
+# ── the fork driver itself is a subject, not only an instrument ──
+#
+# Every row below this point reads its verdict through `_ias_run`, so a driver that lost
+# stdout, mistranslated an exit status or silently stopped delivering stdin would recolour
+# those verdicts rather than fail. These rows grade the driver directly, against the real
+# spawn it replaced.
+
+import signal as _signal1567  # noqa: E402
+
+
+def _ias_driver_rows(r):
+    r.open_round(1, 'REVISE', 2)
+    # An ingestion REFUSAL is the A/B subject because it is non-mutating and reads stdin:
+    # the same argv can be replayed through both drivers against one tree without the first
+    # replay changing what the second sees.
+    argv = ['record-adjudication', r.slug, '--round', '1', '--verdict', 'REVISE',
+            '--must-revise', '2', '--advisory', '0', '--invalid', '0',
+            '--unresolved-must-revise', '2', '--ledger-stdin', '--nonce', r.nonce]
+    payload = 'unresolved: finding A\n'
+    forked = _ias_run(argv, r.tmp, stdin=payload)
+    spawned = _ias_spawn(argv, r.tmp, stdin=payload)
+    assert_eq("#1567 fidelity: the fork driver and a real spawn agree on rc/stdout/stderr",
+              (spawned.returncode, spawned.stdout, spawned.stderr),
+              (forked.returncode, forked.stdout, forked.stderr))
+    # Control on the A/B subject itself: a driver that delivered NO stdin at all would still
+    # be refused, and the two drivers would still agree — on a verdict about nothing. A
+    # second payload refused for a different reason proves the bytes reached the child.
+    other = _ias_run(argv, r.tmp, stdin='unresolved: a\nfinding with no status prefix\n')
+    assert_eq("#1567 fidelity: the A/B subject really is stdin-sensitive on both streams",
+              (1, 1, True, True),
+              (spawned.returncode, other.returncode,
+               spawned.stderr != other.stderr, spawned.stderr.strip() != ''))
+    # A query is the second A/B subject: it is the shape whose STDOUT the rows parse, and a
+    # refusal alone would leave the stdout channel graded only as the empty string.
+    qargv = ['query-convergence', r.slug, '--nonce', r.nonce]
+    fq, sq = _ias_run(qargv, r.tmp), _ias_spawn(qargv, r.tmp)
+    assert_eq("#1567 fidelity: a stdout-bearing query agrees across both drivers",
+              (sq.returncode, sq.stdout, sq.stderr, True),
+              (fq.returncode, fq.stdout, fq.stderr, sq.stdout.strip() != ''))
+    # The opt-out must actually select the fallback; the two A/B rows above are what proves
+    # the arm it selects is correct.
+    assert_eq("#1567: DEVFLOW_IAS_NO_FORK=1 deselects the fork driver, and only that value",
+              (False, hasattr(os, 'fork'), hasattr(os, 'fork')),
+              (_ias_fork_selected({'DEVFLOW_IAS_NO_FORK': '1'}),
+               _ias_fork_selected({'DEVFLOW_IAS_NO_FORK': '0'}),
+               _ias_fork_selected({})))
+    if _IAS_FORK_OK:
+        # The signal arm: a child that dies on a signal has no exit status to report, and
+        # WEXITSTATUS of such a status is 0 — which would read as a PASSING command.
+        _real_main = issue_audit_state.main
+
+        def _suicide():
+            os.kill(os.getpid(), _signal1567.SIGTERM)
+
+        issue_audit_state.main = _suicide
+        try:
+            killed = _ias_run(['query-convergence', r.slug], r.tmp)
+        finally:
+            issue_audit_state.main = _real_main
+        assert_eq("#1567: a signal-killed child reports -SIGTERM, never a 0 exit status",
+                  -_signal1567.SIGTERM, killed.returncode)
+
+
+_with_run603(_ias_driver_rows)
 
 
 # Row 1 — the regression row: the reported deadlock, and its release through resolution.

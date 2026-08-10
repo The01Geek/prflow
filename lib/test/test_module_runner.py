@@ -45,9 +45,12 @@ def _pool_width() -> int:
 
     `lib/test/run-parallel.sh` exports DEVFLOW_POOL_WIDTH (its POOL_RESERVATION) into
     the python-pool shard only. Honouring it keeps this test's real process count inside
-    the slot budget the coordinator scheduled against; a coordinator-shaped value that
-    is absent or unparseable falls back to a conservative cap rather than to the host
-    CPU count, and outside the coordinator the host CPU count is the bound.
+    the slot budget the coordinator scheduled against; a value that is PRESENT but
+    unparseable or non-positive falls back to a conservative cap rather than to the host
+    CPU count, since the export's presence says a coordinator scheduled against a slot
+    budget this process can no longer read. An ABSENT export means no coordinator, so
+    the host CPU count is the bound — that keeps CI's dedicated python-pool runner at
+    full width.
     """
     declared = os.environ.get("DEVFLOW_POOL_WIDTH", "").strip()
     if declared:
@@ -3061,6 +3064,36 @@ class HostCapabilitySkipChannelTests(unittest.TestCase):
                     result.stdout,
                     rf"Module {re.escape(module)}: [0-9]+ passed, 0 failed",
                 )
+
+
+class PoolWidthTests(unittest.TestCase):
+    def test_pool_width_honors_a_usable_export_and_caps_a_malformed_one(self) -> None:
+        # The width decides how many whole module-runner processes this suite starts at
+        # once, so each arm below is a real oversubscription or serialization it must
+        # not choose. A PRESENT-but-unusable export takes the conservative cap; only an
+        # ABSENT one means no coordinator and returns to the host CPU count.
+        host = os.cpu_count() or 2
+        cap = min(host, 2)
+        cases = (
+            # (exported value, expected width)
+            (None, host),
+            ("1", 1),
+            ("2", 2),
+            ("99", 99),
+            ("  3  ", 3),
+            ("0", cap),
+            ("-3", cap),
+            ("many", cap),
+            ("", host),
+        )
+        for declared, expected in cases:
+            with self.subTest(declared=declared):
+                env = dict(os.environ)
+                env.pop("DEVFLOW_POOL_WIDTH", None)
+                if declared is not None:
+                    env["DEVFLOW_POOL_WIDTH"] = declared
+                with mock.patch.dict(os.environ, env, clear=True):
+                    self.assertEqual(_pool_width(), expected)
 
 
 class PoolMembershipCompletenessTests(unittest.TestCase):

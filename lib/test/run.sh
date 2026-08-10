@@ -49168,10 +49168,8 @@ YML
 YML
   # Order-independence and per-step pairing: a well-formed step ahead of one whose own pair is
   # inverted must fail, and must fail on ITS OWN pair rather than borrowing the first step's max.
-  # The second step's max (900000) is DELIBERATELY different from the first's: with equal maxes
-  # a cross-step borrowing bug still yields `no` and the fixture proves only order-independence.
-  # Here a guard borrowing 1200000 would read 120000 < 1000000 < 1200000 and answer `ok`, so the
-  # expected `no` is reachable only by comparing each default against its own step's ceiling.
+  # Keep the two steps' maxes DIFFERENT: with equal maxes a guard that borrows the other step's
+  # ceiling still answers `no`, and the fixture stops discriminating per-step pairing.
   cat > "$_WFG_D/default-two-steps.yml" <<'YML'
 jobs:
   claude:
