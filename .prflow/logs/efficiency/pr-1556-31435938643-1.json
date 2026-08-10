@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1556",
+  "generated_at": "2026-08-10T22:01:38Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.13",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 4.416871749999999,
+    "tokens": {
+      "input_tokens": 1507,
+      "output_tokens": 19144,
+      "cache_read_input_tokens": 2897400,
+      "cache_creation_input_tokens": 155507,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 1523,
+        "outputTokens": 27679,
+        "cacheReadInputTokens": 3192211,
+        "cacheCreationInputTokens": 246084,
+        "webSearchRequests": 0,
+        "costUSD": 4.416871749999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 30,
+    "duration_ms": 354432
+  },
+  "permission_denials": {
+    "count": 5,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      "echo \"skilldir=[$CLAUDE_SKILL_DIR]\"",
+      "RUNID=\"${GITHUB_RUN_ID:-local-$(date -u +%Y%m%dT%H%M%SZ)}-${GITHUB_RUN_ATTEMPT:-1}\"; echo \"runid=$RUNID\"",
+      "git fetch origin 80a536fa7095f1c759cc140468c992d84d483a3c 2>&1 | tail -2; for f in skills/implement/phases/phase-2-implement.md skills/review/phases/phase-3-agents.md; do echo -n \"$f: \"; git cat-file blob 80a536fa:$f | python3 -c \"import sys,hashlib; print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest())\"; done",
+      "cd /home/runner/work/prflow/prflow\nfor f in skills/implement/phases/phase-2-implement.md skills/review/phases/phase-3-agents.md; do\n  printf '%s  ' \"$f\"; git cat-file blob 80a536fa:$f | sha256sum | cut -d' ' -f1\ndone"
+    ],
+    "total": 5,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
