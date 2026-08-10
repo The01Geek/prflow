@@ -57,7 +57,15 @@ review-tier numbering; the implement tier omits two sections and renumbers the s
 1/2/3, as the `MODE=implement` bullet below records. It is rendered **once**, by that one
 helper, and prepended to the prompt on **every** tier:
 
-- **`/prflow:review`** — `devflow.yml`'s `Compose review grounding block` step.
+- **`/prflow:review`, `/prflow:review-and-fix`, `/prflow:pr-description`** —
+  `devflow.yml`'s `Compose engine grounding block` step, which is unconditional and so
+  composes for **every** command that tier dispatches. `/prflow:review` renders in the
+  default `review` mode. The other two render in `MODE=generic`, which omits the same
+  two sections `MODE=implement` does and adds none of that tier's Phase 3 scope clause:
+  `/prflow:pr-description` reviews no commit, and `/prflow:review-and-fix` edits and
+  pushes, so the CI section's "cite these conclusions, do not re-derive them by running
+  tests" instruction would contradict the in-environment whole-suite gate its own prompt
+  extension makes that loop's verification channel.
 - **Auto-review** — `devflow-runner.yml`'s `Compose review prompt` step.
 - **`/prflow:implement`** — `devflow-implement.yml`'s `Compose implement grounding
   block` step, in `MODE=implement`, which renders the tier-agnostic sections only

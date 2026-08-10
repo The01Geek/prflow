@@ -35687,11 +35687,12 @@ for _b363 in "$RUNNER_YML" "$DEVFLOW_YML"; do
     '[ -n "$CI_SUMMARY" ] || CI_SUMMARY="CI status unavailable"' "$_b363"
   assert_pin_unique "#363 $_w renders the block through the shared renderer (no hand-copied prose)" \
     'RGB=.prflow/vendor/prflow/scripts/render-grounding-block.sh' "$_b363"
-  # Pin the common render-call prefix through ALLOWED_TOOLS: devflow-runner.yml additionally
-  # forwards HARDENED_PATHS after it (issue #504), so the two files' GROUNDING lines diverge
-  # past this point — the shared, byte-identical prefix is what proves both pass the resolved
-  # allowed-tools string into the renderer. The runner's HARDENED_PATHS forwarding is pinned
-  # separately by the #504 AC5 assertion below.
+  # Pin the common render-call prefix through ALLOWED_TOOLS: each file forwards one more
+  # variable after it — devflow-runner.yml HARDENED_PATHS (issue #504), devflow.yml MODE
+  # (the light tier renders three commands, only one of them in `review` mode) — so the
+  # two GROUNDING lines diverge past this point, and the shared, byte-identical prefix is
+  # what proves both pass the resolved allowed-tools string into the renderer. Each
+  # file's own trailing forwarding is pinned separately below.
   assert_pin_unique "#363 $_w passes the resolved allowed-tools string into the renderer" \
     'GROUNDING=$(CI_SUMMARY="$CI_SUMMARY" ALLOWED_TOOLS="$ALLOWED_TOOLS" ' "$_b363"
   # Guard-class shape 1 (existence-vs-sourceability): `[ -f "$RGB" ]` proves the path
@@ -35715,10 +35716,75 @@ assert_pin_unique "#363 devflow.yml's block quotes steps.tools.outputs.tools ver
 # would otherwise parse it as an option and silently count zero.
 assert_pin_unique "#363 devflow.yml's claude_args consumes the hoisted allowed-tools output (no second copy to drift)" \
   'allowed-tools "${{ steps.tools.outputs.tools }}"' "$DEVFLOW_YML"
-# The block is gated to /devflow:review; the trailing space excludes review-and-fix,
-# which runs the same skill under a different profile with no block injected.
-assert_pin_unique "#363 devflow.yml gates the block on /devflow:review (trailing space excludes review-and-fix)" \
-  "if: \${{ startsWith(needs.gate.outputs.command, '/prflow:review ') }}" "$DEVFLOW_YML"
+# ── The block is composed for EVERY command this tier dispatches. It used to be gated
+# ── on `startsWith(…, '/prflow:review ')`, whose trailing space excluded
+# ── `/prflow:review-and-fix` — the command that drives the review engine INLINE and
+# ── fans out the most parallel subagents, and therefore the worst one to leave with no
+# ── tool list, no shape rules and no headless-run discipline. Both the compose step and
+# ── the vendored-renderer guard beside it are now unconditional.
+#
+# Read out of the PARSED workflow rather than grepped, because the invariant is about
+# which runs each step fires on: the guard must fail exactly the runs that compose a
+# block and never one that composes none, which is expressible only as "neither step
+# carries an `if:`". Grepping for the ABSENCE of a predicate would also have to reason
+# about this file's OTHER occurrences of the same `startsWith(…, '/prflow:review ')`
+# expression, which select the run's github_token (read-only reviewer vs. write-capable
+# App — a security boundary, pinned separately in the #300 block) and must never be
+# swept along with the grounding gate.
+_gb363_gates() {  # -> "<guard-if>|<compose-if>"; any unreadable input yields a non-matching sentinel
+  python3 - "$DEVFLOW_YML" 2>/dev/null <<'PY' || echo 'unestablished|unestablished'
+import sys, yaml
+steps = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))["jobs"]["command"]["steps"]
+def gate(name):
+    found = [s for s in steps if s.get("name") == name]
+    return "absent-step" if len(found) != 1 else repr(found[0].get("if"))
+print(gate("Validate vendored grounding renderer") + "|" + gate("Compose engine grounding block"))
+PY
+}
+assert_eq "#363 devflow.yml composes a block for every dispatched command, and its vendored-renderer guard covers exactly those runs" \
+  "None|None" "$(_gb363_gates)"
+
+# Which MODE each command renders in. `review` adds the CI-results section, whose
+# operative instruction is to cite those conclusions as the run's authoritative test
+# evidence and not re-derive them by running tests. Only `/prflow:review` earns that:
+# `/prflow:review-and-fix` edits and pushes, and its own prompt extension makes the
+# in-environment whole-suite pass the run's gate while forbidding the loop to cite CI
+# for its own progress, so a CI section there would contradict the run's verification
+# contract; `/prflow:pr-description` reviews no commit at all. Both take `generic`.
+# The selection is one declarative expression in the step env — no shell branch chain —
+# and `generic` is the ELSE operand, so it fails SAFE: a command the resolver's
+# allowlist gains later cannot silently inherit a section asserting CI evidence for a
+# commit it never reviewed.
+assert_pin_unique "#363 devflow.yml selects the renderer MODE per command, defaulting to generic for every command that must not cite CI" \
+  "MODE: \${{ startsWith(needs.gate.outputs.command, '/prflow:review ') && 'review' || 'generic' }}" "$DEVFLOW_YML"
+# devflow.yml renders three commands through one renderer, so — like the implement
+# composer's `MODE=implement` — the tier must be forwarded at the call site. Dropping
+# it would fall back to the renderer's `review` default and tell /prflow:pr-description
+# that a CI fence is its authoritative test evidence for a commit it never reviewed.
+assert_pin_unique "#363 devflow.yml forwards the selected MODE into the renderer" \
+  'ALLOWED_TOOLS="$ALLOWED_TOOLS" MODE="$MODE" bash "$RGB"' "$DEVFLOW_YML"
+# The renderer's own generic mode: the tier-agnostic sections only, renumbered, with
+# NO CI section, no #504 displaced-paths section, and none of the implement tier's
+# Phase 3 scope clause. Driven executably against the real renderer.
+_GB363_GEN="$(HEAD_SHA=deadbeef CI_SUMMARY='ci: success' ALLOWED_TOOLS='Read' HARDENED_PATHS='a/b.md' MODE=generic bash "$RGB_SH")"
+_gb363_gen_has() {  # literal -> yes/no, over the captured generic-mode render
+  case "$_GB363_GEN" in *"$1"*) echo yes ;; *) echo no ;; esac
+}
+assert_eq "#363 generic mode emits no CI-results section (there is no reviewed commit to observe)" "no" \
+  "$(_gb363_gen_has 'CI results already observed for the reviewed commit')"
+assert_eq "#363 generic mode emits no trusted-source-displacement section (a review-only concept)" "no" \
+  "$(_gb363_gen_has 'Trusted-source displacement')"
+assert_eq "#363 generic mode carries none of the implement tier's Phase 3 scope clause" "no" \
+  "$(_gb363_gen_has "including Phase 3's inline")"
+assert_eq "#363 generic mode still states the permitted commands, the shapes, and the headless-run discipline (renumbered 1/2/3)" "yes-yes-yes" \
+  "$(_gb363_gen_has '**1. The exact commands this run is permitted to execute.**')-$(_gb363_gen_has "**2. Command shapes this run's harness accepts.**")-$(_gb363_gen_has '**3. This is a headless run: ending your turn ends the process.**')"
+# Positive control for the two absence rows above: the SAME literals resolve in review
+# mode, so an empty/garbled render cannot pass them vacuously.
+_GB363_REV="$(HEAD_SHA=deadbeef CI_SUMMARY='ci: success' ALLOWED_TOOLS='Read' HARDENED_PATHS='a/b.md' MODE=review bash "$RGB_SH")"
+assert_eq "#363 review mode still emits both sections generic mode omits (the absence rows' positive control)" "yes-yes" \
+  "$(case "$_GB363_REV" in *'CI results already observed for the reviewed commit'*) echo yes ;; *) echo no ;; esac)-$(case "$_GB363_REV" in *'Trusted-source displacement'*) echo yes ;; *) echo no ;; esac)"
+unset _GB363_GEN _GB363_REV
+
 assert_pin_unique "#363 devflow.yml falls back to the bare command when no block is composed" \
   'prompt: ${{ steps.reviewcompose.outputs.prompt || needs.gate.outputs.command }}' "$DEVFLOW_YML"
 
