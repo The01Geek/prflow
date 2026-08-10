@@ -166,11 +166,9 @@ fi
   # Add --no-reproduction when the 1.1 classification is non-bug so the bug-only
   # "reproduction captured" sub-item isn't rendered; omit the flag when it is
   # bug-report. Decide from the CLASSIFICATION (1.1), not the label.
-  if [ -n "$RUN_URL" ]; then
-    "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py new-body $ISSUE_NUMBER --run-link "[View run]($RUN_URL)" > "$BODY"
-  else
-    "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py new-body $ISSUE_NUMBER > "$BODY"
-  fi
+  set --
+  [ -n "$RUN_URL" ] && set -- --run-link "[View run]($RUN_URL)"
+  "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py new-body $ISSUE_NUMBER "$@" > "$BODY"
   "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py create $ISSUE_NUMBER "$BODY"
   "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --replace-acs-file "$DEVFLOW_ROOT/.prflow/tmp/acs-${ARGUMENTS}.md"
   ```
@@ -182,24 +180,16 @@ fi
   # (no GITHUB_RUN_ID) → the --run-link argument is omitted rather than passing "[View run]()".
   RUN_URL=""
   [ -n "$GITHUB_RUN_ID" ] && RUN_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
-  if [ -n "$RUN_URL" ]; then
-    "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER \
-        --expect-comment-id "$WORKPAD_ID" --expect-status "<observed status word>" \
-        --status Setup \
-        --run-link "[View run]($RUN_URL)" \
-        --replace-acs-file "$DEVFLOW_ROOT/.prflow/tmp/acs-${ARGUMENTS}.md" \
-        --checkpoint "gha:${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}:phase1-hydrated" "<selected lifecycle event>" \
-        --strip-inherited-checkpoints \
-        --note "<selected lifecycle event>"
-  else
-    "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER \
-        --expect-comment-id "$WORKPAD_ID" --expect-status "<observed status word>" \
-        --status Setup \
-        --replace-acs-file "$DEVFLOW_ROOT/.prflow/tmp/acs-${ARGUMENTS}.md" \
-        --checkpoint "gha:${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}:phase1-hydrated" "<selected lifecycle event>" \
-        --strip-inherited-checkpoints \
-        --note "<selected lifecycle event>"
-  fi
+  set --
+  [ -n "$RUN_URL" ] && set -- --run-link "[View run]($RUN_URL)"
+  "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER \
+      --expect-comment-id "$WORKPAD_ID" --expect-status "<observed status word>" \
+      --status Setup \
+      "$@" \
+      --replace-acs-file "$DEVFLOW_ROOT/.prflow/tmp/acs-${ARGUMENTS}.md" \
+      --checkpoint "gha:${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}:phase1-hydrated" "<selected lifecycle event>" \
+      --strip-inherited-checkpoints \
+      --note "<selected lifecycle event>"
   ```
   The `--note` (and the combined `phase1-hydrated` checkpoint text) is the **selected lifecycle event** from the provenance × live-status table above — **not** a hardcoded `/prflow:implement run resumed`. Replace `<observed status word>` with the exact stripped Status word read in triage step 2 and `<selected lifecycle event>` with the row that matched; on the cloud tier the `--checkpoint`/`--expect-*` flags are included, on a local run drop them (local runs carry no cloud handoff/checkpoint keys) — but `--strip-inherited-checkpoints` is **not** one of those cloud-only flags and is included on **both** tiers. It clears the declared required-artifact checkpoint rows (it cannot reach `gha:`-prefixed rows) so this run does not inherit the previous attempt's rows: an inherited row makes the downstream `base_update_checkpoint4_present` reading describe the wrong attempt. Combining the strip with the `gha:` hydration checkpoint above is legal; combining it with a `--checkpoint` for one of the declared keys is rejected before any PATCH, so a declared-key record is always a separate call. If the update **aborts with exit 4** (a precondition mismatch — the live comment ID or Status changed under you), do NOT retry blindly: re-read the live workpad, re-run the triage, and re-select the wording against the *current* state.
   **Legacy-workpad migration (required):** a workpad created before run/PR links and the `## Progress` checklist existed won't have those lines. `--run-link`/`--pr-link` insert the missing header lines on their own, but `--tick-progress`/`--note` (used at every later phase boundary) will **abort the run** with `section '## Progress' not found` if the section is absent. So when resuming such a workpad you MUST seed a `## Progress` section before Phase 1.5 — `workpad.py body` the live comment, render a fresh skeleton with `workpad.py new-body $ISSUE_NUMBER` (adding `--no-reproduction` when the recorded classification is non-bug, as the create arm above does) into a temp file, splice **that output's** `## Progress` section into the body (right after the front-matter, before `## Plan`), and `workpad.py patch $WORKPAD_ID <file>`. On the cloud arm, whose hydration call carries the `gha:` checkpoint alongside its `--note`, that call lands because `--checkpoint` self-heals an absent `## Progress` — but the re-created section is **empty of the phase-checklist rows**, so every later `--tick-progress` still misses its row and exits non-zero; on the local arm, which drops the checkpoint, nothing repairs the section and those calls abort structurally instead. The migration is required on both arms.
