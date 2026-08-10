@@ -14713,12 +14713,14 @@ _paths1445 = cwc.manifest_file_paths()
 assert_eq("#1445 AC4: manifest_file_paths() is sorted and de-duplicated",
           True, _paths1445 == sorted(set(_paths1445)) and len(_paths1445) > 0)
 assert_eq("#1445 AC4: the artifact pins exactly the generator's exposed path list",
-          _paths1445, sorted(cwc.build_manifest()["files"].keys()))
+          _paths1445, sorted(_bm1445["files"].keys()))  # reuse the AC3.1 manifest — no second full-closure hash
 
 # ── AC5: against the post-change (unchanged) shape, validate-cloud-writer-contract.py is
 # clean for a consumer whose grants cover every required_helper_heads entry, and emits
 # HEAD_ABSENT naming an uncovered head for one missing a head.
-_cover_grants_1445 = {p: set(h) for p, h in cwc.build_manifest()["required_helper_heads"].items()}
+# required_helper_heads is derived from REQUIRED_HELPER_HEADS with no file I/O, so read it
+# directly rather than re-hashing the whole closure via build_manifest().
+_cover_grants_1445 = {p: set(h) for p, h in cwc.REQUIRED_HELPER_HEADS.items()}
 _p5_clean = vcwc.validate(
     _fresh_manifest_1445, base_dir=_REPO,
     expected_assets=cwc.manifest_file_paths(),
