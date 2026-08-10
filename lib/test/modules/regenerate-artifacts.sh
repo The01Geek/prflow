@@ -693,7 +693,14 @@ _ra_reconcile() {  # <root>
 # Run the helper against a target root, capturing combined output and rc into
 # per-fixture files. The helper is invoked by its LIVE path with --repo-root pointed
 # at the fixture, which is exactly how the suite drives its failure arms.
+# `--with-floors` is passed here so every existing row-integration fixture keeps
+# exercising the opt-in exact-module-floors row; `_ra_run_default` below drives the
+# default pass, which reports that row as not measured instead of running it.
 _ra_run() {  # <root>
+  python3 "$RA_HELPER" --repo-root "$1" --with-floors >"$1/.ra.out" 2>&1
+  printf '%s\n' "$?" >"$1/.ra.rc"
+}
+_ra_run_default() {  # <root>
   python3 "$RA_HELPER" --repo-root "$1" >"$1/.ra.out" 2>&1
   printf '%s\n' "$?" >"$1/.ra.rc"
 }
@@ -765,7 +772,9 @@ _ra_ident_regions() {  # <root> — the concatenated bytes of every baked identi
 # CONSTRUCTION. The live tree keeps its non-mutating coverage in A4 (`--list` launches
 # no row) and in the suite's own artifact gates.
 RA_A1="$_ra_tmp_root/a1"; _ra_fixture "$RA_A1"
-RA_CLEAN_OUT="$(python3 "$RA_HELPER" --repo-root "$RA_A1" 2>&1)"; RA_CLEAN_RC=$?
+# `--with-floors`, so the loop below covers EVERY registered row including the opt-in
+# one; the default pass's own reporting of that row is pinned in the opt-in block below.
+RA_CLEAN_OUT="$(python3 "$RA_HELPER" --repo-root "$RA_A1" --with-floors 2>&1)"; RA_CLEAN_RC=$?
 assert_eq "#619 A1 clean-tree run exits 0" "0" "$RA_CLEAN_RC"
 for _row in $RA_ROW_NAMES; do
   case "$RA_CLEAN_OUT" in
@@ -1508,6 +1517,47 @@ _ra_same "#1055 a refused decrease leaves the registry byte-unchanged" \
 _ra_same "#1055 a refused decrease leaves run.sh byte-unchanged" \
   "$RA_1055_LOWER_RUN_BEFORE" "$(cat "$RA_1055_LOWER/lib/test/run.sh")" \
   "run.sh changed on a decrease"
+
+# ── The exact-module-floors row is OPT-IN, and its omission is on the record ──
+# The default pass must not run the one row whose check runs the real focused module
+# runners. It is reported as not measured rather than silently dropped: a pass that says
+# nothing about a row it did not run is indistinguishable from one that found it clean.
+RA_OPTIN="$_ra_tmp_root/optin-default"; _ra_fixture "$RA_OPTIN"
+RA_OPTIN_REG_BEFORE="$(cat "$RA_OPTIN/scripts/workflow-flight-recorder-registry.json")"
+RA_OPTIN_RUN_BEFORE="$(cat "$RA_OPTIN/lib/test/run.sh")"
+DEVFLOW_FLOOR_TEST_DELTA=1 _ra_run_default "$RA_OPTIN"
+assert_eq "#optin the default pass exits 0 over a floor delta it did not measure" \
+  "0" "$(_ra_rc "$RA_OPTIN")"
+_ra_has "#optin the default pass records the unmeasured row and names the flag" \
+  "$RA_OPTIN" "[exact-module-floors] not measured -- pass --with-floors"
+_ra_same "#optin the default pass leaves the registry byte-unchanged" \
+  "$RA_OPTIN_REG_BEFORE" \
+  "$(cat "$RA_OPTIN/scripts/workflow-flight-recorder-registry.json")" \
+  "the default pass wrote a floor it never measured"
+_ra_same "#optin the default pass leaves the coupled run.sh byte-unchanged" \
+  "$RA_OPTIN_RUN_BEFORE" "$(cat "$RA_OPTIN/lib/test/run.sh")" \
+  "the default pass wrote a coupled floor site it never measured"
+
+# ── The ordering guard: never measure a tree this pass already reported red ──
+# The coverage-map drift below makes an EARLIER row emit an exit-1-forcing judgment item,
+# so the opt-in row is skipped even under the flag — measuring a tree that is about to
+# change costs minutes and answers a question about the wrong tree.
+RA_OPTIN_RED="$_ra_tmp_root/optin-after-red"; _ra_fixture "$RA_OPTIN_RED"
+printf '# scratch\n' > "$RA_OPTIN_RED/lib/uncovered-helper-optin.sh"
+( cd "$RA_OPTIN_RED" && git add -A && git commit -q -m "plant coverage drift" ) >/dev/null 2>&1
+_ra_reconcile "$RA_OPTIN_RED"
+RA_OPTIN_RED_REG_BEFORE="$(cat "$RA_OPTIN_RED/scripts/workflow-flight-recorder-registry.json")"
+DEVFLOW_FLOOR_TEST_DELTA=1 _ra_run "$RA_OPTIN_RED"
+_ra_has "#optin the ordering guard's positive control: an earlier row reported red" \
+  "$RA_OPTIN_RED" "[coverage-map-ratchet] JUDGMENT"
+assert_eq "#optin a pass whose earlier row went red is still action-required" \
+  "1" "$(_ra_rc "$RA_OPTIN_RED")"
+_ra_has "#optin --with-floors skips the measurement on an already-red tree" \
+  "$RA_OPTIN_RED" "[exact-module-floors] not measured -- an earlier row already reported"
+_ra_same "#optin the skipped measurement writes no floor on an already-red tree" \
+  "$RA_OPTIN_RED_REG_BEFORE" \
+  "$(cat "$RA_OPTIN_RED/scripts/workflow-flight-recorder-registry.json")" \
+  "the skipped measurement wrote a floor anyway"
 
 RA_1055_PARTIAL="$_ra_tmp_root/issue-1055-partial"; _ra_fixture "$RA_1055_PARTIAL"
 cat > "$RA_1055_PARTIAL/lib/test/reconcile-module-floors.py" <<'PY'
@@ -2345,20 +2395,36 @@ assert_eq "#1055 the batched helper is extracted as a direct command head" \
 # the retired wording pins over these sentences: an inline-backtick mention yields NO head
 # and an interpreter head yields `python3`, so either regression fails here, while a
 # reworded sentence — which changes no executable property — does not.
-for _ra_1055_ext in implement review-and-fix receiving-code-review; do
-  for _ra_1055_section in '## Batched artifact regeneration' \
-                          '## Merge conflicts in generated artifacts'; do
-    "$RA_REPO/scripts/load-prompt-extension.sh" "$_ra_1055_ext" --section "$_ra_1055_section" \
-      > "$_ra_tmp_root/issue-1055-section.md"
-    assert_eq "#1055 $_ra_1055_ext.md '$_ra_1055_section' fences the granted direct head" \
-      'lib/test/regenerate-artifacts.py' \
-      "$(python3 "$LIB/test/extract-command-heads.py" heads "$_ra_tmp_root/issue-1055-section.md")"
-    python3 "$LIB/test/extract-command-shapes.py" --profile implement \
-      "$_ra_tmp_root/issue-1055-section.md" > "$_ra_tmp_root/issue-1055-section-shapes.out" 2>&1
-    assert_eq "#1055 $_ra_1055_ext.md '$_ra_1055_section' is clean under implement shape rules" \
-      "0" "$?"
-  done
+# Each pair is spelled out because the two sections no longer live on the same extension
+# set: receiving-code-review is loaded by dispatched subagents and carries the conflict
+# rule alone, so a batched pass cannot be re-run inside the orchestrator's own iteration.
+for _ra_1055_pair in \
+  'implement|## Batched artifact regeneration' \
+  'implement|## Merge conflicts in generated artifacts' \
+  'review-and-fix|## Batched artifact regeneration' \
+  'review-and-fix|## Merge conflicts in generated artifacts' \
+  'receiving-code-review|## Merge conflicts in generated artifacts'; do
+  _ra_1055_ext="${_ra_1055_pair%%|*}"
+  _ra_1055_section="${_ra_1055_pair#*|}"
+  "$RA_REPO/scripts/load-prompt-extension.sh" "$_ra_1055_ext" --section "$_ra_1055_section" \
+    > "$_ra_tmp_root/issue-1055-section.md"
+  assert_eq "#1055 $_ra_1055_ext.md '$_ra_1055_section' fences the granted direct head" \
+    'lib/test/regenerate-artifacts.py' \
+    "$(python3 "$LIB/test/extract-command-heads.py" heads "$_ra_tmp_root/issue-1055-section.md")"
+  python3 "$LIB/test/extract-command-shapes.py" --profile implement \
+    "$_ra_tmp_root/issue-1055-section.md" > "$_ra_tmp_root/issue-1055-section-shapes.out" 2>&1
+  assert_eq "#1055 $_ra_1055_ext.md '$_ra_1055_section' is clean under implement shape rules" \
+    "0" "$?"
 done
+
+# The batched pass must NOT reach a dispatched reception subagent: each one re-ran the
+# multi-minute pass inside the orchestrator's own iteration. Asserted at the loader's
+# executable boundary — an empty section extraction — rather than by grepping wording.
+"$RA_REPO/scripts/load-prompt-extension.sh" receiving-code-review \
+  --section '## Batched artifact regeneration' \
+  > "$_ra_tmp_root/issue-1055-rcr-batched.md" 2>/dev/null || :
+assert_eq "#optin receiving-code-review carries no batched-regeneration section" \
+  "" "$(cat "$_ra_tmp_root/issue-1055-rcr-batched.md")"
 RA_1055_BASE_UNGRANTED="$(python3 "$LIB/test/extract-command-heads.py" ungranted \
   "$RA_1055_PROMPT" "$RA_REPO/.github/workflows/devflow-implement.yml" tools-line)"
 assert_eq "#1055 the generated consumer baseline does not grant the self-repository helper" \
