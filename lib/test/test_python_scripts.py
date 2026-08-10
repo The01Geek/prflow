@@ -21865,6 +21865,10 @@ def _drive_cmd_patch_read_failure(new_body=None, live=None):
             return _FakeRun(sent['body'])
         if live is None:
             raise _sp295.CalledProcessError(1, cmd)
+        if isinstance(live, BaseException):
+            # An exception instance models a read failure whose CAUSE the breadcrumb
+            # must render — a `CalledProcessError` carrying gh's own stderr payload.
+            raise live
         if live is OSError:
             # An absent `gh` binary — the other arm of the same `except`, and the one
             # whose exception carries no `.stderr` for the breadcrumb to read.
@@ -21935,6 +21939,82 @@ _sent, _stderr, _code = _drive_cmd_patch_read_failure(new_body=_HEADING, live=OS
 assert_eq("#1508: an OSError from the live read takes the same unestablished arm",
           (None, True, 1),
           (_sent, 'No such file or directory' in _stderr, _code))
+
+# The common gh-failed case: `CalledProcessError` DOES carry `.stderr`, and a
+# `subprocess` configured without text mode carries it as bytes. The breadcrumb must
+# render that payload as text, stripped — not `b'...'` and not the exception's own
+# "Command ... returned non-zero exit status" repr, neither of which names the cause.
+_sent, _stderr, _code = _drive_cmd_patch_read_failure(
+    new_body=_HEADING,
+    live=_sp295.CalledProcessError(1, ['gh'], stderr=b'gh: HTTP 502 upstream  \n'))
+assert_eq("#1508: a bytes `.stderr` payload is decoded and stripped into the breadcrumb",
+          (None, True, True, 1),
+          (_sent, '(gh: HTTP 502 upstream)' in _stderr,
+           'returned non-zero exit status' not in _stderr, _code))
+
+# The text-mode counterpart of the same limb: `.stderr` is already a str, so only the
+# strip applies. Both spellings must reach the same breadcrumb text.
+_sent, _stderr, _code = _drive_cmd_patch_read_failure(
+    new_body=_HEADING,
+    live=_sp295.CalledProcessError(1, ['gh'], stderr='gh: HTTP 502 upstream\n'))
+assert_eq("#1508: a str `.stderr` payload reaches the same stripped breadcrumb",
+          (None, True, 1),
+          (_sent, '(gh: HTTP 502 upstream)' in _stderr, _code))
+
+# A payload that is not JSON at all — an HTML error page from a proxy, at exit 0. The
+# presence read must treat it as unestablished rather than letting the decode error
+# escape cmd_patch uncaught (it is neither CalledProcessError nor OSError).
+_sent, _stderr, _code = _drive_cmd_patch_read_failure(
+    new_body=_HEADING, live='<html><body>502 Bad Gateway</body></html>\n')
+assert_eq("#1508: a non-JSON live payload is unestablished, never a marker-less body",
+          (None, True, 1),
+          (_sent, 'refusing the PATCH' in _stderr, _code))
+
+
+def _drive_cmd_patch_unreadable_body_file():
+    """cmd_patch when the body file passes `is_file()` but its read raises.
+
+    A real unreadable file would depend on file modes and on the runner's uid (root
+    reads a 0000 file), so the failure is induced at the read itself — the arm under
+    test — leaving the mode question out of the assertion entirely.
+    """
+    class _UnreadablePath(type(Path())):
+        def read_text(self, *a, **kw):
+            raise OSError(13, 'Permission denied')
+
+    saved = (workpad.Path, workpad._run, workpad._repo_full)
+    workpad.Path = _UnreadablePath
+    workpad._run = lambda *a, **kw: (_ for _ in ()).throw(
+        AssertionError('cmd_patch must not reach gh when the body file is unreadable'))
+    workpad._repo_full = lambda *a, **kw: 'owner/repo'
+    err = io.StringIO()
+    code = None
+    with _tempfile.NamedTemporaryFile('w', suffix='.md', delete=False) as tf:
+        tf.write(_HEADING)
+        path = tf.name
+    try:
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+            try:
+                workpad.cmd_patch(argparse.Namespace(comment_id=7, body_file=path))
+            except SystemExit as e:
+                code = e.code
+    finally:
+        workpad.Path, workpad._run, workpad._repo_full = saved
+        _os.unlink(path)
+    return err.getvalue(), code
+
+
+# Deferred (review 4900412294, Suggestion 2): `_patch_comment_body`'s `raise ValueError`
+# guard, its temp-write `except OSError`, and its `finally` unlink swallow stay untested.
+# The first is unreachable from either call site (both pass exactly one of text/body_path)
+# and the other two are best-effort cleanup with no observable outcome to assert. Revisit
+# if a caller reaches the helper with neither argument, or if the cleanup gains an effect
+# a caller can observe.
+
+_stderr, _code = _drive_cmd_patch_unreadable_body_file()
+assert_eq("#1508: a body file that exists but cannot be read exits 1 naming the cause",
+          (True, True, 1),
+          ('body file unreadable' in _stderr, 'Permission denied' in _stderr, _code))
 
 # The whole body, not just its first lines: the bounded split reconstructs the tail by
 # index, so a regression that drops or duplicates a line after the markers would pass
