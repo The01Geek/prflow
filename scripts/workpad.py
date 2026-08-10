@@ -1027,6 +1027,59 @@ def cmd_acs_resolve(args):
         print('not-applicable')
 
 
+# ── Leading-marker preservation across a full-body rewrite (issue #1508) ────
+# A comment's identity is its line-1 marker, and a verdict stamp is the line
+# after it. A caller that re-authors the whole body from state it holds drops
+# whatever it does not retype, and no consumer errors on the result: a marker
+# scan simply finds nothing and reads "there was no such comment".
+#
+# The scan stops at two lines because that is the window every reader uses
+# (docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md §8) — a marker deeper in a body is
+# prose, so hoisting one would invent a stamp the producer never made.
+_LEADING_MARKER_SCAN = 2
+_LEADING_MARKER_RE = re.compile(
+    r'^' + _MARKER_NS_RE + r'([A-Za-z0-9_.:-]+)[^\n]*-->$')
+
+
+def _leading_markers(body):
+    """`[(kind, line)]` for the leading run of PRFlow marker-comment lines."""
+    found = []
+    for line in (body or '').split('\n')[:_LEADING_MARKER_SCAN]:
+        m = _LEADING_MARKER_RE.match(line.strip())
+        if not m:
+            break
+        found.append((m.group(1), line))
+    return found
+
+
+def _merge_leading_markers(live_body, new_body):
+    """Re-insert into `new_body` any leading marker `live_body` carries.
+
+    Returns `(body, reinserted_kinds)`. The live body's ORDER is authoritative
+    (the run key stays line 1), while the caller's line wins for any kind it
+    supplies — that is what keeps a deliberate re-stamp or a `--marker`
+    migration landing rather than being reverted to the live value.
+    """
+    live = _leading_markers(live_body)
+    if not live:
+        return new_body, []
+    supplied = _leading_markers(new_body)
+    by_kind = {kind: line for kind, line in supplied}
+    merged, seen, reinserted = [], set(), []
+    for kind, line in live:
+        merged.append(by_kind.get(kind, line))
+        if kind not in by_kind:
+            reinserted.append(kind)
+        seen.add(kind)
+    for kind, line in supplied:
+        if kind not in seen:
+            merged.append(line)
+            seen.add(kind)
+    if not reinserted:
+        return new_body, []
+    return '\n'.join(merged + (new_body or '').split('\n')[len(supplied):]), reinserted
+
+
 def cmd_patch(args):
     repo = _repo_full()
     body_path = Path(args.body_file)
@@ -1036,14 +1089,50 @@ def cmd_patch(args):
         )
         sys.exit(1)
     try:
+        composed = body_path.read_text(encoding='utf-8')
+    except OSError as e:
+        sys.stderr.write(f"workpad.py patch: body file unreadable: {e}\n")
+        sys.exit(1)
+    # Read-then-merge is best-effort: an unreadable live body must never turn a
+    # working rewrite into a failure, so it degrades to the caller's bytes —
+    # exactly the behaviour every caller had before this preservation existed.
+    try:
+        live = _run([
+            GH, 'api',
+            f'/repos/{repo}/issues/comments/{args.comment_id}',
+            '--jq', '.body',
+        ]).stdout
+    except (subprocess.CalledProcessError, OSError) as e:
+        live = ''
+        sys.stderr.write(
+            'workpad.py patch: could not read the live comment body '
+            f'({e}); patching the composed body unchanged — any marker line it '
+            'omits will be lost\n'
+        )
+    merged, reinserted = _merge_leading_markers(live, composed)
+    written = body_path
+    if reinserted:
+        written = body_path.with_name(body_path.name + '.markers')
+        written.write_text(merged, encoding='utf-8')
+        sys.stderr.write(
+            'workpad.py patch: re-inserted leading marker(s) the composed body '
+            f'omitted: {", ".join(reinserted)}\n'
+        )
+    try:
         r = _run([
             GH, 'api', '-X', 'PATCH',
             f'/repos/{repo}/issues/comments/{args.comment_id}',
-            '-F', f'body=@{body_path}',
+            '-F', f'body=@{written}',
             '--jq', '.body',
         ])
     except (subprocess.CalledProcessError, OSError) as e:
         _fail('patch', e)
+    finally:
+        if written != body_path:
+            try:
+                written.unlink()
+            except OSError:
+                pass
     sys.stdout.write(r.stdout)
 
 

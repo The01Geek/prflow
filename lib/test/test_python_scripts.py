@@ -21695,6 +21695,114 @@ def _drive_cmd_patch(payload):
 assert_eq("#814: cmd_patch still writes its response to stdout unconditionally",
           "patched\n", _drive_cmd_patch("patched\n"))
 
+
+# ── #1508: cmd_patch preserves the leading marker lines a rewrite would clobber ──
+# A full-body rewrite composes its bytes from state the caller holds, so a caller that
+# does not retype the run-key/verdict markers drops them. The comment's identity is its
+# line-1 marker, so every consumer that resolves it by marker then reads "no such
+# comment exists" rather than erroring. These drive the request body cmd_patch actually
+# emits, so a preservation that never fires turns them RED.
+_RUNKEY = '<!-- prflow:review-progress run=31356552464-1 -->'
+_VERDICT = '<!-- prflow:review-verdict head=' + 'a' * 40 + ' verdict=REJECT -->'
+
+
+def _drive_cmd_patch_body(existing_body, new_body):
+    """Return the body cmd_patch PATCHes when the live comment reads `existing_body`."""
+    saved = (workpad._run, workpad._repo_full)
+    sent = {}
+
+    def _fake(cmd, **kw):
+        if '-X' in cmd and 'PATCH' in cmd:
+            operand = [c for c in cmd if c.startswith('body=@')][0]
+            sent['body'] = Path(operand[len('body=@'):]).read_text(encoding='utf-8')
+            return _FakeRun(sent['body'])
+        return _FakeRun(existing_body)
+
+    workpad._run = _fake
+    workpad._repo_full = lambda *a, **kw: 'owner/repo'
+    with _tempfile.NamedTemporaryFile('w', suffix='.md', delete=False) as tf:
+        tf.write(new_body)
+        path = tf.name
+    try:
+        with contextlib.redirect_stdout(io.StringIO()), \
+                contextlib.redirect_stderr(io.StringIO()):
+            workpad.cmd_patch(argparse.Namespace(comment_id=7, body_file=path))
+    finally:
+        workpad._run, workpad._repo_full = saved
+        _os.unlink(path)
+    return sent.get('body')
+
+
+_HEADING = '# PRFlow Review — PR #1523\n\nPhase 4 rewrite from held state.\n'
+
+assert_eq("#1508: a rewrite that drops the run-key marker gets it back at line 1",
+          _RUNKEY,
+          (_drive_cmd_patch_body(_RUNKEY + '\n' + _HEADING, _HEADING) or '\n').split('\n')[0])
+
+_both = _drive_cmd_patch_body(_RUNKEY + '\n' + _VERDICT + '\n' + _HEADING, _HEADING) or ''
+assert_eq("#1508: a rewrite after a verdict stamp keeps BOTH markers at their "
+          "contracted positions",
+          [_RUNKEY, _VERDICT], _both.split('\n')[:2])
+
+# The caller stays authoritative for a marker it does supply — that is how a deliberate
+# marker change (a `--marker` migration, a re-stamped verdict) still lands.
+_NEWVERDICT = '<!-- prflow:review-verdict head=' + 'b' * 40 + ' verdict=APPROVE -->'
+_re_stamped = _drive_cmd_patch_body(
+    _RUNKEY + '\n' + _VERDICT + '\n' + _HEADING,
+    _RUNKEY + '\n' + _NEWVERDICT + '\n' + _HEADING) or ''
+assert_eq("#1508: a marker the caller supplies wins over the live one of the same kind",
+          [_RUNKEY, _NEWVERDICT], _re_stamped.split('\n')[:2])
+
+# The implement workpad's single-marker family must not gain a second marker line, and
+# a comment that never carried a marker must not gain one.
+assert_eq("#1508: a live body with no leading marker leaves the caller's bytes untouched",
+          _HEADING, _drive_cmd_patch_body('plain body\nno markers\n', _HEADING))
+assert_eq("#1508: a single-marker live body re-inserts exactly that one marker",
+          ['<!-- prflow:workpad -->', '# PRFlow Review — PR #1523'],
+          (_drive_cmd_patch_body('<!-- prflow:workpad -->\nold\n', _HEADING)
+           or '').split('\n')[:2])
+
+# The superseded namespace is live in bodies written before the rename, and a per-record
+# read is what keeps one of those resolvable after a rewrite.
+_DEV_RUNKEY = '<!-- devflow:review-progress run=31356552464-1 -->'
+assert_eq("#1508: a superseded-namespace marker is preserved per record",
+          _DEV_RUNKEY,
+          (_drive_cmd_patch_body(_DEV_RUNKEY + '\n' + _HEADING, _HEADING)
+           or '\n').split('\n')[0])
+
+
+def _drive_cmd_patch_read_failure():
+    """cmd_patch when the live-body read fails: returns (sent body, stderr)."""
+    saved = (workpad._run, workpad._repo_full)
+    sent = {}
+
+    def _fake(cmd, **kw):
+        if '-X' in cmd and 'PATCH' in cmd:
+            operand = [c for c in cmd if c.startswith('body=@')][0]
+            sent['body'] = Path(operand[len('body=@'):]).read_text(encoding='utf-8')
+            return _FakeRun(sent['body'])
+        raise _sp295.CalledProcessError(1, cmd)
+
+    workpad._run = _fake
+    workpad._repo_full = lambda *a, **kw: 'owner/repo'
+    err = io.StringIO()
+    with _tempfile.NamedTemporaryFile('w', suffix='.md', delete=False) as tf:
+        tf.write(_HEADING)
+        path = tf.name
+    try:
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+            workpad.cmd_patch(argparse.Namespace(comment_id=7, body_file=path))
+    finally:
+        workpad._run, workpad._repo_full = saved
+        _os.unlink(path)
+    return sent.get('body'), err.getvalue()
+
+
+_sent, _stderr = _drive_cmd_patch_read_failure()
+assert_eq("#1508: an unreadable live body degrades to the caller's bytes and says so",
+          (_HEADING, True),
+          (_sent, 'could not read the live comment body' in _stderr))
+
 # Echo SOURCE, not merely echo presence. `--print-body` must reproduce what the PATCH
 # RESPONSE carried — the bytes the pre-#814 code wrote — never the body this process
 # just composed locally. run.sh cannot ask this: its gh stub answers a PATCH by teeing
