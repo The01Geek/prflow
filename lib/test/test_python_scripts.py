@@ -21699,9 +21699,9 @@ assert_eq("#814: cmd_patch still writes its response to stdout unconditionally",
 # ── #1508: cmd_patch preserves the leading marker lines a rewrite would clobber ──
 # A full-body rewrite composes its bytes from state the caller holds, so a caller that
 # does not retype the run-key/verdict markers drops them. The comment's identity is its
-# line-1 marker, so every consumer that resolves it by marker then reads "no such
-# comment exists" rather than erroring. These drive the request body cmd_patch actually
-# emits, so a preservation that never fires turns them RED.
+# line-1 marker, so a marker-resolving reader then reads "no such comment exists"
+# rather than erroring. These drive the request body cmd_patch actually emits, so a
+# preservation that never fires turns them RED.
 _RUNKEY = '<!-- prflow:review-progress run=31356552464-1 -->'
 _VERDICT = '<!-- prflow:review-verdict head=' + 'a' * 40 + ' verdict=REJECT -->'
 

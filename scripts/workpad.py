@@ -1030,8 +1030,8 @@ def cmd_acs_resolve(args):
 # ── Leading-marker preservation across a full-body rewrite (issue #1508) ────
 # A comment's identity is its line-1 marker, and a verdict stamp is the line
 # after it. A caller that re-authors the whole body from state it holds drops
-# whatever it does not retype, and no consumer errors on the result: a marker
-# scan simply finds nothing and reads "there was no such comment".
+# whatever it does not retype, and a marker-resolving reader does not error on
+# the result: its scan finds nothing and reads "there was no such comment".
 #
 # The scan stops at two lines because that is the window every reader uses
 # (docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md §8) — a marker deeper in a body is
@@ -1095,7 +1095,7 @@ def cmd_patch(args):
         sys.exit(1)
     # Read-then-merge is best-effort: an unreadable live body must never turn a
     # working rewrite into a failure, so it degrades to the caller's bytes —
-    # exactly the behaviour every caller had before this preservation existed.
+    # the behaviour this subcommand had before the preservation above existed.
     try:
         live = _run([
             GH, 'api',
@@ -1112,8 +1112,25 @@ def cmd_patch(args):
     merged, reinserted = _merge_leading_markers(live, composed)
     written = body_path
     if reinserted:
-        written = body_path.with_name(body_path.name + '.markers')
-        written.write_text(merged, encoding='utf-8')
+        # A private temp file, never a sibling of the caller's: the caller's
+        # directory may be read-only, and a sibling would also be visible to a
+        # `git add` the caller scopes by directory.
+        import tempfile
+        try:
+            with tempfile.NamedTemporaryFile(
+                'w', suffix='.md', delete=False, encoding='utf-8',
+            ) as tf:
+                tf.write(merged)
+                written = Path(tf.name)
+        except OSError as e:
+            written = body_path
+            reinserted = []
+            sys.stderr.write(
+                'workpad.py patch: could not stage the marker-preserved body '
+                f'({e}); patching the composed body unchanged — the marker '
+                'line(s) it omits will be lost\n'
+            )
+    if reinserted:
         sys.stderr.write(
             'workpad.py patch: re-inserted leading marker(s) the composed body '
             f'omitted: {", ".join(reinserted)}\n'
