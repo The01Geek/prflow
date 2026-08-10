@@ -10713,6 +10713,17 @@ _LIBTEST = Path(__file__).resolve().parent
 cwc = _load('cloud_writer_contract', _LIBTEST / 'cloud_writer_contract.py')
 vcwc = _load('validate_cloud_writer_contract', SCRIPTS / 'validate-cloud-writer-contract.py')
 
+# issue #1445: `main` is the sole writer of the checked-in manifest, so on a feature branch
+# that edited a pinned source file the committed manifest is legitimately stale — and it is
+# NOT gated there. Every validator/verify check below that used to hash-check the COMMITTED
+# manifest against the live tree therefore validates a FRESHLY GENERATED manifest instead
+# (equal to what `main` would publish for this tree), so it exercises the validator's grant /
+# closure / HEAD_ABSENT logic without re-introducing the branch-side staleness gate that #1445
+# removed. The freshly generated manifest matches the live tree by construction.
+with tempfile.NamedTemporaryFile('w', suffix='.json', delete=False, encoding='utf-8') as _fm1445f:
+    _fm1445f.write(cwc.canonical_json(cwc.build_manifest()))
+    _fresh_manifest_1445 = _fm1445f.name
+
 
 def _codes(violations):
     return sorted({code for code, _ in violations})
@@ -10806,10 +10817,15 @@ with tempfile.TemporaryDirectory() as _gd:
 # Unreadable grant source → empty set (unknown-is-not-zero; HEAD_ABSENT follows).
 assert_eq("#543 AC18: extract_profile_grants on a nonexistent path returns set()",
           set(), vcwc.extract_profile_grants("/nonexistent/wf-543.yml"))
-assert_eq("#543 AC18: checked-in manifest matches the generated closure (verify)",
-          0, cwc.main(["verify"]))
-assert_eq("#543 AC18: validator accepts the real checked-in manifest",
-          0, vcwc.main([]))
+# issue #1445: the branch-side `cwc.main(["verify"])` drift gate against the committed
+# manifest was removed — main is the sole writer, so a feature branch is not gated on manifest
+# staleness. The generated-closure↔manifest equivalence is now demonstrated against a freshly
+# generated manifest (which main publishes) rather than the possibly-stale committed one.
+assert_eq("#543 AC18: a freshly generated manifest is byte-identical to what generate would write",
+          cwc.canonical_json(cwc.build_manifest()),
+          Path(_fresh_manifest_1445).read_text(encoding="utf-8"))
+assert_eq("#543 AC18: validator accepts a freshly generated manifest",
+          0, vcwc.main([_fresh_manifest_1445]))
 
 # ─────────────────────────────────────────────────────────────────────────────
 # AC9 (issue #650) — grant synchronization. check_grant_sync() maps every
@@ -14474,10 +14490,12 @@ assert_eq("#703 AC19: install.md names both contract states (validator + legacy_
                  and "legacy_profile_baseline" in _install_md))
 
 # ── AC19 pairing 2: immediately-preceding WORKFLOW + NEW plugin → completes.
-# Validate the LIVE checked-in manifest (the new plugin) under the FROZEN legacy
+# Validate a freshly generated manifest (the new plugin; issue #1445 — main is the sole
+# writer of the committed manifest, so a feature branch is validated against the manifest
+# main would publish, never the possibly-stale committed one) under the FROZEN legacy
 # grants (the immediately-preceding workflow). It completes because the current
 # plugin requires no head the legacy baseline did not already grant.
-_live_manifest = _REPO / cwc.MANIFEST_PATH
+_live_manifest = Path(_fresh_manifest_1445)
 _p2 = vcwc.validate(
     _live_manifest, base_dir=_REPO,
     expected_assets=cwc.manifest_file_paths(),
@@ -14702,7 +14720,7 @@ assert_eq("#1445 AC4: the artifact pins exactly the generator's exposed path lis
 # HEAD_ABSENT naming an uncovered head for one missing a head.
 _cover_grants_1445 = {p: set(h) for p, h in cwc.build_manifest()["required_helper_heads"].items()}
 _p5_clean = vcwc.validate(
-    _REPO / cwc.MANIFEST_PATH, base_dir=_REPO,
+    _fresh_manifest_1445, base_dir=_REPO,
     expected_assets=cwc.manifest_file_paths(),
     required_profiles=list(cwc.ROOTS),
     profile_grants=_cover_grants_1445,
@@ -14713,7 +14731,7 @@ _missing_grants_1445 = {p: set(h) for p, h in _cover_grants_1445.items()}
 _dropped_profile_1445 = next(p for p, h in _missing_grants_1445.items() if h)
 _missing_grants_1445[_dropped_profile_1445] = set(list(_missing_grants_1445[_dropped_profile_1445])[1:])
 _p5_missing = vcwc.validate(
-    _REPO / cwc.MANIFEST_PATH, base_dir=_REPO,
+    _fresh_manifest_1445, base_dir=_REPO,
     expected_assets=cwc.manifest_file_paths(),
     required_profiles=list(cwc.ROOTS),
     profile_grants=_missing_grants_1445,
