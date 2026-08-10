@@ -9,7 +9,7 @@ Run a structurally-independent re-review using the parent-orchestrated blinded f
 
 **Why a shadow pass.** Iterations inside the fix loop share the orchestrator's context, which biases what the engine looks for and what it accepts as "already considered." The shadow pass is the loop's audit: the same multi-agent engine runs again, blinded, and the results are compared.
 
-**Where independence comes from.** The **parent orchestrator** runs the shadow fan-out itself, and independence is enforced **per reviewer prompt** rather than by a fresh subagent context: each shadow reviewer agent runs in a fresh context whose prompt withholds the loop's prior findings, fix decisions, and pushback history.
+**Where independence comes from.** The **parent orchestrator** runs the shadow fan-out itself, and independence is enforced **per reviewer prompt** rather than by running the engine inside one subagent: each shadow reviewer agent runs in a fresh context whose prompt withholds the loop's prior findings, fix decisions, and pushback history.
 
 **Iteration accounting.** The shadow pass itself is NOT counted toward the `$MAX_ITERS`-iteration cap — it's a verification pass on the final iter's state, not a fix iteration. A *promoted* iter (one started because the shadow surfaced new findings — see outcome 2 below) DOES count toward the cap, because it runs Step 2.5 + Step 3 + Step 4 + Step 4.5 from the fix-loop side.
 
@@ -211,7 +211,7 @@ A consumer repo sharpens these generic shapes with local instances via `.prflow/
 
 #### Over-grade calibration gate (before any Decide outcome 2 promotion)
 
-The park-calibration gate above is the *under*-grade catch on the **approve** path; this gate is its mirror — the *over*-grade catch on the **promote** path. Decide **outcome 2** promotes a whole new iteration (plus a re-shadow) on a reviewer's emitted `Critical`/`Important` label with **no severity re-check**, so an over-graded label taken at face value spends a full engine pass on an unexamined grade. The two gates are halves of **one symmetric calibration defense**: the loop must not trust an emitted severity in *either* direction without a recorded technical evaluation against the finding's observable fail-direction and impact.
+The park-calibration gate above is the *under*-grade catch on the **approve** path; this gate is its mirror — the *over*-grade catch on the **promote** path. Decide **outcome 2** promotes a whole new iteration (plus a re-shadow) on a reviewer's emitted `Critical`/`Important` label with **no severity re-check**, so an over-graded label taken at face value spends a full engine pass on an unexamined grade. The two gates are halves of **one symmetric calibration defense**: the loop must not trust an emitted severity in *either* direction without a recorded technical evaluation against the finding's observable fail-direction and impact, mechanizing the `receiving-code-review` symmetric-severity-calibration principle as an engine step.
 
 **Fires** before any new `Critical`/`Important` shadow Phase 3 finding drives a **Decide outcome 2** promotion (the shadow-promotion path). Not on outcome 1, not on outcome 3, not on a REJECT.
 
