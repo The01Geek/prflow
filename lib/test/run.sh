@@ -5571,24 +5571,18 @@ assert_eq "implement finalize: workpad.py owns the 'PR marked ready' label (temp
   "$(grep -qF '**PR marked ready**' "$WP_PY" && grep -qF "'PR marked ready'" "$WP_PY" && echo yes || echo no)"
 
 # ── issue #169: workpad.py tick failure-isolation + index ticking ─────────────
-# Coupled contract across three files: scripts/workpad.py (the volatile-vs-structural
-# behavior + the new --tick-ac-n/--tick-plan-n flags) ↔ the implement-skill bundle (the
-# `workpad.py update` flag-table in the orchestrator SKILL.md AND the Phase 3.4 AC-tick
-# call sites in phases/phase-3-review.md) ↔ this suite.
-# The flag-table must document the index flags and the failure-isolation
-# contract, and the Phase 3.4 gate must tick ACs by index rather than hand-picked
-# substrings (the eight-fragile-substring foot-gun this issue removes). Editing one
-# side without the others goes red here. (workpad.py's runtime behavior is pinned
-# exhaustively in lib/test/test_python_scripts.py; these are the doc-mirror pins.)
+# Coupled contract spanning scripts/workpad.py (the volatile-vs-structural behavior +
+# the --tick-ac-n/--tick-plan-n flags) ↔ the implement-skill bundle ↔ this suite.
+# Two clauses below go red on an edit to either side: workpad.py must define the index
+# flags, and the SKILL.md bundle must carry the named failure-isolation contract. The
+# Phase 3.4 hand-picked-substring foot-gun is guarded only by an ABSENCE pin — the
+# superseded example must stay gone; the index call site itself is not positively pinned,
+# so rewording it to any other form leaves this block green. The index flags themselves
+# are documented by workpad.py's own --help, not by SKILL.md.
+# (workpad.py's runtime behavior is pinned exhaustively in
+# lib/test/test_python_scripts.py; these are the doc-mirror pins.)
 assert_eq "#169: workpad.py defines the --tick-ac-n / --tick-plan-n index flags" "yes" \
   "$(grep -qF -- '--tick-ac-n' "$WP_PY" && grep -qF -- '--tick-plan-n' "$WP_PY" && echo yes || echo no)"
-# SKILL-targeted pins route through assert_pin_unique (#157 AC2 raw-guard rule): the
-# flag-table ROW literal is target-unique (count 1), so it pins exactly the doc row —
-# stronger than a bare flag mention (which recurs across the table + call sites).
-assert_pin_unique "#169: implement/SKILL.md flag-table documents --tick-ac-n (index AC tick)" \
-  '| `--tick-ac-n N`' "$IMPL_SKILL"
-assert_pin_unique "#169: implement/SKILL.md flag-table documents --tick-plan-n (index Plan tick)" \
-  '| `--tick-plan-n N`' "$IMPL_SKILL"
 # The named contract heading is target-unique (a bare 'volatile' grep would stay green
 # if the contract paragraph were deleted but the word survived elsewhere).
 assert_pin_unique "#169: implement/SKILL.md carries the named volatile-vs-structural failure-isolation contract" \
@@ -6935,7 +6929,7 @@ chmod 644 "$S356/lonely/workpad.py" 2>/dev/null || true
 # enumerates that model must name it. These two sites are operative (an agent reads them at
 # runtime), unpinned before this change, and were left stale by the first pass — pin them so
 # a future glyph addition cannot silently desync them again.
-assert_pin_unique "#356: implement SKILL's --status row names the full canonical glyph set (incl. 💥 and 🛑)" \
+assert_pin_unique "#356: implement SKILL's Status-glyph paragraph names the full canonical glyph set (incl. 💥 and 🛑)" \
   'the helper prepends the canonical glyph (🚀/🎉/👎/💥/🛑)' "$LIB/../skills/implement/SKILL.md"
 assert_pin_unique "#356: retrospective SKILL enumerates the terminal workpad_final_status values (incl. Cancelled)" \
   '`Complete` / `Blocked` / `Failed` / `Cancelled`' "$LIB/../skills/retrospective/SKILL.md"
@@ -8784,16 +8778,17 @@ assert_eq "#338: workpad.py carries the (post-merge)-retag rationale guard" "yes
 # two-argument, string-only predicate re-introduces the T3c false refusal.
 assert_eq "#338: the retag guard resolves the target row via _find_checkbox_row" "yes" \
   "$(grep -q '_find_checkbox_row' "$WP_PY" && echo yes || echo no)"
-# Coupled-invariant pin: SKILL.md's --rewrite-ac row publishes the row-scoped exemption
+# Coupled-invariant pin: SKILL.md publishes the row-scoped --rewrite-ac exemption
 # (not the stale OLD-only form). Edited in lockstep with the predicate above.
 assert_eq "#338: SKILL.md publishes the row-scoped (post-merge) exemption" "yes" \
   "$(grep -q 'neither OLD nor the row it targets already does' \
        "$LIB/../skills/implement/SKILL.md" && echo yes || echo no)"
-# ...and the NEGATIVE half. SKILL.md carries the contract sentence TWICE (the --rewrite-ac
-# flag-table row and the structural-failures bullet), so the positive `grep -q` above stays
-# GREEN if only ONE of them is reverted to the stale OLD-only form. Asserting the stale form
-# is ABSENT catches a partial reversion at either site — and does so without a brittle
-# occurrence-count pin that a third legitimate mention would break. Same for the docs mirror.
+# ...and the NEGATIVE half. `grep -q` reports presence, not exhaustiveness, so the positive
+# assertion above can stay GREEN across a partial reversion to the stale OLD-only form.
+# The positive half also reads only skills/implement/SKILL.md, so a reversion confined to the
+# docs mirror is invisible to it. Asserting the stale form is ABSENT catches a reversion in
+# either file the loop below covers — and does so without a brittle occurrence-count pin that
+# a further legitimate mention would break.
 for _f338 in "$LIB/../skills/implement/SKILL.md" "$LIB/../docs/internal/implement-skill.md"; do
   assert_eq "#338: $(basename "$_f338") carries no stale OLD-only (post-merge) contract sentence" "yes" \
     "$(grep -q 'NEW ends with it, OLD does not' "$_f338" && echo no || echo yes)"
@@ -32164,6 +32159,104 @@ RESOLVES_LN289="$(grep -nF 'Resolves #{issue_number}' "$P3289" | head -1 | cut -
 VIEWRUN_LN289="$(grep -nF '[View run]($RUN_URL)' "$P3289" | head -1 | cut -d: -f1)"        # raw-guard-ok: line-number lookup for the positional pin
 assert_eq "#289 AC9: [View run](\$RUN_URL) is positioned after Resolves #{issue_number} in the draft-PR heredoc" "yes" \
   "$([ -n "$RESOLVES_LN289" ] && [ -n "$VIEWRUN_LN289" ] && [ "$VIEWRUN_LN289" -gt "$RESOLVES_LN289" ] && echo yes || echo no)"
+# ── Issue #1537: Phase 1.3 workpad run-link is composed INLINE in each fence ──
+# §1.3's create arm and resume arm READ $RUN_URL via `--run-link "[View run]($RUN_URL)"`, but
+# each SKILL bash fence runs as its OWN shell, so a RUN_URL assigned in the earlier §1.3 fence
+# is empty at those read sites and the workpad receives the broken link "[View run]()". This is
+# a BEHAVIORAL guard, not a wording pin: it extracts every ```bash fence in phase-1-setup.md
+# that contains `--run-link`, executes each in FENCE ISOLATION (fresh `bash -c`, RUN_URL never
+# preset) against a STUB workpad.py that records the value following --run-link. It runs TWO
+# passes so the negative assertion is not vacuous (a positive control — see the fix loop's
+# guard-class shape 3): a LOCAL pass (GITHUB_RUN_ID unset) asserts no fence records the broken
+# empty-parens link, and a CLOUD pass (GITHUB_RUN_ID set) asserts at least one fence records a
+# well-formed [View run](https://…) link and none records empty-parens — so a regression that
+# omits --run-link UNCONDITIONALLY (dropping the populate line) fails the cloud pass. The
+# harness is a runtime temp (never a tracked lib/test script), so it needs no carveout registration.
+P1537_FILE="$REPO_ROOT/skills/implement/phases/phase-1-setup.md"
+P1537_TMP="$(mktemp -d)"; _suite_tmp_dir "$P1537_TMP"
+P1537_HARNESS="$(mktemp)"; _suite_tmp_file "$P1537_HARNESS"
+cat > "$P1537_HARNESS" <<'P1537PY'
+import os, subprocess, sys
+
+phase_file, tmp, repo = sys.argv[1], sys.argv[2], sys.argv[3]
+base = os.path.join(tmp, "skillbase", "a", "b")
+scripts = os.path.join(tmp, "skillbase", "scripts")
+os.makedirs(base, exist_ok=True)
+os.makedirs(scripts, exist_ok=True)
+rec = os.path.join(tmp, "runlink-values.txt")
+hit = os.path.join(tmp, "stub-hits.txt")
+stub = os.path.join(scripts, "workpad.py")
+with open(stub, "w") as f:
+    f.write(
+        "#!/usr/bin/env python3\n"
+        "import sys, os\n"
+        "open(os.environ['STUB_HIT'], 'a').write('hit\\n')\n"
+        "a = sys.argv\n"
+        "for i, x in enumerate(a):\n"
+        "    if x == '--run-link' and i + 1 < len(a):\n"
+        "        open(os.environ['STUB_REC'], 'a').write(a[i + 1] + '\\n')\n"
+    )
+os.chmod(stub, 0o755)
+
+text = open(phase_file, encoding="utf-8").read()
+fences, cur = [], None
+for ln in text.splitlines():
+    if cur is None:
+        if ln.strip() == "```bash":
+            cur = []
+    elif ln.strip() == "```":
+        fences.append("\n".join(cur)); cur = None
+    else:
+        cur.append(ln)
+runlink_fences = [f for f in fences if "--run-link" in f]
+
+base_env = {
+    "PATH": os.environ.get("PATH", ""),
+    "HOME": os.environ.get("HOME", ""),
+    "GITHUB_SERVER_URL": "https://github.example",
+    "GITHUB_REPOSITORY": "owner/repo",
+    "ISSUE_NUMBER": "4242",
+    "ARGUMENTS": "4242",
+    "WORKPAD_ID": "999",
+    "CLAUDE_SKILL_DIR": base,
+    "STUB_REC": rec,
+    "STUB_HIT": hit,
+}  # deliberately NO RUN_URL — each fence must compose its own from GITHUB_RUN_ID
+
+
+def run_pass(extra):
+    # Fresh record/hit files per pass so the two passes' observations do not bleed together.
+    for p in (rec, hit):
+        if os.path.exists(p):
+            os.remove(p)
+    env = dict(base_env)
+    env.update(extra)
+    for f in runlink_fences:
+        subprocess.run(["bash", "-c", f], env=env, cwd=repo,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    recorded = [l for l in (open(rec).read().splitlines() if os.path.exists(rec) else []) if l]
+    return recorded
+
+
+# LOCAL pass — GITHUB_RUN_ID unset: the fence must omit --run-link, recording nothing broken.
+local_rec = run_pass({})
+local_hit = "yes" if (os.path.exists(hit) and os.path.getsize(hit) > 0) else "no"
+bad = "yes" if any("()" in v for v in local_rec) else "no"
+# CLOUD pass — GITHUB_RUN_ID set: the fence must record a well-formed [View run](https://…) link.
+cloud_rec = run_pass({"GITHUB_RUN_ID": "12345"})
+cloud_hit = "yes" if (os.path.exists(hit) and os.path.getsize(hit) > 0) else "no"
+pos = "yes" if (any(v.startswith("[View run](https://") for v in cloud_rec)
+                and not any("()" in v for v in cloud_rec)) else "no"
+stubhit = "yes" if (local_hit == "yes" or cloud_hit == "yes") else "no"
+print("%d %s %s %s" % (len(runlink_fences), stubhit, bad, pos))
+P1537PY
+P1537_OUT="$(python3 "$P1537_HARNESS" "$P1537_FILE" "$P1537_TMP" "$REPO_ROOT")"
+read -r P1537_N P1537_HIT P1537_BAD P1537_POS <<<"$P1537_OUT"
+assert_eq "#1537: at least one --run-link fence executed in fence isolation (guards a vacuous zero-fence pass)" "yes" \
+  "$([ -n "$P1537_N" ] && [ "$P1537_N" -ge 1 ] 2>/dev/null && echo yes || echo no)"
+assert_eq "#1537: the stub workpad.py was actually reached by the isolated fences" "yes" "$P1537_HIT"
+assert_eq "#1537: no isolated §1.3 fence records the broken empty-parens [View run]() workpad link (local pass, GITHUB_RUN_ID unset)" "no" "$P1537_BAD"
+assert_eq "#1537: with GITHUB_RUN_ID set, a fence records a well-formed [View run](https://…) link (positive control — a regression that omits --run-link unconditionally fails here)" "yes" "$P1537_POS"
 # ────────────────────────────────────────────────────────────────────────────
 echo "#408 cloud review no-verdict auto-resume backstop + #414 post-and-annotate helper"
 # ────────────────────────────────────────────────────────────────────────────
