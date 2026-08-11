@@ -15,15 +15,24 @@ what a long create-issue run actually pays:
   context only for a single, no-repeat, no-compaction pass — which a multi-round
   create-issue run is not. The word-budget apparatus that measured this quantity was
   retired by issue #766; this document does **not** revive it and adds **no** new
-  static word-count or prompt-length gate. **The two file populations in that count reach a
-  session by different loaders** — the `references/*.md` by the `Read` tool, whose observed
-  **25,000-token per-read cap truncates legibly** and which
+  static word-count or prompt-length gate of its own. **The two file populations in that
+  count reach a session by different loaders** — the `references/*.md` by the `Read` tool,
+  whose observed **25,000-token per-read cap truncates legibly** and which
   `references/step-3-6-audit.md` already exceeds; `SKILL.md` by the Skill tool or
   slash-command expansion, for which **no initial-load ceiling was found** at or below
   83,427 file bytes (2026-08-11, one tier). So any figure summing the two — such as the
   302,500 B → 288,788 B delta recorded under issue #1372 below — is a single static-size
   quantity and is **not** a statement about either loading mechanism's headroom. The
   delivery record is [`docs/internal/skill-body-load-delivery.md`](skill-body-load-delivery.md).
+
+  **Static shipped size IS gated, but by a reader-capability ceiling rather than an
+  authoring budget (issue #1595).** `lib/test/lint-reference-size.py` fails the suite when a
+  boundary-gated reference or a skill root exceeds 61,750 bytes and holds no live exemption —
+  and this skill's `references/*.md` are in that population, with
+  `references/step-3-6-audit.md` carried as an exemption. Do not read it as issue #766's
+  budget returning: an authoring budget asks how long prose *ought* to be, while this is a
+  property of what the reader can return in one call. The distinction is recorded at length
+  in [`implement-context.md`](implement-context.md).
 - **Runtime main-thread context** — the live per-turn token weight the *orchestrator*
   (main thread) carries across a run's many turns: clarification rounds, revision
   loops, up to three user-chosen audit rounds plus the issue-#792 exact-byte pass

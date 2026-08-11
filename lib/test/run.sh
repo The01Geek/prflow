@@ -51425,6 +51425,399 @@ printf '{"navigation":{"pages":["docs/index",{"pages":["docs/index"]}]}}\n' > "$
 assert_eq "public site guard: a page navigated twice fails completeness" "no" \
   "$(public_docs_pages_are_navigated_once "$PUBLIC_DUPE_FIXTURE")"
 
+# ── #1595 reference-size ceiling (lib/test/lint-reference-size.py) ──
+# A boundary-gated reference larger than the reader can return in one call yields its
+# start marker and no end marker — the `truncated` shape `/prflow:implement`, `/prflow:review`,
+# `/prflow:review-and-fix` and `/prflow:docs-verify` treat as fail-closed, and that
+# `/prflow:create-issue` degrades best-effort on — with the file intact on disk. The lint measures bytes against a
+# ceiling derived from the reader's token cap; these assertions drive its executable
+# boundary (exit code + emitted verdict lines).
+echo "#1595 reference-size ceiling: gated references and skill roots stay under the reader's Read cap"
+RSZ_LINT="$LIB/test/lint-reference-size.py"
+
+# The fixtures are REAL FILES WITH REAL BYTES, built at run time rather than checked in:
+# the at-threshold and one-over members are ~62 KB each, and a harness supplying only a
+# path list would leave every size expectation passing for the wrong reason.
+RSZ_FX="$(git_sandbox '#1595 fixture repo')"
+python3 - "$RSZ_FX" <<'RSZ_BUILD'
+import subprocess, sys
+from pathlib import Path
+root, LIMIT = Path(sys.argv[1]), 61750
+def write(rel, body):
+    p = root / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_bytes(body.encode())
+def gated_a(name, size=None):
+    rel = "skills/fx/references/" + name
+    start = "<!-- prflow:fixture-ref phase=1 file=%s start -->\n" % rel
+    end = "<!-- prflow:fixture-ref phase=1 file=%s end -->\n" % rel
+    base = len((start + end).encode())
+    write(rel, start + ("text\n" if size is None else "x" * (size - base - 1) + "\n") + end)
+gated_a("gated-small.md")
+gated_a("at-threshold.md", LIMIT)
+gated_a("one-over.md", LIMIT + 1)
+write("skills/fx/references/fixture-b.md",
+      "# Reference: Fixture\n\ntext\n\n<!-- END fixture-b.md -->\n")
+write("skills/fx/references/plain.md", "just prose\n")
+# A start marker with no matching end is NOT gated, so its size is not audited.
+write("skills/fx/references/start-only.md",
+      "<!-- prflow:fixture-ref phase=1 file=skills/fx/references/start-only.md start -->\n"
+      + "x" * (LIMIT + 1000) + "\n")
+write("skills/fx/SKILL.md", "# Fixture skill\n")
+# Every covered KIND needs an over-ceiling member: with only family-A members oversized, a
+# regression that skipped any other kind in the size loop would pass the whole block, and
+# half the real exemption set is skill roots.
+write("skills/fx2/SKILL.md", "# Oversized fixture skill\n" + "x" * (LIMIT + 100) + "\n")
+_fb = "# Reference: Oversized Fixture\n\n"
+write("skills/fx/references/fixture-b-big.md",
+      _fb + "x" * (LIMIT + 100 - len(_fb) - len("<!-- END fixture-b-big.md -->\n"))
+      + "\n<!-- END fixture-b-big.md -->\n")
+# CRLF: read_source normalizes CRLF to LF, so measuring the decoded text instead of the raw
+# bytes would under-report this file and drop it from the findings.
+_cr = ("<!-- prflow:fixture-ref phase=1 file=skills/fx/references/crlf.md start -->\r\n"
+       + ("x" * 60 + "\r\n") * 1000
+       + "<!-- prflow:fixture-ref phase=1 file=skills/fx/references/crlf.md end -->\r\n")
+(root / "skills/fx/references/crlf.md").write_bytes(_cr.encode())
+subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+RSZ_BUILD
+
+rsz_ex() {  # <name> <json> -> writes an exemption record under the fixture root, prints its path
+  printf '%s\n' "$2" > "$RSZ_FX/ex-$1.json"
+  printf '%s\n' "$RSZ_FX/ex-$1.json"
+}
+rsz_run() {  # <root> <exemptions-path> [args…] -> "rc=<n>|<stdout+stderr>"
+  local root="$1" ex="$2" out rc
+  shift 2
+  out="$(python3 "$RSZ_LINT" --root "$root" --exemptions "$ex" "$@" 2>&1)"; rc=$?
+  printf 'rc=%s|%s' "$rc" "$out"
+}
+rsz_has() {  # <needle> <haystack> -> yes|no
+  case "$2" in *"$1"*) echo yes ;; *) echo no ;; esac
+}
+
+RSZ_EMPTY="$(rsz_ex empty '{"schema_version": 1, "recorded_set": [], "exemptions": []}')"
+RSZ_BARE="$(rsz_run "$RSZ_FX" "$RSZ_EMPTY")"
+
+# Size verdicts. The one-over/at-threshold pair is the whole calibration: one byte decides it.
+assert_eq "#1595 a gated file one byte over the ceiling is reported" "yes" \
+  "$(rsz_has "skills/fx/references/one-over.md: 61751 bytes exceeds the 61750-byte ceiling" "$RSZ_BARE")"
+assert_eq "#1595 the failure message states the remedy as trimming the file" "yes" \
+  "$(rsz_has "trim the file to at most 61750 bytes" "$RSZ_BARE")"
+# The remedy must never be "exempt it" — an exemption list is where work goes to die, and a
+# check that advertises exempting as the fix has delivered a permanent allowance.
+assert_eq "#1595 the failure message never offers exempting as the remedy" "no" \
+  "$(rsz_has "exempt" "$(printf '%s' "$RSZ_BARE" | grep 'one-over.md:' || true)")"
+assert_eq "#1595 a gated file exactly at the ceiling is clean" "no" \
+  "$(rsz_has "at-threshold.md:" "$RSZ_BARE")"
+# A start marker with no matching end is not boundary-gated, so its size is not audited —
+# the fixture is 1000 bytes over the ceiling and must still produce no violation.
+assert_eq "#1595 a start marker with no matching end is outside the gated population" "no" \
+  "$(rsz_has "start-only.md" "$RSZ_BARE")"
+assert_eq "#1595 an over-ceiling file fails the run" "rc=1" "${RSZ_BARE%%|*}"
+for _rsz_kind in "skills/fx2/SKILL.md" "skills/fx/references/fixture-b-big.md"; do
+  assert_eq "#1595 the ceiling is enforced for every covered kind ($_rsz_kind)" "yes" \
+    "$(rsz_has "$_rsz_kind: " "$RSZ_BARE")"
+done
+# Measuring the CRLF-normalized text instead of the raw bytes would under-report this file
+# and drop it from the findings entirely.
+assert_eq "#1595 size is measured in raw bytes, not CRLF-normalized text" "yes" \
+  "$(rsz_has "skills/fx/references/crlf.md: " "$RSZ_BARE")"
+
+# Exemption semantics.
+RSZ_LIVE="$(rsz_ex live '{"schema_version": 1,
+ "recorded_set": [{"path": "skills/fx/references/one-over.md", "recorded_bytes": 61751}],
+ "exemptions": [{"path": "skills/fx/references/one-over.md", "expires_when": "at or under the ceiling"}]}')"
+RSZ_LIVE_OUT="$(rsz_run "$RSZ_FX" "$RSZ_LIVE")"
+assert_eq "#1595 a live exemption suppresses its own file's violation" "no" \
+  "$(rsz_has "one-over.md: 61751 bytes exceeds" "$RSZ_LIVE_OUT")"
+# …and suppresses ONLY its own: an exemption that silenced a file it does not name would
+# be indistinguishable from one that works.
+assert_eq "#1595 a live exemption suppresses no file it does not name" "yes" \
+  "$(rsz_has "skills/fx/references/fixture-b-big.md: " "$RSZ_LIVE_OUT")"
+# The expiring property is the entire difference between this design and a permanent
+# allowance: an exemption whose condition is met must turn the suite RED.
+RSZ_EXPIRED="$(rsz_ex expired '{"schema_version": 1,
+ "recorded_set": [{"path": "skills/fx/references/at-threshold.md", "recorded_bytes": 61800}],
+ "exemptions": [{"path": "skills/fx/references/at-threshold.md", "expires_when": "at or under the ceiling"}]}')"
+assert_eq "#1595 an exemption whose condition is met fails the suite" "yes" \
+  "$(rsz_has "at-threshold.md: exemption expired" "$(rsz_run "$RSZ_FX" "$RSZ_EXPIRED")")"
+RSZ_ORPHAN="$(rsz_ex orphan '{"schema_version": 1,
+ "recorded_set": [{"path": "skills/fx/references/at-threshold.md", "recorded_bytes": 61800}],
+ "exemptions": []}')"
+assert_eq "#1595 a recorded_set row that outlived its exemption fails the suite" "yes" \
+  "$(rsz_has "at-threshold.md: its recorded_set row outlived its exemption" "$(rsz_run "$RSZ_FX" "$RSZ_ORPHAN")")"
+# A roster row whose file is still over the ceiling is legitimate mid-trim state, so the
+# finding fires on the outlived row only, never on every unexempted roster row.
+RSZ_ORPHAN_OK="$(rsz_ex orphan-ok '{"schema_version": 1,
+ "recorded_set": [{"path": "skills/fx/references/one-over.md", "recorded_bytes": 61751}],
+ "exemptions": []}')"
+assert_eq "#1595 a roster row whose file is still over the ceiling is not reported as outlived" "no" \
+  "$(rsz_has "outlived its exemption" "$(rsz_run "$RSZ_FX" "$RSZ_ORPHAN_OK")")"
+RSZ_OUTSIDE="$(rsz_ex outside '{"schema_version": 1,
+ "recorded_set": [{"path": "skills/fx/references/one-over.md", "recorded_bytes": 61751}],
+ "exemptions": [{"path": "skills/fx/references/gated-small.md", "expires_when": "x"}]}')"
+assert_eq "#1595 an exemption naming a file outside the recorded set is refused" "yes" \
+  "$(rsz_has "names a file outside the recorded set" "$(rsz_run "$RSZ_FX" "$RSZ_OUTSIDE")")"
+RSZ_NOTPOP="$(rsz_ex notpop '{"schema_version": 1,
+ "recorded_set": [{"path": "skills/fx/references/plain.md", "recorded_bytes": 99999}],
+ "exemptions": [{"path": "skills/fx/references/plain.md", "expires_when": "x"}]}')"
+assert_eq "#1595 an exemption naming a file outside the covered population is refused" "yes" \
+  "$(rsz_has "not in the covered population" "$(rsz_run "$RSZ_FX" "$RSZ_NOTPOP")")"
+
+# The record is hand-editable, so it is a best-effort parser: every malformed shape fails
+# CLOSED with a breadcrumb naming what was rejected. Degrading to an empty exemption set
+# would turn a malformed record into a stricter-looking clean pass over the wrong population.
+assert_eq "#1595 an unreadable exemption record fails closed" "yes" \
+  "$(rsz_has "could not be read" "$(rsz_run "$RSZ_FX" "$RSZ_FX/ex-absent.json")")"
+while IFS='|' read -r _rsz_slug _rsz_needle _rsz_json; do
+  [ -n "$_rsz_slug" ] || continue
+  assert_eq "#1595 malformed exemption record fails closed: $_rsz_slug" "yes" \
+    "$(rsz_has "$_rsz_needle" "$(rsz_run "$RSZ_FX" "$(rsz_ex "bad-$_rsz_slug" "$_rsz_json")")")"
+done <<'RSZ_SHAPES'
+not JSON|not valid JSON|this is not json
+top-level array|top-level value must be an object|[]
+top-level scalar|top-level value must be an object|7
+missing key|missing the exemptions key|{"schema_version": 1, "recorded_set": []}
+wrong-type value|must be a list|{"schema_version": 1, "recorded_set": {}, "exemptions": []}
+entry not an object|must be an object|{"schema_version": 1, "recorded_set": ["x"], "exemptions": []}
+valid-falsy path|must be a non-empty string|{"schema_version": 1, "recorded_set": [{"path": "", "recorded_bytes": 99999}], "exemptions": []}
+duplicate entry|duplicate recorded_set path|{"schema_version": 1, "recorded_set": [{"path": "a", "recorded_bytes": 99999}, {"path": "a", "recorded_bytes": 99999}], "exemptions": []}
+unknown key|unknown key|{"schema_version": 1, "recorded_set": [{"path": "a", "recorded_bytes": 99999, "why": "x"}], "exemptions": []}
+already-compliant recording|not above the ceiling|{"schema_version": 1, "recorded_set": [{"path": "a", "recorded_bytes": 10}], "exemptions": []}
+valid-falsy expires_when|expires_when|{"schema_version": 1, "recorded_set": [{"path": "skills/fx/references/one-over.md", "recorded_bytes": 61751}], "exemptions": [{"path": "skills/fx/references/one-over.md", "expires_when": "   "}]}
+boolean schema_version|unrecognized schema_version|{"schema_version": true, "recorded_set": [], "exemptions": []}
+boolean recorded_bytes|must be an integer|{"schema_version": 1, "recorded_set": [{"path": "a", "recorded_bytes": true}], "exemptions": []}
+unknown top-level key|unknown top-level key|{"schema_version": 1, "recorded_set": [], "exemptions": [], "extra": 1}
+duplicate exemption path|duplicate exemption path|{"schema_version": 1, "recorded_set": [{"path": "skills/fx/references/one-over.md", "recorded_bytes": 61751}], "exemptions": [{"path": "skills/fx/references/one-over.md", "expires_when": "x"}, {"path": "skills/fx/references/one-over.md", "expires_when": "x"}]}
+unknown key in an exemptions entry|unknown key|{"schema_version": 1, "recorded_set": [{"path": "skills/fx/references/one-over.md", "recorded_bytes": 61751}], "exemptions": [{"path": "skills/fx/references/one-over.md", "expires_when": "x", "why": "y"}]}
+unknown schema_version|unrecognized schema_version|{"schema_version": 99, "recorded_set": [], "exemptions": []}
+entry missing a required key|a recorded_set entry is missing key(s): recorded_bytes|{"schema_version": 1, "recorded_set": [{"path": "a"}], "exemptions": []}
+absent schema_version|unrecognized schema_version None|{"recorded_set": [], "exemptions": []}
+valid-falsy path in an exemptions entry|a exemptions entry's path must be a non-empty string|{"schema_version": 1, "recorded_set": [{"path": "skills/fx/references/one-over.md", "recorded_bytes": 61751}], "exemptions": [{"path": "", "expires_when": "x"}]}
+non-string expires_when|expires_when for skills/fx/references/one-over.md must be a non-empty string|{"schema_version": 1, "recorded_set": [{"path": "skills/fx/references/one-over.md", "recorded_bytes": 61751}], "exemptions": [{"path": "skills/fx/references/one-over.md", "expires_when": 123}]}
+exemptions entry missing a required key|a exemptions entry is missing key(s): expires_when|{"schema_version": 1, "recorded_set": [{"path": "skills/fx/references/one-over.md", "recorded_bytes": 61751}], "exemptions": [{"path": "skills/fx/references/one-over.md"}]}
+RSZ_SHAPES
+
+# Population fail-closed arms. "Audited nothing" reading as "audited everything, found
+# nothing" is the failure this whole check exists to prevent, one level up — so a
+# whole-tree audit that selects nothing for a marker family or for the skill-root shape
+# must fail. A run given an explicit narrower population is deliberately exempt.
+RSZ_NOB="$(git_sandbox '#1595 no-family-b fixture')"
+cp -R "$RSZ_FX/skills" "$RSZ_NOB/"
+rm -f "$RSZ_NOB/skills/fx/references/fixture-b.md" "$RSZ_NOB/skills/fx/references/fixture-b-big.md"
+(cd "$RSZ_NOB" && git init -q && git add -A) >/dev/null
+assert_eq "#1595 a whole-tree audit selecting nothing for a marker family fails" "yes" \
+  "$(rsz_has "selected nothing for the Reference-heading marker family" "$(rsz_run "$RSZ_NOB" "$RSZ_EMPTY")")"
+RSZ_NOSR="$(git_sandbox '#1595 no-skill-root fixture')"
+cp -R "$RSZ_FX/skills" "$RSZ_NOSR/"
+rm -f "$RSZ_NOSR/skills/fx/SKILL.md" "$RSZ_NOSR/skills/fx2/SKILL.md"
+(cd "$RSZ_NOSR" && git init -q && git add -A) >/dev/null
+assert_eq "#1595 a whole-tree audit selecting nothing for the skill-root shape fails" "yes" \
+  "$(rsz_has "selected nothing for the skill-root shape" "$(rsz_run "$RSZ_NOSR" "$RSZ_EMPTY")")"
+# The third arm of the same guard: COVERED_KINDS drives one refusal per kind, so a kind
+# with no fixture here is a completeness arm nothing exercises.
+RSZ_NOA="$(git_sandbox '#1595 no-family-a fixture')"
+cp -R "$RSZ_FX/skills" "$RSZ_NOA/"
+rm -f "$RSZ_NOA/skills/fx/references/gated-small.md" \
+      "$RSZ_NOA/skills/fx/references/at-threshold.md" \
+      "$RSZ_NOA/skills/fx/references/one-over.md" \
+      "$RSZ_NOA/skills/fx/references/crlf.md"
+(cd "$RSZ_NOA" && git init -q && git add -A) >/dev/null
+RSZ_NOA_OUT="$(rsz_run "$RSZ_NOA" "$RSZ_EMPTY")"
+assert_eq "#1595 a whole-tree audit selecting nothing for the HTML-comment family fails" "yes" \
+  "$(rsz_has "selected nothing for the HTML-comment marker family" "$RSZ_NOA_OUT")"
+# Positive control on the same fixture: the skill-root kind is still selected, so the
+# refusal above is the empty family-A arm rather than a fixture that lost its whole tree.
+assert_eq "#1595 the no-family-a fixture still selects its other kinds" "no" \
+  "$(rsz_has "selected nothing for the skill-root shape" "$RSZ_NOA_OUT")"
+RSZ_NARROW="$(probe_tmp '#1595 narrowed population list')"
+printf '%s\n' skills/fx/references/gated-small.md > "$RSZ_NARROW"
+assert_eq "#1595 a narrowed population is not required to see every family" \
+  "rc=0|lint-reference-size: audited 1 of 1 files [narrowed (--files-from): the family-completeness and exemption-in-population guards were NOT applied]" \
+  "$(rsz_run "$RSZ_FX" "$RSZ_EMPTY" --files-from "$RSZ_NARROW")"
+# Membership is decided by READING each file, so an unreadable one is a file whose
+# membership was never established — it is named, never dropped into a clean pass.
+printf '%s\n' skills/fx/references/no-such-file.md > "$RSZ_NARROW"
+RSZ_MISSING="$(rsz_run "$RSZ_FX" "$RSZ_EMPTY" --files-from "$RSZ_NARROW")"
+assert_eq "#1595 an unreadable file in the population is named rather than dropped" "yes" \
+  "$(rsz_has "SKIPPED skills/fx/references/no-such-file.md" "$RSZ_MISSING")"
+assert_eq "#1595 an unreadable file in the population refuses a clean report" "rc=1" "${RSZ_MISSING%%|*}"
+case "$RSZ_NARROW" in ""|/dev/null) : ;; *) rm -f "$RSZ_NARROW" ;; esac
+RSZ_NOREPO="$(git_sandbox '#1595 non-repository root')"
+assert_eq "#1595 an unestablishable population fails closed naming git ls-files" "yes" \
+  "$(rsz_has "git ls-files exited" "$(rsz_run "$RSZ_NOREPO" "$RSZ_EMPTY")")"
+
+# The ceiling is a byte proxy for a token cap, so its correctness rests on the recorded
+# density floor rather than on the byte number: the three constants are asserted separately.
+RSZ_THRESH="$(python3 "$RSZ_LINT" --print-threshold 2>&1)"
+assert_eq "#1595 the ceiling is derived from the reader cap, safety factor and density floor" "yes" \
+  "$(rsz_has "ceiling 61750 bytes = reader cap 25000 tokens x safety factor 0.95 x bytes-per-token floor 2.6" "$RSZ_THRESH")"
+assert_eq "#1595 the derivation states the constant is the floor of the measured densities" "yes" \
+  "$(rsz_has "the floor of the measured densities, never their mean" "$RSZ_THRESH")"
+
+# The floor is the one constant a reader can re-derive wrongly (pairing a recorded token
+# count with a current file size reports a density no measurement produced, and "corrects"
+# a constant that was right). --self-check proves it is the minimum of the recorded pairs.
+assert_eq "#1595 the density floor does not exceed the recorded measurements minimum" "rc=0" \
+  "$(RSZ_SC="$(python3 "$RSZ_LINT" --self-check 2>&1)"; RSZ_SC_RC=$?
+     [ "$RSZ_SC_RC" -eq 0 ] && printf 'rc=0' || printf 'rc=%s | %s' "$RSZ_SC_RC" "$RSZ_SC")"
+assert_eq "#1595 the self-check names each measurement's own byte count beside its tokens" "yes" \
+  "$(rsz_has "68901B / 26496 tok" "$(python3 "$RSZ_LINT" --self-check 2>&1)")"
+
+# …and its REFUSING arms, which the clean run above cannot reach: an inverted comparison
+# would leave the self-check green while the ceiling it certifies rests on nothing. Driven
+# against MUTATED COPIES under a temp root, so the working-tree lint is never modified.
+RSZ_MUT="$(git_sandbox '#1595 self-check mutant rig')"
+cp "$RSZ_LINT" "$RSZ_MUT/lint-reference-size.py"
+cp "$LIB/test/lint_population.py" "$RSZ_MUT/lint_population.py"
+python3 - "$RSZ_MUT" <<'RSZ_MUTATE'
+import sys
+from pathlib import Path
+root = Path(sys.argv[1])
+src = (root / "lint-reference-size.py").read_text(encoding="utf-8")
+mutants = {
+    # Raise the floor ABOVE the minimum recorded density (2.600) — the direction that makes
+    # the ceiling more generous than the measurements support, which is what the guard refuses.
+    "raised-floor": src.replace("BYTES_PER_TOKEN_FLOOR = 2.60",
+                                "BYTES_PER_TOKEN_FLOOR = 2.90", 1),
+    "zero-tokens": src.replace('("skills/implement/phases/phase-1-setup.md", 68901, 26496)',
+                               '("skills/implement/phases/phase-1-setup.md", 68901, 0)', 1),
+}
+for name, text in mutants.items():
+    # A no-op replace would leave an UNMUTATED copy, and the negative assertions below would
+    # then pass or fail for a reason having nothing to do with the guard under test.
+    if text == src:
+        sys.exit("#1595 mutation %s matched nothing — the constant's spelling moved" % name)
+    (root / ("mutant-%s.py" % name)).write_text(text, encoding="utf-8")
+RSZ_MUTATE
+rsz_selfcheck() {  # <script> -> "rc=<n>|<stdout+stderr>"
+  local out rc
+  out="$(python3 "$1" --self-check 2>&1)"; rc=$?
+  printf 'rc=%s|%s' "$rc" "$out"
+}
+# Positive control on the same rig: the unmutated copy still passes there, so each rejection
+# below is attributable to its mutation rather than to a copy that cannot import its reader.
+RSZ_SC_CTL="$(rsz_selfcheck "$RSZ_MUT/lint-reference-size.py")"
+assert_eq "#1595 self-check control: the unmutated copy passes on the mutant rig" "rc=0" \
+  "$([ "${RSZ_SC_CTL%%|*}" = "rc=0" ] && printf 'rc=0' || printf '%s' "$RSZ_SC_CTL")"
+RSZ_SC_RAISED="$(rsz_selfcheck "$RSZ_MUT/mutant-raised-floor.py")"
+assert_eq "#1595 a density floor above the recorded minimum fails the self-check" "rc=1" \
+  "${RSZ_SC_RAISED%%|*}"
+assert_eq "#1595 the self-check attributes that refusal to the raised floor" "yes" \
+  "$(rsz_has "above the minimum recorded density" "$RSZ_SC_RAISED")"
+RSZ_SC_ZERO="$(rsz_selfcheck "$RSZ_MUT/mutant-zero-tokens.py")"
+assert_eq "#1595 a non-positive token count fails the self-check" "rc=1" \
+  "${RSZ_SC_ZERO%%|*}"
+assert_eq "#1595 the self-check attributes that refusal to the non-positive token count" "yes" \
+  "$(rsz_has "records a non-positive token count" "$RSZ_SC_ZERO")"
+
+# A marker pair that DISAGREES (namespace, payload, or family-B basename) is excluded from
+# the population. Without these the exclusion is indistinguishable from a regex slip that
+# drops a genuinely gated file — the failure direction the whole-tree guard cannot see at
+# single-file granularity.
+python3 - "$RSZ_FX" <<'RSZ_MISMATCH'
+import sys
+from pathlib import Path
+root, LIMIT = Path(sys.argv[1]), 61750
+def over(rel, first, last):
+    body = first + "x" * (LIMIT + 200) + "\n" + last
+    (root / rel).write_text(body)
+over("skills/fx/references/ns-mismatch.md",
+     "<!-- prflow:alpha-ref phase=1 file=skills/fx/references/ns-mismatch.md start -->\n",
+     "<!-- prflow:beta-ref phase=1 file=skills/fx/references/ns-mismatch.md end -->\n")
+over("skills/fx/references/payload-mismatch.md",
+     "<!-- prflow:fixture-ref phase=1 file=skills/fx/references/payload-mismatch.md start -->\n",
+     "<!-- prflow:fixture-ref phase=9 file=skills/fx/references/payload-mismatch.md end -->\n")
+over("skills/fx/references/basename-mismatch.md",
+     "# Reference: Fixture\n\n", "\n<!-- END some-other-file.md -->\n")
+# A gated file whose markers are wrapped in blank lines: the deliberate first/last
+# NON-BLANK rule, which a literal-first/last-line rule would drop from the population.
+(root / "skills/fx/references/blank-wrapped.md").write_text(
+    "\n\n<!-- prflow:fixture-ref phase=1 file=skills/fx/references/blank-wrapped.md start -->\n"
+    + "x" * (LIMIT + 200) + "\n"
+    + "<!-- prflow:fixture-ref phase=1 file=skills/fx/references/blank-wrapped.md end -->\n\n\n")
+RSZ_MISMATCH
+(cd "$RSZ_FX" && git add -A) >/dev/null
+RSZ_MM="$(rsz_run "$RSZ_FX" "$RSZ_EMPTY")"
+for _rsz_mm in ns-mismatch payload-mismatch basename-mismatch; do
+  assert_eq "#1595 a disagreeing marker pair is outside the population ($_rsz_mm)" "no" \
+    "$(rsz_has "$_rsz_mm.md" "$RSZ_MM")"
+done
+# The non-blank boundary rule is deliberate; without this a switch to literal first/last
+# lines would drop a trailing-blank-line file from the audit with the suite still green.
+assert_eq "#1595 a gated file wrapped in blank lines is still audited" "yes" \
+  "$(rsz_has "blank-wrapped.md" "$RSZ_MM")"
+
+# Real-tree run: clean as the tree stands, with a POSITIVE tally so a collapsed population
+# cannot read as clean, and the audited population reconciled against a count derived
+# independently of the lint's own selection logic — at per-namespace granularity, because
+# the marker family spans namespaces with very uneven memberships (one has a single
+# member), so a regex slip that dropped a whole namespace would leave a family-level count
+# positive and the audit green.
+RSZ_REAL="$(python3 "$RSZ_LINT" 2>&1)"; RSZ_REAL_RC=$?
+assert_eq "#1595 the real-tree audit is clean as the tree stands" "rc=0" \
+  "$([ "$RSZ_REAL_RC" -eq 0 ] && printf 'rc=0' || printf 'rc=%s | %s' "$RSZ_REAL_RC" "$RSZ_REAL")"
+assert_eq "#1595 the real-tree audit covered a positive number of files" "yes" \
+  "$(printf '%s' "$RSZ_REAL" | python3 -c 'import re,sys
+m = re.search(r"audited (\d+) of", sys.stdin.read())
+print("yes" if m and int(m.group(1)) > 0 else "no")')"
+assert_eq "#1595 the audited population reconciles with an independently derived one" "match" \
+  "$(python3 - "$RSZ_LINT" <<'RSZ_RECONCILE'
+import re, subprocess, sys
+from collections import Counter
+from pathlib import Path
+# A second, deliberately separate selection: this one keys family A on the marker's
+# namespace token alone and family B on the END marker, and never imports the lint.
+tracked = subprocess.run(["git", "-c", "core.quotePath=false", "ls-files"],
+                         capture_output=True, text=True, check=True).stdout.split("\n")
+mine = Counter()
+for rel in tracked:
+    if not rel.endswith(".md") or rel.startswith("lib/test/fixtures/"):
+        continue
+    if re.search(r"(^|/)skills/[^/]+/SKILL\.md$", rel):
+        mine["skill-root"] += 1
+        continue
+    lines = [ln.strip() for ln in Path(rel).read_text(encoding="utf-8", errors="replace").split("\n") if ln.strip()]
+    if not lines:
+        continue
+    head, tail = lines[0], lines[-1]
+    a = re.match(r"^<!-- prflow:([a-z0-9-]+)-ref .* start -->$", head)
+    if a and re.match(r"^<!-- prflow:%s-ref .* end -->$" % a.group(1), tail):
+        mine["gated-a:" + a.group(1)] += 1
+    elif head.startswith("# Reference: ") and tail == "<!-- END %s -->" % rel.rsplit("/", 1)[-1]:
+        mine["gated-b"] += 1
+theirs = Counter()
+for line in subprocess.run([sys.executable, sys.argv[1], "--print-population"],
+                           capture_output=True, text=True, check=True).stdout.split("\n"):
+    if not line.strip():
+        continue
+    kind, detail, _path = line.split("\t")
+    theirs[kind + ":" + detail if kind == "gated-a" else kind] += 1
+print("match" if mine == theirs else "mismatch\n  independent: %s\n  lint:        %s" % (sorted(mine.items()), sorted(theirs.items())))
+RSZ_RECONCILE
+)"
+# AC13: the recorded exemptions cover the files over the ceiling when this landed, and no
+# others. Derived from the tree rather than transcribed, so a landed trim turns this RED
+# alongside the expiry arm rather than leaving a stale row unnoticed.
+assert_eq "#1595 the live exemptions are exactly the covered files over the ceiling" "match" \
+  "$(python3 - "$RSZ_LINT" <<'RSZ_EXEMPT_SET'
+import json, subprocess, sys
+from pathlib import Path
+record = json.loads(Path("lib/test/reference-size-exemptions.json").read_text())
+live = {row["path"] for row in record["exemptions"]}
+# The COVERED population, not every skills/**.md: an oversized-but-ungated file would
+# otherwise be demanded here and refused by the record's own covered-population guard,
+# leaving the suite RED with no legal way to make it green.
+covered = [line.split("\t")[2] for line in
+           subprocess.run([sys.executable, sys.argv[1], "--print-population"],
+                          capture_output=True, text=True, check=True).stdout.split("\n")
+           if line.strip()]
+over = {rel for rel in covered if len(Path(rel).read_bytes()) > 61750}
+print("match" if live == over else "mismatch\n  live: %s\n  over: %s" % (sorted(live), sorted(over)))
+RSZ_EXEMPT_SET
+)"
+
 # ────────────────────────────────────────────────────────────────────────────
 PASS=$(grep -c '^PASS$' "$RESULTS_FILE" || true)
 FAIL=$(grep -c '^FAIL$' "$RESULTS_FILE" || true)
