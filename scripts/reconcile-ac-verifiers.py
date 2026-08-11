@@ -53,12 +53,16 @@ to its Blocked-naming-`allowed_tools` path from a field, not by sniffing free te
 Output: one JSON object on stdout —
     {"criteria": [ {"criterion", "evidence_status", "claim_status", "status",
                     "blocks", "reason", "evidence", "evidence_source",
+                    "evidence_status_reported", "claim_status_reported",
                     "evidence_dispositions", "claim_dispositions",
                     "undischarged_slots"} ... ],
      "all_satisfied": <bool>, "blocking": [<criterion>, ...]}
 The two disposition maps and `undischarged_slots` (side-qualified `<side>:<slot>`)
 are carried out so the orchestrator records what each verifier did alongside the
-reconciled verdict, rather than letting it die with the dispatch return.
+reconciled verdict, rather than letting it die with the dispatch return. The two
+`*_status_reported` fields carry what each side concluded BEFORE the slot gate
+overrode it, so a criterion blocking on a real `unmet` stays distinguishable from
+one blocking only on an attestation gap.
 
 Exit codes:
     0 — reconciliation produced (whether or not any criterion blocks)
@@ -92,16 +96,16 @@ CLAIM_SLOTS = ("claim-traced", "command-source-read", "evidence-recorded")
 _DISPOSITION_RE = re.compile(r"^(yes|no)(?=$|[\s(,;:.])(.*)$",
                              re.IGNORECASE | re.DOTALL)
 
-# A `dispositions` key absent from the record is distinct from one present with a JSON
-# `null` value: the latter is a stated slot that does not parse and earns a breadcrumb.
+# Do not simplify a slot read to `raw.get(slot)`: that collapses a JSON `null` onto an
+# omitted key, and only the null is breadcrumbed as a stated-but-unparseable value.
 _ABSENT = object()
 
-# Marks a record `_index_by_criterion` synthesized to fail a duplicate closed. Such a
-# record carries no dispositions because the verifier's real ones were discarded with
-# the duplicates, so scoring its slots would report an attestation failure for a
-# report-shape defect and send the orchestrator to re-dispatch a restatement that
-# cannot fix it.
+# Marks a record `_index_by_criterion` synthesized to fail a duplicate closed. The VALUE
+# is an identity-checked sentinel, never a truthy literal: the key shares a namespace
+# with agent-authored report fields, so a bare `True` would let a report forge it and
+# blank its own audit fields.
 _POISONED = "_reconcile_poisoned"
+_POISON_TOKEN = object()
 
 # The reason must carry at least one alphanumeric character. Testing only for emptiness
 # would let a mechanical `yes .` or `yes -` discharge a slot with no clause behind it.
@@ -143,13 +147,11 @@ def _dispositions_of(record, slots, side=""):
     a slot without a parseable verdict-plus-reason leaves that slot undischarged —
     silence about a step is never read as having performed it.
 
-    Every shape that scores a slot undischarged without the verifier having said so also
-    gets a stderr breadcrumb, matching `_index_by_criterion`'s fail-closed convention: a
-    slot stated but unparseable (a JSON `null` included), a `dispositions` value that is
-    not an object, and an object sharing no key with the named slots. Without them a
-    producer emitting a near-miss shape is indistinguishable from one that skipped the
-    step, and the orchestrator's remedy — re-dispatch the verifier to restate its
-    record — would loop against a shape defect rather than a diligence gap.
+    Three shapes additionally get a stderr breadcrumb, matching `_index_by_criterion`'s
+    convention: a slot stated but unparseable (a JSON `null` included), a `dispositions`
+    value that is not an object, and a NON-EMPTY object sharing no key with the named
+    slots. An omitted slot is deliberately silent — the status already carries it. The
+    breadcrumbs are a human diagnostic on the run's stderr; no shipped step parses them.
     """
     who = side or "verifier"
     raw = record.get("dispositions", _ABSENT) if isinstance(record, dict) else _ABSENT
@@ -185,7 +187,13 @@ def _dispositions_of(record, slots, side=""):
 
 
 def _side(record, slots, tag):
-    """Resolve one verifier side into `(status, dispositions, undischarged)`.
+    """Resolve one side into `(status, reported_status, dispositions, undischarged)`.
+
+    `reported_status` is what the side itself concluded, retained even when the slot
+    gate overrides `status`. Without it a verifier that reported `unmet` with a real
+    failing detail but omitted one slot is indistinguishable from one that concluded
+    nothing, and the routing rule that fires only when a criterion blocks SOLELY on
+    undischarged slots cannot decide its own precondition.
 
     Applied symmetrically to both sides so the per-side rules — the fail-closed status
     read for an absent record, and the #1580 downgrade for an undispositioned charter
@@ -197,13 +205,19 @@ def _side(record, slots, tag):
     record it never made, and would make those causes indistinguishable from a genuine
     attestation gap in the one field that routes the remedy.
     """
-    if not isinstance(record, dict) or record.get(_POISONED):
-        return "unestablished", {}, []
+    if not isinstance(record, dict) or record.get(_POISONED) is _POISON_TOKEN:
+        return "unestablished", "unestablished", {}, []
     dispositions, missing = _dispositions_of(record, slots, tag)
-    status = record.get("status")
+    reported = record.get("status")
+    status = reported
     if missing:
         status = "unestablished"
-    return status, dispositions, [f"{tag}:{slot}" for slot in missing]
+        if _normalize_status(reported) != "unestablished":
+            print(f"reconcile-ac-verifiers: the {tag} report concluded "
+                  f"{_normalize_status(reported)!r} but left {len(missing)} slot(s) "
+                  f"undischarged — forcing unestablished; the concluded status is "
+                  f"retained as {tag}_status_reported", file=sys.stderr)
+    return status, reported, dispositions, [f"{tag}:{slot}" for slot in missing]
 
 
 def _normalize_status(value):
@@ -303,7 +317,7 @@ def _index_by_criterion(records, side):
             print(f"reconcile-ac-verifiers: duplicate criterion {num} in the {side} "
                   f"report — failing it closed to unestablished", file=sys.stderr)
             by_num[num] = {"criterion": num, "status": "unestablished",
-                           _POISONED: True}
+                           _POISONED: _POISON_TOKEN}
             continue
         by_num[num] = rec
     return by_num
@@ -324,8 +338,10 @@ def reconcile(evidence_records, claim_records):
         # has not established what it did. Resolving either after the pairing would let
         # an unattested or absent side ride the other verifier's agreement into
         # `satisfied` — the substitution issue #1580 exists to catch.
-        e_status, e_disp, e_undischarged = _side(e_rec, EVIDENCE_SLOTS, "evidence")
-        c_status, c_disp, c_undischarged = _side(c_rec, CLAIM_SLOTS, "claim")
+        e_status, e_reported, e_disp, e_undischarged = _side(
+            e_rec, EVIDENCE_SLOTS, "evidence")
+        c_status, c_reported, c_disp, c_undischarged = _side(
+            c_rec, CLAIM_SLOTS, "claim")
         undischarged = e_undischarged + c_undischarged
         status, evidence, evidence_source = reconcile_one(
             e_status, c_status, _evidence_of(e_rec), _evidence_of(c_rec)
@@ -347,6 +363,8 @@ def reconcile(evidence_records, claim_records):
                 "reason": reason,
                 "evidence": evidence,
                 "evidence_source": evidence_source,
+                "evidence_status_reported": _normalize_status(e_reported),
+                "claim_status_reported": _normalize_status(c_reported),
                 "evidence_dispositions": e_disp,
                 "claim_dispositions": c_disp,
                 "undischarged_slots": undischarged,

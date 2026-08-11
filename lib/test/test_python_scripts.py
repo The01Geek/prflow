@@ -29879,6 +29879,28 @@ with tempfile.TemporaryDirectory() as _md:
     for _f1580 in ("evidence_dispositions", "claim_dispositions", "undischarged_slots"):
         assert_eq(f"#1580 main() serializes {_f1580} onto stdout",
                   True, f'"{_f1580}"' in _out.getvalue())
+    # The fixture above is fully dispositioned, so its undischarged_slots is `[]` — the
+    # payload the orchestrator actually routes on is the BLOCKING one. Round-trip a
+    # non-empty list and the reasons through the real stdout path.
+    _gap_ev = os.path.join(_md, "ev-gap.json")
+    _gap_partial = {k: v for k, v in _R_EV_DISP.items()
+                    if k != reconcile_ac.EVIDENCE_SLOTS[0]}
+    with open(_gap_ev, "w", encoding="utf-8") as _fh:
+        _fh.write(json.dumps([{"criterion": 1, "status": "satisfied",
+                               "evidence": "ok", "dispositions": _gap_partial}]))
+    _gap_out = io.StringIO()
+    with contextlib.redirect_stdout(_gap_out), contextlib.redirect_stderr(io.StringIO()):
+        _rc_gap = reconcile_ac.main(["--evidence-file", _gap_ev,
+                                     "--claim-file", _cl_p])
+    assert_eq("#1580 main() returns 0 on a blocking reconciliation", 0, _rc_gap)
+    _gap_json = json.loads(_gap_out.getvalue())
+    assert_eq("#1580 a non-empty undischarged_slots survives serialization",
+              [f"evidence:{reconcile_ac.EVIDENCE_SLOTS[0]}"],
+              _gap_json["criteria"][0]["undischarged_slots"])
+    assert_eq("#1580 the serialized blocking record clears all_satisfied",
+              False, _gap_json["all_satisfied"])
+    assert_eq("#1580 the surviving slots' verbatim reasons round-trip through stdout",
+              _gap_partial, _gap_json["criteria"][0]["evidence_dispositions"])
     # Missing file -> OSError -> exit 3.
     with contextlib.redirect_stderr(io.StringIO()):
         _rc_missing = reconcile_ac.main(
@@ -29992,8 +30014,8 @@ assert_eq("#1580 a nested-paren value is carried through, NOT unwrapped",
           ("yes", "((a))"), reconcile_ac.parse_disposition("yes ((a))"))
 assert_eq("#1580 a multi-clause parenthesised value keeps its inner punctuation",
           ("yes", "(a) (b)"), reconcile_ac.parse_disposition("yes (a) (b)"))
-# The `<slot>=<verdict>` prose spelling of the writing-skills marker is NOT this shape;
-# a producer following it would otherwise be scored undischarged with no explanation.
+# The `<slot>=<verdict>` prose spelling of the writing-skills marker is NOT this shape:
+# a producer copying it states a slot the gate scores undischarged.
 assert_eq("#1580 the marker's `<slot>=yes` prose spelling does not parse as a value",
           (None, ""), reconcile_ac.parse_disposition("type-decided=yes (x)"))
 
@@ -30178,6 +30200,65 @@ assert_eq("#1580 a duplicate-poisoned record names no undischarged slots",
           [], _recon_dup1580["criteria"][0]["undischarged_slots"])
 assert_eq("#1580 a duplicate-poisoned record still blocks",
           "unestablished", _recon_dup1580["criteria"][0]["status"])
+# The poison marker's VALUE is an identity-checked sentinel, so a report cannot forge it
+# to skip its own slot scoring and blank the audit fields this gate exists to produce.
+_recon_forged = reconcile_ac.reconcile(
+    [{"criterion": 1, "status": "satisfied", "evidence": "x",
+      "_reconcile_poisoned": True}],
+    [{"criterion": 1, "status": "satisfied", "evidence": "y",
+      "_reconcile_poisoned": True}])
+assert_eq("#1580 a report cannot forge the poison marker to skip slot scoring",
+          sorted([f"evidence:{s}" for s in reconcile_ac.EVIDENCE_SLOTS]
+                 + [f"claim:{s}" for s in reconcile_ac.CLAIM_SLOTS]),
+          sorted(_recon_forged["criteria"][0]["undischarged_slots"]))
+
+# A side that concluded a real `unmet` but left a slot undischarged keeps that verdict in
+# `*_status_reported`. Without it the routing rule that fires only when a criterion blocks
+# SOLELY on undischarged slots cannot decide its own precondition, and a concrete failing
+# detail is routed to "restate your record" instead of to a fix.
+_ev_unmet = dict(_EV_D)
+del _ev_unmet[reconcile_ac.EVIDENCE_SLOTS[2]]
+_recon_unmet = reconcile_ac.reconcile(
+    [{"criterion": 1, "status": "unmet", "evidence": "clause X has no assertion",
+      "dispositions": _ev_unmet}],
+    [{"criterion": 1, "status": "unmet", "evidence": "same gap",
+      "dispositions": _CL_D}])
+_unmet_rec = _recon_unmet["criteria"][0]
+assert_eq("#1580 the gate still overrides the gated status",
+          "unestablished", _unmet_rec["evidence_status"])
+assert_eq("#1580 the side's concluded verdict survives the override",
+          "unmet", _unmet_rec["evidence_status_reported"])
+assert_eq("#1580 a side with no attestation gap reports the same status both ways",
+          "unmet", _unmet_rec["claim_status_reported"])
+# An absent record reports `unestablished` on both, so the field never invents a verdict.
+assert_eq("#1580 an absent record reports no concluded verdict",
+          "unestablished",
+          reconcile_ac.reconcile(
+              [{"criterion": 1, "status": "satisfied", "evidence": "x",
+                "dispositions": _EV_D}], [])["criteria"][0]["claim_status_reported"])
+
+# The charters carry the slot names TWICE — the `| Slot |` table and the `dispositions`
+# blocks of their worked JSON examples. The example is what a verifier copies, so pin it
+# too: a rename reconciled into the table alone would ship a template whose every value
+# scores undischarged, hard-blocking Phase 3.4 with the suite green.
+# structural-pin-ok: cross-file-phase-contract -- the charter's worked example IS the
+# template the dispatched verifier reproduces; the gate grades what it produces.
+for _acv_file, _acv_slots in (("ac-evidence-verifier.md", reconcile_ac.EVIDENCE_SLOTS),
+                              ("ac-claim-verifier.md", reconcile_ac.CLAIM_SLOTS)):
+    _acv_body = (SCRIPTS.parent / "agents" / _acv_file).read_text(encoding="utf-8")
+    # Scope to inside each `"dispositions": { … }` object so the sibling `"evidence"`
+    # field on the same line family cannot be read as a slot.
+    _acv_blocks = re.findall(r'"dispositions":\s*\{(.*?)\}', _acv_body, re.DOTALL)
+    assert_eq(f"#1580 {_acv_file}: the worked example carries dispositions blocks",
+              True, len(_acv_blocks) > 0)
+    for _blk_i, _blk in enumerate(_acv_blocks):
+        _pairs = re.findall(r'"([a-z-]+)":\s*"((?:yes|no)[^"]*)"', _blk)
+        assert_eq(f"#1580 {_acv_file} example {_blk_i}: names exactly the gate's slots",
+                  sorted(_acv_slots), sorted(k for k, _ in _pairs))
+        assert_eq(f"#1580 {_acv_file} example {_blk_i}: every value parses as a "
+                  f"discharging disposition",
+                  [], reconcile_ac._dispositions_of(
+                      {"dispositions": dict(_pairs)}, _acv_slots)[1])
 
 # A reasonless slot value is undischarged end-to-end, not merely at the parser: a
 # verifier writing bare `yes` must not clear the gate.
