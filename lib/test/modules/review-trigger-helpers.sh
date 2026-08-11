@@ -2317,8 +2317,9 @@ assert_eq "drc: terminal (past 🚀 Reviewing) progress comment → no suppress"
 # (a) DISCRIMINATING boundary for the review-progress-MARKER conjunct: a bot, fresh
 # comment at THIS head, carrying the seed-time head key and the 🚀 Reviewing status
 # but NO review-progress marker. isprogress rejects it on the marker conjunct alone
-# (the 🚀 Reviewing/liveness/bot conjuncts all hold), so this is not a relabelled
-# duplicate of the terminal/frozen controls — it fails on a DIFFERENT conjunct.
+# (its 🚀 Reviewing and bot conjuncts hold, and it is fresh so the separate liveness
+# select passes too), so this is not a relabelled duplicate of the terminal/frozen
+# controls — it fails on a DIFFERENT conjunct.
 # The single widening that turns it RED: dropping isprogress's
 # `(contains($marker) or contains($marker_superseded))` conjunct would admit this
 # unmarked comment as an in-flight peer and flip the result to suppress=true.
