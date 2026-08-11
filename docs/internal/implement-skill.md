@@ -205,8 +205,11 @@ recorded with a `--note`; only a *silent* stale enumeration is the defect.
 
 ## The final full-suite gate: the parallel coordinator (issue #1086)
 
-Focused modules are the iteration default; the *final* gate before a completion or PR-ready
-claim is `lib/test/run-parallel.sh`. It runs the same tested partition CI shards — its launch
+Focused modules are the iteration default; where a run discharges its completion gate by an
+in-environment whole-suite pass — the cloud implement tier, and any local run deliberately
+choosing one — the command is `lib/test/run-parallel.sh`. (Since issue #1607 the
+local/interactive tier's own gate is a CI reading for the pushed commit, per `CLAUDE.md`'s tier
+ladder, so the coordinator is that tier's diagnostic instrument rather than its gate.) It runs the same tested partition CI shards — its launch
 population comes from `lib/test/run-shard.sh --list-shards`, so it is derived rather than
 copied — concurrently **inside the current checkout**, and recombines it through the existing
 `lib/test/shard-tally.py` tally protocol. `lib/test/run.sh` is unchanged and remains the serial
@@ -852,11 +855,12 @@ probe-proven PERMITTED on the implement tier — see
 [`cloud-allowlist.md`](cloud-allowlist.md)'s row 17 for the run of record and the
 grant history.
 
-**None of this weakens the gate.** The final completion claim still runs the full suite,
-and the #456 skip accounting is unchanged — a nonempty skip tally is not clean, and a
-focused module may not self-skip. Before a completion or PR-ready claim the CI-triggering
-push and the full local run are issued **in a single assistant turn** so they run in
-parallel (the push is not gated on the local run; the claim is). A suite result is
+**None of this weakens the gate.** The final completion claim still takes a whole-suite
+result, and the #456 skip accounting is unchanged — a nonempty skip tally is not clean, and a
+focused module may not self-skip. Which result counts is tier-scoped since issue #1607: the
+cloud implement tier runs the suite in its own environment, while this repository's
+local/interactive tier commits, pushes, and reads CI for that pushed commit, treating an
+absent run or an unestablished reading as a stop rather than a pass. A suite result is
 established from the runner's **terminal summary line** — wherever the runner writes it —
 never from a bare process or wrapper exit status when a tally was printed; a command
 silent on success is established from its own exit status, and a command that never ran
