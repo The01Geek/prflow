@@ -51464,6 +51464,20 @@ write("skills/fx/references/start-only.md",
       "<!-- prflow:fixture-ref phase=1 file=skills/fx/references/start-only.md start -->\n"
       + "x" * (LIMIT + 1000) + "\n")
 write("skills/fx/SKILL.md", "# Fixture skill\n")
+# Every covered KIND needs an over-ceiling member: with only family-A members oversized, a
+# regression that skipped any other kind in the size loop would pass the whole block, and
+# half the real exemption set is skill roots.
+write("skills/fx2/SKILL.md", "# Oversized fixture skill\n" + "x" * (LIMIT + 100) + "\n")
+_fb = "# Reference: Oversized Fixture\n\n"
+write("skills/fx/references/fixture-b-big.md",
+      _fb + "x" * (LIMIT + 100 - len(_fb) - len("<!-- END fixture-b-big.md -->\n"))
+      + "\n<!-- END fixture-b-big.md -->\n")
+# CRLF: read_source normalizes CRLF to LF, so measuring the decoded text instead of the raw
+# bytes would under-report this file and drop it from the findings.
+_cr = ("<!-- prflow:fixture-ref phase=1 file=skills/fx/references/crlf.md start -->\r\n"
+       + ("x" * 60 + "\r\n") * 1000
+       + "<!-- prflow:fixture-ref phase=1 file=skills/fx/references/crlf.md end -->\r\n")
+(root / "skills/fx/references/crlf.md").write_bytes(_cr.encode())
 subprocess.run(["git", "init", "-q"], cwd=root, check=True)
 subprocess.run(["git", "add", "-A"], cwd=root, check=True)
 RSZ_BUILD
@@ -51493,7 +51507,7 @@ assert_eq "#1595 the failure message states the remedy as trimming the file" "ye
 # The remedy must never be "exempt it" — an exemption list is where work goes to die, and a
 # check that advertises exempting as the fix has delivered a permanent allowance.
 assert_eq "#1595 the failure message never offers exempting as the remedy" "no" \
-  "$(rsz_has "exempt" "$RSZ_BARE")"
+  "$(rsz_has "exempt" "$(printf '%s' "$RSZ_BARE" | grep 'one-over.md:' || true)")"
 assert_eq "#1595 a gated file exactly at the ceiling is clean" "no" \
   "$(rsz_has "at-threshold.md:" "$RSZ_BARE")"
 # A start marker with no matching end is not boundary-gated, so its size is not audited —
@@ -51501,13 +51515,26 @@ assert_eq "#1595 a gated file exactly at the ceiling is clean" "no" \
 assert_eq "#1595 a start marker with no matching end is outside the gated population" "no" \
   "$(rsz_has "start-only.md" "$RSZ_BARE")"
 assert_eq "#1595 an over-ceiling file fails the run" "rc=1" "${RSZ_BARE%%|*}"
+for _rsz_kind in "skills/fx2/SKILL.md" "skills/fx/references/fixture-b-big.md"; do
+  assert_eq "#1595 the ceiling is enforced for every covered kind ($_rsz_kind)" "yes" \
+    "$(rsz_has "$_rsz_kind: " "$RSZ_BARE")"
+done
+# Measuring the CRLF-normalized text instead of the raw bytes would under-report this file
+# and drop it from the findings entirely.
+assert_eq "#1595 size is measured in raw bytes, not CRLF-normalized text" "yes" \
+  "$(rsz_has "skills/fx/references/crlf.md: " "$RSZ_BARE")"
 
 # Exemption semantics.
 RSZ_LIVE="$(rsz_ex live '{"schema_version": 1,
  "recorded_set": [{"path": "skills/fx/references/one-over.md", "recorded_bytes": 61751}],
  "exemptions": [{"path": "skills/fx/references/one-over.md", "expires_when": "at or under the ceiling"}]}')"
-assert_eq "#1595 a live exemption suppresses its own file's violation" \
-  "rc=0|lint-reference-size: audited 5 of 7 files [whole-tree]" "$(rsz_run "$RSZ_FX" "$RSZ_LIVE")"
+RSZ_LIVE_OUT="$(rsz_run "$RSZ_FX" "$RSZ_LIVE")"
+assert_eq "#1595 a live exemption suppresses its own file's violation" "no" \
+  "$(rsz_has "one-over.md: 61751 bytes exceeds" "$RSZ_LIVE_OUT")"
+# …and suppresses ONLY its own: an exemption that silenced a file it does not name would
+# be indistinguishable from one that works.
+assert_eq "#1595 a live exemption suppresses no file it does not name" "yes" \
+  "$(rsz_has "skills/fx/references/fixture-b-big.md: " "$RSZ_LIVE_OUT")"
 # The expiring property is the entire difference between this design and a permanent
 # allowance: an exemption whose condition is met must turn the suite RED.
 RSZ_EXPIRED="$(rsz_ex expired '{"schema_version": 1,
@@ -51559,6 +51586,11 @@ duplicate entry|duplicate recorded_set path|{"schema_version": 1, "recorded_set"
 unknown key|unknown key|{"schema_version": 1, "recorded_set": [{"path": "a", "recorded_bytes": 99999, "why": "x"}], "exemptions": []}
 already-compliant recording|not above the ceiling|{"schema_version": 1, "recorded_set": [{"path": "a", "recorded_bytes": 10}], "exemptions": []}
 valid-falsy expires_when|expires_when|{"schema_version": 1, "recorded_set": [{"path": "skills/fx/references/one-over.md", "recorded_bytes": 61751}], "exemptions": [{"path": "skills/fx/references/one-over.md", "expires_when": "   "}]}
+boolean schema_version|unrecognized schema_version|{"schema_version": true, "recorded_set": [], "exemptions": []}
+boolean recorded_bytes|must be an integer|{"schema_version": 1, "recorded_set": [{"path": "a", "recorded_bytes": true}], "exemptions": []}
+unknown top-level key|unknown top-level key|{"schema_version": 1, "recorded_set": [], "exemptions": [], "extra": 1}
+duplicate exemption path|duplicate exemption path|{"schema_version": 1, "recorded_set": [{"path": "skills/fx/references/one-over.md", "recorded_bytes": 61751}], "exemptions": [{"path": "skills/fx/references/one-over.md", "expires_when": "x"}, {"path": "skills/fx/references/one-over.md", "expires_when": "x"}]}
+unknown key in an exemptions entry|unknown key|{"schema_version": 1, "recorded_set": [{"path": "skills/fx/references/one-over.md", "recorded_bytes": 61751}], "exemptions": [{"path": "skills/fx/references/one-over.md", "expires_when": "x", "why": "y"}]}
 unknown schema_version|unrecognized schema_version|{"schema_version": 99, "recorded_set": [], "exemptions": []}
 RSZ_SHAPES
 
@@ -51568,13 +51600,13 @@ RSZ_SHAPES
 # must fail. A run given an explicit narrower population is deliberately exempt.
 RSZ_NOB="$(git_sandbox '#1595 no-family-b fixture')"
 cp -R "$RSZ_FX/skills" "$RSZ_NOB/"
-rm -f "$RSZ_NOB/skills/fx/references/fixture-b.md"
+rm -f "$RSZ_NOB/skills/fx/references/fixture-b.md" "$RSZ_NOB/skills/fx/references/fixture-b-big.md"
 (cd "$RSZ_NOB" && git init -q && git add -A) >/dev/null
 assert_eq "#1595 a whole-tree audit selecting nothing for a marker family fails" "yes" \
   "$(rsz_has "selected nothing for the Reference-heading marker family" "$(rsz_run "$RSZ_NOB" "$RSZ_EMPTY")")"
 RSZ_NOSR="$(git_sandbox '#1595 no-skill-root fixture')"
 cp -R "$RSZ_FX/skills" "$RSZ_NOSR/"
-rm -f "$RSZ_NOSR/skills/fx/SKILL.md"
+rm -f "$RSZ_NOSR/skills/fx/SKILL.md" "$RSZ_NOSR/skills/fx2/SKILL.md"
 (cd "$RSZ_NOSR" && git init -q && git add -A) >/dev/null
 assert_eq "#1595 a whole-tree audit selecting nothing for the skill-root shape fails" "yes" \
   "$(rsz_has "selected nothing for the skill-root shape" "$(rsz_run "$RSZ_NOSR" "$RSZ_EMPTY")")"
