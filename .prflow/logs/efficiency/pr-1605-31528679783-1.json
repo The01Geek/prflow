@@ -100,5 +100,61 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.34",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 8.673254250000003,
+    "tokens": {
+      "input_tokens": 63,
+      "output_tokens": 23956,
+      "cache_read_input_tokens": 5291887,
+      "cache_creation_input_tokens": 203349,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 184,
+        "outputTokens": 46675,
+        "cacheReadInputTokens": 7318001,
+        "cacheCreationInputTokens": 493424,
+        "webSearchRequests": 0,
+        "costUSD": 8.673254250000003,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 44,
+    "duration_ms": 532013
+  },
+  "permission_denials": {
+    "count": 8,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      "git status --porcelain; echo \"---RUNENV---\"; echo \"run_id=${GITHUB_RUN_ID:-}\"; echo \"run_attempt=${GITHUB_RUN_ATTEMPT:-}\"",
+      "gh pr diff 1605 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1605/31528679783-1/diff.patch | head -0; echo \"cached-rc=${PIPESTATUS[0]}\"",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve 1602 --pr 1605 2>.prflow/tmp/review/pr-1605/31528679783-1/acs.err ; echo \"acs-rc=$?\"",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before",
+      "for f in phase-1-setup phase-2-implement phase-3-review phase-4-documentation; do echo \"=== $f ===\"; git show 69ee3b06:skills/implement/phases/$f.md 2>/dev/null | grep -nEi \"branch-setup|issue-claim-auditor|code-explorer|code-architect|ac-claim-verifier|ac-evidence-verifier|prflow:docs|pr-description|Agent tool|dispatch\" | head -40; done",
+      "for f in phase-1-setup phase-2-implement phase-3-review phase-4-documentation; do echo \"=== $f ===\"; git show 69ee3b06:skills/implement/phases/$f.md 2>/dev/null | grep -nEi \"branch-setup|issue-claim-auditor|code-explorer|code-architect|ac-claim-verifier|ac-evidence-verifier|prflow:docs|pr-description\" | head -30; done",
+      "git show 69ee3b06:skills/implement/phases/phase-3-review.md > /tmp/p3.md; git show 69ee3b06:skills/implement/phases/phase-1-setup.md > /tmp/p1.md; git show 69ee3b06:skills/implement/phases/phase-4-documentation.md > /tmp/p4.md; git show 69ee3b06:skills/implement/phases/phase-2-implement.md > /tmp/p2.md; grep -nEi \"branch-setup|issue-claim-auditor|code-explorer|code-architect|ac-claim-verifier|ac-evidence-verifier|prflow:docs|pr-description\" /tmp/p1.md /tmp/p2.md /tmp/p3.md /tmp/p4.md"
+    ],
+    "total": 8,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
