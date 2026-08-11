@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1579",
+  "generated_at": "2026-08-11T03:17:38Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.24",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 11.765351999999998,
+    "tokens": {
+      "input_tokens": 1739,
+      "output_tokens": 30481,
+      "cache_read_input_tokens": 6414434,
+      "cache_creation_input_tokens": 201791,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 1817,
+        "outputTokens": 69735,
+        "cacheReadInputTokens": 9097764,
+        "cacheCreationInputTokens": 753167,
+        "webSearchRequests": 0,
+        "costUSD": 11.765351999999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 51,
+    "duration_ms": 805610
+  },
+  "permission_denials": {
+    "count": 10,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-} ATTEMPT=${GITHUB_RUN_ATTEMPT:-1}\"; echo \"---PR VIEW---\"; gh pr view 1579 --json headRefName,baseRefName,baseRefOid,headRefOid --jq '.'",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve \"1575\" --pr \"1579\" 2>.prflow/tmp/review/pr-1579/31454203553-1/acs.err ; echo \"acs-rc=$?\"",
+      "D=.prflow/tmp/review/pr-1579/31454203553-1\nawk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' $D/diff.patch > $D/batch-1.patch && test -s $D/batch-1.patch && echo \"slice-ok: batch-1\" || echo \"slice-failed: batch-1\"\nawk -v s=11 -v e=16 '/^diff --git/{n++} n>=s && n<=e' $D/diff.patch > $D/batch-2.patch && test -s $D/batch-2.patch && echo \"slice-ok: batch-2\" || echo \"slice-failed: batch-2\"\necho \"b1-files:\"; grep '^diff --git' $D/batch-1.patch | sed -E 's#^diff --git a/(.*) b/.*#\\1#'\necho \"b2-file …[per-command-truncated]",
+      "awk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1579/31454203553-1/diff.patch > .prflow/tmp/review/pr-1579/31454203553-1/batch-1.patch && test -s .prflow/tmp/review/pr-1579/31454203553-1/batch-1.patch && echo \"slice-ok: batch-1\"\nawk -v s=11 -v e=16 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1579/31454203553-1/diff.patch > .prflow/tmp/review/pr-1579/31454203553-1/batch-2.patch && test -s .prflow/tmp/review/pr-1579/31454203553-1/batch-2.patch && echo \"slice- …[per-command-truncated]",
+      "git status --porcelain -z > .prflow/tmp/review-dirty-tree-before; echo \"snap-rc=$?\"; git hash-object .prflow/tmp/review-dirty-tree-before",
+      "git status --porcelain | head; echo \"porcelain-lines=$(git status --porcelain | wc -l)\"",
+      "printf '[{\"criterion\":1,\"status\":\"satisfied\",\"evidence\":\"ok\"}]' > /tmp/ev.json && printf '[{\"criterion\":1,\"status\":\"satisfied\",\"evidence\":\"ok\"}]' > /tmp/cl.json && python3 scripts/reconcile-ac-verifiers.py --evidence-file /tmp/ev.json --claim-file /tmp/cl.json; echo \"RC=$?\"",
+      "cd /tmp && cat > ev.json <<'EOF'\n[{\"criterion\":1,\"status\":\"satisfied\",\"evidence\":\"ok\"}]\nEOF\ncat > cl.json <<'EOF'\n[{\"criterion\":1,\"status\":\"unmet\",\"evidence\":\"claim differs\"}]\nEOF\npython3 /home/runner/work/prflow/prflow/scripts/reconcile-ac-verifiers.py --evidence-file ev.json --claim-file cl.json; echo \"RC=$?\"",
+      "python3 - <<'PY'\nimport importlib.util, sys\nspec = importlib.util.spec_from_file_location(\"r\", \"/home/runner/work/prflow/prflow/scripts/reconcile-ac-verifiers.py\")\nm = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)\nprint(m.reconcile_one(\"satisfied\",\"unmet\",\"cmd passed\",\"other claim\"))\nprint(m.reconcile([{\"criterion\":1,\"status\":\"satisfied\",\"evidence\":\"x\"}],[])[\"criteria\"][0][\"status\"])\nprint(m.reconcile([],[])[\"all_satisfied\"])\nPY",
+      "echo \"=== agent tool boundaries ===\"; grep -H '^tools:' agents/ac-evidence-verifier.md agents/ac-claim-verifier.md\necho \"=== capability-profiles --check ===\"; python3 lib/generate-capability-profiles.py --check 2>&1 | tail -3; echo \"check-rc=${PIPESTATUS[0]}\"\necho \"=== reconcile helper functions ===\"; grep -nE '^def |^EVIDENCE_REASONS|^BLOCKING_STATUSES' scripts/reconcile-ac-verifiers.py\necho \"=== manifest_version ===\"; grep -n 'manifest_version' lib/capability-profiles.json"
+    ],
+    "total": 10,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
