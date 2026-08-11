@@ -126,6 +126,19 @@ KNOWN_SCHEMA_VERSIONS = (1,)
 #: auditing them would report this suite's own fixtures as violations.
 EXCLUDED_PREFIXES = ("lib/test/fixtures/",)
 
+#: The kinds `classify` can return, paired with how a coverage refusal names each. The
+#: whole-tree completeness guard iterates THIS — adding a marker family to `classify`
+#: without adding its row here would ship a family the guard never checks for.
+COVERED_KINDS = (
+    ("gated-a", "the HTML-comment marker family"),
+    ("gated-b", "the Reference-heading marker family"),
+    ("skill-root", "the skill-root shape"),
+)
+
+# Family B's two marker shapes are also spelled inline in lib/test/run.sh's `#530` block
+# (its first-non-blank `# Reference: ` probe and its `<!-- END … -->` sed extraction) — a
+# change to either marker contract updates both sites or the two disagree about which
+# files are gated.
 _FAMILY_A = re.compile(
     r"^<!--\s*prflow:(?P<ns>[a-z][a-z0-9-]*)-ref\s+(?P<payload>.*?)\s+(?P<edge>start|end)\s*-->$"
 )
@@ -195,6 +208,15 @@ def classify(relative: str, text: str) -> tuple[str, str] | None:
         if end is not None and end.group("name") == relative.rsplit("/", 1)[-1]:
             return "gated-b", end.group("name")
     return None
+
+
+def _list_of(data: dict, key: str) -> list:
+    if key not in data:
+        raise RecordError(f"the exemption record is missing the {key} key")
+    value = data[key]
+    if not isinstance(value, list):
+        raise RecordError(f"{key} must be a list, found {type(value).__name__}")
+    return value
 
 
 def _entry(raw: object, where: str, required: tuple[str, ...]) -> dict:
@@ -277,15 +299,6 @@ def load_record(path: Path) -> tuple[dict[str, int], dict[str, str]]:
         exemptions[relative] = condition
 
     return recorded, exemptions
-
-
-def _list_of(data: dict, key: str) -> list:
-    if key not in data:
-        raise RecordError(f"the exemption record is missing the {key} key")
-    value = data[key]
-    if not isinstance(value, list):
-        raise RecordError(f"{key} must be a list, found {type(value).__name__}")
-    return value
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -379,22 +392,9 @@ def main(argv: list[str] | None = None) -> int:
 
     findings: list[str] = []
 
-    # A whole-tree audit that selected nothing for a family or for the skill-root shape
-    # has audited nothing while reading as "audited everything, found nothing" — the exact
-    # failure this check exists to prevent, one level up. A run given an explicit narrower
-    # population is not required to see every family.
-    if whole_tree:
-        for kind, what in (
-            ("gated-a", "the HTML-comment marker family"),
-            ("gated-b", "the Reference-heading marker family"),
-            ("skill-root", "the skill-root shape"),
-        ):
-            if not any(entry[0] == kind for entry in covered.values()):
-                findings.append(
-                    f"{_TOOL}: the whole-tree audit selected nothing for {what} — the "
-                    "population could not be established, so this is not a clean pass"
-                )
-
+    # Load the record BEFORE accumulating any finding. A malformed record returns early,
+    # so a finding appended above this point would be computed and then discarded unprinted
+    # on exactly the run that has two problems at once.
     try:
         exemption_path = (
             Path(args.exemptions) if args.exemptions else root / EXEMPTIONS_DEFAULT
@@ -403,6 +403,18 @@ def main(argv: list[str] | None = None) -> int:
     except RecordError as exc:
         print(f"{_TOOL}: {exc}", file=sys.stderr)
         return 1
+
+    # A whole-tree audit that selected nothing for a family or for the skill-root shape
+    # has audited nothing while reading as "audited everything, found nothing" — the exact
+    # failure this check exists to prevent, one level up. A run given an explicit narrower
+    # population is not required to see every family.
+    if whole_tree:
+        for kind, what in COVERED_KINDS:
+            if not any(entry[0] == kind for entry in covered.values()):
+                findings.append(
+                    f"{_TOOL}: the whole-tree audit selected nothing for {what} — the "
+                    "population could not be established, so this is not a clean pass"
+                )
 
     if whole_tree:
         for relative in sorted(exemptions):

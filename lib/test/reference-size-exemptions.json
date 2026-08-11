@@ -29,27 +29,27 @@
   "exemptions": [
     {
       "path": "skills/create-issue/references/step-3-6-audit.md",
-      "expires_when": "the file is at or under the 61750-byte ceiling; remove this row then"
+      "expires_when": "the file's size is at or under the ceiling this check derives; remove this row then"
     },
     {
       "path": "skills/implement/phases/phase-2-implement.md",
-      "expires_when": "the file is at or under the 61750-byte ceiling; remove this row then"
+      "expires_when": "the file's size is at or under the ceiling this check derives; remove this row then"
     },
     {
       "path": "skills/implement/phases/phase-3-review.md",
-      "expires_when": "the file is at or under the 61750-byte ceiling; remove this row then"
+      "expires_when": "the file's size is at or under the ceiling this check derives; remove this row then"
     },
     {
       "path": "skills/init/SKILL.md",
-      "expires_when": "the file is at or under the 61750-byte ceiling; remove this row then"
+      "expires_when": "the file's size is at or under the ceiling this check derives; remove this row then"
     },
     {
       "path": "skills/retrospective-weekly/SKILL.md",
-      "expires_when": "the file is at or under the 61750-byte ceiling; remove this row then"
+      "expires_when": "the file's size is at or under the ceiling this check derives; remove this row then"
     },
     {
       "path": "skills/review/SKILL.md",
-      "expires_when": "the file is at or under the 61750-byte ceiling; remove this row then"
+      "expires_when": "the file's size is at or under the ceiling this check derives; remove this row then"
     }
   ]
 }

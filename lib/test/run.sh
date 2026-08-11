@@ -51499,8 +51499,7 @@ assert_eq "#1595 a gated file exactly at the ceiling is clean" "no" \
 # the fixture is 1000 bytes over the ceiling and must still produce no violation.
 assert_eq "#1595 a start marker with no matching end is outside the gated population" "no" \
   "$(rsz_has "start-only.md" "$RSZ_BARE")"
-assert_eq "#1595 an over-ceiling file fails the run" "rc=1" \
-  "$(printf '%s' "$RSZ_BARE" | sed -n '1s/^\(rc=[0-9]*\).*/\1/p')"
+assert_eq "#1595 an over-ceiling file fails the run" "rc=1" "${RSZ_BARE%%|*}"
 
 # Exemption semantics.
 RSZ_LIVE="$(rsz_ex live '{"schema_version": 1,
@@ -51574,10 +51573,10 @@ assert_eq "#1595 a narrowed population is not required to see every family" \
 # Membership is decided by READING each file, so an unreadable one is a file whose
 # membership was never established — it is named, never dropped into a clean pass.
 printf '%s\n' skills/fx/references/no-such-file.md > "$RSZ_NARROW"
+RSZ_MISSING="$(rsz_run "$RSZ_FX" "$RSZ_EMPTY" --files-from "$RSZ_NARROW")"
 assert_eq "#1595 an unreadable file in the population is named rather than dropped" "yes" \
-  "$(rsz_has "SKIPPED skills/fx/references/no-such-file.md" "$(rsz_run "$RSZ_FX" "$RSZ_EMPTY" --files-from "$RSZ_NARROW")")"
-assert_eq "#1595 an unreadable file in the population refuses a clean report" "rc=1" \
-  "$(printf '%s' "$(rsz_run "$RSZ_FX" "$RSZ_EMPTY" --files-from "$RSZ_NARROW")" | sed -n '1s/^\(rc=[0-9]*\).*/\1/p')"
+  "$(rsz_has "SKIPPED skills/fx/references/no-such-file.md" "$RSZ_MISSING")"
+assert_eq "#1595 an unreadable file in the population refuses a clean report" "rc=1" "${RSZ_MISSING%%|*}"
 case "$RSZ_NARROW" in ""|/dev/null) : ;; *) rm -f "$RSZ_NARROW" ;; esac
 RSZ_NOREPO="$(git_sandbox '#1595 non-repository root')"
 assert_eq "#1595 an unestablishable population fails closed naming git ls-files" "yes" \
