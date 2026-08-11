@@ -79,11 +79,12 @@ ENROLLED: tuple[tuple[str, str], ...] = (
     ("skills/implement/phases/phase-4-documentation.md",
      "discover-deferral-manifests.py --presence-for-pr <this-run's-PR-number>"),
     # Enrolled at issue #1432. These four extension loads are reached on the cloud
-    # implement tier — pr-description via /prflow:implement Phase 4.2 (Skill tool from
-    # the orchestrator), and the three docs children via the Phase 4.1 docs subagent —
-    # yet shipped with the bare anchor alone, so their consumer policy was silently
+    # implement tier — pr-description via the /prflow:implement Phase 4.2 PR-description
+    # subagent, and the three docs children via the Phase 4.1 docs subagent — yet
+    # shipped with the bare anchor alone, so their consumer policy was silently
     # dropped there. The vendored-literal-first conditional arm fixes both the matcher
-    # denial and the subagent unresolvable-anchor case.
+    # denial and the subagent unresolvable-anchor case (each of these loads now runs
+    # inside a subagent that receives no $CLAUDE_SKILL_DIR).
     ("skills/pr-description/SKILL.md", "load-prompt-extension.sh pr-description"),
     ("skills/docs-sync-internal/SKILL.md", "load-prompt-extension.sh docs-sync-internal"),
     ("skills/docs-sync-external/SKILL.md", "load-prompt-extension.sh docs-sync-external"),

@@ -17,6 +17,11 @@
       "handoff": "by-path"
     },
     {
+      "dispatcher": "skills/implement/phases/phase-4-documentation.md",
+      "skill": "pr-description",
+      "handoff": "by-path"
+    },
+    {
       "dispatcher": "skills/review/phases/phase-3-agents.md",
       "skill": "requesting-code-review",
       "handoff": "resolved-command"
