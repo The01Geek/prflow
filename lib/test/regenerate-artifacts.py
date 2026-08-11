@@ -8,7 +8,8 @@ manifest induces drift in checked-in generated records.
 Discovering that drift one full-suite run at a time is the dominant cost of a loop
 iteration, because the full suite is the slowest verification step in the repo. Run
 this helper once after applying edits and before each full-suite re-verify run: it
-regenerates the mechanically-safe artifact, runs each judgment-gated artifact's
+regenerates any mechanically-safe artifact (none is registered today — see the note above
+the ROWS tuple), runs each judgment-gated artifact's
 non-writing check, and reports every resulting judgment item together, so the next
 suite run verifies a tree whose generated artifacts are already reconciled.
 
@@ -52,11 +53,11 @@ the row does not synthesize or rewrite any other registry metadata.
 
 ROW ORDER is a maintenance obligation, not decoration. Rows run in the order listed and
 no row re-runs, so a row whose generator READS a file an earlier row WRITES must be
-ordered after it. No WRITER consumes another writer's outputs: `cloud-writer-manifest`
-pins a closure of `skills/**` / `scripts/**` assets and required helper sources, while
-`exact-module-floors` may raise only registry floor fields and their coupled `run.sh`
-call sites, and the identity generator's four baked regions (`install.sh` and three
-siblings) are NOT in the manifest closure.
+ordered after it. No WRITER consumes another writer's outputs: `exact-module-floors` may
+raise only registry floor fields and their coupled `run.sh` call sites, and the identity
+generator's four baked regions (`install.sh` and three siblings) are NOT in the manifest
+closure. (The former `cloud-writer-manifest` writing row was removed in issue #1445 — the
+cloud-writer manifest is now written on `main` alone, not by this batched pass.)
 
 One READER-before-WRITER pair does exist and is deliberately left in this order:
 `coverage-map-ratchet` runs `coverage_map_guard.py`, which reads `lib/test/run.sh` — a
@@ -71,11 +72,13 @@ row whose output feeds another row's input means placing it above that row here;
 verifies the placement, because rows declare their outputs and not their inputs.
 
 WRITE SCOPE: writing rows declare their complete `writes` set in the registry. The
-cloud-writer row owns `scripts/devflow-cloud-writer-contract.json`; the exact-floor row
-may raise `scripts/workflow-flight-recorder-registry.json` and `lib/test/run.sh`
-together. Every judgment row runs a non-writing check and never writes its artifact.
+exact-floor row may raise `scripts/workflow-flight-recorder-registry.json` and
+`lib/test/run.sh` together. Every judgment row runs a non-writing check and never writes
+its artifact. (No `mechanical` row is registered today; see the note above the ROWS
+tuple.)
 
-EXIT CONTRACT (exactly three states):
+EXIT CONTRACT (exactly three states). Its `mechanical row` clauses are conditional on such
+a row being registered; none is today, so they select nothing in a production run:
   0 — every row resolved in its declared clean state (its command exited in that
       state), the mechanical regeneration changed nothing, and no exit-1-forcing
       judgment item was printed.
@@ -107,6 +110,7 @@ states above and no row report accompanies it.
 
 import argparse
 import importlib.util
+import os
 import subprocess
 import sys
 import traceback
@@ -155,38 +159,9 @@ ROW_KINDS = ("mechanical", "monotonic", "judgment")
 # Every row is command-backed: main() dispatches each through run_row uniformly rather than
 # re-deciding per row (run_row still special-cases the mechanical kind internally).
 ROWS = (
-    {
-        "name": "cloud-writer-manifest",
-        "kind": "mechanical",
-        "argv": ("python3", "lib/test/cloud_writer_contract.py", "generate"),
-        "clean": (0,),
-        "exits": (0, 1),
-        "writes": MECHANICAL_ARTIFACT,
-        # `policy` is the SINGLE recipe source (issue #655): the batched-pass
-        # `governing policy:` line and the `conflict-recipe` emit read this one field, so
-        # a second, parallel recipe field cannot drift from it. A `regenerate` row's policy
-        # must therefore name a runnable WRITE command — the row's `argv` here happens to
-        # be that writer, but two other rows' `argv` is a non-writing checker, so the
-        # recipe states the command explicitly rather than deriving it from `argv`.
-        "policy": (
-            "the closure data in lib/test/cloud_writer_contract.py "
-            "(ROOTS / DISPATCH_EDGES / SKILL_ASSETS / required helper heads) — "
-            "regenerate against the merged tree with "
-            "`python3 lib/test/cloud_writer_contract.py generate`"
-        ),
-        "conflict_class": "regenerate",
-        # Preflight (issue #1244): read-only and sub-second, so eligible — but the row's
-        # own `argv` is the WRITING `generate` form, which the read-only preflight must
-        # never run. `preflight_argv` names the non-writing `verify` form instead, and
-        # `preflight_positive_marker` is what makes an exit-1 attributable to real drift:
-        # `verify` prints a `cloud-writer-contract:`-prefixed line on both a stale manifest
-        # and a broken closure (the states this row exists to catch), while a CPython
-        # traceback also exits 1 with no such marker — so the preflight classifies an
-        # unmarked exit-1 as UNCHECKABLE rather than dressing a crash up as drift.
-        "preflight_eligible": True,
-        "preflight_argv": ("python3", "lib/test/cloud_writer_contract.py", "verify"),
-        "preflight_positive_marker": "cloud-writer-contract:",
-    },
+    # Do NOT re-add a `cloud-writer-manifest` row here (issue #1445) — a batched pass that
+    # writes that artifact on a feature branch reintroduces the merge chokepoint and turns
+    # lib/test/cloud-writer-retention-check.py RED. See _TEST_MECHANICAL_ROW below.
     {
         "name": "capability-profile-literals",
         "kind": "judgment",
@@ -422,6 +397,34 @@ ROWS = (
         "preflight_eligible": True,
     },
 )
+
+# ── Test-only mechanical-row seam (issue #1445) ──────────────────────────────
+# Retained `mechanical` machinery (`run_row`'s mechanical arm, `_mechanical_outcome`,
+# `_validate_registry`'s single-write check) has no production row to exercise it, so
+# lib/test/modules/regenerate-artifacts.sh re-injects this one via the env var below.
+# Never set DEVFLOW_RA_TEST_MECHANICAL_ROW outside that module: any production run that
+# does becomes a branch-side manifest writer.
+_TEST_MECHANICAL_ROW = {
+    "name": "cloud-writer-manifest",
+    "kind": "mechanical",
+    "argv": ("python3", "lib/test/cloud_writer_contract.py", "generate"),
+    "clean": (0,),
+    "exits": (0, 1),
+    "writes": MECHANICAL_ARTIFACT,
+    "policy": (
+        "the closure data in lib/test/cloud_writer_contract.py "
+        "(ROOTS / DISPATCH_EDGES / SKILL_ASSETS / required helper heads) — "
+        "regenerate against the merged tree with "
+        "`python3 lib/test/cloud_writer_contract.py generate`"
+    ),
+    "conflict_class": "regenerate",
+    "preflight_eligible": True,
+    "preflight_argv": ("python3", "lib/test/cloud_writer_contract.py", "verify"),
+    "preflight_positive_marker": "cloud-writer-contract:",
+}
+
+if os.environ.get("DEVFLOW_RA_TEST_MECHANICAL_ROW") == "1":
+    ROWS = (_TEST_MECHANICAL_ROW,) + ROWS
 
 # ── Coupled-site registry (issue #1206) ──────────────────────────────────────
 # The question `--list` answers today is "what did a generator write?". This second
