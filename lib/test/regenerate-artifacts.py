@@ -13,6 +13,23 @@ the ROWS tuple), runs each judgment-gated artifact's
 non-writing check, and reports every resulting judgment item together, so the next
 suite run verifies a tree whose generated artifacts are already reconciled.
 
+OPT-IN ROWS. A row declaring `opt_in: True` is skipped by the default pass and runs only
+under the flag its report line names (`--with-floors` for `exact-module-floors`, the one
+row whose check runs the real focused module runners and costs minutes rather than
+milliseconds). The skip is always PRINTED as its own row line — never inferred from
+silence — so a reader can tell "measured and clean" from "not measured". Under the flag,
+the row is still skipped when an earlier row already forced exit 1 or hit the
+infrastructure state: measuring a tree this same pass has just reported red spends minutes
+judging a tree that is about to change. Neither skip forces an exit code of its own.
+Deferring the floor measurement is a real, bounded gap rather than a free one: the module
+harness and the `modules-*` shards fail only a tally BELOW the floor, so a floor left
+un-raised is caught solely by `test_module_runner.py`'s equality assertion — which
+executes the full exact-policy population on CI (and on a direct local run), so a stale
+floor surfaces on CI rather than in this agent's own run. Run the flag before a
+completion claim to catch it here first. The cheap rows,
+including the SHA-256 pinned cloud-writer manifest whose staleness turns a required check
+red, run on every pass.
+
 REGISTRATION RULE (shipped as artifact content, not merely convention). Kept on ONE
 line deliberately: a sentence wrapped across a line break lives on no single line, so
 the suite's line-based pin on it would silently find nothing (the issue-375
@@ -338,6 +355,10 @@ ROWS = (
             "scripts/workflow-flight-recorder-registry.json",
             "lib/test/run.sh",
         ),
+        # Do not clear `opt_in`: this row alone runs the real focused module runners,
+        # costing minutes where every other row costs milliseconds, which would make the
+        # default pass unusable as the after-every-edit reconciler it exists to be.
+        "opt_in": True,
         # Preflight (issue #1244): INELIGIBLE. Two independent disqualifiers: this row
         # WRITES its declared outputs, so it can never run in a write-nothing preflight;
         # and its check runs the real focused module runners, measured at 465.9 s (7.8 min)
@@ -1064,6 +1085,14 @@ def _validate_registry():
         # boolean — an absent or non-boolean field is a registry defect, never a silent
         # "assume eligible" (which could run a writing row inside the write-nothing
         # preflight) or a silent "assume ineligible" (which would drop a cheap detector).
+        # `opt_in` is optional and defaults to False, but a PRESENT value must be a real
+        # bool: a truthy string would silently opt a row out of the default pass with no
+        # flag able to opt it back in.
+        if "opt_in" in row and not isinstance(row["opt_in"], bool):
+            raise ValueError(
+                f"registry row {row['name']!r} declares opt_in {row['opt_in']!r}, "
+                "which is not a bool"
+            )
         if not isinstance(row.get("preflight_eligible"), bool):
             raise ValueError(
                 f"registry row {row['name']!r} declares preflight_eligible "
@@ -1318,7 +1347,8 @@ def main(argv=None):
         description=(
             "Run one batched pass over the suite-owned generated artifacts: regenerate "
             "the mechanical row, check every judgment row, and report all judgment "
-            "items together."
+            "items together. Opt-in rows (today: exact-module-floors) are reported as "
+            "not measured unless --with-floors is given."
         )
     )
     parser.add_argument(
@@ -1333,6 +1363,16 @@ def main(argv=None):
         "--list",
         action="store_true",
         help="Print the registered artifacts; run no row.",
+    )
+    parser.add_argument(
+        "--with-floors",
+        action="store_true",
+        help=(
+            "Also run the opt-in exact-module-floors row, which measures the real "
+            "focused module runners and costs minutes. Omitted by default; the default "
+            "pass prints one line saying the row was not measured. Run it once "
+            "immediately before the completion-gate whole-suite pass."
+        ),
     )
     parser.add_argument(
         "--preflight",
@@ -1363,6 +1403,26 @@ def main(argv=None):
     # was established still prints; the top-level net below supplies the exit-2 state.
     try:
         for row in ROWS:
+            if row.get("opt_in") and not args.with_floors:
+                report.append(
+                    f"[{row['name']}] not measured -- pass --with-floors to run this "
+                    "row (its measurement runs the real focused module runners); until "
+                    "then a floor left un-raised is unchecked here, and is caught on CI "
+                    "by test_module_runner.py's equality assertion rather than in this "
+                    "run."
+                )
+                continue
+            # Never measure a tree an earlier row has already reported red. The opt-in
+            # row's measurement runs the whole focused-module population against the
+            # current tree, so on an already-failing pass it spends minutes producing a
+            # verdict about a tree that is about to change.
+            if row.get("opt_in") and (forces_one or infrastructure):
+                report.append(
+                    f"[{row['name']}] not measured -- an earlier row already reported "
+                    "an unresolved item, so this tree is red before the measurement "
+                    "starts; resolve the items above and rerun with --with-floors."
+                )
+                continue
             forced, infra = run_row(row, root, report)
             forces_one = forced or forces_one
             infrastructure = infra or infrastructure

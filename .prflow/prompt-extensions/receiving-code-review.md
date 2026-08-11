@@ -62,9 +62,7 @@ adversarial-matrix gotcha, and this section is its coupled mirror in
 
 This section's trigger is a **merge conflict**, not an edit: whenever a rebase, base merge, or branch
 update leaves a conflict in a checked-in file, resolve it as follows before touching the conflicted
-bytes. It is a different trigger from the Batched artifact regeneration section, whose trigger is
-post-edit and pre-suite — no in-run conflict arm routes through that section, so the conflict rule
-lives here on its own.
+bytes. No post-edit pass routes through this rule, so it stands on its own.
 
 The listing this rule reads comes from the granted direct leading-token form:
 
@@ -103,26 +101,6 @@ drift with a remedy aimed at the wrong file — the run burns a loop chasing a m
 while silently reverting whatever a concurrent PR added. This rule hardcodes no artifact path and no
 command: both are read from `--list` at runtime, so the rule and the registry structurally cannot
 drift.
-
-## Batched artifact regeneration
-
-After applying edits and before each full-suite re-verify run, run the granted direct leading-token form once:
-
-```bash
-lib/test/regenerate-artifacts.py
-```
-
-Edits applied while addressing review findings drift the repo's checked-in generated records, so a fix batch that skips this pass pays an extra full-suite cycle per drifted artifact. The helper is the sole enumeration point for this repo's suite-owned generated artifacts, so this section deliberately lists no artifact inventory of its own — an inventory duplicated into prose is one that silently goes stale as artifacts are added.
-
-Act on its report before starting the suite run: commit a changed manifest together with the edits that caused it, and resolve every printed exit-1-forcing judgment item under the governing policy that item names. Informational lines require reading, not action.
-
-**If the helper reports an INFRASTRUCTURE failure (its final line names it, and the run exits 2), at least one artifact was NEVER CHECKED.** Do not read those lines as informational: an unchecked artifact is unknown, not clean, and the report names the row that failed. Treat the batched pass as **undischarged** — record `batched-regeneration: skipped` naming the failing row (the pass ran but established nothing, so it discharges exactly as a skipped pass does), and fall back to the status-quo serial discovery for that artifact. Never record `run` on an exit-2 report.
-
-**The unchecked verdict is residual, not an enumeration of the helper's declared states.** Any outcome that is not a clean exit 0 carrying a per-row line for every registered row — a traceback, an empty report, a truncated one, an exit code you cannot attribute — is equally an unchecked pass, whether or not the literal `INFRASTRUCTURE` appears. Record `batched-regeneration: skipped` naming what you actually observed. Keying this on the enumerated tokens alone is what would let a novel failure shape read as "nothing to do". Note that an exit-2 run may still have **written**: any writing row that already completed has left its declared `writes` on disk, and the write surface is more than one file. Today that instance is a completed exact-module floor raise, which lands in `scripts/workflow-flight-recorder-registry.json` together with its coupled `lib/test/run.sh` operands — a raise and its call sites move as one unit. (The cloud-writer manifest is no longer written by this batched pass as of issue #1445 — `main` is its sole writer — so it is not among these instances.) Check for and commit every such regeneration even on an undischarged pass.
-
-If the runner's permission matcher refuses the invocation **twice**, stop — do not iterate variants of the command (the issue-401 two-denials discipline). Record the refusal in the workpad and proceed to the suite run: the batched pass then degrades to the status-quo serial discovery, which is slower but never a silent stall.
-
-On a run that maintains a workpad, record one discharge line before each full-suite run — `batched-regeneration: run|refused|skipped`. A compacted context that dropped this section then leaves an auditable gap rather than an undetectable silent revert to serial discovery.
 
 ## Focused test modules in direct reception passes
 
