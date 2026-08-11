@@ -57,6 +57,9 @@ import reception_identity as ri  # noqa: E402
 
 # gh is read only on the remote-trace arm; the Python gh-caller pattern (no probe).
 GH = os.environ.get("DEVFLOW_GH") or "gh"
+# git head for the offline CI-derived completion checks (issue #1611): a named
+# constant, not a string literal, so the #550 subprocess-head AST allowlist admits it.
+GIT = "git"
 
 # The eight tokens, in evaluation order (pass is the terminal affirmative).
 TOK_PASS = "pass"
@@ -828,6 +831,141 @@ def validate_implement_completion(
         rec = _require_object(record_path, "verification-flight")
         fresh = _claim_time_identity(claim_identity, repo_root)
         return _validate_implement_record(rec, fresh)
+    except Verdict as v:
+        return v.token, v.detail
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CI-derived implement-completion context (issue #1611) — the local/interactive
+# tier's second accepted evidence family
+# ─────────────────────────────────────────────────────────────────────────────
+# Issue #1607 made a CI reading this repository's local/interactive whole-suite
+# completion gate, but the mechanical `--status Complete` gate could express only an
+# in-environment verification-flight pass. This context is the second accepted
+# family: a local run that established a green required check for the commit it
+# pushed records that reading, and this validator accepts it — OFFLINE and
+# DETERMINISTICALLY. It performs no network call and no `gh` invocation: the decision
+# is a function of the record's fields, `git rev-parse HEAD`, and
+# `git status --porcelain` alone. It mints NO ninth token; every refusal maps onto
+# the closed ORDERED_TOKENS set in the same first-failing-class order the flight
+# context uses (missing -> stale -> not-pass). A malformed field shape is
+# missing-evidence; a SHA that does not match the current head, or a dirty tree, is
+# stale-candidate; a non-success conclusion is verification-not-pass.
+CI_SUCCESS_CONCLUSION = "success"
+_CI_REQUIRED_FIELDS = ("head_sha", "check_name", "conclusion", "run_url")
+
+
+def _is_full_hex_sha(value: object) -> bool:
+    """True only for exactly 40 lowercase-hex characters — the full head SHA shape.
+
+    A 7-char abbreviation (the shape `gh run list` silently matches nothing on), a
+    41-char string, and a 40-char string carrying an uppercase hex digit each return
+    False, so the caller routes them to a non-pass token rather than a false pass.
+    Hand-rolled rather than a regex because this module imports exactly the modules
+    it imports today (issue #1611 AC) — no `import re`.
+    """
+    return (
+        isinstance(value, str)
+        and len(value) == 40
+        and all(c in "0123456789abcdef" for c in value)
+    )
+
+
+def _ci_git_read(repo_root: "str | None", argv: "list[str]") -> str:
+    """Run `git <argv>` in `repo_root` with no shell (argv list, Windows-safe), and
+    return its stdout. A non-zero exit or an exec failure is an internal failure of
+    the check itself — not a verdict about the record — so it raises `_Internal`
+    (exit 2, no verdict line), exactly as the identity re-derivation does."""
+    try:
+        proc = subprocess.run(  # noqa: S603 - argv list, no shell
+            [GIT, *argv],
+            cwd=repo_root or os.getcwd(),
+            capture_output=True,
+            text=True,
+        )
+    except OSError as exc:
+        raise _Internal(f"ci_git_exec:{exc.__class__.__name__}")
+    if proc.returncode != 0:
+        raise _Internal(f"ci_git_rc:{argv[0]}:{proc.returncode}")
+    return proc.stdout
+
+
+def _validate_ci_record(record: object, repo_root: "str | None") -> "tuple[str, str]":
+    """The strict CI-derived completion checks over a decoded `record`.
+
+    Raises a Verdict on the first failing class; returns (TOK_PASS, detail) when the
+    record's fields are well-formed, its recorded head SHA equals `git rev-parse HEAD`
+    over a clean tree, and its recorded conclusion is a success. `record` is the
+    already-decoded payload object (any JSON type); a non-object and each missing or
+    malformed field are missing-evidence, so the caller may hand this any shape the
+    best-effort payload decoder produced.
+    """
+    # 1) missing-evidence — object shape and the presence/shape of every field.
+    if not isinstance(record, dict):
+        raise Verdict(
+            TOK_MISSING,
+            "CI completion record is not a JSON object (unclassifiable payload)",
+        )
+    for field in _CI_REQUIRED_FIELDS:
+        val = record.get(field)
+        if not isinstance(val, str) or not val.strip():
+            raise Verdict(
+                TOK_MISSING,
+                f"CI completion record field {field!r} is missing or not a "
+                f"nonempty string",
+            )
+    head_sha = record["head_sha"]
+    if not _is_full_hex_sha(head_sha):
+        raise Verdict(
+            TOK_MISSING,
+            f"CI completion record head_sha is not exactly 40 lowercase hex "
+            f"characters ({head_sha!r})",
+        )
+
+    # 2) stale-candidate — the recorded head must equal the current head over a
+    #    clean tree, so the reading describes the tree being finalized.
+    current_head = _ci_git_read(repo_root, ["rev-parse", "HEAD"]).strip()
+    if head_sha != current_head:
+        raise Verdict(
+            TOK_STALE,
+            "CI completion evidence predates the current head "
+            "(recorded head_sha differs from git rev-parse HEAD)",
+        )
+    porcelain = _ci_git_read(repo_root, ["status", "--porcelain"])
+    if porcelain.strip():
+        raise Verdict(
+            TOK_STALE,
+            "the working tree is not clean at gate time "
+            "(git status --porcelain is non-empty)",
+        )
+
+    # 3) verification-not-pass — the recorded conclusion must be a success.
+    if record["conclusion"] != CI_SUCCESS_CONCLUSION:
+        raise Verdict(
+            TOK_NOT_PASS,
+            f"CI check conclusion is {record['conclusion']!r}, "
+            f"not {CI_SUCCESS_CONCLUSION!r}",
+        )
+
+    return TOK_PASS, "CI-derived completion evidence current, clean, and successful"
+
+
+def validate_implement_completion_ci(
+    record: object,
+    repo_root: "str | None" = None,
+) -> "tuple[str, str]":
+    """Importable entry point used lazily by scripts/workpad.py's terminal gate for
+    the CI-derived evidence family (issue #1611).
+
+    `record` is the decoded payload object (workpad.py decodes the marker payload and
+    hands the result here). Returns (token, detail) — `token == TOK_PASS` only when
+    every class resolved affirmatively. A non-object and each missing/malformed field
+    are TOK_MISSING; a stale head or dirty tree is TOK_STALE; a non-success conclusion
+    is TOK_NOT_PASS. Raises `_Internal` (exit 2, no verdict) only when a git read
+    fails — an internal failure of the check, never a verdict about the record.
+    """
+    try:
+        return _validate_ci_record(record, repo_root)
     except Verdict as v:
         return v.token, v.detail
 

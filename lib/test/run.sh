@@ -6001,6 +6001,64 @@ assert_eq "#1348 CLI: a strip-then-Complete (resumed run) is refused (exit non-z
 assert_eq "#1348 CLI: the resumed-run refusal made NO PATCH" "yes" \
   "$([ -s "$S258/patchlog" ] && echo no || echo yes)"
 
+# ── issue #1611: CI-derived completion-evidence at the REAL CLI boundary ──────
+# The CI family (a local/interactive run's reading of a green required check, #1607)
+# validates OFFLINE against a real git repo (rev-parse HEAD + status --porcelain), so
+# this block stands up a git repo as --repo-root rather than the flight-fixture dir.
+# A CI body carries NO completion-verification marker; the CLI records the
+# completion-ci marker and finalizes in one --record-completion-evidence-ci call.
+S1611_ROOT="$(mktemp -d)"
+git -C "$S1611_ROOT" init -q -b main
+git -C "$S1611_ROOT" -c user.email=t@t -c user.name=t commit --allow-empty -qm init
+S1611_HEAD="$(git -C "$S1611_ROOT" rev-parse HEAD)"
+# CI body = the all-ticked shape minus the flight completion-verification marker row.
+# It (and the CLI's out/err/patchlog) live OUTSIDE the repo so its own tree stays
+# clean — the validator's `git status --porcelain` clean-tree check reads that repo.
+grep -v 'completion-verification:' "$S258/all-ticked.md" > "$S258/ci-body.md"
+
+run1611() {
+  local body="$1"; shift
+  : > "$S258/patchlog"
+  WP_BODY="$body" WP_PATCHLOG="$S258/patchlog" DEVFLOW_GH="$S258/gh" \
+    python3 "$WP_PY" update 999 --print-body \
+      --repo-root "$S1611_ROOT" "$@" >"$S258/out" 2>"$S258/err"
+  echo $?
+}
+
+# (a) A valid CI reading records the marker and finalizes Complete (exit 0, PATCH).
+_c="$(run1611 "$S258/ci-body.md" \
+  --record-completion-evidence-ci "$S1611_HEAD" "lib + python tests" success "https://x/runs/1" \
+  --status Complete)"
+assert_eq "#1611 CLI: a valid CI reading finalizes Complete (exit 0)" "0" "$_c"
+assert_eq "#1611 CLI: the CI finalize PATCHed Status → Complete" "yes" \
+  "$(grep -q '🎉 Complete' "$S258/out" && echo yes || echo no)"
+assert_eq "#1611 CLI: exactly one completion-ci marker, no flight marker" "yes" \
+  "$([ "$(grep -c 'completion-ci:' "$S258/out")" = "1" ] && ! grep -q 'completion-verification:' "$S258/out" && echo yes || echo no)"
+
+# (b) A non-success conclusion is refused with NO PATCH, naming verification-not-pass.
+_c="$(run1611 "$S258/ci-body.md" \
+  --record-completion-evidence-ci "$S1611_HEAD" "lib + python tests" failure "https://x/runs/1" \
+  --status Complete)"
+assert_eq "#1611 CLI: a failure-conclusion CI record is refused (exit non-zero)" "no" \
+  "$([ "$_c" = "0" ] && echo yes || echo no)"
+assert_eq "#1611 CLI: the failure-conclusion refusal made NO PATCH" "yes" \
+  "$([ -s "$S258/patchlog" ] && echo no || echo yes)"
+assert_eq "#1611 CLI: the failure refusal names verification-not-pass" "yes" \
+  "$(grep -q 'verification-not-pass' "$S258/err" && echo yes || echo no)"
+
+# (c) A stale SHA (not the current head) is refused with NO PATCH, naming stale-candidate.
+_c="$(run1611 "$S258/ci-body.md" \
+  --record-completion-evidence-ci "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" "lib + python tests" success "https://x/runs/1" \
+  --status Complete)"
+assert_eq "#1611 CLI: a stale-SHA CI record is refused (exit non-zero)" "no" \
+  "$([ "$_c" = "0" ] && echo yes || echo no)"
+assert_eq "#1611 CLI: the stale-SHA refusal made NO PATCH" "yes" \
+  "$([ -s "$S258/patchlog" ] && echo no || echo yes)"
+assert_eq "#1611 CLI: the stale-SHA refusal names stale-candidate" "yes" \
+  "$(grep -q 'stale-candidate' "$S258/err" && echo yes || echo no)"
+
+rm -rf "$S1611_ROOT"
+
 rm -rf "$S258" "$S258_ROOT"
 
 # ── issue #781: workpad-sourced acceptance criteria (acs / acs-resolve) ────────
@@ -46821,9 +46879,9 @@ assert_eq "#550 internal-error(no git repo): NO verdict line" "0" "$CCE_NL"
 
 # ── Semantic-judgment exclusion (code-reading obligation over the shipped source):
 #    the validator source spawns NO subprocess whose head is anything other than
-#    the resolved gh (constant GH — its single subprocess head, on the remote-trace
-#    arm); git runs only inside the imported reception_identity routine, so the
-#    "GIT" allowlist entry below is defensive and unexercised in this module. It
+#    the resolved gh (constant GH, on the remote-trace arm) or git (constant GIT,
+#    the issue-#1611 offline CI-derived completion checks — rev-parse HEAD / status
+#    --porcelain); git also runs inside the imported reception_identity routine. It
 #    re-grades no severity, re-runs no test suite. An AST negative, not a grep. ──
 CCE_SEMANTIC="$(python3 - "$CCE" <<'SEMEOF'
 import ast, sys

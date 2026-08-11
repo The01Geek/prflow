@@ -228,6 +228,9 @@ def make_args(**overrides):
         # issue #1087 completion verification-flight evidence — `_apply_mutations`
         # and the terminal gate read these on every call.
         record_completion_evidence=None, repo_root=None, claim_identity=None,
+        # issue #1611 CI-derived completion evidence — `_apply_mutations` and the
+        # terminal gate read this on every call.
+        record_completion_evidence_ci=None,
         # issue #1347 inherited required-artifact strip — read on every call.
         strip_inherited_checkpoints=False,
         # issue #1453 review-coverage record + dispositions — read on every call.
@@ -28508,6 +28511,207 @@ try:
         assert_eq("#1087 standalone-copy NON-Complete update still PATCHes", True, _patchedB is not None)
     finally:
         workpad._load_completion_validator = _saved_loader
+finally:
+    workpad._completion_evidence_verdict = lambda args, prog_content: None
+
+
+print("issue #1611: CI-derived completion-evidence gate")
+
+# The CI validator does REAL git reads (rev-parse HEAD + status --porcelain) against
+# a repo_root — no mock of subprocess/git, per the issue's testing strategy. Build a
+# real temporary repository with one commit.
+def _make_ci_repo():
+    root = _tmp1087.mkdtemp()
+    _subprocess.run(['git', 'init', '-q', '-b', 'main', root], check=True)
+    _subprocess.run(['git', 'config', 'user.email', 't@e'], cwd=root, check=True)
+    _subprocess.run(['git', 'config', 'user.name', 't'], cwd=root, check=True)
+    with open(os.path.join(root, 'f.txt'), 'w') as _fh:
+        _fh.write('x\n')
+    _subprocess.run(['git', 'add', 'f.txt'], cwd=root, check=True)
+    _subprocess.run(['git', 'commit', '-qm', 'init'], cwd=root, check=True)
+    _h = _subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=root,
+                         capture_output=True, text=True, check=True).stdout.strip()
+    return root, _h
+
+
+_ci_root, _ci_head = _make_ci_repo()
+
+
+def _ci_rec(**over):
+    base = {'head_sha': _ci_head, 'check_name': 'lib + python tests',
+            'conclusion': 'success', 'run_url': 'https://github.com/o/r/actions/runs/1'}
+    base.update(over)
+    return base
+
+
+# ── _is_full_hex_sha unit ────────────────────────────────────────────────────
+assert_eq("#1611 _is_full_hex_sha true for 40 lowercase hex", True, cce._is_full_hex_sha('a' * 40))
+assert_eq("#1611 _is_full_hex_sha false for uppercase", False, cce._is_full_hex_sha('A' * 40))
+assert_eq("#1611 _is_full_hex_sha false for 39-char", False, cce._is_full_hex_sha('a' * 39))
+assert_eq("#1611 _is_full_hex_sha false for 41-char", False, cce._is_full_hex_sha('a' * 41))
+assert_eq("#1611 _is_full_hex_sha false for non-str", False, cce._is_full_hex_sha(None))
+
+# ── payload encode/decode round-trip (workpad side) ──────────────────────────
+_rt = workpad._decode_ci_payload(workpad._encode_ci_payload({'k': 'v', 'n': 1}))
+assert_eq("#1611 CI payload round-trips through base64url-unpadded JSON", {'k': 'v', 'n': 1}, _rt)
+assert_eq("#1611 corrupt CI payload decodes to None (fail closed)", None,
+          workpad._decode_ci_payload('!!!not-base64!!!'))
+
+# ── validator unit: pass at HEAD over a clean tree ───────────────────────────
+_t, _d = cce.validate_implement_completion_ci(_ci_rec(), _ci_root)
+assert_eq("#1611 well-formed CI record at HEAD over clean tree → pass", "pass", _t)
+
+# SHA != HEAD → stale-candidate.
+_t, _d = cce.validate_implement_completion_ci(_ci_rec(head_sha='b' * 40), _ci_root)
+assert_eq("#1611 CI record SHA != HEAD → stale-candidate", "stale-candidate", _t)
+
+# Dirty tree → stale-candidate (then restore clean for later assertions).
+with open(os.path.join(_ci_root, 'f.txt'), 'a') as _fh:
+    _fh.write('dirty\n')
+_t, _d = cce.validate_implement_completion_ci(_ci_rec(), _ci_root)
+assert_eq("#1611 CI record over a dirty tree → stale-candidate", "stale-candidate", _t)
+_subprocess.run(['git', 'checkout', '--', 'f.txt'], cwd=_ci_root, check=True)
+
+# conclusion sweep: each non-success → verification-not-pass.
+for _c in ('failure', 'cancelled', 'skipped', 'neutral'):
+    _t, _d = cce.validate_implement_completion_ci(_ci_rec(conclusion=_c), _ci_root)
+    assert_eq(f"#1611 CI conclusion {_c!r} → verification-not-pass", "verification-not-pass", _t)
+# absent conclusion field → missing-evidence.
+_r = _ci_rec()
+del _r['conclusion']
+_t, _d = cce.validate_implement_completion_ci(_r, _ci_root)
+assert_eq("#1611 absent conclusion field → missing-evidence", "missing-evidence", _t)
+
+# missing each required field in turn → missing-evidence.
+for _f in ('head_sha', 'check_name', 'conclusion', 'run_url'):
+    _r = _ci_rec()
+    del _r[_f]
+    _t, _d = cce.validate_implement_completion_ci(_r, _ci_root)
+    assert_eq(f"#1611 missing field {_f} → missing-evidence", "missing-evidence", _t)
+
+# malformed SHA shapes → missing-evidence (shape checked before staleness).
+for _bad, _lbl in [(_ci_head[:7], "abbrev-7"),
+                   ('A' + _ci_head[1:], "uppercase-hex"),
+                   (_ci_head + '0', "41-char")]:
+    _t, _d = cce.validate_implement_completion_ci(_ci_rec(head_sha=_bad), _ci_root)
+    assert_eq(f"#1611 SHA shape {_lbl} → missing-evidence", "missing-evidence", _t)
+
+# best-effort payload matrix: every non-object shape → missing-evidence, no traceback.
+for _bad, _lbl in [([1, 2], "array"), ("scalar", "scalar-str"), (5, "scalar-int"),
+                   (None, "null"), (False, "false"), (0, "zero"), ("", "empty-str")]:
+    _t, _d = cce.validate_implement_completion_ci(_bad, _ci_root)
+    assert_eq(f"#1611 non-object payload {_lbl} → missing-evidence", "missing-evidence", _t)
+
+# ORDERED_TOKENS unchanged; every CI verdict token is in the closed set.
+assert_eq("#1611 ORDERED_TOKENS still exactly 8 members", 8, len(cce.ORDERED_TOKENS))
+for _tk in ('pass', 'missing-evidence', 'stale-candidate', 'verification-not-pass'):
+    assert_eq(f"#1611 CI token {_tk} is in ALL_TOKENS", True, _tk in cce.ALL_TOKENS)
+
+# ── workpad terminal-gate integration (real verdict) ─────────────────────────
+_enc_ci = workpad._encode_ci_payload(_ci_rec(check_name='c'))
+workpad._completion_evidence_verdict = _REAL_COMPLETION_EVIDENCE_VERDICT
+try:
+    _ci_ok = [_ci_head, 'lib + python tests', 'success',
+              'https://github.com/o/r/actions/runs/1']
+
+    # Recording a valid CI marker, then finalizing, PATCHes once.
+    _code, _out, _err, _patched = _drive_cmd_update(
+        GATE_BODY, status='Complete', record_completion_evidence_ci=_ci_ok,
+        repo_root=_ci_root)
+    assert_eq("#1611 Complete WITH a validated CI marker exits 0", None, _code)
+    assert_eq("#1611 Complete with a valid CI marker PATCHes (🎉 Complete)", True,
+              _patched is not None and '🎉 Complete' in _patched)
+    assert_eq("#1611 exactly one completion-ci marker is written", 1,
+              _patched.count('completion-ci:'))
+
+    # Idempotent replay: re-finalize the recorded body keeps exactly one CI marker.
+    _c2, _o2, _e2, _p2 = _drive_cmd_update(_patched, status='Complete', repo_root=_ci_root)
+    assert_eq("#1611 replay: a second Complete over the CI marker exits 0", None, _c2)
+    assert_eq("#1611 replay: still exactly one completion-ci marker", 1,
+              _p2.count('completion-ci:'))
+
+    # Recording a CI marker twice (no finalize) leaves exactly one row.
+    _cA, _oA, _eA, _bA = _drive_cmd_update(
+        GATE_BODY, record_completion_evidence_ci=_ci_ok, repo_root=_ci_root)
+    _cB, _oB, _eB, _bB = _drive_cmd_update(
+        _bA, record_completion_evidence_ci=_ci_ok, repo_root=_ci_root)
+    assert_eq("#1611 recording a CI marker twice leaves exactly one row", 1,
+              _bB.count('completion-ci:'))
+
+    # SHA != HEAD aborts before PATCH (no PATCH), naming stale-candidate.
+    _cS, _oS, _eS, _pS = _drive_cmd_update(
+        GATE_BODY, status='Complete', repo_root=_ci_root,
+        record_completion_evidence_ci=['b' * 40, 'c', 'success', 'u'])
+    assert_eq("#1611 recording a stale-SHA CI record aborts (no PATCH)", None, _pS)
+    assert_eq("#1611 the stale-SHA abort names stale-candidate", True, 'stale-candidate' in _eS)
+
+    # A dirty tree at record time aborts before PATCH.
+    with open(os.path.join(_ci_root, 'f.txt'), 'a') as _fh:
+        _fh.write('dirty2\n')
+    _cD, _oD, _eD, _pD = _drive_cmd_update(
+        GATE_BODY, status='Complete', record_completion_evidence_ci=_ci_ok,
+        repo_root=_ci_root)
+    assert_eq("#1611 recording a CI record over a dirty tree aborts (no PATCH)", None, _pD)
+    assert_eq("#1611 the dirty-tree abort names stale-candidate", True, 'stale-candidate' in _eD)
+    _subprocess.run(['git', 'checkout', '--', 'f.txt'], cwd=_ci_root, check=True)
+
+    # A non-success conclusion aborts before PATCH, naming verification-not-pass.
+    _cF, _oF, _eF, _pF = _drive_cmd_update(
+        GATE_BODY, status='Complete', repo_root=_ci_root,
+        record_completion_evidence_ci=[_ci_head, 'c', 'failure', 'u'])
+    assert_eq("#1611 recording a failure-conclusion CI record aborts (no PATCH)", None, _pF)
+    assert_eq("#1611 the failure abort names verification-not-pass", True,
+              'verification-not-pass' in _eF)
+
+    # A malformed SHA aborts before PATCH.
+    _cM, _oM, _eM, _pM = _drive_cmd_update(
+        GATE_BODY, status='Complete', repo_root=_ci_root,
+        record_completion_evidence_ci=[_ci_head[:7], 'c', 'success', 'u'])
+    assert_eq("#1611 recording a malformed-SHA CI record aborts (no PATCH)", None, _pM)
+
+    # ── cross-family combined-count via the verdict function directly ──────────
+    _mk = lambda: make_args(repo_root=_ci_root)
+    # zero markers of either family → missing-evidence refusal.
+    try:
+        workpad._completion_evidence_verdict(_mk(), "- [x] nothing here\n")
+        _raised, _msg = False, ''
+    except workpad._UpdateError as _e:
+        _raised, _msg = True, str(_e)
+    assert_eq("#1611 verdict: zero markers of either family → refuse (missing-evidence)",
+              True, _raised and 'missing-evidence' in _msg)
+
+    # one flight + one CI marker → multiple-marker refusal (counted across families).
+    _pc_both = ('- [x] a <!-- prflow:checkpoint completion-verification:%s -->\n'
+                '- [x] b <!-- prflow:checkpoint completion-ci:%s -->\n'
+                % ('a' * 64, _enc_ci))
+    try:
+        workpad._completion_evidence_verdict(_mk(), _pc_both)
+        _raised, _msg = False, ''
+    except workpad._UpdateError as _e:
+        _raised, _msg = True, str(_e)
+    assert_eq("#1611 verdict: one flight + one CI → multiple-marker refusal",
+              True, _raised and 'exactly one' in _msg)
+
+    # two CI markers → multiple-marker refusal.
+    _pc_two = ('- [x] a <!-- prflow:checkpoint completion-ci:%s -->\n'
+               '- [x] b <!-- prflow:checkpoint completion-ci:%s -->\n' % (_enc_ci, _enc_ci))
+    try:
+        workpad._completion_evidence_verdict(_mk(), _pc_two)
+        _raised = False
+    except workpad._UpdateError:
+        _raised = True
+    assert_eq("#1611 verdict: two CI markers → multiple-marker refusal", True, _raised)
+
+    # Both marker spellings recognised for the CI family: a single valid marker in
+    # either spelling validates to a clean pass (no raise).
+    for _spell in ('prflow', 'devflow'):
+        _pc_one = '- [x] a <!-- %s:checkpoint completion-ci:%s -->\n' % (_spell, _enc_ci)
+        try:
+            workpad._completion_evidence_verdict(_mk(), _pc_one)
+            _ok = True
+        except workpad._UpdateError:
+            _ok = False
+        assert_eq(f"#1611 verdict: single valid {_spell}: CI marker → clean pass", True, _ok)
 finally:
     workpad._completion_evidence_verdict = lambda args, prog_content: None
 
