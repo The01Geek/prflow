@@ -6,6 +6,10 @@
       "recorded_bytes": 81869
     },
     {
+      "path": "skills/implement/SKILL.md",
+      "recorded_bytes": 62418
+    },
+    {
       "path": "skills/implement/phases/phase-2-implement.md",
       "recorded_bytes": 134965
     },
@@ -29,6 +33,10 @@
   "exemptions": [
     {
       "path": "skills/create-issue/references/step-3-6-audit.md",
+      "expires_when": "the file's size is at or under the ceiling this check derives; remove this row then"
+    },
+    {
+      "path": "skills/implement/SKILL.md",
       "expires_when": "the file's size is at or under the ceiling this check derives; remove this row then"
     },
     {
