@@ -29998,6 +29998,11 @@ assert_eq("#1580 an unparseable disposition verdict is undischarged",
 # whitespace-and-paren rejects `no, <reason>` and hard-blocks a compliant criterion.
 assert_eq("#1580 a hyphen-attached word after the verdict does not parse as a verdict",
           (None, ""), reconcile_ac.parse_disposition("no-op, nothing to coordinate"))
+# The same class as `no-op`, and the likelier producer output: an ordinary prose word
+# that merely begins with the verdict token states no disposition.
+for _adjacent in ("yesish (x)", "noted (x)", "nope (x)"):
+    assert_eq(f"#1580 {_adjacent!r} does not parse as a verdict",
+              (None, ""), reconcile_ac.parse_disposition(_adjacent))
 for _punct, _rest in ((",", "nothing to coordinate"), (".", "the criterion runs none"),
                       (";", "not applicable"), (":", "no command")):
     assert_eq(f"#1580 a verdict followed by {_punct!r} still parses",
@@ -30148,10 +30153,8 @@ assert_eq("#1580 an unparseable slot is absent from the carried disposition map"
 assert_eq("#1580 the parsed slots beside it still ride into the map",
           True, reconcile_ac.EVIDENCE_SLOTS[0] in _partial_map)
 
-# The breadcrumbs are the operand that tells a SHAPE defect from a diligence gap, so the
-# orchestrator's re-dispatch remedy is not looped against a malformed producer. Deleting
-# any of them leaves every status assertion above green, so assert them directly — and
-# assert the silent case too, or a breadcrumb on every absent slot would pass as well.
+# Do not delete a breadcrumb assertion: every status assertion above stays green without
+# them, and the silent-case assertion is what stops a breadcrumb-on-every-slot regression.
 def _disp_stderr(record, slots, side):
     """(undischarged, stderr) for one `_dispositions_of` call."""
     _buf = io.StringIO()
@@ -30230,6 +30233,35 @@ assert_eq("#1580 the side's concluded verdict survives the override",
           "unmet", _unmet_rec["evidence_status_reported"])
 assert_eq("#1580 a side with no attestation gap reports the same status both ways",
           "unmet", _unmet_rec["claim_status_reported"])
+# The override emits its own breadcrumb — the only run-time signal naming WHICH side was
+# downgraded. Deleting it leaves every assertion here green.
+_ovr_buf = io.StringIO()
+with contextlib.redirect_stderr(_ovr_buf):
+    reconcile_ac.reconcile(
+        [{"criterion": 1, "status": "unmet", "evidence": "x",
+          "dispositions": _ev_unmet}],
+        [{"criterion": 1, "status": "unmet", "evidence": "y",
+          "dispositions": _CL_D}])
+assert_eq("#1580 the forced-unestablished override names the side that concluded",
+          True, "the evidence report concluded 'unmet'" in _ovr_buf.getvalue())
+# A side that concluded `unestablished` and also dropped a slot emits no override
+# breadcrumb — the status did not change, so there is nothing to report.
+_une_buf = io.StringIO()
+with contextlib.redirect_stderr(_une_buf):
+    reconcile_ac.reconcile(
+        [{"criterion": 1, "status": "unestablished", "evidence": "x",
+          "dispositions": _ev_unmet}], [])
+assert_eq("#1580 no override breadcrumb when the concluded status was already "
+          "unestablished", False, "concluded" in _une_buf.getvalue())
+# `*_status_reported` is normalized, so out-of-vocabulary agent text cannot leak into the
+# field the restate-vs-fix routing reads.
+assert_eq("#1580 a bogus reported status normalizes rather than leaking",
+          "unestablished",
+          reconcile_ac.reconcile(
+              [{"criterion": 1, "status": "probably", "evidence": "x",
+                "dispositions": _ev_unmet}],
+              [{"criterion": 1, "status": "unmet", "evidence": "y",
+                "dispositions": _CL_D}])["criteria"][0]["evidence_status_reported"])
 # An absent record reports `unestablished` on both, so the field never invents a verdict.
 assert_eq("#1580 an absent record reports no concluded verdict",
           "unestablished",

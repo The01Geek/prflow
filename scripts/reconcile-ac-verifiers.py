@@ -77,22 +77,15 @@ import sys
 VALID_STATUSES = ("satisfied", "unmet", "unestablished")
 BLOCKING_STATUSES = ("unmet", "unestablished")
 
-# Named steps of each verifier's own charter, one disposition per slot per criterion
-# (issue #1580). The vocabularies are per side because the two charters name different
-# steps; `evidence-recorded` is the one both carry, because both charters state the
-# same evidence-pointer rule. Renaming or dropping a slot here without the matching
-# edit to agents/ac-evidence-verifier.md / agents/ac-claim-verifier.md leaves the
-# charter asking for a slot this gate never checks, or checking one it never asks for.
+# Do not rename or drop a slot without the matching edit to the `| Slot |` table AND the
+# worked example in agents/ac-evidence-verifier.md / agents/ac-claim-verifier.md: the
+# gate would then check a slot the charter never asks for, blocking every criterion.
 EVIDENCE_SLOTS = ("type-decided", "command-run", "single-flight", "evidence-recorded")
 CLAIM_SLOTS = ("claim-traced", "command-source-read", "evidence-recorded")
 
-# `<verdict> <reason>` — the verdict-plus-reason convention the writing-skills evidence
-# marker uses. The lookahead admits ordinary punctuation after the verdict but NOT `-`:
-# `no-op, nothing to coordinate` would otherwise parse as the verdict `no` with the
-# reason `-op, …`, discharging a slot from a value that states no disposition. Do not
-# narrow it back to whitespace-and-paren only — that rejects `no, <reason>` and
-# `no. <reason>`, which state a verdict and a reason, and hard-blocks a compliant
-# criterion over a punctuation choice.
+# Do not widen the lookahead to admit `-` (`no-op, …` would discharge a slot), nor
+# narrow it to whitespace-and-paren (`no, <reason>` would be rejected, hard-blocking a
+# compliant criterion). Both directions are pinned.
 _DISPOSITION_RE = re.compile(r"^(yes|no)(?=$|[\s(,;:.])(.*)$",
                              re.IGNORECASE | re.DOTALL)
 
@@ -100,10 +93,9 @@ _DISPOSITION_RE = re.compile(r"^(yes|no)(?=$|[\s(,;:.])(.*)$",
 # omitted key, and only the null is breadcrumbed as a stated-but-unparseable value.
 _ABSENT = object()
 
-# Marks a record `_index_by_criterion` synthesized to fail a duplicate closed. The VALUE
-# is an identity-checked sentinel, never a truthy literal: the key shares a namespace
-# with agent-authored report fields, so a bare `True` would let a report forge it and
-# blank its own audit fields.
+# Do not compare this marker by truthiness: the key shares a namespace with
+# agent-authored report fields, so a report could forge it and blank its own audit
+# fields. The VALUE is identity-checked against the sentinel below.
 _POISONED = "_reconcile_poisoned"
 _POISON_TOKEN = object()
 
