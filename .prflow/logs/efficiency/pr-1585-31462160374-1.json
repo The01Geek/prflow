@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1585",
+  "generated_at": "2026-08-11T05:45:09Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.30",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 5.935713750000001,
+    "tokens": {
+      "input_tokens": 47,
+      "output_tokens": 19746,
+      "cache_read_input_tokens": 3200635,
+      "cache_creation_input_tokens": 148578,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 121,
+        "outputTokens": 40970,
+        "cacheReadInputTokens": 5227970,
+        "cacheCreationInputTokens": 278353,
+        "webSearchRequests": 0,
+        "costUSD": 5.935713750000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 28,
+    "duration_ms": 473943
+  },
+  "permission_denials": {
+    "count": 16,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      "echo \"$CLAUDE_SKILL_DIR\"",
+      "echo \"=== stubs: any surviving Entry-gate paragraphs? ===\" ; grep -nc 'Entry-gate (mandatory' skills/implement/SKILL.md ; echo \"=== per-phase framing literal (should be 0 in SKILL.md) ===\" ; grep -cF 'before any Phase' skills/implement/SKILL.md ; grep -cF 'halt Phase ' skills/implement/SKILL.md ; echo \"=== collapsed gate literals present? ===\" ; grep -cF 'before taking any action in it' skills/implement/SKILL.md ; grep -cF 'halt that phase with an attributable breadcrumb' skills/implement/SKILL. …[per-command-truncated]",
+      "git fetch origin cd15f45d5cb48bd36feb722633b5ae888f295aad 2>&1 | tail -1 ; echo \"=== at PR HEAD ===\" ; git show cd15f45d5cb48bd36feb722633b5ae888f295aad:skills/implement/SKILL.md > .prflow/tmp/review/pr-1585/local-run/skill-head.md ; echo \"Entry-gate(mandatory):\"; grep -cF 'Entry-gate (mandatory' .prflow/tmp/review/pr-1585/local-run/skill-head.md; echo \"before any Phase:\"; grep -cF 'before any Phase' .prflow/tmp/review/pr-1585/local-run/skill-head.md; echo \"halt Phase :\"; grep -cF 'halt Phase '  …[per-command-truncated]",
+      "for s in phase-1-setup phase-2-implement phase-3-review phase-4-documentation; do c=$(git show cd15f45d5cb48bd36feb722633b5ae888f295aad:skills/implement/SKILL.md | grep -cF '`'\"$s.md\"'`'); echo \"$s.md backticked count: $c\"; done",
+      "git show cd15f45d5cb48bd36feb722633b5ae888f295aad:skills/implement/SKILL.md > /tmp/impl.md; for s in phase-1-setup phase-2-implement phase-3-review phase-4-documentation; do c=$(grep -cF -- \"\\`$s.md\\`\" /tmp/impl.md); echo \"$s.md : $c\"; done",
+      "git show cd15f45d5cb48bd36feb722633b5ae888f295aad:lib/test/run.sh > /tmp/run_head.sh && echo \"=== before any Phase ===\" && grep -nF 'before any Phase' /tmp/run_head.sh && echo \"=== halt Phase ===\" && grep -nF 'halt Phase ' /tmp/run_head.sh && echo \"=== REVIEW_PHASE_STEMS ===\" && grep -nF 'REVIEW_PHASE_STEMS' /tmp/run_head.sh | head",
+      "git show cd15f45d5cb48bd36feb722633b5ae888f295aad:skills/implement/SKILL.md > /tmp/impl.md\ngrep -oF -- 'phase-1-setup.md' /tmp/impl.md | wc -l\ngrep -oF -- 'phase-2-implement.md' /tmp/impl.md | wc -l\ngrep -oF -- 'phase-3-review.md' /tmp/impl.md | wc -l\ngrep -oF -- 'phase-4-documentation.md' /tmp/impl.md | wc -l",
+      "git show cd15f45d5cb48bd36feb722633b5ae888f295aad:lib/test/run.sh > /tmp/run_head.sh; git show cd15f45d5cb48bd36feb722633b5ae888f295aad:skills/implement/SKILL.md > /tmp/skill_head.md; echo done",
+      "git show cd15f45d5cb48bd36feb722633b5ae888f295aad:skills/implement/SKILL.md > /tmp/impl.md; echo done",
+      "git show cd15f45d5cb48bd36feb722633b5ae888f295aad:lib/test/run.sh > /tmp/run_head.sh",
+      "git show cd15f45d5cb48bd36feb722633b5ae888f295aad:skills/implement/SKILL.md > /tmp/skill_head.md",
+      "git show cd15f45d5cb48bd36feb722633b5ae888f295aad:skills/implement/SKILL.md > /home/runner/work/prflow/prflow/.prflow/tmp/impl-head.md; echo saved",
+      "git show cd15f45d5cb48bd36feb722633b5ae888f295aad:lib/test/run.sh > /home/runner/work/prflow/prflow/.prflow/tmp/run_head.sh; git show cd15f45d5cb48bd36feb722633b5ae888f295aad:skills/implement/SKILL.md > /home/runner/work/prflow/prflow/.prflow/tmp/skill_head.md; wc -l /home/runner/work/prflow/prflow/.prflow/tmp/run_head.sh",
+      "git show cd15f45d5cb48bd36feb722633b5ae888f295aad:lib/test/run.sh > /home/runner/work/prflow/prflow/.prflow/tmp/run_head.sh",
+      "for s in phase-1-setup phase-2-implement phase-3-review phase-4-documentation; do n=$(git show cd15f45d5cb48bd36feb722633b5ae888f295aad:skills/implement/SKILL.md | grep -cF '`'\"$s.md\"'`'); echo \"$s : $n\"; done"
+    ],
+    "total": 16,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
