@@ -3,10 +3,12 @@
 **What this is.** A dated, observed record of whether the **Skill tool's initial load** delivers a
 large `SKILL.md` body whole or truncates it, produced by a control-based probe run on 2026-08-11
 against the bodies this repository actually ships (issue #1596). It exists because the question was
-load-bearing and unanswered: `CLAUDE.md` records silent prompt truncation as this repository's most
-expensive documented failure, every `Read` of a `phases/*.md` reference is protected by a fail-closed
-boundary gate, and no `SKILL.md` root carries those markers — so the root was the one prompt surface
-with no delivery check at all.
+load-bearing and unanswered: `CLAUDE.md` records a silent prompt truncation that cost a whole run
+(the `| head -60` case, which truncated away a Phase 3 gate while the run still reported
+`Complete`), and issue #1596 characterises that class as this repository's most expensive documented
+failure. Every `Read` of a `phases/*.md` reference is protected by a fail-closed boundary gate, and
+no `SKILL.md` root carries those markers — so the root was the one prompt surface with no delivery
+check at all.
 
 **Status: past-time snapshot.** This is a *dated observation of one runner version*, not a
 specification and not a platform contract. Under `CLAUDE.md`'s *prefer-generated-evidence*
@@ -56,8 +58,11 @@ They coincide numerically and govern nothing in common.
 ### What vendor documentation says about post-compaction re-attachment
 
 Attributed to Anthropic's `code.claude.com/docs/en/skills`, "Skill content lifecycle" — **vendor
-documentation, not an observation taken here**. Quoted verbatim from that page as fetched
-2026-08-11 while producing this record, not carried from a second-hand citation:
+documentation, not an observation taken here**. Quoted from that page as fetched 2026-08-11 while
+producing this record. That the fetch happened, rather than the text being carried from issue
+#1596's own citation of it, is a transcript fact of the producing session and is testimony in the
+same sense as the Verdict column below; what a later reader can re-derive is the quote's accuracy
+against the live page, not its provenance here:
 
 > When the conversation is summarized to free context, Claude Code re-attaches the most recent
 > invocation of each skill after the summary, keeping the first 5,000 tokens of each. Re-attached
@@ -86,10 +91,12 @@ Observed twice, in this repository, by the truncation notice `Read` itself emits
 - `skills/implement/phases/phase-1-setup.md` → `showing lines 1-355 of 430 total (25678 tokens, cap 25000)`
 - `skills/create-issue/references/step-3-6-audit.md` → `showing lines 1-299 of 399 total (28356 tokens, cap 25000)`
 
-Both were re-observed while producing this page: the first fired on this run's own Phase 1 read of
-`phase-1-setup.md`, reported as `showing lines 1-344 of 430 total (26496 tokens, cap 25000)`. The
-line split differs from the recorded figure because the cap is applied in tokens against a file
-whose bytes have changed; the cap itself reads `25000` in both.
+The first of the two was re-observed while producing this page — it fired on this run's own Phase 1
+read of `phase-1-setup.md`, reported as `showing lines 1-344 of 430 total (26496 tokens, cap 25000)`.
+Its line split differs from the recorded figure because the cap is applied in tokens against a file
+whose bytes have changed; the cap reads `25000` in the earlier reading of that file and in this
+run's. The `step-3-6-audit.md` figure was **not** re-observed here and is carried from the record
+above.
 
 ---
 
@@ -101,7 +108,7 @@ Every measurable body was delivered **whole**, the largest of them well above ev
 play. (No comparison is drawn against the 66,044-*character* figure in the outage record — see
 *The 66,044-character figure is testimony* below for why.)
 
-| `SKILL.md` | File bytes | Delivered payload bytes | Control | Verdict | Channel | Observed |
+| `SKILL.md` | File bytes | File bytes less frontmatter (derived) | Control | Verdict | Channel | Observed |
 |---|---|---|---|---|---|---|
 | `skills/retrospective-weekly/SKILL.md` † | 83,427 | 83,030 | present | **delivered whole** | Skill tool, dispatched local subagent | 2026-08-11 / A |
 | `skills/review/SKILL.md` | 65,822 | 65,214 | present | **delivered whole** | Skill tool, dispatched local subagent | 2026-08-11 / A |
@@ -146,11 +153,15 @@ slash-command delivery is unobserved.
 ### One observed transformation — the delivered payload is not the file
 
 On every successful load the delivered body was the file **minus its YAML frontmatter**, with a
-`Base directory for this skill: <absolute path>` line prepended in its place. The *Delivered payload
-bytes* column above is the file's bytes less its frontmatter block; it excludes the prepended line,
-whose length varies with the install path. This matters for one reason only: a size instrument that
-measures file bytes is measuring slightly **more** than the loader delivers, so it is conservative
-in the safe direction. Nothing on this page depends on the difference.
+`Base directory for this skill: <absolute path>` line prepended in its place.
+
+**That column is derived from the file, never counted from the returned body** — which is why it is
+headed *derived* and why it is **not** evidence of whole delivery. It is the file's bytes less its
+frontmatter block **and the blank line that follows the closing `---`** (`implement`, which has no
+such blank line, is the one row where the simpler rule and the applied rule coincide); it excludes
+the prepended base-directory line, whose length varies with the install path. Nothing about whole
+delivery rests on it. Its one use is that a size instrument measuring file bytes measures slightly
+**more** than the loader delivers, so such an instrument is conservative in the safe direction.
 
 ### The control, and what would falsify each verdict
 
@@ -160,9 +171,14 @@ short to be distinctive. The control is
 checked **by the loading session itself**, against the body the Skill tool returned and nothing
 else, before that session is permitted to open the file.
 
-A body delivered whole ends with its control. **Truncation removes the tail**, so a truncated
-delivery cannot contain it. Each loading session additionally quoted the final twelve lines of the
-body it received, and those quotes were reconciled against `tail -n 12` on the file afterwards.
+A body delivered whole ends with its control, so a delivery truncated **at the tail** cannot contain
+it. Each loading session additionally quoted the final twelve lines of the body it received, and
+those quotes were reconciled against `tail -n 12` on the file afterwards.
+
+**This detects tail truncation only, and that is a real limit rather than a formality.** That a
+loader which drops content drops it from the end is an assumption about failure geometry, not
+something observed here — so an elision from the *middle* of a body, with the tail intact, would
+pass every check above. Nothing on this page rules that out.
 
 **What would falsify a `delivered whole` verdict**, any one of:
 
@@ -185,10 +201,21 @@ loading that it had not, and reported afterwards that the Skill-tool load was th
 channel by which the content reached it. Each then ran `tail -n 12` as post-hoc verification and
 labelled it as such. So none of the three is unestablished on this ground.
 
-The one read-history caveat, stated rather than buried: the **recorder** of this page (the
-orchestrating session) held each control line before dispatching, having extracted it with
-`tail -n 2`. The recorder is not a loading session and checked no control; the loading sessions were
-clean.
+**The `implement` row is the fourth delivered-whole verdict and does not meet that standard — its
+read history is stated here rather than left implicit.** For that row the recorder *is* the loading
+session, so the two roles are not separated as they are above. The ordering was: the body arrived at
+session start via the slash-command expansion, ahead of the session's first file read; the recorder
+then extracted the control from disk with `tail -n 1` and compared it against the body already in
+context. Contamination of the *body* is therefore impossible — it was fixed before any disk read —
+but the check was not blind, because the session that checked the control had by then seen that line
+of the file. **Record it as a weaker verdict class than the `review`, `retrospective-weekly` and
+`receiving-code-review` rows**: whole delivery is
+established for it against a control the checking session had already seen, which is enough to rule
+out truncation of that line and not enough to match the blind protocol above.
+
+The recorder's role in the subagent-observed rows is the mirror image and carries no such caveat: it
+held their control lines before dispatching, having extracted them with `tail -n 2`, but it is not
+their loading session and checked none of their controls.
 
 ### The condition of the loading session's own governing body
 
@@ -210,15 +237,17 @@ this run could check directly, and it is 61,039 bytes.
 ## What this settles, in bytes
 
 **Expressed in the same unit as the two numbers already in play** — raw on-disk file bytes,
-`len(read_bytes())`, which is exactly the instrument `lib/test/lint-reference-size.py` applies and
-exactly the unit `scripts/prompt-surface-growth.py` reports (it reads the git blob size, the same
-quantity from the committed tree). No conversion is involved anywhere on this page.
+`len(read_bytes())`, which is exactly the instrument `lib/test/lint-reference-size.py` applies **on
+the unmerged `worktree-issue-1595` branch** — it is not in this tree; see the guard's status below —
+and exactly the unit `scripts/prompt-surface-growth.py` reports here (it reads the git blob size,
+the same quantity from the committed tree). No conversion is involved anywhere on this page.
 
 - **No initial-load ceiling exists at or below 83,427 bytes** on the observed tier, channel and
   runner version. That is a **floor on any ceiling**, not a ceiling: this observation cannot say
   where a ceiling is, only that there is none below the largest body measured.
-- **As observed on 2026-08-11, every `SKILL.md` in this repository was below that floor** — the
-  largest was the 83,427-byte body measured here, so no body could reach a ceiling on this tier.
+- **As observed on 2026-08-11, every `SKILL.md` in this repository was at or below that floor** —
+  the largest was the 83,427-byte body measured here, which sits *at* it, so no body could reach a
+  ceiling on this tier.
   That is a dated statement about a snapshot of the tree, not a standing property: nothing asserts
   it, and a body edited past 83,427 bytes makes it false with a green suite and no signal. Closing
   that is the retarget described under *What this means for issue #1595*.
@@ -228,11 +257,16 @@ quantity from the committed tree). No conversion is involved anywhere on this pa
 **Both numbers must be described accurately, because neither is what issue #1596 says it is.**
 Verified at revision `efd37b8b2`, against `origin/main` at `c42816123`:
 
-- The **61,750-byte guard has not shipped.** `gh issue view 1595` reports `state: OPEN`;
-  `gh pr list --head worktree-issue-1595 --state all` returns `[]`; and
-  `git log origin/main -- lib/test/lint-reference-size.py` returns nothing. The guard exists only as
-  unmerged local work on branch `worktree-issue-1595` (commits `157e8c88a`, `4fc7821c0`). Issue
-  #1596's statement that "#1595 has shipped" is false.
+- The **61,750-byte guard has not shipped.** `gh issue view 1595` reports `state: OPEN`, and
+  `git log origin/main -- lib/test/lint-reference-size.py` returns nothing — that second check is
+  the shipped/not-shipped discriminator, and it is the one to re-run. The guard exists only as
+  unmerged work on branch `worktree-issue-1595`, which acquired an open pull request, #1599, at
+  2026-08-11T18:26:54Z — while this record was being written, and about a minute after the revision
+  above. So the guard is in review rather than absent, and the branch has moved past the commits
+  this page cites. Issue #1596's statement that "#1595 has shipped" was false when it was written
+  and remains false while #1599 is open; a reader re-running these checks after #1599 merges should
+  expect the `git log` check to start returning a commit, at which point this bullet is superseded
+  rather than wrong.
 - The **55,000-byte authoring target is published nowhere tracked.** `grep -rn "55,000\|55000\|authoring target"`
   over `CLAUDE.md`, `CONTRIBUTING.md`, `docs/`, and `.prflow/prompt-extensions/` returns no match.
   It is stated by issue #1596 and by the acceptance criteria derived from it, and nowhere else.
@@ -277,16 +311,20 @@ wrong instrument** — a Read cap that does not govern the loader those files ac
 bound. It showed that 61,750 is the wrong number for them, and it produced a defensible replacement
 in the same breath: **83,427 bytes**, the observed floor. A skill-root guard set there would hold
 every body in the tree today while catching the growth past measured territory that nothing
-currently catches. Deciding that belongs to #1595; the useful thing this page hands it is the number,
-not a recommendation to remove the arm. **Do not read the *vacuous* column below as "delete the
+currently catches — though #1595 should note it would hold with **zero headroom**: the floor is
+derived from the largest body, which then sits exactly at it, so one added byte to
+`retrospective-weekly` trips the guard. Deciding all of that belongs to #1595; the useful thing this
+page hands it is the number, not a recommendation to remove the arm. **Do not read the *vacuous* column below as "delete the
 skill-root half"** — it means *this exemption exempts a file from a ceiling that was never shown to
 apply to it*, which is a re-derivation, and reading it as a deletion would leave skill-root growth
 with no bound at all and bury the one number that could bound it.
 
 `lib/test/reference-size-exemptions.json` on branch `worktree-issue-1595` records the rows below,
-each with `expires_when: "the file is at or under the 61750-byte ceiling; remove this row then"`.
-Transcribed from that branch at commit `04a80e1e2`; the branch is unmerged and can still change, so
-read the JSON there rather than this table for the live values:
+each with an `expires_when` string keyed to that ceiling. Transcribed from that branch at commit
+`04a80e1e2`; the branch is unmerged and still moving — its `expires_when` wording had already been
+rewritten by the branch tip while this page was being written — so read the JSON there rather than
+this table for the live values, and treat the paths and the adjudication as this page's contribution
+rather than the transcription:
 
 | Exempt path | Recorded bytes | What this measurement makes it | Against the 83,427 floor |
 |---|---|---|---|
@@ -312,8 +350,11 @@ against an oversize that is a genuine, measured hazard.
 ## Remediation: nothing was changed, and why
 
 Issue #1596's remediation criterion is written as a ceiling arm and a no-ceiling arm. **The record
-establishes no Skill-tool ceiling these bodies can reach, so the no-ceiling arm applies:** each body
-in the remediation population —
+establishes no Skill-tool ceiling these bodies can reach, so the no-ceiling arm applies** — with one
+caveat carried forward rather than glossed: for `skills/init/SKILL.md` the Skill tool refuses the
+load outright, so its leave-it-alone rationale rests not on an observation but on the absence of one,
+its real channel being the unobserved slash-command expansion. Each body in the remediation
+population —
 `skills/review/SKILL.md`, `skills/init/SKILL.md`, and `skills/implement/SKILL.md` — is left
 **byte-identical**, and this section is the required statement of why.
 
@@ -346,10 +387,11 @@ re-vendor path stated — and `receiving-code-review` likewise sits above the st
 ## How to re-run this
 
 **A stronger mechanism exists and was not built here.** `.github/workflows/matcher-probe.yml`
-already carries a `placeholder-probe` job that runs a `claude-code-action` session for the sole
-purpose of invoking the Skill tool and characterising what that load returned — it sets
-`show_full_output: true` to capture the result, and `scripts/placeholder-probe-verdict.py` derives
-its verdict from the execution file rather than from the model's own account. A sibling
+already runs a `claude-code-action` session that invokes the Skill tool and captures what that load
+returned — its `placeholder-probe` job, built for a different measurement (render-time `` !`cmd` ``
+placeholder substitution), which sets `show_full_output: true` to capture the result and whose
+`scripts/placeholder-probe-verdict.py` derives its verdict from the execution file rather than from
+the model's own account. A sibling
 `skill-body-load-probe` job would run on the cloud tier in a *main* session and measure the Skill
 `tool_result` directly, which removes three of this page's limits at once: both cloud tiers become
 observed, the main-session channel becomes observed, and the model's testimony stops being an
@@ -397,3 +439,5 @@ Hard limits on what may be cited from this page.
    and observes nothing.
 6. **It does not establish that no body here ever needs trimming.** Delivery is one reason to bound a
    prompt surface; cost, latency and readability are others this page does not weigh.
+7. **It detects tail truncation only.** A control is a file's final line, so a mid-body elision
+   leaving the tail intact would pass every check here. See *The control* above.
