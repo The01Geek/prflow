@@ -123,7 +123,8 @@ blocked_reason: <verbatim reason when outcome is blocked-*, else "n/a" — for b
 pass5_workflow_resident_acs: <comma-separated AC identifiers/text Pass 5 flagged as workflow-resident (the capability-blocked set for 2.2.5), or "none">
 pass2_wrongly_excluded_surfaces: <surfaces the issue's negative-scope claims wrongly excluded that must enter Phase 2's plan, or "none">
 superseding_assumptions: <Pass 1 verified-count corrections and Pass 6 refuted premises that supersede the issue body as Phase 2's working assumptions, or "none">
+unestablished_passes: <every pass whose result could NOT be established — a Pass 6 exit-3/refusal (Verified: bullets treated as unverified, re-investigate from first principles), a Pass 2 UNCHECKED/NOT-gap-free workflow family, or any other unestablished measurement — each naming the pass and the fail-closed action Phase 2 owes (never read an unestablished measurement as a clean pass); "none" only when every pass positively established its result>
 notes: <one-line summary of the per-pass records you wrote to the workpad>
 ```
 
-**Report `outcome: proceed` for every non-terminal outcome** — a clean pass, a Pass 1/Pass 6 correction, a Pass 2 added surface, or a Pass 5 partial deferral. Report `blocked-policy` **only** for a Pass 3 contradiction and `blocked-capability` **only** for the Pass 5 every-in-scope-AC-workflow-resident case; those two are the orchestrator's to stop on.
+**Report `outcome: proceed` for every non-terminal outcome** — a clean pass, a Pass 1/Pass 6 correction, a Pass 2 added surface, a Pass 5 partial deferral, **or a pass whose result could not be established** (a `proceed` with a non-empty `unestablished_passes` — never silently a clean pass). Report `blocked-policy` **only** for a Pass 3 contradiction and `blocked-capability` **only** for the Pass 5 every-in-scope-AC-workflow-resident case; those two are the orchestrator's to stop on.
