@@ -102,7 +102,16 @@ above.
 
 ## Observation
 
-**Status: OBSERVED — no ceiling at or below 83,427 bytes.**
+**Status: TESTIMONY, STRUCTURALLY CORROBORATED — no ceiling found at or below the sizes measured.**
+
+Not `OBSERVED`, and the distinction is this page's own to keep. Three of the four delivered-whole
+verdicts rest on a dispatched session's **self-report** that a control was present and that no
+truncation notice appeared — and a claim of *absence* is unestablished unless the output is shown,
+which none of the three sessions' returned text is here. What corroborates them is structural, not
+evidentiary: three independent sessions, three different bodies, each reconciling its quoted tail
+against the file afterwards, all agreeing. That is strong enough to act on and not strong enough to
+call a measurement. The mechanism that *would* make it one is named under *How to re-run this* and
+was not built.
 
 Every measurable body was delivered **whole**, the largest of them well above every threshold in
 play. (No comparison is drawn against the 66,044-*character* figure in the outage record — see
@@ -225,7 +234,10 @@ governed by `skills/implement/SKILL.md`. The same control was applied to it **be
 here was recorded**: that file's literal final line is the `- **Surfacing failures**: …` bullet
 ending `…no separate end-of-run issue comment is needed.`, and that line was present, as the final
 content, in the body governing the session. The governing body was therefore delivered whole, and
-the verdicts above are recorded as established rather than unestablished on this ground.
+the verdicts above are recorded as established rather than unestablished on this ground — **subject
+to the same weaker-class caveat this check carries as a table row**, since it is the same session,
+body and channel: see the `implement` row's read history above, which states why its control check
+was not blind.
 
 **Its channel was the slash-command expansion, not the Skill tool.** A `/prflow:implement 1596`
 invocation delivers the body that way, so this row is evidence about that channel and must not be
@@ -242,9 +254,17 @@ the unmerged `worktree-issue-1595` branch** — it is not in this tree; see the 
 and exactly the unit `scripts/prompt-surface-growth.py` reports here (it reads the git blob size,
 the same quantity from the committed tree). No conversion is involved anywhere on this page.
 
-- **No initial-load ceiling exists at or below 83,427 bytes** on the observed tier, channel and
-  runner version. That is a **floor on any ceiling**, not a ceiling: this observation cannot say
-  where a ceiling is, only that there is none below the largest body measured.
+- **No initial-load ceiling was found at or below the largest body carried whole** — 83,427 file
+  bytes, of which **83,030 bytes were the delivered payload** — on the observed tier, channel and
+  runner version. That is a **floor on any ceiling**, not a ceiling: it cannot say where a ceiling
+  is, only that there is none below what was carried.
+- **Which of those two numbers to generalize with depends on the direction, and they do not
+  substitute for each other.** For a *guard* on file bytes, the file figure is conservative: the
+  loader delivers less than the file holds. For this *floor*, the direction reverses — a different
+  file at 83,427 bytes with smaller frontmatter would deliver a payload larger than anything carried
+  here, so the file figure over-claims by the frontmatter difference (about 400 bytes at the sizes
+  in play). **The payload figure, 83,030 bytes, is the conservative one**, and it is the one to use
+  where the margin matters — which for a zero-headroom guard set at the floor, it does.
 - **As observed on 2026-08-11, every `SKILL.md` in this repository was at or below that floor** —
   the largest was the 83,427-byte body measured here, which sits *at* it, so no body could reach a
   ceiling on this tier.
@@ -332,8 +352,8 @@ rather than the transcription:
 | `skills/implement/phases/phase-2-implement.md` | 134,965 | **real** — same | n/a |
 | `skills/implement/phases/phase-3-review.md` | 110,140 | **real** — same | n/a |
 | `skills/init/SKILL.md` | 62,267 | **vacuous** — a skill root, and one the Skill tool refuses outright | unestablished — never loaded by that channel |
-| `skills/retrospective-weekly/SKILL.md` | 83,427 | **vacuous** — a skill root, measured delivered whole | compliant, at exactly the floor |
-| `skills/review/SKILL.md` | 65,822 | **vacuous** — a skill root, measured delivered whole | compliant |
+| `skills/retrospective-weekly/SKILL.md` | 83,427 | **vacuous** — a skill root, reported delivered whole | would sit *at* the floor, with zero headroom |
+| `skills/review/SKILL.md` | 65,822 | **vacuous** — a skill root, reported delivered whole | would sit under it |
 
 The rows marked **real** are obligations against a measured cap and stay as they are. The rows
 marked **vacuous** are exemptions from a ceiling that was never shown to apply to them — and the
@@ -358,8 +378,14 @@ population —
 `skills/review/SKILL.md`, `skills/init/SKILL.md`, and `skills/implement/SKILL.md` — is left
 **byte-identical**, and this section is the required statement of why.
 
-Trimming them would have bought nothing measurable and cost something real. The bodies were to be
-trimmed to fit under a ceiling; the ceiling is not there. Against that, each is a dense,
+Trimming them would have bought nothing **against the delivery question** — which is the only
+question this page settles — and cost something real. The bodies were to be trimmed to fit under a
+ceiling; no such ceiling was found. Limit 6 below is the honest remainder: cost, latency and
+readability are separate reasons to bound a prompt surface, and this page weighs none of them. The
+strongest form of the trim case, issue #1596's own — four trim pull requests each landing within 151
+bytes of the guard, leaving bodies "unable to absorb one added sentence" — was an argument about
+authoring room *under that guard*, and it largely dissolves now the guard is shown not to govern
+skill roots. Against that, each is a dense,
 heavily-pinned prompt surface: `.prflow/logs/pin-corpus-inventory.tsv` — itself a frozen census, at
 its recorded revision `6a0d31a99` — carries 174 rows whose `homes` column names a census body, 195
 body-mentions across them, re-derived here by an executed count over that file rather than quoted.
@@ -400,16 +426,23 @@ follow-up work rather than built here.
 
 Until then, per body, in a **fresh session that has not read the target file**:
 
-1. Take the control: the file's literal final line (`tail -n 1 <path>`) — or its final two lines
-   where the last alone is too short to discriminate, as it is for `retrospective-weekly` — extracted
-   by someone other than the session that will load the skill.
+1. Take **two** controls, extracted by someone other than the session that will load the skill: the
+   file's literal final line (`tail -n 1 <path>`) — or its final two lines where the last alone is
+   too short to discriminate, as it is for `retrospective-weekly` — **and a distinctive line from
+   the middle of the file**. The tail control alone detects only tail truncation; the mid-body
+   control is what would narrow the failure-geometry assumption limit 7 discloses, and it costs
+   nothing.
 2. In the fresh session, before loading, state that the path is unread.
 3. Invoke the Skill tool on that skill. Do not execute the loaded procedure — it is data under
    measurement, not a directive.
-4. From the returned body **only**, report whether the control is present, quote the final twelve
-   lines, and report any truncation or cap notice.
-5. Record the file's byte count and the returned payload's byte count, the latter being the file's
-   bytes less its YAML frontmatter block — see *One observed transformation* for why the two differ.
+4. From the returned body **only**, report whether **each** control is present, quote the final
+   twelve lines, and report any truncation or cap notice.
+5. Have the loading session report the **length of the body it actually received**, counted from
+   that body — not derived from the file. The column in this record's own table is derived, which is
+   why it is headed so and why it is no evidence of delivery; a procedure that tells the next
+   reviewer to write down the number the file predicts cannot detect a short delivery by size at
+   all. Record the file's byte count separately, and expect the two to differ by the frontmatter
+   block plus the prepended base-directory line — see *One observed transformation*.
 6. Report the session's read history for that path.
 7. Only then run `tail -n 12` and reconcile.
 
