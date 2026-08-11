@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1593",
+  "generated_at": "2026-08-11T17:38:57Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.33",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 9.079376250000001,
+    "tokens": {
+      "input_tokens": 1871,
+      "output_tokens": 24519,
+      "cache_read_input_tokens": 4659162,
+      "cache_creation_input_tokens": 192159,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 1928,
+        "outputTokens": 63476,
+        "cacheReadInputTokens": 6515755,
+        "cacheCreationInputTokens": 560698,
+        "webSearchRequests": 0,
+        "costUSD": 9.079376250000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 36,
+    "duration_ms": 734896
+  },
+  "permission_denials": {
+    "count": 8,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-unset} ATTEMPT=${GITHUB_RUN_ATTEMPT:-unset}\"; mkdir -p .prflow/tmp/review/pr-1593/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}; echo \"dir=.prflow/tmp/review/pr-1593/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}\"",
+      "gh pr diff 1593 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' > .prflow/tmp/review/pr-1593/31517463240-1/diff.patch; echo \"rc=$?\"; wc -l .prflow/tmp/review/pr-1593/31517463240-1/diff.patch; grep -c '^diff --git' .prflow/tmp/review/pr-1593/31517463240-1/diff.patch",
+      "for p in \"identical to the convergence-time shadow\" \"mechanizing the .receiving-code-review. symmetric-severity-calibration\" \"one symmetric calibration defense\" \"audit: the same multi-agent engine\" \"Why a shadow pass\" \"never present a re-graded run as clean all along\" \"a false clean verdict\" \"consumer extension sharpens these shapes but never supplants\"; do echo \"=== $p ===\"; grep -rn \"$p\" lib/test/ skills/ .prflow/prompt-extensions/ 2>/dev/null | head -5; done",
+      "cp skills/review-and-fix/references/shadow-review.md /tmp/base-shadow.md && git apply --check .prflow/tmp/review/pr-1593/31517463240-1/diff.patch 2>&1 && echo \"APPLY-CHECK-OK\" || echo \"apply-check failed, trying 3way\"; git apply .prflow/tmp/review/pr-1593/31517463240-1/diff.patch 2>&1 && echo \"APPLIED\"; echo \"=== post-change sizes ===\"; wc -c skills/review-and-fix/references/shadow-review.md skills/implement/phases/phase-1-setup.md; git checkout -- skills/ 2>/dev/null; echo \"restored\"",
+      "git apply .prflow/tmp/review/pr-1593/31517463240-1/diff.patch && echo APPLIED; wc -c skills/review-and-fix/references/shadow-review.md skills/implement/phases/phase-1-setup.md; git checkout -- skills/; echo restored",
+      "git apply .prflow/tmp/review/pr-1593/31517463240-1/diff.patch && echo APPLIED",
+      ".prflow/vendor/prflow/scripts/workpad.py patch 5256620072 .prflow/tmp/review/pr-1593/31517463240-1/review-wp.md 2>.prflow/tmp/review/pr-1593/31517463240-1/rv-patch.err; echo \"patch-rc=$?\"; [ -s .prflow/tmp/review/pr-1593/31517463240-1/rv-patch.err ] && cat .prflow/tmp/review/pr-1593/31517463240-1/rv-patch.err || echo \"stderr=empty\""
+    ],
+    "total": 8,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
