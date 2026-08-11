@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1610",
+  "generated_at": "2026-08-11T22:23:35Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.36",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 4.0107332499999995,
+    "tokens": {
+      "input_tokens": 57,
+      "output_tokens": 18105,
+      "cache_read_input_tokens": 3639874,
+      "cache_creation_input_tokens": 128302,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 67,
+        "outputTokens": 21429,
+        "cacheReadInputTokens": 3822169,
+        "cacheCreationInputTokens": 173193,
+        "webSearchRequests": 0,
+        "costUSD": 4.0107332499999995,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 32,
+    "duration_ms": 333778
+  },
+  "permission_denials": {
+    "count": 6,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-unset}\"",
+      "printf '%s\\n' \"$CLAUDE_SKILL_DIR\"",
+      "mkdir -p .prflow/tmp/review/pr-1610/local-run\ngh pr diff 1610 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1610/local-run/diff.patch | head -5\necho \"---rc=${PIPESTATUS[0]}---\"",
+      "echo \"=== base SKILL.md size ===\"; git cat-file -s $(git rev-parse 3df78ee56:skills/review/SKILL.md)\necho \"=== head SKILL.md size ===\"; git cat-file -s $(git rev-parse 210c0704a:skills/review/SKILL.md)\necho \"=== base exemption recorded_bytes for review/SKILL.md ===\"; git show 3df78ee56:lib/test/reference-size-exemptions.json | grep -A1 '\"skills/review/SKILL.md\"' | head -2",
+      "git ls-tree 210c0704a .changeset/ | grep -i 1561 || echo \"NO 1561 CHANGESET\"; echo \"---all changesets on head---\"; git ls-tree --name-only 210c0704a .changeset/",
+      "git ls-tree --name-only 210c0704a .changeset/"
+    ],
+    "total": 6,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
