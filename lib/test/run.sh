@@ -10277,36 +10277,31 @@ assert_pin_unique "#346: a Phase 2.3-discovered workflow edit re-routes through 
 # empty-subset → Blocked stop remains asserted at 2.2.5.
 assert_pin_unique "#346: 2.2.5 takes the Blocked path when the pushable subset would be empty (late-discovered all-blocked)" \
   'Empty pushable subset ⇒ take the Blocked path here, do not narrow-and-proceed' "$IMPL_PHASES_DIR/phase-2-implement.md"
-# ── issue #476: §1.6 clean-arm records re-route to `--note`; findings re-kind. ──
+# ── issue #476 (relocated by #1576): audit clean-arm records re-route to `--note`. ──
 # The audit's clean/confirm arms no longer emit reflections (the attestation noise
 # that tripped the retrospective cheap gate on every clean run) — each records a
 # `## Progress` --note the moment its pass completes. Only FINDINGS reflect now: a
-# wrong issue claim (issue-accuracy), punted work (deferred), or a hard stop
-# (blocked).
-# Absence: §1.6 (the LAST section of phase-1-setup.md) carries ZERO
-#     `--reflection-kind note` — that kind was the exclusive clean-arm marker, so a
-#     count of 0 proves every clean arm routed to `--note`. The 1.4
-#     freshness/resume/checkpoint `--reflection-kind note` arms live ABOVE §1.6 and
-#     stay unchanged, which is exactly why this pin slices the section first (a
-#     whole-file count would never reach 0). The slice is the same awk technique the
-#     #325 freshness-guard pin above uses.
-#     NON-VACUITY GUARD (else the absence assertion fails OPEN): if the
-#     `### 1.6 Issue-Claim Audit` heading ever drifts, the awk pattern matches
-#     nothing, the slice is EMPTY, and `pin_count … == 0` would pass vacuously —
-#     silently retiring the guard. So first assert the slice positively captured the
-#     region (the heading present once, and a known clean-arm `--note` line present),
-#     making the "count 0" a proven delta over a non-empty slice, not an absolute
-#     over a possibly-empty input (issue #476 review; same discipline as commit
-#     7f7161a's absence-pin non-vacuity proof).
-P1_16_SLICE="$(probe_tmp "#476: slice §1.6 for the clean-arm-reflection absence pin")"
-awk '/^### 1\.6 Issue-Claim Audit/{f=1} f' "$P1_FILE" > "$P1_16_SLICE"
-assert_eq "#476: §1.6 slice non-vacuity — the audit heading was captured (slice is not empty)" "1" \
-  "$(pin_count '### 1.6 Issue-Claim Audit' "$P1_16_SLICE")"
-assert_eq "#476: §1.6 slice non-vacuity — a clean-arm --note line is present in the slice" "1" \
-  "$(pin_count '--note "issue-claim audit (count): no count or enumeration claims found' "$P1_16_SLICE")"
-assert_eq "#476: §1.6 has no clean-arm --reflection-kind note (clean confirmations route to --note)" "0" \
-  "$(pin_count '--reflection-kind note' "$P1_16_SLICE")"
-rm -f "$P1_16_SLICE"
+# a finding — such as a wrong issue claim (issue-accuracy), punted work
+# (deferred), or an unestablished re-check (dropped-failed). The two hard stops
+# are the ORCHESTRATOR's decision and live in phase-1-setup.md §1.6, not here.
+# #1576 moved §1.6's pass PROCEDURE (and its clean-arm --note writes) out of
+# phase-1-setup.md into the dispatched agents/issue-claim-auditor.md, so this pin now
+# targets that agent file. The whole file is the audit procedure (there is no §1.4
+# freshness/checkpoint prose above it to exclude), so the count is over the WHOLE
+# file rather than an awk slice.
+# Absence: the auditor carries ZERO `--reflection-kind note` — that kind was the
+#     exclusive clean-arm marker, so a count of 0 proves every clean arm routed to
+#     `--note`.
+#     NON-VACUITY GUARD (else the absence assertion fails OPEN): if the file drifts or
+#     is emptied the count would pass vacuously — so first assert a known clean-arm
+#     `--note` line is positively present, making the "count 0" a proven delta over a
+#     non-empty file, not an absolute over a possibly-empty input (issue #476 review;
+#     same discipline as commit 7f7161a's absence-pin non-vacuity proof).
+P476_ICA="$LIB/../agents/issue-claim-auditor.md"
+assert_eq "#476/#1576: auditor non-vacuity — a clean-arm --note line is positively present" "1" \
+  "$(pin_count '--note "issue-claim audit (count): no count or enumeration claims found' "$P476_ICA")"
+assert_eq "#476/#1576: auditor has no clean-arm --reflection-kind note (clean confirmations route to --note)" "0" \
+  "$(pin_count '--reflection-kind note' "$P476_ICA")"
 # ── #350 review fixes: re-key the deferral on CREDENTIAL CAPABILITY, and make the
 # signal observable + the guard complete. Coupled sites for this ONE change:
 #   (1) phase-1 Pass 5 + phase-2 2.2.5/2.5 prose (keyed on cloud AND DEVFLOW_APP_ID empty),
