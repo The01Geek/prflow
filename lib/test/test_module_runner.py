@@ -29,10 +29,21 @@ WORKFLOW_MODULE_SOURCE = ROOT / "lib/test/modules/workflow-flight-recorder.sh"
 CREATE_ISSUE_MODULE_SOURCE = ROOT / "lib/test/modules/create-issue-contract.sh"
 CAPABILITY_PROFILES_MODULE_SOURCE = ROOT / "lib/test/modules/capability-profiles.sh"
 
-# Do NOT restore the full exact-policy fan-out here (the modules-* shards already run it)
-# and do NOT empty this set: a named pair keeps smoke coverage of the runner-invocation
-# path, and an id that stops existing fails loudly instead of fanning out over nothing.
+# Do NOT widen this to the full exact-policy set unconditionally and do NOT empty it:
+# it is the reduced population used ONLY under the parallel coordinator, where the full
+# fan-out oversubscribes a contended host. The modules-* shards enforce `>=` only, so
+# dropping the unconditional fan-out here would leave a stale-low floor undetected.
 REAL_EXECUTION_MODULES = ("harness-python-guards", "review-trigger-helpers")
+
+
+def _under_parallel_coordinator() -> bool:
+    """True when `lib/test/run-parallel.sh` scheduled this process.
+
+    The coordinator exports DEVFLOW_POOL_WIDTH into the python-pool shard only, so its
+    presence distinguishes a contended shared host from CI's dedicated per-shard runner
+    (and a direct local run), which execute the full exact-policy population.
+    """
+    return bool(os.environ.get("DEVFLOW_POOL_WIDTH", "").strip())
 
 
 def _pool_width() -> int:
@@ -1527,12 +1538,16 @@ class ModuleRunnerTests(unittest.TestCase):
         self.assertEqual(hits, [], f"capability-profiles module references monolith helper(s): {hits}")
 
     def test_exact_floor_modules_run_green_through_the_real_runner(self) -> None:
-        """Every exact-policy module's run.sh coupling is checked; two are executed.
+        """Every exact-policy module's run.sh coupling is checked, and each is executed.
 
         The registry flag is the sole population source for the STATIC half: adding
         another exact module automatically puts its `run.sh` call site and floor literal
-        under check here. The EXECUTION half is reduced to REAL_EXECUTION_MODULES (see
-        that constant for why), and each measured tally must equal both the live registry
+        under check here. The EXECUTION half runs that same population, reduced to
+        REAL_EXECUTION_MODULES only under the parallel coordinator (see
+        `_under_parallel_coordinator`), so CI's dedicated python-pool runner and a direct
+        local run keep full equality enforcement over all exact-policy modules, while the
+        coordinator's contended shared host keeps the reduced fan-out. Each measured
+        tally must equal both the live registry
         floor and its coupled `run.sh` call-site operand. Equality (not `>=`) detects
         assertion loss instead of accepting a stale low watermark.
 
@@ -1588,6 +1603,7 @@ class ModuleRunnerTests(unittest.TestCase):
             if mapping.get("assertion_floor_policy") == "exact"
         }
         self.assertTrue(exact_modules)
+        reduced = _under_parallel_coordinator()
 
         # Static run.sh call-site checks first, serially, before any subprocess is
         # launched: a floor literal that drifted from the registry must fail here
@@ -1610,17 +1626,21 @@ class ModuleRunnerTests(unittest.TestCase):
                     floor_match, f"no run.sh call-site floor literal for {module_id}"
                 )
                 self.assertEqual(int(floor_match.group(1)), floor)
-            if module_id in REAL_EXECUTION_MODULES:
+            if not reduced or module_id in REAL_EXECUTION_MODULES:
                 work.append((module_id, floor))
 
         # Every exact-policy module named above had its static run.sh coupling checked.
-        # Only REAL_EXECUTION_MODULES are additionally executed here; naming them as a
-        # set (rather than filtering by a predicate) makes an id that stops existing a
-        # loud failure instead of a silently empty fan-out.
+        # The executed population is the whole exact-policy set, reduced to
+        # REAL_EXECUTION_MODULES only under the parallel coordinator; asserting it
+        # against the regime's expected population makes a renamed id or an emptied set
+        # a loud failure instead of a silently empty fan-out, in BOTH regimes.
+        expected_execution = (
+            sorted(REAL_EXECUTION_MODULES) if reduced else sorted(exact_modules)
+        )
         self.assertEqual(
             sorted(module_id for module_id, _ in work),
-            sorted(REAL_EXECUTION_MODULES),
-            "a REAL_EXECUTION_MODULES member is no longer an exact-policy module",
+            expected_execution,
+            "the executed exact-floor population does not match this regime's expected set",
         )
 
         class _RunResult(NamedTuple):

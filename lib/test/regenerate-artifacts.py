@@ -21,9 +21,11 @@ the row is still skipped when an earlier row already forced exit 1 or hit the
 infrastructure state: measuring a tree this same pass has just reported red spends minutes
 judging a tree that is about to change. Neither skip forces an exit code of its own.
 Deferring the floor measurement is a real, bounded gap rather than a free one: the module
-harness fails only a tally BELOW the floor, so a floor left un-raised is caught solely by
-`test_module_runner.py`'s equality assertion, which executes only its
-`REAL_EXECUTION_MODULES` subset. Run the flag before a completion claim. The cheap rows,
+harness and the `modules-*` shards fail only a tally BELOW the floor, so a floor left
+un-raised is caught solely by `test_module_runner.py`'s equality assertion — which
+executes the full exact-policy population on CI (and on a direct local run), so a stale
+floor surfaces on CI rather than in this agent's own run. Run the flag before a
+completion claim to catch it here first. The cheap rows,
 including the SHA-256 pinned cloud-writer manifest whose staleness turns a required check
 red, run on every pass.
 
@@ -1402,8 +1404,9 @@ def main(argv=None):
                 report.append(
                     f"[{row['name']}] not measured -- pass --with-floors to run this "
                     "row (its measurement runs the real focused module runners); until "
-                    "then a floor left un-raised is unchecked for every exact-policy "
-                    "module test_module_runner.py does not execute."
+                    "then a floor left un-raised is unchecked here, and is caught on CI "
+                    "by test_module_runner.py's equality assertion rather than in this "
+                    "run."
                 )
                 continue
             # Never measure a tree an earlier row has already reported red. The opt-in

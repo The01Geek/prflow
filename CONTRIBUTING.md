@@ -582,9 +582,11 @@ opt-in row, which measures every exact-policy module through the real focused ru
 sites from that measured tally, never lowering either. The default pass prints an
 explicit `not measured` line for that row rather than staying silent about it, and skips
 it even under the flag when an earlier row has already reported the tree red. Deferring it
-is a bounded gap, not a free one: the module harness fails only a tally *below* the floor,
-so a floor left un-raised is caught only by `test_module_runner.py`'s equality assertion
-over its `REAL_EXECUTION_MODULES` subset — run the flagged pass before a completion claim.
+is a bounded gap, not a free one: the module harness and the `modules-*` shards fail only
+a tally *below* the floor, so a floor left un-raised is caught by
+`test_module_runner.py`'s equality assertion, which executes every exact-policy module on
+CI — meaning a stale floor surfaces on CI rather than in your own run unless you run the
+flagged pass before a completion claim.
 The registry inside the helper is
 the sole enumeration point — run `--list` for the current set rather than trusting a
 copy here, which would go stale the next time an artifact is added. Judgment items are yours to resolve deliberately — the helper never
