@@ -112,7 +112,7 @@ Print exactly one JSON object on stdout and nothing else — a list of per-crite
 ```json
 {
   "criteria": [
-    {"criterion": 1, "status": "satisfied", "evidence": "lib/test/run.sh passed on <sha>"},
+    {"criterion": 1, "status": "satisfied", "evidence": "the project's test suite passed on <sha>"},
     {"criterion": 2, "status": "unmet", "reason": "failed", "evidence": "suite failed: <detail>"},
     {"criterion": 3, "status": "unestablished", "reason": "denied", "evidence": "command denied in this context; prflow_implement.allowed_tools is the remedy"}
   ]

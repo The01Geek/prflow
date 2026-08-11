@@ -79,24 +79,32 @@ def _evidence_of(record):
 # Structured, machine-routable reason the evidence verifier may attach to a
 # non-satisfied criterion, so the orchestrator routes the denied-command case to the
 # Blocked-naming-`allowed_tools` path from a field rather than by sniffing free text.
-# The set is advisory (an unknown value passes through as-is): the criterion still
-# blocks on its `status`; `reason` only refines HOW the orchestrator routes the block.
+# It is a CLOSED vocabulary validated like `status`: an unrecognized value normalizes
+# to "" (no reason) rather than passing through, so a consumer may rely on any non-empty
+# `reason` being one of these tokens. The criterion still blocks on its `status`;
+# `reason` only refines HOW the orchestrator routes the block.
 EVIDENCE_REASONS = ("denied", "failed", "unresolved")
 
 
 def _reason_of(record):
+    """The record's `reason`, normalized to the closed `EVIDENCE_REASONS` set or ""."""
     if not isinstance(record, dict):
         return ""
     reason = record.get("reason")
-    return reason.strip().lower() if isinstance(reason, str) else ""
+    if not isinstance(reason, str):
+        return ""
+    normalized = reason.strip().lower()
+    return normalized if normalized in EVIDENCE_REASONS else ""
 
 
 def reconcile_one(evidence_status, claim_status, evidence_ptr, claim_ptr):
     """Reconcile one criterion's two verifier verdicts.
 
     Returns (status, evidence, evidence_source). `evidence_source` is one of
-    "evidence", "claim", "both", or "" (empty when the reconciled status is not
-    satisfied, or on the downgrade path).
+    "evidence", "claim", "both", or "" (empty only when neither verifier supplied a
+    pointer). A blocking (`unmet`/`unestablished`) record keeps whatever pointer(s) the
+    verifiers supplied — the failing detail the orchestrator's Blocked-path reflection
+    names — rather than blanking it; only the AC6 no-evidence downgrade path is empty.
     """
     e = _normalize_status(evidence_status)
     c = _normalize_status(claim_status)
@@ -105,28 +113,47 @@ def reconcile_one(evidence_status, claim_status, evidence_ptr, claim_ptr):
 
     status = e if e == c else "unestablished"
 
-    if status != "satisfied":
-        return status, "", ""
-
-    # Satisfied: require an evidence pointer from at least one verifier (AC6).
     if e_ptr and c_ptr:
-        return "satisfied", "; ".join((e_ptr, c_ptr)), "both"
-    if e_ptr:
-        return "satisfied", e_ptr, "evidence"
-    if c_ptr:
-        return "satisfied", c_ptr, "claim"
-    # Both verifiers said satisfied but neither supplied evidence — fail closed.
-    return "unestablished", "", ""
+        evidence, source = "; ".join((e_ptr, c_ptr)), "both"
+    elif e_ptr:
+        evidence, source = e_ptr, "evidence"
+    elif c_ptr:
+        evidence, source = c_ptr, "claim"
+    else:
+        evidence, source = "", ""
+
+    # A satisfied record must carry a pointer from at least one verifier (AC6);
+    # without one it fails closed to `unestablished`.
+    if status == "satisfied" and not evidence:
+        return "unestablished", "", ""
+    return status, evidence, source
 
 
 def _index_by_criterion(records, side):
-    """Index a report list by 1-based `criterion`. Fail closed on a bad shape."""
+    """Index a report list by 1-based `criterion`. Fail closed on a bad shape.
+
+    `side` ("evidence"/"claim") names the report for the breadcrumbs below. A record
+    that is not a dict, or whose `criterion` is absent/non-int/boolean, is dropped with
+    a stderr breadcrumb (a criterion dropped from one side becomes a missing vote, which
+    reconciles closed to `unestablished`). A **duplicate** `criterion` is poisoned to an
+    evidence-less `unestablished` record rather than resolved last-wins, so a malformed
+    report can never let a later `satisfied` overwrite an earlier `unmet`.
+    """
     by_num = {}
     for rec in records:
         if not isinstance(rec, dict):
+            print(f"reconcile-ac-verifiers: dropping a non-object record in the "
+                  f"{side} report", file=sys.stderr)
             continue
         num = rec.get("criterion")
         if isinstance(num, bool) or not isinstance(num, int):
+            print(f"reconcile-ac-verifiers: dropping a {side}-report record whose "
+                  f"'criterion' is absent or not an integer ({num!r})", file=sys.stderr)
+            continue
+        if num in by_num:
+            print(f"reconcile-ac-verifiers: duplicate criterion {num} in the {side} "
+                  f"report — failing it closed to unestablished", file=sys.stderr)
+            by_num[num] = {"criterion": num, "status": "unestablished"}
             continue
         by_num[num] = rec
     return by_num

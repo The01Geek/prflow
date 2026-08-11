@@ -29346,6 +29346,85 @@ assert_eq("#1575 criterion missing from one report reconciles unestablished",
 assert_eq("#1575 empty reports do not report all_satisfied",
           False, reconcile_ac.reconcile([], [])["all_satisfied"])
 
+# reconcile_one on the agreeing-satisfied path reports "both" and joins both pointers.
+assert_eq("#1575 reconcile_one satisfied/satisfied joins both evidence pointers",
+          ("satisfied", "ev-ptr; cl-ptr", "both"),
+          reconcile_ac.reconcile_one("satisfied", "satisfied", "ev-ptr", "cl-ptr"))
+# A BLOCKING record keeps the failing-detail pointer(s) rather than blanking them, so
+# the orchestrator's Blocked-path reflection can name the detail.
+assert_eq("#1575 a blocking (disagreement) record keeps its evidence pointer",
+          ("unestablished", "cmd passed; asserts other claim", "both"),
+          reconcile_ac.reconcile_one("satisfied", "unmet",
+                                     "cmd passed", "asserts other claim"))
+
+# `reason` is a CLOSED vocabulary: an unrecognized value normalizes to "" (fail closed),
+# not passed through, so a consumer may rely on any non-empty reason being in the set.
+assert_eq("#1575 unrecognized reason normalizes to empty",
+          "", reconcile_ac._reason_of({"reason": "sideways"}))
+for _r in reconcile_ac.EVIDENCE_REASONS:
+    assert_eq(f"#1575 known reason {_r} passes through", _r,
+              reconcile_ac._reason_of({"reason": _r}))
+
+# A duplicate `criterion` in one report fails closed to unestablished — a later
+# `satisfied` can never overwrite an earlier `unmet` (silent last-wins is the bug).
+_recon_dup = reconcile_ac.reconcile(
+    [{"criterion": 1, "status": "unmet", "evidence": "real gap"},
+     {"criterion": 1, "status": "satisfied", "evidence": "ok"}],
+    [{"criterion": 1, "status": "satisfied", "evidence": "ok"}])
+assert_eq("#1575 duplicate criterion in a report fails closed to unestablished",
+          "unestablished", _recon_dup["criteria"][0]["status"])
+
+# A `criterion: true`/`false` boolean is dropped by the fail-closed guard (bool is an
+# int subclass), so it becomes a missing vote → unestablished, never a satisfied vote.
+_recon_bool = reconcile_ac.reconcile(
+    [{"criterion": True, "status": "satisfied", "evidence": "x"},
+     {"criterion": 1, "status": "satisfied", "evidence": "x"}],
+    [{"criterion": 1, "status": "satisfied", "evidence": "y"}])
+assert_eq("#1575 a boolean criterion is dropped (not indexed as 1)",
+          [1], [c["criterion"] for c in _recon_bool["criteria"]])
+
+# Multi-element `blocking[]` is ascending and complete, out of report order — a
+# regression dropping the sort would pass every single-blocker fixture above.
+_recon_multi = reconcile_ac.reconcile(
+    [{"criterion": 3, "status": "unmet", "evidence": ""},
+     {"criterion": 1, "status": "satisfied", "evidence": "ok"},
+     {"criterion": 2, "status": "unmet", "evidence": ""}],
+    [{"criterion": 3, "status": "unmet", "evidence": ""},
+     {"criterion": 1, "status": "satisfied", "evidence": "ok"},
+     {"criterion": 2, "status": "unmet", "evidence": ""}])
+assert_eq("#1575 blocking[] is ascending and complete across two blockers",
+          [2, 3], _recon_multi["blocking"])
+
+# The CLI entry point's exit-code contract: 0 on a produced reconciliation, 3 on an
+# unreadable/malformed report — the load-bearing "unestablished measurement" signal the
+# Phase 3.4 prose routes on.
+with tempfile.TemporaryDirectory() as _md:
+    _ev_p = os.path.join(_md, "ev.json")
+    _cl_p = os.path.join(_md, "cl.json")
+    with open(_ev_p, "w", encoding="utf-8") as _fh:
+        _fh.write('[{"criterion": 1, "status": "satisfied", "evidence": "ok"}]')
+    with open(_cl_p, "w", encoding="utf-8") as _fh:
+        _fh.write('[{"criterion": 1, "status": "satisfied", "evidence": "ok"}]')
+    _out = io.StringIO()
+    with contextlib.redirect_stdout(_out):
+        _rc_ok = reconcile_ac.main(["--evidence-file", _ev_p, "--claim-file", _cl_p])
+    assert_eq("#1575 main() returns 0 on a produced reconciliation", 0, _rc_ok)
+    assert_eq("#1575 main() prints the reconciled JSON on stdout",
+              True, '"all_satisfied": true' in _out.getvalue())
+    # Missing file -> OSError -> exit 3.
+    with contextlib.redirect_stderr(io.StringIO()):
+        _rc_missing = reconcile_ac.main(
+            ["--evidence-file", os.path.join(_md, "nope.json"),
+             "--claim-file", _cl_p])
+    assert_eq("#1575 main() returns 3 when a report file is missing", 3, _rc_missing)
+    # Malformed (non-JSON) file -> JSONDecodeError -> exit 3.
+    _bad_p = os.path.join(_md, "bad.json")
+    with open(_bad_p, "w", encoding="utf-8") as _fh:
+        _fh.write('{not json')
+    with contextlib.redirect_stderr(io.StringIO()):
+        _rc_bad = reconcile_ac.main(["--evidence-file", _bad_p, "--claim-file", _cl_p])
+    assert_eq("#1575 main() returns 3 on a malformed (non-JSON) report", 3, _rc_bad)
+
 # _load_report accepts BOTH the verifier's documented `{"criteria": [...]}` object
 # and an already-unwrapped bare list — the producer (agents/ac-*-verifier.md) emits the
 # object form, so the boundary must not require the orchestrator to unwrap it first.
