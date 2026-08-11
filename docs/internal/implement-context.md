@@ -51,17 +51,19 @@ the always-loaded `SKILL.md` resident alongside it. Optimising against the four-
 total would be optimising a cost that does not exist.
 
 **Phase-file size — past-time snapshot, NOT a live figure.** Generating revision
-`5e41227f3`, captured 2026-08-06. These are on-disk `wc -c` byte counts, quoted in KiB.
-They rot as the phase files change; re-derive them rather than trusting these numbers.
+`990999c13`, captured 2026-08-11 (after issue #1576 moved Phase 1.6's Issue-Claim
+Audit procedure out of `phase-1-setup.md` into the dispatched `issue-claim-auditor`
+subagent). These are on-disk `wc -c` byte counts, quoted in KiB. They rot as the phase
+files change; re-derive them rather than trusting these numbers.
 
 | file | bytes | KiB |
 |---|---|---|
-| `skills/implement/phases/phase-1-setup.md` | 129,846 | 126.8 |
-| `skills/implement/phases/phase-2-implement.md` | 142,582 | 139.2 |
-| `skills/implement/phases/phase-3-review.md` | 105,231 | 102.8 |
-| `skills/implement/phases/phase-4-documentation.md` | 106,560 | 104.1 |
-| **four-file sum** | **484,219** | **472.9** |
-| `skills/implement/SKILL.md` (always resident) | 79,008 | 77.2 |
+| `skills/implement/phases/phase-1-setup.md` | 100,291 | 97.9 |
+| `skills/implement/phases/phase-2-implement.md` | 135,319 | 132.1 |
+| `skills/implement/phases/phase-3-review.md` | 107,158 | 104.6 |
+| `skills/implement/phases/phase-4-documentation.md` | 69,185 | 67.6 |
+| **four-file sum** | **411,953** | **402.3** |
+| `skills/implement/SKILL.md` (always resident) | 62,127 | 60.7 |
 
 Re-derive with:
 
@@ -69,8 +71,8 @@ Re-derive with:
 wc -c skills/implement/SKILL.md skills/implement/phases/*.md
 ```
 
-At that snapshot the per-entry phase-file cost spans ~103–139 KiB, against a four-file
-sum of ~473 KiB — the sum being the figure the framing above gets wrong.
+At that snapshot the per-entry phase-file cost spans ~68–132 KiB, against a four-file
+sum of ~402 KiB — the sum being the figure the framing above gets wrong.
 
 ### Finding 2 — the re-read on every re-entry and after every nested-skill return is the multiplier worth measuring
 

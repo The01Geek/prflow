@@ -110,7 +110,6 @@ states above and no row report accompanies it.
 
 import argparse
 import importlib.util
-import os
 import subprocess
 import sys
 import traceback
@@ -161,7 +160,7 @@ ROW_KINDS = ("mechanical", "monotonic", "judgment")
 ROWS = (
     # Do NOT re-add a `cloud-writer-manifest` row here (issue #1445) — a batched pass that
     # writes that artifact on a feature branch reintroduces the merge chokepoint and turns
-    # lib/test/cloud-writer-retention-check.py RED. See _TEST_MECHANICAL_ROW below.
+    # lib/test/cloud-writer-retention-check.py RED.
     {
         "name": "capability-profile-literals",
         "kind": "judgment",
@@ -397,34 +396,6 @@ ROWS = (
         "preflight_eligible": True,
     },
 )
-
-# ── Test-only mechanical-row seam (issue #1445) ──────────────────────────────
-# Retained `mechanical` machinery (`run_row`'s mechanical arm, `_mechanical_outcome`,
-# `_validate_registry`'s single-write check) has no production row to exercise it, so
-# lib/test/modules/regenerate-artifacts.sh re-injects this one via the env var below.
-# Never set DEVFLOW_RA_TEST_MECHANICAL_ROW outside that module: any production run that
-# does becomes a branch-side manifest writer.
-_TEST_MECHANICAL_ROW = {
-    "name": "cloud-writer-manifest",
-    "kind": "mechanical",
-    "argv": ("python3", "lib/test/cloud_writer_contract.py", "generate"),
-    "clean": (0,),
-    "exits": (0, 1),
-    "writes": MECHANICAL_ARTIFACT,
-    "policy": (
-        "the closure data in lib/test/cloud_writer_contract.py "
-        "(ROOTS / DISPATCH_EDGES / SKILL_ASSETS / required helper heads) — "
-        "regenerate against the merged tree with "
-        "`python3 lib/test/cloud_writer_contract.py generate`"
-    ),
-    "conflict_class": "regenerate",
-    "preflight_eligible": True,
-    "preflight_argv": ("python3", "lib/test/cloud_writer_contract.py", "verify"),
-    "preflight_positive_marker": "cloud-writer-contract:",
-}
-
-if os.environ.get("DEVFLOW_RA_TEST_MECHANICAL_ROW") == "1":
-    ROWS = (_TEST_MECHANICAL_ROW,) + ROWS
 
 # ── Coupled-site registry (issue #1206) ──────────────────────────────────────
 # The question `--list` answers today is "what did a generator write?". This second

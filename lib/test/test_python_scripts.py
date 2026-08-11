@@ -14578,11 +14578,6 @@ def _mt_conflict1445(repo, ref_a, ref_b):
 
 
 # ── AC7 (branch-side): the batched artifact-regeneration pass does not write the manifest.
-# Do not let this file run with DEVFLOW_RA_TEST_MECHANICAL_ROW set: that seam re-injects the
-# very row AC7 asserts is absent, so the assertions below would fail for an environment
-# reason rather than a regression. Assert the precondition instead of assuming it.
-assert_eq("#1445 AC7 precondition: the test-only mechanical-row seam is NOT enabled here",
-          False, os.environ.get("DEVFLOW_RA_TEST_MECHANICAL_ROW") == "1")
 _regen_writes_1445 = [
     w for row in _regen1445.ROWS
     for w in ((row.get("writes"),) if isinstance(row.get("writes"), str) else tuple(row.get("writes") or ()))

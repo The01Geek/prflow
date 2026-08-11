@@ -4,6 +4,21 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.29] — 2026-08-11
+
+### Fixed
+- **Phase 1.6's issue-claim-auditor dispatch now binds a distinct `REPO_ROOT` operand.** `phase-1-setup.md` previously folded the checkout root into the `SCRIPTS` bullet, which the auditor's own operand list never named, so Pass 6's `--repo-root "$REPO_ROOT"` could resolve empty and route to its fail-closed default. `SCRIPTS` and `REPO_ROOT` are now separate, explicitly bound operands in both `phase-1-setup.md` and `agents/issue-claim-auditor.md`. (PR #1583 review, Important-1)
+
+## [2.32.28] — 2026-08-11
+
+### Fixed
+- **Retired the test-only `cloud-writer-manifest` mechanical-row seam that `regenerate-artifacts.py`'s test suite re-injected via `DEVFLOW_RA_TEST_MECHANICAL_ROW`.** Issue #1445 (PR #1571) moved the cloud-writer manifest to being written on `main` alone, but kept this seam so `run_row`'s retained mechanical-kind machinery still had a row to exercise. The seam's `preflight_argv` ran `python3 lib/test/cloud_writer_contract.py verify` against the real working tree, so any branch that legitimately edits a file inside the manifest closure (`skills/**`, `agents/**`, …) made the injected row report drift — cascading into unrelated preflight assertions across `lib/test/modules/regenerate-artifacts.sh` and blocking the required `lib + python tests` check independently of whether the branch regenerated or left the manifest alone. Removed the seam and every test that depended on it (`lib/test/regenerate-artifacts.py`, `lib/test/modules/regenerate-artifacts.sh`, `lib/test/test_python_scripts.py`), leaving the retained `mechanical` machinery (`run_row`'s mechanical arm, `_mechanical_outcome`, `_validate_registry`'s single-write check) in place with no production or test row to exercise it. Follow-up to issue #1445 / PR #1571.
+
+## [2.32.27] — 2026-08-11
+
+### Changed
+- **`/prflow:implement` Phase 1.6 now dispatches the Issue-Claim Audit to a subagent.** The audit's pass procedure (count/enumeration, negative-scope, policy, execution-capability, verified-premise) moved out of `phase-1-setup.md` into the new first-party `issue-claim-auditor` subagent, which shares the run's checkout, writes the same per-pass workpad notes and reflections, and returns a structured record; the orchestrator keeps every decision, including the two terminal Blocked stops. This shrinks the re-read `phase-1-setup.md` while preserving audit behavior. (#1583)
+
 ## [2.32.26] — 2026-08-11
 
 ### Changed
