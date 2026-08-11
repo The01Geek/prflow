@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.31] — 2026-08-11
+
+### Changed
+- **Collapse the duplicated per-phase entry-gate prose in the implement orchestrator.** `skills/implement/SKILL.md` now states its phase entry-gate rule once, in the preamble, and routes each of the four phases from that single statement, instead of restating a near-identical entry-gate paragraph in every phase stub. The shipped orchestrator every implement run loads is shorter, and editing the gate rule is a one-place change. (#1585)
+
 ## [2.32.30] — 2026-08-11
 
 ### Changed
