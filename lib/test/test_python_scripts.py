@@ -14674,6 +14674,28 @@ assert_eq("#1445 AC3.2: --allow-degraded-base acknowledges the substituted compa
 assert_eq("#1445 AC3.2: a clean comparand exits 0",
           _cwr1445.EXIT_CLEAN,
           _cwr1445.classify_outcome([], [], False, "origin/main", False)[0])
+# #1606: a branch that ADDS a shipped skill asset must be able to add its manifest entry — the
+# closure check and the key-set equality assertion leave it no other green state. Only that shape
+# is permitted, so both arms are exercised: an entry the base already carries may be neither
+# rewritten nor dropped, and no non-asset top-level key may move.
+_cwr_base_1606 = {"files": {"skills/x/SKILL.md": "aa"}, "protocol": "v1"}
+assert_eq("#1606: adding an asset entry is permitted (the other two checks keep full strength)",
+          [], _cwr1445.detect_mutation(
+              _cwr_base_1606,
+              {"files": {"skills/x/SKILL.md": "aa", "skills/y/SKILL.md": "bb"}, "protocol": "v1"}))
+assert_eq("#1606: rewriting an existing asset digest is still a violation",
+          1, len(_cwr1445.detect_mutation(
+              _cwr_base_1606, {"files": {"skills/x/SKILL.md": "ZZ"}, "protocol": "v1"})))
+assert_eq("#1606: dropping an existing asset entry is still a violation",
+          1, len(_cwr1445.detect_mutation(
+              _cwr_base_1606, {"files": {}, "protocol": "v1"})))
+assert_eq("#1606: an addition that also rewrites an existing entry is still a violation",
+          1, len(_cwr1445.detect_mutation(
+              _cwr_base_1606,
+              {"files": {"skills/x/SKILL.md": "ZZ", "skills/y/SKILL.md": "bb"}, "protocol": "v1"})))
+assert_eq("#1606: a changed non-asset top-level key is still a violation",
+          1, len(_cwr1445.detect_mutation(
+              _cwr_base_1606, {"files": {"skills/x/SKILL.md": "aa"}, "protocol": "v2"})))
 # detect_mutation's fail-closed arms: a non-object base or head is a comparand-unestablished
 # violation, never silently read as 'unchanged' (the docstring's "drives every arm" claim).
 assert_eq("#1445 AC3.2: a non-object base manifest is flagged (fail closed, not 'unchanged')",

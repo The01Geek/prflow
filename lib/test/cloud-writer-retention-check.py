@@ -62,24 +62,65 @@ EXIT_UNESTABLISHED = 3
 ACK_FLAG = "--allow-degraded-base"
 
 
+ASSET_KEY = "files"
+
+
+def _is_asset_addition_only(base_manifest: dict, head_manifest: dict) -> bool:
+    """True when the head differs from the base ONLY by asset entries the head adds.
+
+    The asset fingerprints are nested under one key, so a top-level equality test would read
+    an added asset as a changed value and refuse the very delta this permits. Every other
+    top-level key must be untouched, and every fingerprint the base carries must survive
+    byte-identical — a dropped or rewritten entry is the overwrite this check exists to stop.
+    Anything that is not a well-shaped pair of asset maps returns False, so an unrecognised
+    manifest shape routes to the violation arm rather than through this exemption."""
+    if set(base_manifest) != set(head_manifest):
+        return False
+    for key, base_value in base_manifest.items():
+        if key == ASSET_KEY:
+            continue
+        if head_manifest[key] != base_value:
+            return False
+    base_assets = base_manifest.get(ASSET_KEY)
+    head_assets = head_manifest.get(ASSET_KEY)
+    if not isinstance(base_assets, dict) or not isinstance(head_assets, dict):
+        return False
+    return all(
+        path in head_assets and head_assets[path] == digest
+        for path, digest in base_assets.items()
+    )
+
+
 def detect_mutation(base_manifest: object, head_manifest: object) -> "list[str]":
     """Return violations (empty ⇒ unchanged). Pure — never raises, never reads a file.
 
     A base or head that is not a well-shaped object contributes a fail-closed breadcrumb
     rather than being read as 'unchanged' — an unestablished comparand is never a pass. The
     comparison is deep JSON equality, so a re-ordered or re-indented but semantically
-    identical manifest is NOT flagged; only a genuine content change is."""
+    identical manifest is NOT flagged; only a genuine content change is.
+
+    One delta shape is permitted (issue #1606): a purely ADDITIVE one, where every key the
+    base carries is present in the head with an identical value and the head carries extra
+    keys. A branch that adds a shipped skill asset has no other way to be green — the closure
+    check fails on an asset the source list omits, and the key-set equality assertion fails on
+    a manifest that disagrees with that list, so forbidding the addition here makes the three
+    unsatisfiable together. Do NOT widen this to a delta that touches an existing entry: a
+    rewritten fingerprint is exactly the silent overwrite of `main`'s record this check exists
+    to stop, and the two checks above cannot see it."""
     if not isinstance(base_manifest, dict):
         return [f"[cloud-writer-retain] base {MANIFEST_REL} is not a JSON object — comparand unestablished"]
     if not isinstance(head_manifest, dict):
         return [f"[cloud-writer-retain] head {MANIFEST_REL} is not a JSON object — comparand unestablished"]
     if base_manifest == head_manifest:
         return []
+    if _is_asset_addition_only(base_manifest, head_manifest):
+        return []
     return [
-        f"[cloud-writer-retain] {MANIFEST_REL} differs from the merge-base manifest — a "
-        "feature branch must not mutate this artifact (it is written on `main` alone, by "
-        ".github/workflows/version-consolidate.yml). Revert your change to it; the digests "
-        "are regenerated on `main` from the merged tree."
+        f"[cloud-writer-retain] {MANIFEST_REL} changes or drops an entry the merge-base "
+        "manifest already carries — a feature branch may only ADD entries for skill assets it "
+        "adds (the artifact is otherwise written on `main` alone, by "
+        ".github/workflows/version-consolidate.yml). Revert your change to the existing "
+        "entries; their digests are regenerated on `main` from the merged tree."
     ]
 
 
@@ -151,7 +192,10 @@ def classify_outcome(
         )
         return EXIT_CLEAN, lines
     return EXIT_CLEAN, [
-        f"[cloud-writer-retain] {MANIFEST_REL} is unchanged relative to {base_ref}"
+        # Says "retains", not "is unchanged": since issue #1606 this arm also covers a manifest
+        # that ADDED entries, and reporting that as unchanged would tell a reader the branch
+        # touched an artifact it in fact extended.
+        f"[cloud-writer-retain] {MANIFEST_REL} retains every entry {base_ref} carries"
     ]
 
 
