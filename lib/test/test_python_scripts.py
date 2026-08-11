@@ -93,6 +93,7 @@ stale_prose_lint = _load('stale_prose_lint', SCRIPTS / 'stale-prose-lint.py')
 issue_audit_state = _load('issue_audit_state', SCRIPTS / 'issue-audit-state.py')
 discover_deferrals = _load(
     'discover_deferrals', SCRIPTS / 'discover-deferral-manifests.py')
+reconcile_ac = _load('reconcile_ac_verifiers', SCRIPTS / 'reconcile-ac-verifiers.py')
 
 
 PASS = 0
@@ -29250,6 +29251,201 @@ assert_eq("#1484 positive control: member 'shellcheck' still establishes",
           (True, None), _lm_member("shellcheck"))
 assert_eq("#1484 positive control: member 'ruff.exe' still establishes",
           (True, None), _lm_member("ruff.exe"))
+
+
+# ── issue #1575: Phase-3.4 two-verifier reconciliation (reconcile-ac-verifiers.py) ──
+# The executable core of the two-verifier AC gate. Drive every pairing of the three
+# statuses and prove: agreement records that status, EVERY disagreement records
+# `unestablished`, a `satisfied` never lands without an evidence pointer, and a
+# command that passes while the claim verifier disagrees does NOT reconcile satisfied.
+_R_STATUSES = ("satisfied", "unmet", "unestablished")
+
+for _es in _R_STATUSES:
+    for _cs in _R_STATUSES:
+        # Both sides carry an evidence pointer so a `satisfied` agreement is not
+        # downgraded here — the no-pointer downgrade is exercised separately below.
+        _st, _ev, _src = reconcile_ac.reconcile_one(_es, _cs, "ev-ptr", "cl-ptr")
+        _expected = _es if _es == _cs else "unestablished"
+        assert_eq(f"#1575 reconcile_one({_es},{_cs}) status", _expected, _st)
+        # Blocking: only `satisfied` does not block.
+        _expected_blocks = _expected != "satisfied"
+        assert_eq(f"#1575 reconcile_one({_es},{_cs}) blocks",
+                  _expected_blocks, _st in reconcile_ac.BLOCKING_STATUSES)
+
+# A `satisfied` agreement with NO evidence pointer from either verifier is
+# downgraded to `unestablished` — a satisfied record never lands without evidence (AC6).
+assert_eq("#1575 satisfied with no evidence downgrades to unestablished",
+          ("unestablished", "", ""),
+          reconcile_ac.reconcile_one("satisfied", "satisfied", "", ""))
+# A single-sided evidence pointer is sufficient, and the source is reported.
+assert_eq("#1575 satisfied keeps evidence from the evidence verifier alone",
+          ("satisfied", "e-only", "evidence"),
+          reconcile_ac.reconcile_one("satisfied", "satisfied", "e-only", ""))
+assert_eq("#1575 satisfied keeps evidence from the claim verifier alone",
+          ("satisfied", "c-only", "claim"),
+          reconcile_ac.reconcile_one("satisfied", "satisfied", "", "c-only"))
+
+# Fail-closed status normalization: an unrecognized/absent status is `unestablished`,
+# so it never silently agrees into `satisfied`/`unmet`.
+assert_eq("#1575 unrecognized status normalizes to unestablished (agreement path)",
+          "unestablished",
+          reconcile_ac.reconcile_one("bogus", "bogus", "x", "y")[0])
+assert_eq("#1575 a bogus status disagreeing with satisfied is unestablished",
+          "unestablished",
+          reconcile_ac.reconcile_one("satisfied", "bogus", "x", "y")[0])
+
+# The #1450 fixture: a verification command PASSES (evidence=satisfied) while its
+# assertions test a DIFFERENT claim than the criterion states (claim=unmet). The
+# reconciled record must NOT be satisfied.
+_ev_report = [
+    {"criterion": 1, "status": "satisfied", "evidence": "suite passed on HEAD"},
+    {"criterion": 2, "status": "satisfied", "evidence": "cmd exit 0"},
+]
+_cl_report = [
+    {"criterion": 1, "status": "satisfied", "evidence": "each clause has an assertion"},
+    {"criterion": 2, "status": "unmet", "evidence": "command asserts a different claim"},
+]
+_recon = reconcile_ac.reconcile(_ev_report, _cl_report)
+_by = {c["criterion"]: c for c in _recon["criteria"]}
+assert_eq("#1575 fixture: agreeing satisfied criterion reconciles satisfied",
+          "satisfied", _by[1]["status"])
+assert_eq("#1575 fixture: passing command + disagreeing claim is NOT satisfied",
+          "unestablished", _by[2]["status"])
+assert_eq("#1575 fixture: the non-satisfied criterion blocks", True, _by[2]["blocks"])
+assert_eq("#1575 fixture: blocking list names the disagreeing criterion",
+          [2], _recon["blocking"])
+assert_eq("#1575 fixture: all_satisfied is false when a criterion blocks",
+          False, _recon["all_satisfied"])
+assert_eq("#1575 fixture: a satisfied criterion carries an evidence pointer",
+          True, bool(_by[1]["evidence"]))
+
+# A structured `reason` from the evidence verifier is passed through on a BLOCKING
+# criterion so the orchestrator routes the denied-command case from a field, not by
+# sniffing free text; it is dropped on a satisfied criterion (no routing to refine).
+_recon_reason = reconcile_ac.reconcile(
+    [{"criterion": 1, "status": "unestablished", "evidence": "denied", "reason": "denied"},
+     {"criterion": 2, "status": "satisfied", "evidence": "ok", "reason": "denied"}],
+    [{"criterion": 1, "status": "unestablished", "evidence": ""},
+     {"criterion": 2, "status": "satisfied", "evidence": "ok"}])
+_rby = {c["criterion"]: c for c in _recon_reason["criteria"]}
+assert_eq("#1575 evidence reason passes through on a blocking criterion",
+          "denied", _rby[1]["reason"])
+assert_eq("#1575 reason is dropped on a satisfied (non-blocking) criterion",
+          "", _rby[2]["reason"])
+assert_eq("#1575 reason normalizes case/whitespace",
+          "failed",
+          reconcile_ac._reason_of({"reason": "  FAILED "}))
+
+# A criterion present in only one report fails closed to unestablished (missing vote).
+_recon_missing = reconcile_ac.reconcile(
+    [{"criterion": 1, "status": "satisfied", "evidence": "x"}], [])
+assert_eq("#1575 criterion missing from one report reconciles unestablished",
+          "unestablished", _recon_missing["criteria"][0]["status"])
+
+# all_satisfied requires at least one criterion (an empty pair is not a trivial pass).
+assert_eq("#1575 empty reports do not report all_satisfied",
+          False, reconcile_ac.reconcile([], [])["all_satisfied"])
+
+# reconcile_one on the agreeing-satisfied path reports "both" and joins both pointers.
+assert_eq("#1575 reconcile_one satisfied/satisfied joins both evidence pointers",
+          ("satisfied", "ev-ptr; cl-ptr", "both"),
+          reconcile_ac.reconcile_one("satisfied", "satisfied", "ev-ptr", "cl-ptr"))
+# A BLOCKING record keeps the failing-detail pointer(s) rather than blanking them, so
+# the orchestrator's Blocked-path reflection can name the detail.
+assert_eq("#1575 a blocking (disagreement) record keeps its evidence pointer",
+          ("unestablished", "cmd passed; asserts other claim", "both"),
+          reconcile_ac.reconcile_one("satisfied", "unmet",
+                                     "cmd passed", "asserts other claim"))
+
+# `reason` is a CLOSED vocabulary: an unrecognized value normalizes to "" (fail closed),
+# not passed through, so a consumer may rely on any non-empty reason being in the set.
+assert_eq("#1575 unrecognized reason normalizes to empty",
+          "", reconcile_ac._reason_of({"reason": "sideways"}))
+for _r in reconcile_ac.EVIDENCE_REASONS:
+    assert_eq(f"#1575 known reason {_r} passes through", _r,
+              reconcile_ac._reason_of({"reason": _r}))
+
+# A duplicate `criterion` in one report fails closed to unestablished — a later
+# `satisfied` can never overwrite an earlier `unmet` (silent last-wins is the bug).
+_recon_dup = reconcile_ac.reconcile(
+    [{"criterion": 1, "status": "unmet", "evidence": "real gap"},
+     {"criterion": 1, "status": "satisfied", "evidence": "ok"}],
+    [{"criterion": 1, "status": "satisfied", "evidence": "ok"}])
+assert_eq("#1575 duplicate criterion in a report fails closed to unestablished",
+          "unestablished", _recon_dup["criteria"][0]["status"])
+
+# A `criterion: true`/`false` boolean is dropped by the fail-closed guard (bool is an
+# int subclass), so it becomes a missing vote → unestablished, never a satisfied vote.
+_recon_bool = reconcile_ac.reconcile(
+    [{"criterion": True, "status": "satisfied", "evidence": "x"},
+     {"criterion": 1, "status": "satisfied", "evidence": "x"}],
+    [{"criterion": 1, "status": "satisfied", "evidence": "y"}])
+assert_eq("#1575 a boolean criterion is dropped (not indexed as 1)",
+          [1], [c["criterion"] for c in _recon_bool["criteria"]])
+
+# Multi-element `blocking[]` is ascending and complete, out of report order — a
+# regression dropping the sort would pass every single-blocker fixture above.
+_recon_multi = reconcile_ac.reconcile(
+    [{"criterion": 3, "status": "unmet", "evidence": ""},
+     {"criterion": 1, "status": "satisfied", "evidence": "ok"},
+     {"criterion": 2, "status": "unmet", "evidence": ""}],
+    [{"criterion": 3, "status": "unmet", "evidence": ""},
+     {"criterion": 1, "status": "satisfied", "evidence": "ok"},
+     {"criterion": 2, "status": "unmet", "evidence": ""}])
+assert_eq("#1575 blocking[] is ascending and complete across two blockers",
+          [2, 3], _recon_multi["blocking"])
+
+# The CLI entry point's exit-code contract: 0 on a produced reconciliation, 3 on an
+# unreadable/malformed report — the load-bearing "unestablished measurement" signal the
+# Phase 3.4 prose routes on.
+with tempfile.TemporaryDirectory() as _md:
+    _ev_p = os.path.join(_md, "ev.json")
+    _cl_p = os.path.join(_md, "cl.json")
+    with open(_ev_p, "w", encoding="utf-8") as _fh:
+        _fh.write('[{"criterion": 1, "status": "satisfied", "evidence": "ok"}]')
+    with open(_cl_p, "w", encoding="utf-8") as _fh:
+        _fh.write('[{"criterion": 1, "status": "satisfied", "evidence": "ok"}]')
+    _out = io.StringIO()
+    with contextlib.redirect_stdout(_out):
+        _rc_ok = reconcile_ac.main(["--evidence-file", _ev_p, "--claim-file", _cl_p])
+    assert_eq("#1575 main() returns 0 on a produced reconciliation", 0, _rc_ok)
+    assert_eq("#1575 main() prints the reconciled JSON on stdout",
+              True, '"all_satisfied": true' in _out.getvalue())
+    # Missing file -> OSError -> exit 3.
+    with contextlib.redirect_stderr(io.StringIO()):
+        _rc_missing = reconcile_ac.main(
+            ["--evidence-file", os.path.join(_md, "nope.json"),
+             "--claim-file", _cl_p])
+    assert_eq("#1575 main() returns 3 when a report file is missing", 3, _rc_missing)
+    # Malformed (non-JSON) file -> JSONDecodeError -> exit 3.
+    _bad_p = os.path.join(_md, "bad.json")
+    with open(_bad_p, "w", encoding="utf-8") as _fh:
+        _fh.write('{not json')
+    with contextlib.redirect_stderr(io.StringIO()):
+        _rc_bad = reconcile_ac.main(["--evidence-file", _bad_p, "--claim-file", _cl_p])
+    assert_eq("#1575 main() returns 3 on a malformed (non-JSON) report", 3, _rc_bad)
+
+# _load_report accepts BOTH the verifier's documented `{"criteria": [...]}` object
+# and an already-unwrapped bare list — the producer (agents/ac-*-verifier.md) emits the
+# object form, so the boundary must not require the orchestrator to unwrap it first.
+with tempfile.TemporaryDirectory() as _rd:
+    _obj_path = os.path.join(_rd, "obj.json")
+    _list_path = os.path.join(_rd, "list.json")
+    with open(_obj_path, "w", encoding="utf-8") as _fh:
+        _fh.write('{"criteria": [{"criterion": 1, "status": "unmet", "evidence": ""}]}')
+    with open(_list_path, "w", encoding="utf-8") as _fh:
+        _fh.write('[{"criterion": 1, "status": "unmet", "evidence": ""}]')
+    assert_eq("#1575 _load_report accepts the object {criteria:[...]} form",
+              [{"criterion": 1, "status": "unmet", "evidence": ""}],
+              reconcile_ac._load_report(_obj_path))
+    assert_eq("#1575 _load_report accepts the bare list form",
+              [{"criterion": 1, "status": "unmet", "evidence": ""}],
+              reconcile_ac._load_report(_list_path))
+    _bad_path = os.path.join(_rd, "bad.json")
+    with open(_bad_path, "w", encoding="utf-8") as _fh:
+        _fh.write('"a scalar, not a report"')
+    assert_raises("#1575 _load_report rejects a non-list/non-criteria-object shape",
+                  ValueError, lambda: reconcile_ac._load_report(_bad_path))
 
 
 print()

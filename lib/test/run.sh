@@ -5584,7 +5584,11 @@ rm -f "$IPS_CFG"
 # The retained Phase 4.3 boundaries cover the config read and clean-tree backstop;
 # detailed publish-state prose is intentionally not pinned.
 assert_pin_unique "implement_pr_state: SKILL reads via config-get with the ready_for_review default" 'config-get.sh .prflow_implement.implement_pr_state ready_for_review' "$IMPL_SKILL"
-assert_pin_unique "implement_pr_state: SKILL keeps the clean-tree backstop above the gate" 'git status --porcelain' "$IMPL_SKILL"
+# Scoped to phase-4-documentation.md: the clean-tree backstop above the publish gate lives
+# there. Phase 3.4's commit-before-dispatch step (issue #1575) legitimately adds a second
+# `git status --porcelain` elsewhere in the bundle, so the backstop's uniqueness is asserted
+# in its own phase file rather than bundle-wide.
+assert_pin_unique "implement_pr_state: SKILL keeps the clean-tree backstop above the gate" 'git status --porcelain' "$IMPL_PHASES_DIR/phase-4-documentation.md"
 
 # Executable publish-decision guard — logic-equivalent to the SKILL's single literal-`draft`
 # comparison (semantically mirrors `[ "$PR_STATE" = "draft" ]`; `$1` stands in for
@@ -26829,6 +26833,40 @@ for a in $AGENT_TOOL_ROSTER; do
   esac
   assert_eq "#agent-tools agents/$a.md tools: Write grant matches its dispatch contract" \
     "$atools_write_expected" "$(printf '%s' "$atools_value" | grep -qw 'Write' && echo yes || echo no)"
+done
+
+# --- #1575: Phase-3.4 AC verifier tool boundaries (issue #1575). ---
+# The two dispatched Phase-3.4 verifiers must not write, edit, or dispatch a further
+# subagent (AC7), and the claim verifier must EXECUTE NOTHING — so it holds no Bash while
+# the evidence verifier (the only one that runs a verification command) does. Assert each
+# boundary the same way the review-agent roster above does: prove the tools: value is
+# non-empty (empty == inherits every tool) before testing what it omits.
+for acv in ac-evidence-verifier ac-claim-verifier; do
+  # structural-pin-ok: security-credential-boundary -- the `tools:` line IS the runtime tool
+  # boundary the harness parses for a dispatched subagent; no other surface constrains what
+  # a dispatched Phase-3.4 verifier may do to the working tree.
+  acv_tools="$(grep -E '^tools:[[:space:]]' "$FDROOT/agents/$acv.md" | head -1)"
+  acv_value="${acv_tools#tools:}"
+  case "$acv_value" in
+    *[![:space:]]*) acv_nonempty=yes ;;
+    *) acv_nonempty=no ;;
+  esac
+  assert_eq "#1575 agents/$acv.md declares a NON-EMPTY tools: value (empty == inherits all tools)" \
+    "yes" "$acv_nonempty"
+  for denied in Write Edit MultiEdit NotebookEdit Task Agent; do
+    assert_eq "#1575 agents/$acv.md tools: omits $denied" \
+      "no" "$(printf '%s' "$acv_value" | grep -qw "$denied" && echo yes || echo no)"  # raw-guard-ok: loop body: the pattern is the $denied loop variable, not a static pin
+  done
+  # Bash: expected on the evidence verifier (it runs the in-env verification command),
+  # asserted ABSENT on the claim verifier (which executes nothing) — both directions, so
+  # neither a dropped grant that would break command verification nor a spread grant that
+  # would let the claim verifier execute is silent.
+  case "$acv" in
+    ac-evidence-verifier) acv_bash_expected=yes ;;
+    *) acv_bash_expected=no ;;
+  esac
+  assert_eq "#1575 agents/$acv.md tools: Bash grant matches its dispatch contract" \
+    "$acv_bash_expected" "$(printf '%s' "$acv_value" | grep -qw 'Bash' && echo yes || echo no)"
 done
 
 # --- #191: retain the review agents' complete-location-set deliverable boundary. ---
