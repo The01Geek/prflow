@@ -1212,6 +1212,10 @@
       "note": "the reference-size ceiling in lint-reference-size.py: size verdicts either side of the 61750-byte threshold, the start-marker-without-end exclusion, live/expired/outside-the-recorded-set/outside-the-population exemption semantics, the hand-editable record's malformed-shape matrix, the whole-tree empty-family and empty-skill-root refusals, the unreadable-file and unestablishable-population fail-closed arms, the threshold derivation, and the real-tree run reconciled against an independently derived per-namespace population",
       "owner": "unmodularized"
     },
+    "1604": {
+      "note": "",
+      "owner": "unmodularized"
+    },
     "161": {
       "note": "",
       "owner": "unmodularized"
