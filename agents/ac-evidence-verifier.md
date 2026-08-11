@@ -73,8 +73,14 @@ A criterion satisfied by "the project's test suite passes", "`shellcheck`/`ruff`
      failing detail. Never `(post-merge)` a real failure.
    - **Denied / could not run in this context** — the command was refused in *your* context
      (a grant gap: the dispatched subagent's allowlist did not permit it). `unestablished`,
-     with `evidence` naming the denial and that `prflow_implement.allowed_tools` is the
-     remedy. Never launder a denial into a pass.
+     with `reason: "denied"` and `evidence` naming the denial and that
+     `prflow_implement.allowed_tools` is the remedy. Never launder a denial into a pass.
+
+**The `reason` field (blocking criteria only).** On any criterion you report **not**
+`satisfied`, attach a structured `reason` so the orchestrator routes the block from a field
+rather than by reading your prose: `denied` (the command was refused in your context),
+`failed` (the command ran and failed), or `unresolved` (you could not establish the
+evidence). Omit `reason` on a `satisfied` criterion.
 
 ### Non-command criterion (test-in-diff, code reference, or documented check)
 
@@ -107,8 +113,8 @@ Print exactly one JSON object on stdout and nothing else — a list of per-crite
 {
   "criteria": [
     {"criterion": 1, "status": "satisfied", "evidence": "lib/test/run.sh passed on <sha>"},
-    {"criterion": 2, "status": "unmet", "evidence": "no assertion covers clause X"},
-    {"criterion": 3, "status": "unestablished", "evidence": "command denied in this context"}
+    {"criterion": 2, "status": "unmet", "reason": "failed", "evidence": "suite failed: <detail>"},
+    {"criterion": 3, "status": "unestablished", "reason": "denied", "evidence": "command denied in this context; prflow_implement.allowed_tools is the remedy"}
   ]
 }
 ```

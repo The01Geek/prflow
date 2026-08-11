@@ -29319,6 +29319,23 @@ assert_eq("#1575 fixture: all_satisfied is false when a criterion blocks",
 assert_eq("#1575 fixture: a satisfied criterion carries an evidence pointer",
           True, bool(_by[1]["evidence"]))
 
+# A structured `reason` from the evidence verifier is passed through on a BLOCKING
+# criterion so the orchestrator routes the denied-command case from a field, not by
+# sniffing free text; it is dropped on a satisfied criterion (no routing to refine).
+_recon_reason = reconcile_ac.reconcile(
+    [{"criterion": 1, "status": "unestablished", "evidence": "denied", "reason": "denied"},
+     {"criterion": 2, "status": "satisfied", "evidence": "ok", "reason": "denied"}],
+    [{"criterion": 1, "status": "unestablished", "evidence": ""},
+     {"criterion": 2, "status": "satisfied", "evidence": "ok"}])
+_rby = {c["criterion"]: c for c in _recon_reason["criteria"]}
+assert_eq("#1575 evidence reason passes through on a blocking criterion",
+          "denied", _rby[1]["reason"])
+assert_eq("#1575 reason is dropped on a satisfied (non-blocking) criterion",
+          "", _rby[2]["reason"])
+assert_eq("#1575 reason normalizes case/whitespace",
+          "failed",
+          reconcile_ac._reason_of({"reason": "  FAILED "}))
+
 # A criterion present in only one report fails closed to unestablished (missing vote).
 _recon_missing = reconcile_ac.reconcile(
     [{"criterion": 1, "status": "satisfied", "evidence": "x"}], [])

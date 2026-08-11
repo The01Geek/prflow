@@ -34,9 +34,14 @@ Input: two JSON files, each a list of objects
 An unrecognized/absent status is treated as `unestablished` (fail closed) rather
 than crashing, because the reports are agent-authored.
 
+A verifier record may carry an optional `reason` (the evidence verifier attaches
+`denied`/`failed`/`unresolved` to a non-satisfied criterion) which is passed
+through on a blocking record, so the orchestrator routes the denied-command case
+to its Blocked-naming-`allowed_tools` path from a field, not by sniffing free text.
+
 Output: one JSON object on stdout —
     {"criteria": [ {"criterion", "evidence_status", "claim_status", "status",
-                    "blocks", "evidence", "evidence_source"} ... ],
+                    "blocks", "reason", "evidence", "evidence_source"} ... ],
      "all_satisfied": <bool>, "blocking": [<criterion>, ...]}
 
 Exit codes:
@@ -69,6 +74,21 @@ def _evidence_of(record):
         return ""
     ev = record.get("evidence")
     return ev.strip() if isinstance(ev, str) else ""
+
+
+# Structured, machine-routable reason the evidence verifier may attach to a
+# non-satisfied criterion, so the orchestrator routes the denied-command case to the
+# Blocked-naming-`allowed_tools` path from a field rather than by sniffing free text.
+# The set is advisory (an unknown value passes through as-is): the criterion still
+# blocks on its `status`; `reason` only refines HOW the orchestrator routes the block.
+EVIDENCE_REASONS = ("denied", "failed", "unresolved")
+
+
+def _reason_of(record):
+    if not isinstance(record, dict):
+        return ""
+    reason = record.get("reason")
+    return reason.strip().lower() if isinstance(reason, str) else ""
 
 
 def reconcile_one(evidence_status, claim_status, evidence_ptr, claim_ptr):
@@ -133,6 +153,10 @@ def reconcile(evidence_records, claim_records):
         blocks = status in BLOCKING_STATUSES
         if blocks:
             blocking.append(num)
+        # `reason` comes from the evidence side only — it is the sole verifier that
+        # runs a command, so a `denied`/`failed` reason is its to report. It is carried
+        # only on a blocking criterion (a satisfied one needs no routing refinement).
+        reason = _reason_of(e_rec) if blocks else ""
         criteria_out.append(
             {
                 "criterion": num,
@@ -140,6 +164,7 @@ def reconcile(evidence_records, claim_records):
                 "claim_status": _normalize_status(c_status),
                 "status": status,
                 "blocks": blocks,
+                "reason": reason,
                 "evidence": evidence,
                 "evidence_source": evidence_source,
             }
