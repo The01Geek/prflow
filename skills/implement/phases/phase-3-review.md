@@ -449,9 +449,9 @@ Accompany them with a `--note` stating how this run established the **review eng
 
 ### 3.4 Acceptance Criteria Gate
 
-Before advancing to Phase 4, verify every **non-post-merge** checkbox in the workpad's `## Acceptance Criteria` section is satisfied — but **not from your own inline check**. You (the orchestrator) drove Phase 2's implementation and Phase 3.3's fix loop, so a gate you resolve in your own context inherits your own assumptions about what you built (issue #1450). Instead, **dispatch two fresh-context verifiers in the same turn** and route this gate from their **reconciled** per-criterion record.
+Before advancing to Phase 4, verify every **non-post-merge** checkbox in the workpad's `## Acceptance Criteria` section is satisfied — but **not from your own inline check**. You (the orchestrator) drove Phase 2's implementation and Phase 3.3's fix loop, so a gate you resolve in your own context inherits your own assumptions about what you built. Instead, **dispatch two fresh-context verifiers in the same turn** and route this gate from their **reconciled** per-criterion record.
 
-**Commit before dispatch (issue #1254 shared-checkout convention).** The verifiers read and write this same checkout, so establish the tree state (`git status --porcelain`) and commit any uncommitted change first — take a §2.0.5 durability checkpoint naming the paths — before dispatching. When the tree state cannot be established, establish it before dispatching at all.
+**Commit before dispatch (the shared-checkout convention).** The verifiers read and write this same checkout, so establish the tree state (`git status --porcelain`) and commit any uncommitted change first — take a §2.0.5 durability checkpoint naming the paths — before dispatching. When the tree state cannot be established, establish it before dispatching at all.
 
 **Resolve the extension-governed facts and pass them BY VALUE — neither verifier reads or reloads the consumer prompt extension.** Following the `[[PLUGIN_ROOT]]` by-value handoff pattern in `skills/retrospective-weekly/SKILL.md`, resolve each fact once and substitute it into both dispatch prompts (a dispatched subagent resolves no skill-directory anchor of its own):
 
@@ -474,7 +474,7 @@ Pass each verifier: the in-scope, **non-post-merge** criteria as a JSON list of 
 
 (On a local runner that refuses the direct helper path, use `python3 <resolved helper path> --evidence-file … --claim-file …`.) It records, per criterion: **both verifiers agreeing → that status; any disagreement → `unestablished`; a `satisfied` with no evidence pointer from either → `unestablished`** (a satisfied record never lands without evidence). Its stdout carries `criteria[]` (each with `status` ∈ `satisfied|unmet|unestablished`, `blocks`, `reason` (`denied`/`failed`/`unresolved` on a blocking criterion), `evidence`, `evidence_source`), `all_satisfied`, and `blocking[]`. **Exit 3** (a report was unreadable or malformed) is an **unestablished** measurement — re-establish it, never a passing gate.
 
-A reconciled **`unestablished` blocks exactly as an `unmet` criterion blocks** — never resolved by preferring one verifier. A verification command that passed while the claim verifier found its assertions exercise a **different** claim than the criterion states therefore reconciles `unestablished`, not `satisfied` — the #1450 failure mode stated as a rule.
+A reconciled **`unestablished` blocks exactly as an `unmet` criterion blocks** — never resolved by preferring one verifier. A verification command that passed while the claim verifier found its assertions exercise a **different** claim than the criterion states therefore reconciles `unestablished`, not `satisfied` — that failure mode stated as a rule.
 
 **Route from the reconciled record — the routing that follows is unchanged in substance; it is now driven by the reconciled `status`/`evidence` rather than your own check:**
 
