@@ -27,11 +27,6 @@
 # gate would then certify green.
 
 RA_HELPER="$LIB/test/regenerate-artifacts.py"
-# issue #1445: the production registry has no `mechanical` row (main is the sole writer of
-# the cloud-writer manifest). This module exercises the retained mechanical machinery by
-# asking regenerate-artifacts.py to re-inject the historical cloud-writer row; the seam is
-# read only by the helper this module invokes and never by a production run.
-export DEVFLOW_RA_TEST_MECHANICAL_ROW=1
 RA_REPO="$LIB/.."
 RA_CAPMUT="$LIB/test/cap-mutate.py"
 RA_LIVE_MANIFEST="$RA_REPO/scripts/devflow-cloud-writer-contract.json"
@@ -716,7 +711,7 @@ _ra_has() {  # name root substring   (the fixture-root form of _ra_has_file)
 
 # The registry's row names, declared ONCE and consumed by both the A1 clean-line loop
 # and the A4 --list loop — adding a row must not mean editing two lists.
-RA_ROW_NAMES="cloud-writer-manifest capability-profile-literals plugin-identity-regions coverage-map-ratchet exact-module-floors"
+RA_ROW_NAMES="capability-profile-literals plugin-identity-regions coverage-map-ratchet exact-module-floors"
 
 # Batched-pass fixtures exercise row dispatch and outcome classification many times. The
 # reconciler's own focused Python suite below drives its real subprocess protocol; these
@@ -765,10 +760,10 @@ _ra_ident_regions() {  # <root> — the concatenated bytes of every baked identi
 
 # ── A1 — clean-tree run: exit 0 with a per-row clean line for every row ──────
 # Run against a PRISTINE FIXTURE, never the live checkout. Two reasons, both real:
-# (1) the mechanical row WRITES scripts/devflow-cloud-writer-contract.json, so a live
-#     run would mutate a tracked file in the developer's tree as a test side effect —
-#     invisible on a reconciled tree, a silent regeneration on exactly the drifted tree
-#     this helper exists to detect;
+# (1) the opt-in exact-module-floors row WRITES scripts/workflow-flight-recorder-registry.json
+#     and lib/test/run.sh, so a live run would mutate tracked files in the developer's tree
+#     as a test side effect — invisible on a reconciled tree, a silent regeneration on
+#     exactly the drifted tree this helper exists to detect;
 # (2) the live tree's cleanliness is a property of whatever branch the suite runs on,
 #     not of the helper — a branch legitimately editing a generated artifact's source
 #     makes its row emit JUDGMENT, so a live per-row `clean` assertion would go RED for
@@ -788,54 +783,6 @@ for _row in $RA_ROW_NAMES; do
   esac
 done
 _ra_live_unchanged "#619 A1 live manifest byte-unchanged after the clean run"
-
-# ── A2 — mechanical drift against a fixture: regenerates, exits 1, idempotent ─
-RA_A2="$_ra_tmp_root/a2"; _ra_fixture "$RA_A2"
-# Corrupt the checked-in manifest itself so `generate` rewrites it, rather than mutating
-# a reached skill *asset* (which would break the closure and yield a closure error
-# instead). The asset closure stays intact, so this is manifest drift (the exit-0-with-
-# changed-bytes arm), not a closure error.
-printf '{"corrupted": true}\n' > "$RA_A2/scripts/devflow-cloud-writer-contract.json"
-RA_A2_BEFORE="$(cat "$RA_A2/scripts/devflow-cloud-writer-contract.json")"
-_ra_run "$RA_A2"
-RA_A2_AFTER="$(cat "$RA_A2/scripts/devflow-cloud-writer-contract.json")"
-assert_eq "#619 A2 planted mechanical drift exits 1" "1" "$(_ra_rc "$RA_A2")"
-_ra_has "#619 A2 reports the regenerated artifact by name" "$RA_A2" \
-  "REGENERATED scripts/devflow-cloud-writer-contract.json"
-# Inverted sense (these bytes MUST have moved), so it asserts against a sentinel rather
-# than adding a second comparator.
-_ra_same "#619 A2 the fixture manifest bytes changed" changed \
-  "$([ "$RA_A2_BEFORE" != "$RA_A2_AFTER" ] && echo changed || echo unchanged)" \
-  "the regeneration left the fixture manifest byte-identical"
-# Idempotency: a second run over the now-regenerated fixture is clean.
-_ra_run "$RA_A2"
-assert_eq "#619 A2 second run over the regenerated fixture exits 0" "0" "$(_ra_rc "$RA_A2")"
-_ra_live_unchanged "#619 A2 live manifest byte-unchanged after the fixture drift run"
-
-# ── A2b — closure error routes to an exit-1-forcing JUDGMENT, not exit 2 ─────
-RA_A2B="$_ra_tmp_root/a2b"; _ra_fixture "$RA_A2B"
-# Delete a reached asset: check_closure() then returns 1 with cloud-writer-contract:
-# prefixed lines — exactly what a loop's rename/delete edits produce. The agent must
-# be steered to reconcile the closure, never to chase an infrastructure diagnosis.
-rm -f "$RA_A2B/skills/implement/phases/phase-4-documentation.md"
-_ra_run "$RA_A2B"
-assert_eq "#619 A2b closure error exits 1 (a judgment item, not infrastructure)" "1" "$(_ra_rc "$RA_A2B")"
-_ra_has "#619 A2b closure error prints the generator output verbatim" "$RA_A2B" "cloud-writer-contract:"
-_ra_has "#619 A2b closure error names the closure data as the governing policy" "$RA_A2B" \
-  "ROOTS / DISPATCH_EDGES / SKILL_ASSETS"
-_ra_has "#619 A2b closure error is not misattributed to infrastructure" "$RA_A2B" \
-  "this is a closure error, not an "
-_ra_live_unchanged "#619 A2b live manifest byte-unchanged after the closure-error run"
-
-# ── A2c — a marker-less exit 1 (a traceback) routes to exit 2, never a judgment ─
-RA_A2C="$_ra_tmp_root/a2c"; _ra_fixture "$RA_A2C"
-printf 'import sys\nprint("Traceback (most recent call last): boom", file=sys.stderr)\nsys.exit(1)\n' \
-  > "$RA_A2C/lib/test/cloud_writer_contract.py"
-_ra_run "$RA_A2C"
-assert_eq "#619 A2c marker-less exit 1 routes to the infrastructure state (exit 2)" "2" "$(_ra_rc "$RA_A2C")"
-_ra_has "#619 A2c marker-less exit 1 names the missing marker" "$RA_A2C" \
-  "no \`cloud-writer-contract:\` marker"
-_ra_live_unchanged "#619 A2c live manifest byte-unchanged after the traceback run"
 
 # ── A3 — a judgment drift in ONE invocation: judgment item, write scope honored ─
 RA_A3="$_ra_tmp_root/a3"; _ra_fixture "$RA_A3"
@@ -942,7 +889,7 @@ done
 # ── AP — read-only preflight mode (issue #1244) ──────────────────────────────
 # The preflight runs ONLY the preflight-eligible rows, read-only, and refuses (exit 1)
 # only on a positively-attributed drift. Every arm runs against a temp fixture, never the
-# live checkout, for the same confinement reason A1/A2 do.
+# live checkout, for the same confinement reason A1 does.
 _ra_preflight() {  # <root>
   python3 "$RA_HELPER" --preflight --repo-root "$1" >"$1/.rap.out" 2>&1
   printf '%s\n' "$?" >"$1/.rap.rc"
@@ -958,7 +905,7 @@ assert_eq "#1244 AP1 clean fixture preflight exits 0" "0" "$(_ra_prc "$RA_AP1")"
 _ra_same "#1244 AP1 preflight writes nothing (manifest byte-unchanged)" \
   "$RA_AP1_MAN_BEFORE" "$(cat "$RA_AP1/scripts/devflow-cloud-writer-contract.json")" \
   "the read-only preflight mutated the manifest"
-for _erow in cloud-writer-manifest capability-profile-literals plugin-identity-regions coverage-map-ratchet env-freeze-advisory-region; do
+for _erow in capability-profile-literals plugin-identity-regions coverage-map-ratchet env-freeze-advisory-region; do
   case "$(cat "$RA_AP1/.rap.out")" in
     *"[$_erow] clean"*) assert_eq "#1244 AP1 eligible row reports clean: $_erow" yes yes ;;
     *) assert_eq "#1244 AP1 eligible row reports clean: $_erow" yes "no(no clean line for $_erow)" ;;
@@ -971,41 +918,17 @@ case "$(cat "$RA_AP1/.rap.out")" in
   *) assert_eq "#1244 AP1 preflight never runs the ineligible exact-module-floors row" yes yes ;;
 esac
 
-# AP2 — planted manifest drift: the cloud-writer row's read-only `verify` exits 1 with its
-# marker, so the preflight classifies DRIFT, exits 1, and names the governing policy.
-RA_AP2="$_ra_tmp_root/ap2"; _ra_fixture "$RA_AP2"
-printf '{"corrupted": true}\n' > "$RA_AP2/scripts/devflow-cloud-writer-contract.json"
-RA_AP2_MAN_BEFORE="$(cat "$RA_AP2/scripts/devflow-cloud-writer-contract.json")"
-_ra_preflight "$RA_AP2"
-assert_eq "#1244 AP2 planted drift preflight exits 1" "1" "$(_ra_prc "$RA_AP2")"
-_ra_has_file "#1244 AP2 preflight reports the drift and its summary line" "$RA_AP2/.rap.out" \
-  "preflight detected drift"
-_ra_has_file "#1244 AP2 drift names the cloud-writer row's governing policy" "$RA_AP2/.rap.out" \
-  "regenerate against the merged tree with"
-# Even on the drift arm the preflight writes nothing — `verify` is read-only, so the
-# corrupt fixture manifest is left exactly as planted (the fail-closed refusal must never
-# rest on a mutating check).
-_ra_same "#1244 AP2 preflight writes nothing on the drift arm" \
-  "$RA_AP2_MAN_BEFORE" "$(cat "$RA_AP2/scripts/devflow-cloud-writer-contract.json")" \
-  "the read-only preflight mutated the manifest on the drift arm"
-
 # AP3 — --list reports eligibility per row, and the ineligible row is declared ineligible.
 case "$RA_LIST" in
   *"preflight	exact-module-floors	ineligible	"*) assert_eq "#1244 AP3 --list declares exact-module-floors ineligible" yes yes ;;
   *) assert_eq "#1244 AP3 --list declares exact-module-floors ineligible" yes "no(exact-module-floors not declared ineligible)" ;;
 esac
-for _erow in cloud-writer-manifest capability-profile-literals plugin-identity-regions coverage-map-ratchet env-freeze-advisory-region; do
+for _erow in capability-profile-literals plugin-identity-regions coverage-map-ratchet env-freeze-advisory-region; do
   case "$RA_LIST" in
     *"preflight	$_erow	eligible	"*) assert_eq "#1244 AP3 --list declares eligible: $_erow" yes yes ;;
     *) assert_eq "#1244 AP3 --list declares eligible: $_erow" yes "no($_erow not declared eligible)" ;;
   esac
 done
-# The cloud-writer eligibility line names the read-only `verify` form, never the writing
-# `generate` form the row's own argv carries.
-case "$RA_LIST" in
-  *"preflight	cloud-writer-manifest	eligible	python3 lib/test/cloud_writer_contract.py verify"*) assert_eq "#1244 AP3 cloud-writer preflight uses the read-only verify form" yes yes ;;
-  *) assert_eq "#1244 AP3 cloud-writer preflight uses the read-only verify form" yes "no(cloud-writer preflight command is not the verify form)" ;;
-esac
 
 # AP4 — an eligible judgment row that cannot be checked routes to exit 2 (UNCHECKABLE),
 # driven by the REAL preflight (not a coordinator stub). A malformed lib/capability-profiles.json
@@ -1023,22 +946,6 @@ _ra_has_file "#1244 AP4 the exit-2 summary names an uncheckable artifact" "$RA_A
 _ra_same "#1244 AP4 preflight writes nothing on the uncheckable arm" \
   "$RA_AP4_MAN_BEFORE" "$(cat "$RA_AP4/scripts/devflow-cloud-writer-contract.json")" \
   "the read-only preflight mutated the manifest on the uncheckable arm"
-
-# AP5 — DRIFT takes precedence over UNCHECKABLE. With BOTH a drifted manifest (cloud-writer
-# verify exits 1 with its marker) AND an uncheckable capability row, the run must exit 1 (drift),
-# never 2 — the reverse of the batched pass's infra-over-drift ordering. A reversed comparand
-# in run_preflight would ship green without this.
-RA_AP5="$_ra_tmp_root/ap5"; _ra_fixture "$RA_AP5"
-printf '{"corrupted": true}\n' > "$RA_AP5/scripts/devflow-cloud-writer-contract.json"
-printf 'not valid json {' > "$RA_AP5/lib/capability-profiles.json"
-_ra_preflight "$RA_AP5"
-assert_eq "#1244 AP5 drift outranks uncheckable — exits 1, not 2" "1" "$(_ra_prc "$RA_AP5")"
-_ra_has_file "#1244 AP5 the drift summary line is printed, not the exit-2 summary" "$RA_AP5/.rap.out" \
-  "preflight detected drift"
-case "$(cat "$RA_AP5/.rap.out")" in
-  *"could not check at least one eligible artifact"*) assert_eq "#1244 AP5 the exit-2 summary is suppressed when drift dominates" yes "no(exit-2 summary printed despite drift)" ;;
-  *) assert_eq "#1244 AP5 the exit-2 summary is suppressed when drift dominates" yes yes ;;
-esac
 
 # AP6 — a crashing judgment generator (a traceback, exit 1, NO row infra-marker) routes to
 # UNCHECKABLE, not DRIFT. capability-profile-literals deliberately omits the traceback marker
@@ -1060,65 +967,13 @@ case "$(cat "$RA_AP6/.rap.out")" in
   *) assert_eq "#1244 AP6 a crash is never reported as drift" yes yes ;;
 esac
 
-# AP7 — the marker row's OWN crash arm: `verify` exits 1 with a bare traceback and NO
-# `cloud-writer-contract:` marker. This is the exact safety the positive-marker mechanism
-# exists for, and it is the one branch neither AP2 nor AP6 reaches: AP2 drives the MARKED
-# exit-1 (real drift) on this row, and AP6 drives a crash on a JUDGMENT row, which is
-# classified by the universal traceback marker instead. Only here does the row-level
-# `preflight_positive_marker` check itself decide the outcome — so only here does a
-# reversed or deleted marker check change the answer, from "warn and proceed" to a
-# fail-CLOSED refusal that blocks the whole suite on a `verify` crash.
-RA_AP7="$_ra_tmp_root/ap7"; _ra_fixture "$RA_AP7"
-cat > "$RA_AP7/lib/test/cloud_writer_contract.py" <<'PY'
-#!/usr/bin/env python3
-raise RuntimeError("simulated cloud-writer verify crash")
-PY
-chmod 755 "$RA_AP7/lib/test/cloud_writer_contract.py"
-# Positive control on the stub itself: the arm below is only meaningful if `verify` really
-# produces the unmarked exit-1 shape. A stub that exited 0, or that happened to print the
-# marker, would leave every assertion below measuring a different branch.
-RA_AP7_PROBE="$( cd "$RA_AP7" && python3 lib/test/cloud_writer_contract.py verify 2>&1 )"
-assert_eq "#1244 AP7 the stubbed verify really exits 1" "1" "$?"
-_ra_ok "#1244 AP7 the stubbed verify emits NO cloud-writer-contract marker" \
-  "$(case "$RA_AP7_PROBE" in *cloud-writer-contract:*) printf no ;; *) printf yes ;; esac)" \
-  "the stub printed the positive marker, so the unmarked branch is not the one under test"
-RA_AP7_MAN_BEFORE="$(cat "$RA_AP7/scripts/devflow-cloud-writer-contract.json")"
-_ra_preflight "$RA_AP7"
-# Exit 2 is the coordinator's fail-OPEN signal (the tested `parallel-suite-runner` exit-2
-# arm warns and launches the shards); exit 1 would be the refusal. So this exit code IS
-# the "warn and proceed rather than refuse" limb of the contract.
-assert_eq "#1244 AP7 an unmarked verify crash exits 2 (UNCHECKABLE, the coordinator's fail-open signal)" \
-  "2" "$(_ra_prc "$RA_AP7")"
-# The exit code alone does not discriminate: with the marker check DELETED this row falls
-# through to the judgment path, whose universal traceback marker also yields exit 2. Pin
-# the row-level diagnostic that only the marker branch can emit, so a deleted check is
-# caught as well as a reversed one.
-_ra_has_file "#1244 AP7 the crash is attributed to the ABSENT positive marker on this row" \
-  "$RA_AP7/.rap.out" "without its drift marker"
-_ra_has_file "#1244 AP7 the unmarked exit-1 is named a crash, not a reconcilable drift" \
-  "$RA_AP7/.rap.out" "(a crash, not a reconcilable drift)"
-_ra_has_file "#1244 AP7 the exit-2 summary the coordinator reads is printed" \
-  "$RA_AP7/.rap.out" "could not check at least one eligible artifact"
-RA_AP7_OUT="$(cat "$RA_AP7/.rap.out")"
-_ra_ok "#1244 AP7 an unmarked verify crash is never reported as drift" \
-  "$(case "$RA_AP7_OUT" in
-       *"preflight detected drift"*|*"[cloud-writer-manifest] DRIFT"*) printf no ;;
-       *) printf yes ;;
-     esac)" \
-  "a verify crash was misclassified as drift, which would fail closed and block the suite"
-_ra_same "#1244 AP7 preflight writes nothing on the unmarked-crash arm" \
-  "$RA_AP7_MAN_BEFORE" "$(cat "$RA_AP7/scripts/devflow-cloud-writer-contract.json")" \
-  "the read-only preflight mutated the manifest on the unmarked-crash arm"
-_ra_live_unchanged "#1244 AP7 live manifest byte-unchanged after the unmarked-crash preflight"
-
 # AP8 — a JUDGMENT row's own DRIFT arm, which is the preflight's primary detection path.
-# Four of the five eligible rows are judgment rows carrying no `preflight_positive_marker`,
-# so for them drift is reached by the terminal fall-through in `run_preflight_row` — the arm
-# that fires when the exit is in-set, non-clean, and matches NO infra marker and NO
-# traceback. Every other AP arm reaches a different branch: AP2/AP5 drive the marker-bearing
-# cloud-writer row, AP4 drives a judgment row's infra-marker arm, AP6/AP7 drive crashes. So
-# without this arm the fall-through could be inverted to "not drift" and the whole module
-# would stay green while genuine drift silently launched the suite.
+# Every eligible row is a judgment row carrying no `preflight_positive_marker`, so drift is
+# reached by the terminal fall-through in `run_preflight_row` — the arm that fires when the
+# exit is in-set, non-clean, and matches NO infra marker and NO traceback. Every other AP
+# arm reaches a different branch: AP4 drives a judgment row's infra-marker arm, AP6 drives a
+# crash. So without this arm the fall-through could be inverted to "not drift" and the whole
+# module would stay green while genuine drift silently launched the suite.
 #
 # The plant is the A3b shape — an identity SOURCE edit with the baked regions left stale —
 # because it is a NON-CRASHING content drift: the generator runs to completion and reports
@@ -1708,22 +1563,6 @@ assert_eq "#1498 a clean measured tally exits 0" \
 _ra_has "#1498 the clean class pins its own text" \
   "$RA_1498_CLEAN" "clean — every measured tally matches both floors"
 
-# ── A5 — exit 2 on an ABSENT generator, and exit 2 wins over a judgment item ─
-# An absent script is reported by the INTERPRETER as exit 2 ("can't open file"), which
-# the helper catches in its declared-set branch — NOT the OSError launch-failure branch
-# (A5c below drives that one). The assertion pins a DISTINGUISHING substring plus the
-# row-level attribution: a bare "INFRASTRUCTURE" match would be vacuous, because main()
-# unconditionally prints a summary line carrying that word on every exit-2 path, so it
-# would still pass with row-level attribution deleted.
-RA_A5="$_ra_tmp_root/a5"; mkdir -p "$RA_A5"
-_ra_run "$RA_A5"
-assert_eq "#619 A5 an absent generator under --repo-root exits 2" "2" "$(_ra_rc "$RA_A5")"
-_ra_has "#619 A5 the absent generator is attributed to its ROW, not just the summary" \
-  "$RA_A5" "[cloud-writer-manifest] INFRASTRUCTURE"
-_ra_has "#619 A5 the absent generator names the declared-set branch" "$RA_A5" "outside its declared set"
-_ra_has "#619 A5 the absent generator names the missing target" "$RA_A5" "(target absent: lib/test/cloud_writer_contract.py)"
-_ra_live_unchanged "#619 A5 live manifest byte-unchanged after the absent-generator run"
-
 RA_A5P="$_ra_tmp_root/a5p"; _ra_fixture "$RA_A5P"
 # A judgment item AND an infrastructure failure in one run: exit 2 takes precedence.
 # Plant coverage-map drift (an uncovered helper) for the JUDGMENT half, and remove the
@@ -1744,95 +1583,20 @@ _ra_has "#619 A5p the concurrent judgment item is present (precedence positive c
 assert_eq "#619 A5 exit 2 takes precedence over a concurrent judgment item" "2" "$(_ra_rc "$RA_A5P")"
 _ra_live_unchanged "#619 A5p live manifest byte-unchanged after the precedence run"
 
-# ── A5q — the MECHANICAL row regenerates while ANOTHER row hits infrastructure ──
-# The regeneration is exit-1-forcing and the infrastructure state wins, so the caller
-# gets exit 2 over a manifest that WAS rewritten and still must be committed. Nothing
-# else exercises that combination: every other exit-2 arm leaves the mechanical row
-# clean or makes it the infrastructure source itself. A regression that skipped the
-# remaining rows on the first infrastructure hit — or dropped the earlier rows' report
-# lines — would ship green without this.
-RA_A5Q="$_ra_tmp_root/a5q"; _ra_fixture "$RA_A5Q"
-printf '{"corrupted": true}\n' > "$RA_A5Q/scripts/devflow-cloud-writer-contract.json"
-RA_A5Q_BEFORE="$(cat "$RA_A5Q/scripts/devflow-cloud-writer-contract.json")"
-rm -f "$RA_A5Q/lib/generate-capability-profiles.py"
-_ra_run "$RA_A5Q"
-assert_eq "#619 A5q a regenerating mechanical row plus an infrastructure row exits 2" \
-  "2" "$(_ra_rc "$RA_A5Q")"
-# The positive control: exit 2 alone would pass on the infrastructure condition, so pin
-# that the regeneration genuinely happened and was still reported in the same run.
-_ra_has "#619 A5q the regenerated manifest is still reported alongside the exit-2 state" \
-  "$RA_A5Q" "REGENERATED scripts/devflow-cloud-writer-contract.json"
-_ra_has "#619 A5q the infrastructure half is attributed to its own row" "$RA_A5Q" \
-  "[capability-profile-literals] INFRASTRUCTURE"
-_ra_same "#619 A5q the manifest was rewritten despite the exit-2 outcome" changed \
-  "$([ "$RA_A5Q_BEFORE" != "$(cat "$RA_A5Q/scripts/devflow-cloud-writer-contract.json")" ] \
-    && echo changed || echo unchanged)" \
-  "the exit-2 run skipped the mechanical regeneration"
-_ra_live_unchanged "#619 A5q live manifest byte-unchanged after the regenerate-plus-infra run"
-
-# ── A5r — an UNREADABLE artifact snapshot routes to exit 2, never exit 1 ────
-# Scope, stated exactly: this arm covers run_row's SNAPSHOT-READ guard — the try/except
-# OSError bracketing the mechanical row's before/after read_bytes, which sits outside
-# that row's subprocess try. It does NOT reach the helper's top-level exception net:
-# this OSError is handled at the row level and main() returns normally. The net is
-# unexercised-by-design defence-in-depth — no CLI-reachable input shape raises past the
-# row handlers — and no arm here claims otherwise.
-# An unreadable manifest is the shape a half-restored worktree actually produces. Note
-# chmod 000 ALSO breaks the generator's own write, which independently yields exit 2 on
-# the same row, so the exit code and the row-attributed INFRASTRUCTURE line are NOT
-# sufficient evidence — the snapshot branch's own literal is pinned below to attribute
-# it.
-RA_A5R="$_ra_tmp_root/a5r"; _ra_fixture "$RA_A5R"
-chmod 000 "$RA_A5R/scripts/devflow-cloud-writer-contract.json" 2>/dev/null
-if [ -r "$RA_A5R/scripts/devflow-cloud-writer-contract.json" ]; then
-  # Running as root (or on a filesystem ignoring mode bits) makes the unreadable state
-  # unreachable, so the arm cannot be expressed here. Say so rather than asserting a
-  # pass the host never established.
-  assert_eq "#619 A5r an unreadable artifact snapshot routes to exit 2" yes \
-    "no(host could not make the file unreadable — chmod 000 still readable)"
-else
-  _ra_run "$RA_A5R"
-  assert_eq "#619 A5r an unreadable artifact snapshot routes to exit 2, never exit 1" \
-    "2" "$(_ra_rc "$RA_A5R")"
-  _ra_has "#619 A5r the unreadable snapshot is attributed to its row as INFRASTRUCTURE" \
-    "$RA_A5R" "[cloud-writer-manifest] INFRASTRUCTURE"
-  # The distinguishing evidence: this literal is emitted ONLY by the snapshot-read
-  # guard. Without it the arm passes on the generator's own write failure, so deleting
-  # the guard under test would leave it green.
-  _ra_has "#619 A5r the snapshot-read guard is the branch that fired" "$RA_A5R" \
-    "could not read scripts/devflow-cloud-writer-contract.json before the run"
-  # The report must survive: a state that printed nothing is what makes the consumers'
-  # guard read "nothing to do".
-  _ra_has "#619 A5r later rows still report despite the earlier row's failure" \
-    "$RA_A5R" "[coverage-map-ratchet]"
-fi
-chmod 644 "$RA_A5R/scripts/devflow-cloud-writer-contract.json" 2>/dev/null
-_ra_live_unchanged "#619 A5r live manifest byte-unchanged after the unreadable-snapshot run"
-
 # ── A5s — an argparse USAGE error exits 2 and runs no row ────────────────────
 # The helper's exit-contract docstring makes a positive claim about this boundary
 # (rc 2, before any row runs, with no row report). An untested documented claim in a
 # file this module content-pins elsewhere is a documented-falsehood risk.
 RA_A5S="$_ra_tmp_root/a5s"; _ra_fixture "$RA_A5S"
-# Drift is PLANTED first, deliberately: on a reconciled fixture the mechanical row would
-# rewrite byte-identical content, so `unchanged` would hold even if argparse failed to
-# short-circuit and the row DID run — proving nothing. Against a corrupted manifest,
-# `unchanged` means the row genuinely never executed.
-printf '{"corrupted": true}\n' > "$RA_A5S/scripts/devflow-cloud-writer-contract.json"
-RA_A5S_BEFORE="$(cat "$RA_A5S/scripts/devflow-cloud-writer-contract.json")"
 python3 "$RA_HELPER" --repo-root "$RA_A5S" --no-such-flag \
   >"$RA_A5S/.ra.out" 2>&1; printf '%s\n' "$?" >"$RA_A5S/.ra.rc"
 assert_eq "#619 A5s an unknown flag exits 2" "2" "$(_ra_rc "$RA_A5S")"
 case "$(cat "$RA_A5S/.ra.out")" in
-  *"[cloud-writer-manifest]"*|*"regenerate-artifacts: "*)
+  *"regenerate-artifacts: "*)
     assert_eq "#619 A5s the usage error emits no row report" yes \
       "no(a row report accompanied the usage error)" ;;
   *) assert_eq "#619 A5s the usage error emits no row report" yes yes ;;
 esac
-_ra_same "#619 A5s the usage error ran no row (fixture manifest untouched)" unchanged \
-  "$([ "$RA_A5S_BEFORE" = "$(cat "$RA_A5S/scripts/devflow-cloud-writer-contract.json")" ] \
-    && echo unchanged || echo changed)" \
-  "a row ran despite the usage error"
 _ra_live_unchanged "#619 A5s live manifest byte-unchanged after the usage-error run"
 
 # ── A5b — a launched command exiting OUTSIDE its declared set is exit 2 ──────
@@ -1891,21 +1655,6 @@ _ra_has "#619 A5g the input failure is named as an input failure, not drift" "$R
 _ra_has "#619 A5g the run does NOT tell the agent to resolve a ratchet judgment item" "$RA_A5G" \
   "the artifact was NOT checked"
 _ra_live_unchanged "#619 A5g live manifest byte-unchanged after the input-failure run"
-
-# ── A5h — a mechanical generator that exits 0 WITHOUT writing is infrastructure ──
-# `before` and `after` are both None when the artifact is absent on both sides, so
-# `before != after` is False and the row would have reported "already matches the
-# closure" — an absent artifact asserted to match. Two failed measurements read as
-# equality. Nothing pinned this branch: every other mechanical arm has a generator that
-# actually writes.
-RA_A5H="$_ra_tmp_root/a5h"; _ra_fixture "$RA_A5H"
-printf 'import sys\nsys.exit(0)\n' > "$RA_A5H/lib/test/cloud_writer_contract.py"
-rm -f "$RA_A5H/scripts/devflow-cloud-writer-contract.json"
-_ra_run "$RA_A5H"
-assert_eq "#619 A5h a clean exit that produced no artifact exits 2" "2" "$(_ra_rc "$RA_A5H")"
-_ra_has "#619 A5h the absent artifact is named, not reported as a match" "$RA_A5H" \
-  "the generator produced no artifact"
-_ra_live_unchanged "#619 A5h live manifest byte-unchanged after the no-artifact run"
 
 # ── A5j — an UNREADABLE coverage-map is infrastructure, not "add the missing rows" ──
 # A5g covers the guard's [input-error] (git) path. An absent/malformed coverage-map
@@ -2005,7 +1754,6 @@ PY
 )"
 assert_eq "#619 writing rows expose their complete output set through the registry" \
   'lib/test/run.sh
-scripts/devflow-cloud-writer-contract.json
 scripts/workflow-flight-recorder-registry.json' "$RA_DECLARED_WRITES"
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -2059,7 +1807,6 @@ _ra_class_is() {  # row expected-class
   assert_eq "#655 conflict-class assignment: $1 -> $2" "1" \
     "$(devflow_module_pin_count "conflict-class	$1	$2" "$RA_C_LIST_F")"
 }
-_ra_class_is cloud-writer-manifest       regenerate
 _ra_class_is capability-profile-literals reconcile-source
 _ra_class_is coverage-map-ratchet        by-hand
 # by-hand, not reconcile-source: this row's two declared outputs are hand-authored files
@@ -2087,7 +1834,6 @@ _ra_conflict_path_covered() {  # artifact-path
     *) assert_eq "#655 conflict-path covers the generated artifact: $1" yes yes ;;
   esac
 }
-_ra_conflict_path_covered scripts/devflow-cloud-writer-contract.json
 _ra_conflict_path_covered lib/capability-profiles.json
 _ra_conflict_path_covered lib/test/modules/coverage-map.json
 _ra_conflict_path_covered scripts/workflow-flight-recorder-registry.json
@@ -2139,11 +1885,8 @@ _ra_tool_has_flag() {  # root tool-relative-path case-glob
 # any repo I/O, so they cannot mutate anything and need no copy. The capability generator's
 # BARE form is the one arm that writes (it rewrites the five workflow literal regions), so it
 # alone gets a private fixture — stated here because it is otherwise invisible why one of
-# these three probes is different.
+# these two probes is different.
 RA_IFACE="$_ra_tmp_root/iface"; _ra_fixture "$RA_IFACE"
-assert_eq "#655 recipe interface: cloud-writer names the 'generate' subcommand the tool declares" \
-  "yes/yes" \
-  "$(_ra_recipe_names cloud-writer-manifest 'cloud_writer_contract.py generate')/$(_ra_tool_has_flag "$RA_REPO" lib/test/cloud_writer_contract.py '*check,generate,verify*')"
 # The capability generator has no argparse (it rejects `--help`), so its interface is
 # established by RUNNING the bare write form the recipe names against a fixture: an exit
 # outside {0} — or an "unknown argument" breadcrumb — means the recipe names a dead form.
@@ -2157,19 +1900,6 @@ esac
 assert_eq "#655 recipe interface: the capability recipe names the generator and both coupled files" \
   "yes/yes/yes" \
   "$(_ra_recipe_names capability-profile-literals 'lib/generate-capability-profiles.py')/$(_ra_recipe_names capability-profile-literals 'lib/capability-profiles.json')/$(_ra_recipe_names capability-profile-literals 'lib/review-profile.tokens')"
-# The mutation the round-2 finding demands: rename the subcommand IN THE TOOL and confirm
-# the interface check goes RED. A substring-only pin stays green here — that is the whole
-# point of driving it against the tool's real `--help`. `generate` is an ordinary English
-# word likely to appear in argparse prose, so a rename that leaves the word elsewhere in
-# the help text would keep a naive check green; renaming the subcommand must still turn it RED.
-# A single-file image, not a tree copy: this arm only runs `--help` on that one tool, and
-# argparse prints usage before any repo read.
-RA_IFACE_MUT="$_ra_tmp_root/iface-mut"; mkdir -p "$RA_IFACE_MUT/lib/test"
-sed 's/"generate"/"regen655"/g; s/{check,generate,verify}/{check,regen655,verify}/g' \
-  "$RA_REPO/lib/test/cloud_writer_contract.py" > "$RA_IFACE_MUT/lib/test/cloud_writer_contract.py" 2>/dev/null
-assert_eq "#655 renaming the 'generate' subcommand in the tool turns the interface check RED" \
-  "no" "$(_ra_tool_has_flag "$RA_IFACE_MUT" lib/test/cloud_writer_contract.py '*check,generate,verify*')"
-
 # The identity recipe names the generator, and that generator's REAL interface is checked
 # the same way — against its `--help`, not against a substring of the recipe. This one has
 # argparse, so the probe is the cheap `--help` form rather than the capability row's
@@ -2223,14 +1953,6 @@ _ra_bind_fails_closed "an out-of-set conflict_class" \
 _ra_bind_fails_closed "an empty recipe" \
   's/^        "policy": "add the missing coverage rows.*$/        "policy": "",/' \
   "empty recipe (policy)"
-# `"kind": "mechanical"` occurs exactly once in the registry, so an unanchored
-# substitution mutates that one row. The GNU-only `0,/re/s//repl/` address form this
-# mutation could otherwise use is silently a NO-OP under BSD sed (macOS), which would
-# hand the validator an UNMUTATED helper and read its clean exit 0 as this guard
-# failing — a red assertion on the desk and a green one in CI, diagnosing nothing.
-_ra_bind_fails_closed "an unsupported row kind" \
-  's/"kind": "mechanical"/"kind": "mechanicl"/' \
-  "kind 'mechanicl'" "outside"
 # issue #1244: preflight eligibility is declared data, validated at bind time.
 # A non-bool `preflight_eligible` fails closed. `"preflight_eligible": False` occurs
 # exactly once (the ineligible exact-module-floors row); `0` is not a bool in Python.
@@ -2243,12 +1965,6 @@ _ra_bind_fails_closed "a non-bool preflight_eligible" \
 _ra_bind_fails_closed "a non-bool opt_in" \
   's/"opt_in": True/"opt_in": "yes"/' \
   "declares opt_in 'yes'" "not a bool"
-# The write-nothing invariant is enforced in data: deleting the cloud-writer row's
-# non-writing `preflight_argv` line (its `"verify"` tuple is the file's only `"verify"`)
-# leaves an eligible row that declares `writes` with no read-only preflight command.
-_ra_bind_fails_closed "an eligible writing row lacking a non-writing preflight_argv" \
-  '/"verify"/d' \
-  "no non-writing preflight_argv"
 
 # ── (f2) an underivable region set exits 2 (INFRASTRUCTURE), never 1 ────────────
 # `_capability_region_targets` documents that it RAISES rather than returning a partial set, and
@@ -2286,16 +2002,6 @@ _ra_region_fails_infra "an empty generator REGIONS list" \
 _ra_bind_fails_closed "an empty conflict_paths tuple" \
   's/"conflict_paths": \("lib\/test\/modules\/coverage-map.json",\)/"conflict_paths": ()/' \
   "declares an empty conflict_paths" "at least one conflict path"
-# #659 review (Suggestion 2): the arm above mutates the coverage-map row, which declares NO
-# `writes`/`record`, so it proves only that an empty tuple raises — not the scenario the guard
-# was written for. The fail-open is `()` SHORT-CIRCUITING a fallback that would otherwise have
-# resolved a real path: `"conflict_paths" in row` is satisfied by the empty tuple, so the
-# writes/record branch is never consulted and the row silently resolves to no path at all.
-# Only a row that HAS a working fallback can exercise that, so plant `()` on the cloud-writer
-# row, whose `writes` would otherwise supply its artifact path.
-_ra_bind_fails_closed "an empty conflict_paths short-circuiting a real writes fallback" \
-  's/"writes": MECHANICAL_ARTIFACT,/"writes": MECHANICAL_ARTIFACT, "conflict_paths": (),/' \
-  "declares an empty conflict_paths" "at least one conflict path" "cloud-writer-manifest"
 # #659 review (Suggestion 1): a path emitted as BOTH a conflict-path and a conflict-sibling
 # hands the shipped rule two contradictory classes — the sibling's own fourth field vs the
 # owning row's — with no tiebreak, the same fail-open a two-row duplicate is. Point the
@@ -2306,10 +2012,6 @@ _ra_bind_fails_closed "a path claimed as both a conflict-path and a coupled sibl
 _ra_bind_fails_closed "a row declaring no conflict-path source" \
   's/"conflict_paths": \("lib\/test\/modules\/coverage-map.json",\),//' \
   "declares no conflict-path source" "coverage-map-ratchet"
-# Point the coverage-map row at a path the cloud-writer row already owns.
-_ra_bind_fails_closed "a conflict path claimed by two rows" \
-  's/"conflict_paths": \("lib\/test\/modules\/coverage-map.json",\)/"conflict_paths": ("scripts\/devflow-cloud-writer-contract.json",)/' \
-  "is claimed by both" "exactly one conflict class"
 # The live registry must actually satisfy the uniqueness invariant the emit enforces — the
 # positive control, so the arms above are not the only evidence that duplicates are impossible.
 assert_eq "#655 no conflict-path value is claimed by more than one row (live registry)" "" \
