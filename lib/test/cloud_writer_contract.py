@@ -174,7 +174,11 @@ SKILL_ASSETS = {
         "skills/implement/SKILL.md",
         "skills/implement/phases/phase-1-setup.md",
         "skills/implement/phases/phase-2-implement.md",
+        "skills/implement/phases/phase-2-sweeps-contract.md",
+        "skills/implement/phases/phase-2-sweeps-quality.md",
         "skills/implement/phases/phase-3-review.md",
+        "skills/implement/phases/phase-3-fix-loop.md",
+        "skills/implement/phases/phase-3-ac-gate.md",
         "skills/implement/phases/phase-4-documentation.md",
         # issue #815: Phase 4.0's follow-up-issue procedure is reached through a
         # predicate-gated reference, so it is a reachable asset even though most

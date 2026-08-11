@@ -67,14 +67,14 @@ only for a surface no focused test covers, and then only for its first cycle: a
 second mid-iteration cycle on that same uncovered surface extracts a durable
 module instead of paying the complete suite again. Selection stays explicit —
 consult `lib/test/modules/coverage-map.json` to find a candidate and confirm a
-module ID in the registry; changed files never auto-route to a module. The complete suite
-remains the final gate and is not weakened, only overlapped: before calling a
-branch done or PR-ready, issue the push (which starts CI) and the complete suite
-plus the lint gates locally **in a single assistant turn** so they run in
-parallel, without waiting for the local run to finish first. The push is not
-gated on that run, but calling the branch done
-is: read the local run's summary before you claim it. The local run stays the
-signal you troubleshoot from, because
+module ID in the registry; changed files never auto-route to a module. The whole-suite gate is not weakened, but since
+issue #1607 **this repository's** local/interactive tier discharges it by
+committing, pushing, and reading CI for the pushed commit rather than by a local
+complete-suite pass. `CLAUDE.md`'s rung 1 carries that procedure and its
+fail-open traps in one copy — follow it there rather than from this summary,
+which deliberately restates no part of it, since a partial restatement is what
+would send a reader past the trap the full rule names. The local
+run stays the signal you **troubleshoot** from, because
 its failure detail is richer than CI's, and the issue-#456 skip accounting is
 unchanged — a nonempty skip tally is not clean, and a module may not self-skip,
 so focused iteration cannot launder a skip. A mid-iteration issue-#434
@@ -82,14 +82,14 @@ stale-prose `blocking-gate` skip on a dirty tree is expected and clears once the
 tree is committed, so do not re-run the complete suite mid-iteration just to
 clear it. When the complete suite does run and fails, read its terminal
 `Failure recap` from the captured output rather than relaunching it. The operative statement of this
-policy for agent runs lives in the prompt extensions under
-`.prflow/prompt-extensions/`; the cloud `/prflow:implement` in-env gate
-(issue #405) is untouched by it. Those extensions are also the one home of the
+policy for agent runs lives in `CLAUDE.md`'s Commands section, which carries the
+tier ladder in one copy; the cloud `/prflow:implement` in-env gate
+(issue #405) is untouched by it, because a headless run cannot suspend and resume
+and so cannot wait on CI. `CLAUDE.md` is also the one home of the
 **focused-first precondition** on the mid-iteration full-suite launch — every
 touched surface with a covering focused test invocable on the tier is run first,
-with a total four-ground exempt set governing the rest — and of the **single-turn
-push/verify** co-issue; this section points at them for the full statement and
-carries only the compact restatement above.
+with a total four-ground exempt set governing the rest; this section points there
+for the full statement and carries only the compact restatement above.
 
 Each module is also executed by the full suite through the fail-closed
 `devflow_run_full_suite_module` boundary, and shares the namespaced pin helpers in
@@ -847,10 +847,11 @@ resolve the portable `${CLAUDE_SKILL_DIR:-…}` anchor at runtime.
 ## Submitting changes
 
 1. Branch and make focused changes, iterating on the module that covers the
-   surface you touched (see *Running the tests*). Before opening the PR, push
-   and start `bash lib/test/run.sh` locally in one step — the two run in
-   parallel, and the local run is the one you troubleshoot from. The push does
-   not wait for it; marking the PR ready does — read its summary first.
+   surface you touched (see *Running the tests*). Before marking the PR ready,
+   commit and push, then read CI for that pushed commit following `CLAUDE.md`'s
+   rung 1 — since issue #1607 made that reading this repository's local-tier
+   whole-suite gate. Run the suite locally when you want its richer failure
+   detail to troubleshoot from; that run is not the gate.
 2. Open a PR with a clear description. If your change reaches consumers (the engine surface —
    `skills/`, `agents/`, `lib/`, `scripts/`, the workflows, the config schema), add a
    **changeset** instead of editing `CHANGELOG.md` or `.claude-plugin/plugin.json`: create a

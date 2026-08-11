@@ -500,7 +500,7 @@ local check can decide. The target-uniqueness guard is also the deterministic, g
 the prose "pin a *target-unique* phrase" advice in the mutation-check rule.
 
 The test-first rule carries two further requirements beyond "break it and watch it go
-RED," shared between the implement gate (`skills/implement/phases/phase-2-implement.md`)
+RED," shared between the implement gate (`skills/implement/phases/phase-2-sweeps-contract.md`)
 and the fix loop (`skills/review-and-fix/references/fixing.md` Step 3). First,
 **bake the behavioral proof into the suite**: exercise the rendered interface or
 machine-observable contract with an ordinary executable test, break the behavior in
