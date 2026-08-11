@@ -235,9 +235,9 @@ skip() {  # name kind reason
 IMPL_PHASE_STEMS="phase-1-setup phase-2-implement phase-3-review phase-4-documentation"
 # #815 the implement skill also reaches PREDICATE-GATED references, and they are a
 # SEPARATE registered list from the phase stems above. Deliberately separate, not an
-# extra stem: the per-stem structural loop asserts `before any Phase N action` together
-# with `halt Phase N with an attributable breadcrumb` for every registered stem —
-# mandatory-read, fail-closed-halt semantics that contradict a conditionally-loaded
+# extra stem: the per-stem structural loop asserts that each registered stem is ROUTED
+# from the orchestrator's single entry-gate statement (a backticked `<stem>.md` mention) —
+# routing semantics that contradict a conditionally-loaded
 # reference — and the directory reconciliation asserts `phases/` holds exactly the
 # registered phase set, which a file living in `references/` must not disturb. Members
 # are DERIVED FROM THE TREE, the same rule `_ci_members` applies below, so a newly-added
@@ -4254,16 +4254,14 @@ for _pf in $IMPL_PHASE_STEMS; do
   _n="${_pf#phase-}"; _n="${_n%%-*}"   # phase-1-setup -> 1
   assert_eq "implement split: phases/${_pf}.md exists and is non-empty" "yes" \
     "$([ -s "$IMPL_PHASES_DIR/${_pf}.md" ] && echo yes || echo no)"
-  assert_pin_unique "implement split: orchestrator names the ${_pf}.md entry-gate read" \
-    "phases/${_pf}.md" "$IMPL_ORCH"
-  # Pin the mandatory-read framing token AND the fail-closed halt, not just the path: with all
-  # three pinned per phase, a future edit cannot downgrade the gate to an inert "see also
-  # phases/…" mention (which would drop "before any Phase N action" and the halt clause) while
-  # keeping any single literal — closing the co-location gap a path-only pin left open.
-  assert_pin_unique "implement split: orchestrator carries the mandatory-read framing for Phase ${_n}" \
-    "before any Phase ${_n} action" "$IMPL_ORCH"
-  assert_pin_unique "implement split: orchestrator carries the fail-closed entry-gate halt for Phase ${_n}" \
-    "halt Phase ${_n} with an attributable breadcrumb" "$IMPL_ORCH"
+  # issue #1566: the orchestrator states the entry-gate rule ONCE, in the preamble, and
+  # routes each phase from that single statement by a backticked reference-file mention —
+  # the REVIEW_PHASE_STEMS routing shape. Assert that routing per stem (grep the backticked
+  # `${_pf}.md`), replacing the retired per-phase assert_pin_unique triple; the single
+  # statement's mandatory-read / halt / placeholder clauses are guarded count-free just
+  # below the loop.
+  assert_eq "implement split: orchestrator routes ${_pf}.md from the single gate statement (backticked mention)" "yes" \
+    "$(grep -qF '`'"${_pf}.md"'`' "$IMPL_ORCH" && echo yes || echo no)"  # structural-pin-ok: cross-file-phase-contract -- the orchestrator must route each registered phase to its reference file from the single entry-gate statement; an unrouted phase is unreachable text (mirrors the REVIEW_PHASE_STEMS routing loop)
   # Phase-identity check (shadow-pass finding): every other pin above is content-presence
   # ANYWHERE in the bundle, so a same-length cross-phase swap (e.g. phase-2-implement.md and
   # phase-3-review.md bodies accidentally exchanged) would leave them green — the tokens are
@@ -4288,6 +4286,29 @@ for _pf in $IMPL_PHASE_STEMS; do
   assert_eq "implement boundary: phases/${_pf}.md carries exactly one start and one end marker (no duplicate)" "1|1" \
     "$(grep -cxF -- "$_impl_start_marker" "$IMPL_PHASES_DIR/${_pf}.md" | tr -d ' ')|$(grep -cxF -- "$_impl_end_marker" "$IMPL_PHASES_DIR/${_pf}.md" | tr -d ' ')"
 done
+# issue #1566: the four per-phase entry-gate paragraphs were collapsed into ONE gate
+# statement in the orchestrator preamble. These guards replace the retired per-phase
+# assert_pin_unique triple: they prove the single surviving statement still carries each
+# load-bearing clause (a mandatory-read imperative, the fail-closed halt, and the
+# placeholder-aware halt), count-free — so an unrelated later occurrence of any clause
+# elsewhere in the file leaves them green while an inert "see also phases/…" downgrade of
+# the statement turns them RED.
+assert_eq "#1566: the single entry-gate statement carries a mandatory-read imperative (not an inert see-also pointer)" "yes" \
+  "$(grep -qF 'before taking any action in it' "$IMPL_ORCH" && echo yes || echo no)"  # structural-pin-ok: cross-file-phase-contract -- the single entry-gate statement must state a mandatory-read imperative; an inert "see also phases/…" downgrade would lose the phase-file read contract the split depends on
+assert_eq "#1566: the single entry-gate statement carries the fail-closed halt-with-breadcrumb clause" "yes" \
+  "$(grep -qF 'halt that phase with an attributable breadcrumb' "$IMPL_ORCH" && echo yes || echo no)"  # structural-pin-ok: cross-file-phase-contract -- the single entry-gate statement must fail closed (halt with an attributable breadcrumb) when the phase-file read cannot be established
+assert_eq "#1566: the single entry-gate statement carries the placeholder-aware halt clause (count-free)" "yes" \
+  "$(grep -qF 'is empty or an unsubstituted placeholder' "$IMPL_ORCH" && echo yes || echo no)"  # structural-pin-ok: cross-file-phase-contract -- the single entry-gate statement must halt when the skill-dir anchor is empty or an unsubstituted placeholder, the fail-closed arm that keeps a phase from running with an unresolved anchor
+# AC6 — no assert_pin_unique call may target the orchestrator's per-phase entry-gate text.
+# The needles are assembled into locals so THIS block cannot self-match the grep it runs
+# over run.sh: each assignment line carries the fragment but not the assert_pin_unique
+# token, and each assert label carries the assert_pin_unique token but not the fragment.
+_ppg_framing_needle="before any Phase"
+_ppg_halt_needle="halt Phase "
+assert_eq "#1566: no static pin call targets the orchestrator per-phase entry-gate framing text" "0" \
+  "$(grep -F -- "$_ppg_framing_needle" "$LIB/test/run.sh" 2>/dev/null | grep -c 'assert_pin_unique' || true)"
+assert_eq "#1566: no static pin call targets the orchestrator per-phase entry-gate halt text" "0" \
+  "$(grep -F -- "$_ppg_halt_needle" "$LIB/test/run.sh" 2>/dev/null | grep -c 'assert_pin_unique' || true)"
 # Misregistration guard: a present-but-empty stdout from find means NO SKILL.md under
 # phases/. find over a missing dir also prints nothing (2>/dev/null), but the existence
 # assertions above independently fail closed when the dir/files are absent, so this guard
@@ -15475,10 +15496,9 @@ for PA_FILE in "$LIB"/../skills/*/SKILL.md "$LIB"/../skills/implement/phases/pha
   assert_eq "#275 pin (P1b): $PA_NAME has no dash-only (empty-var-blind) CLAUDE_SKILL_DIR expansion" "yes" \
     "$(! grep -qF '${CLAUDE_SKILL_DIR-' "$PA_FILE" && echo yes || echo no)"  # raw-guard-ok: loop body: absence pin over the enumerated $PA_FILE loop variable
 done
-# The count check below preserves the widened fail-closed trigger: halt on the
-# unsubstituted placeholder, not only on empty.
-assert_eq "#275 pin (gate-op): all four implement entry-gates carry the placeholder-aware halt clause" "4" \
-  "$(pin_count 'is empty or an unsubstituted placeholder' "$LIB/../skills/implement/SKILL.md")"
+# issue #1566: the per-phase entry-gate paragraphs were collapsed into ONE preamble gate
+# statement, so the former count-of-4 guard is retired; the placeholder-aware halt clause
+# is now asserted count-free on the single statement in the #218 IMPL_ORCH block above.
 # Live-invocation pins for the four phase files (the lpe-coverage whole-line pin covers
 # SKILL.md files only): one canonical helper invocation per phase file, pinned unique, so a
 # commented-out/prose-only occurrence cannot satisfy P3 alone.
