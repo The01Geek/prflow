@@ -2383,8 +2383,7 @@ def _flag_help_present_1550(help_text, flag):
     _lines = help_text.splitlines()
     _tok = re.compile(r'(^|[,\s])' + re.escape(flag) + r'($|[ =\t])')
     for _i, _ln in enumerate(_lines):
-        # option-invocation lines are indented exactly two spaces then a dash
-        if not (_ln[:2] == '  ' and _ln[2:3] == '-'):
+        if not (_ln[:2] == '  ' and _ln[2:3] == '-'):  # option-invocation line
             continue
         if not _tok.search(_ln):
             continue
@@ -2410,8 +2409,7 @@ def _sub_help_present_1550(help_text, sub):
     _lines = help_text.splitlines()
     _tok = re.compile(r'^    ' + re.escape(sub) + r'($|[ \t])')
     for _i, _ln in enumerate(_lines):
-        # subcommand-listing lines are indented exactly four spaces then the name
-        if not _tok.match(_ln):
+        if not _tok.match(_ln):  # subcommand-listing line (4-space indent, then name)
             continue
         _after = _ln[4 + len(sub):]
         if re.search(r'\s{2,}\S', _after):  # same-line help column
@@ -2468,12 +2466,10 @@ for _f in _live_flags_1550:
     assert_eq(f"#1550 `update --help` documents (help= present) the invoked flag {_f!r}",
               True, _flag_help_present_1550(_upd_help_1550.stdout, _f))
 
-# AC3 negative control: prove the check is NOT vacuous by stripping `help=` from a real
-# invoked target in a temp copy of workpad.py, running its `--help`, and confirming the
-# detector reports NO help while the token still appears. Cover the three argparse render
-# shapes the detectors must distinguish: a store_true flag, a value/metavar flag, and a
-# subcommand. Each target's help text is paren-balanced, so `_strip_help_1550`'s span
-# walk is exact.
+# AC3 negative control: prove the check is NOT vacuous — strip `help=` from a real invoked
+# target in a temp copy, run its `--help`, and confirm the detector reports NO help while
+# the token still appears. One target per argparse render shape; each help text is
+# paren-balanced, so `_strip_help_1550`'s span walk is exact.
 _src_1550 = (SCRIPTS / 'workpad.py').read_text(encoding='utf-8')
 for _kind, _key, _tgt, _argv, _detect in (
     ('store_true flag', "u.add_argument('--reconcile-extension-rows'",
