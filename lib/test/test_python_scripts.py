@@ -30233,8 +30233,8 @@ assert_eq("#1580 the side's concluded verdict survives the override",
           "unmet", _unmet_rec["evidence_status_reported"])
 assert_eq("#1580 a side with no attestation gap reports the same status both ways",
           "unmet", _unmet_rec["claim_status_reported"])
-# The override emits its own breadcrumb — the only run-time signal naming WHICH side was
-# downgraded. Deleting it leaves every assertion here green.
+# The override's breadcrumb is the run's stderr-side signal that a side was downgraded;
+# deleting it leaves every assertion here green.
 _ovr_buf = io.StringIO()
 with contextlib.redirect_stderr(_ovr_buf):
     reconcile_ac.reconcile(
