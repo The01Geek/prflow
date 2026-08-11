@@ -4,6 +4,35 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.27] — 2026-08-11
+
+### Changed
+- **`/prflow:implement` Phase 1.6 now dispatches the Issue-Claim Audit to a subagent.** The audit's pass procedure (count/enumeration, negative-scope, policy, execution-capability, verified-premise) moved out of `phase-1-setup.md` into the new first-party `issue-claim-auditor` subagent, which shares the run's checkout, writes the same per-pass workpad notes and reflections, and returns a structured record; the orchestrator keeps every decision, including the two terminal Blocked stops. This shrinks the re-read `phase-1-setup.md` while preserving audit behavior. (#1583)
+
+## [2.32.26] — 2026-08-11
+
+### Changed
+- **The cloud-writer contract manifest is no longer a per-branch merge chokepoint.** `main` is
+  now the sole writer of `scripts/devflow-cloud-writer-contract.json`: the merge-to-main job
+  regenerates it from the merged tree immediately before its version-bump commit, and the
+  `regenerate-artifacts.py` batched-pass row plus the per-branch `verify` drift gate were
+  removed. Two concurrent prompt-surface PRs that edit the same or adjacent pinned files no
+  longer conflict in the manifest, and neither has to re-run whole-suite verification because
+  the other merged first. A new CI-side merge-base check
+  (`lib/test/cloud-writer-retention-check.py`) turns CI red for a feature branch that mutates
+  the artifact by hand, so hand-authored divergence between the pinned bytes and their
+  published digests is *reported before merge* rather than landing silently; whether it also
+  blocks the merge depends on the repository's own branch protection, since the check runs in
+  the `lint` job. A merge that edits a pinned file but ships no changeset still leaves the
+  manifest stale until the next changeset-bearing merge, which remains a documented
+  review-gate residual. The manifest keeps its path and shape, so the consumer-facing validator, the vendor
+  slice, the coverage map and the install path are unchanged. (#1571)
+
+## [2.32.25] — 2026-08-11
+
+### Changed
+- **Phase 3.4's Acceptance Criteria Gate now dispatches two fresh-context verifiers instead of resolving inline.** An `ac-evidence-verifier` establishes each in-scope criterion's verification evidence (the only one that runs an in-env verification command or touches single-flight) and an `ac-claim-verifier` checks the shipped code against each criterion's literal claim and executes nothing. The orchestrator reconciles the two per-criterion reports through `scripts/reconcile-ac-verifiers.py` — agreement records that status, any disagreement records `unestablished` (which blocks as an unmet criterion blocks), and a `satisfied` never lands without an evidence pointer — then drives the existing routing from the reconciled record. A verification command that passes while its assertions test a different claim than the criterion states no longer yields a satisfied status. (#1575)
+
 ## [2.32.24] — 2026-08-11
 
 ### Fixed

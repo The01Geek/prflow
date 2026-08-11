@@ -5589,7 +5589,11 @@ rm -f "$IPS_CFG"
 # The retained Phase 4.3 boundaries cover the config read and clean-tree backstop;
 # detailed publish-state prose is intentionally not pinned.
 assert_pin_unique "implement_pr_state: SKILL reads via config-get with the ready_for_review default" 'config-get.sh .prflow_implement.implement_pr_state ready_for_review' "$IMPL_SKILL"
-assert_pin_unique "implement_pr_state: SKILL keeps the clean-tree backstop above the gate" 'git status --porcelain' "$IMPL_SKILL"
+# Scoped to phase-4-documentation.md: the clean-tree backstop above the publish gate lives
+# there. Phase 3.4's commit-before-dispatch step (issue #1575) legitimately adds a second
+# `git status --porcelain` elsewhere in the bundle, so the backstop's uniqueness is asserted
+# in its own phase file rather than bundle-wide.
+assert_pin_unique "implement_pr_state: SKILL keeps the clean-tree backstop above the gate" 'git status --porcelain' "$IMPL_PHASES_DIR/phase-4-documentation.md"
 
 # Executable publish-decision guard — logic-equivalent to the SKILL's single literal-`draft`
 # comparison (semantically mirrors `[ "$PR_STATE" = "draft" ]`; `$1` stands in for
@@ -10240,36 +10244,31 @@ assert_pin_unique "#346: a Phase 2.3-discovered workflow edit re-routes through 
 # empty-subset → Blocked stop remains asserted at 2.2.5.
 assert_pin_unique "#346: 2.2.5 takes the Blocked path when the pushable subset would be empty (late-discovered all-blocked)" \
   'Empty pushable subset ⇒ take the Blocked path here, do not narrow-and-proceed' "$IMPL_PHASES_DIR/phase-2-implement.md"
-# ── issue #476: §1.6 clean-arm records re-route to `--note`; findings re-kind. ──
+# ── issue #476 (relocated by #1576): audit clean-arm records re-route to `--note`. ──
 # The audit's clean/confirm arms no longer emit reflections (the attestation noise
 # that tripped the retrospective cheap gate on every clean run) — each records a
 # `## Progress` --note the moment its pass completes. Only FINDINGS reflect now: a
-# wrong issue claim (issue-accuracy), punted work (deferred), or a hard stop
-# (blocked).
-# Absence: §1.6 (the LAST section of phase-1-setup.md) carries ZERO
-#     `--reflection-kind note` — that kind was the exclusive clean-arm marker, so a
-#     count of 0 proves every clean arm routed to `--note`. The 1.4
-#     freshness/resume/checkpoint `--reflection-kind note` arms live ABOVE §1.6 and
-#     stay unchanged, which is exactly why this pin slices the section first (a
-#     whole-file count would never reach 0). The slice is the same awk technique the
-#     #325 freshness-guard pin above uses.
-#     NON-VACUITY GUARD (else the absence assertion fails OPEN): if the
-#     `### 1.6 Issue-Claim Audit` heading ever drifts, the awk pattern matches
-#     nothing, the slice is EMPTY, and `pin_count … == 0` would pass vacuously —
-#     silently retiring the guard. So first assert the slice positively captured the
-#     region (the heading present once, and a known clean-arm `--note` line present),
-#     making the "count 0" a proven delta over a non-empty slice, not an absolute
-#     over a possibly-empty input (issue #476 review; same discipline as commit
-#     7f7161a's absence-pin non-vacuity proof).
-P1_16_SLICE="$(probe_tmp "#476: slice §1.6 for the clean-arm-reflection absence pin")"
-awk '/^### 1\.6 Issue-Claim Audit/{f=1} f' "$P1_FILE" > "$P1_16_SLICE"
-assert_eq "#476: §1.6 slice non-vacuity — the audit heading was captured (slice is not empty)" "1" \
-  "$(pin_count '### 1.6 Issue-Claim Audit' "$P1_16_SLICE")"
-assert_eq "#476: §1.6 slice non-vacuity — a clean-arm --note line is present in the slice" "1" \
-  "$(pin_count '--note "issue-claim audit (count): no count or enumeration claims found' "$P1_16_SLICE")"
-assert_eq "#476: §1.6 has no clean-arm --reflection-kind note (clean confirmations route to --note)" "0" \
-  "$(pin_count '--reflection-kind note' "$P1_16_SLICE")"
-rm -f "$P1_16_SLICE"
+# a finding — such as a wrong issue claim (issue-accuracy), punted work
+# (deferred), or an unestablished re-check (dropped-failed). The two hard stops
+# are the ORCHESTRATOR's decision and live in phase-1-setup.md §1.6, not here.
+# #1576 moved §1.6's pass PROCEDURE (and its clean-arm --note writes) out of
+# phase-1-setup.md into the dispatched agents/issue-claim-auditor.md, so this pin now
+# targets that agent file. The whole file is the audit procedure (there is no §1.4
+# freshness/checkpoint prose above it to exclude), so the count is over the WHOLE
+# file rather than an awk slice.
+# Absence: the auditor carries ZERO `--reflection-kind note` — that kind was the
+#     exclusive clean-arm marker, so a count of 0 proves every clean arm routed to
+#     `--note`.
+#     NON-VACUITY GUARD (else the absence assertion fails OPEN): if the file drifts or
+#     is emptied the count would pass vacuously — so first assert a known clean-arm
+#     `--note` line is positively present, making the "count 0" a proven delta over a
+#     non-empty file, not an absolute over a possibly-empty input (issue #476 review;
+#     same discipline as commit 7f7161a's absence-pin non-vacuity proof).
+P476_ICA="$LIB/../agents/issue-claim-auditor.md"
+assert_eq "#476/#1576: auditor non-vacuity — a clean-arm --note line is positively present" "1" \
+  "$(pin_count '--note "issue-claim audit (count): no count or enumeration claims found' "$P476_ICA")"
+assert_eq "#476/#1576: auditor has no clean-arm --reflection-kind note (clean confirmations route to --note)" "0" \
+  "$(pin_count '--reflection-kind note' "$P476_ICA")"
 # ── #350 review fixes: re-key the deferral on CREDENTIAL CAPABILITY, and make the
 # signal observable + the guard complete. Coupled sites for this ONE change:
 #   (1) phase-1 Pass 5 + phase-2 2.2.5/2.5 prose (keyed on cloud AND DEVFLOW_APP_ID empty),
@@ -26839,6 +26838,40 @@ for a in $AGENT_TOOL_ROSTER; do
   esac
   assert_eq "#agent-tools agents/$a.md tools: Write grant matches its dispatch contract" \
     "$atools_write_expected" "$(printf '%s' "$atools_value" | grep -qw 'Write' && echo yes || echo no)"
+done
+
+# --- #1575: Phase-3.4 AC verifier tool boundaries (issue #1575). ---
+# The two dispatched Phase-3.4 verifiers must not write, edit, or dispatch a further
+# subagent (AC7), and the claim verifier must EXECUTE NOTHING — so it holds no Bash while
+# the evidence verifier (the only one that runs a verification command) does. Assert each
+# boundary the same way the review-agent roster above does: prove the tools: value is
+# non-empty (empty == inherits every tool) before testing what it omits.
+for acv in ac-evidence-verifier ac-claim-verifier; do
+  # structural-pin-ok: security-credential-boundary -- the `tools:` line IS the runtime tool
+  # boundary the harness parses for a dispatched subagent; no other surface constrains what
+  # a dispatched Phase-3.4 verifier may do to the working tree.
+  acv_tools="$(grep -E '^tools:[[:space:]]' "$FDROOT/agents/$acv.md" | head -1)"
+  acv_value="${acv_tools#tools:}"
+  case "$acv_value" in
+    *[![:space:]]*) acv_nonempty=yes ;;
+    *) acv_nonempty=no ;;
+  esac
+  assert_eq "#1575 agents/$acv.md declares a NON-EMPTY tools: value (empty == inherits all tools)" \
+    "yes" "$acv_nonempty"
+  for denied in Write Edit MultiEdit NotebookEdit Task Agent; do
+    assert_eq "#1575 agents/$acv.md tools: omits $denied" \
+      "no" "$(printf '%s' "$acv_value" | grep -qw "$denied" && echo yes || echo no)"  # raw-guard-ok: loop body: the pattern is the $denied loop variable, not a static pin
+  done
+  # Bash: expected on the evidence verifier (it runs the in-env verification command),
+  # asserted ABSENT on the claim verifier (which executes nothing) — both directions, so
+  # neither a dropped grant that would break command verification nor a spread grant that
+  # would let the claim verifier execute is silent.
+  case "$acv" in
+    ac-evidence-verifier) acv_bash_expected=yes ;;
+    *) acv_bash_expected=no ;;
+  esac
+  assert_eq "#1575 agents/$acv.md tools: Bash grant matches its dispatch contract" \
+    "$acv_bash_expected" "$(printf '%s' "$acv_value" | grep -qw 'Bash' && echo yes || echo no)"
 done
 
 # --- #191: retain the review agents' complete-location-set deliverable boundary. ---

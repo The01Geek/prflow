@@ -595,6 +595,42 @@ tool for scratch, never by widening the permission grant.
 
 ## Acceptance-criteria gate: the gated `(post-merge)` tag (Phase 3.4)
 
+### Two dispatched fresh-context verifiers, reconciled (issue #1575)
+
+The gate does **not** resolve inline in the orchestrator's own context. The orchestrator drove Phase 2's
+implementation and Phase 3.3's fix loop, so a gate it resolves in its own turn inherits its own
+assumptions about what it built — the issue #1450 failure mode where the gate "ticks criteria satisfied
+without re-verifying the shipped claim" — and a lone dispatched verifier that is wrong is silently wrong.
+So Phase 3.4 **dispatches two fresh-context verifiers in the same turn** and routes the gate from their
+**reconciled** per-criterion record:
+
+- **`prflow:ac-evidence-verifier`** (`agents/ac-evidence-verifier.md`) establishes each in-scope
+  criterion's verification evidence. It is the **only** one that runs an in-env verification command or
+  touches the single-flight coordination, so the two verifiers never race the same command run.
+- **`prflow:ac-claim-verifier`** (`agents/ac-claim-verifier.md`) checks the shipped code against each
+  criterion's literal claim from the diff and current tree, and **executes nothing** — for a
+  verification-command criterion it reads the command's *source* and checks that each clause of the
+  criterion has a corresponding assertion in it.
+
+The orchestrator commits any uncommitted tree first (issue #1254's shared-checkout convention), resolves
+the extension-governed facts the verifiers need (the test command, the single-flight helper paths, the
+plugin root) and passes them **by value** into each dispatch prompt following the `[[PLUGIN_ROOT]]`
+pattern — **neither verifier reads or reloads the consumer prompt extension**. Each verifier reports one
+status per criterion (`satisfied`, `unmet`, or `unestablished`, never collapsing an `unestablished` onto
+either), dispatches no further subagent, and writes nothing to the workpad — the orchestrator performs
+every mutation.
+
+The orchestrator reconciles the two reports per criterion through `scripts/reconcile-ac-verifiers.py`:
+**both verifiers agreeing records that status; any disagreement records `unestablished`** (never resolved
+by preferring one verifier), and a **`satisfied` never lands without an evidence pointer** from at least
+one verifier (a `satisfied` with no evidence, and an unreadable/malformed report at exit 3, both reconcile
+`unestablished`). A reconciled `unestablished` **blocks exactly as an unmet criterion blocks** — so a
+verification command that passes while its assertions exercise a *different* claim than the criterion
+states reconciles `unestablished`, not `satisfied`. The routing below (the `(post-merge)` rules, the
+documentation-AC deferral, the in-env verification rule, the `Blocked` escalation) is **unchanged in
+substance** and now driven from the reconciled `status`/`evidence` rather than the orchestrator's own
+inline check.
+
 The Phase 3.4 gate requires every **non-post-merge** acceptance criterion to be verified before the run
 advances. A `(post-merge)` tag exempts a criterion from blocking, so the gate enforces — as engine
 behavior, not advisory prose — exactly **when** that tag is permitted: **only when the criterion
@@ -654,10 +690,12 @@ restated here: read them from `.prflow/config.json`, which is their single sourc
 for the command path and `prflow_implement.allowed_tools` for the implement run, the latter a superset
 carrying the additional heads a run needs in its own environment. A count or list transcribed onto this
 page is a mirror-fact that goes stale the moment either key changes and nothing reconciles it — which is
-exactly what happened to the enumeration this sentence replaces. The three outcomes at the Phase 3.4
-gate:
+exactly what happened to the enumeration this sentence replaces. The command runs in the
+**`ac-evidence-verifier`'s** own context (the only verifier that executes anything), and its observed
+outcome flows through reconciliation into the gate. The three outcomes:
 
-- **In-env pass** — the command ran and passed here; tick the criterion on that observed result.
+- **In-env pass** — the command ran and passed; the evidence verifier reports the pass and, on
+  reconciliation with the claim verifier, the criterion ticks on that observed result.
 - **In-env failure** — the command *ran and failed*; that is a real failure, not a deferral: fix it or
   take the **`Blocked`** path. Never `(post-merge)` it.
 - **In-env run denied** — the direct-form command is **not granted** in this run's allowlist, so it was

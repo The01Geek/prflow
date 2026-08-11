@@ -93,6 +93,7 @@ stale_prose_lint = _load('stale_prose_lint', SCRIPTS / 'stale-prose-lint.py')
 issue_audit_state = _load('issue_audit_state', SCRIPTS / 'issue-audit-state.py')
 discover_deferrals = _load(
     'discover_deferrals', SCRIPTS / 'discover-deferral-manifests.py')
+reconcile_ac = _load('reconcile_ac_verifiers', SCRIPTS / 'reconcile-ac-verifiers.py')
 
 
 PASS = 0
@@ -10722,6 +10723,22 @@ _LIBTEST = Path(__file__).resolve().parent
 cwc = _load('cloud_writer_contract', _LIBTEST / 'cloud_writer_contract.py')
 vcwc = _load('validate_cloud_writer_contract', SCRIPTS / 'validate-cloud-writer-contract.py')
 
+# issue #1445: `main` is the sole writer of the checked-in manifest, so on a feature branch
+# that edited a pinned source file the committed manifest is legitimately stale — and it is
+# NOT gated there. Every validator/verify check below that used to hash-check the COMMITTED
+# manifest against the live tree therefore validates a FRESHLY GENERATED manifest instead
+# (equal to what `main` would publish for this tree), so it exercises the validator's grant /
+# closure / HEAD_ABSENT logic without re-introducing the branch-side staleness gate that #1445
+# removed. The freshly generated manifest matches the live tree by construction.
+with tempfile.NamedTemporaryFile('w', suffix='.json', delete=False, encoding='utf-8') as _fm1445f:
+    _fm1445f.write(cwc.canonical_json(cwc.build_manifest()))
+    _fresh_manifest_1445 = _fm1445f.name
+# `delete=False` keeps the path readable by the assertions further down this linear script;
+# without this unlink the suite leaks one temp file per run.
+import atexit as _atexit1445  # noqa: E402
+
+_atexit1445.register(lambda: os.path.exists(_fresh_manifest_1445) and os.unlink(_fresh_manifest_1445))
+
 
 def _codes(violations):
     return sorted({code for code, _ in violations})
@@ -10815,10 +10832,15 @@ with tempfile.TemporaryDirectory() as _gd:
 # Unreadable grant source → empty set (unknown-is-not-zero; HEAD_ABSENT follows).
 assert_eq("#543 AC18: extract_profile_grants on a nonexistent path returns set()",
           set(), vcwc.extract_profile_grants("/nonexistent/wf-543.yml"))
-assert_eq("#543 AC18: checked-in manifest matches the generated closure (verify)",
-          0, cwc.main(["verify"]))
-assert_eq("#543 AC18: validator accepts the real checked-in manifest",
-          0, vcwc.main([]))
+# issue #1445: the branch-side `cwc.main(["verify"])` drift gate against the committed
+# manifest was removed — main is the sole writer, so a feature branch is not gated on manifest
+# staleness. The generated-closure↔manifest equivalence is now demonstrated against a freshly
+# generated manifest (which main publishes) rather than the possibly-stale committed one.
+assert_eq("#543 AC18: a freshly generated manifest is byte-identical to what generate would write",
+          cwc.canonical_json(cwc.build_manifest()),
+          Path(_fresh_manifest_1445).read_text(encoding="utf-8"))
+assert_eq("#543 AC18: validator accepts a freshly generated manifest",
+          0, vcwc.main([_fresh_manifest_1445]))
 
 # ─────────────────────────────────────────────────────────────────────────────
 # AC9 (issue #650) — grant synchronization. check_grant_sync() maps every
@@ -14483,10 +14505,12 @@ assert_eq("#703 AC19: install.md names both contract states (validator + legacy_
                  and "legacy_profile_baseline" in _install_md))
 
 # ── AC19 pairing 2: immediately-preceding WORKFLOW + NEW plugin → completes.
-# Validate the LIVE checked-in manifest (the new plugin) under the FROZEN legacy
+# Validate a freshly generated manifest (the new plugin; issue #1445 — main is the sole
+# writer of the committed manifest, so a feature branch is validated against the manifest
+# main would publish, never the possibly-stale committed one) under the FROZEN legacy
 # grants (the immediately-preceding workflow). It completes because the current
 # plugin requires no head the legacy baseline did not already grant.
-_live_manifest = _REPO / cwc.MANIFEST_PATH
+_live_manifest = Path(_fresh_manifest_1445)
 _p2 = vcwc.validate(
     _live_manifest, base_dir=_REPO,
     expected_assets=cwc.manifest_file_paths(),
@@ -14515,6 +14539,417 @@ assert_eq("#703 AC19 pairing2: no AC1-reached fence emits a denied shape (the 'o
           [], cwc.check_shape_conformance())
 
 # ─────────────────────────────────────────────────────────────────────────────
+# issue #1445: the cloud-writer manifest is a merge chokepoint no more. `main` is its
+# sole writer (version-consolidate.yml), no feature branch regenerates it, and a CI-side
+# merge-base check catches a hand-authored branch mutation. The seven acceptance criteria
+# are exercised end to end below.
+# ─────────────────────────────────────────────────────────────────────────────
+import hashlib as _h1445  # noqa: E402
+_regen1445 = _load('regenerate_artifacts_1445', _LIBTEST / 'regenerate-artifacts.py')
+_cwr1445 = _load('cloud_writer_retention_1445', _LIBTEST / 'cloud-writer-retention-check.py')
+
+
+def _git1445_raw(cwd, *args):
+    return _subprocess.run(('git',) + args, cwd=cwd, capture_output=True, text=True)
+
+
+def _git1445(cwd, *args):
+    # Raise on a failed fixture step: a failed checkout leaves two branch names on one
+    # commit, where merge-tree reports clean and every "no conflict" arm passes vacuously.
+    r = _git1445_raw(cwd, *args)
+    if r.returncode != 0:
+        raise AssertionError(
+            "#1445 fixture: git %s failed rc=%d: %s"
+            % (' '.join(args), r.returncode, (r.stderr or '').strip()))
+    return r
+
+
+def _sha1445(text):
+    return _h1445.sha256(text.encode('utf-8')).hexdigest()
+
+
+def _canon1445(files):
+    # Canonical one-key-per-line JSON, matching cwc.canonical_json's shape, so adjacent
+    # manifest entries land on adjacent lines exactly as the real artifact does.
+    return json.dumps({"files": files}, sort_keys=True, indent=2, ensure_ascii=False) + "\n"
+
+
+def _mt_conflict1445(repo, ref_a, ref_b):
+    # rc 0 is a clean merge and rc 1 a conflict; any OTHER rc is a git or usage error
+    # (an older git without --write-tree, a bad ref) and must not be read as "conflict",
+    # or the discriminating controls below pass green while measuring nothing.
+    r = _git1445_raw(repo, 'merge-tree', '--write-tree', ref_a, ref_b)
+    if r.returncode not in (0, 1):
+        raise AssertionError(
+            "#1445 fixture: git merge-tree --write-tree errored rc=%d (needs git >= 2.38): %s"
+            % (r.returncode, (r.stderr or '').strip()))
+    return r.returncode == 1 or 'CONFLICT' in r.stdout or 'CONFLICT' in r.stderr
+
+
+# ── AC7 (branch-side): the batched artifact-regeneration pass does not write the manifest.
+# Do not let this file run with DEVFLOW_RA_TEST_MECHANICAL_ROW set: that seam re-injects the
+# very row AC7 asserts is absent, so the assertions below would fail for an environment
+# reason rather than a regression. Assert the precondition instead of assuming it.
+assert_eq("#1445 AC7 precondition: the test-only mechanical-row seam is NOT enabled here",
+          False, os.environ.get("DEVFLOW_RA_TEST_MECHANICAL_ROW") == "1")
+_regen_writes_1445 = [
+    w for row in _regen1445.ROWS
+    for w in ((row.get("writes"),) if isinstance(row.get("writes"), str) else tuple(row.get("writes") or ()))
+]
+assert_eq("#1445 AC7: no regenerate-artifacts.py row writes the cloud-writer manifest",
+          False, _regen1445.MECHANICAL_ARTIFACT in _regen_writes_1445)
+assert_eq("#1445 AC7: no regenerate-artifacts.py row is named cloud-writer-manifest",
+          False, "cloud-writer-manifest" in [r["name"] for r in _regen1445.ROWS])
+# emit_list output (the coordinator/batched-pass consumer surface) never names it either.
+_regen_list_1445 = _subprocess.run(
+    ('python3', 'lib/test/regenerate-artifacts.py', '--list'),
+    cwd=str(_REPO), capture_output=True, text=True)
+# Establish the output before reading an ABSENCE from it: a crashing --list emits empty
+# stdout, in which the absence assertion below passes while proving nothing about the rows.
+# Name a row that must be present: a header-only substring would also survive a partial crash.
+assert_eq("#1445 AC7: --list exits 0 and emits a known row (control for the absence assertion)",
+          True, _regen_list_1445.returncode == 0
+          and _regen1445.ROWS[0]["name"] in _regen_list_1445.stdout)
+assert_eq("#1445 AC7: --list emits no cloud-writer-manifest row",
+          False, "cloud-writer-manifest" in _regen_list_1445.stdout)
+
+# ── AC3 check 1: the published digests are derived from the live bytes of the SAME tree.
+# build_manifest() hashes each pinned path's current bytes, so every digit matches a fresh
+# sha256 of that path — the derivation-from-live-bytes property version-consolidate.yml
+# relies on (it runs `generate` against the merged tree immediately before its commit).
+_bm1445 = cwc.build_manifest()
+
+
+def _sha_bytes1445(rel):
+    # Hash independently of cwc.sha256_of: comparing the generator against the very helper
+    # it calls is a tautology that a mutant inside that helper would survive.
+    return _h1445.sha256((_REPO / rel).read_bytes()).hexdigest()
+
+
+assert_eq("#1445 AC3.1: every published digest is the sha256 of the live file bytes",
+          True, all(_bm1445["files"][p] == _sha_bytes1445(p) for p in cwc.manifest_file_paths()))
+# The publishing step regenerates from the tree BEFORE it commits (so the digests derive
+# from the exact bytes the commit ships), and stages the artifact explicitly.
+_vc_yml_1445 = (_REPO / ".github" / "workflows" / "version-consolidate.yml").read_text(encoding="utf-8")
+_gen_idx_1445 = _vc_yml_1445.find("cloud_writer_contract.py generate")
+_commit_idx_1445 = _vc_yml_1445.find('git commit -m "chore: bump version')
+_reset_idx_1445 = _vc_yml_1445.find("git reset --hard origin/")
+# Bound the regeneration on BOTH sides: above the reset it is discarded, below the commit it
+# never ships, and either mutant satisfies a commit-side-only ordering check.
+assert_eq("#1445 AC3.1: version-consolidate.yml regenerates the manifest after its reset and before its commit",  # structural-pin-ok: cross-file-phase-contract -- the main-side publish must regenerate from the merged tree after the reset that establishes it and before committing, or the published digests do not derive from the bytes they ship
+          True, 0 <= _reset_idx_1445 < _gen_idx_1445 < _commit_idx_1445)
+assert_eq("#1445 AC3.1: version-consolidate.yml stages the regenerated manifest",
+          True, "git add scripts/devflow-cloud-writer-contract.json" in _vc_yml_1445)
+# The branch-side half of AC3.2/AC7 is the CI invocation of the mutation check; pin that
+# ci.yml actually wires it, so deleting the step (silently dropping the only branch-side
+# guard) turns the suite RED rather than passing on the check's own unit tests alone.
+_ci_yml_1445 = (_REPO / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+assert_eq("#1445 AC3.2/AC7: ci.yml wires the cloud-writer mutation check into the lint job",  # structural-pin-ok: routing-dispatch-contract -- the CI step is the sole branch-side enforcement of the merge-base mutation check; without it the guard vanishes silently
+          True, "python3 lib/test/cloud-writer-retention-check.py" in _ci_yml_1445)
+
+# ── AC3 check 2 / AC7 (main-side protection): the merge-base mutation check.
+# Pure-core arms (no git): unchanged → clean; a mutation against a SOUND comparand → exit 1;
+# the same difference against a SUBSTITUTED comparand → unestablished (exit 3), acknowledgeable.
+_cwr_base_1445 = {"files": {"skills/x/SKILL.md": "aa"}}
+_cwr_head_same_1445 = {"files": {"skills/x/SKILL.md": "aa"}}
+_cwr_head_diff_1445 = {"files": {"skills/x/SKILL.md": "bb"}}
+assert_eq("#1445 AC3.2: retention core reports no violation for an unchanged manifest",
+          [], _cwr1445.detect_mutation(_cwr_base_1445, _cwr_head_same_1445))
+_cwr_viol_1445 = _cwr1445.detect_mutation(_cwr_base_1445, _cwr_head_diff_1445)
+assert_eq("#1445 AC3.2: retention core reports a violation for a mutated manifest",
+          1, len(_cwr_viol_1445))
+assert_eq("#1445 AC3.2: a mutation against a sound comparand exits 1 (mutated)",
+          _cwr1445.EXIT_MUTATED,
+          _cwr1445.classify_outcome(_cwr_viol_1445, [], False, "origin/main", False)[0])
+assert_eq("#1445 AC3.2: a mutation against a substituted comparand is unestablished (exit 3)",
+          _cwr1445.EXIT_UNESTABLISHED,
+          _cwr1445.classify_outcome(_cwr_viol_1445, ["shallow"], False, "origin/main", True)[0])
+assert_eq("#1445 AC3.2: --allow-degraded-base acknowledges the substituted comparand (exit 0)",
+          _cwr1445.EXIT_CLEAN,
+          _cwr1445.classify_outcome(_cwr_viol_1445, ["shallow"], True, "origin/main", True)[0])
+assert_eq("#1445 AC3.2: a clean comparand exits 0",
+          _cwr1445.EXIT_CLEAN,
+          _cwr1445.classify_outcome([], [], False, "origin/main", False)[0])
+# detect_mutation's fail-closed arms: a non-object base or head is a comparand-unestablished
+# violation, never silently read as 'unchanged' (the docstring's "drives every arm" claim).
+assert_eq("#1445 AC3.2: a non-object base manifest is flagged (fail closed, not 'unchanged')",
+          1, len(_cwr1445.detect_mutation("not-a-dict", {"files": {}})))
+assert_eq("#1445 AC3.2: a non-object head manifest is flagged (fail closed, not 'unchanged')",
+          1, len(_cwr1445.detect_mutation({"files": {}}, ["not-a-dict"])))
+# classify_outcome's unestablished-WITHOUT-violations arm: a shallow clone whose manifest
+# happens to match the substitute tip is still not clean (unknown is not zero) — exit 3, and
+# exit 0 only when the degraded base is explicitly acknowledged.
+assert_eq("#1445 AC3.2: unestablished base with no difference is still not clean (exit 3)",
+          _cwr1445.EXIT_UNESTABLISHED,
+          _cwr1445.classify_outcome([], ["shallow"], False, "origin/main", True)[0])
+assert_eq("#1445 AC3.2: --allow-degraded-base acknowledges an unchanged-but-degraded base (exit 0)",
+          _cwr1445.EXIT_CLEAN,
+          _cwr1445.classify_outcome([], ["shallow"], True, "origin/main", True)[0])
+# Arm ORDER, asserted directly (the docstring's "arm order is load-bearing" claim): with a
+# SOUND comparand, arm 1 must win over arm 2 even when unestablished reasons are present —
+# exit 1, not 3, and no acknowledgement flag can downgrade it. main() cannot construct this
+# combination (its only `unestablished` source also sets comparand_substituted), so the pure
+# core is the sole way to prove the precedence.
+_cwr_arm1_1445 = _cwr1445.classify_outcome(
+    _cwr_viol_1445, ["some unrelated unestablished reason"], False, "origin/main", False)
+assert_eq("#1445 AC3.2: arm 1 precedes arm 2 — a sound-comparand mutation exits 1 despite unestablished reasons",
+          _cwr1445.EXIT_MUTATED, _cwr_arm1_1445[0])
+assert_eq("#1445 AC3.2: that arm-1 report appends the unestablished reasons as context",
+          True, any("some unrelated unestablished reason" in ln for ln in _cwr_arm1_1445[1]))
+assert_eq("#1445 AC3.2: no acknowledgement flag can downgrade an established mutation",
+          _cwr1445.EXIT_MUTATED,
+          _cwr1445.classify_outcome(
+              _cwr_viol_1445, ["some unrelated unestablished reason"], True, "origin/main", False)[0])
+
+# End-to-end git fixture: a branch that mutates the manifest FAILS the check; one that
+# leaves it untouched PASSES — and it needs NO local git configuration to do either (AC6).
+with tempfile.TemporaryDirectory(prefix='cwr1445-') as _cwr_repo_str:
+    _cwr_repo = Path(_cwr_repo_str)
+    _git1445(_cwr_repo, 'init', '-q', '-b', 'main')
+    _git1445(_cwr_repo, 'config', 'user.email', 'a@b.c')
+    _git1445(_cwr_repo, 'config', 'user.name', 'T')
+    (_cwr_repo / 'scripts').mkdir()
+    _man_rel_1445 = 'scripts/devflow-cloud-writer-contract.json'
+    (_cwr_repo / _man_rel_1445).write_text(_canon1445({"skills/a.md": _sha1445("a")}), encoding='utf-8')
+    (_cwr_repo / 'skills').mkdir()
+    (_cwr_repo / 'skills' / 'a.md').write_text("a", encoding='utf-8')
+    _git1445(_cwr_repo, 'add', '-A')
+    _git1445(_cwr_repo, 'commit', '-qm', 'base')
+    _git1445(_cwr_repo, 'branch', 'origin/main')  # local stand-in for the base ref
+    # Untouched branch: edit a source file, leave the manifest alone → clean (exit 0).
+    _git1445(_cwr_repo, 'checkout', '-q', '-b', 'feat-clean')
+    (_cwr_repo / 'skills' / 'a.md').write_text("a changed", encoding='utf-8')
+    _git1445(_cwr_repo, 'commit', '-qam', 'edit source, not the manifest')
+    _rc_clean_1445 = _cwr1445.main(['x', str(_cwr_repo), '--base-ref', 'origin/main'])
+    assert_eq("#1445 AC3.2 e2e: an untouched manifest passes the check (exit 0), no local config",
+              _cwr1445.EXIT_CLEAN, _rc_clean_1445)
+    # Mutating branch: hand-edit the manifest → mutated (exit 1).
+    _git1445(_cwr_repo, 'checkout', '-q', 'main')
+    _git1445(_cwr_repo, 'checkout', '-q', '-b', 'feat-mutated')
+    (_cwr_repo / _man_rel_1445).write_text(_canon1445({"skills/a.md": _sha1445("tampered")}), encoding='utf-8')
+    _git1445(_cwr_repo, 'commit', '-qam', 'hand-edit the manifest')
+    _rc_mut_1445 = _cwr1445.main(['x', str(_cwr_repo), '--base-ref', 'origin/main'])
+    assert_eq("#1445 AC3.2 e2e: a hand-mutated manifest fails the check (exit 1)",
+              _cwr1445.EXIT_MUTATED, _rc_mut_1445)
+    # main()'s fail-closed CLI arm: an unresolvable base ref (merge_base None) must exit
+    # EXIT_MUTATED, never EXIT_CLEAN — a genuinely-unverifiable run never reports green.
+    _rc_nobase_1445 = _cwr1445.main(['x', str(_cwr_repo), '--base-ref', 'origin/does-not-exist-1445'])
+    assert_eq("#1445 AC3.2 e2e: an unresolvable base ref fails closed (exit 1), never clean",
+              _cwr1445.EXIT_MUTATED, _rc_nobase_1445)
+    # main()'s two remaining fail-closed read arms. Each carries a positive control on the
+    # SAME fixture (the clean branch above already exits 0 with both manifests readable), so
+    # a rejection from an unrelated precondition cannot masquerade as the arm under test.
+    # Unreadable HEAD manifest: malformed JSON in the working tree → exit 1, never clean.
+    _git1445(_cwr_repo, 'checkout', '-q', 'feat-clean')
+    _man_backup_1445 = (_cwr_repo / _man_rel_1445).read_text(encoding='utf-8')
+    (_cwr_repo / _man_rel_1445).write_text("{ not json", encoding='utf-8')
+    _badhead_out_1445 = io.StringIO()
+    with contextlib.redirect_stdout(_badhead_out_1445):
+        _rc_badhead_1445 = _cwr1445.main(['x', str(_cwr_repo), '--base-ref', 'origin/main'])
+    assert_eq("#1445 AC3.2 e2e: an unreadable HEAD manifest fails closed (exit 1), never clean",
+              _cwr1445.EXIT_MUTATED, _rc_badhead_1445)
+    # Attribute the rejection: this arm, not the mutation arm or an earlier precondition.
+    assert_eq("#1445 AC3.2 e2e: the unreadable-HEAD rejection names the head read",
+              True, "could not read the head" in _badhead_out_1445.getvalue())
+    (_cwr_repo / _man_rel_1445).write_text(_man_backup_1445, encoding='utf-8')
+    assert_eq("#1445 AC3.2 e2e control: the same fixture is otherwise clean (exit 0)",
+              _cwr1445.EXIT_CLEAN,
+              _cwr1445.main(['x', str(_cwr_repo), '--base-ref', 'origin/main']))
+    # Malformed BASE manifest: the merge base carries unparseable JSON. An ABSENT path at the
+    # base is deliberately the empty object (retention_check_common.git_show_json), so absence
+    # alone never reaches main()'s base_error arm — malformed JSON and any other `git show`
+    # failure do.
+    _git1445(_cwr_repo, 'checkout', '-q', '-b', 'base-bad-manifest', 'origin/main')
+    (_cwr_repo / _man_rel_1445).write_text("{ not json", encoding='utf-8')
+    _git1445(_cwr_repo, 'commit', '-qam', 'malformed manifest at the base')
+    _git1445(_cwr_repo, 'checkout', '-q', '-b', 'feat-off-bad-base')
+    (_cwr_repo / 'skills' / 'a.md').write_text("a off bad base", encoding='utf-8')
+    _git1445(_cwr_repo, 'commit', '-qam', 'branch work, manifest untouched')
+    _badbase_out_1445 = io.StringIO()
+    with contextlib.redirect_stdout(_badbase_out_1445):
+        _rc_badbase_1445 = _cwr1445.main(
+            ['x', str(_cwr_repo), '--base-ref', 'base-bad-manifest'])
+    assert_eq("#1445 AC3.2 e2e: an unreadable base manifest fails closed (exit 1), never clean",
+              _cwr1445.EXIT_MUTATED, _rc_badbase_1445)
+    assert_eq("#1445 AC3.2 e2e: the unreadable-base rejection names the base read",
+              True, "could not read the base" in _badbase_out_1445.getvalue())
+    # main()'s DEGRADED-comparand branch, driven end-to-end (not by handing the pure core a
+    # comparand_substituted sentinel): an unrelated-history base ref makes `git merge-base`
+    # report no merge base, which is exactly the arm a shallow/partial clone takes in
+    # retention_check_common.merge_base — the base ref's own tip substitutes for the merge
+    # base. Without this, main()'s degraded routing and the --allow-degraded-base argparse
+    # wiring could stop firing with no RED test.
+    _git1445(_cwr_repo, 'checkout', '-q', '--orphan', 'unrelated-1445')
+    (_cwr_repo / _man_rel_1445).write_text(
+        _canon1445({"skills/a.md": _sha1445("unrelated root")}), encoding='utf-8')
+    _git1445(_cwr_repo, 'add', '-A')
+    _git1445(_cwr_repo, 'commit', '-qm', 'unrelated root')
+    _git1445(_cwr_repo, 'checkout', '-q', 'feat-clean')
+    _degraded_out_1445 = io.StringIO()
+    with contextlib.redirect_stdout(_degraded_out_1445):
+        _rc_degraded_1445 = _cwr1445.main(
+            ['x', str(_cwr_repo), '--base-ref', 'unrelated-1445'])
+    assert_eq("#1445 AC3.2 e2e: a degraded base comparand exits 3 (unestablished), never 0 or 1",
+              _cwr1445.EXIT_UNESTABLISHED, _rc_degraded_1445)
+    assert_eq("#1445 AC3.2 e2e: the degraded run names the substitute comparand, not a mutation",
+              True, "could not be established" in _degraded_out_1445.getvalue())
+    # The same invocation plus the acknowledgement flag: exit 0, and still reported as
+    # acknowledged-degraded rather than as a verified clean pass.
+    _ack_out_1445 = io.StringIO()
+    with contextlib.redirect_stdout(_ack_out_1445):
+        _rc_ack_1445 = _cwr1445.main(
+            ['x', str(_cwr_repo), '--base-ref', 'unrelated-1445', _cwr1445.ACK_FLAG])
+    assert_eq("#1445 AC3.2 e2e: --allow-degraded-base is wired through argparse and exits 0",
+              _cwr1445.EXIT_CLEAN, _rc_ack_1445)
+    assert_eq("#1445 AC3.2 e2e: the acknowledged run still reports itself as degraded",
+              True, "acknowledged" in _ack_out_1445.getvalue())
+    # The docstring's `main`-side claim, driven end-to-end: version-consolidate.yml's
+    # legitimate rewrite is never flagged. On `main` the base ref IS the branch's own tip, so
+    # the merge base is HEAD and the freshly-rewritten manifest is its own comparand.
+    _git1445(_cwr_repo, 'checkout', '-q', 'main')
+    (_cwr_repo / _man_rel_1445).write_text(
+        _canon1445({"skills/a.md": _sha1445("regenerated on main")}), encoding='utf-8')
+    _git1445(_cwr_repo, 'commit', '-qam', 'chore: bump version (manifest regenerated on main)')
+    _git1445(_cwr_repo, 'branch', '-f', 'origin/main', 'HEAD')
+    assert_eq("#1445 AC3.2 e2e: on `main`, the legitimate main-side rewrite is not flagged (exit 0)",
+              _cwr1445.EXIT_CLEAN,
+              _cwr1445.main(['x', str(_cwr_repo), '--base-ref', 'origin/main']))
+
+# ── AC1 / AC2: two branches editing disjoint regions of the SAME pinned file (AC1) or two
+# ADJACENT-sorted pinned files (AC2), each running the regeneration pass, merge into main in
+# BOTH orders with no conflict — because the pass no longer rewrites the manifest. The
+# discriminating control: the OLD writer (manifest rewritten per branch) DID conflict.
+# Do not delete AC7 as redundant with these arms: they demonstrate a property of git given an
+# untouched manifest, and AC7 is the only assertion that the pass leaves it untouched.
+with tempfile.TemporaryDirectory(prefix='mt1445-') as _mt_repo_str:
+    _mt_repo = Path(_mt_repo_str)
+    _git1445(_mt_repo, 'init', '-q', '-b', 'main')
+    _git1445(_mt_repo, 'config', 'user.email', 'a@b.c')
+    _git1445(_mt_repo, 'config', 'user.name', 'T')
+    (_mt_repo / 'skills').mkdir()
+    # A pinned file with many lines so top/bottom edits are textually disjoint (AC1), and two
+    # sibling files whose manifest entries sort adjacent (AC2 — same directory).
+    _a_lines = "\n".join(f"line {i}" for i in range(1, 41)) + "\n"
+    (_mt_repo / 'skills' / 'a.md').write_text(_a_lines, encoding='utf-8')
+    (_mt_repo / 'skills' / 'b.md').write_text("b base\n", encoding='utf-8')
+    (_mt_repo / 'skills' / 'c.md').write_text("c base\n", encoding='utf-8')
+    _base_files_1445 = {
+        "skills/a.md": _sha1445(_a_lines),
+        "skills/b.md": _sha1445("b base\n"),
+        "skills/c.md": _sha1445("c base\n"),
+    }
+    (_mt_repo / 'manifest.json').write_text(_canon1445(_base_files_1445), encoding='utf-8')
+    _git1445(_mt_repo, 'add', '-A')
+    _git1445(_mt_repo, 'commit', '-qm', 'base')
+
+    def _branch_edit_1445(name, path, new_text, rewrite_manifest):
+        _git1445(_mt_repo, 'checkout', '-q', 'main')
+        _git1445(_mt_repo, 'checkout', '-q', '-b', name)
+        (_mt_repo / path).write_text(new_text, encoding='utf-8')
+        if rewrite_manifest:  # the OLD, rejected behavior — the branch is a manifest writer
+            files = dict(_base_files_1445)
+            files[path] = _sha1445(new_text)
+            (_mt_repo / 'manifest.json').write_text(_canon1445(files), encoding='utf-8')
+        # else: the NEW behavior — the regeneration pass leaves the manifest untouched.
+        _git1445(_mt_repo, 'commit', '-qam', f'{name} edit')
+
+    # AC1 — same file, disjoint regions (top vs bottom).
+    _a_top = _a_lines.replace("line 1\n", "line 1 EDITED\n", 1)
+    _a_bot = _a_lines.replace("line 40\n", "line 40 EDITED\n", 1)
+    _branch_edit_1445('ac1-new-A', 'skills/a.md', _a_top, False)
+    _branch_edit_1445('ac1-new-B', 'skills/a.md', _a_bot, False)
+    assert_eq("#1445 AC1: same-file disjoint edits, no manifest rewrite → no conflict (order 1)",
+              False, _mt_conflict1445(_mt_repo, 'ac1-new-A', 'ac1-new-B'))
+    assert_eq("#1445 AC1: same-file disjoint edits, no manifest rewrite → no conflict (order 2)",
+              False, _mt_conflict1445(_mt_repo, 'ac1-new-B', 'ac1-new-A'))
+    # Discriminating control: the OLD writer rewrote the manifest on each side → conflict.
+    _branch_edit_1445('ac1-old-A', 'skills/a.md', _a_top, True)
+    _branch_edit_1445('ac1-old-B', 'skills/a.md', _a_bot, True)
+    assert_eq("#1445 AC1 control: the OLD manifest-writer behavior DID conflict (test is discriminating)",
+              True, _mt_conflict1445(_mt_repo, 'ac1-old-A', 'ac1-old-B'))
+
+    # AC2 — two different pinned files whose manifest entries sort adjacent (b.md, c.md).
+    _branch_edit_1445('ac2-new-A', 'skills/b.md', "b EDITED\n", False)
+    _branch_edit_1445('ac2-new-B', 'skills/c.md', "c EDITED\n", False)
+    assert_eq("#1445 AC2: adjacent-sorted different pinned files, no manifest rewrite → no conflict (order 1)",
+              False, _mt_conflict1445(_mt_repo, 'ac2-new-A', 'ac2-new-B'))
+    assert_eq("#1445 AC2: adjacent-sorted different pinned files, no manifest rewrite → no conflict (order 2)",
+              False, _mt_conflict1445(_mt_repo, 'ac2-new-B', 'ac2-new-A'))
+    _branch_edit_1445('ac2-old-A', 'skills/b.md', "b EDITED\n", True)
+    _branch_edit_1445('ac2-old-B', 'skills/c.md', "c EDITED\n", True)
+    assert_eq("#1445 AC2 control: the OLD manifest-writer behavior DID conflict on adjacent entries",
+              True, _mt_conflict1445(_mt_repo, 'ac2-old-A', 'ac2-old-B'))
+
+# ── AC4: the sorted list of pinned paths is stable — sorted, de-duplicated, and equal to the
+# keys the generator writes (however it exposes the list). #1445 changes none of the inputs
+# (SKILL_ASSETS / REQUIRED_HELPER_HEADS / PROTECTED_IMPORT_SOURCES) that feed it.
+_paths1445 = cwc.manifest_file_paths()
+assert_eq("#1445 AC4: manifest_file_paths() is sorted and de-duplicated",
+          True, _paths1445 == sorted(set(_paths1445)) and len(_paths1445) > 0)
+assert_eq("#1445 AC4: the artifact pins exactly the generator's exposed path list",
+          _paths1445, sorted(_bm1445["files"].keys()))  # reuse the AC3.1 manifest — no second full-closure hash
+
+# ── AC5: against the post-change (unchanged) shape, validate-cloud-writer-contract.py is
+# clean for a consumer whose grants cover every required_helper_heads entry, and emits
+# HEAD_ABSENT naming an uncovered head for one missing a head.
+# required_helper_heads is derived from REQUIRED_HELPER_HEADS with no file I/O, so read it
+# directly rather than re-hashing the whole closure via build_manifest().
+_cover_grants_1445 = {p: set(h) for p, h in cwc.REQUIRED_HELPER_HEADS.items()}
+_p5_clean = vcwc.validate(
+    _fresh_manifest_1445, base_dir=_REPO,
+    expected_assets=cwc.manifest_file_paths(),
+    required_profiles=list(cwc.ROOTS),
+    profile_grants=_cover_grants_1445,
+)
+assert_eq("#1445 AC5: validator is clean when grants cover every required_helper_heads entry",
+          [], _p5_clean)
+_missing_grants_1445 = {p: set(h) for p, h in _cover_grants_1445.items()}
+_dropped_profile_1445 = next(p for p, h in _missing_grants_1445.items() if h)
+_dropped_order_1445 = list(_missing_grants_1445[_dropped_profile_1445])
+_dropped_head_1445 = _dropped_order_1445[0]
+_missing_grants_1445[_dropped_profile_1445] = set(_dropped_order_1445[1:])
+_p5_missing = vcwc.validate(
+    _fresh_manifest_1445, base_dir=_REPO,
+    expected_assets=cwc.manifest_file_paths(),
+    required_profiles=list(cwc.ROOTS),
+    profile_grants=_missing_grants_1445,
+)
+assert_eq("#1445 AC5: validator emits HEAD_ABSENT for a fixture missing a required head",
+          True, vcwc.HEAD_ABSENT in _codes(_p5_missing))
+# AC5 requires the diagnostic to NAME the uncovered head, not merely to carry the code: a
+# HEAD_ABSENT that named the wrong head would satisfy a code-membership check alone.
+assert_eq("#1445 AC5: the HEAD_ABSENT diagnostic names the uncovered head",
+          True, any(code == vcwc.HEAD_ABSENT and _dropped_head_1445 in message
+                    for code, message in _p5_missing))
+
+# ── AC6: the chosen mechanism needs NO per-clone local git configuration. An executable
+# check asserts no merge driver is registered for the manifest path (unlike the coverage
+# map, which does need `--register`), so a fresh clone's automatic setup path needs no
+# manual step. The retention e2e above already proved the check runs with no local config.
+_gitattributes_1445 = (_REPO / ".gitattributes").read_text(encoding="utf-8")
+assert_eq("#1445 AC6: .gitattributes registers no merge= driver for the cloud-writer manifest",
+          True, not any(
+              "devflow-cloud-writer-contract" in ln and "merge=" in ln
+              for ln in _gitattributes_1445.splitlines()))
+_cwr_src_1445 = (_LIBTEST / "cloud-writer-retention-check.py").read_text(encoding="utf-8")
+assert_eq("#1445 AC6: the mutation check registers no git config (no --register / git config --local)",
+          True, "--register" not in _cwr_src_1445 and "config --local" not in _cwr_src_1445)
+
+# ── AC7 (no-config clone): the generator is deterministic and its output verifies clean with
+# no local git configuration — regenerating twice yields byte-identical output, so a fresh
+# clone (which registers nothing) produces exactly what `main` publishes.
+assert_eq("#1445 AC7: the generator is deterministic (byte-identical across two renders)",
+          cwc.canonical_json(cwc.build_manifest()), cwc.canonical_json(cwc.build_manifest()))
+# AC4's before/after comparand: the checked-in artifact is main's and this PR does not modify
+# it, so its key set IS the pre-change list. Read it from the tree, never from origin/<base>:
+# a remote-state comparand turns RED on every branch whenever main's manifest is stale, which
+# is the residual #1445 documents rather than a defect in the branch under test.
+_committed_art_1445 = json.loads(
+    (_REPO / "scripts" / "devflow-cloud-writer-contract.json").read_text(encoding="utf-8"))
+assert_eq("#1445 AC4: the pinned path list is identical to the pre-change artifact's",
+          sorted(_committed_art_1445["files"].keys()), _paths1445)
+
+# ─────────────────────────────────────────────────────────────────────────────
 # issue #703 AC20: consumer-provisioning fixtures — fresh install, in-place
 # install.sh refresh, and /devflow:init backfill. Complete by construction for the
 # three supported consumer setup flows: each is asserted to (a) deliver a valid
@@ -14536,11 +14971,13 @@ _scaffold_sh = (_REPO / "scripts" / "scaffold-config.sh").read_text(encoding="ut
 # (a) Runtime manifest. Fresh install and in-place refresh deliver the manifest as
 # a byte-copied asset of the vendored scripts/ tree — install.sh and the vendor
 # slice run NO regeneration (regeneration is a maintainer-side operation), so the
-# artifact each flow delivers is exactly the checked-in one, which must itself be
-# internally consistent. /devflow:init never touches the manifest (it preserves
-# whatever the vendored plugin already carries).
-assert_eq("#703 AC20: the checked-in runtime manifest is internally consistent (verify)",
-          0, cwc.main(["verify"]))
+# artifact each flow delivers is exactly the checked-in one. Its internal consistency
+# is guaranteed on `main` (issue #1445 moved the `verify` drift gate off this per-branch
+# check onto version-consolidate.yml, which regenerates it from the merged tree before
+# every bump commit); the branch-side `cwc.main(["verify"])` assertion that used to sit
+# here was removed so a feature branch is never gated on a manifest it no longer writes.
+# /devflow:init never touches the manifest (it preserves whatever the vendored plugin
+# already carries).
 assert_eq("#703 AC20: install.sh runs no manifest regeneration (byte-copies the vendored artifact)",
           False, "cloud_writer_contract.py generate" in _install_sh)
 assert_eq("#703 AC20: the vendor slice runs no manifest regeneration",
@@ -29259,6 +29696,201 @@ assert_eq("#1484 positive control: member 'shellcheck' still establishes",
           (True, None), _lm_member("shellcheck"))
 assert_eq("#1484 positive control: member 'ruff.exe' still establishes",
           (True, None), _lm_member("ruff.exe"))
+
+
+# ── issue #1575: Phase-3.4 two-verifier reconciliation (reconcile-ac-verifiers.py) ──
+# The executable core of the two-verifier AC gate. Drive every pairing of the three
+# statuses and prove: agreement records that status, EVERY disagreement records
+# `unestablished`, a `satisfied` never lands without an evidence pointer, and a
+# command that passes while the claim verifier disagrees does NOT reconcile satisfied.
+_R_STATUSES = ("satisfied", "unmet", "unestablished")
+
+for _es in _R_STATUSES:
+    for _cs in _R_STATUSES:
+        # Both sides carry an evidence pointer so a `satisfied` agreement is not
+        # downgraded here — the no-pointer downgrade is exercised separately below.
+        _st, _ev, _src = reconcile_ac.reconcile_one(_es, _cs, "ev-ptr", "cl-ptr")
+        _expected = _es if _es == _cs else "unestablished"
+        assert_eq(f"#1575 reconcile_one({_es},{_cs}) status", _expected, _st)
+        # Blocking: only `satisfied` does not block.
+        _expected_blocks = _expected != "satisfied"
+        assert_eq(f"#1575 reconcile_one({_es},{_cs}) blocks",
+                  _expected_blocks, _st in reconcile_ac.BLOCKING_STATUSES)
+
+# A `satisfied` agreement with NO evidence pointer from either verifier is
+# downgraded to `unestablished` — a satisfied record never lands without evidence (AC6).
+assert_eq("#1575 satisfied with no evidence downgrades to unestablished",
+          ("unestablished", "", ""),
+          reconcile_ac.reconcile_one("satisfied", "satisfied", "", ""))
+# A single-sided evidence pointer is sufficient, and the source is reported.
+assert_eq("#1575 satisfied keeps evidence from the evidence verifier alone",
+          ("satisfied", "e-only", "evidence"),
+          reconcile_ac.reconcile_one("satisfied", "satisfied", "e-only", ""))
+assert_eq("#1575 satisfied keeps evidence from the claim verifier alone",
+          ("satisfied", "c-only", "claim"),
+          reconcile_ac.reconcile_one("satisfied", "satisfied", "", "c-only"))
+
+# Fail-closed status normalization: an unrecognized/absent status is `unestablished`,
+# so it never silently agrees into `satisfied`/`unmet`.
+assert_eq("#1575 unrecognized status normalizes to unestablished (agreement path)",
+          "unestablished",
+          reconcile_ac.reconcile_one("bogus", "bogus", "x", "y")[0])
+assert_eq("#1575 a bogus status disagreeing with satisfied is unestablished",
+          "unestablished",
+          reconcile_ac.reconcile_one("satisfied", "bogus", "x", "y")[0])
+
+# The #1450 fixture: a verification command PASSES (evidence=satisfied) while its
+# assertions test a DIFFERENT claim than the criterion states (claim=unmet). The
+# reconciled record must NOT be satisfied.
+_ev_report = [
+    {"criterion": 1, "status": "satisfied", "evidence": "suite passed on HEAD"},
+    {"criterion": 2, "status": "satisfied", "evidence": "cmd exit 0"},
+]
+_cl_report = [
+    {"criterion": 1, "status": "satisfied", "evidence": "each clause has an assertion"},
+    {"criterion": 2, "status": "unmet", "evidence": "command asserts a different claim"},
+]
+_recon = reconcile_ac.reconcile(_ev_report, _cl_report)
+_by = {c["criterion"]: c for c in _recon["criteria"]}
+assert_eq("#1575 fixture: agreeing satisfied criterion reconciles satisfied",
+          "satisfied", _by[1]["status"])
+assert_eq("#1575 fixture: passing command + disagreeing claim is NOT satisfied",
+          "unestablished", _by[2]["status"])
+assert_eq("#1575 fixture: the non-satisfied criterion blocks", True, _by[2]["blocks"])
+assert_eq("#1575 fixture: blocking list names the disagreeing criterion",
+          [2], _recon["blocking"])
+assert_eq("#1575 fixture: all_satisfied is false when a criterion blocks",
+          False, _recon["all_satisfied"])
+assert_eq("#1575 fixture: a satisfied criterion carries an evidence pointer",
+          True, bool(_by[1]["evidence"]))
+
+# A structured `reason` from the evidence verifier is passed through on a BLOCKING
+# criterion so the orchestrator routes the denied-command case from a field, not by
+# sniffing free text; it is dropped on a satisfied criterion (no routing to refine).
+_recon_reason = reconcile_ac.reconcile(
+    [{"criterion": 1, "status": "unestablished", "evidence": "denied", "reason": "denied"},
+     {"criterion": 2, "status": "satisfied", "evidence": "ok", "reason": "denied"}],
+    [{"criterion": 1, "status": "unestablished", "evidence": ""},
+     {"criterion": 2, "status": "satisfied", "evidence": "ok"}])
+_rby = {c["criterion"]: c for c in _recon_reason["criteria"]}
+assert_eq("#1575 evidence reason passes through on a blocking criterion",
+          "denied", _rby[1]["reason"])
+assert_eq("#1575 reason is dropped on a satisfied (non-blocking) criterion",
+          "", _rby[2]["reason"])
+assert_eq("#1575 reason normalizes case/whitespace",
+          "failed",
+          reconcile_ac._reason_of({"reason": "  FAILED "}))
+
+# A criterion present in only one report fails closed to unestablished (missing vote).
+_recon_missing = reconcile_ac.reconcile(
+    [{"criterion": 1, "status": "satisfied", "evidence": "x"}], [])
+assert_eq("#1575 criterion missing from one report reconciles unestablished",
+          "unestablished", _recon_missing["criteria"][0]["status"])
+
+# all_satisfied requires at least one criterion (an empty pair is not a trivial pass).
+assert_eq("#1575 empty reports do not report all_satisfied",
+          False, reconcile_ac.reconcile([], [])["all_satisfied"])
+
+# reconcile_one on the agreeing-satisfied path reports "both" and joins both pointers.
+assert_eq("#1575 reconcile_one satisfied/satisfied joins both evidence pointers",
+          ("satisfied", "ev-ptr; cl-ptr", "both"),
+          reconcile_ac.reconcile_one("satisfied", "satisfied", "ev-ptr", "cl-ptr"))
+# A BLOCKING record keeps the failing-detail pointer(s) rather than blanking them, so
+# the orchestrator's Blocked-path reflection can name the detail.
+assert_eq("#1575 a blocking (disagreement) record keeps its evidence pointer",
+          ("unestablished", "cmd passed; asserts other claim", "both"),
+          reconcile_ac.reconcile_one("satisfied", "unmet",
+                                     "cmd passed", "asserts other claim"))
+
+# `reason` is a CLOSED vocabulary: an unrecognized value normalizes to "" (fail closed),
+# not passed through, so a consumer may rely on any non-empty reason being in the set.
+assert_eq("#1575 unrecognized reason normalizes to empty",
+          "", reconcile_ac._reason_of({"reason": "sideways"}))
+for _r in reconcile_ac.EVIDENCE_REASONS:
+    assert_eq(f"#1575 known reason {_r} passes through", _r,
+              reconcile_ac._reason_of({"reason": _r}))
+
+# A duplicate `criterion` in one report fails closed to unestablished — a later
+# `satisfied` can never overwrite an earlier `unmet` (silent last-wins is the bug).
+_recon_dup = reconcile_ac.reconcile(
+    [{"criterion": 1, "status": "unmet", "evidence": "real gap"},
+     {"criterion": 1, "status": "satisfied", "evidence": "ok"}],
+    [{"criterion": 1, "status": "satisfied", "evidence": "ok"}])
+assert_eq("#1575 duplicate criterion in a report fails closed to unestablished",
+          "unestablished", _recon_dup["criteria"][0]["status"])
+
+# A `criterion: true`/`false` boolean is dropped by the fail-closed guard (bool is an
+# int subclass), so it becomes a missing vote → unestablished, never a satisfied vote.
+_recon_bool = reconcile_ac.reconcile(
+    [{"criterion": True, "status": "satisfied", "evidence": "x"},
+     {"criterion": 1, "status": "satisfied", "evidence": "x"}],
+    [{"criterion": 1, "status": "satisfied", "evidence": "y"}])
+assert_eq("#1575 a boolean criterion is dropped (not indexed as 1)",
+          [1], [c["criterion"] for c in _recon_bool["criteria"]])
+
+# Multi-element `blocking[]` is ascending and complete, out of report order — a
+# regression dropping the sort would pass every single-blocker fixture above.
+_recon_multi = reconcile_ac.reconcile(
+    [{"criterion": 3, "status": "unmet", "evidence": ""},
+     {"criterion": 1, "status": "satisfied", "evidence": "ok"},
+     {"criterion": 2, "status": "unmet", "evidence": ""}],
+    [{"criterion": 3, "status": "unmet", "evidence": ""},
+     {"criterion": 1, "status": "satisfied", "evidence": "ok"},
+     {"criterion": 2, "status": "unmet", "evidence": ""}])
+assert_eq("#1575 blocking[] is ascending and complete across two blockers",
+          [2, 3], _recon_multi["blocking"])
+
+# The CLI entry point's exit-code contract: 0 on a produced reconciliation, 3 on an
+# unreadable/malformed report — the load-bearing "unestablished measurement" signal the
+# Phase 3.4 prose routes on.
+with tempfile.TemporaryDirectory() as _md:
+    _ev_p = os.path.join(_md, "ev.json")
+    _cl_p = os.path.join(_md, "cl.json")
+    with open(_ev_p, "w", encoding="utf-8") as _fh:
+        _fh.write('[{"criterion": 1, "status": "satisfied", "evidence": "ok"}]')
+    with open(_cl_p, "w", encoding="utf-8") as _fh:
+        _fh.write('[{"criterion": 1, "status": "satisfied", "evidence": "ok"}]')
+    _out = io.StringIO()
+    with contextlib.redirect_stdout(_out):
+        _rc_ok = reconcile_ac.main(["--evidence-file", _ev_p, "--claim-file", _cl_p])
+    assert_eq("#1575 main() returns 0 on a produced reconciliation", 0, _rc_ok)
+    assert_eq("#1575 main() prints the reconciled JSON on stdout",
+              True, '"all_satisfied": true' in _out.getvalue())
+    # Missing file -> OSError -> exit 3.
+    with contextlib.redirect_stderr(io.StringIO()):
+        _rc_missing = reconcile_ac.main(
+            ["--evidence-file", os.path.join(_md, "nope.json"),
+             "--claim-file", _cl_p])
+    assert_eq("#1575 main() returns 3 when a report file is missing", 3, _rc_missing)
+    # Malformed (non-JSON) file -> JSONDecodeError -> exit 3.
+    _bad_p = os.path.join(_md, "bad.json")
+    with open(_bad_p, "w", encoding="utf-8") as _fh:
+        _fh.write('{not json')
+    with contextlib.redirect_stderr(io.StringIO()):
+        _rc_bad = reconcile_ac.main(["--evidence-file", _bad_p, "--claim-file", _cl_p])
+    assert_eq("#1575 main() returns 3 on a malformed (non-JSON) report", 3, _rc_bad)
+
+# _load_report accepts BOTH the verifier's documented `{"criteria": [...]}` object
+# and an already-unwrapped bare list — the producer (agents/ac-*-verifier.md) emits the
+# object form, so the boundary must not require the orchestrator to unwrap it first.
+with tempfile.TemporaryDirectory() as _rd:
+    _obj_path = os.path.join(_rd, "obj.json")
+    _list_path = os.path.join(_rd, "list.json")
+    with open(_obj_path, "w", encoding="utf-8") as _fh:
+        _fh.write('{"criteria": [{"criterion": 1, "status": "unmet", "evidence": ""}]}')
+    with open(_list_path, "w", encoding="utf-8") as _fh:
+        _fh.write('[{"criterion": 1, "status": "unmet", "evidence": ""}]')
+    assert_eq("#1575 _load_report accepts the object {criteria:[...]} form",
+              [{"criterion": 1, "status": "unmet", "evidence": ""}],
+              reconcile_ac._load_report(_obj_path))
+    assert_eq("#1575 _load_report accepts the bare list form",
+              [{"criterion": 1, "status": "unmet", "evidence": ""}],
+              reconcile_ac._load_report(_list_path))
+    _bad_path = os.path.join(_rd, "bad.json")
+    with open(_bad_path, "w", encoding="utf-8") as _fh:
+        _fh.write('"a scalar, not a report"')
+    assert_raises("#1575 _load_report rejects a non-list/non-criteria-object shape",
+                  ValueError, lambda: reconcile_ac._load_report(_bad_path))
 
 
 print()
