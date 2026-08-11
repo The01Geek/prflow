@@ -29,7 +29,8 @@ long implement run actually pays:
 
   **Static shipped size IS gated, but by a reader-capability ceiling rather than an
   authoring budget (issue #1595).** `lib/test/lint-reference-size.py` fails the suite when
-  a boundary-gated reference or a skill root exceeds 61,750 bytes. Do not read that as
+  a boundary-gated reference or a skill root exceeds 61,750 bytes and holds no live
+  exemption in `lib/test/reference-size-exemptions.json`. Do not read that as
   issue #765's budget returning: the two answer different questions and only one is a
   judgment about prose. An **authoring budget** asks how long prose *ought* to be — a
   target someone chose, which is why #765 retired it. A **reader-capability ceiling** is a

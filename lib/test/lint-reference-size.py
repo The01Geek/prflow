@@ -38,8 +38,16 @@ the rules for recovering from truncation.
 The covered population
 ----------------------
 Every **boundary-gated reference** plus every **skill root**, derived by inspecting each
-file rather than from a transcribed path list, so a new skill and a newly-gated
-reference are both covered without a second edit.
+file rather than from a transcribed path list, so a new skill directory and a newly-gated
+markdown reference are both covered without a second edit.
+
+**Two limits on that, disclosed rather than closed.** Membership is decided only over
+tracked files whose name ends `.md`, so a boundary-gated file with any other extension is
+outside the population and nothing reports it; and a skill root is recognised by the
+`skills/<name>/SKILL.md` shape at any depth, so a root nested under some other directory
+name is not. Neither shape exists in the tree today. Both are the same failure direction
+this check exists to prevent, which is why they are stated here rather than implied to be
+covered.
 
 Two marker families exist and both are covered; a one-family implementation would report
 a clean audit that is wrong.
@@ -97,19 +105,31 @@ import re
 import sys
 from pathlib import Path
 
-#: The reader's hard cap, in tokens. Observed 2026-08-11 in the Read tool's own
-#: truncation notice, which names the file's token count and the cap: `step-3-6-audit.md`
-#: 28,356 tokens, `phase-1-setup.md` 26,496, `fixing.md` 26,053, each against `cap 25000`.
+#: The reader's hard cap, in tokens.
 READER_CAP_TOKENS = 25_000
 
 #: Headroom under the cap. A file admitted at exactly the cap has none, and every
 #: ordinary sentence added to it truncates the next read.
 SAFETY_FACTOR = 0.95
 
-#: Bytes per token, the FLOOR of the measured densities and never their mean — see the
-#: module docstring for why the mean would admit files the reader cannot return.
-#: Measured 2026-08-11: `step-3-6-audit.md` 2.887, `fixing.md` 2.833,
-#: `phase-1-setup.md` 2.600.
+#: The measurements the floor below is derived from, as `(path, bytes, tokens)` triples
+#: observed TOGETHER on 2026-08-11 — each file's own byte size beside the token count from
+#: the Read-tool truncation notice that measured THAT copy, against `cap 25000`.
+#:
+#: The byte figures are the sizes of the copies measured, NOT current repository sizes:
+#: two of the three have since been trimmed. Recording tokens without the bytes they were
+#: paired with is what invites the reader to divide a stale token count by a current file
+#: size — a pairing that reports a density no measurement produced. `--self-check` proves
+#: the floor is really this set's minimum, so the pairing cannot silently drift.
+MEASURED_DENSITIES = (
+    ("skills/create-issue/references/step-3-6-audit.md", 81869, 28356),
+    ("skills/implement/phases/phase-1-setup.md", 68901, 26496),
+    ("skills/review-and-fix/references/fixing.md", 73799, 26053),
+)
+
+#: Bytes per token, the FLOOR of the measured densities above (2.600, 2.833, 2.887) and
+#: never their mean — see the module docstring for why the mean would admit files the
+#: reader cannot return.
 BYTES_PER_TOKEN_FLOOR = 2.60
 
 #: The ceiling this check enforces, derived from the three constants above.
@@ -144,7 +164,11 @@ _FAMILY_A = re.compile(
 )
 _FAMILY_B_START = re.compile(r"^#\s+Reference:\s*\S")
 _FAMILY_B_END = re.compile(r"^<!--\s*END\s+(?P<name>\S+\.md)\s*-->$")
-_SKILL_ROOT = re.compile(r"^skills/[^/]+/SKILL\.md$")
+# Match a skill root at ANY depth, not only the repo-root `skills/` tree: a probe or
+# vendored plugin keeps its skill roots under a nested `…/skills/<name>/SKILL.md`, and a
+# root-anchored pattern would leave them outside the population while the docstring claims
+# every skill root is covered.
+_SKILL_ROOT = re.compile(r"(^|/)skills/[^/]+/SKILL\.md$")
 
 _TOOL = "lint-reference-size"
 
@@ -183,8 +207,10 @@ def classify(relative: str, text: str) -> tuple[str, str] | None:
     the family-B END-marker name, or the skill directory. Membership is decided by
     reading the file, which is why an unreadable file is a failure rather than a drop.
     """
-    if _SKILL_ROOT.match(relative):
-        return "skill-root", relative.split("/")[1]
+    # `search`, not `match`: the pattern's `(^|/)` alternation is what reaches a nested
+    # skill root, and `match` anchors at position 0 so the `/` alternative could never fire.
+    if _SKILL_ROOT.search(relative):
+        return "skill-root", relative.rsplit("/", 2)[-2]
 
     lines = [line.strip() for line in text.split("\n") if line.strip()]
     if not lines:
@@ -321,7 +347,39 @@ def main(argv: list[str] | None = None) -> int:
         "--print-threshold", action="store_true",
         help="print the ceiling and the constants it is derived from, and exit",
     )
+    parser.add_argument(
+        "--self-check", action="store_true",
+        help="prove the density floor is the minimum of the recorded measurements, and exit",
+    )
     args = parser.parse_args(argv)
+
+    if args.self_check:
+        # Without this the floor is a transcribed number: a reader who re-derives it from
+        # the wrong byte counts concludes the ceiling is miscalibrated and "corrects" a
+        # constant that was right, which is a real review round this repo has already spent.
+        densities = []
+        for relative, measured_bytes, tokens in MEASURED_DENSITIES:
+            if tokens <= 0:
+                print(f"{_TOOL}: self-check: {relative} records a non-positive token count",
+                      file=sys.stderr)
+                return 1
+            densities.append((measured_bytes / tokens, relative, measured_bytes, tokens))
+        for density, relative, measured_bytes, tokens in sorted(densities):
+            print(f"{_TOOL}: self-check: {relative} {measured_bytes}B / {tokens} tok "
+                  f"= {density:.3f} bytes/token")
+        floor = min(density for density, _r, _b, _t in densities)
+        if abs(floor - BYTES_PER_TOKEN_FLOOR) > 0.0005:
+            print(
+                f"{_TOOL}: self-check FAILED: BYTES_PER_TOKEN_FLOOR is "
+                f"{BYTES_PER_TOKEN_FLOOR}, but the minimum recorded density is {floor:.3f} "
+                "— re-derive the constant from the measurements, or record the measurement "
+                "that justifies it",
+                file=sys.stderr,
+            )
+            return 1
+        print(f"{_TOOL}: self-check: floor {BYTES_PER_TOKEN_FLOOR} is the minimum of "
+              f"{len(densities)} recorded measurement(s); ceiling {MAX_BYTES} bytes")
+        return 0
 
     if args.print_threshold:
         print(
@@ -433,7 +491,7 @@ def main(argv: list[str] | None = None) -> int:
                     f"{relative}: exemption expired — the file is {size} bytes, at or "
                     f"under the {MAX_BYTES}-byte ceiling, which is the condition it "
                     f"recorded ({exemptions[relative]}). Remove its rows from "
-                    f"{EXEMPTIONS_DEFAULT}"
+                    f"{exemption_path}"
                 )
             continue
         if relative in exemptions:

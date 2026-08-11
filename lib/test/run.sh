@@ -51427,8 +51427,9 @@ assert_eq "public site guard: a page navigated twice fails completeness" "no" \
 
 # ── #1595 reference-size ceiling (lib/test/lint-reference-size.py) ──
 # A boundary-gated reference larger than the reader can return in one call yields its
-# start marker and no end marker — the `truncated` shape every loading command treats as
-# fail-closed — on a file that is intact on disk. The lint measures bytes against a
+# start marker and no end marker — the `truncated` shape `/prflow:implement`, `/prflow:review`,
+# `/prflow:review-and-fix` and `/prflow:docs-verify` treat as fail-closed, and that
+# `/prflow:create-issue` degrades best-effort on — with the file intact on disk. The lint measures bytes against a
 # ceiling derived from the reader's token cap; these assertions drive its executable
 # boundary (exit code + emitted verdict lines).
 echo "#1595 reference-size ceiling: gated references and skill roots stay under the reader's Read cap"
@@ -51590,6 +51591,52 @@ assert_eq "#1595 the ceiling is derived from the reader cap, safety factor and d
 assert_eq "#1595 the derivation states the constant is the floor of the measured densities" "yes" \
   "$(rsz_has "the floor of the measured densities, never their mean" "$RSZ_THRESH")"
 
+# The floor is the one constant a reader can re-derive wrongly (pairing a recorded token
+# count with a current file size reports a density no measurement produced, and "corrects"
+# a constant that was right). --self-check proves it is the minimum of the recorded pairs.
+assert_eq "#1595 the density floor is the minimum of the recorded measurements" "rc=0" \
+  "$(RSZ_SC="$(python3 "$RSZ_LINT" --self-check 2>&1)"; RSZ_SC_RC=$?
+     [ "$RSZ_SC_RC" -eq 0 ] && printf 'rc=0' || printf 'rc=%s | %s' "$RSZ_SC_RC" "$RSZ_SC")"
+assert_eq "#1595 the self-check names each measurement's own byte count beside its tokens" "yes" \
+  "$(rsz_has "68901B / 26496 tok" "$(python3 "$RSZ_LINT" --self-check 2>&1)")"
+
+# A marker pair that DISAGREES (namespace, payload, or family-B basename) is excluded from
+# the population. Without these the exclusion is indistinguishable from a regex slip that
+# drops a genuinely gated file — the failure direction the whole-tree guard cannot see at
+# single-file granularity.
+python3 - "$RSZ_FX" <<'RSZ_MISMATCH'
+import sys
+from pathlib import Path
+root, LIMIT = Path(sys.argv[1]), 61750
+def over(rel, first, last):
+    body = first + "x" * (LIMIT + 200) + "\n" + last
+    (root / rel).write_text(body)
+over("skills/fx/references/ns-mismatch.md",
+     "<!-- prflow:alpha-ref phase=1 file=skills/fx/references/ns-mismatch.md start -->\n",
+     "<!-- prflow:beta-ref phase=1 file=skills/fx/references/ns-mismatch.md end -->\n")
+over("skills/fx/references/payload-mismatch.md",
+     "<!-- prflow:fixture-ref phase=1 file=skills/fx/references/payload-mismatch.md start -->\n",
+     "<!-- prflow:fixture-ref phase=9 file=skills/fx/references/payload-mismatch.md end -->\n")
+over("skills/fx/references/basename-mismatch.md",
+     "# Reference: Fixture\n\n", "\n<!-- END some-other-file.md -->\n")
+# A gated file whose markers are wrapped in blank lines: the deliberate first/last
+# NON-BLANK rule, which a literal-first/last-line rule would drop from the population.
+(root / "skills/fx/references/blank-wrapped.md").write_text(
+    "\n\n<!-- prflow:fixture-ref phase=1 file=skills/fx/references/blank-wrapped.md start -->\n"
+    + "x" * (LIMIT + 200) + "\n"
+    + "<!-- prflow:fixture-ref phase=1 file=skills/fx/references/blank-wrapped.md end -->\n\n\n")
+RSZ_MISMATCH
+(cd "$RSZ_FX" && git add -A) >/dev/null
+RSZ_MM="$(rsz_run "$RSZ_FX" "$RSZ_EMPTY")"
+for _rsz_mm in ns-mismatch payload-mismatch basename-mismatch; do
+  assert_eq "#1595 a disagreeing marker pair is outside the population ($_rsz_mm)" "no" \
+    "$(rsz_has "$_rsz_mm.md" "$RSZ_MM")"
+done
+# The non-blank boundary rule is deliberate; without this a switch to literal first/last
+# lines would drop a trailing-blank-line file from the audit with the suite still green.
+assert_eq "#1595 a gated file wrapped in blank lines is still audited" "yes" \
+  "$(rsz_has "blank-wrapped.md" "$RSZ_MM")"
+
 # Real-tree run: clean as the tree stands, with a POSITIVE tally so a collapsed population
 # cannot read as clean, and the audited population reconciled against a count derived
 # independently of the lint's own selection logic — at per-namespace granularity, because
@@ -51616,7 +51663,7 @@ mine = Counter()
 for rel in tracked:
     if not rel.endswith(".md") or rel.startswith("lib/test/fixtures/"):
         continue
-    if re.fullmatch(r"skills/[^/]+/SKILL\.md", rel):
+    if re.search(r"(^|/)skills/[^/]+/SKILL\.md$", rel):
         mine["skill-root"] += 1
         continue
     lines = [ln.strip() for ln in Path(rel).read_text(encoding="utf-8", errors="replace").split("\n") if ln.strip()]
@@ -51641,15 +51688,20 @@ RSZ_RECONCILE
 # AC13: the recorded exemptions cover the files over the ceiling when this landed, and no
 # others. Derived from the tree rather than transcribed, so a landed trim turns this RED
 # alongside the expiry arm rather than leaving a stale row unnoticed.
-assert_eq "#1595 the live exemptions are exactly the files over the ceiling" "match" \
-  "$(python3 - <<'RSZ_EXEMPT_SET'
-import json, subprocess
+assert_eq "#1595 the live exemptions are exactly the covered files over the ceiling" "match" \
+  "$(python3 - "$RSZ_LINT" <<'RSZ_EXEMPT_SET'
+import json, subprocess, sys
 from pathlib import Path
 record = json.loads(Path("lib/test/reference-size-exemptions.json").read_text())
 live = {row["path"] for row in record["exemptions"]}
-tracked = subprocess.run(["git", "-c", "core.quotePath=false", "ls-files", "skills"],
-                         capture_output=True, text=True, check=True).stdout.split("\n")
-over = {rel for rel in tracked if rel.endswith(".md") and len(Path(rel).read_bytes()) > 61750}
+# The COVERED population, not every skills/**.md: an oversized-but-ungated file would
+# otherwise be demanded here and refused by the record's own covered-population guard,
+# leaving the suite RED with no legal way to make it green.
+covered = [line.split("\t")[2] for line in
+           subprocess.run([sys.executable, sys.argv[1], "--print-population"],
+                          capture_output=True, text=True, check=True).stdout.split("\n")
+           if line.strip()]
+over = {rel for rel in covered if len(Path(rel).read_bytes()) > 61750}
 print("match" if live == over else "mismatch\n  live: %s\n  over: %s" % (sorted(live), sorted(over)))
 RSZ_EXEMPT_SET
 )"

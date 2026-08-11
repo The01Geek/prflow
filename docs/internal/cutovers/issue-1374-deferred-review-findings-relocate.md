@@ -29,7 +29,7 @@ retroactively falsify the record. **No byte ceiling on either file is enforced a
 the tree**, and this page registers none — the same correction this change made to the #815
 cutover page, which had described such a gate as live. **Superseded 2026-08-11 by issue
 #1595:** a ceiling now exists (`lib/test/lint-reference-size.py`, 61,750 bytes over every
-boundary-gated reference and skill root). It is a reader-capability limit — above it a
+boundary-gated reference and skill root that holds no live exemption). It is a reader-capability limit — above it a
 single read returns a `start` marker and no `end` marker — not the authoring budget the
 sentence above was denying, and this page still registers none of its own.
 
