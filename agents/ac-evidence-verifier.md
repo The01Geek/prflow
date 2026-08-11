@@ -109,9 +109,11 @@ every named step of this charter**:
 | `evidence-recorded` | the pointer you recorded and what it points at | why you recorded none |
 
 **`no` is a permitted, fully discharging value.** This asks for a *stated* disposition,
-never a particular one — `command-run=no` is the expected disposition on a non-command
-criterion, and it is also the honest disposition when a command was denied. Never claim a
-step you did not perform; a false `yes` is far worse than an accurate `no`.
+never a particular one — a `no` on `command-run` is the expected disposition on a
+non-command criterion, and it is also the honest disposition when a command was denied.
+Never claim a step you did not perform; a false `yes` is far worse than an accurate `no`.
+The slot name is the JSON key and the value begins with the bare verdict, so a value
+spelled `command-run=no (…)` does not parse and scores undischarged.
 
 **A missing disposition is undischarged, not compliant.** Every criterion carries all
 four slots, each written `yes` or `no` followed by a one-clause reason in parentheses. A

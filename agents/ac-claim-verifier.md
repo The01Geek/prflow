@@ -70,8 +70,10 @@ every named step of this charter**:
 | `evidence-recorded` | the pointer you recorded and what it points at | why you recorded none |
 
 **`no` is a permitted, fully discharging value.** This asks for a *stated* disposition,
-never a particular one — `command-source-read=no` is the expected disposition on a
-behavioral criterion. Never claim a step you did not perform.
+never a particular one — a `no` on `command-source-read` is the expected disposition on a
+behavioral criterion. Never claim a step you did not perform. The slot name is the JSON
+key and the value begins with the bare verdict, so a value spelled
+`command-source-read=no (…)` does not parse and scores undischarged.
 
 **A missing disposition is undischarged, not compliant.** Every criterion carries all
 three slots, each written `yes` or `no` followed by a one-clause reason in parentheses. A

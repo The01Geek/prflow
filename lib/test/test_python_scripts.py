@@ -29696,11 +29696,9 @@ assert_eq("#1484 positive control: member 'ruff.exe' still establishes",
 # command that passes while the claim verifier disagrees does NOT reconcile satisfied.
 _R_STATUSES = ("satisfied", "unmet", "unestablished")
 
-# Since issue #1580 a verifier record also carries a disposition per named step of its
-# own charter, and a side that leaves one undispositioned is forced to `unestablished`
-# before the statuses pair. The #1575 fixtures below are about STATUS reconciliation, so
-# they attach a complete set on both sides; the disposition gate itself is driven by the
-# #1580 block further down. `reconcile_one` takes statuses directly and is unaffected.
+# A #1575 fixture reaching reconcile() must attach a complete disposition set on both
+# sides, or the #1580 gate forces `unestablished` and the fixture stops testing status
+# reconciliation at all.
 def _disp_all(slots, verdict="yes"):
     """A complete disposition map over `slots`, every slot dispositioned `verdict`."""
     return {s: f"{verdict} (fixture: {s})" for s in slots}
@@ -29929,12 +29927,9 @@ assert_eq("#1580 both charters carry the shared evidence-recorded slot", True,
           "evidence-recorded" in reconcile_ac.EVIDENCE_SLOTS
           and "evidence-recorded" in reconcile_ac.CLAIM_SLOTS)
 
-# The slot vocabulary is a COUPLED SITE: the tuples here are what the gate checks, while
-# the `| Slot |` tables in the two shipped charters are what each verifier is asked to
-# state. Nothing else reconciles them, and a divergence is silent-and-severe — a slot
-# renamed in a charter alone makes the gate force that side to `unestablished` on EVERY
-# criterion, hard-blocking Phase 3.4 in a live run with no suite signal. So parse each
-# charter's table and reconcile it against the tuple both ways round.
+# Do not edit a charter's `| Slot |` table without the matching tuple edit here: a slot
+# renamed in one place alone forces that side to `unestablished` on EVERY criterion,
+# hard-blocking Phase 3.4 in a live run with no other suite signal.
 # structural-pin-ok: cross-file-phase-contract -- the charter slot table IS the request
 # the verifier answers and the tuple IS the gate that grades the answer; the two are one
 # machine-consumed contract split across a shipped prompt file and its helper.
@@ -29950,7 +29945,8 @@ for _acv_file, _acv_slots in (("ac-evidence-verifier.md", reconcile_ac.EVIDENCE_
 _EV_D = _disp_all(reconcile_ac.EVIDENCE_SLOTS)
 _CL_D = _disp_all(reconcile_ac.CLAIM_SLOTS)
 
-# The parser: `yes`/`no` plus a one-clause reason, case- and spacing-tolerant.
+# The parser: `yes`/`no` plus a non-empty reason, case- and spacing-tolerant. One clause
+# is what the charters ASK for; the parser accepts and preserves whatever reason it gets.
 assert_eq("#1580 a yes disposition with a parenthesised reason parses",
           ("yes", "ran the suite in-env"),
           reconcile_ac.parse_disposition("yes (ran the suite in-env)"))
@@ -29976,10 +29972,14 @@ assert_eq("#1580 a non-string disposition is undischarged",
           (None, ""), reconcile_ac.parse_disposition({"disposition": "yes"}))
 assert_eq("#1580 an unparseable disposition verdict is undischarged",
           (None, ""), reconcile_ac.parse_disposition("maybe (hedging)"))
-# The verdict must end at whitespace, `(`, or end-of-value. `no-op…` states no
-# disposition, and a lenient boundary would silently discharge the slot from it.
+# The verdict boundary excludes `-` but admits ordinary punctuation. Narrowing it to
+# whitespace-and-paren rejects `no, <reason>` and hard-blocks a compliant criterion.
 assert_eq("#1580 a hyphen-attached word after the verdict does not parse as a verdict",
           (None, ""), reconcile_ac.parse_disposition("no-op, nothing to coordinate"))
+for _punct, _rest in ((",", "nothing to coordinate"), (".", "the criterion runs none"),
+                      (";", "not applicable"), (":", "no command")):
+    assert_eq(f"#1580 a verdict followed by {_punct!r} still parses",
+              "no", reconcile_ac.parse_disposition(f"no{_punct} {_rest}")[0])
 # A reason must carry an alphanumeric character: a mechanical `yes .` is not a clause.
 assert_eq("#1580 a punctuation-only reason is undischarged",
           (None, ""), reconcile_ac.parse_disposition("yes ."))
@@ -29988,7 +29988,7 @@ assert_eq("#1580 a dash-only reason is undischarged",
 # Unwrap only what the outer parens enclose. A nested or multi-clause value is carried
 # through verbatim rather than reshaped — a `strip("()")` chain would turn `((a))` into
 # `a`, making a malformed value look well-formed.
-assert_eq("#1580 a nested-paren value is carried through unwrapped",
+assert_eq("#1580 a nested-paren value is carried through, NOT unwrapped",
           ("yes", "((a))"), reconcile_ac.parse_disposition("yes ((a))"))
 assert_eq("#1580 a multi-clause parenthesised value keeps its inner punctuation",
           ("yes", "(a) (b)"), reconcile_ac.parse_disposition("yes (a) (b)"))
@@ -30113,6 +30113,71 @@ assert_eq("#1580 an invented slot does not discharge a named one",
           [reconcile_ac.EVIDENCE_SLOTS[0]],
           reconcile_ac._dispositions_of({"dispositions": _bogus},
                                         reconcile_ac.EVIDENCE_SLOTS)[1])
+
+# An undischarged slot is EXCLUDED from the carried map — a regression carrying the
+# unparseable value through would put an unattested slot into the durable audit record
+# reading as attested.
+_partial = dict(_EV_D)
+_partial[reconcile_ac.EVIDENCE_SLOTS[1]] = "perhaps"
+_partial_map, _partial_missing = reconcile_ac._dispositions_of(
+    {"dispositions": _partial}, reconcile_ac.EVIDENCE_SLOTS)
+assert_eq("#1580 an unparseable slot is absent from the carried disposition map",
+          False, reconcile_ac.EVIDENCE_SLOTS[1] in _partial_map)
+assert_eq("#1580 the parsed slots beside it still ride into the map",
+          True, reconcile_ac.EVIDENCE_SLOTS[0] in _partial_map)
+
+# The breadcrumbs are the operand that tells a SHAPE defect from a diligence gap, so the
+# orchestrator's re-dispatch remedy is not looped against a malformed producer. Deleting
+# any of them leaves every status assertion above green, so assert them directly — and
+# assert the silent case too, or a breadcrumb on every absent slot would pass as well.
+def _disp_stderr(record, slots, side):
+    """(undischarged, stderr) for one `_dispositions_of` call."""
+    _buf = io.StringIO()
+    with contextlib.redirect_stderr(_buf):
+        _res = reconcile_ac._dispositions_of(record, slots, side)
+    return _res[1], _buf.getvalue()
+
+
+_bc_missing, _bc_err = _disp_stderr(
+    {"dispositions": {reconcile_ac.EVIDENCE_SLOTS[0]: "maybe (x)"}},
+    reconcile_ac.EVIDENCE_SLOTS, "evidence")
+assert_eq("#1580 an unparseable slot's breadcrumb names the slot",
+          True, repr(reconcile_ac.EVIDENCE_SLOTS[0]) in _bc_err)
+assert_eq("#1580 an unparseable slot's breadcrumb names the side",
+          True, "evidence report" in _bc_err)
+# An OMITTED slot is silent: the verifier said nothing, which the status already carries.
+_, _bc_silent = _disp_stderr({"dispositions": {}}, reconcile_ac.EVIDENCE_SLOTS,
+                             "evidence")
+assert_eq("#1580 an omitted slot emits no breadcrumb", "", _bc_silent)
+# A JSON `null` is a STATED slot that does not parse, so it is breadcrumbed like any
+# other unparseable value rather than passing as an omission.
+_, _bc_null = _disp_stderr(
+    {"dispositions": {reconcile_ac.EVIDENCE_SLOTS[0]: None}},
+    reconcile_ac.EVIDENCE_SLOTS, "evidence")
+assert_eq("#1580 a null-valued slot is breadcrumbed as stated-but-unparseable",
+          True, repr(reconcile_ac.EVIDENCE_SLOTS[0]) in _bc_null)
+# A non-object `dispositions`, and an object naming none of the slots, each block every
+# criterion of that side — undiagnosable without a breadcrumb naming the shape.
+_, _bc_type = _disp_stderr({"dispositions": "yes all of them"},
+                           reconcile_ac.EVIDENCE_SLOTS, "evidence")
+assert_eq("#1580 a non-object dispositions block names its observed type",
+          True, "not an object" in _bc_type)
+_, _bc_keys = _disp_stderr({"dispositions": {"command_run": "yes (underscored)"}},
+                           reconcile_ac.EVIDENCE_SLOTS, "evidence")
+assert_eq("#1580 an all-near-miss key set names the keys it saw",
+          True, "names none of the expected slots" in _bc_keys)
+
+# A duplicate-poisoned record names no slots either: like an absent record it is a vote
+# never usably cast, and naming its slots would route a report-shape defect to the
+# restate-the-record remedy, which cannot fix it.
+_recon_dup1580 = reconcile_ac.reconcile(
+    _ev_recs({"criterion": 1, "status": "unmet", "evidence": "a"},
+             {"criterion": 1, "status": "satisfied", "evidence": "b"}),
+    _cl_recs({"criterion": 1, "status": "satisfied", "evidence": "c"}))
+assert_eq("#1580 a duplicate-poisoned record names no undischarged slots",
+          [], _recon_dup1580["criteria"][0]["undischarged_slots"])
+assert_eq("#1580 a duplicate-poisoned record still blocks",
+          "unestablished", _recon_dup1580["criteria"][0]["status"])
 
 # A reasonless slot value is undischarged end-to-end, not merely at the parser: a
 # verifier writing bare `yes` must not clear the gate.

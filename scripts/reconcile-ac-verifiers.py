@@ -83,11 +83,25 @@ EVIDENCE_SLOTS = ("type-decided", "command-run", "single-flight", "evidence-reco
 CLAIM_SLOTS = ("claim-traced", "command-source-read", "evidence-recorded")
 
 # `<verdict> <reason>` — the verdict-plus-reason convention the writing-skills evidence
-# marker uses. The verdict must be followed by whitespace, an opening paren, or the end
-# of the value: without that lookahead `no-op, nothing to coordinate` parses as the
-# verdict `no` with the reason `-op, …`, silently discharging a slot from a value that
-# states no disposition at all.
-_DISPOSITION_RE = re.compile(r"^(yes|no)(?=$|[\s(])(.*)$", re.IGNORECASE | re.DOTALL)
+# marker uses. The lookahead admits ordinary punctuation after the verdict but NOT `-`:
+# `no-op, nothing to coordinate` would otherwise parse as the verdict `no` with the
+# reason `-op, …`, discharging a slot from a value that states no disposition. Do not
+# narrow it back to whitespace-and-paren only — that rejects `no, <reason>` and
+# `no. <reason>`, which state a verdict and a reason, and hard-blocks a compliant
+# criterion over a punctuation choice.
+_DISPOSITION_RE = re.compile(r"^(yes|no)(?=$|[\s(,;:.])(.*)$",
+                             re.IGNORECASE | re.DOTALL)
+
+# A `dispositions` key absent from the record is distinct from one present with a JSON
+# `null` value: the latter is a stated slot that does not parse and earns a breadcrumb.
+_ABSENT = object()
+
+# Marks a record `_index_by_criterion` synthesized to fail a duplicate closed. Such a
+# record carries no dispositions because the verifier's real ones were discarded with
+# the duplicates, so scoring its slots would report an attestation failure for a
+# report-shape defect and send the orchestrator to re-dispatch a restatement that
+# cannot fix it.
+_POISONED = "_reconcile_poisoned"
 
 # The reason must carry at least one alphanumeric character. Testing only for emptiness
 # would let a mechanical `yes .` or `yes -` discharge a slot with no clause behind it.
@@ -129,24 +143,36 @@ def _dispositions_of(record, slots, side=""):
     a slot without a parseable verdict-plus-reason leaves that slot undischarged —
     silence about a step is never read as having performed it.
 
-    A slot that is PRESENT but unparseable also gets a stderr breadcrumb naming it and
-    its value, matching `_index_by_criterion`'s fail-closed convention: without it a
+    Every shape that scores a slot undischarged without the verifier having said so also
+    gets a stderr breadcrumb, matching `_index_by_criterion`'s fail-closed convention: a
+    slot stated but unparseable (a JSON `null` included), a `dispositions` value that is
+    not an object, and an object sharing no key with the named slots. Without them a
     producer emitting a near-miss shape is indistinguishable from one that skipped the
     step, and the orchestrator's remedy — re-dispatch the verifier to restate its
     record — would loop against a shape defect rather than a diligence gap.
     """
-    raw = record.get("dispositions") if isinstance(record, dict) else None
+    who = side or "verifier"
+    raw = record.get("dispositions", _ABSENT) if isinstance(record, dict) else _ABSENT
+    if raw is not _ABSENT and not isinstance(raw, dict):
+        print(f"reconcile-ac-verifiers: the {who} report's 'dispositions' is a "
+              f"{type(raw).__name__}, not an object — scoring every slot undischarged",
+              file=sys.stderr)
     if not isinstance(raw, dict):
         raw = {}
+    elif raw and not any(slot in raw for slot in slots):
+        print(f"reconcile-ac-verifiers: the {who} report's 'dispositions' names none of "
+              f"the expected slots {list(slots)} (it names {sorted(raw)}) — scoring "
+              f"every slot undischarged", file=sys.stderr)
     stated = {}
     undischarged = []
     for slot in slots:
-        raw_value = raw.get(slot)
-        verdict, _reason = parse_disposition(raw_value)
+        raw_value = raw.get(slot, _ABSENT)
+        verdict, _reason = parse_disposition(
+            None if raw_value is _ABSENT else raw_value)
         if verdict is None:
             undischarged.append(slot)
-            if raw_value is not None:
-                print(f"reconcile-ac-verifiers: the {side or 'verifier'} report states "
+            if raw_value is not _ABSENT:
+                print(f"reconcile-ac-verifiers: the {who} report states "
                       f"slot {slot!r} as {raw_value!r}, which is not a parseable "
                       f"'<yes|no> <reason>' disposition — scoring it undischarged",
                       file=sys.stderr)
@@ -165,12 +191,13 @@ def _side(record, slots, tag):
     read for an absent record, and the #1580 downgrade for an undispositioned charter
     step — are stated once rather than mirrored in the caller's loop body.
 
-    An ABSENT record reports no undischarged slots. It is a missing vote, already
-    blocking on its own; naming its slots would send the orchestrator to re-dispatch a
-    verifier to restate a record it never made, and would make the two causes
-    indistinguishable in the one field that routes the remedy.
+    An ABSENT record — and equally a duplicate-poisoned one — reports no undischarged
+    slots. Each is a vote the side never usably cast, already blocking on its own;
+    naming its slots would send the orchestrator to re-dispatch a verifier to restate a
+    record it never made, and would make those causes indistinguishable from a genuine
+    attestation gap in the one field that routes the remedy.
     """
-    if not isinstance(record, dict):
+    if not isinstance(record, dict) or record.get(_POISONED):
         return "unestablished", {}, []
     dispositions, missing = _dispositions_of(record, slots, tag)
     status = record.get("status")
@@ -275,7 +302,8 @@ def _index_by_criterion(records, side):
         if num in by_num:
             print(f"reconcile-ac-verifiers: duplicate criterion {num} in the {side} "
                   f"report — failing it closed to unestablished", file=sys.stderr)
-            by_num[num] = {"criterion": num, "status": "unestablished"}
+            by_num[num] = {"criterion": num, "status": "unestablished",
+                           _POISONED: True}
             continue
         by_num[num] = rec
     return by_num
