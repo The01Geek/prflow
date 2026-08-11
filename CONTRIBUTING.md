@@ -572,10 +572,11 @@ intend to claim completion on:
 lib/test/regenerate-artifacts.py --with-floors
 ```
 
-The bare form regenerates the one mechanically-safe artifact (the cloud-writer runtime
-manifest, `scripts/devflow-cloud-writer-contract.json`) and runs a **non-writing** check
-for each judgment-gated artifact, reporting every judgment item together in one pass
-instead of one red run at a time — about a second in total. `--with-floors` adds the one
+The bare form writes nothing (the cloud-writer runtime manifest,
+`scripts/devflow-cloud-writer-contract.json`, is no longer a registry row — as of issue
+#1445 it is written on `main` alone) and runs a **non-writing** check for each
+judgment-gated artifact, reporting every judgment item together in one pass instead of one
+red run at a time — about a second in total. `--with-floors` adds the one
 opt-in row, which measures every exact-policy module through the real focused runners
 (minutes, not milliseconds) and may raise the assertion floors in
 `scripts/workflow-flight-recorder-registry.json` and their coupled `lib/test/run.sh` call
@@ -600,9 +601,9 @@ Running the batched pass is a discipline, so it can be skipped — and before is
 stale generated artifact was then caught only by a full ~13-minute suite run. The parallel
 coordinator `lib/test/run-parallel.sh` now closes that gap mechanically: before it launches
 any shard it runs `lib/test/regenerate-artifacts.py --preflight`, a **read-only** pass over
-the registry's sub-second, non-writing rows (the `cloud-writer-manifest` verify plus the
-judgment-gated `--check` rows; the multi-minute `exact-module-floors` row is declared
-ineligible). On detected drift the coordinator prints the failing row and its governing
+the registry's sub-second, non-writing rows (the judgment-gated `--check` rows; the
+multi-minute `exact-module-floors` row is declared ineligible, and the cloud-writer manifest
+is no longer a registry row at all — it is written on `main` alone as of issue #1445). On detected drift the coordinator prints the failing row and its governing
 policy, launches no shard, and exits non-zero in under a couple of seconds — so you fix the
 artifact with the batched pass above rather than paying a whole suite run to discover it. An
 *inconclusive* preflight (a crash, an unreadable exit, or a disabled check) warns and

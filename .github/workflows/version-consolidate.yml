@@ -130,6 +130,14 @@ jobs:
               echo "No pending changesets consolidated — nothing to commit."
               exit 0
             fi
+            # issue #1445: keep this regeneration between the reset above and the bump commit
+            # below, and keep its explicit staging — moving or dropping either stops the
+            # published digests deriving from the bytes this commit ships.
+            if python3 lib/test/cloud_writer_contract.py generate; then :; else
+              echo "::error::cloud-writer manifest regeneration failed"
+              exit 1
+            fi
+            git add scripts/devflow-cloud-writer-contract.json
             # Coupled site of scripts/consolidate-changesets.py's write-set: every file the
             # consolidator writes must be staged here, or its edit is silently discarded by the
             # next attempt's `git reset --hard origin/main`. Deliberately explicit (never
