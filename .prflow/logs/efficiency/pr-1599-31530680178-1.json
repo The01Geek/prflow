@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1599",
+  "generated_at": "2026-08-11T20:09:35Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.35",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 9.745225499999998,
+    "tokens": {
+      "input_tokens": 55,
+      "output_tokens": 22431,
+      "cache_read_input_tokens": 4436516,
+      "cache_creation_input_tokens": 198803,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 161,
+        "outputTokens": 67409,
+        "cacheReadInputTokens": 6547806,
+        "cacheCreationInputTokens": 646365,
+        "webSearchRequests": 0,
+        "costUSD": 9.745225499999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 36,
+    "duration_ms": 486927
+  },
+  "permission_denials": {
+    "count": 10,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-unset} ATTEMPT=${GITHUB_RUN_ATTEMPT:-unset}\"; date -u +%Y%m%dT%H%M%SZ",
+      "printf 'RUN_ID=%s ATTEMPT=%s\\n' \"${GITHUB_RUN_ID:-unset}\" \"${GITHUB_RUN_ATTEMPT:-unset}\"; date -u +%Y%m%dT%H%M%SZ",
+      "mkdir -p .prflow/tmp/review/pr-1599/31530680178-1\ngh pr diff 1599 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1599/31530680178-1/diff.patch | tail -5\necho \"cached-rc=${PIPESTATUS[0]}\"",
+      "git worktree add -q /tmp/pr1599 origin/worktree-issue-1595 2>&1 | tail -3; ls /tmp/pr1599/lib/test/lint-reference-size.py",
+      "git worktree add -q /tmp/pr1599 origin/worktree-issue-1595 && echo OK",
+      "git worktree add -q /tmp/pr1599 origin/worktree-issue-1595",
+      "cat > /tmp/audit.py <<'PYEOF'\nimport subprocess, re, os, json\n\nfiles = subprocess.run([\"git\",\"ls-files\",\"*.md\"],capture_output=True,text=True).stdout.split(\"\\n\")\nfiles = [f for f in files if f and not f.startswith(\"lib/test/fixtures/\")]\n\n# Independent, LOOSER patterns than the lint\n# Family A: any prflow:<ns>-ref ... start / end  (allow ns starting with digit, weird ws)\nA_loose = re.compile(r'^\\s*<!--\\s*prflow:([^\\s-]+(?:-[^\\s-]+)*)-ref\\s+(.*?)\\s+(start|end)\\s*-->\\s*$', re.I)\n# also catch any ht …[per-command-truncated]",
+      "python3 lib/test/lint-reference-size.py --print-population 2>&1 | sort > .prflow/tmp/lint-pop.txt; wc -l .prflow/tmp/lint-pop.txt; python3 lib/test/lint-reference-size.py --print-threshold",
+      "echo \"--- non-.md tracked files containing prflow -ref start/end or END markers ---\"; git ls-files | grep -v '\\.md$' | grep -v '^lib/test/fixtures/' > /dev/null; for f in $(git ls-files | grep -vE '\\.md$' | grep -v '^lib/test/fixtures/'); do if grep -lqE 'prflow:[a-z0-9].*-ref .*(start|end)|<!--\\s*END\\s+\\S+\\s*-->' \"$f\" 2>/dev/null; then echo \"HIT: $f\"; fi; done; echo \"done\"",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve \"1595\" --pr \"1599\" 2>.prflow/tmp/review/pr-1599/31530680178-1/acs.err ; echo \"acs-rc=$?\""
+    ],
+    "total": 10,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
