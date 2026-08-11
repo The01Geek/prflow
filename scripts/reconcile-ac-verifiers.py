@@ -38,9 +38,12 @@ Input: two JSON files, each a list of objects
      "evidence": "<pointer string, optional>",
      "dispositions": {"<slot>": "yes|no (one-clause reason)", ...}}
 An unrecognized/absent status is treated as `unestablished` (fail closed) rather
-than crashing, because the reports are agent-authored. `dispositions` names one
-slot per named step of that side's charter (`EVIDENCE_SLOTS` / `CLAIM_SLOTS`),
-in the writing-skills evidence marker's `<slot>=yes|no (reason)` shape.
+than crashing, because the reports are agent-authored. `dispositions` maps each
+named step of that side's charter (`EVIDENCE_SLOTS` / `CLAIM_SLOTS`) to a value
+of the form `yes|no (one-clause reason)` — the slot name is the KEY, never part
+of the value. The verdict-plus-reason convention is the writing-skills evidence
+marker's; the `<slot>=<verdict>` spelling that marker uses in prose is NOT the
+shape here, and a value carrying it does not parse.
 
 A verifier record may carry an optional `reason` (the evidence verifier attaches
 `denied`/`failed`/`unresolved` to a non-satisfied criterion) which is passed
@@ -79,9 +82,16 @@ BLOCKING_STATUSES = ("unmet", "unestablished")
 EVIDENCE_SLOTS = ("type-decided", "command-run", "single-flight", "evidence-recorded")
 CLAIM_SLOTS = ("claim-traced", "command-source-read", "evidence-recorded")
 
-# `<verdict> (<reason>)` — the writing-skills evidence marker's shape. The parens are
-# the marker's own convention and are optional here; the reason is not.
-_DISPOSITION_RE = re.compile(r"^(yes|no)\b(.*)$", re.IGNORECASE | re.DOTALL)
+# `<verdict> <reason>` — the verdict-plus-reason convention the writing-skills evidence
+# marker uses. The verdict must be followed by whitespace, an opening paren, or the end
+# of the value: without that lookahead `no-op, nothing to coordinate` parses as the
+# verdict `no` with the reason `-op, …`, silently discharging a slot from a value that
+# states no disposition at all.
+_DISPOSITION_RE = re.compile(r"^(yes|no)(?=$|[\s(])(.*)$", re.IGNORECASE | re.DOTALL)
+
+# The reason must carry at least one alphanumeric character. Testing only for emptiness
+# would let a mechanical `yes .` or `yes -` discharge a slot with no clause behind it.
+_REASON_SUBSTANTIVE_RE = re.compile(r"[^\W_]")
 
 
 def parse_disposition(value):
@@ -89,9 +99,9 @@ def parse_disposition(value):
 
     `no` is a fully discharging verdict — the gate asks for a *stated* disposition,
     never a particular one, so treating `no` as a failure would produce false `yes`.
-    An empty reason is undischarged, `yes ()` included: a verdict with no clause behind
-    it attests to nothing an after-the-fact reader can weigh, and `yes ()` is exactly
-    what a verifier filling the marker in mechanically emits for a step it skipped.
+    A reason that is absent or carries no alphanumeric character is undischarged,
+    `yes` / `yes ()` / `yes .` alike: a verdict with no clause behind it attests to
+    nothing an after-the-fact reader can weigh.
     """
     if not isinstance(value, str):
         return None, ""
@@ -99,24 +109,31 @@ def parse_disposition(value):
     if not match:
         return None, ""
     reason = match.group(2).strip()
-    # Unwrap a fully-parenthesised clause once, deliberately not with a strip("()")
-    # chain: that strips stray parens from either end independently, so it would read
-    # `yes (a) (b)` as the reason `a) (b` and hide a malformed value instead of
-    # carrying it through verbatim.
-    if reason.startswith("(") and reason.endswith(")"):
+    # Unwrap only a clause the outer parens actually enclose. Do not substitute a
+    # `strip("()")` chain, which strips parens from each end independently and would
+    # turn `((a))` into `a`, silently reshaping a malformed value into a well-formed
+    # one rather than carrying it through as written.
+    if (reason.startswith("(") and reason.endswith(")")
+            and "(" not in reason[1:-1] and ")" not in reason[1:-1]):
         reason = reason[1:-1].strip()
-    if not reason:
+    if not _REASON_SUBSTANTIVE_RE.search(reason):
         return None, ""
     return match.group(1).lower(), reason
 
 
-def _dispositions_of(record, slots):
+def _dispositions_of(record, slots, side=""):
     """Return `(stated_map, undischarged_slots)` for one verifier record.
 
     Only the named `slots` are consulted, so an invented slot name cannot discharge a
     named one. A record that is not a dict, carries no `dispositions` object, or states
     a slot without a parseable verdict-plus-reason leaves that slot undischarged —
     silence about a step is never read as having performed it.
+
+    A slot that is PRESENT but unparseable also gets a stderr breadcrumb naming it and
+    its value, matching `_index_by_criterion`'s fail-closed convention: without it a
+    producer emitting a near-miss shape is indistinguishable from one that skipped the
+    step, and the orchestrator's remedy — re-dispatch the verifier to restate its
+    record — would loop against a shape defect rather than a diligence gap.
     """
     raw = record.get("dispositions") if isinstance(record, dict) else None
     if not isinstance(raw, dict):
@@ -124,14 +141,20 @@ def _dispositions_of(record, slots):
     stated = {}
     undischarged = []
     for slot in slots:
-        verdict, _reason = parse_disposition(raw.get(slot))
+        raw_value = raw.get(slot)
+        verdict, _reason = parse_disposition(raw_value)
         if verdict is None:
             undischarged.append(slot)
+            if raw_value is not None:
+                print(f"reconcile-ac-verifiers: the {side or 'verifier'} report states "
+                      f"slot {slot!r} as {raw_value!r}, which is not a parseable "
+                      f"'<yes|no> <reason>' disposition — scoring it undischarged",
+                      file=sys.stderr)
         else:
             # The verbatim value, not the parsed reason: it is what the orchestrator
             # records durably, and a reader weighing an abbreviated check wants the
             # verifier's own words rather than this parser's normalization of them.
-            stated[slot] = raw[slot]
+            stated[slot] = raw_value
     return stated, undischarged
 
 
@@ -141,9 +164,16 @@ def _side(record, slots, tag):
     Applied symmetrically to both sides so the per-side rules — the fail-closed status
     read for an absent record, and the #1580 downgrade for an undispositioned charter
     step — are stated once rather than mirrored in the caller's loop body.
+
+    An ABSENT record reports no undischarged slots. It is a missing vote, already
+    blocking on its own; naming its slots would send the orchestrator to re-dispatch a
+    verifier to restate a record it never made, and would make the two causes
+    indistinguishable in the one field that routes the remedy.
     """
-    dispositions, missing = _dispositions_of(record, slots)
-    status = record.get("status") if isinstance(record, dict) else "unestablished"
+    if not isinstance(record, dict):
+        return "unestablished", {}, []
+    dispositions, missing = _dispositions_of(record, slots, tag)
+    status = record.get("status")
     if missing:
         status = "unestablished"
     return status, dispositions, [f"{tag}:{slot}" for slot in missing]

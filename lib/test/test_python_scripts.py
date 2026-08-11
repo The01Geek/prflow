@@ -29875,6 +29875,12 @@ with tempfile.TemporaryDirectory() as _md:
     assert_eq("#1575 main() returns 0 on a produced reconciliation", 0, _rc_ok)
     assert_eq("#1575 main() prints the reconciled JSON on stdout",
               True, '"all_satisfied": true' in _out.getvalue())
+    # The orchestrator consumes this through stdout JSON, not by importing reconcile(),
+    # so a field dropped or made unserializable at the dump layer would be invisible to
+    # every in-process assertion above.
+    for _f1580 in ("evidence_dispositions", "claim_dispositions", "undischarged_slots"):
+        assert_eq(f"#1580 main() serializes {_f1580} onto stdout",
+                  True, f'"{_f1580}"' in _out.getvalue())
     # Missing file -> OSError -> exit 3.
     with contextlib.redirect_stderr(io.StringIO()):
         _rc_missing = reconcile_ac.main(
@@ -29913,12 +29919,8 @@ with tempfile.TemporaryDirectory() as _rd:
 
 
 # ── issue #1580: verifier procedure dispositions (what did you DO, not only conclude) ──
-# Each verifier's record must carry one disposition per named step of its own charter,
-# written `<slot>=yes|no (one-clause reason)` after the writing-skills evidence marker.
-# The three properties under test: `no` fully discharges its slot and by itself changes
-# no status; a MISSING slot is undischarged, so the criterion reconciles `unestablished`
-# rather than accepting that side's status; and the dispositions reach the reconciled
-# output so the orchestrator can record them durably alongside the verdict.
+# `dispositions` maps each charter slot NAME (the key) to a `yes|no (reason)` value —
+# the `<slot>=<verdict>` prose spelling of the writing-skills marker does not parse here.
 
 # The slot vocabularies are per side and named after each charter's own steps.
 # `evidence-recorded` is the one slot BOTH charters carry (the shared evidence-pointer
@@ -29974,6 +29976,26 @@ assert_eq("#1580 a non-string disposition is undischarged",
           (None, ""), reconcile_ac.parse_disposition({"disposition": "yes"}))
 assert_eq("#1580 an unparseable disposition verdict is undischarged",
           (None, ""), reconcile_ac.parse_disposition("maybe (hedging)"))
+# The verdict must end at whitespace, `(`, or end-of-value. `no-op…` states no
+# disposition, and a lenient boundary would silently discharge the slot from it.
+assert_eq("#1580 a hyphen-attached word after the verdict does not parse as a verdict",
+          (None, ""), reconcile_ac.parse_disposition("no-op, nothing to coordinate"))
+# A reason must carry an alphanumeric character: a mechanical `yes .` is not a clause.
+assert_eq("#1580 a punctuation-only reason is undischarged",
+          (None, ""), reconcile_ac.parse_disposition("yes ."))
+assert_eq("#1580 a dash-only reason is undischarged",
+          (None, ""), reconcile_ac.parse_disposition("yes -"))
+# Unwrap only what the outer parens enclose. A nested or multi-clause value is carried
+# through verbatim rather than reshaped — a `strip("()")` chain would turn `((a))` into
+# `a`, making a malformed value look well-formed.
+assert_eq("#1580 a nested-paren value is carried through unwrapped",
+          ("yes", "((a))"), reconcile_ac.parse_disposition("yes ((a))"))
+assert_eq("#1580 a multi-clause parenthesised value keeps its inner punctuation",
+          ("yes", "(a) (b)"), reconcile_ac.parse_disposition("yes (a) (b)"))
+# The `<slot>=<verdict>` prose spelling of the writing-skills marker is NOT this shape;
+# a producer following it would otherwise be scored undischarged with no explanation.
+assert_eq("#1580 the marker's `<slot>=yes` prose spelling does not parse as a value",
+          (None, ""), reconcile_ac.parse_disposition("type-decided=yes (x)"))
 
 # _dispositions_of reports the normalized map AND the undischarged slot names.
 _full_map, _full_missing = reconcile_ac._dispositions_of(
@@ -30032,6 +30054,27 @@ assert_eq("#1580 the complete side's own status is still reported",
           "satisfied", _gap_rec["claim_status"])
 assert_eq("#1580 the undischarged side's status reads unestablished",
           "unestablished", _gap_rec["evidence_status"])
+# The gate the orchestrator actually routes on is the AGGREGATE, not the per-criterion
+# row: a regression computing these from a pre-`_side` status would leave the row correct
+# and still report a clean pass — the false green this issue exists to prevent.
+assert_eq("#1580 a criterion blocked by a missing slot reaches blocking[]",
+          [1], _recon_gap["blocking"])
+assert_eq("#1580 a missing slot clears all_satisfied",
+          False, _recon_gap["all_satisfied"])
+
+# An ABSENT record is a missing vote, not an attestation failure: it names no
+# undischarged slot, so the field that routes the remedy (re-dispatch to restate the
+# record) cannot be armed for a side that never produced one.
+_recon_absent = reconcile_ac.reconcile(
+    [{"criterion": 1, "status": "satisfied", "evidence": "x", "dispositions": _EV_D}],
+    [])
+_absent_rec = _recon_absent["criteria"][0]
+assert_eq("#1580 an absent record names no undischarged slots",
+          [], _absent_rec["undischarged_slots"])
+assert_eq("#1580 an absent record still blocks as a missing vote",
+          "unestablished", _absent_rec["status"])
+assert_eq("#1580 the present side's own status survives an absent counterpart",
+          "satisfied", _absent_rec["evidence_status"])
 
 # A wholly absent dispositions block is the same failure — silence is not compliance.
 _recon_silent = reconcile_ac.reconcile(
