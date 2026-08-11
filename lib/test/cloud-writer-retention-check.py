@@ -9,9 +9,9 @@ commit, and no feature branch regenerates it (its `regenerate-artifacts.py` batc
 was removed). A feature branch is therefore expected to leave the artifact byte-for-byte as
 it stands at the merge base. This check enforces exactly that: it compares the manifest at
 the merge base against the manifest in the working tree (HEAD in a fresh CI checkout) and
-fails when they differ — a divergent pair authored by hand on a branch, the one way the
-manifest's published digests could be made to disagree with the bytes they pin now that the
-branch-side drift gate is gone.
+fails when they differ — a divergent pair authored by hand on a branch. That is this check's
+whole scope: it does NOT cover the staleness window a changeset-less pinned-file merge leaves
+(see docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md, "Known residual").
 
 It runs in CI (so it needs no local git configuration — the chosen mechanism registers no
 merge driver) and at the desk against the same inputs. On `main` itself the merge base of

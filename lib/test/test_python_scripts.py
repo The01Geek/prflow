@@ -14561,6 +14561,11 @@ def _mt_conflict1445(repo, ref_a, ref_b):
 
 
 # ── AC7 (branch-side): the batched artifact-regeneration pass does not write the manifest.
+# Do not let this file run with DEVFLOW_RA_TEST_MECHANICAL_ROW set: that seam re-injects the
+# very row AC7 asserts is absent, so the assertions below would fail for an environment
+# reason rather than a regression. Assert the precondition instead of assuming it.
+assert_eq("#1445 AC7 precondition: the test-only mechanical-row seam is NOT enabled here",
+          False, os.environ.get("DEVFLOW_RA_TEST_MECHANICAL_ROW") == "1")
 _regen_writes_1445 = [
     w for row in _regen1445.ROWS
     for w in ((row.get("writes"),) if isinstance(row.get("writes"), str) else tuple(row.get("writes") or ()))
@@ -14724,11 +14729,54 @@ with tempfile.TemporaryDirectory(prefix='cwr1445-') as _cwr_repo_str:
               _cwr1445.EXIT_MUTATED, _rc_badbase_1445)
     assert_eq("#1445 AC3.2 e2e: the unreadable-base rejection names the base read",
               True, "could not read the base" in _badbase_out_1445.getvalue())
+    # main()'s DEGRADED-comparand branch, driven end-to-end (not by handing the pure core a
+    # comparand_substituted sentinel): an unrelated-history base ref makes `git merge-base`
+    # report no merge base, which is exactly the arm a shallow/partial clone takes in
+    # retention_check_common.merge_base — the base ref's own tip substitutes for the merge
+    # base. Without this, main()'s degraded routing and the --allow-degraded-base argparse
+    # wiring could stop firing with no RED test.
+    _git1445(_cwr_repo, 'checkout', '-q', '--orphan', 'unrelated-1445')
+    (_cwr_repo / _man_rel_1445).write_text(
+        _canon1445({"skills/a.md": _sha1445("unrelated root")}), encoding='utf-8')
+    _git1445(_cwr_repo, 'add', '-A')
+    _git1445(_cwr_repo, 'commit', '-qm', 'unrelated root')
+    _git1445(_cwr_repo, 'checkout', '-q', 'feat-clean')
+    _degraded_out_1445 = io.StringIO()
+    with contextlib.redirect_stdout(_degraded_out_1445):
+        _rc_degraded_1445 = _cwr1445.main(
+            ['x', str(_cwr_repo), '--base-ref', 'unrelated-1445'])
+    assert_eq("#1445 AC3.2 e2e: a degraded base comparand exits 3 (unestablished), never 0 or 1",
+              _cwr1445.EXIT_UNESTABLISHED, _rc_degraded_1445)
+    assert_eq("#1445 AC3.2 e2e: the degraded run names the substitute comparand, not a mutation",
+              True, "could not be established" in _degraded_out_1445.getvalue())
+    # The same invocation plus the acknowledgement flag: exit 0, and still reported as
+    # acknowledged-degraded rather than as a verified clean pass.
+    _ack_out_1445 = io.StringIO()
+    with contextlib.redirect_stdout(_ack_out_1445):
+        _rc_ack_1445 = _cwr1445.main(
+            ['x', str(_cwr_repo), '--base-ref', 'unrelated-1445', _cwr1445.ACK_FLAG])
+    assert_eq("#1445 AC3.2 e2e: --allow-degraded-base is wired through argparse and exits 0",
+              _cwr1445.EXIT_CLEAN, _rc_ack_1445)
+    assert_eq("#1445 AC3.2 e2e: the acknowledged run still reports itself as degraded",
+              True, "acknowledged" in _ack_out_1445.getvalue())
+    # The docstring's `main`-side claim, driven end-to-end: version-consolidate.yml's
+    # legitimate rewrite is never flagged. On `main` the base ref IS the branch's own tip, so
+    # the merge base is HEAD and the freshly-rewritten manifest is its own comparand.
+    _git1445(_cwr_repo, 'checkout', '-q', 'main')
+    (_cwr_repo / _man_rel_1445).write_text(
+        _canon1445({"skills/a.md": _sha1445("regenerated on main")}), encoding='utf-8')
+    _git1445(_cwr_repo, 'commit', '-qam', 'chore: bump version (manifest regenerated on main)')
+    _git1445(_cwr_repo, 'branch', '-f', 'origin/main', 'HEAD')
+    assert_eq("#1445 AC3.2 e2e: on `main`, the legitimate main-side rewrite is not flagged (exit 0)",
+              _cwr1445.EXIT_CLEAN,
+              _cwr1445.main(['x', str(_cwr_repo), '--base-ref', 'origin/main']))
 
 # ── AC1 / AC2: two branches editing disjoint regions of the SAME pinned file (AC1) or two
 # ADJACENT-sorted pinned files (AC2), each running the regeneration pass, merge into main in
 # BOTH orders with no conflict — because the pass no longer rewrites the manifest. The
 # discriminating control: the OLD writer (manifest rewritten per branch) DID conflict.
+# Do not delete AC7 as redundant with these arms: they demonstrate a property of git given an
+# untouched manifest, and AC7 is the only assertion that the pass leaves it untouched.
 with tempfile.TemporaryDirectory(prefix='mt1445-') as _mt_repo_str:
     _mt_repo = Path(_mt_repo_str)
     _git1445(_mt_repo, 'init', '-q', '-b', 'main')

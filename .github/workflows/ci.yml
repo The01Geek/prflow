@@ -293,13 +293,8 @@ jobs:
       - name: Coverage-map key-retention check
         run: python3 lib/test/coverage-map-retention-check.py .
 
-      # issue #1445: the cloud-writer manifest (scripts/devflow-cloud-writer-contract.json)
-      # is written on `main` alone (by version-consolidate.yml, immediately before its bump
-      # commit); no feature branch regenerates it and the branch-side drift gate was removed.
-      # This check enforces the other half of that contract: a feature branch must not mutate
-      # the artifact by hand. It compares the manifest at the merge base against the working
-      # tree and fails RED on any difference, needing the same full history (fetch-depth: 0)
-      # the retention checks above rely on. It registers no local git configuration.
+      # issue #1445: keep this step in a job that checks out with fetch-depth: 0 — without the
+      # full history the merge base does not resolve and the check degrades to exit 3.
       - name: Cloud-writer manifest mutation check
         run: python3 lib/test/cloud-writer-retention-check.py .
 

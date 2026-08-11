@@ -130,14 +130,9 @@ jobs:
               echo "No pending changesets consolidated — nothing to commit."
               exit 0
             fi
-            # issue #1445: `main` is the SOLE writer of the cloud-writer manifest. Keep this
-            # regeneration between the reset above and the bump commit below, or the published
-            # digests stop deriving from the bytes this commit ships. Stage it explicitly (never
-            # `git add -A`), or the next attempt's reset discards it.
-            # It sits after the no-changesets early-exit, so a changeset-less pinned-file merge
-            # leaves the manifest stale until the next changeset-bearing merge; nothing
-            # mechanically forbids that merge — the every-engine-edit-mandates-a-changeset rule
-            # is a review-gate convention, not a gate. See docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md.
+            # issue #1445: keep this regeneration between the reset above and the bump commit
+            # below, and keep its explicit staging — moving or dropping either stops the
+            # published digests deriving from the bytes this commit ships.
             if python3 lib/test/cloud_writer_contract.py generate; then :; else
               echo "::error::cloud-writer manifest regeneration failed"
               exit 1
