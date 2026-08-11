@@ -51592,6 +51592,11 @@ unknown top-level key|unknown top-level key|{"schema_version": 1, "recorded_set"
 duplicate exemption path|duplicate exemption path|{"schema_version": 1, "recorded_set": [{"path": "skills/fx/references/one-over.md", "recorded_bytes": 61751}], "exemptions": [{"path": "skills/fx/references/one-over.md", "expires_when": "x"}, {"path": "skills/fx/references/one-over.md", "expires_when": "x"}]}
 unknown key in an exemptions entry|unknown key|{"schema_version": 1, "recorded_set": [{"path": "skills/fx/references/one-over.md", "recorded_bytes": 61751}], "exemptions": [{"path": "skills/fx/references/one-over.md", "expires_when": "x", "why": "y"}]}
 unknown schema_version|unrecognized schema_version|{"schema_version": 99, "recorded_set": [], "exemptions": []}
+entry missing a required key|a recorded_set entry is missing key(s): recorded_bytes|{"schema_version": 1, "recorded_set": [{"path": "a"}], "exemptions": []}
+absent schema_version|unrecognized schema_version None|{"recorded_set": [], "exemptions": []}
+valid-falsy path in an exemptions entry|a exemptions entry's path must be a non-empty string|{"schema_version": 1, "recorded_set": [{"path": "skills/fx/references/one-over.md", "recorded_bytes": 61751}], "exemptions": [{"path": "", "expires_when": "x"}]}
+non-string expires_when|expires_when for skills/fx/references/one-over.md must be a non-empty string|{"schema_version": 1, "recorded_set": [{"path": "skills/fx/references/one-over.md", "recorded_bytes": 61751}], "exemptions": [{"path": "skills/fx/references/one-over.md", "expires_when": 123}]}
+exemptions entry missing a required key|a exemptions entry is missing key(s): expires_when|{"schema_version": 1, "recorded_set": [{"path": "skills/fx/references/one-over.md", "recorded_bytes": 61751}], "exemptions": [{"path": "skills/fx/references/one-over.md"}]}
 RSZ_SHAPES
 
 # Population fail-closed arms. "Audited nothing" reading as "audited everything, found
@@ -51610,6 +51615,22 @@ rm -f "$RSZ_NOSR/skills/fx/SKILL.md" "$RSZ_NOSR/skills/fx2/SKILL.md"
 (cd "$RSZ_NOSR" && git init -q && git add -A) >/dev/null
 assert_eq "#1595 a whole-tree audit selecting nothing for the skill-root shape fails" "yes" \
   "$(rsz_has "selected nothing for the skill-root shape" "$(rsz_run "$RSZ_NOSR" "$RSZ_EMPTY")")"
+# The third arm of the same guard: COVERED_KINDS drives one refusal per kind, so a kind
+# with no fixture here is a completeness arm nothing exercises.
+RSZ_NOA="$(git_sandbox '#1595 no-family-a fixture')"
+cp -R "$RSZ_FX/skills" "$RSZ_NOA/"
+rm -f "$RSZ_NOA/skills/fx/references/gated-small.md" \
+      "$RSZ_NOA/skills/fx/references/at-threshold.md" \
+      "$RSZ_NOA/skills/fx/references/one-over.md" \
+      "$RSZ_NOA/skills/fx/references/crlf.md"
+(cd "$RSZ_NOA" && git init -q && git add -A) >/dev/null
+RSZ_NOA_OUT="$(rsz_run "$RSZ_NOA" "$RSZ_EMPTY")"
+assert_eq "#1595 a whole-tree audit selecting nothing for the HTML-comment family fails" "yes" \
+  "$(rsz_has "selected nothing for the HTML-comment marker family" "$RSZ_NOA_OUT")"
+# Positive control on the same fixture: the skill-root kind is still selected, so the
+# refusal above is the empty family-A arm rather than a fixture that lost its whole tree.
+assert_eq "#1595 the no-family-a fixture still selects its other kinds" "no" \
+  "$(rsz_has "selected nothing for the skill-root shape" "$RSZ_NOA_OUT")"
 RSZ_NARROW="$(probe_tmp '#1595 narrowed population list')"
 printf '%s\n' skills/fx/references/gated-small.md > "$RSZ_NARROW"
 assert_eq "#1595 a narrowed population is not required to see every family" \
@@ -51643,6 +51664,53 @@ assert_eq "#1595 the density floor does not exceed the recorded measurements min
      [ "$RSZ_SC_RC" -eq 0 ] && printf 'rc=0' || printf 'rc=%s | %s' "$RSZ_SC_RC" "$RSZ_SC")"
 assert_eq "#1595 the self-check names each measurement's own byte count beside its tokens" "yes" \
   "$(rsz_has "68901B / 26496 tok" "$(python3 "$RSZ_LINT" --self-check 2>&1)")"
+
+# …and its REFUSING arms, which the clean run above cannot reach: an inverted comparison
+# would leave the self-check green while the ceiling it certifies rests on nothing. Driven
+# against MUTATED COPIES under a temp root, so the working-tree lint is never modified.
+RSZ_MUT="$(git_sandbox '#1595 self-check mutant rig')"
+cp "$RSZ_LINT" "$RSZ_MUT/lint-reference-size.py"
+cp "$LIB/test/lint_population.py" "$RSZ_MUT/lint_population.py"
+python3 - "$RSZ_MUT" <<'RSZ_MUTATE'
+import sys
+from pathlib import Path
+root = Path(sys.argv[1])
+src = (root / "lint-reference-size.py").read_text(encoding="utf-8")
+mutants = {
+    # Raise the floor ABOVE the minimum recorded density (2.600) — the direction that makes
+    # the ceiling more generous than the measurements support, which is what the guard refuses.
+    "raised-floor": src.replace("BYTES_PER_TOKEN_FLOOR = 2.60",
+                                "BYTES_PER_TOKEN_FLOOR = 2.90", 1),
+    "zero-tokens": src.replace('("skills/implement/phases/phase-1-setup.md", 68901, 26496)',
+                               '("skills/implement/phases/phase-1-setup.md", 68901, 0)', 1),
+}
+for name, text in mutants.items():
+    # A no-op replace would leave an UNMUTATED copy, and the negative assertions below would
+    # then pass or fail for a reason having nothing to do with the guard under test.
+    if text == src:
+        sys.exit("#1595 mutation %s matched nothing — the constant's spelling moved" % name)
+    (root / ("mutant-%s.py" % name)).write_text(text, encoding="utf-8")
+RSZ_MUTATE
+rsz_selfcheck() {  # <script> -> "rc=<n>|<stdout+stderr>"
+  local out rc
+  out="$(python3 "$1" --self-check 2>&1)"; rc=$?
+  printf 'rc=%s|%s' "$rc" "$out"
+}
+# Positive control on the same rig: the unmutated copy still passes there, so each rejection
+# below is attributable to its mutation rather than to a copy that cannot import its reader.
+RSZ_SC_CTL="$(rsz_selfcheck "$RSZ_MUT/lint-reference-size.py")"
+assert_eq "#1595 self-check control: the unmutated copy passes on the mutant rig" "rc=0" \
+  "$([ "${RSZ_SC_CTL%%|*}" = "rc=0" ] && printf 'rc=0' || printf '%s' "$RSZ_SC_CTL")"
+RSZ_SC_RAISED="$(rsz_selfcheck "$RSZ_MUT/mutant-raised-floor.py")"
+assert_eq "#1595 a density floor above the recorded minimum fails the self-check" "rc=1" \
+  "${RSZ_SC_RAISED%%|*}"
+assert_eq "#1595 the self-check attributes that refusal to the raised floor" "yes" \
+  "$(rsz_has "above the minimum recorded density" "$RSZ_SC_RAISED")"
+RSZ_SC_ZERO="$(rsz_selfcheck "$RSZ_MUT/mutant-zero-tokens.py")"
+assert_eq "#1595 a non-positive token count fails the self-check" "rc=1" \
+  "${RSZ_SC_ZERO%%|*}"
+assert_eq "#1595 the self-check attributes that refusal to the non-positive token count" "yes" \
+  "$(rsz_has "records a non-positive token count" "$RSZ_SC_ZERO")"
 
 # A marker pair that DISAGREES (namespace, payload, or family-B basename) is excluded from
 # the population. Without these the exclusion is indistinguishable from a regex slip that
