@@ -10239,7 +10239,8 @@ assert_pin_unique "#346: 2.2.5 takes the Blocked path when the pushable subset w
 # The audit's clean/confirm arms no longer emit reflections (the attestation noise
 # that tripped the retrospective cheap gate on every clean run) — each records a
 # `## Progress` --note the moment its pass completes. Only FINDINGS reflect now: a
-# wrong issue claim (issue-accuracy) or punted work (deferred); the two hard stops
+# a finding — such as a wrong issue claim (issue-accuracy), punted work
+# (deferred), or an unestablished re-check (dropped-failed). The two hard stops
 # are the ORCHESTRATOR's decision and live in phase-1-setup.md §1.6, not here.
 # #1576 moved §1.6's pass PROCEDURE (and its clean-arm --note writes) out of
 # phase-1-setup.md into the dispatched agents/issue-claim-auditor.md, so this pin now
