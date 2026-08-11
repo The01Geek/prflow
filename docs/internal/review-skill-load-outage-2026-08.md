@@ -15,7 +15,10 @@ re-derive it, and correctly declined to cite it.
 Related: **#1462 / PR #1463** (unconditional prompt-extension fetch and per-extension workpad
 tracking), **PR #1471** (the experiment that removed the placeholder from the review root),
 **#1473** (the retirement of the construct everywhere else), **#1470** (bounding the fix loop's
-per-entry instruction cost), **#1299** (reconciled by this page).
+per-entry instruction cost), **#1299** (reconciled by this page),
+[`docs/internal/skill-body-load-delivery.md`](skill-body-load-delivery.md) (the *truncation*
+mode of the same load, probed 2026-08-11 and not found — where this page is the *abort* mode;
+it also records why this page's 66,044-character figure is testimony rather than a bound).
 
 ---
 
