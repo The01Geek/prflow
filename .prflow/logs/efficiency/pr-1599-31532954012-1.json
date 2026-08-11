@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1599",
+  "generated_at": "2026-08-11T20:38:49Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.35",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 10.953050999999999,
+    "tokens": {
+      "input_tokens": 60,
+      "output_tokens": 27719,
+      "cache_read_input_tokens": 5581582,
+      "cache_creation_input_tokens": 225892,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 131,
+        "outputTokens": 70050,
+        "cacheReadInputTokens": 7669652,
+        "cacheCreationInputTokens": 723076,
+        "webSearchRequests": 0,
+        "costUSD": 10.953050999999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 42,
+    "duration_ms": 630226
+  },
+  "permission_denials": {
+    "count": 13,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      "echo \"run=${GITHUB_RUN_ID:-none} attempt=${GITHUB_RUN_ATTEMPT:-none}\"",
+      "printf 'run=%s attempt=%s\\n' \"${GITHUB_RUN_ID:-none}\" \"${GITHUB_RUN_ATTEMPT:-none}\"",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve \"1595\" --pr \"1599\" 2>.prflow/tmp/review/pr-1599/31532954012-1/acs.err ; echo \"acs-rc=$?\"",
+      "mkdir -p .prflow/tmp\nif rm -f \".prflow/tmp/review-dirty-tree-before\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \".prflow/tmp/review-dirty-tree-before\" &&\n   [ -f \".prflow/tmp/review-dirty-tree-before\" ] &&\n   [ ! -L \".prflow/tmp/review-dirty-tree-before\" ] &&\n   git hash-object \".prflow/tmp/review-dirty-tree-before\"; then\n  : \nelse\n  printf '%s\\n' disabled > \".prflow/tmp/review-dirty-tree-disabled\"\n  echo \"SNAP-DISABLED\"\nfi",
+      "git status --porcelain -z > .prflow/tmp/review-dirty-tree-before",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >/tmp/ext.out 2>/tmp/ext.err; echo \"EXIT=$?\"; echo \"--- STDOUT ---\"; cat /tmp/ext.out; echo \"--- STDERR ---\"; cat /tmp/ext.err",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review 2>/tmp/ext.err 1>/tmp/ext.out; echo \"EXIT=$?\"; echo \"=STDOUT bytes=\"; wc -c </tmp/ext.out; echo \"=STDOUT head=\"; head -40 /tmp/ext.out",
+      "for f in skills/create-issue/references/step-2-clarify.md skills/implement/phases/phase-1-setup.md skills/review/phases/phase-0-setup.md skills/review-and-fix/references/fixing.md skills/docs-verify/references/*.md; do echo \"== $f ==\"; sed -n '1p;$p' \"$f\" 2>/dev/null; done",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review 2>/tmp/ext.err 1>/tmp/ext.out; echo \"EXIT=$?\"; wc -c </tmp/ext.out",
+      "for f in skills/create-issue/references/step-2-clarify.md skills/implement/phases/phase-1-setup.md skills/review/phases/phase-0-setup.md skills/review-and-fix/references/fixing.md; do echo \"== $f ==\"; head -1 \"$f\"; tail -1 \"$f\"; done",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review 2>.prflow/tmp/ext.err 1>.prflow/tmp/ext.out; echo \"EXIT=$?\"; wc -c .prflow/tmp/ext.out",
+      ".prflow/vendor/prflow/scripts/workpad.py patch 5258494271 .prflow/tmp/review/pr-1599/31532954012-1/review-wp.md 2>&1 | tail -2 ; echo \"patch-rc=${PIPESTATUS[0]}\""
+    ],
+    "total": 13,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
