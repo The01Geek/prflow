@@ -614,167 +614,49 @@ Then tick the Setup phase in the workpad's `## Progress` checklist:
 
 ### 1.6 Issue-Claim Audit
 
-Before Phase 2 begins, operationalise the Phase 2.1 principle that "the issue body is a starting point, not the source of truth" with the targeted pre-checks below, which catch wrong scope, policy, dependency, and execution-capability assumptions before any code edit. Run after the issue data from 1.1 is in hand; passes are independent (read their sources in any order or in a single batch). **The issue body these passes read is the §1.1 cache** (`.prflow/tmp/issue-body/issue-$ISSUE_NUMBER.md`, read back in §1.1) — no re-fetch; on the degraded arm where no cache was written, use the body you fetched in §1.1's degraded fallback. Record each finding **immediately** when its pass completes, as a `## Progress` line via `workpad.py update $ISSUE_NUMBER --note "issue-claim audit ({type}): {finding}"`, so a compaction, an auto-resume, or a Blocked stop mid-audit never loses the passes already recorded. A clean confirmation is a `--note`, **not a reflection**: it carries no friction signal, and a reflection is the expensive-but-loud surface that trips the retrospective cheap gate. The per-arm exceptions below re-kind a *finding* — a wrong issue claim (`--reflection-kind issue-accuracy`), punted work (`--reflection-kind deferred`), or a hard stop (`--status Blocked --reflection-kind blocked`) — to a reflection; only clean/confirm arms stay `--note`.
+Before Phase 2 begins, operationalise the Phase 2.1 principle that "the issue body is a starting point, not the source of truth" with the targeted pre-checks below, which catch wrong scope, policy, dependency, and execution-capability assumptions before any code edit. The **pass procedure runs in a dispatched subagent** (`prflow:issue-claim-auditor`, `agents/issue-claim-auditor.md`) that shares this checkout and records each pass on the workpad as it runs; the **decision stays here**. Run this after the issue data from 1.1 is in hand.
 
-**Scope:** the explicitly-defined claim types below only. Do not attempt to verify every sentence in the issue body — open-ended verification creates a runaway discovery loop and produces false-positive discrepancies on subjective or aspirational claims.
+**Scope:** the auditor verifies the explicitly-defined claim types only (count/enumeration, negative-scope, policy, execution-capability, verified-premise) — never every sentence in the issue body, which creates a runaway discovery loop and false positives on subjective claims.
+
+**Commit any uncommitted tree state before dispatching (issue #1254).** The auditor works in this orchestrator's own checkout, so a version-control command it runs inside its own cycle is scoped to a path rather than to its edit and would discard whatever you left uncommitted. Confirm the tree with `git status --porcelain` and commit anything not already committed (a `feat:`/`docs:` commit as appropriate) **before** the dispatch. When the tree state cannot be established, establish it (`git status --porcelain`) before dispatching at all; when the run holds work it must deliberately not commit, park it under a recorded handle and restore it after the auditor returns, or do not dispatch and record `Blocked` naming the uncommittable work.
 
 #### Fresh-tree verification (read-target rule + cross-pass coherence rule)
 
-Every pass below *reads the tree* to adjudicate a claim, and a stale checkout answers about the wrong snapshot while every read succeeds — the failure is invisible. Two rules govern any read here that adjudicates a claim about **already-shipped work** (a "shipped/landed in PR #N" annotation, a "this artifact already exists on the base" premise). Both rules also live at Phase 2.1 (phase-2-implement.md) — **they are coupled mirror sites carrying the two bullets below byte-identically; edit and pin them together, and never paraphrase one from the other.**
+Every pass the auditor runs *reads the tree* to adjudicate a claim, and a stale checkout answers about the wrong snapshot while every read succeeds — the failure is invisible. Two rules govern any read there that adjudicates a claim about **already-shipped work** (a "shipped/landed in PR #N" annotation, a "this artifact already exists on the base" premise). Both rules also live at Phase 2.1 (phase-2-implement.md) — **they are coupled mirror sites carrying the two bullets below byte-identically; edit and pin them together, and never paraphrase one from the other.** The orchestrator passes the auditor the recorded freshness state (`FRESHNESS`) so it applies them correctly.
 
 - **Read-target rule.** When the adopted branch is behind `origin/$BASE` (per Phase 1.4's recorded behind-by count) — **unconditionally when Phase 1.4 marked freshness unverified, and equally when no freshness record is present at all** (Phase 1.4's workpad write is best-effort, so an absent record means freshness was **never established**, not that the tree is fresh: **a missing record reads as unverified**, never as behind-by-0) — a code-wins read that adjudicates a shipped-work claim targets `origin/$BASE` state (`git show origin/$BASE:<path>`, and tree reads only after reconciling with the fetched base), **never the unfetched fork point**. This rule governs which ref verification *reads*; the working branch is instead **reconciled at the Phase 1.4 update-branch checkpoint** (`scripts/update-branch-checkpoint.sh`, the sanctioned reconciliation point — phase-1-setup.md §1.4.1), and this read-target rule (with the cross-pass-coherence rule below) remains in force whenever that checkpoint's outcome is neither `UPDATED` nor `UP_TO_DATE` — i.e. the branch is still behind or its freshness is unverified.
 - **Cross-pass coherence rule.** Before any "shipped/landed in PR #N" claim is **REFUTED** from tree reads, resolve PR #N's merge state and `merge_commit_sha` (the SHA is the response's `.mergeCommit.oid`) with a read-only `gh pr view N --json state,mergeCommit`; when the PR is **MERGED** and `git merge-base --is-ancestor <merge_commit_sha> HEAD` reports the merge commit is **not** an ancestor of the current checkout, the verdict is **"checkout stale — refresh and re-verify"**, never "code wins". Every **indeterminate** outcome (a shallow history where the ancestor check errors, a failed `gh pr view`) takes the **same** stale-suspect verdict — a refutation **requires a positively-fresh tree**. The **false refutation** (a true "already shipped in PR N" claim REFUTED against a 43-hours-stale adopted checkout, re-implementing merged work into a dirty merge — while the same run's dependency note said "PR N MERGED, safe to build on") is the canonical example the freshness qualifier and this rule exist to make unreachable.
 
-#### Pass 1 — Count or enumeration claims
+#### Dispatch the auditor
 
-Scan the issue body's Technical Context and Implementation Notes for numeric claims about codebase entities — file counts, skill counts, directory counts, item lists (e.g. "N skill directories", "four agents", "the five validators"). For each, verify against the actual codebase via `git ls-files`, `ls`, or grep:
+Use the **Agent tool** with `subagent_type: prflow:issue-claim-auditor` and `run_in_background: false` (its return must be in hand this turn — a launch acknowledgment is never the return). The auditor dispatches nothing of its own. Pass in its prompt, as literals you already hold:
 
-```bash
-# Adapt to the specific entity the issue names:
-git ls-files 'skills/*/SKILL.md' | wc -l   # skill count
-# This block runs under the AGENT's shell (zsh/dash/sh), and an unquoted glob must survive
-# zsh's default `nomatch`, which would otherwise refuse the command outright and leave a
-# SKIPPED enumeration looking like an empty one. The guard turns nomatch off under native
-# zsh and is a no-op elsewhere ($ZSH_VERSION unset -> `&&` short-circuits, `|| :` stays rc-0).
-# With nomatch off an unmatched glob leaves $1 the literal pattern, so `[ -e "$1" ]` decides
-# match-vs-no-match structurally: no `2>/dev/null` to hide a real error, and exactly one of
-# the three arms can print. The second arm separates a PERMISSION-unlistable parent
-# from a genuinely empty one, testing mode bits only (the read bit to name the entries, the
-# search bit to stat them for the trailing `/`), so an entry or parent that fails for another reason
-# (dead mount, EIO) still reaches the empty arm. All three arms print on stdout so a caller
-# capturing stdout can tell "nothing here" from "could not look".
-# Unhandled: bash's `failglob`, where an unmatched pattern aborts `set --` before it runs.
-# When adapting, change only the glob (keep the `<parent>/*/` shape): `d` is derived from it,
-# so the guard and the message cannot drift onto a directory the glob does not name.
-[ -n "${ZSH_VERSION:-}" ] && setopt nonomatch || :
-set -- agents/*/
-d=${1%/*/}
-if [ -e "$1" ]; then
-  printf '%s\n' "$@"
-elif [ -d "$d" ] && { [ ! -r "$d" ] || [ ! -x "$d" ]; }; then
-  echo "($d/ is not listable - count NOT established)"
-else
-  echo "(no matching directories)"
-fi
-```
+- `ISSUE_NUMBER` — the issue number (`$ISSUE_NUMBER`).
+- `WORKPAD` — the `workpad.py` helper path this tier uses as a leading token (the vendored literal `.prflow/vendor/prflow/scripts/workpad.py` on the cloud tier; the resolved `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py` on the local tier).
+- `SCRIPTS` — the same bundled-helper directory prefix (for `check-verified-premises.py`), and the repo root for `--repo-root`.
+- `ISSUE_BODY_PATH` — the §1.1 cache path `.prflow/tmp/issue-body/issue-$ISSUE_NUMBER.md` when the cache was written; on the degraded arm where no cache was written, paste the full issue body inline and say so (the auditor has `Bash` but must not re-fetch a body the run already holds).
+- `BASE` — `$BASE` (the §1.4 base branch; `origin/$BASE` is the read target under the read-target rule).
+- `FRESHNESS` — `fresh` / `unverified` / `behind-<n>`, from Phase 1.4's recorded behind-by count (an absent record reads as `unverified`).
+- `GITHUB_ACTIONS` and `DEVFLOW_APP_ID` — the two routing signals Pass 5 keys on, read from this run's environment (instruct the auditor to use these values, not a live credential probe).
+- The GitHub issue title and labels inline.
 
-Record by outcome: when the **counts match**, record via `--note "issue-claim audit (count): claimed '{N} X', verified '{M}' at HEAD"` (a clean confirmation — a `## Progress` note). When the **counts differ**, the issue's claim was wrong, so record that as issue-accuracy feedback: `--reflection-kind issue-accuracy --reflection "issue-claim audit (count): claimed '{N} X', verified '{M}' at HEAD — using the verified count"`. Use the verified count as the working assumption from Phase 2 onward; discard the issue body count when they differ. If no count or enumeration claims are found in the issue body, record: `--note "issue-claim audit (count): no count or enumeration claims found — pass complete"`.
+#### The returned record (read all four items — a bare verdict is insufficient)
 
-#### Pass 2 — Negative-scope claims (explicit surface exclusions)
+The auditor returns an `ISSUE-CLAIM-AUDIT RECORD` block carrying at least:
 
-Scan the issue body's Technical Context for claims that explicitly exclude a surface from scope — "no X is required", "no workflow change", "no runtime change", "no agent modification". For each exclusion, trace whether the change the issue proposes to make could affect that surface.
+- **`outcome`** — `proceed` / `blocked-policy` / `blocked-capability` (the overall Blocked/proceed outcome).
+- **`pass5_workflow_resident_acs`** — the AC identifiers Pass 5 flagged as workflow-resident (the capability-blocked set Phase 2.2.5 combines with its own plan-time recheck).
+- **`pass2_wrongly_excluded_surfaces`** — any surface Pass 2 found wrongly excluded by the issue's negative-scope claims, since it mutates Phase 2's plan.
+- **`superseding_assumptions`** — any Pass 1 verified-count correction and Pass 6 refuted premise that supersedes the issue body as Phase 2's working assumptions.
 
-**Cloud-tier workflow impact check (mandatory when editing any `skills/*/SKILL.md`).** When any `skills/*/SKILL.md` is being added or modified, check each of the two cloud workflow families this checkout may have — the repo's own workflow directory and the vendored copy — separately. The fence below only **prints** each family's `TOOLS=` lines; you perform the check by reading them.
+Phase 4.0's dependency is indirect — it reads the durable workpad note Phase 2.2.5 writes, not this record — so the auditor writing the same per-pass `## Progress` notes and reflections keeps Phase 4.0 unchanged.
 
-```bash
-[ -n "${ZSH_VERSION:-}" ] && setopt nonomatch || :
-for d in .github/workflows .prflow/vendor/prflow/.github/workflows; do
-  FAMILY_FOUND=0
-  FAMILY_HITS=0
-  FAMILY_UNREADABLE=0
-  FAMILY_NOGREP=0
-  for f in "$d"/*.yml "$d"/*.yaml; do
-    [ -e "$f" ] || continue
-    FAMILY_FOUND=1
-    grep -n 'TOOLS=' /dev/null "$f"; RC=$?
-    case "$RC" in
-      0) FAMILY_HITS=1 ;;
-      1) : ;;
-      2) FAMILY_UNREADABLE=1; echo "$f: unreadable — check NOT applicable for this file" ;;
-      *) FAMILY_NOGREP=1; echo "$f: grep did not run (status $RC) — this file is UNCHECKED, not gap-free" ;;
-    esac
-  done
-  if [ "$FAMILY_FOUND" = 0 ] && [ -d "$d" ]; then
-    echo "$d: directory present but no .yml/.yaml file of it could be listed — this family is UNCHECKED, not gap-free"
-  elif [ "$FAMILY_FOUND" = 0 ]; then
-    echo "$d: family absent here — check NOT applicable for this family (NOT a no-impact result)"
-  else
-    [ "$FAMILY_UNREADABLE" = 1 ] && echo "$d: file(s) above were unreadable — this family is PARTIALLY UNCHECKED, not gap-free" || :
-    [ "$FAMILY_NOGREP" = 1 ] && echo "$d: grep did not run for file(s) above — this family is PARTIALLY UNCHECKED, not gap-free" || :
-    if [ "$FAMILY_HITS" = 1 ]; then
-      echo "$d: TOOLS= lines printed above — read them now"
-    elif [ "$FAMILY_UNREADABLE" = 1 ] || [ "$FAMILY_NOGREP" = 1 ]; then
-      echo "$d: no TOOLS= line in the files that were checked — this family is NOT gap-free"
-    else
-      echo "$d: scanned, no TOOLS= line in any file of this family"
-    fi
-  fi
-done
-```
+#### Act on the record (the decision is yours, not the auditor's)
 
-Compare every shell helper the skill newly invokes against the printed `TOOLS=` lines, family by family: a helper absent from a present family's lines is that family's allowlist gap, and a helper missing from an allowlist is silently refused at run time. The fence reaches no verdict — a family printing lines is not a no-impact result, and neither is an absent family, a family whose directory could not be listed, nor a family reported PARTIALLY UNCHECKED or NOT gap-free, whose unreadable files — or files `grep` never ran on — were not checked at all. If the trace finds a required change the issue excluded, the issue's exclusion claim was wrong — record it as issue-accuracy feedback: `--reflection-kind issue-accuracy --reflection "issue-claim audit (negative-scope): issue excluded '{surface}' but trace requires it — adding to plan"`, then add the missed surface to the working plan before 2.2 begins. If the trace confirms the exclusion is correct (no impact on that surface), record: `--note "issue-claim audit (negative-scope): issue excluded '{surface}'; trace confirms no impact"`. If the issue body contains no scope-exclusion claims, record: `--note "issue-claim audit (negative-scope): no scope-exclusion claims found — pass complete"`.
+- **`outcome: proceed`** → continue to §1.5/Phase 2. Carry the record forward: hand `pass5_workflow_resident_acs` to Phase 2.2.5's scope-adjustment, add each `pass2_wrongly_excluded_surfaces` entry to the working plan before §2.2, and adopt every `superseding_assumptions` entry as Phase 2's working assumption (discarding the superseded issue-body claim).
+- **`outcome: blocked-policy`** (a Pass 3 AC-vs-policy contradiction) → do **not** proceed to Phase 2. Fill the record's `blocked_reason` into `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --status Blocked --reflection-kind blocked --reflection "issue-claim audit (policy): AC claims '{AC text}' but operative policy in {file} states '{policy text}' — contradiction requires user resolution before Phase 2"`, then emit the 👎 outcome reaction (see *Outcome reaction* in the Workpad Reference), remove the run marker, and stop the run.
+- **`outcome: blocked-capability`** (Pass 5 found every in-scope acceptance criterion is workflow-resident and this cloud run's `GITHUB_TOKEN` fallback cannot push it) → do **not** open a near-empty PR. Record `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --status Blocked --reflection-kind blocked --reflection "issue-claim audit (execution-capability): every in-scope acceptance criterion requires editing .github/workflows/, which this cloud run's GITHUB_TOKEN fallback (no workflow-capable App token; DEVFLOW_APP_ID unset) cannot push — this issue must be implemented by a workflows-capable run (a human/PAT, or a cloud run with the DevFlow App configured). Re-dispatch there; no PR opened"`, then emit the 👎 outcome reaction and stop the run.
 
-#### Pass 3 — Policy-referencing claims in ACs
-
-Scan the issue's Acceptance Criteria for explicit policy directives — versioning rules ("default no version bump"), testing process requirements, or any AC that names a policy file as the authority. For each, read the operative policy source verbatim:
-
-- `.prflow/prompt-extensions/implement.md` — versioning and bump increment rules
-- `CLAUDE.md` — repo conventions
-
-When an AC claim contradicts the operative policy, do not proceed to Phase 2. Record the contradiction: `workpad.py update $ISSUE_NUMBER --status Blocked --reflection-kind blocked --reflection "issue-claim audit (policy): AC claims '{AC text}' but operative policy in {file} states '{policy text}' — contradiction requires user resolution before Phase 2"`, then emit the 👎 outcome reaction (see *Outcome reaction* in the Workpad Reference) and stop the run.
-
-When the AC claim matches the policy, record the confirmation: `--note "issue-claim audit (policy): AC aligns with {file}"`. If the issue's ACs contain no explicit policy directives, record: `--note "issue-claim audit (policy): no policy-referencing AC claims found — pass complete"`.
-
-> The former **Pass 4** (declared-dependency detection) runs earlier, at **§1.3.5**, so the gate precedes any branch side effect. Pass 5 keeps its number, which Phase 2.2.5 / 2.3 / 4.0 reference.
-
-#### Pass 5 — Execution-capability claims (workflow-resident ACs vs. the executing credential)
-
-Scan the Acceptance Criteria for any criterion whose satisfaction requires **editing a file under the repo's own `.github/workflows/`** — a workflow YAML, or a file coupled to that edit that cannot ship without it (most commonly a coupled test-suite pin that asserts workflow content and turns CI red the moment the workflow change is missing; the project's own coupled-pin recognizer lives in the implement prompt extension). This pass converts the CLAUDE.md-documented credential boundary — "workflow changes land via a human/PAT, not an agent run" — into a plan-time routing decision, so a workflow-resident AC is deferred here rather than discovered at push time after a full commit has already been built.
-
-**Static, never a live probe.** Like the passes above, this pass is best-effort and static: match each AC's target surface against the repo's `.github/workflows/` by reading the **AC text and the surfaces it implies** — do **not** run a `gh`/API probe to test the token's actual scope, which the interactive-tier classifier can deny and which would turn a diagnostic into a new Phase 1 failure mode.
-
-**Mechanism — read the two routing signals from the environment.** Read `GITHUB_ACTIONS` (cloud-tier detector) and `DEVFLOW_APP_ID` (workflow-capable-credential detector) — e.g. `[ "${GITHUB_ACTIONS:-}" = "true" ]` and `[ -n "${DEVFLOW_APP_ID:-}" ]`. Reading an exported environment value is offline and auth-free, so it is outside the live-probe ban above; without these two values the pass has no signal to key on and silently no-ops toward *proceed*.
-
-**Phase 1.6 records a *provisional* capability flag; Phase 2.2.5 confirms it against the actual planned diff.** This pass runs before Phase 2 planning, so detection here is necessarily from the AC text and the surfaces it names (an AC that names a workflow file, requires CI to go red/green on a workflow change, or names a coupled test-suite pin). An AC whose workflow-residence surfaces **only during implementation** is caught at **Phase 2.2.5**, which re-evaluates the capability decision against the concrete planned diff before any code is written. If implementation itself (Phase 2.3) later reveals a required `.github/workflows/` edit that neither filter caught, re-apply the 2.2.5 scope-adjustment **then, before committing**, so a capability-blocked AC is never carried to push time on the cloud tier.
-
-**Key the routing decision on the pushing credential's actual capability, not on the tier or the path alone** — keying on the tier alone (cloud ⇒ defer) spuriously defers deliverable workflow work on the App-configured cloud tier, and keying on the path alone would wrongly split local work. Whether a `.github/workflows/` push succeeds turns on the credential:
-
-- A **local/interactive-tier** run (no `GITHUB_ACTIONS`) pushes workflow files routinely (a human credential landed that way).
-- A **cloud-tier** run's capability depends on whether a **workflow-capable token** is in play. DevFlow's `devflow-implement` workflow mints an optional GitHub App installation token (Contents **and** Workflows write) and seeds it into `actions/checkout` **when — and only when — the `DEVFLOW_APP_ID` repository variable is set**; the workflow exports that variable to this run as the `DEVFLOW_APP_ID` environment value. When **`DEVFLOW_APP_ID` is non-empty**, the seeded App token carries the `workflows` scope and this run pushes `.github/workflows/` exactly like a human run — **do NOT defer.** When **`DEVFLOW_APP_ID` is empty/unset**, the run falls back to the built-in `GITHUB_TOKEN` (github-actions[bot]), which **cannot** push `.github/workflows/` — that is the one enumerated blocked capability.
-
-**Defer only when you can positively confirm the pushing credential cannot push a workflow file — i.e. a cloud-tier run (`GITHUB_ACTIONS=true`) whose `DEVFLOW_APP_ID` is empty/unset.** In every other case — a local/interactive run (no `GITHUB_ACTIONS`), or a cloud run whose `DEVFLOW_APP_ID` is non-empty — the pass reads the credential as workflow-capable, so record the finding as a note and proceed; neither defer nor block.
-
-**When a discriminating signal is genuinely unreadable, proceed — do not defer. An empty `DEVFLOW_APP_ID` is NOT an "unreadable" signal — on the cloud tier it is the positively-read DEFER signal.** Because the workflow always exports the variable (empty-valued when unset), the shell-level `[ -z "$DEVFLOW_APP_ID" ]` collapse of *empty* and *absent* does **not** apply: tie "unreadable" to **`GITHUB_ACTIONS` itself being absent** (a non-cloud environment where the workflow never ran to export anything). Concretely: `GITHUB_ACTIONS=true` + empty `DEVFLOW_APP_ID` ⇒ **defer**; the "unreadable → proceed" arm fires **only** when `GITHUB_ACTIONS` is absent/unreadable. Never route an empty-but-present `DEVFLOW_APP_ID` to the proceed arm. A spurious deferral silently under-delivers shippable workflow work, whereas a genuinely-unpushable workflow edit that slips through fails loudly at push time.
-
-**Match only the repo's *own* `.github/workflows/`.** A vendored consumer copy under `.prflow/vendor/prflow/.github/workflows/` is an ordinary pushable file, not a workflow the executing token gates — never treat a vendored-path edit as capability-blocked.
-
-Route by capability (the deferral arms below are the **cloud-tier, `DEVFLOW_APP_ID`-empty** case — the only case whose credential cannot push a workflow file):
-
-- **Credential is workflow-capable** — a local/interactive run (no `GITHUB_ACTIONS`) **or** a cloud run whose `DEVFLOW_APP_ID` is non-empty → record the finding as a note and proceed; never defer, never block. `--note "issue-claim audit (execution-capability): credential is workflow-capable — workflow-file ACs are pushable by this run; no deferral"` (or, when no AC touches workflows, `--note "issue-claim audit (execution-capability): no workflow-resident acceptance criteria found — pass complete"`).
-- **Cloud tier, `DEVFLOW_APP_ID` empty, but no in-scope AC is workflow-resident** → record the clean confirmation and proceed: `--note "issue-claim audit (execution-capability): cloud tier — no acceptance criterion requires editing .github/workflows/; nothing to defer"`.
-- **Cloud tier, `DEVFLOW_APP_ID` empty, some but not all in-scope ACs are workflow-resident** → route every capability-blocked AC through the Phase 2.2.5 scope-adjustment **before Phase 2.3 writes any code**: narrow the workpad ACs to the pushable subset, and preserve each deferred criterion verbatim in the 2.2.5 `--note` with the `GITHUB_TOKEN`-fallback workflows-scope boundary (no workflow-capable App token; `DEVFLOW_APP_ID` unset) named as the reason (Phase 4.0 then files the workflows-capable follow-up). Treat a coupled test-suite pin (or any file) that asserts the deferred workflow's content as **blocked with it**, so the pushable subset stays CI-green on its own. This arm defers punted work, so record it as a `deferred` reflection: `--reflection-kind deferred --reflection "issue-claim audit (execution-capability): cloud tier — ACs {list} require editing .github/workflows/ (incl. coupled CI pins), which this run's GITHUB_TOKEN fallback (no workflow-capable App token; DEVFLOW_APP_ID unset) cannot push; deferring via 2.2.5 to a workflows-capable follow-up"`.
-- **Cloud tier, `DEVFLOW_APP_ID` empty, every in-scope AC is workflow-resident** → there is no shippable subset, so take the Phase 1 Blocked path instead of opening a near-empty PR: `workpad.py update $ISSUE_NUMBER --status Blocked --reflection-kind blocked --reflection "issue-claim audit (execution-capability): every in-scope acceptance criterion requires editing .github/workflows/, which this cloud run's GITHUB_TOKEN fallback (no workflow-capable App token; DEVFLOW_APP_ID unset) cannot push — this issue must be implemented by a workflows-capable run (a human/PAT, or a cloud run with the DevFlow App configured). Re-dispatch there; no PR opened"`, then emit the 👎 outcome reaction (see *Outcome reaction* in the Workpad Reference) and stop the run.
-
-**Boundary-assumption caveat (state it in the note).** The deferral fires on the two observable signals `GITHUB_ACTIONS=true` + empty `DEVFLOW_APP_ID`, which the pass reads as the `GITHUB_TOKEN` fallback (github-actions[bot], no `workflows` scope) — it cannot see the actual credential. A consumer whose cloud run carries that scope without setting `DEVFLOW_APP_ID` (a bespoke PAT-seeded checkout) is **spuriously deferred**; it suppresses the deferral by overriding this pass via `.prflow/prompt-extensions/implement.md`, which forces the *proceed* arm — do **not** add a config key for it. A set-but-unscoped `DEVFLOW_APP_ID` likewise does **not** defer here, so that push fails at push time. Name the observed `DEVFLOW_APP_ID`/tier signals in the cloud-tier note so the deferral reads as an auditable plan-time decision.
-
-#### Pass 6 — Verified-premise re-check
-
-A `Verified:` bullet licenses this run to *skip its own investigation*, so a premise that has gone stale since the issue was drafted silently converts "go and check" into "this was already checked".
-
-**Scope: every `Verified:` bullet the helper's marker recognises**, not only the ones the plan expects to lean on — the run cannot know in advance which premise a later phase will rest on. `scripts/check-verified-premises.py`'s marker is the definition of what counts as a bullet, and **a bullet written in a spelling it does not recognise is invisible to this pass** — it contributes nothing to `total=`, so read `total=` as a floor on the bullets present, never as proof that the issue carried no others.
-
-**Mechanism.** Run the bundled helper over the §1.1 cache — no re-fetch:
-
-```bash
-DEVFLOW_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/check-verified-premises.py --body-file "$DEVFLOW_ROOT/.prflow/tmp/issue-body/issue-$ISSUE_NUMBER.md" --repo-root "$DEVFLOW_ROOT"
-```
-
-Pass `--repo-root` explicitly, as above: it names the tree to adjudicate against, so the helper never has to guess one from the current working directory. **This fence carries no `|| pwd` fallback**, unlike the other repo-root resolutions in this file: `--repo-root` is only checked for being a directory, which `pwd` always satisfies, so a cwd fallback would hand the helper an arbitrary tree in which every cited path is absent — turning an unresolvable root into a mass **refutation** (exit 2) against true premises. An empty `--repo-root` routes instead to the helper's own fail-closed default and the exit-3 arm below. On the degraded arm where §1.1 wrote no cache, write the body you fetched in §1.1's degraded fallback to a file and pass that path instead. On a local runner that refuses the direct helper path, use the documented fallback `python3 <resolved helper path> --body-file … --repo-root "$DEVFLOW_ROOT"`.
-
-The helper prints one `bullet=<n> handle=<path-quote|path|quote|command|none> state=<holds|refuted|unestablished> detail=…` line per bullet, then a `VERIFIED_PREMISES total=… holds=… refuted=… unestablished=…` summary. Exit **0** = nothing refuted (this includes a body with no bullets, and a body whose bullets are merely unestablished); exit **2** = at least one premise REFUTED; exit **3** = the measurement could not be established at all, for any of several causes it names in a `reason=` field (an unreadable or empty body, an unusable repository root, and a bad invocation are among them — the helper's own `Exit codes` docstring is the definition of the set, and like the marker set above it is a **floor**, not a closed list you should reconcile arms against).
-
-Route by outcome:
-
-- **Exit 0 with `total=0`** → record the falsifiable zero-findings note: `--note "issue-claim audit (verified-premise): no Verified: bullets found in the issue body — pass complete"`.
-- **Exit 0** → record the clean confirmation naming the tallies: `--note "issue-claim audit (verified-premise): re-checked {N} Verified: bullet(s) at HEAD — {H} hold, {U} unestablished; no premise refuted"`.
-- **Exit 2 (a REFUTED premise)** → the issue's claim was wrong, so this is issue-accuracy feedback, not a hard stop: `--reflection-kind issue-accuracy --reflection "issue-claim audit (verified-premise): bullet {n} is REFUTED at HEAD ({detail}) — discarding that premise and investigating the surface directly"`. **Discard the refuted premise** and investigate that surface yourself from Phase 2 onward; never build on it. This arm does **not** Block the run — a stale premise is recoverable by investigation.
-- **Exit 3, a refusal, or no output at all** → the measurement was never established, so fail closed to ordinary investigation: `--reflection-kind dropped-failed --reflection "issue-claim audit (verified-premise): the re-check could not be established ({cause}) — every Verified: bullet is treated as unverified and its premise re-investigated from first principles"`. Never read an unestablished measurement as a clean pass.
-
-**`handle=none` / `state=unestablished` bullets are undecided, not refuted.** They restore exactly the state the run would have been in had the bullet never existed — go and check.
-
-**Security boundary.** The helper never executes a command drawn from the issue body (third-party text), so a `handle=command` bullet is *reported* for you to re-run under your own judgment.
-
-This pass reads the tree to adjudicate a claim, so §1.6's **Fresh-tree verification** rules above bind it: never report a bullet refuted off a stale checkout.
+**If the auditor dispatch fails or returns no usable record**, record `--reflection-kind dropped-failed` naming the failure and run the passes inline yourself from `agents/issue-claim-auditor.md` (the procedure is preserved there) as the fallback — never skip the audit silently.
 
 <!-- prflow:implement-ref phase=1 file=skills/implement/phases/phase-1-setup.md end -->
