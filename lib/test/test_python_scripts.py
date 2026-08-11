@@ -12061,6 +12061,10 @@ _MIGRATED_FILES = (
     "skills/implement/references/deferred-review-findings.md",
     "skills/review-and-fix/references/loop-control.md",
     "skills/review-and-fix/references/loop-exit.md",
+    # issue #1582 moved §1.4's branch-setup procedure (its title-file scratch write among it)
+    # into this dispatched agent, which writes only under .prflow/tmp/ — bind it to the same
+    # no-bare-/tmp guard.
+    "agents/branch-setup.md",
 )
 _bare_tmp = 0
 for _mf in _MIGRATED_FILES:
@@ -12076,7 +12080,10 @@ assert_eq("#915: no bare-/tmp scratch target remains in the migrated files",
 # in its OWN file, so a deleted line cannot satisfy the absence check alone.
 # (Maps to the stems-present criterion.)
 _STEM_HOMES = {
-    "skills/implement/phases/phase-1-setup.md": ("acs-", "devflow-issue-", "-title.txt"),
+    # issue #1582 moved the §1.4 branch-creation title-file write (devflow-issue-*-title.txt)
+    # into agents/branch-setup.md; phase-1-setup.md keeps only its §1.2 acs- scratch.
+    "skills/implement/phases/phase-1-setup.md": ("acs-",),
+    "agents/branch-setup.md": ("devflow-issue-", "-title.txt"),
     "skills/implement/phases/phase-2-implement.md": ("repro-", "plan-", "narrowed-acs-"),
     # issue #1374 moved §4.0.5's filing procedure into its own gated reference, and the two
     # deferrals captures went with the fence that writes them; issue #1554 then moved §4.1's
