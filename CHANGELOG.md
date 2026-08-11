@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.33] — 2026-08-11
+
+### Changed
+Dispatch Phase 1.4's branch resume-precheck, reuse-or-create signals, feature-branch creation, and §1.4.0.5 Verdict-B classification to a new first-party `branch-setup` subagent that shares the orchestrator's checkout, shrinking `skills/implement/phases/phase-1-setup.md` (re-read on every Phase 1 entry) while keeping the §1.4.1 checkpoint contract, its invocation, and §1.5 orchestrator-inline (#1582, PR #1589).
+
 ## [2.32.32] — 2026-08-11
 
 ### Changed
