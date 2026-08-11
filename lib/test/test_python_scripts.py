@@ -2165,9 +2165,13 @@ for _st, _phase in (('Setup', 'Setup'), ('Reviewing', 'Review'),
               _note_i is not None)
     # The after-rows ordering assertion applies only to a phase that owns extension
     # rows; Documentation owns none (issue #1577), so there is no row to land after.
-    if _row_is:
+    # Gate on the phase's KNOWN ownership from _XR, not the observed _row_is: a phase
+    # _XR says owns rows must still render them (bool(_row_is)) and land the note after
+    # them, so a rendering regression that vanished Setup's/Review's rows still fails
+    # here rather than being silently skipped.
+    if any(p == _phase for p, t, s in _XR):
         assert_eq(f"#1462 a {_st} note lands after that phase's extension row(s)", True,
-                  _note_i is not None and _note_i > max(_row_is))
+                  _note_i is not None and bool(_row_is) and _note_i > max(_row_is))
 
 # --- reconciliation repairs a pre-change workpad, idempotently ---------------
 # Fixture 1: a `## Progress` predating the rows (none present).
