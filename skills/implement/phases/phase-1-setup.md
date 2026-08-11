@@ -365,7 +365,7 @@ Every other token is handled exactly as §1.4.1 states, including the `PUSH_REJE
 - **The tier refused to run the invocation** — a local-tier classifier denial message, an rc 127, or a **silent** cloud matcher denial (which reports nothing at all, so it is indistinguishable from the case below; at this checkpoint both take the same degraded-continue arm). The checkpoint never ran, so there is no token to route: record `workpad.py update $ISSUE_NUMBER --reflection-kind note --reflection "Phase 1.4 checkpoint 1: the update-branch-checkpoint invocation was refused by this tier (<denial/rc 127>) — the branch was not reconciled with the base this run; the read-target and cross-pass-coherence rules stay in force"` and **continue** — a permission boundary must not end the run at Phase 1.
 - **The invocation ran but no line's leading word is a member of the helper's token set** — the observable discriminator, because the helper rebinds fd 1 to stderr and a successful invocation is never silent. Treat it exactly as `UNVERIFIED`: record the degraded reflection and continue with the tree unvouched.
 
-**Cloud-emission discipline** as stated at §1.4.0.5 above applies unchanged to this invocation.
+**Cloud-emission discipline** — invoke this checkpoint helper as the repo-relative vendored-literal leading token (never a `VAR=value` prefix, a `bash <path>` wrapper, or a `>`-redirect), per SKILL.md's *Cloud command-shape discipline*.
 
 ### 1.5 Push Branch
 
