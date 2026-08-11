@@ -1,0 +1,21 @@
+{
+  "iter": 1,
+  "source": "review",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "detect_all_audit": false
+  },
+  "checklist": [],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:comment-analyzer",
+    "prflow:silent-failure-hunter",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [],
+  "telemetry": "unavailable",
+  "synthesized": false
+}
