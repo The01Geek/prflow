@@ -153,11 +153,21 @@ def reconcile(evidence_records, claim_records):
 
 
 def _load_report(path):
+    """Load one verifier report, accepting either shape the verifiers may emit.
+
+    A verifier prints `{"criteria": [ ... ]}` (its documented output), but the
+    orchestrator may hand us the already-unwrapped `criteria` list; accept both so a
+    faithful orchestrator is not defeated by which form it happened to write.
+    """
     with open(path, encoding="utf-8") as fh:
         data = json.load(fh)
-    if not isinstance(data, list):
-        raise ValueError(f"{path}: expected a JSON list of verifier records")
-    return data
+    if isinstance(data, dict) and isinstance(data.get("criteria"), list):
+        return data["criteria"]
+    if isinstance(data, list):
+        return data
+    raise ValueError(
+        f"{path}: expected a JSON list of verifier records, or an object with a "
+        f"'criteria' list")
 
 
 def main(argv=None):

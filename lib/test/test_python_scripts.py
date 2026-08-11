@@ -29329,6 +29329,28 @@ assert_eq("#1575 criterion missing from one report reconciles unestablished",
 assert_eq("#1575 empty reports do not report all_satisfied",
           False, reconcile_ac.reconcile([], [])["all_satisfied"])
 
+# _load_report accepts BOTH the verifier's documented `{"criteria": [...]}` object
+# and an already-unwrapped bare list — the producer (agents/ac-*-verifier.md) emits the
+# object form, so the boundary must not require the orchestrator to unwrap it first.
+with tempfile.TemporaryDirectory() as _rd:
+    _obj_path = os.path.join(_rd, "obj.json")
+    _list_path = os.path.join(_rd, "list.json")
+    with open(_obj_path, "w", encoding="utf-8") as _fh:
+        _fh.write('{"criteria": [{"criterion": 1, "status": "unmet", "evidence": ""}]}')
+    with open(_list_path, "w", encoding="utf-8") as _fh:
+        _fh.write('[{"criterion": 1, "status": "unmet", "evidence": ""}]')
+    assert_eq("#1575 _load_report accepts the object {criteria:[...]} form",
+              [{"criterion": 1, "status": "unmet", "evidence": ""}],
+              reconcile_ac._load_report(_obj_path))
+    assert_eq("#1575 _load_report accepts the bare list form",
+              [{"criterion": 1, "status": "unmet", "evidence": ""}],
+              reconcile_ac._load_report(_list_path))
+    _bad_path = os.path.join(_rd, "bad.json")
+    with open(_bad_path, "w", encoding="utf-8") as _fh:
+        _fh.write('"a scalar, not a report"')
+    assert_raises("#1575 _load_report rejects a non-list/non-criteria-object shape",
+                  ValueError, lambda: reconcile_ac._load_report(_bad_path))
+
 
 print()
 print(f"{PASS} passed, {FAIL} failed")
