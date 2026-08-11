@@ -615,16 +615,33 @@ So Phase 3.4 **dispatches two fresh-context verifiers in the same turn** and rou
 The orchestrator commits any uncommitted tree first (issue #1254's shared-checkout convention), resolves
 the extension-governed facts the verifiers need (the test command, the single-flight helper paths, the
 plugin root) and passes them **by value** into each dispatch prompt following the `[[PLUGIN_ROOT]]`
-pattern — **neither verifier reads or reloads the consumer prompt extension**. Each verifier reports one
-status per criterion (`satisfied`, `unmet`, or `unestablished`, never collapsing an `unestablished` onto
-either), dispatches no further subagent, and writes nothing to the workpad — the orchestrator performs
-every mutation.
+pattern — **neither verifier reads or reloads the consumer prompt extension**. Each verifier reports, per
+criterion, one status (`satisfied`, `unmet`, or `unestablished`, never collapsing an `unestablished` onto
+either) **and a `dispositions` object declaring what procedure it actually ran** (issue #1580): one entry
+per named step of that verifier's own charter — `type-decided`, `command-run`, `single-flight`,
+`evidence-recorded` for the evidence verifier; `claim-traced`, `command-source-read`, `evidence-recorded`
+for the claim verifier — each written `yes` or `no` followed by a one-clause reason. A stated **`no` is a
+permitted, fully discharging value**: the gate asks for a *stated* disposition, never a particular one. A
+slot left unstated (or stated without a parseable verdict-plus-reason) is **undischarged**, not compliant.
+Neither verifier dispatches a further subagent or writes anything to the workpad — the orchestrator
+performs every mutation, and records the whole gate's dispositions durably on the workpad once, before any
+criterion is ticked.
 
-The orchestrator reconciles the two reports per criterion through `scripts/reconcile-ac-verifiers.py`:
-**both verifiers agreeing records that status; any disagreement records `unestablished`** (never resolved
-by preferring one verifier), and a **`satisfied` never lands without an evidence pointer** from at least
-one verifier (a `satisfied` with no evidence, and an unreadable/malformed report at exit 3, both reconcile
-`unestablished`). A reconciled `unestablished` **blocks exactly as an unmet criterion blocks** — so a
+The orchestrator reconciles the two reports per criterion through `scripts/reconcile-ac-verifiers.py`.
+**The slot gate resolves first, per side, before the two statuses are paired:** a side that left any named
+charter step undispositioned is forced to `unestablished` up front, so a criterion **both** verifiers
+called `satisfied` still blocks whenever either failed to attest — an abbreviated check cannot ride the
+other verifier's agreement into `satisfied`. Only an *absent* record and a *duplicate-poisoned* one name no
+undischarged slots: each is a vote never usably cast (already blocking on its own), not an attestation
+failure. The paired rules then apply as before: **both verifiers agreeing records that status; any
+disagreement records `unestablished`** (never resolved by preferring one verifier), and a **`satisfied`
+never lands without an evidence pointer** from at least one verifier (a `satisfied` with no evidence, and
+an unreadable/malformed report at exit 3, both reconcile `unestablished`). The reconciled record carries
+`evidence_dispositions`, `claim_dispositions` and side-qualified `undischarged_slots` (e.g.
+`evidence:command-run`) so what each verifier did survives the dispatch return, plus
+`evidence_status_reported` / `claim_status_reported` — each side's own conclusion, retained even where the
+slot gate overrode it, so a criterion blocking on a real `unmet` stays distinguishable from one blocking
+only on an attestation gap. A reconciled `unestablished` **blocks exactly as an unmet criterion blocks** — so a
 verification command that passes while its assertions exercise a *different* claim than the criterion
 states reconciles `unestablished`, not `satisfied`. The routing below (the `(post-merge)` rules, the
 documentation-AC deferral, the in-env verification rule, the `Blocked` escalation) is **unchanged in

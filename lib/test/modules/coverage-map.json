@@ -594,7 +594,7 @@
     },
     "scripts/reconcile-ac-verifiers.py": {
       "focused_test": "lib/test/test_python_scripts.py",
-      "note": "issue #1575 Phase-3.4 two-verifier reconciliation core; every 3x3 status pairing, the no-evidence downgrade, and the #1450 command-passes-different-claim fixture are driven from the #1575 block in test_python_scripts.py",
+      "note": "issue #1575 Phase-3.4 two-verifier reconciliation core; every 3x3 status pairing, the no-evidence downgrade, and the #1450 command-passes-different-claim fixture are driven from the #1575 block in test_python_scripts.py, and the issue #1580 procedure-disposition gate (a missing slot forces unestablished, a stated `no` discharges) from the #1580 block beside it",
       "owner": "unmodularized"
     },
     "scripts/record-empty-branch.sh": {

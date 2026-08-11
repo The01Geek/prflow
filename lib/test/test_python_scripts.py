@@ -29707,6 +29707,27 @@ assert_eq("#1484 positive control: member 'ruff.exe' still establishes",
 # command that passes while the claim verifier disagrees does NOT reconcile satisfied.
 _R_STATUSES = ("satisfied", "unmet", "unestablished")
 
+# A #1575 fixture reaching reconcile() must attach a complete disposition set on both
+# sides, or the #1580 gate forces `unestablished` and the fixture stops testing status
+# reconciliation at all.
+def _disp_all(slots, verdict="yes"):
+    """A complete disposition map over `slots`, every slot dispositioned `verdict`."""
+    return {s: f"{verdict} (fixture: {s})" for s in slots}
+
+
+_R_EV_DISP = _disp_all(reconcile_ac.EVIDENCE_SLOTS)
+_R_CL_DISP = _disp_all(reconcile_ac.CLAIM_SLOTS)
+
+
+def _ev_recs(*records):
+    """#1575 evidence-side fixture records, each given a complete disposition set."""
+    return [dict(r, dispositions=_R_EV_DISP) for r in records]
+
+
+def _cl_recs(*records):
+    """#1575 claim-side fixture records, each given a complete disposition set."""
+    return [dict(r, dispositions=_R_CL_DISP) for r in records]
+
 for _es in _R_STATUSES:
     for _cs in _R_STATUSES:
         # Both sides carry an evidence pointer so a `satisfied` agreement is not
@@ -29744,14 +29765,14 @@ assert_eq("#1575 a bogus status disagreeing with satisfied is unestablished",
 # The #1450 fixture: a verification command PASSES (evidence=satisfied) while its
 # assertions test a DIFFERENT claim than the criterion states (claim=unmet). The
 # reconciled record must NOT be satisfied.
-_ev_report = [
+_ev_report = _ev_recs(
     {"criterion": 1, "status": "satisfied", "evidence": "suite passed on HEAD"},
     {"criterion": 2, "status": "satisfied", "evidence": "cmd exit 0"},
-]
-_cl_report = [
+)
+_cl_report = _cl_recs(
     {"criterion": 1, "status": "satisfied", "evidence": "each clause has an assertion"},
     {"criterion": 2, "status": "unmet", "evidence": "command asserts a different claim"},
-]
+)
 _recon = reconcile_ac.reconcile(_ev_report, _cl_report)
 _by = {c["criterion"]: c for c in _recon["criteria"]}
 assert_eq("#1575 fixture: agreeing satisfied criterion reconciles satisfied",
@@ -29770,10 +29791,13 @@ assert_eq("#1575 fixture: a satisfied criterion carries an evidence pointer",
 # criterion so the orchestrator routes the denied-command case from a field, not by
 # sniffing free text; it is dropped on a satisfied criterion (no routing to refine).
 _recon_reason = reconcile_ac.reconcile(
-    [{"criterion": 1, "status": "unestablished", "evidence": "denied", "reason": "denied"},
-     {"criterion": 2, "status": "satisfied", "evidence": "ok", "reason": "denied"}],
-    [{"criterion": 1, "status": "unestablished", "evidence": ""},
-     {"criterion": 2, "status": "satisfied", "evidence": "ok"}])
+    _ev_recs(
+        {"criterion": 1, "status": "unestablished", "evidence": "denied",
+         "reason": "denied"},
+        {"criterion": 2, "status": "satisfied", "evidence": "ok", "reason": "denied"}),
+    _cl_recs(
+        {"criterion": 1, "status": "unestablished", "evidence": ""},
+        {"criterion": 2, "status": "satisfied", "evidence": "ok"}))
 _rby = {c["criterion"]: c for c in _recon_reason["criteria"]}
 assert_eq("#1575 evidence reason passes through on a blocking criterion",
           "denied", _rby[1]["reason"])
@@ -29785,7 +29809,7 @@ assert_eq("#1575 reason normalizes case/whitespace",
 
 # A criterion present in only one report fails closed to unestablished (missing vote).
 _recon_missing = reconcile_ac.reconcile(
-    [{"criterion": 1, "status": "satisfied", "evidence": "x"}], [])
+    _ev_recs({"criterion": 1, "status": "satisfied", "evidence": "x"}), [])
 assert_eq("#1575 criterion missing from one report reconciles unestablished",
           "unestablished", _recon_missing["criteria"][0]["status"])
 
@@ -29815,30 +29839,30 @@ for _r in reconcile_ac.EVIDENCE_REASONS:
 # A duplicate `criterion` in one report fails closed to unestablished — a later
 # `satisfied` can never overwrite an earlier `unmet` (silent last-wins is the bug).
 _recon_dup = reconcile_ac.reconcile(
-    [{"criterion": 1, "status": "unmet", "evidence": "real gap"},
-     {"criterion": 1, "status": "satisfied", "evidence": "ok"}],
-    [{"criterion": 1, "status": "satisfied", "evidence": "ok"}])
+    _ev_recs({"criterion": 1, "status": "unmet", "evidence": "real gap"},
+             {"criterion": 1, "status": "satisfied", "evidence": "ok"}),
+    _cl_recs({"criterion": 1, "status": "satisfied", "evidence": "ok"}))
 assert_eq("#1575 duplicate criterion in a report fails closed to unestablished",
           "unestablished", _recon_dup["criteria"][0]["status"])
 
 # A `criterion: true`/`false` boolean is dropped by the fail-closed guard (bool is an
 # int subclass), so it becomes a missing vote → unestablished, never a satisfied vote.
 _recon_bool = reconcile_ac.reconcile(
-    [{"criterion": True, "status": "satisfied", "evidence": "x"},
-     {"criterion": 1, "status": "satisfied", "evidence": "x"}],
-    [{"criterion": 1, "status": "satisfied", "evidence": "y"}])
+    _ev_recs({"criterion": True, "status": "satisfied", "evidence": "x"},
+             {"criterion": 1, "status": "satisfied", "evidence": "x"}),
+    _cl_recs({"criterion": 1, "status": "satisfied", "evidence": "y"}))
 assert_eq("#1575 a boolean criterion is dropped (not indexed as 1)",
           [1], [c["criterion"] for c in _recon_bool["criteria"]])
 
 # Multi-element `blocking[]` is ascending and complete, out of report order — a
 # regression dropping the sort would pass every single-blocker fixture above.
 _recon_multi = reconcile_ac.reconcile(
-    [{"criterion": 3, "status": "unmet", "evidence": ""},
-     {"criterion": 1, "status": "satisfied", "evidence": "ok"},
-     {"criterion": 2, "status": "unmet", "evidence": ""}],
-    [{"criterion": 3, "status": "unmet", "evidence": ""},
-     {"criterion": 1, "status": "satisfied", "evidence": "ok"},
-     {"criterion": 2, "status": "unmet", "evidence": ""}])
+    _ev_recs({"criterion": 3, "status": "unmet", "evidence": ""},
+             {"criterion": 1, "status": "satisfied", "evidence": "ok"},
+             {"criterion": 2, "status": "unmet", "evidence": ""}),
+    _cl_recs({"criterion": 3, "status": "unmet", "evidence": ""},
+             {"criterion": 1, "status": "satisfied", "evidence": "ok"},
+             {"criterion": 2, "status": "unmet", "evidence": ""}))
 assert_eq("#1575 blocking[] is ascending and complete across two blockers",
           [2, 3], _recon_multi["blocking"])
 
@@ -29849,15 +29873,45 @@ with tempfile.TemporaryDirectory() as _md:
     _ev_p = os.path.join(_md, "ev.json")
     _cl_p = os.path.join(_md, "cl.json")
     with open(_ev_p, "w", encoding="utf-8") as _fh:
-        _fh.write('[{"criterion": 1, "status": "satisfied", "evidence": "ok"}]')
+        _fh.write(json.dumps(
+            _ev_recs({"criterion": 1, "status": "satisfied", "evidence": "ok"})))
     with open(_cl_p, "w", encoding="utf-8") as _fh:
-        _fh.write('[{"criterion": 1, "status": "satisfied", "evidence": "ok"}]')
+        _fh.write(json.dumps(
+            _cl_recs({"criterion": 1, "status": "satisfied", "evidence": "ok"})))
     _out = io.StringIO()
     with contextlib.redirect_stdout(_out):
         _rc_ok = reconcile_ac.main(["--evidence-file", _ev_p, "--claim-file", _cl_p])
     assert_eq("#1575 main() returns 0 on a produced reconciliation", 0, _rc_ok)
     assert_eq("#1575 main() prints the reconciled JSON on stdout",
               True, '"all_satisfied": true' in _out.getvalue())
+    # The orchestrator consumes this through stdout JSON, not by importing reconcile(),
+    # so a field dropped or made unserializable at the dump layer would be invisible to
+    # every in-process assertion above.
+    for _f1580 in ("evidence_dispositions", "claim_dispositions", "undischarged_slots"):
+        assert_eq(f"#1580 main() serializes {_f1580} onto stdout",
+                  True, f'"{_f1580}"' in _out.getvalue())
+    # The fixture above is fully dispositioned, so its undischarged_slots is `[]` — the
+    # payload the orchestrator actually routes on is the BLOCKING one. Round-trip a
+    # non-empty list and the reasons through the real stdout path.
+    _gap_ev = os.path.join(_md, "ev-gap.json")
+    _gap_partial = {k: v for k, v in _R_EV_DISP.items()
+                    if k != reconcile_ac.EVIDENCE_SLOTS[0]}
+    with open(_gap_ev, "w", encoding="utf-8") as _fh:
+        _fh.write(json.dumps([{"criterion": 1, "status": "satisfied",
+                               "evidence": "ok", "dispositions": _gap_partial}]))
+    _gap_out = io.StringIO()
+    with contextlib.redirect_stdout(_gap_out), contextlib.redirect_stderr(io.StringIO()):
+        _rc_gap = reconcile_ac.main(["--evidence-file", _gap_ev,
+                                     "--claim-file", _cl_p])
+    assert_eq("#1580 main() returns 0 on a blocking reconciliation", 0, _rc_gap)
+    _gap_json = json.loads(_gap_out.getvalue())
+    assert_eq("#1580 a non-empty undischarged_slots survives serialization",
+              [f"evidence:{reconcile_ac.EVIDENCE_SLOTS[0]}"],
+              _gap_json["criteria"][0]["undischarged_slots"])
+    assert_eq("#1580 the serialized blocking record clears all_satisfied",
+              False, _gap_json["all_satisfied"])
+    assert_eq("#1580 the surviving slots' verbatim reasons round-trip through stdout",
+              _gap_partial, _gap_json["criteria"][0]["evidence_dispositions"])
     # Missing file -> OSError -> exit 3.
     with contextlib.redirect_stderr(io.StringIO()):
         _rc_missing = reconcile_ac.main(
@@ -29893,6 +29947,373 @@ with tempfile.TemporaryDirectory() as _rd:
         _fh.write('"a scalar, not a report"')
     assert_raises("#1575 _load_report rejects a non-list/non-criteria-object shape",
                   ValueError, lambda: reconcile_ac._load_report(_bad_path))
+
+
+# ── issue #1580: verifier procedure dispositions (what did you DO, not only conclude) ──
+# `dispositions` maps each charter slot NAME (the key) to a `yes|no (reason)` value —
+# the `<slot>=<verdict>` prose spelling of the writing-skills marker does not parse here.
+
+# The slot vocabularies are per side and named after each charter's own steps.
+# `evidence-recorded` is the one slot BOTH charters carry (the shared evidence-pointer
+# rule); a change dropping it from one side would leave that peer rule half-stated.
+assert_eq("#1580 both charters carry the shared evidence-recorded slot", True,
+          "evidence-recorded" in reconcile_ac.EVIDENCE_SLOTS
+          and "evidence-recorded" in reconcile_ac.CLAIM_SLOTS)
+
+# Do not edit a charter's `| Slot |` table without the matching tuple edit here: a slot
+# renamed in one place alone forces that side to `unestablished` on EVERY criterion,
+# hard-blocking Phase 3.4 in a live run with no other suite signal.
+# structural-pin-ok: cross-file-phase-contract -- the charter slot table IS the request
+# the verifier answers and the tuple IS the gate that grades the answer; the two are one
+# machine-consumed contract split across a shipped prompt file and its helper.
+for _acv_file, _acv_slots in (("ac-evidence-verifier.md", reconcile_ac.EVIDENCE_SLOTS),
+                              ("ac-claim-verifier.md", reconcile_ac.CLAIM_SLOTS)):
+    _acv_text = (SCRIPTS.parent / "agents" / _acv_file).read_text(encoding="utf-8")
+    # The table's first column, backticked: `| \`<slot>\` | ... |`. Anchored to the row
+    # start so a backticked identifier in a later column cannot be read as a slot.
+    _acv_table = set(re.findall(r'^\|\s*`([a-z-]+)`\s*\|', _acv_text, re.MULTILINE))
+    assert_eq(f"#1580 {_acv_file}: the slot table names exactly the gate's slots",
+              sorted(_acv_slots), sorted(_acv_table))
+
+_EV_D = _disp_all(reconcile_ac.EVIDENCE_SLOTS)
+_CL_D = _disp_all(reconcile_ac.CLAIM_SLOTS)
+
+# The parser: `yes`/`no` plus a non-empty reason, case- and spacing-tolerant. One clause
+# is what the charters ASK for; the parser accepts and preserves whatever reason it gets.
+assert_eq("#1580 a yes disposition with a parenthesised reason parses",
+          ("yes", "ran the suite in-env"),
+          reconcile_ac.parse_disposition("yes (ran the suite in-env)"))
+assert_eq("#1580 a no disposition parses and keeps its reason",
+          ("no", "this criterion runs no command"),
+          reconcile_ac.parse_disposition("no (this criterion runs no command)"))
+assert_eq("#1580 disposition parsing is case-insensitive",
+          "yes", reconcile_ac.parse_disposition("YES (shouted)")[0])
+# A bare verdict with NO reason is undischarged: AC2 requires the one-clause reason,
+# so accepting a reasonless `yes` would let an abbreviated check attest to nothing.
+assert_eq("#1580 a bare `yes` with no reason is undischarged",
+          (None, ""), reconcile_ac.parse_disposition("yes"))
+# Empty parens are a reasonless verdict wearing the right punctuation — the shape a
+# verifier producing the marker mechanically would emit for a step it skipped.
+assert_eq("#1580 `yes ()` with an empty reason clause is undischarged",
+          (None, ""), reconcile_ac.parse_disposition("yes ()"))
+# The parens are optional: the marker's own worked examples are written with them, but a
+# verifier that omits them has still stated a verdict and a reason.
+assert_eq("#1580 a reason without parentheses parses",
+          ("no", "this criterion runs no command"),
+          reconcile_ac.parse_disposition("no this criterion runs no command"))
+assert_eq("#1580 a non-string disposition is undischarged",
+          (None, ""), reconcile_ac.parse_disposition({"disposition": "yes"}))
+assert_eq("#1580 an unparseable disposition verdict is undischarged",
+          (None, ""), reconcile_ac.parse_disposition("maybe (hedging)"))
+# The verdict boundary excludes `-` but admits ordinary punctuation. Narrowing it to
+# whitespace-and-paren rejects `no, <reason>` and hard-blocks a compliant criterion.
+assert_eq("#1580 a hyphen-attached word after the verdict does not parse as a verdict",
+          (None, ""), reconcile_ac.parse_disposition("no-op, nothing to coordinate"))
+# The same class as `no-op`, and the likelier producer output: an ordinary prose word
+# that merely begins with the verdict token states no disposition.
+for _adjacent in ("yesish (x)", "noted (x)", "nope (x)"):
+    assert_eq(f"#1580 {_adjacent!r} does not parse as a verdict",
+              (None, ""), reconcile_ac.parse_disposition(_adjacent))
+for _punct, _rest in ((",", "nothing to coordinate"), (".", "the criterion runs none"),
+                      (";", "not applicable"), (":", "no command")):
+    assert_eq(f"#1580 a verdict followed by {_punct!r} still parses",
+              "no", reconcile_ac.parse_disposition(f"no{_punct} {_rest}")[0])
+# A reason must carry an alphanumeric character: a mechanical `yes .` is not a clause.
+assert_eq("#1580 a punctuation-only reason is undischarged",
+          (None, ""), reconcile_ac.parse_disposition("yes ."))
+assert_eq("#1580 a dash-only reason is undischarged",
+          (None, ""), reconcile_ac.parse_disposition("yes -"))
+# Unwrap only what the outer parens enclose. A nested or multi-clause value is carried
+# through verbatim rather than reshaped — a `strip("()")` chain would turn `((a))` into
+# `a`, making a malformed value look well-formed.
+assert_eq("#1580 a nested-paren value is carried through, NOT unwrapped",
+          ("yes", "((a))"), reconcile_ac.parse_disposition("yes ((a))"))
+assert_eq("#1580 a multi-clause parenthesised value keeps its inner punctuation",
+          ("yes", "(a) (b)"), reconcile_ac.parse_disposition("yes (a) (b)"))
+# The `<slot>=<verdict>` prose spelling of the writing-skills marker is NOT this shape:
+# a producer copying it states a slot the gate scores undischarged.
+assert_eq("#1580 the marker's `<slot>=yes` prose spelling does not parse as a value",
+          (None, ""), reconcile_ac.parse_disposition("type-decided=yes (x)"))
+
+# _dispositions_of reports the normalized map AND the undischarged slot names.
+_full_map, _full_missing = reconcile_ac._dispositions_of(
+    {"dispositions": _EV_D}, reconcile_ac.EVIDENCE_SLOTS)
+assert_eq("#1580 a complete disposition set leaves nothing undischarged",
+          [], _full_missing)
+assert_eq("#1580 a complete disposition set is reported for every named slot",
+          sorted(reconcile_ac.EVIDENCE_SLOTS), sorted(_full_map))
+_part = dict(_EV_D)
+_dropped_slot = reconcile_ac.EVIDENCE_SLOTS[0]
+del _part[_dropped_slot]
+assert_eq("#1580 a dropped slot is named as undischarged",
+          [_dropped_slot],
+          reconcile_ac._dispositions_of({"dispositions": _part},
+                                        reconcile_ac.EVIDENCE_SLOTS)[1])
+assert_eq("#1580 an absent dispositions block leaves every slot undischarged",
+          sorted(reconcile_ac.EVIDENCE_SLOTS),
+          sorted(reconcile_ac._dispositions_of({}, reconcile_ac.EVIDENCE_SLOTS)[1]))
+assert_eq("#1580 a non-object dispositions block leaves every slot undischarged",
+          sorted(reconcile_ac.EVIDENCE_SLOTS),
+          sorted(reconcile_ac._dispositions_of({"dispositions": "yes all of them"},
+                                               reconcile_ac.EVIDENCE_SLOTS)[1]))
+
+# AC3 — an explicit `no` on EVERY slot fully discharges them: the criterion still
+# reconciles `satisfied`. A gate that punished `no` would produce false `yes`.
+_recon_no = reconcile_ac.reconcile(
+    [{"criterion": 1, "status": "satisfied", "evidence": "ok",
+      "dispositions": _disp_all(reconcile_ac.EVIDENCE_SLOTS, "no")}],
+    [{"criterion": 1, "status": "satisfied", "evidence": "ok",
+      "dispositions": _disp_all(reconcile_ac.CLAIM_SLOTS, "no")}])
+assert_eq("#1580 an all-`no` disposition set still reconciles satisfied",
+          "satisfied", _recon_no["criteria"][0]["status"])
+assert_eq("#1580 an all-`no` disposition set leaves nothing undischarged",
+          [], _recon_no["criteria"][0]["undischarged_slots"])
+
+# AC4 — one MISSING slot on one side forces that side to `unestablished` BEFORE the
+# statuses are paired, so the criterion reconciles `unestablished` even though both
+# verifiers reported `satisfied`. This is the substitution the issue exists to catch.
+_ev_gap = dict(_EV_D)
+del _ev_gap[reconcile_ac.EVIDENCE_SLOTS[0]]
+_recon_gap = reconcile_ac.reconcile(
+    [{"criterion": 1, "status": "satisfied", "evidence": "ok",
+      "dispositions": _ev_gap}],
+    [{"criterion": 1, "status": "satisfied", "evidence": "ok",
+      "dispositions": _CL_D}])
+_gap_rec = _recon_gap["criteria"][0]
+assert_eq("#1580 a missing slot forces the criterion to unestablished",
+          "unestablished", _gap_rec["status"])
+assert_eq("#1580 a criterion with a missing slot blocks", True, _gap_rec["blocks"])
+assert_eq("#1580 the undischarged slot is named, side-qualified",
+          [f"evidence:{reconcile_ac.EVIDENCE_SLOTS[0]}"],
+          _gap_rec["undischarged_slots"])
+# The side whose dispositions were complete keeps its own reported status in the
+# record, so the orchestrator can see WHICH verifier failed to attest.
+assert_eq("#1580 the complete side's own status is still reported",
+          "satisfied", _gap_rec["claim_status"])
+assert_eq("#1580 the undischarged side's status reads unestablished",
+          "unestablished", _gap_rec["evidence_status"])
+# The gate the orchestrator actually routes on is the AGGREGATE, not the per-criterion
+# row: a regression computing these from a pre-`_side` status would leave the row correct
+# and still report a clean pass — the false green this issue exists to prevent.
+assert_eq("#1580 a criterion blocked by a missing slot reaches blocking[]",
+          [1], _recon_gap["blocking"])
+assert_eq("#1580 a missing slot clears all_satisfied",
+          False, _recon_gap["all_satisfied"])
+
+# An ABSENT record is a missing vote, not an attestation failure: it names no
+# undischarged slot, so the field that routes the remedy (re-dispatch to restate the
+# record) cannot be armed for a side that never produced one.
+_recon_absent = reconcile_ac.reconcile(
+    [{"criterion": 1, "status": "satisfied", "evidence": "x", "dispositions": _EV_D}],
+    [])
+_absent_rec = _recon_absent["criteria"][0]
+assert_eq("#1580 an absent record names no undischarged slots",
+          [], _absent_rec["undischarged_slots"])
+assert_eq("#1580 an absent record still blocks as a missing vote",
+          "unestablished", _absent_rec["status"])
+assert_eq("#1580 the present side's own status survives an absent counterpart",
+          "satisfied", _absent_rec["evidence_status"])
+
+# A wholly absent dispositions block is the same failure — silence is not compliance.
+_recon_silent = reconcile_ac.reconcile(
+    [{"criterion": 1, "status": "satisfied", "evidence": "ok"}],
+    [{"criterion": 1, "status": "satisfied", "evidence": "ok"}])
+assert_eq("#1580 a report with no dispositions at all reconciles unestablished",
+          "unestablished", _recon_silent["criteria"][0]["status"])
+# Do not relax this to a sorted()/set comparison: the expected list is the concatenation
+# order the record is built in, and a sorted compare would pass a regression that
+# reordered the two sides or a side's own slots.
+assert_eq("#1580 both sides' slots are named undischarged when neither attests, "
+          "evidence-side then claim-side, each in declared order",
+          [f"evidence:{s}" for s in reconcile_ac.EVIDENCE_SLOTS]
+          + [f"claim:{s}" for s in reconcile_ac.CLAIM_SLOTS],
+          _recon_silent["criteria"][0]["undischarged_slots"])
+
+# AC5 — the dispositions reach the reconciled output, so the orchestrator records them
+# durably alongside the verdict rather than letting them die with the dispatch return.
+_recon_carry = reconcile_ac.reconcile(
+    [{"criterion": 1, "status": "satisfied", "evidence": "ok", "dispositions": _EV_D}],
+    [{"criterion": 1, "status": "satisfied", "evidence": "ok", "dispositions": _CL_D}])
+_carry = _recon_carry["criteria"][0]
+assert_eq("#1580 a complete disposition set reconciles satisfied",
+          "satisfied", _carry["status"])
+assert_eq("#1580 the evidence verifier's dispositions ride into the output",
+          _EV_D, _carry["evidence_dispositions"])
+assert_eq("#1580 the claim verifier's dispositions ride into the output",
+          _CL_D, _carry["claim_dispositions"])
+
+# An UNRECOGNIZED slot name is ignored rather than accepted as covering a named one —
+# otherwise a verifier could discharge the whole set by inventing slot names.
+_bogus = dict(_EV_D)
+_bogus.pop(reconcile_ac.EVIDENCE_SLOTS[0])
+_bogus["totally-made-up-slot"] = "yes (invented)"
+assert_eq("#1580 an invented slot does not discharge a named one",
+          [reconcile_ac.EVIDENCE_SLOTS[0]],
+          reconcile_ac._dispositions_of({"dispositions": _bogus},
+                                        reconcile_ac.EVIDENCE_SLOTS)[1])
+
+# An undischarged slot is EXCLUDED from the carried map — a regression carrying the
+# unparseable value through would put an unattested slot into the durable audit record
+# reading as attested.
+_partial = dict(_EV_D)
+_partial[reconcile_ac.EVIDENCE_SLOTS[1]] = "perhaps"
+_partial_map, _partial_missing = reconcile_ac._dispositions_of(
+    {"dispositions": _partial}, reconcile_ac.EVIDENCE_SLOTS)
+assert_eq("#1580 an unparseable slot is absent from the carried disposition map",
+          False, reconcile_ac.EVIDENCE_SLOTS[1] in _partial_map)
+assert_eq("#1580 the parsed slots beside it still ride into the map",
+          True, reconcile_ac.EVIDENCE_SLOTS[0] in _partial_map)
+
+# Do not delete a breadcrumb assertion: every status assertion above stays green without
+# them, and the silent-case assertion is what stops a breadcrumb-on-every-slot regression.
+def _disp_stderr(record, slots, side):
+    """(undischarged, stderr) for one `_dispositions_of` call."""
+    _buf = io.StringIO()
+    with contextlib.redirect_stderr(_buf):
+        _res = reconcile_ac._dispositions_of(record, slots, side)
+    return _res[1], _buf.getvalue()
+
+
+_bc_missing, _bc_err = _disp_stderr(
+    {"dispositions": {reconcile_ac.EVIDENCE_SLOTS[0]: "maybe (x)"}},
+    reconcile_ac.EVIDENCE_SLOTS, "evidence")
+assert_eq("#1580 an unparseable slot's breadcrumb names the slot",
+          True, repr(reconcile_ac.EVIDENCE_SLOTS[0]) in _bc_err)
+assert_eq("#1580 an unparseable slot's breadcrumb names the side",
+          True, "evidence report" in _bc_err)
+# An OMITTED slot is silent: the verifier said nothing, which the status already carries.
+_, _bc_silent = _disp_stderr({"dispositions": {}}, reconcile_ac.EVIDENCE_SLOTS,
+                             "evidence")
+assert_eq("#1580 an omitted slot emits no breadcrumb", "", _bc_silent)
+# A JSON `null` is a STATED slot that does not parse, so it is breadcrumbed like any
+# other unparseable value rather than passing as an omission.
+_, _bc_null = _disp_stderr(
+    {"dispositions": {reconcile_ac.EVIDENCE_SLOTS[0]: None}},
+    reconcile_ac.EVIDENCE_SLOTS, "evidence")
+assert_eq("#1580 a null-valued slot is breadcrumbed as stated-but-unparseable",
+          True, repr(reconcile_ac.EVIDENCE_SLOTS[0]) in _bc_null)
+# A non-object `dispositions`, and an object naming none of the slots, each block every
+# criterion of that side — undiagnosable without a breadcrumb naming the shape.
+_, _bc_type = _disp_stderr({"dispositions": "yes all of them"},
+                           reconcile_ac.EVIDENCE_SLOTS, "evidence")
+assert_eq("#1580 a non-object dispositions block names its observed type",
+          True, "not an object" in _bc_type)
+_, _bc_keys = _disp_stderr({"dispositions": {"command_run": "yes (underscored)"}},
+                           reconcile_ac.EVIDENCE_SLOTS, "evidence")
+assert_eq("#1580 an all-near-miss key set names the keys it saw",
+          True, "names none of the expected slots" in _bc_keys)
+
+# A duplicate-poisoned record names no slots either: like an absent record it is a vote
+# never usably cast, and naming its slots would route a report-shape defect to the
+# restate-the-record remedy, which cannot fix it.
+_recon_dup1580 = reconcile_ac.reconcile(
+    _ev_recs({"criterion": 1, "status": "unmet", "evidence": "a"},
+             {"criterion": 1, "status": "satisfied", "evidence": "b"}),
+    _cl_recs({"criterion": 1, "status": "satisfied", "evidence": "c"}))
+assert_eq("#1580 a duplicate-poisoned record names no undischarged slots",
+          [], _recon_dup1580["criteria"][0]["undischarged_slots"])
+assert_eq("#1580 a duplicate-poisoned record still blocks",
+          "unestablished", _recon_dup1580["criteria"][0]["status"])
+# The poison marker's VALUE is an identity-checked sentinel, so a report cannot forge it
+# to skip its own slot scoring and blank the audit fields this gate exists to produce.
+_recon_forged = reconcile_ac.reconcile(
+    [{"criterion": 1, "status": "satisfied", "evidence": "x",
+      "_reconcile_poisoned": True}],
+    [{"criterion": 1, "status": "satisfied", "evidence": "y",
+      "_reconcile_poisoned": True}])
+assert_eq("#1580 a report cannot forge the poison marker to skip slot scoring",
+          sorted([f"evidence:{s}" for s in reconcile_ac.EVIDENCE_SLOTS]
+                 + [f"claim:{s}" for s in reconcile_ac.CLAIM_SLOTS]),
+          sorted(_recon_forged["criteria"][0]["undischarged_slots"]))
+
+# A side that concluded a real `unmet` but left a slot undischarged keeps that verdict in
+# `*_status_reported`. Without it the routing rule that fires only when a criterion blocks
+# SOLELY on undischarged slots cannot decide its own precondition, and a concrete failing
+# detail is routed to "restate your record" instead of to a fix.
+_ev_unmet = dict(_EV_D)
+del _ev_unmet[reconcile_ac.EVIDENCE_SLOTS[2]]
+_recon_unmet = reconcile_ac.reconcile(
+    [{"criterion": 1, "status": "unmet", "evidence": "clause X has no assertion",
+      "dispositions": _ev_unmet}],
+    [{"criterion": 1, "status": "unmet", "evidence": "same gap",
+      "dispositions": _CL_D}])
+_unmet_rec = _recon_unmet["criteria"][0]
+assert_eq("#1580 the gate still overrides the gated status",
+          "unestablished", _unmet_rec["evidence_status"])
+assert_eq("#1580 the side's concluded verdict survives the override",
+          "unmet", _unmet_rec["evidence_status_reported"])
+assert_eq("#1580 a side with no attestation gap reports the same status both ways",
+          "unmet", _unmet_rec["claim_status_reported"])
+# The override's breadcrumb is the run's stderr-side signal that a side was downgraded;
+# deleting it leaves every assertion here green.
+_ovr_buf = io.StringIO()
+with contextlib.redirect_stderr(_ovr_buf):
+    reconcile_ac.reconcile(
+        [{"criterion": 1, "status": "unmet", "evidence": "x",
+          "dispositions": _ev_unmet}],
+        [{"criterion": 1, "status": "unmet", "evidence": "y",
+          "dispositions": _CL_D}])
+assert_eq("#1580 the forced-unestablished override names the side that concluded",
+          True, "the evidence report concluded 'unmet'" in _ovr_buf.getvalue())
+# A side that concluded `unestablished` and also dropped a slot emits no override
+# breadcrumb — the status did not change, so there is nothing to report.
+_une_buf = io.StringIO()
+with contextlib.redirect_stderr(_une_buf):
+    reconcile_ac.reconcile(
+        [{"criterion": 1, "status": "unestablished", "evidence": "x",
+          "dispositions": _ev_unmet}], [])
+assert_eq("#1580 no override breadcrumb when the concluded status was already "
+          "unestablished", False, "concluded" in _une_buf.getvalue())
+# `*_status_reported` is normalized, so out-of-vocabulary agent text cannot leak into the
+# field the restate-vs-fix routing reads.
+assert_eq("#1580 a bogus reported status normalizes rather than leaking",
+          "unestablished",
+          reconcile_ac.reconcile(
+              [{"criterion": 1, "status": "probably", "evidence": "x",
+                "dispositions": _ev_unmet}],
+              [{"criterion": 1, "status": "unmet", "evidence": "y",
+                "dispositions": _CL_D}])["criteria"][0]["evidence_status_reported"])
+# An absent record reports `unestablished` on both, so the field never invents a verdict.
+assert_eq("#1580 an absent record reports no concluded verdict",
+          "unestablished",
+          reconcile_ac.reconcile(
+              [{"criterion": 1, "status": "satisfied", "evidence": "x",
+                "dispositions": _EV_D}], [])["criteria"][0]["claim_status_reported"])
+
+# The charters carry the slot names TWICE — the `| Slot |` table and the `dispositions`
+# blocks of their worked JSON examples. The example is what a verifier copies, so pin it
+# too: a rename reconciled into the table alone would ship a template whose every value
+# scores undischarged, hard-blocking Phase 3.4 with the suite green.
+# structural-pin-ok: cross-file-phase-contract -- the charter's worked example IS the
+# template the dispatched verifier reproduces; the gate grades what it produces.
+for _acv_file, _acv_slots in (("ac-evidence-verifier.md", reconcile_ac.EVIDENCE_SLOTS),
+                              ("ac-claim-verifier.md", reconcile_ac.CLAIM_SLOTS)):
+    _acv_body = (SCRIPTS.parent / "agents" / _acv_file).read_text(encoding="utf-8")
+    # Scope to inside each `"dispositions": { … }` object so the sibling `"evidence"`
+    # field on the same line family cannot be read as a slot.
+    _acv_blocks = re.findall(r'"dispositions":\s*\{(.*?)\}', _acv_body, re.DOTALL)
+    assert_eq(f"#1580 {_acv_file}: the worked example carries dispositions blocks",
+              True, len(_acv_blocks) > 0)
+    for _blk_i, _blk in enumerate(_acv_blocks):
+        _pairs = re.findall(r'"([a-z-]+)":\s*"((?:yes|no)[^"]*)"', _blk)
+        assert_eq(f"#1580 {_acv_file} example {_blk_i}: names exactly the gate's slots",
+                  sorted(_acv_slots), sorted(k for k, _ in _pairs))
+        assert_eq(f"#1580 {_acv_file} example {_blk_i}: every value parses as a "
+                  f"discharging disposition",
+                  [], reconcile_ac._dispositions_of(
+                      {"dispositions": dict(_pairs)}, _acv_slots)[1])
+
+# A reasonless slot value is undischarged end-to-end, not merely at the parser: a
+# verifier writing bare `yes` must not clear the gate.
+_reasonless = dict(_EV_D)
+_reasonless[reconcile_ac.EVIDENCE_SLOTS[0]] = "yes"
+assert_eq("#1580 a reasonless slot value blocks the criterion end-to-end",
+          "unestablished",
+          reconcile_ac.reconcile(
+              [{"criterion": 1, "status": "satisfied", "evidence": "ok",
+                "dispositions": _reasonless}],
+              [{"criterion": 1, "status": "satisfied", "evidence": "ok",
+                "dispositions": _CL_D}])["criteria"][0]["status"])
 
 
 print()
