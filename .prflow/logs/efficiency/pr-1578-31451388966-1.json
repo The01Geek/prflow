@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1578",
+  "generated_at": "2026-08-11T02:20:27Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.22",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 7.9663283999999965,
+    "tokens": {
+      "input_tokens": 1516,
+      "output_tokens": 39047,
+      "cache_read_input_tokens": 5357228,
+      "cache_creation_input_tokens": 226684,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 1516,
+        "outputTokens": 39047,
+        "cacheReadInputTokens": 5357228,
+        "cacheCreationInputTokens": 226684,
+        "webSearchRequests": 0,
+        "costUSD": 5.929209000000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 76,
+        "outputTokens": 20844,
+        "cacheReadInputTokens": 2183963,
+        "cacheCreationInputTokens": 285078,
+        "webSearchRequests": 0,
+        "costUSD": 2.0371194,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 44,
+    "duration_ms": 726704
+  },
+  "permission_denials": {
+    "count": 7,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      "SD=\"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"; git hash-object \"$SD/SKILL.md\" \"$SD/phases/phase-0-setup.md\" \"$SD/phases/phase-0-3-6-blocker-recheck.md\" \"$SD/phases/phase-0-6-stale-prose-lint.md\" \"$SD/phases/phase-1-checklist.md\" \"$SD/phases/phase-2-verification.md\" \"$SD/phases/phase-3-agents.md\" \"$SD/phases/phase-4-verdict.md\" \"$SD/phases/phase-4-1-7-stale-adjudication.md\" \"$SD/phases/phase-4-4-github-post.md\"",
+      "git status --porcelain; echo \"---RUNID---\"; echo \"run=${GITHUB_RUN_ID:-none} attempt=${GITHUB_RUN_ATTEMPT:-none}\"",
+      "gh pr diff 1578 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' > .prflow/tmp/review/pr-1578/31451388966-1/diff.patch\necho \"=== FILES ===\"\ngrep '^diff --git' .prflow/tmp/review/pr-1578/31451388966-1/diff.patch\necho \"=== WC ===\"\nwc -l .prflow/tmp/review/pr-1578/31451388966-1/diff.patch",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve \"1574\" --pr \"1578\" 2>.prflow/tmp/review/pr-1578/31451388966-1/acs.err ; echo \"acs-rc=$?\"",
+      ".prflow/vendor/prflow/scripts/resolve-review-overrides.py \"prflow:checklist-generator\" 2>.prflow/tmp/review/pr-1578/31451388966-1/rv-ovr.phase1.err; echo \"ovr-rc=$?\"; cat .prflow/tmp/review/pr-1578/31451388966-1/rv-ovr.phase1.err",
+      "for f in skills/implement/SKILL.md skills/implement/phases/phase-1-setup.md skills/review-and-fix/references/loop-control.md skills/review/SKILL.md; do echo -n \"$f: \"; sha256sum \"$f\" | awk '{print $1}'; done"
+    ],
+    "total": 7,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
