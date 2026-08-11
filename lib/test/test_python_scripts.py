@@ -2327,6 +2327,149 @@ for _r_phase, _r_text, _r_substr in _XR:
     assert_eq(f"#1462 unticked {_r_substr!r} row survives Complete finalization", True,
               f'- [ ] {_r_text}' in _complete_1462)
 
+# ---------------------------------------------------------------------------
+# #1550 workpad.py --help covers every subcommand and update-flag the implement
+# phase files actually invoke.
+# ---------------------------------------------------------------------------
+# PR #1549 (#1531) made `workpad.py --help` / `workpad.py update --help` the SOLE
+# documentation surface the implement orchestrator reads for the workpad CLI, with
+# nothing asserting it covers what the run invokes. This block derives the invoked
+# subcommand/flag set from `skills/implement/**/*.md` (reusing `_tick_md`, the same
+# derived corpus the #1462 block walks) and asserts each token appears in a REAL
+# `--help` subprocess run — a dropped `help=` for an invoked flag fails it RED.
+import subprocess as _sp1550  # noqa: E402
+
+# Subcommand names: `workpad.py <sub>` where <sub> is followed by a command-shaped
+# operand, not a prose word. The look-ahead char separates a real invocation from a
+# sentence like "if workpad.py fails (gh API error…)" — its `f` in "fails" is
+# followed by " (", which is neither an operand nor end-of-command.
+_SUB_RE_1550 = re.compile(r"workpad\.py\s+([a-z][a-z-]+)[ \t]*(.?)")
+_live_subs_1550 = sorted({
+    _m.group(1)
+    for _p, _txt in _tick_md
+    for _m in _SUB_RE_1550.finditer(_txt)
+    if _m.group(2) in ('$', '-', '"', "'", ':', '`', '', '\\') or _m.group(2).isdigit()
+})
+# Update-flag tokens: scan each `workpad.py update` invocation's backslash-continued
+# slice. Double-quoted operand spans are stripped first — a real flag TOKEN never sits
+# inside a quoted operand, but a `--reflection`/`--note` operand's prose routinely
+# names other flags (e.g. "git merge --abort", "efficiency-trace.sh --persist"), which
+# would otherwise be captured as bogus update flags absent from `update --help`.
+_UPD_RE_1550 = re.compile(r"workpad\.py\s+update\b")
+_FLAG_RE_1550 = re.compile(r"--[a-z][a-z-]+")
+_live_flags_1550 = set()
+for _p, _txt in _tick_md:
+    _lines = _txt.split('\n')
+    for _i, _ln in enumerate(_lines):
+        if not _UPD_RE_1550.search(_ln):
+            continue
+        _slice = [_ln]
+        _j = _i
+        while _slice[-1].rstrip().endswith('\\') and _j + 1 < len(_lines):
+            _j += 1
+            _slice.append(_lines[_j])
+        _blob = '\n'.join(_slice)
+        _tail = _blob[_UPD_RE_1550.search(_blob).start():]
+        _tail = re.sub(r'"[^"]*"', ' ', _tail, flags=re.S)
+        for _fm in _FLAG_RE_1550.finditer(_tail):
+            _live_flags_1550.add(_fm.group(0))
+_live_flags_1550 = sorted(_live_flags_1550)
+
+# Floors, so a derivation that silently collapses to the empty set (a corpus move, a
+# regex that stops matching) fails here instead of vacuously "covering" nothing.
+assert_eq("#1550 invoked subcommands were derived from the implement surface", True,
+          len(_live_subs_1550) >= 8)
+assert_eq("#1550 invoked update-flags were derived from the implement surface", True,
+          len(_live_flags_1550) >= 20)
+
+
+def _flag_help_present_1550(help_text, flag):
+    """True iff argparse rendered a help description for `flag` in `help_text`.
+
+    A flag whose `help=` was dropped still lists its TOKEN in `--help` (argparse
+    prints the invocation regardless), so token-presence alone cannot catch a
+    dropped `help=`. This reads the options section: an option-invocation line is
+    indented exactly two spaces then a dash (help-prose and usage lines are indented
+    deeper), and its description is either same-line after a >=2-space gap or on the
+    next, more-deeply-indented non-option line.
+    """
+    _lines = help_text.splitlines()
+    _tok = re.compile(r'(^|[,\s])' + re.escape(flag) + r'($|[ =\t])')
+    for _i, _ln in enumerate(_lines):
+        if not (_ln[:2] == '  ' and _ln[2:3] == '-'):
+            continue
+        if not _tok.search(_ln):
+            continue
+        _after = _ln[_ln.find(flag) + len(flag):]
+        if re.search(r'\S', _after) and re.search(r'\s{2,}\S', _after):
+            return True
+        if _i + 1 < len(_lines):
+            _nxt = _lines[_i + 1]
+            if _nxt.strip() and not _nxt.lstrip().startswith('-') \
+               and (len(_nxt) - len(_nxt.lstrip())) > 2:
+                return True
+        return False
+    return False
+
+
+# AC2: each derived subcommand appears in the REAL top-level `--help` subcommand list.
+_top_help_1550 = _sp1550.run(
+    [sys.executable, str(SCRIPTS / 'workpad.py'), '--help'],
+    capture_output=True, text=True)
+for _s in _live_subs_1550:
+    assert_eq(f"#1550 `workpad.py --help` documents the invoked subcommand {_s!r}",
+              True, _s in _top_help_1550.stdout)
+
+# AC2+AC3: each derived update-flag appears in the REAL `update --help` output AND
+# argparse rendered a help description for it (a dropped `help=` fails the second).
+_upd_help_1550 = _sp1550.run(
+    [sys.executable, str(SCRIPTS / 'workpad.py'), 'update', '--help'],
+    capture_output=True, text=True)
+for _f in _live_flags_1550:
+    assert_eq(f"#1550 `update --help` lists the invoked flag {_f!r}", True,
+              _f in _upd_help_1550.stdout)
+    assert_eq(f"#1550 `update --help` documents (help= present) the invoked flag {_f!r}",
+              True, _flag_help_present_1550(_upd_help_1550.stdout, _f))
+
+# AC3 negative control: prove the check is NOT vacuous — strip `help=` from one real
+# flag (`--reconcile-extension-rows`, a store_true whose help text is paren-balanced,
+# so the balanced-paren span walk below is exact) in a temp copy of workpad.py, run
+# its `update --help`, and confirm the detector reports NO help for that flag while
+# still finding its token. This is the executable RED that a dropped `help=` produces.
+_src_1550 = (SCRIPTS / 'workpad.py').read_text(encoding='utf-8')
+_key_1550 = "u.add_argument('--reconcile-extension-rows'"
+_ki_1550 = _src_1550.index(_key_1550)
+_op_1550 = _src_1550.index('(', _ki_1550)
+_depth_1550 = 0
+_cj_1550 = _op_1550
+while _cj_1550 < len(_src_1550):
+    if _src_1550[_cj_1550] == '(':
+        _depth_1550 += 1
+    elif _src_1550[_cj_1550] == ')':
+        _depth_1550 -= 1
+        if _depth_1550 == 0:
+            break
+    _cj_1550 += 1
+_call_1550 = _src_1550[_op_1550:_cj_1550 + 1]
+_mut_call_1550 = _call_1550[:_call_1550.index('help=')].rstrip().rstrip(',') + ')'
+_mut_src_1550 = _src_1550[:_op_1550] + _mut_call_1550 + _src_1550[_cj_1550 + 1:]
+_fd_1550, _tmp_1550 = tempfile.mkstemp(suffix='_workpad_nohelp_1550.py')
+os.write(_fd_1550, _mut_src_1550.encode('utf-8'))
+os.close(_fd_1550)
+try:
+    _mut_help_1550 = _sp1550.run(
+        [sys.executable, _tmp_1550, 'update', '--help'],
+        capture_output=True, text=True)
+finally:
+    os.unlink(_tmp_1550)
+assert_eq("#1550 negative control: the help-stripped copy still ran `update --help`",
+          0, _mut_help_1550.returncode)
+assert_eq("#1550 negative control: the flag TOKEN still appears once help= is stripped",
+          True, '--reconcile-extension-rows' in _mut_help_1550.stdout)
+assert_eq("#1550 negative control: dropping help= makes the coverage check go RED",
+          False, _flag_help_present_1550(_mut_help_1550.stdout,
+                                         '--reconcile-extension-rows'))
+
 # --- the wording constraint itself, stated as a property --------------------
 # A new row whose text contained a live tick substring would break that EXISTING
 # tick. Asserting it directly (not only through the match counts above) names the
