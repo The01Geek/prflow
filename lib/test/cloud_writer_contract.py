@@ -16,8 +16,8 @@ It declares, as checked-in data:
 * ``ROOTS`` — the three cloud execution roots (the workflow that dispatches the
   first skill and the entry skill it dispatches).
 * ``DISPATCH_EDGES`` — every classified transitive edge out of a root: direct
-  dispatch, nested skill invocation, inline engine reuse, and documentation
-  subagents.
+  dispatch, nested skill invocation, inline engine reuse, and Phase-4 Agent-tool
+  subagents (the documentation subagent and the PR-description subagent).
 * ``SKILL_ASSETS`` — for every skill in the closure, the repository-owned
   reachable assets a cloud writer session can read: the ``SKILL.md`` plus
   whichever asset family a skill actually uses — ``phases/*.md`` (implement,
@@ -137,12 +137,14 @@ ROOTS = {
 #   direct   — a slash-command the light-command listener can dispatch
 #   nested   — a Skill-tool invocation from within a skill
 #   inline   — the shared review engine executed inline under the caller's profile
-#   docs     — a documentation Agent-tool subagent
+#   docs     — a Phase-4 Agent-tool subagent (the documentation subagent, and the
+#              PR-description subagent, which share the dispatch-and-by-path-handoff
+#              shape and differ from a `nested` Skill-tool invocation)
 DISPATCH_KINDS = frozenset({"direct", "nested", "inline", "docs"})
 DISPATCH_EDGES = [
     {"from": "implement", "to": "review", "kind": "inline"},
     {"from": "implement", "to": "review-and-fix", "kind": "nested"},
-    {"from": "implement", "to": "pr-description", "kind": "nested"},
+    {"from": "implement", "to": "pr-description", "kind": "docs"},
     {"from": "implement", "to": "docs", "kind": "docs"},
     # The docs Agent-tool subagent (implement Phase 4.1) invokes the docs skill,
     # which in turn invokes docs-sync-internal / docs-sync-external /
