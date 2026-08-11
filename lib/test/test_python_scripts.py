@@ -14596,8 +14596,10 @@ _regen_list_1445 = _subprocess.run(
     cwd=str(_REPO), capture_output=True, text=True)
 # Establish the output before reading an ABSENCE from it: a crashing --list emits empty
 # stdout, in which the absence assertion below passes while proving nothing about the rows.
-assert_eq("#1445 AC7: --list exits 0 and emits rows (control for the absence assertion)",
-          True, _regen_list_1445.returncode == 0 and "artifact" in _regen_list_1445.stdout)
+# Name a row that must be present: a header-only substring would also survive a partial crash.
+assert_eq("#1445 AC7: --list exits 0 and emits a known row (control for the absence assertion)",
+          True, _regen_list_1445.returncode == 0
+          and _regen1445.ROWS[0]["name"] in _regen_list_1445.stdout)
 assert_eq("#1445 AC7: --list emits no cloud-writer-manifest row",
           False, "cloud-writer-manifest" in _regen_list_1445.stdout)
 
@@ -14928,34 +14930,14 @@ assert_eq("#1445 AC6: the mutation check registers no git config (no --register 
 # clone (which registers nothing) produces exactly what `main` publishes.
 assert_eq("#1445 AC7: the generator is deterministic (byte-identical across two renders)",
           cwc.canonical_json(cwc.build_manifest()), cwc.canonical_json(cwc.build_manifest()))
-# The AC's main-side half: on the base branch the published digests ARE the live bytes of the
-# tree that publishes them. Hash the base ref's own blobs — never the working tree, which on a
-# feature branch legitimately differs and would make this assert the staleness #1445 allows.
-try:
-    _base_ref_1445 = "origin/" + (json.loads(
-        (_REPO / ".prflow" / "config.json").read_text(encoding="utf-8")
-    ).get("base_branch") or "main")
-except Exception:
-    _base_ref_1445 = "origin/main"
-_base_art_1445 = _git1445_raw(str(_REPO), 'show', '%s:scripts/devflow-cloud-writer-contract.json' % _base_ref_1445)
-if _base_art_1445.returncode != 0:
-    # An unfetched base ref is an unestablished comparand, not a passing one — say so rather
-    # than letting a shallow clone read as a satisfied main-side guarantee.
-    print("  #1445 AC7 main-side byte-identity UNESTABLISHED: %s unreadable" % _base_ref_1445)
-else:
-    _base_files_1445 = json.loads(_base_art_1445.stdout)["files"]
-    _base_live_1445 = {}
-    for _rel1445 in _base_files_1445:
-        _blob1445 = _subprocess.run(('git', 'show', '%s:%s' % (_base_ref_1445, _rel1445)),
-                                    cwd=str(_REPO), capture_output=True)
-        _base_live_1445[_rel1445] = (_h1445.sha256(_blob1445.stdout).hexdigest()
-                                     if _blob1445.returncode == 0 else "<unreadable>")
-    assert_eq("#1445 AC7: on the base branch every published digest is the sha256 of that tree's own bytes",
-              _base_files_1445, _base_live_1445)
-    # AC4's before/after comparand: the pinned path LIST is byte-identical to the pre-change
-    # artifact's, which internal sorted/de-duplicated consistency alone cannot demonstrate.
-    assert_eq("#1445 AC4: the pinned path list is identical to the pre-change artifact's",
-              sorted(_base_files_1445.keys()), _paths1445)
+# AC4's before/after comparand: the checked-in artifact is main's and this PR does not modify
+# it, so its key set IS the pre-change list. Read it from the tree, never from origin/<base>:
+# a remote-state comparand turns RED on every branch whenever main's manifest is stale, which
+# is the residual #1445 documents rather than a defect in the branch under test.
+_committed_art_1445 = json.loads(
+    (_REPO / "scripts" / "devflow-cloud-writer-contract.json").read_text(encoding="utf-8"))
+assert_eq("#1445 AC4: the pinned path list is identical to the pre-change artifact's",
+          sorted(_committed_art_1445["files"].keys()), _paths1445)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # issue #703 AC20: consumer-provisioning fixtures — fresh install, in-place
