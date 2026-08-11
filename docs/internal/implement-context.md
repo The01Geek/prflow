@@ -36,21 +36,25 @@ long implement run actually pays:
 These are the two corrections issue #1209 records as **findings, not background**. Each
 rests on specific entry-gate text in `skills/implement/SKILL.md`, quoted here.
 
-### Finding 1 — the phase files are loaded one per phase entry, not all together
+### Finding 1 — the phase files are loaded one phase's set per phase entry, not all together
 
 `skills/implement/SKILL.md` states the phase entry-gate rule once, in its preamble, and
-routes each of the four phases from that single statement. It reads, verbatim:
+routes every phase from that single statement. Since issue #1606 a phase routes to an
+**ordered set** of reference files rather than to one file, so the entry gate reads, verbatim:
 
-> At the start of **every** phase, before taking any action in it, `Read` that phase's
-> reference file under `<skill-dir>/phases/` — Phase 1 → `phase-1-setup.md`, Phase 2 →
-> `phase-2-implement.md`, Phase 3 → `phase-3-review.md`, Phase 4 → `phase-4-documentation.md`
-> — and follow it exactly …
+> **Each phase routes to an ordered SET of reference files, not to one file.** At the start
+> of **every** phase, before taking any action in it, `Read` every member of that phase's set
+> under `<skill-dir>/phases/`, in the order stated here, and follow them exactly …
 
-A run enters one phase at a time and reads that one phase file when it does. It never
-holds all four at once. So the highest phase-file cost at any single phase entry is the
-size of **whichever single phase file that entry loads**, not the sum of the four — with
-the always-loaded `SKILL.md` resident alongside it. Optimising against the four-file
-total would be optimising a cost that does not exist.
+followed by a table pairing each phase with its ordered set. Phase 1 and Phase 4 hold one
+member each; Phases 2 and 3 hold three each.
+
+A run enters one phase at a time and reads that phase's set when it does. It never holds
+every phase's files at once. So the highest phase-file cost at any single phase entry is the
+summed size of **whichever phase's set that entry loads** — with the always-loaded
+`SKILL.md` resident alongside it. Optimising against the whole-directory total would be
+optimising a cost that does not exist; the per-phase set total is the real one, and it is
+what bounds a phase entry.
 
 **Phase-file size — past-time snapshot, NOT a live figure.** Generating revision
 `2c85a931d`, captured 2026-08-11 (after issue #1582 moved Phase 1.4's branch
@@ -82,17 +86,17 @@ sum of ~381 KiB — the sum being the figure the framing above gets wrong.
 
 The same single entry-gate statement continues, verbatim:
 
-> This read is required **on every entry** — including a resumed or re-entrant run that
+> These reads are required **on every entry** — including a resumed or re-entrant run that
 > picks up at a later phase — never relying on a read from an earlier phase or session.
 
 and `skills/implement/SKILL.md`'s **Mid-phase re-anchor after a Skill-tool return**
 rule adds, verbatim:
 
-> … after **every** Skill-tool return mid-phase — `simplify`, `review-and-fix`,
-> `pr-description`, or any other — re-`Read` the current phase file
-> `<skill-dir>/phases/phase-N-<name>.md` and resume …
+> Re-`Read` **every member of the current phase's reference set under
+> `<skill-dir>/phases/`, in the entry-gate order**, after **every** Skill-tool return
+> mid-phase — `simplify`, `review-and-fix`, or any other — and resume …
 
-So a run that bounces through Phase 3's fix loop pays for `phase-3-review.md` again on
+So a run that bounces through Phase 3's fix loop pays for Phase 3's whole file set again on
 every pass, and a run that calls out to a nested skill and returns pays for the current
 phase file again. **How many times each phase file is re-read across a run — not how big
 it is once — is the cost shape worth measuring.** This is precisely the axis the
@@ -122,9 +126,11 @@ peak and final context;
 (`usage_missing_turns` — such a turn's residency was never recorded, so it is tallied
 rather than folded in as a `0`, and a run whose every turn lacks usage reports its peak
 as `unestablished`); and — reported **separately from the peak, because they are
-different quantities** — a per-phase-file read count for each of the four phase files,
-plus their per-run total. A phase-file read is a `Read` tool_use whose
-`input.file_path` basename is one of the four phase file names; the basename is matched
+different quantities** — a per-phase-file read count for each phase file the phases
+directory holds, plus their per-run total. Reads are attributed to a phase by the file's
+own stem, so the members of one phase's ordered set report under that phase's label rather
+than each becoming an axis of its own. A phase-file read is a `Read` tool_use whose
+`input.file_path` basename is one of those phase file names; the basename is matched
 (not a full path) because the skill anchors the read at
 `<skill-dir>/phases/phase-N-<name>.md`, which resolves to a local `skills/implement/…`
 path on the interactive tier and a vendored `.prflow/vendor/prflow/skills/implement/…`
@@ -186,7 +192,14 @@ ceiling, threshold, or budget — they are instrument outputs.
 
 A tier-conditional split of each phase file into a "cloud" version and a "local" version
 is a **declared non-goal** of issue #1209, recorded here with its three reasons so it is
-not re-proposed:
+not re-proposed.
+
+**This does not refuse a size-driven split into siblings, which is a different mechanism.**
+Issue #1606 split two phase files into entry-gate-registered siblings so each returns whole
+from a single read; every member is unconditional and every run reads the whole set, so no
+run ever executes a phase from a variant selected for it. The non-goal below is about
+*conditional* selection between variants — which is what introduces the failure modes it
+enumerates — not about how many files a phase's procedure occupies.
 
 1. **The three existing load-on-demand systems fail in deliberately chosen directions.**
    The review engine's phase bundle fails **closed** (an unreadable reference stops the

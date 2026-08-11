@@ -563,7 +563,7 @@ leading-token helper forms and the Write tool for scratch, not a broadened permi
 - *`/prflow:implement` Phase 3.3 inline backstop (agent-executed).* `/prflow:implement` drives
   `/prflow:review-and-fix` **inline in the orchestrator's own context** (Phase 3.3), so its Loop Exit
   runs in-context and can be dropped exactly like any other interactive/inline drive. To close that
-  seam without waiting for a harness-tier caller, `phase-3-review.md` runs `--persist` directly
+  seam without waiting for a harness-tier caller, `phase-3-fix-loop.md` runs `--persist` directly
   (resolved via the portable skill-dir anchor as `…/../../lib/efficiency-trace.sh`, best-effort `|| true`) the moment
   the inline loop returns — regardless of verdict, before the verdict branches. It runs `--persist`
   **twice, targeted first**: this orchestrator drove the loop inline and *does* hold its

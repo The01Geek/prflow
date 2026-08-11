@@ -1,6 +1,6 @@
 # `/prflow:implement` skill — Phase 2.3 sweep discipline and Phase 4.3 finalize
 
-**Skill:** `skills/implement/phases/phase-2-implement.md` (Phase 2.3, *Implement*) — the detailed phase procedure read at phase entry by the thin `skills/implement/SKILL.md` orchestrator
+**Skill:** `skills/implement/phases/phase-2-sweeps-contract.md` (Phase 2.3, *Implement*) — the detailed phase procedure read at phase entry by the thin `skills/implement/SKILL.md` orchestrator
 
 ## Early Phase 1 dependency preflight
 
@@ -552,7 +552,7 @@ filesystem a failed branch write is recoverable rather than lost. On an **epheme
 staging tree does not survive teardown, so the cloud recovery path is the **uploaded workflow
 artifact** the auto-review tier stages and uploads, which the trusted telemetry-push relay
 (`telemetry-push.yml`, issue #489) downloads, validates, and pushes — not any on-disk copy the
-ephemeral runner cannot retain (coupled with `skills/implement/phases/phase-3-review.md` and
+ephemeral runner cannot retain (coupled with `skills/implement/phases/phase-3-fix-loop.md` and
 `docs/internal/efficiency-trace.md`, which say the same — the shipped phase file names the relay
 generically rather than by filename, because since issue #1423 the never-shipped-workflow lint
 forbids a withheld-tier workflow name on the shipped prompt surface; do not re-sync the literal
@@ -780,7 +780,7 @@ denied and the deferral proceeds; the two are told apart by whether the probe ob
 about the precondition, not by raw exit status — a `gh api` **404** (object observably absent) or **200
 with falsy data** (empty required-checks array, absent bypass actor) is **observed-false**, not a denial.
 A passed probe only *narrows* the deferral to the genuinely-live residue; it never ticks the AC box. The
-contract lives in `skills/implement/phases/phase-3-review.md` and is the single source of truth for both
+contract lives in `skills/implement/phases/phase-3-ac-gate.md` and is the single source of truth for both
 the Phase 1.2 tag-time path (`skills/implement/phases/phase-1-setup.md`) and the Phase 3.4 retro-tag path.
 
 ### Focused-vs-full selection and the run budget (issue #789)
