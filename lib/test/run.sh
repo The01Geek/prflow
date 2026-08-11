@@ -4423,19 +4423,18 @@ assert_pin_unique "#232: SKILL self-check forbids ending on an in-progress Statu
   'the run is not finished — return to the phase that owns the remaining work' "$IMPL_ORCH"
 assert_pin_unique "#232: SKILL self-check keys on workpad Status, not PR draft state (AC2)" \
   'keys on the workpad `Status`, not on PR draft state' "$IMPL_ORCH"
-# (2) phase-4-documentation.md post-subagent re-anchor scope. Issue #362
+# (2) phase-4-documentation.md Phase 4.1 post-subagent re-anchor scope. Issue #362
 #     reworded the scope clause from
 #     "the Phase 4.1 docs subagent return only" to "**subagent** returns", because a
 #     Skill-tool return is now covered by the orchestrator's generalized mid-phase
 #     re-anchor instead. Issue #1577 added a SECOND subagent-return re-anchor (§4.2's
-#     PR-description subagent, before §4.3), so this adjudicated literal now recurs
-#     (once per re-anchor). It is a legitimately NON-UNIQUE presence pin, so it uses
-#     grep_present (the documented escape hatch) over the SAME adjudicated literal —
-#     keeping the #810 corpus decision valid and the guard alive without authoring a
-#     new prose pin (per CLAUDE.md #843/#876 the re-anchor prose owes no new pin — the
-#     review pass is its control).
-assert_eq "#232/#362/#1577: phase-4 re-anchor scoped to **subagent** returns (AC4, reworded; recurs per re-anchor)" \
-  "yes" "$(grep_present 'scoped to **subagent** returns' "$P4_FILE")"
+#     PR-description subagent, before §4.3); that note is worded "fires on a
+#     **subagent** return only" so this grandfathered, adjudicated literal stays
+#     unique to the §4.1 note (per CLAUDE.md #843/#876 the §4.2 re-anchor is
+#     agent-executed prompt prose that owes no new prose pin — the review pass is its
+#     control).
+assert_pin_unique "#232/#362: phase-4 re-anchor scoped to **subagent** returns (AC4, reworded)" \
+  'scoped to **subagent** returns' "$P4_FILE"
 # AC1 operative: the normative prohibition sentence (not only its corrective consequence).
 assert_pin_unique "#232: SKILL self-check keeps the run-final-message prohibition (operative)" \
   'Do not emit your run-final message while the workpad' "$IMPL_ORCH"
