@@ -1,5 +1,5 @@
 {
-  "manifest_version": 23,
+  "manifest_version": 24,
   "readme": [
     "This manifest is the single source of truth for DevFlow's cloud capability policy:",
     "which tools/commands each execution tier (review, implement, command) may run.",
@@ -226,6 +226,7 @@
       "Bash(*/render-prompt-extension.sh:*)",
       "Bash(.prflow/vendor/prflow/scripts/react-to-trigger.sh:*)",
       "Bash(.prflow/vendor/prflow/scripts/extract-doc-needed-paths.sh:*)",
+      "Bash(.prflow/vendor/prflow/scripts/read-doc-needed-deliverables.sh:*)",
       "Bash(.prflow/vendor/prflow/scripts/prompt-surface-growth.py:*)",
       "Bash(pip install:*)",
       "Bash(pip:*)",

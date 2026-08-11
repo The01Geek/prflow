@@ -4,6 +4,42 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.20] — 2026-08-10
+
+### Changed
+Gate the `/prflow:implement` phase-reference reads behind boundary markers (issue #1551, PR #1569). Each file under `skills/implement/phases/` now carries a self-naming `<!-- prflow:implement-ref phase=N file=… start/end -->` marker as its literal first and last line, and `skills/implement/SKILL.md` gains a *Phase-reference boundary contract* — an eight-shape accept-or-reject taxonomy with per-shape `boundary:` stop labels, a plugin-relative path comparison rule, and an out-of-band repair route — referenced from all eight phase-file read sites (the four entry gates, the phase-reference preamble, and the three always-loaded re-anchors). A partial or mis-routed phase read now halts the phase with a named stop label instead of being executed as if correct.
+
+Rows 1–7 of the taxonomy are a required copy of the canonical failure-shape rows in `skills/review/SKILL.md`'s *Reference boundary contract* (with a reciprocal pointer added there); row 8 makes the mis-routed read explicit. `lib/test/run.sh` asserts the on-disk markers for each registered phase stem, driven from the existing `IMPL_PHASE_STEMS` list, and `scripts/devflow-cloud-writer-contract.json` records the post-change SHA-256 of each phase file. The runtime honoring of these markers is agent-executed prompt prose and carries no automated test, by design.
+
+## [2.32.19] — 2026-08-10
+
+### Changed
+`workpad.py patch` no longer duplicates a leading marker kind that only the caller supplied: a composed body carrying one kind twice inside the two-line scan window now keeps its first copy alone, the same first-wins rule already applied to a kind the live comment body also carries.
+
+## [2.32.18] — 2026-08-10
+
+### Changed
+Phase 4.1's Documentation-Needed read is now a bundled helper,
+`scripts/read-doc-needed-deliverables.sh`, invoked once per stage instead of
+twelve lines of inline shell written twice. The helper owns the issue-body fetch,
+its scratch file, the extractor invocation and both retries, and prints an outcome
+token paired with its own exit status — `deliverables` (0), `no-deliverables` (10),
+`body-read-failed` (11), `extract-failed` (12) — on a `docgate-outcome: ` line, with
+one `docgate-path: ` line per deliverable. Those prefixes keep the outcome readable
+in a tool result that merges the helper's stdout with `gh`'s and the extractor's
+stderr. Stage 1's dispatch briefing and Stage 2's
+per-path diff check now read that list from the command's output rather than from a
+shell variable the runner does not carry between calls, the retry-and-fail-closed
+rule is stated once instead of in two paragraphs that had drifted apart, and a
+residual arm routes every observation outside the token-and-status contract to
+`Blocked`. The read's branch selection and arm ordering are driven by the test
+suite.
+
+## [2.32.17] — 2026-08-10
+
+### Changed
+`workpad.py patch` now preserves the leading marker lines a full-body rewrite would otherwise drop. A rewrite composes its bytes from state the caller holds, so a caller that does not retype the run-key marker (`<!-- prflow:review-progress run=… -->`, line 1) or a stamped verdict marker (line 2) silently dropped them — and a marker-resolving reader did not error, because a scan that finds nothing reads as "there was no such comment". The helper now reads the live body first and re-inserts any leading marker the composed body omits, keeping the live body's order while letting a marker the caller does supply win for its own kind, so a same-kind re-stamp still lands. A live body the read cannot establish — a failed read, or `gh` exiting 0 with an error envelope carrying no `.body` — is treated as unknown rather than as an empty body: the PATCH proceeds with a breadcrumb when the composed body carries its own leading marker, and is refused when it does not, since that is the case where a marker would be dropped unrecoverably.
+
 ## [2.32.16] — 2026-08-10
 
 ### Changed
