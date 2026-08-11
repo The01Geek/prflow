@@ -2401,7 +2401,9 @@ def _flag_help_present_1550(help_text, flag):
         if not _tok.search(_ln):
             continue
         _after = _ln[_ln.find(flag) + len(flag):]
-        if re.search(r'\S', _after) and re.search(r'\s{2,}\S', _after):
+        # a >=2-space gap before text is argparse's same-line help column; the gap's
+        # trailing \S is the help text, so this alone implies _after is non-empty.
+        if re.search(r'\s{2,}\S', _after):
             return True
         if _i + 1 < len(_lines):
             _nxt = _lines[_i + 1]
