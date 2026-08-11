@@ -15580,8 +15580,9 @@ def _ias_run(argv, cwd, stdin=None):
             try:
                 buf = []
                 fh = os.fdopen(fd, 'rb')
-                # Recorded only once `os.fdopen` has taken the fd: an earlier failure
-                # leaves the parent's finally arm as the only closer of this pipe end.
+                # Membership means "this thread closed, or will close, this pipe end";
+                # clearing it before `os.fdopen` takes the fd would leak it, since the
+                # parent then skips it too.
                 owned.add(key)
                 with fh:
                     while True:
@@ -15592,6 +15593,15 @@ def _ias_run(argv, cwd, stdin=None):
                 chunks[key] = b''.join(buf)
             except BaseException as exc:  # noqa: BLE001 - re-raised in the parent below
                 failures[key] = exc
+                # Release this pipe end HERE when `os.fdopen` never took it: the parent
+                # reaches `os.waitpid` before its own finally arm, so an undrained,
+                # unclosed pipe wedges the pair forever once the child fills it.
+                if key not in owned:
+                    try:
+                        os.close(fd)
+                    except OSError:
+                        pass
+                    owned.add(key)
 
         # Both streams drain concurrently: a child that fills one pipe's buffer while the
         # parent is blocked reading the other would wedge the pair.

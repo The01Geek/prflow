@@ -581,9 +581,11 @@ opt-in row, which measures every exact-policy module through the real focused ru
 `scripts/workflow-flight-recorder-registry.json` and their coupled `lib/test/run.sh` call
 sites from that measured tally, never lowering either. The default pass prints an
 explicit `not measured` line for that row rather than staying silent about it, and skips
-it even under the flag when an earlier row has already reported the tree red. Deferring
-it cannot ship a stale artifact: an unraised floor fails the suite loudly at the module
-harness, which no completion claim may stand on. The registry inside the helper is
+it even under the flag when an earlier row has already reported the tree red. Deferring it
+is a bounded gap, not a free one: the module harness fails only a tally *below* the floor,
+so a floor left un-raised is caught only by `test_module_runner.py`'s equality assertion
+over its `REAL_EXECUTION_MODULES` subset — run the flagged pass before a completion claim.
+The registry inside the helper is
 the sole enumeration point — run `--list` for the current set rather than trusting a
 copy here, which would go stale the next time an artifact is added. Judgment items are yours to resolve deliberately — the helper never
 edits them. Exit codes: `0` clean, `1` action required, `2` infrastructure failure

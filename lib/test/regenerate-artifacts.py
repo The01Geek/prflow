@@ -20,9 +20,12 @@ silence — so a reader can tell "measured and clean" from "not measured". Under
 the row is still skipped when an earlier row already forced exit 1 or hit the
 infrastructure state: measuring a tree this same pass has just reported red spends minutes
 judging a tree that is about to change. Neither skip forces an exit code of its own.
-Deferring the floor measurement cannot commit a stale artifact — an unraised floor fails
-the suite loudly at the module harness — whereas the cheap rows, including the SHA-256
-pinned cloud-writer manifest whose staleness turns a required check red, run on every pass.
+Deferring the floor measurement is a real, bounded gap rather than a free one: the module
+harness fails only a tally BELOW the floor, so a floor left un-raised is caught solely by
+`test_module_runner.py`'s equality assertion, which executes only its
+`REAL_EXECUTION_MODULES` subset. Run the flag before a completion claim. The cheap rows,
+including the SHA-256 pinned cloud-writer manifest whose staleness turns a required check
+red, run on every pass.
 
 REGISTRATION RULE (shipped as artifact content, not merely convention). Kept on ONE
 line deliberately: a sentence wrapped across a line break lives on no single line, so
@@ -1398,8 +1401,9 @@ def main(argv=None):
             if row.get("opt_in") and not args.with_floors:
                 report.append(
                     f"[{row['name']}] not measured -- pass --with-floors to run this "
-                    "row (its measurement runs the real focused module runners); an "
-                    "unraised floor fails the suite loudly and is never a silent pass."
+                    "row (its measurement runs the real focused module runners); until "
+                    "then a floor left un-raised is unchecked for every exact-policy "
+                    "module test_module_runner.py does not execute."
                 )
                 continue
             # Never measure a tree an earlier row has already reported red. The opt-in
