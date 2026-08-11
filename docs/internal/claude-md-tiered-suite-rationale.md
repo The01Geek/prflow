@@ -156,14 +156,14 @@ much evidence each owes: a local run can push, wait and resume, while a headless
 suspend and resume, so it structurally cannot wait on an external workflow. A future edit that
 "simplifies" the rungs into one rule silently gives one tier a gate it cannot execute.
 
-The reading is not free. Verifying by push spends Actions capacity against an account cap of 40
+The reading is not free. Measured 2026-08-11, verifying by push spends Actions capacity against an account cap of 40
 concurrent slots: one push costs several runs, and concurrent implement runs hold their slots for
 their whole duration — which is why `CLAUDE.md` tells a run to batch into one consolidated push per
 iteration rather than pushing per edit. That cost is the price of the authoritative signal; it is
 not a reason to re-adopt the local one.
 
 Measured 2026-08-11: CI completes in 6–8 minutes with five shards on separate runners (slowest 7m),
-while locally those same five shards contend for one host, and a run that day exceeded the tier's
+while locally those same shards contend for one host, and a run that day exceeded the tier's
 foreground execution ceiling outright and had to be decomposed shard-by-shard and recombined.
 
 ## Tier-2 extraction, and why a second cycle is the trigger
