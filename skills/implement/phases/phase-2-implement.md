@@ -1,3 +1,4 @@
+<!-- prflow:implement-ref phase=2 file=skills/implement/phases/phase-2-implement.md start -->
 ## Phase 2: Discover, Plan & Implement
 
 Output: `Phase 2/4: Discover, Plan & Implement...`
@@ -642,3 +643,5 @@ If the change includes test fixes, name those paths in this same final checkpoin
 Then tick the implementation gate **and its parent phase** in the workpad: `workpad.py update $ISSUE_NUMBER --tick-progress "code + sweeps" --tick-progress "**Implement**"`.
 
 **⚠ You are NOT done. Code is committed but not reviewed or documented. Proceed to Phase 3.**
+
+<!-- prflow:implement-ref phase=2 file=skills/implement/phases/phase-2-implement.md end -->

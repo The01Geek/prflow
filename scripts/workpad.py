@@ -1114,7 +1114,8 @@ def _merge_leading_markers(live_body, new_body):
     line wins for any kind it supplied — its FIRST line of that kind, so a
     composed body carrying one kind twice inside the scan window keeps the copy
     at the contracted position — so a same-kind re-stamp still lands;
-    a kind only the caller supplied is appended after the live ones. When the
+    a kind only the caller supplied is appended once after the live ones, its
+    first line winning exactly as a live kind's does. When the
     caller supplied every live kind nothing is re-inserted and its own body —
     and its own order — is returned untouched. The consequence a caller must
     know: this can CHANGE a leading marker of a kind the live body already
@@ -1141,7 +1142,16 @@ def _merge_leading_markers(live_body, new_body):
         return new_body, []
     live_kinds = {kind for kind, _ in live}
     merged = [by_kind.get(kind, line) for kind, line in live]
-    merged += [line for kind, line in supplied if kind not in live_kinds]
+    # `by_kind` resolves the first-wins rule only for kinds the LIVE body also
+    # carries; a supplied-only kind is appended from `supplied` directly, so
+    # filtering on the kind alone would append a caller's duplicate twice.
+    # Emitting each supplied-only kind once keeps the rule uniform across both.
+    seen_supplied = set()
+    for kind, line in supplied:
+        if kind in live_kinds or kind in seen_supplied:
+            continue
+        seen_supplied.add(kind)
+        merged.append(line)
     merged_kinds = {kind for kind, _ in live} | {kind for kind, _ in supplied}
     # A composed body whose marker does not begin at line 1 — a blank line or a
     # heading ahead of it — leaves `supplied` empty, so its own copies would ride
