@@ -4293,9 +4293,13 @@ done
 # statement in the orchestrator preamble. These guards replace the retired per-phase
 # assert_pin_unique triple: they prove the single surviving statement still carries each
 # load-bearing clause (a mandatory-read imperative, the fail-closed halt, and the
-# placeholder-aware halt), count-free — so an unrelated later occurrence of any clause
-# elsewhere in the file leaves them green while an inert "see also phases/…" downgrade of
-# the statement turns them RED.
+# placeholder-aware halt), count-free (whole-file `grep -qF` presence). This proves each
+# clause is present SOMEWHERE in the orchestrator, which equals presence in the gate
+# statement only while that statement is the clause's sole home (true today: each phrase
+# occurs exactly once). Deleting a clause from the statement without relocating it — the
+# realistic downgrade to an inert "see also phases/…" pointer — turns the matching guard RED;
+# the routing-count and phase-identity guards cover the co-location whole-file presence alone
+# does not.
 assert_eq "#1566: the single entry-gate statement carries a mandatory-read imperative (not an inert see-also pointer)" "yes" \
   "$(grep -qF 'before taking any action in it' "$IMPL_ORCH" && echo yes || echo no)"  # structural-pin-ok: cross-file-phase-contract -- the single entry-gate statement must state a mandatory-read imperative; an inert "see also phases/…" downgrade would lose the phase-file read contract the split depends on
 assert_eq "#1566: the single entry-gate statement carries the fail-closed halt-with-breadcrumb clause" "yes" \
