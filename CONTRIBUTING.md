@@ -70,9 +70,10 @@ consult `lib/test/modules/coverage-map.json` to find a candidate and confirm a
 module ID in the registry; changed files never auto-route to a module. The whole-suite gate is not weakened, but since
 issue #1607 **this repository's** local/interactive tier discharges it by
 committing, pushing, and reading CI for the pushed commit rather than by a local
-complete-suite pass: commit, push, confirm a run exists for the full 40-character
-SHA, and read the required check `lib + python tests` by name — an absent,
-unavailable, or still-running result is unestablished, never a pass. The local
+complete-suite pass. `CLAUDE.md`'s rung 1 carries that procedure and its
+fail-open traps in one copy — follow it there rather than from this summary,
+which deliberately restates no part of it, since a partial restatement is what
+would send a reader past the trap the full rule names. The local
 run stays the signal you **troubleshoot** from, because
 its failure detail is richer than CI's, and the issue-#456 skip accounting is
 unchanged — a nonempty skip tally is not clean, and a module may not self-skip,
@@ -847,10 +848,10 @@ resolve the portable `${CLAUDE_SKILL_DIR:-…}` anchor at runtime.
 
 1. Branch and make focused changes, iterating on the module that covers the
    surface you touched (see *Running the tests*). Before marking the PR ready,
-   commit and push, then read CI for that pushed commit — the required check
-   `lib + python tests` by name — since issue #1607 made that reading this
-   repository's local-tier whole-suite gate. Run the suite locally when you want
-   its richer failure detail to troubleshoot from; that run is not the gate.
+   commit and push, then read CI for that pushed commit following `CLAUDE.md`'s
+   rung 1 — since issue #1607 made that reading this repository's local-tier
+   whole-suite gate. Run the suite locally when you want its richer failure
+   detail to troubleshoot from; that run is not the gate.
 2. Open a PR with a clear description. If your change reaches consumers (the engine surface —
    `skills/`, `agents/`, `lib/`, `scripts/`, the workflows, the config schema), add a
    **changeset** instead of editing `CHANGELOG.md` or `.claude-plugin/plugin.json`: create a
