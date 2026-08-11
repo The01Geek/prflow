@@ -2,30 +2,526 @@
   "iter": 1,
   "started_at": "2026-08-11T02:27:29Z",
   "loop_role": "fix",
-  "current_step": "loop-control",
-  "current_substep": "step_1_run_engine",
+  "current_step": "2.6",
+  "current_substep": "run_shadow_fanout",
   "pending_dispatch": null,
-  "fix_commit_sha": null,
-  "fix_files": [],
+  "fix_commit_sha": "0dbd8aa1c",
+  "fix_files": [
+    ".changeset/issue-1445-cloud-writer-merge-chokepoint.md",
+    "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+    "lib/test/test_python_scripts.py"
+  ],
   "config": {
     "max_iterations": 5,
     "fix_severity_threshold": "suggestion",
     "verdict_severity_threshold": "critical",
     "push_each_iteration": true
   },
-  "step_0_5_note": "gh pr checkout rc=1: the PR head branch name is held by sibling worktree agent-af3a82a8535bca705 (at superseded commit 158ae6e8d). Substantive gate verified instead: git rev-parse HEAD == PR headRefOid (0418daf18f00372ec8377986a83f85e296fbef59) and upstream == origin/issue-1445-the-cloud-writer-contract-manifest-is-a-merge. Pushes use the explicit refspec form the receiving-code-review extension mandates for this shepherd-worktree shape.",
-  "checklist": [],
-  "dispatched_effort": [],
-  "phase3_dispatched": [],
-  "diff_profile": null,
-  "phase3_findings": [],
-  "fix_decisions": [],
-  "convergence_inputs": null,
+  "step_0_5_note": "gh pr checkout rc=1: the PR head branch name is held by sibling worktree agent-af3a82a8535bca705 at superseded commit 158ae6e8d. Substantive gate verified instead: git rev-parse HEAD == PR headRefOid at entry (0418daf18) and upstream == origin/issue-1445-...; pushes use the explicit-refspec form the receiving-code-review extension mandates for this shepherd-worktree shape.",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "detect_all_audit_forced_critic": true,
+    "checklist_skipped": null
+  },
+  "dispatched_effort": [
+    {
+      "agent": "prflow:checklist-generator",
+      "phase": "1",
+      "requested": "low",
+      "resolved": "low",
+      "application_point": "session-fallback",
+      "effective": null,
+      "fallback_reason": "per-agent effort resolved but not applied: no in-session per-agent effort seam"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "phase": "3",
+      "requested": "low",
+      "resolved": "low",
+      "application_point": "session-fallback",
+      "effective": null,
+      "fallback_reason": "effort not applicable in-session; the resolved model override 'claude-opus-4-8' is also outside this runner's Agent-tool model enum, so it was not applied either"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "phase": "3",
+      "requested": "low",
+      "resolved": "low",
+      "application_point": "session-fallback",
+      "effective": null,
+      "fallback_reason": "no in-session per-agent effort seam"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "phase": "3",
+      "requested": "low",
+      "resolved": "low",
+      "application_point": "session-fallback",
+      "effective": null,
+      "fallback_reason": "no in-session per-agent effort seam"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "phase": "3",
+      "requested": "low",
+      "resolved": "low",
+      "application_point": "session-fallback",
+      "effective": null,
+      "fallback_reason": "no in-session per-agent effort seam"
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer"
+  ],
+  "phase3_roster_note": "prflow:type-design-analyzer gated out by has_new_types=false. prflow:requesting-code-review (the general-purpose final-pass reviewer) was NOT dispatched — an orchestrator context-budget shortfall, recorded as a coverage gap, not an applicability gate.",
+  "checklist_summary": {
+    "generated": 52,
+    "deduped_to": 45,
+    "passed": 41,
+    "failed": 4,
+    "inconclusive": 0,
+    "lite": 1,
+    "agent": 44,
+    "normalized_wording_only": 2,
+    "field_defect_fail_count": 0,
+    "dispatch_shape_note": "VC-1..VC-16 dispatched one verifier per item per Phase 2.1b; VC-17..VC-45 grouped 3-4 items per verifier under orchestrator context pressure — a disclosed deviation from the one-agent-per-item shape. Independent source reads, strict grading and the two structured fields were preserved."
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "changeset + DEVFLOW_SYSTEM_OVERVIEW claim hand-authored divergence 'cannot be produced'; the check runs in ci.yml's lint job and main carries no branch protection",
+      "defect_signature": {
+        "file": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+        "line_range": [
+          1128,
+          1128
+        ],
+        "kind": "overstated_enforcement_absolute"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "DEVFLOW_RA_TEST_MECHANICAL_ROW is an exported env seam inherited by every descendant of the module subshell; an argv flag would confine it",
+      "defect_signature": {
+        "file": "lib/test/regenerate-artifacts.py",
+        "line_range": [
+          490,
+          516
+        ],
+        "kind": "env_seam_over_broad_scope"
+      },
+      "fix_decision": "deferred"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "exit-1 folds 'unreadable input' together with 'mutated'",
+      "defect_signature": {
+        "file": "lib/test/cloud-writer-retention-check.py",
+        "line_range": [
+          178,
+          194
+        ],
+        "kind": "outcome_conflation"
+      },
+      "fix_decision": "pushed_back"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "38-line module docstring carries derivation/provenance past the contract-header carve-out",
+      "defect_signature": {
+        "file": "lib/test/cloud-writer-retention-check.py",
+        "line_range": [
+          157,
+          194
+        ],
+        "kind": "comment_standard_derivation_inline"
+      },
+      "fix_decision": "deferred"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "parallel-suite-runner.sh preflight stubs still model a cloud-writer-manifest row no production registry can emit",
+      "defect_signature": {
+        "file": "lib/test/modules/parallel-suite-runner.sh",
+        "line_range": [
+          928,
+          941
+        ],
+        "kind": "stale_fixture_coupled_site"
+      },
+      "fix_decision": "deferred"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "_mt_conflict1445 reads any non-zero rc as conflict; controls pass green on a git without --write-tree",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          14556,
+          14560
+        ],
+        "kind": "exit-status-swallowed-false-green"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "_git1445 return codes never inspected; a half-built fixture makes EXIT_MUTATED arms pass for the wrong reason",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          14542,
+          14544
+        ],
+        "kind": "unchecked-subprocess-status"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "AC7 --list absence assertion passes on empty stdout",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          14578,
+          14582
+        ],
+        "kind": "absence-assertion-passes-on-empty-output"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "version-consolidate regeneration sits below the no-changesets early exit",
+      "defect_signature": {
+        "file": ".github/workflows/version-consolidate.yml",
+        "line_range": [
+          133,
+          138
+        ],
+        "kind": "guard-ordered-after-early-exit"
+      },
+      "fix_decision": "pushed_back"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "seam exported for the module's whole process subtree, never unset",
+      "defect_signature": {
+        "file": "lib/test/modules/regenerate-artifacts.sh",
+        "line_range": [
+          31,
+          31
+        ],
+        "kind": "test-seam-env-leak-into-production-path"
+      },
+      "fix_decision": "pushed_back"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "AC1/AC2 simulate the regeneration pass with a boolean over a synthetic manifest, never invoking the real pass",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          14801,
+          14837
+        ],
+        "kind": "simulated-subject-under-test"
+      },
+      "fix_decision": "deferred"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "AC3.1 compares build_manifest() against the sha256_of helper it calls — a tautological oracle",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          14589,
+          14591
+        ],
+        "kind": "tautological-oracle"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "publish-ordering pin is positional and misses a mutant moving regeneration above the reset",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          14594,
+          14598
+        ],
+        "kind": "positional-pin-misses-mutant"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "AC6 negative substring scans carry no positive control",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          14877,
+          14886
+        ],
+        "kind": "negative-substring-no-control"
+      },
+      "fix_decision": "deferred"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "six prevention-only comment-standard breaches (over-cap narrative, restated facts, one overstated claim)",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          10716,
+          14933
+        ],
+        "kind": "comment_over_cap_narrative"
+      },
+      "fix_decision": "deferred"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "VC-20",
+      "decision": "applied",
+      "commit": "0dbd8aa1c"
+    },
+    {
+      "finding_id": "VC-22",
+      "decision": "applied",
+      "commit": "0dbd8aa1c"
+    },
+    {
+      "finding_id": "VC-19",
+      "decision": "applied",
+      "commit": "0dbd8aa1c"
+    },
+    {
+      "finding_id": "VC-43",
+      "decision": "applied",
+      "commit": "0dbd8aa1c"
+    },
+    {
+      "finding_id": "VC-18",
+      "decision": "applied",
+      "commit": "0dbd8aa1c",
+      "evidence": "AC3's 'unchanged in strength' framing softened to detection at both mirror sites; the staleness residual stays documented"
+    },
+    {
+      "finding_id": "F-CR2",
+      "decision": "deferred",
+      "source_file": "lib/test/regenerate-artifacts.py",
+      "claim_text": "env seam should be an argv flag",
+      "skip_category": "out-of-scope",
+      "evidence": "the module is sourced in a subshell (verified VC-15) and writes only temp fixtures (verified VC-14), so the seam cannot reach a production tree today; converting it to argv is a design change beyond this issue's scope",
+      "parking_evidence": {
+        "basis": "already mitigated by subshell isolation; redesign is out of this issue's scope",
+        "failing_input": "a nested helper spawned inside the module subshell that writes the real tree",
+        "source": "lib/test/module-harness.sh:1382-1420; lib/test/run-module.sh:23,454",
+        "finding_ref": {
+          "iter": 1,
+          "index": 1
+        }
+      }
+    },
+    {
+      "finding_id": "F-SFH4",
+      "decision": "pushed_back",
+      "source_file": ".github/workflows/version-consolidate.yml",
+      "claim_text": "run generate before the no-changesets early exit",
+      "skip_category": "claim-quality",
+      "evidence": "this is the PR's own documented Known residual, deliberately accepted; moving regeneration above the early exit changes the issue's chosen design",
+      "parking_evidence": {
+        "basis": "the finding proposes reversing a documented, deliberate design decision",
+        "failing_input": "a changeset-less merge that edits a pinned closure file",
+        "source": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md Known residual",
+        "finding_ref": {
+          "iter": 1,
+          "index": 8
+        }
+      }
+    },
+    {
+      "finding_id": "F-CR3",
+      "decision": "pushed_back",
+      "source_file": "lib/test/cloud-writer-retention-check.py",
+      "claim_text": "unreadable input should not share exit 1 with mutated",
+      "skip_category": "claim-quality",
+      "evidence": "all three retention_check_common consumers share this convention (coverage-map EXIT_LOSS, assertion-floor EXIT_DECREASE); changing one alone creates the coupled-mirror drift CLAUDE.md warns against",
+      "parking_evidence": {
+        "basis": "convention is family-wide; a single-member change is the drift hazard",
+        "failing_input": "an unreadable base manifest",
+        "source": "lib/test/coverage-map-retention-check.py, lib/test/assertion-floor-retention-check.py",
+        "finding_ref": {
+          "iter": 1,
+          "index": 3
+        }
+      }
+    },
+    {
+      "finding_id": "F-PTA1",
+      "decision": "deferred",
+      "source_file": "lib/test/test_python_scripts.py",
+      "claim_text": "AC1/AC2 simulate rather than drive the real regeneration pass",
+      "skip_category": "uncategorized",
+      "evidence": "partially mitigated by AC7, which asserts the production registry declares no writer of the manifest; driving the real pass inside a fixture repo is a larger test-harness change",
+      "parking_evidence": {
+        "basis": "the regression the finding names is covered from the other side by AC7's registry assertions",
+        "failing_input": "a restored branch-side writing row",
+        "source": "lib/test/test_python_scripts.py #1445 AC7 ROWS/--list assertions",
+        "finding_ref": {
+          "iter": 1,
+          "index": 11
+        }
+      }
+    },
+    {
+      "finding_id": "F-CA-ALL",
+      "decision": "deferred",
+      "source_file": "lib/test/test_python_scripts.py",
+      "claim_text": "six prevention-only comment-standard breaches",
+      "skip_category": "uncategorized",
+      "evidence": "prose-only, no behavior change; deferred under orchestrator context budget with the sites enumerated for a follow-up pass",
+      "parking_evidence": {
+        "basis": "Suggestion-severity prose cleanup with no executable consequence",
+        "failing_input": null,
+        "source": "prflow:comment-analyzer iteration-1 findings",
+        "finding_ref": {
+          "iter": 1,
+          "index": 14
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 9,
+    "fix_diff_lines": 105,
+    "new_corroborated_critical_count": 0
+  },
   "cap_drops": {
     "count": 0,
     "by_category": {}
   },
-  "shadow": null,
-  "telemetry": {},
+  "stale_prose_lint": {
+    "exit": 0,
+    "stale_rows": 0,
+    "unresolvable_rows": 23,
+    "verified_rows": 0
+  },
+  "verification_evidence": {
+    "focused_selection": [
+      {
+        "surface": "lib/test/test_python_scripts.py",
+        "coverage_map_entry": "no entry (lib/test is outside the map's lib/scripts population)",
+        "target_selected": "lib/test/test_python_scripts.py (direct leading token)",
+        "single_flight_consulted": false
+      },
+      {
+        "surface": "lib/test/modules/regenerate-artifacts.sh",
+        "coverage_map_entry": "owner: regenerate-artifacts",
+        "target_selected": "lib/test/run-module.sh regenerate-artifacts",
+        "single_flight_consulted": false
+      },
+      {
+        "surface": ".changeset/*.md, docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+        "exemption_ground": "no coverage-map entry; prose surfaces",
+        "single_flight_consulted": false
+      }
+    ],
+    "runs": [
+      {
+        "command": "lib/test/test_python_scripts.py",
+        "when": "pre-fix, head 0418daf18",
+        "outcome": "4492 passed, 0 failed"
+      },
+      {
+        "command": "lib/test/run-module.sh regenerate-artifacts",
+        "when": "pre-fix, head 0418daf18",
+        "outcome": "443 passed, 0 failed"
+      },
+      {
+        "command": "lib/test/test_python_scripts.py",
+        "when": "post-fix, head 0dbd8aa1c",
+        "outcome": "4496 passed, 0 failed"
+      },
+      {
+        "command": "ruff check lib/test/test_python_scripts.py",
+        "when": "post-fix",
+        "outcome": "All checks passed"
+      }
+    ],
+    "whole_suite_launched": false,
+    "whole_suite_rationale": "PR-mode run with --push-each-iteration publishing to a PR whose merge this project gates on the external `lib + python tests` CI check. Per the review-and-fix extension, the loop emits its findings verdict WITHOUT paying the whole-suite pass in that shape, and its wording may not assert or imply the broader suite is green. The honesty floor (narrowest covering target, in-env, for every surface this loop changed) is discharged by the runs above.",
+    "skipped_checks": []
+  },
+  "shadow": {
+    "ran_at": null,
+    "reviewed_sha": "0dbd8aa1c",
+    "verdict": null,
+    "coverage": null,
+    "reviewers_dispatched": [],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "phase3_findings": [],
+    "phase2_fails": [],
+    "comparison": null,
+    "promoted_to_iter_next": false
+  },
+  "telemetry": {
+    "phase_0": {
+      "calls": 0,
+      "tokens": 0
+    },
+    "phase_0_6": {
+      "calls": 0,
+      "tokens": 0
+    },
+    "phase_1": {
+      "calls": 3,
+      "tokens": 201889
+    },
+    "phase_2": {
+      "calls": 21,
+      "tokens": 1289000
+    },
+    "phase_3": {
+      "calls": 4,
+      "tokens": 388347
+    },
+    "phase_4_x": {
+      "calls": 0,
+      "tokens": 0
+    }
+  },
   "synthesized": false
 }
