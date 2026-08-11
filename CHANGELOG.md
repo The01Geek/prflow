@@ -4,6 +4,22 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.25] — 2026-08-11
+
+### Changed
+- **Phase 3.4's Acceptance Criteria Gate now dispatches two fresh-context verifiers instead of resolving inline.** An `ac-evidence-verifier` establishes each in-scope criterion's verification evidence (the only one that runs an in-env verification command or touches single-flight) and an `ac-claim-verifier` checks the shipped code against each criterion's literal claim and executes nothing. The orchestrator reconciles the two per-criterion reports through `scripts/reconcile-ac-verifiers.py` — agreement records that status, any disagreement records `unestablished` (which blocks as an unmet criterion blocks), and a `satisfied` never lands without an evidence pointer — then drives the existing routing from the reconciled record. A verification command that passes while its assertions test a different claim than the criterion states no longer yields a satisfied status. (#1575)
+
+## [2.32.24] — 2026-08-11
+
+### Fixed
+- **Reload each consumer prompt extension at its surface's re-entry boundary, not only at run start.** The `implement`, `review`, and `review-and-fix` skill bodies now re-invoke their `load-prompt-extension.sh` ladder at each existing re-entry boundary — every phase (re-)entry and mid-phase re-anchor for `implement`, every phase and shadow entry for `review`, and once per iteration for the fix loop's `review-and-fix` and `receiving-code-review` ladders — so a run that loses the extension to context compaction recovers it rather than continuing its whole remainder without consumer policy. Each re-invocation refreshes already-loaded policy rather than issuing a fresh directive, and `pr-description` (single-pass) is unchanged. (#1578)
+
+## [2.32.23] — 2026-08-11
+
+### Changed
+Review engine: the behavior-inert prose cap no longer demotes a finding that describes a real functional coverage gap. Phase 4.1.5 now states that the cap's "sole observable impact is the prose itself" conjunct means the finding's subject sentence's truth value has no effect on the shipped mechanism's runtime behavior — changing no output, no branch taken, and no set the mechanism covers — and that a finding describing a functional coverage gap is graded on its functional severity whether or not the diff touched it, including a gap in newly added or newly edited code and even when the gap is described inside a comment or docstring. The distinction is a decision question the reviewing agent answers, not a list of exempt file types, so a genuinely cosmetic doc nit stays capped as before. The vendored `receiving-code-review` scope exclusion carries the same narrowing repo-agnostically.
+- **Collapse the writing-standard path and failed-load arm to the always-resident contract.** The four `skills/implement/phases/*.md` files each kept a full copy of the anchored `lib/writing-standard.md` path and its failed-load arm; each now keeps only its per-phase trigger sentence, with the path and arm single-sourced to the implement skill's own Reflection style contract. (#1563)
+
 ## [2.32.22] — 2026-08-11
 
 ### Changed
