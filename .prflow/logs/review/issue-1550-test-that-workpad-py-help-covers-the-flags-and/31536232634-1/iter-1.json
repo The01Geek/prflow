@@ -1,0 +1,173 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-11T21:00:00Z",
+  "fix_commit_sha": "f2f6c13c9",
+  "fix_files": [
+    "lib/test/test_python_scripts.py"
+  ],
+  "loop_role": "fix",
+  "current_step": "3",
+  "current_substep": null,
+  "sweep_defs_read": [
+    "phase-2-implement.md"
+  ],
+  "sweep_evidence": {
+    "status": "run"
+  },
+  "checklist": [
+    {
+      "id": "VC-1",
+      "claim": "argparse keeps a flag/subcommand token in --help even when help= is dropped, so the help-text detectors (not token presence) are what catch a dropped help=",
+      "file": "lib/test/test_python_scripts.py",
+      "verification_mode": "lite",
+      "claim_signature": "api_contract:argparse:token-present-help-dropped",
+      "verdict": "PASS",
+      "evidence": "negative controls for store_true/value/subcommand all show token present + detector False"
+    },
+    {
+      "id": "VC-2",
+      "claim": "the derivation reuses _tick_md (skills/implement/**/*.md corpus) and floors guard the empty-set fail-open",
+      "file": "lib/test/test_python_scripts.py",
+      "verification_mode": "lite",
+      "claim_signature": "coverage:derived-set:floors",
+      "verdict": "PASS",
+      "evidence": "len>=8 subs, len>=20 flags asserted; measured 11/28"
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:pr-test-analyzer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Important",
+      "description": "inaccurate worked-example comment ('f in fails followed by ( (') and §2.3 over-cap provenance/design-narrative comments",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          2342,
+          2345
+        ],
+        "kind": "inaccurate_comment"
+      },
+      "corroboration_count": 2,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "subcommand help text never verified (only token), asymmetric with the flag path; issue framing is 'flags and subcommands'",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          2417,
+          2423
+        ],
+        "kind": "coverage_gap"
+      },
+      "corroboration_count": 2,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "two primary --help subprocesses lacked an explicit returncode==0 assertion (fail-loud was emergent via floors)",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          2418,
+          2429
+        ],
+        "kind": "hardening"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "negative control only exercised the store_true render shape; value/metavar False-path unpinned in-suite",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          2436,
+          2473
+        ],
+        "kind": "coverage_gap"
+      },
+      "corroboration_count": 2,
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "f2f6c13c9"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "f2f6c13c9"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "f2f6c13c9"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "f2f6c13c9"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 4,
+    "fix_diff_lines": 95,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "ran_at": null,
+    "reviewed_sha": null,
+    "verdict": null,
+    "coverage": null,
+    "reviewers_dispatched": [],
+    "expected_reviewers": [],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
