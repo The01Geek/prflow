@@ -35381,12 +35381,17 @@ assert_eq "#815 the flight-recorder registry carries a reference load_class row 
 # the agent for prose text.
 echo "#1604 deferral-drafter composition agent"
 DEFDRAFTER="$LIB/../agents/deferral-drafter.md"
+# pin_count (not raw `grep -cF … || true`) so a renamed/unreadable agent file emits the
+# `unestablished` sentinel and FAILS these prohibitions instead of coercing to a vacuous "0"
+# (the fail-open hole pin_count exists to close); it also counts occurrences, not lines.
 for badlit in 'gh issue create' 'gh issue edit' 'apply-labels.sh' 'ensure-label.sh'; do
   assert_eq "#1604 deferral-drafter carries no GitHub-write literal ('$badlit')" "0" \
-    "$(grep -cF "$badlit" "$DEFDRAFTER" || true)"  # structural-pin-ok: security-credential-boundary -- the agent must make no GitHub write; the orchestrator does, from the returned plan
+    "$(pin_count "$badlit" "$DEFDRAFTER")"  # structural-pin-ok: security-credential-boundary -- the agent must make no GitHub write; the orchestrator does, from the returned plan
 done
+# `subagent_type:` is the marker every Agent-tool dispatch carries; pin_count fails closed so a
+# missing agent file FAILS this rather than vacuously passing the one-subagent-layer constraint.
 assert_eq "#1604 deferral-drafter dispatches no subagent (no Agent-tool dispatch)" "0" \
-  "$(grep -cE 'subagent_type:|Use the (\*\*)?Agent tool' "$DEFDRAFTER" || true)"  # structural-pin-ok: routing-dispatch-contract -- the one-subagent-layer constraint rests on the agent spawning nothing
+  "$(pin_count 'subagent_type:' "$DEFDRAFTER")"  # structural-pin-ok: routing-dispatch-contract -- the one-subagent-layer constraint rests on the agent spawning nothing
 # #1604 AC: the deferral-drafter dispatch point is authorized by SKILL.md's injection-condition
 # clause on the SHIPPED ORCHESTRATOR, with no edit to that clause. The machine-consumed, pinnable
 # half is that the gated reference — an implement-bundle member (references/*.md is surface (1) of
@@ -35398,7 +35403,7 @@ assert_eq "#1604 deferral-drafter dispatches no subagent (no Agent-tool dispatch
 # dispatch the SKILL.md clause authorizes and the dispatch the reference performs agree only after
 # this change adds the instruction to that bundle member.
 assert_eq "#1604 the gated reference (a bundle member) instructs the deferral-drafter Agent-tool dispatch" "yes" \
-  "$(grep -qF 'subagent_type: prflow:deferral-drafter' "$I815_REF" && echo yes || echo no)"  # structural-pin-ok: routing-dispatch-contract -- the dispatch instruction the injection-condition clause authorizes as a bundle-file dispatch
+  "$(grep -qF 'subagent_type: prflow:deferral-drafter' "$I815_REF" && echo yes || echo no)"  # structural-pin-ok: routing-dispatch-contract -- the dispatch instruction the injection-condition clause authorizes as a bundle-file dispatch (grep_present is pinned to 2 audit-bypass sites, so inline here)
 
 # ── #1374 Phase 4.0.5's filing procedure is a PREDICATE-GATED reference too ──
 # Same gating shape as #815 above, over the other deferral channel. Only the pieces a
