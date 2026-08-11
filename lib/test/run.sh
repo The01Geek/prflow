@@ -242,8 +242,10 @@ IMPL_PHASE_STEMS="phase-1-setup phase-2-implement phase-2-sweeps-contract phase-
 # preamble in phase-2-sweeps-contract.md through `### 2.4 Test` in phase-2-sweeps-quality.md, so
 # every consumer of that span reads the SET rather than one file; passing one member yields an
 # unterminated span and an empty corpus, which reads as "no sweeps" instead of failing.
+# Only Phase 2 gets a named file-set array: it is the phase with a consumer that reads ACROSS
+# members. Do not add an unused Phase 3 twin — an unreferenced array raises SC2034, which turns
+# the required lint job RED while the suite itself stays green.
 IMPL_PHASE2_FILES=("$LIB/../skills/implement/phases/phase-2-implement.md" "$LIB/../skills/implement/phases/phase-2-sweeps-contract.md" "$LIB/../skills/implement/phases/phase-2-sweeps-quality.md")
-IMPL_PHASE3_FILES=("$LIB/../skills/implement/phases/phase-3-review.md" "$LIB/../skills/implement/phases/phase-3-fix-loop.md" "$LIB/../skills/implement/phases/phase-3-ac-gate.md")
 # #815 the implement skill also reaches PREDICATE-GATED references, and they are a
 # SEPARATE registered list from the phase stems above. Deliberately separate, not an
 # extra stem: the per-stem structural loop asserts that each registered stem is ROUTED
@@ -4861,7 +4863,7 @@ assert_eq "sweep selection: SKILL and docs enumerate the same contract-sweep set
 # AC1 — the Sweep-selection index cue also names a relocated prose literal (the code-symbol
 # under-cueing hole this change closes); presence pin (distinct wording from the heading).
 assert_pin_unique "#661: Sweep-selection index cues a relocated prose literal/heading/section/path" \
-  'or a relocated prose literal, heading, section, or file path' "$P2_FILE"
+  'or a relocated prose literal, heading, section, or file path' "$IMPL_PHASES_DIR/phase-2-sweeps-contract.md"
 # AC2 — the enumeration mandates a whitespace-normalized search.
 # AC3 — content recovery from the diff's deletion hunks and both old-location citation forms.
 # AC11 — the docs/internal/implement-skill.md relocation-rationale MIRROR presence pin

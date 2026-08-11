@@ -953,9 +953,13 @@ class PhaseFileSetCouplingTest(unittest.TestCase):
             "rename/add/remove was not mirrored into scripts/implement-context-eval.py")
 
     def test_phase_read_labels_are_unique_and_cover_every_phase_file(self):
-        # The label set must be a 1:1 image of the basenames — a duplicated label would
-        # silently merge two phases' counts into one reported axis.
-        self.assertEqual(len(set(ICE.PHASE_FILES.values())), len(ICE.PHASE_FILES))
+        # A phase is an ordered SET of files (issue #1606), so members of one phase SHARE a
+        # label by design and a 1:1 basename-to-label image would fail on the correct mapping.
+        # The invariant that still binds is one label per distinct phase number: a label
+        # covering two different phases would silently merge their counts into one axis, which
+        # test_each_basename_maps_to_its_own_phase_number below rules out per file.
+        phase_numbers = {re.match(r"phase-(\d+)-", b).group(1) for b in ICE.PHASE_FILES}
+        self.assertEqual(len(set(ICE.PHASE_FILES.values())), len(phase_numbers))
         self.assertEqual(set(ICE.PHASE_READ_LABELS), set(ICE.PHASE_FILES.values()))
 
     def test_each_basename_maps_to_its_own_phase_number(self):
