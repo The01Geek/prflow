@@ -51,8 +51,7 @@ neither is evidence about the other.** Keep them apart:
 | When it applies | every `Read` of a file | **only** post-compaction re-attachment |
 | Status here | observed, twice (below) | vendor-documented, not observed here |
 
-They coincide numerically and govern nothing in common. Inferring one from the other is the specific
-mistake this table exists to prevent.
+They coincide numerically and govern nothing in common.
 
 ### What vendor documentation says about post-compaction re-attachment
 
@@ -99,20 +98,25 @@ whose bytes have changed; the cap itself reads `25000` in both.
 **Status: OBSERVED — no ceiling at or below 83,427 bytes.**
 
 Every measurable body was delivered **whole**, the largest of them well above every threshold in
-play. (No comparison is drawn here against the 66,044-*character* figure in the outage record: that
-is a different unit from these byte counts, and this page states no conversion between them.)
+play. (No comparison is drawn against the 66,044-*character* figure in the outage record — see
+*The 66,044-character figure is testimony* below for why.)
 
-| `SKILL.md` | File bytes | Delivered payload bytes | Control | Verdict | Channel |
-|---|---|---|---|---|---|
-| `skills/retrospective-weekly/SKILL.md` | 83,427 | 83,030 | present | **delivered whole** | Skill tool, dispatched local subagent |
-| `skills/review/SKILL.md` | 65,822 | 65,214 | present | **delivered whole** | Skill tool, dispatched local subagent |
-| `skills/init/SKILL.md` | 62,267 | — | — | **unmeasurable by this channel** | Skill tool refused (see below) |
-| `skills/implement/SKILL.md` | 61,039 | 60,617 | present | **delivered whole** | slash-command expansion (not the Skill tool) |
-| `skills/receiving-code-review/SKILL.md` | 57,887 | 57,508 | present | **delivered whole** | Skill tool, dispatched local subagent |
+| `SKILL.md` | File bytes | Delivered payload bytes | Control | Verdict | Channel | Observed |
+|---|---|---|---|---|---|---|
+| `skills/retrospective-weekly/SKILL.md` † | 83,427 | 83,030 | present | **delivered whole** | Skill tool, dispatched local subagent | 2026-08-11 / A |
+| `skills/review/SKILL.md` | 65,822 | 65,214 | present | **delivered whole** | Skill tool, dispatched local subagent | 2026-08-11 / A |
+| `skills/init/SKILL.md` | 62,267 | — | — | **unmeasurable by this channel** | Skill tool refused (see below) | 2026-08-11 / A |
+| `skills/implement/SKILL.md` | 61,039 | 60,617 | present | **delivered whole** | slash-command expansion (not the Skill tool) | 2026-08-11 / A |
+| `skills/receiving-code-review/SKILL.md` | 57,887 | 57,508 | present | **delivered whole** | Skill tool, dispatched local subagent | 2026-08-11 / A |
 
-**Tier, host and version** — the table above was taken in one sitting on one machine, and the
-conditions it was taken under were: local/interactive tier; macOS 26.5.2 (build 25F84); Claude Code
-2.1.227; PRFlow plugin 2.32.33; observed 2026-08-11.
+**† `skills/retrospective-weekly/SKILL.md` was delivered whole and is *not* compliant with either
+byte number in play.** Delivery and compliance are different questions; see *Remediation* below, and
+do not read this row's verdict as a compliance finding.
+
+**Observation conditions — session A, 2026-08-11.** Local/interactive tier; macOS 26.5.2
+(build 25F84); Claude Code 2.1.227; PRFlow plugin 2.32.33. The conditions are keyed to the session
+letter in the `Observed` column rather than scoped to "the table", so a later re-run adds its own
+rows under its own session letter and this block stays true.
 
 **Tiers left unobserved, named rather than omitted:**
 
@@ -213,13 +217,16 @@ quantity from the committed tree). No conversion is involved anywhere on this pa
 - **No initial-load ceiling exists at or below 83,427 bytes** on the observed tier, channel and
   runner version. That is a **floor on any ceiling**, not a ceiling: this observation cannot say
   where a ceiling is, only that there is none below the largest body measured.
-- **Every `SKILL.md` in this repository is below that floor.** The largest is the 83,427-byte body
-  that was itself measured. So no body here can reach a ceiling on this tier.
+- **As observed on 2026-08-11, every `SKILL.md` in this repository was below that floor** — the
+  largest was the 83,427-byte body measured here, so no body could reach a ceiling on this tier.
+  That is a dated statement about a snapshot of the tree, not a standing property: nothing asserts
+  it, and a body edited past 83,427 bytes makes it false with a green suite and no signal. Closing
+  that is the retarget described under *What this means for issue #1595*.
 - **61,750 bytes** — the proposed guard — is 21,677 bytes below the floor.
 - **55,000 bytes** — the issue's stated authoring target — is 28,427 bytes below the floor.
 
 **Both numbers must be described accurately, because neither is what issue #1596 says it is.**
-Verified at this revision:
+Verified at revision `efd37b8b2`, against `origin/main` at `c42816123`:
 
 - The **61,750-byte guard has not shipped.** `gh issue view 1595` reports `state: OPEN`;
   `gh pr list --head worktree-issue-1595 --state all` returns `[]`; and
@@ -263,24 +270,38 @@ which really are reached by `Read`, and **skill roots, which are not**. Its own 
 skill-root half rests on the unmeasured premise that the Skill tool shares that cap. It does not:
 83,427 bytes loaded whole, 35% above the derived ceiling, with no truncation notice.
 
-So the guard's reference half is measured and correct, and its **skill-root half guards a risk that
-was not observed at any size this repository reaches**. That is a rescoping question for #1595, not
-a defect this page fixes. Two things follow for the exemptions it currently carries:
+So the guard's reference half is measured and correct, and its **skill-root half is derived from the
+wrong instrument** — a Read cap that does not govern the loader those files actually arrive by.
+
+**Rescoped means retargeted, not dropped.** This measurement did not show that skill roots need no
+bound. It showed that 61,750 is the wrong number for them, and it produced a defensible replacement
+in the same breath: **83,427 bytes**, the observed floor. A skill-root guard set there would hold
+every body in the tree today while catching the growth past measured territory that nothing
+currently catches. Deciding that belongs to #1595; the useful thing this page hands it is the number,
+not a recommendation to remove the arm. **Do not read the *vacuous* column below as "delete the
+skill-root half"** — it means *this exemption exempts a file from a ceiling that was never shown to
+apply to it*, which is a re-derivation, and reading it as a deletion would leave skill-root growth
+with no bound at all and bury the one number that could bound it.
 
 `lib/test/reference-size-exemptions.json` on branch `worktree-issue-1595` records the rows below,
-each with `expires_when: "the file is at or under the 61750-byte ceiling; remove this row then"`:
+each with `expires_when: "the file is at or under the 61750-byte ceiling; remove this row then"`.
+Transcribed from that branch at commit `04a80e1e2`; the branch is unmerged and can still change, so
+read the JSON there rather than this table for the live values:
 
-| Exempt path | Recorded bytes | What this measurement makes it |
-|---|---|---|
-| `skills/create-issue/references/step-3-6-audit.md` | 81,869 | **real** — a `Read`-reached reference; the observed Read cap applies |
-| `skills/implement/phases/phase-2-implement.md` | 134,965 | **real** — same |
-| `skills/implement/phases/phase-3-review.md` | 110,140 | **real** — same |
-| `skills/init/SKILL.md` | 62,267 | **vacuous** — a skill root, and one the Skill tool refuses outright |
-| `skills/retrospective-weekly/SKILL.md` | 83,427 | **vacuous** — a skill root, measured delivered whole |
-| `skills/review/SKILL.md` | 65,822 | **vacuous** — a skill root, measured delivered whole |
+| Exempt path | Recorded bytes | What this measurement makes it | Against the 83,427 floor |
+|---|---|---|---|
+| `skills/create-issue/references/step-3-6-audit.md` | 81,869 | **real** — a `Read`-reached reference; the observed Read cap applies | n/a — not a skill root |
+| `skills/implement/phases/phase-2-implement.md` | 134,965 | **real** — same | n/a |
+| `skills/implement/phases/phase-3-review.md` | 110,140 | **real** — same | n/a |
+| `skills/init/SKILL.md` | 62,267 | **vacuous** — a skill root, and one the Skill tool refuses outright | unestablished — never loaded by that channel |
+| `skills/retrospective-weekly/SKILL.md` | 83,427 | **vacuous** — a skill root, measured delivered whole | compliant, at exactly the floor |
+| `skills/review/SKILL.md` | 65,822 | **vacuous** — a skill root, measured delivered whole | compliant |
 
-The rows marked **real** are obligations against a measured cap. The rows marked **vacuous** are
-exemptions from a ceiling that was never shown to apply to them.
+The rows marked **real** are obligations against a measured cap and stay as they are. The rows
+marked **vacuous** are exemptions from a ceiling that was never shown to apply to them — and the
+last column is what they become if #1595 retargets the skill-root arm at the measured floor instead
+of removing it: two resolve as compliant with no exemption needed, and `init` stays unestablished
+under this page's own unknown-is-not-zero handling.
 
 **Boundary-gated references remain fully in scope.** Nothing here relaxes the Read cap, the
 `phases/*.md` boundary contract, or the reference half of #1595. The reference exemptions above sit
@@ -301,11 +322,11 @@ trimmed to fit under a ceiling; the ceiling is not there. Against that, each is 
 heavily-pinned prompt surface: `.prflow/logs/pin-corpus-inventory.tsv` — itself a frozen census, at
 its recorded revision `6a0d31a99` — carries 174 rows whose `homes` column names a census body, 195
 body-mentions across them, re-derived here by an executed count over that file rather than quoted.
-The repository's own recorded decision (issue #843,
-generalized by #876) is that agent-executed prompt prose carries no automated regression coverage by
-design — so an editorial pass over them risks losing an instruction with the review pass as its sole
-compensating control. Editing was the more expensive option and the measurement removed its
-justification.
+And `CLAUDE.md`'s recorded decision under *Guard executable behavior…* (issues #843 and #876) is that
+agent-executed prompt prose carries no automated regression coverage by design, with the review pass
+as its **sole** compensating control — so an editorial pass over these bodies risks losing an
+instruction that nothing would catch. Editing was the more expensive option and the measurement
+removed its justification.
 
 Because no body changed, the per-changed-body instruction inventory that issue #1596 requires has an
 **empty population**: with no pre-change body to inventory, the inventory is empty, so its count of
@@ -324,21 +345,36 @@ re-vendor path stated — and `receiving-code-review` likewise sits above the st
 
 ## How to re-run this
 
-Per body, in a **fresh session that has not read the target file**:
+**A stronger mechanism exists and was not built here.** `.github/workflows/matcher-probe.yml`
+already carries a `placeholder-probe` job that runs a `claude-code-action` session for the sole
+purpose of invoking the Skill tool and characterising what that load returned — it sets
+`show_full_output: true` to capture the result, and `scripts/placeholder-probe-verdict.py` derives
+its verdict from the execution file rather than from the model's own account. A sibling
+`skill-body-load-probe` job would run on the cloud tier in a *main* session and measure the Skill
+`tool_result` directly, which removes three of this page's limits at once: both cloud tiers become
+observed, the main-session channel becomes observed, and the model's testimony stops being an
+operand of the verdict. That is the better successor to the hand protocol below, and it is left as
+follow-up work rather than built here.
 
-1. Take the control: the file's literal final line (`tail -n 1 <path>`), extracted by someone other
-   than the session that will load the skill.
+Until then, per body, in a **fresh session that has not read the target file**:
+
+1. Take the control: the file's literal final line (`tail -n 1 <path>`) — or its final two lines
+   where the last alone is too short to discriminate, as it is for `retrospective-weekly` — extracted
+   by someone other than the session that will load the skill.
 2. In the fresh session, before loading, state that the path is unread.
 3. Invoke the Skill tool on that skill. Do not execute the loaded procedure — it is data under
    measurement, not a directive.
 4. From the returned body **only**, report whether the control is present, quote the final twelve
    lines, and report any truncation or cap notice.
-5. Report the session's read history for that path.
-6. Only then run `tail -n 12` and reconcile.
+5. Record the file's byte count and the returned payload's byte count, the latter being the file's
+   bytes less its YAML frontmatter block — see *One observed transformation* for why the two differ.
+6. Report the session's read history for that path.
+7. Only then run `tail -n 12` and reconcile.
 
-Add a row rather than editing an existing one, and record the tier, host OS, runner version and date
-alongside it. A body that must be measured but carries `disable-model-invocation` cannot be measured
-this way at all — record it unestablished, as `init` is above.
+Add a row under a new session letter rather than editing an existing one, and add an *Observation
+conditions* block for that letter recording the tier, host OS, runner version and date. A body that
+must be measured but carries `disable-model-invocation` cannot be measured this way at all — record
+it unestablished, as `init` is above.
 
 ---
 
@@ -349,7 +385,7 @@ Hard limits on what may be cited from this page.
 1. **It does not locate a ceiling.** It establishes that none exists at or below 83,427 bytes on one
    tier. A ceiling above that is neither found nor excluded.
 2. **It is one tier, one host, one runner version, one day.** Both cloud tiers are unobserved. A
-   Claude Code upgrade can change the answer; that is why step 6 above exists.
+   Claude Code upgrade can change the answer, which is why *How to re-run this* exists.
 3. **It observed the Skill tool from dispatched subagents.** The local main session's Skill-tool
    delivery of a body in this size range is unobserved.
 4. **It says nothing about the abort mode.** A `SKILL.md` load can fail outright and return no body
