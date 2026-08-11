@@ -34,7 +34,7 @@ Every workpad write is `"$WORKPAD" update <ISSUE_NUMBER> …` with `<ISSUE_NUMBE
 
 ## Fresh-tree verification (read-target rule + cross-pass coherence rule)
 
-Every pass below that *reads the tree* to adjudicate a claim about **already-shipped work** obeys the **Fresh-tree verification rules** the orchestrator states verbatim at Phase 1.6 (`skills/implement/phases/phase-1-setup.md`) and Phase 2.1 (`skills/implement/phases/phase-2-implement.md`) — the read-target rule (a code-wins read that adjudicates a shipped-work claim targets `origin/$BASE` state, never the unfetched fork point, whenever `FRESHNESS` is not `fresh`) and the cross-pass coherence rule (a "shipped/landed in PR #N" claim is **REFUTED** only against a positively-fresh tree; any indeterminate outcome takes the stale-suspect verdict). Apply them using the `FRESHNESS` operand you were given; **never report a premise refuted off a tree that is not verified fresh.** These rules are stated once at those two orchestrator sites and not restated here, so no third copy can drift.
+Every pass below that *reads the tree* to adjudicate a claim about **already-shipped work** obeys the two **Fresh-tree verification rules** — the read-target rule and the cross-pass coherence rule — which the orchestrator states verbatim at Phase 1.6 (`skills/implement/phases/phase-1-setup.md`) and Phase 2.1 (`skills/implement/phases/phase-2-implement.md`). Read them there (you share the checkout) and apply them using the `FRESHNESS` operand the dispatch prompt gave you; **never report a premise refuted off a tree that is not verified fresh.** They are stated once at those two coupled-mirror sites and deliberately not restated here, so no third copy can drift.
 
 ## Passes
 
