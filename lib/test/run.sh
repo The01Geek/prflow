@@ -4255,13 +4255,15 @@ for _pf in $IMPL_PHASE_STEMS; do
   assert_eq "implement split: phases/${_pf}.md exists and is non-empty" "yes" \
     "$([ -s "$IMPL_PHASES_DIR/${_pf}.md" ] && echo yes || echo no)"
   # issue #1566: the orchestrator states the entry-gate rule ONCE, in the preamble, and
-  # routes each phase from that single statement by a backticked reference-file mention —
-  # the REVIEW_PHASE_STEMS routing shape. Assert that routing per stem (grep the backticked
-  # `${_pf}.md`), replacing the retired per-phase assert_pin_unique triple; the single
+  # routes each phase from that single statement by a backticked reference-file mention
+  # (the REVIEW_PHASE_STEMS routing shape). Assert that routing per stem by counting the
+  # backticked `${_pf}.md` mention — a count form (not `grep -qF`) so this dynamic-literal
+  # site is not a raw-presence pin the static classifier cannot inspect; deleting one
+  # stem's mention drops its count to 0 and fails RED naming that stem. The single
   # statement's mandatory-read / halt / placeholder clauses are guarded count-free just
   # below the loop.
-  assert_eq "implement split: orchestrator routes ${_pf}.md from the single gate statement (backticked mention)" "yes" \
-    "$(grep -qF '`'"${_pf}.md"'`' "$IMPL_ORCH" && echo yes || echo no)"  # structural-pin-ok: cross-file-phase-contract -- the orchestrator must route each registered phase to its reference file from the single entry-gate statement; an unrouted phase is unreachable text (mirrors the REVIEW_PHASE_STEMS routing loop)
+  assert_eq "implement split: orchestrator routes ${_pf}.md from the single gate statement (backticked mention)" "1" \
+    "$(grep -cF '`'"${_pf}.md"'`' "$IMPL_ORCH")"
   # Phase-identity check (shadow-pass finding): every other pin above is content-presence
   # ANYWHERE in the bundle, so a same-length cross-phase swap (e.g. phase-2-implement.md and
   # phase-3-review.md bodies accidentally exchanged) would leave them green — the tokens are
