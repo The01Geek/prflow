@@ -58,7 +58,7 @@ module on a second cycle over the same uncovered surface.
 module — it runs every inline assertion in `run.sh`, not just the changed block, so it never
 substitutes where the coverage map's `focused_test` contract applies. It covers one surface only:
 a change that also touches a registered module, a `scripts/`/`lib/` Python unit, or a prompt
-surface is not checked by it. It never discharges a completion gate, whose terms are unchanged.
+surface is not checked by it. It never discharges a completion gate: running it leaves that gate's terms exactly as they stand, and since issue #1607 those terms are tier-scoped in `CLAUDE.md`.
 And the two selectors blind the shard to their own call sites: under `DEVFLOW_SKIP_SUITE_MODULES=1`
 the module-tier invocation `devflow_run_full_suite_module` no-ops, and under
 `DEVFLOW_SKIP_PYTHON_POOL=1` both `devflow_python_suite_pool_open` and
