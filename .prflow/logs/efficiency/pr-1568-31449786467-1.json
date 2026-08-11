@@ -100,5 +100,60 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.22",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 10.7386865,
+    "tokens": {
+      "input_tokens": 97,
+      "output_tokens": 43482,
+      "cache_read_input_tokens": 9327171,
+      "cache_creation_input_tokens": 239428,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 136,
+        "outputTokens": 62705,
+        "cacheReadInputTokens": 10169628,
+        "cacheCreationInputTokens": 510034,
+        "webSearchRequests": 0,
+        "costUSD": 10.7386865,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 69,
+    "duration_ms": 874154
+  },
+  "permission_denials": {
+    "count": 7,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      "echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-<empty>}\"; echo \"GITHUB_RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT:-<empty>}\"; echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-<empty>}\"; git status --porcelain; echo \"---rc=$?---\"",
+      "gh pr diff 1568 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1568/31449786467-1/diff.patch >/dev/null; echo \"pipe-rc=${PIPESTATUS[0]}/${PIPESTATUS[1]}/${PIPESTATUS[2]}\"; wc -l .prflow/tmp/review/pr-1568/31449786467-1/diff.patch",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve 1455 --pr 1568 2>.prflow/tmp/review/pr-1568/31449786467-1/acs.err ; echo \"acs-rc=$?\"",
+      "OVERRIDES=$(.prflow/vendor/prflow/scripts/resolve-review-overrides.py \"prflow:checklist-generator\" 2>&1); echo \"$OVERRIDES\"; echo \"ovr-rc=$?\"",
+      "HEAD=70eb9841436a76b8d2480058e63943e558f61918; echo \"=== VC-6: changeset at head ===\"; git show $HEAD:.changeset/issue-1455-behavior-inert-coverage-gap.md 2>&1 | grep -nF \"bump: patch\"; echo \"=== VC-7/8: sha256 of head content ===\"; git show $HEAD:skills/review/phases/phase-4-verdict.md 2>/dev/null | python3 -c \"import sys,hashlib;print('phase-4-verdict.md', hashlib.sha256(sys.stdin.buffer.read()).hexdigest())\"; git show $HEAD:skills/receiving-code-review/SKILL.md 2>/dev/null | python3 -c \"impor …[per-command-truncated]",
+      "mkdir -p .prflow/tmp; rm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null; git status --porcelain -z > .prflow/tmp/review-dirty-tree-before; git hash-object .prflow/tmp/review-dirty-tree-before; echo \"snap-rc=$?\""
+    ],
+    "total": 7,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
