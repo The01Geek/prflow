@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1612",
+  "generated_at": "2026-08-11T23:23:45Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.38",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 5.787005749999997,
+    "tokens": {
+      "input_tokens": 49,
+      "output_tokens": 26667,
+      "cache_read_input_tokens": 4231577,
+      "cache_creation_input_tokens": 214601,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 49,
+        "outputTokens": 26667,
+        "cacheReadInputTokens": 4231577,
+        "cacheCreationInputTokens": 214601,
+        "webSearchRequests": 0,
+        "costUSD": 4.9287185,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 32,
+        "outputTokens": 6830,
+        "cacheReadInputTokens": 1173725,
+        "cacheCreationInputTokens": 107633,
+        "webSearchRequests": 0,
+        "costUSD": 0.8582872500000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 28,
+    "duration_ms": 495852
+  },
+  "permission_denials": {
+    "count": 8,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh review 2>&1 | head -5; echo \"rc=${PIPESTATUS[0]}\"",
+      "HEAD=95eca81ac571c4727b4a32bc8ca1e6c426e36319\necho \"=== PR head file size ===\"; git cat-file -s $HEAD:skills/create-issue/references/step-3-6-audit.md 2>&1\necho \"=== base (main) file size ===\"; git cat-file -s main:skills/create-issue/references/step-3-6-audit.md 2>&1\necho \"=== PR head first+last non-blank ===\"; git show $HEAD:skills/create-issue/references/step-3-6-audit.md | sed -n '1p;$p'\necho \"=== exemption file at HEAD ===\"; git show $HEAD:lib/test/reference-size-exemptions.json",
+      "H=95eca81ac571c4727b4a32bc8ca1e6c426e36319\necho \"=== PR head file size ===\"; git cat-file -s \"$H:skills/create-issue/references/step-3-6-audit.md\"\necho \"=== base file size ===\"; git cat-file -s \"main:skills/create-issue/references/step-3-6-audit.md\"\necho \"=== PR head first+last non-blank ===\"; git show \"$H:skills/create-issue/references/step-3-6-audit.md\" | sed -n '1p;$p'\necho \"=== exemption at HEAD ===\"; git show \"$H:lib/test/reference-size-exemptions.json\"",
+      "git show 95eca81ac571c4727b4a32bc8ca1e6c426e36319:skills/create-issue/references/step-3-6-audit.md > .prflow/tmp/review/pr-1612/run1/head-step-3-6.md; wc -c .prflow/tmp/review/pr-1612/run1/head-step-3-6.md; echo \"=== line count ===\"; wc -l .prflow/tmp/review/pr-1612/run1/head-step-3-6.md\necho \"=== ceiling math: 0.95*25000*2.60 ===\"; python3 -c \"print(0.95*25000*2.60)\"\necho \"=== head tokens at floor density ===\"; python3 -c \"print(69597/2.60)\"",
+      "git diff main 95eca81ac571c4727b4a32bc8ca1e6c426e36319 -- skills/create-issue/references/step-3-6-audit.md > /tmp/diff.txt; wc -l /tmp/diff.txt",
+      "git diff main 95eca81ac571c4727b4a32bc8ca1e6c426e36319 -- skills/create-issue/references/step-3-6-audit.md > /tmp/diff.txt",
+      "mkdir -p .prflow/tmp && git diff main 95eca81ac571c4727b4a32bc8ca1e6c426e36319 -- skills/create-issue/references/step-3-6-audit.md > .prflow/tmp/diff.txt && wc -l .prflow/tmp/diff.txt",
+      "gh pr comment 1612 --body '## 🔍 /prflow:review — verdict: **APPROVE** (one recommended follow-up)\n\n**Reviewed HEAD:** `95eca81ac571c4727b4a32bc8ca1e6c426e36319`\n**Diff classification:** engine_self_modifying (`skills/**`) → full checklist path. Prose-compression of one agent-executed reference file + a stale-doc correction + changeset.\n\n### Core goal — verified\nThe PR compresses `skills/create-issue/references/step-3-6-audit.md` from **81,869 → 69,597 B** so its Step 3.6 whole-file load stops tr …[per-command-truncated]"
+    ],
+    "total": 8,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
