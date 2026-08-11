@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1612",
+  "generated_at": "2026-08-11T23:41:12Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.38",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 5.879033000000001,
+    "tokens": {
+      "input_tokens": 62,
+      "output_tokens": 25548,
+      "cache_read_input_tokens": 5745566,
+      "cache_creation_input_tokens": 236724,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 62,
+        "outputTokens": 25548,
+        "cacheReadInputTokens": 5745566,
+        "cacheCreationInputTokens": 236724,
+        "webSearchRequests": 0,
+        "costUSD": 5.879033000000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 35,
+    "duration_ms": 384187
+  },
+  "permission_denials": {
+    "count": 7,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      "echo \"$CLAUDE_SKILL_DIR\"; ls /home/runner/work/prflow/prflow/skills/review/phases/",
+      "gh pr diff 1612 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' > .prflow/tmp/rev1612.patch 2>/dev/null; wc -l .prflow/tmp/rev1612.patch; echo \"---FILES---\"; grep '^diff --git' .prflow/tmp/rev1612.patch",
+      "f=skills/create-issue/references/step-3-6-audit.md; echo \"bytes: $(wc -c < $f)  lines: $(wc -l < $f)\"; echo \"--- first line ---\"; head -1 \"$f\"; echo \"--- last line ---\"; tail -1 \"$f\"; echo \"--- ceiling exemptions ---\"; grep -n \"step-3-6-audit\" lib/test/reference-size-exemptions.json 2>/dev/null || echo \"(no exemption row)\"",
+      "git show 95eca81ac:skills/create-issue/references/step-3-6-audit.md > .prflow/tmp/review/pr-1612/run1/head-step36.md; wc -c .prflow/tmp/review/pr-1612/run1/head-step36.md; wc -l .prflow/tmp/review/pr-1612/run1/head-step36.md; echo \"--- head first/last ---\"; head -1 .prflow/tmp/review/pr-1612/run1/head-step36.md; tail -1 .prflow/tmp/review/pr-1612/run1/head-step36.md; echo \"--- base line count ---\"; git show 2afc25323:skills/create-issue/references/step-3-6-audit.md | wc -l",
+      "sed -n '1,60p' scripts/post-review-verdict.sh | grep -iE \"usage|argv|\\\\$1|\\\\$2|\\\\$3|head=|verdict=\" | head -30",
+      "scripts/post-review-verdict.sh 1612 \"APPROVE with notes\" .prflow/tmp/review/pr-1612/run1/verdict-body.md 95eca81ac571c4727b4a32bc8ca1e6c426e36319 ; echo \"post-rc=$?\""
+    ],
+    "total": 7,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
