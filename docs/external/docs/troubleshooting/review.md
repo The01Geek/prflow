@@ -28,7 +28,7 @@ Post `/prflow:review` as a standalone comment on the pull request's **Conversati
 
 ## A Duplicate Review Was Suppressed
 
-PRFlow suppresses a second review request while a fresh progress comment shows a review of the same head commit in flight. Wait for that run. Push a new commit before requesting review again if the pull-request head has changed.
+PRFlow suppresses a second review request while a fresh progress comment shows a review of the same head commit in flight. Wait for that run. Push a new commit before requesting review again if the pull-request head has changed. Suppression depends on that progress comment being published: a request sent in the brief window before an in-flight review posts it is not suppressed, so two reviews of the same commit can occasionally run — this is harmless and self-heals as soon as the comment appears.
 
 ## The Progress Comment Has No Verdict
 
