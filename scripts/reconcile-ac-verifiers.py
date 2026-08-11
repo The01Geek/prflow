@@ -23,6 +23,11 @@ Reconciliation contract (one row per criterion, matched by 1-based `criterion`):
   - A reconciled `satisfied` with NO evidence pointer from either verifier is
     downgraded to `unestablished`: a satisfied record never lands without an
     evidence pointer (issue #1575 AC6).
+  - A side that left any named step of its own charter undispositioned is forced
+    to `unestablished` BEFORE the two statuses are paired (issue #1580), so an
+    abbreviated check reconciles `unestablished` rather than riding the other
+    verifier's agreement into `satisfied`. A stated `no` discharges its slot
+    fully and changes no status by itself.
 
 Blocking: `unmet` and `unestablished` both block; only `satisfied` does not.
 `unestablished` blocking exactly as `unmet` blocks is the structural point of the
@@ -30,9 +35,15 @@ two-verifier design — a disagreement the orchestrator can act on.
 
 Input: two JSON files, each a list of objects
     {"criterion": <int, 1-based>, "status": "satisfied|unmet|unestablished",
-     "evidence": "<pointer string, optional>"}
+     "evidence": "<pointer string, optional>",
+     "dispositions": {"<slot>": "yes|no (one-clause reason)", ...}}
 An unrecognized/absent status is treated as `unestablished` (fail closed) rather
-than crashing, because the reports are agent-authored.
+than crashing, because the reports are agent-authored. `dispositions` maps each
+named step of that side's charter (`EVIDENCE_SLOTS` / `CLAIM_SLOTS`) to a value
+of the form `yes|no (one-clause reason)` — the slot name is the KEY, never part
+of the value. The verdict-plus-reason convention is the writing-skills evidence
+marker's; the `<slot>=<verdict>` spelling that marker uses in prose is NOT the
+shape here, and a value carrying it does not parse.
 
 A verifier record may carry an optional `reason` (the evidence verifier attaches
 `denied`/`failed`/`unresolved` to a non-satisfied criterion) which is passed
@@ -41,8 +52,17 @@ to its Blocked-naming-`allowed_tools` path from a field, not by sniffing free te
 
 Output: one JSON object on stdout —
     {"criteria": [ {"criterion", "evidence_status", "claim_status", "status",
-                    "blocks", "reason", "evidence", "evidence_source"} ... ],
+                    "blocks", "reason", "evidence", "evidence_source",
+                    "evidence_status_reported", "claim_status_reported",
+                    "evidence_dispositions", "claim_dispositions",
+                    "undischarged_slots"} ... ],
      "all_satisfied": <bool>, "blocking": [<criterion>, ...]}
+The two disposition maps and `undischarged_slots` (side-qualified `<side>:<slot>`)
+are carried out so the orchestrator records what each verifier did alongside the
+reconciled verdict, rather than letting it die with the dispatch return. The two
+`*_status_reported` fields carry what each side concluded BEFORE the slot gate
+overrode it, so a criterion blocking on a real `unmet` stays distinguishable from
+one blocking only on an attestation gap.
 
 Exit codes:
     0 — reconciliation produced (whether or not any criterion blocks)
@@ -51,10 +71,145 @@ Exit codes:
 
 import argparse
 import json
+import re
 import sys
 
 VALID_STATUSES = ("satisfied", "unmet", "unestablished")
 BLOCKING_STATUSES = ("unmet", "unestablished")
+
+# Do not rename or drop a slot without the matching edit to the `| Slot |` table AND the
+# worked example in agents/ac-evidence-verifier.md / agents/ac-claim-verifier.md: the
+# gate would then check a slot the charter never asks for, blocking every criterion.
+EVIDENCE_SLOTS = ("type-decided", "command-run", "single-flight", "evidence-recorded")
+CLAIM_SLOTS = ("claim-traced", "command-source-read", "evidence-recorded")
+
+# Do not widen the lookahead to admit `-` (`no-op, …` would discharge a slot), nor
+# narrow it to whitespace-and-paren (`no, <reason>` would be rejected, hard-blocking a
+# compliant criterion). Both directions are pinned.
+_DISPOSITION_RE = re.compile(r"^(yes|no)(?=$|[\s(,;:.])(.*)$",
+                             re.IGNORECASE | re.DOTALL)
+
+# Do not simplify a slot read to `raw.get(slot)`: that collapses a JSON `null` onto an
+# omitted key, and only the null is breadcrumbed as a stated-but-unparseable value.
+_ABSENT = object()
+
+# Do not compare this marker by truthiness: the key shares a namespace with
+# agent-authored report fields, so a report could forge it and blank its own audit
+# fields. The VALUE is identity-checked against the sentinel below.
+_POISONED = "_reconcile_poisoned"
+_POISON_TOKEN = object()
+
+# The reason must carry at least one alphanumeric character. Testing only for emptiness
+# would let a mechanical `yes .` or `yes -` discharge a slot with no clause behind it.
+_REASON_SUBSTANTIVE_RE = re.compile(r"[^\W_]")
+
+
+def parse_disposition(value):
+    """Parse one slot value into `(verdict, reason)`, or `(None, "")` if undischarged.
+
+    `no` is a fully discharging verdict — the gate asks for a *stated* disposition,
+    never a particular one, so treating `no` as a failure would produce false `yes`.
+    A reason that is absent or carries no alphanumeric character is undischarged,
+    `yes` / `yes ()` / `yes .` alike: a verdict with no clause behind it attests to
+    nothing an after-the-fact reader can weigh.
+    """
+    if not isinstance(value, str):
+        return None, ""
+    match = _DISPOSITION_RE.match(value.strip())
+    if not match:
+        return None, ""
+    reason = match.group(2).strip()
+    # Unwrap only a clause the outer parens actually enclose. Do not substitute a
+    # `strip("()")` chain, which strips parens from each end independently and would
+    # turn `((a))` into `a`, silently reshaping a malformed value into a well-formed
+    # one rather than carrying it through as written.
+    if (reason.startswith("(") and reason.endswith(")")
+            and "(" not in reason[1:-1] and ")" not in reason[1:-1]):
+        reason = reason[1:-1].strip()
+    if not _REASON_SUBSTANTIVE_RE.search(reason):
+        return None, ""
+    return match.group(1).lower(), reason
+
+
+def _dispositions_of(record, slots, side=""):
+    """Return `(stated_map, undischarged_slots)` for one verifier record.
+
+    Only the named `slots` are consulted, so an invented slot name cannot discharge a
+    named one. A record that is not a dict, carries no `dispositions` object, or states
+    a slot without a parseable verdict-plus-reason leaves that slot undischarged —
+    silence about a step is never read as having performed it.
+
+    Three shapes additionally get a stderr breadcrumb, matching `_index_by_criterion`'s
+    convention: a slot stated but unparseable (a JSON `null` included), a `dispositions`
+    value that is not an object, and a NON-EMPTY object sharing no key with the named
+    slots. An omitted slot is deliberately silent — the status already carries it. The
+    breadcrumbs are a human diagnostic on the run's stderr; no shipped step parses them.
+    """
+    who = side or "verifier"
+    raw = record.get("dispositions", _ABSENT) if isinstance(record, dict) else _ABSENT
+    if raw is not _ABSENT and not isinstance(raw, dict):
+        print(f"reconcile-ac-verifiers: the {who} report's 'dispositions' is a "
+              f"{type(raw).__name__}, not an object — scoring every slot undischarged",
+              file=sys.stderr)
+    if not isinstance(raw, dict):
+        raw = {}
+    elif raw and not any(slot in raw for slot in slots):
+        print(f"reconcile-ac-verifiers: the {who} report's 'dispositions' names none of "
+              f"the expected slots {list(slots)} (it names {sorted(raw)}) — scoring "
+              f"every slot undischarged", file=sys.stderr)
+    stated = {}
+    undischarged = []
+    for slot in slots:
+        raw_value = raw.get(slot, _ABSENT)
+        verdict, _reason = parse_disposition(
+            None if raw_value is _ABSENT else raw_value)
+        if verdict is None:
+            undischarged.append(slot)
+            if raw_value is not _ABSENT:
+                print(f"reconcile-ac-verifiers: the {who} report states "
+                      f"slot {slot!r} as {raw_value!r}, which is not a parseable "
+                      f"'<yes|no> <reason>' disposition — scoring it undischarged",
+                      file=sys.stderr)
+        else:
+            # The verbatim value, not the parsed reason: it is what the orchestrator
+            # records durably, and a reader weighing an abbreviated check wants the
+            # verifier's own words rather than this parser's normalization of them.
+            stated[slot] = raw_value
+    return stated, undischarged
+
+
+def _side(record, slots, tag):
+    """Resolve one side into `(status, reported_status, dispositions, undischarged)`.
+
+    `reported_status` is what the side itself concluded, retained even when the slot
+    gate overrides `status`. Without it a verifier that reported `unmet` with a real
+    failing detail but omitted one slot is indistinguishable from one that concluded
+    nothing, and the routing rule that fires only when a criterion blocks SOLELY on
+    undischarged slots cannot decide its own precondition.
+
+    Applied symmetrically to both sides so the per-side rules — the fail-closed status
+    read for an absent record, and the #1580 downgrade for an undispositioned charter
+    step — are stated once rather than mirrored in the caller's loop body.
+
+    An ABSENT record — and equally a duplicate-poisoned one — reports no undischarged
+    slots. Each is a vote the side never usably cast, already blocking on its own;
+    naming its slots would send the orchestrator to re-dispatch a verifier to restate a
+    record it never made, and would make those causes indistinguishable from a genuine
+    attestation gap in the one field that routes the remedy.
+    """
+    if not isinstance(record, dict) or record.get(_POISONED) is _POISON_TOKEN:
+        return "unestablished", "unestablished", {}, []
+    dispositions, missing = _dispositions_of(record, slots, tag)
+    reported = record.get("status")
+    status = reported
+    if missing:
+        status = "unestablished"
+        if _normalize_status(reported) != "unestablished":
+            print(f"reconcile-ac-verifiers: the {tag} report concluded "
+                  f"{_normalize_status(reported)!r} but left {len(missing)} slot(s) "
+                  f"undischarged — forcing unestablished; the concluded status is "
+                  f"retained as {tag}_status_reported", file=sys.stderr)
+    return status, reported, dispositions, [f"{tag}:{slot}" for slot in missing]
 
 
 def _normalize_status(value):
@@ -153,7 +308,8 @@ def _index_by_criterion(records, side):
         if num in by_num:
             print(f"reconcile-ac-verifiers: duplicate criterion {num} in the {side} "
                   f"report — failing it closed to unestablished", file=sys.stderr)
-            by_num[num] = {"criterion": num, "status": "unestablished"}
+            by_num[num] = {"criterion": num, "status": "unestablished",
+                           _POISONED: _POISON_TOKEN}
             continue
         by_num[num] = rec
     return by_num
@@ -169,11 +325,16 @@ def reconcile(evidence_records, claim_records):
     for num in sorted(set(e_by) | set(c_by)):
         e_rec = e_by.get(num)
         c_rec = c_by.get(num)
-        # A criterion absent from one report fails closed to `unestablished` on
-        # that side (it never voted), so the pair can only agree when the present
-        # side also read `unestablished`.
-        e_status = e_rec.get("status") if isinstance(e_rec, dict) else "unestablished"
-        c_status = c_rec.get("status") if isinstance(c_rec, dict) else "unestablished"
+        # Both per-side resolutions happen BEFORE the pairing: a criterion absent from
+        # one report never voted, and a side that left a charter step undispositioned
+        # has not established what it did. Resolving either after the pairing would let
+        # an unattested or absent side ride the other verifier's agreement into
+        # `satisfied` — the substitution issue #1580 exists to catch.
+        e_status, e_reported, e_disp, e_undischarged = _side(
+            e_rec, EVIDENCE_SLOTS, "evidence")
+        c_status, c_reported, c_disp, c_undischarged = _side(
+            c_rec, CLAIM_SLOTS, "claim")
+        undischarged = e_undischarged + c_undischarged
         status, evidence, evidence_source = reconcile_one(
             e_status, c_status, _evidence_of(e_rec), _evidence_of(c_rec)
         )
@@ -194,6 +355,11 @@ def reconcile(evidence_records, claim_records):
                 "reason": reason,
                 "evidence": evidence,
                 "evidence_source": evidence_source,
+                "evidence_status_reported": _normalize_status(e_reported),
+                "claim_status_reported": _normalize_status(c_reported),
+                "evidence_dispositions": e_disp,
+                "claim_dispositions": c_disp,
+                "undischarged_slots": undischarged,
             }
         )
 
