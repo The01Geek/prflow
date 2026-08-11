@@ -326,7 +326,7 @@ After the `Read`: **quote the body's literal first and last lines**, and let `S`
 
 ### Phase routing
 
-**Entry-gate (mandatory, on every phase entry — and every shadow entry**, as `/prflow:review-and-fix` Step 2.6 re-enters this engine**).** Before any action in a phase: re-derive **root identity**, `Read` its reference, and clear the **boundary contract** — all three, in that order, never from an earlier read or a remembered summary — then follow the reference exactly.
+**Entry-gate (mandatory, on every phase entry — and every shadow entry**, as `/prflow:review-and-fix` Step 2.6 re-enters this engine**).** Before any action in a phase: re-invoke the run-start review prompt-extension ladder (the `load-prompt-extension.sh review` invocation defined under *Consumer prompt extension (load first)* above), re-derive **root identity**, `Read` its reference, and clear the **boundary contract** — all in that order, never from an earlier read or a remembered summary — then follow the reference exactly. Re-invoking the ladder **refreshes** the already-loaded consumer policy for this run rather than issuing a fresh directive, and a refused or non-zero re-load is surfaced here, at this boundary, rather than deferred to a later phase.
 
 | Phase | Reference under `<skill-dir>/phases/` | Loaded when | Orientation only — the reference is authoritative |
 |---|---|---|---|
