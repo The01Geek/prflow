@@ -232,7 +232,18 @@ skip() {  # name kind reason
 # that errors) records a suite FAIL — never a silent partial bundle, which would turn the
 # absence/zero-expecting guards (which assert a literal is GONE or a count is 0) into
 # vacuous passes.
-IMPL_PHASE_STEMS="phase-1-setup phase-2-implement phase-3-review phase-4-documentation"
+# Phases 2 and 3 are each an ORDERED SET of sibling phase files (issue #1606), not one file:
+# each member had to come in under a size that returns whole from a single reader call. Order
+# within a phase is the order the orchestrator's entry gate routes them; keep them adjacent and
+# in order here, because the bundle is concatenated in this order and a line-ordering guard that
+# greps a single owning file resolves against whichever member holds its literal.
+IMPL_PHASE_STEMS="phase-1-setup phase-2-implement phase-2-sweeps-contract phase-2-sweeps-quality phase-3-review phase-3-fix-loop phase-3-ac-gate phase-4-documentation"
+# The Phase 2 set, in entry-gate order. The §2.3 sweep span runs from the sweep-selection
+# preamble in phase-2-sweeps-contract.md through `### 2.4 Test` in phase-2-sweeps-quality.md, so
+# every consumer of that span reads the SET rather than one file; passing one member yields an
+# unterminated span and an empty corpus, which reads as "no sweeps" instead of failing.
+IMPL_PHASE2_FILES=("$LIB/../skills/implement/phases/phase-2-implement.md" "$LIB/../skills/implement/phases/phase-2-sweeps-contract.md" "$LIB/../skills/implement/phases/phase-2-sweeps-quality.md")
+IMPL_PHASE3_FILES=("$LIB/../skills/implement/phases/phase-3-review.md" "$LIB/../skills/implement/phases/phase-3-fix-loop.md" "$LIB/../skills/implement/phases/phase-3-ac-gate.md")
 # #815 the implement skill also reaches PREDICATE-GATED references, and they are a
 # SEPARATE registered list from the phase stems above. Deliberately separate, not an
 # extra stem: the per-stem structural loop asserts that each registered stem is ROUTED
@@ -10487,7 +10498,9 @@ assert_eq "#377 w3-simplify-no-correctness-claim: §3.2 no longer attributes 'co
 # (operative / frequency / delta-scope / trigger-gating / gate-umbrella / evidence-routing /
 # finding-disposition) stay above; the obsolete per-sweep-reference and negative-tail pins were
 # removed with the enumeration.
-P478_P2="$IMPL_PHASES_DIR/phase-2-implement.md"
+# The whole Phase 2 file set (issue #1606): the sweep span opens in one member and closes in a
+# later one, so a single-member operand yields an unterminated span and an empty corpus.
+P478_P2=("${IMPL_PHASE2_FILES[@]}")
 
 # AC1 — the re-anchor: classify the fix delta by the §2.3 preamble and run every warranted sweep,
 # with no hand-enumerated subset. Two operative clauses.
@@ -10546,13 +10559,19 @@ assert_pin_unique "#541 reference_reads: the field is conditional — absence on
 # correct consumer-facing prose, and is no longer a drift-guarded routing marker.
 P478_MARKERS=( 'workpad.py' '$ISSUE_NUMBER' 'Phase 3.4' 'Phase 4.1' '(post-merge)' '--rewrite-ac' '## Devflow Reflection' 'CLAUDE.md' )
 P478_DESTINATIONS=( "The loop's own evidence sink" "The loop's own evidence sink" 'An item-5 pushback/advisory record' 'Fix-now, or record through' 'An item-5 pushback/advisory record' 'An item-5 pushback/advisory record' "The loop's evidence sink" "The repo's stated conventions" )
+# Takes the WHOLE Phase 2 file set, not one file (issue #1606 split the span's two ends into
+# different members). awk's globals persist across the operands, so the span opens in one member
+# and closes in a later one; the `starts == 1 && ends == 1` guard still fails closed on a span
+# that never closes, which is what keeps a truncated set from reading as "no markers to map".
+# Pass the set in entry-gate order — a reordered operand list closes the span before it opens
+# and emits an empty corpus that the routing lint below would read as fully-mapped.
 p478_sweep_bodies() {
   awk '
     /^\*\*Sweep selection \(run first\)\.\*\*/ { starts++; f=1; next }
     $0 == "### 2.4 Test" { ends++; f=0; next }
     f { buf = buf $0 "\n" }
     END { if (starts == 1 && ends == 1) printf "%s", buf }
-  ' "$1"
+  ' "$@"
 }
 # p478_maptable is FAIL-CLOSED on its END anchor (#478 Phase-3 review): it buffers the BEGIN..END
 # region and emits it ONLY once the matching END anchor is seen. A renamed/removed END anchor yields
@@ -10567,10 +10586,11 @@ p478_maptable() {
     f { buf = buf $0 "\n" }
   ' "$1"
 }
-p478_routing_lint() {  # skill_file phase2_file -> echoes GREEN or RED
-  local bodies table mk dest idx rows
-  bodies="$(p478_sweep_bodies "$2")"
-  table="$(p478_maptable "$1")"
+p478_routing_lint() {  # skill_file phase2_file... -> echoes GREEN or RED
+  local bodies table mk dest idx rows skill
+  skill="$1"; shift
+  bodies="$(p478_sweep_bodies "$@")"
+  table="$(p478_maptable "$skill")"
   for idx in "${!P478_MARKERS[@]}"; do
     mk="${P478_MARKERS[$idx]}"
     dest="${P478_DESTINATIONS[$idx]}"
@@ -10586,14 +10606,14 @@ p478_routing_lint() {  # skill_file phase2_file -> echoes GREEN or RED
 # (else the loop never checks anything and RED can never fire). Assert every marker is present in
 # the §2.3 sweep bodies — a marker that silently left the sweep bodies would make its row's drift
 # undetectable.
-P478_BODIES="$(p478_sweep_bodies "$P478_P2")"
+P478_BODIES="$(p478_sweep_bodies "${P478_P2[@]}")"
 for _mk in "${P478_MARKERS[@]}"; do
   assert_eq "#478 AC5 lint precondition: marker present in the §2.3 sweep bodies: $_mk" "yes" \
     "$(printf '%s\n' "$P478_BODIES" | grep -qF -- "$_mk" && echo yes || echo no)"
 done
 # GREEN arm: item 3b's mapping table maps every marker present in the sweep bodies.
 assert_eq "#478 AC5 routing lint GREEN: item 3b maps every marker present in the §2.3 sweep bodies" \
-  "GREEN" "$(p478_routing_lint "$MAXI_SKILL" "$P478_P2")"
+  "GREEN" "$(p478_routing_lint "$MAXI_SKILL" "${P478_P2[@]}")"
 # RED arm: strip every '## Devflow Reflection' line (including the mapping-table row) from a scratch
 # SKILL copy while the marker stays in the sweep bodies → the lint must flip GREEN->RED. Only the
 # mapping-table row matters to the lint (it reads the BEGIN/END span), so removing that row is what
@@ -10602,7 +10622,7 @@ assert_eq "#478 AC5 routing lint GREEN: item 3b maps every marker present in the
 P478_MUT="$(probe_tmp '#478 AC5 routing lint RED-arm setup')"
 grep -vF -- '## Devflow Reflection' "$MAXI_SKILL" > "$P478_MUT"
 assert_eq "#478 AC5 routing lint RED: deleting a mapping-table row while its marker stays in the sweep bodies flips the lint RED" \
-  "RED" "$(p478_routing_lint "$P478_MUT" "$P478_P2")"
+  "RED" "$(p478_routing_lint "$P478_MUT" "${P478_P2[@]}")"
 rm -f "$P478_MUT"
 # Destination-only RED arm: retaining the marker while blanking its mapped destination must fail.
 # Re-pointed by issue #1072 from the removed 'lib/test/run.sh' marker to the 'CLAUDE.md' marker,
@@ -10610,7 +10630,7 @@ rm -f "$P478_MUT"
 P478_MUT_DEST="$(probe_tmp '#478 AC5 routing lint destination RED-arm setup')"
 sed 's#The repo.s stated conventions#(blanked)#' "$MAXI_SKILL" > "$P478_MUT_DEST"
 assert_eq "#478 AC5 routing lint RED: blanking a mapping destination while retaining its marker flips the lint RED" \
-  "RED" "$(p478_routing_lint "$P478_MUT_DEST" "$P478_P2")"
+  "RED" "$(p478_routing_lint "$P478_MUT_DEST" "${P478_P2[@]}")"
 rm -f "$P478_MUT_DEST"
 # Fail-closed boundary arm (#478 Phase-3 review): a scratch SKILL copy with the END anchor line
 # removed makes p478_maptable emit nothing (the buffered region never closes), so every marker reads
@@ -10619,7 +10639,7 @@ rm -f "$P478_MUT_DEST"
 P478_MUT_END="$(probe_tmp '#478 maptable END-anchor fail-closed setup')"
 grep -vF -- 'fix-loop-mapping-table-end' "$MAXI_SKILL" > "$P478_MUT_END"
 assert_eq "#478 maptable END-anchor fail-closed: removing the END anchor flips the routing lint RED (no silent widen to EOF)" \
-  "RED" "$(p478_routing_lint "$P478_MUT_END" "$P478_P2")"
+  "RED" "$(p478_routing_lint "$P478_MUT_END" "${P478_P2[@]}")"
 rm -f "$P478_MUT_END"
 
 # ── issue #185 Addendum: deterministic extraction helper (fixture matrix) ────
@@ -35354,7 +35374,7 @@ assert_pin_unique "#815 the reference sources parent-derived slots from the Phas
 # mutation-routing gate cannot inspect.
 assert_eq "#815 the phases/ directory reconciliation is untouched (the reference is NOT a phase stem)" "yes" \
   "$([ ! -e "$IMPL_PHASES_DIR/deferred-ac-followups.md" ] && \
-     [ "$IMPL_PHASE_STEMS" = "phase-1-setup phase-2-implement phase-3-review phase-4-documentation" ] \
+     [ "$IMPL_PHASE_STEMS" = "phase-1-setup phase-2-implement phase-2-sweeps-contract phase-2-sweeps-quality phase-3-review phase-3-fix-loop phase-3-ac-gate phase-4-documentation" ] \
      && echo yes || echo no)"
 assert_eq "#815 the implement shape-lint population reaches the gated reference" "yes" \
   "$(printf '%s\n' "${IMPL_SHAPE_FILES[@]}" | grep -qxF "$I815_REF" && echo yes || echo no)"
@@ -35391,7 +35411,7 @@ assert_eq "#1374 the phase file retains a line-start '### 4.0.5' heading (the #8
   "$(grep -qE '^### 4\.0\.5' "$P4_FILE" && echo yes || echo no)"  # structural-pin-ok: cross-file-phase-contract -- the #815 sed range terminates on this heading; without it the slice runs to EOF and stops being scoped to section 4.0, so its count no longer attributes what it measures to the section it names
 assert_eq "#1374 the phases/ directory reconciliation is untouched (the second reference is NOT a phase stem)" "yes" \
   "$([ ! -e "$IMPL_PHASES_DIR/deferred-review-findings.md" ] && \
-     [ "$IMPL_PHASE_STEMS" = "phase-1-setup phase-2-implement phase-3-review phase-4-documentation" ] \
+     [ "$IMPL_PHASE_STEMS" = "phase-1-setup phase-2-implement phase-2-sweeps-contract phase-2-sweeps-quality phase-3-review phase-3-fix-loop phase-3-ac-gate phase-4-documentation" ] \
      && echo yes || echo no)"
 assert_eq "#1374 the implement shape-lint population reaches the second gated reference" "yes" \
   "$(printf '%s\n' "${IMPL_SHAPE_FILES[@]}" | grep -qxF "$P405_REF" && echo yes || echo no)"
