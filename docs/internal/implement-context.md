@@ -35,10 +35,18 @@ long implement run actually pays:
   judgment about prose. An **authoring budget** asks how long prose *ought* to be — a
   target someone chose, which is why #765 retired it. A **reader-capability ceiling** is a
   property of what the tool can return: above it the Read tool yields a file's `start`
-  marker and no `end` marker, the `truncated` shape every loading command treats as
-  fail-closed, on a file that is intact on disk. The ceiling is therefore derived from the
-  reader's token cap, not from an opinion about length, and it says nothing about whether
-  a shorter phase file would be better written.
+  marker and no `end` marker on a file that is intact on disk — the `truncated` shape
+  `/prflow:implement`, `/prflow:review`, `/prflow:review-and-fix` and `/prflow:docs-verify`
+  treat as fail-closed, and `/prflow:create-issue` degrades best-effort on. The ceiling is
+  therefore derived from the reader's token cap, not from an opinion about length, and it
+  says nothing about whether a shorter phase file would be better written.
+
+  This skill's own files are the largest part of the exempted population: the phase files
+  over the ceiling when the check landed carry expiring exemptions, and several more sit
+  within tens of bytes of it, so ordinary prose added to one should expect to hit the
+  ceiling. Read the current state from `lib/test/reference-size-exemptions.json` and
+  `lib/test/lint-reference-size.py --print-population` rather than from a figure here —
+  the roster shrinks as files are trimmed, and a transcribed size rots on the next trim.
 - **Runtime main-thread context** — the live per-turn token weight the *orchestrator*
   (main thread) carries across a run's many turns and phase (re-)entries. It is measured
   per turn as `input_tokens + cache_read_input_tokens + cache_creation_input_tokens`.
