@@ -293,6 +293,11 @@ jobs:
       - name: Coverage-map key-retention check
         run: python3 lib/test/coverage-map-retention-check.py .
 
+      # issue #1445: keep this step in a job that checks out with fetch-depth: 0 — without the
+      # full history the merge base does not resolve and the check degrades to exit 3.
+      - name: Cloud-writer manifest mutation check
+        run: python3 lib/test/cloud-writer-retention-check.py .
+
       # issue #1287: a test module's assertion floor lives in two coupled sites
       # (`minimum_assertions` in the flight-recorder registry and the run.sh call-site
       # literal). The suite enforces they AGREE and that a tally is not BELOW them, but
