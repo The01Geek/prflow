@@ -51,6 +51,32 @@
 #      genuinely moved and a request for that new head is a review of a commit
 #      nothing is reviewing, which the commit scope correctly lets through.
 #
+# THE PRE-SEED WINDOW (issue #1479). The seeded progress comment this detector
+# reads is published by the review ENGINE at Phase 0.3.5 — inside the peer run's
+# agent job, after that run's config/gate/command jobs, checkout, plugin vendoring
+# and agent Phases 0.1-0.3 — so it does NOT exist for a period after the peer run
+# starts. A request arriving in that window sees no in-flight comment and reaches
+# the "no in-flight review … manual review proceeds" arm below: the detector FAILS
+# OPEN through the window, and a second full cloud review of the same head is paid
+# for. Observed once, as a dated measurement rather than a standing property of the
+# system: 141 seconds between a peer's `command` job starting and its progress
+# comment appearing on PR #1469 (2026-08-09).
+#   DECIDED in-window behavior (issue #1479): fail open — suppress=false with the
+#   "manual review proceeds" notice — is KEPT, unchanged, for a request whose head
+#   matches a peer that has started and seeded nothing. It was chosen over the two
+#   candidates issue #1479 recorded and ruled out: (a) keying suppression on the
+#   ABSENCE of a progress comment — an absence carries no updated_at, so
+#   REVIEW_INFLIGHT_MAX_AGE_MINUTES cannot age it out, and a peer whose seed
+#   silently failed would then wedge EVERY later request at that head forever behind
+#   a notice promising a review that never publishes; (b) a head-blind thread scope
+#   — it suppresses on unrelated conversation and, carrying no head, on a legitimate
+#   re-request after a push (the same scope the header above records as retired).
+#   Fail-open matches this helper's uniform direction (below) and costs only a
+#   recoverable duplicate run, never a swallowed review. The window is therefore a
+#   TRANSIENT timing exposure that self-heals the instant the peer seeds — NOT a
+#   numbered member of the two standing accepted costs above, whose ordinal "3"
+#   still denotes the pull-request scope retired by issue #1010.
+#
 # GitHub-native `concurrency` is NOT the mechanism (shared repository doctrine —
 # see scripts/dedupe-implement-run.sh's header):
 # `cancel-in-progress: true` cancels the in-flight run (wrong run) and `false`
