@@ -1,0 +1,266 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-11T18:33:09Z",
+  "fix_commit_sha": "384fb48f1",
+  "fix_files": [
+    "lib/test/lint-reference-size.py",
+    "lib/test/run.sh",
+    "CLAUDE.md",
+    "docs/internal/implement-context.md",
+    "docs/internal/create-issue-context.md",
+    "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+    "docs/internal/cutovers/issue-1374-deferred-review-findings-relocate.md",
+    ".changeset/issue-1595-reference-size-ceiling.md"
+  ],
+  "loop_role": "fix",
+  "current_step": "3.5",
+  "current_substep": "fix_delta_gate",
+  "pending_dispatch": {
+    "kind": "fix_delta_gate",
+    "roster": [
+      "general-purpose"
+    ],
+    "dispatched_at": "2026-08-11T19:10:00Z"
+  },
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": true,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "dispatched_effort": [
+    {
+      "agent": "prflow:checklist-generator",
+      "phase": "1",
+      "requested": "low",
+      "resolved": "low",
+      "application_point": "session-fallback",
+      "effective": null,
+      "fallback_reason": "per-agent effort resolved but not applied: no in-session per-agent effort seam"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "phase": "3",
+      "requested": "claude-opus-4-8",
+      "resolved": "claude-opus-4-8",
+      "application_point": "model-override-unavailable",
+      "effective": null,
+      "fallback_reason": "this runner's Agent tool accepts a fixed model enum, so the configured model string could not be applied; dispatched without a model override rather than substituting a different model"
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:type-design-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "checklist_summary": {
+    "generated": 34,
+    "lite": 2,
+    "agent": 32,
+    "verified": 34,
+    "pass": 30,
+    "fail": 4,
+    "inconclusive": 0
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Critical",
+      "description": "Recorded densities claimed false and ceiling too loose",
+      "defect_signature": {
+        "file": "lib/test/lint-reference-size.py",
+        "line_range": [
+          100,
+          116
+        ],
+        "kind": "logic_error"
+      },
+      "fix_decision": "pushed_back"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "Four doc statements assert the ceiling without the exemption channel",
+      "defect_signature": {
+        "file": "docs/internal/implement-context.md",
+        "line_range": [
+          31,
+          33
+        ],
+        "kind": "documented_falsehood"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "AC13 assertion derives its over-ceiling set from a wider population than the lint audits",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          51655,
+          51665
+        ],
+        "kind": "logic_error"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Important",
+      "description": "create-issue-context.md still denies the gate over 15 of its own gated references",
+      "defect_signature": {
+        "file": "docs/internal/create-issue-context.md",
+        "line_range": [
+          13,
+          18
+        ],
+        "kind": "documented_falsehood"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Critical",
+      "description": "run.sh header comment universalizes fail-closed to every loading command",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          51428,
+          51430
+        ],
+        "kind": "documented_falsehood"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "completeness-critic",
+      "severity": "Suggestion",
+      "description": "Nested skill root outside the root-anchored pattern; .md filter residual undisclosed",
+      "defect_signature": {
+        "file": "lib/test/lint-reference-size.py",
+        "line_range": [
+          147,
+          147
+        ],
+        "kind": "other"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "Expired-exemption message names the default record path, not the one read",
+      "defect_signature": {
+        "file": "lib/test/lint-reference-size.py",
+        "line_range": [
+          432,
+          437
+        ],
+        "kind": "documented_falsehood"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "A disagreeing marker pair drops out of the population with no breadcrumb",
+      "defect_signature": {
+        "file": "lib/test/lint-reference-size.py",
+        "line_range": [
+          194,
+          210
+        ],
+        "kind": "logic_error"
+      },
+      "fix_decision": "deferred"
+    },
+    {
+      "agent": "prflow:type-design-analyzer",
+      "severity": "Suggestion",
+      "description": "recorded_set/exemptions two-list schema; expires_when free text",
+      "defect_signature": {
+        "file": "lib/test/lint-reference-size.py",
+        "line_range": [
+          400,
+          432
+        ],
+        "kind": "type_design"
+      },
+      "fix_decision": "pushed_back"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "pushed_back",
+      "source_file": "lib/test/lint-reference-size.py",
+      "claim_text": "the recorded densities are false against HEAD and the 61,750 ceiling admits files over the token cap",
+      "skip_category": "claim-quality",
+      "evidence": "the finding divided token counts observed from the PLUGIN-CACHE copies (68,901 / 73,799 / 81,869 bytes) by those files' current post-trim repo sizes; measured against the copies actually read the densities are 2.600 / 2.833 / 2.887, so the floor 2.60 and ceiling 61,750 are correct",
+      "parking_evidence": {
+        "basis": "the finding paired token counts and byte counts from two different artifacts at the same paths",
+        "failing_input": "skills/implement/phases/phase-1-setup.md: 68,901 B in the plugin cache vs 61,731 B in the repo, both reported against 26,496 tokens",
+        "source": "wc -c over both copies; lint-reference-size.py --self-check",
+        "finding_ref": {
+          "iter": 1,
+          "index": 0
+        }
+      }
+    },
+    {
+      "finding_id": "F-9",
+      "decision": "pushed_back",
+      "source_file": "lib/test/lint-reference-size.py",
+      "claim_text": "collapse recorded_set and exemptions into one list",
+      "skip_category": "out-of-scope",
+      "evidence": "AC9 requires the check to refuse an exemption naming a file outside the recorded set, which a single-list schema cannot express",
+      "parking_evidence": {
+        "basis": "the proposed schema change would remove the construct an acceptance criterion names",
+        "failing_input": "an exemption row for a file never recorded",
+        "source": "issue #1595 acceptance criterion 9",
+        "finding_ref": {
+          "iter": 1,
+          "index": 8
+        }
+      }
+    },
+    {
+      "finding_id": "F-8",
+      "decision": "deferred",
+      "source_file": "lib/test/lint-reference-size.py",
+      "claim_text": "a disagreeing marker pair is excluded with no breadcrumb distinguishing it from an ungated file",
+      "skip_category": "uncategorized",
+      "evidence": "real but additive: the exclusion is now pinned by three new fixture arms, so the behaviour is asserted; emitting a near-miss breadcrumb is a new feature beyond this issue's scope"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 7,
+    "fix_diff_lines": 190,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "not_verified",
+      "outcome": null,
+      "reason": "gate dispatched, awaiting return"
+    }
+  },
+  "sweep_evidence": {
+    "status": "run"
+  },
+  "verification_evidence": {
+    "focused_selection": "lib/test/run.sh #1595 block driven via the extracted-block harness rig; whole-suite pass owned by Phase 4.3",
+    "skipped_checks": []
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
