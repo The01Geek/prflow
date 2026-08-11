@@ -1,0 +1,124 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-11T02:00:00Z",
+  "fix_commit_sha": "ae21ac4",
+  "fix_files": [
+    "skills/implement/SKILL.md",
+    "skills/implement/phases/phase-4-documentation.md",
+    "lib/test/test_python_scripts.py",
+    "scripts/devflow-cloud-writer-contract.json"
+  ],
+  "loop_role": "fix",
+  "current_step": "3",
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": "small_diff"
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "SKILL.md stale self-referential count 'three skills named above' after removing pr-description",
+      "defect_signature": {
+        "file": "skills/implement/SKILL.md",
+        "line_range": [
+          20,
+          20
+        ],
+        "kind": "stale_count"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "note-ordering test guard 'if _row_is:' over-broad; disarms Setup/Review ordering check on a rendering regression",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          2168,
+          2170
+        ],
+        "kind": "coverage_weakening"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "§4.2 fail-open: no arm for a missing/malformed/still-placeholder subagent record; finalize guard passes vacuously",
+      "defect_signature": {
+        "file": "skills/implement/phases/phase-4-documentation.md",
+        "line_range": [
+          207,
+          221
+        ],
+        "kind": "fail_open_missing_record"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "writing-standard read lost path+failed-load arm (phase-1/phase-4 line 6)",
+      "defect_signature": {
+        "file": "skills/implement/phases/phase-4-documentation.md",
+        "line_range": [
+          6,
+          6
+        ],
+        "kind": "out_of_scope_merge_artifact"
+      },
+      "fix_decision": "deferred"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "ae21ac4"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "0fc8e6d"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "ae21ac4"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "deferred",
+      "source_file": "skills/implement/phases/phase-4-documentation.md",
+      "claim_text": "writing-standard read lost its path and failed-load arm",
+      "skip_category": "out-of-scope",
+      "evidence": "the writing-standard collapse is an origin/main merge artifact from PR #1553, not this diff's change"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 3,
+    "fix_diff_lines": 14,
+    "new_corroborated_critical_count": 0
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
