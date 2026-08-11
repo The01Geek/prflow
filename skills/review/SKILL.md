@@ -308,7 +308,7 @@ Each reference carries these as its literal first and last lines:
 <!-- prflow:review-ref phase=<id> file=skills/review/phases/<name>.md end -->
 ```
 
-After the `Read`: **quote the body's literal first and last lines**, and let `S` and `E` count the lines matching the expected `start` and `end` markers — expected meaning bearing this phase's id and path (one naming another phase or file matches nothing here, so a mis-routed read fails closed). Decide rows 6 and 7 from those two quoted lines, never from an impression the markers *look* right. Test the rows **in order**; the first that fires is the attributed shape:
+After the `Read`: **quote the body's literal first and last lines**, and let `S` and `E` count the lines matching the expected `start` and `end` markers — expected meaning bearing this phase's id and the reference's own bundle-relative path exactly as written in the marker — the path the run resolved and read the file from is not compared, so a marker naming a different phase or file matches nothing here and a mis-routed read fails closed. Decide rows 6 and 7 from those two quoted lines, never from an impression the markers *look* right. Test the rows **in order**; the first that fires is the attributed shape:
 
 | # | Shape | Fires when | Stop label |
 |---|---|---|---|
