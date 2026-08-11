@@ -130,10 +130,23 @@ The coordinator's `real` time is not CI's: CI isolates each shard on its own run
 coordinator's shards share one host's CPU/memory/checkout/process namespace, so its wall-clock is
 the slowest shard *under contention*, not the slowest runner.
 
-## Why the local run stays authoritative
+## Why the local run was once authoritative, and why it no longer is (superseded by issue #1607)
 
-The local run stays the authoritative local signal because its failure detail is richer than CI's
-for troubleshooting. The `#456` skip accounting is unchanged: a nonempty skip tally is not clean,
+This section formerly read: *"The local run stays the authoritative local signal because its
+failure detail is richer than CI's for troubleshooting."* Issue #1607 supersedes that conclusion
+for the **completion gate**, and `CLAUDE.md`'s tier ladder carries the operative rule.
+
+The richer-failure-detail premise was never wrong, and it is why a local run is still the right
+instrument for *diagnosing* a failure. What it does not establish is authority, and three
+measured properties settle that the other way for a gate. The local signal is **not reproducible
+under this repository's concurrency** — a tree-enumerating check counts sibling worktrees, so it
+varies between runs on the same commit while CI, with one checkout, cannot exhibit the effect.
+It is **not the authoritative signal**, since CI gates merge and the two disagree in both
+directions. And it is **slower**, sometimes exceeding the tier's foreground execution ceiling
+outright. Richer detail about a result that may be an artifact of the host is not a stronger
+gate; it is a better debugger.
+
+The `#456` skip accounting is unchanged on either reading: a nonempty skip tally is not clean,
 and a focused module may not self-skip (`run-module.sh` makes `skip()` fatal).
 
 ## Tier-2 extraction, and why a second cycle is the trigger
