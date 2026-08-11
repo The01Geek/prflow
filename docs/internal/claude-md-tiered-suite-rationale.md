@@ -190,6 +190,11 @@ field to the schema.
 
 ## Why the per-launch `Verification evidence:` record exists (issues #719, #1249)
 
+This subsection is about a tier that *launches* a suite — the cloud implement tier, and any local
+run launching one as a diagnostic. Since issue #1607 the local/interactive implement tier's gate
+launches nothing at all: its recorded event is the CI reading, per `CLAUDE.md`'s local-tier bullet
+under *Recording a whole-suite launch*, and the rest of this subsection does not describe it.
+
 Because the parallelized gate launches the full run *concurrently* with the CI-triggering push —
 not serialized behind it as the pre-#707 gate was — a launch that is denied, blocked, or never
 reached leaves no trace, so "push, nothing to read, claim made" would otherwise be

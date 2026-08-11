@@ -928,9 +928,10 @@ local/interactive tier as on the cloud implement tier: a flight in the terminal 
 completion gate in `CLAUDE.md`, and that is a prose rule over which signal an agent may cite — it moved
 nothing in `workpad.py`, `check-completion-evidence.py`, or the flight ledger, none of which can read a
 GitHub Actions conclusion. A local implement run that maintains a workpad therefore still owes this
-record for its final tree before a `--status Complete` write will land. Reconciling the two is open work,
-not something the prose change settled; treat the mechanical gate as the binding constraint on what
-`workpad.py` will accept.
+record for its final tree before a `--status Complete` write will land. Reconciling the two is open work
+tracked in issue #1611, not something the prose change settled; treat the mechanical gate as the binding
+constraint on what `workpad.py` will accept. `CLAUDE.md`'s local-tier rung carries a pointer to this
+constraint so its operative copy does not omit it.
 
 **Review-coverage gate (issue #1453).** The fourth member of `_terminal_complete_gate`, after the completion-evidence and required-artifact gates: a `--status Complete` write also requires the `## Progress` section to carry exactly one resolvable **review-coverage record** for the run's Phase 3 review pass. Phase 3.3 stamps it on **every** Phase 3 exit that can reach a Complete write — the clean-completion path, the `APPROVE WITH UNRESOLVED SHADOW FINDINGS` and `REJECT` branches, and the severity-aware soft-proceed — with `workpad.py update $ISSUE_NUMBER --record-review-coverage <coverage> <dispatch> <roster> <checklist>`, deriving each operand from the loop-verdict marker (and, for the roster/checklist comparisons, the fix loop's `iter-<N>.json` `shadow` block). The record rides the **existing** keyed-checkpoint marker family under a `review-coverage:` key namespace carrying the colon-joined four-axis payload — not the `_REQUIRED_ARTIFACTS` literal-key family, because the payload legitimately changes between calls and `--checkpoint`'s replay semantics key on the whole key string, so a second call would insert a *second* independent row with nothing to say which is authoritative; the producer therefore strips the prior row and appends a fresh one, and the reader refuses on anything other than exactly one record. Both marker namespaces (`prflow:` and superseded `devflow:`) are read per record.
 
