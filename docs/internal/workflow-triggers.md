@@ -867,11 +867,16 @@ is fully covered.
 ## Duplicate `/prflow:review` commands are deduped by the in-flight review
 
 A second standalone `/prflow:review` on a pull request while a review of the same
-pull request is already **in flight** is **suppressed** — the second run's
+pull request is already **in flight** is **suppressed once that in-flight review
+has published its live `prflow:review-progress` comment** — the second run's
 `command` job is skipped and a notice naming the reason is posted, so a pull
 request receives one review rather than several billed engine runs and duplicate
-verdicts. The scope is the **pull request**, not the commit (see the accepted
-costs below). This is the
+verdicts. Suppression is **conditioned on that published comment**: it is the only
+in-flight signal the detector reads, and the engine seeds it inside the peer's
+agent job (Phase 0.3.5), so a request arriving in the window after the peer starts
+but before it seeds is **not** suppressed — the detector fails open through that
+window (see *The pre-seed window* below). The scope is the **pull request**, not
+the commit (see the accepted costs below). This is the
 command path's analogue of the implement-path dedupe above, and it follows the same
 gate-stage doctrine (native `concurrency` cannot express "ignore the duplicate,
 leave the in-flight run untouched"). The branch-selecting decision lives in the
@@ -925,6 +930,20 @@ the `review_dedupe` job in `devflow.yml`.
   the Candidate C decision. A third cost — pull-request rather than commit scope —
   was found during PR #993's review and **retired by issue #1010**, which added the
   seed-time head key above.
+- **The pre-seed window (issue #1479).** The seeded progress comment is published
+  inside the peer run's *agent* job (Phase 0.3.5), so it does not exist for a period
+  after that run starts; a request arriving in that window sees no in-flight comment
+  and the detector **fails open** — a second full review of the same head runs and
+  is billed. Measured once as a dated observation, not a standing property: **141
+  seconds** between the peer's `command` job starting and its progress comment
+  appearing on **PR #1469 (2026-08-09)**. Fail-open through the window is the
+  **decided** behavior (issue #1479), kept unchanged: keying suppression on the
+  comment's *absence* has no `updated_at` to age out and would wedge every later
+  request at that head forever if a peer's seed silently failed, and a head-blind
+  thread scope suppresses unrelated conversation and legitimate re-requests. So the
+  window is a **transient timing exposure** that self-heals the instant the peer
+  seeds — deliberately **not** a numbered member of the two accepted costs above
+  (whose ordinal "3" still denotes the retired pull-request scope).
 - **Fails open in every direction.** A missing/unresolvable operand, a query error,
   an unparseable response, an unresolvable `jq`, or an absent/mis-vendored helper
   all yield *no suppression* with a specific breadcrumb — a missed suppression only

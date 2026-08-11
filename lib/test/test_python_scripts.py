@@ -12048,10 +12048,10 @@ _STEM_HOMES = {
     "skills/implement/phases/phase-1-setup.md": ("acs-", "devflow-issue-", "-title.txt"),
     "skills/implement/phases/phase-2-implement.md": ("repro-", "plan-", "narrowed-acs-"),
     # issue #1374 moved §4.0.5's filing procedure into its own gated reference, and the two
-    # deferrals captures went with the fence that writes them; the §4.1 documentation-gate
-    # captures stayed behind in the phase file.
-    "skills/implement/phases/phase-4-documentation.md":
-        ("devflow-docgate-body-", "devflow-docgate-gh.err"),
+    # deferrals captures went with the fence that writes them; issue #1554 then moved §4.1's
+    # documentation-gate captures into scripts/read-doc-needed-deliverables.sh, which owns
+    # that scratch file now — so phase-4-documentation.md names no stem of its own and takes
+    # no row here. The negative half above still binds it.
     "skills/implement/references/deferred-review-findings.md":
         ("devflow-dm.err", "devflow-fd.err"),
     "skills/review-and-fix/references/loop-control.md": ("devflow-maxiter.err",),
@@ -15446,6 +15446,218 @@ with tempfile.TemporaryDirectory() as _pm_base:
 
 _IAS603 = str(SCRIPTS / 'issue-audit-state.py')
 
+def _ias_fork_selected(env):
+    """Decide whether the fork driver below is usable, given an environment mapping.
+
+    Taken as a function of an explicit mapping rather than reading `os.environ` inline so
+    the `DEVFLOW_IAS_NO_FORK=1` escape hatch is assertable without re-importing this file.
+    """
+    return hasattr(os, 'fork') and env.get('DEVFLOW_IAS_NO_FORK') != '1'
+
+
+# `os.fork` does not exist on Windows, where every call falls back to the real spawn.
+_IAS_FORK_OK = _ias_fork_selected(os.environ)
+
+
+def _ias_reset_module_state():
+    """Return the already-imported `issue_audit_state` to its cold-import state.
+
+    The fork child inherits the PARENT's module globals rather than re-importing, so any
+    process-scoped memo the parent warmed would answer for the child's own cwd and its own
+    first-emission bookkeeping. `_repo_root` is the load-bearing one: it is memoized and
+    cwd-derived, so a warm entry would resolve this repository instead of the child's temp
+    sandbox. A monkeypatched stand-in carries no `cache_clear`, hence the guard.
+    """
+    rr = getattr(issue_audit_state, '_repo_root', None)
+    clear = getattr(rr, 'cache_clear', None)
+    if clear is not None:
+        clear()
+    emitted = getattr(issue_audit_state, '_STATE_BREADCRUMB_EMITTED', None)
+    if isinstance(emitted, set):
+        emitted.clear()
+
+
+def _ias_spawn(argv, cwd, stdin=None):
+    """Spawn `issue-audit-state.py` as a real subprocess.
+
+    This is both the Windows/opt-out fallback for `_ias_run` and the fidelity REFERENCE the
+    A/B row below grades the fork driver against, so the two must stay one call shape.
+    """
+    return _subprocess.run([sys.executable, _IAS603, *argv], cwd=cwd, input=stdin,
+                           capture_output=True, text=True)
+
+
+def _ias_run(argv, cwd, stdin=None):
+    """Drive `issue-audit-state.py`'s CLI in a forked child, or spawn it for real.
+
+    Returns the same `CompletedProcess` shape `_ias_spawn` returns, and preserves everything
+    the rows grade: the real exit status, the real stdout/stderr bytes, the real working
+    directory, and full process isolation (the child `os._exit`s, so no state it mutates can
+    reach the parent). What it drops is the interpreter startup and module import a spawn
+    pays per call, which no assertion examines.
+
+    Known divergence from `_ias_spawn`, inert for every input these rows drive: the child's
+    streams are fixed UTF-8 rather than the locale encoding, and `stdin=None` gives the child
+    `/dev/null` (immediate EOF) where the spawn inherits this process's own stdin.
+    """
+    if not _IAS_FORK_OK:
+        return _ias_spawn(argv, cwd, stdin=stdin)
+    args = [_IAS603, *argv]
+    # stdin arrives through a temp FILE, never a pipe: a pipe would deadlock the pair once
+    # a payload exceeded the kernel buffer, since the parent cannot write and drain at once.
+    stdin_file = None
+    out_r = out_w = err_r = err_w = None
+    pid = None
+    try:
+        if stdin is not None:
+            stdin_file = tempfile.NamedTemporaryFile('w', encoding='utf-8', delete=False)
+            stdin_file.write(stdin)
+            stdin_file.close()
+        out_r, out_w = os.pipe()
+        err_r, err_w = os.pipe()
+        # Flush before forking, or the child inherits the parent's buffered bytes and emits
+        # a second copy of everything already written to this file's own stdout/stderr.
+        sys.stdout.flush()
+        sys.stderr.flush()
+        pid = os.fork()
+        if pid == 0:
+            rc = 1
+            try:
+                # A failure anywhere in this setup must still say WHY on the child's stderr:
+                # a bare `os._exit(1)` here is indistinguishable from a genuine CLI exit 1.
+                try:
+                    os.close(out_r)
+                    os.close(err_r)
+                    os.dup2(out_w, 1)
+                    os.dup2(err_w, 2)
+                    os.close(out_w)
+                    os.close(err_w)
+                    fd0 = os.open(
+                        stdin_file.name if stdin_file is not None else os.devnull,
+                        os.O_RDONLY)
+                    os.dup2(fd0, 0)
+                    os.close(fd0)
+                    sys.stdin = os.fdopen(0, 'r', encoding='utf-8')
+                    sys.stdout = os.fdopen(1, 'w', encoding='utf-8')
+                    sys.stderr = os.fdopen(2, 'w', encoding='utf-8')
+                    os.chdir(cwd)
+                    sys.argv = [_IAS603, *[str(a) for a in argv]]
+                    _ias_reset_module_state()
+                except BaseException:  # noqa: BLE001 - the child has no other reporter
+                    import traceback
+                    try:
+                        with os.fdopen(os.dup(2), 'w', encoding='utf-8') as _diag:
+                            _diag.write('_ias_run: fork-child setup failed\n')
+                            traceback.print_exc(file=_diag)
+                    except BaseException:  # noqa: BLE001 - diagnostics are best-effort
+                        pass
+                    raise
+                rc = 0
+                try:
+                    issue_audit_state.main()
+                except SystemExit as exc:
+                    rc = 0 if exc.code is None else (
+                        exc.code if isinstance(exc.code, int) else 1)
+                except BaseException:  # noqa: BLE001 - mirrors the interpreter's top level
+                    import traceback
+                    traceback.print_exc()
+                    rc = 1
+                sys.stdout.flush()
+                sys.stderr.flush()
+            finally:
+                os._exit(rc if isinstance(rc, int) else 1)
+        os.close(out_w)
+        out_w = None
+        os.close(err_w)
+        err_w = None
+        chunks = {}
+        failures = {}
+        owned = set()
+
+        def _drain(key, fd):
+            # A drain thread that dies without recording WHY would leave chunks[key]
+            # absent, and an empty-string stdout would then be graded as real output.
+            try:
+                buf = []
+                fh = os.fdopen(fd, 'rb')
+                # Membership means "this thread closed, or will close, this pipe end";
+                # clearing it before `os.fdopen` takes the fd would leak it, since the
+                # parent then skips it too.
+                owned.add(key)
+                with fh:
+                    while True:
+                        b = fh.read(65536)
+                        if not b:
+                            break
+                        buf.append(b)
+                chunks[key] = b''.join(buf)
+            except BaseException as exc:  # noqa: BLE001 - re-raised in the parent below
+                failures[key] = exc
+                # Release this pipe end HERE when `os.fdopen` never took it: the parent
+                # reaches `os.waitpid` before its own finally arm, so an undrained,
+                # unclosed pipe wedges the pair forever once the child fills it.
+                if key not in owned:
+                    try:
+                        os.close(fd)
+                    except OSError:
+                        pass
+                    owned.add(key)
+
+        # Both streams drain concurrently: a child that fills one pipe's buffer while the
+        # parent is blocked reading the other would wedge the pair.
+        threads = [_threading1040.Thread(target=_drain, args=(k, fd))
+                   for k, fd in (('out', out_r), ('err', err_r))]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        # Clear only the ends `os.fdopen` actually took: clearing on a failure that
+        # happened before that leaks the pipe end past this call's finally arm.
+        if 'out' in owned:
+            out_r = None
+        if 'err' in owned:
+            err_r = None
+        _, status = os.waitpid(pid, 0)
+        pid = None
+        for key in ('out', 'err'):
+            if key in failures:
+                raise AssertionError(
+                    f'_ias_run: the {key} drain thread failed for {args!r}') \
+                    from failures[key]
+        if os.WIFSIGNALED(status):
+            rc = -os.WTERMSIG(status)
+        else:
+            rc = os.WEXITSTATUS(status)
+        return _subprocess.CompletedProcess(
+            args, rc,
+            _ias_decode(chunks.get('out', b'')), _ias_decode(chunks.get('err', b'')))
+    finally:
+        for fd in (out_r, out_w, err_r, err_w):
+            if fd is not None:
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
+        if pid:
+            try:
+                os.waitpid(pid, 0)
+            except OSError:
+                pass
+        if stdin_file is not None:
+            try:
+                os.unlink(stdin_file.name)
+            except OSError:
+                pass
+
+
+def _ias_decode(raw):
+    """Decode a captured stream the way `subprocess.run(text=True)` presents one.
+
+    Universal-newline translation is applied here because the rows were authored against the
+    spawn, which translates; a fork path that did not would diverge on any CR-carrying byte.
+    """
+    return raw.decode('utf-8', 'replace').replace('\r\n', '\n').replace('\r', '\n')
+
 
 def _stage_bytes(run, path):
     """Record the staged write for a draft file's CURRENT bytes (issue #1104).
@@ -15544,11 +15756,10 @@ class _Run603:
                 and '--arm' in argv and '--draft-file' in argv
                 and argv[argv.index('--arm') + 1] == 'file'):
             art = _stage_bytes(self, argv[argv.index('--draft-file') + 1])
-        args = [sys.executable, _IAS603, *argv]
+        args = list(argv)
         if nonce:
             args += ['--nonce', self.nonce]
-        out = _subprocess.run(args, cwd=self.tmp, input=stdin, capture_output=True,
-                              text=True)
+        out = _ias_run(args, self.tmp, stdin=stdin)
         if art is not None:
             # Retire the artifact once it has done its job. Retained, it would let the
             # NEXT round's kind selection reconstruct these bytes and answer `targeted`,
@@ -15588,6 +15799,72 @@ class _Run603:
 def _with_run603(fn):
     with tempfile.TemporaryDirectory() as tmp:
         fn(_Run603(tmp))
+
+
+# ── the fork driver itself is a subject, not only an instrument ──
+#
+# Every row below this point reads its verdict through `_ias_run`, so a driver that lost
+# stdout, mistranslated an exit status or silently stopped delivering stdin would recolour
+# those verdicts rather than fail. These rows grade the driver directly, against the real
+# spawn it replaced.
+
+import signal as _signal1567  # noqa: E402
+
+
+def _ias_driver_rows(r):
+    r.open_round(1, 'REVISE', 2)
+    # An ingestion REFUSAL is the A/B subject because it is non-mutating and reads stdin:
+    # the same argv can be replayed through both drivers against one tree without the first
+    # replay changing what the second sees.
+    argv = ['record-adjudication', r.slug, '--round', '1', '--verdict', 'REVISE',
+            '--must-revise', '2', '--advisory', '0', '--invalid', '0',
+            '--unresolved-must-revise', '2', '--ledger-stdin', '--nonce', r.nonce]
+    payload = 'unresolved: finding A\n'
+    forked = _ias_run(argv, r.tmp, stdin=payload)
+    spawned = _ias_spawn(argv, r.tmp, stdin=payload)
+    assert_eq("#1567 fidelity: the fork driver and a real spawn agree on rc/stdout/stderr",
+              (spawned.returncode, spawned.stdout, spawned.stderr),
+              (forked.returncode, forked.stdout, forked.stderr))
+    # Control on the A/B subject itself: a driver that delivered NO stdin at all would still
+    # be refused, and the two drivers would still agree — on a verdict about nothing. A
+    # second payload refused for a different reason proves the bytes reached the child.
+    other = _ias_run(argv, r.tmp, stdin='unresolved: a\nfinding with no status prefix\n')
+    assert_eq("#1567 fidelity: the A/B subject really is stdin-sensitive on both streams",
+              (1, 1, True, True),
+              (spawned.returncode, other.returncode,
+               spawned.stderr != other.stderr, spawned.stderr.strip() != ''))
+    # A query is the second A/B subject: it is the shape whose STDOUT the rows parse, and a
+    # refusal alone would leave the stdout channel graded only as the empty string.
+    qargv = ['query-convergence', r.slug, '--nonce', r.nonce]
+    fq, sq = _ias_run(qargv, r.tmp), _ias_spawn(qargv, r.tmp)
+    assert_eq("#1567 fidelity: a stdout-bearing query agrees across both drivers",
+              (sq.returncode, sq.stdout, sq.stderr, True),
+              (fq.returncode, fq.stdout, fq.stderr, sq.stdout.strip() != ''))
+    # The opt-out must actually select the fallback; the two A/B rows above are what proves
+    # the arm it selects is correct.
+    assert_eq("#1567: DEVFLOW_IAS_NO_FORK=1 deselects the fork driver, and only that value",
+              (False, hasattr(os, 'fork'), hasattr(os, 'fork')),
+              (_ias_fork_selected({'DEVFLOW_IAS_NO_FORK': '1'}),
+               _ias_fork_selected({'DEVFLOW_IAS_NO_FORK': '0'}),
+               _ias_fork_selected({})))
+    if _IAS_FORK_OK:
+        # The signal arm: a child that dies on a signal has no exit status to report, and
+        # WEXITSTATUS of such a status is 0 — which would read as a PASSING command.
+        _real_main = issue_audit_state.main
+
+        def _suicide():
+            os.kill(os.getpid(), _signal1567.SIGTERM)
+
+        issue_audit_state.main = _suicide
+        try:
+            killed = _ias_run(['query-convergence', r.slug], r.tmp)
+        finally:
+            issue_audit_state.main = _real_main
+        assert_eq("#1567: a signal-killed child reports -SIGTERM, never a 0 exit status",
+                  -_signal1567.SIGTERM, killed.returncode)
+
+
+_with_run603(_ias_driver_rows)
 
 
 # Row 1 — the regression row: the reported deadlock, and its release through resolution.
@@ -21714,23 +21991,504 @@ assert_eq("#814: a failed --expect-comment-id precondition makes no PATCH and wr
 # capture it (scripts/flip-review-progress-failed.sh, skills/pr-description). Driven
 # behaviourally too, so a later "let's be consistent" gate on it turns this RED.
 def _drive_cmd_patch(payload):
-    saved = workpad._run
-    workpad._run = lambda cmd, **kw: _FakeRun(payload)
+    saved = (workpad._run, workpad._repo_full)
+    # Per-leg payloads, so the echo SOURCE stays discriminating: a payload-independent
+    # stub would answer the live-body GET with the same bytes, and a regression echoing
+    # the GET's body instead of the PATCH response would pass. `_repo_full` is stubbed
+    # rather than answered by the same lambda, so the repo is not the payload string.
+    workpad._repo_full = lambda *a, **kw: 'owner/repo'
+    workpad._run = lambda cmd, **kw: _FakeRun(
+        payload if ('-X' in cmd and 'PATCH' in cmd)
+        else _json.dumps({'id': 7, 'body': 'live body, no marker\n'}))
     out = io.StringIO()
     with _tempfile.NamedTemporaryFile('w', suffix='.md', delete=False) as tf:
         tf.write('body file contents\n')
         path = tf.name
     try:
-        with contextlib.redirect_stdout(out):
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
             workpad.cmd_patch(argparse.Namespace(comment_id=7, body_file=path))
     finally:
-        workpad._run = saved
+        workpad._run, workpad._repo_full = saved
         _os.unlink(path)
     return out.getvalue()
 
 
 assert_eq("#814: cmd_patch still writes its response to stdout unconditionally",
           "patched\n", _drive_cmd_patch("patched\n"))
+
+
+# ── #1508: cmd_patch preserves the leading marker lines a rewrite would clobber ──
+# A full-body rewrite composes its bytes from state the caller holds, so a caller that
+# does not retype the run-key/verdict markers drops them. The comment's identity is its
+# line-1 marker, so a marker-resolving reader then reads "no such comment exists"
+# rather than erroring. These drive the request body cmd_patch actually emits, so a
+# preservation that never fires turns them RED.
+_RUNKEY = '<!-- prflow:review-progress run=31356552464-1 -->'
+_VERDICT = '<!-- prflow:review-verdict head=' + 'a' * 40 + ' verdict=REJECT -->'
+
+
+def _drive_cmd_patch_body(existing_body, new_body, *, want=None):
+    """Return the body cmd_patch PATCHes when the live comment reads `existing_body`.
+
+    `want='stderr'` returns the run's stderr instead, and `want='staged'` the
+    directory the PATCH operand lived in beside whether it survived the call.
+    """
+    saved = (workpad._run, workpad._repo_full)
+    sent = {}
+
+    def _fake(cmd, **kw):
+        if '-X' in cmd and 'PATCH' in cmd:
+            # Asserted on the PATCH leg too, not the GET alone: a PATCH that lost
+            # `--jq .body` or addressed another comment would otherwise pass.
+            assert '/repos/owner/repo/issues/comments/7' in cmd, cmd
+            assert '--jq' in cmd and '.body' in cmd, cmd
+            operand = [c for c in cmd if c.startswith('body=@')][0]
+            sent['path'] = Path(operand[len('body=@'):])
+            sent['body'] = sent['path'].read_text(encoding='utf-8')
+            return _FakeRun(sent['body'])
+        # The stub sees the GET's argv, so a read aimed at the wrong comment or the
+        # wrong repo fails here instead of passing as a well-formed live body. The
+        # read must NOT carry `--jq .body`: jq renders a missing key as `null`, so
+        # that shape cannot express presence and the merge would treat an error
+        # envelope as a marker-less body.
+        assert '/repos/owner/repo/issues/comments/7' in cmd, cmd
+        assert '--jq' not in cmd, cmd
+        return _FakeRun(_json.dumps({'id': 7, 'body': existing_body}))
+
+    workpad._run = _fake
+    workpad._repo_full = lambda *a, **kw: 'owner/repo'
+    err = io.StringIO()
+    with _tempfile.NamedTemporaryFile('w', suffix='.md', delete=False) as tf:
+        tf.write(new_body)
+        path = tf.name
+    try:
+        with contextlib.redirect_stdout(io.StringIO()), \
+                contextlib.redirect_stderr(err):
+            workpad.cmd_patch(argparse.Namespace(comment_id=7, body_file=path))
+    finally:
+        workpad._run, workpad._repo_full = saved
+        _os.unlink(path)
+    if want == 'stderr':
+        return err.getvalue()
+    if want == 'staged':
+        staged = sent.get('path')
+        return (staged != Path(path), staged.exists())
+    return sent.get('body')
+
+
+_HEADING = '# PRFlow Review — PR #1523\n\nPhase 4 rewrite from held state.\n'
+
+assert_eq("#1508: a rewrite that drops the run-key marker gets it back at line 1",
+          _RUNKEY,
+          (_drive_cmd_patch_body(_RUNKEY + '\n' + _HEADING, _HEADING) or '\n').split('\n')[0])
+
+_both = _drive_cmd_patch_body(_RUNKEY + '\n' + _VERDICT + '\n' + _HEADING, _HEADING) or ''
+assert_eq("#1508: a rewrite after a verdict stamp keeps BOTH markers at their "
+          "contracted positions",
+          [_RUNKEY, _VERDICT], _both.split('\n')[:2])
+
+# The caller stays authoritative for a marker it does supply — that is how a re-stamped
+# verdict still lands. The composed body deliberately OMITS the run key, so precedence
+# and re-insertion must both fire: a merge that returned the caller's bytes untouched
+# (the whole pre-fix behaviour) would leave the new verdict at line 1.
+_NEWVERDICT = '<!-- prflow:review-verdict head=' + 'b' * 40 + ' verdict=APPROVE -->'
+_re_stamped = _drive_cmd_patch_body(
+    _RUNKEY + '\n' + _VERDICT + '\n' + _HEADING,
+    _NEWVERDICT + '\n' + _HEADING) or ''
+assert_eq("#1508: a marker the caller supplies wins over the live one of the same kind",
+          [_RUNKEY, _NEWVERDICT], _re_stamped.split('\n')[:2])
+
+# A kind only the caller supplies — the first verdict stamp, whose live body carries the
+# run key alone — is appended after the live markers, never ahead of the run key.
+assert_eq("#1508: a kind only the caller supplies lands after the live markers",
+          [_RUNKEY, _VERDICT],
+          (_drive_cmd_patch_body(_RUNKEY + '\n' + _HEADING, _VERDICT + '\n' + _HEADING)
+           or '').split('\n')[:2])
+
+# The implement workpad's single-marker family must not gain a second marker line, and
+# a comment that never carried a marker must not gain one.
+assert_eq("#1508: a live body with no leading marker leaves the caller's bytes untouched",
+          _HEADING, _drive_cmd_patch_body('plain body\nno markers\n', _HEADING))
+assert_eq("#1508: a single-marker live body re-inserts exactly that one marker",
+          ['<!-- prflow:workpad -->', '# PRFlow Review — PR #1523'],
+          (_drive_cmd_patch_body('<!-- prflow:workpad -->\nold\n', _HEADING)
+           or '').split('\n')[:2])
+
+# The superseded namespace is live in bodies written before the rename, and a per-record
+# read is what keeps one of those resolvable after a rewrite.
+_DEV_RUNKEY = '<!-- devflow:review-progress run=31356552464-1 -->'
+assert_eq("#1508: a superseded-namespace marker is preserved per record",
+          _DEV_RUNKEY,
+          (_drive_cmd_patch_body(_DEV_RUNKEY + '\n' + _HEADING, _HEADING)
+           or '\n').split('\n')[0])
+
+
+def _drive_cmd_patch_read_failure(new_body=None, live=None):
+    """cmd_patch when the live body cannot be established.
+
+    `live=None` raises from the read; any other value is the raw stdout the stubbed
+    read returns, so an arm can model exactly what `gh` emits — an error envelope
+    carrying no `.body` key, or the literal `null` a `--jq .body` read would render
+    for one. Returns (sent body, stderr, exit code).
+    """
+    saved = (workpad._run, workpad._repo_full)
+    sent = {}
+
+    def _fake(cmd, **kw):
+        if '-X' in cmd and 'PATCH' in cmd:
+            operand = [c for c in cmd if c.startswith('body=@')][0]
+            sent['body'] = Path(operand[len('body=@'):]).read_text(encoding='utf-8')
+            return _FakeRun(sent['body'])
+        if live is None:
+            raise _sp295.CalledProcessError(1, cmd)
+        if isinstance(live, BaseException):
+            # An exception instance models a read failure whose CAUSE the breadcrumb
+            # must render — a `CalledProcessError` carrying gh's own stderr payload.
+            raise live
+        if live is OSError:
+            # An absent `gh` binary — the other arm of the same `except`, and the one
+            # whose exception carries no `.stderr` for the breadcrumb to read.
+            raise OSError(2, 'No such file or directory')
+        return _FakeRun(live)
+
+    workpad._run = _fake
+    workpad._repo_full = lambda *a, **kw: 'owner/repo'
+    err = io.StringIO()
+    code = None
+    with _tempfile.NamedTemporaryFile('w', suffix='.md', delete=False) as tf:
+        tf.write(_RUNKEY + '\n' + _HEADING if new_body is None else new_body)
+        path = tf.name
+    try:
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+            try:
+                workpad.cmd_patch(argparse.Namespace(comment_id=7, body_file=path))
+            except SystemExit as e:
+                code = e.code
+    finally:
+        workpad._run, workpad._repo_full = saved
+        _os.unlink(path)
+    return sent.get('body'), err.getvalue(), code
+
+
+_sent, _stderr, _code = _drive_cmd_patch_read_failure()
+assert_eq("#1508: an unestablished live body still patches a composed body that carries "
+          "its own marker, and says so",
+          (_RUNKEY + '\n' + _HEADING, True, None),
+          (_sent, 'could not establish the live body' in _stderr, _code))
+
+# The other arm of the same unknown: nothing downstream can tell a dropped marker from
+# "there was no such comment", so a composed body carrying none refuses rather than
+# restoring the very clobber this preservation exists to prevent.
+_sent, _stderr, _code = _drive_cmd_patch_read_failure(new_body=_HEADING)
+assert_eq("#1508: an unestablished live body REFUSES a composed body carrying no marker",
+          (None, True, 1),
+          (_sent, 'refusing the PATCH' in _stderr, _code))
+
+# `gh` can emit an error envelope with no `.body` key while exiting 0. Unknown is not
+# zero: that must take the same arm as a raised read, never read as "no markers".
+# Driven with the envelope `gh` actually emits, not an empty stdout that cannot occur.
+_sent, _stderr, _code = _drive_cmd_patch_read_failure(
+    new_body=_HEADING, live='{"message":"Not Found","status":"404"}\n')
+assert_eq("#1508: an exit-0 read whose envelope carries no `body` key is unestablished",
+          (None, True, 1),
+          (_sent, 'refusing the PATCH' in _stderr, _code))
+
+# The `--jq .body` rendering of that same envelope: jq prints the literal `null`, which
+# a presence check reading jq's output cannot tell from a body. A read that regressed to
+# `--jq .body` would hand the merge "null" as an established marker-less body and PATCH
+# the composed body as typed — the exact clobber this preservation prevents.
+_sent, _stderr, _code = _drive_cmd_patch_read_failure(new_body=_HEADING, live='null\n')
+assert_eq("#1508: a `null` live read is unestablished, never a marker-less body",
+          (None, True, 1),
+          (_sent, 'refusing the PATCH' in _stderr, _code))
+
+# A present-but-JSON-null `body` (GitHub can return one) is likewise not a body.
+_sent, _stderr, _code = _drive_cmd_patch_read_failure(
+    new_body=_HEADING, live='{"id":7,"body":null}\n')
+assert_eq("#1508: a JSON-null `body` value is unestablished, never an empty body",
+          (None, True, 1),
+          (_sent, 'refusing the PATCH' in _stderr, _code))
+
+# The other exception the same `except` catches — an absent `gh` binary — carries no
+# `.stderr`, so it exercises the other limb of the breadcrumb's cause selection.
+_sent, _stderr, _code = _drive_cmd_patch_read_failure(new_body=_HEADING, live=OSError)
+assert_eq("#1508: an OSError from the live read takes the same unestablished arm",
+          (None, True, 1),
+          (_sent, 'No such file or directory' in _stderr, _code))
+
+# The common gh-failed case: `CalledProcessError` DOES carry `.stderr`, and a
+# `subprocess` configured without text mode carries it as bytes. The breadcrumb must
+# render that payload as text, stripped — not `b'...'` and not the exception's own
+# "Command ... returned non-zero exit status" repr, neither of which names the cause.
+_sent, _stderr, _code = _drive_cmd_patch_read_failure(
+    new_body=_HEADING,
+    live=_sp295.CalledProcessError(1, ['gh'], stderr=b'gh: HTTP 502 upstream  \n'))
+assert_eq("#1508: a bytes `.stderr` payload is decoded and stripped into the breadcrumb",
+          (None, True, True, 1),
+          (_sent, '(gh: HTTP 502 upstream)' in _stderr,
+           'returned non-zero exit status' not in _stderr, _code))
+
+# The text-mode counterpart of the same limb: `.stderr` is already a str, so only the
+# strip applies. Both spellings must reach the same breadcrumb text.
+_sent, _stderr, _code = _drive_cmd_patch_read_failure(
+    new_body=_HEADING,
+    live=_sp295.CalledProcessError(1, ['gh'], stderr='gh: HTTP 502 upstream\n'))
+assert_eq("#1508: a str `.stderr` payload reaches the same stripped breadcrumb",
+          (None, True, 1),
+          (_sent, '(gh: HTTP 502 upstream)' in _stderr, _code))
+
+# A payload that is not JSON at all — an HTML error page from a proxy, at exit 0. The
+# presence read must treat it as unestablished rather than letting the decode error
+# escape cmd_patch uncaught (it is neither CalledProcessError nor OSError).
+_sent, _stderr, _code = _drive_cmd_patch_read_failure(
+    new_body=_HEADING, live='<html><body>502 Bad Gateway</body></html>\n')
+assert_eq("#1508: a non-JSON live payload is unestablished, never a marker-less body",
+          (None, True, 1),
+          (_sent, 'refusing the PATCH' in _stderr, _code))
+
+
+def _drive_cmd_patch_unreadable_body_file():
+    """cmd_patch when the body file passes `is_file()` but its read raises.
+
+    A real unreadable file would depend on file modes and on the runner's uid (root
+    reads a 0000 file), so the failure is induced at the read itself — the arm under
+    test — leaving the mode question out of the assertion entirely.
+    """
+    class _UnreadablePath(type(Path())):
+        # Every read route is closed, not just `read_text`: were `cmd_patch`'s
+        # early-read arm to reach the body another way, an unclosed route would
+        # fall through to the real filesystem and this test would pass while
+        # asserting nothing about the unreadable arm.
+        def read_text(self, *a, **kw):
+            raise OSError(13, 'Permission denied')
+
+        def read_bytes(self, *a, **kw):
+            raise OSError(13, 'Permission denied')
+
+        def open(self, *a, **kw):
+            raise OSError(13, 'Permission denied')
+
+    saved = (workpad.Path, workpad._run, workpad._repo_full)
+    workpad.Path = _UnreadablePath
+    workpad._run = lambda *a, **kw: (_ for _ in ()).throw(
+        AssertionError('cmd_patch must not reach gh when the body file is unreadable'))
+    workpad._repo_full = lambda *a, **kw: 'owner/repo'
+    err = io.StringIO()
+    code = None
+    with _tempfile.NamedTemporaryFile('w', suffix='.md', delete=False) as tf:
+        tf.write(_HEADING)
+        path = tf.name
+    try:
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+            try:
+                workpad.cmd_patch(argparse.Namespace(comment_id=7, body_file=path))
+            except SystemExit as e:
+                code = e.code
+    finally:
+        workpad.Path, workpad._run, workpad._repo_full = saved
+        _os.unlink(path)
+    return err.getvalue(), code
+
+
+# Deferred (review 4900412294, Suggestion 2): `_patch_comment_body`'s `raise ValueError`
+# guard, its temp-write `except OSError`, and its `finally` unlink swallow stay untested.
+# The first is unreachable from either call site (both pass exactly one of text/body_path)
+# and the other two are best-effort cleanup with no observable outcome to assert. Revisit
+# if a caller reaches the helper with neither argument, or if the cleanup gains an effect
+# a caller can observe.
+
+_stderr, _code = _drive_cmd_patch_unreadable_body_file()
+assert_eq("#1508: a body file that exists but cannot be read exits 1 naming the cause",
+          (True, True, 1),
+          ('body file unreadable' in _stderr, 'Permission denied' in _stderr, _code))
+
+# The whole body, not just its first lines: the bounded split reconstructs the tail by
+# index, so a regression that drops or duplicates a line after the markers would pass
+# every line-slice assertion above.
+assert_eq("#1508: re-inserting a marker leaves every other byte of the composed body intact",
+          _RUNKEY + '\n' + _HEADING,
+          _drive_cmd_patch_body(_RUNKEY + '\n' + 'old body\ntext\n', _HEADING))
+
+# The scan window is the safety property: widening it would hoist a marker the producer
+# never stamped into a stamp position.
+_THIRD = '<!-- prflow:review-seeded-head ' + 'c' * 40 + ' -->'
+assert_eq("#1508: a marker below the two-line scan window is never hoisted",
+          _RUNKEY + '\n' + _VERDICT + '\n' + _HEADING,
+          _drive_cmd_patch_body(_RUNKEY + '\n' + _VERDICT + '\n' + _THIRD + '\n', _HEADING))
+
+# The readers resolve a marker with a column-0 `startswith`, so an indented line is not
+# one: recognising it would let a composed body claim a marker no reader can find.
+assert_eq("#1508: an indented line is not a marker on either side of the merge",
+          [_RUNKEY, '  ' + _RUNKEY],
+          (_drive_cmd_patch_body(_RUNKEY + '\n' + _HEADING, '  ' + _RUNKEY + '\n' + _HEADING)
+           or '').split('\n')[:2])
+
+# A CRLF live body (GitHub returns one for a body last edited in the web UI) must not
+# inject a stray \r into an LF body the caller composed.
+assert_eq("#1508: a CRLF live marker is re-inserted without its carriage return",
+          _RUNKEY,
+          (_drive_cmd_patch_body(_RUNKEY + '\r\n' + _HEADING, _HEADING)
+           or '\n').split('\n')[0])
+
+# A composed body whose own markers sit behind a blank line leaves `supplied` empty, so
+# its copies would ride along in the tail beside the re-inserted ones. Asserted as the
+# whole body: counting one kind alone would miss the second.
+assert_eq("#1508: a composed body whose markers are not at line 1 gains no duplicate",
+          _RUNKEY + '\n' + _VERDICT + '\n\n' + _HEADING,
+          _drive_cmd_patch_body(_RUNKEY + '\n' + _VERDICT + '\n' + _HEADING,
+                                '\n' + _RUNKEY + '\n' + _VERDICT + '\n' + _HEADING))
+
+# A composed body carrying one kind twice inside the scan window keeps the copy the
+# caller put at the contracted position: a plain dict() over the supplied pairs would
+# let the line-2 copy displace it, silently re-stamping a different value.
+_RUNKEY2 = '<!-- prflow:review-progress run=2-2 -->'
+assert_eq("#1508: the FIRST supplied line of a repeated kind wins, not the last",
+          _RUNKEY,
+          (_drive_cmd_patch_body(_RUNKEY2 + '\n' + _VERDICT + '\n' + _HEADING,
+                                 _RUNKEY + '\n' + _RUNKEY2 + '\n' + _HEADING)
+           or '\n').split('\n')[0])
+
+# The dedupe scan drops only a kind the merge already carries. An out-of-position marker
+# of an UNMERGED kind is ordinary content and survives — the fall-through arm the
+# assertion above cannot witness, because there every out-of-position kind is dropped.
+assert_eq("#1508: an out-of-position marker of an unmerged kind is kept, not dropped",
+          _RUNKEY + '\n\n' + '<!-- prflow:workpad -->' + '\n' + _HEADING,
+          _drive_cmd_patch_body(_RUNKEY + '\n' + _HEADING,
+                                '\n' + '<!-- prflow:workpad -->' + '\n' + _HEADING))
+
+# An established live body that is EMPTY is not the unestablished case: the read
+# succeeded, so there is no marker to lose and the composed body patches untouched with
+# no refusal. Folding the two arms together would refuse this PATCH.
+assert_eq("#1508: an established-but-empty live body patches the composed body untouched",
+          (_HEADING, False),
+          (_drive_cmd_patch_body('', _HEADING),
+           'could not establish the live body' in _drive_cmd_patch_body(
+               '', _HEADING, want='stderr')))
+
+# The readers accept trailing whitespace on a marker line, so refusing it here would
+# leave a live marker they DO resolve unpreserved — the silent clobber, one space wide.
+assert_eq("#1508: a live marker with trailing whitespace is preserved, whitespace stripped",
+          _RUNKEY,
+          (_drive_cmd_patch_body(_RUNKEY + '  \n' + _HEADING, _HEADING)
+           or '\n').split('\n')[0])
+
+# The breadcrumb is the only signal an operator gets that a rewrite was repaired, and a
+# live body carrying one kind twice names that kind once.
+assert_eq("#1508: the re-insertion breadcrumb names each re-inserted kind exactly once",
+          True,
+          'omitted: review-progress, review-verdict' in _drive_cmd_patch_body(
+              _RUNKEY + '\n' + _VERDICT + '\n' + _HEADING, _HEADING, want='stderr'))
+assert_eq("#1508: a live body carrying one kind twice names it once in the breadcrumb",
+          True,
+          'omitted: review-progress\n' in _drive_cmd_patch_body(
+              _RUNKEY + '\n' + _RUNKEY + '\n' + _HEADING, _HEADING, want='stderr'))
+
+# A kind ONLY the caller supplied takes the append limb rather than the `by_kind`
+# lookup, so first-wins has to be enforced there too: filtering that limb on the kind
+# alone appended a caller's duplicate twice. The live body supplies the run key (so
+# something is re-inserted and the merge runs at all) and the caller supplies the
+# verdict kind twice inside the scan window.
+_VERDICT2 = '<!-- prflow:review-verdict head=' + 'b' * 40 + ' verdict=APPROVE -->'
+# Line 3 is the discriminating one and must be asserted: the duplicate rides BEHIND the
+# first copy, so a two-line assertion passes against the un-deduped code too.
+assert_eq("#1508: a kind ONLY the caller supplied is appended once, its first line winning",
+          [_RUNKEY, _VERDICT, _HEADING.split('\n')[0]],
+          (_drive_cmd_patch_body(_RUNKEY + '\n' + _HEADING,
+                                 _VERDICT + '\n' + _VERDICT2 + '\n' + _HEADING)
+           or '\n\n\n').split('\n')[:3])
+
+
+def _drive_fail(stderr):
+    """`(message, exit code)` from `_fail` for one `CalledProcessError.stderr` payload."""
+    exc = _subprocess.CalledProcessError(1, ['gh'])
+    exc.stderr = stderr
+    err = io.StringIO()
+    try:
+        with contextlib.redirect_stderr(err):
+            workpad._fail('patch', exc)
+    except SystemExit as e:
+        return err.getvalue(), e.code
+    return err.getvalue(), None
+
+
+# `_fail`'s own decode-and-strip limb, asserted on `_fail` rather than only on
+# `cmd_patch`'s inline copy: the two are the error surfaces of one command and the
+# reason the limb exists is that they must not diverge, so the copy passing proves
+# nothing about this one. A bytes payload must not render as a `b'...'` repr, and an
+# absent or whitespace-only one must fall back to the exception rather than printing a
+# breadcrumb that names no failure.
+assert_eq("#1508: _fail decodes a bytes .stderr instead of printing its repr",
+          ("workpad.py patch: boom\n", 1),
+          _drive_fail(b'  boom \n'))
+assert_eq("#1508: _fail strips a str .stderr the same way",
+          ("workpad.py patch: boom\n", 1),
+          _drive_fail(' boom\n'))
+assert_eq("#1508: _fail falls back to the exception when .stderr is None",
+          (True, 1),
+          (_drive_fail(None)[0].startswith('workpad.py patch: Command '),
+           _drive_fail(None)[1]))
+assert_eq("#1508: _fail falls back to the exception when .stderr is whitespace-only",
+          (True, 1),
+          (_drive_fail('   \n')[0].startswith('workpad.py patch: Command '),
+           _drive_fail('   \n')[1]))
+
+
+def _drive_cmd_patch_write_failure():
+    """`(stderr, code)` when the MERGED-body PATCH itself fails.
+
+    The live body carries a marker the composed body omits, so the run takes the
+    staged-merged-body PATCH route rather than the caller's-own-file one — the route
+    whose failure arm the other read-failure drivers never reach.
+    """
+    saved = (workpad._run, workpad._repo_full)
+
+    def _fake(cmd, **kw):
+        if '-X' in cmd and 'PATCH' in cmd:
+            exc = _subprocess.CalledProcessError(1, cmd)
+            exc.stderr = b'gh: PATCH refused\n'
+            raise exc
+        return _FakeRun(_json.dumps({'id': 7, 'body': _RUNKEY + '\n' + _HEADING}))
+
+    workpad._run = _fake
+    workpad._repo_full = lambda *a, **kw: 'owner/repo'
+    err = io.StringIO()
+    with _tempfile.NamedTemporaryFile('w', suffix='.md', delete=False) as tf:
+        tf.write(_HEADING)
+        path = tf.name
+    try:
+        with contextlib.redirect_stdout(io.StringIO()), \
+                contextlib.redirect_stderr(err):
+            workpad.cmd_patch(argparse.Namespace(comment_id=7, body_file=path))
+    except SystemExit as e:
+        return err.getvalue(), e.code
+    finally:
+        workpad._run, workpad._repo_full = saved
+        _os.unlink(path)
+    return err.getvalue(), None
+
+
+_stderr, _code = _drive_cmd_patch_write_failure()
+assert_eq("#1508: a failing merged-body PATCH exits 1 naming the transport failure",
+          (True, True, 1),
+          ('re-inserted leading marker(s)' in _stderr,
+           'workpad.py patch: gh: PATCH refused' in _stderr,
+           _code))
+
+# The merged body is staged into the helper's own file rather than over the caller's,
+# and does not outlive the call — the two claims that keep a read-only caller directory
+# and a `git add` scoped to it out of the failure set.
+assert_eq("#1508: the staged PATCH body is private to the helper and is cleaned up",
+          (True, False),
+          _drive_cmd_patch_body(_RUNKEY + '\n' + _HEADING, _HEADING, want='staged'))
+
+# Nothing to re-insert (the caller re-supplied every live marker) takes the other PATCH
+# route: the caller's own file is the operand, with no staged copy at all. A merge that
+# re-staged unconditionally would still send the right bytes and pass every body
+# assertion above, so the route is asserted by which path the PATCH addressed.
+assert_eq("#1508: a caller that re-supplies every live marker PATCHes its own file",
+          False,
+          _drive_cmd_patch_body(_RUNKEY + '\n' + _HEADING, _RUNKEY + '\n' + _HEADING,
+                                want='staged')[0])
 
 # Echo SOURCE, not merely echo presence. `--print-body` must reproduce what the PATCH
 # RESPONSE carried — the bytes the pre-#814 code wrote — never the body this process
@@ -22401,9 +23159,6 @@ assert_eq("#1214 AC11: a real 401/Bad credentials DOES still match (positive con
 print()
 print("issue-audit-state: round resolution, next_call=, query-boundary (issue #795)")
 
-_IAS795 = str(SCRIPTS / 'issue-audit-state.py')
-
-
 class _Run795:
     """A scratch run driven through the real CLI in its own temp git repo."""
 
@@ -22416,11 +23171,10 @@ class _Run795:
         self.nonce = out.stdout.splitlines()[0].split('nonce=', 1)[1].strip()
 
     def __call__(self, *argv, nonce=False, stdin=None):
-        args = [sys.executable, _IAS795, *argv]
+        args = list(argv)
         if nonce:
             args += ['--nonce', self.nonce]
-        return _subprocess.run(args, cwd=self.tmp, input=stdin, capture_output=True,
-                               text=True)
+        return _ias_run(args, self.tmp, stdin=stdin)
 
     def state_bytes(self):
         return Path(self.tmp, '.prflow/tmp', f'issue-audit-state-{self.slug}.json').read_bytes()
@@ -24520,8 +25274,7 @@ with tempfile.TemporaryDirectory() as _t793:
 # arm needs after the turn that computed the path is gone.
 
 def _793_ias(tmp, *argv, stdin=None):
-    return _subprocess.run([sys.executable, _IAS603, *argv], cwd=tmp, input=stdin,
-                           capture_output=True, text=True)
+    return _ias_run(list(argv), tmp, stdin=stdin)
 
 
 with tempfile.TemporaryDirectory() as _t793b:

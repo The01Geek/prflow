@@ -183,9 +183,7 @@ best-effort-parser adversarial-matrix gotcha, and this section is its coupled mi
 
 This section's trigger is a **merge conflict**, not an edit: whenever a rebase, base merge, or branch
 update leaves a conflict in a checked-in file, resolve it as follows before touching the conflicted
-bytes. It is a different trigger from the Batched artifact regeneration section, whose trigger is
-post-edit and pre-suite — no in-run conflict arm routes through that section, so the conflict rule
-lives here on its own.
+bytes. No post-edit pass routes through this rule, so it stands on its own.
 
 The listing this rule reads comes from the granted direct leading-token form:
 
@@ -227,15 +225,21 @@ drift.
 
 ## Batched artifact regeneration
 
-After applying edits and before each full-suite re-verify run, run the granted direct leading-token form once:
+After each edit batch, run the granted direct leading-token form once:
 
 ```bash
 lib/test/regenerate-artifacts.py
 ```
 
-A fix loop's edits drift the checked-in generated records, and rediscovering each one a full suite run later is an iteration's dominant cost. The helper is the sole enumeration point; no inventory is listed here.
+Then, once and only immediately before the completion-gate whole-suite pass, run it with the opt-in floors row:
 
-Act on its report first: commit a changed manifest with its causing edits, and resolve every exit-1-forcing judgment item under the policy it names. Informational lines need reading, not action.
+```bash
+lib/test/regenerate-artifacts.py --with-floors
+```
+
+A fix loop's edits drift the checked-in generated records, and rediscovering each one a full suite run later is an iteration's dominant cost. The bare form takes about a second; the floors row measures every exact-policy module through the real focused runners and takes minutes, which is why it runs once at the gate rather than after every batch. The helper is the sole enumeration point; no inventory is listed here.
+
+Act on its report first: commit a changed manifest with its causing edits, and resolve every exit-1-forcing judgment item under the policy it names. Informational lines need reading, not action. A `not measured` line for the opt-in floors row is the expected default-pass outcome and needs no action there, but it is an unchecked floor rather than a clean one — the module harness and the `modules-*` shards fail only a tally below the floor — so without the flagged pass above a floor left un-raised is caught on CI, where `test_module_runner.py` executes every exact-policy module and enforces equality, rather than in this run.
 
 **Any outcome but exit 0 or a fully-reported exit 1** — exit 2, a traceback, an empty or truncated report, an unattributable exit code — means an artifact went unchecked: unknown, not clean. Judge residually, never by hunting a named token. Never record `run`; record `batched-regeneration: skipped` naming what you saw, and fall back to serial discovery.
 

@@ -580,6 +580,10 @@
       "note": "",
       "owner": "unmodularized"
     },
+    "scripts/read-doc-needed-deliverables.sh": {
+      "note": "issue #1554 Phase 4.1 Documentation-Needed read boundary; token/exit-status matrix resident in the issue-185 Addendum block of the monolith",
+      "owner": "unmodularized"
+    },
     "scripts/reception-record.py": {
       "note": "issue #668 receiving-review session-record CLI; driven by lib/test/test_reception_identity.py + its block in the harness-python-guards module",
       "owner": "harness-python-guards"
@@ -1151,6 +1155,10 @@
       "note": "",
       "owner": "unmodularized"
     },
+    "1479": {
+      "note": "",
+      "owner": "review-trigger-helpers"
+    },
     "1498": {
       "note": "",
       "owner": "regenerate-artifacts"
@@ -1172,6 +1180,10 @@
       "owner": "unmodularized"
     },
     "1537": {
+      "note": "",
+      "owner": "unmodularized"
+    },
+    "1554": {
       "note": "",
       "owner": "unmodularized"
     },

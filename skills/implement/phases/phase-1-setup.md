@@ -1,3 +1,4 @@
+<!-- prflow:implement-ref phase=1 file=skills/implement/phases/phase-1-setup.md start -->
 ## Phase 1: Setup
 
 Output: `Phase 1/4: Setup — creating the workpad and branch...`
@@ -775,3 +776,5 @@ Route by outcome:
 **Security boundary.** The helper never executes a command drawn from the issue body (third-party text), so a `handle=command` bullet is *reported* for you to re-run under your own judgment.
 
 This pass reads the tree to adjudicate a claim, so §1.6's **Fresh-tree verification** rules above bind it: never report a bullet refuted off a stale checkout.
+
+<!-- prflow:implement-ref phase=1 file=skills/implement/phases/phase-1-setup.md end -->

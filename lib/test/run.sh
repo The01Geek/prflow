@@ -4276,6 +4276,17 @@ for _pf in $IMPL_PHASE_STEMS; do
   # position, not just "the digit appears somewhere in the file".
   assert_eq "implement split: phases/${_pf}.md carries its own Phase ${_n} heading (not a cross-phase swap)" "yes" \
     "$(grep -qE "^## Phase ${_n}:" "$IMPL_PHASES_DIR/${_pf}.md" && echo yes || echo no)"
+  # issue #1551: match the WHOLE canonical marker line, never the path or a bare `start -->`
+  # tail: a marker naming the wrong phase number is the `boundary: misrouted` shape that halts
+  # every /prflow:implement run at runtime, and a path-only assertion stays green on it.
+  _impl_start_marker="<!-- prflow:implement-ref phase=${_n} file=skills/implement/phases/${_pf}.md start -->"
+  _impl_end_marker="<!-- prflow:implement-ref phase=${_n} file=skills/implement/phases/${_pf}.md end -->"
+  assert_eq "implement boundary: phases/${_pf}.md start marker is the literal FIRST line and names its own phase and path" "yes" \
+    "$(head -1 "$IMPL_PHASES_DIR/${_pf}.md" | grep -qxF -- "$_impl_start_marker" && echo yes || echo no)"
+  assert_eq "implement boundary: phases/${_pf}.md end marker is the literal LAST line and names its own phase and path" "yes" \
+    "$(tail -1 "$IMPL_PHASES_DIR/${_pf}.md" | grep -qxF -- "$_impl_end_marker" && echo yes || echo no)"
+  assert_eq "implement boundary: phases/${_pf}.md carries exactly one start and one end marker (no duplicate)" "1|1" \
+    "$(grep -cxF -- "$_impl_start_marker" "$IMPL_PHASES_DIR/${_pf}.md" | tr -d ' ')|$(grep -cxF -- "$_impl_end_marker" "$IMPL_PHASES_DIR/${_pf}.md" | tr -d ' ')"
 done
 # Misregistration guard: a present-but-empty stdout from find means NO SKILL.md under
 # phases/. find over a missing dir also prints nothing (2>/dev/null), but the existence
@@ -10286,18 +10297,19 @@ assert_eq "#350: the DEVFLOW_APP_ID env export lives in the Run Claude Code step
 #   Stage 2 post-hoc: cross-check each path against the PR diff; self-heal or
 #     route to Blocked for absent paths.
 # The Addendum (2026-06-29) SUPERSEDES LLM prose-extraction: a deterministic
-# helper (scripts/extract-doc-needed-paths.sh) is the single extraction boundary
-# BOTH stages consume, and its behavior is verified by the fixture matrix below
-# (not by detailed prose pins). The retained boundaries cover the mandatory
-# deliverable dispatch, helper invocation shape, no-op escape, diff range, and
-# Blocked arm.
+# helper is the single extraction boundary BOTH stages consume, and its behavior
+# is verified by the fixture matrix below (not by detailed prose pins). Issue
+# #1554 then moved the read itself — the gh fetch, the extractor invocation and
+# both retries — behind scripts/read-doc-needed-deliverables.sh, whose token and
+# exit-status contract the matrix below drives directly. The retained boundaries
+# cover the mandatory deliverable dispatch, helper invocation shape, no-op
+# escape, diff range, and Blocked arm.
 assert_pin_unique "#185: Phase 4.1 Stage 1 requires docs subagent to treat named paths as mandatory (D)" \
   'treat each as a mandatory deliverable' "$IMPL_SKILL"
-# Both stages consume the SAME deterministic helper (not re-derived). Issue #284
-# folded the once-only retry into each stage's `if ! A && ! B` extractor guard, so the
-# helper is now invoked twice per stage (read + retry) × 2 stages = 4 occurrences.
-assert_eq "#185A: Phase 4.1 calls extract-doc-needed-paths.sh in BOTH stages (read+retry each)" \
-  "4" "$(pin_count 'extract-doc-needed-paths.sh' "$IMPL_SKILL")"
+# Both stages consume the SAME deterministic helper (not re-derived): one
+# single-statement invocation each, so the count is the number of stages.
+assert_eq "#1554: Phase 4.1 invokes read-doc-needed-deliverables.sh in BOTH stages" \
+  "2" "$(pin_count '/../../scripts/read-doc-needed-deliverables.sh $ISSUE_NUMBER' "$IMPL_SKILL")"
 assert_pin_unique "#185: Phase 4.1 Stage 2 no-op escape hatch when no paths extracted (E)" \
   'this cross-check is a no-op' "$IMPL_SKILL"
 # Issue #284 folded the once-only retry into the Stage-2 diff `if ! A && { fetch; ! B; }`
@@ -10317,17 +10329,12 @@ assert_pin_unique "#185: Phase 4.1 Stage 2 Blocked arm names the missing-content
 # extractor in the next) — a residual fail-OPEN on a value-stripping runner. The
 # fix-delta gate then flagged that a `set -o pipefail`-pipe alternative would rest on
 # SHELL-OPTION state surviving between statements inside $(...), the same marshaling class.
-# So the body is now passed through a FIXED TEMP FILE: gh writes it (statement 1, if!-guarded
-# on gh's own rc), the extractor reads it (statement 2, if!-guarded on the extractor's rc) —
-# a literal disk PATH, neither a variable nor an option, so NO marshaled cross-statement
-# state has to survive. Assert the temp-file form in BOTH stages (coupled site) and that the
-# old captured-rc recipe, the ISSUE_BODY value-hop, AND the pipefail-option form are all GONE.
-assert_eq "#284 fix-loop: Phase 4.1 gh body read is if!-guarded in BOTH stages" \
-  "2" "$(pin_count 'if ! gh issue view $ISSUE_NUMBER --json body' "$IMPL_SKILL")"
-assert_eq "#284 fix-loop: Phase 4.1 gh writes the body to a fixed temp file (read+retry x2 stages)" \
-  "4" "$(pin_count '> .prflow/tmp/devflow-docgate-body-$ISSUE_NUMBER.txt 2>' "$IMPL_SKILL")"
-assert_eq "#284 fix-loop: Phase 4.1 extractor reads that temp file (read+retry x2 stages)" \
-  "4" "$(pin_count 'extract-doc-needed-paths.sh < .prflow/tmp/devflow-docgate-body-$ISSUE_NUMBER.txt' "$IMPL_SKILL")"
+# The body then travelled through a FIXED TEMP FILE written inline in the phase file. Issue
+# #1554 moved that whole read — the gh fetch, its temp file, the extractor invocation, and
+# both retries — into scripts/read-doc-needed-deliverables.sh, so the phase file states the
+# routing and the helper owns the shell; the read's arms are driven by the fixture matrix
+# below rather than pinned as prose here. The three "form is GONE" pins remain, because each
+# names a marshaling recipe that must not come back on either side of that move.
 assert_eq "#284 fix-loop: Phase 4.1 no longer carries the old GH_RC/HELPER_RC capture-then-read recipe" \
   "0" "$(pin_count 'GH_RC=$?' "$IMPL_SKILL")"
 # The ISSUE_BODY value-hop the shadow flagged, and the pipefail-option form the fix-delta gate
@@ -10338,8 +10345,8 @@ assert_eq "#284 shadow-fix: Phase 4.1 no longer reads ISSUE_BODY across statemen
   "0" "$(pin_count 'printf '"'"'%s'"'"' "$ISSUE_BODY" |' "$IMPL_SKILL")"
 assert_eq "#284 delta-gate-fix: Phase 4.1 doc gate does not rest on set -o pipefail option state" \
   "0" "$(pin_count 'set -o pipefail; gh issue view' "$IMPL_SKILL")"
-assert_eq "#190 fix-loop: Phase 4.1 fail-closed extraction contract pinned in BOTH stages" \
-  "2" "$(pin_count 'never treat its empty stdout as a no-op' "$IMPL_SKILL")"
+assert_eq "#190 fix-loop: Phase 4.1 states the fail-closed extraction contract exactly once" \
+  "1" "$(pin_count 'never treat its empty stdout as a no-op' "$IMPL_SKILL")"
 
 # ── issue #230: narrative is a starting point; only Desired Behavior + ACs are ──
 # authoritative downstream, and the Documentation Needed bullet is a floor-not-a-
@@ -11152,6 +11159,187 @@ Update \`docs/guide.md\` here."
 assert_eq "#327 Shape 2 fail-open pin: a list item whose only ext token is a rooted path (Stage-B-dropped) does NOT arm the close; the trailing-prose deliverable is captured" \
   "docs/guide.md" \
   "$(printf '%s\n' "$fx_327_arms_rooted" | bash "$EXTRACT_HELPER")"
+
+# ── issue #1554: read-doc-needed-deliverables.sh — the Phase 4.1 read boundary ──
+# Phase 4.1's Documentation-Needed read used to be inline shell written twice in
+# the phase file: it captured its result into a shell variable no later Bash call
+# could see, and its retry / fail-closed arms were reachable by no test. The read
+# now lives in this helper, which prints an outcome token from a closed vocabulary
+# and pairs each token with its own exit status, so the phase file routes on what
+# it observed. This matrix drives every token and the two arm-ordering questions
+# a caller's correctness rests on: a failed READ must not read as an EMPTY
+# extraction, and a read that recovers on its retry must not read as a failure.
+RDND_HELPER="$LIB/../scripts/read-doc-needed-deliverables.sh"
+assert_eq "#1554 helper exists and is executable" "yes" \
+  "$([ -x "$RDND_HELPER" ] && echo yes || echo no)"
+
+# The gh stub answers from a fixture body file, and fails its first
+# $RDND_FAIL_TIMES calls the way gh really fails: an HTTP error BODY on stdout
+# with a non-zero status, so a caller testing capture-emptiness instead of the
+# exit status would read the error blob as an issue body.
+rdnd_dir="$(git_sandbox '#1554 read-doc-needed-deliverables fixture matrix')"
+cat > "$rdnd_dir/gh" <<'RDND_GH_STUB'
+#!/usr/bin/env bash
+n=$(cat "$RDND_COUNT_FILE" 2>/dev/null || echo 0); n=$((n + 1)); echo "$n" > "$RDND_COUNT_FILE"
+if [ "$n" -le "${RDND_FAIL_TIMES:-0}" ]; then
+  echo '{"message":"Not Found","documentation_url":"https://docs.github.com/rest"}'
+  echo "gh: HTTP 404" >&2
+  exit 1
+fi
+cat "$RDND_BODY_FILE"
+RDND_GH_STUB
+chmod +x "$rdnd_dir/gh"
+cat > "$rdnd_dir/bad-extractor" <<'RDND_EXTRACTOR_STUB'
+#!/usr/bin/env bash
+echo "extract-doc-needed-paths.sh: token scan error" >&2
+exit 3
+RDND_EXTRACTOR_STUB
+chmod +x "$rdnd_dir/bad-extractor"
+
+printf '%s\n' "## Implementation Notes" "" \
+  "- **Documentation Needed** — update \`docs/internal/implement-skill.md\`." \
+  > "$rdnd_dir/body-paths.md"
+printf '%s\n' "## Implementation Notes" "" \
+  "- **Approach** — nothing to document." > "$rdnd_dir/body-nosection.md"
+printf '%s\n' "## Implementation Notes" "" \
+  "- **Documentation Needed** — none; describe it in the pull request instead." \
+  > "$rdnd_dir/body-prose.md"
+printf '%s\n' "## Implementation Notes" "" \
+  "- **Documentation Needed** — update \`docs/internal/implement-skill.md\`; verify with \`bash lib/test/run.sh\` and grant \`Bash(scripts/x.sh:*)\`." \
+  > "$rdnd_dir/body-adversarial.md"
+
+# An extractor stub that fails only its FIRST call, so the extractor retry has the
+# same both-orderings coverage the gh retry does.
+cat > "$rdnd_dir/flaky-extractor" <<'RDND_FLAKY_STUB'
+#!/usr/bin/env bash
+n=$(cat "$RDND_EXTRACT_COUNT_FILE" 2>/dev/null || echo 0); n=$((n + 1)); echo "$n" > "$RDND_EXTRACT_COUNT_FILE"
+if [ "$n" -le 1 ]; then
+  echo "extract-doc-needed-paths.sh: token scan error" >&2
+  exit 3
+fi
+exec "$RDND_REAL_EXTRACTOR"
+RDND_FLAKY_STUB
+chmod +x "$rdnd_dir/flaky-extractor"
+
+# rdnd_run BODY_FILE FAIL_TIMES [EXTRACTOR] -> prints the helper's stdout, then a
+# final line `rc=<status>`, so one capture carries both halves of the contract.
+# stderr is MERGED, not discarded: the caller is an agent reading a merged tool
+# result, so isolating the streams here would assert a contract the caller never
+# gets — and the helper's prefixed stdout shape is exactly what has to survive that
+# merge. Non-`docgate-` lines are dropped so a stub's or the extractor's own
+# breadcrumb is not mistaken for a helper assertion failure.
+# The helper's status is stamped INSIDE the command substitution, immediately after
+# the helper returns. Reading `${PIPESTATUS[0]}` after the assignment would report the
+# ASSIGNMENT's pipeline (i.e. grep's status), not the helper's — every non-zero token
+# would then be asserted against rc=0.
+rdnd_run() {
+  local _body="$1" _fails="${2:-0}" _extractor="${3:-}"
+  : > "$rdnd_dir/count"
+  : > "$rdnd_dir/extract-count"
+  RDND_COUNT_FILE="$rdnd_dir/count" RDND_BODY_FILE="$_body" RDND_FAIL_TIMES="$_fails" \
+  RDND_EXTRACT_COUNT_FILE="$rdnd_dir/extract-count" RDND_REAL_EXTRACTOR="$EXTRACT_HELPER" \
+  DEVFLOW_GH="$rdnd_dir/gh" DEVFLOW_DOC_NEEDED_EXTRACTOR="$_extractor" \
+  bash "$RDND_HELPER" 1554 2>&1
+  printf 'rc=%s\n' "$?"
+}
+# rdnd_lines FILTERS the merged stream down to the helper's own contract lines plus
+# that rc stamp, so a stub's or the extractor's breadcrumb is not mistaken for an
+# assertion failure — while still passing THROUGH the merge the caller experiences.
+rdnd_lines() { rdnd_run "$@" | grep -E '^(docgate-|rc=)'; }
+
+# Token 1 of 4 — `deliverables` (0): the paths follow the outcome line, each on its
+# own prefixed line, which is what makes them readable from the tool result at all.
+assert_eq "#1554 token vocabulary: a non-empty extraction prints \`deliverables\`, its paths, and exit 0" \
+  "$(printf 'docgate-outcome: deliverables\ndocgate-path: docs/internal/implement-skill.md\nrc=0')" \
+  "$(rdnd_lines "$rdnd_dir/body-paths.md")"
+# Token 2 of 4 — `no-deliverables` (10), reached two ways: no section at all, and
+# a section carrying only non-path prose.
+assert_eq "#1554 token vocabulary: an absent Documentation Needed section prints \`no-deliverables\` and exit 10" \
+  "$(printf 'docgate-outcome: no-deliverables\nrc=10')" \
+  "$(rdnd_lines "$rdnd_dir/body-nosection.md")"
+assert_eq "#1554 token vocabulary: a section holding only non-path prose prints \`no-deliverables\` and exit 10" \
+  "$(printf 'docgate-outcome: no-deliverables\nrc=10')" \
+  "$(rdnd_lines "$rdnd_dir/body-prose.md")"
+# Token 3 of 4 — `body-read-failed` (11). This is the arm ordering the gate rests
+# on: both attempts fail, and the HTTP error blob the stub left on stdout must NOT
+# be read as a body, so the outcome is a READ FAILURE and never an empty extraction.
+assert_eq "#1554 arm order: a body read failing BOTH attempts is a read failure, not an empty extraction" \
+  "$(printf 'docgate-outcome: body-read-failed\nrc=11')" \
+  "$(rdnd_lines "$rdnd_dir/body-paths.md" 2)"
+# The other half of that ordering: one failure is not a failure. A read that
+# succeeds on its retry yields the success token, so a flaky fetch never Blocks.
+assert_eq "#1554 arm order: a read succeeding on its SECOND attempt yields the success token" \
+  "$(printf 'docgate-outcome: deliverables\ndocgate-path: docs/internal/implement-skill.md\nrc=0')" \
+  "$(rdnd_lines "$rdnd_dir/body-paths.md" 1)"
+# Token 4 of 4 — `extract-failed` (12), driven with a failing extractor and a
+# WORKING read, so the two failure tokens are told apart by their own cause.
+assert_eq "#1554 token vocabulary: an extractor failing BOTH attempts prints \`extract-failed\` and exit 12" \
+  "$(printf 'docgate-outcome: extract-failed\nrc=12')" \
+  "$(rdnd_lines "$rdnd_dir/body-paths.md" 0 "$rdnd_dir/bad-extractor")"
+# The extractor retry's other ordering, symmetric with the gh retry above.
+assert_eq "#1554 arm order: an extractor succeeding on its SECOND attempt yields the success token" \
+  "$(printf 'docgate-outcome: deliverables\ndocgate-path: docs/internal/implement-skill.md\nrc=0')" \
+  "$(rdnd_lines "$rdnd_dir/body-paths.md" 0 "$rdnd_dir/flaky-extractor")"
+# Adversarial input: the block carries a command span and a grant literal, which
+# the extractor suppresses. Two things are asserted at once, because rdnd_run
+# merges stderr: the literals are not phantom deliverables, AND the extractor's
+# `suppressed a span` stderr breadcrumb — emitted on exactly this body — does not
+# displace the outcome line or masquerade as a deliverable path. That is the whole
+# reason the stdout shape is prefixed rather than positional.
+assert_eq "#1554 adversarial input: a command span and a grant literal in the block are not deliverables, and the extractor's stderr breadcrumb does not corrupt the outcome" \
+  "$(printf 'docgate-outcome: deliverables\ndocgate-path: docs/internal/implement-skill.md\nrc=0')" \
+  "$(rdnd_lines "$rdnd_dir/body-adversarial.md")"
+# Stale-capture isolation (what "idempotent" has to mean here to be worth testing):
+# seed the scratch body file with a DIFFERENT body, then fail both read attempts.
+# A helper that extracted from whatever was already on disk would report that stale
+# body's deliverables; the contract is that a failed read reports a failed read.
+printf '%s\n' "## Implementation Notes" "" \
+  "- **Documentation Needed** — update \`docs/internal/STALE.md\`." \
+  > "$(git rev-parse --show-toplevel)/.prflow/tmp/devflow-docgate-body-1554.txt"
+assert_eq "#1554 stale-capture isolation: a failed read never extracts from a body left by a prior invocation" \
+  "$(printf 'docgate-outcome: body-read-failed\nrc=11')" \
+  "$(rdnd_lines "$rdnd_dir/body-paths.md" 2)"
+# The scratch-leaf failure arm — the one arm this helper ADDED (the superseded
+# inline fence warned and carried on). Point the root at a directory whose
+# `.prflow` leaf is a regular file, so `mkdir -p` cannot succeed, and require the
+# fail-CLOSED outcome rather than a silent fall-through to an empty extraction.
+rdnd_nodir="$(git_sandbox '#1554 scratch-leaf failure arm')"
+: > "$rdnd_nodir/.prflow"
+assert_eq "#1554 fail-closed: an uncreatable scratch leaf is a read failure, not an empty extraction" \
+  "$(printf 'docgate-outcome: body-read-failed\nrc=11')" \
+  "$( { cd "$rdnd_nodir" && RDND_COUNT_FILE="$rdnd_dir/count" RDND_BODY_FILE="$rdnd_dir/body-paths.md" \
+          DEVFLOW_GH="$rdnd_dir/gh" bash "$RDND_HELPER" 1554 2>&1; printf 'rc=%s\n' "$?"; } | grep -E '^(docgate-|rc=)')"
+rm -rf "$rdnd_nodir"
+# A usage error prints NO token and exits outside the closed status set, which is
+# exactly the observation Phase 4.1's residual arm exists to catch. Both halves of
+# the guard are driven: a missing argument and a non-numeric one.
+rdnd_usage_out="$(DEVFLOW_GH="$rdnd_dir/gh" bash "$RDND_HELPER" 2>/dev/null)"; rdnd_usage_rc=$?
+assert_eq "#1554 residual arm: a missing issue number prints no token" "" "$rdnd_usage_out"
+assert_eq "#1554 residual arm: a missing issue number exits outside the closed status set {0,10,11,12}" \
+  "64" "$rdnd_usage_rc"
+rdnd_nonnum_out="$(DEVFLOW_GH="$rdnd_dir/gh" bash "$RDND_HELPER" not-a-number 2>/dev/null)"; rdnd_nonnum_rc=$?
+assert_eq "#1554 residual arm: a non-numeric issue number prints no token" "" "$rdnd_nonnum_out"
+assert_eq "#1554 residual arm: a non-numeric issue number exits outside the closed status set" \
+  "64" "$rdnd_nonnum_rc"
+rm -rf "$rdnd_dir"
+
+# Cross-file phase contract: the helper's token/status pairs are the operands
+# Phase 4.1's Shared read contract routes on, so a rename or a renumber on either
+# side must not pass silently — the phase file would route a live outcome into its
+# residual Blocked arm on every run, a whole-gate outage that reads as green.
+# structural-pin-ok: cross-file-phase-contract -- the four token/status pairs are the machine-consumed contract between scripts/read-doc-needed-deliverables.sh and the Phase 4.1 routing arms; reconciled here in both directions
+while IFS='|' read -r _rdnd_tok _rdnd_status; do
+  [ -n "$_rdnd_tok" ] || continue
+  assert_eq "#1554 cross-file contract: the helper's header pairs \`$_rdnd_tok\` with $_rdnd_status" "1" \
+    "$(grep -cE -- "(^|[^0-9])${_rdnd_status}[[:space:]]+${_rdnd_tok}([^-]|\$)" "$LIB/../scripts/read-doc-needed-deliverables.sh")"
+  assert_eq "#1554 cross-file contract: Phase 4.1 routes \`$_rdnd_tok\` ($_rdnd_status)" "yes" \
+    "$(case "$(cat "$IMPL_SKILL")" in *"\`$_rdnd_tok\` ($_rdnd_status)"*) echo yes ;; *) echo no ;; esac)"
+done <<'RDND_CONTRACT'
+deliverables|0
+no-deliverables|10
+body-read-failed|11
+extract-failed|12
+RDND_CONTRACT
 
 # ── issue #380: the `### Documentation Needed` HEADING as a third scope-opening ─
 # shape. Bug-class fix — reproduced RED first at authoring time: against today's
@@ -16886,7 +17074,7 @@ echo "review/implement trigger helpers (derive-review-verdict.sh … resolve-com
 # together, or test_module_runner.py's tranche test goes RED.
 # See the module's .inventory.md for the coverage map back to these locations.
 if ! devflow_run_full_suite_module "$LIB/test/modules/review-trigger-helpers.sh" \
-  "review-trigger-helpers" 827; then
+  "review-trigger-helpers" 829; then
   printf 'ERROR: review-trigger-helpers boundary could not record its result\n'
   exit 1
 fi
@@ -44798,11 +44986,12 @@ ibr_run() {  # <root> <path…> -> "rc=<n>|<stdout+stderr>"
   printf 'rc=%s|%s' "$rc" "$out"
 }
 
-# Discrimination: the §1.1 producer fetch and §4.1 gate fences are the two named in-file
-# allowances — a green run over exactly those (plus a clean file) proves the guard discriminates.
-assert_eq "#693 scanner: the §1.1 producer fetch and §4.1 gate fences are not flagged" \
-  "rc=0|lint-issue-body-refetch: audited 3 of 3 files" \
-  "$(ibr_run "$IBR_FX" skills/implement/clean.md skills/implement/producer.md skills/implement/docgate.md)"
+# Discrimination: the §1.1 producer fetch is the named in-file allowance — a green run over
+# it (plus a clean file) proves the guard discriminates. Issue #1554 retired the §4.1 gate's
+# own allowance with the fence that needed it, so the docgate fixture went with it.
+assert_eq "#693 scanner: the §1.1 producer fetch is not flagged" \
+  "rc=0|lint-issue-body-refetch: audited 2 of 2 files" \
+  "$(ibr_run "$IBR_FX" skills/implement/clean.md skills/implement/producer.md)"
 
 # Planted-defect positive control, one per detected form (the coverage-claim rule).
 while IFS=: read -r _ibr_file _ibr_slug _ibr_what; do
@@ -45982,9 +46171,12 @@ fi
 # ────────────────────────────────────────────────────────────────────────────
 echo "#619 batched-regeneration instruction surfaces"
 # ────────────────────────────────────────────────────────────────────────────
-# Surface-presence pins: each of the three instruction surfaces must carry the
+# Surface-presence pins: each orchestrating instruction surface must carry the
 # batched-regeneration invocation, so a loop's context cannot silently revert to
 # serial per-artifact discovery because one extension lost the instruction. The
+# receiving-code-review extension deliberately carries NO such invocation: it is
+# loaded by dispatched subagents, which were each re-running the multi-minute pass
+# inside the orchestrator's own iteration. The
 # pinned literal is a single unwrapped line in each file (a sentence wrapped across a
 # line break lives on no single line and this line-based pin would find nothing —
 # the issue-375 wrapped-literal hazard).
@@ -46007,10 +46199,7 @@ assert_pin_unique "#619 .prflow/prompt-extensions/implement.md carries the batch
 assert_pin_unique "#619 .prflow/prompt-extensions/review-and-fix.md carries the batched-regeneration invocation" \
   'run the granted direct leading-token form once' \
   "$LIB/../.prflow/prompt-extensions/review-and-fix.md"  # structural-pin-ok: cross-file-phase-contract -- the cloud-only config grant and the prompt invocation must stay coupled
-assert_pin_unique "#619 .prflow/prompt-extensions/receiving-code-review.md carries the batched-regeneration invocation" \
-  'run the granted direct leading-token form once' \
-  "$LIB/../.prflow/prompt-extensions/receiving-code-review.md"  # structural-pin-ok: cross-file-phase-contract -- the cloud-only config grant and the prompt invocation must stay coupled
-for _ra_ext in implement review-and-fix receiving-code-review; do
+for _ra_ext in implement review-and-fix; do
   assert_pin_unique "#619 .prflow/prompt-extensions/$_ra_ext.md carries the batched-regeneration discharge record" \
     '`batched-regeneration: run|refused|skipped`' \
     "$LIB/../.prflow/prompt-extensions/$_ra_ext.md"
@@ -48867,6 +49056,72 @@ def bounded(val):
 
 print("ok" if vals and all(bounded(v) for v in vals) else "no")
 PY
+  # The FREE-ALLOWANCE guard, a sibling of the ceiling guard above and deliberately a second
+  # program rather than another clause inside it: the two variables are independent (Claude
+  # Code documents BASH_DEFAULT_TIMEOUT_MS — the timeout a Bash call gets when it requests
+  # none — separately from BASH_MAX_TIMEOUT_MS, the largest one the model may request), and
+  # keeping them apart means a fixture that reaches one guard's refusal arm reports which
+  # variable is at fault instead of a single undifferentiated `no`.
+  #
+  # Per claude-code-action step it requires BASH_DEFAULT_TIMEOUT_MS present, integer-valued,
+  # strictly above the 120000 ms CLI default (below or at it the raise does nothing), and
+  # strictly BELOW that same step's BASH_MAX_TIMEOUT_MS. The last comparison is the
+  # load-bearing one: the effective per-command wall is the LARGER of the two, so a default
+  # at or above the max silently redefines the bound issue #1179 chose, with nothing in the
+  # workflow reading as changed. Both values are read from the SAME step — never a
+  # cross-step comparison, which would clear a step whose own pair is inverted.
+  cat > "$_WFG_D/default-check.py" <<'PY'
+import re, sys, yaml, json
+
+doc = yaml.safe_load(open(sys.argv[1]))
+pairs = []
+for job in doc.get("jobs", {}).values():
+    for s in job.get("steps", []) or []:
+        if not str(s.get("uses") or "").startswith("anthropics/claude-code-action"):
+            continue
+        settings = (s.get("with") or {}).get("settings")
+        if isinstance(settings, dict):
+            parsed = settings
+        elif isinstance(settings, str) and settings.strip():
+            try:
+                parsed = json.loads(settings)
+            except (ValueError, TypeError):
+                parsed = None
+        else:
+            parsed = None
+        env = parsed.get("env") if isinstance(parsed, dict) else None
+        if not isinstance(env, dict):
+            pairs.append((None, None))
+            continue
+        pairs.append((env.get("BASH_DEFAULT_TIMEOUT_MS"), env.get("BASH_MAX_TIMEOUT_MS")))
+
+
+def strict_int(value):
+    # `int()` alone accepts shapes the action does NOT: it strips surrounding whitespace and
+    # honors PEP 515 underscores, so `" 600000 "` and `"600_000"` both parse here while
+    # claude-code-action forwards the string verbatim and the CLI reads neither as 600000.
+    # A float scalar (an unquoted `600000.0`) is refused for the same reason. Accepting any
+    # of them would report `ok` for a bound that is inert at runtime.
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and re.fullmatch(r"-?[0-9]+", value):
+        return int(value)
+    return None
+
+
+def ok(pair):
+    # An absent or non-numeric value on EITHER side is refused, never coerced to the CLI
+    # default it is meant to replace: an unestablished bound cannot be compared against.
+    default, ceiling = (strict_int(v) for v in pair)
+    if default is None or ceiling is None:
+        return False
+    return 120000 < default < ceiling
+
+
+print("ok" if pairs and all(ok(p) for p in pairs) else "no")
+PY
   # NEGATIVE-CONTROL COMPOSER for the live-workflow hook rows. A guard shown only to PASS
   # on a clean file is the "passes on the very inputs it was added to catch" class: such a
   # row reads identically whether the guard works, is hardwired to `yes`, or is pointed at
@@ -48945,6 +49200,7 @@ PY
   # #908 confirmatory review; mirrors the _908_PROBE_JOB extractor's discipline).
   _wfg_hook() { local o; o="$(python3 "$_WFG_D/hook-check.py" "$1" 2>/dev/null)" || o="extractor-failed"; printf '%s\n' "$o"; }
   _wfg_ceiling() { local o; o="$(python3 "$_WFG_D/ceiling-check.py" "$1" 2>/dev/null)" || o="extractor-failed"; printf '%s\n' "$o"; }
+  _wfg_default() { local o; o="$(python3 "$_WFG_D/default-check.py" "$1" 2>/dev/null)" || o="extractor-failed"; printf '%s\n' "$o"; }
   _wfg_compose_neg() { local o; o="$(python3 "$_WFG_D/compose-hook-negative.py" "$1" "$2" 2>/dev/null)" || o="composer-failed"; printf '%s\n' "$o"; }
   _wfg_settings_shape() { local o; o="$(python3 "$_WFG_D/settings-shape.py" "$1" 2>/dev/null)" || o="extractor-failed"; printf '%s\n' "$o"; }
   # Compose a synthetic workflow fixture named $1 whose single claude-code-action step
@@ -49038,6 +49294,98 @@ YML
   _wfg_fx ceiling-env-not-dict <<'YML'
           settings: |
             {"env": "1200000"}
+YML
+  # ── Shapes the FREE-ALLOWANCE guard must allow / refuse ───────────────────
+  _wfg_fx default-ok <<'YML'
+          settings: |
+            {"env": {"BASH_DEFAULT_TIMEOUT_MS": "600000", "BASH_MAX_TIMEOUT_MS": "1200000"}}
+YML
+  _wfg_fx default-ok-mapping <<'YML'
+          settings:
+            env:
+              BASH_DEFAULT_TIMEOUT_MS: "600000"
+              BASH_MAX_TIMEOUT_MS: "1200000"
+YML
+  # The regression #1179 left open: a ceiling raised while the free allowance stays at the
+  # 120000 ms CLI default, so every unparameterized command still dies at two minutes.
+  _wfg_fx default-absent <<'YML'
+          settings: |
+            {"env": {"BASH_MAX_TIMEOUT_MS": "1200000"}}
+YML
+  # default == max and default > max: the effective wall is the LARGER of the two, so either
+  # shape silently redefines the ceiling. This is the assertion the whole guard exists for.
+  _wfg_fx default-equals-max <<'YML'
+          settings: |
+            {"env": {"BASH_DEFAULT_TIMEOUT_MS": "1200000", "BASH_MAX_TIMEOUT_MS": "1200000"}}
+YML
+  _wfg_fx default-above-max <<'YML'
+          settings: |
+            {"env": {"BASH_DEFAULT_TIMEOUT_MS": "1800000", "BASH_MAX_TIMEOUT_MS": "1200000"}}
+YML
+  _wfg_fx default-at-cli-default <<'YML'
+          settings: |
+            {"env": {"BASH_DEFAULT_TIMEOUT_MS": "120000", "BASH_MAX_TIMEOUT_MS": "1200000"}}
+YML
+  _wfg_fx default-non-int <<'YML'
+          settings: |
+            {"env": {"BASH_DEFAULT_TIMEOUT_MS": "ten-minutes", "BASH_MAX_TIMEOUT_MS": "1200000"}}
+YML
+  # Shapes bare `int()` accepts but the action does not: it strips whitespace and honors PEP
+  # 515 underscores, while claude-code-action forwards the string verbatim. Either would report
+  # a bound that is inert at runtime — the "guard passes while the real bound is unestablished"
+  # class the guard exists to prevent.
+  _wfg_fx default-padded <<'YML'
+          settings: |
+            {"env": {"BASH_DEFAULT_TIMEOUT_MS": " 600000 ", "BASH_MAX_TIMEOUT_MS": "1200000"}}
+YML
+  _wfg_fx default-underscored <<'YML'
+          settings: |
+            {"env": {"BASH_DEFAULT_TIMEOUT_MS": "600_000", "BASH_MAX_TIMEOUT_MS": "1200000"}}
+YML
+  # A float scalar reaches the CLI as `600000.0`, which is not the integer the bound claims.
+  _wfg_fx default-float <<'YML'
+          settings:
+            env:
+              BASH_DEFAULT_TIMEOUT_MS: 600000.0
+              BASH_MAX_TIMEOUT_MS: "1200000"
+YML
+  # A default present with no ceiling beside it: there is no bound to compare against, so the
+  # guard refuses rather than treating the missing max as unlimited.
+  _wfg_fx default-without-max <<'YML'
+          settings: |
+            {"env": {"BASH_DEFAULT_TIMEOUT_MS": "600000"}}
+YML
+  # Order-independence and per-step pairing: a well-formed step ahead of one whose own pair is
+  # inverted must fail, and must fail on ITS OWN pair rather than borrowing the first step's max.
+  # Keep the two steps' maxes DIFFERENT: with equal maxes a guard that borrows the other step's
+  # ceiling still answers `no`, and the fixture stops discriminating per-step pairing.
+  cat > "$_WFG_D/default-two-steps.yml" <<'YML'
+jobs:
+  claude:
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          settings: |
+            {"env": {"BASH_DEFAULT_TIMEOUT_MS": "600000", "BASH_MAX_TIMEOUT_MS": "1200000"}}
+      - uses: anthropics/claude-code-action@v1
+        with:
+          settings: |
+            {"env": {"BASH_DEFAULT_TIMEOUT_MS": "1000000", "BASH_MAX_TIMEOUT_MS": "900000"}}
+YML
+  # The symmetric case: the inverted step FIRST. `all()` is order-independent, but asserting
+  # only one ordering cannot distinguish that from a guard that inspects the first step alone.
+  cat > "$_WFG_D/default-two-steps-swapped.yml" <<'YML'
+jobs:
+  claude:
+    steps:
+      - uses: anthropics/claude-code-action@v1
+        with:
+          settings: |
+            {"env": {"BASH_DEFAULT_TIMEOUT_MS": "1000000", "BASH_MAX_TIMEOUT_MS": "900000"}}
+      - uses: anthropics/claude-code-action@v1
+        with:
+          settings: |
+            {"env": {"BASH_DEFAULT_TIMEOUT_MS": "600000", "BASH_MAX_TIMEOUT_MS": "1200000"}}
 YML
   # A bounded value on a step that is NOT claude-code-action must not satisfy the ceiling
   # guard: the raise reaches the CLI only through the action's own input. This fixture also
@@ -49181,6 +49529,55 @@ YML
     "$(_wfg_ceiling "$_WFG_D/ceiling-other-step.yml")"
   assert_eq "#1179 matrix: an unbounded step ahead of a bounded one fails (order-independence)" "no" \
     "$(_wfg_ceiling "$_WFG_D/ceiling-two-steps.yml")"
+  # ── The free-allowance guard over the live workflows and the fixture matrix ─
+  # Both agent-running tiers raise BASH_DEFAULT_TIMEOUT_MS, not only the ceiling: without it
+  # a Bash call that requests no timeout of its own is killed at the 120000 ms CLI default and
+  # re-issued, which reads in the job log as a slow run rather than as a terminated command.
+  # devflow-runner.yml is deliberately NOT checked here — its settings input is the read-only
+  # reviewer's PreToolUse hook registration and carries no env at all.
+  assert_eq "devflow-implement.yml sets BASH_DEFAULT_TIMEOUT_MS above the CLI default and below its own ceiling" "ok" \
+    "$(_wfg_default "$_908_IMPLEMENT_YML")"
+  assert_eq "devflow.yml (command tier) sets BASH_DEFAULT_TIMEOUT_MS above the CLI default and below its own ceiling" "ok" \
+    "$(_wfg_default "$_908_COMMAND_YML")"
+  assert_eq "free-allowance matrix: a default below its ceiling in string form satisfies the guard" "ok" \
+    "$(_wfg_default "$_WFG_D/default-ok.yml")"
+  assert_eq "free-allowance matrix: the same pair in mapping form satisfies the guard" "ok" \
+    "$(_wfg_default "$_WFG_D/default-ok-mapping.yml")"
+  assert_eq "free-allowance matrix: a raised ceiling with no default beside it fails" "no" \
+    "$(_wfg_default "$_WFG_D/default-absent.yml")"
+  assert_eq "free-allowance matrix: a default EQUAL to the ceiling fails (the larger-of-the-two rule would redefine it)" "no" \
+    "$(_wfg_default "$_WFG_D/default-equals-max.yml")"
+  assert_eq "free-allowance matrix: a default ABOVE the ceiling fails" "no" \
+    "$(_wfg_default "$_WFG_D/default-above-max.yml")"
+  assert_eq "free-allowance matrix: a default equal to the 120000 ms CLI default changes nothing and fails" "no" \
+    "$(_wfg_default "$_WFG_D/default-at-cli-default.yml")"
+  assert_eq "free-allowance matrix: a non-integer default fails rather than crashing the extractor" "no" \
+    "$(_wfg_default "$_WFG_D/default-non-int.yml")"
+  assert_eq "free-allowance matrix: a default with no ceiling to compare against fails" "no" \
+    "$(_wfg_default "$_WFG_D/default-without-max.yml")"
+  assert_eq "free-allowance matrix: an env that is not an object fails rather than being indexed" "no" \
+    "$(_wfg_default "$_WFG_D/ceiling-env-not-dict.yml")"
+  assert_eq "free-allowance matrix: a step carrying no settings input at all fails" "no" \
+    "$(_wfg_default "$_WFG_D/no-settings.yml")"
+  assert_eq "free-allowance matrix: a workflow with no claude-code-action step is unsatisfied, not vacuously true" "no" \
+    "$(_wfg_default "$_WFG_D/ceiling-other-step.yml")"
+  assert_eq "free-allowance matrix: a well-formed step ahead of an inverted one fails (per-step pairing)" "no" \
+    "$(_wfg_default "$_WFG_D/default-two-steps.yml")"
+  assert_eq "free-allowance matrix: an inverted step AHEAD of a well-formed one fails (order-independence)" "no" \
+    "$(_wfg_default "$_WFG_D/default-two-steps-swapped.yml")"
+  # The extractor's two settings-parse refusal arms, routed through the free-allowance guard.
+  # Both already have hook-guard rows; without these each arm was deletable from default-check.py
+  # with the suite still green, since no default-guard assertion reached it.
+  assert_eq "free-allowance matrix: a settings string that is not JSON fails rather than crashing the extractor" "no" \
+    "$(_wfg_default "$_WFG_D/unparseable-settings.yml")"
+  assert_eq "free-allowance matrix: a settings string parsing to a non-object fails rather than being indexed" "no" \
+    "$(_wfg_default "$_WFG_D/json-non-object-settings.yml")"
+  assert_eq "free-allowance matrix: a whitespace-padded default fails (the action forwards the string verbatim)" "no" \
+    "$(_wfg_default "$_WFG_D/default-padded.yml")"
+  assert_eq "free-allowance matrix: an underscore-separated default fails (PEP 515 is a Python-side reading only)" "no" \
+    "$(_wfg_default "$_WFG_D/default-underscored.yml")"
+  assert_eq "free-allowance matrix: a float default fails rather than being truncated to an integer bound" "no" \
+    "$(_wfg_default "$_WFG_D/default-float.yml")"
   rm -rf "$_WFG_D"
 else
   assert_eq "#908 AC1: devflow-implement.yml registers no PreToolUse guard (env-only settings allowed)" "yes" \
@@ -49199,6 +49596,7 @@ else
   # is never a clean pass). PyYAML is a suite prerequisite, so CI always arms them.
   skip "#1179 finite BASH_MAX_TIMEOUT_MS > 600000 via settings env (AC1)" host-capability "python3/PyYAML or scratch space unavailable — cannot parse the workflow settings env"
   skip "#1179 finite BASH_MAX_TIMEOUT_MS > 600000 via settings env (command tier)" host-capability "python3/PyYAML or scratch space unavailable — cannot parse the workflow settings env"
+  skip "BASH_DEFAULT_TIMEOUT_MS above the CLI default and below each step's own ceiling" host-capability "python3/PyYAML or scratch space unavailable — cannot parse the workflow settings env"
   skip "#908/#1179 workflow-settings guard adversarial fixture matrix" host-capability "python3/PyYAML or scratch space unavailable — cannot compose or parse the synthetic workflow fixtures"
 fi
 assert_eq "#908 AC2: HOOK_TARGETS (harden-stop-hooks.sh) already lists the guard script" "yes" \
