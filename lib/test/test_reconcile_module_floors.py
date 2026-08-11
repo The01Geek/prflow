@@ -396,6 +396,63 @@ fi
         self.assertIn(f'"alpha" {alpha_measured}; then', run_text)
         self.assertIn(f'"beta" {beta_measured}; then', run_text)
 
+    def test_every_unclean_module_is_reported_not_only_the_first(self) -> None:
+        # The measurements run concurrently and join before anything is reported, so a
+        # pass with two bad modules must name BOTH. Under the previous first-failure
+        # abort the second module's verdict was never established, and a fix loop paid a
+        # second multi-minute pass to discover it.
+        self.write_contract(alpha_floor=2, beta_floor=2, beta_exact=True)
+        self.settings_path.write_text(
+            json.dumps(
+                {
+                    "alpha": {"passed": 4, "failed": 1},
+                    "beta": {"passed": 4, "skipped": 1},
+                }
+            ),
+            encoding="utf-8",
+        )
+        before = (self.registry_path.read_bytes(), self.run_path.read_bytes())
+
+        result = self.run_helper()
+
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("alpha:", result.stderr)
+        self.assertIn("beta:", result.stderr)
+        self.assertEqual(
+            (self.registry_path.read_bytes(), self.run_path.read_bytes()), before
+        )
+
+    def test_measurement_pool_width_is_bounded_and_honors_the_budget(self) -> None:
+        # The width decides how many whole focused-runner processes run at once, so each
+        # arm below is a real oversubscription or serialization the pool must not choose.
+        cases = (
+            # (budget value, module count, expected width)
+            (None, 11, RMF.MAX_MEASUREMENT_WORKERS),
+            ("2", 11, 2),
+            ("99", 11, RMF.MAX_MEASUREMENT_WORKERS),
+            ("1", 11, 1),
+            # A non-positive or non-numeric export is ignored, never honored: a width of
+            # zero would refuse to run anything at all.
+            ("0", 11, RMF.MAX_MEASUREMENT_WORKERS),
+            ("-3", 11, RMF.MAX_MEASUREMENT_WORKERS),
+            ("many", 11, RMF.MAX_MEASUREMENT_WORKERS),
+            ("", 11, RMF.MAX_MEASUREMENT_WORKERS),
+            # Never wider than the work, and never below one.
+            (None, 2, 2),
+            (None, 0, 1),
+        )
+        for budget, count, expected in cases:
+            with self.subTest(budget=budget, count=count):
+                previous = os.environ.pop("DEVFLOW_SUITE_PROCESS_BUDGET", None)
+                if budget is not None:
+                    os.environ["DEVFLOW_SUITE_PROCESS_BUDGET"] = budget
+                try:
+                    self.assertEqual(RMF._measurement_workers(count), expected)
+                finally:
+                    os.environ.pop("DEVFLOW_SUITE_PROCESS_BUDGET", None)
+                    if previous is not None:
+                        os.environ["DEVFLOW_SUITE_PROCESS_BUDGET"] = previous
+
     def test_desynced_coupled_floors_refuse_below_the_higher_site(self) -> None:
         # Real drift: someone hand-edits the run.sh operand, or a merge resolves only
         # one side. The reconciler's decrease guard is `measured < registry or

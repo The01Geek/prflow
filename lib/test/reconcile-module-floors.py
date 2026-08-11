@@ -1,11 +1,19 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-"""Measure exact module tallies and raise their coupled floors without decreasing them."""
+"""Measure exact module tallies and raise their coupled floors without decreasing them.
+
+The measurements run through a bounded worker pool (`MAX_MEASUREMENT_WORKERS`, lowered by
+`DEVFLOW_SUITE_PROCESS_BUDGET`) and EVERY module's verdict is collected before anything is
+reported: a run whose modules are measured one at a time is dominated by its longest module
+regardless of host width. Any non-clean module still refuses the whole reconciliation, after
+the pool has joined, and writes nothing.
+"""
 
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import copy
 import difflib
 import json
@@ -15,6 +23,7 @@ import re
 import subprocess
 import sys
 import tempfile
+from typing import NamedTuple
 
 
 REGISTRY_PATH = "scripts/workflow-flight-recorder-registry.json"
@@ -28,6 +37,48 @@ SUMMARY = re.compile(
 
 
 DIAGNOSTIC_TAIL_CHARS = 2000
+
+
+# Do not raise this ceiling: each measurement is a whole `run-module.sh` process that
+# itself spawns assertion subprocesses, so a wider pool oversubscribes the host and
+# makes every module's wall clock worse than the serial run this replaced.
+MAX_MEASUREMENT_WORKERS = 4
+
+
+class Measurement(NamedTuple):
+    """One module's verdict: EXACTLY one of `passed` / `refusal` is set.
+
+    Construct through `clean` or `refused` — a direct call could represent the
+    neither-set state the pool's consumption loop has no branch for.
+    """
+
+    module_id: str
+    passed: int | None
+    refusal: str | None
+
+    @classmethod
+    def clean(cls, module_id: str, passed: int) -> "Measurement":
+        return cls(module_id, passed, None)
+
+    @classmethod
+    def refused(cls, module_id: str, refusal: str) -> "Measurement":
+        return cls(module_id, None, refusal)
+
+
+def _measurement_workers(count: int) -> int:
+    """Bounded worker width for the measurement pool.
+
+    `DEVFLOW_SUITE_PROCESS_BUDGET` — the same operator seam `lib/test/run-parallel.sh`
+    reads — LOWERS the ceiling when it names a positive integer; a non-positive or
+    non-numeric value is ignored rather than honored, so a malformed export cannot
+    collapse the pool to nothing or widen it past the ceiling. The width never exceeds
+    the number of modules to measure, and is never below 1.
+    """
+    ceiling = MAX_MEASUREMENT_WORKERS
+    budget = (os.environ.get("DEVFLOW_SUITE_PROCESS_BUDGET") or "").strip()
+    if budget.isdigit() and int(budget) >= 1:
+        ceiling = min(ceiling, int(budget))
+    return max(1, min(ceiling, count))
 
 
 # Exact-policy modules whose module file actually reads MODULE_HEAVY_UNIT_MODE, so
@@ -242,7 +293,15 @@ def reconcile(root: Path, runner: Path) -> int:
         temporary_registry.write_text(
             json.dumps(measurement_registry, indent=2) + "\n", encoding="utf-8"
         )
-        for module_id in exact_ids:
+        def measure_one(module_id: str) -> Measurement:
+            """Measure ONE module.
+
+            Every failure is RETURNED rather than raised or acted on, so the pool joins
+            before anything is reported: a first-failure abort would leave the remaining
+            workers' processes running against a tree the caller is about to be told is
+            unusable, and would hide every other module's verdict behind whichever one
+            happened to finish first.
+            """
             log_dir = temporary_path / f"logs-{module_id}"
             try:
                 proc = subprocess.run(
@@ -258,9 +317,10 @@ def reconcile(root: Path, runner: Path) -> int:
                 # Without this arm the helper dies with a traceback instead of the
                 # INFRASTRUCTURE contract every other failure honors, and a standalone
                 # invocation reports no attributable cause at all.
-                return _fail(
+                return Measurement.refused(
+                    module_id,
                     f"{module_id}: the measurement runner could not be launched "
-                    f"({error})"
+                    f"({error})",
                 )
             matches = [
                 match
@@ -268,21 +328,57 @@ def reconcile(root: Path, runner: Path) -> int:
                 if match.group("module") == module_id
             ]
             if proc.returncode != 0 or len(matches) != 1:
-                return _fail(
+                return Measurement.refused(
+                    module_id,
                     f"{module_id}: focused run was not a single clean measurement "
                     f"(rc={proc.returncode}, summaries={len(matches)})"
-                    f"{_diagnostics(proc)}"
+                    f"{_diagnostics(proc)}",
                 )
             summary = matches[0]
             failed = int(summary.group("failed"))
             skipped = int(summary.group("skipped") or 0)
             if failed != 0 or skipped != 0:
-                return _fail(
+                return Measurement.refused(
+                    module_id,
                     f"{module_id}: measurement was not clean "
                     f"(failed={failed}, skipped={skipped})"
-                    f"{_diagnostics(proc)}"
+                    f"{_diagnostics(proc)}",
                 )
-            measurements[module_id] = int(summary.group("passed"))
+            return Measurement.clean(module_id, int(summary.group("passed")))
+
+        def measure(module_id: str) -> Measurement:
+            """Run `measure_one`, returning ANY unexpected exception as a refusal.
+
+            A worker that raises would escape the exit-2 INFRASTRUCTURE contract every
+            other failure honors and surface as a bare traceback from a pool thread.
+            """
+            try:
+                return measure_one(module_id)
+            except Exception as error:  # noqa: BLE001 - contract: never raise from a worker
+                return Measurement.refused(
+                    module_id,
+                    f"{module_id}: the measurement raised an unexpected "
+                    f"{type(error).__name__} ({error})",
+                )
+
+        # Do not switch to `as_completed` or to processes: `map` yields in argument order
+        # so the report stays in registry order rather than in finishing order, and each
+        # worker only waits on a subprocess, so the GIL is released throughout.
+        refusals: list[str] = []
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=_measurement_workers(len(exact_ids))
+        ) as pool:
+            for result in pool.map(measure, exact_ids):
+                if result.refusal is not None:
+                    refusals.append(result.refusal)
+                else:
+                    measurements[result.module_id] = result.passed
+        if refusals:
+            for refusal in refusals[:-1]:
+                print(
+                    f"floor-reconciliation: INFRASTRUCTURE {refusal}", file=sys.stderr
+                )
+            return _fail(refusals[-1])
 
     decreases = []
     for module_id, measured in measurements.items():

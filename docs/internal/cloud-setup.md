@@ -42,9 +42,13 @@ the comment.** A consumer can *additionally* opt into having that comment posted
 
 **Duplicate `/prflow:review` commands are deduped (issue #989).** A second standalone
 `/prflow:review` on a pull request while a review of the **same commit** is already in flight
-is **suppressed** — the second run's `command` job is skipped and a notice naming the reason is
+is **suppressed once that review has published its live `prflow:review-progress` comment** —
+the second run's `command` job is skipped and a notice naming the reason is
 posted — so a commit receives one review rather than several billed engine runs and
-duplicate verdicts. The check is **commit-scoped** (issue #1010): the engine stamps the head it
+duplicate verdicts. That published comment is the only in-flight signal, and it is seeded inside
+the peer's agent job (Phase 0.3.5), so a request arriving before the peer seeds it — a pre-seed
+window measured at 141 s on PR #1469 (2026-08-09) — is not suppressed and the detector fails
+open through it (issue #1479). The check is **commit-scoped** (issue #1010): the engine stamps the head it
 is reviewing into the progress comment it seeds, so a `/prflow:review` requested after pushing a
 new commit — with the review of the *previous* commit still running — proceeds and reviews the
 new head. An in-flight review seeded before this change carries no such head and is never
@@ -108,9 +112,9 @@ writes changes into your repository, so download it, read it, then run the file 
 read:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.32.14/install.sh -o devflow-install.sh
+curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.32.22/install.sh -o devflow-install.sh
 # review devflow-install.sh, then:
-DEVFLOW_REF=v2.32.14 bash devflow-install.sh
+DEVFLOW_REF=v2.32.22 bash devflow-install.sh
 ```
 
 Both refs are pinned to the same **release tag**, so the install is reproducible.

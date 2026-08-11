@@ -15,6 +15,7 @@ import shutil
 import subprocess
 import tempfile
 import time
+from typing import NamedTuple
 import unittest
 from unittest import mock
 
@@ -27,6 +28,46 @@ MODULES_DIR = ROOT / "lib/test/modules"
 WORKFLOW_MODULE_SOURCE = ROOT / "lib/test/modules/workflow-flight-recorder.sh"
 CREATE_ISSUE_MODULE_SOURCE = ROOT / "lib/test/modules/create-issue-contract.sh"
 CAPABILITY_PROFILES_MODULE_SOURCE = ROOT / "lib/test/modules/capability-profiles.sh"
+
+# Do NOT widen this to the full exact-policy set unconditionally and do NOT empty it:
+# it is the reduced population used ONLY under the parallel coordinator, where the full
+# fan-out oversubscribes a contended host. The modules-* shards enforce `>=` only, so
+# dropping the unconditional fan-out here would leave a stale-low floor undetected.
+REAL_EXECUTION_MODULES = ("harness-python-guards", "review-trigger-helpers")
+
+
+def _under_parallel_coordinator() -> bool:
+    """True when `lib/test/run-parallel.sh` scheduled this process.
+
+    The coordinator exports DEVFLOW_POOL_WIDTH into the python-pool shard only, so its
+    presence distinguishes a contended shared host from CI's dedicated per-shard runner
+    (and a direct local run), which execute the full exact-policy population.
+    """
+    return bool(os.environ.get("DEVFLOW_POOL_WIDTH", "").strip())
+
+
+def _pool_width() -> int:
+    """Worker bound for the module fan-out.
+
+    `lib/test/run-parallel.sh` exports DEVFLOW_POOL_WIDTH (its POOL_RESERVATION) into
+    the python-pool shard only. Honouring it keeps this test's real process count inside
+    the slot budget the coordinator scheduled against; a value that is PRESENT but
+    unparseable or non-positive falls back to a conservative cap rather than to the host
+    CPU count, since the export's presence says a coordinator scheduled against a slot
+    budget this process can no longer read. An ABSENT export means no coordinator, so
+    the host CPU count is the bound — that keeps CI's dedicated python-pool runner at
+    full width.
+    """
+    declared = os.environ.get("DEVFLOW_POOL_WIDTH", "").strip()
+    if declared:
+        try:
+            width = int(declared)
+        except ValueError:
+            width = 0
+        if width >= 1:
+            return width
+        return min(os.cpu_count() or 2, 2)
+    return os.cpu_count() or 2
 
 # An extracted module must reference NO helper that lives only in the monolith
 # lib/test/run.sh — it uses only assert_eq, the namespaced devflow_module_* API, the
@@ -1497,13 +1538,18 @@ class ModuleRunnerTests(unittest.TestCase):
         self.assertEqual(hits, [], f"capability-profiles module references monolith helper(s): {hits}")
 
     def test_exact_floor_modules_run_green_through_the_real_runner(self) -> None:
-        """Every exact-policy module is selected from registry metadata and measured.
+        """Every exact-policy module's run.sh coupling is checked, and each is executed.
 
-        The registry flag is the sole population source: adding another exact module
-        automatically puts it through the real focused runner. Each measured tally must
-        equal both the live registry floor and its coupled `run.sh` call-site operand.
-        Equality (not `>=`) detects assertion loss instead of accepting a stale low
-        watermark.
+        The registry flag is the sole population source for the STATIC half: adding
+        another exact module automatically puts its `run.sh` call site and floor literal
+        under check here. The EXECUTION half runs that same population, reduced to
+        REAL_EXECUTION_MODULES only under the parallel coordinator (see
+        `_under_parallel_coordinator`), so CI's dedicated python-pool runner and a direct
+        local run keep full equality enforcement over all exact-policy modules, while the
+        coordinator's contended shared host keeps the reduced fan-out. Each measured
+        tally must equal both the live registry
+        floor and its coupled `run.sh` call-site operand. Equality (not `>=`) detects
+        assertion loss instead of accepting a stale low watermark.
 
         HOST ASSUMPTION: equality means the module must execute every assertion, so a
         host that trips a conditional arm inside a module (running as root, where the
@@ -1557,6 +1603,7 @@ class ModuleRunnerTests(unittest.TestCase):
             if mapping.get("assertion_floor_policy") == "exact"
         }
         self.assertTrue(exact_modules)
+        reduced = _under_parallel_coordinator()
 
         # Static run.sh call-site checks first, serially, before any subprocess is
         # launched: a floor literal that drifted from the registry must fail here
@@ -1579,9 +1626,32 @@ class ModuleRunnerTests(unittest.TestCase):
                     floor_match, f"no run.sh call-site floor literal for {module_id}"
                 )
                 self.assertEqual(int(floor_match.group(1)), floor)
-            work.append((module_id, floor))
+            if not reduced or module_id in REAL_EXECUTION_MODULES:
+                work.append((module_id, floor))
 
-        def _run_one(item: tuple[str, int]) -> tuple[str, int, int, str, str, bool]:
+        # Every exact-policy module named above had its static run.sh coupling checked.
+        # The executed population is the whole exact-policy set, reduced to
+        # REAL_EXECUTION_MODULES only under the parallel coordinator; asserting it
+        # against the regime's expected population makes a renamed id or an emptied set
+        # a loud failure instead of a silently empty fan-out, in BOTH regimes.
+        expected_execution = (
+            sorted(REAL_EXECUTION_MODULES) if reduced else sorted(exact_modules)
+        )
+        self.assertEqual(
+            sorted(module_id for module_id, _ in work),
+            expected_execution,
+            "the executed exact-floor population does not match this regime's expected set",
+        )
+
+        class _RunResult(NamedTuple):
+            module_id: str
+            floor: int
+            returncode: int
+            stdout: str
+            stderr: str
+            log_had_files: bool
+
+        def _run_one(item: tuple[str, int]) -> _RunResult:
             module_id, floor = item
             environment = os.environ.copy()
             environment.pop("DEVFLOW_TEST_EXPERIMENT_FORCE_FAILURE", None)
@@ -1609,19 +1679,24 @@ class ModuleRunnerTests(unittest.TestCase):
                 # torn down, and return the boolean — the assertion lives in the main
                 # thread below.
                 log_had_files = bool(list(Path(log_dir).iterdir()))
-            return (
-                module_id,
-                floor,
-                result.returncode,
-                result.stdout,
-                result.stderr,
-                log_had_files,
+            return _RunResult(
+                module_id=module_id,
+                floor=floor,
+                returncode=result.returncode,
+                stdout=result.stdout,
+                stderr=result.stderr,
+                log_had_files=log_had_files,
             )
 
-        # Bound the fan-out to the host's CPUs (a thread per module otherwise). The pool
-        # shares its runner with test_python_scripts.py, so this stays modest rather than
-        # unbounded; pool.map preserves input order, so results iterate deterministically.
-        max_workers = min(len(work), (os.cpu_count() or 2))
+        # Bound the fan-out. Under the parallel coordinator `run-parallel.sh` the
+        # python-pool shard is launched holding POOL_RESERVATION slots, which it exports
+        # as DEVFLOW_POOL_WIDTH; honouring it keeps the real process count inside the
+        # budget the coordinator scheduled against, instead of oversubscribing the host
+        # alongside the sibling shards. Outside the coordinator (CI runs python-pool on
+        # its own dedicated runner) there is no such contention, so the host CPU count
+        # stays the bound. pool.map preserves input order, so results iterate
+        # deterministically.
+        max_workers = min(len(work), _pool_width())
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as pool:
             results = list(pool.map(_run_one, work))
 
@@ -3012,6 +3087,36 @@ class HostCapabilitySkipChannelTests(unittest.TestCase):
                     result.stdout,
                     rf"Module {re.escape(module)}: [0-9]+ passed, 0 failed",
                 )
+
+
+class PoolWidthTests(unittest.TestCase):
+    def test_pool_width_honors_a_usable_export_and_caps_a_malformed_one(self) -> None:
+        # The width decides how many whole module-runner processes this suite starts at
+        # once, so each arm below is a real oversubscription or serialization it must
+        # not choose. A PRESENT-but-unusable export takes the conservative cap; only an
+        # ABSENT one means no coordinator and returns to the host CPU count.
+        host = os.cpu_count() or 2
+        cap = min(host, 2)
+        cases = (
+            # (exported value, expected width)
+            (None, host),
+            ("1", 1),
+            ("2", 2),
+            ("99", 99),
+            ("  3  ", 3),
+            ("0", cap),
+            ("-3", cap),
+            ("many", cap),
+            ("", host),
+        )
+        for declared, expected in cases:
+            with self.subTest(declared=declared):
+                env = dict(os.environ)
+                env.pop("DEVFLOW_POOL_WIDTH", None)
+                if declared is not None:
+                    env["DEVFLOW_POOL_WIDTH"] = declared
+                with mock.patch.dict(os.environ, env, clear=True):
+                    self.assertEqual(_pool_width(), expected)
 
 
 class PoolMembershipCompletenessTests(unittest.TestCase):

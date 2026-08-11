@@ -145,9 +145,9 @@ PowerShell's double-quote handling can split a `--note`/`--reflection` text argu
 For autonomous GitHub Actions automation, run the installer from your repo root. It is idempotent, so re-running it at a *newer* release tag is also how you update. It writes into your repository — the workflows and composite actions under `.github/`, a local `marketplace.json`, and `.prflow/` templates (config scaffold, schema, ignore file) — so those changes land in version control. **Download it, read it, then run the downloaded file:**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.32.14/install.sh -o devflow-install.sh
+curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.32.22/install.sh -o devflow-install.sh
 # review devflow-install.sh, then:
-DEVFLOW_REF=v2.32.14 bash devflow-install.sh
+DEVFLOW_REF=v2.32.22 bash devflow-install.sh
 ```
 
 <a id="pinning-the-installer"></a>
@@ -166,8 +166,8 @@ Independently of either pin, `install.sh` stamps `.prflow/config.json`'s `prflow
 `curl … | bash` runs the script without giving you a chance to read it. If you accept that, still pin both refs:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.32.14/install.sh \
-  | DEVFLOW_REF=v2.32.14 bash
+curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.32.22/install.sh \
+  | DEVFLOW_REF=v2.32.22 bash
 ```
 
 </details>
@@ -452,6 +452,12 @@ Issue #504 surfaces the #458-displaced Stop-hook paths to the review engine as g
 #### Upgrade note: the #644 Documentation Needed span grammar narrows (single-artifact — normalize open issues before bumping)
 
 Issue #644 narrows the `scripts/extract-doc-needed-paths.sh` grammar so command and grant literals quoted inside an issue's `**Documentation Needed**` block are no longer tokenized into phantom doc deliverables. Each deliverable must now be **one bare backticked path per span** (`` `docs/foo.md` ``, or several extension-bearing / in-tree paths in one span); a `:`/`*`/`(`-bearing span (`` `Bash(x.sh:*)` ``), a bare command word (`` `bash lib/test/run.sh` ``), an un-backticked `Word(...)` call group, and a fenced code block are treated as scope markers that contribute no tokens (a suppressed backtick *span* leaves a one-time stderr breadcrumb; `Word(...)` call groups and fenced blocks are removed silently). This is a **single-artifact** change — the extractor ships only via the `prflow_version` vendor fetch, so there is no two-halves workflow skew; **bumping `prflow_version` is sufficient**. Because bodies authored under the older tokenization can have multi-token spans reclassified from deliverables to suppressed literals, **normalize the Documentation Needed blocks of your open DevFlow-labeled issues to one bare backticked path per span before bumping**, so a genuine deliverable authored as part of a larger span is not silently dropped after the upgrade.
+
+#### Upgrade note: the #1554 Documentation-Needed read helper is a TWO-halves upgrade (loud on skew — take both together)
+
+Issue #1554 moved Phase 4.1's Documentation-Needed read — the `gh issue view` fetch, its scratch file, the `extract-doc-needed-paths.sh` invocation and both retries — out of inline shell written twice in the phase file and into the bundled helper `scripts/read-doc-needed-deliverables.sh`, which prints an outcome token (`deliverables`, `no-deliverables`, `body-read-failed`, `extract-failed`) paired with its own exit status (0, 10, 11, 12). The **workflow grant** — `Bash(.prflow/vendor/prflow/scripts/read-doc-needed-deliverables.sh:*)` in the `implement` capability profile's generated region (`devflow-implement.yml`'s baked `--allowed-tools`) — arrives by **re-running `install.sh`** (it refreshes the workflow files). The **helper plus the reworked phase file** arrive by **bumping `prflow_version`** (the workflows fetch the plugin tree at that pinned ref at runtime). The pre-existing `Bash(.prflow/vendor/prflow/scripts/extract-doc-needed-paths.sh:*)` grant is unchanged and does **not** cover the new helper — the grants are per-literal-path, not per-directory.
+
+**Skew symptom — the run stops rather than mis-gating.** Unlike the #455 silent-denial class, a skew here surfaces: bump `prflow_version` without re-running `install.sh` and the reworked phase file invokes a helper the older workflow does not grant, so the invocation is refused with no output; re-run `install.sh` without bumping `prflow_version` and the workflow grants a helper the vendored plugin does not yet carry, so the invocation reports `No such file` at rc 127. Both readings land in Phase 4.1's residual arm, which routes to `Blocked` with a `dropped-failed` reflection, because a deliverable gate that continues on an unestablished read is not a gate — no run silently ticks `Documentation` over a deliverable that never shipped. Take both halves in the same upgrade so the gate runs instead of blocking.
 
 #### Upgrade note: the cloud-writer runtime contract is a TWO-halves upgrade — refresh workflows and vendored plugin content together
 
