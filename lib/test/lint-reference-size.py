@@ -348,8 +348,17 @@ def main(argv: list[str] | None = None) -> int:
         verdict = classify(relative, text)
         if verdict is None:
             continue
+        # Measure the RAW bytes: `read_source` normalizes CRLF to LF, so the decoded text's
+        # length is not the file's size. Guard this read rather than bare-reading a file
+        # already read above — a path that vanishes between the two would otherwise raise an
+        # uncaught traceback instead of routing to the skip arm below.
+        try:
+            size = len(target.read_bytes())
+        except OSError as exc:
+            skipped.append((relative, f"size unreadable ({exc.__class__.__name__}: {exc})"))
+            continue
         kind, detail = verdict
-        covered[relative] = (kind, detail, len(target.read_bytes()))
+        covered[relative] = (kind, detail, size)
 
     for relative, reason in skipped:
         print(f"{_TOOL}: SKIPPED {relative}: {reason}", file=sys.stderr)

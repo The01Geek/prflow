@@ -5,7 +5,7 @@ skill's prompt text costs at runtime**, and for the behavioral instrument that
 measures it. It is the implement-side counterpart of
 [`docs/internal/create-issue-context.md`](create-issue-context.md) (issue #767), and
 follows that document's practices: it separates static shipped size from runtime
-context, it declines to add any size gate, and it stamps every recorded measurement
+context, it adds no size gate of its own, and it stamps every recorded measurement
 with its provenance and marks it a past-time snapshot.
 
 The instrument is `scripts/implement-context-eval.py` (stdlib-only Python), a
@@ -25,7 +25,19 @@ long implement run actually pays:
   30% in bytes in two weeks — a real signal that something is unmeasured, but *not* the
   cost a run pays, for the two reasons recorded as findings below. The word-budget
   apparatus that once measured static size was retired by issue #765; this document
-  does **not** revive it and adds **no** new static word-count or prompt-length gate.
+  does **not** revive it, and the instrument described here adds no gate of its own.
+
+  **Static shipped size IS gated, but by a reader-capability ceiling rather than an
+  authoring budget (issue #1595).** `lib/test/lint-reference-size.py` fails the suite when
+  a boundary-gated reference or a skill root exceeds 61,750 bytes. Do not read that as
+  issue #765's budget returning: the two answer different questions and only one is a
+  judgment about prose. An **authoring budget** asks how long prose *ought* to be — a
+  target someone chose, which is why #765 retired it. A **reader-capability ceiling** is a
+  property of what the tool can return: above it the Read tool yields a file's `start`
+  marker and no `end` marker, the `truncated` shape every loading command treats as
+  fail-closed, on a file that is intact on disk. The ceiling is therefore derived from the
+  reader's token cap, not from an opinion about length, and it says nothing about whether
+  a shorter phase file would be better written.
 - **Runtime main-thread context** — the live per-turn token weight the *orchestrator*
   (main thread) carries across a run's many turns and phase (re-)entries. It is measured
   per turn as `input_tokens + cache_read_input_tokens + cache_creation_input_tokens`.

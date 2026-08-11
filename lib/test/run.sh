@@ -51555,15 +51555,15 @@ RSZ_SHAPES
 # whole-tree audit that selects nothing for a marker family or for the skill-root shape
 # must fail. A run given an explicit narrower population is deliberately exempt.
 RSZ_NOB="$(git_sandbox '#1595 no-family-b fixture')"
-cp -R "$RSZ_FX/skills" "$RSZ_NOB/" 2>/dev/null || true
+cp -R "$RSZ_FX/skills" "$RSZ_NOB/"
 rm -f "$RSZ_NOB/skills/fx/references/fixture-b.md"
-(cd "$RSZ_NOB" && git init -q && git add -A) >/dev/null 2>&1
+(cd "$RSZ_NOB" && git init -q && git add -A) >/dev/null
 assert_eq "#1595 a whole-tree audit selecting nothing for a marker family fails" "yes" \
   "$(rsz_has "selected nothing for the Reference-heading marker family" "$(rsz_run "$RSZ_NOB" "$RSZ_EMPTY")")"
 RSZ_NOSR="$(git_sandbox '#1595 no-skill-root fixture')"
-cp -R "$RSZ_FX/skills" "$RSZ_NOSR/" 2>/dev/null || true
+cp -R "$RSZ_FX/skills" "$RSZ_NOSR/"
 rm -f "$RSZ_NOSR/skills/fx/SKILL.md"
-(cd "$RSZ_NOSR" && git init -q && git add -A) >/dev/null 2>&1
+(cd "$RSZ_NOSR" && git init -q && git add -A) >/dev/null
 assert_eq "#1595 a whole-tree audit selecting nothing for the skill-root shape fails" "yes" \
   "$(rsz_has "selected nothing for the skill-root shape" "$(rsz_run "$RSZ_NOSR" "$RSZ_EMPTY")")"
 RSZ_NARROW="$(probe_tmp '#1595 narrowed population list')"
