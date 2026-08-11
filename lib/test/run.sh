@@ -46171,9 +46171,12 @@ fi
 # ────────────────────────────────────────────────────────────────────────────
 echo "#619 batched-regeneration instruction surfaces"
 # ────────────────────────────────────────────────────────────────────────────
-# Surface-presence pins: each of the three instruction surfaces must carry the
+# Surface-presence pins: each orchestrating instruction surface must carry the
 # batched-regeneration invocation, so a loop's context cannot silently revert to
 # serial per-artifact discovery because one extension lost the instruction. The
+# receiving-code-review extension deliberately carries NO such invocation: it is
+# loaded by dispatched subagents, which were each re-running the multi-minute pass
+# inside the orchestrator's own iteration. The
 # pinned literal is a single unwrapped line in each file (a sentence wrapped across a
 # line break lives on no single line and this line-based pin would find nothing —
 # the issue-375 wrapped-literal hazard).
@@ -46196,10 +46199,7 @@ assert_pin_unique "#619 .prflow/prompt-extensions/implement.md carries the batch
 assert_pin_unique "#619 .prflow/prompt-extensions/review-and-fix.md carries the batched-regeneration invocation" \
   'run the granted direct leading-token form once' \
   "$LIB/../.prflow/prompt-extensions/review-and-fix.md"  # structural-pin-ok: cross-file-phase-contract -- the cloud-only config grant and the prompt invocation must stay coupled
-assert_pin_unique "#619 .prflow/prompt-extensions/receiving-code-review.md carries the batched-regeneration invocation" \
-  'run the granted direct leading-token form once' \
-  "$LIB/../.prflow/prompt-extensions/receiving-code-review.md"  # structural-pin-ok: cross-file-phase-contract -- the cloud-only config grant and the prompt invocation must stay coupled
-for _ra_ext in implement review-and-fix receiving-code-review; do
+for _ra_ext in implement review-and-fix; do
   assert_pin_unique "#619 .prflow/prompt-extensions/$_ra_ext.md carries the batched-regeneration discharge record" \
     '`batched-regeneration: run|refused|skipped`' \
     "$LIB/../.prflow/prompt-extensions/$_ra_ext.md"
@@ -49357,6 +49357,8 @@ YML
 YML
   # Order-independence and per-step pairing: a well-formed step ahead of one whose own pair is
   # inverted must fail, and must fail on ITS OWN pair rather than borrowing the first step's max.
+  # Keep the two steps' maxes DIFFERENT: with equal maxes a guard that borrows the other step's
+  # ceiling still answers `no`, and the fixture stops discriminating per-step pairing.
   cat > "$_WFG_D/default-two-steps.yml" <<'YML'
 jobs:
   claude:
@@ -49368,7 +49370,7 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         with:
           settings: |
-            {"env": {"BASH_DEFAULT_TIMEOUT_MS": "1200000", "BASH_MAX_TIMEOUT_MS": "1200000"}}
+            {"env": {"BASH_DEFAULT_TIMEOUT_MS": "1000000", "BASH_MAX_TIMEOUT_MS": "900000"}}
 YML
   # The symmetric case: the inverted step FIRST. `all()` is order-independent, but asserting
   # only one ordering cannot distinguish that from a guard that inspects the first step alone.
@@ -49379,7 +49381,7 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         with:
           settings: |
-            {"env": {"BASH_DEFAULT_TIMEOUT_MS": "1200000", "BASH_MAX_TIMEOUT_MS": "1200000"}}
+            {"env": {"BASH_DEFAULT_TIMEOUT_MS": "1000000", "BASH_MAX_TIMEOUT_MS": "900000"}}
       - uses: anthropics/claude-code-action@v1
         with:
           settings: |
@@ -49563,6 +49565,13 @@ YML
     "$(_wfg_default "$_WFG_D/default-two-steps.yml")"
   assert_eq "free-allowance matrix: an inverted step AHEAD of a well-formed one fails (order-independence)" "no" \
     "$(_wfg_default "$_WFG_D/default-two-steps-swapped.yml")"
+  # The extractor's two settings-parse refusal arms, routed through the free-allowance guard.
+  # Both already have hook-guard rows; without these each arm was deletable from default-check.py
+  # with the suite still green, since no default-guard assertion reached it.
+  assert_eq "free-allowance matrix: a settings string that is not JSON fails rather than crashing the extractor" "no" \
+    "$(_wfg_default "$_WFG_D/unparseable-settings.yml")"
+  assert_eq "free-allowance matrix: a settings string parsing to a non-object fails rather than being indexed" "no" \
+    "$(_wfg_default "$_WFG_D/json-non-object-settings.yml")"
   assert_eq "free-allowance matrix: a whitespace-padded default fails (the action forwards the string verbatim)" "no" \
     "$(_wfg_default "$_WFG_D/default-padded.yml")"
   assert_eq "free-allowance matrix: an underscore-separated default fails (PEP 515 is a Python-side reading only)" "no" \
