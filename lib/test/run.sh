@@ -35404,6 +35404,30 @@ assert_eq "#1604 deferral-drafter dispatches no subagent (no Agent-tool dispatch
 # this change adds the instruction to that bundle member.
 assert_eq "#1604 the gated reference (a bundle member) instructs the deferral-drafter Agent-tool dispatch" "yes" \
   "$(grep -qF 'subagent_type: prflow:deferral-drafter' "$I815_REF" && echo yes || echo no)"  # structural-pin-ok: routing-dispatch-contract -- the dispatch instruction the injection-condition clause authorizes as a bundle-file dispatch (grep_present is pinned to 2 audit-bypass sites, so inline here)
+# The body-text prohibitions above are AC7's LITERAL requirement (no gh issue create / gh issue
+# edit / apply-labels.sh / ensure-label.sh, no dispatch), but the actual RUNTIME enforcer of
+# "no GitHub write and no dispatch" is the agent's `tools:` frontmatter: with no Bash it cannot
+# invoke gh/the label helpers, and with no Task/Agent it cannot dispatch. So pin that boundary
+# too (mirroring the #1575 verifier-boundary idiom) — otherwise emptying `tools:` reverts the
+# agent to inheriting EVERY tool while every body-text pin above still passes green. Prove the
+# value is NON-EMPTY before testing omissions (empty == inherits all tools, the fail-open).
+DEFDRAFTER_TOOLS="$(grep -E '^tools:[[:space:]]' "$DEFDRAFTER" | head -1)"  # structural-pin-ok: security-credential-boundary -- the tools: line IS the runtime tool boundary the harness parses; no other surface constrains what the drafter may do
+DEFDRAFTER_TOOLS_VALUE="${DEFDRAFTER_TOOLS#tools:}"
+case "$DEFDRAFTER_TOOLS_VALUE" in
+  *[![:space:]]*) defdrafter_tools_nonempty=yes ;;
+  *) defdrafter_tools_nonempty=no ;;
+esac
+assert_eq "#1604 agents/deferral-drafter.md declares a NON-EMPTY tools: value (empty == inherits all tools)" \
+  "yes" "$defdrafter_tools_nonempty"
+for denied in Bash Task Agent Edit MultiEdit NotebookEdit; do
+  assert_eq "#1604 agents/deferral-drafter.md tools: omits $denied (no GitHub write, no dispatch)" \
+    "no" "$(printf '%s' "$DEFDRAFTER_TOOLS_VALUE" | grep -qw "$denied" && echo yes || echo no)"  # raw-guard-ok: loop body: the pattern is the $denied loop variable, not a static pin
+done
+# The dispatch target only resolves if the agent declares `name: deferral-drafter` (the other
+# half of the routing contract pinned above): a rename of this field silently breaks the
+# reference's dispatch with the suite green, so pin it (mirroring the #141 name-resolution row).
+assert_eq "#1604 agents/deferral-drafter.md frontmatter declares name: deferral-drafter (dispatch target resolves)" \
+  "yes" "$(grep -qE '^name: deferral-drafter$' "$DEFDRAFTER" && echo yes || echo no)"  # structural-pin-ok: routing-dispatch-contract -- the dispatch target name the reference's subagent_type resolves against
 
 # ── #1374 Phase 4.0.5's filing procedure is a PREDICATE-GATED reference too ──
 # Same gating shape as #815 above, over the other deferral channel. Only the pieces a
