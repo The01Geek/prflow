@@ -4,6 +4,14 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.21] — 2026-08-11
+
+### Changed
+Make the batched artifact pass cheap by default: the multi-minute `exact-module-floors`
+row is opt-in behind `--with-floors`, its omission is printed rather than inferred from
+silence, it is skipped when an earlier row already reported the tree red, and its
+measurements now run through a bounded worker pool instead of strictly serially.
+
 ## [2.32.20] — 2026-08-10
 
 ### Changed
