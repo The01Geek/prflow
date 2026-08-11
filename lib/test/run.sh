@@ -4428,13 +4428,14 @@ assert_pin_unique "#232: SKILL self-check keys on workpad Status, not PR draft s
 #     "the Phase 4.1 docs subagent return only" to "**subagent** returns", because a
 #     Skill-tool return is now covered by the orchestrator's generalized mid-phase
 #     re-anchor instead. Issue #1577 added a SECOND subagent-return re-anchor (§4.2's
-#     PR-description subagent, before §4.3), so the scope clause now appears twice —
-#     one per re-anchor. Pin each by its own subagent so both survive independently
-#     (a bare 'scoped to **subagent** returns' is no longer unique).
-assert_pin_unique "#232/#362: §4.1 docs re-anchor scoped to **subagent** returns (AC4)" \
-  'scoped to **subagent** returns — here, the Phase 4.1 docs subagent' "$P4_FILE"
-assert_pin_unique "#1577: §4.2 pr-description re-anchor scoped to **subagent** returns (AC5)" \
-  'scoped to **subagent** returns — here, the Phase 4.2 pr-description subagent' "$P4_FILE"
+#     PR-description subagent, before §4.3), so this adjudicated literal now recurs
+#     (once per re-anchor). It is a legitimately NON-UNIQUE presence pin, so it uses
+#     grep_present (the documented escape hatch) over the SAME adjudicated literal —
+#     keeping the #810 corpus decision valid and the guard alive without authoring a
+#     new prose pin (per CLAUDE.md #843/#876 the re-anchor prose owes no new pin — the
+#     review pass is its control).
+assert_eq "#232/#362/#1577: phase-4 re-anchor scoped to **subagent** returns (AC4, reworded; recurs per re-anchor)" \
+  "yes" "$(grep_present 'scoped to **subagent** returns' "$P4_FILE")"
 # AC1 operative: the normative prohibition sentence (not only its corrective consequence).
 assert_pin_unique "#232: SKILL self-check keeps the run-final-message prohibition (operative)" \
   'Do not emit your run-final message while the workpad' "$IMPL_ORCH"
