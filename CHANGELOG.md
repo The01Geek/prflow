@@ -4,6 +4,25 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.26] — 2026-08-11
+
+### Changed
+- **The cloud-writer contract manifest is no longer a per-branch merge chokepoint.** `main` is
+  now the sole writer of `scripts/devflow-cloud-writer-contract.json`: the merge-to-main job
+  regenerates it from the merged tree immediately before its version-bump commit, and the
+  `regenerate-artifacts.py` batched-pass row plus the per-branch `verify` drift gate were
+  removed. Two concurrent prompt-surface PRs that edit the same or adjacent pinned files no
+  longer conflict in the manifest, and neither has to re-run whole-suite verification because
+  the other merged first. A new CI-side merge-base check
+  (`lib/test/cloud-writer-retention-check.py`) turns CI red for a feature branch that mutates
+  the artifact by hand, so hand-authored divergence between the pinned bytes and their
+  published digests is *reported before merge* rather than landing silently; whether it also
+  blocks the merge depends on the repository's own branch protection, since the check runs in
+  the `lint` job. A merge that edits a pinned file but ships no changeset still leaves the
+  manifest stale until the next changeset-bearing merge, which remains a documented
+  review-gate residual. The manifest keeps its path and shape, so the consumer-facing validator, the vendor
+  slice, the coverage map and the install path are unchanged. (#1571)
+
 ## [2.32.25] — 2026-08-11
 
 ### Changed
