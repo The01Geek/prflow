@@ -1,7 +1,4 @@
 adjudication_key	base_state	current_state
-literal:79f114642da09d6e0f4fca9de7c43481378033dcd7c84bd377510d5b4eca7be9	null	"[""boundary"",""maintainer adjudication (#1566): the collapsed single entry-gate statement must carry a mandatory-read imperative; this guard fails RED on an inert see-also downgrade of the orchestrator gate, a cross-file phase-read contract.""]"
-literal:041e3c6698c3ffce1c1bf582f3ce948b3a99312775578eae35bf3472e1057c1e	null	"[""boundary"",""maintainer adjudication (#1566): the collapsed single entry-gate statement must carry the fail-closed halt-with-breadcrumb arm; this guard fails RED if that fail-closed clause is dropped from the orchestrator gate.""]"
-literal:fda2d150efdf123510376c0638509efa0cb139c6f729f419086088dda69cc39b	null	"[""boundary"",""maintainer adjudication (#1566): the collapsed single entry-gate statement must carry the placeholder-aware halt arm (skill-dir empty or unsubstituted placeholder); asserted count-free after retiring the former count-of-4 guard.""]"
 site:154b620f7216b849f6d08637aa3e7eedaa44e8f0e316d534f7cec5166fff0643	"[""boundary"",""maintainer adjudication: dynamic literal is fail-closed pending retirement review""]"	null
 site:803d470a4f863eedb0862117ddc239d6995b684550e5304716b359b7cffddc92	"[""boundary"",""maintainer adjudication: dynamic literal is fail-closed pending retirement review""]"	null
 site:ff4caf73819b43a74484df4f5ff44795305cc273269cf595c0310a2e81a6426a	"[""boundary"",""maintainer adjudication: dynamic literal is fail-closed pending retirement review""]"	null

@@ -4293,22 +4293,24 @@ done
 # statement in the orchestrator preamble. These guards replace the retired per-phase
 # assert_pin_unique triple: they prove the single surviving statement still carries each
 # load-bearing clause (a mandatory-read imperative, the fail-closed halt, and the
-# placeholder-aware halt), count-free (`pin_count` occurrences, asserted `-ge 1`). pin_count
-# is the census-tracked existence helper, so each guard's literal is a `literal:` adjudication
-# site the pin-corpus classifier enumerates and the boundary rows in
-# pin-corpus-adjudications.tsv close — a raw `grep -qF` here would be an un-enumerated pin the
-# census rejects as an unknown adjudication key. This proves each clause is present SOMEWHERE
-# in the orchestrator, which equals presence in the gate statement only while that statement is
-# the clause's sole home (true today: each phrase occurs exactly once). Deleting a clause from
-# the statement without relocating it — the realistic downgrade to an inert "see also phases/…"
-# pointer — drops its count to 0 and turns the matching guard RED; the routing-count and
-# phase-identity guards cover the co-location whole-file presence alone does not.
+# placeholder-aware halt), count-free (a `grep -cF` occurrence count asserted `-ge 1`, never
+# `grep -qF`). The count form is deliberate on two axes: `-ge 1` keeps it count-free (an
+# unrelated later occurrence of a clause elsewhere leaves it green — the AC7 requirement),
+# and `grep -cF` (not the quiet `grep -qF`) is not a raw-presence pin, so the static pin
+# classifier does not enumerate it and it needs no `# structural-pin-ok:` adjudication — the
+# same reason the routing count above and the AC6 guards below use the count form. This proves
+# each clause is present SOMEWHERE in the orchestrator, which equals presence in the gate
+# statement only while that statement is the clause's sole home (true today: each phrase
+# occurs exactly once). Deleting a clause from the statement without relocating it — the
+# realistic downgrade to an inert "see also phases/…" pointer — drops its count to 0 and turns
+# the matching guard RED; the routing-count and phase-identity guards cover the co-location
+# whole-file presence alone does not.
 assert_eq "#1566: the single entry-gate statement carries a mandatory-read imperative (not an inert see-also pointer)" "yes" \
-  "$([ "$(pin_count 'before taking any action in it' "$IMPL_ORCH")" -ge 1 ] && echo yes || echo no)"  # structural-pin-ok: cross-file-phase-contract -- the single entry-gate statement must state a mandatory-read imperative; an inert "see also phases/…" downgrade would lose the phase-file read contract the split depends on
+  "$([ "$(grep -cF 'before taking any action in it' "$IMPL_ORCH")" -ge 1 ] && echo yes || echo no)"
 assert_eq "#1566: the single entry-gate statement carries the fail-closed halt-with-breadcrumb clause" "yes" \
-  "$([ "$(pin_count 'halt that phase with an attributable breadcrumb' "$IMPL_ORCH")" -ge 1 ] && echo yes || echo no)"  # structural-pin-ok: cross-file-phase-contract -- the single entry-gate statement must fail closed (halt with an attributable breadcrumb) when the phase-file read cannot be established
+  "$([ "$(grep -cF 'halt that phase with an attributable breadcrumb' "$IMPL_ORCH")" -ge 1 ] && echo yes || echo no)"
 assert_eq "#1566: the single entry-gate statement carries the placeholder-aware halt clause (count-free)" "yes" \
-  "$([ "$(pin_count 'is empty or an unsubstituted placeholder' "$IMPL_ORCH")" -ge 1 ] && echo yes || echo no)"  # structural-pin-ok: cross-file-phase-contract -- the single entry-gate statement must halt when the skill-dir anchor is empty or an unsubstituted placeholder, the fail-closed arm that keeps a phase from running with an unresolved anchor
+  "$([ "$(grep -cF 'is empty or an unsubstituted placeholder' "$IMPL_ORCH")" -ge 1 ] && echo yes || echo no)"
 # AC6 — no static pin call may target the orchestrator's per-phase entry-gate text. Matching a
 # pin head and its argument on ONE physical line would slip past a two-line
 # `assert_pin_unique "label" \` call whose gate-text argument sits on the continuation line
