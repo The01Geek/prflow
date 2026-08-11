@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1583",
+  "generated_at": "2026-08-11T03:45:52Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.26",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 5.821588000000001,
+    "tokens": {
+      "input_tokens": 49,
+      "output_tokens": 26248,
+      "cache_read_input_tokens": 3831542,
+      "cache_creation_input_tokens": 181647,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 67,
+        "outputTokens": 41012,
+        "cacheReadInputTokens": 4258566,
+        "cacheCreationInputTokens": 317679,
+        "webSearchRequests": 0,
+        "costUSD": 5.821588000000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 32,
+    "duration_ms": 506374
+  },
+  "permission_denials": {
+    "count": 3,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"CLAUDE_SKILL_DIR=${CLAUDE_SKILL_DIR}\"",
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-unset} ATTEMPT=${GITHUB_RUN_ATTEMPT:-unset} ACTIONS=${GITHUB_ACTIONS:-unset}\"",
+      "mkdir -p .prflow/tmp/review/pr-1583/31455874880-1\ngh pr diff 1583 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1583/31455874880-1/diff.patch | head -5\necho \"---diff-rc=${PIPESTATUS[0]}---\"\nwc -l .prflow/tmp/review/pr-1583/31455874880-1/diff.patch"
+    ],
+    "total": 3,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
