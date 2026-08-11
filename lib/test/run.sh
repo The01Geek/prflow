@@ -4423,13 +4423,18 @@ assert_pin_unique "#232: SKILL self-check forbids ending on an in-progress Statu
   'the run is not finished — return to the phase that owns the remaining work' "$IMPL_ORCH"
 assert_pin_unique "#232: SKILL self-check keys on workpad Status, not PR draft state (AC2)" \
   'keys on the workpad `Status`, not on PR draft state' "$IMPL_ORCH"
-# (2) phase-4-documentation.md Phase 4.1 post-subagent re-anchor scope. Issue #362
+# (2) phase-4-documentation.md post-subagent re-anchor scope. Issue #362
 #     reworded the scope clause from
 #     "the Phase 4.1 docs subagent return only" to "**subagent** returns", because a
 #     Skill-tool return is now covered by the orchestrator's generalized mid-phase
-#     re-anchor instead.
-assert_pin_unique "#232/#362: phase-4 re-anchor scoped to **subagent** returns (AC4, reworded)" \
-  'scoped to **subagent** returns' "$P4_FILE"
+#     re-anchor instead. Issue #1577 added a SECOND subagent-return re-anchor (§4.2's
+#     PR-description subagent, before §4.3), so the scope clause now appears twice —
+#     one per re-anchor. Pin each by its own subagent so both survive independently
+#     (a bare 'scoped to **subagent** returns' is no longer unique).
+assert_pin_unique "#232/#362: §4.1 docs re-anchor scoped to **subagent** returns (AC4)" \
+  'scoped to **subagent** returns — here, the Phase 4.1 docs subagent' "$P4_FILE"
+assert_pin_unique "#1577: §4.2 pr-description re-anchor scoped to **subagent** returns (AC5)" \
+  'scoped to **subagent** returns — here, the Phase 4.2 pr-description subagent' "$P4_FILE"
 # AC1 operative: the normative prohibition sentence (not only its corrective consequence).
 assert_pin_unique "#232: SKILL self-check keeps the run-final-message prohibition (operative)" \
   'Do not emit your run-final message while the workpad' "$IMPL_ORCH"
