@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1588",
+  "generated_at": "2026-08-11T04:45:09Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.27",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 3.1344734999999995,
+    "tokens": {
+      "input_tokens": 35,
+      "output_tokens": 14926,
+      "cache_read_input_tokens": 2317897,
+      "cache_creation_input_tokens": 160220,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 35,
+        "outputTokens": 14926,
+        "cacheReadInputTokens": 2317897,
+        "cacheCreationInputTokens": 160220,
+        "webSearchRequests": 0,
+        "costUSD": 3.1344734999999995,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 20,
+    "duration_ms": 226002
+  },
+  "permission_denials": {
+    "count": 3,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      "echo \"$CLAUDE_SKILL_DIR\"",
+      "mkdir -p .prflow/tmp/review/pr-1588/seed; gh pr diff 1588 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' > .prflow/tmp/review/pr-1588/seed/diff.patch; echo \"rc=$?\"; wc -l .prflow/tmp/review/pr-1588/seed/diff.patch; echo \"=== changed files ===\"; grep '^diff --git' .prflow/tmp/review/pr-1588/seed/diff.patch"
+    ],
+    "total": 3,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
