@@ -2826,7 +2826,7 @@ rm -rf "$ETF13_ORIGIN" "$ETF13_REPO"
 # assertions that sat here stayed in lib/test/run.sh — see the retained block beside
 # this module's full-suite call, and the inventory, for why.
 
-# p3r-enum(R16) — the failed-search enumeration in phase-3-review.md names the
+# p3r-enum(R16) — the failed-search enumeration in phase-3-fix-loop.md names the
 # unestablished-base cause.
 
 # et-fresh(R15) — the DISTINCT fetch-fail arm: ls-remote SUCCEEDS with output (the
@@ -3482,13 +3482,13 @@ rm -rf "$ETSAM_REPO"
 # misattribution) and only then runs argument-less discovery for other leftovers.
 devflow_module_pin_unique "et-synth(ambiguity): phase-3.3 carries the targeted persist invocation (explicit --workpad-dir/--slug)" \
   '--workpad-dir "$ROOT/.prflow/tmp/review/<slug>/<run-id>" --slug "<slug>" --persist' \
-  "$LIB/../skills/implement/phases/phase-3-review.md"
+  "$LIB/../skills/implement/phases/phase-3-fix-loop.md"
 # ORDER is the load-bearing property (probe-confirmed: a presence pin alone stays
 # green under a discovery-first swap, which re-opens the lone-stale-foreign-dir
 # misattribution AND lets the targeted call's truncating 2> destroy discovery's
 # captured breadcrumbs): assert targeted's line number precedes discovery's.
-ETSP_T="$(grep -nF -- '--slug "<slug>" --persist 2>' "$LIB/../skills/implement/phases/phase-3-review.md" | cut -d: -f1 | head -1)"
-ETSP_D="$(grep -nF -- '/../../lib/efficiency-trace.sh --persist 2>>' "$LIB/../skills/implement/phases/phase-3-review.md" | cut -d: -f1 | head -1)"
+ETSP_T="$(grep -nF -- '--slug "<slug>" --persist 2>' "$LIB/../skills/implement/phases/phase-3-fix-loop.md" | cut -d: -f1 | head -1)"
+ETSP_D="$(grep -nF -- '/../../lib/efficiency-trace.sh --persist 2>>' "$LIB/../skills/implement/phases/phase-3-fix-loop.md" | cut -d: -f1 | head -1)"
 assert_eq "et-synth(ambiguity): the targeted persist PRECEDES the discovery persist in the phase-3.3 fence" "yes" \
   "$([ -n "$ETSP_T" ] && [ -n "$ETSP_D" ] && [ "$ETSP_T" -lt "$ETSP_D" ] && echo yes || echo no)"
 assert_eq "et-synth(ambiguity): 'span multiple slugs' breadcrumb literal present at the producer site (efficiency-trace.sh)" "yes" \

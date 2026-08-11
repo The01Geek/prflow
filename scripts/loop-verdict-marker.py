@@ -106,7 +106,7 @@ _NON_CLEAN_TOKENS = frozenset({"reject", "approve-unresolved-shadow-findings"})
 _CLEAN_APPROVE_TOKENS = _RESULT_TOKENS - _NON_CLEAN_TOKENS
 
 # The read subcommand's closed OUTPUT vocabulary — the routing tokens the reader in
-# skills/implement/phases/phase-3-review.md §3.3 consumes. The consumer is agent prose
+# skills/implement/phases/phase-3-fix-loop.md §3.3 consumes. The consumer is agent prose
 # and cannot import these, so the coupling is by contract + the unit test; naming them
 # here keeps the producer's emitted vocabulary self-documenting and typo-resistant. The
 # reader routes on this STDOUT token; the exit code is advisory (exit 0 spans CLEAN,
