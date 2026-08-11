@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1571",
+  "generated_at": "2026-08-11T01:07:39Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.20",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 10.084515500000002,
+    "tokens": {
+      "input_tokens": 7388,
+      "output_tokens": 19478,
+      "cache_read_input_tokens": 4089424,
+      "cache_creation_input_tokens": 180168,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 7484,
+        "outputTokens": 66689,
+        "cacheReadInputTokens": 7524081,
+        "cacheCreationInputTokens": 630752,
+        "webSearchRequests": 0,
+        "costUSD": 10.084515500000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 36,
+    "duration_ms": 603844
+  },
+  "permission_denials": {
+    "count": 4,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"CLAUDE_SKILL_DIR=${CLAUDE_SKILL_DIR:-EMPTY}\"; echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-EMPTY}\"; echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-EMPTY}\"; pwd",
+      "mkdir -p .prflow/tmp/review/pr-1571/31447698639-1\ngh pr diff 1571 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1571/31447698639-1/diff.patch > /dev/null\necho \"diff-rc=${PIPESTATUS[0]}\"\nwc -l .prflow/tmp/review/pr-1571/31447698639-1/diff.patch\necho \"=== changed files ===\"\ngrep '^diff --git' .prflow/tmp/review/pr-1571/31447698639-1/diff.patch | sed -E 's#^diff --git a/(.*) b/.*#\\1#'",
+      "gh issue view 1445 --json comments --jq '.comments[] | select(.body | test(\"prflow:workpad|devflow:workpad\")) | .body' > .prflow/tmp/review/pr-1571/31447698639-1/workpad.txt 2>&1\nwc -l .prflow/tmp/review/pr-1571/31447698639-1/workpad.txt\necho \"=== Writing-skills evidence lines ===\"\ngrep -n \"Writing-skills evidence\" .prflow/tmp/review/pr-1571/31447698639-1/workpad.txt\necho \"=== Verification evidence lines ===\"\ngrep -n \"Verification evidence\" .prflow/tmp/review/pr-1571/31447698639-1/workpad.txt\nec …[per-command-truncated]",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve 1445 --pr 1571 2>.prflow/tmp/review/pr-1571/31447698639-1/acs.err ; echo \"acs-rc=$?\""
+    ],
+    "total": 4,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
