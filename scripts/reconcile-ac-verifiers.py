@@ -23,6 +23,11 @@ Reconciliation contract (one row per criterion, matched by 1-based `criterion`):
   - A reconciled `satisfied` with NO evidence pointer from either verifier is
     downgraded to `unestablished`: a satisfied record never lands without an
     evidence pointer (issue #1575 AC6).
+  - A side that left any named step of its own charter undispositioned is forced
+    to `unestablished` BEFORE the two statuses are paired (issue #1580), so an
+    abbreviated check reconciles `unestablished` rather than riding the other
+    verifier's agreement into `satisfied`. A stated `no` discharges its slot
+    fully and changes no status by itself.
 
 Blocking: `unmet` and `unestablished` both block; only `satisfied` does not.
 `unestablished` blocking exactly as `unmet` blocks is the structural point of the
@@ -30,9 +35,12 @@ two-verifier design — a disagreement the orchestrator can act on.
 
 Input: two JSON files, each a list of objects
     {"criterion": <int, 1-based>, "status": "satisfied|unmet|unestablished",
-     "evidence": "<pointer string, optional>"}
+     "evidence": "<pointer string, optional>",
+     "dispositions": {"<slot>": "yes|no (one-clause reason)", ...}}
 An unrecognized/absent status is treated as `unestablished` (fail closed) rather
-than crashing, because the reports are agent-authored.
+than crashing, because the reports are agent-authored. `dispositions` names one
+slot per named step of that side's charter (`EVIDENCE_SLOTS` / `CLAIM_SLOTS`),
+in the writing-skills evidence marker's `<slot>=yes|no (reason)` shape.
 
 A verifier record may carry an optional `reason` (the evidence verifier attaches
 `denied`/`failed`/`unresolved` to a non-satisfied criterion) which is passed
@@ -41,8 +49,13 @@ to its Blocked-naming-`allowed_tools` path from a field, not by sniffing free te
 
 Output: one JSON object on stdout —
     {"criteria": [ {"criterion", "evidence_status", "claim_status", "status",
-                    "blocks", "reason", "evidence", "evidence_source"} ... ],
+                    "blocks", "reason", "evidence", "evidence_source",
+                    "evidence_dispositions", "claim_dispositions",
+                    "undischarged_slots"} ... ],
      "all_satisfied": <bool>, "blocking": [<criterion>, ...]}
+The two disposition maps and `undischarged_slots` (side-qualified `<side>:<slot>`)
+are carried out so the orchestrator records what each verifier did alongside the
+reconciled verdict, rather than letting it die with the dispatch return.
 
 Exit codes:
     0 — reconciliation produced (whether or not any criterion blocks)
@@ -51,10 +64,63 @@ Exit codes:
 
 import argparse
 import json
+import re
 import sys
 
 VALID_STATUSES = ("satisfied", "unmet", "unestablished")
 BLOCKING_STATUSES = ("unmet", "unestablished")
+
+# Named steps of each verifier's own charter, one disposition per slot per criterion
+# (issue #1580). The vocabularies are per side because the two charters name different
+# steps; `evidence-recorded` is the one both carry, because both charters state the
+# same evidence-pointer rule. Renaming or dropping a slot here without the matching
+# edit to agents/ac-evidence-verifier.md / agents/ac-claim-verifier.md leaves the
+# charter asking for a slot this gate never checks, or checking one it never asks for.
+EVIDENCE_SLOTS = ("type-decided", "command-run", "single-flight", "evidence-recorded")
+CLAIM_SLOTS = ("claim-traced", "command-source-read", "evidence-recorded")
+
+# `<verdict> <reason>` — the writing-skills evidence marker's shape. The reason is
+# required: a bare `yes` attests to nothing an after-the-fact reader can weigh.
+_DISPOSITION_RE = re.compile(r"^(yes|no)\b(.*)$", re.IGNORECASE | re.DOTALL)
+
+
+def parse_disposition(value):
+    """Parse one slot value into `(verdict, reason)`, or `(None, "")` if undischarged.
+
+    `no` is a fully discharging verdict — the gate asks for a *stated* disposition,
+    never a particular one, so treating `no` as a failure would produce false `yes`.
+    """
+    if not isinstance(value, str):
+        return None, ""
+    match = _DISPOSITION_RE.match(value.strip())
+    if not match:
+        return None, ""
+    reason = match.group(2).strip().strip("()").strip()
+    if not reason:
+        return None, ""
+    return match.group(1).lower(), reason
+
+
+def _dispositions_of(record, slots):
+    """Return `(stated_map, undischarged_slots)` for one verifier record.
+
+    Only the named `slots` are consulted, so an invented slot name cannot discharge a
+    named one. A record that is not a dict, carries no `dispositions` object, or states
+    a slot without a parseable verdict-plus-reason leaves that slot undischarged —
+    silence about a step is never read as having performed it.
+    """
+    raw = record.get("dispositions") if isinstance(record, dict) else None
+    if not isinstance(raw, dict):
+        raw = {}
+    stated = {}
+    undischarged = []
+    for slot in slots:
+        verdict, _reason = parse_disposition(raw.get(slot))
+        if verdict is None:
+            undischarged.append(slot)
+        else:
+            stated[slot] = raw[slot]
+    return stated, undischarged
 
 
 def _normalize_status(value):
@@ -174,6 +240,19 @@ def reconcile(evidence_records, claim_records):
         # side also read `unestablished`.
         e_status = e_rec.get("status") if isinstance(e_rec, dict) else "unestablished"
         c_status = c_rec.get("status") if isinstance(c_rec, dict) else "unestablished"
+        # Slot completeness is decided BEFORE the statuses are paired (issue #1580): a
+        # side that left a charter step undispositioned has not established what it did,
+        # so its status is not read. Forcing it here rather than after the pairing is
+        # what makes an abbreviated check reconcile `unestablished` instead of riding
+        # the other verifier's agreement into `satisfied`.
+        e_disp, e_missing = _dispositions_of(e_rec, EVIDENCE_SLOTS)
+        c_disp, c_missing = _dispositions_of(c_rec, CLAIM_SLOTS)
+        undischarged = ([f"evidence:{s}" for s in e_missing]
+                        + [f"claim:{s}" for s in c_missing])
+        if e_missing:
+            e_status = "unestablished"
+        if c_missing:
+            c_status = "unestablished"
         status, evidence, evidence_source = reconcile_one(
             e_status, c_status, _evidence_of(e_rec), _evidence_of(c_rec)
         )
@@ -194,6 +273,9 @@ def reconcile(evidence_records, claim_records):
                 "reason": reason,
                 "evidence": evidence,
                 "evidence_source": evidence_source,
+                "evidence_dispositions": e_disp,
+                "claim_dispositions": c_disp,
+                "undischarged_slots": undischarged,
             }
         )
 
