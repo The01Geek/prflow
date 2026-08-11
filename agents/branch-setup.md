@@ -40,8 +40,8 @@ Record each durable outcome **immediately** when it is decided (a compaction or 
 You do not always run all three. Say in your returned record which of resume-precheck / Signals / Verdict-B you actually evaluated:
 
 - The **resume pre-check** always runs first.
-- When it **lands a resume** (arm `landed-resume`), the **Signals** and **feature-branch creation** are skipped, and you still run **Verdict B**. When it finds the target branch **live in another linked worktree** (arm `harness-worktree-switch`), that is a **terminal STOP** (`stop_kind: branch-live-in-other-worktree`) — you evaluate neither the Signals nor Verdict B.
-- When the pre-check adopts nothing, you evaluate the **Signals**; on the reuse (adopted-current) path you run the freshness guard and **Verdict B**; on the create path (`fresh-create`) you run **feature-branch creation** and no Verdict B (a fresh fork has no ahead-of-base history).
+- When it **adopts an open PR** (arm `PR-adopted`), the **Signals** and **feature-branch creation** are skipped, and you still run **Verdict B**. When it finds the target branch **live in another linked worktree** (arm `harness-worktree-switch`), that is a **terminal STOP** (`stop_kind: branch-live-in-other-worktree`) — you evaluate neither the Signals nor Verdict B.
+- When the pre-check adopts nothing, you evaluate the **Signals**; on the reuse path (arm `landed-resume`) you run the freshness guard and **Verdict B**; on the create path (`fresh-create`) you run **feature-branch creation** and no Verdict B (a fresh fork has no ahead-of-base history).
 
 ## Resume pre-check (runs BEFORE the Signals)
 
@@ -119,7 +119,7 @@ fi
 
 Route on `PR_JSON`, `HEAD_REF`, `LANDED`, and `$CO_ERR`:
 
-- **`LANDED` is `yes`** (arm `landed-resume`) — the tree is on the PR's head branch. Skip branch creation and both signals, record the **Adopted** note, then run **Verdict B** below (its `current_branch` is `$HEAD_REF` and its open-PR operands come from the very `PR_JSON` entry this pre-check selected; set `open_pr_selected_by` to `head` or `body` according to which query returned it). Return PROCEED unless Verdict B stops.
+- **`LANDED` is `yes`** (arm `PR-adopted`) — the tree is on the PR's head branch. Skip branch creation and both signals, record the **Adopted** note, then run **Verdict B** below (its `current_branch` is `$HEAD_REF` and its open-PR operands come from the very `PR_JSON` entry this pre-check selected; set `open_pr_selected_by` to `head` or `body` according to which query returned it). Return PROCEED unless Verdict B stops.
 - **`LANDED` is `no` and `$CO_ERR` matches `already used by worktree` (or the older `already checked out at`)** (arm `harness-worktree-switch`) — the branch is live in another linked worktree. You **share the orchestrator's checkout and cannot relocate its cwd**, so switching into that worktree here would leave the orchestrator resuming in its *original* checkout on the wrong branch (its post-return `git branch --show-current` would read the wrong tree), and a leading `cd` is a denied cloud shape besides. This is therefore a **terminal STOP** (`stop_kind: branch-live-in-other-worktree`), not a switch: read that worktree's path from `git worktree list --porcelain`, set the workpad Blocked, and return a STOP record — `"$WORKPAD" update $ISSUE_NUMBER --status Blocked --reflection-kind blocked --reflection "resume pre-check: branch $HEAD_REF is checked out in another linked worktree at <path>; refusing to switch into it because this agent shares the orchestrator's checkout and cannot move its cwd — resolve locally (remove or finish that worktree) and re-run"`. Make **no** history mutation; the orchestrator emits the 👎 reaction and stops.
 - **`LANDED` is `no` for any other reason** (including an empty `HEAD_REF`) — record it and set the workpad Blocked, then return a STOP record: `"$WORKPAD" update $ISSUE_NUMBER --status Blocked --reflection-kind blocked --reflection "resume pre-check: PR #<n> exists on branch $HEAD_REF but the checkout did not land ($CO_ERR); refusing to fall through to branch creation, which would duplicate that PR and abandon its commits"`. Make **no** history mutation. The orchestrator emits the 👎 reaction and stops.
 
@@ -202,16 +202,16 @@ Record the `FRESHNESS` value you derived (`fresh` when behind-by-0, `behind-<n>`
 
 Then, when `USE_CURRENT` is set, run **Verdict B** below before returning. When it is not set, fall through to **feature-branch creation** (no Verdict B — a fresh fork has no ahead-of-base history).
 
-## Verdict B — ahead-of-base branch-state classification (adopted-branch and landed-resume arms)
+## Verdict B — ahead-of-base branch-state classification (landed-resume and PR-adopted arms)
 
-This classification runs on the **adopted-branch** arm (`USE_CURRENT` set, after its freshness record) and on the **landed-resume** arm (`LANDED=yes` from the pre-check). Classify the working branch against the base **before** you return, so a stop verdict aborts the run before any history-mutating step (the orchestrator's checkpoint base merge, the §1.5 push) has touched anything. The §1.4 freshness guard derives only the *behind*-by count, so a branch that is not *behind* the base can still carry unrelated **ahead-only** history that §1.5 would publish. Verdict B closes that blind spot by deriving the **ahead-of-base** count and refusing to proceed when ahead history cannot be validated as this run's own prior work.
+This classification runs on the **landed-resume** arm (`USE_CURRENT` set, after its freshness record) and on the **PR-adopted** arm (`LANDED=yes` from the pre-check). Classify the working branch against the base **before** you return, so a stop verdict aborts the run before any history-mutating step (the orchestrator's checkpoint base merge, the §1.5 push) has touched anything. The §1.4 freshness guard derives only the *behind*-by count, so a branch that is not *behind* the base can still carry unrelated **ahead-only** history that §1.5 would publish. Verdict B closes that blind spot by deriving the **ahead-of-base** count and refusing to proceed when ahead history cannot be validated as this run's own prior work.
 
 `"$SCRIPTS"/preflight.py branch-state` owns the recognizer and derivation semantics (ahead-of-base count with shallow unshallow-once-then-rederive, recorded-branch existence, published-tip reachability); do not duplicate them. It is **read-only with respect to history** — it derives via `git rev-list` / `git rev-parse` / `git check-ref-format` / `git merge-base` and, on a shallow repository, a single `git fetch --unshallow`; it never resets, rebases, checks out, commits, merges, pushes, or deletes a branch, so **a stop verdict makes no history mutation**.
 
 Gather the state the helper classifies and write it as a JSON object to `.prflow/tmp/branch-state-$ISSUE_NUMBER.json` **with the Write tool** (never a heredoc or `>`-redirect — a denied cloud shape), composing it from values you already hold:
 
 - `base` — `$BASE`.
-- `current_branch` — the working branch (`$CUR` on the adopted arm; `$HEAD_REF` on the landed-resume arm).
+- `current_branch` — the working branch (`$CUR` on the landed-resume arm; `$HEAD_REF` on the PR-adopted arm).
 - `workpad_body` — `WORKPAD_BODY`; the helper parses its `**Branch:**` line robustly.
 - **Encode every boolean operand as a JSON boolean literal — `true` / `false`, never the quoted strings.** A quoted string is *truthy* in Python regardless of the word inside it; the helper refuses a non-boolean (`UNAVAILABLE state`, exit 3).
 - `has_proceed_verdict` — `true` only when a prior run's own go-ahead for **this** branch is on record: the resume pre-check found an open PR for this issue tracking the working branch, **or** the workpad carries a prior `branch-state: VALIDATED_RESUME`/proceed note for it. Otherwise `false`.
@@ -265,7 +265,7 @@ Return a single fenced block the orchestrator parses. Carry METHOD as well as co
 BRANCH-SETUP RECORD
 outcome: <proceed | stop>
 stop_kind: <n/a | resume-precheck-checkout-did-not-land | branch-live-in-other-worktree | feature-branch-create-failed | verdict-b-ambiguous | verdict-b-decision-blocked | verdict-b-unavailable>
-arm: <landed-resume | harness-worktree-switch | fresh-create>
+arm: <PR-adopted | landed-resume | harness-worktree-switch | fresh-create>
 branch: <the resulting branch name the orchestrator continues on>
 evaluated: <one line naming which of resume-precheck / Signals / Verdict-B were actually evaluated>
 freshness: <fresh | unverified | behind-<n> | n/a>
