@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1609",
+  "generated_at": "2026-08-11T22:30:23Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.36",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 7.626575,
+    "tokens": {
+      "input_tokens": 60,
+      "output_tokens": 23047,
+      "cache_read_input_tokens": 4874469,
+      "cache_creation_input_tokens": 177535,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 92,
+        "outputTokens": 60727,
+        "cacheReadInputTokens": 5736030,
+        "cacheCreationInputTokens": 411867,
+        "webSearchRequests": 0,
+        "costUSD": 7.626575,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 41,
+    "duration_ms": 817484
+  },
+  "permission_denials": {
+    "count": 4,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-none} ATTEMPT=${GITHUB_RUN_ATTEMPT:-none}\"",
+      "RUN_ID=\"${GITHUB_RUN_ID:-local-$(date -u +%Y%m%dT%H%M%SZ)}-${GITHUB_RUN_ATTEMPT:-1}\"; printf 'run-id=%s\\n' \"$RUN_ID\"",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve \"1607\" --pr \"1609\" 2>.prflow/tmp/review/pr-1609/r1/acs.err ; echo \"acs-rc=$?\""
+    ],
+    "total": 4,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
