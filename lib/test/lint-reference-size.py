@@ -368,11 +368,15 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{_TOOL}: self-check: {relative} {measured_bytes}B / {tokens} tok "
                   f"= {density:.3f} bytes/token")
         floor = min(density for density, _r, _b, _t in densities)
-        if abs(floor - BYTES_PER_TOKEN_FLOOR) > 0.0005:
+        # Fail only when the constant EXCEEDS the minimum. That direction raises the ceiling
+        # above what the measurements support, admitting files the reader cannot return; a
+        # constant below the minimum only lowers the ceiling and is always safe to ship.
+        if BYTES_PER_TOKEN_FLOOR > floor + 0.0005:
             print(
                 f"{_TOOL}: self-check FAILED: BYTES_PER_TOKEN_FLOOR is "
-                f"{BYTES_PER_TOKEN_FLOOR}, but the minimum recorded density is {floor:.3f} "
-                "— re-derive the constant from the measurements, or record the measurement "
+                f"{BYTES_PER_TOKEN_FLOOR}, above the minimum recorded density {floor:.3f} — "
+                f"the {MAX_BYTES}-byte ceiling it derives is more generous than the "
+                "measurements support. Re-derive the constant, or record the measurement "
                 "that justifies it",
                 file=sys.stderr,
             )

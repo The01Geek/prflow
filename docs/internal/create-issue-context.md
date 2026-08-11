@@ -20,7 +20,7 @@ what a long create-issue run actually pays:
   **Static shipped size IS gated, but by a reader-capability ceiling rather than an
   authoring budget (issue #1595).** `lib/test/lint-reference-size.py` fails the suite when a
   boundary-gated reference or a skill root exceeds 61,750 bytes and holds no live exemption —
-  and 15 of this skill's `references/*.md` are in that population, with
+  and this skill's `references/*.md` are in that population, with
   `references/step-3-6-audit.md` carried as an exemption. Do not read it as issue #766's
   budget returning: an authoring budget asks how long prose *ought* to be, while this is a
   property of what the reader can return in one call. The distinction is recorded at length
