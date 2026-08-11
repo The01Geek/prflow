@@ -98,8 +98,9 @@ whose bytes have changed; the cap itself reads `25000` in both.
 
 **Status: OBSERVED — no ceiling at or below 83,427 bytes.**
 
-Every measurable body was delivered **whole**, including one that is 26.5% larger than the largest
-figure any prior record in this tree associates with a successful load.
+Every measurable body was delivered **whole**, the largest of them well above every threshold in
+play. (No comparison is drawn here against the 66,044-*character* figure in the outage record: that
+is a different unit from these byte counts, and this page states no conversion between them.)
 
 | `SKILL.md` | File bytes | Delivered payload bytes | Control | Verdict | Channel |
 |---|---|---|---|---|---|
@@ -150,7 +151,8 @@ in the safe direction. Nothing on this page depends on the difference.
 ### The control, and what would falsify each verdict
 
 **The named control for each body is that file's literal final line** — for
-`retrospective-weekly`, its final two lines, the last being inside a fenced block. The control is
+`retrospective-weekly`, its final *two* lines, because its last line alone (`  the path.`) is too
+short to be distinctive. The control is
 checked **by the loading session itself**, against the body the Skill tool returned and nothing
 else, before that session is permitted to open the file.
 
