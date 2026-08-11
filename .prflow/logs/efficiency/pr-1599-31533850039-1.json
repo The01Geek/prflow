@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1599",
+  "generated_at": "2026-08-11T20:47:28Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.35",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 7.232055750000002,
+    "tokens": {
+      "input_tokens": 61,
+      "output_tokens": 26192,
+      "cache_read_input_tokens": 4669753,
+      "cache_creation_input_tokens": 174257,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 1748,
+        "outputTokens": 49080,
+        "cacheReadInputTokens": 5565629,
+        "cacheCreationInputTokens": 409606,
+        "webSearchRequests": 0,
+        "costUSD": 7.232055750000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 39,
+    "duration_ms": 528496
+  },
+  "permission_denials": {
+    "count": 4,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      "gh pr diff 1599 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' > .prflow/tmp/review/pr-1599/local/diff.patch\necho \"rc=$?\"\nwc -l .prflow/tmp/review/pr-1599/local/diff.patch\necho \"--- changed files ---\"\ngrep '^diff --git' .prflow/tmp/review/pr-1599/local/diff.patch",
+      "for f in skills/create-issue/references/step-3-6-audit.md skills/implement/SKILL.md skills/implement/phases/phase-2-implement.md skills/implement/phases/phase-3-review.md skills/init/SKILL.md skills/retrospective-weekly/SKILL.md skills/review/SKILL.md; do\n  printf '%s  %s\\n' \"$(wc -c < \"$f\")\" \"$f\"\ndone\necho \"--- ceiling 61750 ---\"",
+      "echo \"=== family-A files by grep (start marker anywhere) ===\"\ngit ls-files '*.md' | grep -v '^lib/test/fixtures/' | xargs grep -lE '^<!--\\s*prflow:[a-z][a-z0-9-]*-ref .* start -->' 2>/dev/null | sort > /tmp/a_grep.txt 2>/dev/null || git ls-files '*.md' | grep -v '^lib/test/fixtures/' | xargs grep -lE '^<!--\\s*prflow:[a-z][a-z0-9-]*-ref .* start -->' 2>/dev/null | sort | tee .prflow/tmp/a_grep.txt\necho \"=== audit gated-a ===\"\npython3 lib/test/lint-reference-size.py --print-population | awk '$1==\" …[per-command-truncated]"
+    ],
+    "total": 4,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
