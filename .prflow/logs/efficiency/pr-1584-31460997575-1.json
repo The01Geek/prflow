@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1584",
+  "generated_at": "2026-08-11T05:26:04Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.29",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 8.19127825,
+    "tokens": {
+      "input_tokens": 4355,
+      "output_tokens": 24355,
+      "cache_read_input_tokens": 5093852,
+      "cache_creation_input_tokens": 171031,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 4395,
+        "outputTokens": 56171,
+        "cacheReadInputTokens": 6117099,
+        "cacheCreationInputTokens": 490418,
+        "webSearchRequests": 0,
+        "costUSD": 8.19127825,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 40,
+    "duration_ms": 616605
+  },
+  "permission_denials": {
+    "count": 4,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain ; echo \"---ENV---\" ; echo \"run_id=${GITHUB_RUN_ID:-EMPTY} attempt=${GITHUB_RUN_ATTEMPT:-EMPTY} actions=${GITHUB_ACTIONS:-EMPTY}\"",
+      "echo \"run_id=${GITHUB_RUN_ID:-EMPTY}\"; echo \"attempt=${GITHUB_RUN_ATTEMPT:-EMPTY}\"; echo \"actions=${GITHUB_ACTIONS:-EMPTY}\"",
+      "gh issue view 1577 --json comments --jq '.comments[] | select(.body | test(\"prflow:workpad|devflow:workpad\")) | .body' > .prflow/tmp/review/pr-1584/31460997575-1/workpad.md 2>&1; wc -l .prflow/tmp/review/pr-1584/31460997575-1/workpad.md; echo \"=== writing-skills marker lines ===\"; grep -in \"Writing-skills evidence:\" .prflow/tmp/review/pr-1584/31460997575-1/workpad.md",
+      ".prflow/vendor/prflow/scripts/workpad.py patch 5249280273 .prflow/tmp/review/pr-1584/31460997575-1/review-wp.md 2>.prflow/tmp/review/pr-1584/31460997575-1/rv-patch.err && echo \"patch-ok\" || cat .prflow/tmp/review/pr-1584/31460997575-1/rv-patch.err"
+    ],
+    "total": 4,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
