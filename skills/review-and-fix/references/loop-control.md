@@ -107,6 +107,8 @@ Execute this loop with a maximum of `$MAX_ITERS` iterations (the configured cap 
 
 Output: `Review iteration {N}/$MAX_ITERS...`
 
+At each Iteration Start, re-invoke **both** the `review-and-fix` and `receiving-code-review` prompt-extension ladders (both defined in the root `SKILL.md`, whose fallback forms are not repeated here), once per iteration, unconditionally — the loop re-enters once per iteration and would otherwise run iterations 2..N without the consumer policy that was loaded only at loop entry. The returned text **refreshes** the already-loaded policy for this run rather than issuing a fresh directive, and a refused or non-zero re-load is surfaced here rather than deferred.
+
 If N ≥ 2: read `iter-<N-1>.json` from the workpad before proceeding.
 
 ### Step 0.5: PR-mode branch sync (PR mode only)
