@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.38] — 2026-08-11
+
+### Fixed
+- **Say which path is authoritative in the review engine's reference boundary contract.** The contract told the agent to count the lines matching the expected `start` and `end` markers, "expected meaning bearing this phase's id and path", without stating **which** path — the one the run resolved the file from, or the bundle-relative path baked into the marker. The two readings disagree on any vendored install, where the engine reads a phase at `.prflow/vendor/prflow/skills/review/phases/<name>.md` while the marker names `skills/review/phases/<name>.md`: under the resolved-path reading every marker fails to match, so `S` and `E` both count 0 and every phase stops at `boundary: missing` with no verdict produced. The contract now states that the marker's own bundle-relative path is authoritative and that the resolved read path is not a comparand. `docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md`'s coupled restatement is reconciled in the same change; the marker template, the seven boundary stop labels and their fixed test order are unchanged. (#1561)
+
 ## [2.32.37] — 2026-08-11
 
 ### Changed
