@@ -14539,8 +14539,19 @@ _regen1445 = _load('regenerate_artifacts_1445', _LIBTEST / 'regenerate-artifacts
 _cwr1445 = _load('cloud_writer_retention_1445', _LIBTEST / 'cloud-writer-retention-check.py')
 
 
-def _git1445(cwd, *args):
+def _git1445_raw(cwd, *args):
     return _subprocess.run(('git',) + args, cwd=cwd, capture_output=True, text=True)
+
+
+def _git1445(cwd, *args):
+    # Raise on a failed fixture step: a failed checkout leaves two branch names on one
+    # commit, where merge-tree reports clean and every "no conflict" arm passes vacuously.
+    r = _git1445_raw(cwd, *args)
+    if r.returncode != 0:
+        raise AssertionError(
+            "#1445 fixture: git %s failed rc=%d: %s"
+            % (' '.join(args), r.returncode, (r.stderr or '').strip()))
+    return r
 
 
 def _sha1445(text):
@@ -14554,10 +14565,15 @@ def _canon1445(files):
 
 
 def _mt_conflict1445(repo, ref_a, ref_b):
-    # `git merge-tree --write-tree` exits 0 on a clean merge and 1 on a conflict; a
-    # non-zero exit or any 'CONFLICT' line in its output means the paths conflict.
-    r = _git1445(repo, 'merge-tree', '--write-tree', ref_a, ref_b)
-    return r.returncode != 0 or 'CONFLICT' in r.stdout or 'CONFLICT' in r.stderr
+    # rc 0 is a clean merge and rc 1 a conflict; any OTHER rc is a git or usage error
+    # (an older git without --write-tree, a bad ref) and must not be read as "conflict",
+    # or the discriminating controls below pass green while measuring nothing.
+    r = _git1445_raw(repo, 'merge-tree', '--write-tree', ref_a, ref_b)
+    if r.returncode not in (0, 1):
+        raise AssertionError(
+            "#1445 fixture: git merge-tree --write-tree errored rc=%d (needs git >= 2.38): %s"
+            % (r.returncode, (r.stderr or '').strip()))
+    return r.returncode == 1 or 'CONFLICT' in r.stdout or 'CONFLICT' in r.stderr
 
 
 # ── AC7 (branch-side): the batched artifact-regeneration pass does not write the manifest.
@@ -14578,6 +14594,10 @@ assert_eq("#1445 AC7: no regenerate-artifacts.py row is named cloud-writer-manif
 _regen_list_1445 = _subprocess.run(
     ('python3', 'lib/test/regenerate-artifacts.py', '--list'),
     cwd=str(_REPO), capture_output=True, text=True)
+# Establish the output before reading an ABSENCE from it: a crashing --list emits empty
+# stdout, in which the absence assertion below passes while proving nothing about the rows.
+assert_eq("#1445 AC7: --list exits 0 and emits rows (control for the absence assertion)",
+          True, _regen_list_1445.returncode == 0 and "artifact" in _regen_list_1445.stdout)
 assert_eq("#1445 AC7: --list emits no cloud-writer-manifest row",
           False, "cloud-writer-manifest" in _regen_list_1445.stdout)
 
@@ -14586,15 +14606,26 @@ assert_eq("#1445 AC7: --list emits no cloud-writer-manifest row",
 # sha256 of that path — the derivation-from-live-bytes property version-consolidate.yml
 # relies on (it runs `generate` against the merged tree immediately before its commit).
 _bm1445 = cwc.build_manifest()
+
+
+def _sha_bytes1445(rel):
+    # Hash independently of cwc.sha256_of: comparing the generator against the very helper
+    # it calls is a tautology that a mutant inside that helper would survive.
+    return _h1445.sha256((_REPO / rel).read_bytes()).hexdigest()
+
+
 assert_eq("#1445 AC3.1: every published digest is the sha256 of the live file bytes",
-          True, all(_bm1445["files"][p] == cwc.sha256_of(p) for p in cwc.manifest_file_paths()))
+          True, all(_bm1445["files"][p] == _sha_bytes1445(p) for p in cwc.manifest_file_paths()))
 # The publishing step regenerates from the tree BEFORE it commits (so the digests derive
 # from the exact bytes the commit ships), and stages the artifact explicitly.
 _vc_yml_1445 = (_REPO / ".github" / "workflows" / "version-consolidate.yml").read_text(encoding="utf-8")
 _gen_idx_1445 = _vc_yml_1445.find("cloud_writer_contract.py generate")
 _commit_idx_1445 = _vc_yml_1445.find('git commit -m "chore: bump version')
-assert_eq("#1445 AC3.1: version-consolidate.yml regenerates the manifest before its commit",  # structural-pin-ok: cross-file-phase-contract -- the main-side publish must regenerate from the merged tree before committing, or the published digests do not derive from the bytes they ship
-          True, 0 <= _gen_idx_1445 < _commit_idx_1445)
+_reset_idx_1445 = _vc_yml_1445.find("git reset --hard origin/")
+# Bound the regeneration on BOTH sides: above the reset it is discarded, below the commit it
+# never ships, and either mutant satisfies a commit-side-only ordering check.
+assert_eq("#1445 AC3.1: version-consolidate.yml regenerates the manifest after its reset and before its commit",  # structural-pin-ok: cross-file-phase-contract -- the main-side publish must regenerate from the merged tree after the reset that establishes it and before committing, or the published digests do not derive from the bytes they ship
+          True, 0 <= _reset_idx_1445 < _gen_idx_1445 < _commit_idx_1445)
 assert_eq("#1445 AC3.1: version-consolidate.yml stages the regenerated manifest",
           True, "git add scripts/devflow-cloud-writer-contract.json" in _vc_yml_1445)
 # The branch-side half of AC3.2/AC7 is the CI invocation of the mutation check; pin that
@@ -14712,9 +14743,10 @@ with tempfile.TemporaryDirectory(prefix='cwr1445-') as _cwr_repo_str:
     assert_eq("#1445 AC3.2 e2e control: the same fixture is otherwise clean (exit 0)",
               _cwr1445.EXIT_CLEAN,
               _cwr1445.main(['x', str(_cwr_repo), '--base-ref', 'origin/main']))
-    # Malformed BASE manifest: the merge base carries unparseable JSON. An absent path at the
-    # base is deliberately the empty object (retention_check_common.git_show_json), so only a
-    # malformed one reaches main()'s base_error arm.
+    # Malformed BASE manifest: the merge base carries unparseable JSON. An ABSENT path at the
+    # base is deliberately the empty object (retention_check_common.git_show_json), so absence
+    # alone never reaches main()'s base_error arm — malformed JSON and any other `git show`
+    # failure do.
     _git1445(_cwr_repo, 'checkout', '-q', '-b', 'base-bad-manifest', 'origin/main')
     (_cwr_repo / _man_rel_1445).write_text("{ not json", encoding='utf-8')
     _git1445(_cwr_repo, 'commit', '-qam', 'malformed manifest at the base')
@@ -14861,7 +14893,9 @@ assert_eq("#1445 AC5: validator is clean when grants cover every required_helper
           [], _p5_clean)
 _missing_grants_1445 = {p: set(h) for p, h in _cover_grants_1445.items()}
 _dropped_profile_1445 = next(p for p, h in _missing_grants_1445.items() if h)
-_missing_grants_1445[_dropped_profile_1445] = set(list(_missing_grants_1445[_dropped_profile_1445])[1:])
+_dropped_order_1445 = list(_missing_grants_1445[_dropped_profile_1445])
+_dropped_head_1445 = _dropped_order_1445[0]
+_missing_grants_1445[_dropped_profile_1445] = set(_dropped_order_1445[1:])
 _p5_missing = vcwc.validate(
     _fresh_manifest_1445, base_dir=_REPO,
     expected_assets=cwc.manifest_file_paths(),
@@ -14870,6 +14904,11 @@ _p5_missing = vcwc.validate(
 )
 assert_eq("#1445 AC5: validator emits HEAD_ABSENT for a fixture missing a required head",
           True, vcwc.HEAD_ABSENT in _codes(_p5_missing))
+# AC5 requires the diagnostic to NAME the uncovered head, not merely to carry the code: a
+# HEAD_ABSENT that named the wrong head would satisfy a code-membership check alone.
+assert_eq("#1445 AC5: the HEAD_ABSENT diagnostic names the uncovered head",
+          True, any(code == vcwc.HEAD_ABSENT and _dropped_head_1445 in message
+                    for code, message in _p5_missing))
 
 # ── AC6: the chosen mechanism needs NO per-clone local git configuration. An executable
 # check asserts no merge driver is registered for the manifest path (unlike the coverage
@@ -14889,6 +14928,34 @@ assert_eq("#1445 AC6: the mutation check registers no git config (no --register 
 # clone (which registers nothing) produces exactly what `main` publishes.
 assert_eq("#1445 AC7: the generator is deterministic (byte-identical across two renders)",
           cwc.canonical_json(cwc.build_manifest()), cwc.canonical_json(cwc.build_manifest()))
+# The AC's main-side half: on the base branch the published digests ARE the live bytes of the
+# tree that publishes them. Hash the base ref's own blobs — never the working tree, which on a
+# feature branch legitimately differs and would make this assert the staleness #1445 allows.
+try:
+    _base_ref_1445 = "origin/" + (json.loads(
+        (_REPO / ".prflow" / "config.json").read_text(encoding="utf-8")
+    ).get("base_branch") or "main")
+except Exception:
+    _base_ref_1445 = "origin/main"
+_base_art_1445 = _git1445_raw(str(_REPO), 'show', '%s:scripts/devflow-cloud-writer-contract.json' % _base_ref_1445)
+if _base_art_1445.returncode != 0:
+    # An unfetched base ref is an unestablished comparand, not a passing one — say so rather
+    # than letting a shallow clone read as a satisfied main-side guarantee.
+    print("  #1445 AC7 main-side byte-identity UNESTABLISHED: %s unreadable" % _base_ref_1445)
+else:
+    _base_files_1445 = json.loads(_base_art_1445.stdout)["files"]
+    _base_live_1445 = {}
+    for _rel1445 in _base_files_1445:
+        _blob1445 = _subprocess.run(('git', 'show', '%s:%s' % (_base_ref_1445, _rel1445)),
+                                    cwd=str(_REPO), capture_output=True)
+        _base_live_1445[_rel1445] = (_h1445.sha256(_blob1445.stdout).hexdigest()
+                                     if _blob1445.returncode == 0 else "<unreadable>")
+    assert_eq("#1445 AC7: on the base branch every published digest is the sha256 of that tree's own bytes",
+              _base_files_1445, _base_live_1445)
+    # AC4's before/after comparand: the pinned path LIST is byte-identical to the pre-change
+    # artifact's, which internal sorted/de-duplicated consistency alone cannot demonstrate.
+    assert_eq("#1445 AC4: the pinned path list is identical to the pre-change artifact's",
+              sorted(_base_files_1445.keys()), _paths1445)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # issue #703 AC20: consumer-provisioning fixtures — fresh install, in-place

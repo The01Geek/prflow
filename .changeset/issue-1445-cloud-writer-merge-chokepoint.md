@@ -10,9 +10,11 @@ type: Changed
   removed. Two concurrent prompt-surface PRs that edit the same or adjacent pinned files no
   longer conflict in the manifest, and neither has to re-run whole-suite verification because
   the other merged first. A new CI-side merge-base check
-  (`lib/test/cloud-writer-retention-check.py`) fails a feature branch that mutates the artifact
-  by hand, so a divergent pair between the pinned bytes and their published digests cannot be
-  produced *by hand-authored branch mutation*; a merge that edits a pinned file but ships no
-  changeset still leaves the manifest stale until the next changeset-bearing merge, which
-  remains a documented review-gate residual. The manifest keeps its path and shape, so the consumer-facing validator, the vendor
+  (`lib/test/cloud-writer-retention-check.py`) turns CI red for a feature branch that mutates
+  the artifact by hand, so hand-authored divergence between the pinned bytes and their
+  published digests is *reported before merge* rather than landing silently; whether it also
+  blocks the merge depends on the repository's own branch protection, since the check runs in
+  the `lint` job. A merge that edits a pinned file but ships no changeset still leaves the
+  manifest stale until the next changeset-bearing merge, which remains a documented
+  review-gate residual. The manifest keeps its path and shape, so the consumer-facing validator, the vendor
   slice, the coverage map and the install path are unchanged. (#1571)
