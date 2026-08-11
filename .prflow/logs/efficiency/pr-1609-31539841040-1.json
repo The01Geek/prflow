@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1609",
+  "generated_at": "2026-08-11T22:02:37Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.36",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 7.18140225,
+    "tokens": {
+      "input_tokens": 74,
+      "output_tokens": 25644,
+      "cache_read_input_tokens": 5650907,
+      "cache_creation_input_tokens": 171774,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 114,
+        "outputTokens": 42001,
+        "cacheReadInputTokens": 6890522,
+        "cacheCreationInputTokens": 326623,
+        "webSearchRequests": 0,
+        "costUSD": 7.18140225,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 42,
+    "duration_ms": 534616
+  },
+  "permission_denials": {
+    "count": 9,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"CLAUDE_SKILL_DIR=${CLAUDE_SKILL_DIR}\"; git hash-object /home/runner/work/prflow/prflow/skills/review/SKILL.md /home/runner/work/prflow/prflow/skills/review/phases/phase-0-setup.md /home/runner/work/prflow/prflow/skills/review/phases/phase-0-3-6-blocker-recheck.md /home/runner/work/prflow/prflow/skills/review/phases/phase-0-6-stale-prose-lint.md /home/runner/work/prflow/prflow/skills/review/phases/phase-1-checklist.md /home/runner/work/prflow/prflow/skills/review/phases/phase-2-verification …[per-command-truncated]",
+      "git status --porcelain; echo \"---RUNENV---\"; echo \"run=${GITHUB_RUN_ID:-none} attempt=${GITHUB_RUN_ATTEMPT:-none}\"",
+      "git status --porcelain; echo \"---\"; printf 'run=%s attempt=%s\\n' \"$GITHUB_RUN_ID\" \"$GITHUB_RUN_ATTEMPT\"",
+      "gh pr diff 1609 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' > .prflow/tmp/review/pr-1609/31539841040-1/diff.patch\nwc -l .prflow/tmp/review/pr-1609/31539841040-1/diff.patch",
+      "for f in docs/internal/claude-md-tiered-suite-rationale.md docs/internal/implement-skill.md docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md CONTRIBUTING.md CLAUDE.md; do echo \"=== $f ===\"; git show d50e091618a15a013064b8d67952d3fd54205ebe:$f | grep -niE \"single assistant turn|concurrently with|in parallel|CI-triggering push|in one step|parallelized (final |gate)|run in.*parallel\" ; done",
+      "for f in docs/internal/claude-md-tiered-suite-rationale.md docs/internal/implement-skill.md docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md CONTRIBUTING.md CLAUDE.md; do echo \"=== $f ===\"; git show d50e091618a15a013064b8d67952d3fd54205ebe:$f | grep -niE \"single assistant turn|concurrently with|CI-triggering push|in one step|parallelized\"; done",
+      "for f in CLAUDE.md CONTRIBUTING.md docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md docs/internal/claude-md-tiered-suite-rationale.md docs/internal/implement-skill.md; do echo \"=== $f ===\"; git show d50e091618a15a013064b8d67952d3fd54205ebe:$f | grep -nE \"single assistant turn|single-turn|in parallel|concurrently with|parallelized gate|push/verify|co-issue\" || echo \"(none)\"; done",
+      "git show d50e091618a15a013064b8d67952d3fd54205ebe:docs/internal/claude-md-tiered-suite-rationale.md > /tmp/rat.md; git show d50e091618a15a013064b8d67952d3fd54205ebe:CLAUDE.md > /tmp/claude.md; git show d50e091618a15a013064b8d67952d3fd54205ebe:CONTRIBUTING.md > /tmp/contrib.md; git show d50e091618a15a013064b8d67952d3fd54205ebe:docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md > /tmp/overview.md; git show d50e091618a15a013064b8d67952d3fd54205ebe:docs/internal/implement-skill.md > /tmp/impl.md; echo done",
+      "git show d50e091618a15a013064b8d67952d3fd54205ebe:docs/internal/claude-md-tiered-suite-rationale.md > /tmp/rat.md"
+    ],
+    "total": 9,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
