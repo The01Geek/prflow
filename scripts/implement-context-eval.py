@@ -193,7 +193,11 @@ ATTRIBUTION = _attribution_ids()
 PHASE_FILES = {
     "phase-1-setup.md": "phase1",
     "phase-2-implement.md": "phase2",
+    "phase-2-sweeps-contract.md": "phase2",
+    "phase-2-sweeps-quality.md": "phase2",
     "phase-3-review.md": "phase3",
+    "phase-3-fix-loop.md": "phase3",
+    "phase-3-ac-gate.md": "phase3",
     "phase-4-documentation.md": "phase4",
 }
 PHASE_READ_LABELS = tuple(sorted(PHASE_FILES.values()))

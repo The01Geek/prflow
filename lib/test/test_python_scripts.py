@@ -12057,6 +12057,8 @@ assert_eq("#915 IR5 non-goal: a /tmp literal inside a single-quoted string is no
 _MIGRATED_FILES = (
     "skills/implement/phases/phase-1-setup.md",
     "skills/implement/phases/phase-2-implement.md",
+    "skills/implement/phases/phase-2-sweeps-contract.md",
+    "skills/implement/phases/phase-2-sweeps-quality.md",
     "skills/implement/phases/phase-4-documentation.md",
     "skills/implement/references/deferred-review-findings.md",
     "skills/review-and-fix/references/loop-control.md",

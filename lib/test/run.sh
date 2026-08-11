@@ -2048,7 +2048,7 @@ assert_eq "#379(AC11): extension records the PR #340 cost eliminated for each of
 CCE550_RCV="$LIB/../skills/receiving-code-review/SKILL.md"
 CCE550_LOOPEXIT="$LIB/../skills/review-and-fix/references/loop-exit.md"
 CCE550_FIXING="$LIB/../skills/review-and-fix/references/fixing.md"
-CCE550_PHASE3="$LIB/../skills/implement/phases/phase-3-review.md"
+CCE550_PHASE3="$LIB/../skills/implement/phases/phase-3-fix-loop.md"
 # The Verification Gate carries the fifth evidence item: run the bundled check, quote
 # the verdict line verbatim, and phrase "complete" only on a quoted `pass`.
 assert_pin_unique "#550: Verification Gate carries the completion-evidence check (quote verbatim)" \
@@ -3774,8 +3774,8 @@ assert_eq "#235/#236 (B) phase-3.3: the false 'fail-toward-surfacing, never mask
 # (phase-3-review.md), not the multi-file bundle, so both
 # endpoints are unique in one coordinate space (mirrors the "implement_pr_state: clean-tree
 # backstop precedes the publish gate" positional pin elsewhere in this file).
-P33_BACKSTOP_LN=$(grep -nF 'So regardless of the verdict, first' "$LIB/../skills/implement/phases/phase-3-review.md" | head -1 | cut -d: -f1)
-P33_VERDICT_BRANCH_LN=$(grep -nF 'After the skill completes with a clean approve-family verdict' "$LIB/../skills/implement/phases/phase-3-review.md" | head -1 | cut -d: -f1)
+P33_BACKSTOP_LN=$(grep -nF 'So regardless of the verdict, first' "$LIB/../skills/implement/phases/phase-3-fix-loop.md" | head -1 | cut -d: -f1)
+P33_VERDICT_BRANCH_LN=$(grep -nF 'After the skill completes with a clean approve-family verdict' "$LIB/../skills/implement/phases/phase-3-fix-loop.md" | head -1 | cut -d: -f1)
 assert_eq "#236 (B) phase-3.3: observability backstop directive precedes the approve-family verdict branch (runs unconditionally)" "yes" \
   "$([ -n "$P33_BACKSTOP_LN" ] && [ -n "$P33_VERDICT_BRANCH_LN" ] && [ "$P33_BACKSTOP_LN" -lt "$P33_VERDICT_BRANCH_LN" ] && echo yes || echo no)"
 # (b) RECORD-WRITE-FAILURE detection: the no-new-inputs detector above only catches a dropped Loop
@@ -8994,7 +8994,7 @@ assert_eq "#338: workpad.py --rewrite-ac help states NEW must be a single line" 
 
 # T6: exact-one check for the operative third forbidden case in phase-3-review.md §3.4;
 # deletion or duplication fails.
-P3REVIEW="$LIB/../skills/implement/phases/phase-3-review.md"
+P3REVIEW="$LIB/../skills/implement/phases/phase-3-ac-gate.md"
 assert_pin_unique "#338(T6): §3.4 pins the operative sentence of the self-reconfiguration forbidden case" \
   'is runnable on this host and is never `(post-merge)`' "$P3REVIEW"
 rm -rf "$S338"
@@ -9004,7 +9004,7 @@ rm -rf "$S338"
 # (Phase 3.4, alongside the genuinely-live test + retro-tag path) and referenced
 # from phase-1-setup.md (Phase 1.2 partial-live rule). Both mirror sites and these
 # pins land in one commit. Each exact-one check preserves its obligation independently.
-P345_P3="$IMPL_PHASES_DIR/phase-3-review.md"
+P345_P3="$IMPL_PHASES_DIR/phase-3-ac-gate.md"
 P345_P1="$IMPL_PHASES_DIR/phase-1-setup.md"
 # AC1: the contract exists in phase-3-review.md and the retro-tag path runs it,
 # recording each probe command + observed result (or the empty-set finding).
@@ -10340,9 +10340,9 @@ IMPL_YML="$LIB/../.github/workflows/devflow-implement.yml"
 assert_pin_unique "#350: 2.2.5 exempts a cloud run with DEVFLOW_APP_ID set (workflow-capable App token)" \
   'a cloud run with `DEVFLOW_APP_ID` **set** carries a workflow-capable App token seeded into checkout' "$IMPL_PHASES_DIR/phase-2-implement.md"
 assert_pin_unique "#350: Phase 2.5 guard keys on the same cloud + DEVFLOW_APP_ID-empty condition as Pass 5" \
-  'the same condition Pass 5 keys on: cloud tier (`GITHUB_ACTIONS=true`) with `DEVFLOW_APP_ID` empty/unset' "$IMPL_PHASES_DIR/phase-2-implement.md"
+  'the same condition Pass 5 keys on: cloud tier (`GITHUB_ACTIONS=true`) with `DEVFLOW_APP_ID` empty/unset' "$IMPL_PHASES_DIR/phase-2-sweeps-quality.md"
 assert_pin_unique "#350 (Important-1): Phase 2.5 guard reverts files coupled to a reverted workflow (else CI-red)" \
-  'revert every file coupled to it in the same step' "$IMPL_PHASES_DIR/phase-2-implement.md"
+  'revert every file coupled to it in the same step' "$IMPL_PHASES_DIR/phase-2-sweeps-quality.md"
 # Presence (not uniqueness): the export appears in the Run Claude Code step AND, since
 # issue #487, a second legitimate copy in the 'Start credential refresher' step env
 # (which feeds the same vars.DEVFLOW_APP_ID to the refresher's mint). The load-bearing
@@ -11543,7 +11543,7 @@ assert_eq "#380 W6A heading shape: heading-arm emitted-reset keeps a later prima
 # create-issue template wording is intentionally not existence-pinned in this tranche.
 
 # W6A operative-sentence removal proofs (AC8) — every new operative sentence pinned.
-P380_P3="$IMPL_PHASES_DIR/phase-3-review.md"
+P380_P3="$IMPL_PHASES_DIR/phase-3-ac-gate.md"
 P380_P4="$IMPL_PHASES_DIR/phase-4-documentation.md"
 # Execute the Stage 1 safety-net ERE from its owning instruction against the
 # accepted issue-body shapes. Break caught: a heading-only Documentation Needed
@@ -15376,7 +15376,12 @@ PA_WRONGFB_ERE='\$\{CLAUDE_SKILL_DIR:[-=]([^<]|<[^a]|<a[^b]|<ab[^s])'
 # call site, space-delimited. P3 below inverts to an ABSENCE pin for these, so a member
 # is never merely unchecked. Pinned by size just as P0/R0 pin their enumerations, so a
 # later addition to this set is a visible, deliberate act rather than a silent widening.
-PA_NO_CALLSITE='skills/retrospective/SKILL.md skills/retrospective-audit/SKILL.md'
+# Two disjoint reasons put a file here, and both invert P3 rather than skipping it. A
+# dispatched subagent brief can resolve no anchor at all (see P3's own note below). A phase
+# file split off from a larger one (issue #1606) carries only the prose that fell on its side
+# of the boundary, so it can legitimately hold no helper call site; do NOT add an anchor call
+# site to satisfy P3, which would put a helper invocation in a file whose procedure has none.
+PA_NO_CALLSITE='skills/retrospective/SKILL.md skills/retrospective-audit/SKILL.md skills/implement/phases/phase-2-sweeps-contract.md'
 PA_FILE_COUNT=0
 for PA_FILE in "$LIB"/../skills/*/SKILL.md "$LIB"/../skills/implement/phases/phase-*.md; do
   PA_NAME="skills/${PA_FILE#"$LIB"/../skills/}"
@@ -15418,11 +15423,11 @@ for PA_FILE in "$LIB"/../skills/*/SKILL.md "$LIB"/../skills/implement/phases/pha
     "$([ "$(grep -oF '${CLAUDE_SKILL_DIR:' "$PA_FILE" | grep -c .)" = "$(grep -oF '${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}' "$PA_FILE" | grep -c .)" ] && echo yes || echo no)"  # raw-guard-ok: loop body: count-equality check over the enumerated $PA_FILE loop variable
 done
 assert_eq "#275 pin (P0): portable-anchor coverage spans every skill + implement phase file (enumeration reconciled)" \
-  "22" "$PA_FILE_COUNT"
+  "26" "$PA_FILE_COUNT"
 # Size-pin the no-call-site set for the same reason P0 pins the enumeration: without it a
 # later `case` arm could grow the population exempted from the block's strongest positive
 # pin with the suite staying green. Widening it is then a deliberate, reviewable edit.
-assert_eq "#1333/#1338 pin (P0x): the no-portable-anchor-call-site set holds exactly two files" "2" \
+assert_eq "#1333/#1338/#1606 pin (P0x): the no-portable-anchor-call-site set holds exactly three files" "3" \
   "$(set -- $PA_NO_CALLSITE; echo $#)"  # raw-guard-ok: word-count of the declared set, not a source-text pin
 # The #529/#530 bundle splits moved authoritative procedure — helper call sites included —
 # out of the two SKILL.md roots and into skills/review/phases/*.md and
@@ -15560,7 +15565,7 @@ assert_pin_unique "#275 pin (P3-live): phase-1 carries a live parse-acs.py invoc
 assert_pin_unique "#275 pin (P3-live): phase-2 carries a live config-get.sh docs.internal read via the portable anchor" \
   "$PORTABLE_ANCHOR_LITERAL"'scripts/config-get.sh .docs.internal' "$LIB/../skills/implement/phases/phase-2-implement.md"
 assert_pin_unique "#275 pin (P3-live): phase-3 carries the live --persist backstop via the portable anchor" \
-  "$PORTABLE_ANCHOR_LITERAL"'lib/efficiency-trace.sh --persist' "$LIB/../skills/implement/phases/phase-3-review.md"
+  "$PORTABLE_ANCHOR_LITERAL"'lib/efficiency-trace.sh --persist' "$LIB/../skills/implement/phases/phase-3-fix-loop.md"
 assert_pin_unique "#275 pin (P3-live): the gated §4.0.5 reference carries a live file-deferrals.py invocation via the portable anchor" \
   "$PORTABLE_ANCHOR_LITERAL"'scripts/file-deferrals.py' "$LIB/../skills/implement/references/deferred-review-findings.md"  # structural-pin-ok: helper-contract -- the filing helper's invocation must resolve through the portable anchor; a bare or absolute spelling is refused on every runner this anchor exists for
 assert_pin_unique "#275 pin (P4-ci): create-issue preamble carries the never-capture operative sentence" \
