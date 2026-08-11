@@ -79,6 +79,7 @@ Treat the printed path as `<skill-dir>`, substituting the placeholder exactly as
 | 4 | `phase-4-documentation.md` |
 
 **Each member must clear the Phase-reference boundary contract on its own before the run acts on it** — a set is held whole only when every member cleared its own gate, so acting on a partially-read phase runs it with procedure missing. If `<skill-dir>` is empty or an unsubstituted placeholder (neither `$CLAUDE_SKILL_DIR` nor a runner-reported base directory resolves), or any member's `Read` fails, halt that phase with an attributable breadcrumb rather than improvising from the stub. These reads are required **on every entry** — including a resumed or re-entrant run that picks up at a later phase — never relying on a read from an earlier phase or session.
+
 **Phase-reference boundary contract (accept-or-reject on every phase-file read).** Each `phases/phase-N-<name>.md` reference carries these as its literal first and last lines:
 
 `<!-- prflow:implement-ref phase=<N> file=skills/implement/phases/<name>.md start -->`

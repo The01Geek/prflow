@@ -242,6 +242,9 @@ IMPL_PHASE2_FILES=()
 for _s in $IMPL_PHASE_STEMS; do
   case "$_s" in phase-2-*) IMPL_PHASE2_FILES+=("$LIB/../skills/implement/phases/${_s}.md") ;; esac
 done
+# Never let this reach awk empty: with no file operands awk reads STDIN, which hangs the suite
+# on a terminal instead of failing.
+[ "${#IMPL_PHASE2_FILES[@]}" -gt 0 ] || { echo "run.sh: no phase-2 stem matched IMPL_PHASE_STEMS" >&2; exit 1; }
 # #815 the implement skill also reaches PREDICATE-GATED references, and they are a
 # SEPARATE registered list from the phase stems above. Deliberately separate, not an
 # extra stem: the per-stem structural loop asserts that each registered stem is ROUTED
@@ -4293,6 +4296,41 @@ for _pf in $IMPL_PHASE_STEMS; do
     "$(tail -1 "$IMPL_PHASES_DIR/${_pf}.md" | grep -qxF -- "$_impl_end_marker" && echo yes || echo no)"
   assert_eq "implement boundary: phases/${_pf}.md carries exactly one start and one end marker (no duplicate)" "1|1" \
     "$(grep -cxF -- "$_impl_start_marker" "$IMPL_PHASES_DIR/${_pf}.md" | tr -d ' ')|$(grep -cxF -- "$_impl_end_marker" "$IMPL_PHASES_DIR/${_pf}.md" | tr -d ' ')"
+  # The set-membership line is the SOLE operand of the orchestrator's `boundary: set-incomplete`
+  # stop, so an absent, duplicated or stale one makes that stop unreachable rather than noisy.
+  # `of=` is reconciled against the registered stem count for this phase, never transcribed.
+  # Scoped to MULTI-file phases, matching the orchestrator's own contract: a single-file phase
+  # carries no such line, and asserting one would demand bytes those files do not have under the
+  # reference-size ceiling. Both directions are checked, so a stray line is caught too.
+  _phase_member_count=0
+  for _peer in $IMPL_PHASE_STEMS; do
+    case "$_peer" in phase-"$_n"-*) _phase_member_count=$((_phase_member_count + 1)) ;; esac
+  done
+  _impl_set_line=$(sed -n '2p' "$IMPL_PHASES_DIR/${_pf}.md")
+  if [ "$_phase_member_count" -gt 1 ]; then
+    assert_eq "implement set-marker: phases/${_pf}.md line 2 names its phase and the registered member count" "yes" \
+      "$(printf '%s' "$_impl_set_line" | grep -qE "^<!-- prflow:implement-set phase=${_n} part=[1-9][0-9]* of=${_phase_member_count} -->$" && echo yes || echo no)"
+  else
+    assert_eq "implement set-marker: single-file phases/${_pf}.md carries no set-membership line" "no" \
+      "$(printf '%s' "$_impl_set_line" | grep -q 'prflow:implement-set' && echo yes || echo no)"
+  fi
+done
+# Every phase's set-membership lines must cover 1..n exactly once: a duplicated `part=` leaves a
+# member unrepresented while each file's own line still looks well-formed.
+for _n in 1 2 3 4; do
+  _expect=""; _got=""; _i=0
+  for _pf in $IMPL_PHASE_STEMS; do
+    case "$_pf" in
+      phase-"$_n"-*)
+        _i=$((_i + 1)); _expect="$_expect $_i"
+        _got="$_got $(sed -n '2p' "$IMPL_PHASES_DIR/${_pf}.md" | sed -n 's/.* part=\([0-9][0-9]*\) .*/\1/p')"
+        ;;
+    esac
+  done
+  [ "$_i" -gt 1 ] || continue   # single-file phases carry no parts to cover
+  assert_eq "implement set-marker: phase $_n parts cover 1..n exactly once" \
+    "$(printf '%s' "$_expect" | tr ' ' '\n' | sort -n | tr -d '\n')" \
+    "$(printf '%s' "$_got" | tr ' ' '\n' | sort -n | tr -d '\n')"
 done
 # issue #1566: the four per-phase entry-gate paragraphs were collapsed into ONE gate
 # statement in the orchestrator preamble. These guards replace the retired per-phase
@@ -10548,12 +10586,13 @@ assert_pin_unique "#541 reference_reads: the field is conditional — absence on
 # correct consumer-facing prose, and is no longer a drift-guarded routing marker.
 P478_MARKERS=( 'workpad.py' '$ISSUE_NUMBER' 'Phase 3.4' 'Phase 4.1' '(post-merge)' '--rewrite-ac' '## Devflow Reflection' 'CLAUDE.md' )
 P478_DESTINATIONS=( "The loop's own evidence sink" "The loop's own evidence sink" 'An item-5 pushback/advisory record' 'Fix-now, or record through' 'An item-5 pushback/advisory record' 'An item-5 pushback/advisory record' "The loop's evidence sink" "The repo's stated conventions" )
-# Pass the WHOLE Phase 2 set, in entry-gate order: one member, or a reordered list, closes the
-# span before it opens and emits an empty corpus the routing lint below reads as fully-mapped.
+# Count an `end` only while the span is OPEN: awk's counters are global across operands and
+# carry no ordering constraint, so a reordered list would otherwise satisfy starts==1 && ends==1
+# while emitting a buffer that is not the sweep bodies at all.
 p478_sweep_bodies() {
   awk '
     /^\*\*Sweep selection \(run first\)\.\*\*/ { starts++; f=1; next }
-    $0 == "### 2.4 Test" { ends++; f=0; next }
+    $0 == "### 2.4 Test" { if (f) ends++; f=0; next }
     f { buf = buf $0 "\n" }
     END { if (starts == 1 && ends == 1) printf "%s", buf }
   ' "$@"
@@ -10575,6 +10614,9 @@ p478_routing_lint() {  # skill_file phase2_file... -> echoes GREEN or RED
   local bodies table mk dest idx rows skill
   skill="$1"; shift
   bodies="$(p478_sweep_bodies "$@")"
+  # An empty corpus skips every marker check below, so the lint would echo GREEN having
+  # verified nothing. Structural, not left to whichever marker happens to be absent.
+  [ -n "$bodies" ] || { echo RED; return; }
   table="$(p478_maptable "$skill")"
   for idx in "${!P478_MARKERS[@]}"; do
     mk="${P478_MARKERS[$idx]}"
@@ -10596,6 +10638,11 @@ for _mk in "${P478_MARKERS[@]}"; do
   assert_eq "#478 AC5 lint precondition: marker present in the §2.3 sweep bodies: $_mk" "yes" \
     "$(printf '%s\n' "$P478_BODIES" | grep -qF -- "$_mk" && echo yes || echo no)"
 done
+# Empty-corpus RED arm: a corpus the extractor could not build skips every marker check, so
+# the lint must refuse rather than echo GREEN having verified nothing. Driven with an operand
+# whose span never opens, which is what a reordered or truncated file set produces.
+assert_eq "#1606 AC5 routing lint RED: an empty sweep-body corpus is refused, not read as fully-mapped" \
+  "RED" "$(p478_routing_lint "$MAXI_SKILL" "$IMPL_PHASES_DIR/phase-1-setup.md")"
 # GREEN arm: item 3b's mapping table maps every marker present in the sweep bodies.
 assert_eq "#478 AC5 routing lint GREEN: item 3b maps every marker present in the §2.3 sweep bodies" \
   "GREEN" "$(p478_routing_lint "$MAXI_SKILL" "${IMPL_PHASE2_FILES[@]}")"

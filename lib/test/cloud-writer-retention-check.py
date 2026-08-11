@@ -7,9 +7,12 @@
 job `.github/workflows/version-consolidate.yml` regenerates it immediately before its bump
 commit, and no feature branch regenerates it (its `regenerate-artifacts.py` batched-pass row
 was removed). A feature branch is therefore expected to leave the artifact byte-for-byte as
-it stands at the merge base. This check enforces exactly that: it compares the manifest at
-the merge base against the manifest in the working tree (HEAD in a fresh CI checkout) and
-fails when they differ — a divergent pair authored by hand on a branch. That is this check's
+it stands at the merge base, with ONE exemption (issue #1606): it may ADD entries for skill
+assets it adds, because the closure check and the key-set equality assertion leave such a
+branch no other green state. This check enforces that: it compares the manifest at the merge
+base against the manifest in the working tree (HEAD in a fresh CI checkout) and fails when
+they differ other than by added asset entries — a changed or dropped entry, or any change
+outside the asset map, is a divergent pair authored by hand on a branch. That is this check's
 whole scope: it does NOT cover the staleness window a changeset-less pinned-file merge leaves
 (see docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md, "Known residual").
 
@@ -22,9 +25,11 @@ flagged, because it lands on `main` where there is nothing ahead of the base to 
 THREE OUTCOMES, because "I could not establish whether the branch mutated it" is not "the
 branch did not mutate it" (the repository's *unknown is not zero* rule):
 
-  0  clean         — the base comparand WAS established and the manifest is unchanged.
-  1  mutated       — the manifest differs from the merge-base manifest against a SOUND
-                     comparand (or an input the check needs could not be read).
+  0  clean         — the base comparand WAS established and the manifest either is unchanged
+                     or differs ONLY by asset entries the head adds.
+  1  mutated       — the manifest changes or drops an entry the merge base carries, or
+                     changes anything outside the asset map, against a SOUND comparand (or
+                     an input the check needs could not be read).
   3  unestablished — the base comparand is degraded (a shallow/partial clone substitutes
                      the base ref's own tip), so a difference proves nothing.
 
@@ -80,6 +85,10 @@ def _is_asset_addition_only(base_manifest: dict, head_manifest: dict) -> bool:
     head_assets = head_manifest.get(ASSET_KEY)
     if not isinstance(base_assets, dict) or not isinstance(head_assets, dict):
         return False
+    # An empty base asset map would make the survival test below vacuously true, letting any
+    # head asset map through. A base that records nothing is unestablished, not clean.
+    if not base_assets and head_assets:
+        return False
     return all(head_assets.get(path) == digest for path, digest in base_assets.items())
 
 
@@ -93,13 +102,9 @@ def detect_mutation(base_manifest: object, head_manifest: object) -> "list[str]"
 
     One delta shape is permitted (issue #1606): a head that adds asset entries and changes
     nothing else. Every top-level key outside the asset map must be identical, and every
-    fingerprint the base carries must survive; only the asset map may gain entries. A branch
-    that adds a shipped skill asset has no other way to be green — the closure
-    check fails on an asset the source list omits, and the key-set equality assertion fails on
-    a manifest that disagrees with that list, so forbidding the addition here makes the three
-    unsatisfiable together. Do NOT widen this to a delta that touches an existing entry: a
-    rewritten fingerprint is exactly the silent overwrite of `main`'s record this check exists
-    to stop, and the two checks above cannot see it."""
+    fingerprint the base carries must survive; only the asset map may gain entries. Do NOT widen this to a delta that
+    touches an existing entry: a rewritten fingerprint is the silent overwrite of `main`'s
+    record this check exists to stop, and no other check can see it."""
     if not isinstance(base_manifest, dict):
         return [f"[cloud-writer-retain] base {MANIFEST_REL} is not a JSON object — comparand unestablished"]
     if not isinstance(head_manifest, dict):
@@ -108,6 +113,16 @@ def detect_mutation(base_manifest: object, head_manifest: object) -> "list[str]"
         return []
     if _is_asset_addition_only(base_manifest, head_manifest):
         return []
+    base_assets = base_manifest.get(ASSET_KEY)
+    head_assets = head_manifest.get(ASSET_KEY)
+    if not isinstance(base_assets, dict) or not isinstance(head_assets, dict):
+        # Distinct from the changed-entry arm below: telling an author to revert an entry
+        # change misdirects them when the manifest lost its asset map altogether.
+        return [
+            f"[cloud-writer-retain] {MANIFEST_REL} has no readable `{ASSET_KEY}` map on one "
+            "side — comparand unestablished, so a difference proves nothing about what the "
+            "branch changed. Restore the manifest's shape and re-run."
+        ]
     return [
         f"[cloud-writer-retain] {MANIFEST_REL} changes or drops an entry the merge-base "
         "manifest already carries — a feature branch may only ADD entries for skill assets it "
