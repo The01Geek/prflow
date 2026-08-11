@@ -845,7 +845,7 @@ def cmd_claim(args) -> int:
     ci_mismatch = declared_ci is not None and declared_ci != stored_ci
     # Attach never supplies a current checkout, so it cannot verify the tree —
     # checkout_verified is always False here; a consume must re-anchor via
-    # status/wait with --current-checkout-file (see phase-3-review.md).
+    # status/wait with --current-checkout-file (see phase-3-fix-loop.md).
     if ci_mismatch:
         _print_public(
             flight, role="attacher", checkout_verified=False,

@@ -12057,6 +12057,8 @@ assert_eq("#915 IR5 non-goal: a /tmp literal inside a single-quoted string is no
 _MIGRATED_FILES = (
     "skills/implement/phases/phase-1-setup.md",
     "skills/implement/phases/phase-2-implement.md",
+    "skills/implement/phases/phase-2-sweeps-contract.md",
+    "skills/implement/phases/phase-2-sweeps-quality.md",
     "skills/implement/phases/phase-4-documentation.md",
     "skills/implement/references/deferred-review-findings.md",
     "skills/review-and-fix/references/loop-control.md",
@@ -14672,6 +14674,29 @@ assert_eq("#1445 AC3.2: --allow-degraded-base acknowledges the substituted compa
 assert_eq("#1445 AC3.2: a clean comparand exits 0",
           _cwr1445.EXIT_CLEAN,
           _cwr1445.classify_outcome([], [], False, "origin/main", False)[0])
+# #1606: only an asset-adding delta is permitted, so both arms are exercised here.
+_cwr_base_1606 = {"files": {"skills/x/SKILL.md": "aa"}, "protocol": "v1"}
+assert_eq("#1606: adding an asset entry is permitted (the other two checks keep full strength)",
+          [], _cwr1445.detect_mutation(
+              _cwr_base_1606,
+              {"files": {"skills/x/SKILL.md": "aa", "skills/y/SKILL.md": "bb"}, "protocol": "v1"}))
+assert_eq("#1606: dropping an existing asset entry is still a violation",
+          1, len(_cwr1445.detect_mutation(
+              _cwr_base_1606, {"files": {}, "protocol": "v1"})))
+assert_eq("#1606: an addition that also rewrites an existing entry is still a violation",
+          1, len(_cwr1445.detect_mutation(
+              _cwr_base_1606,
+              {"files": {"skills/x/SKILL.md": "ZZ", "skills/y/SKILL.md": "bb"}, "protocol": "v1"})))
+assert_eq("#1606: an empty base asset map is not a vacuous pass (unknown is not zero)",
+          1, len(_cwr1445.detect_mutation(
+              {"files": {}, "protocol": "v1"},
+              {"files": {"skills/x/SKILL.md": "aa"}, "protocol": "v1"})))
+assert_eq("#1606: a head that lost its asset map reports an unestablished comparand, not an entry change",
+          True, "comparand unestablished" in _cwr1445.detect_mutation(
+              {"files": {"a": "1"}, "protocol": "v1"}, {"files": None, "protocol": "v1"})[0])
+assert_eq("#1606: a changed non-asset top-level key is still a violation",
+          1, len(_cwr1445.detect_mutation(
+              _cwr_base_1606, {"files": {"skills/x/SKILL.md": "aa"}, "protocol": "v2"})))
 # detect_mutation's fail-closed arms: a non-object base or head is a comparand-unestablished
 # violation, never silently read as 'unchanged' (the docstring's "drives every arm" claim).
 assert_eq("#1445 AC3.2: a non-object base manifest is flagged (fail closed, not 'unchanged')",
