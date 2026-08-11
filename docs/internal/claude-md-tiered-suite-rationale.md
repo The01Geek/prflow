@@ -58,7 +58,7 @@ module on a second cycle over the same uncovered surface.
 module — it runs every inline assertion in `run.sh`, not just the changed block, so it never
 substitutes where the coverage map's `focused_test` contract applies. It covers one surface only:
 a change that also touches a registered module, a `scripts/`/`lib/` Python unit, or a prompt
-surface is not checked by it. It never discharges a completion gate, whose terms are unchanged.
+surface is not checked by it. It never discharges a completion gate: running it leaves that gate's terms exactly as they stand, and since issue #1607 those terms are tier-scoped in `CLAUDE.md`.
 And the two selectors blind the shard to their own call sites: under `DEVFLOW_SKIP_SUITE_MODULES=1`
 the module-tier invocation `devflow_run_full_suite_module` no-ops, and under
 `DEVFLOW_SKIP_PYTHON_POOL=1` both `devflow_python_suite_pool_open` and
@@ -130,11 +130,41 @@ The coordinator's `real` time is not CI's: CI isolates each shard on its own run
 coordinator's shards share one host's CPU/memory/checkout/process namespace, so its wall-clock is
 the slowest shard *under contention*, not the slowest runner.
 
-## Why the local run stays authoritative
+## Why the local run was once authoritative, and why it no longer is (superseded by issue #1607)
 
-The local run stays the authoritative local signal because its failure detail is richer than CI's
-for troubleshooting. The `#456` skip accounting is unchanged: a nonempty skip tally is not clean,
+This section formerly read: *"The local run stays the authoritative local signal because its
+failure detail is richer than CI's for troubleshooting."* Issue #1607 supersedes that conclusion
+for the **completion gate**, and `CLAUDE.md`'s tier ladder carries the operative rule.
+
+The richer-failure-detail premise was never wrong, and it is why a local run is still the right
+instrument for *diagnosing* a failure. What it does not establish is authority, and three
+measured properties settle that the other way for a gate. The local signal is **not reproducible
+under this repository's concurrency** — a tree-enumerating check counts sibling worktrees, so it
+varies between runs on the same commit while CI, with one checkout, cannot exhibit the effect.
+It is **not the authoritative signal**, since CI gates merge and the two disagree in both
+directions. And it is **slower**, sometimes exceeding the tier's foreground execution ceiling
+outright. Richer detail about a result that may be an artifact of the host is not a stronger
+gate; it is a better debugger.
+
+The `#456` skip accounting is unchanged on either reading: a nonempty skip tally is not clean,
 and a focused module may not self-skip (`run-module.sh` makes `skip()` fatal).
+
+### Why the tiers must not be merged, and what the CI reading costs
+
+Keep the two rungs distinct. The reason they differ is mechanical rather than a judgement about how
+much evidence each owes: a local run can push, wait and resume, while a headless cloud run cannot
+suspend and resume, so it structurally cannot wait on an external workflow. A future edit that
+"simplifies" the rungs into one rule silently gives one tier a gate it cannot execute.
+
+The reading is not free. Measured 2026-08-11, verifying by push spends Actions capacity against an account cap of 40
+concurrent slots: one push costs several runs, and concurrent implement runs hold their slots for
+their whole duration — which is why `CLAUDE.md` tells a run to batch into one consolidated push per
+iteration rather than pushing per edit. That cost is the price of the authoritative signal; it is
+not a reason to re-adopt the local one.
+
+Measured 2026-08-11: CI completes in 6–8 minutes with five shards on separate runners (slowest 7m),
+while locally those same shards contend for one host, and a run that day exceeded the tier's
+foreground execution ceiling outright and had to be decomposed shard-by-shard and recombined.
 
 ## Tier-2 extraction, and why a second cycle is the trigger
 
@@ -159,6 +189,11 @@ is recorded as that surface's exemption entry with the shard named in the reason
 field to the schema.
 
 ## Why the per-launch `Verification evidence:` record exists (issues #719, #1249)
+
+This subsection is about a tier that *launches* a suite — the cloud implement tier, and any local
+run launching one as a diagnostic. Since issue #1607 the local/interactive implement tier's gate
+launches nothing at all: its recorded event is the CI reading, per `CLAUDE.md`'s local-tier bullet
+under *Recording a whole-suite launch*, and the rest of this subsection does not describe it.
 
 Because the parallelized gate launches the full run *concurrently* with the CI-triggering push —
 not serialized behind it as the pre-#707 gate was — a launch that is denied, blocked, or never

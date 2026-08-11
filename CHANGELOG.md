@@ -4,6 +4,27 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.38] — 2026-08-11
+
+### Fixed
+- **Say which path is authoritative in the review engine's reference boundary contract.** The contract told the agent to count the lines matching the expected `start` and `end` markers, "expected meaning bearing this phase's id and path", without stating **which** path — the one the run resolved the file from, or the bundle-relative path baked into the marker. The two readings disagree on any vendored install, where the engine reads a phase at `.prflow/vendor/prflow/skills/review/phases/<name>.md` while the marker names `skills/review/phases/<name>.md`: under the resolved-path reading every marker fails to match, so `S` and `E` both count 0 and every phase stops at `boundary: missing` with no verdict produced. The contract now states that the marker's own bundle-relative path is authoritative and that the resolved read path is not a comparand. `docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md`'s coupled restatement is reconciled in the same change; the marker template, the seven boundary stop labels and their fixed test order are unchanged. (#1561)
+
+## [2.32.37] — 2026-08-11
+
+### Changed
+Route each `/prflow:implement` phase to an ordered set of phase files rather than a single
+file. `phase-2-implement.md` and `phase-3-review.md` each became three siblings small enough
+to return whole from a single read, so a phase entry no longer risks a truncated read that the
+command's own entry gate is required to stop on. The gate reaches every member in a stated
+order, each member clears the boundary contract on its own, and a run holding fewer members
+than its phase routes to halts with an attributable stop label instead of proceeding on a
+partial phase. The consumer prompt-extension ladder still runs once per phase entry.
+
+The `/prflow:review-and-fix` loop's read-completeness predicate now spans that set, telling a
+member it never read apart from one it read whole that carries no sweeps, and reporting the
+sweeps unrunnable rather than complete whenever it cannot establish that every member arrived
+whole.
+
 ## [2.32.36] — 2026-08-11
 
 ### Changed

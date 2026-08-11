@@ -308,7 +308,7 @@ Each reference carries these as its literal first and last lines:
 <!-- prflow:review-ref phase=<id> file=skills/review/phases/<name>.md end -->
 ```
 
-After the `Read`: **quote the body's literal first and last lines**, and let `S` and `E` count the lines matching the expected `start` and `end` markers — expected meaning bearing this phase's id and path (one naming another phase or file matches nothing here, so a mis-routed read fails closed). Decide rows 6 and 7 from those two quoted lines, never from an impression the markers *look* right. Test the rows **in order**; the first that fires is the attributed shape:
+After the `Read`: **quote the body's literal first and last lines**, and let `S` and `E` count the lines matching the expected `start` and `end` markers — expected meaning bearing this phase's id and the reference's own bundle-relative path exactly as written in the marker — the path the run resolved and read the file from is not compared, so a marker naming a different phase or file matches nothing here and a mis-routed read fails closed. Decide rows 6 and 7 from those two quoted lines, never from an impression the markers *look* right. Test the rows **in order**; the first that fires is the attributed shape:
 
 | # | Shape | Fires when | Stop label |
 |---|---|---|---|
@@ -322,7 +322,7 @@ After the `Read`: **quote the body's literal first and last lines**, and let `S`
 
 **On any identity or boundary row: stop that phase**, report the label with the phase id and reference path, and do **not** act on the body, improvise the phase from its orientation text, or repair the file. A body can read as complete and correct and still fail these checks — that case *is* why they exist: a defective boundary or identity means what you hold is not the bundle this engine was built against, so its plausibility is worth nothing.
 
-**Required copy.** `/prflow:implement` carries a required copy of rows 1–7 and their fixed test order in `skills/implement/SKILL.md`'s *Phase-reference boundary contract* (it adds a row 8 for the mis-routed read this table folds into its *expected* qualifier, and adopts no content-hash identity layer); the two row sets are edited in the same change.
+**Required copy.** `/prflow:implement` carries a required copy of these rows and their fixed test order in `skills/implement/SKILL.md`'s *Phase-reference boundary contract* (it adds rows for the mis-routed read folded into *expected* and for an unheld multi-file set, and adopts no content-hash identity layer); both sets are edited in the same change.
 
 ### Phase routing
 
