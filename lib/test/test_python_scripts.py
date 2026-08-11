@@ -29586,6 +29586,14 @@ assert_eq("#1580 both sides' slots are named undischarged when neither attests",
           sorted([f"evidence:{s}" for s in reconcile_ac.EVIDENCE_SLOTS]
                  + [f"claim:{s}" for s in reconcile_ac.CLAIM_SLOTS]),
           sorted(_recon_silent["criteria"][0]["undischarged_slots"]))
+# Do not relax this to a sorted()/set comparison: the expected list below is the
+# concatenation order the record is built in, and a sorted compare would pass a
+# regression that reordered the two sides or a side's own slots.
+assert_eq("#1580 undischarged_slots concatenates evidence-side then claim-side, "
+          "each in declared order",
+          [f"evidence:{s}" for s in reconcile_ac.EVIDENCE_SLOTS]
+          + [f"claim:{s}" for s in reconcile_ac.CLAIM_SLOTS],
+          _recon_silent["criteria"][0]["undischarged_slots"])
 
 # AC5 — the dispositions reach the reconciled output, so the orchestrator records them
 # durably alongside the verdict rather than letting them die with the dispatch return.

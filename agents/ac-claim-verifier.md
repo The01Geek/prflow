@@ -105,7 +105,7 @@ Print exactly one JSON object on stdout and nothing else — a list of per-crite
     {"criterion": 2, "status": "unmet", "evidence": "criterion clause 'rejects empty' has no assertion in the command source",
      "dispositions": {
        "claim-traced": "yes (traced each clause into the command source)",
-       "command-source-read": "yes (read lib/test/run.sh; the 'rejects empty' clause matched no assertion)",
+       "command-source-read": "yes (read the command's source; the 'rejects empty' clause matched no assertion)",
        "evidence-recorded": "yes (the unmatched clause)"}},
     {"criterion": 3, "status": "unestablished", "evidence": "no code path found for the claim",
      "dispositions": {
