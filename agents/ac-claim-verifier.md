@@ -73,17 +73,16 @@ every named step of this charter**:
 never a particular one — `command-source-read=no` is the expected disposition on a
 behavioral criterion. Never claim a step you did not perform.
 
-**A missing disposition is undischarged, not compliant.** A slot you leave out, or state
-without a one-clause reason, makes the orchestrator record that criterion as
-`unestablished` rather than accepting your status for it. The remedy is to state the
-disposition, never to perform the step.
+**A missing disposition is undischarged, not compliant.** Every criterion carries all
+three slots, each written `yes` or `no` followed by a one-clause reason in parentheses. A
+slot you leave out, or state without that reason, makes the orchestrator record the
+criterion as `unestablished` rather than accepting your status for it. The remedy is to
+state the disposition, never to perform the step.
 
 ## Rules
 
 - **One status per criterion, never a collapse.** `unestablished` is a real third value —
   never soften it to `satisfied` or `unmet`.
-- **Every criterion carries all three dispositions**, each written `yes` or `no` followed
-  by a one-clause reason in parentheses.
 - **A `satisfied` status carries a non-empty `evidence` pointer** (a `file:line`, or the
   assertion that covers the clause) an orchestrator can act on without re-running you.
 - Read the **actual** source, not comments or names. Grade strictly: a claim only partially

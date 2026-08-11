@@ -29701,9 +29701,13 @@ _R_STATUSES = ("satisfied", "unmet", "unestablished")
 # before the statuses pair. The #1575 fixtures below are about STATUS reconciliation, so
 # they attach a complete set on both sides; the disposition gate itself is driven by the
 # #1580 block further down. `reconcile_one` takes statuses directly and is unaffected.
-_R_EV_DISP = {s: f"yes (#1575 fixture: {s})"
-              for s in reconcile_ac.EVIDENCE_SLOTS}
-_R_CL_DISP = {s: f"yes (#1575 fixture: {s})" for s in reconcile_ac.CLAIM_SLOTS}
+def _disp_all(slots, verdict="yes"):
+    """A complete disposition map over `slots`, every slot dispositioned `verdict`."""
+    return {s: f"{verdict} (fixture: {s})" for s in slots}
+
+
+_R_EV_DISP = _disp_all(reconcile_ac.EVIDENCE_SLOTS)
+_R_CL_DISP = _disp_all(reconcile_ac.CLAIM_SLOTS)
 
 
 def _ev_recs(*records):
@@ -29917,21 +29921,29 @@ with tempfile.TemporaryDirectory() as _rd:
 # output so the orchestrator can record them durably alongside the verdict.
 
 # The slot vocabularies are per side and named after each charter's own steps.
-assert_eq("#1580 the evidence verifier's slot set is non-empty", True,
-          len(reconcile_ac.EVIDENCE_SLOTS) > 0)
-assert_eq("#1580 the claim verifier's slot set is non-empty", True,
-          len(reconcile_ac.CLAIM_SLOTS) > 0)
 # `evidence-recorded` is the one slot BOTH charters carry (the shared evidence-pointer
 # rule); a change dropping it from one side would leave that peer rule half-stated.
 assert_eq("#1580 both charters carry the shared evidence-recorded slot", True,
           "evidence-recorded" in reconcile_ac.EVIDENCE_SLOTS
           and "evidence-recorded" in reconcile_ac.CLAIM_SLOTS)
 
-
-def _disp_all(slots, verdict="yes"):
-    """A complete disposition map over `slots`, every slot dispositioned `verdict`."""
-    return {s: f"{verdict} (fixture: {s})" for s in slots}
-
+# The slot vocabulary is a COUPLED SITE: the tuples here are what the gate checks, while
+# the `| Slot |` tables in the two shipped charters are what each verifier is asked to
+# state. Nothing else reconciles them, and a divergence is silent-and-severe — a slot
+# renamed in a charter alone makes the gate force that side to `unestablished` on EVERY
+# criterion, hard-blocking Phase 3.4 in a live run with no suite signal. So parse each
+# charter's table and reconcile it against the tuple both ways round.
+# structural-pin-ok: cross-file-phase-contract -- the charter slot table IS the request
+# the verifier answers and the tuple IS the gate that grades the answer; the two are one
+# machine-consumed contract split across a shipped prompt file and its helper.
+for _acv_file, _acv_slots in (("ac-evidence-verifier.md", reconcile_ac.EVIDENCE_SLOTS),
+                              ("ac-claim-verifier.md", reconcile_ac.CLAIM_SLOTS)):
+    _acv_text = (SCRIPTS.parent / "agents" / _acv_file).read_text(encoding="utf-8")
+    # The table's first column, backticked: `| \`<slot>\` | ... |`. Anchored to the row
+    # start so a backticked identifier in a later column cannot be read as a slot.
+    _acv_table = set(re.findall(r'^\|\s*`([a-z-]+)`\s*\|', _acv_text, re.MULTILINE))
+    assert_eq(f"#1580 {_acv_file}: the slot table names exactly the gate's slots",
+              sorted(_acv_slots), sorted(_acv_table))
 
 _EV_D = _disp_all(reconcile_ac.EVIDENCE_SLOTS)
 _CL_D = _disp_all(reconcile_ac.CLAIM_SLOTS)
@@ -29949,6 +29961,15 @@ assert_eq("#1580 disposition parsing is case-insensitive",
 # so accepting a reasonless `yes` would let an abbreviated check attest to nothing.
 assert_eq("#1580 a bare `yes` with no reason is undischarged",
           (None, ""), reconcile_ac.parse_disposition("yes"))
+# Empty parens are a reasonless verdict wearing the right punctuation — the shape a
+# verifier producing the marker mechanically would emit for a step it skipped.
+assert_eq("#1580 `yes ()` with an empty reason clause is undischarged",
+          (None, ""), reconcile_ac.parse_disposition("yes ()"))
+# The parens are optional: the marker's own worked examples are written with them, but a
+# verifier that omits them has still stated a verdict and a reason.
+assert_eq("#1580 a reason without parentheses parses",
+          ("no", "this criterion runs no command"),
+          reconcile_ac.parse_disposition("no this criterion runs no command"))
 assert_eq("#1580 a non-string disposition is undischarged",
           (None, ""), reconcile_ac.parse_disposition({"disposition": "yes"}))
 assert_eq("#1580 an unparseable disposition verdict is undischarged",
@@ -30018,15 +30039,11 @@ _recon_silent = reconcile_ac.reconcile(
     [{"criterion": 1, "status": "satisfied", "evidence": "ok"}])
 assert_eq("#1580 a report with no dispositions at all reconciles unestablished",
           "unestablished", _recon_silent["criteria"][0]["status"])
-assert_eq("#1580 both sides' slots are named undischarged when neither attests",
-          sorted([f"evidence:{s}" for s in reconcile_ac.EVIDENCE_SLOTS]
-                 + [f"claim:{s}" for s in reconcile_ac.CLAIM_SLOTS]),
-          sorted(_recon_silent["criteria"][0]["undischarged_slots"]))
-# Do not relax this to a sorted()/set comparison: the expected list below is the
-# concatenation order the record is built in, and a sorted compare would pass a
-# regression that reordered the two sides or a side's own slots.
-assert_eq("#1580 undischarged_slots concatenates evidence-side then claim-side, "
-          "each in declared order",
+# Do not relax this to a sorted()/set comparison: the expected list is the concatenation
+# order the record is built in, and a sorted compare would pass a regression that
+# reordered the two sides or a side's own slots.
+assert_eq("#1580 both sides' slots are named undischarged when neither attests, "
+          "evidence-side then claim-side, each in declared order",
           [f"evidence:{s}" for s in reconcile_ac.EVIDENCE_SLOTS]
           + [f"claim:{s}" for s in reconcile_ac.CLAIM_SLOTS],
           _recon_silent["criteria"][0]["undischarged_slots"])

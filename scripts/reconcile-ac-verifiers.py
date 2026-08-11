@@ -79,8 +79,8 @@ BLOCKING_STATUSES = ("unmet", "unestablished")
 EVIDENCE_SLOTS = ("type-decided", "command-run", "single-flight", "evidence-recorded")
 CLAIM_SLOTS = ("claim-traced", "command-source-read", "evidence-recorded")
 
-# `<verdict> <reason>` — the writing-skills evidence marker's shape. The reason is
-# required: a bare `yes` attests to nothing an after-the-fact reader can weigh.
+# `<verdict> (<reason>)` — the writing-skills evidence marker's shape. The parens are
+# the marker's own convention and are optional here; the reason is not.
 _DISPOSITION_RE = re.compile(r"^(yes|no)\b(.*)$", re.IGNORECASE | re.DOTALL)
 
 
@@ -89,13 +89,22 @@ def parse_disposition(value):
 
     `no` is a fully discharging verdict — the gate asks for a *stated* disposition,
     never a particular one, so treating `no` as a failure would produce false `yes`.
+    An empty reason is undischarged, `yes ()` included: a verdict with no clause behind
+    it attests to nothing an after-the-fact reader can weigh, and `yes ()` is exactly
+    what a verifier filling the marker in mechanically emits for a step it skipped.
     """
     if not isinstance(value, str):
         return None, ""
     match = _DISPOSITION_RE.match(value.strip())
     if not match:
         return None, ""
-    reason = match.group(2).strip().strip("()").strip()
+    reason = match.group(2).strip()
+    # Unwrap a fully-parenthesised clause once, deliberately not with a strip("()")
+    # chain: that strips stray parens from either end independently, so it would read
+    # `yes (a) (b)` as the reason `a) (b` and hide a malformed value instead of
+    # carrying it through verbatim.
+    if reason.startswith("(") and reason.endswith(")"):
+        reason = reason[1:-1].strip()
     if not reason:
         return None, ""
     return match.group(1).lower(), reason
@@ -119,8 +128,25 @@ def _dispositions_of(record, slots):
         if verdict is None:
             undischarged.append(slot)
         else:
+            # The verbatim value, not the parsed reason: it is what the orchestrator
+            # records durably, and a reader weighing an abbreviated check wants the
+            # verifier's own words rather than this parser's normalization of them.
             stated[slot] = raw[slot]
     return stated, undischarged
+
+
+def _side(record, slots, tag):
+    """Resolve one verifier side into `(status, dispositions, undischarged)`.
+
+    Applied symmetrically to both sides so the per-side rules — the fail-closed status
+    read for an absent record, and the #1580 downgrade for an undispositioned charter
+    step — are stated once rather than mirrored in the caller's loop body.
+    """
+    dispositions, missing = _dispositions_of(record, slots)
+    status = record.get("status") if isinstance(record, dict) else "unestablished"
+    if missing:
+        status = "unestablished"
+    return status, dispositions, [f"{tag}:{slot}" for slot in missing]
 
 
 def _normalize_status(value):
@@ -235,24 +261,14 @@ def reconcile(evidence_records, claim_records):
     for num in sorted(set(e_by) | set(c_by)):
         e_rec = e_by.get(num)
         c_rec = c_by.get(num)
-        # A criterion absent from one report fails closed to `unestablished` on
-        # that side (it never voted), so the pair can only agree when the present
-        # side also read `unestablished`.
-        e_status = e_rec.get("status") if isinstance(e_rec, dict) else "unestablished"
-        c_status = c_rec.get("status") if isinstance(c_rec, dict) else "unestablished"
-        # Slot completeness is decided BEFORE the statuses are paired (issue #1580): a
-        # side that left a charter step undispositioned has not established what it did,
-        # so its status is not read. Forcing it here rather than after the pairing is
-        # what makes an abbreviated check reconcile `unestablished` instead of riding
-        # the other verifier's agreement into `satisfied`.
-        e_disp, e_missing = _dispositions_of(e_rec, EVIDENCE_SLOTS)
-        c_disp, c_missing = _dispositions_of(c_rec, CLAIM_SLOTS)
-        undischarged = ([f"evidence:{s}" for s in e_missing]
-                        + [f"claim:{s}" for s in c_missing])
-        if e_missing:
-            e_status = "unestablished"
-        if c_missing:
-            c_status = "unestablished"
+        # Both per-side resolutions happen BEFORE the pairing: a criterion absent from
+        # one report never voted, and a side that left a charter step undispositioned
+        # has not established what it did. Resolving either after the pairing would let
+        # an unattested or absent side ride the other verifier's agreement into
+        # `satisfied` — the substitution issue #1580 exists to catch.
+        e_status, e_disp, e_undischarged = _side(e_rec, EVIDENCE_SLOTS, "evidence")
+        c_status, c_disp, c_undischarged = _side(c_rec, CLAIM_SLOTS, "claim")
+        undischarged = e_undischarged + c_undischarged
         status, evidence, evidence_source = reconcile_one(
             e_status, c_status, _evidence_of(e_rec), _evidence_of(c_rec)
         )

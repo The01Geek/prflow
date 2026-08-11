@@ -113,17 +113,16 @@ never a particular one — `command-run=no` is the expected disposition on a non
 criterion, and it is also the honest disposition when a command was denied. Never claim a
 step you did not perform; a false `yes` is far worse than an accurate `no`.
 
-**A missing disposition is undischarged, not compliant.** A slot you leave out, or state
-without a one-clause reason, makes the orchestrator record that criterion as
-`unestablished` rather than accepting your status for it. The remedy is to state the
-disposition, never to perform the step.
+**A missing disposition is undischarged, not compliant.** Every criterion carries all
+four slots, each written `yes` or `no` followed by a one-clause reason in parentheses. A
+slot you leave out, or state without that reason, makes the orchestrator record the
+criterion as `unestablished` rather than accepting your status for it. The remedy is to
+state the disposition, never to perform the step.
 
 ## Rules
 
 - **One status per criterion, never a collapse.** `unestablished` is a real third value —
   never report it as `satisfied` or `unmet` to avoid an inconclusive answer.
-- **Every criterion carries all four dispositions**, each written `yes` or `no` followed
-  by a one-clause reason in parentheses.
 - **A `satisfied` status carries a non-empty `evidence` pointer** an orchestrator can act on
   without re-running you.
 - Read the **actual** source and command output; do not rely on wording or memory.
