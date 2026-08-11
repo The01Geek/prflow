@@ -2129,17 +2129,17 @@ for _label, _body_1462 in (('repro present', _nb), ('repro absent', _nb3)):
         assert_eq(f"#1462 extension tick {_r_substr!r} matches exactly one row ({_label})",
                   True, _ticks_once(_p, _r_substr))
 
-# The `Documentation` tick's OWN ordering point: `phase-4-documentation.md` ticks
-# it BEFORE the `pr-description` invocation that ticks the new Documentation row,
-# so at that moment the new row is still unticked and any wording containing
-# `Documentation` would give `_tick_checkbox` two candidates and raise.
-_doc_row_text = next(t for p, t, s in _XR if p == 'Documentation')
-_doc_row_substr = next(s for p, t, s in _XR if p == 'Documentation')
+# The `Documentation` phase owns NO extension row (issue #1577): §4.2's
+# pr-description load happens inside a dispatched subagent, whose observed content
+# the orchestrator never sees, so — mirroring the zero-entry `prflow:docs`
+# precedent — the row cannot be honestly ticked and is not rendered. Its former
+# `--tick-progress "Documentation"` collision therefore no longer exists.
+assert_eq("#1577 the Documentation phase owns no extension row", 0,
+          sum(1 for p, t, s in _XR if p == 'Documentation'))
 _doc_ordering = apply_mut(_nb, make_args(tick_progress=['Documentation']))
-assert_eq("#1462 `Documentation` tick lands with the extension row still unticked", True,
-          '- [x] **Documentation**' in _doc_ordering
-          and f'- [ ] {_doc_row_text}' in _doc_ordering)
-# `review-and-fix` is the second live collision: it already labels a Review row.
+assert_eq("#1577 `Documentation` tick lands (no extension row to collide with)", True,
+          '- [x] **Documentation**' in _doc_ordering)
+# `review-and-fix` is a live collision: it already labels a Review row.
 _raf_ordering = apply_mut(_nb, make_args(tick_progress=['review-and-fix']))
 assert_eq("#1462 `review-and-fix` tick lands with the Review extension rows unticked", True,
           '- [x] `review-and-fix`' in _raf_ordering
@@ -2164,8 +2164,15 @@ for _st, _phase in (('Setup', 'Setup'), ('Reviewing', 'Review'),
     # rows are present would restate an assertion already made above.
     assert_eq(f"#1462 a {_st} note still nests under **{_phase}**", True,
               _note_i is not None)
-    assert_eq(f"#1462 a {_st} note lands after that phase's extension row(s)", True,
-              _note_i is not None and bool(_row_is) and _note_i > max(_row_is))
+    # The after-rows ordering assertion applies only to a phase that owns extension
+    # rows; Documentation owns none (issue #1577), so there is no row to land after.
+    # Gate on the phase's KNOWN ownership from _XR, not the observed _row_is: a phase
+    # _XR says owns rows must still render them (bool(_row_is)) and land the note after
+    # them, so a rendering regression that vanished Setup's/Review's rows still fails
+    # here rather than being silently skipped.
+    if any(p == _phase for p, t, s in _XR):
+        assert_eq(f"#1462 a {_st} note lands after that phase's extension row(s)", True,
+                  _note_i is not None and bool(_row_is) and _note_i > max(_row_is))
 
 # --- reconciliation repairs a pre-change workpad, idempotently ---------------
 # Fixture 1: a `## Progress` predating the rows (none present).
@@ -2243,19 +2250,21 @@ for _r_phase, _r_text, _r_substr in _XR:
     assert_eq(f"#1462 partial reconcile yields exactly one {_r_substr!r} row", 1,
               _rec_p.count(f'- [ ] {_r_text}'))
 
-# The missing-anchor path: a `## Progress` with no **Documentation** top-level row is
-# the legacy shape phase-1-setup.md documents as reachable. That phase is SKIPPED, not
-# raised — losing the whole call would cost a resumed run its classification reconcile
-# — and the other phases' rows still land.
+# The missing-anchor path: a `## Progress` with no top-level row for a phase that
+# owns extension rows is the legacy shape phase-1-setup.md documents as reachable.
+# That phase is SKIPPED, not raised — losing the whole call would cost a resumed run
+# its classification reconcile — and the other phases' rows still land. **Review** is
+# the probe phase (issue #1577: **Documentation** no longer owns an extension row).
+_probe_substr = next(s for p, t, s in _XR if p == 'Review')
 _noanchor_1462 = '\n'.join(
-    ln for ln in _pre_1462.split('\n') if ln != '- [ ] **Documentation**')
+    ln for ln in _pre_1462.split('\n') if ln != '- [ ] **Review**')
 _na_stderr_1462 = io.StringIO()
 with contextlib.redirect_stderr(_na_stderr_1462):
     _rec_na = apply_mut(_noanchor_1462, make_args(reconcile_extension_rows=True))
-assert_eq("#1462 a missing phase anchor skips only that row, without raising", 0,
-          _rec_na.count(f'- [ ] {_doc_row_text}'))
+assert_eq("#1462 a missing phase anchor skips that phase's rows, without raising", 0,
+          sum(_rec_na.count(f'- [ ] {t}') for p, t, s in _XR if p == 'Review'))
 for _r_phase, _r_text, _r_substr in _XR:
-    if _r_phase == 'Documentation':
+    if _r_phase == 'Review':
         continue
     assert_eq(f"#1462 a missing anchor still lands the {_r_substr!r} row", 1,
               _rec_na.count(f'- [ ] {_r_text}'))
@@ -2264,8 +2273,8 @@ for _r_phase, _r_text, _r_substr in _XR:
 # indistinguishable from a surface that was never in scope.
 assert_eq("#1462 the missing-anchor skip emits a breadcrumb naming the phase and row",
           True,
-          "no '**Documentation**' phase row" in _na_stderr_1462.getvalue()
-          and _doc_row_substr in _na_stderr_1462.getvalue())
+          "no '**Review**' phase row" in _na_stderr_1462.getvalue()
+          and _probe_substr in _na_stderr_1462.getvalue())
 assert_eq("#1462 a reconcile that repairs every row emits no missing-anchor breadcrumb",
           '', _rec1_stderr_1462.getvalue())
 

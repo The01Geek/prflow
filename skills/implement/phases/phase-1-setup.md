@@ -633,7 +633,8 @@ Use the **Agent tool** with `subagent_type: prflow:issue-claim-auditor` and `run
 
 - `ISSUE_NUMBER` — the issue number (`$ISSUE_NUMBER`).
 - `WORKPAD` — the `workpad.py` helper path this tier uses as a leading token (the vendored literal `.prflow/vendor/prflow/scripts/workpad.py` on the cloud tier; the resolved `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py` on the local tier).
-- `SCRIPTS` — the same bundled-helper directory prefix (for `check-verified-premises.py`), and the repo root for `--repo-root`.
+- `SCRIPTS` — the same bundled-helper directory prefix (for `check-verified-premises.py`).
+- `REPO_ROOT` — the checkout root path, for Pass 6's `--repo-root` (a distinct value from `SCRIPTS`).
 - `ISSUE_BODY_PATH` — the §1.1 cache path `.prflow/tmp/issue-body/issue-$ISSUE_NUMBER.md` when the cache was written; on the degraded arm where no cache was written, paste the full issue body inline and say so (the auditor has `Bash` but must not re-fetch a body the run already holds).
 - `BASE` — `$BASE` (the §1.4 base branch; `origin/$BASE` is the read target under the read-target rule).
 - `FRESHNESS` — `fresh` / `unverified` / `behind-<n>`, from Phase 1.4's recorded behind-by count (an absent record reads as `unverified`).

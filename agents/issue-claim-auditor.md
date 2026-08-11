@@ -25,6 +25,7 @@ The orchestrator's dispatch prompt provides, and you use verbatim:
 - `ISSUE_NUMBER` — the GitHub issue this run implements.
 - `WORKPAD` — the exact `workpad.py` helper path to invoke as a **leading token** for every workpad write (e.g. `.prflow/vendor/prflow/scripts/workpad.py` on the cloud tier). Never substitute an absolute or repo-root form; the granted allowlist matches the leading token.
 - `SCRIPTS` — the directory prefix for the other bundled helpers you invoke (`check-verified-premises.py`), the same prefix `WORKPAD` sits in.
+- `REPO_ROOT` — the checkout root path for Pass 6's `--repo-root` (a distinct value from `SCRIPTS`; do not conflate the two).
 - `ISSUE_BODY_PATH` — the path to the §1.1 issue-body cache (`.prflow/tmp/issue-body/issue-<ISSUE_NUMBER>.md`) to read the body from; **do not re-fetch**. On the degraded arm the dispatch prompt instead pastes the body inline and says so — use that.
 - `BASE` — the base branch (`origin/$BASE` is the read target under the read-target rule).
 - `FRESHNESS` — one of `fresh` / `unverified` / `behind-<n>`, the tree-freshness state Phase 1.4 recorded, so you apply the Fresh-tree verification rules below correctly.
@@ -95,7 +96,7 @@ A `Verified:` bullet licenses this run to *skip its own investigation*, so a pre
 
 **Scope: every `Verified:` bullet the helper's marker recognises.** Read `total=` as a floor on the bullets present, never proof the issue carried no others.
 
-Run the bundled helper over the issue-body cache — no re-fetch (substitute `$SCRIPTS`, `$ISSUE_BODY_PATH`, and the repo root the dispatch prompt gave you):
+Run the bundled helper over the issue-body cache — no re-fetch (substitute `$SCRIPTS`, `$ISSUE_BODY_PATH`, and `$REPO_ROOT`):
 
 ```bash
 "$SCRIPTS"/check-verified-premises.py --body-file "$ISSUE_BODY_PATH" --repo-root "$REPO_ROOT"

@@ -1868,8 +1868,6 @@ _EXTENSION_ROWS = (
      'extension resolved: fix loop'),
     ('Review', 'prompt extension resolved: code-review reception',
      'extension resolved: code-review reception'),
-    ('Documentation', 'prompt extension resolved: PR description',
-     'extension resolved: PR description'),
 )
 
 

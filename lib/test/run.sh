@@ -4465,7 +4465,12 @@ assert_pin_unique "#232: SKILL self-check keys on workpad Status, not PR draft s
 #     reworded the scope clause from
 #     "the Phase 4.1 docs subagent return only" to "**subagent** returns", because a
 #     Skill-tool return is now covered by the orchestrator's generalized mid-phase
-#     re-anchor instead.
+#     re-anchor instead. Issue #1577 added a SECOND subagent-return re-anchor (§4.2's
+#     PR-description subagent, before §4.3); that note is worded "fires on a
+#     **subagent** return only" so this grandfathered, adjudicated literal stays
+#     unique to the §4.1 note (per CLAUDE.md #843/#876 the §4.2 re-anchor is
+#     agent-executed prompt prose that owes no new prose pin — the review pass is its
+#     control).
 assert_pin_unique "#232/#362: phase-4 re-anchor scoped to **subagent** returns (AC4, reworded)" \
   'scoped to **subagent** returns' "$P4_FILE"
 # AC1 operative: the normative prohibition sentence (not only its corrective consequence).
