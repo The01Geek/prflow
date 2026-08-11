@@ -5,7 +5,7 @@ skill's prompt text costs at runtime**, and for the behavioral instrument that
 measures it. It is the implement-side counterpart of
 [`docs/internal/create-issue-context.md`](create-issue-context.md) (issue #767), and
 follows that document's practices: it separates static shipped size from runtime
-context, it declines to add any size gate, and it stamps every recorded measurement
+context, it adds no size gate of its own, and it stamps every recorded measurement
 with its provenance and marks it a past-time snapshot.
 
 The instrument is `scripts/implement-context-eval.py` (stdlib-only Python), a
@@ -20,16 +20,64 @@ Two quantities are easy to conflate; they are different, and only the second is 
 long implement run actually pays:
 
 - **Static shipped size** — the on-disk line/byte count of the phase files
-  (`skills/implement/phases/*.md`) and `skills/implement/SKILL.md`. It is fixed at
+  (`skills/implement/phases/*.md`) and `skills/implement/SKILL.md` — two populations that
+  reach a session by *different loaders*; see **Two loaders, not one** below. It is fixed at
   author time. Issue #1209 opened by observing these files had grown 19% in lines and
   30% in bytes in two weeks — a real signal that something is unmeasured, but *not* the
   cost a run pays, for the two reasons recorded as findings below. The word-budget
   apparatus that once measured static size was retired by issue #765; this document
-  does **not** revive it and adds **no** new static word-count or prompt-length gate.
+  does **not** revive it, and the instrument described here adds no gate of its own.
+
+  **Static shipped size IS gated, but by a reader-capability ceiling rather than an
+  authoring budget (issue #1595).** `lib/test/lint-reference-size.py` fails the suite when
+  a boundary-gated reference or a skill root exceeds 61,750 bytes and holds no live
+  exemption in `lib/test/reference-size-exemptions.json`. Do not read that as
+  issue #765's budget returning: the two answer different questions and only one is a
+  judgment about prose. An **authoring budget** asks how long prose *ought* to be — a
+  target someone chose, which is why #765 retired it. A **reader-capability ceiling** is a
+  property of what the tool can return: above it the Read tool yields a file's `start`
+  marker and no `end` marker on a file that is intact on disk — the `truncated` shape
+  `/prflow:implement`, `/prflow:review`, `/prflow:review-and-fix` and `/prflow:docs-verify`
+  treat as fail-closed, and `/prflow:create-issue` degrades best-effort on. The ceiling is
+  therefore derived from the reader's token cap, not from an opinion about length, and it
+  says nothing about whether a shorter phase file would be better written.
+
+  This skill's own files are the largest part of the exempted population: the phase files
+  over the ceiling when the check landed carry expiring exemptions, and several more sit
+  within tens of bytes of it, so ordinary prose added to one should expect to hit the
+  ceiling. Read the current state from `lib/test/reference-size-exemptions.json` and
+  `lib/test/lint-reference-size.py --print-population` rather than from a figure here —
+  the roster shrinks as files are trimmed, and a transcribed size rots on the next trim.
 - **Runtime main-thread context** — the live per-turn token weight the *orchestrator*
   (main thread) carries across a run's many turns and phase (re-)entries. It is measured
   per turn as `input_tokens + cache_read_input_tokens + cache_creation_input_tokens`.
   This is the quantity `scripts/implement-context-eval.py` measures.
+
+### Two loaders, not one — and they fail differently
+
+Every byte figure on this page is measured with one instrument (`wc -c` on disk), which
+makes it easy to read the files below as one population. They are not. The two halves of
+the implement prompt surface arrive by **different loading mechanisms with different
+failure modes**, and a size figure means something different for each:
+
+| | `skills/implement/phases/*.md` | `skills/implement/SKILL.md` |
+|---|---|---|
+| Loader | the `Read` tool, once per phase entry | the Skill tool, or slash-command expansion for a `/prflow:implement` invocation |
+| Known ceiling | **25,000 tokens, per read** — observed, and `phase-1-setup.md` has tripped it | **none found** at or below 83,427 file bytes — observed 2026-08-11, one tier, one runner version |
+| Failure mode | **truncates legibly** — `Read` emits `showing lines X-Y of Z … cap 25000` | delivers whole, or **aborts outright** returning no body; a *partial* delivery was probed for and not seen |
+| Backstop | the fail-closed boundary contract (#1551) | none — no `SKILL.md` root carries boundary markers |
+
+Two consequences for anyone citing the table below. First, **the `Read` cap is not evidence
+about the Skill tool** and vice versa: the two coincidentally share the number 25,000 (the
+Skill tool's is a combined *post-compaction re-attachment* budget, not an initial-load cap)
+and govern nothing in common. Second, **neither number is a gate here** — this document adds
+none, and the largest file in the table is a phase file that already exceeds the observed
+`Read` cap, which is a real hazard tracked separately rather than something these figures
+enforce.
+
+The delivery evidence, its limits, and the proposed size guard it retargets are in
+[`docs/internal/skill-body-load-delivery.md`](skill-body-load-delivery.md); the abort mode is
+[`docs/internal/review-skill-load-outage-2026-08.md`](review-skill-load-outage-2026-08.md).
 
 ## Two findings the obvious "whole-prompt sum" framing gets wrong
 
@@ -60,14 +108,20 @@ Issue-Claim Audit procedure into `issue-claim-auditor`). These are on-disk `wc -
 counts, quoted in KiB. They rot as the phase files change; re-derive them rather than
 trusting these numbers.
 
-| file | bytes | KiB |
-|---|---|---|
-| `skills/implement/phases/phase-1-setup.md` | 68,901 | 67.3 |
-| `skills/implement/phases/phase-2-implement.md` | 134,965 | 131.8 |
-| `skills/implement/phases/phase-3-review.md` | 110,140 | 107.6 |
-| `skills/implement/phases/phase-4-documentation.md` | 75,922 | 74.1 |
-| **four-file sum** | **389,928** | **380.8** |
-| `skills/implement/SKILL.md` (always resident) | 61,039 | 59.6 |
+| file | bytes | KiB | loader |
+|---|---|---|---|
+| `skills/implement/phases/phase-1-setup.md` | 68,901 | 67.3 | `Read` |
+| `skills/implement/phases/phase-2-implement.md` | 134,965 | 131.8 | `Read` |
+| `skills/implement/phases/phase-3-review.md` | 110,140 | 107.6 | `Read` |
+| `skills/implement/phases/phase-4-documentation.md` | 75,922 | 74.1 | `Read` |
+| **four-file sum** | **389,928** | **380.8** | — |
+| `skills/implement/SKILL.md` (always resident) | 61,039 | 59.6 | Skill tool / slash-command expansion |
+
+**The last row is not commensurable with the four above it** — same instrument, different
+loader (see *Two loaders, not one*), so the four-file sum deliberately excludes it and the
+whole-surface total it would produce answers no question about either mechanism. Note also
+that these are *file* bytes: on a Skill-tool load the delivered payload is the file minus its
+YAML frontmatter, about 400 bytes smaller at these sizes.
 
 Re-derive with:
 

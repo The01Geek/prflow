@@ -43,6 +43,12 @@ the acceptance criteria require it to carry separately — the predicate call, e
 three exit-code arms, the marker contract, the degraded arm and its stated residual, and the
 self-sufficiency sentence.
 
+**Superseded 2026-08-11 by issue #1595:** a byte ceiling now *is* enforced —
+`lib/test/lint-reference-size.py` caps every boundary-gated reference and skill root at
+61,750 bytes, a reader-capability limit rather than the authoring budget this paragraph
+was denying. The paragraph stands as written below because it records what was true when
+this page was made; this page still registers no ceiling of its own.
+
 **No byte ceiling on this file is enforced anywhere in the tree, and none ever was.** Issue
 #1374 searched `lib/test/run.sh` for a positional size assertion over
 `skills/implement/phases/phase-4-documentation.md` and found none; the sentences that used
