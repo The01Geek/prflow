@@ -10723,6 +10723,11 @@ vcwc = _load('validate_cloud_writer_contract', SCRIPTS / 'validate-cloud-writer-
 with tempfile.NamedTemporaryFile('w', suffix='.json', delete=False, encoding='utf-8') as _fm1445f:
     _fm1445f.write(cwc.canonical_json(cwc.build_manifest()))
     _fresh_manifest_1445 = _fm1445f.name
+# `delete=False` keeps the path readable by the assertions further down this linear script;
+# without this unlink the suite leaks one temp file per run.
+import atexit as _atexit1445  # noqa: E402
+
+_atexit1445.register(lambda: os.path.exists(_fresh_manifest_1445) and os.unlink(_fresh_manifest_1445))
 
 
 def _codes(violations):
@@ -14632,6 +14637,21 @@ assert_eq("#1445 AC3.2: unestablished base with no difference is still not clean
 assert_eq("#1445 AC3.2: --allow-degraded-base acknowledges an unchanged-but-degraded base (exit 0)",
           _cwr1445.EXIT_CLEAN,
           _cwr1445.classify_outcome([], ["shallow"], True, "origin/main", True)[0])
+# Arm ORDER, asserted directly (the docstring's "arm order is load-bearing" claim): with a
+# SOUND comparand, arm 1 must win over arm 2 even when unestablished reasons are present —
+# exit 1, not 3, and no acknowledgement flag can downgrade it. main() cannot construct this
+# combination (its only `unestablished` source also sets comparand_substituted), so the pure
+# core is the sole way to prove the precedence.
+_cwr_arm1_1445 = _cwr1445.classify_outcome(
+    _cwr_viol_1445, ["some unrelated unestablished reason"], False, "origin/main", False)
+assert_eq("#1445 AC3.2: arm 1 precedes arm 2 — a sound-comparand mutation exits 1 despite unestablished reasons",
+          _cwr1445.EXIT_MUTATED, _cwr_arm1_1445[0])
+assert_eq("#1445 AC3.2: that arm-1 report appends the unestablished reasons as context",
+          True, any("some unrelated unestablished reason" in ln for ln in _cwr_arm1_1445[1]))
+assert_eq("#1445 AC3.2: no acknowledgement flag can downgrade an established mutation",
+          _cwr1445.EXIT_MUTATED,
+          _cwr1445.classify_outcome(
+              _cwr_viol_1445, ["some unrelated unestablished reason"], True, "origin/main", False)[0])
 
 # End-to-end git fixture: a branch that mutates the manifest FAILS the check; one that
 # leaves it untouched PASSES — and it needs NO local git configuration to do either (AC6).
@@ -14668,6 +14688,42 @@ with tempfile.TemporaryDirectory(prefix='cwr1445-') as _cwr_repo_str:
     _rc_nobase_1445 = _cwr1445.main(['x', str(_cwr_repo), '--base-ref', 'origin/does-not-exist-1445'])
     assert_eq("#1445 AC3.2 e2e: an unresolvable base ref fails closed (exit 1), never clean",
               _cwr1445.EXIT_MUTATED, _rc_nobase_1445)
+    # main()'s two remaining fail-closed read arms. Each carries a positive control on the
+    # SAME fixture (the clean branch above already exits 0 with both manifests readable), so
+    # a rejection from an unrelated precondition cannot masquerade as the arm under test.
+    # Unreadable HEAD manifest: malformed JSON in the working tree → exit 1, never clean.
+    _git1445(_cwr_repo, 'checkout', '-q', 'feat-clean')
+    _man_backup_1445 = (_cwr_repo / _man_rel_1445).read_text(encoding='utf-8')
+    (_cwr_repo / _man_rel_1445).write_text("{ not json", encoding='utf-8')
+    _badhead_out_1445 = io.StringIO()
+    with contextlib.redirect_stdout(_badhead_out_1445):
+        _rc_badhead_1445 = _cwr1445.main(['x', str(_cwr_repo), '--base-ref', 'origin/main'])
+    assert_eq("#1445 AC3.2 e2e: an unreadable HEAD manifest fails closed (exit 1), never clean",
+              _cwr1445.EXIT_MUTATED, _rc_badhead_1445)
+    # Attribute the rejection: this arm, not the mutation arm or an earlier precondition.
+    assert_eq("#1445 AC3.2 e2e: the unreadable-HEAD rejection names the head read",
+              True, "could not read the head" in _badhead_out_1445.getvalue())
+    (_cwr_repo / _man_rel_1445).write_text(_man_backup_1445, encoding='utf-8')
+    assert_eq("#1445 AC3.2 e2e control: the same fixture is otherwise clean (exit 0)",
+              _cwr1445.EXIT_CLEAN,
+              _cwr1445.main(['x', str(_cwr_repo), '--base-ref', 'origin/main']))
+    # Malformed BASE manifest: the merge base carries unparseable JSON. An absent path at the
+    # base is deliberately the empty object (retention_check_common.git_show_json), so only a
+    # malformed one reaches main()'s base_error arm.
+    _git1445(_cwr_repo, 'checkout', '-q', '-b', 'base-bad-manifest', 'origin/main')
+    (_cwr_repo / _man_rel_1445).write_text("{ not json", encoding='utf-8')
+    _git1445(_cwr_repo, 'commit', '-qam', 'malformed manifest at the base')
+    _git1445(_cwr_repo, 'checkout', '-q', '-b', 'feat-off-bad-base')
+    (_cwr_repo / 'skills' / 'a.md').write_text("a off bad base", encoding='utf-8')
+    _git1445(_cwr_repo, 'commit', '-qam', 'branch work, manifest untouched')
+    _badbase_out_1445 = io.StringIO()
+    with contextlib.redirect_stdout(_badbase_out_1445):
+        _rc_badbase_1445 = _cwr1445.main(
+            ['x', str(_cwr_repo), '--base-ref', 'base-bad-manifest'])
+    assert_eq("#1445 AC3.2 e2e: an unreadable base manifest fails closed (exit 1), never clean",
+              _cwr1445.EXIT_MUTATED, _rc_badbase_1445)
+    assert_eq("#1445 AC3.2 e2e: the unreadable-base rejection names the base read",
+              True, "could not read the base" in _badbase_out_1445.getvalue())
 
 # ── AC1 / AC2: two branches editing disjoint regions of the SAME pinned file (AC1) or two
 # ADJACENT-sorted pinned files (AC2), each running the regeneration pass, merge into main in

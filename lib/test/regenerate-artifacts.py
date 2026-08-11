@@ -60,7 +60,8 @@ exact-floor row may raise `scripts/workflow-flight-recorder-registry.json` and
 its artifact. (No `mechanical` row is registered today; see the note above the ROWS
 tuple.)
 
-EXIT CONTRACT (exactly three states):
+EXIT CONTRACT (exactly three states). Its `mechanical row` clauses are conditional on such
+a row being registered; none is today, so they select nothing in a production run:
   0 — every row resolved in its declared clean state (its command exited in that
       state), the mechanical regeneration changed nothing, and no exit-1-forcing
       judgment item was printed.
@@ -141,14 +142,9 @@ ROW_KINDS = ("mechanical", "monotonic", "judgment")
 # Every row is command-backed: main() dispatches each through run_row uniformly rather than
 # re-deciding per row (run_row still special-cases the mechanical kind internally).
 ROWS = (
-    # The `cloud-writer-manifest` mechanical row was removed in issue #1445: the feature
-    # branch is no longer a writer of `scripts/devflow-cloud-writer-contract.json`. `main`
-    # is its sole writer, regenerated in `.github/workflows/version-consolidate.yml`
-    # immediately before its bump commit, and a feature branch that mutates the artifact by
-    # hand is caught by `lib/test/cloud-writer-retention-check.py` rather than by this
-    # batched pass. The `mechanical` machinery below (ROW_KINDS, `_mechanical_outcome`,
-    # `run_row`'s mechanical arm, `_validate_registry`'s single-write check) is retained
-    # for a future mechanical row; no row is mechanical today.
+    # Do NOT re-add a `cloud-writer-manifest` row here (issue #1445) — a batched pass that
+    # writes that artifact on a feature branch reintroduces the merge chokepoint and turns
+    # lib/test/cloud-writer-retention-check.py RED. See _TEST_MECHANICAL_ROW below.
     {
         "name": "capability-profile-literals",
         "kind": "judgment",
@@ -382,19 +378,11 @@ ROWS = (
 )
 
 # ── Test-only mechanical-row seam (issue #1445) ──────────────────────────────
-# The production registry above has NO `mechanical` row: `main` is the sole writer of the
-# cloud-writer manifest (version-consolidate.yml), so no feature-branch batched pass or
-# coordinator preflight touches it. But the `mechanical` machinery below (`run_row`'s
-# mechanical arm, `_mechanical_outcome`, `_validate_registry`'s single-write check) is
-# retained and must stay tested. The focused module lib/test/modules/regenerate-artifacts.sh
-# re-injects the historical cloud-writer row to exercise that machinery, by setting
-# DEVFLOW_RA_TEST_MECHANICAL_ROW=1 in its own process. (lib/test/modules/parallel-suite-runner.sh
-# exercises the coordinator's preflight *selection* logic with synthetic DEVFLOW_ARTIFACT_PREFLIGHT
-# stubs, not this seam — it does not set this env var.) NOTHING in a production run ever
-# sets it — the batched pass, the coordinator preflight, and every consumer run without it —
-# so production never regenerates or gates on the manifest, which is the whole point of
-# issue #1445. The re-injected row is validated by `_validate_registry()` below exactly like
-# a real row, so the seam cannot smuggle in a malformed row.
+# Retained `mechanical` machinery (`run_row`'s mechanical arm, `_mechanical_outcome`,
+# `_validate_registry`'s single-write check) has no production row to exercise it, so
+# lib/test/modules/regenerate-artifacts.sh re-injects this one via the env var below.
+# Never set DEVFLOW_RA_TEST_MECHANICAL_ROW outside that module: any production run that
+# does becomes a branch-side manifest writer.
 _TEST_MECHANICAL_ROW = {
     "name": "cloud-writer-manifest",
     "kind": "mechanical",

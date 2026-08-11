@@ -109,6 +109,9 @@ def classify_outcome(
     """
     if violations and not comparand_substituted:
         lines = list(violations)
+        # Not dead code: `main()` cannot reach this append (its only `unestablished` source
+        # also sets comparand_substituted), but the focused test drives it directly to pin
+        # arm 1's precedence over arm 2. Deleting it would delete that proof.
         if unestablished:
             lines.append(
                 "[cloud-writer-retain] for context, this run ALSO could not establish the "
