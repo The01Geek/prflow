@@ -1,6 +1,6 @@
 # `/prflow:implement` skill — Phase 2.3 sweep discipline and Phase 4.3 finalize
 
-**Skill:** `skills/implement/phases/phase-2-implement.md` (Phase 2.3, *Implement*) — the detailed phase procedure read at phase entry by the thin `skills/implement/SKILL.md` orchestrator
+**Skill:** `skills/implement/phases/phase-2-sweeps-contract.md` (Phase 2.3, *Implement*) — the detailed phase procedure read at phase entry by the thin `skills/implement/SKILL.md` orchestrator
 
 ## Early Phase 1 dependency preflight
 
@@ -205,8 +205,11 @@ recorded with a `--note`; only a *silent* stale enumeration is the defect.
 
 ## The final full-suite gate: the parallel coordinator (issue #1086)
 
-Focused modules are the iteration default; the *final* gate before a completion or PR-ready
-claim is `lib/test/run-parallel.sh`. It runs the same tested partition CI shards — its launch
+Focused modules are the iteration default; where a run discharges its completion gate by an
+in-environment whole-suite pass — the cloud implement tier, and any local run deliberately
+choosing one — the command is `lib/test/run-parallel.sh`. (Since issue #1607 the
+local/interactive tier's own gate is a CI reading for the pushed commit, per `CLAUDE.md`'s tier
+ladder, so the coordinator is that tier's diagnostic instrument rather than its gate.) It runs the same tested partition CI shards — its launch
 population comes from `lib/test/run-shard.sh --list-shards`, so it is derived rather than
 copied — concurrently **inside the current checkout**, and recombines it through the existing
 `lib/test/shard-tally.py` tally protocol. `lib/test/run.sh` is unchanged and remains the serial
@@ -552,7 +555,7 @@ filesystem a failed branch write is recoverable rather than lost. On an **epheme
 staging tree does not survive teardown, so the cloud recovery path is the **uploaded workflow
 artifact** the auto-review tier stages and uploads, which the trusted telemetry-push relay
 (`telemetry-push.yml`, issue #489) downloads, validates, and pushes — not any on-disk copy the
-ephemeral runner cannot retain (coupled with `skills/implement/phases/phase-3-review.md` and
+ephemeral runner cannot retain (coupled with `skills/implement/phases/phase-3-fix-loop.md` and
 `docs/internal/efficiency-trace.md`, which say the same — the shipped phase file names the relay
 generically rather than by filename, because since issue #1423 the never-shipped-workflow lint
 forbids a withheld-tier workflow name on the shipped prompt surface; do not re-sync the literal
@@ -780,7 +783,7 @@ denied and the deferral proceeds; the two are told apart by whether the probe ob
 about the precondition, not by raw exit status — a `gh api` **404** (object observably absent) or **200
 with falsy data** (empty required-checks array, absent bypass actor) is **observed-false**, not a denial.
 A passed probe only *narrows* the deferral to the genuinely-live residue; it never ticks the AC box. The
-contract lives in `skills/implement/phases/phase-3-review.md` and is the single source of truth for both
+contract lives in `skills/implement/phases/phase-3-ac-gate.md` and is the single source of truth for both
 the Phase 1.2 tag-time path (`skills/implement/phases/phase-1-setup.md`) and the Phase 3.4 retro-tag path.
 
 ### Focused-vs-full selection and the run budget (issue #789)
@@ -852,11 +855,12 @@ probe-proven PERMITTED on the implement tier — see
 [`cloud-allowlist.md`](cloud-allowlist.md)'s row 17 for the run of record and the
 grant history.
 
-**None of this weakens the gate.** The final completion claim still runs the full suite,
-and the #456 skip accounting is unchanged — a nonempty skip tally is not clean, and a
-focused module may not self-skip. Before a completion or PR-ready claim the CI-triggering
-push and the full local run are issued **in a single assistant turn** so they run in
-parallel (the push is not gated on the local run; the claim is). A suite result is
+**None of this weakens the gate.** The final completion claim still takes a whole-suite
+result, and the #456 skip accounting is unchanged — a nonempty skip tally is not clean, and a
+focused module may not self-skip. Which result counts is tier-scoped since issue #1607: the
+cloud implement tier runs the suite in its own environment, while this repository's
+local/interactive tier commits, pushes, and reads CI for that pushed commit, treating an
+absent run or an unestablished reading as a stop rather than a pass. A suite result is
 established from the runner's **terminal summary line** — wherever the runner writes it —
 never from a bare process or wrapper exit status when a tally was printed; a command
 silent on success is established from its own exit status, and a command that never ran
@@ -915,6 +919,19 @@ Phase 4.3 (*Finalize the PR and Finalize Workpad*) is where a run ends. It runs 
 **Required-artifact gate (issue #1348).** Beyond the self-record reconciliation and the evidence gate, a `--status Complete` write also requires the `## Progress` section to carry a row for every member of `workpad.py`'s module-level `_REQUIRED_ARTIFACTS` set — initially exactly the base-update checkpoint-4 record, satisfiable by either its clean `base-update-checkpoint-4` marker **or** #1347's `base-update-checkpoint-4-tier-refused` marker, so a tier-refused run still completes. The gate (`_required_artifact_verdict`, called by `_terminal_complete_gate` under the same `_status_glyph(...) == '🎉'` terminal-status test as the AC hard-fail) resolves each artifact's keyed marker with the same `_marker_variants(_checkpoint_marker(key))` idiom `_plan_checkpoints` uses — so both the `prflow:` and superseded `devflow:` spellings count and a workpad mutated across the #1003 rename boundary is not falsely refused. A missing row is a **structural abort before PATCH** whose stderr names the exact producing command (`update-branch-checkpoint.sh`, recorded via `--checkpoint base-update-checkpoint-4`). It is a **pure read** — it mutates nothing on any path; every repair lives earlier in the producer, and the deleted `--note` degrade path (§4.3) is gone precisely so this gate has one recording format to read. The Phase 1.3 resume strip (`--strip-inherited-checkpoints`, issue #1347) clears a prior attempt's row so a resumed run cannot satisfy the gate on inherited evidence. This asserts only that checkpoint 4 was reached and its outcome recorded — **not** that the base is current at publish (a `DISABLED` or tier-refused run satisfies it having reconciled nothing).
 
 **Completion verification-flight evidence gate (issue #1087).** Beyond the self-record reconciliation above, a `--status Complete` write now also requires **current, machine-readable verification evidence** for the run's final in-env verification command. Phase 4.3 establishes it after the last candidate-changing operation (docs/changeset commit, a `fix:` claim-audit commit, the clean-tree backstop, checkpoint 4's merge): it obtains the final candidate identity from the reception preflight (`reception-record.py`'s stdout `candidate_identity`, the git tree id `scripts/reception_identity.py` derives), launches one verification flight through the non-executing `scripts/verification-flight.py` ledger (declaring that identity on the `claim`), and records the validated flight key with `workpad.py update --record-completion-evidence <flight-key>`. That records one hidden `completion-verification:<flight-key>` marker on the existing keyed-checkpoint marker family (no second marker family is minted; a later validated key replaces the prior one). `workpad.py`'s `_terminal_complete_gate` then, immediately before PATCH, resolves the canonical `.prflow/tmp/verification-flights/<flight-key>.json` record, re-derives the candidate identity, and runs the **implement-completion** context of `scripts/check-completion-evidence.py` (an importable entry point, `validate_implement_completion`, reusing the closed eight-token vocabulary — no ninth token). The record passes only when its `state` and `result` are `passed`, its `suite_summary.command` is a nonempty string, its `suite_summary.exit_status` is the integer `0`, its top-level `skipped_checks` is an empty list (the stricter no-skip policy — not even a host-capability skip is admitted), and its `candidate_identity` equals the current tree. Any missing/duplicate marker, unestablished operand, non-`passed` flight state, nonzero exit, non-empty skip population, or stale identity is a **structural abort before PATCH** — the workpad stays at its prior status and the run routes to Blocked (or re-launches a fresh flight for the final tree). The off-switch (`.verification_flight.enabled: false`) suppresses only flight *reuse* for an implement run; the record is still produced. A standalone `workpad.py` copy lacking the evidence sibling fails a Complete write closed with the `missing-evidence` token naming the absent module, while its non-Complete subcommands are unaffected. The `check-completion-evidence.py` validator plus its transitive import closure (`reception_identity.py`, and `workpad.py`'s `section_parse.py` sibling) are byte-pinned in `scripts/devflow-cloud-writer-contract.json` so a mutation to any of them is a `HASH_MISMATCH`.
+
+**This gate is tier-agnostic, and issue #1607 did not change it.** `_terminal_complete_gate` carries no
+tier discriminator on its completion-evidence member, so the required record is the same on the
+local/interactive tier as on the cloud implement tier: a flight in the terminal `passed` state, a nonempty
+`suite_summary.command`, an integer-`0` `suite_summary.exit_status`, an empty `skipped_checks`, and a
+`candidate_identity` equal to the current tree. Issue #1607 made a CI reading the local tier's *policy*
+completion gate in `CLAUDE.md`, and that is a prose rule over which signal an agent may cite — it moved
+nothing in `workpad.py`, `check-completion-evidence.py`, or the flight ledger, none of which can read a
+GitHub Actions conclusion. A local implement run that maintains a workpad therefore still owes this
+record for its final tree before a `--status Complete` write will land. Reconciling the two is open work
+tracked in issue #1611, not something the prose change settled; treat the mechanical gate as the binding
+constraint on what `workpad.py` will accept. `CLAUDE.md`'s local-tier rung carries a pointer to this
+constraint so its operative copy does not omit it.
 
 **Review-coverage gate (issue #1453).** The fourth member of `_terminal_complete_gate`, after the completion-evidence and required-artifact gates: a `--status Complete` write also requires the `## Progress` section to carry exactly one resolvable **review-coverage record** for the run's Phase 3 review pass. Phase 3.3 stamps it on **every** Phase 3 exit that can reach a Complete write — the clean-completion path, the `APPROVE WITH UNRESOLVED SHADOW FINDINGS` and `REJECT` branches, and the severity-aware soft-proceed — with `workpad.py update $ISSUE_NUMBER --record-review-coverage <coverage> <dispatch> <roster> <checklist>`, deriving each operand from the loop-verdict marker (and, for the roster/checklist comparisons, the fix loop's `iter-<N>.json` `shadow` block). The record rides the **existing** keyed-checkpoint marker family under a `review-coverage:` key namespace carrying the colon-joined four-axis payload — not the `_REQUIRED_ARTIFACTS` literal-key family, because the payload legitimately changes between calls and `--checkpoint`'s replay semantics key on the whole key string, so a second call would insert a *second* independent row with nothing to say which is authoritative; the producer therefore strips the prior row and appends a fresh one, and the reader refuses on anything other than exactly one record. Both marker namespaces (`prflow:` and superseded `devflow:`) are read per record.
 
