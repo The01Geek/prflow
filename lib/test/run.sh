@@ -5352,7 +5352,6 @@ rm -rf "$S782"
 # asserted only as source text). The fixture tests run the helper directly for the
 # Resolves-anchored rewrite, human-line preservation, idempotency, and the
 # fail-closed empty-stdin / missing-arg contract.
-P1_SETUP="$IMPL_PHASES_DIR/phase-1-setup.md"
 # The single-line transform is extracted to a deterministic, fixture-tested
 # helper (issue #493 review Suggestion #1: the inline python was asserted only
 # as source text, never executed). The fence pipes the body through it and
@@ -5463,7 +5462,8 @@ assert_eq "implement: DevFlow re-homes its versioning rule to the implement prom
 # refactor that DROPS a token, but not a semantic regression in config-get's
 # soft/hard contract that the guard depends on). Mirrors the max_iterations
 # resolver+clamp pattern: exercise config-get's real exit behavior, then the
-# SKILL's inline guard logic against it. Keep byte-aligned with the SKILL block.
+# branch-setup agent's inline guard logic against it. Keep byte-aligned with the
+# base-derivation block in agents/branch-setup.md (the Signals source of truth).
 BB_CFG="$(mktemp)"
 printf '%s' '{"base_branch":"develop"}' > "$BB_CFG"
 assert_eq "base_branch: configured value read back verbatim" "develop" \
@@ -5483,7 +5483,7 @@ assert_eq "base_branch: malformed config → resolver exits non-zero, empty stdo
   "$([ "$BB_RC" -ne 0 ] && [ -z "$BB_OUT" ] && echo nonzero-empty || echo "rc=$BB_RC out='$BB_OUT'")"
 rm -f "$BB_CFG"
 
-# The SKILL's inline empty-read guard (Phase 1.4): an empty OR failed read → 'main'.
+# branch-setup.md's inline empty-read guard (Phase 1.4): an empty OR failed read → 'main'.
 # Mirrors `BASE=$(config-get.sh …) || BASE=""; [ -n "$BASE" ] || BASE=main` so the
 # fallback is exercised as behavior, not just asserted as text.
 base_guard() {
@@ -5505,12 +5505,12 @@ assert_eq "#168 worktree detect: branch-setup names the linked-worktree signal" 
   "$(grep -qF 'linked worktree' "$P1582_BS" && echo yes || echo no)"  # raw-guard-ok: non-unique: token appears in both prose and code in branch-setup.md (#1582)
 
 # Behavioral coverage: mirror Phase 1.4's reuse-vs-create decision and exercise the
-# whole matrix. Keep behaviorally aligned with the SKILL block (it is a restructured
-# mirror — early-return form — not a byte-for-byte copy). Echoes "reuse" (skip creation,
-# use CUR) or "create" (fall through to branch-for-issue.py). The non-empty + != base
-# guards wrap BOTH signals exactly as the SKILL hoists them; an empty common==gitdir
+# whole matrix. Keep behaviorally aligned with the Signals block in agents/branch-setup.md
+# (it is a restructured mirror — early-return form — not a byte-for-byte copy). Echoes "reuse"
+# (skip creation, use CUR) or "create" (fall through to branch-for-issue.py). The non-empty +
+# != base guards wrap BOTH signals exactly as branch-setup.md hoists them; an empty common==gitdir
 # (rev-parse failed) collapses Signal 1 to "not a worktree" → create (fail-closed).
-# Source of truth: SKILL Phase 1.4. F-9 remains deferred: --path-format=absolute
+# Source of truth: agents/branch-setup.md (Signals). F-9 remains deferred: --path-format=absolute
 # normalization is not exercised here because the mirror receives pre-resolved strings;
 # a real-git integration test would be needed to cover the rev-parse call itself.
 #   decide_branch <git-common-dir> <git-dir> <CUR> <BASE>

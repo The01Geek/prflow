@@ -40,8 +40,8 @@ Record each durable outcome **immediately** when it is decided (a compaction or 
 You do not always run all three. Say in your returned record which of resume-precheck / Signals / Verdict-B you actually evaluated:
 
 - The **resume pre-check** always runs first.
-- When it **adopts an open PR** (arm `pr-adopted`) or **lands a resume** (arm `landed-resume`), the **Signals** and **feature-branch creation** are skipped; on the landed-resume arm you still run **Verdict B**.
-- When the pre-check adopts nothing, you evaluate the **Signals**; on the reuse (`harness-worktree-switch` or adopted-current) path you run the freshness guard and **Verdict B**; on the create path (`fresh-create`) you run **feature-branch creation** and no Verdict B (a fresh fork has no ahead-of-base history).
+- When it **lands a resume** (arm `landed-resume`), the **Signals** and **feature-branch creation** are skipped, and you still run **Verdict B**. When it finds the target branch **live in another linked worktree** (arm `harness-worktree-switch`), that is a **terminal STOP** (`stop_kind: branch-live-in-other-worktree`) — you evaluate neither the Signals nor Verdict B.
+- When the pre-check adopts nothing, you evaluate the **Signals**; on the reuse (adopted-current) path you run the freshness guard and **Verdict B**; on the create path (`fresh-create`) you run **feature-branch creation** and no Verdict B (a fresh fork has no ahead-of-base history).
 
 ## Resume pre-check (runs BEFORE the Signals)
 
@@ -120,7 +120,7 @@ fi
 Route on `PR_JSON`, `HEAD_REF`, `LANDED`, and `$CO_ERR`:
 
 - **`LANDED` is `yes`** (arm `landed-resume`) — the tree is on the PR's head branch. Skip branch creation and both signals, record the **Adopted** note, then run **Verdict B** below (its `current_branch` is `$HEAD_REF` and its open-PR operands come from the very `PR_JSON` entry this pre-check selected; set `open_pr_selected_by` to `head` or `body` according to which query returned it). Return PROCEED unless Verdict B stops.
-- **`LANDED` is `no` and `$CO_ERR` matches `already used by worktree` (or the older `already checked out at`)** (arm `harness-worktree-switch`) — the branch is live in another linked worktree. Do not force it and do not duplicate the branch: read that worktree's path from `git worktree list --porcelain`, note the switch in the workpad, and continue in that worktree. Then run the Signals freshness guard and Verdict B against it.
+- **`LANDED` is `no` and `$CO_ERR` matches `already used by worktree` (or the older `already checked out at`)** (arm `harness-worktree-switch`) — the branch is live in another linked worktree. You **share the orchestrator's checkout and cannot relocate its cwd**, so switching into that worktree here would leave the orchestrator resuming in its *original* checkout on the wrong branch (its post-return `git branch --show-current` would read the wrong tree), and a leading `cd` is a denied cloud shape besides. This is therefore a **terminal STOP** (`stop_kind: branch-live-in-other-worktree`), not a switch: read that worktree's path from `git worktree list --porcelain`, set the workpad Blocked, and return a STOP record — `"$WORKPAD" update $ISSUE_NUMBER --status Blocked --reflection-kind blocked --reflection "resume pre-check: branch $HEAD_REF is checked out in another linked worktree at <path>; refusing to switch into it because this agent shares the orchestrator's checkout and cannot move its cwd — resolve locally (remove or finish that worktree) and re-run"`. Make **no** history mutation; the orchestrator emits the 👎 reaction and stops.
 - **`LANDED` is `no` for any other reason** (including an empty `HEAD_REF`) — record it and set the workpad Blocked, then return a STOP record: `"$WORKPAD" update $ISSUE_NUMBER --status Blocked --reflection-kind blocked --reflection "resume pre-check: PR #<n> exists on branch $HEAD_REF but the checkout did not land ($CO_ERR); refusing to fall through to branch creation, which would duplicate that PR and abandon its commits"`. Make **no** history mutation. The orchestrator emits the 👎 reaction and stops.
 
 **When there is no workpad `Branch` line and no open PR for the issue** — `PR_JSON` is the literal `[]`, meaning the queries *ran* and found nothing — this pre-check adopts nothing: record the **Queried cleanly, none found** note and fall through to the Signals.
@@ -231,6 +231,7 @@ On a local runner that refuses the direct helper path, use `python3 <resolved he
 - `AMBIGUOUS <payload-file>` exit 2 → the ahead history could not be validated as this run's own and needs a human decision. **Stop — make no history mutation.** Set the workpad Blocked with a `blocked` reflection naming the verdict, the payload-file path, and the remedy (confirm the ahead commits are the run's own and re-run, or start a clean branch), and return a STOP record.
 - `DECISION_BLOCKED <payload-file>` exit 2 → the branch carries ahead history under unverified/hostile provenance, names a divergent branch that does not exist, or is divergent-without-verdict. Take the **same terminal Blocked STOP** (no history mutation), naming the divergent/forged-provenance cause and the payload file.
 - `UNAVAILABLE <reason>` exit 3 → the ahead count, base ref, or existence probe could not be established. Take the same terminal Blocked STOP, naming the unestablished measurement and the remedy. **Any exit code that is not 0 is a non-clean measurement — never proceed on a non-zero exit.**
+- **The invocation produced no verdict at all** — a tier refusal (a silent cloud matcher denial reports nothing and yields no exit code; a local classifier denial or rc 127), or any output whose leading token is not one of the tokens above — is an *unestablished* classification, never a clean one. Take the **same terminal Blocked STOP** (`stop_kind: verdict-b-unavailable`, no history mutation), naming the refusal/no-verdict cause and the remedy (grant `preflight.py` on this tier and re-run). Never let a refused `branch-state` call fall through to proceed.
 
 The clean path is a Progress `--note`; the stop paths make **no history mutation**. **Cloud-emission discipline:** the state file is written with the Write tool into `.prflow/tmp/**` and the helper is invoked as the leading token — never behind a `VAR=value` prefix, a `bash <path>` wrapper, or a `>`-redirect.
 
@@ -254,6 +255,8 @@ git checkout -b "$BRANCH" "origin/$BASE"
 "$WORKPAD" update $ISSUE_NUMBER --branch "$(git branch --show-current)"
 ```
 
+**A create fence that fails is a terminal STOP — never return proceed from an incomplete create path.** Each `exit 1` in the creation fence above aborts only that one Bash tool call, not the run: because you are a dispatched subagent sharing the orchestrator's checkout, a failed `git fetch origin`, a failed `branch-for-issue.py`, or an empty branch name would otherwise leave you on the base branch and let you return `outcome: proceed`, after which the orchestrator advances to the checkpoint/push on a branch never created for this issue. So if any create fence fails (the base fetch, `branch-for-issue.py`, or an empty branch name), set the workpad Blocked with a `blocked` reflection naming the failed step — `"$WORKPAD" update $ISSUE_NUMBER --status Blocked --reflection-kind blocked --reflection "feature-branch creation failed at <fetch|branch-for-issue.py|empty-branch-name>; no branch was created for this issue — refusing to proceed on the base branch"` — make **no** history mutation, and return a STOP record (`stop_kind: feature-branch-create-failed`, arm `fresh-create`). **Never return proceed from a create path that did not complete `git checkout -b`.**
+
 ## The returned record (return this as your final message)
 
 Return a single fenced block the orchestrator parses. Carry METHOD as well as conclusion — a bare verdict is not sufficient:
@@ -261,8 +264,8 @@ Return a single fenced block the orchestrator parses. Carry METHOD as well as co
 ```
 BRANCH-SETUP RECORD
 outcome: <proceed | stop>
-stop_kind: <n/a | resume-precheck-checkout-did-not-land | verdict-b-ambiguous | verdict-b-decision-blocked | verdict-b-unavailable>
-arm: <pr-adopted | landed-resume | harness-worktree-switch | fresh-create>
+stop_kind: <n/a | resume-precheck-checkout-did-not-land | branch-live-in-other-worktree | feature-branch-create-failed | verdict-b-ambiguous | verdict-b-decision-blocked | verdict-b-unavailable>
+arm: <landed-resume | harness-worktree-switch | fresh-create>
 branch: <the resulting branch name the orchestrator continues on>
 evaluated: <one line naming which of resume-precheck / Signals / Verdict-B were actually evaluated>
 freshness: <fresh | unverified | behind-<n> | n/a>
