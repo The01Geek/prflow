@@ -1,6 +1,0 @@
----
-bump: patch
-type: Fixed
----
-
-- **Retired the test-only `cloud-writer-manifest` mechanical-row seam that `regenerate-artifacts.py`'s test suite re-injected via `DEVFLOW_RA_TEST_MECHANICAL_ROW`.** Issue #1445 (PR #1571) moved the cloud-writer manifest to being written on `main` alone, but kept this seam so `run_row`'s retained mechanical-kind machinery still had a row to exercise. The seam's `preflight_argv` ran `python3 lib/test/cloud_writer_contract.py verify` against the real working tree, so any branch that legitimately edits a file inside the manifest closure (`skills/**`, `agents/**`, …) made the injected row report drift — cascading into unrelated preflight assertions across `lib/test/modules/regenerate-artifacts.sh` and blocking the required `lib + python tests` check independently of whether the branch regenerated or left the manifest alone. Removed the seam and every test that depended on it (`lib/test/regenerate-artifacts.py`, `lib/test/modules/regenerate-artifacts.sh`, `lib/test/test_python_scripts.py`), leaving the retained `mechanical` machinery (`run_row`'s mechanical arm, `_mechanical_outcome`, `_validate_registry`'s single-write check) in place with no production or test row to exercise it. Follow-up to issue #1445 / PR #1571.
