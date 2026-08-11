@@ -38,11 +38,13 @@ rests on specific entry-gate text in `skills/implement/SKILL.md`, quoted here.
 
 ### Finding 1 — the phase files are loaded one per phase entry, not all together
 
-`skills/implement/SKILL.md` carries a separate entry gate for each of the four phases.
-Each reads, verbatim (Phase N, `<name>`):
+`skills/implement/SKILL.md` states the phase entry-gate rule once, in its preamble, and
+routes each of the four phases from that single statement. It reads, verbatim:
 
-> **Entry-gate (mandatory, on every entry):** before any Phase N action, `Read`
-> `<skill-dir>/phases/phase-N-<name>.md` and follow it exactly …
+> At the start of **every** phase, before taking any action in it, `Read` that phase's
+> reference file under `<skill-dir>/phases/` — Phase 1 → `phase-1-setup.md`, Phase 2 →
+> `phase-2-implement.md`, Phase 3 → `phase-3-review.md`, Phase 4 → `phase-4-documentation.md`
+> — and follow it exactly …
 
 A run enters one phase at a time and reads that one phase file when it does. It never
 holds all four at once. So the highest phase-file cost at any single phase entry is the
@@ -76,9 +78,10 @@ sum of ~402 KiB — the sum being the figure the framing above gets wrong.
 
 ### Finding 2 — the re-read on every re-entry and after every nested-skill return is the multiplier worth measuring
 
-The same per-phase entry gate continues, verbatim:
+The same single entry-gate statement continues, verbatim:
 
-> … re-read it each time you (re-)enter this phase, never relying on an earlier read.
+> This read is required **on every entry** — including a resumed or re-entrant run that
+> picks up at a later phase — never relying on a read from an earlier phase or session.
 
 and `skills/implement/SKILL.md`'s **Mid-phase re-anchor after a Skill-tool return**
 rule adds, verbatim:
