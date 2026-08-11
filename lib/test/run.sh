@@ -5584,7 +5584,11 @@ rm -f "$IPS_CFG"
 # The retained Phase 4.3 boundaries cover the config read and clean-tree backstop;
 # detailed publish-state prose is intentionally not pinned.
 assert_pin_unique "implement_pr_state: SKILL reads via config-get with the ready_for_review default" 'config-get.sh .prflow_implement.implement_pr_state ready_for_review' "$IMPL_SKILL"
-assert_pin_unique "implement_pr_state: SKILL keeps the clean-tree backstop above the gate" 'git status --porcelain' "$IMPL_SKILL"
+# Scoped to phase-4-documentation.md: the clean-tree backstop above the publish gate lives
+# there. Phase 3.4's commit-before-dispatch step (issue #1575) legitimately adds a second
+# `git status --porcelain` elsewhere in the bundle, so the backstop's uniqueness is asserted
+# in its own phase file rather than bundle-wide.
+assert_pin_unique "implement_pr_state: SKILL keeps the clean-tree backstop above the gate" 'git status --porcelain' "$IMPL_PHASES_DIR/phase-4-documentation.md"
 
 # Executable publish-decision guard — logic-equivalent to the SKILL's single literal-`draft`
 # comparison (semantically mirrors `[ "$PR_STATE" = "draft" ]`; `$1` stands in for
