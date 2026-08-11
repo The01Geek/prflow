@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1591",
+  "generated_at": "2026-08-11T17:35:16Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.33",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 6.008218249999998,
+    "tokens": {
+      "input_tokens": 1501,
+      "output_tokens": 17441,
+      "cache_read_input_tokens": 3221850,
+      "cache_creation_input_tokens": 194461,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 1525,
+        "outputTokens": 38207,
+        "cacheReadInputTokens": 3853304,
+        "cacheCreationInputTokens": 382326,
+        "webSearchRequests": 0,
+        "costUSD": 6.008218249999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 26,
+    "duration_ms": 489986
+  },
+  "permission_denials": {
+    "count": 3,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"SKILL_DIR=${CLAUDE_SKILL_DIR:-unset}\"; ls /home/runner/work/prflow/prflow/skills/review/phases/ 2>&1",
+      "cd /home/runner/work/prflow/prflow; mkdir -p .prflow/tmp/review/pr-1591/local-run; gh pr diff 1591 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1591/local-run/diff.patch | grep '^diff --git' ; echo \"---STAT---\"; gh pr diff 1591 --patch | diffstat 2>/dev/null || echo \"(no diffstat)\"",
+      "cd /home/runner/work/prflow/prflow; mkdir -p .prflow/tmp/review/pr-1591/local-run; gh pr diff 1591 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1591/local-run/diff.patch | grep '^diff --git'; echo \"---LINES---\"; wc -l .prflow/tmp/review/pr-1591/local-run/diff.patch"
+    ],
+    "total": 3,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
