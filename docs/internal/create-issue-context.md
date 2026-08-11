@@ -14,8 +14,16 @@ what a long create-issue run actually pays:
   (`SKILL.md` + the `references/*.md`). It is fixed at author time and equals runtime
   context only for a single, no-repeat, no-compaction pass — which a multi-round
   create-issue run is not. The word-budget apparatus that measured this quantity was
-  retired by issue #766; this document does **not** revive it, and the instrument
-  described here adds no gate of its own.
+  retired by issue #766; this document does **not** revive it and adds **no** new
+  static word-count or prompt-length gate of its own. **The two file populations in that
+  count reach a session by different loaders** — the `references/*.md` by the `Read` tool,
+  whose observed **25,000-token per-read cap truncates legibly** and which
+  `references/step-3-6-audit.md` already exceeds; `SKILL.md` by the Skill tool or
+  slash-command expansion, for which **no initial-load ceiling was found** at or below
+  83,427 file bytes (2026-08-11, one tier). So any figure summing the two — such as the
+  302,500 B → 288,788 B delta recorded under issue #1372 below — is a single static-size
+  quantity and is **not** a statement about either loading mechanism's headroom. The
+  delivery record is [`docs/internal/skill-body-load-delivery.md`](skill-body-load-delivery.md).
 
   **Static shipped size IS gated, but by a reader-capability ceiling rather than an
   authoring budget (issue #1595).** `lib/test/lint-reference-size.py` fails the suite when a
