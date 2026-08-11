@@ -120,7 +120,7 @@ SAFETY_FACTOR = 0.95
 #: two of the three have since been trimmed. Recording tokens without the bytes they were
 #: paired with is what invites the reader to divide a stale token count by a current file
 #: size — a pairing that reports a density no measurement produced. `--self-check` proves
-#: the floor is really this set's minimum, so the pairing cannot silently drift.
+#: the floor does not EXCEED this set's minimum; a lower constant only tightens the ceiling.
 MEASURED_DENSITIES = (
     ("skills/create-issue/references/step-3-6-audit.md", 81869, 28356),
     ("skills/implement/phases/phase-1-setup.md", 68901, 26496),
@@ -349,14 +349,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--self-check", action="store_true",
-        help="prove the density floor is the minimum of the recorded measurements, and exit",
+        help="prove the density floor does not exceed the recorded measurements' minimum, and exit",
     )
     args = parser.parse_args(argv)
 
     if args.self_check:
-        # Without this the floor is a transcribed number: a reader who re-derives it from
-        # the wrong byte counts concludes the ceiling is miscalibrated and "corrects" a
-        # constant that was right, which is a real review round this repo has already spent.
+        # Without this the floor is a transcribed number, and a reader who re-derives it
+        # from the wrong byte counts "corrects" a constant that was right.
         densities = []
         for relative, measured_bytes, tokens in MEASURED_DENSITIES:
             if tokens <= 0:
@@ -381,8 +380,9 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
             return 1
-        print(f"{_TOOL}: self-check: floor {BYTES_PER_TOKEN_FLOOR} is the minimum of "
-              f"{len(densities)} recorded measurement(s); ceiling {MAX_BYTES} bytes")
+        print(f"{_TOOL}: self-check: floor {BYTES_PER_TOKEN_FLOOR} does not exceed the "
+              f"minimum recorded density {floor:.3f} over {len(densities)} measurement(s); "
+              f"ceiling {MAX_BYTES} bytes")
         return 0
 
     if args.print_threshold:
@@ -487,6 +487,19 @@ def main(argv: list[str] | None = None) -> int:
                     "markers if it was meant to be gated"
                 )
 
+    if whole_tree:
+        for relative in sorted(recorded):
+            if relative in exemptions:
+                continue
+            entry = covered.get(relative)
+            if entry is not None and entry[2] <= MAX_BYTES:
+                findings.append(
+                    f"{relative}: its recorded_set row outlived its exemption — the file is "
+                    f"{entry[2]} bytes, at or under the {MAX_BYTES}-byte ceiling. Remove the "
+                    f"row from {exemption_path} too; a row left standing re-authorizes a "
+                    "future exemption for this file with no visible roster edit"
+                )
+
     for relative in sorted(covered):
         _kind, _detail, size = covered[relative]
         if size <= MAX_BYTES:
@@ -507,13 +520,11 @@ def main(argv: list[str] | None = None) -> int:
 
     for finding in findings:
         print(finding)
-    print(f"{_TOOL}: audited {len(covered)} of {len(candidates)} files")
-    if recorded and not exemptions and whole_tree:
-        print(
-            f"{_TOOL}: note: the recorded set holds {len(recorded)} file(s) and no "
-            "exemption is live",
-            file=sys.stderr,
-        )
+    scope = "whole-tree" if whole_tree else (
+        "narrowed (--files-from): the family-completeness and exemption-in-population "
+        "guards were NOT applied"
+    )
+    print(f"{_TOOL}: audited {len(covered)} of {len(candidates)} files [{scope}]")
     return 1 if findings else 0
 
 

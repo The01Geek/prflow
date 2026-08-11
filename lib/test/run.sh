@@ -51507,7 +51507,7 @@ RSZ_LIVE="$(rsz_ex live '{"schema_version": 1,
  "recorded_set": [{"path": "skills/fx/references/one-over.md", "recorded_bytes": 61751}],
  "exemptions": [{"path": "skills/fx/references/one-over.md", "expires_when": "at or under the ceiling"}]}')"
 assert_eq "#1595 a live exemption suppresses its own file's violation" \
-  "rc=0|lint-reference-size: audited 5 of 7 files" "$(rsz_run "$RSZ_FX" "$RSZ_LIVE")"
+  "rc=0|lint-reference-size: audited 5 of 7 files [whole-tree]" "$(rsz_run "$RSZ_FX" "$RSZ_LIVE")"
 # The expiring property is the entire difference between this design and a permanent
 # allowance: an exemption whose condition is met must turn the suite RED.
 RSZ_EXPIRED="$(rsz_ex expired '{"schema_version": 1,
@@ -51515,6 +51515,18 @@ RSZ_EXPIRED="$(rsz_ex expired '{"schema_version": 1,
  "exemptions": [{"path": "skills/fx/references/at-threshold.md", "expires_when": "at or under the ceiling"}]}')"
 assert_eq "#1595 an exemption whose condition is met fails the suite" "yes" \
   "$(rsz_has "at-threshold.md: exemption expired" "$(rsz_run "$RSZ_FX" "$RSZ_EXPIRED")")"
+RSZ_ORPHAN="$(rsz_ex orphan '{"schema_version": 1,
+ "recorded_set": [{"path": "skills/fx/references/at-threshold.md", "recorded_bytes": 61800}],
+ "exemptions": []}')"
+assert_eq "#1595 a recorded_set row that outlived its exemption fails the suite" "yes" \
+  "$(rsz_has "at-threshold.md: its recorded_set row outlived its exemption" "$(rsz_run "$RSZ_FX" "$RSZ_ORPHAN")")"
+# A roster row whose file is still over the ceiling is legitimate mid-trim state, so the
+# finding fires on the outlived row only, never on every unexempted roster row.
+RSZ_ORPHAN_OK="$(rsz_ex orphan-ok '{"schema_version": 1,
+ "recorded_set": [{"path": "skills/fx/references/one-over.md", "recorded_bytes": 61751}],
+ "exemptions": []}')"
+assert_eq "#1595 a roster row whose file is still over the ceiling is not reported as outlived" "no" \
+  "$(rsz_has "outlived its exemption" "$(rsz_run "$RSZ_FX" "$RSZ_ORPHAN_OK")")"
 RSZ_OUTSIDE="$(rsz_ex outside '{"schema_version": 1,
  "recorded_set": [{"path": "skills/fx/references/one-over.md", "recorded_bytes": 61751}],
  "exemptions": [{"path": "skills/fx/references/gated-small.md", "expires_when": "x"}]}')"
@@ -51569,7 +51581,7 @@ assert_eq "#1595 a whole-tree audit selecting nothing for the skill-root shape f
 RSZ_NARROW="$(probe_tmp '#1595 narrowed population list')"
 printf '%s\n' skills/fx/references/gated-small.md > "$RSZ_NARROW"
 assert_eq "#1595 a narrowed population is not required to see every family" \
-  "rc=0|lint-reference-size: audited 1 of 1 files" \
+  "rc=0|lint-reference-size: audited 1 of 1 files [narrowed (--files-from): the family-completeness and exemption-in-population guards were NOT applied]" \
   "$(rsz_run "$RSZ_FX" "$RSZ_EMPTY" --files-from "$RSZ_NARROW")"
 # Membership is decided by READING each file, so an unreadable one is a file whose
 # membership was never established — it is named, never dropped into a clean pass.
@@ -51594,7 +51606,7 @@ assert_eq "#1595 the derivation states the constant is the floor of the measured
 # The floor is the one constant a reader can re-derive wrongly (pairing a recorded token
 # count with a current file size reports a density no measurement produced, and "corrects"
 # a constant that was right). --self-check proves it is the minimum of the recorded pairs.
-assert_eq "#1595 the density floor is the minimum of the recorded measurements" "rc=0" \
+assert_eq "#1595 the density floor does not exceed the recorded measurements minimum" "rc=0" \
   "$(RSZ_SC="$(python3 "$RSZ_LINT" --self-check 2>&1)"; RSZ_SC_RC=$?
      [ "$RSZ_SC_RC" -eq 0 ] && printf 'rc=0' || printf 'rc=%s | %s' "$RSZ_SC_RC" "$RSZ_SC")"
 assert_eq "#1595 the self-check names each measurement's own byte count beside its tokens" "yes" \
