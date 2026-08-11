@@ -4341,24 +4341,31 @@ assert_eq "implement split: no SKILL.md under phases/ (no nested auto-discovered
 P1_FILE="$IMPL_PHASES_DIR/phase-1-setup.md"
 P2_FILE="$IMPL_PHASES_DIR/phase-2-implement.md"
 # P4_FILE already defined above (phase-4-documentation.md).
+# #1582 moved §1.4's resume-precheck / Signals / creation / Verdict-B procedure out of
+# phase-1-setup.md into the dispatched agents/branch-setup.md (mirroring #1576's §1.6 move).
+# Pins that assert the MOVED §1.4 branch-setup PROSE now target that agent file; the §1.6
+# fresh-tree coupled mirrors (T4 below) and the checkpoint/§1.5 sites STAY in phase-1-setup.md.
+P1582_BS="$LIB/../agents/branch-setup.md"
 
-# T1 — freshness guard on the USE_CURRENT (adopted-branch) arm.
+# T1 — freshness guard on the USE_CURRENT (adopted-branch) arm — now in branch-setup.md.
 # The fetch literal carries the FORCED refspec since #779 (an unforced fetch can leave
 # refs/remotes/origin/$BASE unadvanced, so the rev-list below reads a false behind-by 0); the
 # forced-refspec property itself is pinned in the #779 block below.
 # behind-by derivation (guard-class 2: git produces the count, bash builtins compare it).
-assert_pin_unique "429/T1: §1.4 derives behind-by via git rev-list --count HEAD..origin/\$BASE" \
-  'git rev-list --count "HEAD..origin/$BASE"' "$P1_FILE"
+assert_pin_unique "429/T1: branch-setup derives behind-by via git rev-list --count HEAD..origin/\$BASE" \
+  'git rev-list --count "HEAD..origin/$BASE"' "$P1582_BS"
 # T2 — degraded arm: a fetch failure records freshness-unverified and CONTINUES (never exit 1).
 # AC2 "never hard-blocks adoption" — the fetch-failure arm must CONTINUE, not exit 1 (the
-# new-branch arm's exit-1 contract is separately pinned and unchanged). T2 above pins the
+# create-arm's exit-1 contract is separately pinned and unchanged). T2 above pins the
 # else-arm reflection sentence, but a regression that ADDED an `exit 1` to the adopted arm
 # would keep that sentence and still pass — so pin the *continues* half directly: assert the
 # USE_CURRENT freshness block carries no `exit` STATEMENT (a line-leading `exit`), while its
 # comments deliberately MENTION "exit 1" in prose (those start with `#`, so the anchored
-# pattern never matches them). Adding a real `exit 1` to the else arm flips this RED.
-assert_eq "429/T2: §1.4 adopted-branch freshness block never hard-blocks (no line-leading exit statement)" "0" \
-  "$(awk '/Freshness guard \(adopted-branch arm\)/,/Then jump straight to filling the workpad/' "$P1_FILE" | grep -cE '^[[:space:]]*exit ' || true)"
+# pattern never matches them). Adding a real `exit 1` to the else arm flips this RED. The awk
+# range ends at the "## Verdict B" heading that follows the Signals/freshness block in
+# branch-setup.md (the create fence with its exit-1 sits AFTER Verdict B, outside the range).
+assert_eq "429/T2: branch-setup adopted-branch freshness block never hard-blocks (no line-leading exit statement)" "0" \
+  "$(awk '/Freshness guard \(adopted-branch arm\)/,/## Verdict B/' "$P1582_BS" | grep -cE '^[[:space:]]*exit ' || true)"
 
 # T4 — cross-pass coherence rule, BOTH coupled mirror sites.
 # MERGED + non-ancestor arm (the read-only merge-state + ancestry check), both sites.
@@ -4558,14 +4565,14 @@ assert_pin_unique "#362: the Outcome-reaction removal targets the exact path the
 # The assertion below checks both `gh pr list` calls retain their same-statement
 # `|| PR_JSON=''` handler, which distinguishes a failed query from a clean empty one.
 assert_eq "#362: both resume-pre-check gh queries mark an unresolvable result distinctly (same-statement handler)" \
-  "2" "$(pin_count "|| PR_JSON=''; }" "$P362_P1")"
+  "2" "$(pin_count "|| PR_JSON=''; }" "$P1582_BS")"
 # Both queries must request `closingIssuesReferences`, so this remaining count guard keeps
 # the selector's required predicate input available. Issue #780 added `isCrossRepository` to
 # the same two `--json` lists — §1.4.0.5's open-PR-linkage provenance source requires a
 # same-repo-headed PR and fails CLOSED on an ungathered field, so a query that stops fetching
 # it silently costs every landed resume its classification. Same guarantee, one more field.
 assert_eq "#362/#780: both resume-pre-check queries fetch the predicate/provenance inputs they read" \
-  "2" "$(pin_count ',createdAt,closingIssuesReferences,isCrossRepository)' "$P362_P1")"
+  "2" "$(pin_count ',createdAt,closingIssuesReferences,isCrossRepository)' "$P1582_BS")"
 
 # (6) The two vendored superpowers skills stay untouched by this change (AC).
 assert_eq "#362: the vendored receiving-code-review skill is still present and unvendored-from" "yes" \
@@ -4882,22 +4889,22 @@ done
 # BASE before `gh pr create` (issue #224). So these two pins are scoped to the
 # phase-1-setup.md file (where Phase 1.4 lives) rather than the whole bundle, keeping
 # them unique-per-file; the phase-3 re-derivation has its own pins further below.
-assert_pin_unique "base_branch read: Phase 1.4 reads via config-get with the main default" 'config-get.sh .base_branch main' "$IMPL_PHASES_DIR/phase-1-setup.md"
-assert_pin_unique "base_branch read: Phase 1.4 guards the empty read" '[ -n "$BASE" ]' "$IMPL_PHASES_DIR/phase-1-setup.md"
-# Scoped to phase-1-setup.md (Phase 1.4's fetches): issue #284 added a SECOND
-# `git fetch origin "$BASE"` in phase-4-documentation.md's Stage-2 diff-gate retry, so a
-# bundle-wide unique pin double-matches — the Phase 1.4 fetches live in phase-1-setup.md.
-# Issue #429 added the adopted-branch (USE_CURRENT) arm's freshness fetch, so phase-1-setup.md
-# now carries TWO `git fetch origin "$BASE"` sites (the new-branch create arm AND the adopted
-# arm), and the pin asserts BOTH are present rather than a single unique one — both arms fetch
-# the base, so no adopted run reads a stale fork point (the #325 guard). Issue #779 gave both
-# sites the FORCED, explicitly-destinationed refspec the checkpoint helper uses, so the counted
-# literal is that form — the assertion's guarantee (both arms fetch the CONFIGURED base rather
-# than a hard-coded `main`) is unchanged, re-expressed against the new literal.
-assert_eq "base_branch read: SKILL fetches origin/\$BASE on both the create and adopted arms (not hard-coded main)" "2" \
-  "$(grep -cF 'git fetch origin "+refs/heads/$BASE:refs/remotes/origin/$BASE"' "$IMPL_PHASES_DIR/phase-1-setup.md" || true)"
-assert_pin_unique "#168 create-path: SKILL guards against an empty BRANCH name" \
-  '[ -n "$BRANCH" ]' "$IMPL_SKILL"
+assert_pin_unique "base_branch read: branch-setup reads via config-get with the main default" 'config-get.sh .base_branch main' "$P1582_BS"
+assert_pin_unique "base_branch read: branch-setup guards the empty read" '[ -n "$BASE" ]' "$P1582_BS"
+# Scoped to branch-setup.md (Phase 1.4's fetches, moved there by #1582): issue #284 added a
+# SECOND `git fetch origin "$BASE"` in phase-4-documentation.md's Stage-2 diff-gate retry, so a
+# bundle-wide unique pin double-matches — the Phase 1.4 fetches live in branch-setup.md now.
+# Issue #429 added the adopted-branch (USE_CURRENT) arm's freshness fetch, so branch-setup.md
+# carries TWO `git fetch origin "$BASE"` sites (the create arm AND the adopted arm), and the
+# pin asserts BOTH are present rather than a single unique one — both arms fetch the base, so
+# no adopted run reads a stale fork point (the #325 guard). Issue #779 gave both sites the
+# FORCED, explicitly-destinationed refspec the checkpoint helper uses, so the counted literal
+# is that form — the assertion's guarantee (both arms fetch the CONFIGURED base rather than a
+# hard-coded `main`) is unchanged, re-expressed against the new literal.
+assert_eq "base_branch read: branch-setup fetches origin/\$BASE on both the create and adopted arms (not hard-coded main)" "2" \
+  "$(grep -cF 'git fetch origin "+refs/heads/$BASE:refs/remotes/origin/$BASE"' "$P1582_BS" || true)"
+assert_pin_unique "#168 create-path: branch-setup guards against an empty BRANCH name" \
+  '[ -n "$BRANCH" ]' "$P1582_BS"
 
 # ── Issue #779: the Phase 1 base-update checkpoint is ARM-INDEPENDENT ──
 # The checkpoint used to be gated on `USE_CURRENT`, which the landed-resume arm never binds
@@ -4912,21 +4919,19 @@ assert_pin_unique "#168 create-path: SKILL guards against an empty BRANCH name" 
 # The §1.4.1 de-gating sentence is the diff's core relocation claim; pin it explicitly rather
 # than relying on the positional assert below catching a re-gated fence as a side effect.
 
-# (b) Position: the invocation is the LAST thing §1.4 does — after the create fence, after the
-# `Branch` line fill, and before §1.5. A positional assert_eq (not a pin helper), so a
-# relocation back under the freshness/adopt block flips it without needing a text mutation.
-# One awk pass over the file resolves all four first-hit line numbers (four grep|head|cut
-# pipelines would read phase-1-setup.md four times and fork twelve processes for the same
-# answer). Each anchor records only its FIRST match, mirroring the `head -1` idiom.
+# (b) Position: the invocation is the LAST thing §1.4 does — after the branch-setup dispatch
+# (which #1582 moved the create fence and the `Branch` line fill into) and before §1.5. A
+# positional assert_eq (not a pin helper), so a relocation flips it without a text mutation.
+# One awk pass over the file resolves all three first-hit line numbers. Each anchor records
+# only its FIRST match, mirroring the `head -1` idiom.
 eval "$(awk '
+  d==0 && index($0, "#### Dispatch the branch-setup agent") { print "U779_DISP_LN=" NR; d=1 }
   i==0 && index($0, "/../../scripts/update-branch-checkpoint.sh") { print "U779_INV_LN=" NR; i=1 }
-  c==0 && index($0, "git checkout -b \"$BRANCH\" \"origin/$BASE\"") { print "U779_CO_LN=" NR; c=1 }
-  b==0 && index($0, "--branch \"$(git branch --show-current)\"") { print "U779_BR_LN=" NR; b=1 }
   p==0 && index($0, "### 1.5 Push Branch") { print "U779_15_LN=" NR; p=1 }
 ' "$P1_FILE")"
-assert_eq "#779: the checkpoint invocation is the last §1.4 step (after the create fence and the Branch fill, before §1.5)" "yes" \
-  "$([ -n "$U779_INV_LN" ] && [ -n "$U779_CO_LN" ] && [ -n "$U779_BR_LN" ] && [ -n "$U779_15_LN" ] \
-     && [ "$U779_INV_LN" -gt "$U779_CO_LN" ] && [ "$U779_INV_LN" -gt "$U779_BR_LN" ] \
+assert_eq "#779: the checkpoint invocation is the last §1.4 step (after the branch-setup dispatch, before §1.5)" "yes" \
+  "$([ -n "$U779_DISP_LN" ] && [ -n "$U779_INV_LN" ] && [ -n "$U779_15_LN" ] \
+     && [ "$U779_INV_LN" -gt "$U779_DISP_LN" ] \
      && [ "$U779_INV_LN" -lt "$U779_15_LN" ] && echo yes || echo no)"
 
 # (c) The count above preserves the forced refspec at both Phase 1.4 fetch sites.
@@ -5386,10 +5391,12 @@ assert_eq "#493 helper: empty stdin fails closed — non-zero exit (Important #1
 assert_eq "#493 helper: missing URL arg fails closed — non-zero exit (Important #1)" \
   "2" \
   "$(printf 'Resolves #1\n[View run](x)' | python3 "$P493_HELPER" >/dev/null 2>&1; echo $?)"
+# #1582 moved the §1.4 resume pre-check (incl. this cloud-only run-link refresh) into
+# agents/branch-setup.md, so these two prose pins target that file now.
 assert_pin_unique "#493 resume: cloud-only guard skips the refresh on a local-tier resume (AC4)" \
-  '[ -n "${GITHUB_RUN_ID:-}" ]; then' "$P1_SETUP"
+  '[ -n "${GITHUB_RUN_ID:-}" ]; then' "$P1582_BS"
 assert_pin_unique "#493 resume: best-effort warn on PR-body read failure (distinct from no-line; AC6)" \
-  'could not read PR' "$P1_SETUP"
+  'could not read PR' "$P1582_BS"
 
 # Issue #224: Phase 3.1 (phases/phase-3-review.md) opens the draft PR against the
 # CONFIGURED base_branch, not the GitHub default branch. Because each phase's bash
@@ -5494,8 +5501,8 @@ assert_eq "base_branch guard: hard-failure read (rc≠0, empty) → main" "main"
 # (the main repo's .git) differs from its --git-dir (.git/worktrees/<name>); in the
 # main working tree they are equal. The behavioral matrix below covers the resulting
 # reuse-versus-create decision, including base and detached-HEAD guards.
-assert_eq "#168 worktree detect: SKILL names the linked-worktree signal" "yes" \
-  "$(grep -qF 'linked worktree' "$IMPL_SKILL" && echo yes || echo no)"  # raw-guard-ok: non-unique: token appears in both prose and code (4 occurrences)
+assert_eq "#168 worktree detect: branch-setup names the linked-worktree signal" "yes" \
+  "$(grep -qF 'linked worktree' "$P1582_BS" && echo yes || echo no)"  # raw-guard-ok: non-unique: token appears in both prose and code in branch-setup.md (#1582)
 
 # Behavioral coverage: mirror Phase 1.4's reuse-vs-create decision and exercise the
 # whole matrix. Keep behaviorally aligned with the SKILL block (it is a restructured
@@ -10203,13 +10210,18 @@ assert_eq "#576 shallow-probe: every established/unestablished probe shape maps 
 rm -f "$BS576_OUT"
 
 # ── issue #576: Phase 1 §1.4 integration — ordering + no-history-mutation pins ──
-BS576_PHASE="$IMPL_PHASES_DIR/phase-1-setup.md"
-# Ordering (positional): the branch-state invocation precedes the §1.4.1 checkpoint
-# heading, so a stop verdict aborts before any history-mutating step (AC2).
-BS576_INV_LN=$(grep -nF 'scripts/preflight.py branch-state --state-file .prflow/tmp/branch-state-$ISSUE_NUMBER.json' "$BS576_PHASE" | head -1 | cut -d: -f1)
-BS576_141_LN=$(grep -nF '#### 1.4.1 Base-branch update checkpoint 1' "$BS576_PHASE" | head -1 | cut -d: -f1)
-assert_eq "#576 AC2: the branch-state classification precedes the §1.4.1 checkpoint (before any history mutation)" "yes" \
-  "$([ -n "$BS576_INV_LN" ] && [ -n "$BS576_141_LN" ] && [ "$BS576_INV_LN" -lt "$BS576_141_LN" ] && echo yes || echo no)"
+# #1582 moved the Verdict-B (branch-state) classification and the feature-branch creation
+# into agents/branch-setup.md. Within that file the classification must precede the
+# `git checkout -b` create fence, so a stop verdict aborts before the branch is created and
+# before the agent returns to the orchestrator's §1.4.1 checkpoint (whose base merge/push are
+# the history-mutating steps AC2 guards). The invocation-precedes-checkpoint temporal ordering
+# is preserved by dispatch sequencing: the orchestrator runs the checkpoint only after the
+# agent returns `proceed`.
+BS576_PHASE="$P1582_BS"
+BS576_INV_LN=$(grep -nF 'preflight.py branch-state --state-file .prflow/tmp/branch-state-$ISSUE_NUMBER.json' "$BS576_PHASE" | head -1 | cut -d: -f1)
+BS576_CO_LN=$(grep -nF 'git checkout -b "$BRANCH" "origin/$BASE"' "$BS576_PHASE" | head -1 | cut -d: -f1)
+assert_eq "#576 AC2: the branch-state classification precedes feature-branch creation (before any history mutation)" "yes" \
+  "$([ -n "$BS576_INV_LN" ] && [ -n "$BS576_CO_LN" ] && [ "$BS576_INV_LN" -lt "$BS576_CO_LN" ] && echo yes || echo no)"
 # ── issue #547 AC10: the §1.3.5 dependency gate precedes §1.4 branch work ──────
 # The gate must run before ANY §1.4 branch operation (resume-precheck checkout,
 # fetch, checkpoint merge, fresh-branch creation, push) on every entry path.
