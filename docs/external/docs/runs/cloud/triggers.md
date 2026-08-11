@@ -52,4 +52,4 @@ Implementation uses one dedicated workpad comment per issue. A later run reuses 
 
 Overlapping implementation requests on the same thread are deduplicated. The oldest visible active run proceeds. The duplicate posts a notice and does not start another agent job. The check fails open on a query error, so a rare duplicate is possible.
 
-Overlapping `/prflow:review` requests for the same pull-request commit are also deduplicated while a fresh live progress comment shows a review in flight. A new request after the pull-request head changes proceeds for the new commit.
+Overlapping `/prflow:review` requests for the same pull-request commit are also deduplicated while a fresh live progress comment shows a review in flight. A new request after the pull-request head changes proceeds for the new commit. That progress comment is the only in-flight signal, and an in-flight review does not publish it until its agent job begins, so a request arriving in the short window before it appears is not deduplicated and a rare duplicate review is possible.
