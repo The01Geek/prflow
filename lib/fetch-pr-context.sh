@@ -281,7 +281,8 @@ if [ $_CI_EXIT -ne 0 ] || [ -z "$_CI_RUNS_JSON" ]; then
 else
     # Never filter `.` instead of `-n`/`inputs` (--paginate concatenates one
     # object per page, so a per-input filter prints one length per page), and
-    # never default `.check_runs` (a malformed body must error into the guard).
+    # never adopt derive-review-preconditions.sh's `.check_runs // []` default
+    # here: a malformed body must error into the guard below, not count as 0.
     _CI_COUNT="$(echo "$_CI_RUNS_JSON" | "$DEVFLOW_JQ" -n '[inputs | .check_runs[] | select(.conclusion != null and .conclusion != "success" and .conclusion != "neutral" and .conclusion != "skipped" and .conclusion != "cancelled" and .conclusion != "stale")] | length' 2>/dev/null || true)"
     if [ -z "$_CI_COUNT" ] || ! [[ "$_CI_COUNT" =~ ^[0-9]+$ ]]; then
         CI_STATUS_UNKNOWN="true"

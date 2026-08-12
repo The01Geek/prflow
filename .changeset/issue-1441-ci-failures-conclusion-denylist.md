@@ -4,8 +4,8 @@ bump: patch
 
 Fix `ci_failures_during_pr`, the retrospective cheap gate's CI signal, which was wrong in both directions.
 
-`cancelled` and `stale` check-run conclusions no longer count as failures. Both mean the run was superseded before producing a verdict, and a new push cancels the in-flight run by design, so ordinary iteration was manufacturing "CI failures" and forcing LLM analysis on PRs that were never broken.
+A `cancelled` or `stale` check-run conclusion no longer counts as a failure. Each means the run was superseded before producing a verdict, and a new push cancels the in-flight run by design, so ordinary iteration was manufacturing "CI failures" and forcing LLM analysis on PRs that were never broken.
 
-The check-runs read is now paginated. The endpoint serves 30 check-runs per page, so a head with a larger CI matrix was silently truncated and the same field undercounted real failures. The filter merges across the concatenated per-page objects `gh api --paginate` emits before counting — adding the flag alone would have made every multi-page PR fail the numeric guard instead.
+The check-runs read is now paginated. The endpoint serves a bounded page of check-runs per request, so a head with a larger CI matrix was silently truncated and the same field undercounted real failures. The filter merges across the concatenated per-page objects `gh api --paginate` emits before counting — adding the flag alone would have made every multi-page PR fail the numeric guard instead.
 
-`failure`, `timed_out` and `action_required` still count, and the filter remains a denylist rather than a failure allowlist, so an unrecognised future conclusion counts as a failure instead of being read as success. The three existing fail-safe arms are unchanged.
+`failure`, `timed_out` and `action_required` still count, and the filter remains a denylist rather than a failure allowlist, so an unrecognised future conclusion counts as a failure instead of being read as success. The existing fail-safe arms are unchanged: a signal that cannot be read still reports unknown rather than clean.

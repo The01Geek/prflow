@@ -13535,8 +13535,8 @@ echo "fetch-pr-context.sh: ci_failures_during_pr semantics (issue #1441)"
 # filter would keep passing after the shipped one drifted.
 #
 # Do NOT re-route these through gh-stub.sh: its $SET is the filename prefix for
-# EVERY endpoint and six of its arms `cat` with no fallback, so each payload
-# shape would cost 7 fixture files instead of one heredoc.
+# EVERY endpoint and most of its arms `cat` with no fallback, so each payload
+# shape would cost a whole fixture set instead of one heredoc.
 F1441="$(mktemp -d)"
 cat > "$F1441/prview.json" <<'PV1441'
 {"number":1441,"headRefName":"claude/issue-1441-x","baseRefName":"main","headRefOid":"sha1441beef","mergeCommit":{"oid":"merge1441"},"mergedAt":"2026-05-08T16:31:00Z","createdAt":"2026-05-08T07:00:00Z","author":{"login":"example-bot"},"title":"t","body":"Closes #1441","additions":1,"deletions":0,"files":[{"path":"x.txt"}],"labels":[]}
