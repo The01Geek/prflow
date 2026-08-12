@@ -51931,6 +51931,91 @@ print("match" if live == over else "mismatch\n  live: %s\n  over: %s" % (sorted(
 RSZ_EXEMPT_SET
 )"
 
+# ── #1614 near-full advisory (lib/test/lint-reference-size.py --print-near-full) ──
+# The #1595 ceiling is strictly pass/fail: a file passes at 8 bytes of headroom and breaks
+# for the next author, with no signal in between. --print-near-full reports every covered
+# file whose headroom has fallen into the reserved near-full band (advisory only — it never
+# fails the suite and is never a skip), so an author is warned while a trim is still cheap.
+# These assertions drive that flag's executable boundary against real byte sizes.
+echo "#1614 near-full advisory: covered files nearing the reader-cap ceiling are reported before they overflow"
+RSZ_NF="$(git_sandbox '#1614 near-full fixture')"
+python3 - "$RSZ_NF" <<'RSZ_NF_BUILD'
+import subprocess, sys
+from pathlib import Path
+# LIMIT is the #1595 ceiling and NEAR the near-full band the lint derives
+# (int(25000 * 2.60) - 61750 = 3250); the fixture states the expected values it drives the
+# derived behavior against, exactly as the #1595 block states LIMIT.
+root, LIMIT, NEAR = Path(sys.argv[1]), 61750, 3250
+def gated_a(name, size):
+    rel = "skills/nf/references/" + name
+    start = "<!-- prflow:fixture-ref phase=1 file=%s start -->\n" % rel
+    end = "<!-- prflow:fixture-ref phase=1 file=%s end -->\n" % rel
+    base = len((start + end).encode())
+    p = root / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_bytes((start + "x" * (size - base - 1) + "\n" + end).encode())
+gated_a("at-ceiling.md", LIMIT)        # headroom 0    → near-full (most urgent)
+gated_a("near-100a.md", LIMIT - 100)   # headroom 100  → near-full (tie with b)
+gated_a("near-100b.md", LIMIT - 100)   # headroom 100  → near-full (tie; sorts after a)
+gated_a("band-edge.md", LIMIT - NEAR)  # headroom 3250 → near-full (band is inclusive)
+gated_a("just-clear.md", LIMIT - NEAR - 1)  # headroom 3251 → clear (just outside the band)
+gated_a("clear.md", LIMIT - 5000)      # headroom 5000 → clear
+gated_a("over.md", LIMIT + 1)          # over the ceiling → excluded from the advisory
+subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+RSZ_NF_BUILD
+RSZ_NF_OUT="$(python3 "$RSZ_LINT" --root "$RSZ_NF" --print-near-full 2>&1)"; RSZ_NF_RC=$?
+# One exact-equality assertion covers membership, per-file headroom, ascending order, and
+# the equal-headroom (near-100a/b) tie-break by path all at once — a single-element check
+# would exercise none of the ordering logic.
+RSZ_NF_EXPECTED="$(printf 'skills/nf/references/at-ceiling.md\t0\nskills/nf/references/near-100a.md\t100\nskills/nf/references/near-100b.md\t100\nskills/nf/references/band-edge.md\t3250')"
+assert_eq "#1614 the near-full report names each covered file in the band with its headroom, ordered by least room first" \
+  "$RSZ_NF_EXPECTED" "$RSZ_NF_OUT"
+assert_eq "#1614 the near-full report is advisory — it exits 0 with a near-full file present" "0" "$RSZ_NF_RC"
+assert_eq "#1614 a file just outside the band is not reported" "no" \
+  "$(rsz_has "just-clear.md" "$RSZ_NF_OUT")"
+assert_eq "#1614 a file comfortably clear of the ceiling is not reported" "no" \
+  "$(rsz_has "clear.md" "$RSZ_NF_OUT")"
+assert_eq "#1614 an over-ceiling file is excluded from the near-full advisory" "no" \
+  "$(rsz_has "over.md" "$RSZ_NF_OUT")"
+# AC2: on a tree whose covered files all clear the band, no report is emitted (empty output).
+RSZ_NF_LIST="$(probe_tmp '#1614 near-full narrowed list')"
+printf '%s\n' skills/nf/references/clear.md > "$RSZ_NF_LIST"
+RSZ_NF_NONE="$(python3 "$RSZ_LINT" --root "$RSZ_NF" --files-from "$RSZ_NF_LIST" --print-near-full 2>&1)"; RSZ_NF_NONE_RC=$?
+assert_eq "#1614 a tree with no near-full file emits no report" "" "$RSZ_NF_NONE"
+assert_eq "#1614 an empty near-full report still exits 0" "0" "$RSZ_NF_NONE_RC"
+# Positive control: the near-full addition did not soften the ceiling gate — an over-ceiling
+# file still fails a normal run. Narrowed to over.md so the failure is attributable to it
+# rather than to the fixture's absent marker families.
+printf '%s\n' skills/nf/references/over.md > "$RSZ_NF_LIST"
+RSZ_NF_OVER="$(rsz_run "$RSZ_NF" "$RSZ_EMPTY" --files-from "$RSZ_NF_LIST")"
+assert_eq "#1614 an over-ceiling file still fails the ceiling gate (near-full did not soften it)" "yes" \
+  "$(rsz_has "over.md: 61751 bytes exceeds the 61750-byte ceiling" "$RSZ_NF_OVER")"
+assert_eq "#1614 the over-ceiling positive control still exits non-zero" "rc=1" "${RSZ_NF_OVER%%|*}"
+case "$RSZ_NF_LIST" in ""|/dev/null) : ;; *) rm -f "$RSZ_NF_LIST" ;; esac
+# The band the report uses is DERIVED, and --print-threshold states the derivation, so the
+# fixture's expected NEAR (3250) is proved to match what the lint computes.
+assert_eq "#1614 the near-full band is derived from the reader cap and stated by --print-threshold" "yes" \
+  "$(rsz_has "near-full band 3250 bytes = reader cap in bytes 65000 minus the 61750-byte ceiling" "$RSZ_THRESH")"
+# Real-tree advisory (AC1): report the actual tree's near-full files as plain advisory lines
+# — never via skip(), never `printf '  NOTE '` (the shape the #456 meta-assertion reserves),
+# and never an assertion, so the pass/fail/skip tallies and exit status are identical whether
+# or not a near-full file is present. Guarded so an empty report emits nothing (AC2).
+RSZ_NF_REAL="$(python3 "$RSZ_LINT" --print-near-full 2>&1)"
+RSZ_NF_RENDER=""
+if [ -n "$RSZ_NF_REAL" ]; then
+  RSZ_NF_RENDER="$(printf '%s\n' "$RSZ_NF_REAL" | while IFS="$(printf '\t')" read -r _nf_path _nf_head; do
+    [ -n "$_nf_path" ] || continue
+    printf '  near-full  %s — %s bytes of headroom under the ceiling\n' "$_nf_path" "$_nf_head"
+  done)"
+  printf '%s\n' "#1614 near-full advisory (covered files nearing the reader-cap ceiling; trim while cheap):"
+  printf '%s\n' "$RSZ_NF_RENDER"
+fi
+# AC4: the rendered advisory never carries the reserved NOTE shape, so it is never mistaken
+# for a skip and the #456 meta-assertion stays green.
+assert_eq "#1614 the near-full advisory never emits the reserved NOTE shape" "no" \
+  "$(rsz_has "NOTE" "$RSZ_NF_RENDER")"
+
 # ────────────────────────────────────────────────────────────────────────────
 PASS=$(grep -c '^PASS$' "$RESULTS_FILE" || true)
 FAIL=$(grep -c '^FAIL$' "$RESULTS_FILE" || true)

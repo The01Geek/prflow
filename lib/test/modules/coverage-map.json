@@ -1224,6 +1224,10 @@
       "note": "",
       "owner": "unmodularized"
     },
+    "1614": {
+      "note": "the near-full advisory over lint-reference-size.py's --print-near-full: the derived near-full band stated by --print-threshold, the report's membership/headroom/ascending-order/equal-headroom-tie-break for files inside the band, the exclusion of files just outside the band and of over-ceiling files, the empty-report and exit-0 advisory contract, the positive control that an over-ceiling file still fails the ceiling gate, and the real-tree advisory that never emits the reserved NOTE shape",
+      "owner": "unmodularized"
+    },
     "167": {
       "note": "",
       "owner": "unmodularized"
