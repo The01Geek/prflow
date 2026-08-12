@@ -123,5 +123,74 @@
       "iter": 5,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.54",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 22.760350500000005,
+    "tokens": {
+      "input_tokens": 586,
+      "output_tokens": 58314,
+      "cache_read_input_tokens": 12491497,
+      "cache_creation_input_tokens": 295676,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 660,
+        "outputTokens": 103423,
+        "cacheReadInputTokens": 14701407,
+        "cacheCreationInputTokens": 722966,
+        "webSearchRequests": 0,
+        "costUSD": 15.566901,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 284,
+        "outputTokens": 37855,
+        "cacheReadInputTokens": 6138175,
+        "cacheCreationInputTokens": 1275552,
+        "webSearchRequests": 0,
+        "costUSD": 7.193449499999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 95,
+    "duration_ms": 1165957
+  },
+  "permission_denials": {
+    "count": 9,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"run_id=${GITHUB_RUN_ID:-EMPTY} attempt=${GITHUB_RUN_ATTEMPT:-EMPTY}\"; echo \"actions=${GITHUB_ACTIONS:-EMPTY}\"; git rev-parse HEAD; git branch --show-current 2>/dev/null || echo \"(detached)\"",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve \"1645\" --pr \"1647\" 2>.prflow/tmp/review/pr-1647/31609191629-1/acs.err ; echo \"acs-rc=$?\"",
+      "mkdir -p .prflow/tmp/review/pr-1647/31609191629-1/verdicts/iter-1 && echo ok; head -c 8 /dev/urandom | od -An -tx1 | tr -d ' \\n'; echo",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1647/31609191629-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1647/31609191629-1/verdicts/iter-1/VC-11-n1.json << 'EOF'\n{\"id\":\"VC-11\",\"verdict\":\"PASS\",\"evidence\":\"skills/create-issue/references/step-3-5-steelman.md:84 states 'This confirmation blocks the audit dispatch and nothing else. Issue creation stays reachable on every path the skill defines, including every degraded arm — the confirmation gate …[per-command-truncated]",
+      "mkdir -p \"/home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1647/31609191629-1/verdicts/iter-1\"\ncat > \"/home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1647/31609191629-1/verdicts/iter-1/VC-23-n1.json\" << 'EOF'\n{\"id\":\"VC-23\",\"verdict\":\"PASS\",\"evidence\":\"docs/internal/create-issue-context.md:5 opening sentence names only DEVFLOW_SYSTEM_OVERVIEW.md §11 as the pointer to this SSOT, with no mention of CLAUDE.md's create-issue bullet. The durable-copy table row at line 106 lists the Step 3.5 …[per-command-truncated]",
+      "rm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null; git status --porcelain -z > .prflow/tmp/review-dirty-tree-before; git hash-object .prflow/tmp/review-dirty-tree-before",
+      "for f in skills/create-issue/references/step-3-6-audit.md skills/create-issue/references/step-3-5-steelman.md skills/create-issue/references/revision-delta.md skills/create-issue/references/fallback-read-only-sandbox.md; do echo \"$f: $(wc -c < $f) bytes\"; done; echo \"---git base sizes---\"; for f in skills/create-issue/references/step-3-6-audit.md skills/create-issue/references/step-3-5-steelman.md; do echo \"$f base: $(git show 05d400c9390abe7635eb2778382fd7ad93e43cf5:$f | wc -c)\"; done",
+      "for f in step-3-6-audit.md step-3-5-steelman.md revision-delta.md fallback-read-only-sandbox.md; do p=\"skills/create-issue/references/$f\"; echo \"$p head=$(wc -c < $p) base=$(git show 05d400c9390abe7635eb2778382fd7ad93e43cf5:$p 2>/dev/null | wc -c)\"; done",
+      "body=$(gh api repos/The01Geek/prflow/issues/1645/comments --jq '.[] | select(.body|test(\"prflow:workpad|devflow:workpad\")) | .body' 2>&1); echo \"$body\" | grep -icE \"Verification evidence:\" | sed 's/^/verif-count=/'; echo \"$body\" | grep -cE \"prflow:checkpoint gha:|devflow:checkpoint gha:\" | sed 's/^/checkpoint-count=/'"
+    ],
+    "total": 9,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
