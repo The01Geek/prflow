@@ -1233,8 +1233,11 @@ done
 assert_eq "#1644 T1: the skill root carries zero routing-table rows (the table relocated)" "0" \
   "$(python3 - "$CI_SKILL" <<'PY1644'
 import sys
+# Same routing-row predicate as T6 above, so the two counters share one definition
+# of "a routing row" (T6 counts rows in the routing reference; this counts them in
+# the root, which must be zero after the relocation).
 print(sum(1 for l in open(sys.argv[1], encoding='utf-8')
-         if l.startswith('| ') and 'references/' in l and '` |' in l))
+         if l.startswith('| ') and 'references/' in l))
 PY1644
 )"
 _ci614_ondisk=0
