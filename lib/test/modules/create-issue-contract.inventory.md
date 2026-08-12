@@ -40,7 +40,7 @@ per-pin ad hoc:
 
 | Pin class | Post-split target | Why |
 | --- | --- | --- |
-| Content-survival — the pin asserts a contract sentence still exists somewhere in the shipped skill | `$CI_BUNDLE` (root + the 15 references, concatenated) | Which reference currently hosts a sentence is an implementation detail that may be re-partitioned; "present-and-unique in the shipped skill" is the semantically correct claim. Deleting the sentence from a reference still turns the pin RED, because the bundle is rebuilt from the real files on every run. |
+| Content-survival — the pin asserts a contract sentence still exists somewhere in the shipped skill | `$CI_BUNDLE` (root + the 16 references, concatenated) | Which reference currently hosts a sentence is an implementation detail that may be re-partitioned; "present-and-unique in the shipped skill" is the semantically correct claim. Deleting the sentence from a reference still turns the pin RED, because the bundle is rebuilt from the real files on every run. |
 | Location-sensitive — the pin asserts a sentence lives in a *specific* surface | that specific file | A bundle target would pass while the sentence sat anywhere, which is exactly what these pins exist to forbid. |
 
 The location-sensitive population is exactly:
