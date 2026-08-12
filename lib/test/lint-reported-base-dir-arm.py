@@ -84,14 +84,16 @@ def audit(root: Path, enrolled: tuple[str, ...] = ENROLLED) -> list[str]:
         # wrapped across adjacent lines are matched identically to a fenced one.
         norm = " ".join(text.split())
         sentinel_idx = norm.find(_SENTINEL)
-        for match in _VALUE_CONSUMING.finditer(norm):
-            if sentinel_idx == -1 or sentinel_idx > match.start():
-                failures.append(
-                    f"{relpath}: a value-consuming ${{CLAUDE_SKILL_DIR:-…}} anchor "
-                    "expansion consumes the anchor's value with NO reported-base-directory"
-                    f"-first arm (the '{_SENTINEL}' sentinel) ahead of it (issue #1594)"
-                )
-                break
+        # The sentinel is a single fixed offset and finditer yields matches in increasing
+        # start order, so if the sentinel precedes the earliest value-consuming match it
+        # precedes every later one — only the first match can decide the file.
+        match = _VALUE_CONSUMING.search(norm)
+        if match and (sentinel_idx == -1 or sentinel_idx > match.start()):
+            failures.append(
+                f"{relpath}: a value-consuming ${{CLAUDE_SKILL_DIR:-…}} anchor "
+                "expansion consumes the anchor's value with NO reported-base-directory"
+                f"-first arm (the '{_SENTINEL}' sentinel) ahead of it (issue #1594)"
+            )
     return failures
 
 
