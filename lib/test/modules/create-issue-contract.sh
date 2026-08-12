@@ -981,7 +981,7 @@ REF = 'Revision-delta verification'                    # the by-name procedure r
 WINDOW = 64                                            # fixed fail-closed positional contract
 DEF_HEAD = '### Revision-delta verification'           # definition-block heading
 ALLOW = [                                              # full-context non-command allowlist
-    'Draft the issue and pass the **no-options gate** (Step 3)',
+    'Draft the issue and pass the no-options gate (Step 3)',
     'Steelman the draft against the code, revise, re-pass the no-options gate, and append the steelman record to the derivation artifact (Step 3.5)',
     'the no-options gate (Step 3) still governs the final body',
     '### Step 3: Draft the issue and pass the no-options gate',
