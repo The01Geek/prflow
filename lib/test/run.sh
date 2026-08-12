@@ -51275,6 +51275,117 @@ assert_eq "#1124 lint: an enrolled site carrying neither form fails closed (stal
 assert_eq "#1124 lint: the neither-form report names the stale enrolled site" "yes" \
   "$(case "$AF_NEITHER_OUT" in *"carries NEITHER the anchor nor the vendored-literal"*) echo yes ;; *) echo no ;; esac)"
 
+# ── #1633 worktree-fence-shapes lint (lib/test/lint-worktree-fence-shapes.py) ─────
+# A worktree-isolated Claude Code session refuses a bash fence carrying command
+# substitution ($(...)/backticks), the $? parameter, or a reference to a variable bound
+# within the same fence. This inventory-driven lint fails an ENROLLED implement-bundle
+# file whose fence reintroduces one of the three. Driven like the #1124 sibling: the real
+# tree is the live gate (every enrolled file was migrated → clean), plus scratch-root
+# RED/GREEN cases proving the guard is non-vacuous. run.sh itself is NOT enrolled, so its
+# own $(...) usage below is unaffected.
+WFS_LINT="$LIB/test/lint-worktree-fence-shapes.py"
+# Live gate: the shipped tree, default (built-in) inventory → clean.
+WFS_OUT="$(python3 "$WFS_LINT" 2>&1)"; WFS_RC=$?
+assert_eq "#1633 lint: clean on the tree as it stands (every enrolled fence migrated)" "rc=0" \
+  "$([ "$WFS_RC" -eq 0 ] && printf 'rc=0' || printf 'rc=%s | %s' "$WFS_RC" "$WFS_OUT")"
+# Scratch root carrying clean copies of all four enrolled files (no tracked file is
+# mutated by any case below — every plant lands on a scratch copy).
+WFS_ROOT="$(mktemp -d)"; _suite_tmp_dir "$WFS_ROOT"
+mkdir -p "$WFS_ROOT/skills/implement/phases"
+for _wfs_f in phase-1-setup phase-2-implement phase-3-review phase-4-documentation; do
+  cp "$REPO_ROOT/skills/implement/phases/$_wfs_f.md" "$WFS_ROOT/skills/implement/phases/$_wfs_f.md"
+done
+WFS_P1="$WFS_ROOT/skills/implement/phases/phase-1-setup.md"
+_wfs_restore_p1() { cp "$REPO_ROOT/skills/implement/phases/phase-1-setup.md" "$WFS_P1"; }
+# GREEN: the scratch root (clean copies) passes under the default inventory.
+assert_eq "#1633 lint: a clean scratch root passes (GREEN)" "yes" \
+  "$(python3 "$WFS_LINT" --root "$WFS_ROOT" >/dev/null 2>&1 && echo yes || echo no)"
+# AC1: command substitution — plant a $(...) fence into the phase-1 copy → rc1 naming it.
+printf '\n```bash\necho "$(date)"\n```\n' >> "$WFS_P1"
+WFS_CS_OUT="$(python3 "$WFS_LINT" --root "$WFS_ROOT" 2>&1)"; WFS_CS_RC=$?
+assert_eq "#1633 lint: a planted command substitution fails (RED)" "1" "$WFS_CS_RC"
+assert_eq "#1633 lint: the RED report names file:line and the command-substitution construct" "yes" \
+  "$(case "$WFS_CS_OUT" in *"phase-1-setup.md:"*"command substitution"*) echo yes ;; *) echo no ;; esac)"
+_wfs_restore_p1
+# AC1: backtick substitution.
+printf '\n```bash\necho `date`\n```\n' >> "$WFS_P1"
+assert_eq "#1633 lint: a planted backtick substitution fails (RED)" "1" \
+  "$(python3 "$WFS_LINT" --root "$WFS_ROOT" >/dev/null 2>&1; echo $?)"
+_wfs_restore_p1
+# AC1: the exit-status parameter $?.
+printf '\n```bash\ntrue\necho rc=$?\n```\n' >> "$WFS_P1"
+WFS_Q_OUT="$(python3 "$WFS_LINT" --root "$WFS_ROOT" 2>&1)"
+assert_eq "#1633 lint: a planted \$? fails and names the construct" "yes" \
+  "$(case "$WFS_Q_OUT" in *"exit-status parameter"*) echo yes ;; *) echo no ;; esac)"
+_wfs_restore_p1
+# AC1: assign-then-reuse of a variable bound within the same fence.
+printf '\n```bash\nX=1\necho "$X"\n```\n' >> "$WFS_P1"
+WFS_V_OUT="$(python3 "$WFS_LINT" --root "$WFS_ROOT" 2>&1)"
+assert_eq "#1633 lint: a planted bound-var reference fails and names the construct" "yes" \
+  "$(case "$WFS_V_OUT" in *"variable bound within the same fence"*) echo yes ;; *) echo no ;; esac)"
+_wfs_restore_p1
+# AC2: the measurement pair — `for i in 1 2; do echo $i; done` fails, `…echo hi…` passes.
+printf '\n```bash\nfor i in 1 2; do echo $i; done\n```\n' >> "$WFS_P1"
+assert_eq "#1633 lint AC2: a for-loop referencing its bound var fails" "1" \
+  "$(python3 "$WFS_LINT" --root "$WFS_ROOT" >/dev/null 2>&1; echo $?)"
+_wfs_restore_p1
+printf '\n```bash\nfor i in 1 2; do echo hi; done\n```\n' >> "$WFS_P1"
+assert_eq "#1633 lint AC2: a for-loop that never references its bound var passes" "0" \
+  "$(python3 "$WFS_LINT" --root "$WFS_ROOT" >/dev/null 2>&1; echo $?)"
+_wfs_restore_p1
+# A bare environment variable the fence did not itself bind passes.
+printf '\n```bash\necho "$ISSUE_NUMBER"\n```\n' >> "$WFS_P1"
+assert_eq "#1633 lint: a bare unbound env var passes" "0" \
+  "$(python3 "$WFS_LINT" --root "$WFS_ROOT" >/dev/null 2>&1; echo $?)"
+_wfs_restore_p1
+# A construct inside a QUOTED heredoc body is data → passes.
+printf '\n```bash\ncat <<'"'"'EOF'"'"'\ntotal $(date)\nEOF\n```\n' >> "$WFS_P1"
+assert_eq "#1633 lint: a construct inside a quoted heredoc body passes" "0" \
+  "$(python3 "$WFS_LINT" --root "$WFS_ROOT" >/dev/null 2>&1; echo $?)"
+_wfs_restore_p1
+# A non-bash fence carrying the constructs is prose → passes.
+printf '\n```text\necho "$(date)"\n```\n' >> "$WFS_P1"
+assert_eq "#1633 lint: a construct in a non-bash fence passes" "0" \
+  "$(python3 "$WFS_LINT" --root "$WFS_ROOT" >/dev/null 2>&1; echo $?)"
+_wfs_restore_p1
+# AC19: a file OUTSIDE the inventory carrying a refused expansion passes (unmigrated
+# surface stays legal). The 5th file is not in the default inventory.
+printf '```bash\necho "$(date)"\n```\n' > "$WFS_ROOT/skills/implement/phases/phase-9-extra.md"
+assert_eq "#1633 lint AC19: an unenrolled file with a refused expansion passes" "0" \
+  "$(python3 "$WFS_LINT" --root "$WFS_ROOT" >/dev/null 2>&1; echo $?)"
+rm -f "$WFS_ROOT/skills/implement/phases/phase-9-extra.md"
+# AC20: a missing enrolled file fails closed (never a clean pass).
+mv "$WFS_ROOT/skills/implement/phases/phase-2-implement.md" "$WFS_ROOT/skills/implement/phases/phase-2-implement.hidden"
+WFS_MISS_OUT="$(python3 "$WFS_LINT" --root "$WFS_ROOT" 2>&1)"; WFS_MISS_RC=$?
+assert_eq "#1633 lint AC20: a missing enrolled file fails closed" "1" "$WFS_MISS_RC"
+assert_eq "#1633 lint AC20: the missing-file report names it" "yes" \
+  "$(case "$WFS_MISS_OUT" in *"phase-2-implement.md: enrolled file is missing"*) echo yes ;; *) echo no ;; esac)"
+mv "$WFS_ROOT/skills/implement/phases/phase-2-implement.hidden" "$WFS_ROOT/skills/implement/phases/phase-2-implement.md"
+# AC4/AC5: the override inventory — empty and omits-one both fail closed.
+WFS_EMPTY_INV="$(mktemp)"; _suite_tmp_file "$WFS_EMPTY_INV"; : > "$WFS_EMPTY_INV"
+assert_eq "#1633 lint AC4: an empty override inventory fails closed" "1" \
+  "$(python3 "$WFS_LINT" --root "$WFS_ROOT" --inventory-file "$WFS_EMPTY_INV" >/dev/null 2>&1; echo $?)"
+WFS_OMIT_INV="$(mktemp)"; _suite_tmp_file "$WFS_OMIT_INV"
+printf '%s\n' \
+  "skills/implement/phases/phase-1-setup.md" \
+  "skills/implement/phases/phase-2-implement.md" \
+  "skills/implement/phases/phase-3-review.md" > "$WFS_OMIT_INV"
+WFS_OMIT_OUT="$(python3 "$WFS_LINT" --root "$WFS_ROOT" --inventory-file "$WFS_OMIT_INV" 2>&1)"; WFS_OMIT_RC=$?
+assert_eq "#1633 lint AC4: an override inventory omitting a required file fails closed" "1" "$WFS_OMIT_RC"
+assert_eq "#1633 lint AC4: the omits-one report names the required omission" "yes" \
+  "$(case "$WFS_OMIT_OUT" in *"omits required file(s)"*"phase-4-documentation.md"*) echo yes ;; *) echo no ;; esac)"
+# AC21 positive control: plant into the phase-1 copy → RED; remove → GREEN. Bookends the
+# guarantee that the lint fires on the path where an author forgot.
+printf '\n```bash\nR="$(git rev-parse --show-toplevel)"\necho "$R"\n```\n' >> "$WFS_P1"
+assert_eq "#1633 lint AC21: the positive control fails with the plant present" "1" \
+  "$(python3 "$WFS_LINT" --root "$WFS_ROOT" >/dev/null 2>&1; echo $?)"
+_wfs_restore_p1
+assert_eq "#1633 lint AC21: the positive control passes with the plant removed" "0" \
+  "$(python3 "$WFS_LINT" --root "$WFS_ROOT" >/dev/null 2>&1; echo $?)"
+# AC22: the module docstring closes the candidate-construct set and discloses residuals.
+assert_eq "#1633 lint AC22: the docstring closes the candidate set (three constructs)" "yes" \
+  "$(grep -qF 'THE REFUSED-EXPANSION SET' "$WFS_LINT" && grep -qF 'SHAPES THIS LINT DOES NOT DETECT' "$WFS_LINT" && echo yes || echo no)"
+
 # ── #1594 reported-base-dir-first arm lint (lib/test/lint-reported-base-dir-arm.py) ──
 # The resolve-once `echo "${CLAUDE_SKILL_DIR:-…}"` command is refused on runners whose
 # matcher denies the ${VAR:-default} argument expansion, so the two skill bodies resolve

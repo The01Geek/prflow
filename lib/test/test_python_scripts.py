@@ -12336,6 +12336,77 @@ _pf_path = _pf915._write_payload("AMBIGUOUS", "reason", {}, {})
 assert_eq("#915 preflight: the payload is still written on the fallback arm",
           True, os.path.exists(_pf_path))
 
+# ── issue #1633: repo-relative anchoring mode ────────────────────────────────
+# _anchor_repo_relative resolves a repo-relative path against the checkout root so no
+# enrolled fence computes it; an absolute path passes through unchanged; an unresolvable
+# root returns None so the caller fails closed to UNAVAILABLE (unknown is not a decided
+# path).
+_pf915._run_git = _pf_git_happy   # toplevel resolves to _pf_happy_tmpd
+assert_eq("#1633 anchoring: a repo-relative path resolves against the checkout root",
+          os.path.join(_pf_happy_tmpd, ".prflow/tmp/x.md"),
+          _pf915._anchor_repo_relative(".prflow/tmp/x.md"))
+assert_eq("#1633 anchoring: an absolute path is returned unchanged",
+          "/abs/x.md", _pf915._anchor_repo_relative("/abs/x.md"))
+_pf915._run_git = _pf_git_bad
+assert_eq("#1633 anchoring: an unresolvable root yields None (caller fails closed)",
+          None, _pf915._anchor_repo_relative(".prflow/tmp/x.md"))
+
+# End-to-end (real git subprocess): a repo-relative --path resolves the SAME absolute
+# target from the repo root, from a subdirectory, and from inside a linked worktree
+# (AC7). Run in a real temp repo whose .gitignore covers scratch/.
+_PF_PATH_1633 = str(cwc.REPO_ROOT / "scripts" / "preflight.py")
+
+
+def _g1633(args, cwd):
+    return _sp915.run(["git", *args], cwd=cwd, capture_output=True, text=True)
+
+
+_wt_repo = tempfile.mkdtemp()
+_g1633(["init", "-q"], _wt_repo)
+_g1633(["config", "user.email", "t@example.com"], _wt_repo)
+_g1633(["config", "user.name", "t"], _wt_repo)
+(Path(_wt_repo) / ".gitignore").write_text("scratch/\n", encoding="utf-8")
+(Path(_wt_repo) / "tracked.txt").write_text("x", encoding="utf-8")
+os.makedirs(Path(_wt_repo) / "sub", exist_ok=True)
+_g1633(["add", "-A"], _wt_repo)
+_g1633(["commit", "-qm", "init"], _wt_repo)
+_wt_link = os.path.join(tempfile.mkdtemp(), "wt")
+_g1633(["worktree", "add", "-q", _wt_link, "HEAD"], _wt_repo)
+
+
+def _pf_ignore_1633(cwd, path):
+    r = _sp915.run(
+        [sys.executable, _PF_PATH_1633, "ignore-precondition", "--repo-relative", "--path", path],
+        cwd=cwd, capture_output=True, text=True)
+    return (r.stdout.strip(), r.returncode)
+
+
+assert_eq("#1633 anchoring: repo-relative IGNORED from the repo root",
+          ("IGNORED", 0), _pf_ignore_1633(_wt_repo, "scratch/x.md"))
+assert_eq("#1633 anchoring: repo-relative IGNORED from a subdirectory (same target)",
+          ("IGNORED", 0), _pf_ignore_1633(str(Path(_wt_repo) / "sub"), "scratch/x.md"))
+assert_eq("#1633 anchoring: repo-relative IGNORED from inside a linked worktree",
+          ("IGNORED", 0), _pf_ignore_1633(_wt_link, "scratch/x.md"))
+assert_eq("#1633 anchoring: a tracked repo-relative path is NOT_IGNORED (exit 2)",
+          ("NOT_IGNORED", 2), _pf_ignore_1633(str(Path(_wt_repo) / "sub"), "tracked.txt"))
+
+# parse-acs.py --anchor-repo-root resolves --body-file the same way; an unresolvable
+# root fails closed (non-zero exit) rather than leaving an empty parse.
+_PA_PATH_1633 = str(cwc.REPO_ROOT / "scripts" / "parse-acs.py")
+(Path(_wt_repo) / "body.md").write_text(
+    "## Acceptance Criteria\n- [ ] one\n", encoding="utf-8")
+
+
+def _pa_1633(cwd, path):
+    r = _sp915.run(
+        [sys.executable, _PA_PATH_1633, "--anchor-repo-root", "--body-file", path, "--format", "md"],
+        cwd=cwd, capture_output=True, text=True)
+    return (r.returncode, "one" in r.stdout)
+
+
+assert_eq("#1633 anchoring: parse-acs resolves a repo-relative --body-file from a subdir",
+          (0, True), _pa_1633(str(Path(_wt_repo) / "sub"), "body.md"))
+
 # ─────────────────────────────────────────────────────────────────────────────
 # AC2/AC3 (issue #701) — helper leading-token boundary over the AC1 closure.
 # The source keeps the portable ${CLAUDE_SKILL_DIR:-…} anchor (#275); the guard

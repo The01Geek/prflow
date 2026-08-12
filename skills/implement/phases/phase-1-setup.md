@@ -13,25 +13,23 @@ Output: `Phase 1/4: Setup — creating the workpad and branch...`
 
 **The in-tree write is preconditioned on an ignore rule already covering `.prflow/tmp/` — the run never creates one**, because a new dotfile would itself be an untracked file the run's `git add -A` calls would stage. Resolve the precondition through the already-granted `preflight.py`. Anchor the cache to the repo-or-worktree root with the run-marker idiom, run the precondition, then — only on the satisfied arm — **delete any stale cache and fetch the body fresh, unconditionally**, so a resumed / re-triggered / stall-backstop-auto-resumed run always writes a freshly-fetched cache rather than reading a prior attempt's file. The producer uses the **extracting** form `--json body --jq '.body'` and the run-marker's **in-workspace redirect** shape (never a `/tmp` target, a denied class). The fetch carries a retry:
 
+Run the precondition as its own single statement; the helper resolves the repo root itself, so pass the cache path **repo-relative** under `--repo-relative`:
+
 ```bash
-DEVFLOW_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-# ignore-precondition prints IGNORED (exit 0) / NOT_IGNORED (exit 2, a resolved
-# 'not ignored' → the degraded arm) / UNAVAILABLE (exit 3, or a denied/no-output
-# invocation → the stop path). Branch on the command's OWN exit status inline
-# (never a captured $? read in a later statement).
-if "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/preflight.py ignore-precondition --path "$DEVFLOW_ROOT/.prflow/tmp/issue-body/issue-$ARGUMENTS.md"; then
-  # IGNORED — precondition satisfied. Delete-then-fetch, in that order and
-  # unconditionally, so a resumed run cannot read a prior attempt's cache.
-  mkdir -p "$DEVFLOW_ROOT/.prflow/tmp/issue-body"
-  rm -f "$DEVFLOW_ROOT/.prflow/tmp/issue-body/issue-$ARGUMENTS.md"
-  gh issue view $ARGUMENTS --json body --jq '.body' > "$DEVFLOW_ROOT/.prflow/tmp/issue-body/issue-$ARGUMENTS.md" \
-    || gh issue view $ARGUMENTS --json body --jq '.body' > "$DEVFLOW_ROOT/.prflow/tmp/issue-body/issue-$ARGUMENTS.md"
-elif [ "$?" -eq 2 ]; then
-  echo "devflow: .prflow/tmp/ is not gitignored — issue-body cache NOT written; taking the degraded arm"
-else
-  echo "devflow: ignore-precondition could not be established (denied / no output / git error) — STOP"
-fi
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/preflight.py ignore-precondition --repo-relative --path .prflow/tmp/issue-body/issue-$ARGUMENTS.md
 ```
+
+**Read the exit code and printed token from the tool result** — never a captured shell variable — and route agent-side on the exit code:
+
+- **`IGNORED` / exit 0** — precondition satisfied. Delete-then-fetch, **in that order and unconditionally**, so a resumed run cannot read a prior attempt's cache:
+  ```bash
+  mkdir -p .prflow/tmp/issue-body
+  rm -f .prflow/tmp/issue-body/issue-$ARGUMENTS.md
+  gh issue view $ARGUMENTS --json body --jq '.body' > .prflow/tmp/issue-body/issue-$ARGUMENTS.md \
+    || gh issue view $ARGUMENTS --json body --jq '.body' > .prflow/tmp/issue-body/issue-$ARGUMENTS.md
+  ```
+- **`NOT_IGNORED` / exit 2** — a resolved "not ignored": `.prflow/tmp/` is not gitignored, so the issue-body cache is **not** written; take the degraded arm.
+- **`UNAVAILABLE` / exit 3, or a refused / no-output invocation** — an *unestablished measurement*, never a decided "not ignored": take the run's existing **STOP** path. Absent output is never a decided answer, and a matcher refusal must not masquerade as the degraded arm.
 
 **Fail closed on the fetch's exit status AND on the written content.** After the write, **Read the cache file back** — hold that single copy rather than a second copy from the fetch output. Treat the cache as valid only when it is **non-empty** and does **not** begin with `{` (a JSON envelope). A retry that also failed, a zero-byte file, or a JSON-object body is a failed write: route to the run's existing stop path (report "Error: Could not read GitHub issue #$ARGUMENTS body into the cache") rather than leaving a plausible-looking cache for later phases to consume.
 
@@ -60,26 +58,29 @@ Hold the verdict and a one-line rationale; Phase 1.3 records them in the workpad
 
 ### 1.2 Parse Acceptance Criteria from the issue body
 
-Run the bundled parser to extract `## Acceptance Criteria` and (optional) `## Test Plan` sections from the issue, pre-classifying each criterion as either code-verifiable or *post-merge*. **When the §1.1 cache was written, read it via `--body-file` — no re-fetch.** parse-acs.py reads `--body-file` unguarded (an unreadable path raises), so **fail closed on the helper's own exit status**: an unreadable cache must route to the run's existing stop path rather than leave a zero-byte `$DEVFLOW_ROOT/.prflow/tmp/acs-${ARGUMENTS}.md` that splices in as an empty Acceptance Criteria section.
+Run the bundled parser to extract `## Acceptance Criteria` and (optional) `## Test Plan` sections from the issue, pre-classifying each criterion as either code-verifiable or *post-merge*. **When the §1.1 cache was written, read it via `--body-file` — no re-fetch.** parse-acs.py reads `--body-file` unguarded (an unreadable path raises), so **fail closed on the helper's own exit status**: an unreadable cache must route to the run's existing stop path rather than leave a zero-byte `.prflow/tmp/acs-$ARGUMENTS.md` that splices in as an empty Acceptance Criteria section.
+
+Ensure the scratch leaf exists — its own single statement:
 
 ```bash
-DEVFLOW_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-# Ensure the scratch leaf exists; rc-checked (never `|| true` — a DENIED .prflow/tmp
-# mkdir must fail loudly). Then delete any stale acs file so a resumed/re-triggered
-# run cannot splice a prior attempt's parse.
-if ! mkdir -p "$DEVFLOW_ROOT/.prflow/tmp"; then
-  echo "devflow: could not create $DEVFLOW_ROOT/.prflow/tmp for the AC parse — STOP" >&2
-else
-  rm -f "$DEVFLOW_ROOT/.prflow/tmp/acs-${ARGUMENTS}.md"
-  if ! "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/parse-acs.py --body-file "$DEVFLOW_ROOT/.prflow/tmp/issue-body/issue-$ARGUMENTS.md" > "$DEVFLOW_ROOT/.prflow/tmp/acs-${ARGUMENTS}.md"; then
-    # STOP: the cache could not be read (helper exit ≠ 0). Do NOT proceed with an
-    # empty AC section — take the run's existing stop path.
-    echo "devflow: could not read the issue-body cache into the AC parser — STOP"
-  fi
-fi
+mkdir -p .prflow/tmp
 ```
 
-On the **degraded arm** where §1.1 wrote no cache, revert to `parse-acs.py --issue $ARGUMENTS > "$DEVFLOW_ROOT/.prflow/tmp/acs-${ARGUMENTS}.md"` (still preceded by the same rc-checked `mkdir -p "$DEVFLOW_ROOT/.prflow/tmp"` and `rm -f` of that target), which fetches internally.
+**Read the exit code from the tool result.** A non-zero exit is a **DENIED** `.prflow/tmp` mkdir and must fail loudly (never `|| true`): take the run's existing STOP path. On success, delete any stale acs file so a resumed / re-triggered run cannot splice a prior attempt's parse:
+
+```bash
+rm -f .prflow/tmp/acs-$ARGUMENTS.md
+```
+
+Then run the parser, reading the §1.1 cache **repo-relative** under `--anchor-repo-root` (parse-acs.py resolves the repo root itself):
+
+```bash
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/parse-acs.py --anchor-repo-root --body-file .prflow/tmp/issue-body/issue-$ARGUMENTS.md > .prflow/tmp/acs-$ARGUMENTS.md
+```
+
+**Read the parser's exit code from the tool result.** A non-zero exit means the cache could not be read — take the run's existing **STOP** path. Do **NOT** proceed with an empty AC section.
+
+On the **degraded arm** where §1.1 wrote no cache, revert to `parse-acs.py --anchor-repo-root --issue $ARGUMENTS > .prflow/tmp/acs-$ARGUMENTS.md` (still preceded by the same `mkdir -p .prflow/tmp` and `rm -f` of that target, each rc-checked from its own tool result), which fetches internally.
 
 The output is checkbox lines ready to splice into the workpad's `## Acceptance Criteria` section, with ` (post-merge)` appended to any criterion whose text matches the bundled trigger phrases (see `parse-acs.py`'s `POST_MERGE_TRIGGERS` list for what's matched). When no AC section exists, the helper prints `_(none provided in issue body)_` and Phase 3.4 passes trivially.
 
@@ -106,31 +107,24 @@ A criterion that is partially live (mixed code + live concerns) is tagged post-m
 Set `ISSUE_NUMBER=$ARGUMENTS` and check whether a workpad already exists:
 
 ```bash
-ISSUE_NUMBER=$ARGUMENTS
-# Branch on all THREE `workpad.py id` exit codes inline — never capture the exit
-# status into a variable read in a later statement (some runners drop it).
-if WORKPAD_ID=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py id "$ISSUE_NUMBER"); then
-  :   # exit 0 — a workpad exists (resume arm below)
-elif [ "$?" -eq 2 ]; then
-  :   # exit 2 — scanned cleanly, no workpad (create arm)
-else
-  : # exit 1 — gh-api/parse/transport failure: STOP, never create
-fi
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py id $ISSUE_NUMBER
 ```
+
+**Read the exit code and printed comment ID from the tool result** — never a captured shell variable (some runners drop the exit status of an assignment). Branch agent-side on all three `workpad.py id` exit codes; the printed comment ID on exit 0 is the workpad id this phase carries forward as `WORKPAD_ID` in your own context.
 
 **Preserve `workpad.py id`'s three-way exit contract before any create decision** — branch on all three:
 
-- **Exit 0 (the `if` branch)** → found; `WORKPAD_ID` is the printed comment ID. Resume it (the non-empty-`WORKPAD_ID` arm below).
-- **Exit 2 (the `elif [ "$?" -eq 2 ]` branch)** → scanned cleanly, no workpad; create it (the create arm below). This is the **only** value that authorizes a create.
-- **Exit 1 (the `else` branch)** → a gh-api / parse / transport failure: the identity read did not complete. Do **NOT** create and do **NOT** proceed as if absent: stop Phase 1 with a targeted diagnostic naming the failed `id` read, so a transient API/auth failure is never misread as "first run."
+- **Exit 0** → found; `WORKPAD_ID` is the printed comment ID. Resume it (the non-empty-`WORKPAD_ID` arm below).
+- **Exit 2** → scanned cleanly, no workpad; create it (the create arm below). This is the **only** value that authorizes a create.
+- **Exit 1** → a gh-api / parse / transport failure: the identity read did not complete. Do **NOT** create and do **NOT** proceed as if absent: stop Phase 1 with a targeted diagnostic naming the failed `id` read, so a transient API/auth failure is never misread as "first run."
 
 **Handoff-provenance + live-status triage (cloud tier).** On the cloud tier (`GITHUB_ACTIONS` set) the workflow wrote an advisory handoff record naming this run's provenance. Before resetting Status, read it and the live workpad status/body so lifecycle wording is truthful:
 
 1. **Resolve provenance** (offline, no network — always exits 0, degrades to `unknown`):
    ```bash
-   HANDOFF=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py handoff-state ".prflow/tmp/implement-handoff-${ISSUE_NUMBER}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json" --issue "$ISSUE_NUMBER" --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT")
+   "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py handoff-state .prflow/tmp/implement-handoff-$ISSUE_NUMBER-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT.json --issue $ISSUE_NUMBER --run-id $GITHUB_RUN_ID --run-attempt $GITHUB_RUN_ATTEMPT
    ```
-   `HANDOFF` is one of `created-current-run` / `adopted-existing` / `unknown` — never a resume guess. **Local runs do NOT read this record**; a local run selects wording from live status alone.
+   **Read the printed value from the tool result** (never a captured shell variable) and hold it as `HANDOFF` in your own context. It is one of `created-current-run` / `adopted-existing` / `unknown` — never a resume guess. **Local runs do NOT read this record**; a local run selects wording from live status alone.
 2. **Read the live Status and body before any reset.** On the found arm (`id` exit 0), run `workpad.py status "$ISSUE_NUMBER"` and preserve its exit contract — **0** (recognized interim/terminal word, class printed), **1** (missing/empty/unrecognized Status — a content-shape failure), **2** (workpad disappeared between the identity and status reads — a race), **3** (gh/transport/auth failure). On **exit 1/2/3**, stop with a targeted diagnostic — reset no Status, mutate no body, create no comment. Then read the body with `workpad.py body "$WORKPAD_ID"`; a body-fetch failure likewise stops with a diagnostic and no mutation. Retain the observed **numeric comment ID** and the **exact stripped status word** — the hydration update below passes them as `--expect-comment-id`/`--expect-status` so a concurrent terminal flip or delete/recreate cannot be overwritten by this stale snapshot.
 3. **Select the hydration lifecycle event** from provenance × live status:
 
@@ -155,42 +149,37 @@ fi
   Best-effort: a checkpoint failure warns and continues — it never blocks the run. `--checkpoint` repairs an absent `## Progress`, but the legacy-workpad migration below is still required before hydration.
 - **Hydration checkpoint — combined with the existing Phase 1 hydration update below**: append `--checkpoint "gha:${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}:phase1-hydrated" "<the selected lifecycle event>"` to that update, alongside `--expect-comment-id`/`--expect-status`.
 
-- **`WORKPAD_ID` empty (fresh issue — local-tier run with no `gate` job)** → Build the lean skeleton with the helper and create it, then mirror the issue's Acceptance Criteria into it:
+- **`WORKPAD_ID` empty (fresh issue — local-tier run with no `gate` job)** → Build the lean skeleton with the helper and create it, then mirror the issue's Acceptance Criteria into it. **Compose the run link inline** from the ambient `$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID` values the orchestrator substitutes; on a **local run** `$GITHUB_RUN_ID` is empty, so **omit `--run-link` entirely** (never pass `[View run]()`). **Add `--no-reproduction`** to the `new-body` call when the §1.1 classification is **non-bug** (so the bug-only "reproduction captured" sub-item isn't rendered); omit it when bug-report. Decide from the **classification** (1.1), not the label.
+
+  Render the skeleton to a repo-relative scratch file — on the cloud tier, with the run link:
   ```bash
-  DEVFLOW_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-  BODY=$(mktemp)
-  # Compose the run link INLINE (this fence is its own shell); empty on a local run
-  # (no GITHUB_RUN_ID) → the --run-link argument is omitted rather than passing "[View run]()".
-  RUN_URL=""
-  [ -n "$GITHUB_RUN_ID" ] && RUN_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
-  # Add --no-reproduction when the 1.1 classification is non-bug so the bug-only
-  # "reproduction captured" sub-item isn't rendered; omit the flag when it is
-  # bug-report. Decide from the CLASSIFICATION (1.1), not the label.
-  set --
-  [ -n "$RUN_URL" ] && set -- --run-link "[View run]($RUN_URL)"
-  "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py new-body $ISSUE_NUMBER "$@" > "$BODY"
-  "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py create $ISSUE_NUMBER "$BODY"
-  "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --replace-acs-file "$DEVFLOW_ROOT/.prflow/tmp/acs-${ARGUMENTS}.md"
+  "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py new-body $ISSUE_NUMBER --run-link "[View run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)" > .prflow/tmp/workpad-body-$ISSUE_NUMBER.md
+  ```
+  On a local run (empty `$GITHUB_RUN_ID`), omit the flag:
+  ```bash
+  "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py new-body $ISSUE_NUMBER > .prflow/tmp/workpad-body-$ISSUE_NUMBER.md
+  ```
+  Create the workpad from that scratch body, then populate the Acceptance Criteria:
+  ```bash
+  "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py create $ISSUE_NUMBER .prflow/tmp/workpad-body-$ISSUE_NUMBER.md
+  ```
+  ```bash
+  "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --replace-acs-file .prflow/tmp/acs-$ARGUMENTS.md
   ```
   The `## Reproduction` section is added later in 2.1.5 if applicable.
 - **`WORKPAD_ID` non-empty (resume — the normal cloud path, since `gate` pre-created it; or a re-run)** → Read the live body with `workpad.py body $WORKPAD_ID`. Treat its `## Progress` notes and `Devflow Reflection` as load-bearing context (see Workpad Reference). Reset for this run **and populate the Acceptance Criteria** (a `gate`-created workpad carries only a placeholder AC section, so always replace it):
+  **Compose the run link inline** from the ambient `$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID` values. The fence below is the **cloud** form; on a **local run** drop the `--run-link "[View run](…)"` argument (empty `$GITHUB_RUN_ID`) alongside the cloud-only `--checkpoint`/`--expect-*` flags per the note below:
   ```bash
-  DEVFLOW_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-  # Compose the run link INLINE (this fence is its own shell).
-  RUN_URL=""
-  [ -n "$GITHUB_RUN_ID" ] && RUN_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
-  set --
-  [ -n "$RUN_URL" ] && set -- --run-link "[View run]($RUN_URL)"
   "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER \
       --expect-comment-id "$WORKPAD_ID" --expect-status "<observed status word>" \
       --status Setup \
-      "$@" \
-      --replace-acs-file "$DEVFLOW_ROOT/.prflow/tmp/acs-${ARGUMENTS}.md" \
+      --run-link "[View run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)" \
+      --replace-acs-file .prflow/tmp/acs-$ARGUMENTS.md \
       --checkpoint "gha:${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}:phase1-hydrated" "<selected lifecycle event>" \
       --strip-inherited-checkpoints \
       --note "<selected lifecycle event>"
   ```
-  The `--note` (and the combined `phase1-hydrated` checkpoint text) is the **selected lifecycle event** from the provenance × live-status table above — **not** a hardcoded `/prflow:implement run resumed`. Replace `<observed status word>` with the exact stripped Status word read in triage step 2 and `<selected lifecycle event>` with the row that matched; on the cloud tier the `--checkpoint`/`--expect-*` flags are included, on a local run drop them — but `--strip-inherited-checkpoints` is **not** one of those cloud-only flags and is included on **both** tiers. It clears the declared required-artifact checkpoint rows so this run does not inherit the previous attempt's, which would make the downstream `base_update_checkpoint4_present` reading describe the wrong attempt. A `--checkpoint` for a declared key is always a separate call. If the update **aborts with exit 4** (a precondition mismatch — the live comment ID or Status changed under you), do NOT retry blindly: re-read the live workpad, re-run the triage, and re-select the wording against the *current* state.
+  The `--note` (and the combined `phase1-hydrated` checkpoint text) is the **selected lifecycle event** from the provenance × live-status table above — **not** a hardcoded `/prflow:implement run resumed`. Replace `<observed status word>` with the exact stripped Status word read in triage step 2 and `<selected lifecycle event>` with the row that matched; on the cloud tier the `--checkpoint`/`--expect-*`/`--run-link` flags are included, on a local run drop them (the run link is empty there) — but `--strip-inherited-checkpoints` is **not** one of those cloud-only flags and is included on **both** tiers. It clears the declared required-artifact checkpoint rows so this run does not inherit the previous attempt's, which would make the downstream `base_update_checkpoint4_present` reading describe the wrong attempt. A `--checkpoint` for a declared key is always a separate call. If the update **aborts with exit 4** (a precondition mismatch — the live comment ID or Status changed under you), do NOT retry blindly: re-read the live workpad, re-run the triage, and re-select the wording against the *current* state.
   **Legacy-workpad migration (required):** a workpad created before the `## Progress` checklist existed won't have that section, and `--tick-progress`/`--note` **abort the run** with `section '## Progress' not found` when it is absent. So when resuming such a workpad you MUST seed a `## Progress` section before Phase 1.5 — `workpad.py body` the live comment, render a fresh skeleton with `workpad.py new-body $ISSUE_NUMBER` (adding `--no-reproduction` when the recorded classification is non-bug, as the create arm above does) into a temp file, splice **that output's** `## Progress` section into the body (right after the front-matter, before `## Plan`), and `workpad.py patch $WORKPAD_ID <file>`. The migration is required on both arms — `--checkpoint`'s self-heal re-creates the section without its phase-checklist rows, so every later `--tick-progress` still fails.
 
 After this step, every later phase boundary touches the workpad via `workpad.py update $ISSUE_NUMBER ...` — no `WORKPAD_ID` variable to track across calls.
@@ -247,15 +236,22 @@ Each is combinable with the `--record-classification` / `--reconcile-reproductio
 
 **Record this run's owner as the marker's first line.** When the runner exports a session id — Claude Code sets `CLAUDE_CODE_SESSION_ID`, the same value the Stop-hook payload carries as `session_id` — write it as the marker's first line; when the runner supplies none, write an empty marker. This lets the guard tell *this* run's marker apart from another concurrent session's in the same checkout.
 
+Ensure the scratch leaf exists — its own single statement:
+
 ```bash
-DEVFLOW_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-mkdir -p "$DEVFLOW_ROOT/.prflow/tmp"
-MARKER="$DEVFLOW_ROOT/.prflow/tmp/implement-active-$ISSUE_NUMBER"
-if [ -n "${CLAUDE_CODE_SESSION_ID:-}" ]; then
-  printf '%s\n' "$CLAUDE_CODE_SESSION_ID" > "$MARKER"   # first line = owning session id
-else
-  : > "$MARKER"                                          # runner supplies no session id → empty marker
-fi
+mkdir -p .prflow/tmp
+```
+
+Then **pick the arm from whether the runner exported a session id** (`$CLAUDE_CODE_SESSION_ID`, which Claude Code sets and other runners leave empty), writing to the repo-relative marker path directly. When the runner exported one, write it as the marker's first line so the guard can tell this run's marker apart from another concurrent session's:
+
+```bash
+printf '%s\n' "$CLAUDE_CODE_SESSION_ID" > .prflow/tmp/implement-active-$ISSUE_NUMBER
+```
+
+When the runner supplies none, write an empty marker:
+
+```bash
+: > .prflow/tmp/implement-active-$ISSUE_NUMBER
 ```
 
 This is best-effort: if the write fails, note it and continue — a missing marker only means the Stop-hook backstop stays silent for this run.
@@ -270,11 +266,10 @@ semantics; do not duplicate them in this procedure.
 **When the §1.1 cache was written, read it via `--body-file` — no re-fetch.** preflight.py's `--body-file` arm reads the file and, on an unreadable path, prints `UNAVAILABLE body` / exit 3 — which §1.3.5 already routes to the terminal Blocked path:
 
 ```bash
-DEVFLOW_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/preflight.py dependencies --body-file "$DEVFLOW_ROOT/.prflow/tmp/issue-body/issue-$ISSUE_NUMBER.md"
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/preflight.py dependencies --repo-relative --body-file .prflow/tmp/issue-body/issue-$ISSUE_NUMBER.md
 ```
 
-On the **degraded arm** where §1.1 wrote no cache, revert to the original `preflight.py dependencies --issue $ISSUE_NUMBER`, which fetches internally. On a local runner that refuses the direct helper path, use the documented fallback `python3 <resolved helper path> dependencies --body-file "$DEVFLOW_ROOT/.prflow/tmp/issue-body/issue-$ISSUE_NUMBER.md"` (or the `--issue $ISSUE_NUMBER` form on the degraded arm).
+On the **degraded arm** where §1.1 wrote no cache, revert to the original `preflight.py dependencies --issue $ISSUE_NUMBER`, which fetches internally. On a local runner that refuses the direct helper path, use the documented fallback `python3 <resolved helper path> dependencies --repo-relative --body-file .prflow/tmp/issue-body/issue-$ISSUE_NUMBER.md` (or the `--issue $ISSUE_NUMBER` form on the degraded arm).
 Read the helper's one-token stdout result and its exit code:
 
 - `PROCEED` (including a listed set of landed dependencies) exits 0. Record a
