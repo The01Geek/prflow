@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1622",
+  "generated_at": "2026-08-12T01:55:49Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.42",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 4.01310875,
+    "tokens": {
+      "input_tokens": 42,
+      "output_tokens": 20627,
+      "cache_read_input_tokens": 2944077,
+      "cache_creation_input_tokens": 150592,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 46,
+        "outputTokens": 25604,
+        "cacheReadInputTokens": 2988305,
+        "cacheCreationInputTokens": 210225,
+        "webSearchRequests": 0,
+        "costUSD": 4.01310875,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 27,
+    "duration_ms": 368291
+  },
+  "permission_denials": {
+    "count": 4,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"",
+      "gh pr diff 1622 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' > .prflow/tmp/review/pr-1622/run-local/diff.patch; wc -l .prflow/tmp/review/pr-1622/run-local/diff.patch; echo \"==files==\"; grep '^diff --git' .prflow/tmp/review/pr-1622/run-local/diff.patch",
+      "echo \"RUN_ID=[${GITHUB_RUN_ID:-}] ACTIONS=[${GITHUB_ACTIONS:-}]\"; echo \"==BODY==\"; gh pr view 1622 --json body --jq '.body'",
+      "echo \"==exemption file references to init==\"; grep -n \"skills/init/SKILL.md\" lib/test/reference-size-exemptions.json || echo \"(none - good)\"; echo \"==changeset format==\"; cat .changeset/trim-init-skill-prose.md 2>/dev/null | head -5; echo \"==spot-check run.sh pins==\"; for p in \"ensure-label.sh PRFlow\" \"no usable jq (missing or not executable)\" \"advisory project-memory check\"; do printf '%s => ' \"$p\"; grep -c \"$p\" skills/init/SKILL.md; done"
+    ],
+    "total": 4,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
