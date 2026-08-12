@@ -1,0 +1,104 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-12T02:00:00Z",
+  "fix_commit_sha": null,
+  "fix_files": [],
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "current_substep": null,
+  "pending_dispatch": null,
+  "checklist": [],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": "intentional"
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:silent-failure-hunter",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "issue-template.md is a default-path routed reference but is excluded from the T4 default-path purity sweep (which loops CI614_STEP_REFS) and from ci614_step_unique (cannot be a $CI_BUNDLE member); a future duplication of template prose into the root SKILL.md would go uncaught for this one reference. Pre-existing scope boundary the change inherits, not a regression.",
+      "defect_signature": {
+        "file": "lib/test/modules/create-issue-contract.sh",
+        "line_range": [
+          1189,
+          1191
+        ],
+        "kind": "test_coverage_scope"
+      },
+      "corroboration_count": 2,
+      "fix_decision": "below-threshold"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "below-threshold",
+      "source_file": "lib/test/modules/create-issue-contract.sh",
+      "claim_text": "issue-template excluded from both purity sweeps",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold; Suggestion (below fix_severity_threshold 'important'); pre-existing scope boundary, not a regression; adding coverage is optional and outside the gating behavior this issue delivers"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 0,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": "no fixes applied"
+    }
+  },
+  "shadow": {
+    "ran_at": "2026-08-12T02:05:00Z",
+    "reviewed_sha": "HEAD (converged tree, no fixes applied)",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:pr-test-analyzer",
+      "prflow:comment-analyzer"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:pr-test-analyzer",
+      "prflow:comment-analyzer"
+    ],
+    "checklist_skipped": "intentional",
+    "phase3_findings": [
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Suggestion",
+        "description": "same T4 purity-sweep scope observation as iter 1"
+      }
+    ],
+    "comparison": {
+      "shadow_total": 1,
+      "overlap_with_iter_N": 1,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
