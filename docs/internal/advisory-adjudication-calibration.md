@@ -43,9 +43,10 @@ reconciled by the Phase 2.3.0 relocation sweep, not by this doc going stale sile
   on the round object as `advisory_records` / `invalid_records` and carry `summary`,
   `rationale`, `impact_class`, optional `evidence`, and the `auditor_block` byte-preserved up
   to the evidence cap (a longer block is truncated with the truncation disclosed in the stored bytes).
-- **Reconciliation** — `step-3-6-audit.md`: the four-arm recurrence classification ("A fresh
-  finding … A recurrence of a previously-RESOLVED entry … A recurrence of a still-UNRESOLVED
-  prior entry … A recurrence of an INVALIDATED entry"). These arms classify against *ledgered*
+- **Reconciliation** — `skills/create-issue/references/fallback-audit-round-reconciliation.md`
+  (loaded from `step-3-6-audit.md`'s *Reconciliation across rounds* section): the four-arm
+  recurrence classification ("A fresh finding … A recurrence of a previously-RESOLVED entry …
+  A recurrence of a still-UNRESOLVED prior entry … A recurrence of an INVALIDATED entry"). These arms classify against *ledgered*
   entries; advisory/invalid records are a durable **recording** floor, not a second
   reconciliation surface (this issue deliberately does not widen the reconciliation arms — see
   §3, mode "inconsistent re-grading").
@@ -163,7 +164,7 @@ prose walkthrough here whose self-attestation residual is named in §6.
 | --- | --- | --- |
 | **S1** — a correctly graded advisory (optional, evidenced) converges cleanly, visible to the user, no added question | `calibration_backing=clear calibration_trigger=no`; the boundary offer does not fire on the calibration ground | `#743: an evidenced impact-bearing advisory + reported render clears the trigger`; chat-half: the per-finding rendering shows the optional finding, no calibration question asked (walkthrough, §6) |
 | **S2** — an execution-blocking finding graded advisory is named before approval, not silently converged past | `calibration_backing=under-evidenced calibration_trigger=yes unevidenced=<id>`; the boundary offer discloses the id before the election | tool-half: `#743: calibration is under-evidenced with the unevidenced impact-bearing id named`; chat-half: the offer names the finding (walkthrough, §6) |
-| **S3** — an invalid grade records its rationale, and the defect's re-entry channel stays open | the invalid record is read back with its rationale; the fresh-entry reconciliation arm is unchanged | `#743: read-back returns one line per record (2 advisory + 1 invalid)` + the `--record-class invalid` narrowing row; the reconciliation-arm prose in `step-3-6-audit.md` is unchanged |
+| **S3** — an invalid grade records its rationale, and the defect's re-entry channel stays open | the invalid record is read back with its rationale; the fresh-entry reconciliation arm is unchanged | `#743: read-back returns one line per record (2 advisory + 1 invalid)` + the `--record-class invalid` narrowing row; the reconciliation-arm prose in `fallback-audit-round-reconciliation.md` is unchanged |
 | **S4** — two conflicting evidence records for one finding surface both values, resolve only by verification | `record-finding-evidence` refuses the overwrite (`evidence-overwrite-differs`) and `query-finding-evidence` names both in `conflict=` | the existing `#704` conflict rows (`evidence_conflicts`), untouched by this change |
 | **S5** — re-grading a recurring finding after a revision yields consistent durable records, no double-count, no silent loss | each round's `advisory_records`/`invalid_records` are round-scoped and read back per round | `#743: read-back --record-class narrows to one class` + the round-scoped read in `cmd_query_adjudication_records`; multi-round harness in the smoke record |
 | **S6** — one wording-evasion + one decomposition-evasion attempt each land on the register observable | the `auditor_block` is byte-preserved up to the evidence cap (M3) and every split records its own record (M4), both read back | `#743: read-back JSON-encodes the multi-line auditor_block onto one line` (M3); the 3-record read-back row (M4) |
