@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1649",
+  "generated_at": "2026-08-12T08:55:32Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.51",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 57.339108400000036,
+    "tokens": {
+      "input_tokens": 274,
+      "output_tokens": 148693,
+      "cache_read_input_tokens": 57563316,
+      "cache_creation_input_tokens": 596586,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 521,
+        "outputTokens": 261158,
+        "cacheReadInputTokens": 66154123,
+        "cacheCreationInputTokens": 1918682,
+        "webSearchRequests": 0,
+        "costUSD": 53.83757650000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 10483,
+        "outputTokens": 37412,
+        "cacheReadInputTokens": 5855593,
+        "cacheCreationInputTokens": 307260,
+        "webSearchRequests": 0,
+        "costUSD": 3.5015319,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 204,
+    "duration_ms": 5939969
+  },
+  "permission_denials": {
+    "count": 26,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "DEVFLOW_ROOT=\"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\"\nif .prflow/vendor/prflow/scripts/preflight.py ignore-precondition --path \"$DEVFLOW_ROOT/.prflow/tmp/issue-body/issue-1643.md\"; then\n  mkdir -p \"$DEVFLOW_ROOT/.prflow/tmp/issue-body\"\n  rm -f \"$DEVFLOW_ROOT/.prflow/tmp/issue-body/issue-1643.md\"\n  gh issue view 1643 --json body --jq '.body' > \"$DEVFLOW_ROOT/.prflow/tmp/issue-body/issue-1643.md\" \\\n    || gh issue view 1643 --json body --jq '.body' > \"$DEVFLOW_ROOT/.prflow/tmp/issue-b …[per-command-truncated]",
+      "DEVFLOW_ROOT=\"$(git rev-parse --show-toplevel)\"\nmkdir -p \"$DEVFLOW_ROOT/.prflow/tmp/issue-body\"\nrm -f \"$DEVFLOW_ROOT/.prflow/tmp/issue-body/issue-1643.md\"\ngh issue view 1643 --json body --jq '.body' > \"$DEVFLOW_ROOT/.prflow/tmp/issue-body/issue-1643.md\"\nwc -c \"$DEVFLOW_ROOT/.prflow/tmp/issue-body/issue-1643.md\"\nhead -c 1 \"$DEVFLOW_ROOT/.prflow/tmp/issue-body/issue-1643.md\"; echo \"  <-first char\"",
+      "mkdir -p \"$(git rev-parse --show-toplevel)/.prflow/tmp/issue-body\"",
+      "gh issue view 1643 --json body --jq '.body' > /home/runner/work/prflow/prflow/.prflow/tmp/issue-body/issue-1643.md\nwc -c /home/runner/work/prflow/prflow/.prflow/tmp/issue-body/issue-1643.md",
+      "gh issue view 1643 --json body --jq '.body' > .prflow/tmp/issue-body/issue-1643.md\nwc -c .prflow/tmp/issue-body/issue-1643.md",
+      "echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-unset} RUN_ID=${GITHUB_RUN_ID:-none}\"",
+      "cd /home/runner/work/prflow/prflow\n\"$WORKPAD\" update 1643 --reflection-kind note --reflection \"resume-precheck: both open-PR queries ran and returned none for this issue; workpad Branch line absent; no prior attempt to adopt\" 2>&1 | tail -5\nWORKPAD=.prflow/vendor/prflow/scripts/workpad.py\n\"$WORKPAD\" update 1643 --reflection-kind note --reflection \"resume-precheck: both open-PR queries ran and returned none for this issue; workpad Branch line absent; no prior attempt to adopt\" 2>&1 | tail -5",
+      "cd /home/runner/work/prflow/prflow\nBASE=$(.prflow/vendor/prflow/scripts/config-get.sh .base_branch main) || BASE=\"\"\n[ -n \"$BASE\" ] || BASE=main\nCUR=$(git branch --show-current 2>/dev/null) || CUR=\"\"\necho \"BASE=$BASE CUR=$CUR\"\nCOMMON_DIR=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || COMMON_DIR=\"\"\nGIT_DIR_PATH=$(git rev-parse --path-format=absolute --git-dir 2>/dev/null) || GIT_DIR_PATH=\"\"\necho \"COMMON_DIR=$COMMON_DIR\"\necho \"GIT_DIR_PATH=$GIT_DIR_PATH\"",
+      ".prflow/vendor/prflow/scripts/workpad.py update 1643 --branch \"$(git branch --show-current)\"",
+      "cd /home/runner/work/prflow/prflow\nfor s in \"Iron Law\" \"Red Flags\" \"announce\" \"rationaliz\"; do\n  c=$(grep -rio \"$s\" skills/create-issue/ | wc -l)\n  echo \"$s: $c\"\ndone\ngrep -n \"61750\\|61,750\" .prflow/vendor/prflow/scripts/../../*lint-reference-size.py 2>/dev/null\nfind . -name lint-reference-size.py",
+      "cd /home/runner/work/prflow/prflow\nfor s in \"Iron Law\" \"Red Flags\" \"announce\" \"rationaliz\"; do\n  c=$(grep -rio \"$s\" skills/create-issue/ 2>/dev/null | wc -l)\n  echo \"$s: $c\"\ndone\nfind . -name lint-reference-size.py -not -path \"*/vendor/*\"\ngrep -n \"61750\\|61_750\" lib/test/lint-reference-size.py 2>/dev/null",
+      "cd /home/runner/work/prflow/prflow\n\"$SCRIPTS\"/check-verified-premises.py --body-file .prflow/tmp/issue-body/issue-1643.md --repo-root /home/runner/work/prflow/prflow 2>&1 | tail -30\nSCRIPTS=\".prflow/vendor/prflow/scripts/\"\n\"$SCRIPTS\"check-verified-premises.py --body-file .prflow/tmp/issue-body/issue-1643.md --repo-root /home/runner/work/prflow/prflow\necho \"EXIT: $?\"",
+      "cd /home/runner/work/prflow/prflow\nWORKPAD=\".prflow/vendor/prflow/scripts/workpad.py\"\n\n\"$WORKPAD\" update 1643 --note \"issue-claim audit (count): claimed 143 lines/24,690 bytes for skills/create-issue/SKILL.md with heading at line 30, 22 lines >400 chars, 83 bold spans, MUST=1, never=32(ci), 17 reference files, and zero occurrences of 'Iron Law'/'Red Flags'/'announce'/'rationaliz' across root+refs — verified at HEAD, all counts match\"\n\n\"$WORKPAD\" update 1643 --note \"issue-claim audit (negative-sc …[per-command-truncated]",
+      "git diff --no-index -U0 /dev/null .changeset/issue-1643-restructure-create-issue-surface.md | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree; echo \"LEG2_EXIT=$?\"",
+      "BASE=$(.prflow/vendor/prflow/scripts/config-get.sh .base_branch main) || BASE=\"\"\n[ -n \"$BASE\" ] || BASE=main\nRUN_URL=\"$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\"\nBODY=$(printf '%s\\n' \"Work in progress — automated review pending.\" \"\" \"Resolves #1643\" \"[View run]($RUN_URL)\" \"\" \"Generated via \\`/prflow:implement 1643\\`\")\nif CREATE_OUT=$(gh pr create --base \"$BASE\" --draft --title \"Restructure the create-issue skill's always-read surface for instruction adherence\" --body \"$BOD …[per-command-truncated]",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve 1643 2>.prflow/tmp/review/issue-1643-restructure-the-create-issue-skills-always-read/31573192915-1/acs.err; echo \"acs-rc=$?\"",
+      "wc -c /home/runner/work/prflow/prflow/skills/create-issue/SKILL.md; git -C /home/runner/work/prflow/prflow show HEAD:skills/create-issue/SKILL.md | wc -c",
+      ".prflow/vendor/prflow/lib/efficiency-trace.sh --persist 2>&1 | tail -5; echo \"EXIT=${PIPESTATUS[0]}\"",
+      "mkdir -p .prflow/tmp\ncat > .prflow/tmp/flight-input.json <<'EOF'\n{\"command\": \"lib/test/run-module.sh create-issue-contract\", \"tree_digest\": \"e6ad80e9bb017b46732e168642bd72df6bac8654\", \"head\": \"c40401af6f3ab5ac455a7aac27642e37f65ca0cb\"}\nEOF\npython3 .prflow/vendor/prflow/scripts/verification-flight.py descriptor --input-file .prflow/tmp/flight-input.json 2>&1",
+      "printf '%s\\n' '{\"command\": \"lib/test/run-module.sh create-issue-contract\", \"tree_digest\": \"e6ad80e9bb017b46732e168642bd72df6bac8654\", \"head\": \"c40401af6f3ab5ac455a7aac27642e37f65ca0cb\"}' > .prflow/tmp/flight-input.json\ncat .prflow/tmp/flight-input.json\npython3 .prflow/vendor/prflow/scripts/verification-flight.py descriptor --input-file .prflow/tmp/flight-input.json 2>&1",
+      "pwd; printf 'test\\n' > /tmp/flighttest.txt && echo ok",
+      "./scripts/config-get.sh .docs.internal_enabled true; ./scripts/config-get.sh .docs.external_enabled true",
+      "cat /home/runner/work/prflow/prflow/.changeset/issue-1643-restructure-create-issue-surface.md 2>/dev/null; echo \"---git status---\"; git -C /home/runner/work/prflow/prflow status --porcelain",
+      "scripts/prompt-surface-growth.py 2>&1 | head -40",
+      "scripts/prompt-surface-growth.py",
+      "lib/test/regenerate-artifacts.py --with-floors 2>&1 | tail -8; echo \"EXIT=${PIPESTATUS:-?}\""
+    ],
+    "total": 26,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
