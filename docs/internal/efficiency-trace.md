@@ -282,7 +282,10 @@ Loop Exit runs on both entry paths:
   path.
 - `.github/workflows/devflow-implement.yml` — the heavy `/prflow:implement` path (partitioned out of
   `devflow.yml`, which carries the comment-trigger routing). `/prflow:implement` Phase 3.3 invokes
-  `/prflow:review-and-fix --push-each-iteration`, which runs the full Loop Exit, so this workflow's
+  the fix loop with the draft PR number as a bare leading numeric token followed by the flags —
+  `/prflow:review-and-fix <pr-number> --push-each-iteration --issue <issue-number>` (the numeric token
+  puts the loop in PR mode against the run's own PR; when Phase 3.1 printed no number the token is
+  omitted and it falls back to current-branch mode) — which runs the full Loop Exit, so this workflow's
   allow-list needs the entry too — alongside the `config-get.sh` entry it already carries.
 
 The slim `review` profile in `devflow-runner.yml` is read-only and never runs the Loop Exit, so it

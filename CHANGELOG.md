@@ -4,6 +4,78 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.57] — 2026-08-12
+
+### Changed
+- **Relocated the `/prflow:create-issue` reference-routing table off the always-read skill root.** The routing table now lives in a new gated reference, `skills/create-issue/references/degradation-routing.md`, read only when a reference load fails or a predicate-gated fallback fires; the skill root keeps the load contract, the boundary-marker rule, a pointer to the new file, a self-contained terminal-fallback rule, and the five non-degradable invariants. The routing rows move verbatim and the root's load contract is unchanged — the `create-issue-contract` test module confirms each routed reference still resolves and the relocated table is intact — so the command reads roughly 5,000 fewer bytes of prompt (27,687 → 22,693 for the root) with the same behavior. (#1648)
+
+## [2.32.56] — 2026-08-12
+
+### Changed
+Fix `ci_failures_during_pr`, the retrospective cheap gate's CI signal, which was wrong in both directions.
+
+A `cancelled` or `stale` check-run conclusion no longer counts as a failure. Each means the run was superseded before producing a verdict, and a new push cancels the in-flight run by design, so ordinary iteration was manufacturing "CI failures" and forcing LLM analysis on PRs that were never broken.
+
+The check-runs read is now paginated. The endpoint serves a bounded page of check-runs per request, so a head with a larger CI matrix was silently truncated and the same field undercounted real failures. The filter merges across the concatenated per-page objects `gh api --paginate` emits before counting — adding the flag alone would have made every multi-page PR fail the numeric guard instead.
+
+`failure`, `timed_out` and `action_required` still count, and the filter remains a denylist rather than a failure allowlist, so an unrecognised future conclusion counts as a failure instead of being read as success. The existing fail-safe arms are unchanged: a signal that cannot be read still reports unknown rather than clean. A body carrying no check-run pages, a `check_runs` that is not an array, and a check-run that is not an object are each an explicit error, so the paginated read cannot report a clean zero for a body it could not parse. The fail-safe path now leaves a breadcrumb naming which condition fired, so an API failure, an unreadable body and a genuinely clean head are no longer indistinguishable. Every diagnostic the read emits — including `gh`'s own stderr, which pagination makes more likely to carry a non-fatal notice — is collapsed onto a single line, because the caller folds this script's stderr into one record and then splits it on newlines.
+
+### Fixed
+- **Gate Python lint (`ruff`) inside the test suite so a lint regression can no longer ship green.**
+  CI's `lint` job ran `ruff` but was never a required status check, so a Python lint regression
+  stayed invisible to both an implement run's own completion gate and the merge gate
+  (`lib + python tests`) — `lib/test/run.sh` contained no `ruff` invocation at all. `run.sh` now
+  runs `ruff check` over the tracked Python files as part of the suite (the `monolith` shard),
+  failing the suite on any violation and, because `ruff` is not preflight-guaranteed, self-skipping
+  through the existing `skip … blocking-gate …` helper — never a silent pass — when `ruff` is not
+  installed. The CI shard job now installs `ruff==0.15.*` (the same pin the `lint` job uses) so the
+  gate arms on the required check rather than self-skipping there, and the suite reconciles the two
+  pins mechanically — asserting each job declares one and that the specs are equal — so dropping the
+  shard install cannot leave the gate self-skipping while the required check stays green. Scope is
+  `ruff` only; `shellcheck`
+  and `actionlint`, which share CI's non-required lint job, are deliberately left out of scope. (#1621)
+
+## [2.32.55] — 2026-08-12
+
+### Changed
+- **`/prflow:create-issue` Step 3.5 now leaves a durable record and Step 3.6 gates on it.** The
+  steelman summary Step 3.5 already composes is persisted as a numbered `### pass <n>` entry to a
+  `## Steelman record` section of the run's derivation artifact before the step returns, and Step
+  3.6 confirms at its entry that this run's latest entry exists before dispatching the audit —
+  stopping to run Step 3.5 when it does not, at most once per entry, blocking only the audit
+  dispatch and never issue creation. The revision-delta evidence line is persisted the same way to
+  its own `## Revision-delta record` section, with no confirmation attached. No new artifact path,
+  helper, or capability grant is introduced. (#1647)
+
+## [2.32.54] — 2026-08-12
+
+### Fixed
+- **Pass the draft PR number to the Phase 3.3 fix loop so it runs in PR mode.** `/prflow:implement` Phase 3.3 now passes the draft PR number as a bare leading numeric token to `review-and-fix`, so the fix loop runs against the PR the run owns instead of in current-branch mode, and it states an omit-the-token arm for when Phase 3.1 printed no number. Both engine roots' Input paragraphs bind `$PR_NUMBER` to a bare numeric token so a `--issue` value is not mistaken for it, and the fix loop's Step 0.5 answers an absent `checkout-rc=` token with its existing head-ref/head-commit assertion so the newly-enabled gate does not stop the loop on the cloud implement tier where `gh pr checkout` is ungranted. (#1641)
+
+## [2.32.53] — 2026-08-12
+
+### Changed
+- **`prflow_review.agent_overrides.<agent>.model` now takes the Agent tool's accepted aliases
+  (`sonnet`, `opus`, `haiku`, `fable`) rather than a free-form model identifier.** The review
+  engine dispatches each reviewer through the Agent tool's per-invocation `model` parameter,
+  which is a closed enum; a full model identifier such as `claude-opus-4-8` is rejected there.
+  `scripts/resolve-review-overrides.py` now validates `model` against that accepted set exactly
+  as it already validates `effort`: an out-of-set value is dropped with a warning naming the
+  value and the accepted set, and the agent dispatches with no model override (inheriting the
+  top-level `claude_model`); an in-set value is forwarded unchanged. The config schema gains a
+  matching `enum`, and the engine root states one arm for a dispatch-time rejection of the
+  `model` parameter (re-dispatch that agent once with no model override and report the fallback).
+  A per-agent `model` override is now expressible only in that alias vocabulary; a consumer whose
+  model is addressed through a provider route sets it at the top-level `claude_model` instead.
+  **Existing consumers: re-run `/prflow:init` or `install.sh --apply` to have your
+  `agent_overrides` `model` values rewritten to the accepted aliases. Until you do, a dropped
+  out-of-set override falls back to the top-level `claude_model`.** (#1650)
+
+## [2.32.52] — 2026-08-12
+
+### Changed
+- **Restructured the `/prflow:create-issue` always-read surface for instruction adherence.** The skill root now leads with the seven-item completion checklist as a structural slot, an announcement contract, an Iron Law, a Red Flags list, and a rationalization table, and only then reaches the pipeline; the runner-plumbing prose (portable-helper anchor, Windows path normalization, anchor-degrades rule) moved into a runner-setup section below the Steps. A file-wide de-emphasis pass reserves bold for the Iron Law prohibition, the non-degradable-invariant leads, and the rationalization table's headers, and a density pass keeps every prose line — excluding the frontmatter description and Markdown table rows — under 400 characters. (#1643)
+
 ## [2.32.51] — 2026-08-12
 
 ### Added

@@ -25,7 +25,14 @@
 #   must contain a ".signals" object with these fields:
 #     review_comments_count     <int>    — human review comments left on the PR
 #     post_bot_commits          <int>    — commits pushed after the last bot push
-#     ci_failures_during_pr     <int>    — CI runs that failed while the PR was open
+#     ci_failures_during_pr     <int>    — check-runs on the head SHA, across every
+#                                          page, whose conclusion is a real red
+#                                          signal. Superseded runs (cancelled,
+#                                          stale) and success/neutral/skipped/null
+#                                          do not count; failure, timed_out,
+#                                          action_required and any unrecognised
+#                                          conclusion do (a denylist, so an unknown
+#                                          future conclusion fails closed)
 #     workpad_final_status      <string|null> — final workpad status tag
 #     review_reject_outstanding <bool>   — true if a review REJECT (from either the
 #                                          PR conversation comments or the durable

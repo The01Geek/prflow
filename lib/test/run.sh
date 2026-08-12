@@ -12163,8 +12163,10 @@ printf '%s' '{"prflow_review":{"agent_overrides":{"default":{"effort":"medium"},
 SC_MIG_OUT="$(bash "$SC" "$SC_MIG" 2>&1)"
 assert_eq "scaffold-migration: Haiku deduper effort stripped" \
   "false" "$(jq '.prflow_review.agent_overrides["prflow:checklist-deduper"] | has("effort")' "$SC_MIG/.prflow/config.json")"
-assert_eq "scaffold-migration: Haiku deduper model preserved" \
-  "claude-haiku-4-5-20251001" "$(jq -r '.prflow_review.agent_overrides["prflow:checklist-deduper"].model' "$SC_MIG/.prflow/config.json")"
+assert_eq "scaffold-migration: Haiku deduper model rewritten to the haiku alias (issue #1646)" \
+  "haiku" "$(jq -r '.prflow_review.agent_overrides["prflow:checklist-deduper"].model' "$SC_MIG/.prflow/config.json")"
+assert_eq "scaffold-migration: Opus code-reviewer model rewritten to the opus alias (issue #1646)" \
+  "opus" "$(jq -r '.prflow_review.agent_overrides["prflow:code-reviewer"].model' "$SC_MIG/.prflow/config.json")"
 assert_eq "scaffold-migration: second Haiku-pinned entry (non-deduper) also stripped" \
   "false" "$(jq '.prflow_review.agent_overrides["prflow:checklist-generator"] | has("effort")' "$SC_MIG/.prflow/config.json")"
 assert_eq "scaffold-migration: non-Haiku override effort left untouched" \
@@ -12187,6 +12189,36 @@ assert_eq "scaffold-migration: second run is a byte-identical no-op" \
 assert_eq "scaffold-migration: clean config does NOT re-emit the cleanup log line" "no" \
   "$(printf '%s' "$SC_MIG_OUT2" | grep -q "removed unsupported 'effort' from Haiku-pinned" && echo yes || echo no)"
 rm -rf "$SC_MIG"
+
+# 6h. issue #1646 model-alias rewrite: an existing config whose agent_overrides
+#     `model` values are full Anthropic family identifiers is rewritten to the
+#     accepted aliases (sonnet/opus/haiku/fable) so the operator keeps the reviewer
+#     tier they chose after the resolver started dropping full identifiers. An
+#     UNRECOGNIZED value and the top-level `claude_model` are left untouched, and a
+#     second pass is a byte-identical no-op. Keys carry the current prflow: spelling.
+SC_ALIAS="$(mktemp -d)"; mkdir -p "$SC_ALIAS/.prflow"
+printf '%s' '{"claude_model":"claude-opus-4-8","prflow_review":{"agent_overrides":{"prflow:checklist-deduper":{"model":"claude-sonnet-5"},"prflow:code-reviewer":{"model":"claude-opus-5","effort":"high"},"prflow:comment-analyzer":{"model":"claude-fable-5"},"prflow:pr-test-analyzer":{"model":"z-ai/glm-5.2"}}}}' \
+  > "$SC_ALIAS/.prflow/config.json"
+SC_ALIAS_OUT="$(bash "$SC" "$SC_ALIAS" 2>&1)"
+assert_eq "scaffold-alias(#1646): claude-sonnet-* rewritten to the sonnet alias" \
+  "sonnet" "$(jq -r '.prflow_review.agent_overrides["prflow:checklist-deduper"].model' "$SC_ALIAS/.prflow/config.json")"
+assert_eq "scaffold-alias(#1646): claude-opus-* rewritten to the opus alias" \
+  "opus" "$(jq -r '.prflow_review.agent_overrides["prflow:code-reviewer"].model' "$SC_ALIAS/.prflow/config.json")"
+assert_eq "scaffold-alias(#1646): claude-fable-* rewritten to the fable alias" \
+  "fable" "$(jq -r '.prflow_review.agent_overrides["prflow:comment-analyzer"].model' "$SC_ALIAS/.prflow/config.json")"
+assert_eq "scaffold-alias(#1646): an unrecognized model value is left untouched" \
+  "z-ai/glm-5.2" "$(jq -r '.prflow_review.agent_overrides["prflow:pr-test-analyzer"].model' "$SC_ALIAS/.prflow/config.json")"
+assert_eq "scaffold-alias(#1646): the top-level claude_model is left untouched" \
+  "claude-opus-4-8" "$(jq -r '.claude_model' "$SC_ALIAS/.prflow/config.json")"
+assert_eq "scaffold-alias(#1646): the rewrite emits the documented log line" "yes" \
+  "$(printf '%s' "$SC_ALIAS_OUT" | grep -q "rewrote agent_overrides model values to their accepted aliases" && echo yes || echo no)"
+SC_ALIAS_BEFORE="$(cat "$SC_ALIAS/.prflow/config.json")"
+SC_ALIAS_OUT2="$(bash "$SC" "$SC_ALIAS" 2>&1)"
+assert_eq "scaffold-alias(#1646): a second pass over the rewritten config is byte-identical" \
+  "$SC_ALIAS_BEFORE" "$(cat "$SC_ALIAS/.prflow/config.json")"
+assert_eq "scaffold-alias(#1646): the clean second pass does NOT re-emit the rewrite log line" "no" \
+  "$(printf '%s' "$SC_ALIAS_OUT2" | grep -q "rewrote agent_overrides model values to their accepted aliases" && echo yes || echo no)"
+rm -rf "$SC_ALIAS"
 
 # 6b. jq unavailable during the Haiku effort-cleanup: a config that DOES carry a
 #     stale Haiku+effort combo must be LEFT UNTOUCHED (cleanup skipped, not
@@ -12251,14 +12283,14 @@ rm -rf "$SC_DR_BAD"
 #     cleanup). Start from a COMPLETE example-derived config so the ONLY thing the
 #     backfill could change is the grafted effort — making this a precise probe.
 SC_GRAFT="$(mktemp -d)"; mkdir -p "$SC_GRAFT/.prflow"
-jq '.prflow_review.agent_overrides["prflow:checklist-deduper"] = {"model":"claude-haiku-4-5-20251001"}' \
+jq '.prflow_review.agent_overrides["prflow:checklist-deduper"] = {"model":"haiku"}' \
   "$TPL_DIR/config.example.json" > "$SC_GRAFT/.prflow/config.json"
 SC_GRAFT_BEFORE="$(cat "$SC_GRAFT/.prflow/config.json")"
 SC_GRAFT_OUT="$(bash "$SC" "$SC_GRAFT" 2>&1)"
 assert_eq "scaffold-graft-guard: backfill does NOT graft effort onto a Haiku deduper" \
   "false" "$(jq '.prflow_review.agent_overrides["prflow:checklist-deduper"] | has("effort")' "$SC_GRAFT/.prflow/config.json")"
-assert_eq "scaffold-graft-guard: Haiku deduper model preserved" \
-  "claude-haiku-4-5-20251001" "$(jq -r '.prflow_review.agent_overrides["prflow:checklist-deduper"].model' "$SC_GRAFT/.prflow/config.json")"
+assert_eq "scaffold-graft-guard: Haiku deduper model preserved (haiku alias, issue #1646)" \
+  "haiku" "$(jq -r '.prflow_review.agent_overrides["prflow:checklist-deduper"].model' "$SC_GRAFT/.prflow/config.json")"
 assert_eq "scaffold-graft-guard: re-scaffold is a byte-identical quiet no-op" \
   "$SC_GRAFT_BEFORE" "$(cat "$SC_GRAFT/.prflow/config.json")"
 assert_eq "scaffold-graft-guard: quiet no-op emits neither backfill nor cleanup log" "yes" \
@@ -12275,7 +12307,7 @@ rm -rf "$SC_GRAFT"
 #     SURVIVED the backfill into the cleanup. Start from a COMPLETE example-derived
 #     config so the backfill is otherwise a byte-identical no-op.
 SC_PRESERVE="$(mktemp -d)"; mkdir -p "$SC_PRESERVE/.prflow"
-jq '.prflow_review.agent_overrides["prflow:checklist-deduper"] = {"model":"claude-haiku-4-5-20251001","effort":"low"}' \
+jq '.prflow_review.agent_overrides["prflow:checklist-deduper"] = {"model":"haiku","effort":"low"}' \
   "$TPL_DIR/config.example.json" > "$SC_PRESERVE/.prflow/config.json"
 SC_PRESERVE_OUT="$(bash "$SC" "$SC_PRESERVE" 2>&1)"
 # The discriminator: the cleanup log fires ⇒ the user's effort survived the backfill
@@ -12288,8 +12320,8 @@ assert_eq "scaffold-graft-guard: preserve-branch sees no backfill rewrite (graft
   "no" "$(printf '%s' "$SC_PRESERVE_OUT" | grep -q 'backfilled newly-added keys' && echo yes || echo no)"
 assert_eq "scaffold-graft-guard: preserve-branch effort ultimately removed" \
   "false" "$(jq '.prflow_review.agent_overrides["prflow:checklist-deduper"] | has("effort")' "$SC_PRESERVE/.prflow/config.json")"
-assert_eq "scaffold-graft-guard: preserve-branch Haiku model kept through both passes" \
-  "claude-haiku-4-5-20251001" "$(jq -r '.prflow_review.agent_overrides["prflow:checklist-deduper"].model' "$SC_PRESERVE/.prflow/config.json")"
+assert_eq "scaffold-graft-guard: preserve-branch Haiku model kept through both passes (haiku alias, issue #1646)" \
+  "haiku" "$(jq -r '.prflow_review.agent_overrides["prflow:checklist-deduper"].model' "$SC_PRESERVE/.prflow/config.json")"
 rm -rf "$SC_PRESERVE"
 
 # 6f. Robustness: a non-string `model` on ONE agent_overrides entry must not
@@ -12302,7 +12334,7 @@ rm -rf "$SC_PRESERVE"
 #     complete example-derived config with a valid Haiku+effort entry AND a
 #     non-string-model entry.
 SC_BADMODEL="$(mktemp -d)"; mkdir -p "$SC_BADMODEL/.prflow"
-jq '.prflow_review.agent_overrides["prflow:checklist-generator"] = {"model":"claude-haiku-4-5-20251001","effort":"high"}
+jq '.prflow_review.agent_overrides["prflow:checklist-generator"] = {"model":"haiku","effort":"high"}
     | .prflow_review.agent_overrides["prflow:checklist-verifier"] = {"model":{"oops":true},"effort":"low"}' \
   "$TPL_DIR/config.example.json" > "$SC_BADMODEL/.prflow/config.json"
 bash "$SC" "$SC_BADMODEL" >/dev/null 2>&1; SC_BADMODEL_RC=$?
@@ -12857,7 +12889,7 @@ assert_eq "agent_overrides: shipped deduper override exists, pins Sonnet 5, and 
   "$(jq -r '
       (.prflow_review.agent_overrides["prflow:checklist-deduper"]) as $d
       | if ($d | type) != "object" then "missing-entry"
-        elif (($d.model // "") != "claude-sonnet-5") then "not-sonnet"
+        elif (($d.model // "") != "sonnet") then "not-sonnet"
         elif ($d | has("effort") | not) then "no-effort"
         else "ok" end' "$TPL_DIR/config.example.json")"
 # Claude Haiku rejects `effort` with HTTP 400 (supported only on Opus 4.5–4.8,
@@ -12870,7 +12902,7 @@ assert_eq "agent_overrides: no shipped Haiku-pinned override carries an effort k
   "$(jq -r '
       [ (.prflow_review.agent_overrides // {}) | to_entries[]
         | select((.value | type) == "object")
-        | select(((.value.model // "") | startswith("claude-haiku-")) and (.value | has("effort"))) ]
+        | select(((.value.model // "") | (. == "haiku" or startswith("claude-haiku-"))) and (.value | has("effort"))) ]
       | if length == 0 then "ok" else "haiku-with-effort" end' "$TPL_DIR/config.example.json")"
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -13526,6 +13558,280 @@ assert_eq "ci_status_unknown=false (CLEAN fixture)"  "false" "$(jq -r '.signals.
 # Fix 2: diff field must be a non-null string when the fixture has content
 assert_eq "diff is a non-empty string" "string" "$(jq -r '.diff | type' <<<"$CTX")"
 assert_eq "diff not null"              "false"  "$(jq -r '.diff == null' <<<"$CTX")"
+
+# ────────────────────────────────────────────────────────────────────────────
+echo "fetch-pr-context.sh: ci_failures_during_pr semantics (issue #1441)"
+# ────────────────────────────────────────────────────────────────────────────
+# Never transcribe the shipped jq filter here: a copy keeps passing after the
+# shipped one drifts. Never re-route through gh-stub.sh either — its $SET
+# prefixes every endpoint, so each payload shape costs a whole fixture set.
+F1441="$(mktemp -d)"
+cat > "$F1441/prview.json" <<'PV1441'
+{"number":1441,"headRefName":"claude/issue-1441-x","baseRefName":"main","headRefOid":"sha1441beef","mergeCommit":{"oid":"merge1441"},"mergedAt":"2026-05-08T16:31:00Z","createdAt":"2026-05-08T07:00:00Z","author":{"login":"example-bot"},"title":"t","body":"Closes #1441","additions":1,"deletions":0,"files":[{"path":"x.txt"}],"labels":[]}
+PV1441
+cat > "$F1441/gh" <<'STUB1441'
+#!/usr/bin/env bash
+FX="${DEVFLOW_FX}"
+case "$*" in
+  *"repo view"*) echo "acme/example-repo" ;;
+  *"pr view"*) cat "$FX/prview.json" ;;
+  *"pr diff"*) echo 'diff --git a/x.txt b/x.txt' ;;
+  *"pulls/"*"/comments"*) echo '[]' ;;
+  *"pulls/"*"/reviews"*) echo '[]' ;;
+  *"pulls/"*"/commits"*) echo '[]' ;;
+  *"check-runs"*)
+    printf '%s\n' "$*" >> "$FX/argv.log"
+    # Emitted before the case, not as a `;;&` fallthrough arm: `;;&` is bash 4+
+    # and this repo must parse under the bash 3.2 macOS ships.
+    [ "${DEVFLOW_CR_MODE:-payload}" = notice ] && echo "gh: rate limit remaining 12" >&2
+    [ "${DEVFLOW_CR_MODE:-payload}" = notice-multiline ] && printf 'gh: notice one\ngh: notice two\n' >&2
+    case "${DEVFLOW_CR_MODE:-payload}" in
+      exit-nonzero) echo "gh: HTTP 503 Service Unavailable" >&2; exit 1 ;;
+      *)
+        # Serve page 1 alone unless the caller really paginated, so deleting
+        # --paginate from the shipped command turns the AC5 row RED instead of
+        # leaving it green on a stub that ignores flags.
+        case "$*" in
+          *--paginate*) cat "$FX/checkruns.json" ;;
+          *)            head -1 "$FX/checkruns.json" ;;
+        esac
+        ;;
+    esac
+    ;;
+  *"issues/"*"/comments"*) echo '[]' ;;
+  *"issues/"*) echo '{"number":1441,"title":"i","body":"b","labels":[],"comments":[]}' ;;
+  *"commits/"*) echo '{"files":[]}' ;;
+  *) echo '[]' ;;
+esac
+STUB1441
+chmod +x "$F1441/gh"
+
+# $1 label, $2 expected ci_failures_during_pr, $3 expected ci_status_unknown,
+# $4 optional DEVFLOW_CR_MODE. The payload is whatever the caller last wrote to
+# $F1441/checkruns.json.
+cr1441() {
+  local _out _ctx
+  _out="$(DEVFLOW_FX="$F1441" DEVFLOW_GH="$F1441/gh" DEVFLOW_CR_MODE="${4:-payload}" \
+          bash "$LIB/fetch-pr-context.sh" 1441 2>/dev/null)"
+  _ctx="$(cat "$_out" 2>/dev/null)"
+  assert_eq "#1441: $1 → ci_failures_during_pr=$2" "$2" \
+    "$(jq -r '.signals.ci_failures_during_pr' <<<"$_ctx")"
+  assert_eq "#1441: $1 → ci_status_unknown=$3" "$3" \
+    "$(jq -r '.signals.ci_status_unknown' <<<"$_ctx")"
+}
+
+# AC1 — superseded conclusions never count.
+cat > "$F1441/checkruns.json" <<'CR'
+{"check_runs":[{"conclusion":"cancelled"},{"conclusion":"stale"},{"conclusion":"success"},{"conclusion":"neutral"},{"conclusion":"skipped"}]}
+CR
+cr1441 "cancelled+stale beside success/neutral/skipped" "0" "false"
+
+# AC2 — the three real red signals each increment, asserted one conclusion at a
+# time so a filter that recognises only `failure` cannot pass on a mixed payload.
+for _concl in failure timed_out action_required; do
+  printf '{"check_runs":[{"conclusion":"%s"}]}\n' "$_concl" > "$F1441/checkruns.json"
+  cr1441 "a lone $_concl run" "1" "false"
+done
+unset _concl
+
+# AC3 — never flip the filter to a failure allowlist: an unknown future
+# conclusion would then read as success and the signal would fail OPEN.
+cat > "$F1441/checkruns.json" <<'CR'
+{"check_runs":[{"conclusion":"conclusion_github_has_not_invented_yet"}]}
+CR
+cr1441 "an unrecognised conclusion (denylist fails closed)" "1" "false"
+
+# Never let a superseded conclusion suppress a real red sharing its page: a
+# filter that rejected the whole payload on seeing `cancelled` would leave AC1
+# and AC2 both green, since neither mixes the two on one page.
+cat > "$F1441/checkruns.json" <<'CR'
+{"check_runs":[{"conclusion":"failure"},{"conclusion":"cancelled"}]}
+CR
+cr1441 "a real red beside a superseded conclusion on one page" "1" "false"
+
+# AC4 — a still-running check has conclusion null and is not a failure.
+cat > "$F1441/checkruns.json" <<'CR'
+{"check_runs":[{"conclusion":null},{"conclusion":null}]}
+CR
+cr1441 "every run still in flight (conclusion null)" "0" "false"
+
+# AC5 — a multi-page head. Keep both qualifying runs on page 2 and none on page
+# 1, or the row stops discriminating a merged count from a page-1-only one.
+cat > "$F1441/checkruns.json" <<'CR'
+{"check_runs":[{"conclusion":"success"},{"conclusion":"cancelled"}]}
+{"check_runs":[{"conclusion":"failure"},{"conclusion":"timed_out"}]}
+CR
+cr1441 "two concatenated pages, both qualifying runs on page 2" "2" "false"
+# Keep these argv pins beside the behavioral row: they name the cause when it
+# fails, which a count mismatch alone does not.
+assert_eq "#1441: the shipped call passes --paginate" "yes" \
+  "$(grep -q -- '--paginate' "$F1441/argv.log" && echo yes || echo no)"
+assert_eq "#1441: the shipped call requests the larger page size" "yes" \
+  "$(grep -q 'per_page=100' "$F1441/argv.log" && echo yes || echo no)"
+# Pin the commit selector too: the stub ignores the path, so swapping HEAD_SHA
+# for a merge or base SHA would describe another commit's CI and stay green.
+assert_eq "#1441: the shipped call addresses the PR head SHA" "yes" \
+  "$(grep -q 'commits/sha1441beef/check-runs' "$F1441/argv.log" && echo yes || echo no)"
+
+# AC6 fail-safe arm 1, both ORed conditions. A PR whose CI could not be read
+# must never read as clean, so each sets unknown=true AND failures=1.
+cat > "$F1441/checkruns.json" <<'CR'
+{"check_runs":[{"conclusion":"success"}]}
+CR
+cr1441 "gh exits non-zero" "1" "true" exit-nonzero
+: > "$F1441/checkruns.json"
+cr1441 "gh returns an empty body" "1" "true"
+
+# Never re-add `2>&1` to the shipped capture: a non-fatal gh notice on a
+# SUCCESSFUL request would then contaminate the body and report a healthy head
+# as unreadable — the exact false signal this change exists to remove.
+
+# Two failures, not one: the fail-safe arm also yields 1, so a single-failure
+# payload leaves the count row green when that regression lands.
+printf '{"check_runs":[{"conclusion":"failure"},{"conclusion":"timed_out"}]}\n' > "$F1441/checkruns.json"
+cr1441 "a non-fatal gh notice on stderr, request otherwise clean" "2" "false" notice
+
+# Never delete a fail-safe breadcrumb: cr1441 discards stderr, so without the
+# rows below the suite stays green while the arms become indistinguishable.
+printf '{"check_runs":[{"conclusion":"success"}]}\n' > "$F1441/checkruns.json"
+_CR_ERR1="$(DEVFLOW_FX="$F1441" DEVFLOW_GH="$F1441/gh" DEVFLOW_CR_MODE=exit-nonzero bash "$LIB/fetch-pr-context.sh" 1441 2>&1 >/dev/null || true)"
+# Pin the exit-status VALUE, not just the label: matching `rc=` alone stays green
+# when the argument is dropped, which is the regression this row names.
+assert_eq "#1441: the read-failure arm reports the failing exit status" "yes" \
+  "$(case "$_CR_ERR1" in *"check-runs read failed (rc=1)"*) echo yes ;; *) echo no ;; esac)"
+printf 'this is not json at all\n' > "$F1441/checkruns.json"
+_CR_ERR2="$(DEVFLOW_FX="$F1441" DEVFLOW_GH="$F1441/gh" bash "$LIB/fetch-pr-context.sh" 1441 2>&1 >/dev/null || true)"
+# Pin the QUOTED BODY, not the arm's label: the label predates the body clause,
+# so matching it stays green when the clause this row names is deleted.
+assert_eq "#1441: the unusable-body arm quotes the body it could not parse" "yes" \
+  "$(case "$_CR_ERR2" in *"body began: this is not json at all"*) echo yes ;; *) echo no ;; esac)"
+# Check both directions below: a one-sided check stays green once the fail-safe
+# arms drift onto shared wording, which is what makes them indistinguishable.
+assert_eq "#1441: the read-failure arm carries no unusable-body wording" "no" \
+  "$(case "$_CR_ERR1" in *"yielded no usable count"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#1441: the unusable-body arm carries no read-failure wording" "no" \
+  "$(case "$_CR_ERR2" in *"check-runs read failed"*) echo yes ;; *) echo no ;; esac)"
+# A breadcrumb must stay one line: a caller splits our stderr into records.
+printf 'not json line one\nnot json line two\n' > "$F1441/checkruns.json"
+_CR_ERR3="$(DEVFLOW_FX="$F1441" DEVFLOW_GH="$F1441/gh" bash "$LIB/fetch-pr-context.sh" 1441 2>&1 >/dev/null || true)"
+# Assert the JOINED tail, not the marker's occurrence count: the marker appears
+# once whether or not the newline strip this row names is present.
+assert_eq "#1441: the quoted body is newline-stripped onto one line" "yes" \
+  "$(case "$_CR_ERR3" in *"body began: not json line one not json line two"*) echo yes ;; *) echo no ;; esac)"
+# Pin an arm-specific jq diagnostic, or the whole re-run is freely deletable.
+printf '{"check_runs":{"a":{"conclusion":"success"}}}\n' > "$F1441/checkruns.json"
+_CR_ERR4="$(DEVFLOW_FX="$F1441" DEVFLOW_GH="$F1441/gh" bash "$LIB/fetch-pr-context.sh" 1441 2>&1 >/dev/null || true)"
+assert_eq "#1441: the breadcrumb carries jq's own wrong-type diagnostic" "yes" \
+  "$(case "$_CR_ERR4" in *"jq: "*"check_runs not an array"*) echo yes ;; *) echo no ;; esac)"
+printf '   \n  \n' > "$F1441/checkruns.json"
+_CR_ERR5="$(DEVFLOW_FX="$F1441" DEVFLOW_GH="$F1441/gh" bash "$LIB/fetch-pr-context.sh" 1441 2>&1 >/dev/null || true)"
+assert_eq "#1441: the breadcrumb carries jq's own zero-page diagnostic" "yes" \
+  "$(case "$_CR_ERR5" in *"jq: "*"no check-run pages"*) echo yes ;; *) echo no ;; esac)"
+# This error arm needs its own pin: the behavioral rows expect 1/true, which its
+# sibling arms also produce, so it would otherwise be deletable while green.
+printf '{"check_runs":[7]}\n' > "$F1441/checkruns.json"
+_CR_ERR6="$(DEVFLOW_FX="$F1441" DEVFLOW_GH="$F1441/gh" bash "$LIB/fetch-pr-context.sh" 1441 2>&1 >/dev/null || true)"
+assert_eq "#1441: the breadcrumb carries jq's own non-object diagnostic" "yes" \
+  "$(case "$_CR_ERR6" in *"non-object check-run"*) echo yes ;; *) echo no ;; esac)"
+# Never drop the counting run's 2>/dev/null: raw jq output would then land as its
+# own line and fragment the caller's one-record-per-line contract. Match at line
+# start — the breadcrumb carries jq's message mid-line, so only raw output counts.
+assert_eq "#1441: no raw jq output escapes alongside the breadcrumb" "0" \
+  "$(printf '%s\n' "$_CR_ERR6" | grep -c '^jq:')"
+# An rc-0 empty body is not a failed call; it must say so in its own words.
+: > "$F1441/checkruns.json"
+_CR_ERR7="$(DEVFLOW_FX="$F1441" DEVFLOW_GH="$F1441/gh" bash "$LIB/fetch-pr-context.sh" 1441 2>&1 >/dev/null || true)"
+assert_eq "#1441: an rc-0 empty body is not reported as a failed read" "yes" \
+  "$(case "$_CR_ERR7" in *"returned an empty body (rc=0)"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#1441: the empty-body arm carries no read-failure wording" "no" \
+  "$(case "$_CR_ERR7" in *"check-runs read failed"*) echo yes ;; *) echo no ;; esac)"
+
+# gh's OWN stderr is re-emitted collapsed, not passed through raw: the caller
+# folds our whole stderr into one record and then splits it on newlines, so an
+# unstripped multi-line gh notice fragments into phantom rows.
+printf '{"check_runs":[{"conclusion":"success"}]}\n' > "$F1441/checkruns.json"
+_CR_ERR8="$(DEVFLOW_FX="$F1441" DEVFLOW_GH="$F1441/gh" DEVFLOW_CR_MODE=notice-multiline \
+            bash "$LIB/fetch-pr-context.sh" 1441 2>&1 >/dev/null || true)"
+assert_eq "#1441: gh's multi-line stderr is re-emitted joined onto one line" "yes" \
+  "$(case "$_CR_ERR8" in *"gh: notice one gh: notice two"*) echo yes ;; *) echo no ;; esac)"
+# Positive control on the same fixture: the request itself succeeded, so this
+# row cannot be green because some earlier arm rejected the payload.
+cr1441 "a multi-line gh notice, request otherwise clean" "0" "false" notice-multiline
+
+# The jq-error operand of the breadcrumb's collapse needs its own driver: real
+# jq emits single-line diagnostics, so only a stub jq exercises that strip.
+cat > "$F1441/jq" <<'JQSTUB1441'
+#!/usr/bin/env bash
+case "$*" in
+  *"no check-run pages"*)
+    printf 'jq: stub error line one\njq: stub error line two\n' >&2
+    exit 5 ;;
+esac
+exec "${DEVFLOW_REAL_JQ}" "$@"
+JQSTUB1441
+chmod +x "$F1441/jq"
+printf '{"check_runs":[{"conclusion":"success"}]}\n' > "$F1441/checkruns.json"
+_CR_ERR9="$(DEVFLOW_FX="$F1441" DEVFLOW_GH="$F1441/gh" \
+            DEVFLOW_REAL_JQ="$(command -v jq)" DEVFLOW_JQ="$F1441/jq" \
+            bash "$LIB/fetch-pr-context.sh" 1441 2>&1 >/dev/null || true)"
+assert_eq "#1441: the jq-error operand is collapsed onto one line" "yes" \
+  "$(case "$_CR_ERR9" in *"jq: stub error line one jq: stub error line two"*) echo yes ;; *) echo no ;; esac)"
+# Attribute the rejection: without this the row stays green if the stub tripped
+# some other arm rather than the unusable-count arm whose strip it names.
+assert_eq "#1441: the jq-error row lands on the unusable-count arm" "yes" \
+  "$(case "$_CR_ERR9" in *"yielded no usable count"*) echo yes ;; *) echo no ;; esac)"
+
+unset _CR_ERR1 _CR_ERR2 _CR_ERR3 _CR_ERR4 _CR_ERR5 _CR_ERR6 _CR_ERR7 _CR_ERR8 _CR_ERR9
+
+# Adversarial input shapes: never give `.check_runs` a `// []` default — these
+# must error into the fail-safe guard, not be laundered into a clean 0.
+while IFS='|' read -r _label _payload; do
+  [ -n "$_label" ] || continue
+  printf '%s\n' "$_payload" > "$F1441/checkruns.json"
+  cr1441 "$_label" "1" "true"
+done <<'CR'
+a body that is not JSON|this is not json at all
+valid JSON with no check_runs key|{"total_count":0}
+check_runs is a scalar, not an array|{"check_runs":7}
+a check_runs element that is not an object|{"check_runs":[7]}
+a check_runs element that is null|{"check_runs":[null]}
+check_runs is an object, not an array|{"check_runs":{"a":{"conclusion":"success"}}}
+CR
+unset _label _payload
+
+# Never drop the zero-page error arm: `inputs` yields nothing for a body that
+# parses to zero JSON documents, so the filter would return a clean 0 that
+# passes the numeric guard and reports the head as having no CI failures.
+printf '   \n  \n' > "$F1441/checkruns.json"
+cr1441 "a whitespace-only body (zero JSON documents)" "1" "true"
+
+# AC6 fail-safe arm 2. Never transcribe the guard and never extract it with a
+# fixed line window: a copy drifts, and a fixed offset silently truncates the
+# moment the block grows, dropping its else-arm.
+CI_GUARD_PROG=$(awk 'f{print; if ($0 ~ /^[[:space:]]*fi[[:space:]]*$/) exit; next} /if \[ -z "\$_CI_COUNT" \]/{print; f=1}' "$LIB/fetch-pr-context.sh")
+# Never weaken this to a substring test: if the closing `fi` drifts off its own
+# line the awk over-runs to the next bare `fi`, and a presence test reports a
+# clean extraction over a different, unbalanced program.
+assert_eq "#1441: the extracted guard parses as balanced shell" "0" \
+  "$(printf '%s\n' "$CI_GUARD_PROG" | bash -n /dev/stdin 2>/dev/null; echo $?)"
+assert_eq "#1441: the extracted guard carries its else-arm" "1" \
+  "$(printf '%s\n' "$CI_GUARD_PROG" | grep -c 'CI_FAILURES="\$_CI_COUNT"')"
+# DEVFLOW_JQ=true keeps the guard's diagnostic re-run silent here: the extracted
+# block calls jq, and an unset binary would spray command-not-found across the rows.
+ci_guard1441() {  # $1 label, $2 _CI_COUNT value, $3 expected unknown, $4 expected failures
+  assert_eq "#1441: the shipped guard reads a $1 _CI_COUNT as unknown=$3" "$3" \
+    "$(_CI_COUNT="$2" CI_STATUS_UNKNOWN=false CI_FAILURES=x DEVFLOW_JQ=true bash -c "$CI_GUARD_PROG"'; printf %s "$CI_STATUS_UNKNOWN"' 2>/dev/null)"
+  assert_eq "#1441: the shipped guard reads a $1 _CI_COUNT as failures=$4" "$4" \
+    "$(_CI_COUNT="$2" CI_STATUS_UNKNOWN=false CI_FAILURES=x DEVFLOW_JQ=true bash -c "$CI_GUARD_PROG"'; printf %s "$CI_FAILURES"' 2>/dev/null)"
+}
+ci_guard1441 "multi-line"  "$(printf '0\n1')" true  1
+ci_guard1441 "alphabetic"  "not-a-number"     true  1
+ci_guard1441 "empty"       ""                 true  1
+ci_guard1441 "numeric"     "3"                false 3
+unset -f ci_guard1441
+unset CI_GUARD_PROG
+unset -f cr1441
+rm -rf "$F1441"
 
 # #356: a workpad whose Status is `💥 Failed` yields the bare word `Failed`
 # (fetch-pr-context strips 💥 like the other glyphs), and cheap-gate gates it
@@ -15549,7 +15855,7 @@ for PA_FILE in "$LIB"/../skills/review/phases/*.md "$LIB"/../skills/review-and-f
     "$(if grep -qF 'CLAUDE_SKILL_DIR' "$PA_FILE"; then grep -qF "$PORTABLE_ANCHOR_LITERAL" "$PA_FILE" && echo yes || echo no; else echo yes; fi)"  # raw-guard-ok: loop body: conditional presence pin over the enumerated $PA_FILE loop variable
 done
 assert_eq "#275 pin (R0): portable-anchor coverage spans every review phase + fix-loop + create-issue + implement reference file (enumeration reconciled)" \
-  "36" "$PA_REF_COUNT"
+  "37" "$PA_REF_COUNT"
 # Mutation proof (PASS->FAIL, self-contained): the absence EREs must actually MATCH the
 # two fragile forms they exist to reject — an ERE typo would leave P1/P2 green forever
 # (vacuous absence pins). Inject each fragile form into a temp copy of a migrated file
@@ -33976,6 +34282,7 @@ CI_MOD_VARS=(
   --var "CI_REF_FB_TIERREAD=skills/create-issue/references/fallback-implement-offer-tier-read.md"
   --var "CI_REF_FB_VISUAL=skills/create-issue/references/fallback-visual-specification.md"
   --var "CI_REF_FB_EVIDENCE=skills/create-issue/references/fallback-audit-evidence-degraded.md"
+  --var "CI_REF_ROUTING=skills/create-issue/references/degradation-routing.md"
   --var "CI_TMPL_AUDIT=skills/create-issue/references/audit-prompt-template.md"
   --var "CI_TMPL=skills/create-issue/references/issue-template.md"
   --var "CI_EXT=.prflow/prompt-extensions/create-issue.md"
@@ -46400,7 +46707,7 @@ fi
 # The registry and this full-suite call share the same lower-bound contract;
 # test_module_runner.py parses this operand and rejects any coupling drift.
 if ! devflow_run_full_suite_module "$LIB/test/modules/create-issue-contract.sh" \
-  "create-issue-contract" 292; then
+  "create-issue-contract" 300; then
   printf 'ERROR: create-issue-contract boundary could not record its result\n'
   exit 1
 fi
@@ -52178,6 +52485,142 @@ elif [ -n "$RSZ_NF_REAL" ]; then
   printf '%s\n' "#1614 near-full advisory (covered files nearing the reader-cap ceiling; trim while cheap):"
   printf '%s\n' "$RSZ_NF_REAL" | rsz_nf_render
 fi
+
+# ── issue #1621: ruff Python-lint gate (monolith-shard-resident) ─────────────
+# Rationale and scope: docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md, the #1621 paragraph.
+# Do not swap this execution probe for `command -v`: a present-but-unrunnable ruff
+# would then FAIL the suite instead of routing to the skip() below.
+RUFF_CMD=()
+if ruff --version >/dev/null 2>&1; then
+  RUFF_CMD=(ruff)
+elif python3 -m ruff --version >/dev/null 2>&1; then
+  RUFF_CMD=(python3 -m ruff)
+fi
+if [ "${#RUFF_CMD[@]}" -gt 0 ]; then
+  # Do not swap git ls-files for a recursive walk (it would scan sibling
+  # .claude/worktrees/ checkouts), nor the array for `xargs -r` (GNU-only).
+  # The [ -f ] filter drops index-tracked paths deleted from the worktree, which
+  # would otherwise make ruff exit rc 2 (missing path) and RED a clean tree.
+  RUFF_FILES=()
+  while IFS= read -r _ruff_f; do if [ -f "$_ruff_f" ]; then RUFF_FILES+=("$_ruff_f"); fi; done < <(git ls-files '*.py')
+  # This repo always tracks Python files, so a zero-length list means the enumeration
+  # FAILED, not "nothing to lint" — without this assertion a vacuous scan passes green.
+  if [ "${#RUFF_FILES[@]}" -gt 0 ]; then RUFF_FILES_NONEMPTY=yes; else RUFF_FILES_NONEMPTY=no; fi
+  assert_eq "#1621 ruff gate: git ls-files enumerated tracked *.py (non-empty)" yes "$RUFF_FILES_NONEMPTY"
+  # Invoke ruff only with a non-empty path list; ruff given no path arguments lints the cwd.
+  if [ "${#RUFF_FILES[@]}" -gt 0 ]; then
+    # Do not drop --no-force-exclude: a ruff config `exclude` covering tracked *.py
+    # would then return rc 0 having checked nothing.
+    RUFF_OUT="$("${RUFF_CMD[@]}" check --no-force-exclude "${RUFF_FILES[@]}" 2>&1)"; RUFF_RC=$?
+    # Compare against 0, not against 1: narrowing this to "no findings" would wave
+    # ruff's own error rc 2 through as a pass.
+    assert_eq "#1621 ruff Python-lint gate: tracked *.py pass ruff check" 0 "$RUFF_RC"
+    if [ "$RUFF_RC" -ne 0 ]; then printf '%s\n' "$RUFF_OUT"; fi
+  fi
+  # Non-vacuity proof. Do not relax the E731/rc-1 pair to "any nonzero rc": an inert or
+  # errored ruff would then satisfy the proof. Keep the fixture under the gitignored
+  # .prflow/tmp, or git ls-files adds it to the scanned set above and reddens the tree.
+  mkdir -p .prflow/tmp
+  RUFF_FIX_DIR="$(mktemp -d .prflow/tmp/ruff-nonvacuity.XXXXXX)"
+  [ -n "$RUFF_FIX_DIR" ] && [ -d "$RUFF_FIX_DIR" ] || { printf 'FATAL: mktemp -d failed for the #1621 ruff non-vacuity fixture\n' >&2; exit 1; }
+  printf '%s\n' '_mk = lambda: 0' > "$RUFF_FIX_DIR/violation.py"
+  RUFF_FIX_OUT="$("${RUFF_CMD[@]}" check --no-force-exclude "$RUFF_FIX_DIR/violation.py" 2>&1)"; RUFF_FIX_RC=$?
+  rm -rf "$RUFF_FIX_DIR"
+  # A missing grep short-circuits to FIRES=no → the assertion reddens (fail-closed).
+  if [ "$RUFF_FIX_RC" -eq 1 ] && printf '%s\n' "$RUFF_FIX_OUT" | grep -q 'E731'; then RUFF_FIX_FIRES=yes; else RUFF_FIX_FIRES=no; fi
+  assert_eq "#1621 ruff Python-lint gate fires on a known E731 violation (non-vacuity)" yes "$RUFF_FIX_FIRES"
+else
+  skip "#1621 ruff Python-lint gate" blocking-gate "ruff not runnable on PATH (nor via python3 -m ruff) — the Python lint gate did NOT run; CI installs it in the shard job (see .github/workflows/ci.yml), and 'python3 -m pip install ruff==0.15.*' arms it at the desk"
+fi
+
+# ── #1621: ci.yml's two ruff pins are a coupled pair; reconcile them mechanically ──
+# Assert BOTH halves individually as well as their equality: two `absent` reads would
+# otherwise satisfy the equality vacuously while no ruff install exists at all.
+devflow_ruff_pin() {  # $1 = job name, $2 = workflow file; prints the ruff version spec
+  # Section attribution assumes ci.yml job headers stay at 2-space indentation and the
+  # install stays spelled `ruff==<spec>`; changing either silently yields `absent`.
+  local _out
+  [ -s "$2" ] || { printf 'unreadable'; return; }
+  _out="$(awk -v job="^  $1:[[:space:]]*$" '
+    $0 ~ job {ins=1; next}
+    /^  [A-Za-z_][A-Za-z0-9_-]*:/{ins=0}
+    ins && /^[[:space:]]*#/{next}
+    ins && match($0, /ruff==[0-9A-Za-z.*]+/) {print substr($0, RSTART+6, RLENGTH-6); exit}
+  ' "$2")" || { printf 'awk-failed'; return; }
+  [ -n "$_out" ] || { printf 'absent'; return; }
+  printf '%s' "$_out"
+}
+RUFF_PIN_SHARD="$(devflow_ruff_pin shard "$LIB/../.github/workflows/ci.yml")"
+RUFF_PIN_LINT="$(devflow_ruff_pin lint "$LIB/../.github/workflows/ci.yml")"
+case "$RUFF_PIN_SHARD" in [0-9]*) RUFF_PIN_SHARD_OK=yes ;; *) RUFF_PIN_SHARD_OK=no ;; esac
+case "$RUFF_PIN_LINT"  in [0-9]*) RUFF_PIN_LINT_OK=yes  ;; *) RUFF_PIN_LINT_OK=no  ;; esac
+# structural-pin-ok: cross-file-phase-contract -- the workflow line that installs ruff is what ARMS the #1621 gate on CI; removed, the gate self-skips and `lib + python tests` stays green with no Python lint running
+assert_eq "#1621 ci.yml: the shard job installs a version-pinned ruff (arms the lint gate)" yes "$RUFF_PIN_SHARD_OK"
+# structural-pin-ok: cross-file-phase-contract -- positive control on the equality's other operand; without it two `absent` reads would satisfy the reconciliation below vacuously
+assert_eq "#1621 ci.yml: the lint job still declares a version-pinned ruff" yes "$RUFF_PIN_LINT_OK"
+# structural-pin-ok: cross-file-phase-contract -- the two pins are a declared coupled pair; drift means the required check's gate and CI's lint job disagree about which ruff decides a violation
+assert_eq "#1621 ci.yml: the shard and lint jobs pin the SAME ruff version" "$RUFF_PIN_LINT" "$RUFF_PIN_SHARD"
+
+# ── #1621: adversarial input-shape matrix over devflow_ruff_pin ───────────────
+# The reconciliation above runs only against the live, currently-matching ci.yml, so
+# nothing there exercises the drift path or any sentinel arm. Feed synthetic job blocks
+# so a mismatch is proved discriminating and each sentinel is proved to fail closed.
+mkdir -p .prflow/tmp
+RUFF_MTX_DIR="$(mktemp -d .prflow/tmp/ruff-pin-matrix.XXXXXX)"
+[ -n "$RUFF_MTX_DIR" ] && [ -d "$RUFF_MTX_DIR" ] || { printf 'FATAL: mktemp -d failed for the #1621 ruff-pin matrix\n' >&2; exit 1; }
+
+# Shape 1 — matching specs in both job blocks: the equality holds and both halves read a spec.
+{
+  printf 'jobs:\n'
+  printf '  lint:\n    steps:\n      - run: python3 -m pip install %s\n' "'ruff==9.9.*'"
+  printf '  shard:\n    steps:\n      - run: python3 -m pip install %s\n' "'ruff==9.9.*'"
+} > "$RUFF_MTX_DIR/match.yml"
+assert_eq "#1621 ruff-pin matrix: matching specs — lint half reads the spec" "9.9.*" "$(devflow_ruff_pin lint "$RUFF_MTX_DIR/match.yml")"
+assert_eq "#1621 ruff-pin matrix: matching specs — shard half reads the same spec" "9.9.*" "$(devflow_ruff_pin shard "$RUFF_MTX_DIR/match.yml")"
+
+# Shape 2 — DIFFERING specs: the discriminating path the live tree can never exercise.
+{
+  printf 'jobs:\n'
+  printf '  lint:\n    steps:\n      - run: python3 -m pip install %s\n' "'ruff==9.9.*'"
+  printf '  shard:\n    steps:\n      - run: python3 -m pip install %s\n' "'ruff==8.8.*'"
+} > "$RUFF_MTX_DIR/drift.yml"
+RUFF_MTX_L="$(devflow_ruff_pin lint "$RUFF_MTX_DIR/drift.yml")"
+RUFF_MTX_S="$(devflow_ruff_pin shard "$RUFF_MTX_DIR/drift.yml")"
+if [ "$RUFF_MTX_L" = "9.9.*" ] && [ "$RUFF_MTX_S" = "8.8.*" ]; then RUFF_MTX_DRIFTS=yes; else RUFF_MTX_DRIFTS=no; fi
+assert_eq "#1621 ruff-pin matrix: a shard-vs-lint spec mismatch yields unequal operands (equality would go RED)" yes "$RUFF_MTX_DRIFTS"
+
+# Shape 3 — the job block exists but declares no ruff install: the `absent` sentinel.
+printf 'jobs:\n  shard:\n    steps:\n      - run: bash lib/test/run.sh\n' > "$RUFF_MTX_DIR/noruff.yml"
+assert_eq "#1621 ruff-pin matrix: a job with no ruff install reads 'absent'" absent "$(devflow_ruff_pin shard "$RUFF_MTX_DIR/noruff.yml")"
+
+# Shape 4 — the only ruff== line is COMMENTED OUT: still `absent`, never the commented spec.
+printf 'jobs:\n  shard:\n    steps:\n      # - run: pip install %s\n' "'ruff==7.7.*'" > "$RUFF_MTX_DIR/commented.yml"
+assert_eq "#1621 ruff-pin matrix: a commented-out ruff== line reads 'absent'" absent "$(devflow_ruff_pin shard "$RUFF_MTX_DIR/commented.yml")"
+
+# Shape 5 — the spec lives in a DIFFERENT job block: section attribution must not leak it.
+{
+  printf 'jobs:\n'
+  printf '  shard:\n    steps:\n      - run: bash lib/test/run.sh\n'
+  printf '  lint:\n    steps:\n      - run: python3 -m pip install %s\n' "'ruff==6.6.*'"
+} > "$RUFF_MTX_DIR/otherjob.yml"
+assert_eq "#1621 ruff-pin matrix: a spec in a sibling job does not leak into this job" absent "$(devflow_ruff_pin shard "$RUFF_MTX_DIR/otherjob.yml")"
+
+# Shape 6 — an empty workflow file: the `unreadable` sentinel (the [ -s ] guard).
+: > "$RUFF_MTX_DIR/empty.yml"
+assert_eq "#1621 ruff-pin matrix: an empty workflow file reads 'unreadable'" unreadable "$(devflow_ruff_pin shard "$RUFF_MTX_DIR/empty.yml")"
+
+# Shape 7 — a MISSING workflow file: also `unreadable`, never a silent empty spec.
+assert_eq "#1621 ruff-pin matrix: a missing workflow file reads 'unreadable'" unreadable "$(devflow_ruff_pin shard "$RUFF_MTX_DIR/does-not-exist.yml")"
+
+# Shape 8 — a directory passed where a file is expected: [ -s ] admits it, so awk errors and
+# the `awk-failed` arm fires. This is the one shape that reaches that arm past the [ -s ] guard.
+mkdir -p "$RUFF_MTX_DIR/adir.yml"
+RUFF_MTX_DIRREAD="$(devflow_ruff_pin shard "$RUFF_MTX_DIR/adir.yml" 2>/dev/null)"
+case "$RUFF_MTX_DIRREAD" in awk-failed|unreadable|absent) RUFF_MTX_DIRCLOSED=yes ;; *) RUFF_MTX_DIRCLOSED=no ;; esac
+assert_eq "#1621 ruff-pin matrix: a directory operand fails closed to a sentinel, never a spec" yes "$RUFF_MTX_DIRCLOSED"
+
+rm -rf "$RUFF_MTX_DIR"
+unset -f devflow_ruff_pin
 
 # ────────────────────────────────────────────────────────────────────────────
 PASS=$(grep -c '^PASS$' "$RESULTS_FILE" || true)
