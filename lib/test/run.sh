@@ -13549,6 +13549,9 @@ case "$*" in
   *"pulls/"*"/commits"*) echo '[]' ;;
   *"check-runs"*)
     printf '%s\n' "$*" >> "$FX/argv.log"
+    # Emitted before the case, not as a `;;&` fallthrough arm: `;;&` is bash 4+
+    # and this repo must parse under the bash 3.2 macOS ships.
+    [ "${DEVFLOW_CR_MODE:-payload}" = notice ] && echo "gh: rate limit remaining 12" >&2
     case "${DEVFLOW_CR_MODE:-payload}" in
       exit-nonzero) echo "gh: HTTP 503 Service Unavailable" >&2; exit 1 ;;
       *)
@@ -13634,6 +13637,12 @@ cr1441 "gh exits non-zero" "1" "true" exit-nonzero
 : > "$F1441/checkruns.json"
 cr1441 "gh returns an empty body" "1" "true"
 
+# Never re-add `2>&1` to the shipped capture: a non-fatal gh notice on a
+# SUCCESSFUL request would then contaminate the body and report a healthy head
+# as unreadable — the exact false signal this change exists to remove.
+printf '{"check_runs":[{"conclusion":"failure"}]}\n' > "$F1441/checkruns.json"
+cr1441 "a non-fatal gh notice on stderr, request otherwise clean" "1" "false" notice
+
 # Never delete a fail-safe breadcrumb: cr1441 discards stderr, so without the
 # rows below the suite stays green while the arms become indistinguishable.
 printf '{"check_runs":[{"conclusion":"success"}]}\n' > "$F1441/checkruns.json"
@@ -13657,9 +13666,20 @@ assert_eq "#1441: the unusable-body arm carries no read-failure wording" "no" \
 # A breadcrumb must stay one line: a caller splits our stderr into records.
 printf 'not json line one\nnot json line two\n' > "$F1441/checkruns.json"
 _CR_ERR3="$(DEVFLOW_FX="$F1441" DEVFLOW_GH="$F1441/gh" bash "$LIB/fetch-pr-context.sh" 1441 2>&1 >/dev/null || true)"
-assert_eq "#1441: the quoted body is newline-stripped to one line" "1" \
-  "$(printf '%s\n' "$_CR_ERR3" | grep -c 'body began:')"
-unset _CR_ERR1 _CR_ERR2 _CR_ERR3
+# Assert the JOINED tail, not the marker's occurrence count: the marker appears
+# once whether or not the newline strip this row names is present.
+assert_eq "#1441: the quoted body is newline-stripped onto one line" "yes" \
+  "$(case "$_CR_ERR3" in *"body began: not json line one not json line two"*) echo yes ;; *) echo no ;; esac)"
+# Pin an arm-specific jq diagnostic, or the whole re-run is freely deletable.
+printf '{"check_runs":{"a":{"conclusion":"success"}}}\n' > "$F1441/checkruns.json"
+_CR_ERR4="$(DEVFLOW_FX="$F1441" DEVFLOW_GH="$F1441/gh" bash "$LIB/fetch-pr-context.sh" 1441 2>&1 >/dev/null || true)"
+assert_eq "#1441: the breadcrumb carries jq's own wrong-type diagnostic" "yes" \
+  "$(case "$_CR_ERR4" in *"jq: "*"check_runs not an array"*) echo yes ;; *) echo no ;; esac)"
+printf '   \n  \n' > "$F1441/checkruns.json"
+_CR_ERR5="$(DEVFLOW_FX="$F1441" DEVFLOW_GH="$F1441/gh" bash "$LIB/fetch-pr-context.sh" 1441 2>&1 >/dev/null || true)"
+assert_eq "#1441: the breadcrumb carries jq's own zero-page diagnostic" "yes" \
+  "$(case "$_CR_ERR5" in *"jq: "*"no check-run pages"*) echo yes ;; *) echo no ;; esac)"
+unset _CR_ERR1 _CR_ERR2 _CR_ERR3 _CR_ERR4 _CR_ERR5
 
 # Adversarial input shapes: never give `.check_runs` a `// []` default — these
 # must error into the fail-safe guard, not be laundered into a clean 0.
@@ -13694,11 +13714,13 @@ assert_eq "#1441: the extracted guard parses as balanced shell" "0" \
   "$(printf '%s\n' "$CI_GUARD_PROG" | bash -n /dev/stdin 2>/dev/null; echo $?)"
 assert_eq "#1441: the extracted guard carries its else-arm" "1" \
   "$(printf '%s\n' "$CI_GUARD_PROG" | grep -c 'CI_FAILURES="\$_CI_COUNT"')"
+# DEVFLOW_JQ=true keeps the guard's diagnostic re-run silent here: the extracted
+# block calls jq, and an unset binary would spray command-not-found across the rows.
 ci_guard1441() {  # $1 label, $2 _CI_COUNT value, $3 expected unknown, $4 expected failures
   assert_eq "#1441: the shipped guard reads a $1 _CI_COUNT as unknown=$3" "$3" \
-    "$(_CI_COUNT="$2" CI_STATUS_UNKNOWN=false CI_FAILURES=x bash -c "$CI_GUARD_PROG"'; printf %s "$CI_STATUS_UNKNOWN"')"
+    "$(_CI_COUNT="$2" CI_STATUS_UNKNOWN=false CI_FAILURES=x DEVFLOW_JQ=true bash -c "$CI_GUARD_PROG"'; printf %s "$CI_STATUS_UNKNOWN"' 2>/dev/null)"
   assert_eq "#1441: the shipped guard reads a $1 _CI_COUNT as failures=$4" "$4" \
-    "$(_CI_COUNT="$2" CI_STATUS_UNKNOWN=false CI_FAILURES=x bash -c "$CI_GUARD_PROG"'; printf %s "$CI_FAILURES"')"
+    "$(_CI_COUNT="$2" CI_STATUS_UNKNOWN=false CI_FAILURES=x DEVFLOW_JQ=true bash -c "$CI_GUARD_PROG"'; printf %s "$CI_FAILURES"' 2>/dev/null)"
 }
 ci_guard1441 "multi-line"  "$(printf '0\n1')" true  1
 ci_guard1441 "alphabetic"  "not-a-number"     true  1
