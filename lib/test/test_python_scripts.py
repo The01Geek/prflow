@@ -25771,6 +25771,107 @@ assert_eq("#1634 helper: the vendored literal stays granted on implement and com
 assert_eq("#1634 helper: the review-profile token lock does not carry the helper",
           False, _cvp_tok in (_CVP_REPO_ROOT / 'lib' / 'review-profile.tokens').read_text())
 
+# --- Move-2a adversarial matrix for a reader of human-mutable markdown -------
+# The issue's Testing Strategy enumerates this matrix "at minimum"; each row
+# pins a boundary so the low-false-positive floor cannot silently drift.
+
+# A duplicate premise heading at the SAME level: extract_section reads only the
+# FIRST instance, so a collocation in an empty-first/populated-second pair is not
+# scanned (the section extractor's documented behaviour, mirrored here).
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n## Current Behavior\n\nThe fixture was verified against main.\n')
+assert_eq("#1634 helper: a same-level duplicate premise heading scans only the first "
+          "instance (extract_section-consistent), so a collocation under the second is not "
+          "reported", True, _cvp_ungraded_lines(_cvp_out) == []
+          and 'UNGRADED_CLAIMS total=0' in _cvp_out)
+# A DEEPER duplicate does NOT close the section, so its body is scanned — the
+# case the issue names precisely because the extractor differs between the two.
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Implementation Notes\n\nlead\n\n### Implementation Notes\n\n'
+    'The fixture was verified against main.\n')
+assert_eq("#1634 helper: a deeper duplicate premise heading does not close the section, so "
+          "a collocation under it IS reported",
+          True, len(_cvp_ungraded_lines(_cvp_out)) == 1)
+
+# A CRLF body: offsets stay aligned and the detail carries no stray CR.
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\r\n\r\nThe fixture was verified against main.\r\n')
+_u_lines = _cvp_ungraded_lines(_cvp_out)
+assert_eq("#1634 helper: a CRLF body still detects the collocation, offsets aligned, with no "
+          "stray carriage return in the detail",
+          True, len(_u_lines) == 1 and 'region=Current Behavior ' in _u_lines[0]
+          and '\r' not in _u_lines[0])
+
+# A premise heading whose case differs from the expected spelling: the
+# heading-open match is case-insensitive, so the section is still scanned.
+_cvp_rc, _cvp_out = _cvp_run(
+    '## current behavior\n\nThe fixture was verified against main.\n')
+assert_eq("#1634 helper: a premise heading in a different case still opens its region",
+          True, len(_cvp_ungraded_lines(_cvp_out)) == 1)
+
+# A collocation inside a markdown table cell and inside a blockquote are ordinary
+# premise-region prose and ARE detected (they are not code).
+for _u_label, _u_body in (
+        ('table cell', '## Technical Context\n\n| col | verified against main |\n'),
+        ('blockquote', '## Technical Context\n\n> the fixture was verified against main\n')):
+    _cvp_rc, _cvp_out = _cvp_run(_u_body)
+    assert_eq(f"#1634 helper: a collocation in a {_u_label} is scanned as premise prose",
+              True, len(_cvp_ungraded_lines(_cvp_out)) == 1)
+
+# A collocation split across a line break is NOT detected (the phrase regex and
+# the per-line detail are single-line — the low-false-positive floor).
+_cvp_rc, _cvp_out = _cvp_run('## Current Behavior\n\nthe fixture was verified\nagainst main.\n')
+assert_eq("#1634 helper: a collocation split across a line break is not detected",
+          True, _cvp_ungraded_lines(_cvp_out) == [])
+
+# A fenced code block SPANNING out of a premise section does not leak: heading
+# detection skips fenced lines, so a real section stays open and a collocation
+# AFTER the fence in that section is still detected.
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n```\n## Notes inside the fence\n```\n\n'
+    'The fixture was verified against main here.\n')
+assert_eq("#1634 helper: a heading-shaped line inside a fence does not close the enclosing "
+          "premise section, so a collocation after the fence is still reported",
+          True, len(_cvp_ungraded_lines(_cvp_out)) == 1
+          and 'region=Current Behavior ' in _cvp_ungraded_lines(_cvp_out)[0])
+
+# A collocation as the entire body, with no heading and no trailing newline: no
+# premise region, so nothing is scanned.
+_cvp_rc, _cvp_out = _cvp_run('The whole body was verified against main.')
+assert_eq("#1634 helper: a collocation as the entire body with no premise region is not "
+          "scanned (and does not crash on the absent trailing newline)",
+          True, _cvp_ungraded_lines(_cvp_out) == [] and 'UNGRADED_CLAIMS total=0' in _cvp_out)
+# ...but a collocation at the final character positions of a premise section,
+# with no trailing newline, IS detected (offset math handles the last line).
+_cvp_rc, _cvp_out = _cvp_run('## Current Behavior\n\ntext verified against main')
+assert_eq("#1634 helper: a collocation at the last line of a premise section with no "
+          "trailing newline is detected", True, len(_cvp_ungraded_lines(_cvp_out)) == 1)
+
+# Idempotency: running twice over the same body produces identical output.
+_cvp_rc1, _cvp_out1 = _cvp_run('## Current Behavior\n\nThe fixture was verified against main.\n')
+_cvp_rc2, _cvp_out2 = _cvp_run('## Current Behavior\n\nThe fixture was verified against main.\n')
+assert_eq("#1634 helper: the pass is idempotent — two runs over the same body are identical",
+          True, _cvp_out1 == _cvp_out2 and _cvp_rc1 == _cvp_rc2)
+
+# The UNGRADED_CLAIMS summary is emitted even on the refuted (exit-2) path — the
+# count-always contract is independent of the adjudicated exit code.
+_cvp_rc, _cvp_out = _cvp_run_real(_CVP_1441_FIXTURE)
+assert_eq("#1634 helper: UNGRADED_CLAIMS is reported on the refuted exit-2 path too",
+          True, _cvp_rc == 2 and 'UNGRADED_CLAIMS total=' in _cvp_out
+          and len(_cvp_ungraded_lines(_cvp_out)) >= 1)
+
+# The disjoint-vocabulary guarantee is STRUCTURAL: the minted field tokens
+# (ungraded_claim=/region=/phrase=/UNGRADED_CLAIMS) never collide with the
+# adjudicated field/value tokens. The detail= sentence is opaque trailing text
+# and is excluded from the tokens the pass itself mints.
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\nThe fixture was verified against main.\n')
+for _u_line in _cvp_ungraded_lines(_cvp_out):
+    _u_minted = _u_line.split(' detail=', 1)[0]
+    for _u_tok in ('bullet=', 'handle=', 'state=', 'holds', 'refuted', 'unestablished'):
+        assert_eq(f"#1634 helper: the ungraded pass's own minted tokens never include the "
+                  f"adjudicated token '{_u_tok}'", False, _u_tok in _u_minted)
+
 print()
 print("issue-audit-state: tool-owned round kinds (issue #793)")
 
