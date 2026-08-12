@@ -83,11 +83,21 @@ from the exit code alone.
 """
 
 import argparse
+import bisect
 import re
 import sys
 import traceback
 from pathlib import Path
 from typing import NamedTuple
+
+# `section_parse` is a sibling module reused for the ungraded-claim pass's
+# section extractor (issue #1634). It is imported IN-PROCESS, never exec'd: a
+# `.sh`/subprocess hop fails on Windows ([WinError 193], issue #275), and a
+# subprocess would also break this module's no-subprocess security boundary.
+# Inserting this file's own directory resolves the import whether the helper is
+# run as a script, run from its vendored copy, or loaded via importlib in tests.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from section_parse import HEADING_RE, extract_section  # noqa: E402
 
 # The exit codes, named rather than spelled as bare integers at the seven
 # terminating sites. The 2-vs-3 distinction is this module's central discipline
@@ -206,6 +216,42 @@ _UNDECIDABLE_REASONS = {
     'command': 'command handle reported, never executed',
     'none': 'no re-derivation handle in the bullet',
 }
+
+# --- Ungraded-claim detection (issue #1634) --------------------------------
+#
+# A verification asserted in a shape `_MARKER` cannot see — "verified against
+# origin/main" inside a bold-bullet label, a mid-sentence "checked against
+# source" — is graded by nothing, yet an implementing run may skip its own
+# investigation on the strength of it. The second pass below REPORTS such
+# phrases without adjudicating them: it mints no verdict (no `holds`/`refuted`/
+# `unestablished`), moves no exit code, and shares no token with the adjudicated
+# vocabulary. It says one thing — this claim is graded by nothing.
+
+# The collocation family, complete by construction: the exact case-insensitive
+# phrases that assert a re-checkable verification without the bolded-`Verified`
+# shape. A deliberately low-false-positive floor — a verification worded with
+# none of these ("I checked this") is not detected, the price of a report-only
+# design safe to run on a consumer repo whose issues never heard of this rule.
+_COLLOCATION_FAMILY = (
+    'verified against', 'confirmed against', 'checked against',
+    'verified at drafting time')
+_COLLOCATION_RE = re.compile(
+    '|'.join(re.escape(phrase) for phrase in _COLLOCATION_FAMILY),
+    re.IGNORECASE)
+
+# The premise-bearing sections — where a claim licenses a skipped investigation.
+# Every heading line is a fourth region (added in `find_ungraded_claims`);
+# everything else is the residual complement, which is not scanned.
+_PREMISE_SECTIONS = ('Current Behavior', 'Technical Context',
+                     'Implementation Notes')
+
+# A fenced code block delimiter: three or more backticks or tildes, indent
+# allowed. A collocation inside a fence is data, not a premise.
+_FENCE_RE = re.compile(r'^[ \t]*(?:`{3,}|~{3,})')
+
+# An inline code span. The issue that DEFINES the collocation family as data
+# would otherwise trip its own detector — this exclusion is load-bearing.
+_INLINE_CODE_RE = re.compile(r'`[^`\n]+`')
 
 
 def normalize(text: str) -> str:
@@ -327,6 +373,23 @@ def _is_command(span: str) -> bool:
     return bool(span.strip()) and any(c.isspace() for c in span.strip())
 
 
+def _bullet_bound(rest: str) -> int:
+    """Offset within `rest` where a bullet's span ends.
+
+    The earliest of the next marker, the next list item, or a blank line — the
+    three bounds `parse_bullets` documents. Shared with `_graded_spans` so the
+    ungraded pass subtracts exactly the span the adjudication mined.
+    """
+    limit = len(rest)
+    for bound in (_MARKER.search(rest), _NEXT_ITEM.search(rest)):
+        if bound is not None:
+            limit = min(limit, bound.start())
+    blank = rest.find('\n\n')
+    if blank != -1:
+        limit = min(limit, blank)
+    return limit
+
+
 def parse_bullets(body: str) -> list:
     """Return one text span per `Verified:` bullet, in document order.
 
@@ -357,18 +420,8 @@ def parse_bullets(body: str) -> list:
     their own bound above — but real, and unpinned by construction: it is not
     decidable from the text which of the two shapes an author meant.
     """
-    spans = []
-    for match in _MARKER.finditer(body):
-        rest = body[match.end():]
-        limit = len(rest)
-        for bound in (_MARKER.search(rest), _NEXT_ITEM.search(rest)):
-            if bound is not None:
-                limit = min(limit, bound.start())
-        blank = rest.find('\n\n')
-        if blank != -1:
-            limit = min(limit, blank)
-        spans.append(rest[:limit])
-    return spans
+    return [rest[:_bullet_bound(rest)]
+            for rest in (body[m.end():] for m in _MARKER.finditer(body))]
 
 
 def classify(span: str) -> tuple:
@@ -611,6 +664,118 @@ def recheck(handle: str, paths: list, quotes: list, root: Path) -> tuple:
         'a strong path claim: ' + ','.join(readable))
 
 
+def _graded_spans(body: str) -> list:
+    """Offset ranges the `_MARKER` recogniser already covers.
+
+    A collocation inside a recognised `Verified:` bullet is already graded, so
+    it is not an ungraded claim. Each span runs from the marker to the same
+    bound `parse_bullets` uses, via the shared `_bullet_bound`.
+    """
+    spans = []
+    for match in _MARKER.finditer(body):
+        rest = body[match.end():]
+        spans.append((match.start(), match.end() + _bullet_bound(rest)))
+    return spans
+
+
+def _code_spans(content_lines: list, line_offset: list, body_len: int) -> list:
+    """Offset ranges inside fenced code blocks or inline code spans.
+
+    A collocation inside either is data, not a premise. A fence toggles on a
+    line opening with three or more backticks or tildes (indent allowed) and
+    closes on the next such line; an unclosed fence runs to end-of-body. Inline
+    backtick runs are mined only on non-fenced lines.
+    """
+    spans = []
+    fence_open_at = None
+    for index, line in enumerate(content_lines):
+        base = line_offset[index]
+        if _FENCE_RE.match(line):
+            if fence_open_at is None:
+                fence_open_at = base
+            else:
+                spans.append((fence_open_at, base + len(line)))
+                fence_open_at = None
+            continue
+        if fence_open_at is None:
+            for inline in _INLINE_CODE_RE.finditer(line):
+                spans.append((base + inline.start(), base + inline.end()))
+    if fence_open_at is not None:
+        spans.append((fence_open_at, body_len))
+    return spans
+
+
+def _premise_regions(body: str, content_lines: list) -> dict:
+    """Map each premise-bearing line index to its region label.
+
+    Regions are the three named sections — resolved through `section_parse`'s
+    extractor, so an absent section contributes nothing and an issue on a
+    consumer's own template is scanned by its heading lines alone — plus every
+    heading line, labelled `heading`. The section walk mirrors the extractor's
+    own first-match-only, level-2/3 open/close rules so the two never disagree.
+    """
+    present = {name for name in _PREMISE_SECTIONS if extract_section(body, name)}
+    region = {}
+    active_name = None
+    active_level = None
+    opened = set()
+    for index, line in enumerate(content_lines):
+        heading_match = HEADING_RE.match(line)
+        if heading_match:
+            level = len(heading_match.group(1))
+            heading = heading_match.group(2).strip()
+            region[index] = 'heading'
+            if active_name is not None and level <= active_level:
+                active_name = None
+                active_level = None
+            if active_name is None and level in (2, 3):
+                for name in _PREMISE_SECTIONS:
+                    if (heading.lower() == name.lower()
+                            and name in present and name not in opened):
+                        active_name, active_level = name, level
+                        opened.add(name)
+                        break
+            continue
+        if active_name is not None:
+            region[index] = active_name
+    return region
+
+
+def find_ungraded_claims(body: str) -> list:
+    """Return one report line per ungraded verification claim, document order.
+
+    An ungraded claim is a collocation-family phrase in a premise-bearing region
+    that no recognised marker span already covers and that is not inside code.
+    Non-adjudicating by construction: it mints no verdict and moves no exit code.
+    """
+    content_lines = body.splitlines()
+    line_offset = []
+    acc = 0
+    for raw in body.splitlines(keepends=True):
+        line_offset.append(acc)
+        acc += len(raw)
+
+    region = _premise_regions(body, content_lines)
+    graded = _graded_spans(body)
+    code = _code_spans(content_lines, line_offset, len(body))
+
+    detections = []
+    for match in _COLLOCATION_RE.finditer(body):
+        start = match.start()
+        index = bisect.bisect_right(line_offset, start) - 1
+        if index not in region:
+            continue
+        if any(low <= start < high for low, high in graded):
+            continue
+        if any(low <= start < high for low, high in code):
+            continue
+        detections.append((region[index], match.group(0),
+                           content_lines[index].strip()))
+    return ['ungraded_claim={} region={} phrase={} detail={}'.format(
+        number, label, phrase, sentence)
+        for number, (label, phrase, sentence) in enumerate(detections, start=1)]
+
+
 class _ArgParser(argparse.ArgumentParser):
     """An argument parser that fails as UNESTABLISHED, not as a refutation.
 
@@ -713,6 +878,14 @@ def _run(args) -> int:
     print('VERIFIED_PREMISES total={} holds={} refuted={} unestablished={}'.format(
         sum(tally.values()), tally['holds'], tally['refuted'],
         tally['unestablished']))
+
+    # The non-adjudicating ungraded-claim pass (issue #1634). It runs after the
+    # adjudicated output above is already printed, appends its own lines, and
+    # never touches the exit code — so no already-filed issue changes verdict.
+    ungraded = find_ungraded_claims(body)
+    for line in ungraded:
+        print(line)
+    print('UNGRADED_CLAIMS total={}'.format(len(ungraded)))
     return EXIT_REFUTED if tally['refuted'] else EXIT_CLEAN
 
 
