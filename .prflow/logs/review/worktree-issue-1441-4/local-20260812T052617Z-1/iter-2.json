@@ -1,0 +1,163 @@
+{
+  "iter": 2,
+  "started_at": "2026-08-12T06:06:00Z",
+  "fix_commit_sha": "496e72f95",
+  "fix_files": [
+    "lib/fetch-pr-context.sh",
+    "lib/test/run.sh"
+  ],
+  "loop_role": "promoted",
+  "promotion_provenance": "shadow",
+  "current_step": "3.5",
+  "current_substep": null,
+  "pending_dispatch": null,
+  "sweep_evidence": {
+    "status": "run"
+  },
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [],
+  "checklist": [],
+  "phase3_findings": [
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Critical",
+      "description": "Promoted from the early shadow: the AC5 comment's counterfactual was stale against the current stub (reads 1/false, not 1/true).",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          13706,
+          13707
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "Promoted from the early shadow: the two fail-safe breadcrumbs had zero executable coverage.",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          13566,
+          13571
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "Promoted from the early shadow: gh stderr folded into the JSON body, and jq's diagnostic discarded so the arm-2 breadcrumb could not name the shape.",
+      "defect_signature": {
+        "file": "lib/fetch-pr-context.sh",
+        "line_range": [
+          275,
+          292
+        ],
+        "kind": "api_misuse"
+      },
+      "corroboration_count": 3,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "Promoted from the early shadow: 'the F97 idiom above' pointed ~1080 lines the wrong way.",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          13533,
+          13534
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "Promoted from the early shadow: test comment blocks still over the three-line prevention-only cap.",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          13530,
+          13659
+        ],
+        "kind": "style"
+      },
+      "corroboration_count": 3,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "S-1",
+      "decision": "applied",
+      "commit": "496e72f95"
+    },
+    {
+      "finding_id": "S-2",
+      "decision": "applied",
+      "commit": "496e72f95"
+    },
+    {
+      "finding_id": "S-3",
+      "decision": "applied",
+      "commit": "496e72f95"
+    },
+    {
+      "finding_id": "S-4",
+      "decision": "applied",
+      "commit": "496e72f95"
+    },
+    {
+      "finding_id": "S-5",
+      "decision": "applied",
+      "commit": "496e72f95"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 5,
+    "fix_diff_lines": 12,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "not_verified",
+      "outcome": null,
+      "reason": "pending — Step 3.5 has not run for iteration 2 yet"
+    }
+  },
+  "shadow": {
+    "ran_at": null,
+    "reviewed_sha": null,
+    "verdict": null,
+    "coverage": null,
+    "reviewers_dispatched": [],
+    "expected_reviewers": [],
+    "reason": null,
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

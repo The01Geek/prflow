@@ -274,14 +274,119 @@
     }
   },
   "shadow": {
-    "ran_at": null,
-    "reviewed_sha": null,
-    "verdict": null,
-    "coverage": null,
-    "reviewers_dispatched": [],
-    "expected_reviewers": [],
+    "ran_at": "2026-08-12T06:05:00Z",
+    "reviewed_sha": "49dd3b489",
+    "verdict": "REJECT",
+    "coverage": "full",
+    "prompt_addenda": null,
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review",
+      "prflow:pr-test-analyzer"
+    ],
     "reason": null,
-    "promoted_to_iter_next": false
+    "checklist_skipped": null,
+    "trigger": "early (engine_self_modifying, after iteration 1)",
+    "phase2_fails": [
+      "VC-11 (generated_claim_text — claim wording, not a code defect)"
+    ],
+    "phase3_findings": [
+      {
+        "agent": "prflow:comment-analyzer",
+        "severity": "Critical",
+        "description": "AC5 comment asserted 'before the fix this read 1/true'; with the stub now serving page 1 alone without --paginate the pre-fix path reads 1/false. Stale counterfactual against the code it describes.",
+        "defect_signature": {
+          "file": "lib/test/run.sh",
+          "line_range": [
+            13706,
+            13707
+          ],
+          "kind": "documented_falsehood"
+        }
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Important",
+        "description": "The two new stderr breadcrumbs had zero coverage — every cr1441 invocation discards stderr, so deleting either printf left the suite fully green.",
+        "defect_signature": {
+          "file": "lib/test/run.sh",
+          "line_range": [
+            13566,
+            13571
+          ],
+          "kind": "test_gap"
+        }
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "severity": "Suggestion",
+        "description": "Comment said 'the F97 idiom above'; F97 is defined ~1080 lines below.",
+        "defect_signature": {
+          "file": "lib/test/run.sh",
+          "line_range": [
+            13533,
+            13534
+          ],
+          "kind": "documented_falsehood"
+        }
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Important",
+        "description": "gh stderr folded into the JSON body via 2>&1; --paginate multiplies the requests that can emit a non-fatal notice, so a healthy head reports unknown.",
+        "defect_signature": {
+          "file": "lib/fetch-pr-context.sh",
+          "line_range": [
+            275,
+            282
+          ],
+          "kind": "api_misuse"
+        }
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Important",
+        "description": "jq's diagnostic discarded, so the arm-2 breadcrumb printed a fixed placeholder and could not name which shape arrived.",
+        "defect_signature": {
+          "file": "lib/fetch-pr-context.sh",
+          "line_range": [
+            287,
+            292
+          ],
+          "kind": "logic_error"
+        }
+      },
+      {
+        "agent": "prflow:code-reviewer",
+        "severity": "Important",
+        "description": "Test comment blocks still exceed the three-line prevention-only cap.",
+        "defect_signature": {
+          "file": "lib/test/run.sh",
+          "line_range": [
+            13530,
+            13659
+          ],
+          "kind": "style"
+        }
+      }
+    ],
+    "comparison": {
+      "shadow_total": 6,
+      "overlap_with_iter_N": 3,
+      "new": 3,
+      "new_critical": 1,
+      "new_important": 1
+    },
+    "promoted_to_iter_next": true
   },
   "synthesized": false,
   "telemetry": "unavailable"
