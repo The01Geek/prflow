@@ -132,18 +132,23 @@ MEASURED_DENSITIES = (
 #: reader cannot return.
 BYTES_PER_TOKEN_FLOOR = 2.60
 
+#: The reader's full cap expressed in bytes — the quantity MAX_BYTES reserves its safety
+#: margin under. Named (rather than inlined at each use) so the near-full band below and the
+#: `--print-threshold` text derive it from one source and cannot drift.
+READER_CAP_BYTES = int(READER_CAP_TOKENS * BYTES_PER_TOKEN_FLOOR)
+
 #: The ceiling this check enforces, derived from the three constants above.
 MAX_BYTES = int(READER_CAP_TOKENS * SAFETY_FACTOR * BYTES_PER_TOKEN_FLOOR)
 
 #: The near-full band, in bytes: the size of the safety margin the ceiling itself reserves
-#: under the reader's full cap — the reader cap in bytes (READER_CAP_TOKENS x
-#: BYTES_PER_TOKEN_FLOOR) minus MAX_BYTES. A covered file whose headroom under MAX_BYTES has
-#: fallen to within this many bytes has consumed everything but that reserved margin, so the
-#: next ordinary edit is what tips it over. Reporting it there (advisory only — see
-#: `--print-near-full`, which never fails the suite) reaches the author while a trim is still
-#: cheap, rather than after the file has already overflowed for the next author (issue #1614).
-#: DERIVED from the same constants as MAX_BYTES, never a transcribed byte figure.
-NEAR_FULL_HEADROOM = int(READER_CAP_TOKENS * BYTES_PER_TOKEN_FLOOR) - MAX_BYTES
+#: under the reader's full cap — the reader cap in bytes (READER_CAP_BYTES) minus MAX_BYTES.
+#: A covered file whose headroom under MAX_BYTES has fallen to within this many bytes has
+#: consumed everything but that reserved margin, so the next ordinary edit is what tips it
+#: over. Reporting it there (advisory only — see `--print-near-full`, which never fails the
+#: suite) reaches the author while a trim is still cheap, rather than after the file has
+#: already overflowed for the next author (issue #1614). DERIVED from the same constants as
+#: MAX_BYTES, never a transcribed byte figure.
+NEAR_FULL_HEADROOM = READER_CAP_BYTES - MAX_BYTES
 
 #: The exemption record, relative to the resolved root.
 EXEMPTIONS_DEFAULT = "lib/test/reference-size-exemptions.json"
@@ -410,9 +415,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(
             f"{_TOOL}: near-full band {NEAR_FULL_HEADROOM} bytes = reader cap in bytes "
-            f"{int(READER_CAP_TOKENS * BYTES_PER_TOKEN_FLOOR)} minus the {MAX_BYTES}-byte "
-            "ceiling — a covered file with at most this much headroom is reported near-full "
-            "(advisory; never fails the suite)"
+            f"{READER_CAP_BYTES} minus the {MAX_BYTES}-byte ceiling — a covered file with at "
+            "most this much headroom is reported near-full (advisory; never fails the suite)"
         )
         return 0
 
