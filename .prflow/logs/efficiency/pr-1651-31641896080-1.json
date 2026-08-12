@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1651",
+  "generated_at": "2026-08-12T21:30:05Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.59",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 7.527060749999997,
+    "tokens": {
+      "input_tokens": 45,
+      "output_tokens": 28610,
+      "cache_read_input_tokens": 3658008,
+      "cache_creation_input_tokens": 203983,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 105,
+        "outputTokens": 59906,
+        "cacheReadInputTokens": 5221074,
+        "cacheCreationInputTokens": 424546,
+        "webSearchRequests": 0,
+        "costUSD": 7.527060749999997,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 28,
+    "duration_ms": 607650
+  },
+  "permission_denials": {
+    "count": 1,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-none} ATTEMPT=${GITHUB_RUN_ATTEMPT:-none} ACTIONS=${GITHUB_ACTIONS:-none}\"; mkdir -p .prflow/tmp/review/pr-1651/local-run; gh pr diff 1651 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1651/local-run/diff.patch | head -5; echo \"---STAT---\"; gh pr diff 1651 --patch | grep -c '^diff --git'"
+    ],
+    "total": 1,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
