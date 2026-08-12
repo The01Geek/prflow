@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1626",
+  "generated_at": "2026-08-12T03:34:15Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.47",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 5.707421000000001,
+    "tokens": {
+      "input_tokens": 37,
+      "output_tokens": 17643,
+      "cache_read_input_tokens": 2421082,
+      "cache_creation_input_tokens": 160262,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 53,
+        "outputTokens": 44946,
+        "cacheReadInputTokens": 2609497,
+        "cacheCreationInputTokens": 428444,
+        "webSearchRequests": 0,
+        "costUSD": 5.707421000000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 24,
+    "duration_ms": 378591
+  },
+  "permission_denials": {
+    "count": 3,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"; echo \"---PR---\"; gh pr view 1626 --json number,title,headRefOid,baseRefName,state,url,closingIssuesReferences 2>&1 | head -60",
+      "echo \"SKILLDIR=${CLAUDE_SKILL_DIR}\"",
+      "printf 'SKILLDIR=%s\\n' \"$CLAUDE_SKILL_DIR\"; ls skills/review/phases/"
+    ],
+    "total": 3,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
