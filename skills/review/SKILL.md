@@ -8,7 +8,7 @@ argument-hint: "[pr-number] [--issue N]"
 
 You are the review engine orchestrator. Run a four-phase review and present an APPROVE/REJECT verdict.
 
-**Input:** `$ARGUMENTS` may contain an optional PR number and/or the flag `--issue N`. Parse the two independently — either, both, or neither may be present. The numeric token (if any) is `$PR_NUMBER`; the flag's value (if any) is `$ISSUE_OVERRIDE`, the caller-supplied issue Phase 0.4 reads acceptance criteria from. If no PR number is given, review the current branch vs its configured `base_branch`.
+**Input:** `$ARGUMENTS` may contain an optional PR number and/or the flag `--issue N`. Parse the two independently — either, both, or neither may be present. The **bare** numeric token (if any) is `$PR_NUMBER`; the flag's value (if any) is `$ISSUE_OVERRIDE`, the caller-supplied issue Phase 0.4 reads acceptance criteria from. A value following `--issue` is never read as the PR number — only a bare numeric token binds `$PR_NUMBER`. If no PR number is given, review the current branch vs its configured `base_branch`.
 
 **Every later PR-mode predicate and every `gh` command reads `$PR_NUMBER` — never the raw `$ARGUMENTS` string.** An extended argument string fails an is-a-PR-number test, which silently disables the phases gated on it, and interpolating it into a command line leaks the flag tokens into that command.
 
