@@ -278,15 +278,18 @@ set -e
 if [ $_CI_EXIT -ne 0 ] || [ -z "$_CI_RUNS_JSON" ]; then
     CI_STATUS_UNKNOWN="true"
     CI_FAILURES="1"
+    printf 'fetch-pr-context: check-runs read failed (rc=%s); ci_status_unknown=true: %.200s\n' \
+        "$_CI_EXIT" "$_CI_RUNS_JSON" >&2
 else
-    # Never filter `.` instead of `-n`/`inputs` (--paginate concatenates one
-    # object per page, so a per-input filter prints one length per page), and
-    # never adopt derive-review-preconditions.sh's `.check_runs // []` default
-    # here: a malformed body must error into the guard below, not count as 0.
-    _CI_COUNT="$(echo "$_CI_RUNS_JSON" | "$DEVFLOW_JQ" -n '[inputs | .check_runs[] | select(.conclusion != null and .conclusion != "success" and .conclusion != "neutral" and .conclusion != "skipped" and .conclusion != "cancelled" and .conclusion != "stale")] | length' 2>/dev/null || true)"
+    # Never filter `.` instead of `-n`/`inputs`: --paginate concatenates one
+    # object per page, so a per-input filter prints one length per page.
+    # Never default `.check_runs`, and never drop the zero-page error arm.
+    _CI_COUNT="$(echo "$_CI_RUNS_JSON" | "$DEVFLOW_JQ" -n '[inputs] as $pages | if ($pages | length) == 0 then error("no check-run pages") else [$pages[] | .check_runs[] | select(.conclusion != null and .conclusion != "success" and .conclusion != "neutral" and .conclusion != "skipped" and .conclusion != "cancelled" and .conclusion != "stale")] | length end' 2>/dev/null || true)"
     if [ -z "$_CI_COUNT" ] || ! [[ "$_CI_COUNT" =~ ^[0-9]+$ ]]; then
         CI_STATUS_UNKNOWN="true"
         CI_FAILURES="1"
+        printf 'fetch-pr-context: check-runs body yielded no usable count (%.60s); ci_status_unknown=true\n' \
+            "${_CI_COUNT:-<empty: jq errored on a malformed or page-less body>}" >&2
     else
         CI_FAILURES="$_CI_COUNT"
     fi

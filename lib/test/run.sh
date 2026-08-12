@@ -13552,11 +13552,18 @@ case "$*" in
   *"pulls/"*"/reviews"*) echo '[]' ;;
   *"pulls/"*"/commits"*) echo '[]' ;;
   *"check-runs"*)
-    # Only a non-zero exit needs an out-of-band knob; every body shape, the empty
-    # one included, is expressed by the payload file so there is one input channel.
+    printf '%s\n' "$*" >> "$FX/argv.log"
     case "${DEVFLOW_CR_MODE:-payload}" in
       exit-nonzero) echo "gh: HTTP 503 Service Unavailable" >&2; exit 1 ;;
-      *)            cat "$FX/checkruns.json" ;;
+      *)
+        # Serve page 1 alone unless the caller really paginated, so deleting
+        # --paginate from the shipped command turns the AC5 row RED instead of
+        # leaving it green on a stub that ignores flags.
+        case "$*" in
+          *--paginate*) cat "$FX/checkruns.json" ;;
+          *)            head -1 "$FX/checkruns.json" ;;
+        esac
+        ;;
     esac
     ;;
   *"issues/"*"/comments"*) echo '[]' ;;
@@ -13581,10 +13588,7 @@ cr1441() {
     "$(jq -r '.signals.ci_status_unknown' <<<"$_ctx")"
 }
 
-# AC1 — superseded conclusions never count. `cancelled`/`stale` both mean the run
-# was superseded before producing a verdict, and in this repo a new push cancels
-# the in-flight run by design, so ordinary iteration would otherwise manufacture
-# CI failures and force LLM analysis on a PR that was never broken.
+# AC1 — superseded conclusions never count.
 cat > "$F1441/checkruns.json" <<'CR'
 {"check_runs":[{"conclusion":"cancelled"},{"conclusion":"stale"},{"conclusion":"success"},{"conclusion":"neutral"},{"conclusion":"skipped"}]}
 CR
@@ -13598,10 +13602,8 @@ for _concl in failure timed_out action_required; do
 done
 unset _concl
 
-# AC3 — the filter stays a DENYLIST: a conclusion in none of the recognised sets
-# counts. Flipping it to a failure allowlist would silently read an unknown
-# future conclusion as success and fail OPEN, against the signal's stated
-# fail-safe posture.
+# AC3 — never flip the filter to a failure allowlist: an unknown future
+# conclusion would then read as success and the signal would fail OPEN.
 cat > "$F1441/checkruns.json" <<'CR'
 {"check_runs":[{"conclusion":"conclusion_github_has_not_invented_yet"}]}
 CR
@@ -13620,6 +13622,12 @@ cat > "$F1441/checkruns.json" <<'CR'
 {"check_runs":[{"conclusion":"failure"},{"conclusion":"timed_out"}]}
 CR
 cr1441 "two concatenated pages, both qualifying runs on page 2" "2" "false"
+# The stub above serves page 1 alone without --paginate, so the row above already
+# fails if the flag is dropped; this pins the argv directly so the reason is named.
+assert_eq "#1441: the shipped call passes --paginate" "yes" \
+  "$(grep -q -- '--paginate' "$F1441/argv.log" && echo yes || echo no)"
+assert_eq "#1441: the shipped call requests the larger page size" "yes" \
+  "$(grep -q 'per_page=100' "$F1441/argv.log" && echo yes || echo no)"
 
 # AC6 fail-safe arm 1, both ORed conditions. A PR whose CI could not be read
 # must never read as clean, so each sets unknown=true AND failures=1.
@@ -13630,11 +13638,8 @@ cr1441 "gh exits non-zero" "1" "true" exit-nonzero
 : > "$F1441/checkruns.json"
 cr1441 "gh returns an empty body" "1" "true"
 
-# Adversarial input shapes (CLAUDE.md's best-effort-parser matrix, applied to an
-# external structured response): each must land on a fail-safe arm rather than
-# detonating the filter or emitting a non-numeric signal. `check_runs` is read
-# WITHOUT a `// []` default precisely so these error into the guard instead of
-# being laundered into a clean 0.
+# Adversarial input shapes: never give `.check_runs` a `// []` default — these
+# must error into the fail-safe guard, not be laundered into a clean 0.
 while IFS='|' read -r _label _payload; do
   [ -n "$_label" ] || continue
   printf '%s\n' "$_payload" > "$F1441/checkruns.json"
@@ -13643,15 +13648,24 @@ done <<'CR'
 a body that is not JSON|this is not json at all
 valid JSON with no check_runs key|{"total_count":0}
 check_runs is a scalar, not an array|{"check_runs":7}
+a check_runs element that is not an object|{"check_runs":[7]}
 CR
 unset _label _payload
+
+# A body that parses to ZERO JSON documents — whitespace only — is the shape the
+# `-n`/`inputs` form makes dangerous: `inputs` simply yields nothing, so without
+# the zero-page error arm the filter returns a clean 0 that passes the numeric
+# guard and reports the head as having no CI failures at all.
+printf '   \n  \n' > "$F1441/checkruns.json"
+cr1441 "a whitespace-only body (zero JSON documents)" "1" "true"
 
 # AC6 fail-safe arm 2, the ^[0-9]+$ half. A non-empty non-numeric count is
 # unreachable through the fixed filter (that is the point of the fix), so drive
 # the SHIPPED guard itself — extracted from lib/fetch-pr-context.sh, never
 # transcribed — the way the #1347 checkpoint-4 block above does.
-CI_GUARD_LINE=$(grep -n 'if \[ -z "\$_CI_COUNT" \]' "$LIB/fetch-pr-context.sh" | head -1 | cut -d: -f1)
-CI_GUARD_PROG=$(sed -n "${CI_GUARD_LINE},$((CI_GUARD_LINE + 5))p" "$LIB/fetch-pr-context.sh")
+# Extract to the matching `fi` rather than a fixed line window: a fixed offset
+# silently truncates the moment the guard block grows, dropping its else-arm.
+CI_GUARD_PROG=$(awk 'f{print; if ($0 ~ /^[[:space:]]*fi[[:space:]]*$/) exit; next} /if \[ -z "\$_CI_COUNT" \]/{print; f=1}' "$LIB/fetch-pr-context.sh")
 assert_eq "#1441: the shipped _CI_COUNT guard extracted cleanly (whole if…fi)" "yes" \
   "$(case "$CI_GUARD_PROG" in *fi*) echo yes ;; *) echo no ;; esac)"
 ci_guard1441() {  # $1 label, $2 _CI_COUNT value, $3 expected unknown, $4 expected failures
@@ -13665,7 +13679,7 @@ ci_guard1441 "alphabetic"  "not-a-number"     true  1
 ci_guard1441 "empty"       ""                 true  1
 ci_guard1441 "numeric"     "3"                false 3
 unset -f ci_guard1441
-unset CI_GUARD_LINE CI_GUARD_PROG
+unset CI_GUARD_PROG
 unset -f cr1441
 rm -rf "$F1441"
 
