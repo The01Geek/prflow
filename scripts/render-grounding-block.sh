@@ -80,9 +80,8 @@ HEAD_SHA="${HEAD_SHA//\`/}"
 # value any unrecognized MODE falls back to) renders the full block byte-for-byte
 # as before. `implement` and `generic` render the tier-agnostic sections only — the
 # permitted commands, the command shapes, and the headless-run discipline — omitting
-# the CI section (neither tier has a reviewed commit to observe) and the
-# trusted-source-displacement section (a review-only concept), and renumbering the
-# survivors. `implement` additionally adds the one implement-only clause built below
+# every section gated on a reviewed commit (the CI section, the sole-publisher section,
+# and the trusted-source-displacement section), and renumbering the survivors. `implement` additionally adds the one implement-only clause built below
 # as IMPLEMENT_SCOPE_CLAUSE; `generic` adds no tier-specific clause at all, which is
 # what makes it the mode for a run that must not be told the CI fence is its test
 # evidence and does not orchestrate the implement phases either (devflow.yml's
@@ -93,10 +92,12 @@ HEAD_SHA="${HEAD_SHA//\`/}"
 # of the allowed-tools text — the coupled-mirror hazard the block was built to avoid.
 MODE="${MODE:-review}"
 # The CI section and the trusted-source-displacement section both speak about a
-# reviewed commit, so they are selected by THIS derived answer rather than by a
-# per-section MODE test: a mode added later gets both sections, or neither, from one
-# decision instead of from two that can drift apart. Bash `case`, never a PATH tool —
-# this value decides which sections are emitted (CLAUDE.md guard-class 2).
+# reviewed commit, and the sole-publisher section (issue #1629) is review-only for the
+# same reason a reviewed commit exists only in review mode, so all three are selected
+# by THIS one derived answer rather than by per-section MODE tests: a mode added later
+# gets these review-only sections, or none, from one decision instead of several that
+# can drift apart. Bash `case`, never a PATH tool — this value decides which sections
+# are emitted (CLAUDE.md guard-class 2).
 case "$MODE" in
   implement|generic) REVIEWED_COMMIT=no ;;
   *) REVIEWED_COMMIT=yes ;;
@@ -144,7 +145,7 @@ PATHS_EOF
   # Backtick containment for the SHA does NOT rest on this substitution (it does
   # not strip backticks) — it rests on the top-of-file HEAD_SHA backtick strip.
   _DISP_PROSE=$(cat <<'__DISP_PROSE_EOF__'
-> **5. Trusted-source displacement (issues #458, #874).** The working-tree files
+> **6. Trusted-source displacement (issues #458, #874).** The working-tree files
 > listed below were deliberately displaced before this session started by one of
 > two trusted-source producers — the Stop-hook trusted-source floor, which
 > replaces them with trusted base-ref copies or fail-closed stubs (issue #458),
@@ -202,10 +203,38 @@ __IMPL_SCOPE_EOF__
 )
 fi
 
+# The sole-publisher section (issue #1629). Review-only, gated on the SAME derived
+# REVIEWED_COMMIT selector as the CI and displacement sections rather than a fresh
+# MODE test, so /prflow:review-and-fix and /prflow:pr-description (MODE=generic, no
+# Phase 4.4) never receive it. It names Phase 4.4's emitter as the sole publisher
+# without restating its argument shape or outcome vocabulary — phase-4-4-github-post.md
+# stays the sole owner of the procedure. Numbered 5, always present in review mode after
+# the headless section (4); the conditional displacement section renumbers to 6 below.
+# Same mechanism as DISPLACED_SECTION — a variable interpolated into the shared tail —
+# so review mode's N_TOOLS/N_SHAPES/N_HEADLESS digits are untouched. Quoted heredoc:
+# the apostrophes stay literal.
+PUBLISHER_SECTION=''
+if [ "$REVIEWED_COMMIT" = yes ]; then
+  PUBLISHER_SECTION=$(cat <<'__PUBLISHER_EOF__'
+> **5. A verdict reaches this pull request through Phase 4.4's emitter alone.**
+> The merge-gate consumers that decide this review's outcome scan for a
+> producer-stamped verdict marker, and only Phase 4.4's verdict emitter writes one.
+> A verdict comment you compose and post yourself carries no such marker, so it
+> is not a verdict — it reads like an approval to a human while counting as
+> nothing to every consumer, and posting one does not discharge Phase 4.4. Do not
+> compose or publish a verdict of your own through any granted channel; run Phase
+> 4.4's emitter, whose reference is the sole owner of how it is posted.
+__PUBLISHER_EOF__
+)
+  PUBLISHER_SECTION="${PUBLISHER_SECTION}
+"
+fi
+
 # Section numbers depend on the tier. A block with no reviewed commit omits the CI
 # section and the trusted-source-displacement section, so its survivors renumber
-# 1/2/3; the review block keeps 2/3/4, so its rendered bytes are unchanged (the
-# placeholders below resolve to the same digits it always emitted). The block is
+# 1/2/3; the review block keeps 2/3/4, so those placeholder digits are unchanged (the
+# placeholders below resolve to the same digits they always emitted; the review-only
+# sole-publisher (5) and displacement (6) sections are appended after them). The block is
 # assembled from three `cat` heredocs (header, the review-only CI section, then the
 # shared permitted-commands/shapes/headless tail) rather than one — their concatenated
 # stdout is byte-identical to the former single heredoc for the review tier.
@@ -312,7 +341,7 @@ ${ALLOWED_TOOLS}
 > every one of them is collected within it. Pass run_in_background: false on a dispatch —
 > that is the lever YOU control, rather than assuming the workflow-level foreground
 > setting is in force.${IMPLEMENT_SCOPE_CLAUSE}
-${DISPLACED_SECTION}
+${PUBLISHER_SECTION}${DISPLACED_SECTION}
 ---
 EOF
 exit 0
