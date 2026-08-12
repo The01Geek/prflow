@@ -25698,9 +25698,11 @@ assert_eq("#1634 helper: one line carrying two collocations yields two ordered u
           True, [line.split(' ', 1)[0] for line in _cvp_ungraded_lines(_cvp_out)]
           == ['ungraded_claim=1', 'ungraded_claim=2'])
 for _u_line in _cvp_ungraded_lines(_cvp_out):
+    # Scan the minted-field prefix only: `detail=` is opaque echoed body text, so
+    # asserting over the whole line would pin fixture wording, not the contract.
     for _u_tok in ('holds', 'refuted', 'unestablished'):
         assert_eq(f"#1634 helper: no ungraded line carries the adjudicated state token "
-                  f"'{_u_tok}'", False, _u_tok in _u_line)
+                  f"'{_u_tok}'", False, _u_tok in _u_line.split(' detail=', 1)[0])
 
 # --- test_ungraded_count_reported (zero and nonzero alike) ------------------
 _cvp_rc, _cvp_out = _cvp_run('## Current Behavior\n\nNothing verifiable is asserted here.\n')
@@ -25892,6 +25894,18 @@ _cvp_rc, _cvp_out = _cvp_run(
 assert_eq("#1634 helper: a collocation preceded by letters ('unverified against') is not a "
           "detection", True, _cvp_ungraded_lines(_cvp_out) == []
           and 'UNGRADED_CLAIMS total=0' in _cvp_out)
+
+# --- test_ungraded_numbering_counts_detections_not_matches ------------------
+# Numbering runs over the SURVIVING detections: an excluded earlier collocation
+# must not consume ordinal 1 and push the reported one to 2.
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    'The phrase `verified against` is quoted as data here.\n'
+    'The fixture was confirmed against the base ref.\n')
+assert_eq("#1634 helper: an excluded earlier collocation does not consume an ordinal — the "
+          "surviving later detection is numbered 1",
+          ['ungraded_claim=1 region=Current Behavior phrase=confirmed against'],
+          [line.split(' detail=', 1)[0] for line in _cvp_ungraded_lines(_cvp_out)])
 
 # --- test_ungraded_internal_error_is_unavailable_not_zero -------------------
 # A crash in the ungraded pass must NOT print `total=0`, which is byte-identical

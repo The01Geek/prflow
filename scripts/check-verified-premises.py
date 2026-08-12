@@ -101,12 +101,9 @@ import traceback
 from pathlib import Path
 from typing import NamedTuple
 
-# `section_parse` is a sibling module reused for the ungraded-claim pass's
-# section extractor (issue #1634). It is imported IN-PROCESS, never exec'd: a
-# `.sh`/subprocess hop fails on Windows ([WinError 193], issue #275), and a
-# subprocess would also break this module's no-subprocess security boundary.
-# Inserting this file's own directory resolves the import whether the helper is
-# run as a script, run from its vendored copy, or loaded via importlib in tests.
+# Import `section_parse` IN-PROCESS — never through a `.sh`/subprocess hop,
+# which fails on Windows ([WinError 193]) and breaks this module's
+# no-subprocess boundary. The path insert is what makes that import resolve.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from section_parse import HEADING_RE, extract_section  # noqa: E402
 
@@ -229,11 +226,9 @@ _UNDECIDABLE_REASONS = {
 }
 
 # --- Ungraded-claim detection (issue #1634) --------------------------------
-#
-# The non-adjudicating second pass below must share no STATE token (`holds`,
+# The non-adjudicating pass below must share no STATE token (`holds`,
 # `refuted`, `unestablished`) with the adjudicated vocabulary above, or a
 # downstream verdict parser scanning both would mis-tally.
-# Rationale and the full design are in docs/internal/implement-skill.md.
 
 # Do not widen this tuple to catch a verification worded outside it ("I checked
 # this"): the missed detection is the deliberate low-false-positive floor.
@@ -908,11 +903,9 @@ def _run(args) -> int:
         sum(tally.values()), tally['holds'], tally['refuted'],
         tally['unestablished']))
 
-    # The non-adjudicating ungraded-claim pass (issue #1634). It runs after the
-    # adjudicated output above is already printed and never touches the exit
-    # code. Isolate it: a bug in the pass must not turn a printed clean/refuted
-    # adjudication into an internal-error exit, so a failure degrades to no
-    # ungraded output rather than propagating to main's catch-all.
+    # Do not let this advisory pass reach main's catch-all (issue #1634): an
+    # exception escaping here would turn the clean/refuted adjudication already
+    # printed above into an internal-error exit.
     try:
         ungraded = find_ungraded_claims(body)
     except Exception as exc:  # noqa: BLE001 — the pass is advisory; never let it move the verdict.
