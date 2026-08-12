@@ -144,7 +144,7 @@ PATHS_EOF
   # Backtick containment for the SHA does NOT rest on this substitution (it does
   # not strip backticks) — it rests on the top-of-file HEAD_SHA backtick strip.
   _DISP_PROSE=$(cat <<'__DISP_PROSE_EOF__'
-> **5. Trusted-source displacement (issues #458, #874).** The working-tree files
+> **6. Trusted-source displacement (issues #458, #874).** The working-tree files
 > listed below were deliberately displaced before this session started by one of
 > two trusted-source producers — the Stop-hook trusted-source floor, which
 > replaces them with trusted base-ref copies or fail-closed stubs (issue #458),
@@ -200,6 +200,33 @@ if [ "$MODE" = implement ]; then
 > dispatch from your own context — at every dispatch point.
 __IMPL_SCOPE_EOF__
 )
+fi
+
+# The sole-publisher section (issue #1629). Review-only, gated on the SAME derived
+# REVIEWED_COMMIT selector as the CI and displacement sections rather than a fresh
+# MODE test, so /prflow:review-and-fix and /prflow:pr-description (MODE=generic, no
+# Phase 4.4) never receive it. It names Phase 4.4's emitter as the sole publisher
+# without restating its argument shape or outcome vocabulary — phase-4-4-github-post.md
+# stays the sole owner of the procedure. Numbered 5, always present in review mode after
+# the headless section (4); the conditional displacement section renumbers to 6 below.
+# Same mechanism as DISPLACED_SECTION — a variable interpolated into the shared tail —
+# so review mode's N_TOOLS/N_SHAPES/N_HEADLESS digits are untouched. Quoted heredoc:
+# the apostrophes stay literal.
+PUBLISHER_SECTION=''
+if [ "$REVIEWED_COMMIT" = yes ]; then
+  PUBLISHER_SECTION=$(cat <<'__PUBLISHER_EOF__'
+> **5. A verdict reaches this pull request through Phase 4.4's emitter alone.**
+> The merge-gate consumers that decide this review's outcome scan for a
+> producer-stamped verdict marker, and only Phase 4.4's verdict emitter writes one.
+> A verdict comment you compose and post yourself carries no such marker, so it
+> is not a verdict — it reads like an approval to a human while counting as
+> nothing to every consumer, and posting one does not discharge Phase 4.4. Do not
+> compose or publish a verdict of your own through any granted channel; run Phase
+> 4.4's emitter, whose reference is the sole owner of how it is posted.
+__PUBLISHER_EOF__
+)
+  PUBLISHER_SECTION="${PUBLISHER_SECTION}
+"
 fi
 
 # Section numbers depend on the tier. A block with no reviewed commit omits the CI
@@ -312,7 +339,7 @@ ${ALLOWED_TOOLS}
 > every one of them is collected within it. Pass run_in_background: false on a dispatch —
 > that is the lever YOU control, rather than assuming the workflow-level foreground
 > setting is in force.${IMPLEMENT_SCOPE_CLAUSE}
-${DISPLACED_SECTION}
+${PUBLISHER_SECTION}${DISPLACED_SECTION}
 ---
 EOF
 exit 0
