@@ -10449,7 +10449,7 @@ assert_pin_unique "#185: Phase 4.1 Stage 2 no-op escape hatch when no paths extr
 # Issue #284 folded the once-only retry into the Stage-2 diff `if ! A && { fetch; ! B; }`
 # guard, so the three-dot range now appears twice (read + retry) — count-based, ==2.
 assert_eq "#185: Phase 4.1 Stage 2 uses the three-dot origin/\$BASE...HEAD diff range (B, read+retry)" \
-  "2" "$(pin_count 'git diff --name-only "origin/$BASE...HEAD"' "$IMPL_SKILL")"
+  "2" "$(pin_count 'git diff --name-only "origin/<base-branch>...HEAD"' "$IMPL_SKILL")"
 assert_pin_unique "#185: Phase 4.1 Stage 2 Blocked arm names the missing-content condition (C)" \
   'Documentation Needed file content cannot be determined' "$IMPL_SKILL"  # structural-pin-ok: routing-dispatch-contract -- indeterminate Documentation Needed content routes Phase 4 to Blocked
 # PR #190 fix-loop: the EXTRACTION side (gh issue view / helper) must read the
@@ -32479,7 +32479,7 @@ assert_pin_unique "#284 positive: review trace render discriminates via single-s
 # `git diff --name-only "origin/$BASE...HEAD"` fence whose tool result the orchestrator
 # reads and routes on agent-side. Pin the surviving single-statement read.
 assert_eq "#284 positive: phase-4 doc-gate diff read is a single-statement, tool-result-routed fence" "yes" \
-  "$(grep -qF 'git diff --name-only "origin/$BASE...HEAD"' "$DEF_SKILL" && echo yes || echo no)"  # raw-guard-ok: presence — #284 the doc-gate diff read the orchestrator routes on (present twice: initial read + re-fetch, so not assert_pin_unique)
+  "$(grep -qF 'git diff --name-only "origin/<base-branch>...HEAD"' "$DEF_SKILL" && echo yes || echo no)"  # raw-guard-ok: presence — #284 the doc-gate diff read the orchestrator routes on (present twice: initial read + re-fetch, so not assert_pin_unique)
 assert_eq "#284 shadow-fix: phase-4 doc-gate no longer carries the old DIFF_RC capture-then-read recipe" \
   "0" "$(pin_count 'DIFF_RC=$?' "$IMPL_SKILL")"
 # AC3: retrospective-weekly's wrapper precheck is execution-verified (`[ ! -x ]`, not the
@@ -45265,6 +45265,13 @@ ibr_run() {  # <root> <path…> -> "rc=<n>|<stdout+stderr>"
 assert_eq "#693 scanner: the §1.1 producer fetch is not flagged" \
   "rc=0|lint-issue-body-refetch: audited 2 of 2 files" \
   "$(ibr_run "$IBR_FX" skills/implement/clean.md skills/implement/producer.md)"
+# The producer's MIGRATED spelling (issue #1633) writes to the absolute path the
+# precondition printed, so the line carries the `<absolute-cache-path>` placeholder
+# instead of the cache path — a separate allowance literal, driven on its own file so
+# neither spelling's allowance can go vacuous behind the other.
+assert_eq "#693 scanner: the migrated §1.1 producer spelling is not flagged" \
+  "rc=0|lint-issue-body-refetch: audited 1 of 1 files" \
+  "$(ibr_run "$IBR_FX" skills/implement/producer-migrated.md)"
 
 # Planted-defect positive control, one per detected form (the coverage-claim rule).
 while IFS=: read -r _ibr_file _ibr_slug _ibr_what; do
@@ -51397,6 +51404,30 @@ assert_eq "#1633 lint AC21: the positive control fails with the plant present" "
 _wfs_restore_p1
 assert_eq "#1633 lint AC21: the positive control passes with the plant removed" "0" \
   "$(python3 "$WFS_LINT" --root "$WFS_ROOT" >/dev/null 2>&1; echo $?)"
+# INDENTED-fence positive control: an enrolled file's ```bash fences nested under a
+# Markdown list item are executed exactly like column-0 ones, so a column-0-anchored
+# recognizer would skip 20 of the shipped enrolled fences. Plant each refused construct
+# inside an INDENTED fence — every one must still be reported.
+printf '\n- item:\n  ```bash\n  echo "$(date)"\n  ```\n' >> "$WFS_P1"
+WFS_IND_OUT="$(python3 "$WFS_LINT" --root "$WFS_ROOT" 2>&1)"; WFS_IND_RC=$?
+assert_eq "#1633 lint: a refused construct in an INDENTED fence fails (RED)" "1" "$WFS_IND_RC"
+assert_eq "#1633 lint: the indented-fence RED report names file:line and the construct" "yes" \
+  "$(case "$WFS_IND_OUT" in *"phase-1-setup.md:"*"command substitution"*) echo yes ;; *) echo no ;; esac)"
+_wfs_restore_p1
+printf '\n- item:\n  ```bash\n  X=1\n  echo "$X"\n  ```\n' >> "$WFS_P1"
+assert_eq "#1633 lint: a bound-var reference in an INDENTED fence fails (RED)" "yes" \
+  "$(case "$(python3 "$WFS_LINT" --root "$WFS_ROOT" 2>&1)" in *"variable bound within the same fence"*) echo yes ;; *) echo no ;; esac)"
+_wfs_restore_p1
+printf '\n- item:\n  ```bash\n  true\n  echo rc=$?\n  ```\n' >> "$WFS_P1"
+assert_eq "#1633 lint: \$? in an INDENTED fence fails (RED)" "yes" \
+  "$(case "$(python3 "$WFS_LINT" --root "$WFS_ROOT" 2>&1)" in *"exit-status parameter"*) echo yes ;; *) echo no ;; esac)"
+_wfs_restore_p1
+# An INDENTED non-bash fence stays prose — the indent-tolerant recognizers must not
+# widen the scanned population to every indented fence.
+printf '\n- item:\n  ```text\n  echo "$(date)"\n  ```\n' >> "$WFS_P1"
+assert_eq "#1633 lint: a construct in an INDENTED non-bash fence passes" "0" \
+  "$(python3 "$WFS_LINT" --root "$WFS_ROOT" >/dev/null 2>&1; echo $?)"
+_wfs_restore_p1
 # AC22 (the module docstring closes the candidate-construct set and discloses the shapes
 # it does not detect) is discharged by the docstring itself and human review — a
 # docstring-presence grep would be a prohibited wording-only pin (CLAUDE.md's
@@ -51487,11 +51518,20 @@ def run(fence):
     r = subprocess.run([BASH, "-uc", subst(fence)], env=ambient, cwd=work,
                        capture_output=True, text=True)
     return r.returncode, r.stderr
-total = ran = 0
-for f in enrolled:
+total = ran = unbound = 0
+# argv[0] is the canonical file the full stub environment models, so only its fences
+# are held to "ran to completion". Every enrolled file is still swept for the
+# cross-fence dependency signal, which `bash -u` reports as an unbound variable
+# independently of whether the fence's heads are stubbed here.
+for idx, f in enumerate(enrolled):
     for fence in fences(f):
-        total += 1
         rc, err = run(fence)
+        if "unbound variable" in err:
+            unbound += 1
+            sys.stderr.write("FENCE-UNBOUND %s :: %s\n" % (err[:120], fence.splitlines()[0][:90]))
+        if idx:
+            continue
+        total += 1
         if rc == 0 and "unbound variable" not in err:
             ran += 1
         else:
@@ -51508,13 +51548,23 @@ def route(code, output):
     rc, _ = run('"${CLAUDE_SKILL_DIR:-x}"/../../scripts/preflight.py ignore-precondition '
                 '--repo-relative --path .prflow/tmp/issue-body/issue-$ISSUE_NUMBER.md')
     return rc
-print("allran=%s total=%d syn_rc=%d rstop=%d rdeg=%d rno=%d" % (
+print("allran=%s total=%d unbound=%d syn_rc=%d rstop=%d rdeg=%d rno=%d" % (
     "yes" if (total > 0 and ran == total) else "no",
-    total, syn_rc, route(3, "UNAVAILABLE"), route(2, "NOT_IGNORED"), route(0, "")))
+    total, unbound, syn_rc, route(3, "UNAVAILABLE"), route(2, "NOT_IGNORED"), route(0, "")))
 P1633FIH
-P1633_FIH_OUT="$(python3 "$P1633_FIH" "$REPO_ROOT/skills/implement/phases/phase-1-setup.md" 2>/dev/null)"
+P1633_FIH_OUT="$(python3 "$P1633_FIH" \
+  "$REPO_ROOT/skills/implement/phases/phase-1-setup.md" \
+  "$REPO_ROOT/skills/implement/phases/phase-2-implement.md" \
+  "$REPO_ROOT/skills/implement/phases/phase-3-review.md" \
+  "$REPO_ROOT/skills/implement/phases/phase-4-documentation.md" 2>/dev/null)"
 assert_eq "#1633 AC23: every phase-1 fence runs to completion in isolation (no cross-fence var/head dependency)" "yes" \
   "$(case "$P1633_FIH_OUT" in "allran=yes "*) echo yes ;; *) echo "no ($P1633_FIH_OUT)" ;; esac)"
+# The cross-fence dependency sweep runs over ALL FOUR enrolled files: `bash -u` turns a
+# reference to a variable another fence bound into an unbound-variable abort, so a
+# reintroduced cross-fence dependency in phase-2/3/4 is caught here even though only
+# phase-1's heads are fully stubbed. The lint is same-fence-scoped and cannot see it.
+assert_eq "#1633 AC23: no enrolled file's fence references a variable another fence bound" "yes" \
+  "$(case "$P1633_FIH_OUT" in *" unbound=0 "*) echo yes ;; *) echo "no ($P1633_FIH_OUT)" ;; esac)"
 assert_eq "#1633 AC24: a fence invoking an unstubbed bare head is refused, not executed (rc 127)" "yes" \
   "$(case "$P1633_FIH_OUT" in *"syn_rc=127"*) echo yes ;; *) echo "no ($P1633_FIH_OUT)" ;; esac)"
 assert_eq "#1633 AC29: the ignore-precondition outcomes are distinguishable by exit code (stop=3, degraded=2, no-output=0)" "yes" \

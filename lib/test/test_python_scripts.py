@@ -12394,12 +12394,27 @@ def _pf_ignore_1633(cwd, path):
     return (r.stdout.strip(), r.returncode)
 
 
+_pf_root_1633 = _pf_ignore_1633(_wt_repo, "scratch/x.md")
+_pf_sub_1633 = _pf_ignore_1633(str(Path(_wt_repo) / "sub"), "scratch/x.md")
+_pf_link_1633 = _pf_ignore_1633(_wt_link, "scratch/x.md")
 assert_eq("#1633 anchoring: repo-relative IGNORED from the repo root",
-          ("IGNORED", 0), _pf_ignore_1633(_wt_repo, "scratch/x.md"))
-assert_eq("#1633 anchoring: repo-relative IGNORED from a subdirectory (same target)",
-          ("IGNORED", 0), _pf_ignore_1633(str(Path(_wt_repo) / "sub"), "scratch/x.md"))
+          ("IGNORED", 0), (_pf_root_1633[0].split()[0], _pf_root_1633[1]))
+assert_eq("#1633 anchoring: repo-relative IGNORED from a subdirectory",
+          ("IGNORED", 0), (_pf_sub_1633[0].split()[0], _pf_sub_1633[1]))
 assert_eq("#1633 anchoring: repo-relative IGNORED from inside a linked worktree",
-          ("IGNORED", 0), _pf_ignore_1633(_wt_link, "scratch/x.md"))
+          ("IGNORED", 0), (_pf_link_1633[0].split()[0], _pf_link_1633[1]))
+# The IGNORED line carries the resolved ABSOLUTE target, so the guarded §1.1 write
+# addresses the path that was checked. A subdirectory-launched run must resolve the
+# SAME target as the root-launched one; the linked worktree resolves its own root.
+assert_eq("#1633 anchoring: the root and subdirectory runs report the same absolute target",
+          (True, True),
+          (os.path.isabs(_pf_root_1633[0].split(maxsplit=1)[1]),
+           os.path.realpath(_pf_root_1633[0].split(maxsplit=1)[1])
+           == os.path.realpath(_pf_sub_1633[0].split(maxsplit=1)[1])))
+assert_eq("#1633 anchoring: the linked-worktree run reports a target inside that worktree",
+          True,
+          os.path.realpath(_pf_link_1633[0].split(maxsplit=1)[1])
+          == os.path.realpath(os.path.join(_wt_link, "scratch/x.md")))
 assert_eq("#1633 anchoring: a tracked repo-relative path is NOT_IGNORED (exit 2)",
           ("NOT_IGNORED", 2), _pf_ignore_1633(str(Path(_wt_repo) / "sub"), "tracked.txt"))
 
@@ -12419,6 +12434,23 @@ def _pa_1633(cwd, path):
 
 assert_eq("#1633 anchoring: parse-acs resolves a repo-relative --body-file from a subdir",
           (0, True), _pa_1633(str(Path(_wt_repo) / "sub"), "body.md"))
+
+# The fail-closed arm: run from a directory that is NOT a git checkout, so
+# `git rev-parse --show-toplevel` fails and no root resolves. parse-acs must exit
+# non-zero rather than anchor the repo-relative --body-file to the process cwd (which
+# would emit an empty parse the §1.2 fence reads as "this issue has no criteria").
+_nonrepo_1633 = tempfile.mkdtemp()
+(Path(_nonrepo_1633) / "body.md").write_text(
+    "## Acceptance Criteria\n- [ ] one\n", encoding="utf-8")
+_pa_fc_1633 = _sp915.run(
+    [sys.executable, _PA_PATH_1633, "--anchor-repo-root", "--body-file", "body.md",
+     "--format", "md"],
+    cwd=_nonrepo_1633, capture_output=True, text=True,
+    env={**os.environ, "GIT_CEILING_DIRECTORIES": os.path.realpath(_nonrepo_1633)})
+assert_eq("#1633 anchoring: parse-acs fails closed when the repo root will not resolve",
+          (1, ""), (_pa_fc_1633.returncode, _pa_fc_1633.stdout.strip()))
+assert_eq("#1633 anchoring: the parse-acs fail-closed arm names the unresolvable root",
+          True, "could not resolve the repository root" in _pa_fc_1633.stderr)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # AC2/AC3 (issue #701) — helper leading-token boundary over the AC1 closure.

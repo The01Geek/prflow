@@ -21,13 +21,14 @@ Run the precondition as its own single statement; the helper resolves the repo r
 
 **Read the exit code and printed token from the tool result** — never a captured shell variable — and route agent-side on the exit code:
 
-- **`IGNORED` / exit 0** — precondition satisfied. Delete-then-fetch, **in that order and unconditionally**, so a resumed run cannot read a prior attempt's cache:
+- **`IGNORED <absolute-cache-path>` / exit 0** — precondition satisfied; the token is followed by the **absolute** cache path the helper resolved and checked. Substitute that printed path for `<absolute-cache-path>` below and its parent directory for `<absolute-cache-directory>`, then delete-then-fetch **in that order and unconditionally**, so a resumed run cannot read a prior attempt's cache. A cwd-relative target instead would, on a run launched from a repository subdirectory, write the cache where the precondition never checked — the untracked in-tree file this gate exists to prevent:
   ```bash
-  mkdir -p .prflow/tmp/issue-body
-  rm -f .prflow/tmp/issue-body/issue-$ARGUMENTS.md
-  gh issue view $ARGUMENTS --json body --jq '.body' > .prflow/tmp/issue-body/issue-$ARGUMENTS.md \
-    || gh issue view $ARGUMENTS --json body --jq '.body' > .prflow/tmp/issue-body/issue-$ARGUMENTS.md
+  mkdir -p <absolute-cache-directory>
+  rm -f <absolute-cache-path>
+  gh issue view $ARGUMENTS --json body --jq '.body' > <absolute-cache-path> \
+    || gh issue view $ARGUMENTS --json body --jq '.body' > <absolute-cache-path>
   ```
+  Carry that absolute path in your context as the cache location every later consumer is handed.
 - **`NOT_IGNORED` / exit 2** — a resolved "not ignored": `.prflow/tmp/` is not gitignored, so the issue-body cache is **not** written; take the degraded arm.
 - **`UNAVAILABLE` / exit 3, or a refused / no-output invocation** — an *unestablished measurement*, never a decided "not ignored": take the run's existing **STOP** path. Absent output is never a decided answer, and a matcher refusal must not masquerade as the degraded arm.
 

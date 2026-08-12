@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-"""Fail the suite when an ENROLLED implement-bundle file carries a bash fence that
+r"""Fail the suite when an ENROLLED implement-bundle file carries a bash fence that
 uses a shell expansion a worktree-isolated Claude Code session refuses (issue #1633).
 
 Why this exists. An agent running ``/prflow:implement`` inside a Claude Code
@@ -42,7 +42,11 @@ SHAPES THIS LINT DOES NOT DETECT (disclosed residuals, in the form
   - Only ``bash``-info-string fenced blocks are scanned. A fence with no info
     string, or an info string other than ``bash`` (``sh``, ``console``, ``text``,
     none), is treated as prose/data and NOT scanned — the constructs are refused
-    only when executed as a bash fence.
+    only when executed as a bash fence. Leading INDENTATION on the fence markers is
+    allowed and ignored, so a ```bash fence nested under a Markdown list item is
+    scanned exactly like a column-0 one (an implement run executes both). The
+    accepted over-match: a deeply indented ```bash block that CommonMark would
+    render as literal text rather than a fence is still scanned.
   - A QUOTED heredoc body (``<<'EOF'`` / ``<<"EOF"`` / ``<<\EOF``) is data, not
     executed expansion, so its lines are stripped before scanning. An UNQUOTED
     heredoc body IS scanned, because the shell expands it.
@@ -79,8 +83,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 #: The shipped enrolled set — the SINGLE place it is written down. Each entry is a
 #: repo-relative path to an implement-bundle file whose bash fences an implement run
-#: executes. The four phase files issue #1633 names are the floor; the reference and
-#: SKILL.md entries are the rest of the surface whose fences were migrated with them.
+#: executes — the four phase files issue #1633 names.
 ENROLLED: tuple[str, ...] = (
     "skills/implement/phases/phase-1-setup.md",
     "skills/implement/phases/phase-2-implement.md",
@@ -92,11 +95,13 @@ ENROLLED: tuple[str, ...] = (
 #: overridden) inventory that drops any of them is a mis-scoped audit and fails closed.
 _REQUIRED: frozenset[str] = frozenset(ENROLLED)
 
-# A ``bash`` fence opener: ``` ```bash ``` (optionally with trailing whitespace) at
-# the start of the line. Info strings other than ``bash`` are not scanned.
-_FENCE_BASH_OPEN = re.compile(r"^```bash[ \t]*$")
-_FENCE_CLOSE = re.compile(r"^```[ \t]*$")
-_FENCE_ANY_OPEN = re.compile(r"^```")
+# A ``bash`` fence opener: ``` ```bash ``` (optionally with trailing whitespace).
+# Leading indentation is allowed and ignored: an enrolled fence nested under a
+# Markdown list item is executed exactly like a column-0 one, so anchoring these at
+# column 0 would silently skip it. Info strings other than ``bash`` are not scanned.
+_FENCE_BASH_OPEN = re.compile(r"^[ \t]*```bash[ \t]*$")
+_FENCE_CLOSE = re.compile(r"^[ \t]*```[ \t]*$")
+_FENCE_ANY_OPEN = re.compile(r"^[ \t]*```")
 
 # A quoted heredoc redirection: ``<<`` (optionally ``-``) then a quoted or
 # backslash-escaped delimiter word. Its body is data and is stripped before scanning.

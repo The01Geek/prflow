@@ -111,18 +111,18 @@ Route the token and its paired exit status by the **Shared read contract** state
 
 1. **No-op when empty.** If the helper reported `no-deliverables`, this cross-check is a no-op — proceed directly to the post-docs-labels + `--tick-progress "Documentation"` step below.
 
-2. **Compute the diff once; fail closed on a broken command.** Verify `$BASE` is non-empty; if empty, re-derive it exactly as Phase 1.4 does, **applying its non-empty fallback and not just the config read** — the read alone returns nothing on malformed config and would otherwise leave `$BASE` empty, collapsing the range to `origin/...HEAD` and judging every path absent. Compute the cumulative diff as a single command, and read its printed lines and exit status from the tool result — never a captured shell variable:
+2. **Compute the diff once; fail closed on a broken command.** Establish the base branch name you hold from Phase 1.4 — re-derive it exactly as Phase 1.4 does when you do not, **applying its non-empty fallback and not just the config read**, since the read alone returns nothing on malformed config. Substitute that name for `<base-branch>` in each fence below: it is your own context state, not a shell variable the fence can read, and an unsubstituted placeholder collapses the range to `origin/...HEAD` and judges every path absent. Compute the cumulative diff as a single command, and read its printed lines and exit status from the tool result — never a captured shell variable:
    ```bash
-   git diff --name-only "origin/$BASE...HEAD"
+   git diff --name-only "origin/<base-branch>...HEAD"
    ```
    Route on the exit status read from the tool result:
    - **exit 0** — the printed lines are the cumulative diff. An rc-0 result with **empty** output is **not** a failure: it is the genuine "touched none of these files" signal.
    - **non-zero** — re-fetch the base once and recompute, each its own single statement:
      ```bash
-     git fetch origin "$BASE"
+     git fetch origin <base-branch>
      ```
      ```bash
-     git diff --name-only "origin/$BASE...HEAD"
+     git diff --name-only "origin/<base-branch>...HEAD"
      ```
      If this recompute also exits non-zero, fail **closed** — never fall through to a path-absent verdict on a broken command: `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --status Blocked --reflection-kind dropped-failed --reflection "Phase 4.1: could not compute the cumulative diff for the Documentation Needed gate (git diff / base-fetch failed — offline, auth, or wrong trunk)"`, then emit the 👎 outcome reaction and STOP the run.
 

@@ -174,9 +174,13 @@ AUDITED_PREFIX = "skills/implement/"
 MARKDOWN_SUFFIXES = (".md", ".md.example")
 
 #: A logical line carrying one of these literals is a named in-file allowance —
-#: today only the §1.1 producer fetch, which writes the cache. Findings on such a
-#: line are suppressed. See the module docstring for the retired second entry.
-ALLOW_SITE_LITERALS = ("issue-body/issue-",)
+#: today only the §1.1 producer fetch, which writes the cache, in either of its two
+#: spellings: the cache path written out, and the `<absolute-cache-path>` placeholder
+#: the agent substitutes with the absolute target `preflight.py ignore-precondition`
+#: printed (issue #1633 — a captured shell variable is refused in a worktree session).
+#: Findings on such a line are suppressed. See the module docstring for the retired
+#: second entry.
+ALLOW_SITE_LITERALS = ("issue-body/issue-", "<absolute-cache-path>")
 
 #: A head token naming the gh binary directly, or through a resolver variable
 #: whose name ends in `GH` (the repo's resolver contract, mirrored from

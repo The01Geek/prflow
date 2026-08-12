@@ -16,7 +16,10 @@ helper — rather than a new bundled helper — keeps the precondition free of a
 new matcher command head or vendored-literal token, so no install.sh-versus-
 vendor-fetch skew window opens. It reuses the three-class one-token contract:
 IGNORED / PROCEED_EXIT, NOT_IGNORED / BLOCKED_EXIT (a resolved 'not ignored' — the
-degraded arm), UNAVAILABLE / UNAVAILABLE_EXIT (git could not answer).
+degraded arm), UNAVAILABLE / UNAVAILABLE_EXIT (git could not answer). The IGNORED
+line carries the resolved ABSOLUTE target after the token, so a caller that passed
+`--repo-relative` writes to the same path this subcommand checked rather than to a
+cwd-relative one that a subdirectory-launched run would resolve elsewhere (#1633).
 
 The branch-state subcommand (issue #576, "Verdict B") classifies the
 adopted/working branch against the base and emits a one-token verdict + matching
@@ -1075,7 +1078,11 @@ def ignore_precondition(args: argparse.Namespace) -> int:
         print("UNAVAILABLE resolve", flush=True)
         return UNAVAILABLE_EXIT
     if ignored:
-        print("IGNORED", flush=True)
+        # The resolved absolute target is printed with the token so the caller writes
+        # to the path that was checked. The enrolled §1.1 fences cannot capture it in a
+        # shell variable (a worktree-isolated session refuses that shape, issue #1633),
+        # so the agent substitutes this literal into the guarded write.
+        print(f"IGNORED {os.path.abspath(path)}", flush=True)
         return PROCEED_EXIT
     print(
         f"preflight.py: {args.path} is not covered by a gitignore rule; the "

@@ -63,7 +63,9 @@ output, is the signal a consumer routes on.
 
 Exit codes:
   0  parsed and printed (INCLUDING the present-but-unreadable-section case)
-  1  body fetch failed
+  1  the body could not be established — a failed fetch, or an `--anchor-repo-root`
+     run whose repository root would not resolve (issue #1633; fail closed rather
+     than silently anchoring the repo-relative `--body-file` to the process cwd)
   2  bad arguments
 """
 
