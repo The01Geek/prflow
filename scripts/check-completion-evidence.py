@@ -57,9 +57,6 @@ import reception_identity as ri  # noqa: E402
 
 # gh is read only on the remote-trace arm; the Python gh-caller pattern (no probe).
 GH = os.environ.get("DEVFLOW_GH") or "gh"
-# git head for the offline CI-derived completion checks (issue #1611): a named
-# constant, not a string literal, so the #550 subprocess-head AST allowlist admits it.
-GIT = "git"
 
 # The eight tokens, in evaluation order (pass is the terminal affirmative).
 TOK_PASS = "pass"
@@ -872,22 +869,17 @@ def _is_full_hex_sha(value: object) -> bool:
 
 
 def _ci_git_read(repo_root: "str | None", argv: "list[str]") -> str:
-    """Run `git <argv>` in `repo_root` with no shell (argv list, Windows-safe), and
-    return its stdout. A non-zero exit or an exec failure is an internal failure of
-    the check itself — not a verdict about the record — so it raises `_Internal`
-    (exit 2, no verdict line), exactly as the identity re-derivation does."""
+    """Read `git <argv>` in `repo_root` through reception_identity's native-git reader
+    (argv list, no shell, Windows-safe) — the module's single git-spawn routine, so
+    the CI checks add no subprocess of their own and the module's "git only inside the
+    derivation routine" invariant stays true. A git-not-found, exec error, non-zero
+    exit, or undecodable output is an internal failure of the check itself — not a
+    verdict about the record — so it is re-raised as `_Internal` (exit 2, no verdict
+    line), exactly as the identity re-derivation maps `IdentityError`."""
     try:
-        proc = subprocess.run(  # noqa: S603 - argv list, no shell
-            [GIT, *argv],
-            cwd=repo_root or os.getcwd(),
-            capture_output=True,
-            text=True,
-        )
-    except OSError as exc:
-        raise _Internal(f"ci_git_exec:{exc.__class__.__name__}")
-    if proc.returncode != 0:
-        raise _Internal(f"ci_git_rc:{argv[0]}:{proc.returncode}")
-    return proc.stdout
+        return ri._run_git_text(argv, repo_root or os.getcwd())
+    except ri.IdentityError as exc:
+        raise _Internal(f"ci_git:{exc.reason}")
 
 
 def _validate_ci_record(record: object, repo_root: "str | None") -> "tuple[str, str]":

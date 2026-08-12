@@ -46879,10 +46879,11 @@ assert_eq "#550 internal-error(no git repo): NO verdict line" "0" "$CCE_NL"
 
 # ── Semantic-judgment exclusion (code-reading obligation over the shipped source):
 #    the validator source spawns NO subprocess whose head is anything other than
-#    the resolved gh (constant GH, on the remote-trace arm) or git (constant GIT,
-#    the issue-#1611 offline CI-derived completion checks — rev-parse HEAD / status
-#    --porcelain); git also runs inside the imported reception_identity routine. It
-#    re-grades no severity, re-runs no test suite. An AST negative, not a grep. ──
+#    the resolved gh (constant GH — its single subprocess head, on the remote-trace
+#    arm); git runs only inside the imported reception_identity routine (the #1611
+#    CI-derived completion checks read git through it too), so the "GIT" allowlist
+#    entry below is defensive and unexercised in this module. It re-grades no
+#    severity, re-runs no test suite. An AST negative, not a grep. ──
 CCE_SEMANTIC="$(python3 - "$CCE" <<'SEMEOF'
 import ast, sys
 src = open(sys.argv[1], encoding="utf-8").read()

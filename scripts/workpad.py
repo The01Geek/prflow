@@ -3616,8 +3616,15 @@ def _strip_completion_marker_rows(content: str) -> str:
 # marker family, validated OFFLINE by the sibling module's `validate_implement_completion_ci`.
 # Both the `prflow:` and superseded `devflow:` spellings are read per record (#1003).
 _COMPLETION_CI_MARKER_KEY_PREFIX = 'completion-ci:'
+# Composed from `_MARKER_NS_RE` (as the review-coverage grammars are) rather than
+# re-spelling the `(?:pr|dev)flow` alternation, so the confirmation-gated retirement
+# of the superseded `devflow:` spelling reaches this grammar too. That constant fixes
+# the single space `_checkpoint_marker` writes, so this matcher is stricter than the
+# older hand-rolled `_COMPLETION_MARKER_RE` — the safe direction, since a marker shape
+# this gate cannot read is unestablished (refusing the Complete write, never admitting
+# it). Both spellings are still read per record (#1003).
 _COMPLETION_CI_MARKER_RE = re.compile(
-    r'<!--\s*(?:pr|dev)flow:checkpoint\s+completion-ci:([^\s]+?)\s*-->'
+    _MARKER_NS_RE + r'checkpoint completion-ci:([^\s]+?) -->'
 )
 
 
