@@ -13621,12 +13621,16 @@ cat > "$F1441/checkruns.json" <<'CR'
 {"check_runs":[{"conclusion":"failure"},{"conclusion":"timed_out"}]}
 CR
 cr1441 "two concatenated pages, both qualifying runs on page 2" "2" "false"
-# The stub above serves page 1 alone without --paginate, so the row above already
-# fails if the flag is dropped; this pins the argv directly so the reason is named.
+# Keep these argv pins beside the behavioral row: they name the cause when it
+# fails, which a count mismatch alone does not.
 assert_eq "#1441: the shipped call passes --paginate" "yes" \
   "$(grep -q -- '--paginate' "$F1441/argv.log" && echo yes || echo no)"
 assert_eq "#1441: the shipped call requests the larger page size" "yes" \
   "$(grep -q 'per_page=100' "$F1441/argv.log" && echo yes || echo no)"
+# Pin the commit selector too: the stub ignores the path, so swapping HEAD_SHA
+# for a merge or base SHA would describe another commit's CI and stay green.
+assert_eq "#1441: the shipped call addresses the PR head SHA" "yes" \
+  "$(grep -q 'commits/sha1441beef/check-runs' "$F1441/argv.log" && echo yes || echo no)"
 
 # AC6 fail-safe arm 1, both ORed conditions. A PR whose CI could not be read
 # must never read as clean, so each sets unknown=true AND failures=1.
@@ -13640,8 +13644,9 @@ cr1441 "gh returns an empty body" "1" "true"
 # Never re-add `2>&1` to the shipped capture: a non-fatal gh notice on a
 # SUCCESSFUL request would then contaminate the body and report a healthy head
 # as unreadable — the exact false signal this change exists to remove.
+
 # Two failures, not one: the fail-safe arm also yields 1, so a single-failure
-# payload would leave the count row green when the contamination regression lands.
+# payload leaves the count row green when that regression lands.
 printf '{"check_runs":[{"conclusion":"failure"},{"conclusion":"timed_out"}]}\n' > "$F1441/checkruns.json"
 cr1441 "a non-fatal gh notice on stderr, request otherwise clean" "2" "false" notice
 
@@ -13681,7 +13686,22 @@ printf '   \n  \n' > "$F1441/checkruns.json"
 _CR_ERR5="$(DEVFLOW_FX="$F1441" DEVFLOW_GH="$F1441/gh" bash "$LIB/fetch-pr-context.sh" 1441 2>&1 >/dev/null || true)"
 assert_eq "#1441: the breadcrumb carries jq's own zero-page diagnostic" "yes" \
   "$(case "$_CR_ERR5" in *"jq: "*"no check-run pages"*) echo yes ;; *) echo no ;; esac)"
-unset _CR_ERR1 _CR_ERR2 _CR_ERR3 _CR_ERR4 _CR_ERR5
+# This error arm needs its own pin: the behavioral rows expect 1/true, which its
+# sibling arms also produce, so it would otherwise be deletable while green.
+printf '{"check_runs":[7]}\n' > "$F1441/checkruns.json"
+_CR_ERR6="$(DEVFLOW_FX="$F1441" DEVFLOW_GH="$F1441/gh" bash "$LIB/fetch-pr-context.sh" 1441 2>&1 >/dev/null || true)"
+assert_eq "#1441: the breadcrumb carries jq's own non-object diagnostic" "yes" \
+  "$(case "$_CR_ERR6" in *"non-object check-run"*) echo yes ;; *) echo no ;; esac)"
+# Never drop the counting run's 2>/dev/null: raw multi-line jq output would then
+# precede the breadcrumb and fragment the caller's one-record-per-line contract.
+assert_eq "#1441: an unusable body emits exactly one check-runs record" "1" \
+  "$(printf '%s\n' "$_CR_ERR6" | grep -c 'fetch-pr-context: check-runs')"
+# An rc-0 empty body is not a failed call; it must say so in its own words.
+: > "$F1441/checkruns.json"
+_CR_ERR7="$(DEVFLOW_FX="$F1441" DEVFLOW_GH="$F1441/gh" bash "$LIB/fetch-pr-context.sh" 1441 2>&1 >/dev/null || true)"
+assert_eq "#1441: an rc-0 empty body is not reported as a failed read" "yes" \
+  "$(case "$_CR_ERR7" in *"returned an empty body (rc=0)"*) echo yes ;; *) echo no ;; esac)"
+unset _CR_ERR1 _CR_ERR2 _CR_ERR3 _CR_ERR4 _CR_ERR5 _CR_ERR6 _CR_ERR7
 
 # Adversarial input shapes: never give `.check_runs` a `// []` default — these
 # must error into the fail-safe guard, not be laundered into a clean 0.

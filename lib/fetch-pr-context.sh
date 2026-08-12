@@ -281,19 +281,23 @@ set -e
 if [ $_CI_EXIT -ne 0 ] || [ -z "$_CI_RUNS_JSON" ]; then
     CI_STATUS_UNKNOWN="true"
     CI_FAILURES="1"
-    printf 'fetch-pr-context: check-runs read failed (rc=%s); ci_status_unknown=true\n' "$_CI_EXIT" >&2
+    # Name which limb fired: an rc-0 empty body is not a failed call, and one
+    # shared message makes a transport error and an empty response identical.
+    if [ $_CI_EXIT -ne 0 ]; then
+        printf 'fetch-pr-context: check-runs read failed (rc=%s); ci_status_unknown=true\n' "$_CI_EXIT" >&2
+    else
+        printf 'fetch-pr-context: check-runs returned an empty body (rc=0); ci_status_unknown=true\n' >&2
+    fi
 else
-    # Never filter `.` instead of `-n`/`inputs`: --paginate concatenates one
-    # object per page, so a per-input filter prints one length per page.
-    # Never default `.check_runs`, and never drop the zero-page error arm.
-    # Hold the program in one variable: the diagnostic re-run below must stay
-    # byte-identical to the counting run or it reports a different failure.
+    # Never filter `.` instead of `-n`/`inputs`, never default `.check_runs`,
+    # and never drop an error arm: each turns an unreadable body into a count.
+    # Hold it in one variable so the diagnostic re-run below cannot drift.
     _CI_JQ_PROG='[inputs] as $pages | if ($pages | length) == 0 then error("no check-run pages") else [$pages[] | (.check_runs | if type == "array" then . else error("check_runs not an array") end)[] | if type == "object" then . else error("non-object check-run") end | select(.conclusion != null and .conclusion != "success" and .conclusion != "neutral" and .conclusion != "skipped" and .conclusion != "cancelled" and .conclusion != "stale")] | length end'
     _CI_COUNT="$(echo "$_CI_RUNS_JSON" | "$DEVFLOW_JQ" -n "$_CI_JQ_PROG" 2>/dev/null || true)"
     if [ -z "$_CI_COUNT" ] || ! [[ "$_CI_COUNT" =~ ^[0-9]+$ ]]; then
         CI_STATUS_UNKNOWN="true"
         CI_FAILURES="1"
-        # Re-run for the diagnostic alone: without it the filter's four distinct
+        # Re-run for the diagnostic alone: without it the filter's distinct
         # error() messages, and a broken jq, all read as one unusable body.
         _CI_JQ_ERR="$(echo "$_CI_RUNS_JSON" | "$DEVFLOW_JQ" -n "$_CI_JQ_PROG" 2>&1 >/dev/null || true)"
         # Keep this one line: a caller splits our stderr on newlines into
