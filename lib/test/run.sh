@@ -36489,6 +36489,13 @@ assert_eq "#1629 implement mode emits no sole-publisher section (review-only, no
   "$(case "$_GB363_IMPL" in *"verdict reaches this pull request through Phase 4.4"*) echo yes ;; *) echo no ;; esac)"
 assert_eq "#1629 review mode emits the sole-publisher section (its positive control)" "yes" \
   "$(case "$_GB363_REV" in *"verdict reaches this pull request through Phase 4.4"*) echo yes ;; *) echo no ;; esac)"
+# #1629: in review mode (HARDENED_PATHS set → displacement present) the sole-publisher
+# section is numbered 5 and precedes the renumbered displacement section (6). Guards the
+# tail interpolation order and the 5→6 renumber: a missed bump renders two "5"s, a swapped
+# order renders 6 before 5. Assert on the RENDERED structure (heading line positions), not
+# source prose.
+assert_eq "#1629 review mode numbers sole-publisher 5 before displacement 6" "yes" \
+  "$(printf '%s\n' "$_GB363_REV" | awk '/^> \*\*5\. A verdict reaches/{p=NR} /^> \*\*6\. Trusted-source/{d=NR} END{print (p>0 && d>0 && p<d) ? "yes" : "no"}')"
 unset _GB363_GEN _GB363_REV _GB363_IMPL
 
 assert_pin_unique "#363 devflow.yml falls back to the bare command when no block is composed" \

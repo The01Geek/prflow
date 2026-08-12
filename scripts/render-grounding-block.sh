@@ -233,8 +233,9 @@ fi
 
 # Section numbers depend on the tier. A block with no reviewed commit omits the CI
 # section and the trusted-source-displacement section, so its survivors renumber
-# 1/2/3; the review block keeps 2/3/4, so its rendered bytes are unchanged (the
-# placeholders below resolve to the same digits it always emitted). The block is
+# 1/2/3; the review block keeps 2/3/4, so those placeholder digits are unchanged (the
+# placeholders below resolve to the same digits they always emitted; the review-only
+# sole-publisher (5) and displacement (6) sections are appended after them). The block is
 # assembled from three `cat` heredocs (header, the review-only CI section, then the
 # shared permitted-commands/shapes/headless tail) rather than one — their concatenated
 # stdout is byte-identical to the former single heredoc for the review tier.
