@@ -52181,9 +52181,8 @@ fi
 
 # ── issue #1621: ruff Python-lint gate (monolith-shard-resident) ─────────────
 # Rationale and scope: docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md, the #1621 paragraph.
-# An unrunnable ruff must self-skip via skip()/blocking-gate, never a silent pass.
-# Presence is EXECUTION-VERIFIED, not `command -v`: a present-but-unrunnable ruff must
-# route to that skip, not to a spurious FAIL.
+# Do not swap this execution probe for `command -v`: a present-but-unrunnable ruff
+# would then FAIL the suite instead of routing to the skip() below.
 RUFF_CMD=()
 if ruff --version >/dev/null 2>&1; then
   RUFF_CMD=(ruff)
@@ -52191,37 +52190,29 @@ elif python3 -m ruff --version >/dev/null 2>&1; then
   RUFF_CMD=(python3 -m ruff)
 fi
 if [ "${#RUFF_CMD[@]}" -gt 0 ]; then
-  # Collect the tracked Python files via git ls-files (index-reading, no recursive
-  # walk) — a walk would scan sibling .claude/worktrees/ checkouts (the
-  # lint-tree-enumeration.py convention). Fed into an array rather than `xargs -r`,
-  # whose -r is GNU-only and rejected by BSD/macOS xargs (see the NB earlier in this file).
+  # Do not swap git ls-files for a recursive walk (it would scan sibling
+  # .claude/worktrees/ checkouts), nor the array for `xargs -r` (GNU-only).
+  # The [ -f ] filter drops index-tracked paths deleted from the worktree, which
+  # would otherwise make ruff exit rc 2 (missing path) and RED a clean tree.
   RUFF_FILES=()
-  while IFS= read -r _ruff_f; do RUFF_FILES+=("$_ruff_f"); done < <(git ls-files '*.py')
-  # git is preflight-guaranteed and this repo always tracks Python files, so a zero-length
-  # list means the enumeration FAILED (unreadable index), not "nothing to lint" — assert it
-  # non-empty so a failed enumeration reddens rather than passing a vacuous scan of no files.
+  while IFS= read -r _ruff_f; do if [ -f "$_ruff_f" ]; then RUFF_FILES+=("$_ruff_f"); fi; done < <(git ls-files '*.py')
+  # This repo always tracks Python files, so a zero-length list means the enumeration
+  # FAILED, not "nothing to lint" — without this assertion a vacuous scan passes green.
   if [ "${#RUFF_FILES[@]}" -gt 0 ]; then RUFF_FILES_NONEMPTY=yes; else RUFF_FILES_NONEMPTY=no; fi
   assert_eq "#1621 ruff gate: git ls-files enumerated tracked *.py (non-empty)" yes "$RUFF_FILES_NONEMPTY"
   # Invoke ruff only with a non-empty path list; ruff given no path arguments lints the cwd.
   if [ "${#RUFF_FILES[@]}" -gt 0 ]; then
-    # --no-force-exclude: a future ruff config setting `force-exclude` with an `exclude`
-    # covering tracked *.py would otherwise let this scan return rc 0 having checked
-    # nothing — a vacuous green in the one gate whose defect class is passing quietly.
+    # Do not drop --no-force-exclude: a ruff config `exclude` covering tracked *.py
+    # would then return rc 0 having checked nothing.
     RUFF_OUT="$("${RUFF_CMD[@]}" check --no-force-exclude "${RUFF_FILES[@]}" 2>&1)"; RUFF_RC=$?
-    # Fail closed on ANY nonzero rc (findings rc 1, or ruff's own error rc 2): a gate whose
-    # whole defect class is failing QUIETLY must never wave an unexpected rc through. Surface
-    # ruff's output on failure so the run can self-correct the violation it introduced.
+    # Compare against 0, not against 1: narrowing this to "no findings" would wave
+    # ruff's own error rc 2 through as a pass.
     assert_eq "#1621 ruff Python-lint gate: tracked *.py pass ruff check" 0 "$RUFF_RC"
     if [ "$RUFF_RC" -ne 0 ]; then printf '%s\n' "$RUFF_OUT"; fi
   fi
-  # Non-vacuity proof (AC): a green scan above proves the gate RAN only if the same mechanism
-  # produces ruff's SPECIFIC finding signal on a real violation — exit 1 (findings, NOT exit 2
-  # ruff-error) AND the E731 code present — so an inert or errored ruff cannot fake the proof.
-  # The fixture lives under the gitignored .prflow/tmp because it is untracked there, so
-  # git ls-files never adds it to the scanned set above.
-  # Do NOT relax this to "any finding code": the pin is what attributes the rejection to ruff's
-  # lint pass rather than to some other rule firing. Adding a ruff config that deselects E731
-  # disarms the proof (fail-closed, a visible RED) — update the fixture in that same change.
+  # Non-vacuity proof. Do not relax the E731/rc-1 pair to "any nonzero rc": an inert or
+  # errored ruff would then satisfy the proof. Keep the fixture under the gitignored
+  # .prflow/tmp, or git ls-files adds it to the scanned set above and reddens the tree.
   mkdir -p .prflow/tmp
   RUFF_FIX_DIR="$(mktemp -d .prflow/tmp/ruff-nonvacuity.XXXXXX)"
   [ -n "$RUFF_FIX_DIR" ] && [ -d "$RUFF_FIX_DIR" ] || { printf 'FATAL: mktemp -d failed for the #1621 ruff non-vacuity fixture\n' >&2; exit 1; }
@@ -52236,12 +52227,11 @@ else
 fi
 
 # ── #1621: ci.yml's two ruff pins are a coupled pair; reconcile them mechanically ──
-# The gate above self-skips when ruff is absent, and per #456 a skip never fails the suite —
-# so dropping the shard job's install step leaves `lib + python tests` GREEN with the gate
-# inert, which is the exact defect class #1621 closes. Extract the pinned spec from each
-# job's UNCOMMENTED lines (the devflow_ci_shard_has contract; that helper is unset by here)
-# and assert both halves, so two `absent` values cannot satisfy the equality vacuously.
+# Assert BOTH halves individually as well as their equality: two `absent` reads would
+# otherwise satisfy the equality vacuously while no ruff install exists at all.
 devflow_ruff_pin() {  # $1 = job name, $2 = workflow file; prints the ruff version spec
+  # Section attribution assumes ci.yml job headers stay at 2-space indentation and the
+  # install stays spelled `ruff==<spec>`; changing either silently yields `absent`.
   local _out
   [ -s "$2" ] || { printf 'unreadable'; return; }
   _out="$(awk -v job="^  $1:[[:space:]]*$" '
@@ -52263,6 +52253,66 @@ assert_eq "#1621 ci.yml: the shard job installs a version-pinned ruff (arms the 
 assert_eq "#1621 ci.yml: the lint job still declares a version-pinned ruff" yes "$RUFF_PIN_LINT_OK"
 # structural-pin-ok: cross-file-phase-contract -- the two pins are a declared coupled pair; drift means the required check's gate and CI's lint job disagree about which ruff decides a violation
 assert_eq "#1621 ci.yml: the shard and lint jobs pin the SAME ruff version" "$RUFF_PIN_LINT" "$RUFF_PIN_SHARD"
+
+# ── #1621: adversarial input-shape matrix over devflow_ruff_pin ───────────────
+# The reconciliation above runs only against the live, currently-matching ci.yml, so
+# nothing there exercises the drift path or any sentinel arm. Feed synthetic job blocks
+# so a mismatch is proved discriminating and each sentinel is proved to fail closed.
+mkdir -p .prflow/tmp
+RUFF_MTX_DIR="$(mktemp -d .prflow/tmp/ruff-pin-matrix.XXXXXX)"
+[ -n "$RUFF_MTX_DIR" ] && [ -d "$RUFF_MTX_DIR" ] || { printf 'FATAL: mktemp -d failed for the #1621 ruff-pin matrix\n' >&2; exit 1; }
+
+# Shape 1 — matching specs in both job blocks: the equality holds and both halves read a spec.
+{
+  printf 'jobs:\n'
+  printf '  lint:\n    steps:\n      - run: python3 -m pip install %s\n' "'ruff==9.9.*'"
+  printf '  shard:\n    steps:\n      - run: python3 -m pip install %s\n' "'ruff==9.9.*'"
+} > "$RUFF_MTX_DIR/match.yml"
+assert_eq "#1621 ruff-pin matrix: matching specs — lint half reads the spec" "9.9.*" "$(devflow_ruff_pin lint "$RUFF_MTX_DIR/match.yml")"
+assert_eq "#1621 ruff-pin matrix: matching specs — shard half reads the same spec" "9.9.*" "$(devflow_ruff_pin shard "$RUFF_MTX_DIR/match.yml")"
+
+# Shape 2 — DIFFERING specs: the discriminating path the live tree can never exercise.
+{
+  printf 'jobs:\n'
+  printf '  lint:\n    steps:\n      - run: python3 -m pip install %s\n' "'ruff==9.9.*'"
+  printf '  shard:\n    steps:\n      - run: python3 -m pip install %s\n' "'ruff==8.8.*'"
+} > "$RUFF_MTX_DIR/drift.yml"
+RUFF_MTX_L="$(devflow_ruff_pin lint "$RUFF_MTX_DIR/drift.yml")"
+RUFF_MTX_S="$(devflow_ruff_pin shard "$RUFF_MTX_DIR/drift.yml")"
+if [ "$RUFF_MTX_L" = "9.9.*" ] && [ "$RUFF_MTX_S" = "8.8.*" ]; then RUFF_MTX_DRIFTS=yes; else RUFF_MTX_DRIFTS=no; fi
+assert_eq "#1621 ruff-pin matrix: a shard-vs-lint spec mismatch yields unequal operands (equality would go RED)" yes "$RUFF_MTX_DRIFTS"
+
+# Shape 3 — the job block exists but declares no ruff install: the `absent` sentinel.
+printf 'jobs:\n  shard:\n    steps:\n      - run: bash lib/test/run.sh\n' > "$RUFF_MTX_DIR/noruff.yml"
+assert_eq "#1621 ruff-pin matrix: a job with no ruff install reads 'absent'" absent "$(devflow_ruff_pin shard "$RUFF_MTX_DIR/noruff.yml")"
+
+# Shape 4 — the only ruff== line is COMMENTED OUT: still `absent`, never the commented spec.
+printf 'jobs:\n  shard:\n    steps:\n      # - run: pip install %s\n' "'ruff==7.7.*'" > "$RUFF_MTX_DIR/commented.yml"
+assert_eq "#1621 ruff-pin matrix: a commented-out ruff== line reads 'absent'" absent "$(devflow_ruff_pin shard "$RUFF_MTX_DIR/commented.yml")"
+
+# Shape 5 — the spec lives in a DIFFERENT job block: section attribution must not leak it.
+{
+  printf 'jobs:\n'
+  printf '  shard:\n    steps:\n      - run: bash lib/test/run.sh\n'
+  printf '  lint:\n    steps:\n      - run: python3 -m pip install %s\n' "'ruff==6.6.*'"
+} > "$RUFF_MTX_DIR/otherjob.yml"
+assert_eq "#1621 ruff-pin matrix: a spec in a sibling job does not leak into this job" absent "$(devflow_ruff_pin shard "$RUFF_MTX_DIR/otherjob.yml")"
+
+# Shape 6 — an empty workflow file: the `unreadable` sentinel (the [ -s ] guard).
+: > "$RUFF_MTX_DIR/empty.yml"
+assert_eq "#1621 ruff-pin matrix: an empty workflow file reads 'unreadable'" unreadable "$(devflow_ruff_pin shard "$RUFF_MTX_DIR/empty.yml")"
+
+# Shape 7 — a MISSING workflow file: also `unreadable`, never a silent empty spec.
+assert_eq "#1621 ruff-pin matrix: a missing workflow file reads 'unreadable'" unreadable "$(devflow_ruff_pin shard "$RUFF_MTX_DIR/does-not-exist.yml")"
+
+# Shape 8 — a directory passed where a file is expected: [ -s ] admits it, so awk errors and
+# the `awk-failed` arm fires. This is the one shape that reaches that arm past the [ -s ] guard.
+mkdir -p "$RUFF_MTX_DIR/adir.yml"
+RUFF_MTX_DIRREAD="$(devflow_ruff_pin shard "$RUFF_MTX_DIR/adir.yml" 2>/dev/null)"
+case "$RUFF_MTX_DIRREAD" in awk-failed|unreadable|absent) RUFF_MTX_DIRCLOSED=yes ;; *) RUFF_MTX_DIRCLOSED=no ;; esac
+assert_eq "#1621 ruff-pin matrix: a directory operand fails closed to a sentinel, never a spec" yes "$RUFF_MTX_DIRCLOSED"
+
+rm -rf "$RUFF_MTX_DIR"
 unset -f devflow_ruff_pin
 
 # ────────────────────────────────────────────────────────────────────────────

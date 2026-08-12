@@ -103,13 +103,9 @@ jobs:
       - name: Install PyYAML
         run: python3 -m pip install --quiet pyyaml
 
-      # Install ruff so the #1621 Python-lint gate in lib/test/run.sh (monolith shard)
-      # ARMS instead of self-skipping — without it a ruff regression stays invisible to
-      # `lib + python tests`. ruff is NOT preflight-guaranteed, so install it here.
-      # PINNED to the SAME `ruff==0.15.*` the `lint` job pins (see that step's rationale);
-      # the two pins are a coupled pair — bump them together.
-      # Installed on EVERY shard uniformly, like the Claude CLI install below, so a gate
-      # that later moves into a module shard does not quietly revert to self-skipping.
+      # Removing this step does not RED the suite — the #1621 gate in lib/test/run.sh
+      # self-skips and `lib + python tests` stays green with no Python lint running.
+      # Coupled pin: bump together with the `lint` job's ruff spec.
       - name: Install ruff (arms the #1621 Python-lint gate)
         run: python3 -m pip install --quiet 'ruff==0.15.*'
 
