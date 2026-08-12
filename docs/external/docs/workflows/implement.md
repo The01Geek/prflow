@@ -41,7 +41,7 @@ If a previous workpad is Blocked, a local run surfaces the reason and waits for 
 
 PRFlow stops early when an issue declares an open `Blocked by #N` dependency. It also stops when the dependency state cannot be established.
 
-Later blockers include a failing in-scope acceptance criterion, an ungranted verification command and an unresolved Critical review finding. Final-tree verification that does not produce a clean result in the run environment also blocks completion.
+Later blockers include a failing in-scope acceptance criterion, an ungranted verification command and an unresolved Critical review finding. Final-tree verification that does not produce a clean result in the run environment also blocks completion. Before publishing, PRFlow also confirms the local branch tip has reached the remote; if a commit was made but not pushed and a push does not land it, the run stops with a Blocked result rather than publishing a pull request whose description cites a commit the remote does not have.
 
 Continuous integration remains a post-pull-request merge gate. It does not replace verification inside the implementation run.
 
