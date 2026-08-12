@@ -13666,8 +13666,14 @@ cr1441 "a whitespace-only body (zero JSON documents)" "1" "true"
 # Extract to the matching `fi` rather than a fixed line window: a fixed offset
 # silently truncates the moment the guard block grows, dropping its else-arm.
 CI_GUARD_PROG=$(awk 'f{print; if ($0 ~ /^[[:space:]]*fi[[:space:]]*$/) exit; next} /if \[ -z "\$_CI_COUNT" \]/{print; f=1}' "$LIB/fetch-pr-context.sh")
-assert_eq "#1441: the shipped _CI_COUNT guard extracted cleanly (whole if…fi)" "yes" \
-  "$(case "$CI_GUARD_PROG" in *fi*) echo yes ;; *) echo no ;; esac)"
+# Parse the extraction rather than substring-testing it: if the closing `fi` ever
+# drifts off its own line the awk above over-runs to the next bare `fi`, and any
+# presence test still reports a clean extraction while CI_GUARD_PROG holds a
+# different, unbalanced program. `bash -n` is the only check that catches that.
+assert_eq "#1441: the extracted guard parses as balanced shell" "0" \
+  "$(printf '%s\n' "$CI_GUARD_PROG" | bash -n /dev/stdin 2>/dev/null; echo $?)"
+assert_eq "#1441: the extracted guard carries its else-arm" "1" \
+  "$(printf '%s\n' "$CI_GUARD_PROG" | grep -c 'CI_FAILURES="\$_CI_COUNT"')"
 ci_guard1441() {  # $1 label, $2 _CI_COUNT value, $3 expected unknown, $4 expected failures
   assert_eq "#1441: the shipped guard reads a $1 _CI_COUNT as unknown=$3" "$3" \
     "$(_CI_COUNT="$2" CI_STATUS_UNKNOWN=false CI_FAILURES=x bash -c "$CI_GUARD_PROG"'; printf %s "$CI_STATUS_UNKNOWN"')"
