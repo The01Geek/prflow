@@ -47,7 +47,7 @@ bullet against the tree the run will build on.
   `Implementation Notes` sections plus every heading line) that no recognised marker span already
   covers and that is not inside code. These reports carry no `holds`/`refuted`/`unestablished`, move
   no exit code, and share no *state* token with the adjudicated vocabulary (the field names `detail=`
-  and `total=` are common to both) — they say one thing: this claim is graded by nothing.
+  and `total=` do recur there) — they say one thing: this claim is graded by nothing.
 - **Output.** One `bullet=<n> handle=<path-quote|path|quote|command|none> state=<holds|refuted|unestablished> detail=…`
   line per bullet, then a `VERIFIED_PREMISES` summary line carrying the totals. On the normal path it
   then prints one `ungraded_claim=<n> region=… phrase=… detail=…` line per ungraded claim and an
