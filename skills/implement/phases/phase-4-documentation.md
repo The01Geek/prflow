@@ -111,49 +111,46 @@ Route the token and its paired exit status by the **Shared read contract** state
 
 1. **No-op when empty.** If the helper reported `no-deliverables`, this cross-check is a no-op — proceed directly to the post-docs-labels + `--tick-progress "Documentation"` step below.
 
-2. **Compute the diff once; fail closed on a broken command.** Verify `$BASE` is non-empty; if empty, re-derive it exactly as Phase 1.4 does, **applying its non-empty fallback and not just the config read** — the read alone returns nothing on malformed config and would otherwise leave `$BASE` empty, collapsing the range to `origin/...HEAD` and judging every path absent. Compute the cumulative diff, guarding git's exit status **inline**:
+2. **Compute the diff once; fail closed on a broken command.** Establish the base branch name you hold from Phase 1.4 — re-derive it exactly as Phase 1.4 does when you do not, **applying its non-empty fallback and not just the config read**, since the read alone returns nothing on malformed config — so when the read yields an empty value, substitute the literal `main`, never an empty string. Substitute that name for `<base-branch>` in each fence below: it is your own context state, not a shell variable the fence can read, and an unsubstituted or empty placeholder collapses the range to `origin/...HEAD` and judges every path absent. Compute the cumulative diff as a single command, and read its printed lines and exit status from the tool result — never a captured shell variable:
    ```bash
-   # Single-statement `if ! A && { re-fetch; ! B; }`: the failure branch fires off git's OWN
-   # exit status read inline; read AND retry both failing → fail CLOSED to Blocked. An rc-0
-   # result with EMPTY stdout is NOT a failure — the `if !` leaves DIFF_OUT set and the
-   # per-path check below reads it as the genuine "touched none of these files" signal.
-   if ! DIFF_OUT=$(git diff --name-only "origin/$BASE...HEAD") \
-      && { git fetch origin "$BASE" >/dev/null 2>&1; ! DIFF_OUT=$(git diff --name-only "origin/$BASE...HEAD"); }; then
-     "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --status Blocked --reflection-kind dropped-failed --reflection "Phase 4.1: could not compute the cumulative diff for the Documentation Needed gate (git diff / base-fetch failed — offline, auth, or wrong trunk); never falling through to a path-absent verdict on a broken command"
-     # then emit the 👎 outcome reaction and STOP the run.
-   fi
+   git diff --name-only "origin/<base-branch>...HEAD"
    ```
-   For each path Stage 2's helper reported as a `docgate-path: ` value (read from the tool result), decide satisfied vs absent against `DIFF_OUT`: if it is a bare filename (contains no `/`), any diff entry whose basename matches it counts as satisfied; if it contains a `/`, it must appear as an exact match in `DIFF_OUT`.
+   Route on the exit status read from the tool result:
+   - **exit 0** — the printed lines are the cumulative diff. An rc-0 result with **empty** output is **not** a failure: it is the genuine "touched none of these files" signal.
+   - **non-zero** — re-fetch the base once and recompute, each its own single statement:
+     ```bash
+     git fetch origin <base-branch>
+     ```
+     ```bash
+     git diff --name-only "origin/<base-branch>...HEAD"
+     ```
+     If this recompute also exits non-zero, fail **closed** — never fall through to a path-absent verdict on a broken command: `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --status Blocked --reflection-kind dropped-failed --reflection "Phase 4.1: could not compute the cumulative diff for the Documentation Needed gate (git diff / base-fetch failed — offline, auth, or wrong trunk)"`, then emit the 👎 outcome reaction and STOP the run.
+
+   For each path Stage 2's helper reported as a `docgate-path: ` value (read from the tool result), decide satisfied vs absent against the diff lines read from the tool result: if it is a bare filename (contains no `/`), any diff entry whose basename matches it counts as satisfied; if it contains a `/`, it must appear as an exact match.
 
 3. **Self-heal or block for each absent path.** For each named path absent from the diff: if the correct update can be derived from the issue body's `**Documentation Needed**` prose, perform the missing update yourself, record a workpad note (`workpad.py update $ISSUE_NUMBER --note "Phase 4.1 self-heal: <path> absent from diff; performed update from Documentation Needed prose"`), commit (`docs:` prefix), and push. **Then re-verify the self-heal landed and reached the remote:** confirm the commit and push both succeeded *and* that the local branch is in sync with its upstream — `git rev-parse HEAD` must equal `git rev-parse @{u}` — then re-run the helper-driven diff check for that path. Only a path now present in the re-checked diff counts as satisfied. If the correct update cannot be derived from context, **or** the self-heal did not land per the re-check, do not tick `Documentation` — route to the Blocked path: `workpad.py update $ISSUE_NUMBER --status Blocked --reflection-kind blocked --reflection "Phase 4.1: Documentation Needed file content cannot be determined for <path> — the docs subagent did not update this file and the correct content cannot be derived from the issue body; update manually and re-run Phase 4.1"`, then emit the 👎 outcome reaction (see *Outcome reaction* in the Workpad Reference) and stop.
 
 Once every named path is satisfied (or Stage 1 found no paths), apply the deferred post-docs labels — only when the docs pass succeeded per the Stage-1 decision above. `docs.labels` is a comma-separated list (default `Documented`); normalize it (split on commas, trim each entry, drop empties) and apply through the shared REST label-apply helper. The REST path needs the PR number explicitly, so resolve it first from the current branch:
 
-**Cloud-emission discipline (label helpers): iterate at the agent level, never in a shell loop or a capture — see the *Cloud command-shape discipline* section in `skills/implement/SKILL.md`.** The `apply-labels.sh` call must be a **single leading-token statement**, not nested inside an `if` compound, and the config read must fail **closed** on no output rather than reading a possible denial as "no labels configured". First resolve and **print** the values (a shell variable does not survive into a later separate command on the cloud runner, so the per-call values must reach you through a tool result):
+**Cloud-emission discipline (label helpers): iterate at the agent level, never in a shell loop or a capture — see the *Cloud command-shape discipline* section in `skills/implement/SKILL.md`.** The `apply-labels.sh` call must be a **single leading-token statement**, not nested inside an `if` compound, and the config read must fail **closed** on no output rather than reading a possible denial as "no labels configured". Resolve the label list and the PR number as **two separate single-statement commands**, reading each result from the tool output (a shell variable does not survive into a later separate command on the cloud runner):
 
 ```bash
-# GRANTED heads only — `paste` is granted in NO allowlist, so a `| paste -sd, -` tail makes
-# the whole pipeline refused and the capture silently empty.
-if ! DOCS_LABELS=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .docs.labels Documented); then
-  DOCS_LABELS=""
-  "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 4.1 could not read docs.labels (config-get rc≠0 — corrupt config.json or python3 missing); the PR carries none of the configured docs labels."
-fi
-CLEAN_LABELS=$(echo "$DOCS_LABELS" | tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -v '^$' | tr '\n' ',' | sed 's/,$//')
-DOCS_PR_NUM=$(gh pr view --json number --jq '.number')
-# Print all three — the four exits below route on them.
-echo "docs.labels raw: [$DOCS_LABELS]"
-echo "docs labels to apply: [$CLEAN_LABELS]"
-echo "docs PR number: [$DOCS_PR_NUM]"
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .docs.labels Documented
+```
+```bash
+gh pr view --json number --jq '.number'
 ```
 
-Four exits before any label is applied — the same fail-closed set the deferral channels carry:
+Normalize the resolved `docs.labels` value **at the agent level** — split on commas, trim each entry, drop empties — never through a `tr`/`sed`/`grep` pipeline (`paste` is granted in no allowlist, and a piped tail refuses the whole command and empties the read).
 
-- **No lines printed at all.** The command was refused, not answered. Do **not** read it as "no labels": record it and apply nothing — `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 4.1 could not resolve docs.labels — the config-get command produced no output at all (likely a harness denial, not an empty config); the PR carries none of the configured docs labels."`
-- **`raw` non-empty but `to apply` empty.** A broken normalizer (a missing/denied `tr`/`sed`/`grep`), not an empty config: record it and apply nothing — `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 4.1 resolved docs.labels to a non-empty value but the normalizer produced an empty list (a missing/denied tr|sed|grep in the pipeline); the PR carries none of the configured docs labels."`
-- **`docs PR number` empty.** An empty value (a `gh` error, warning-corrupted output) is a real failure point, not a reason to skip silently and tick Documentation complete: record it and apply nothing — `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 4.1 could not resolve the PR number to apply docs labels; the PR carries none of the configured docs labels."`
-- **`raw` empty (and printed), and no rc≠0 breadcrumb above.** The config genuinely resolved to no labels: apply nothing — the clean no-op. (The `if !` hard-read-failure branch also leaves `raw` empty, but recorded its own `dropped-failed` reflection and is not a no-op.)
+Four exits before any label is applied — the same fail-closed set the deferral channels carry, routed on the two tool results and their exit statuses, never a captured variable:
 
-Otherwise, read the printed values and apply the labels with **single granted-literal leading-token calls, iterating at the agent level**:
+- **config-get produced no output at all.** The command was refused, not answered. Do **not** read it as "no labels": record it and apply nothing — `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 4.1 could not resolve docs.labels — the config-get command produced no output at all (likely a harness denial, not an empty config); the PR carries none of the configured docs labels."`
+- **config-get exited non-zero.** A hard read failure (config-get rc≠0 — corrupt config.json or python3 missing): record it and apply nothing — `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 4.1 could not read docs.labels (config-get rc≠0 — corrupt config.json or python3 missing); the PR carries none of the configured docs labels."`
+- **the PR-number command produced empty output.** An empty value (a `gh` error, warning-corrupted output) is a real failure point, not a reason to skip silently and tick Documentation complete: record it and apply nothing — `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 4.1 could not resolve the PR number to apply docs labels; the PR carries none of the configured docs labels."`
+- **config-get exit 0 whose value is empty or trims to no entries.** The config genuinely resolved to no labels: apply nothing — the clean no-op.
+
+Otherwise, read the resolved PR number and the normalized label list and apply the labels with **single granted-literal leading-token calls, iterating at the agent level**:
 
 - For **each** label in the printed comma-list (skip blanks), ensure it exists with one call — the helper path is the leading token, and `ensure-label.sh` is best-effort (always exits 0). `ensure-label.sh` always breadcrumbs to stderr, so **no output at all means the command was refused by the harness** — record it (`--reflection-kind dropped-failed`) and continue to the apply, which reports separately whether the label landed.
   ```bash
@@ -187,12 +184,11 @@ Spawn one **general-purpose subagent** (using the Agent tool) that both updates 
 
    - If the body **overclaims** (asserts something the diff, its tests, or the filed artifacts do not deliver), correct the body to the truth via REST: write the corrected body to a file, resolve the PR number (guarding the empty case), and PATCH it. The `-F body=@<file>` form reads the field value literally from the file, preserving backticks and `$`:
      ```bash
-     OVERCLAIM_PR_NUM=$(gh pr view --json number --jq '.number')
-     if [ -n "$OVERCLAIM_PR_NUM" ]; then
-       gh api --method PATCH "repos/{owner}/{repo}/pulls/$OVERCLAIM_PR_NUM" -F body=@<file>
-     else
-       echo "devflow: Phase 4.2 could not resolve the PR number to correct an overclaiming body (best-effort, continuing)" >&2
-     fi
+     gh pr view --json number --jq '.number'
+     ```
+     Read the PR number from the tool result. If it is **empty**, do not PATCH — the overclaiming body could not be corrected (best-effort, continue). Otherwise PATCH with the number substituted as a literal:
+     ```bash
+     gh api --method PATCH "repos/{owner}/{repo}/pulls/<pr-number>" -F body=@<file>
      ```
    - If reconciliation reveals the **code** is actually wrong (the body states the intended behavior but the diff doesn't meet it), fix the code (leaving the edit in the working tree for the orchestrator to commit — see the post-return commit step below) and report that a code-level fix was made. On the default `ready_for_review` path that fix rides into the cloud `/prflow:review`; **when `implement_pr_state=draft` the PR is left a draft and the cloud review does not auto-fire until a human publishes** (see §4.3).
    - When an **artifact-existence** claim is corrected, correct **every site this run authored it at in the same change** — the PR body, the workpad Acceptance Criteria preamble, the workpad Plan, any reflection bullet, and the changeset — under the repo's coupled-mirror rule, so the corrected fact is not contradicted by a stale copy the run left elsewhere.
@@ -286,50 +282,39 @@ The off-switch is honored: with `.verification_flight.enabled` set to `false`, a
 - `@{u}` equals `HEAD` (**landed**): proceed to the publish decision.
 - `@{u}` differs (**unpushed**): `git push`, then re-read both. Equal now → note it and proceed; still unequal (push rejected, or an `Everything up-to-date` push left them apart) → **refuse to run `gh pr ready` and refuse to flip `Status` to `Complete`**: `workpad.py update $ISSUE_NUMBER --status Blocked --reflection-kind blocked --reflection "tip-landed gate: local branch tip \`$(git rev-parse HEAD)\` is not on the remote and a push did not land it — refusing to publish or complete a run whose body would cite a commit the remote lacks; land it and re-run"`, emit the 👎 outcome reaction (see *Outcome reaction* in the Workpad Reference), remove the run marker, and stop.
 
-**Publish decision — `implement_pr_state`.** Read it (default `ready_for_review`), then publish **only** when it is not the exact literal `draft` — a missing key, empty string, or any unrecognized value publishes, and a hard read failure (malformed config) falls back to publishing. **Capture whether `gh pr ready` actually succeeded** so the finalize wording reflects the *real* end state:
+**Publish decision — `implement_pr_state`.** Resolve it as a single command and read the printed value from the tool result (default `ready_for_review`; a hard read failure — non-zero exit or no output — falls back to `ready_for_review`). Publish **only** when the value is not the exact literal `draft` — a missing key, empty string, or any unrecognized value publishes.
 
 ```bash
-PR_STATE=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .prflow_implement.implement_pr_state ready_for_review) || PR_STATE=ready_for_review
-PR_OUTCOME=draft   # one of: draft | published | publish_failed (overwritten below unless PR_STATE=draft)
-if [ "$PR_STATE" = "draft" ]; then
-    echo "devflow: implement_pr_state=draft — leaving PR as a draft (skipping gh pr ready)" >&2
-elif gh pr ready; then
-    PR_OUTCOME=published
-elif [ "$(gh pr view --json isDraft --jq '.isDraft' 2>/dev/null)" = "false" ]; then
-    # `gh pr ready` returns non-zero on any non-draft PR, so a non-zero exit with the PR
-    # NOT a draft is the already-ready case. Fails SAFE: if `gh pr view` itself errors the
-    # substitution is empty (`!= "false"`) → else arm → publish_failed.
-    PR_OUTCOME=published
-    echo "devflow: gh pr ready returned non-zero but PR is already non-draft — treating as published (idempotent re-run)" >&2
-else
-    PR_OUTCOME=publish_failed
-    echo "devflow: gh pr ready FAILED — PR is still a draft, or its state could not be confirmed (implement_pr_state=$PR_STATE); do NOT finalize the workpad as 'marked ready'" >&2
-fi
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .prflow_implement.implement_pr_state ready_for_review
 ```
 
-When `PR_STATE` is `draft` the PR is **left as the draft** from Phase 3.1: no `gh pr ready`, and **no additional comment** is posted to the PR thread.
+Carry an **outcome** value — one of `draft` | `published` | `publish_failed` — that the finalize wording below reads. Route on the resolved value read from the tool result:
 
-Then finalize the workpad — tick the final `## Progress` item and flip `Status` to `Complete` in **every** case; only the `--note` wording differs. Pick the `--note` by `PR_OUTCOME`:
+- **exactly `draft`** — leave the PR the draft from Phase 3.1: do **not** run `gh pr ready`, post **no additional comment** to the PR thread, and set the outcome to `draft`.
+- **anything else** — run `gh pr ready` and read its exit status from the tool result:
+  ```bash
+  gh pr ready
+  ```
+  - **exit 0** — outcome `published`.
+  - **non-zero** — `gh pr ready` returns non-zero on any *already non-draft* PR, so confirm the real state before concluding failure:
+    ```bash
+    gh pr view --json isDraft --jq '.isDraft'
+    ```
+    Read the printed value: exactly `false` → the PR is already non-draft → outcome `published` (idempotent re-run). Anything else, an error, **or no output at all** → outcome `publish_failed` (still a draft, or the state could not be confirmed) — fail closed, never record `published` on an unestablished read.
 
-- **`PR_OUTCOME=draft`** → `--note "/prflow:implement run finished, PR left as draft per implement_pr_state=draft: <PR_URL>"`
-- **`PR_OUTCOME=published`** → `--note "/prflow:implement run finished, PR published (gh pr ready): <PR_URL>"`
-- **`PR_OUTCOME=publish_failed`** → `--note "/prflow:implement run finished, but gh pr ready FAILED — PR is still a draft, or its state could not be confirmed: <PR_URL>"` **and** emit a separate `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "gh pr ready failed at Phase 4.3 — PR left unpublished despite implement_pr_state=$PR_STATE; publish it manually (gh pr ready) so the cloud review and CI ready_for_review listener fire"` call. It is a **`dropped-failed`** reflection, so it goes in its own `update` call — separate from the `note`-kind finalize below — because one `--reflection-kind` applies to the whole call.
+Then finalize the workpad — tick the final `## Progress` item and flip `Status` to `Complete` in **every** case; only the `--note` wording differs. Pick the `--note` by the outcome you carried:
+
+- **`draft` outcome** → `--note "/prflow:implement run finished, PR left as draft per implement_pr_state=draft: <PR_URL>"`
+- **`published` outcome** → `--note "/prflow:implement run finished, PR published (gh pr ready): <PR_URL>"`
+- **`publish_failed` outcome** → `--note "/prflow:implement run finished, but gh pr ready FAILED — PR is still a draft, or its state could not be confirmed: <PR_URL>"` **and** emit a separate `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "gh pr ready failed at Phase 4.3 — PR left unpublished despite implement_pr_state not being draft; publish it manually (gh pr ready) so the cloud review and CI ready_for_review listener fire"` call. It is a **`dropped-failed`** reflection, so it goes in its own `update` call — separate from the `note`-kind finalize below — because one `--reflection-kind` applies to the whole call.
+
+Substitute the outcome-specific `--note` above into the finalize call. The `--tick-progress "PR marked ready"` argument MUST match the `## Progress` row label owned by `scripts/workpad.py`. Consume the exit code per the failure-isolation contract — a non-zero exit is NOT cleanly Complete. Read stderr to tell two failures apart: (1) a volatile tick miss (body WAS PATCHed, Status flipped, only the "PR marked ready" row still `- [ ]`) → re-tick just that row; (2) a structural abort (NO PATCH, Status NOT flipped) when a non-post-merge `## Acceptance Criteria` row is still unticked, or the review-coverage record is unestablished / a recorded gap / undispatched / boilerplate → resolve per Phase 3.4 (`--tick-ac-n {N}` or the Blocked path) or stamp/disposition the record per §3.3 (the undispatched arm has no in-run remedy → Blocked), THEN re-issue; never retry verbatim. (Post-merge AC rows never trip this; an unticked `## Plan` row or an un-mirrored AC placeholder only warns.)
 
 ```bash
-# Substitute the PR_OUTCOME-specific --note above. `--tick-progress "PR marked ready"` MUST match
-# the `## Progress` row label owned by scripts/workpad.py.
-# Consume the exit code per the failure-isolation contract — a non-zero exit is NOT cleanly Complete.
-# Read stderr to tell two failures apart: (1) a volatile tick miss (body WAS PATCHed, Status flipped,
-# only the "PR marked ready" row still `- [ ]`) → re-tick just that row; (2) a structural abort (NO
-# PATCH, Status NOT flipped) when a non-post-merge `## Acceptance Criteria` row is still unticked, or
-# the review-coverage record is unestablished / a recorded gap / undispatched / boilerplate → resolve
-# per Phase 3.4 (`--tick-ac-n {N}` or the Blocked path) or stamp/disposition the record per §3.3 (the
-# undispatched arm has no in-run remedy → Blocked), THEN re-issue; never retry verbatim. (post-merge
-# AC rows never trip this; an unticked `## Plan` row or an un-mirrored AC placeholder only warns.)
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER \
     --status Complete \
     --tick-progress "PR marked ready" \
-    --note "{PR_OUTCOME-specific note above}" \
+    --note "{outcome-specific note above}" \
     [--review-coverage-disposition <gap> "<reason>" ...repeat per gap] \
     [--reflection-kind note --reflection "{noteworthy event}" ...repeat --reflection per event]
 ```

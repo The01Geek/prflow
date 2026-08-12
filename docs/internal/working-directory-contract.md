@@ -75,6 +75,68 @@ working directory to be the repository root — but the no-`cd` authoring rule s
 holds, so that a surface authored once reads correctly on the cloud tiers it is
 vendored to.
 
+## Worktree-isolated local sessions refuse certain shell expansions (issue #1633)
+
+A local/interactive tier that is **also** a Claude Code worktree-isolated session
+adds a constraint the mechanisms above do not cover: it refuses to *execute* a bash
+fence carrying any of three shell constructs, returning a hard tool error rather
+than a permission prompt. The verbatim refusal string observed is:
+
+> This agent is isolated in the worktree \<path\>, but this command is too complex
+> to verify that it stays inside the worktree; break it into plain, separate
+> commands. Refusing to run it — a worktree-isolated agent's git operations must
+> target its own worktree. Run the equivalent from \<path\> without the redirect.
+
+**The three-construct discriminator.** The refused constructs are exactly:
+
+1. Command substitution — `$(…)` or the backtick form `` `…` ``.
+2. The exit-status parameter `$?`.
+3. A reference to a shell variable **bound within the same command** — by
+   assignment, by a `for`/`select` header, by `read`, or by `export`.
+
+**The constructs measured to run** (so the refusal is *not* "multi-statement
+compound commands as a class", which the measurement refutes): plain sequences
+(`echo a; echo b`), `&&` chains, `if`/`then`/`else`, `for … do … done` loops that
+never reference their bound variable, in-workspace redirects (`echo hi > file`),
+`mkdir -p … && echo x > …`, pipes into `tee`, `cd`, an interpreter head
+(`python3 -c`), a bare assignment with no later reference (`FOO=bar; echo done`),
+and a granted helper path invoked with only ambient variables. The report's own two
+data points fit the expansion reading: `cmd > /dev/null` ran, and the same command
+with `; echo rc=$?` appended did not.
+
+**Provenance (an observation, not a documented contract).** This discriminator was
+inferred from **24 probe commands in one session**, on macOS, on one Claude Code
+version, **without reading harness source**. Treat it as a flagged assumption, not a
+proven harness contract — confirm before relying on it, and treat the
+three-construct set as the observed discriminator rather than a documented one. The
+enrolled implement-bundle fences are kept free of these three constructs, and
+`lib/test/lint-worktree-fence-shapes.py` is the regression backstop; the shipped
+fences route on the exit code and printed token the runner reports for the command
+(the `skills/implement/phases/phase-4-documentation.md` §4.0 form), treating a
+refused or no-output invocation as an **unestablished measurement** that reaches the
+stop path — never a decided answer.
+
+**Deployment skew.** The rewritten fences reach a consumer through the plugin vendor
+fetch, while the capability grants that make a newly-granted head resolve reach them
+through `install.sh`'s workflow copy loop — two independent schedules. A consumer who
+takes only the plugin update runs the rewritten fences under their previous
+allowlist; because an ungranted head produces no output and the fences route
+no-output to the stop path, that skew window surfaces as a stated stop rather than a
+silent denial.
+
+**Unmigrated residual fences (named so the bundle is not mistaken for fully
+migrated).** Some implement-bundle fences carry a refused construct that no existing
+bundled helper can absorb, so they stay unmigrated and unenrolled:
+
+- `skills/implement/phases/phase-3-fix-loop.md` — the pre-loop snapshot fence and the
+  post-return change-detector fence capture a `git` result into a variable read later
+  in the same fence (construct 3) and use command substitution (construct 1); their
+  value is a diff/SHA the loop compares across iterations, which no `--repo-relative`
+  helper mode replaces.
+
+These are **not** in `lint-worktree-fence-shapes.py`'s enrollment inventory, so they
+remain legal; the inventory is the single place the migrated set is written down.
+
 ## Why the rule is an authoring rule, not a matcher claim
 
 The no-`cd` rule is stated as an **authoring rule** — "no PRFlow surface emits a

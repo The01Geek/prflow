@@ -12365,12 +12365,17 @@ _STEM_HOMES = {
     "skills/review-and-fix/references/loop-control.md": ("devflow-maxiter.err",),
     "skills/review-and-fix/references/loop-exit.md": ("devflow-et-flag.err", "devflow-et.err"),
 }
+# `<scratch-dir>/` is the SAME home written in its anchored spelling: issue #1633 made the
+# Phase 1 scratch writes substitute the absolute `…/.prflow/tmp` the precondition resolved,
+# so requiring the bare `.prflow/tmp/` prefix here would forbid that anchoring, not a /tmp
+# regression. The negative half above still binds the /tmp absence.
+_STEM_HOME_PREFIX = r"(?:\.prflow/tmp/|<scratch-dir>/)"
 for _mf, _stems in _STEM_HOMES.items():
     _text = (cwc.REPO_ROOT / _mf).read_text(encoding="utf-8")
     for _stem in _stems:
         assert_eq("#915: stem '%s' is present under a .prflow/tmp/ path in %s" % (_stem, _mf),
                   True,
-                  bool(re.search(r"\.prflow/tmp/[^\s`\"')]*" + re.escape(_stem), _text)))
+                  bool(re.search(_STEM_HOME_PREFIX + r"[^\s`\"')]*" + re.escape(_stem), _text)))
 
 # preflight.py's _payload_dir writes a distinct stderr breadcrumb on each fallback
 # arm (unresolvable git root vs os.makedirs failure), still returns None, and
@@ -12433,6 +12438,176 @@ _pf915._run_git = _pf_git_bad
 _pf_path = _pf915._write_payload("AMBIGUOUS", "reason", {}, {})
 assert_eq("#915 preflight: the payload is still written on the fallback arm",
           True, os.path.exists(_pf_path))
+
+# ── issue #1633: repo-relative anchoring mode ────────────────────────────────
+# _anchor_repo_relative resolves a repo-relative path against the checkout root so no
+# enrolled fence computes it; an absolute path passes through unchanged; an unresolvable
+# root returns None so the caller fails closed to UNAVAILABLE (unknown is not a decided
+# path).
+_pf915._run_git = _pf_git_happy   # toplevel resolves to _pf_happy_tmpd
+assert_eq("#1633 anchoring: a repo-relative path resolves against the checkout root",
+          os.path.join(_pf_happy_tmpd, ".prflow/tmp/x.md"),
+          _pf915._anchor_repo_relative(".prflow/tmp/x.md"))
+assert_eq("#1633 anchoring: an absolute path is returned unchanged",
+          "/abs/x.md", _pf915._anchor_repo_relative("/abs/x.md"))
+_pf915._run_git = _pf_git_bad
+assert_eq("#1633 anchoring: an unresolvable root yields None (caller fails closed)",
+          None, _pf915._anchor_repo_relative(".prflow/tmp/x.md"))
+
+# End-to-end (real git subprocess): a repo-relative --path resolves the SAME absolute
+# target from the repo root, from a subdirectory, and from inside a linked worktree
+# (AC7). Run in a real temp repo whose .gitignore covers scratch/.
+_PF_PATH_1633 = str(cwc.REPO_ROOT / "scripts" / "preflight.py")
+
+
+def _g1633(args, cwd):
+    return _sp915.run(["git", *args], cwd=cwd, capture_output=True, text=True)
+
+
+_wt_repo = tempfile.mkdtemp()
+_g1633(["init", "-q"], _wt_repo)
+_g1633(["config", "user.email", "t@example.com"], _wt_repo)
+_g1633(["config", "user.name", "t"], _wt_repo)
+(Path(_wt_repo) / ".gitignore").write_text("scratch/\n", encoding="utf-8")
+(Path(_wt_repo) / "tracked.txt").write_text("x", encoding="utf-8")
+os.makedirs(Path(_wt_repo) / "sub", exist_ok=True)
+_g1633(["add", "-A"], _wt_repo)
+_g1633(["commit", "-qm", "init"], _wt_repo)
+_wt_link = os.path.join(tempfile.mkdtemp(), "wt")
+_g1633(["worktree", "add", "-q", _wt_link, "HEAD"], _wt_repo)
+
+
+def _pf_ignore_1633(cwd, path):
+    r = _sp915.run(
+        [sys.executable, _PF_PATH_1633, "ignore-precondition", "--repo-relative", "--path", path],
+        cwd=cwd, capture_output=True, text=True)
+    return (r.stdout.strip(), r.returncode)
+
+
+_pf_root_1633 = _pf_ignore_1633(_wt_repo, "scratch/x.md")
+_pf_sub_1633 = _pf_ignore_1633(str(Path(_wt_repo) / "sub"), "scratch/x.md")
+_pf_link_1633 = _pf_ignore_1633(_wt_link, "scratch/x.md")
+assert_eq("#1633 anchoring: repo-relative IGNORED from the repo root",
+          ("IGNORED", 0), (_pf_root_1633[0].split()[0], _pf_root_1633[1]))
+assert_eq("#1633 anchoring: repo-relative IGNORED from a subdirectory",
+          ("IGNORED", 0), (_pf_sub_1633[0].split()[0], _pf_sub_1633[1]))
+assert_eq("#1633 anchoring: repo-relative IGNORED from inside a linked worktree",
+          ("IGNORED", 0), (_pf_link_1633[0].split()[0], _pf_link_1633[1]))
+# The IGNORED line carries the resolved ABSOLUTE target, so the guarded §1.1 write
+# addresses the path that was checked. A subdirectory-launched run must resolve the
+# SAME target as the root-launched one; the linked worktree resolves its own root.
+assert_eq("#1633 anchoring: the root and subdirectory runs report the same absolute target",
+          (True, True),
+          (os.path.isabs(_pf_root_1633[0].split(maxsplit=1)[1]),
+           os.path.realpath(_pf_root_1633[0].split(maxsplit=1)[1])
+           == os.path.realpath(_pf_sub_1633[0].split(maxsplit=1)[1])))
+assert_eq("#1633 anchoring: the linked-worktree run reports a target inside that worktree",
+          True,
+          os.path.realpath(_pf_link_1633[0].split(maxsplit=1)[1])
+          == os.path.realpath(os.path.join(_wt_link, "scratch/x.md")))
+_pf_ni_1633 = _pf_ignore_1633(str(Path(_wt_repo) / "sub"), "tracked.txt")
+assert_eq("#1633 anchoring: a tracked repo-relative path is NOT_IGNORED (exit 2)",
+          ("NOT_IGNORED", 2), (_pf_ni_1633[0].split()[0], _pf_ni_1633[1]))
+# The degraded arm is a RESOLVED answer, so it carries the absolute target too — the
+# §1.2/§1.3 scratch writes derive their directory from it on either resolved arm.
+assert_eq("#1633 anchoring: the NOT_IGNORED arm also reports the resolved absolute target",
+          True,
+          os.path.realpath(_pf_ni_1633[0].split(maxsplit=1)[1])
+          == os.path.realpath(os.path.join(_wt_repo, "tracked.txt")))
+
+# `dependencies --repo-relative` anchors its --body-file the same way §1.3.5 invokes
+# it. Without these the anchoring branch of that subcommand ships unexercised, so a
+# regression that anchored to the process cwd would read a body file that is not
+# there and report UNAVAILABLE from a subdirectory-launched run.
+(Path(_wt_repo) / "deps.md").write_text(
+    "## Dependencies\n- none\n", encoding="utf-8")
+
+
+def _pf_deps_1633(cwd, path):
+    r = _sp915.run(
+        [sys.executable, _PF_PATH_1633, "dependencies", "--repo-relative",
+         "--body-file", path],
+        cwd=cwd, capture_output=True, text=True)
+    return (r.stdout.strip(), r.returncode, r.stderr)
+
+
+_dep_root_1633 = _pf_deps_1633(_wt_repo, "deps.md")
+_dep_sub_1633 = _pf_deps_1633(str(Path(_wt_repo) / "sub"), "deps.md")
+assert_eq("#1633 anchoring: dependencies --repo-relative PROCEEDs from the repo root",
+          ("PROCEED", 0), (_dep_root_1633[0], _dep_root_1633[1]))
+assert_eq("#1633 anchoring: dependencies --repo-relative resolves the SAME body from a subdirectory",
+          ("PROCEED", 0), (_dep_sub_1633[0], _dep_sub_1633[1]))
+# Positive control on the same fixture: WITHOUT --repo-relative the cwd-relative read
+# fails, so the subdirectory assertion above cannot pass on an unanchored implementation.
+_dep_unanchored_1633 = _sp915.run(
+    [sys.executable, _PF_PATH_1633, "dependencies", "--body-file", "deps.md"],
+    cwd=str(Path(_wt_repo) / "sub"), capture_output=True, text=True)
+assert_eq("#1633 anchoring: the same dependencies call WITHOUT --repo-relative fails closed",
+          ("UNAVAILABLE body", 3),
+          (_dep_unanchored_1633.stdout.strip(), _dep_unanchored_1633.returncode))
+# The fail-closed arm: outside any checkout no root resolves, so the subcommand must
+# print its own `UNAVAILABLE resolve` token at exit 3 — attributing the rejection to
+# the anchoring guard, not to the body-read guard (`UNAVAILABLE body`). The fixture
+# dir carries a readable deps.md, so an unanchored read would have SUCCEEDED here:
+# the unresolvable root is the only property under test.
+_nonrepo_deps_1633 = tempfile.mkdtemp()
+(Path(_nonrepo_deps_1633) / "deps.md").write_text(
+    "## Dependencies\n- none\n", encoding="utf-8")
+_dep_fc_1633 = _sp915.run(
+    [sys.executable, _PF_PATH_1633, "dependencies", "--repo-relative",
+     "--body-file", "deps.md"],
+    cwd=_nonrepo_deps_1633, capture_output=True, text=True,
+    env={**os.environ, "GIT_CEILING_DIRECTORIES": os.path.realpath(_nonrepo_deps_1633)})
+assert_eq("#1633 anchoring: dependencies --repo-relative fails closed as UNAVAILABLE resolve (exit 3)",
+          ("UNAVAILABLE resolve", 3, True),
+          (_dep_fc_1633.stdout.strip(), _dep_fc_1633.returncode,
+           "could not resolve the repository root" in _dep_fc_1633.stderr))
+
+# parse-acs.py --anchor-repo-root resolves --body-file the same way; an unresolvable
+# root fails closed (non-zero exit) rather than leaving an empty parse.
+_PA_PATH_1633 = str(cwc.REPO_ROOT / "scripts" / "parse-acs.py")
+(Path(_wt_repo) / "body.md").write_text(
+    "## Acceptance Criteria\n- [ ] one\n", encoding="utf-8")
+
+
+def _pa_1633(cwd, path):
+    r = _sp915.run(
+        [sys.executable, _PA_PATH_1633, "--anchor-repo-root", "--body-file", path, "--format", "md"],
+        cwd=cwd, capture_output=True, text=True)
+    return (r.returncode, "one" in r.stdout)
+
+
+assert_eq("#1633 anchoring: parse-acs resolves a repo-relative --body-file from a subdir",
+          (0, True), _pa_1633(str(Path(_wt_repo) / "sub"), "body.md"))
+
+# The fail-closed arm: run from a directory that is NOT a git checkout, so
+# `git rev-parse --show-toplevel` fails and no root resolves. parse-acs must exit
+# non-zero rather than anchor the repo-relative --body-file to the process cwd (which
+# would emit an empty parse the §1.2 fence reads as "this issue has no criteria").
+_nonrepo_1633 = tempfile.mkdtemp()
+(Path(_nonrepo_1633) / "body.md").write_text(
+    "## Acceptance Criteria\n- [ ] one\n", encoding="utf-8")
+_pa_fc_1633 = _sp915.run(
+    [sys.executable, _PA_PATH_1633, "--anchor-repo-root", "--body-file", "body.md",
+     "--format", "md"],
+    cwd=_nonrepo_1633, capture_output=True, text=True,
+    env={**os.environ, "GIT_CEILING_DIRECTORIES": os.path.realpath(_nonrepo_1633)})
+assert_eq("#1633 anchoring: parse-acs fails closed when the repo root will not resolve",
+          (1, ""), (_pa_fc_1633.returncode, _pa_fc_1633.stdout.strip()))
+assert_eq("#1633 anchoring: the parse-acs fail-closed arm names the unresolvable root",
+          True, "could not resolve the repository root" in _pa_fc_1633.stderr)
+# An ABSENT git binary is the same unresolved-root condition, not a traceback: run with a
+# PATH holding no git at all and require the same clean fail-closed breadcrumb.
+_pa_nogit_1633 = _sp915.run(
+    [sys.executable, _PA_PATH_1633, "--anchor-repo-root", "--body-file", "body.md",
+     "--format", "md"],
+    cwd=_nonrepo_1633, capture_output=True, text=True,
+    env={**os.environ, "PATH": os.path.join(_nonrepo_1633, "nobin")})
+assert_eq("#1633 anchoring: parse-acs fails closed with a breadcrumb when git is absent",
+          (1, True, False),
+          (_pa_nogit_1633.returncode,
+           "could not resolve the repository root" in _pa_nogit_1633.stderr,
+           "Traceback" in _pa_nogit_1633.stderr))
 
 # ─────────────────────────────────────────────────────────────────────────────
 # AC2/AC3 (issue #701) — helper leading-token boundary over the AC1 closure.

@@ -4587,8 +4587,10 @@ assert_pin_unique "#362: Skill rule forbids the mid-phase Skill-tool invocation 
 #     removed by the always-resident Outcome-reaction block, which already binds every
 #     terminal Status transition. Coupled to lib/implement-stop-guard.sh, which globs
 #     exactly this path — change one site and this pin names the other.
-assert_pin_unique "#362: Phase 1.3 writes the run marker the Stop-hook guard globs" \
-  '.prflow/tmp/implement-active-$ISSUE_NUMBER' "$P362_P1"
+# The marker path is present TWICE (the has-session-id and empty-marker fences), so do
+# not convert this to assert_pin_unique: it would fail on the correct tree.
+assert_eq "#362: Phase 1.3 writes the run marker the Stop-hook guard globs" "yes" \
+  "$(grep -qF '<scratch-dir>/implement-active-$ISSUE_NUMBER' "$P362_P1" && echo yes || echo no)"  # structural-pin-ok: routing-dispatch-contract -- the run-marker path the Stop-hook guard globs, in the issue-#1633 anchored spelling (<scratch-dir> resolves to the same .prflow/tmp the guard globs); coupled to lib/implement-stop-guard.sh
 assert_pin_unique "#362: the Outcome-reaction block removes the run marker at every terminal transition" \
   'remove the Phase 1.3 run-marker' "$IMPL_ORCH"
 # The marker filename is a THREE-site coupled invariant: the Phase 1.3 write (pinned above),
@@ -5447,42 +5449,9 @@ assert_pin_unique "#493 resume: best-effort warn on PR-body read failure (distin
 # cover that derivation boundary without pinning the detailed `gh pr create` prose.
 P3_REVIEW="$IMPL_PHASES_DIR/phase-3-review.md"
 assert_pin_unique "#224 Phase 3.1: re-derives BASE via config-get with the main default" 'config-get.sh .base_branch main' "$P3_REVIEW"
-assert_pin_unique "#224 Phase 3.1: re-derives BASE with the fail-closed empty-read guard" '[ -n "$BASE" ]' "$P3_REVIEW"
-# The guard PREDICATE `[ -n "$BASE" ]` is only half the fail-closed contract; its
-# CONSEQUENT — the `BASE=main` fallback assignment — is what actually keeps `--base`
-# from going out empty. Pin it too: a refactor that keeps the predicate but drops the
-# `|| { …; BASE=main; }` action would ship `gh pr create --base ""` (the silent
-# mistarget this PR exists to prevent) while every predicate/ordering pin stayed GREEN.
-assert_pin_unique "#224 Phase 3.1: empty-read guard falls back to main (fail-closed consequent)" 'BASE=main' "$P3_REVIEW"
-# Ordering/same-block guard (issue #224 iter 2): verify the full producer-to-consumer
-# sequence so a refactor cannot put `gh pr create --base "$BASE"` before the
-# re-derivation or split the statements into separate ```bash fences. Assert the
-# producer→guard→fallback
-# →consumer order WITHIN ONE fenced bash block: the producer (config-get read `d`), the
-# fail-closed empty-read guard `[ -n "$BASE" ]` (`g`), AND its `BASE=main` fallback
-# action (`f`) all precede the consumer `gh pr create --base "$BASE"` (`c`), in the order
-# d < g < f < c. Pinning the fallback action's position too (not just the predicate's)
-# catches a refactor that relocates the guard OR drops the fallback action out of the
-# create-block — the "guard whose comparand can be absent fails open" class CLAUDE.md
-# flags. RED if reordered, split across blocks, or the guard/fallback is moved out of /
-# after the create.
-assert_eq "#224 Phase 3.1: re-derivation + empty-read guard + main-fallback precede gh pr create in the SAME bash block" "yes" \
-  "$(python3 -c '
-import sys, re
-t = open(sys.argv[1]).read()
-ok = "no"
-for m in re.finditer(r"```bash\n(.*?)```", t, re.S):
-    b = m.group(1)
-    if "gh pr create --base \"$BASE\"" in b:
-        d = b.find("config-get.sh .base_branch main")
-        g = b.find("[ -n \"$BASE\" ]")
-        f = b.find("BASE=main")
-        c = b.find("gh pr create --base \"$BASE\"")
-        if -1 not in (d, g, f, c) and d < g < f < c:
-            ok = "yes"
-        break
-print(ok)
-' "$P3_REVIEW")"
+# Do not re-add a `[ -n "$BASE" ]` guard or a same-block ordering pin here: the fallback
+# is now the `main` positional default on the pinned `config-get.sh .base_branch main`
+# read above, and a guard on a variable no fence binds would assert nothing.
 # Deferred (issue #224 review, Suggestion): we do NOT pin that §3.1 OMITS --head.
 # Low value — `gh pr create` defaults --head to the checked-out branch, which is the
 # correct feature branch at Phase 3.1; a future edit adding --head would not corrupt
@@ -5743,8 +5712,10 @@ assert_eq "implement_pr_state outcome: gh fails + state unconfirmed (re-check er
 
 # Executable assertions below cover the publish-failure breadcrumbs and outcome model.
 # Detailed idempotent and finalize wording is intentionally not pinned.
+# Pin the outcome WORD, not a `PR_OUTCOME=` assignment: no fence binds that variable any
+# more, so a pin on the assignment would pass while the failure path was swallowed.
 assert_eq "implement_pr_state: SKILL captures the publish_failed outcome (gh pr ready failure not swallowed)" "yes" \
-  "$(grep -qF 'PR_OUTCOME=publish_failed' "$IMPL_SKILL" && echo yes || echo no)"  # raw-guard-ok: non-unique: appears twice in implement SKILL (publish-failed paths)  # structural-pin-ok: machine-sentinel-provenance -- PR_OUTCOME=publish_failed is the sentinel value the publish-failure path records
+  "$(grep -qF 'publish_failed' "$IMPL_SKILL" && echo yes || echo no)"  # raw-guard-ok: non-unique: the publish-failed outcome word appears on multiple finalize-routing lines  # structural-pin-ok: machine-sentinel-provenance -- publish_failed is the outcome value the publish-failure path records
 assert_eq "implement_pr_state: SKILL labels the idempotent re-run breadcrumb" "yes" \
   "$(grep -qF 'idempotent re-run' "$IMPL_SKILL" && echo yes || echo no)"  # raw-guard-ok: non-unique: 'idempotent re-run' appears twice in implement SKILL
 # Positional check: the clean-tree backstop must run ABOVE the publish gate (the diff's
@@ -5756,7 +5727,7 @@ assert_eq "implement_pr_state: SKILL labels the idempotent re-run breadcrumb" "y
 # --porcelain` idiom could grab a future earlier-phase occurrence (lower bundle line number),
 # making `-lt` pass vacuously. The owning file is the only space where both endpoints stay unique.
 IPS_BACKSTOP_LN=$(grep -nF 'git status --porcelain' "$IMPL_PHASES_DIR/phase-4-documentation.md" | head -1 | cut -d: -f1)
-IPS_GATE_LN=$(grep -nF '[ "$PR_STATE" = "draft" ]' "$IMPL_PHASES_DIR/phase-4-documentation.md" | head -1 | cut -d: -f1)
+IPS_GATE_LN=$(grep -nF 'config-get.sh .prflow_implement.implement_pr_state' "$IMPL_PHASES_DIR/phase-4-documentation.md" | head -1 | cut -d: -f1)
 assert_eq "implement_pr_state: clean-tree backstop precedes the publish gate (runs in both cases)" "yes" \
   "$([ -n "$IPS_BACKSTOP_LN" ] && [ -n "$IPS_GATE_LN" ] && [ "$IPS_BACKSTOP_LN" -lt "$IPS_GATE_LN" ] && echo yes || echo no)"
 
@@ -10468,7 +10439,7 @@ assert_pin_unique "#185: Phase 4.1 Stage 2 no-op escape hatch when no paths extr
 # Issue #284 folded the once-only retry into the Stage-2 diff `if ! A && { fetch; ! B; }`
 # guard, so the three-dot range now appears twice (read + retry) — count-based, ==2.
 assert_eq "#185: Phase 4.1 Stage 2 uses the three-dot origin/\$BASE...HEAD diff range (B, read+retry)" \
-  "2" "$(pin_count 'git diff --name-only "origin/$BASE...HEAD"' "$IMPL_SKILL")"
+  "2" "$(pin_count 'git diff --name-only "origin/<base-branch>...HEAD"' "$IMPL_SKILL")"
 assert_pin_unique "#185: Phase 4.1 Stage 2 Blocked arm names the missing-content condition (C)" \
   'Documentation Needed file content cannot be determined' "$IMPL_SKILL"  # structural-pin-ok: routing-dispatch-contract -- indeterminate Documentation Needed content routes Phase 4 to Blocked
 # PR #190 fix-loop: the EXTRACTION side (gh issue view / helper) must read the
@@ -15954,7 +15925,7 @@ done
 # SKILL.md files only): one canonical helper invocation per phase file, pinned unique, so a
 # commented-out/prose-only occurrence cannot satisfy P3 alone.
 assert_pin_unique "#275 pin (P3-live): phase-1 carries a live parse-acs.py invocation via the portable anchor" \
-  "$PORTABLE_ANCHOR_LITERAL"'scripts/parse-acs.py --body-file' "$LIB/../skills/implement/phases/phase-1-setup.md"
+  "$PORTABLE_ANCHOR_LITERAL"'scripts/parse-acs.py --anchor-repo-root --body-file' "$LIB/../skills/implement/phases/phase-1-setup.md"
 assert_pin_unique "#275 pin (P3-live): phase-2 carries a live config-get.sh docs.internal read via the portable anchor" \
   "$PORTABLE_ANCHOR_LITERAL"'scripts/config-get.sh .docs.internal' "$LIB/../skills/implement/phases/phase-2-implement.md"
 assert_pin_unique "#275 pin (P3-live): phase-3 carries the live --persist backstop via the portable anchor" \
@@ -32799,7 +32770,10 @@ assert_pin_unique "#284 positive: review trace render discriminates via single-s
 # The Phase 4.1 Stage-2 cumulative-diff read is also `if !`-guarded (git's own exit status
 # inline), symmetric to the gh|extractor guard; pin its positive form and prove the old
 # captured-rc form is gone (#284 shadow-review test-coverage completeness).
-assert_pin_unique "#284 positive: phase-4 doc-gate diff read discriminates via single-statement if!" 'if ! DIFF_OUT=$(git diff' "$DEF_SKILL"  # structural-pin-ok: routing-dispatch-contract -- #284 the doc-gate diff read discriminates via a single-statement if!
+# Pin the single-statement read the orchestrator routes on agent-side; a pin on a
+# captured `DIFF_OUT=$(git diff …)` would name a shape no fence carries any more.
+assert_eq "#284 positive: phase-4 doc-gate diff read is a single-statement, tool-result-routed fence" "yes" \
+  "$(grep -qF 'git diff --name-only "origin/<base-branch>...HEAD"' "$DEF_SKILL" && echo yes || echo no)"  # raw-guard-ok: presence — #284 the doc-gate diff read the orchestrator routes on (present twice: initial read + re-fetch, so not assert_pin_unique)
 assert_eq "#284 shadow-fix: phase-4 doc-gate no longer carries the old DIFF_RC capture-then-read recipe" \
   "0" "$(pin_count 'DIFF_RC=$?' "$IMPL_SKILL")"
 # AC3: retrospective-weekly's wrapper precheck is execution-verified (`[ ! -x ]`, not the
@@ -32946,14 +32920,15 @@ assert_eq "#289 AC5: gate already-exists branch emits the best-effort Run-link-r
 # `new-body … --run-link` line in the fresh branch is not matched by `update "$NUMBER"`.
 assert_pin_unique "#289 AC7: the Run-link refresh update line is present exactly once (removal-proof)" \
   'update "$NUMBER" --run-link "[View run]($RUN_URL)"' "$WF289"
-# AC9: the Phase 3.1 draft-PR heredoc carries a [View run]($RUN_URL) line positioned
-# after Resolves #{issue_number}.
+# AC9: the Phase 3.1 draft-PR body carries a [View run](…) line positioned after
+# the `Resolves #{issue_number}` line.
+# Pin the ORDERING only, against the inline $GITHUB_SERVER_URL… run-link form. A
+# standalone presence pin here would be prompt-prose presence pin authorship (#810), and
+# the non-empty VIEWRUN_LN289 check below already establishes presence.
 P3289="$REPO_ROOT/skills/implement/phases/phase-3-review.md"
-assert_pin_unique "#289 AC9: phase-3-review.md draft-PR body carries the [View run](\$RUN_URL) literal (removal-proof)" \
-  '[View run]($RUN_URL)' "$P3289"
 RESOLVES_LN289="$(grep -nF 'Resolves #{issue_number}' "$P3289" | head -1 | cut -d: -f1)"   # raw-guard-ok: line-number lookup for the positional pin
-VIEWRUN_LN289="$(grep -nF '[View run]($RUN_URL)' "$P3289" | head -1 | cut -d: -f1)"        # raw-guard-ok: line-number lookup for the positional pin
-assert_eq "#289 AC9: [View run](\$RUN_URL) is positioned after Resolves #{issue_number} in the draft-PR heredoc" "yes" \
+VIEWRUN_LN289="$(grep -nF '[View run]($GITHUB_SERVER_URL' "$P3289" | head -1 | cut -d: -f1)"  # raw-guard-ok: line-number lookup for the positional pin
+assert_eq "#289 AC9: [View run](\$GITHUB_SERVER_URL…) is positioned after Resolves #{issue_number} in the draft-PR body" "yes" \
   "$([ -n "$RESOLVES_LN289" ] && [ -n "$VIEWRUN_LN289" ] && [ "$VIEWRUN_LN289" -gt "$RESOLVES_LN289" ] && echo yes || echo no)"
 # ── Issue #1537: Phase 1.3 workpad run-link is composed INLINE in each fence ──
 # §1.3's create arm and resume arm READ $RUN_URL via `--run-link "[View run]($RUN_URL)"`, but
@@ -32979,6 +32954,11 @@ base = os.path.join(tmp, "skillbase", "a", "b")
 scripts = os.path.join(tmp, "skillbase", "scripts")
 os.makedirs(base, exist_ok=True)
 os.makedirs(scripts, exist_ok=True)
+# Issue #1633 put the emit-time placeholder <scratch-dir> in these fences' REDIRECT
+# position, where bash reads a leading `<` as an input redirection and aborts the fence
+# before the stub is reached; substitute it exactly as the orchestrator would.
+scratchdir = os.path.join(tmp, "scratch")
+os.makedirs(scratchdir, exist_ok=True)
 rec = os.path.join(tmp, "runlink-values.txt")
 hit = os.path.join(tmp, "stub-hits.txt")
 stub = os.path.join(scripts, "workpad.py")
@@ -33028,6 +33008,7 @@ def run_pass(extra):
     env = dict(base_env)
     env.update(extra)
     for f in runlink_fences:
+        f = f.replace("<scratch-dir>", scratchdir)
         subprocess.run(["bash", "-c", f], env=env, cwd=repo,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     recorded = [l for l in (open(rec).read().splitlines() if os.path.exists(rec) else []) if l]
@@ -35659,14 +35640,8 @@ assert_eq "#480 phase 4.0's create fence prints its unconditional sentinel (the 
   "$(grep -qF 'echo "phase 4.0 create fence ran; create=[${CREATE_STATE}]"' "$I815_REF" && echo yes || echo no)"  # structural-pin-ok: machine-sentinel-provenance -- the emitted sentinel the reference's three-state routing literal-matches; without it "refused" and "nothing to create" are indistinguishable
 assert_eq "#480 phase 3.1 prints the draft PR number sentinel (the comparand its routing reads)" "yes" \
   "$(grep -qF 'draft PR number: [' "$IMPL_DIR/phases/phase-3-review.md" && echo yes || echo no)"
-# The design rests on more than the three fence sentinels: the label channels' routing tables also
-# literal-match these printed lines, and each is the comparand of a fail-closed exit. Unpinned,
-# renaming or dropping any of them leaves the phases routing on a line the fence no longer prints
-# (#480 review). Pin each by its emitted literal.
-for lit in 'docs labels to apply: [' 'docs PR number: ['; do
-  assert_eq "#480 phase-4 prints the routed comparand '$lit'" "yes" \
-    "$(grep -qF "$lit" "$I480_P4" && echo yes || echo no)"
-done
+# Do not re-add a `docs labels to apply: [` / `docs PR number: [` sentinel pin: no fence
+# prints them any more, so the pin would fail on the correct tree.
 # The deferred-label comparand `deferred labels to apply: [` left this population with the
 # fence that prints it (#1374) and was RETIRED rather than re-pointed at the reference. Its
 # literal resolves into agent-executed prompt prose that no program consumer reads, so
@@ -45582,6 +45557,13 @@ ibr_run() {  # <root> <path…> -> "rc=<n>|<stdout+stderr>"
 assert_eq "#693 scanner: the §1.1 producer fetch is not flagged" \
   "rc=0|lint-issue-body-refetch: audited 2 of 2 files" \
   "$(ibr_run "$IBR_FX" skills/implement/clean.md skills/implement/producer.md)"
+# The producer's MIGRATED spelling (issue #1633) writes to the absolute path the
+# precondition printed, so the line carries the `<absolute-cache-path>` placeholder
+# instead of the cache path — a separate allowance literal, driven on its own file so
+# neither spelling's allowance can go vacuous behind the other.
+assert_eq "#693 scanner: the migrated §1.1 producer spelling is not flagged" \
+  "rc=0|lint-issue-body-refetch: audited 1 of 1 files" \
+  "$(ibr_run "$IBR_FX" skills/implement/producer-migrated.md)"
 
 # Planted-defect positive control, one per detected form (the coverage-claim rule).
 while IFS=: read -r _ibr_file _ibr_slug _ibr_what; do
@@ -51606,6 +51588,403 @@ AF_NEITHER_OUT="$(python3 "$AF_LINT" --root "$AF_FX/neither" 2>&1)"; AF_NEITHER_
 assert_eq "#1124 lint: an enrolled site carrying neither form fails closed (stale inventory)" "1" "$AF_NEITHER_RC"
 assert_eq "#1124 lint: the neither-form report names the stale enrolled site" "yes" \
   "$(case "$AF_NEITHER_OUT" in *"carries NEITHER the anchor nor the vendored-literal"*) echo yes ;; *) echo no ;; esac)"
+
+# ── #1633 worktree-fence-shapes lint (lib/test/lint-worktree-fence-shapes.py) ─────
+# A worktree-isolated Claude Code session refuses a bash fence carrying command
+# substitution ($(...)/backticks), the $? parameter, or a reference to a variable bound
+# within the same fence. This inventory-driven lint fails an ENROLLED implement-bundle
+# file whose fence reintroduces one of the three. Driven like the #1124 sibling: the real
+# tree is the live gate (every enrolled file was migrated → clean), plus scratch-root
+# RED/GREEN cases proving the guard is non-vacuous. run.sh itself is NOT enrolled, so its
+# own $(...) usage below is unaffected.
+WFS_LINT="$LIB/test/lint-worktree-fence-shapes.py"
+# Live gate: the shipped tree, default (built-in) inventory → clean.
+WFS_OUT="$(python3 "$WFS_LINT" 2>&1)"; WFS_RC=$?
+assert_eq "#1633 lint: clean on the tree as it stands (every enrolled fence migrated)" "rc=0" \
+  "$([ "$WFS_RC" -eq 0 ] && printf 'rc=0' || printf 'rc=%s | %s' "$WFS_RC" "$WFS_OUT")"
+# Scratch root carrying clean copies of all four enrolled files (no tracked file is
+# mutated by any case below — every plant lands on a scratch copy).
+WFS_ROOT="$(mktemp -d)"; _suite_tmp_dir "$WFS_ROOT"
+mkdir -p "$WFS_ROOT/skills/implement/phases"
+for _wfs_f in phase-1-setup phase-2-implement phase-3-review phase-4-documentation; do
+  cp "$REPO_ROOT/skills/implement/phases/$_wfs_f.md" "$WFS_ROOT/skills/implement/phases/$_wfs_f.md"
+done
+WFS_P1="$WFS_ROOT/skills/implement/phases/phase-1-setup.md"
+_wfs_restore_p1() { cp "$REPO_ROOT/skills/implement/phases/phase-1-setup.md" "$WFS_P1"; }
+# GREEN: the scratch root (clean copies) passes under the default inventory.
+assert_eq "#1633 lint: a clean scratch root passes (GREEN)" "yes" \
+  "$(python3 "$WFS_LINT" --root "$WFS_ROOT" >/dev/null 2>&1 && echo yes || echo no)"
+# AC1: command substitution — plant a $(...) fence into the phase-1 copy → rc1 naming it.
+printf '\n```bash\necho "$(date)"\n```\n' >> "$WFS_P1"
+WFS_CS_OUT="$(python3 "$WFS_LINT" --root "$WFS_ROOT" 2>&1)"; WFS_CS_RC=$?
+assert_eq "#1633 lint: a planted command substitution fails (RED)" "1" "$WFS_CS_RC"
+assert_eq "#1633 lint: the RED report names file:line and the command-substitution construct" "yes" \
+  "$(case "$WFS_CS_OUT" in *"phase-1-setup.md:"*"command substitution"*) echo yes ;; *) echo no ;; esac)"
+_wfs_restore_p1
+# AC1: backtick substitution.
+printf '\n```bash\necho `date`\n```\n' >> "$WFS_P1"
+assert_eq "#1633 lint: a planted backtick substitution fails (RED)" "1" \
+  "$(python3 "$WFS_LINT" --root "$WFS_ROOT" >/dev/null 2>&1; echo $?)"
+_wfs_restore_p1
+# AC1: the exit-status parameter $?.
+printf '\n```bash\ntrue\necho rc=$?\n```\n' >> "$WFS_P1"
+WFS_Q_OUT="$(python3 "$WFS_LINT" --root "$WFS_ROOT" 2>&1)"
+assert_eq "#1633 lint: a planted \$? fails and names the construct" "yes" \
+  "$(case "$WFS_Q_OUT" in *"exit-status parameter"*) echo yes ;; *) echo no ;; esac)"
+_wfs_restore_p1
+# AC1: assign-then-reuse of a variable bound within the same fence.
+printf '\n```bash\nX=1\necho "$X"\n```\n' >> "$WFS_P1"
+WFS_V_OUT="$(python3 "$WFS_LINT" --root "$WFS_ROOT" 2>&1)"
+assert_eq "#1633 lint: a planted bound-var reference fails and names the construct" "yes" \
+  "$(case "$WFS_V_OUT" in *"variable bound within the same fence"*) echo yes ;; *) echo no ;; esac)"
+_wfs_restore_p1
+# AC2: the measurement pair — `for i in 1 2; do echo $i; done` fails, `…echo hi…` passes.
+printf '\n```bash\nfor i in 1 2; do echo $i; done\n```\n' >> "$WFS_P1"
+assert_eq "#1633 lint AC2: a for-loop referencing its bound var fails" "1" \
+  "$(python3 "$WFS_LINT" --root "$WFS_ROOT" >/dev/null 2>&1; echo $?)"
+_wfs_restore_p1
+printf '\n```bash\nfor i in 1 2; do echo hi; done\n```\n' >> "$WFS_P1"
+assert_eq "#1633 lint AC2: a for-loop that never references its bound var passes" "0" \
+  "$(python3 "$WFS_LINT" --root "$WFS_ROOT" >/dev/null 2>&1; echo $?)"
+_wfs_restore_p1
+# The remaining _bound_names recognizers. This lint is the SOLE backstop for a
+# same-fence bound-variable reference (the bash -u fence harness catches only CROSS-fence
+# deps), so an unexercised recognizer fails open on exactly the construct it guards.
+printf '\n```bash\nread -r NAME\necho "$NAME"\n```\n' >> "$WFS_P1"
+assert_eq "#1633 lint: a read-bound var referenced in the same fence fails and names the construct" "yes" \
+  "$(case "$(python3 "$WFS_LINT" --root "$WFS_ROOT" 2>&1)" in *"variable bound within the same fence"*) echo yes ;; *) echo no ;; esac)"
+_wfs_restore_p1
+printf '\n```bash\nread -r NAME\necho hi\n```\n' >> "$WFS_P1"
+assert_eq "#1633 lint: a read binding with no later reference passes (the reference is the refusal)" "0" \
+  "$(python3 "$WFS_LINT" --root "$WFS_ROOT" >/dev/null 2>&1; echo $?)"
+_wfs_restore_p1
+printf '\n```bash\nexport NAME=x\necho "$NAME"\n```\n' >> "$WFS_P1"
+assert_eq "#1633 lint: an export-bound var referenced in the same fence fails and names the construct" "yes" \
+  "$(case "$(python3 "$WFS_LINT" --root "$WFS_ROOT" 2>&1)" in *"variable bound within the same fence"*) echo yes ;; *) echo no ;; esac)"
+_wfs_restore_p1
+printf '\n```bash\nselect NAME in a b; do echo "$NAME"; done\n```\n' >> "$WFS_P1"
+assert_eq "#1633 lint: a select-bound var referenced in the same fence fails and names the construct" "yes" \
+  "$(case "$(python3 "$WFS_LINT" --root "$WFS_ROOT" 2>&1)" in *"variable bound within the same fence"*) echo yes ;; *) echo no ;; esac)"
+_wfs_restore_p1
+# An UNQUOTED heredoc body IS expanded by the shell, so it is scanned; the terminator
+# word itself is not a binding and must not be flagged.
+printf '\n```bash\ncat <<EOF\ntotal $(date)\nEOF\n```\n' >> "$WFS_P1"
+assert_eq "#1633 lint: a construct in an UNQUOTED heredoc body is scanned and names the construct" "yes" \
+  "$(case "$(python3 "$WFS_LINT" --root "$WFS_ROOT" 2>&1)" in *"command substitution"*) echo yes ;; *) echo no ;; esac)"
+_wfs_restore_p1
+printf '\n```bash\ncat <<EOF\nplain text only\nEOF\n```\n' >> "$WFS_P1"
+assert_eq "#1633 lint: a construct-free UNQUOTED heredoc passes (its terminator is not a binding)" "0" \
+  "$(python3 "$WFS_LINT" --root "$WFS_ROOT" >/dev/null 2>&1; echo $?)"
+_wfs_restore_p1
+# A bare environment variable the fence did not itself bind passes.
+printf '\n```bash\necho "$ISSUE_NUMBER"\n```\n' >> "$WFS_P1"
+assert_eq "#1633 lint: a bare unbound env var passes" "0" \
+  "$(python3 "$WFS_LINT" --root "$WFS_ROOT" >/dev/null 2>&1; echo $?)"
+_wfs_restore_p1
+# A construct inside a QUOTED heredoc body is data → passes.
+printf '\n```bash\ncat <<'"'"'EOF'"'"'\ntotal $(date)\nEOF\n```\n' >> "$WFS_P1"
+assert_eq "#1633 lint: a construct inside a quoted heredoc body passes" "0" \
+  "$(python3 "$WFS_LINT" --root "$WFS_ROOT" >/dev/null 2>&1; echo $?)"
+_wfs_restore_p1
+# A non-bash fence carrying the constructs is prose → passes.
+printf '\n```text\necho "$(date)"\n```\n' >> "$WFS_P1"
+assert_eq "#1633 lint: a construct in a non-bash fence passes" "0" \
+  "$(python3 "$WFS_LINT" --root "$WFS_ROOT" >/dev/null 2>&1; echo $?)"
+_wfs_restore_p1
+# AC19: a file OUTSIDE the inventory carrying a refused expansion passes (unmigrated
+# surface stays legal). The 5th file is not in the default inventory.
+printf '```bash\necho "$(date)"\n```\n' > "$WFS_ROOT/skills/implement/phases/phase-9-extra.md"
+assert_eq "#1633 lint AC19: an unenrolled file with a refused expansion passes" "0" \
+  "$(python3 "$WFS_LINT" --root "$WFS_ROOT" >/dev/null 2>&1; echo $?)"
+rm -f "$WFS_ROOT/skills/implement/phases/phase-9-extra.md"
+# AC20: a missing enrolled file fails closed (never a clean pass).
+mv "$WFS_ROOT/skills/implement/phases/phase-2-implement.md" "$WFS_ROOT/skills/implement/phases/phase-2-implement.hidden"
+WFS_MISS_OUT="$(python3 "$WFS_LINT" --root "$WFS_ROOT" 2>&1)"; WFS_MISS_RC=$?
+assert_eq "#1633 lint AC20: a missing enrolled file fails closed" "1" "$WFS_MISS_RC"
+assert_eq "#1633 lint AC20: the missing-file report names it" "yes" \
+  "$(case "$WFS_MISS_OUT" in *"phase-2-implement.md: enrolled file is missing"*) echo yes ;; *) echo no ;; esac)"
+mv "$WFS_ROOT/skills/implement/phases/phase-2-implement.hidden" "$WFS_ROOT/skills/implement/phases/phase-2-implement.md"
+# AC4/AC5: the override inventory — empty and omits-one both fail closed.
+WFS_EMPTY_INV="$(mktemp)"; _suite_tmp_file "$WFS_EMPTY_INV"; : > "$WFS_EMPTY_INV"
+assert_eq "#1633 lint AC4: an empty override inventory fails closed" "1" \
+  "$(python3 "$WFS_LINT" --root "$WFS_ROOT" --inventory-file "$WFS_EMPTY_INV" >/dev/null 2>&1; echo $?)"
+WFS_OMIT_INV="$(mktemp)"; _suite_tmp_file "$WFS_OMIT_INV"
+printf '%s\n' \
+  "skills/implement/phases/phase-1-setup.md" \
+  "skills/implement/phases/phase-2-implement.md" \
+  "skills/implement/phases/phase-3-review.md" > "$WFS_OMIT_INV"
+WFS_OMIT_OUT="$(python3 "$WFS_LINT" --root "$WFS_ROOT" --inventory-file "$WFS_OMIT_INV" 2>&1)"; WFS_OMIT_RC=$?
+assert_eq "#1633 lint AC4: an override inventory omitting a required file fails closed" "1" "$WFS_OMIT_RC"
+assert_eq "#1633 lint AC4: the omits-one report names the required omission" "yes" \
+  "$(case "$WFS_OMIT_OUT" in *"omits required file(s)"*"phase-4-documentation.md"*) echo yes ;; *) echo no ;; esac)"
+# AC21 positive control: plant into the phase-1 copy → RED; remove → GREEN. Bookends the
+# guarantee that the lint fires on the path where an author forgot.
+printf '\n```bash\nR="$(git rev-parse --show-toplevel)"\necho "$R"\n```\n' >> "$WFS_P1"
+assert_eq "#1633 lint AC21: the positive control fails with the plant present" "1" \
+  "$(python3 "$WFS_LINT" --root "$WFS_ROOT" >/dev/null 2>&1; echo $?)"
+_wfs_restore_p1
+assert_eq "#1633 lint AC21: the positive control passes with the plant removed" "0" \
+  "$(python3 "$WFS_LINT" --root "$WFS_ROOT" >/dev/null 2>&1; echo $?)"
+# INDENTED-fence positive control: an enrolled file's ```bash fences nested under a
+# Markdown list item are executed exactly like column-0 ones, so a column-0-anchored
+# recognizer would skip 20 of the shipped enrolled fences. Plant each refused construct
+# inside an INDENTED fence — every one must still be reported.
+printf '\n- item:\n  ```bash\n  echo "$(date)"\n  ```\n' >> "$WFS_P1"
+WFS_IND_OUT="$(python3 "$WFS_LINT" --root "$WFS_ROOT" 2>&1)"; WFS_IND_RC=$?
+assert_eq "#1633 lint: a refused construct in an INDENTED fence fails (RED)" "1" "$WFS_IND_RC"
+assert_eq "#1633 lint: the indented-fence RED report names file:line and the construct" "yes" \
+  "$(case "$WFS_IND_OUT" in *"phase-1-setup.md:"*"command substitution"*) echo yes ;; *) echo no ;; esac)"
+_wfs_restore_p1
+printf '\n- item:\n  ```bash\n  X=1\n  echo "$X"\n  ```\n' >> "$WFS_P1"
+assert_eq "#1633 lint: a bound-var reference in an INDENTED fence fails (RED)" "yes" \
+  "$(case "$(python3 "$WFS_LINT" --root "$WFS_ROOT" 2>&1)" in *"variable bound within the same fence"*) echo yes ;; *) echo no ;; esac)"
+_wfs_restore_p1
+printf '\n- item:\n  ```bash\n  true\n  echo rc=$?\n  ```\n' >> "$WFS_P1"
+assert_eq "#1633 lint: \$? in an INDENTED fence fails (RED)" "yes" \
+  "$(case "$(python3 "$WFS_LINT" --root "$WFS_ROOT" 2>&1)" in *"exit-status parameter"*) echo yes ;; *) echo no ;; esac)"
+_wfs_restore_p1
+# An INDENTED non-bash fence stays prose — the indent-tolerant recognizers must not
+# widen the scanned population to every indented fence.
+printf '\n- item:\n  ```text\n  echo "$(date)"\n  ```\n' >> "$WFS_P1"
+assert_eq "#1633 lint: a construct in an INDENTED non-bash fence passes" "0" \
+  "$(python3 "$WFS_LINT" --root "$WFS_ROOT" >/dev/null 2>&1; echo $?)"
+_wfs_restore_p1
+# AC20 sibling: an enrolled file that EXISTS but cannot be DECODED fails closed with its
+# own message. Distinct from the missing-file arm above and reached by a different except
+# clause, so a regression letting UnicodeDecodeError escape as a traceback would otherwise
+# keep every assertion here green.
+printf 'ok\n\xff\xfe\x00bad\n' > "$WFS_ROOT/skills/implement/phases/phase-3-review.md"
+WFS_UNREAD_OUT="$(python3 "$WFS_LINT" --root "$WFS_ROOT" 2>&1)"; WFS_UNREAD_RC=$?
+assert_eq "#1633 lint: an undecodable enrolled file fails closed" "1" "$WFS_UNREAD_RC"
+assert_eq "#1633 lint: the undecodable-file report names it and says it could not be read" "yes" \
+  "$(case "$WFS_UNREAD_OUT" in *"phase-3-review.md: enrolled file could not be read"*) echo yes ;; *) echo no ;; esac)"
+cp "$REPO_ROOT/skills/implement/phases/phase-3-review.md" "$WFS_ROOT/skills/implement/phases/phase-3-review.md"
+# TEMPLATE-BLOCK pass: a construct can reach the shell without appearing in any fence's
+# literal text — a body composed in an info-string-less block and substituted into a
+# double-quoted fence argument (`--body "<pr-body>"`) expands when the shell reads it.
+printf '\n```\nGenerated via `/prflow:implement $ARGUMENTS`\n```\n' >> "$WFS_P1"
+WFS_TPL_OUT="$(python3 "$WFS_LINT" --root "$WFS_ROOT" 2>&1)"; WFS_TPL_RC=$?
+assert_eq "#1633 lint: an unescaped backtick span in a body template fails (RED)" "1" "$WFS_TPL_RC"
+assert_eq "#1633 lint: the template report names the substitution hazard" "yes" \
+  "$(case "$WFS_TPL_OUT" in *"body template"*) echo yes ;; *) echo no ;; esac)"
+_wfs_restore_p1
+# The ESCAPED span is the remedy, so it must pass — otherwise the fix has no green state.
+printf '\n```\nGenerated via \\`/prflow:implement $ARGUMENTS\\`\n```\n' >> "$WFS_P1"
+assert_eq "#1633 lint: a backslash-escaped span in a body template passes (the remedy)" "0" \
+  "$(python3 "$WFS_LINT" --root "$WFS_ROOT" >/dev/null 2>&1; echo $?)"
+_wfs_restore_p1
+# A `text`-info-string block is inert prose, the second documented remedy.
+printf '\n```text\nGenerated via `/prflow:implement $ARGUMENTS`\n```\n' >> "$WFS_P1"
+assert_eq "#1633 lint: the same span under a text info string passes (inert prose)" "0" \
+  "$(python3 "$WFS_LINT" --root "$WFS_ROOT" >/dev/null 2>&1; echo $?)"
+_wfs_restore_p1
+# AC22 (the module docstring closes the candidate-construct set and discloses the shapes
+# it does not detect) is discharged by the docstring itself and human review — a
+# docstring-presence grep would be a prohibited wording-only pin (CLAUDE.md's
+# executable-evidence policy), so none is written here.
+
+# ── #1633 scratch-write anchoring (phase-1-setup.md) ──────────────────────────
+# The root .gitignore rule is root-anchored (/.prflow/*), so a cwd-relative scratch
+# write from a run launched in a repository SUBDIRECTORY lands on an untracked in-tree
+# file that trips the run's own clean-tree gates. Every Phase 1 write target is
+# therefore the substituted absolute <scratch-dir>/<absolute-cache-*>, never a bare
+# `.prflow/tmp/...`. This scans the phase file's bash fences for a WRITE position
+# (a `>` redirect target, or a `mkdir -p`/`rm -f` operand) naming the bare path.
+# Helper ARGUMENTS keep the repo-relative spelling — the helper anchors those itself —
+# so only write positions are examined.
+P1633_ANCHOR_OUT="$(python3 -c '
+import re, sys
+text = open(sys.argv[1], encoding="utf-8").read()
+fences, cur = [], None
+for ln in text.splitlines():
+    if cur is None:
+        if ln.strip() == "```bash":
+            cur = []
+    elif ln.strip() == "```":
+        fences.append(cur); cur = None
+    else:
+        cur.append(ln)
+bad = []
+for fence in fences:
+    for ln in fence:
+        for m in re.finditer(r"(?:>\s*|\bmkdir\s+-p\s+|\brm\s+-f\s+)(\S+)", ln):
+            target = m.group(1).strip("\"'"'"'")
+            if target.startswith(".prflow/tmp"):
+                bad.append(target)
+print("bare=%d %s" % (len(bad), ",".join(sorted(set(bad)))))
+' "$REPO_ROOT/skills/implement/phases/phase-1-setup.md")"
+assert_eq "#1633 anchoring: no phase-1 scratch WRITE target is cwd-relative" "bare=0 " "$P1633_ANCHOR_OUT"
+# Non-vacuous: the same scan over a planted bare-target fence reports it, so a scanner
+# that silently matched nothing could not pass the assertion above.
+P1633_ANCHOR_PLANT="$(mktemp)"; _suite_tmp_file "$P1633_ANCHOR_PLANT"
+printf '```bash\nmkdir -p .prflow/tmp\n```\n' > "$P1633_ANCHOR_PLANT"
+assert_eq "#1633 anchoring: the write-position scan reports a planted bare target" "bare=1 .prflow/tmp" \
+  "$(python3 -c '
+import re, sys
+text = open(sys.argv[1], encoding="utf-8").read()
+fences, cur = [], None
+for ln in text.splitlines():
+    if cur is None:
+        if ln.strip() == "```bash":
+            cur = []
+    elif ln.strip() == "```":
+        fences.append(cur); cur = None
+    else:
+        cur.append(ln)
+bad = []
+for fence in fences:
+    for ln in fence:
+        for m in re.finditer(r"(?:>\s*|\bmkdir\s+-p\s+|\brm\s+-f\s+)(\S+)", ln):
+            target = m.group(1).strip("\"'"'"'")
+            if target.startswith(".prflow/tmp"):
+                bad.append(target)
+print("bare=%d %s" % (len(bad), ",".join(sorted(set(bad)))))
+' "$P1633_ANCHOR_PLANT")"
+
+# ── #1633 fence-isolation harness (AC23/AC24/AC29) ────────────────────────────
+# COVERAGE CLAIM, stated exactly: run-to-completion is backed for ONE of the four enrolled
+# files (phase-1-setup.md, the only one this stub environment models); the cross-fence
+# unbound-variable sweep is backed for ALL FOUR. Do not restate either as "every enrolled
+# fence runs" — phases 2/3/4 reach vendored-literal paths and helpers no stub supplies.
+# Extracts every ```bash fence of the canonical enrolled file (phase-1-setup.md, the file
+# a worktree Phase 1 session executes) and runs each in FENCE ISOLATION (fresh `bash -uc`,
+# scratch cwd, PATH holding ONLY stub heads, CLAUDE_SKILL_DIR pointed at a scratch skill
+# base whose ../../scripts holds stub helpers, only ambient vars preset). `bash -u` makes a
+# reference to a variable another fence defined an unbound-variable abort — the executable
+# proof that no fence depends on cross-fence state (AC23). PATH holds only stubs, so an
+# unstubbed bare head resolves to nothing (rc 127) and cannot take effect — a synthetic
+# fence reaching an unstubbed head is refused, not executed (AC24). A preflight-shaped stub
+# driven at exit 3 / exit 2 / no-output proves the three routing outcomes are distinguish-
+# able by the tool result the prose routes on (AC29). Runtime temp, never a tracked
+# lib/test script (like the #1537 harness), so it needs no carveout registration.
+P1633_FIH="$(mktemp)"; _suite_tmp_file "$P1633_FIH"
+cat > "$P1633_FIH" <<'P1633FIH'
+import os, re, subprocess, sys, tempfile, stat, shutil
+BASH = shutil.which("bash") or "/bin/bash"
+SH = "/bin/sh"
+enrolled = sys.argv[1:]
+tmp = tempfile.mkdtemp()
+base = os.path.join(tmp, "skillbase", "a", "b")
+scripts = os.path.join(tmp, "skillbase", "scripts")
+libdir = os.path.join(tmp, "skillbase", "lib")
+bindir = os.path.join(tmp, "bin")
+work = os.path.join(tmp, "work")
+for d in (base, scripts, libdir, bindir, work,
+          # `scratch-dir` is the emit-time placeholder the §1.2/§1.3 scratch writes
+          # carry; subst() reduces it to this bare name, so the directory must exist
+          # for a write fence that runs in its own shell after the mkdir fence.
+          os.path.join(work, "scratch-dir"),
+          os.path.join(work, ".prflow", "tmp", "issue-body")):
+    os.makedirs(d, exist_ok=True)
+with open(os.path.join(work, ".prflow", "tmp", "issue-body", "issue-4242.md"), "w") as f:
+    f.write("## Acceptance Criteria\n- [ ] one\n")
+STUB_HEADS = ["git", "gh", "sed", "grep", "tr", "cut", "date", "head", "tail", "ls"]
+def stub(path, code=0, out="IGNORED"):
+    with open(path, "w") as f:
+        f.write("#!" + SH + "\n")
+        if out:
+            f.write("echo " + out + "\n")
+        f.write("exit %d\n" % code)
+    os.chmod(path, 0o755)
+for h in STUB_HEADS:
+    stub(os.path.join(bindir, h), out="")
+for h in ("mkdir", "rm", "cat", "tee", "printf", "mv", "cp", "touch"):
+    real = shutil.which(h)
+    if real:
+        with open(os.path.join(bindir, h), "w") as f:
+            f.write("#!" + SH + "\nexec " + real + " \"$@\"\n")
+        os.chmod(os.path.join(bindir, h), 0o755)
+for helper in ("workpad.py", "preflight.py", "parse-acs.py", "run-jq.sh", "config-get.sh",
+               "branch-for-issue.py", "update-branch-checkpoint.sh",
+               "phase2-durability-checkpoint.sh", "react-to-trigger.sh",
+               "load-prompt-extension.sh", "ensure-label.sh", "apply-labels.sh",
+               "apply-pr-triggerer.sh", "check-verified-premises.py", "refresh-pr-run-link.py"):
+    stub(os.path.join(scripts, helper))
+stub(os.path.join(libdir, "efficiency-trace.sh"))
+ambient = {
+    "PATH": bindir, "HOME": work, "CLAUDE_SKILL_DIR": base,
+    "ISSUE_NUMBER": "4242", "ARGUMENTS": "4242", "GITHUB_RUN_ID": "999",
+    "GITHUB_RUN_ATTEMPT": "1", "GITHUB_SERVER_URL": "https://github.example",
+    "GITHUB_REPOSITORY": "owner/repo", "GITHUB_EVENT_PATH": os.path.join(work, "event.json"),
+    "GITHUB_ACTIONS": "true", "BASE": "main", "CLAUDE_CODE_SESSION_ID": "sess",
+    "WORKPAD_ID": "5", "REACTION": "hooray", "TRIGGER_COMMENT_ID": "7", "PR_NUMBER": "8",
+    "DEVFLOW_APP_ID": "",
+}
+def subst(fence):
+    # emit-time template placeholders the orchestrator substitutes (like $ISSUE_NUMBER):
+    # {a|b} choices and <angle-bracket> placeholders → the first alternative token.
+    fence = re.sub(r"(?<!\$)\{([^{}$]*)\}",
+                   lambda m: (m.group(1).split("|")[0].strip().replace(" ", "-") or "x"), fence)
+    fence = re.sub(r"<([a-zA-Z][a-zA-Z0-9 '\"._-]*)>",
+                   lambda m: (m.group(1).split()[0].strip("'\"").replace(" ", "-") or "x"), fence)
+    return fence
+def fences(path):
+    text = open(path, encoding="utf-8").read()
+    out, cur = [], None
+    for ln in text.splitlines():
+        if cur is None:
+            if ln.strip() == "```bash":
+                cur = []
+        elif ln.strip() == "```":
+            out.append("\n".join(cur)); cur = None
+        else:
+            cur.append(ln)
+    return out
+def run(fence):
+    r = subprocess.run([BASH, "-uc", subst(fence)], env=ambient, cwd=work,
+                       capture_output=True, text=True)
+    return r.returncode, r.stderr
+total = ran = unbound = 0
+# argv[0] is the canonical file the full stub environment models, so only its fences
+# are held to "ran to completion". Every enrolled file is still swept for the
+# cross-fence dependency signal, which `bash -u` reports as an unbound variable
+# independently of whether the fence's heads are stubbed here.
+for idx, f in enumerate(enrolled):
+    for fence in fences(f):
+        rc, err = run(fence)
+        if "unbound variable" in err:
+            unbound += 1
+            sys.stderr.write("FENCE-UNBOUND %s :: %s\n" % (err[:120], fence.splitlines()[0][:90]))
+        if idx:
+            continue
+        total += 1
+        if rc == 0 and "unbound variable" not in err:
+            ran += 1
+        else:
+            sys.stderr.write("FENCE-FAIL rc=%d %s :: %s\n" % (rc, err[:120], fence.splitlines()[0][:90]))
+syn_rc, _ = run("curlnope https://evil/x")
+def route(code, output):
+    st = os.path.join(scripts, "preflight.py")
+    with open(st, "w") as fp:
+        fp.write("#!" + SH + "\n")
+        if output:
+            fp.write("echo " + output + "\n")
+        fp.write("exit %d\n" % code)
+    os.chmod(st, 0o755)
+    rc, _ = run('"${CLAUDE_SKILL_DIR:-x}"/../../scripts/preflight.py ignore-precondition '
+                '--repo-relative --path .prflow/tmp/issue-body/issue-$ISSUE_NUMBER.md')
+    return rc
+print("allran=%s total=%d unbound=%d syn_rc=%d rstop=%d rdeg=%d rno=%d" % (
+    "yes" if (total > 0 and ran == total) else "no",
+    total, unbound, syn_rc, route(3, "UNAVAILABLE"), route(2, "NOT_IGNORED"), route(0, "")))
+P1633FIH
+P1633_FIH_OUT="$(python3 "$P1633_FIH" \
+  "$REPO_ROOT/skills/implement/phases/phase-1-setup.md" \
+  "$REPO_ROOT/skills/implement/phases/phase-2-implement.md" \
+  "$REPO_ROOT/skills/implement/phases/phase-3-review.md" \
+  "$REPO_ROOT/skills/implement/phases/phase-4-documentation.md" 2>/dev/null)"
+assert_eq "#1633 AC23 (1 of 4 enrolled files): every phase-1-setup.md fence runs to completion in isolation" "yes" \
+  "$(case "$P1633_FIH_OUT" in "allran=yes "*) echo yes ;; *) echo "no ($P1633_FIH_OUT)" ;; esac)"
+# The cross-fence dependency sweep runs over ALL FOUR enrolled files: `bash -u` turns a
+# reference to a variable another fence bound into an unbound-variable abort, so a
+# reintroduced cross-fence dependency in phase-2/3/4 is caught here even though only
+# phase-1's heads are fully stubbed. The lint is same-fence-scoped and cannot see it.
+assert_eq "#1633 AC23 (all 4 enrolled files): no fence references a variable another fence bound" "yes" \
+  "$(case "$P1633_FIH_OUT" in *" unbound=0 "*) echo yes ;; *) echo "no ($P1633_FIH_OUT)" ;; esac)"
+assert_eq "#1633 AC24: a fence invoking an unstubbed bare head is refused, not executed (rc 127)" "yes" \
+  "$(case "$P1633_FIH_OUT" in *"syn_rc=127"*) echo yes ;; *) echo "no ($P1633_FIH_OUT)" ;; esac)"
+assert_eq "#1633 AC29: the ignore-precondition outcomes are distinguishable by exit code (stop=3, degraded=2, no-output=0)" "yes" \
+  "$(case "$P1633_FIH_OUT" in *"rstop=3 rdeg=2 rno=0"*) echo yes ;; *) echo "no ($P1633_FIH_OUT)" ;; esac)"
 
 # ── #1594 reported-base-dir-first arm lint (lib/test/lint-reported-base-dir-arm.py) ──
 # The resolve-once `echo "${CLAUDE_SKILL_DIR:-…}"` command is refused on runners whose

@@ -41,59 +41,54 @@ The helper prints **exactly one token line**, with a matching exit code:
   - **On a resume** (§1.4 adopted a PR or branch, or `resume-kind` is `in-flight`) a prior attempt's PR probably exists, so creating blind risks a duplicate: do **not** continue into the PR-link resolution, the label calls, or §3.2. Record the cause durably and stop — `workpad.py update $ISSUE_NUMBER --status Blocked --reflection-kind blocked --reflection "Phase 3.1: could not resolve whether an open PR already exists for this branch (empty branch name, a gh pr list failure, or a refused fence) on a RESUME; refusing to create a PR that may duplicate a prior attempt's — resolve and re-run"` — then emit the 👎 outcome reaction (see *Outcome reaction* in the Workpad Reference) and end the run at that terminal status.
   - **On a fresh run** there is no prior attempt to duplicate, so a transient failure must **not** end the run: fall through to the create fence below — which fails loudly and harmlessly with "a pull request already exists" in the vanishingly rare case the query was wrong — and record the degraded query with `--reflection-kind note`. This asymmetry is deliberate: before this guard existed a fresh run simply created the PR, and gating the common path on a *second* network call succeeding would trade a real duplicate-PR risk that fresh runs do not have for a new Blocked-on-rate-limit failure they would.
 - **ADOPT** (either form): continue below, treating `<n>` as the run's PR, and **skip the create fence entirely**. On the `WARN:<checks>` form adoption still proceeds — this is a visibility obligation, not a stop — but the named checks must not vanish into stderr: record them durably first with `workpad.py update $ISSUE_NUMBER --reflection-kind note --reflection "Phase 3.1 adopted open PR #<n> whose validation failed (<checks>): it may be an unrelated PR that merely shares this head branch."`
-- **CREATE**: run the fence below and route on the **token it prints as its last line** — the create can fail for an auth expiry, an API 5xx, a `--base` that no longer resolves, or a rate limit, and `gh pr create`'s own diagnostics go to stderr, so the fence prints its outcome to stdout instead of leaving you to infer it. Read that token; do **not** issue a further `gh` call to establish it:
-  - `create: ok` — the PR exists (its URL is on the preceding line). Continue below.
-  - `create: failed` — the create failed and the fence prints `gh`'s own explanation (captured from its stderr) on the lines above the token. Take the **same terminal stop as REFUSED**, but **name the cause**: read that captured `gh` output and carry it into the durable `blocked` reflection (it distinguishes an expired login, an API 5xx, a `--base` that no longer resolves, a rate limit, or `gh`'s unpushed-branch refusal `aborted: you must first push …`) rather than recording only `create: failed`; then emit the 👎 outcome reaction and end the run. **The separate case where the fence printed nothing at all** (a harness refusal, which answers nothing and captures no output) is unchanged — route it exactly as REFUSED. In both cases do **not** continue into the PR-link resolution, which would write a broken `[#]()` link and run §3.2–§3.4 with no PR.
+- **CREATE**: run the create fence below and route on **its tool result** as documented there — the create can fail for an auth expiry, an API 5xx, a `--base` that no longer resolves, or a rate limit, and `gh pr create` writes both the new PR's URL and its own diagnostics to the tool result, so read that result directly; do **not** issue a further `gh` call to establish the outcome. On success (the PR URL is printed, exit 0) continue below. On a non-zero exit take the **same terminal stop as REFUSED** but **name the cause** from `gh`'s printed explanation (an expired login, an API 5xx, a `--base` that no longer resolves, a rate limit, or `gh`'s unpushed-branch refusal `aborted: you must first push …`) in the durable `blocked` reflection, then emit the 👎 outcome reaction and end the run. The separate case where the fence printed **nothing at all** (a harness refusal) routes exactly as REFUSED. In every stop case do **not** continue into the PR-link resolution, which would write a broken `[#]()` link and run §3.2–§3.4 with no PR.
 
-**Ensure the branch is pushed to an explicitly-named destination — run this BEFORE the create fence.** `gh pr create` (below) refuses when it cannot confirm the feature branch is pushed at the current commit, so make that condition true first by pushing `HEAD` to a destination named **explicitly** — never a bare `git push`, whose no-upstream and name-mismatch failure modes `scripts/update-branch-checkpoint.sh` documents at length under its *"Never a bare `git push` here"* comment. Name the remote and the full destination ref outright — `origin` + `refs/heads/<branch>` — which is that helper's own no-mismatch convention and byte-for-byte what Phase 1.5's `git push -u origin HEAD` already established as this branch's upstream, so a bare push's implicit `push.default` resolution (the failure mode the helper warns about) never enters into it. (`git config` is deliberately **not** read in this fence: it is granted on no cloud implement profile, so an in-fence `git config` read would be silently refused there — leaving the whole fence to fall through or be denied, the very silent-failure this step exists to remove. A checkout whose upstream was deliberately renamed to a *different* remote/ref must set that upstream before this step, exactly the known-limitation the helper's own comment records.) Re-pushing an already-current branch is a safe no-op (`Everything up-to-date`). Guard a detached HEAD — where `git rev-parse --abbrev-ref HEAD` prints `HEAD` — rather than pushing to a ref literally named `HEAD`. The fence captures the push's own output and prints a token:
+**Ensure the branch is pushed to an explicitly-named destination — run this BEFORE the create fence.** `gh pr create` (below) refuses when it cannot confirm the feature branch is pushed at the current commit, so make that condition true first by pushing `HEAD` to a destination named **explicitly** — never a bare `git push`, whose no-upstream and name-mismatch failure modes `scripts/update-branch-checkpoint.sh` documents at length under its *"Never a bare `git push` here"* comment. Name the remote and the full destination ref outright — `origin` + `refs/heads/<branch>` — which is that helper's own no-mismatch convention and byte-for-byte what Phase 1.5's `git push -u origin HEAD` already established as this branch's upstream, so a bare push's implicit `push.default` resolution (the failure mode the helper warns about) never enters into it. (`git config` is deliberately **not** read in this fence: it is granted on no cloud implement profile, so an in-fence `git config` read would be silently refused there — leaving the whole fence to fall through or be denied, the very silent-failure this step exists to remove. A checkout whose upstream was deliberately renamed to a *different* remote/ref must set that upstream before this step, exactly the known-limitation the helper's own comment records.) Re-pushing an already-current branch is a safe no-op (`Everything up-to-date`). Guard a detached HEAD — where `git rev-parse --abbrev-ref HEAD` prints `HEAD` — rather than pushing to a ref literally named `HEAD`. This is **two fences**: first read the branch name, then push to it explicitly.
+
+First, print the branch name:
 
 ```bash
-BRANCH=$(git rev-parse --abbrev-ref HEAD)
-if [ "$BRANCH" = HEAD ] || [ -z "$BRANCH" ]; then
-  printf 'detached HEAD (no branch to push) — expected to run on the checked-out feature branch\npush: failed\n'
-elif PUSH_ERR=$(git push origin "HEAD:refs/heads/$BRANCH" 2>&1); then
-  printf 'push: ok\n'
-else
-  printf '%s\npush: failed\n' "$PUSH_ERR"
-fi
+git rev-parse --abbrev-ref HEAD
 ```
 
-Route on the token: on `push: ok` continue to the create fence. On `push: failed` — the branch is not pushed, so `gh pr create` would refuse anyway — take the terminal stop: record a durable `blocked` reflection carrying the captured `git` output printed above the token (naming the cause instead of a bare failure), emit the 👎 outcome reaction (see *Outcome reaction* in the Workpad Reference), and end the run. On **no output at all** (a harness refusal, which answers nothing) on a **resume**, stop exactly as the REFUSED arm above; on a **fresh** run, fall through to the create fence, which fails loudly and names its own cause if the branch really is unpushed.
-
-**The CREATE fence — re-derive the base branch and open the draft PR against it in ONE bash block.** Each phase's bash block runs as a **separate** shell, so the `$BASE` resolved in Phase 1.4 is **not** in scope here — re-read it (behaviorally identical to Phase 1.4: the `config-get.sh` read plus the fail-closed empty-read fallback to `main`) so `gh pr create` targets the **configured** `base_branch` rather than the repo default branch. Keep the re-derivation and `gh pr create` in the **same** block so `$BASE` cannot be lost to a shell boundary between them (an empty `--base ""` would mistarget silently — the very failure this fix prevents). The create is wrapped in an `if` whose two arms each print a token, so the fence's own stdout answers "did it succeed?" without a second network call — `gh pr create` still prints the new PR's URL on success, and that line is preserved above the token. Pass the re-derived base as the `--base` flag; do **not** pass `--head`. `gh pr create` defaults `--head` to the checked-out feature branch, but that default is correct **only when the branch is already pushed and its pushed copy is at the same commit as the local branch** — `gh` resolves `--head` by comparing the local `HEAD` commit against the recorded server-side ref, and when it cannot confirm they match it refuses with `aborted: you must first push the current branch to a remote, or use the --head flag`. Passing `--head` does **not** satisfy that condition — it makes `gh` *skip* the check and assume the branch is already on the server, so on an unpushed or stale-pushed branch it either fails server-side (the named head ref does not exist) or opens a PR against a server-side ref that lacks the work; either way it is not the fix. The push step above makes the condition true instead.
-
-Derive the run link exactly the way Phase 1.3 §1.3 does — the same
-`$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID` form — so the draft PR
-links back to the run that created it, letting a reviewer trace it to its originating job's
-logs. On a **local-tier** run there is no GitHub Actions run, so `$RUN_URL` is empty and the
-`View run` line is omitted entirely rather than rendering a broken `[View run]()` link. The
-heredoc uses an **unquoted** `<<EOF` so `$RUN_URL` expands (the `/prflow:implement` backticks
-are backslash-escaped so they stay literal, not command substitution):
+Read the printed branch name from the tool result. If it is `HEAD` or empty, the checkout is a detached HEAD — there is no branch to push, which is unexpected on a feature-branch run: take the terminal stop — record a durable `blocked` reflection naming the detached HEAD, emit the 👎 outcome reaction (see *Outcome reaction* in the Workpad Reference), and end the run. Otherwise substitute the printed name as a literal for `<branch>` and push it to the explicitly-named destination:
 
 ```bash
-BASE=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .base_branch main) || BASE=""
-[ -n "$BASE" ] || { echo "devflow: base_branch read failed (malformed config or missing python3); falling back to 'main'" >&2; BASE=main; }
-# Empty on a local-tier run (no GITHUB_RUN_ID) → the View-run line is stripped below.
-RUN_URL=""
-[ -n "$GITHUB_RUN_ID" ] && RUN_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
-BODY=$(cat <<EOF
+git push origin HEAD:refs/heads/<branch>
+```
+
+Route on the tool result. On success (`Everything up-to-date`, or a pushed-ref summary, exit 0) continue to the create fence. On a non-zero exit the branch is not pushed — so `gh pr create` would refuse anyway — take the terminal stop: read `git`'s own explanation from the tool result and carry it into a durable `blocked` reflection (naming the cause instead of a bare failure), emit the 👎 outcome reaction, and end the run. On **no output at all** (a harness refusal, which answers nothing) on a **resume**, stop exactly as the REFUSED arm above; on a **fresh** run, fall through to the create fence, which fails loudly and names its own cause if the branch really is unpushed.
+
+**The CREATE fence — read the base branch, then open the draft PR against it.** Each phase's bash block runs as a **separate** shell and a value one fence computes does not survive into the next, so the base branch is read in its **own** fence below and **substituted as a literal** into `gh pr create` — behaviorally identical to Phase 1.4 (the `config-get.sh` read plus the fail-closed empty-read fallback to `main`), and it is what guarantees the create targets the **configured** `base_branch` rather than the repo default branch (an empty `--base ""` would mistarget silently — the very failure this guards). The create is a **single-statement** fence; read its tool result to answer "did it succeed?" without a second network call — `gh pr create` prints the new PR's URL on success and its own diagnostics on failure. Pass the resolved base as the `--base` flag; do **not** pass `--head`. `gh pr create` defaults `--head` to the checked-out feature branch, but that default is correct **only when the branch is already pushed and its pushed copy is at the same commit as the local branch** — `gh` resolves `--head` by comparing the local `HEAD` commit against the recorded server-side ref, and when it cannot confirm they match it refuses with `aborted: you must first push the current branch to a remote, or use the --head flag`. Passing `--head` does **not** satisfy that condition — it makes `gh` *skip* the check and assume the branch is already on the server, so on an unpushed or stale-pushed branch it either fails server-side (the named head ref does not exist) or opens a PR against a server-side ref that lacks the work; either way it is not the fix. The push step above makes the condition true instead.
+
+First read the base branch:
+
+```bash
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .base_branch main
+```
+
+Read the printed base from the tool result; on an **empty** read (malformed config or missing python3) fall back to the literal `main`. Substitute the resolved value for `<base>` below.
+
+Then compose the PR body from this template. Derive the run link exactly the way Phase 1.3 §1.3 does — the same `$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID` form — so the draft PR links back to the run that created it, letting a reviewer trace it to its originating job's logs. On a **local-tier** run there is no GitHub Actions run (`$GITHUB_RUN_ID` is empty), so **omit the entire `[View run]` line** rather than rendering a broken `[View run]()` link:
+
+```
 Work in progress — automated review pending.
 
 Resolves #{issue_number}
-[View run]($RUN_URL)
+[View run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)
 
 Generated via \`/prflow:implement $ARGUMENTS\`
-EOF
-)
-# Local-tier run has no run URL: drop the broken "[View run]()" line rather than
-# leaving a placeholder link in the PR body.
-[ -n "$RUN_URL" ] || BODY=$(printf '%s\n' "$BODY" | grep -vF '[View run]()')
-if CREATE_OUT=$(gh pr create --base "$BASE" --draft --title "{issue title}" --body "$BODY" 2>&1); then
-  printf '%s\ncreate: ok\n' "$CREATE_OUT"
-else
-  printf '%s\ncreate: failed\n' "$CREATE_OUT"
-fi
 ```
+
+**Keep the backslashes on those backticks.** `--body` stays double-quoted so the run-link variables expand, and an unescaped backtick span in the substituted body is command substitution to the shell — refused outright on a worktree-isolated tier, and run as a nonexistent command on the cloud one.
+
+Open the draft PR, substituting the resolved `<base>` and the composed body for `<pr-body>`:
+
+```bash
+gh pr create --base <base> --draft --title "{issue title}" --body "<pr-body>"
+```
+
+Route on the tool result (model on phase-4-documentation.md §4.0): on success `gh pr create` prints the new PR's URL and exits 0 — continue below. On a non-zero exit or **no output at all**, take the terminal stop the **CREATE** routing bullet above documents (name the cause from `gh`'s printed explanation; route a silent refusal as REFUSED) — do not continue into the PR-link resolution.
 
 **On the adopt arm, do NOT re-write the PR body** — the prior attempt's body (and its §1.4-refreshed `[View run]` line) stands; re-creating or re-bodying it would clobber a human's edits.
 
@@ -101,37 +96,34 @@ Then populate the workpad's `PR` link from the resolved draft PR — **freshly c
 
 **On the ADOPT arm, use this fence instead of the one below**, substituting the adopted digits for `<adopted-pr>`. Both values must come from one **explicitly-addressed** read: the bare `gh pr view` in the create-arm fence is the unscoped form the resolver's contract rejects, so re-resolving there could bind `PR_URL` to a *different* PR than the number just adopted (a closed sibling, or another PR on the same head) — producing a workpad link whose number and URL disagree, the exact failure the resolver exists to prevent. Passing the number as a positional argument removes the branch-wide ambiguity entirely:
 
+`<adopted-pr>` is the number from the resolver's `ADOPT <n>` token, substituted as a literal. The positional argument is what makes this read scoped — without it `gh pr view` resolves by branch across OPEN/CLOSED/MERGED (the unscoped form the resolver's contract rejects), which could bind the link to a different PR than the one just adopted. Print the URL:
+
 ```bash
-# ADOPT ARM ONLY — <adopted-pr> is the number from the resolver's `ADOPT <n>` token,
-# substituted as a literal. The positional argument is what makes this read scoped;
-# without it `gh pr view` resolves by branch across OPEN/CLOSED/MERGED (the unscoped
-# form the resolver's contract rejects).
-PR_URL=$(gh pr view <adopted-pr> --json url --jq '.url') || PR_URL=""
-# Guard the link write on a non-empty URL: writing first and remedying after would
-# already have PATCHed a broken `[#N]()` link that the remedy cannot undo.
-if [ -n "$PR_URL" ]; then
-  "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --pr-link "[#<adopted-pr>]($PR_URL)"
-  printf 'pr-link: ok\n'
-else
-  printf 'pr-link: unresolved\n'
-fi
+gh pr view <adopted-pr> --json url --jq '.url'
+```
+
+**Read the printed URL from the tool result — the guard's outcome is an observable, not an inference.** If a URL printed, substitute it as a literal for `<pr-url>` and write the link. If the read was empty — **or produced no output at all**, a harness refusal — the workpad carries no `PR` link: record it durably with `--reflection-kind dropped-failed` and apply no label, exactly as the create arm's failures below are recorded, and do **not** run the write fence (writing a broken `[#<adopted-pr>]()` link first and remedying after would already have PATCHed a link the remedy cannot undo). The `draft PR number` is the adopted digits regardless of whether the URL resolved:
+
+```bash
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --pr-link "[#<adopted-pr>](<pr-url>)"
 echo "draft PR number: [<adopted-pr>]"
 ```
 
-**Route on the `pr-link:` token this fence prints — the guard's outcome is an observable, not an inference.** Both arms print one, exactly as the create fence's `create:` tokens do, because an empty `PR_URL` is otherwise indistinguishable from a successful write: the guard suppresses the link (writing first and remedying after would already have PATCHed a broken `[#N]()` link the remedy cannot undo), and the `draft PR number` line still prints regardless, because the adopted number is known whether or not its URL resolved — so neither of the two exits below would fire. On `pr-link: unresolved` — **or no `pr-link:` line at all**, a harness refusal, which answers nothing — the workpad carries no `PR` link: record it durably with `--reflection-kind dropped-failed` and apply no label, exactly as the create arm's failures below are recorded. On `pr-link: ok` the link is written; continue.
-
-**On the CREATE arm**, use the original fence:
+**On the CREATE arm**, read the PR number and URL, then write the link:
 ```bash
-PR_URL=$(gh pr view --json url --jq '.url')
-PR_NUM=$(gh pr view --json number --jq '.number')
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --pr-link "[#$PR_NUM]($PR_URL)"
-echo "draft PR number: [$PR_NUM]"
+gh pr view --json number,url --jq '.number, .url'
+```
+
+Read the printed number (line 1) and URL (line 2) from the tool result, and substitute them as literals below — the number is what §3.1's label, assignment, and scope-binding fences consume as the `draft PR number`. **If either line read empty — or the read produced no output at all, a harness refusal — do not run the write fence**, exactly as the adopt arm above: a `[#]()` link PATCHed now is a broken link no later remedy can undo. Record it durably instead and continue: `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 3.1: the created draft PR's number/URL read was empty or produced no output at all (likely a harness denial); the workpad carries no PR link."`
+```bash
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --pr-link "[#<pr-number>](<pr-url>)"
+echo "draft PR number: [<pr-number>]"
 ```
 
 Then stamp the reserved `PRFlow` **provenance** label on the PR (best-effort). `PRFlow` is a hardcoded provenance constant (no config key controls it; its superseded `DevFlow` spelling stays selectable on already-labelled history, but new runs stamp only `PRFlow`) — it is the branch-naming-independent signal the weekly retrospective uses to detect DevFlow-authored PRs. Apply it through the shared REST label-apply helper after creation (a PR is an issue, so the same `POST .../issues/{n}/labels` endpoint serves it) so a label hiccup can never block the run.
 
 **Cloud-emission discipline (label helpers): emit each call as a single leading-token statement, and substitute the PR number as a LITERAL — see the *Cloud command-shape discipline* section in `skills/implement/SKILL.md`.** Two rules bind here, both learned from the silent-denial defect: the label helpers must never be wrapped in a shell loop or an output capture, and `$PR_NUM` — set in the *previous* fence — **does not survive into this separate command**, so passing it as a variable applies the label to **no issue at all**: the helper sees an empty number, refuses at its arg-slip guard, and breadcrumbs `got a non-numeric issue/PR number ''` (unquoted, the empty expansion word-splits away and the *label* is swallowed as the number instead — same refusal). Nothing is ever applied to issue `""`, but nothing is applied to the PR either, and the provenance label is silently lost unless you read that breadcrumb. Read the printed `draft PR number` and substitute the digits:
-**Two exits before the apply.** If **no `draft PR number` line was printed at all**, the fence was refused, not answered (the `VAR=$(gh pr view …)` capture is an unproven shape on this tier) — do **not** read it as "empty": record it and apply nothing, noting the workpad `PR` link written in that same refused fence may also be unset — `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 3.1: the draft-PR-number fence produced no output at all (likely a harness denial); the PR carries no PRFlow label and the workpad PR link may be unset."` If the line printed but is **empty**, the PR number could not be resolved: record it durably and apply nothing — `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 3.1 could not resolve the draft PR number to apply the PRFlow provenance label; the PR carries no PRFlow label, so the retrospective's label-first detection will not see this run."`
+**Two exits before the apply.** If **no `draft PR number` line was printed at all**, the fence was refused, not answered (a refused command produces no output at all) — do **not** read it as "empty": record it and apply nothing, noting the workpad `PR` link written in that same refused fence may also be unset — `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 3.1: the draft-PR-number fence produced no output at all (likely a harness denial); the PR carries no PRFlow label and the workpad PR link may be unset."` If the line printed but is **empty**, the PR number could not be resolved: record it durably and apply nothing — `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 3.1 could not resolve the draft PR number to apply the PRFlow provenance label; the PR carries no PRFlow label, so the retrospective's label-first detection will not see this run."`
 
 This is **two separate calls**, not one fence split for readability: each helper path must really be its own command's leading token, so they are emitted as two distinct Bash invocations (the three phase-4 label channels do the same). Never merge them into one fence, and never chain them with `&&` or `;` — the second head would no longer lead its command.
 

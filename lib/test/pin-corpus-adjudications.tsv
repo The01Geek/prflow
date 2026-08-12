@@ -129,7 +129,6 @@ literal:2ef166e137b39204db1b387c70896631b506361c5d12e30ac9df74e987b0b65c	boundar
 literal:2f16b7e5fdb1d60a293cb18af6e1378e09478325323de2e0fbc0e9c04c6ec5ca	boundary	maintainer adjudication: implement-top operative-contract: Operative lifecycle, routing, helper, state, or cross-phase contract.
 literal:2f2e80dc276fa8e34f67337f3d7d307ad506ff47ce3b1135997a95d3ede5d9aa	boundary	maintainer adjudication: declared security or interface boundary
 literal:302d7b96763047d7ce336048dc669b3fb467e12554ad3ce24ba1ff490bcee923	boundary	maintainer adjudication: review PF: review-profile routing boundary: #769: small_diff AND config_only profile-table row present (surface presence over unamended text)
-literal:309de5bd34ede0803efd50977b208c9a51aaa94cb4459176822d1d1dec820566	boundary	Retain security/integrity boundary: #224 Phase 3.1: empty-read guard falls back to main (fail-closed consequent).
 literal:30a1c1cd03ebce197fa08ad6b87f6575382b20507a09e16ae11f5885ff0c32c9	boundary	Retain operational boundary: #275 pin (P4-op): canonical preamble carries the fail-closed stop clause protects the named executable or safety condition, not prose presentation.
 literal:30b9e0d7e663773b57e6064722fb2c08cc0f5c26130e81643f2fcbdc827530e5	boundary	maintainer adjudication: create-issue GD: generated dispatch pointer or closed regeneration-input schema: the dispatch prompt is a generated pointer, not freehand prose
 literal:30dbe13d0b07e6fdc5889a9a5ef436f71ba869e4a142e564d96c1bc7df2f9715	boundary	maintainer adjudication: iteration record emit is a durable telemetry writer contract
@@ -149,7 +148,6 @@ literal:3565e2925ccfd277367b2e2bc0c6aad82fcc282df8d7c9310f9e8cac739dd727	boundar
 literal:35c1891fc70fa5616a8782092518a71a2add3ac987120351cd9414bfebb1ae7e	boundary	maintainer adjudication: review GT: engine-ground-truth security boundary: #363 skill: an absent CI result is not a passing one
 literal:361ea73263353c1385a05e41262f30f1958e18095499ca31adc52a525acf0087	boundary	maintainer adjudication: declared security or interface boundary
 literal:3631b73abc9c632dc39ebda9d6d1073cfc806ae0a9bfb09a88893ece3241b2e7	boundary	maintainer adjudication: create-issue LG: per-finding ledger read/write, reconciliation, or post-close state contract: the shared ledger-maintenance procedure both revision sites call
-literal:363b3a35cb6e3dc2dcd17207accbe738371060717dac0d0d8079a18ef73d9dfe	boundary	Retain routing/state-transition contract: #284 positive: phase-4 doc-gate diff read discriminates via single-statement if!.
 literal:367acfb74a55ed7d93adbf4a4f2fb07cbf767061c3f7963f4dccad084f6b0148	boundary	maintainer adjudication: review VC: verification/checklist interface boundary: #556 T-11(AC8): 4.1 PASS-item iteration line excludes normalized items
 literal:36d2cd76403a63ba56247c7efebe077675a56f61996bf182ef30a137d5a73d92	boundary	maintainer adjudication: review MR: modular phase-routing/cross-phase boundary: #504 AC6 Phase 2.1b dispatch reads the displaced scratch file
 literal:36e8b7833ae68ae4e3afc7b771bedfe52542206bb9b1da368b62a78a51562d49	boundary	maintainer adjudication: create-issue WD: writer, extractor, delivery marker, dispatch record, or override sequencing interface: record-dispatch output names dispatch_regeneration
@@ -204,7 +202,6 @@ literal:455d3d66cd10e932a221ce9fefd581510e5ebb1491145605d0a83c5740ada812	boundar
 literal:455e228a4938c2a7f427483a0442c6372066dac6b2d3bb4daf22b582052b7510	boundary	maintainer adjudication: create-issue TR: checklist state writer/reader, slug binding, status marker, or creation-time contract: creation-time re-check confirms the item-6-in-progress half
 literal:45f4f13b1e5e71d65c8d7a97a3dfde94e74e531bd26a7a79203dd6dc47b3dedd	boundary	maintainer adjudication: implementation-discovered workflow edit is a credential backstop boundary
 literal:46150ab820b572a7db5c18a7a7dd59f14292e99131a08c02afc674a9a4ec5334	boundary	maintainer adjudication: other-skills sentinel-contract: Consumer discriminates skips by schema key.
-literal:47c87c34141e214b5fed38a974a0359b0765f0a39233569f8c4cc30d8f10aa5c	boundary	maintainer adjudication: declared security or interface boundary
 literal:47cd6b4aa5e41705e72fadedd7f82b2bfc8c4ad5d1938671512402e54c6c3ad9	boundary	maintainer adjudication: declared security or interface boundary
 literal:47de0a0995e573b18727ec07c248484386bb939665bee829d3d125452ddf1686	boundary	Retain routing/state-transition contract: #380 W6A: §3.4 doc-AC deferral rule leaves it unticked and does not block the gate.
 literal:48b09a971cd0cca7150fd0058edb4d20c549c5d7a00af659c9cc367a79883869	boundary	maintainer adjudication: create-issue GD: generated dispatch pointer or closed regeneration-input schema: the closed regeneration inputs are forwarded at dispatch
@@ -232,7 +229,6 @@ literal:52d2ec83b2b8263e45d9ec9150abe2dc3d2d7c050b82ecdd8a3e16fa2a791c70	boundar
 literal:5316e2f36acc0759cea1351e59d50a8afe9bf81468930539151f3aa95491825f	boundary	maintainer adjudication: implement-top operative-contract: Operative lifecycle, routing, helper, state, or cross-phase contract.
 literal:f1dd1b8cd2d382e824cc7f03808d80dc06aa6c9da11a1d84f4c01f95d9f9b662	boundary	maintainer adjudication: create-issue CF: fail-closed config/capability gate or reason-selection contract: SKILL documents the type-tolerant python3 fallback read of workflows.prflow (lowercases only booleans, top-level-tolerant, mirrors config-get)
 literal:5484eedcb5bd5950508556d9f2c680b92bdcf24f1bddbdabfbe7366b705c10aa	boundary	maintainer adjudication: declared security or interface boundary
-literal:54ab9811d2eaacbee7878a411963b9bb43c8216c40e66c912f1f02fa22f9b565	boundary	maintainer adjudication: live parse-acs invocation is an executable interface boundary
 literal:55142a5d45a8115c132dd021b96f9a8c0bdafedb4887da0ae4486e3a1b01eb80	boundary	Shared prompt-composition and blinding boundary across every shadow agent.
 literal:552a4d12f2bc6a469c9aad914950d9e959ba8d6fdd4a4f8631b4029b75ff4b10	boundary	maintainer adjudication: declared security or interface boundary
 literal:553c311033effc6cadd9799a18f62a527b08582173b17b499916b21bc6f25b4a	boundary	maintainer adjudication: discovery-state initialization is a fail-closed sentinel boundary

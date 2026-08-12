@@ -63,7 +63,9 @@ output, is the signal a consumer routes on.
 
 Exit codes:
   0  parsed and printed (INCLUDING the present-but-unreadable-section case)
-  1  body fetch failed
+  1  the body could not be established — a failed fetch, or an `--anchor-repo-root`
+     run whose repository root would not resolve (issue #1633; fail closed rather
+     than silently anchoring the repo-relative `--body-file` to the process cwd)
   2  bad arguments
 """
 
@@ -298,12 +300,37 @@ def main():
     src.add_argument('--issue', type=int, help='Fetch the issue body via gh.')
     src.add_argument('--body-file', help='Read body from a local file.')
     p.add_argument('--format', choices=('md', 'json'), default='md')
+    p.add_argument(
+        '--anchor-repo-root', action='store_true',
+        help='Resolve --body-file against the checkout root (issue #1633 anchoring '
+             'mode), so the enrolled fence passes a repository-relative path and '
+             'need not compute the repository root itself.')
     args = p.parse_args()
 
     if args.issue is not None:
         body = _fetch_body(args.issue)
     else:
-        body = Path(args.body_file).read_text()
+        body_file = args.body_file
+        if args.anchor_repo_root and body_file and not os.path.isabs(body_file):
+            # Resolve against `git rev-parse --show-toplevel` so a run from the repo
+            # root, a subdirectory, or a linked worktree all resolve the same target.
+            # An absent/unlaunchable git is the same unresolved-root condition as a
+            # non-zero exit; letting OSError escape would replace the fail-closed
+            # breadcrumb below with a traceback (preflight.py's _run_git contract).
+            try:
+                top = subprocess.run(['git', 'rev-parse', '--show-toplevel'],
+                                     capture_output=True, text=True)
+                rc, root = top.returncode, top.stdout.strip()
+            except OSError:
+                rc, root = 1, ''
+            if rc != 0 or not root:
+                # Fail closed on a non-zero exit rather than silently anchoring to cwd;
+                # the §1.2 fence routes any non-zero parse exit to the run's stop path.
+                print('parse-acs.py: could not resolve the repository root to anchor '
+                      f'{body_file!r}', file=sys.stderr)
+                return 1
+            body_file = os.path.join(root, body_file)
+        body = Path(body_file).read_text()
 
     ac_lines = extract_section(body, 'Acceptance Criteria')
     criteria = _parse_checkboxes(ac_lines)
@@ -332,4 +359,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit(main())
