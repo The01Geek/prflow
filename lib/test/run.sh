@@ -51602,6 +51602,16 @@ WFS_LINT="$LIB/test/lint-worktree-fence-shapes.py"
 WFS_OUT="$(python3 "$WFS_LINT" 2>&1)"; WFS_RC=$?
 assert_eq "#1633 lint: clean on the tree as it stands (every enrolled fence migrated)" "rc=0" \
   "$([ "$WFS_RC" -eq 0 ] && printf 'rc=0' || printf 'rc=%s | %s' "$WFS_RC" "$WFS_OUT")"
+# #1652 AC10 membership anchor: the scratch-copy loop, the fence-isolation argv, and the lint's
+# own _REQUIRED are all derived from --print-inventory, so an accidental un-enrollment of a §2.3
+# sweep file would drop it from every derived consumer at once and stay GREEN. Pin membership
+# positively against --print-inventory so an un-enrollment goes RED here instead — the one check
+# that does NOT itself derive from the tuple it guards.
+WFS_INV_OUT="$(python3 "$WFS_LINT" --print-inventory)"
+assert_eq "#1652 AC10: ENROLLED contains phase-2-sweeps-contract.md" "yes" \
+  "$(case "$WFS_INV_OUT" in *"skills/implement/phases/phase-2-sweeps-contract.md"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#1652 AC10: ENROLLED contains phase-2-sweeps-quality.md" "yes" \
+  "$(case "$WFS_INV_OUT" in *"skills/implement/phases/phase-2-sweeps-quality.md"*) echo yes ;; *) echo no ;; esac)"
 # Scratch root carrying clean copies of every enrolled file (no tracked file is
 # mutated by any case below — every plant lands on a scratch copy).
 WFS_ROOT="$(mktemp -d)"; _suite_tmp_dir "$WFS_ROOT"
