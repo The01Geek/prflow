@@ -1,0 +1,147 @@
+{
+  "iter": 5,
+  "started_at": "2026-08-12T06:50:00Z",
+  "fix_commit_sha": null,
+  "fix_files": [],
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "current_substep": null,
+  "pending_dispatch": null,
+  "sweep_evidence": {
+    "status": "run"
+  },
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [],
+  "fix_decisions": [
+    {
+      "finding_id": "S5-1",
+      "decision": "below-threshold",
+      "skip_category": "below-threshold-parked",
+      "source_file": "lib/fetch-pr-context.sh",
+      "claim_text": "the _CI_JQ_ERR newline strip is untested (observed jq messages are single-line)",
+      "evidence": "parked-origin: below-threshold"
+    },
+    {
+      "finding_id": "S5-2",
+      "decision": "below-threshold",
+      "skip_category": "below-threshold-parked",
+      "source_file": "lib/fetch-pr-context.sh",
+      "claim_text": "the %.120s/%.200s truncation widths are unexercised",
+      "evidence": "parked-origin: below-threshold"
+    },
+    {
+      "finding_id": "S5-3",
+      "decision": "below-threshold",
+      "skip_category": "below-threshold-parked",
+      "source_file": "lib/fetch-pr-context.sh",
+      "claim_text": "the newline strip runs over the whole body before %.200s truncates it",
+      "evidence": "parked-origin: below-threshold; a post-shadow edit would ship unreviewed final code"
+    },
+    {
+      "finding_id": "S5-4",
+      "decision": "below-threshold",
+      "skip_category": "below-threshold-parked",
+      "source_file": "lib/test/run.sh",
+      "claim_text": "no row asserts the gh notice itself surfaces on stderr",
+      "evidence": "parked-origin: below-threshold; a post-shadow edit would ship unreviewed final code"
+    },
+    {
+      "finding_id": "S5-5",
+      "decision": "pushed_back",
+      "skip_category": "claim-quality",
+      "source_file": "lib/test/run.sh",
+      "claim_text": "argv.log is never truncated, so the --paginate/per_page/head-SHA pins are satisfied by any invocation",
+      "evidence": "every argv.log entry is written by the same shipped command, so removing --paginate leaves NO entry carrying it and the pin goes RED; the accumulation does not weaken discrimination",
+      "parking_evidence": {
+        "basis": "the claim misreads how argv.log accumulates",
+        "failing_input": "removing --paginate from the shipped call",
+        "source": "lib/test/run.sh STUB1441 argv.log append",
+        "finding_ref": {
+          "iter": 5,
+          "index": 2
+        }
+      }
+    },
+    {
+      "finding_id": "S5-6",
+      "decision": "pushed_back",
+      "skip_category": "claim-quality",
+      "source_file": "lib/fetch-pr-context.sh",
+      "claim_text": "the 'a caller splits our stderr on newlines' comment names a nonexistent consumer",
+      "evidence": "refuted: retrospective-weekly SKILL.md:607 captures the stderr, :617 embeds it in blockers[], :1057 serializes with printf '%s\\n' then split(\"\\n\") - the split is real; two shadow agents stopped at the scalar capture and a third verified the claim true",
+      "parking_evidence": {
+        "basis": "the consumer chain exists and was verified directly",
+        "failing_input": "a multi-line body reaching the breadcrumb",
+        "source": "skills/retrospective-weekly/SKILL.md:607,617,1057",
+        "finding_ref": {
+          "iter": 5,
+          "index": 1
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 0,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "ran_at": "2026-08-12T06:55:00Z",
+    "reviewed_sha": "76f8201e1",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": null,
+    "trigger": "convergence-time",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review",
+      "prflow:pr-test-analyzer"
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 4,
+      "overlap_with_iter_N": 1,
+      "new": 3,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
