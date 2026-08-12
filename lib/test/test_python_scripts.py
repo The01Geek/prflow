@@ -1141,10 +1141,11 @@ assert_eq("#169 shadow-3a: --tick-ac-n with a non-integer is rejected by argpars
 
 print("issue #1562: cmd_update's machine-readable terminal outcome line")
 
-# Every terminating path of cmd_update writes one `outcome=<token> remedy=<token>`
-# line as its LAST stderr line. These drive each path end-to-end through the real
-# cmd_update (no mocking of cmd_update itself) and assert the emitted tokens, the
-# exit code, that the line is last, and that the path's pre-existing prose survives.
+# cmd_update writes one `outcome=<token> remedy=<token>` line as the last stderr
+# line before it terminates. The cases below drive its terminating paths end-to-end
+# through the real cmd_update — no mocking of cmd_update itself — asserting the
+# emitted tokens, the exit code, that the line is last, and that the path's
+# pre-existing prose survives.
 
 def _outcome_line(err):
     """The last non-empty stderr line, when it is an outcome line; else None."""
@@ -1316,7 +1317,7 @@ assert_eq("#1562: a tick miss co-occurring with an unreadable read-back emits "
 assert_eq("#1562: that co-occurring path still exits 1", 1, _c)
 _OC_CASES.append(("a tick miss with an unreadable read-back", _e))
 
-# --- Adjacent-case sweep over both closed sets, across every path driven above. ---
+# --- Adjacent-case sweep over both closed sets, across the paths driven above. ---
 _OC_OUTCOMES = {'landed', 'landed-status-unverified', 'landed-partial-ticks',
                 'landed-partial-ticks-status-unverified', 'replay', 'not-persisted',
                 'precondition-mismatch'}

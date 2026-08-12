@@ -183,25 +183,6 @@ def _run(cmd, *, stdout=subprocess.PIPE, stdin=None):
     )
 
 
-_UPDATE_OUTCOMES = (
-    'landed',
-    'landed-status-unverified',
-    'landed-partial-ticks',
-    'landed-partial-ticks-status-unverified',
-    'replay',
-    'not-persisted',
-    'precondition-mismatch',
-)
-
-_UPDATE_REMEDIES = (
-    'none',
-    'retick-named-rows',
-    'reset-status',
-    'retick-and-reset-status',
-    'reissue-call',
-    're-resolve-state',
-)
-
 _UPDATE_REMEDY_BY_OUTCOME = {
     'landed': 'none',
     'replay': 'none',
@@ -216,10 +197,12 @@ _UPDATE_REMEDY_BY_OUTCOME = {
 def _emit_update_outcome(outcome):
     """Write `cmd_update`'s machine-readable terminal outcome line (issue #1562).
 
-    Every terminating path of `cmd_update` routes its outcome through here so no
-    path can compose a variant spelling — the same single-chokepoint discipline
-    `_report_failed_ticks` uses for volatile-miss reporting. The remedy is derived
-    from the outcome, never passed in, so the two can never disagree at a call site.
+    Route a terminating path's outcome through here rather than writing the line at
+    the call site, which would let two paths drift to variant spellings — the same
+    single-chokepoint discipline `_report_failed_ticks` uses for volatile-miss
+    reporting. The remedy is derived from the outcome rather than passed in, so a
+    call site cannot pair them wrongly; an outcome outside the map raises KeyError
+    rather than emitting a bogus remedy.
 
     Callers emit this AFTER the path's own prose line and immediately before the
     exit, because the line's contract is that it is the last line on stderr.
