@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1627",
+  "generated_at": "2026-08-12T03:23:03Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.46",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 4.782977000000001,
+    "tokens": {
+      "input_tokens": 33,
+      "output_tokens": 14013,
+      "cache_read_input_tokens": 2100952,
+      "cache_creation_input_tokens": 139004,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 61,
+        "outputTokens": 30727,
+        "cacheReadInputTokens": 2599189,
+        "cacheCreationInputTokens": 350982,
+        "webSearchRequests": 0,
+        "costUSD": 4.782977000000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 22,
+    "duration_ms": 279349
+  },
+  "permission_denials": {
+    "count": 2,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"SKILL_DIR=${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/review}\"; git hash-object /home/runner/work/prflow/prflow/skills/review/SKILL.md /home/runner/work/prflow/prflow/skills/review/phases/phase-0-setup.md /home/runner/work/prflow/prflow/skills/review/phases/phase-0-3-6-blocker-recheck.md /home/runner/work/prflow/prflow/skills/review/phases/phase-0-6-stale-prose-lint.md /home/runner/work/prflow/prflow/skills/review/phases/phase-1-checklist.md /home/runner/work/prflow/prflow/s …[per-command-truncated]",
+      "echo \"SKILL_DIR=$CLAUDE_SKILL_DIR\"; git hash-object /home/runner/work/prflow/prflow/skills/review/SKILL.md /home/runner/work/prflow/prflow/skills/review/phases/phase-0-setup.md /home/runner/work/prflow/prflow/skills/review/phases/phase-0-3-6-blocker-recheck.md /home/runner/work/prflow/prflow/skills/review/phases/phase-0-6-stale-prose-lint.md /home/runner/work/prflow/prflow/skills/review/phases/phase-1-checklist.md /home/runner/work/prflow/prflow/skills/review/phases/phase-2-verification.md /home …[per-command-truncated]"
+    ],
+    "total": 2,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
