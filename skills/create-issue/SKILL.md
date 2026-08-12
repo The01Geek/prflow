@@ -10,7 +10,7 @@ implementation — the offer is presented, or a one-line reason is printed for w
 not a documentation report. Before anything else, fill in this seven-slot tracker using the
 task-tracking tool the runner exposes (`TodoWrite`; `TaskCreate`/`TaskUpdate`; or `update_plan`),
 or, when none is exposed or the exposed one is unusable, the inline fallback in
-`references/fallback-no-task-tool.md` loaded per the routing table below:
+`references/fallback-no-task-tool.md` loaded per the *Reference routing* rules below:
 
 - [ ] 1. Run Step 1's selected arm and write its evidence artifact
 - [ ] 2. Clarify the user story until the Definition of Ready is met (Step 2)
