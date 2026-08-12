@@ -91,7 +91,8 @@ positive-control cases); the built-in ``ENROLLED`` remains the shipped source.
 Exit status is 0 only when every enrolled file was read and carries no refused
 expansion in any bash fence or template block. It is non-zero when an enrolled
 fence or template carries a refused expansion (naming file, line, and construct),
-when an enrolled file is missing or unreadable, or when the inventory is empty.
+when an enrolled file is missing or unreadable, when the inventory is empty, or
+when the inventory omits a file the shipped ``_REQUIRED`` set names.
 """
 
 from __future__ import annotations

@@ -12476,6 +12476,40 @@ assert_eq("#1633 anchoring: parse-acs fails closed with a breadcrumb when git is
            "could not resolve the repository root" in _pa_nogit_1633.stderr,
            "Traceback" in _pa_nogit_1633.stderr))
 
+# `preflight.py dependencies --repo-relative` is the §1.3.5 consumer of the same
+# anchoring: assert it end-to-end, or a regression anchoring the body file to the
+# process cwd would read an absent file and report UNAVAILABLE on a valid run.
+_pf_dep_sub_1633 = _sp915.run(
+    [sys.executable, _PF_PATH_1633, "dependencies", "--repo-relative",
+     "--body-file", "body.md"],
+    cwd=str(Path(_wt_repo) / "sub"), capture_output=True, text=True)
+assert_eq("#1633 anchoring: dependencies resolves a repo-relative --body-file from a subdir",
+          ("PROCEED", 0),
+          (_pf_dep_sub_1633.stdout.split()[0] if _pf_dep_sub_1633.stdout.split() else "",
+           _pf_dep_sub_1633.returncode))
+# Positive control on the same fixture: without --repo-relative the cwd-relative read
+# fails, so the assertion above cannot pass on an unanchored implementation.
+_pf_dep_unanchored_1633 = _sp915.run(
+    [sys.executable, _PF_PATH_1633, "dependencies", "--body-file", "body.md"],
+    cwd=str(Path(_wt_repo) / "sub"), capture_output=True, text=True)
+assert_eq("#1633 anchoring: the same dependencies call WITHOUT --repo-relative fails closed",
+          ("UNAVAILABLE", 3),
+          (_pf_dep_unanchored_1633.stdout.split()[0]
+           if _pf_dep_unanchored_1633.stdout.split() else "",
+           _pf_dep_unanchored_1633.returncode))
+# The unresolvable-root arm names `resolve`, distinguishing it from the `body` read
+# failure above — a bare exit-3 assertion could not tell the two guards apart.
+_pf_dep_fc_1633 = _sp915.run(
+    [sys.executable, _PF_PATH_1633, "dependencies", "--repo-relative",
+     "--body-file", "body.md"],
+    cwd=_nonrepo_1633, capture_output=True, text=True,
+    env={**os.environ, "GIT_CEILING_DIRECTORIES": os.path.realpath(_nonrepo_1633)})
+assert_eq("#1633 anchoring: dependencies fails closed with UNAVAILABLE resolve on no root",
+          ("UNAVAILABLE resolve", 3),
+          (_pf_dep_fc_1633.stdout.strip(), _pf_dep_fc_1633.returncode))
+assert_eq("#1633 anchoring: the dependencies fail-closed arm names the unresolvable root",
+          True, "could not resolve the repository root" in _pf_dep_fc_1633.stderr)
+
 # ─────────────────────────────────────────────────────────────────────────────
 # AC2/AC3 (issue #701) — helper leading-token boundary over the AC1 closure.
 # The source keeps the portable ${CLAUDE_SKILL_DIR:-…} anchor (#275); the guard
