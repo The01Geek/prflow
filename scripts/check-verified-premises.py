@@ -756,8 +756,9 @@ def find_ungraded_claims(body: str) -> list:
         acc += len(raw)
 
     region = _premise_regions(body, content_lines)
-    graded = _graded_spans(body)
-    code = _code_spans(content_lines, line_offset, len(body))
+    # A collocation is excluded when it falls inside a graded marker span or inside
+    # code; both suppress a detection identically, so they are one exclusion set.
+    excluded = _graded_spans(body) + _code_spans(content_lines, line_offset, len(body))
 
     detections = []
     for match in _COLLOCATION_RE.finditer(body):
@@ -765,9 +766,7 @@ def find_ungraded_claims(body: str) -> list:
         index = bisect.bisect_right(line_offset, start) - 1
         if index not in region:
             continue
-        if any(low <= start < high for low, high in graded):
-            continue
-        if any(low <= start < high for low, high in code):
+        if any(low <= start < high for low, high in excluded):
             continue
         detections.append((region[index], match.group(0),
                            content_lines[index].strip()))
