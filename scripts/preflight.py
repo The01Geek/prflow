@@ -386,6 +386,21 @@ def dependencies(args: argparse.Namespace) -> int:
     # (PR #572 review). Both arms still fail closed to UNAVAILABLE; this keeps the
     # diagnostic pointed at the surface the caller actually named.
     if args.body_file is not None:
+        body_file = args.body_file
+        if getattr(args, "repo_relative", False) and body_file:
+            # Anchoring mode (issue #1633): resolve the repo-relative --body-file so
+            # the §1.3.5 fence does not compute the root. An unresolvable root fails
+            # closed to UNAVAILABLE, matching this subcommand's contract.
+            resolved = _anchor_repo_relative(body_file)
+            if resolved is None:
+                print(
+                    f"preflight.py: could not resolve the repository root to anchor "
+                    f"{body_file!r}",
+                    file=sys.stderr,
+                )
+                print("UNAVAILABLE resolve", flush=True)
+                return UNAVAILABLE_EXIT
+            body_file = resolved
         try:
             # errors="replace": a body file with invalid UTF-8 bytes decodes to
             # replacement chars and is still scanned for real #N declarations,
@@ -393,7 +408,7 @@ def dependencies(args: argparse.Namespace) -> int:
             # OSError` below does not catch) — which main()'s catch-all would then
             # convert to a spurious UNAVAILABLE/exit 3, REPLACING the true
             # BLOCKED/PROCEED verdict (a contained wrong verdict, issue #547 review).
-            body = Path(args.body_file).read_text(encoding="utf-8", errors="replace")
+            body = Path(body_file).read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
             print(f"preflight.py: could not read dependency body: {exc}", file=sys.stderr)
             print("UNAVAILABLE body", flush=True)
@@ -979,6 +994,40 @@ def branch_state(args: argparse.Namespace) -> int:
 # unestablished measurement the fence routes to the run's stop path rather than
 # treating as an unsatisfied precondition — so a matcher refusal can never
 # masquerade as a decided degraded arm.
+def _repo_toplevel() -> "str | None":
+    """The current checkout's top-level directory, or None when git cannot answer.
+
+    Resolved with ``git rev-parse --show-toplevel`` so a caller passing a
+    repository-relative path resolves the same absolute target whether it is run
+    from the repository root, a repository subdirectory, or inside a linked git
+    worktree (issue #1633) — the enrolled implement fences must NOT compute the
+    root themselves, so the helper that consumes the path resolves it. Inside a
+    linked worktree ``--show-toplevel`` returns that worktree's own root, which is
+    the correct anchor for its own ``.prflow/tmp/`` scratch tree.
+    """
+    result = _run_git(["rev-parse", "--show-toplevel"])
+    top = result.stdout.strip()
+    if result.returncode != 0 or not top:
+        return None
+    return top
+
+
+def _anchor_repo_relative(path: str) -> "str | None":
+    """Resolve ``path`` against the checkout root when it is repository-relative.
+
+    An absolute path is returned unchanged. A relative path is joined onto the
+    ``git rev-parse --show-toplevel`` root; when that root cannot be established,
+    None is returned so the caller fails closed to UNAVAILABLE rather than
+    silently anchoring to the process's cwd.
+    """
+    if os.path.isabs(path):
+        return path
+    top = _repo_toplevel()
+    if top is None:
+        return None
+    return os.path.join(top, path)
+
+
 def _path_is_ignored(path: str) -> "bool | None":
     """True if `path` is gitignored, False if not, None if git could not answer.
 
@@ -1003,7 +1052,21 @@ def ignore_precondition(args: argparse.Namespace) -> int:
         print("preflight.py: ignore-precondition requires a non-empty --path", file=sys.stderr)
         print("UNAVAILABLE path", flush=True)
         return UNAVAILABLE_EXIT
-    ignored = _path_is_ignored(args.path)
+    path = args.path
+    if args.repo_relative:
+        # Anchoring mode (issue #1633): the fence passes a repository-relative path
+        # and this helper resolves the root, so no enrolled fence computes it. An
+        # unresolvable root is an unestablished measurement, never a decided answer.
+        path = _anchor_repo_relative(args.path)
+        if path is None:
+            print(
+                f"preflight.py: could not resolve the repository root to anchor "
+                f"{args.path!r}",
+                file=sys.stderr,
+            )
+            print("UNAVAILABLE resolve", flush=True)
+            return UNAVAILABLE_EXIT
+    ignored = _path_is_ignored(path)
     if ignored is None:
         print(
             f"preflight.py: git check-ignore could not resolve ignore state for {args.path}",
@@ -1051,12 +1114,23 @@ def main() -> int:
     input_group = dependency_parser.add_mutually_exclusive_group(required=True)
     input_group.add_argument("--issue", type=int)
     input_group.add_argument("--body-file")
+    dependency_parser.add_argument(
+        "--repo-relative",
+        action="store_true",
+        help="Resolve --body-file against the checkout root (issue #1633 anchoring mode).",
+    )
     dependency_parser.set_defaults(func=dependencies)
     branch_state_parser = subparsers.add_parser("branch-state")
     branch_state_parser.add_argument("--state-file")
     branch_state_parser.set_defaults(func=branch_state)
     ignore_parser = subparsers.add_parser("ignore-precondition")
     ignore_parser.add_argument("--path")
+    ignore_parser.add_argument(
+        "--repo-relative",
+        action="store_true",
+        help="Resolve --path against the checkout root (issue #1633 anchoring mode), "
+        "so the enrolled fence need not compute the repository root itself.",
+    )
     ignore_parser.set_defaults(func=ignore_precondition)
     args = parser.parse_args()
     try:
