@@ -47,10 +47,9 @@ import textwrap
 import types
 from pathlib import Path
 
-# Never move this below the first child-process invocation in this file (today the
-# `git init` in the #295 block): a child started above it inherits the host's
-# colour setting, and argparse then colourises the help text the #1550 probes read.
-# See docs/internal/test-suite-probe-conventions.md.
+# Never move this below the first child-process invocation in this file: a child
+# started above it inherits the host's colour setting, and argparse then colourises
+# the help text the #1550 probes read. docs/internal/test-suite-probe-conventions.md
 os.environ['PYTHON_COLORS'] = '0'
 os.environ['NO_COLOR'] = '1'
 
@@ -2959,22 +2958,18 @@ for _kind, _key, _tgt, _argv, _detect in (
               False, _detect(_mut_help_1550.stdout, _tgt))
 
 # ---------------------------------------------------------------------------
-# #1653 the colour neutralisation this file establishes for its own children. The
-# `#1550` detectors above identify a flag or subcommand line by the characters it
-# starts with, so a colourising argparse prefixes each with an escape sequence and
-# all 39 of those checks go RED for a reason outside the code under test. These four
-# assertions guard the neutralisation itself, which is otherwise invisible to CI (it
-# pins python 3.11, which colourises nothing) and to the pooled shard (the harness
-# already exports PYTHON_COLORS=0 around this file).
+# #1653 the colour neutralisation this file establishes for its own children.
+# Do not delete these as redundant with the #1550 checks above: CI pins python 3.11
+# and the pooled shard neutralises colour around this file, so #1550 is green either
+# way and these are the only checks that fail when the neutralisation is removed.
 # ---------------------------------------------------------------------------
 assert_eq("#1653 the file neutralises colour for its children (PYTHON_COLORS, NO_COLOR)",
           ('0', '1'),
           (os.environ.get('PYTHON_COLORS'), os.environ.get('NO_COLOR')))
 
-# The value assertion above holds for any placement above itself, including one that
-# leaves the file's earlier children inheriting the host's colour setting — so read
-# the source order too. The child-process invocation set is derived by parsing this
-# file rather than hand-listing a line number, which would rot on the next edit.
+# Do not replace this parse with a hand-written line number for the first child
+# process: it rots on the next edit above it, and the assertion then compares the
+# statement against a line that no longer spawns anything.
 _SRC_1653 = Path(__file__).resolve().read_text(encoding='utf-8')
 _TREE_1653 = ast.parse(_SRC_1653)
 _SP_ALIASES_1653 = {
@@ -2983,16 +2978,15 @@ _SP_ALIASES_1653 = {
     for _a in _n.names if _a.name == 'subprocess'
 }
 _SPAWNERS_1653 = {'run', 'Popen', 'call', 'check_call', 'check_output'}
-_child_linenos_1653 = sorted(
+_child_linenos_1653 = [
     _n.lineno
     for _n in ast.walk(_TREE_1653)
     if isinstance(_n, ast.Call) and isinstance(_n.func, ast.Attribute)
     and _n.func.attr in _SPAWNERS_1653
     and isinstance(_n.func.value, ast.Name)
     and _n.func.value.id in _SP_ALIASES_1653
-)
-# The establishing statement is the module-scope assignment to os.environ['PYTHON_COLORS'].
-_env_stmt_linenos_1653 = sorted(
+]
+_env_stmt_linenos_1653 = [
     _n.lineno
     for _n in ast.walk(_TREE_1653)
     if isinstance(_n, ast.Assign)
@@ -3000,7 +2994,7 @@ _env_stmt_linenos_1653 = sorted(
     if isinstance(_t, ast.Subscript) and isinstance(_t.value, ast.Attribute)
     and _t.value.attr == 'environ' and isinstance(_t.slice, ast.Constant)
     and _t.slice.value == 'PYTHON_COLORS'
-)
+]
 # Floors, so a derivation that silently collapses to the empty set (a renamed alias, a
 # moved statement) fails here instead of vacuously comparing two empty sequences.
 assert_eq("#1653 the child-process invocation set was derived from this file's source",
@@ -3013,23 +3007,26 @@ assert_eq("#1653 the neutralising statement precedes every child-process invocat
           bool(_child_linenos_1653) and bool(_env_stmt_linenos_1653)
           and min(_env_stmt_linenos_1653) < min(_child_linenos_1653))
 
-# argparse colourises its help only on python >= 3.13, so the two assertions below
-# are vacuous on an older interpreter — and CI pins 3.11. Each therefore reports the
-# version it ran under and, below 3.13, records itself NOT EXERCISED rather than as a
-# pass, so a green CI run is never read as evidence of a behaviour it never drove.
+# Do not drop this version gate and let the escape-byte checks run unconditionally:
+# argparse colourises help only on python >= 3.13, so on the 3.11 CI pins they would
+# hold vacuously and report as passes for a behaviour they never drove.
 _PYV_1653 = f"python {sys.version_info[0]}.{sys.version_info[1]}"
 _COLOURISES_1653 = sys.version_info >= (3, 13)
 
 if _COLOURISES_1653:
-    # Adversarial: colour forced in the CHILD's own environment, so the assertion does
-    # not depend on the host forcing it. The environment is built FROM this file's own
-    # mapping — a replacement environment would drop the neutralisation under test.
+    # Never build this from a fresh dict instead of os.environ: the neutralisation
+    # under test lives in that mapping, and a replacement environment drops it, so
+    # the assertion would pass on a tree with the fix removed.
     _forced_env_1653 = dict(os.environ, FORCE_COLOR='3')
     _forced_help_1653 = _sp1550.run(
         [sys.executable, str(SCRIPTS / 'workpad.py'), '--help'],
         capture_output=True, text=True, env=_forced_env_1653)
     assert_eq(f"#1653 the forced-colour child's `--help` ran ({_PYV_1653})",
               0, _forced_help_1653.returncode)
+    # Do not remove this: an empty capture satisfies the escape-free check below
+    # vacuously, so without it a child that rendered nothing reads as a pass.
+    assert_eq(f"#1653 the forced-colour child rendered help to read ({_PYV_1653})",
+              True, 'usage:' in _forced_help_1653.stdout)
     assert_eq(f"#1653 the neutralisation defeats FORCE_COLOR in the child's own "
               f"environment ({_PYV_1653})",
               True, '\x1b' not in _forced_help_1653.stdout)
