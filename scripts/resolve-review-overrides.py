@@ -58,7 +58,7 @@ Usage:
     resolve-review-overrides.py AGENT [AGENT ...] [--config FILE] [--config-get PATH]
 
 Prints the override map as JSON to stdout, e.g.
-    {"devflow:code-reviewer": {"model": "claude-opus-4-8", "effort": "high"}}
+    {"devflow:code-reviewer": {"model": "opus", "effort": "high"}}
 Prints `{}` when no dispatched subagent has an applicable override (the engine
 then emits no --agents block). Warnings go to stderr; `main()` always returns 0
 on any config shape. Invalid CLI arguments never reach `main()` — argparse exits
