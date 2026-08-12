@@ -75,8 +75,8 @@ from pathlib import Path
 VALID_EFFORTS = ("low", "medium", "high", "xhigh", "max")
 
 # The Agent tool's per-invocation `model` parameter is a closed enum; a value
-# outside it raises InputValidationError at dispatch, so drop an out-of-set
-# model (warn, fall back to the session model) exactly as an out-of-enum effort.
+# outside it raises InputValidationError at dispatch, so drop an out-of-set model
+# (warn, fall back to the top-level claude_model) exactly as an out-of-enum effort.
 VALID_MODELS = ("sonnet", "opus", "haiku", "fable")
 
 # The only valid `iterations` value (issue #425). An agent whose resolved override
@@ -250,7 +250,7 @@ def resolve_overrides(raw, dispatched):
             else:
                 warnings.append(
                     f"agent_overrides[{source}].model={model!r} is not one of "
-                    f"{list(VALID_MODELS)}; falling back to the session model{scope}."
+                    f"{list(VALID_MODELS)}; falling back to the top-level claude_model{scope}."
                 )
 
         effort = entry.get("effort")

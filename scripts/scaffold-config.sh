@@ -746,15 +746,9 @@ if "$DEVFLOW_JQ" --version >/dev/null 2>&1 && "$DEVFLOW_JQ" -e . "$CONFIG" >/dev
   elif [ "$ao_type" != "object" ] && [ "$ao_type" != "null" ]; then
     log "agent_overrides is present but not an object ($ao_type); the Haiku effort-cleanup below will no-op (the non-object value is left untouched)."
   fi
-  # issue #1646: normalize each agent_overrides entry's `model` to the Agent tool's
-  # accepted alias (sonnet/opus/haiku/fable) BEFORE the Haiku effort-cleanup below,
-  # so an existing operator's reviewer tier keeps working after the resolver started
-  # dropping a full model identifier (the dispatch's per-invocation `model` parameter
-  # is a closed enum). A recognized Anthropic family id becomes its alias; an
-  # unrecognized value and the top-level `claude_model` are left untouched; running
-  # first (before the effort-strip) means a rewritten Haiku id is caught by the
-  # effort-strip's alias arm. Idempotent: an already-aliased config is a byte-identical
-  # no-op. Same jq-availability guard and non-object robustness as the cleanup below.
+  # issue #1646: rewrite each agent_overrides `model` to its accepted alias BEFORE the
+  # Haiku effort-strip (so a rewritten Haiku id hits that strip's alias arm); keep these
+  # family arms in sync with VALID_MODELS (resolve-review-overrides.py) and the schema enum.
   MODELALIAS_TMP="$(mktemp)"; MODELALIAS_ERR="$(mktemp)"
   trap 'rm -f "$MODELALIAS_TMP" "$MODELALIAS_ERR"' EXIT
   if ! "$DEVFLOW_JQ" '
@@ -803,9 +797,9 @@ else
   # The backfill block above already logs the specific reason for the SAME guard
   # (jq missing / invalid JSON); cross-reference it here so this line reads as one
   # resolved cause rather than a second, distinct problem — while still emitting
-  # its own breadcrumb so the Haiku migration is never silently dependent on the
-  # backfill block for its skip notice.
-  log "skipping Haiku effort-cleanup for the same reason as the backfill skip above (jq missing or $CONFIG not valid JSON)."
+  # its own breadcrumb so the model-alias rewrite and Haiku migration are never
+  # silently dependent on the backfill block for their skip notice.
+  log "skipping Haiku effort-cleanup and the agent_overrides model-alias rewrite for the same reason as the backfill skip above (jq missing or $CONFIG not valid JSON)."
 fi
 
 # Language-aware tool/runtime auto-population. Scans the target repo and merges

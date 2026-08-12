@@ -4761,6 +4761,10 @@ assert_eq("#425 schema: VALID_ITERATIONS mirrors the schema enum",
 # schema declares. This pins the schema surface the resolver's VALID_MODELS mirrors.
 # RED before #1646: `model` was {"type": "string"} with no enum, so `claude-opus-4-8`
 # validated cleanly.
+# Cardinality guard: an empty _ao_entries would make the per-entry loop below assert
+# nothing (vacuous pass). The schema declares default + nine leaves x two namespaces.
+assert_eq("#1646 schema: agent_overrides declares a non-trivial entry set (loop not vacuous)",
+          True, len(_ao_entries) >= 19)
 for _ent_name, _ent in _ao_entries.items():
     _mdl = _ent.get("properties", {}).get("model")
     assert_eq("#1646 schema: agent_overrides[%s] declares model enum sonnet/opus/haiku/fable"
