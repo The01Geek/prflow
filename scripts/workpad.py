@@ -196,10 +196,9 @@ _UPDATE_REMEDY_BY_OUTCOME = {
 
 _UPDATE_OUTCOME_EMITTED = False
 
-# Set the instant the PATCH returns, so a fallback reports what was OBSERVED.
-# Keying the fallback on the exit code instead lets an unmapped code report
-# `not-persisted` over a landed write, whose remedy re-sends the call and
-# double-writes the append-only notes.
+# Do not key the fallback outcome on the exit code instead of this flag: an
+# unmapped code then reports `not-persisted` over a landed write, and that
+# remedy re-sends the call, double-writing the append-only notes.
 _UPDATE_PATCH_LANDED = False
 
 # The one exit code that names its own outcome: both precondition guards refuse
@@ -3340,6 +3339,7 @@ def _cmd_update_inner(args):
     ) as tf:
         tf.write(body)
         tmp_path = tf.name
+    global _UPDATE_PATCH_LANDED
     try:
         r = _run([
             GH, 'api', '-X', 'PATCH',
@@ -3347,6 +3347,10 @@ def _cmd_update_inner(args):
             '-F', f'body=@{tmp_path}',
             '--jq', '.body',
         ])
+        # Mark the write observed on the statement after the PATCH returns, with
+        # no cleanup between: the `finally` unlink below can raise EACCES/EIO,
+        # and a flag set after it reports a landed PATCH as not-persisted.
+        _UPDATE_PATCH_LANDED = True
     except (subprocess.CalledProcessError, OSError) as e:
         # The PATCH itself failed, so NO workpad change was persisted. Report any
         # volatile tick misses collected before the failure too — otherwise this
@@ -3374,10 +3378,6 @@ def _cmd_update_inner(args):
         _fail('update patch', e)
     finally:
         Path(tmp_path).unlink(missing_ok=True)
-    # Mark the write observed here, before the tail that can still raise, so the
-    # wrapper's fallback never reports a landed PATCH as not-persisted.
-    global _UPDATE_PATCH_LANDED
-    _UPDATE_PATCH_LANDED = True
     # The PATCH succeeded: drop the buffer file ONLY when `_plan_buffer_replay`
     # reported that every buffered item is now accounted for (folded into this
     # body or already present). When a buffered item could not be folded — its
