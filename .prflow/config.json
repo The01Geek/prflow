@@ -142,11 +142,11 @@
         "effort": "low"
       },
       "prflow:checklist-deduper": {
-        "model": "claude-sonnet-5",
+        "model": "sonnet",
         "effort": "low"
       },
       "prflow:code-reviewer": {
-        "model": "claude-opus-4-8",
+        "model": "opus",
         "effort": "low",
         "iterations": "first-only"
       }

@@ -332,7 +332,7 @@
         },
         "agent_overrides": {
           "type": "object",
-          "description": "Per-subagent model/effort overrides for the shared /prflow:review engine. Applies to BOTH standalone /prflow:review AND the Phase-3 review pass of /prflow:review-and-fix (and thus /prflow:implement), since both drive the same engine. Keys are the nine review-engine subagent leaves, each accepted under EITHER declared plugin namespace — `prflow:` (canonical) or the `devflow:` alias, so an override committed before the plugin rename keeps resolving — giving 18 accepted subagent keys (byte-identical to the telemetry strings) plus an optional `default` fallback. The accepted namespace set is derived from lib/plugin-identity.json, and this enumeration is its mirror: `additionalProperties` stays false, so the allowlist remains closed. Each value optionally sets `model` (free-form model id, forwarded to the dispatch as given), `effort` (one of low/medium/high/xhigh/max \u2014 an out-of-enum value warns and falls back to the session effort rather than aborting), and/or `iterations` (issue #425; only valid value `first-only` \u2014 an agent whose resolved override carries it is excluded from the Phase-3 review roster on fix-loop iterations >= 2, enforced engine-side; an out-of-enum value warns and is dropped rather than aborting; key absent = today's behavior). Resolution is entry-level: a subagent with its own entry uses only that entry (the `default` does NOT backfill its missing fields); `default` supplies model/effort only for subagents with no entry of their own. A subagent with neither its own entry nor a `default` is dispatched exactly as today \u2014 global claude_model + session effort \u2014 with no --agents override emitted for it.",
+          "description": "Per-subagent model/effort overrides for the shared /prflow:review engine. Applies to BOTH standalone /prflow:review AND the Phase-3 review pass of /prflow:review-and-fix (and thus /prflow:implement), since both drive the same engine. Keys are the nine review-engine subagent leaves, each accepted under EITHER declared plugin namespace — `prflow:` (canonical) or the `devflow:` alias, so an override committed before the plugin rename keeps resolving — giving 18 accepted subagent keys (byte-identical to the telemetry strings) plus an optional `default` fallback. The accepted namespace set is derived from lib/plugin-identity.json, and this enumeration is its mirror: `additionalProperties` stays false, so the allowlist remains closed. Each value optionally sets `model` (one of the Agent tool's accepted model aliases: sonnet, opus, haiku, or fable — an out-of-set value warns and is dropped, falling back to the top-level `claude_model`; a provider-routed identifier belongs at `claude_model`, not here), `effort` (one of low/medium/high/xhigh/max \u2014 an out-of-enum value warns and falls back to the session effort rather than aborting), and/or `iterations` (issue #425; only valid value `first-only` \u2014 an agent whose resolved override carries it is excluded from the Phase-3 review roster on fix-loop iterations >= 2, enforced engine-side; an out-of-enum value warns and is dropped rather than aborting; key absent = today's behavior). Resolution is entry-level: a subagent with its own entry uses only that entry (the `default` does NOT backfill its missing fields); `default` supplies model/effort only for subagents with no entry of their own. A subagent with neither its own entry nor a `default` is dispatched exactly as today \u2014 global claude_model + session effort \u2014 with no --agents override emitted for it.",
           "additionalProperties": false,
           "properties": {
             "default": {
@@ -340,7 +340,13 @@
               "additionalProperties": false,
               "properties": {
                 "model": {
-                  "type": "string"
+                  "type": "string",
+                  "enum": [
+                    "sonnet",
+                    "opus",
+                    "haiku",
+                    "fable"
+                  ]
                 },
                 "effort": {
                   "type": "string",
@@ -365,7 +371,13 @@
               "additionalProperties": false,
               "properties": {
                 "model": {
-                  "type": "string"
+                  "type": "string",
+                  "enum": [
+                    "sonnet",
+                    "opus",
+                    "haiku",
+                    "fable"
+                  ]
                 },
                 "effort": {
                   "type": "string",
@@ -391,7 +403,13 @@
               "description": "Pins Claude Sonnet 5 for the dedup pass with effort 'low' (a cost-saving step down from the API default of 'high'; set it explicitly to avoid unexpected latency). NOTE: Claude Haiku rejects the `effort` parameter with HTTP 400 (effort is supported only on Opus 4.5\u20134.8, Opus 5, Sonnet 4.6, and Sonnet 5), so if you re-pin a Haiku id here the entry must NOT carry an `effort` key; scaffold-config.sh strips a stale `effort` from any Haiku-pinned override on re-scaffold.",
               "properties": {
                 "model": {
-                  "type": "string"
+                  "type": "string",
+                  "enum": [
+                    "sonnet",
+                    "opus",
+                    "haiku",
+                    "fable"
+                  ]
                 },
                 "effort": {
                   "type": "string",
@@ -416,7 +434,13 @@
               "additionalProperties": false,
               "properties": {
                 "model": {
-                  "type": "string"
+                  "type": "string",
+                  "enum": [
+                    "sonnet",
+                    "opus",
+                    "haiku",
+                    "fable"
+                  ]
                 },
                 "effort": {
                   "type": "string",
@@ -441,7 +465,13 @@
               "additionalProperties": false,
               "properties": {
                 "model": {
-                  "type": "string"
+                  "type": "string",
+                  "enum": [
+                    "sonnet",
+                    "opus",
+                    "haiku",
+                    "fable"
+                  ]
                 },
                 "effort": {
                   "type": "string",
@@ -466,7 +496,13 @@
               "additionalProperties": false,
               "properties": {
                 "model": {
-                  "type": "string"
+                  "type": "string",
+                  "enum": [
+                    "sonnet",
+                    "opus",
+                    "haiku",
+                    "fable"
+                  ]
                 },
                 "effort": {
                   "type": "string",
@@ -491,7 +527,13 @@
               "additionalProperties": false,
               "properties": {
                 "model": {
-                  "type": "string"
+                  "type": "string",
+                  "enum": [
+                    "sonnet",
+                    "opus",
+                    "haiku",
+                    "fable"
+                  ]
                 },
                 "effort": {
                   "type": "string",
@@ -516,7 +558,13 @@
               "additionalProperties": false,
               "properties": {
                 "model": {
-                  "type": "string"
+                  "type": "string",
+                  "enum": [
+                    "sonnet",
+                    "opus",
+                    "haiku",
+                    "fable"
+                  ]
                 },
                 "effort": {
                   "type": "string",
@@ -541,7 +589,13 @@
               "additionalProperties": false,
               "properties": {
                 "model": {
-                  "type": "string"
+                  "type": "string",
+                  "enum": [
+                    "sonnet",
+                    "opus",
+                    "haiku",
+                    "fable"
+                  ]
                 },
                 "effort": {
                   "type": "string",
@@ -566,7 +620,13 @@
               "additionalProperties": false,
               "properties": {
                 "model": {
-                  "type": "string"
+                  "type": "string",
+                  "enum": [
+                    "sonnet",
+                    "opus",
+                    "haiku",
+                    "fable"
+                  ]
                 },
                 "effort": {
                   "type": "string",
@@ -591,7 +651,13 @@
               "additionalProperties": false,
               "properties": {
                 "model": {
-                  "type": "string"
+                  "type": "string",
+                  "enum": [
+                    "sonnet",
+                    "opus",
+                    "haiku",
+                    "fable"
+                  ]
                 },
                 "effort": {
                   "type": "string",
@@ -617,7 +683,13 @@
               "description": "Pins Claude Sonnet 5 for the dedup pass with effort 'low' (a cost-saving step down from the API default of 'high'; set it explicitly to avoid unexpected latency). NOTE: Claude Haiku rejects the `effort` parameter with HTTP 400 (effort is supported only on Opus 4.5\u20134.8, Opus 5, Sonnet 4.6, and Sonnet 5), so if you re-pin a Haiku id here the entry must NOT carry an `effort` key; scaffold-config.sh strips a stale `effort` from any Haiku-pinned override on re-scaffold.",
               "properties": {
                 "model": {
-                  "type": "string"
+                  "type": "string",
+                  "enum": [
+                    "sonnet",
+                    "opus",
+                    "haiku",
+                    "fable"
+                  ]
                 },
                 "effort": {
                   "type": "string",
@@ -642,7 +714,13 @@
               "additionalProperties": false,
               "properties": {
                 "model": {
-                  "type": "string"
+                  "type": "string",
+                  "enum": [
+                    "sonnet",
+                    "opus",
+                    "haiku",
+                    "fable"
+                  ]
                 },
                 "effort": {
                   "type": "string",
@@ -667,7 +745,13 @@
               "additionalProperties": false,
               "properties": {
                 "model": {
-                  "type": "string"
+                  "type": "string",
+                  "enum": [
+                    "sonnet",
+                    "opus",
+                    "haiku",
+                    "fable"
+                  ]
                 },
                 "effort": {
                   "type": "string",
@@ -692,7 +776,13 @@
               "additionalProperties": false,
               "properties": {
                 "model": {
-                  "type": "string"
+                  "type": "string",
+                  "enum": [
+                    "sonnet",
+                    "opus",
+                    "haiku",
+                    "fable"
+                  ]
                 },
                 "effort": {
                   "type": "string",
@@ -717,7 +807,13 @@
               "additionalProperties": false,
               "properties": {
                 "model": {
-                  "type": "string"
+                  "type": "string",
+                  "enum": [
+                    "sonnet",
+                    "opus",
+                    "haiku",
+                    "fable"
+                  ]
                 },
                 "effort": {
                   "type": "string",
@@ -742,7 +838,13 @@
               "additionalProperties": false,
               "properties": {
                 "model": {
-                  "type": "string"
+                  "type": "string",
+                  "enum": [
+                    "sonnet",
+                    "opus",
+                    "haiku",
+                    "fable"
+                  ]
                 },
                 "effort": {
                   "type": "string",
@@ -767,7 +869,13 @@
               "additionalProperties": false,
               "properties": {
                 "model": {
-                  "type": "string"
+                  "type": "string",
+                  "enum": [
+                    "sonnet",
+                    "opus",
+                    "haiku",
+                    "fable"
+                  ]
                 },
                 "effort": {
                   "type": "string",
@@ -792,7 +900,13 @@
               "additionalProperties": false,
               "properties": {
                 "model": {
-                  "type": "string"
+                  "type": "string",
+                  "enum": [
+                    "sonnet",
+                    "opus",
+                    "haiku",
+                    "fable"
+                  ]
                 },
                 "effort": {
                   "type": "string",

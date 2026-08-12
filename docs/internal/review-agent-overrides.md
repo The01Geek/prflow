@@ -34,7 +34,8 @@ dispatches the new `prflow:` identifier, so the resolver only ever reads the new
 reads (and therefore never warns about) a stale `pr-review-toolkit:` key. Renaming is the only way
 to make the override take effect again. (If you validate `.prflow/config.json` against
 `config.schema.json`, the stale key is rejected outright by `additionalProperties: false`.) The
-`devflow:checklist-*` keys are unchanged.
+three checklist keys are canonically `prflow:checklist-generator`/`-deduper`/`-verifier`; their
+`devflow:checklist-*` spelling remains accepted as the transitional alias.
 
 ## Migration (v2.8.12): the final-pass reviewer key was renamed
 
@@ -84,8 +85,8 @@ Each value optionally sets `model`, `effort`, and/or `iterations`:
   "prflow_review": {
     "agent_overrides": {
       "default": { "effort": "high" },
-      "prflow:checklist-deduper": { "model": "claude-sonnet-5", "effort": "medium" },
-      "prflow:code-reviewer": { "model": "claude-opus-5", "effort": "high", "iterations": "first-only" }
+      "prflow:checklist-deduper": { "model": "sonnet", "effort": "medium" },
+      "prflow:code-reviewer": { "model": "opus", "effort": "high", "iterations": "first-only" }
     }
   }
 }
@@ -94,7 +95,7 @@ Each value optionally sets `model`, `effort`, and/or `iterations`:
 > **The transitional `devflow:` namespace still validates.** The plugin was renamed
 > `devflow` → `prflow`, and `.prflow/config.schema.json` declares a key for **every**
 > accepted namespace, so a config committed before the rename keeps validating and keeps
-> resolving: `"devflow:code-reviewer": { "model": "claude-opus-5" }` and
+> resolving: `"devflow:code-reviewer": { "model": "opus" }` and
 > `devflow:requesting-code-review` are honored exactly like their `prflow:` spellings.
 > `prflow:` is the canonical form and is what new configs should use — the shipped
 > `.prflow/config.example.json` seeds it, and the config scaffolder renames a `devflow:`
@@ -111,9 +112,14 @@ Each value optionally sets `model`, `effort`, and/or `iterations`:
 > (the `pr-review-toolkit:` / `superpowers:` forms in the migration tables above):
 > `agent_overrides` is `additionalProperties: false`, so those are rejected outright.
 
-- `model` — free-form model id, forwarded to the dispatch as given (no *value* validation). A
-  present-but-unusable model (empty string or non-string) is dropped with a `::warning::`, mirroring
-  the invalid-effort path.
+- `model` — one of the Agent tool's four accepted aliases (`sonnet`, `opus`, `haiku`, `fable`),
+  validated against that closed set. An in-set value is forwarded to the dispatch unchanged; an
+  out-of-set value (a full or provider-routed identifier, `inherit`, an unknown alias, or a case
+  variant such as `Opus`) is dropped with a `::warning::` naming the rejected value and the accepted
+  set, and the agent then inherits the top-level `claude_model`. A present-but-unusable model (empty
+  string or non-string) is likewise dropped with a `::warning::`, mirroring the invalid-effort path. A
+  consumer whose model is addressed through a provider route sets it at the top-level `claude_model`,
+  which is unchanged and still takes a full/provider identifier.
 - `effort` — one of `low`, `medium`, `high`, `xhigh`, `max`.
 - `iterations` — optional, **default-off**; the only valid value is `first-only`. An agent whose
   resolved override carries it is **excluded from the Phase-3 review roster on fix-loop iterations
@@ -145,7 +151,8 @@ Each value optionally sets `model`, `effort`, and/or `iterations`:
 ## This repo's `code-reviewer` application — baseline, revert trigger, deferred repricing (issue #425)
 
 PRFlow's own tracked `.prflow/config.json` sets
-`"prflow:code-reviewer": { "model": "claude-opus-4-8", "effort": "low", "iterations": "first-only" }`.
+`"prflow:code-reviewer": { "model": "opus", "effort": "low", "iterations": "first-only" }`
+(the `opus` alias, which the accepted-set validation requires; it resolves to the current Opus family model).
 The `iterations` scoping was added on the evidence of replay study **R2** (2026-07-11): on this repo's
 overwhelmingly `engine_self_modifying` diffs, `prflow:code-reviewer` measured **6.7% unique-effective**
 (9 of 135 dispatches), **2 sole-source applied Importants across 129 dispatches**, and — the positional
@@ -163,8 +170,9 @@ late ones) with no measured loss.
   `agent_overrides` model values apply identically to standalone `/prflow:review`, and the frozen-judge
   guardrail of the 2026-07-11 optimization methodology forbids repricing the outcome judge's roster
   mid-window. After the current experiment window closes, a follow-up PR reprices `model` from
-  `claude-opus-5` to `claude-haiku-4-5-20251001` (the exact id, since the resolver forwards model
-  strings unvalidated) **and drops the entry's `effort: "low"` key** — a Haiku id must not carry
+  `claude-opus-5` to the Haiku family (pre-registered as `claude-haiku-4-5-20251001`; since the
+  accepted-set validation this change added now drops a full identifier, a live reprice sets the
+  `haiku` alias) **and drops the entry's `effort: "low"` key** — a Haiku id must not carry
   `effort` (see the Haiku HTTP-400 callout above), so the swap is not literally one line: the entry
   becomes `{ "model": "claude-haiku-4-5-20251001", "iterations": "first-only" }`. That follow-up
   carries its own trigger: any specialty-class escaped
@@ -175,10 +183,11 @@ late ones) with no measured loss.
 - **Note on the pre-registered `from`/revert id (issue #1053).** The two `claude-opus-5` mentions in the
   bullet above are the pre-registration's own terms and are **left verbatim**: they record what was
   pre-registered, not what the tracked file holds. After that pre-registration was written the tracked
-  default was **reverted** to `claude-opus-4-8` (commit `cccd250c`, reverting `3f30ad3a`), which is the id
-  the sentence opening this section now states. Read the repricing plan as "reprice away from whatever
-  Opus id the tracked entry holds"; respelling the pre-registered target would falsify the experiment's
-  recorded terms, so it is not done here.
+  default was **reverted** to `claude-opus-4-8` (commit `cccd250c`, reverting `3f30ad3a`), and the
+  accepted-set change then re-expressed that entry as the `opus` alias — the value the sentence opening
+  this section now states. Read the repricing plan as "reprice away from whatever Opus model the tracked
+  entry resolves to"; respelling the pre-registered target would falsify the experiment's recorded
+  terms, so it is not done here.
 
 ## Resolution rules
 
@@ -194,9 +203,10 @@ late ones) with no measured loss.
   Existing configs (which have no `agent_overrides` block at all) are therefore completely
   unaffected.
 - **Invalid effort → warn + fall back.** An `effort` value outside the enum produces a
-  `::warning::` and falls back to the session effort rather than aborting the run. A non-blank
-  `model` string is forwarded as given; an empty, whitespace-only, or non-string `model` is dropped
-  with its own warning.
+  `::warning::` and falls back to the session effort rather than aborting the run. A `model` value
+  inside the accepted set (`sonnet`, `opus`, `haiku`, `fable`) is forwarded as given; a value outside
+  that set — or an empty, whitespace-only, or non-string `model` — is dropped with its own warning,
+  and the agent inherits the top-level `claude_model`.
 - **Malformed shapes never abort.** A non-object entry (a hand-edited `"agent": "high"` or a list,
   which bypasses schema validation) is ignored with a warning and, on the engine-facing end-to-end
   path (`read_raw`), treated as no-entry — so `default` still applies. (A direct `resolve_overrides`
@@ -245,7 +255,8 @@ consumer's vendored resolver/schema and its `.prflow/config.json`, in **both** d
 
 ## Mechanism — how model and effort actually reach a subagent (issue #554)
 
-All nine subagents are **first-party PRFlow assets** (the three `devflow:checklist-*` and the
+All nine subagents are **first-party PRFlow assets** (the three `prflow:checklist-*` — whose
+`devflow:checklist-*` spelling remains accepted as the transitional alias — and the
 five vendored `prflow:` review agents under `agents/`, plus the vendored `prflow:requesting-code-review`
 skill under `skills/`, dispatched via `general-purpose`). The engine resolves the overrides with
 `scripts/resolve-review-overrides.py` (which reads the config through `config-get.sh`); each agent's
