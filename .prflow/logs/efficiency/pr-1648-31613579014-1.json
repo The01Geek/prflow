@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1648",
+  "generated_at": "2026-08-12T15:50:06Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.55",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 7.559257249999998,
+    "tokens": {
+      "input_tokens": 4055,
+      "output_tokens": 24280,
+      "cache_read_input_tokens": 3121011,
+      "cache_creation_input_tokens": 189296,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 4089,
+        "outputTokens": 57786,
+        "cacheReadInputTokens": 4012492,
+        "cacheCreationInputTokens": 540489,
+        "webSearchRequests": 0,
+        "costUSD": 7.559257249999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 27,
+    "duration_ms": 493227
+  },
+  "permission_denials": {
+    "count": 2,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "RUN_ID=\"local-$(date -u +%Y%m%dT%H%M%SZ)-1\"; echo \"RUN_ID=$RUN_ID\"; mkdir -p .prflow/tmp/review/pr-1648/$RUN_ID; gh pr diff 1648 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1648/$RUN_ID/diff.patch >/dev/null; echo \"diff-rc=${PIPESTATUS[0]}\"; echo \"$RUN_ID\" | tee .prflow/tmp/review/pr-1648/run-id.txt",
+      "RUN_ID=$(printf 'local-%s-1' \"$(date -u +%Y%m%dT%H%M%SZ)\"); echo \"RUN_ID=$RUN_ID\"; mkdir -p .prflow/tmp/review/pr-1648/\"$RUN_ID\"; printf '%s\\n' \"$RUN_ID\" | tee .prflow/tmp/review/pr-1648/run-id.txt; gh pr diff 1648 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1648/\"$RUN_ID\"/diff.patch >/dev/null; echo \"done\""
+    ],
+    "total": 2,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
