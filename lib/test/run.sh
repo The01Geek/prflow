@@ -52158,9 +52158,9 @@ fi
 # Runs ruff from inside the suite so a Python lint regression reddens the required
 # `lib + python tests` check (CI's separate `lint` job is not required). ruff is NOT
 # preflight-guaranteed, so an unrunnable ruff must self-skip via skip()/blocking-gate,
-# never a silent pass. Scope is ruff only (the issue-1621 changeset states why
-# shellcheck/actionlint are excluded). Presence is EXECUTION-VERIFIED, not `command -v`:
-# a present-but-unrunnable ruff must route to the skip, not a spurious FAIL.
+# never a silent pass. Scope is ruff only; shellcheck/actionlint share CI's non-required
+# lint job and are deliberately out of scope. Presence is EXECUTION-VERIFIED, not
+# `command -v`: a present-but-unrunnable ruff must route to the skip, not a spurious FAIL.
 RUFF_CMD=()
 if ruff --version >/dev/null 2>&1; then
   RUFF_CMD=(ruff)
