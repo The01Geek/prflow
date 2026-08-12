@@ -13527,6 +13527,154 @@ assert_eq "ci_status_unknown=false (CLEAN fixture)"  "false" "$(jq -r '.signals.
 assert_eq "diff is a non-empty string" "string" "$(jq -r '.diff | type' <<<"$CTX")"
 assert_eq "diff not null"              "false"  "$(jq -r '.diff == null' <<<"$CTX")"
 
+# ────────────────────────────────────────────────────────────────────────────
+echo "fetch-pr-context.sh: ci_failures_during_pr semantics (issue #1441)"
+# ────────────────────────────────────────────────────────────────────────────
+# Drives the SHIPPED derivation block end to end through a scenario `gh` (the
+# F97 idiom above), never a transcribed copy of its jq filter — a transcribed
+# filter would keep passing after the shipped one drifted.
+#
+# Do NOT re-route these through gh-stub.sh: its $SET is the filename prefix for
+# EVERY endpoint and six of its arms `cat` with no fallback, so each payload
+# shape would cost 7 fixture files instead of one heredoc.
+F1441="$(mktemp -d)"
+cat > "$F1441/prview.json" <<'PV1441'
+{"number":1441,"headRefName":"claude/issue-1441-x","baseRefName":"main","headRefOid":"sha1441beef","mergeCommit":{"oid":"merge1441"},"mergedAt":"2026-05-08T16:31:00Z","createdAt":"2026-05-08T07:00:00Z","author":{"login":"example-bot"},"title":"t","body":"Closes #1441","additions":1,"deletions":0,"files":[{"path":"x.txt"}],"labels":[]}
+PV1441
+cat > "$F1441/gh" <<'STUB1441'
+#!/usr/bin/env bash
+FX="${DEVFLOW_FX}"
+case "$*" in
+  *"repo view"*) echo "acme/example-repo" ;;
+  *"pr view"*) cat "$FX/prview.json" ;;
+  *"pr diff"*) echo 'diff --git a/x.txt b/x.txt' ;;
+  *"pulls/"*"/comments"*) echo '[]' ;;
+  *"pulls/"*"/reviews"*) echo '[]' ;;
+  *"pulls/"*"/commits"*) echo '[]' ;;
+  *"check-runs"*)
+    # Every mode below is driven by an assertion in this block; a mode nothing
+    # drives is a dead failure knob and must be deleted, not left declared.
+    case "${DEVFLOW_CR_MODE:-payload}" in
+      exit-nonzero) echo "gh: HTTP 503 Service Unavailable" >&2; exit 1 ;;
+      empty-body)   : ;;
+      *)            cat "$FX/checkruns.json" ;;
+    esac
+    ;;
+  *"issues/"*"/comments"*) echo '[]' ;;
+  *"issues/"*) echo '{"number":1441,"title":"i","body":"b","labels":[],"comments":[]}' ;;
+  *"commits/"*) echo '{"files":[]}' ;;
+  *) echo '[]' ;;
+esac
+STUB1441
+chmod +x "$F1441/gh"
+
+# $1 label, $2 expected ci_failures_during_pr, $3 expected ci_status_unknown,
+# $4 optional DEVFLOW_CR_MODE. The payload is whatever the caller last wrote to
+# $F1441/checkruns.json.
+cr1441() {
+  local _out _ctx
+  _out="$(DEVFLOW_FX="$F1441" DEVFLOW_GH="$F1441/gh" DEVFLOW_CR_MODE="${4:-payload}" \
+          bash "$LIB/fetch-pr-context.sh" 1441 2>/dev/null)"
+  _ctx="$(cat "$_out" 2>/dev/null)"
+  assert_eq "#1441: $1 → ci_failures_during_pr=$2" "$2" \
+    "$(jq -r '.signals.ci_failures_during_pr' <<<"$_ctx")"
+  assert_eq "#1441: $1 → ci_status_unknown=$3" "$3" \
+    "$(jq -r '.signals.ci_status_unknown' <<<"$_ctx")"
+}
+
+# AC1 — superseded conclusions never count. `cancelled`/`stale` both mean the run
+# was superseded before producing a verdict, and in this repo a new push cancels
+# the in-flight run by design, so ordinary iteration would otherwise manufacture
+# CI failures and force LLM analysis on a PR that was never broken.
+cat > "$F1441/checkruns.json" <<'CR'
+{"check_runs":[{"conclusion":"cancelled"},{"conclusion":"stale"},{"conclusion":"success"},{"conclusion":"neutral"},{"conclusion":"skipped"}]}
+CR
+cr1441 "cancelled+stale beside success/neutral/skipped" "0" "false"
+
+# AC2 — the three real red signals each increment, asserted one conclusion at a
+# time so a filter that recognises only `failure` cannot pass on a mixed payload.
+for _concl in failure timed_out action_required; do
+  printf '{"check_runs":[{"conclusion":"%s"}]}\n' "$_concl" > "$F1441/checkruns.json"
+  cr1441 "a lone $_concl run" "1" "false"
+done
+unset _concl
+
+# AC3 — the filter stays a DENYLIST: a conclusion in none of the recognised sets
+# counts. Flipping it to a failure allowlist would silently read an unknown
+# future conclusion as success and fail OPEN, against the signal's stated
+# fail-safe posture.
+cat > "$F1441/checkruns.json" <<'CR'
+{"check_runs":[{"conclusion":"conclusion_github_has_not_invented_yet"}]}
+CR
+cr1441 "an unrecognised conclusion (denylist fails closed)" "1" "false"
+
+# AC4 — a still-running check has conclusion null and is not a failure.
+cat > "$F1441/checkruns.json" <<'CR'
+{"check_runs":[{"conclusion":null},{"conclusion":null}]}
+CR
+cr1441 "every run still in flight (conclusion null)" "0" "false"
+
+# AC5 — a multi-page head. `gh api --paginate` emits one {"check_runs":[…]}
+# object per page, CONCATENATED rather than merged, so a filter that runs once
+# per input emits one length per page; the resulting multi-line value fails the
+# ^[0-9]+$ guard and flips every multi-page PR to unknown. Page 2 carries two
+# qualifying runs and page 1 none, so both fields discriminate: before the fix
+# this read 1/true, after it 2/false.
+cat > "$F1441/checkruns.json" <<'CR'
+{"check_runs":[{"conclusion":"success"},{"conclusion":"cancelled"}]}
+{"check_runs":[{"conclusion":"failure"},{"conclusion":"timed_out"}]}
+CR
+cr1441 "two concatenated pages, both qualifying runs on page 2" "2" "false"
+
+# AC6 fail-safe arm 1, both ORed conditions. A PR whose CI could not be read
+# must never read as clean, so each sets unknown=true AND failures=1.
+cat > "$F1441/checkruns.json" <<'CR'
+{"check_runs":[{"conclusion":"success"}]}
+CR
+cr1441 "gh exits non-zero" "1" "true" exit-nonzero
+cr1441 "gh returns an empty body" "1" "true" empty-body
+
+# Adversarial input shapes (CLAUDE.md's best-effort-parser matrix, applied to an
+# external structured response): each must land on a fail-safe arm rather than
+# detonating the filter or emitting a non-numeric signal. `check_runs` is read
+# WITHOUT a `// []` default precisely so these error into the guard instead of
+# being laundered into a clean 0.
+cat > "$F1441/checkruns.json" <<'CR'
+this is not json at all
+CR
+cr1441 "a body that is not JSON" "1" "true"
+cat > "$F1441/checkruns.json" <<'CR'
+{"total_count":0}
+CR
+cr1441 "valid JSON with no check_runs key" "1" "true"
+cat > "$F1441/checkruns.json" <<'CR'
+{"check_runs":7}
+CR
+cr1441 "check_runs is a scalar, not an array" "1" "true"
+
+# AC6 fail-safe arm 2, the ^[0-9]+$ half. A non-empty non-numeric count is
+# unreachable through the fixed filter (that is the point of the fix), so drive
+# the SHIPPED guard itself — extracted from lib/fetch-pr-context.sh, never
+# transcribed — the way the #1347 checkpoint-4 block above does.
+CI_GUARD_LINE=$(grep -n 'if \[ -z "\$_CI_COUNT" \]' "$LIB/fetch-pr-context.sh" | head -1 | cut -d: -f1)
+CI_GUARD_PROG=$(sed -n "${CI_GUARD_LINE},$((CI_GUARD_LINE + 5))p" "$LIB/fetch-pr-context.sh")
+assert_eq "#1441: the shipped _CI_COUNT guard extracted cleanly (whole if…fi)" "yes" \
+  "$(case "$CI_GUARD_PROG" in *fi*) echo yes ;; *) echo no ;; esac)"
+ci_guard1441() {  # $1 label, $2 _CI_COUNT value, $3 expected unknown, $4 expected failures
+  assert_eq "#1441: the shipped guard reads a $1 _CI_COUNT as unknown=$3" "$3" \
+    "$(_CI_COUNT="$2" CI_STATUS_UNKNOWN=false CI_FAILURES=x bash -c "$CI_GUARD_PROG"'; printf %s "$CI_STATUS_UNKNOWN"')"
+  assert_eq "#1441: the shipped guard reads a $1 _CI_COUNT as failures=$4" "$4" \
+    "$(_CI_COUNT="$2" CI_STATUS_UNKNOWN=false CI_FAILURES=x bash -c "$CI_GUARD_PROG"'; printf %s "$CI_FAILURES"')"
+}
+ci_guard1441 "multi-line"  "$(printf '0\n1')" true  1
+ci_guard1441 "alphabetic"  "not-a-number"     true  1
+ci_guard1441 "empty"       ""                 true  1
+ci_guard1441 "numeric"     "3"                false 3
+unset -f ci_guard1441
+unset CI_GUARD_LINE CI_GUARD_PROG
+unset -f cr1441
+rm -rf "$F1441"
+
 # #356: a workpad whose Status is `💥 Failed` yields the bare word `Failed`
 # (fetch-pr-context strips 💥 like the other glyphs), and cheap-gate gates it
 # non-clean with reason "workpad status not Complete".

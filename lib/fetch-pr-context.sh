@@ -272,14 +272,17 @@ POST_BOT_COMMITS="$(echo "$COMMITS" | "$DEVFLOW_JQ" --arg author "$AUTHOR" '
 CI_STATUS_UNKNOWN="false"
 CI_FAILURES="1"
 set +e
-_CI_RUNS_JSON="$("$DEVFLOW_GH" api "repos/${REPO}/commits/${HEAD_SHA}/check-runs" 2>&1)"
+_CI_RUNS_JSON="$("$DEVFLOW_GH" api "repos/${REPO}/commits/${HEAD_SHA}/check-runs" --paginate 2>&1)"
 _CI_EXIT=$?
 set -e
 if [ $_CI_EXIT -ne 0 ] || [ -z "$_CI_RUNS_JSON" ]; then
     CI_STATUS_UNKNOWN="true"
     CI_FAILURES="1"
 else
-    _CI_COUNT="$(echo "$_CI_RUNS_JSON" | "$DEVFLOW_JQ" '[.check_runs[] | select(.conclusion != null and .conclusion != "success" and .conclusion != "neutral" and .conclusion != "skipped")] | length' 2>/dev/null || true)"
+    # Never filter `.` instead of `-n`/`inputs` (--paginate concatenates one
+    # object per page, so a per-input filter prints one length per page), and
+    # never default `.check_runs` (a malformed body must error into the guard).
+    _CI_COUNT="$(echo "$_CI_RUNS_JSON" | "$DEVFLOW_JQ" -n '[inputs | .check_runs[] | select(.conclusion != null and .conclusion != "success" and .conclusion != "neutral" and .conclusion != "skipped" and .conclusion != "cancelled" and .conclusion != "stale")] | length' 2>/dev/null || true)"
     if [ -z "$_CI_COUNT" ] || ! [[ "$_CI_COUNT" =~ ^[0-9]+$ ]]; then
         CI_STATUS_UNKNOWN="true"
         CI_FAILURES="1"
