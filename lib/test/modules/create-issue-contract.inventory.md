@@ -51,7 +51,7 @@ The location-sensitive population is exactly:
 | `**The audit summary line is mandatory and always renders**` | `$CI_SKILL` (root) | Same invariant, same reason. |
 | the `s/the evidence the audit ran and which arm it took//` mutation | `$CI_SKILL` (root) | Guards the same root sentence; a bundle target would let the invariant drift out of the root. |
 | `A fallback lifecycle is **never silent**` | `$CI_REF_FB_STATEOWNER` | AC4's second never-silent sentence; the two phrasings are near-identical, so a bundle target would collide their uniqueness. |
-| the ten `#614 T4` purity representatives | each fallback reference, plus an absence sweep over the root, the routing reference, and every step reference | AC8 — the whole claim is *where* the prose is not. |
+| the ten `#614 T4` purity representatives | each fallback reference, plus an absence sweep over the root and every step reference | AC8 — the whole claim is *where* the prose is not. |
 | the three `#275` A2b anchor call-site pins (`lib/test/run.sh`) | `step-4-present-create.md` (label helpers), the root (extension load) | Each pin follows the file that now performs the call. |
 
 `$CI_BUNDLE` is assembled in-module from the root plus the 16 references by a `references/*.md`

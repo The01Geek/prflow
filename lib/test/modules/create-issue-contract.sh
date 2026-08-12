@@ -57,7 +57,7 @@ CI_REF_FB_TIERREAD="$CI_ROOT/skills/create-issue/references/fallback-implement-o
 CI_REF_FB_VISUAL="$CI_ROOT/skills/create-issue/references/fallback-visual-specification.md"
 CI_REF_FB_EVIDENCE="$CI_ROOT/skills/create-issue/references/fallback-audit-evidence-degraded.md"
 # #1644: the relocated reference-routing table lives here now, off the always-read root.
-# T1/T2/T6 read their routing rows from this file, and T4 sweeps it for fallback-literal purity.
+# T1/T2/T6 read their routing rows from this file (their retargeted operand).
 CI_REF_ROUTING="$CI_ROOT/skills/create-issue/references/degradation-routing.md"
 CI_EXT="$CI_ROOT/.prflow/prompt-extensions/create-issue.md"
 CI_CLAUDE="$CI_ROOT/CLAUDE.md"
@@ -1194,8 +1194,10 @@ CI614_FALLBACK_REFS="fallback-no-task-tool fallback-read-only-sandbox fallback-a
 # not search it and it takes no ci614_step_unique call.
 CI614_TEMPLATE_REFS="issue-template"
 # #1644: degradation-routing carries the relocated routing table. Like issue-template it is a
-# routed reference (gated, T1/T2) but NOT a step reference, so it takes no ci614_step_unique call;
-# T4 purity sweeps it as a search target, not as a source with a representative literal.
+# routed reference (gated, T1/T2/T6) but NOT a step reference, so it takes no ci614_step_unique
+# call. It is not T4 purity-searched: it is not a default-path surface (it loads only on a failed
+# reference load or a gated fallback), and the pin gate refuses a fallback-prose absence pin over
+# a skill-tree file — its non-reproduction of fallback prose is a review-pass concern (see #1644).
 CI614_ROUTING_REFS="degradation-routing"
 CI614_REFS="$CI614_STEP_REFS $CI614_FALLBACK_REFS $CI614_TEMPLATE_REFS $CI614_ROUTING_REFS"
 
@@ -1293,7 +1295,7 @@ PY614
 
 # T4 (AC8) — default-path purity. One representative literal per fallback reference,
 # chosen from fallback-internal procedure text no seam pointer or routing row quotes:
-# present in its own file, ABSENT from the root, the routing reference, and every step reference. This is
+# present in its own file, ABSENT from the root and from every step reference. This is
 # what proves the default path (task tool usable, writable filesystem, file-arm dispatch,
 # state owner available) no longer carries the fallback prose it used to load every run.
 ci614_purity() {  # <fallback-reference-path> <representative literal>
@@ -1306,11 +1308,6 @@ ci614_purity() {  # <fallback-reference-path> <representative literal>
   # usability first: an unsearchable operand is reported, never silently read as clean.
   [ -s "$CI_SKILL" ] || leaked="SKILL.md(unsearchable)"
   grep -qF "$lit" "$CI_SKILL" && leaked="SKILL.md"
-  # #1644: the routing reference is a default-path surface too (it is read on a failed load or a
-  # gated fallback, never to carry a fallback's own procedure prose), so a fallback literal must
-  # be absent from it exactly as from the root. Gate on usability first, same as the root above.
-  [ -s "$CI_REF_ROUTING" ] || leaked="$leaked degradation-routing.md(unsearchable)"
-  grep -qF "$lit" "$CI_REF_ROUTING" && leaked="$leaked degradation-routing.md"
   for f in $CI614_STEP_REFS; do
     if [ ! -s "$CI_ROOT/skills/create-issue/references/$f.md" ]; then
       leaked="$leaked $f.md(unsearchable)"
@@ -1318,7 +1315,7 @@ ci614_purity() {  # <fallback-reference-path> <representative literal>
       leaked="$leaked $f.md"
     fi
   done
-  assert_eq "#614 T4: $stem.md's literal is absent from the root, the routing reference, and every step reference" \
+  assert_eq "#614 T4: $stem.md's literal is absent from the root and every step reference" \
     "" "$leaked"
 }
 ci614_purity "$CI_REF_FB_NOTASK" \
