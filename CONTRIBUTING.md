@@ -102,6 +102,13 @@ so a focused run gets the same fixture isolation as the full suite.
 A per-module inventory (e.g. `lib/test/modules/create-issue-contract.inventory.md`)
 records what it covers.
 
+A test that matches against the text a command renders — a `--help` surface, a usage
+line, a stderr diagnostic — neutralises terminal colour for the child process it spawns,
+or it reads different bytes on a host that forces colour.
+[`docs/internal/test-suite-probe-conventions.md`](docs/internal/test-suite-probe-conventions.md)
+is the single statement of that convention, and names the one site that deliberately
+does the opposite.
+
 **A module fixture is built from git-tracked content only (issue #714).** A module that
 needs a repository image must reproduce it from the index (`git ls-files -s -z`), file by
 file, with each file's mode taken from the index rather than from the working tree — never
