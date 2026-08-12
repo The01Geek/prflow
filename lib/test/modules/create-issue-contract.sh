@@ -56,6 +56,9 @@ CI_REF_FB_WRITEREC="$CI_ROOT/skills/create-issue/references/fallback-draft-write
 CI_REF_FB_TIERREAD="$CI_ROOT/skills/create-issue/references/fallback-implement-offer-tier-read.md"
 CI_REF_FB_VISUAL="$CI_ROOT/skills/create-issue/references/fallback-visual-specification.md"
 CI_REF_FB_EVIDENCE="$CI_ROOT/skills/create-issue/references/fallback-audit-evidence-degraded.md"
+# #1644: the relocated reference-routing table lives here now, off the always-read root.
+# T1/T2/T6 read their routing rows from this file, and T4 sweeps it for fallback-literal purity.
+CI_REF_ROUTING="$CI_ROOT/skills/create-issue/references/degradation-routing.md"
 CI_EXT="$CI_ROOT/.prflow/prompt-extensions/create-issue.md"
 CI_CLAUDE="$CI_ROOT/CLAUDE.md"
 CI_INVENTORY="$CI_ROOT/lib/test/modules/create-issue-contract.inventory.md"
@@ -1190,10 +1193,16 @@ CI614_FALLBACK_REFS="fallback-no-task-tool fallback-read-only-sandbox fallback-a
 # its own roster group so the T4 default-path purity sweep (which loops CI614_STEP_REFS) does
 # not search it and it takes no ci614_step_unique call.
 CI614_TEMPLATE_REFS="issue-template"
-CI614_REFS="$CI614_STEP_REFS $CI614_FALLBACK_REFS $CI614_TEMPLATE_REFS"
+# #1644: degradation-routing carries the relocated routing table itself. Like issue-template it
+# is a routed reference (gated, T1/T2) but NOT a step reference, so it is kept in its own roster
+# group and takes no ci614_step_unique call; T4 purity sweeps it as a target (search set), not
+# as a source with a representative literal.
+CI614_ROUTING_REFS="degradation-routing"
+CI614_REFS="$CI614_STEP_REFS $CI614_FALLBACK_REFS $CI614_TEMPLATE_REFS $CI614_ROUTING_REFS"
 
 # Marker ids per AC2's decided id space: the step number for step references, the literal
-# `revision-delta`, `fallback-<name>` for the fallback files, and the literal `issue-template`.
+# `revision-delta`, `fallback-<name>` for the fallback files, the literal `issue-template`, and
+# (#1644) the literal `degradation-routing` for the relocated routing table.
 ci614_marker_id() {
   case "$1" in
     step-2-clarify)         printf '2' ;;
@@ -1203,6 +1212,7 @@ ci614_marker_id() {
     step-4-present-create)  printf '4' ;;
     fallback-*)             printf '%s' "$1" ;;
     issue-template)         printf 'issue-template' ;;
+    degradation-routing)    printf 'degradation-routing' ;;
     *)                      return 1 ;;
   esac
 }
@@ -1214,9 +1224,19 @@ ci614_marker_id() {
 for _ci614_ref in $CI614_REFS; do
   assert_eq "#614 T1: routed reference exists: $_ci614_ref.md" "yes" \
     "$([ -r "$CI_ROOT/skills/create-issue/references/$_ci614_ref.md" ] && echo yes || echo no)"
-  assert_eq "#614 T1: the root's routing table names $_ci614_ref.md exactly once" "1" \
-    "$(grep -cF "references/$_ci614_ref.md\` |" "$CI_SKILL")"
+  assert_eq "#614 T1: the routing reference (degradation-routing.md) names $_ci614_ref.md exactly once" "1" \
+    "$(grep -cF "references/$_ci614_ref.md\` |" "$CI_REF_ROUTING")"
 done
+# #1644 AC2/AC5: the routing table moved OFF the always-read root. The root must carry NO
+# routing row at all — a surviving row would mean the relocation half-happened and the root
+# still pays the always-read cost this change removes.
+assert_eq "#1644 T1: the skill root carries zero routing-table rows (the table relocated)" "0" \
+  "$(python3 - "$CI_SKILL" <<'PY1644'
+import sys
+print(sum(1 for l in open(sys.argv[1], encoding='utf-8')
+         if l.startswith('| ') and 'references/' in l and '` |' in l))
+PY1644
+)"
 _ci614_ondisk=0
 for _ci614_f in "$CI_ROOT"/skills/create-issue/references/*.md; do
   case "${_ci614_f##*/}" in audit-prompt-template.md) continue ;; esac
@@ -1253,15 +1273,16 @@ for _ci614_ref in $CI614_REFS; do
   assert_eq "#614 T2: $_ci614_ref.md carries no marker naming a foreign reference path" "0" \
     "$(grep -F 'prflow:create-issue-ref' "$_ci614_p" | grep -vcF "file=skills/create-issue/references/$_ci614_ref.md" || true)"
   # The routing table's marker-contract column byte-matches the id this file carries.
+  # #1644: the table now lives in degradation-routing.md, so read the row from there.
   assert_eq "#614 T2: the routing row for $_ci614_ref.md states marker id \`step=$_ci614_id\`" "1" \
-    "$(grep -F "references/$_ci614_ref.md\` |" "$CI_SKILL" | grep -cF "\`step=$_ci614_id\`")"
+    "$(grep -F "references/$_ci614_ref.md\` |" "$CI_REF_ROUTING" | grep -cF "\`step=$_ci614_id\`")"
 done
 
 # Totality: the table has one row per reference and every row carries a non-empty
 # degraded-behavior cell. A row whose last cell were blank would read as routed-and-covered
 # while naming no fallback at all.
 assert_eq "#614 T6: every routing row carries a non-empty degraded-behavior cell" "$_ci614_routed" \
-  "$(python3 - "$CI_SKILL" <<'PY614'
+  "$(python3 - "$CI_REF_ROUTING" <<'PY614'
 import sys, re
 rows = [l for l in open(sys.argv[1], encoding='utf-8') if l.startswith('| ') and 'references/' in l]
 print(sum(1 for l in rows if len(c := [x.strip() for x in l.strip().strip('|').split('|')]) == 4 and c[3]))
@@ -1270,7 +1291,7 @@ PY614
 
 # T4 (AC8) — default-path purity. One representative literal per fallback reference,
 # chosen from fallback-internal procedure text no seam pointer or routing row quotes:
-# present in its own file, ABSENT from the root and from every step reference. This is
+# present in its own file, ABSENT from the root, the routing reference, and every step reference. This is
 # what proves the default path (task tool usable, writable filesystem, file-arm dispatch,
 # state owner available) no longer carries the fallback prose it used to load every run.
 ci614_purity() {  # <fallback-reference-path> <representative literal>
@@ -1283,6 +1304,11 @@ ci614_purity() {  # <fallback-reference-path> <representative literal>
   # usability first: an unsearchable operand is reported, never silently read as clean.
   [ -s "$CI_SKILL" ] || leaked="SKILL.md(unsearchable)"
   grep -qF "$lit" "$CI_SKILL" && leaked="SKILL.md"
+  # #1644: the routing reference is a default-path surface too (it is read on a failed load or a
+  # gated fallback, never to carry a fallback's own procedure prose), so a fallback literal must
+  # be absent from it exactly as from the root. Gate on usability first, same as the root above.
+  [ -s "$CI_REF_ROUTING" ] || leaked="$leaked degradation-routing.md(unsearchable)"
+  grep -qF "$lit" "$CI_REF_ROUTING" && leaked="$leaked degradation-routing.md"
   for f in $CI614_STEP_REFS; do
     if [ ! -s "$CI_ROOT/skills/create-issue/references/$f.md" ]; then
       leaked="$leaked $f.md(unsearchable)"
@@ -1290,7 +1316,7 @@ ci614_purity() {  # <fallback-reference-path> <representative literal>
       leaked="$leaked $f.md"
     fi
   done
-  assert_eq "#614 T4: $stem.md's literal is absent from the root and every step reference" \
+  assert_eq "#614 T4: $stem.md's literal is absent from the root, the routing reference, and every step reference" \
     "" "$leaked"
 }
 ci614_purity "$CI_REF_FB_NOTASK" \

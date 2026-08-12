@@ -33976,6 +33976,7 @@ CI_MOD_VARS=(
   --var "CI_REF_FB_TIERREAD=skills/create-issue/references/fallback-implement-offer-tier-read.md"
   --var "CI_REF_FB_VISUAL=skills/create-issue/references/fallback-visual-specification.md"
   --var "CI_REF_FB_EVIDENCE=skills/create-issue/references/fallback-audit-evidence-degraded.md"
+  --var "CI_REF_ROUTING=skills/create-issue/references/degradation-routing.md"
   --var "CI_TMPL_AUDIT=skills/create-issue/references/audit-prompt-template.md"
   --var "CI_TMPL=skills/create-issue/references/issue-template.md"
   --var "CI_EXT=.prflow/prompt-extensions/create-issue.md"
