@@ -685,7 +685,7 @@ else
               # inside a single-quoted jq program — keep it apostrophe-free.)
               .key as $k
               | if (.value | type) == "object"
-                   and (((.value.model | strings) // "") | startswith("claude-haiku-"))
+                   and (((.value.model | strings) // "") | (. == "haiku" or startswith("claude-haiku-")))
                    and (.value | has("effort"))
                    and (($userao[$k] // {}) | (type == "object" and has("effort")) | not)
                 then .value |= del(.effort) else . end)
@@ -746,13 +746,45 @@ if "$DEVFLOW_JQ" --version >/dev/null 2>&1 && "$DEVFLOW_JQ" -e . "$CONFIG" >/dev
   elif [ "$ao_type" != "object" ] && [ "$ao_type" != "null" ]; then
     log "agent_overrides is present but not an object ($ao_type); the Haiku effort-cleanup below will no-op (the non-object value is left untouched)."
   fi
+  # issue #1646: normalize each agent_overrides entry's `model` to the Agent tool's
+  # accepted alias (sonnet/opus/haiku/fable) BEFORE the Haiku effort-cleanup below,
+  # so an existing operator's reviewer tier keeps working after the resolver started
+  # dropping a full model identifier (the dispatch's per-invocation `model` parameter
+  # is a closed enum). A recognized Anthropic family id becomes its alias; an
+  # unrecognized value and the top-level `claude_model` are left untouched; running
+  # first (before the effort-strip) means a rewritten Haiku id is caught by the
+  # effort-strip's alias arm. Idempotent: an already-aliased config is a byte-identical
+  # no-op. Same jq-availability guard and non-object robustness as the cleanup below.
+  MODELALIAS_TMP="$(mktemp)"; MODELALIAS_ERR="$(mktemp)"
+  trap 'rm -f "$MODELALIAS_TMP" "$MODELALIAS_ERR"' EXIT
+  if ! "$DEVFLOW_JQ" '
+        if (.prflow_review | type) == "object" and (.prflow_review.agent_overrides | type) == "object" then
+          .prflow_review.agent_overrides |= with_entries(
+            if (.value | type) == "object" and ((.value.model | type) == "string")
+            then .value.model |= (
+              if startswith("claude-sonnet-") then "sonnet"
+              elif startswith("claude-opus-") then "opus"
+              elif startswith("claude-haiku-") then "haiku"
+              elif startswith("claude-fable-") then "fable"
+              else . end)
+            else . end)
+        else . end' "$CONFIG" > "$MODELALIAS_TMP" 2>"$MODELALIAS_ERR"; then
+    ma_err="$(cat "$MODELALIAS_ERR")"
+    log "agent_overrides model-alias rewrite failed (jq error)${ma_err:+: $ma_err}; leaving $CONFIG unchanged."
+  else
+    rewrite_config_if_changed "$CONFIG" "$MODELALIAS_TMP" \
+      "rewrote agent_overrides model values to their accepted aliases (sonnet/opus/haiku/fable) in $CONFIG." \
+      "could not compare the model-alias rewrite against $CONFIG; leaving it unchanged."
+  fi
+  rm -f "$MODELALIAS_TMP" "$MODELALIAS_ERR"
+  trap - EXIT
   CLEANUP_TMP="$(mktemp)"; CLEANUP_ERR="$(mktemp)"
   trap 'rm -f "$CLEANUP_TMP" "$CLEANUP_ERR"' EXIT
   if ! "$DEVFLOW_JQ" '
         if (.prflow_review | type) == "object" and (.prflow_review.agent_overrides | type) == "object" then
           .prflow_review.agent_overrides |= with_entries(
             if (.value | type) == "object"
-               and (((.value.model | strings) // "") | startswith("claude-haiku-"))
+               and (((.value.model | strings) // "") | (. == "haiku" or startswith("claude-haiku-")))
                and (.value | has("effort"))
             then .value |= del(.effort) else . end)
         else . end' "$CONFIG" > "$CLEANUP_TMP" 2>"$CLEANUP_ERR"; then
