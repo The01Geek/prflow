@@ -14,24 +14,21 @@ This skill is the single entry point the maintainer invokes once a week (or
 on demand). It is a *conductor*: it runs deterministic bash/jq scripts from
 `lib/` at every mechanical step and dispatches LLM subagents only at the two
 genuine-judgment points — per-PR retrospective analysis (Stage A) and
-per-pattern issue-spec drafting (Stage B). Everything else — fetching,
-signal computation, gating, pattern math, and git/issue mechanics — is done by
-plain scripts with no LLM tokens. The loop **proposes, it does not dispose**:
+per-pattern issue-spec drafting (Stage B). The loop **proposes, it does not dispose**:
 each actionable pattern is filed as **one GitHub issue** for the normal
 implement → review pipeline, not landed as an autonomous PR.
 
 **Subagent dispatch is user-requested here (injection-condition clause).** Invoking `/prflow:retrospective-weekly` **is** the user's request for subagent dispatch at this loop's two judgment points — the Stage A per-PR retrospective subagents (Step 4) and the Stage B per-pattern issue-spec subagents (Step 8b) — thereby satisfying any injected "do not call the AgentTool unless the user requested it" condition there and nowhere else; every other step stays the deterministic scripts the conductor runs directly.
 
-**`$LIB` notation (textual, not a shell variable).** Throughout this skill, `$LIB` in a command denotes the resolved path `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib` — expand it textually (with the anchor already resolved for this runner) when composing each command you actually run. Never rely on a shell variable named `LIB` persisting from one statement or block to another — each Bash call is a fresh shell, and the *Portable helper anchor* note below explains why even same-command variable reuse is unsafe on some runners.
+**`$LIB` notation (textual, not a shell variable).** Throughout this skill, `$LIB` in a command denotes the resolved path `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib` — expand it textually (with the anchor already resolved for this runner) when composing each command you actually run. Never rely on a shell variable named `LIB` persisting from one statement or block to another — each Bash call is a fresh shell.
 
 **Working-directory contract.** This skill's `lib/`/`scripts/` helper paths are repo-relative literals resolving against the repository root; no fence emits a leading `cd`.
 
 Every `jq` in this skill is invoked through the execution-verified wrapper
 `$LIB/../scripts/run-jq.sh` (`$LIB/../scripts` is the `scripts/` dir beside
-`lib/`), never bare `jq` — so a shim-shadowed Windows/WSL host resolves a
-runnable jq the same way the `.sh` helper tier does (the agent-tier
-sibling). `DEVFLOW_JQ` is not exported to agent shells, so the wrapper
-must be invoked by path.
+`lib/`), never bare `jq` — a shim-shadowed Windows/WSL host otherwise resolves an
+unrunnable jq. `DEVFLOW_JQ` is not exported to agent shells, so invoke the wrapper by
+path.
 
 All scratch files live under `.prflow/tmp/` (gitignored). Learnings files
 (`.prflow/learnings/`) are tracked and committed via the state PR.
@@ -42,7 +39,7 @@ All scratch files live under `.prflow/tmp/` (gitignored). Learnings files
 
 ---
 
-**Portable helper anchor (single-statement).** The bundled-helper commands in this skill resolve the skill directory inline at each call site via `${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}`. When `$CLAUDE_SKILL_DIR` is set and non-empty (Claude Code), run each command exactly as written. On a runner where it is unset or empty, replace the placeholder with the skill base directory the runner reports in context (e.g. a `Base directory for this skill:` line) before running the command; if that reported path is Windows-form (`C:\...`), first convert it to this shell's POSIX form with one standalone `wslpath -u '<path>'` (WSL) or `cygpath -u '<path>'` (Git Bash/MSYS2) command and substitute the printed result **only if the command succeeds and prints a non-empty path — otherwise fall through to the drive-letter rules exactly as if the tool were absent, the same success-and-non-empty acceptance the platform's path-normalization rules apply** (if neither tool exists: lowercase the drive letter, map `C:\` to `/mnt/c` on WSL or `/c` on MSYS2, and turn backslashes into `/`; if the environment is neither WSL nor MSYS2, use the path unchanged and report that it could not be normalized — the same arm the platform's path-normalization rules take). Resolve the anchor inline at every call site — never capture it into a shell variable that a later statement reads, because some runners' inline-bash marshaling drops such variables (observed on Copilot CLI). If neither `$CLAUDE_SKILL_DIR` nor a runner-reported base directory is available, stop and report that the helper anchor could not be resolved rather than running a command with a broken path.
+**Portable helper anchor (single-statement).** The bundled-helper commands in this skill resolve the skill directory inline at each call site via `${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}`. When `$CLAUDE_SKILL_DIR` is set and non-empty (Claude Code), run each command exactly as written. On a runner where it is unset or empty, replace the placeholder with the skill base directory the runner reports in context (e.g. a `Base directory for this skill:` line) before running the command; if that reported path is Windows-form (`C:\...`), first convert it to this shell's POSIX form with one standalone `wslpath -u '<path>'` (WSL) or `cygpath -u '<path>'` (Git Bash/MSYS2) command and substitute the printed result **only if the command succeeds and prints a non-empty path — otherwise fall through to the drive-letter rules exactly as if the tool were absent** (if neither tool exists: lowercase the drive letter, map `C:\` to `/mnt/c` on WSL or `/c` on MSYS2, and turn backslashes into `/`; if the environment is neither WSL nor MSYS2, use the path unchanged and report that it could not be normalized). Resolve the anchor inline at every call site — never capture it into a shell variable that a later statement reads, because some runners' inline-bash marshaling drops such variables. If neither `$CLAUDE_SKILL_DIR` nor a runner-reported base directory is available, stop and report that the helper anchor could not be resolved rather than running a command with a broken path.
 
 **Consumer prompt extension (load first).** Before doing this skill's work, load any consumer-supplied prompt extension for this skill and honor it. From the repo root, run:
 
@@ -81,16 +78,15 @@ git branch --show-current
 
 If not on `main`, run `git checkout main`.
 
-Prepare the scratch directory (`$LIB` below is the textual notation from the top of this skill — expand it when composing commands, do not assign a shell variable). This also removes prior-run scratch (`result-*.json`, `pr-*.context.json`, `overrides-prefiling.json`) so a run starts clean and can never read another run's stale bundle, output, or overrides snapshot:
+Prepare the scratch directory (`$LIB` below is the textual notation from the top of this skill — expand it when composing commands, do not assign a shell variable). This also removes prior-run scratch, so a run can never read another run's stale bundle, output, or overrides snapshot:
 
 ```bash
 mkdir -p .prflow/tmp
 rm -f .prflow/tmp/new-entries.jsonl
-# Remove prior-run scratch with `find … -delete` (not a bare `rm -f <glob>`, which
-# aborts under zsh's nomatch and leaves every pattern uncleaned). Name here every
-# file a later step reads back by path: those readers guard input by readability
-# alone, so a surviving readable copy from an earlier run renders the report from
-# stale state instead of firing a missing/unreadable warning.
+# Remove prior-run scratch with `find … -delete`, not a bare `rm -f <glob>` (which
+# aborts under zsh's nomatch and leaves every pattern uncleaned). Name here every file
+# a later step reads back by path: readers guard input by readability alone, so a
+# surviving readable copy renders the report from stale state.
 find .prflow/tmp -maxdepth 1 -type f \( -name 'result-*.json' -o -name 'pr-*.context.json' -o -name 'overrides-prefiling.json' -o -name 'patterns.json' -o -name 'patterns-full.json' -o -name 'patterns.stderr' \) -delete 2>/dev/null
 ```
 
@@ -164,8 +160,7 @@ Outputs `{"clean": <bool>, "reason": "<string>"}`.
 
 **If `clean == true`:**
 
-Emit a clean entry (every retrospected PR is an `implementation` PR now — the
-old audit-kind path is retired along with autonomous intervention PRs):
+Emit a clean entry (every retrospected PR is an `implementation` PR):
 
 ```bash
 $LIB/../scripts/run-jq.sh -c -f $LIB/clean-entry.jq < "$CTX" >> .prflow/tmp/new-entries.jsonl
@@ -178,8 +173,7 @@ Increment `clean_count`.
 First run the **mechanical pre-dispatch disposition**. This decides —
 with **no LLM dispatch** — whether the non-clean bundle warrants Stage A analysis
 or is a mechanical skip (a foreign, non-DevFlow PR whose only non-clean signal is a
-missing workpad audit trail — `Absent` means the linked issue *did* resolve but
-carried no workpad comment, so this is not restricted to issueless PRs). It is a suite-driven helper, never inline prose:
+missing workpad audit trail):
 
 ```bash
 DISP=$($LIB/../scripts/run-jq.sh -c --argjson gate "$GATE" -f $LIB/dispatch-disposition.jq < "$CTX")  # argjson-ok: gate -- one PR's cheap-gate result (bounded)
@@ -190,7 +184,7 @@ DISP=$($LIB/../scripts/run-jq.sh -c --argjson gate "$GATE" -f $LIB/dispatch-disp
 sentinel (`Absent`/`NoIssue`), and `pr_devflow_provenance` is `false` — otherwise
 `dispatch`. So a bundle non-clean on **any** non-workpad signal (outstanding
 REJECT, an unreadable review-verdict signal, CI failures, post-bot commits,
-review comments) is always dispatched, exactly the analysis it receives today.
+review comments) is always dispatched.
 
 **If `disposition == "skip"` (the mechanical no-provenance skip):** this is a
 **permanently-terminal** skip. Append a marker entry to the store and write a
@@ -207,9 +201,8 @@ skip_records+=("PR #$number skipped (mechanical, no DevFlow provenance): $SKIP_R
 skipped_count=$((skipped_count + 1))
 ```
 
-Record the skip in the run report (see Step 9) with its reason line and increment
-`skipped_count`. The marker entry makes the processed-PRs filter treat this PR as
-handled on subsequent runs.
+The marker entry makes the processed-PRs filter treat this PR as handled on
+subsequent runs.
 
 **If `disposition == "dispatch"`:** add the bundle path to the analysis list:
 
@@ -249,30 +242,23 @@ each). Each subagent prompt:
 > on stdout.
 
 **Resolve `<REPO_ROOT>`, `<PLUGIN_ROOT>` and `<INTERNAL_DOC_ROOT>` ONCE, before the
-dispatch loop begins, and reuse them for every dispatch (by-value handoff).** All three
-are loop-INVARIANT, so resolve them once here rather than re-forking `git` — and, for
-`<INTERNAL_DOC_ROOT>`, a whole `config-get.sh` process — per bundle. A subagent receives
-neither `$CLAUDE_SKILL_DIR` nor a `Base
-directory for this skill:` context line, so it cannot resolve its own anchor — neither
-to reach the extension nor to reach a bundled helper. You (the orchestrator) run as a
-skill, so *you* resolve all three and substitute them into the handoff sentences above,
-giving the child absolute values its own working directory cannot change:
+dispatch loop begins, and reuse them for every dispatch (by-value handoff).** A subagent
+receives neither `$CLAUDE_SKILL_DIR` nor a `Base directory for this skill:` context line,
+so it cannot resolve its own anchor; resolve all three yourself and substitute the
+absolute values into the handoff sentences above:
 
 - `<REPO_ROOT>` — `git rev-parse --show-toplevel`.
-- `<PLUGIN_ROOT>` — the resolved value of `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../`, with the trailing slash dropped. Substitute the resolved absolute path; never hand the child the unexpanded anchor, which it cannot expand. The **same rule already governs the first handoff sentence** — the anchor-relative path to the brief itself — so resolve that one at emission too, for the same reason: a child that cannot expand it cannot find the brief it is told to follow.
+- `<PLUGIN_ROOT>` — the resolved value of `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../`, with the trailing slash dropped. Substitute the resolved absolute path; never hand the child the unexpanded anchor, which it cannot expand. Resolve the first handoff sentence's anchor-relative path to the brief at emission too — a child that cannot expand it cannot find the brief.
 - `<INTERNAL_DOC_ROOT>` — `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .docs.internal docs/internal/`. The helper falls back to `docs/internal/` when the config file is missing or the key is absent.
 
-Append all three sentences **unconditionally**. The `<PLUGIN_ROOT>` and
-`<INTERNAL_DOC_ROOT>` sentences are **required** — without them the child has no
-bundled-helper root and no internal-documentation root and degrades to its own
-fallbacks. Do not probe for or read the extension file yourself, so its content stays
-out of this orchestrator's context. `<REPO_ROOT>` and `<INTERNAL_DOC_ROOT>`
-are only read or substituted by the child (no grant needed), but `<PLUGIN_ROOT>` names
-a bundled helper the child **executes** (`[[PLUGIN_ROOT]]/scripts/run-jq.sh`), so the
-child's tier must permit that invocation.
+Append all three sentences **unconditionally** — without them the child degrades to its
+own fallbacks. Do not probe for or read the extension file yourself, so its content
+stays out of this orchestrator's context. `<PLUGIN_ROOT>` names a bundled helper the
+child **executes** (`[[PLUGIN_ROOT]]/scripts/run-jq.sh`), so the child's tier must
+permit that invocation.
 
-(The subagent picks `categories` from the fixed vocabulary in that skill — no
-"existing tags" list is passed; the vocabulary *is* the bounded list.)
+(Pass no "existing tags" list — the subagent picks `categories` from the fixed
+vocabulary in that skill.)
 
 Wait for all dispatched subagents to finish before continuing.
 
@@ -296,28 +282,25 @@ operate on the file. For each result:
      while it remains inside the 7-day merge lookback.
 
    Either way, record the skip explicitly — append the report record AND increment
-   the counter, in the same two statements the mechanical branch above uses, so
-   `skipped_count` and the rendered `skips[]` can never diverge:
+   the counter, so `skipped_count` and the rendered `skips[]` can never diverge:
 
    ```bash
    skip_records+=("PR #<n> skipped (Stage A, <Cancelled|interim>): <the skip .reason>")
    skipped_count=$((skipped_count + 1))
    ```
 
-   That record is what Step 9 renders. **Every** skip — the mechanical
-   pre-dispatch skip above, the `Cancelled` skip, and the interim skip — writes a
-   one-line report record, so no skip is ever silent.
+   That record is what Step 9 renders. **Every** skip writes one, so no skip is ever
+   silent.
 3. Otherwise, if parsing fails or the object has an `"error"` key (a genuine
    failure), **retry the subagent once** with the same prompt.
 4. If still malformed (or still `"error"`-keyed) after one retry, record a blocker:
    `"PR #<n>: retrospective analysis failed"` and skip that PR.
 5. If valid (a real retrospective entry, no `"skip"`/`"error"` key), append:
    `$LIB/../scripts/run-jq.sh -c . < .prflow/tmp/result-<n>.json >> .prflow/tmp/new-entries.jsonl`
-6. **Relay a child-reported unreadable extension.** If the parsed
-   object carries an `extension_unreadable` key (the by-path handoff found the
-   consumer extension present but unreadable), surface it in the run report by
-   appending a one-line record naming the child skill and the reported value —
-   `skip_records+=("Stage A PR #<n>: consumer prompt extension for retrospective present but unreadable: $($LIB/../scripts/run-jq.sh -r '.extension_unreadable' < .prflow/tmp/result-<n>.json)")` — so the operator sees the extension could not be honored. This never fails the PR's analysis: the entry (extra key and all) is still appended in step 5.
+6. **Relay a child-reported unreadable extension.** If the parsed object carries an
+   `extension_unreadable` key, surface it in the run report by appending a one-line
+   record naming the child skill and the reported value —
+   `skip_records+=("Stage A PR #<n>: consumer prompt extension for retrospective present but unreadable: $($LIB/../scripts/run-jq.sh -r '.extension_unreadable' < .prflow/tmp/result-<n>.json)")` — so the operator sees the extension could not be honored. This never fails the PR's analysis; the entry is still appended in step 5.
 
 ---
 
@@ -339,44 +322,36 @@ The script prints `"materialized: appended N, replaced M"` to stdout.
 ### Step 6 — Reconcile lifecycle, then derive actionable patterns
 
 First reconcile every pattern's lifecycle record against the live state of its
-filed meta-issue: `pattern-state.sh run` migrates the overrides file
-to schema v3 in place (on first read — the migration stamps each record's `category`
-field) and refreshes each `filed`/`fixed`/`declined`
-state, so the pattern view derived below already reflects this run's reconciliation.
-It runs **before** `actionable-patterns.sh`; a wholesale reconcile failure exits
-non-zero and aborts the derivation (fail-closed — deriving patterns from
-unreconciled state is what broke the loop).
+filed meta-issue: `pattern-state.sh run` migrates the overrides file to schema v3 in
+place (stamping each record's `category` field) and refreshes each
+`filed`/`fixed`/`declined` state. It runs **before** `actionable-patterns.sh`; a
+wholesale reconcile failure exits non-zero and aborts the derivation, fail-closed.
 
 ```bash
 # Guard this call: an unguarded non-zero exit derives patterns from stale,
-# unreconciled state (patterns stay `filed` after their issue closed and the loop
-# files nothing).
+# unreconciled state and the loop files nothing.
 bash $LIB/pattern-state.sh run .prflow/learnings/overrides.json || {
   echo "::error::retrospective Step 6: the lifecycle reconcile failed — aborting BEFORE pattern derivation (deriving from unreconciled state is the defect this step exists to prevent)" >&2
   exit 1
 }
-# Capture stderr to a file (not a pipe, which would replace the script's own exit
-# status): actionable-patterns.sh writes its `liveness:` line there and the report
-# renders that line from the capture.
+# Capture stderr to a file, not a pipe (which would replace the script's own exit
+# status): the report renders actionable-patterns.sh's `liveness:` line from it.
 bash $LIB/actionable-patterns.sh \
   .prflow/learnings/retrospectives.jsonl \
   .prflow/learnings/overrides.json \
   > .prflow/tmp/patterns.json 2> .prflow/tmp/patterns.stderr || {
   # Guard it: `>` truncates before the script runs, so an unguarded non-zero exit
-  # leaves an empty patterns.json and Step 8 files nothing — failing open toward
-  # "quiet week".
+  # leaves an empty patterns.json and Step 8 files nothing.
   echo "::error::retrospective Step 6: actionable-pattern derivation failed — aborting rather than proceeding with an empty pattern set (which would report a quiet week)" >&2
   cat .prflow/tmp/patterns.stderr >&2 || true
   exit 1
 }
 cat .prflow/tmp/patterns.stderr >&2 || true
 # Snapshot the post-reconcile, PRE-FILING overrides file for Step 9's won't-fix
-# re-raise read — AFTER the reconcile (which writes the `state_reason` the read keys
-# off) and BEFORE any filing (which would make a re-raised pattern look freshly
-# `filed`). Take it here, not in Step 8c: Step 8 is skipped when nothing is
-# actionable, while Step 9 reads this path unconditionally. Remove the destination
-# first and guard the copy: a stale surviving file satisfies `devflow_declined_refiled`'s
-# unreadable test and renders the section from state this run never took.
+# re-raise read — AFTER the reconcile and BEFORE any filing. Take it here, not in
+# Step 8c, which is skipped when nothing is actionable. Remove the destination first
+# and guard the copy: a stale surviving file renders the section from state this run
+# never took.
 rm -f .prflow/tmp/overrides-prefiling.json
 cp .prflow/learnings/overrides.json .prflow/tmp/overrides-prefiling.json || {
   echo "::error::retrospective Step 6: could not snapshot the pre-filing overrides file — aborting rather than letting Step 9 render its won't-fix re-raise section from a stale or absent snapshot" >&2
@@ -423,35 +398,24 @@ This is a **best-effort** step and **never blocks** the retrospective: a non-zer
 logged as a breadcrumb and the run continues. Carry that breadcrumb into the Step 9 status
 report as a blocker note so the failure is visible, then proceed.
 
-A non-zero exit means **some** PRs did not make it into the store — not necessarily that
-*nothing* was written. The assembler exits 2 when any candidate failed to assemble **or**
-had an **unestablished** merge state (a `gh` outage, an unresolvable repo), and it still
-writes the records that *did* assemble, so a partial failure leaves a partially-updated
-store. Report it as "N PRs missing from the experiment store," not as "the store was not
-updated." **An unestablished PR does not backfill by itself** — it never enters the store,
-and only stored or retrospective-listed PRs are re-selected as candidates — so name the
-PRs from the breadcrumb and re-run with `--prs` once the cause is resolved.
+A non-zero exit means **some** PRs did not make it into the store, not that *nothing*
+was written — report it as "N PRs missing from the experiment store," not as "the store
+was not updated." **An unestablished PR does not backfill by itself**, so name the PRs
+from the breadcrumb and re-run with `--prs` once the cause is resolved.
 
 Before the reader runs, **fetch the telemetry branch** into its local ref so
 `build-experiment-records.py` can union each run's durable record off that branch with any
-legacy tracked `.prflow/logs/`. Best-effort: on a fresh repo the branch does not exist yet
-(nothing has persisted to it) and the fetch is a harmless no-op — the reader then reads the
-legacy archive alone; the retrospective is never blocked by a missing telemetry branch.
+legacy tracked `.prflow/logs/`. Best-effort: on a fresh repo the branch does not exist
+and the fetch is a harmless no-op, so a missing telemetry branch never blocks the run.
 
 ```bash
 # Fetch the telemetry branch into its local ref — deliberately NO force `+` refspec:
-# the local ref can be AHEAD of the remote (offline-accumulated `--persist` commits),
-# and a forced fetch would rewind it and permanently orphan those records. A plain
-# fetch fast-forwards the common case and rejects the diverged case, leaving the
-# records intact for the reader (`_index_efficiency`, which reads it by local branch
-# name); reconciling with the remote belongs to the next writing run, never this
-# read-side fetch.
+# the local ref can be AHEAD of the remote, and a forced fetch would rewind it and
+# permanently orphan those records.
 #
 # Resolve the branch through the SAME resolver the writer uses (`devflow_telemetry_branch`
-# in lib/telemetry-branch.sh) — never a third re-derivation: a bare `config-get.sh` read
-# applies neither its `git check-ref-format` fallback nor config-get's coercion, so this
-# fetch would target a branch nobody wrote to and every cost row silently goes missing.
-# Source the lib and ask it; the `||` keeps this best-effort.
+# in lib/telemetry-branch.sh): a bare `config-get.sh` read would target a branch nobody
+# wrote to and every cost row silently goes missing. The `||` keeps this best-effort.
 #
 # Do NOT redirect the resolver's stderr to /dev/null: on a git-invalid `telemetry.branch`
 # its breadcrumb is the one place that names the config key to fix.
@@ -467,12 +431,9 @@ python3 $LIB/../scripts/build-experiment-records.py || \
   echo "retrospective-weekly: build-experiment-records.py exited non-zero (rc=$?) — one or more PRs are MISSING from the experiment store (see its stderr for which, and whether they failed to assemble or had an unestablished merge state); records that did assemble were still written" >&2
 ```
 
-The assembler is idempotent (one line per merged PR, keyed by PR number) and incremental
-(it processes merged PRs absent from `.prflow/learnings/experiment-records.jsonl` plus
-any passed via `--prs`, never a full-history sweep), so re-running is safe and cheap. It
-runs on the **local/interactive retrospective tier only** — never from a workflow. The
-record's own shape is documented in `scripts/build-experiment-records.py`'s module
-docstring.
+The assembler is idempotent and incremental, so re-running is safe. It runs on the
+**local/interactive retrospective tier only** — never from a workflow. The record's own
+shape is documented in `scripts/build-experiment-records.py`'s module docstring.
 
 ---
 
@@ -491,15 +452,11 @@ git checkout main
 
 The working tree now has the updated
 `.prflow/learnings/retrospectives.jsonl` and, normally, a modified
-`.prflow/learnings/overrides.json`. That overrides diff is **this** run's output,
-not carry-over: Step 6's reconcile rewrites the file unconditionally, so an
-unexpected-looking diff there is the reconcile normalizing entries (schema
-migration, refreshed `state_reason` and lifecycle states) — and it may additionally
-carry meta-issue lifecycle records written by earlier runs that were never
-committed. Review it as fresh reconcile output; do not discard it as stale. These
-changes are in-place on `main`'s working tree and have **never
-been committed to `main`** — `open-state-pr.sh` handles committing them onto
-a separate branch.
+`.prflow/learnings/overrides.json`. That overrides diff is **this** run's output, not
+carry-over — Step 6's reconcile rewrites the file unconditionally. Review it as fresh
+reconcile output; do not discard it as stale. These changes are in-place on `main`'s
+working tree and have **never been committed to `main`** — `open-state-pr.sh` handles
+committing them onto a separate branch.
 
 ```bash
 STATE_PR=$(bash $LIB/open-state-pr.sh)
@@ -509,8 +466,7 @@ STATE_PR=$(bash $LIB/open-state-pr.sh)
 `--base <ref>` — defaults to `main` —, and `--dry-run`):
 
 - Creates/reuses branch `devflow/learnings-<YYYY-MM-DD>` from `--base`
-  (`main` by default), so the PR diff is just the learnings files even if the
-  operator was on a feature branch.
+  (`main` by default), so the PR diff is just the learnings files.
 - Stages any learnings files that exist (`.prflow/learnings/retrospectives.jsonl`
   and, if present, `.prflow/learnings/overrides.json`).
 - Commits and pushes (force-with-lease if the remote branch exists).
@@ -529,14 +485,12 @@ Initialize Stage B counters:
 ```bash
 intervention_issues=() # will hold {key, category, url} objects — one per filed finding
 blockers=()              # will hold strings
-# Step 9 slurps both of these. Declaring them here rather than relying on the
-# first append means a run where nothing is filed and nothing is withheld still
-# has an array to slurp, instead of a name Step 9 discovers is unset.
+# Step 9 slurps both of these. Declare them here, or a run that files and withholds
+# nothing leaves Step 9 a name it discovers is unset.
 filed_slugs=()           # will hold COARSE pattern tags — one per pattern that filed at
-                         # least one issue. Coarse, not composed: Step 9's
-                         # devflow_annotate_patterns keys on the pattern's own
-                         # `.tag // .slug`, and a `<category>-<subslug>` key never
-                         # matches it. Per-issue detail lives in intervention_issues.
+                         # least one issue. Coarse, not composed: a
+                         # `<category>-<subslug>` key never matches the pattern's own
+                         # `.tag // .slug` that Step 9 keys on.
 withheld=()              # will hold {tag, cap} objects — one per pattern a cap held back
 truncations=() # will hold {tag, delivered, total, selected} objects — one per pattern the audit_bundle_cap (or a fetch failure) truncated
 ```
@@ -548,14 +502,10 @@ truncations=() # will hold {tag, delivered, total, selected} objects — one per
 For each actionable pattern, a Stage B subagent returns a ranked `findings` array
 (one to three sub-patterns), and the orchestrator files **one GitHub issue per
 selected finding** via `meta-issue.sh` — under an opaque `<category>-<subslug>`
-filing key composed by the composer. Which findings become filings is decided
-by `lib/select-findings.sh`, the owner of that decision **on the
-findings-array path** — the legacy `{title, body}` shape never reaches it and derives
-its own cap verdict in 8c: it composes and legality-checks each key, collapses subslug
-churn onto an existing lifecycle record by a token-set alias, ranks tight clusters
-ahead of grab-bags (descending evidence-PR count) and truncates to the top three, and
-asks the shipped `devflow_filing_cap_verdict` for each of that path's cap decisions. **No worktrees, no commits, no
-PRs** — the loop proposes; a human triages each issue and runs it through the normal
+filing key composed by the composer. Which findings become filings is decided by
+`lib/select-findings.sh`, the owner of that decision **on the findings-array path**;
+the legacy `{title, body}` shape never reaches it and derives its own cap verdict in
+8c. **No worktrees, no commits, no PRs** — the loop proposes; a human triages each issue and runs it through the normal
 `/prflow:implement` → review pipeline. Your main checkout stays on `main` and is
 never edited. The drafting subagents (8b) parallelize; the cheap filing (8c) is done
 serially.
@@ -567,60 +517,46 @@ The enriched pattern object carries per-occurrence
 occurrences, so — beyond the single scalar read that names its own file (`SLUG`,
 below) — read each scalar field (`SLUG`, `TAG`, `CATEGORY`, `TOTAL`) from the on-disk
 `pattern-${SLUG}.json` file, never through a second/third herestring or an inline
-prompt interpolation. This restriction does not cover `devflow_select_audit_bundles`
-below, which receives the whole in-memory `$pattern` once as a bounded positional
-argument.
+prompt interpolation. `devflow_select_audit_bundles` below is exempt: it receives the
+whole in-memory `$pattern` once as a bounded positional argument.
 
 **`SLUG` names the file every later step reads, so it is derived — and that file
 written — before any other field is read off the pattern object:**
 
 1. **`SLUG`** — `$LIB/../scripts/run-jq.sh -r .slug <<< "$pattern"`. The **one**
-   sanctioned herestring over the enriched object. It is not the only place `SLUG`
-   exists on disk — `.prflow/tmp/patterns.json`, written back in Step 6, carries
-   `.slug` on every record — but selecting *this* iteration's record out of that file
-   needs the very key we are deriving, and `$pattern` is the element already in hand.
-   The exception is scoped to this one scalar and licenses no second read.
+   sanctioned herestring over the enriched object; the exception is scoped to this one
+   scalar and licenses no second read.
 2. **Write** that pattern's object to `.prflow/tmp/pattern-${SLUG}.json` with the
    **Write tool**.
 3. **`TAG`** (`$LIB/../scripts/run-jq.sh -r .tag ".prflow/tmp/pattern-${SLUG}.json"`)
    and **`CATEGORY`**
    (`$LIB/../scripts/run-jq.sh -r .category ".prflow/tmp/pattern-${SLUG}.json"` — the
-   attribution category the opaque filing key belongs to). Now that the
-   file exists these come **from it**: a second and third herestring over the whole
-   enriched object is exactly what the rule above forbids.
+   attribution category the opaque filing key belongs to). Read these **from the
+   file**, never as a second and third herestring over the enriched object.
 4. Record also the **absolute path** `.prflow/tmp/pattern-${SLUG}.json` (Step 8b
    hands that path to the subagent, matching the bundle-path handoff).
 
-Stage B no longer fetches a bundle for *every* occurrence PR of a pattern — an
-unbounded cost that scaled with each pattern's cumulative occurrence history.
-Instead it fetches at most `audit_bundle_cap` occurrence bundles per pattern,
+Stage B fetches at most `audit_bundle_cap` occurrence bundles per pattern,
 **most-recent-first**. Resolve and validate the cap **once, before the per-pattern
 loop begins**, so no pattern is fetched before an unusable cap is detected. The
 config read stays in this fence (via `config-get.sh`, default `10`); the validation
-and selection live in the sourced `lib/audit-bundle-selection.sh`, which the suite
-drives directly:
+and selection live in the sourced `lib/audit-bundle-selection.sh`:
 
 ```bash
-# Source the helper with a fail-closed arm — the same arm every
-# `source $LIB/filing-decisions.sh` site in this file carries. Without it an
-# unsourceable helper leaves devflow_validate_audit_bundle_cap /
-# devflow_select_audit_bundles / devflow_audit_dispatch_ok undefined, their empty
-# stdout reads as a valid cap and an empty selection, and the run proceeds on
-# unvalidated values — the fail-open shape the validate-before-the-loop rule prevents.
+# Source the helper with a fail-closed arm. Without it an unsourceable helper leaves
+# devflow_validate_audit_bundle_cap / devflow_select_audit_bundles /
+# devflow_audit_dispatch_ok undefined and the run proceeds on unvalidated values.
 source $LIB/audit-bundle-selection.sh || {
   echo "::error::retrospective Step 8a: lib/audit-bundle-selection.sh could not be sourced — the audit-bundle cap has no validator/selector; aborting rather than fetching every occurrence on an unvalidated cap" >&2
   exit 1
 }
 # config-get.sh resolves an absent file / absent key / null / empty string / empty
-# array to the default 10. devflow_validate_audit_bundle_cap rejects a 0/negative
-# cap, a coerced object/boolean/multi-array, a non-numeric string, 3.5, and an
-# EMPTY resolver output (a read failure) — printing an `::error::` and exiting
-# non-zero, which the `|| exit 1` propagates so no pattern is judged on a bad cap.
+# array to the default 10. devflow_validate_audit_bundle_cap rejects every unusable
+# cap non-zero; the `|| exit 1` propagates it so no pattern is judged on a bad cap.
 AUDIT_BUNDLE_CAP_RAW="$(bash $LIB/../scripts/config-get.sh '.prflow_retrospective.audit_bundle_cap' 10)"
 AUDIT_BUNDLE_CAP="$(devflow_validate_audit_bundle_cap "$AUDIT_BUNDLE_CAP_RAW")" || exit 1
-# Resolve loop-invariant REPO_ROOT once. `|| pwd` is the fallback: unguarded, a
-# git-absent or not-a-work-tree host leaves it EMPTY and every bundle path below
-# becomes the absolute phantom `/.prflow/tmp/pr-N.context.json` handed to Stage B.
+# Resolve loop-invariant REPO_ROOT once. Keep `|| pwd`: unguarded, a git-absent host
+# leaves it EMPTY and every bundle path becomes a phantom `/.prflow/tmp/pr-N…` path.
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 ```
 
@@ -632,32 +568,25 @@ actually receives, after excluding any that failed to fetch), and *total*
 (`occurrence_count`):
 
 ```bash
-# TOTAL is occurrence_count (compute-patterns.jq sets it to the occurrences[]
-# length; read it directly, falling back to the array length if the field is
-# absent). SELECTED_PRS are the most-recent AUDIT_BUNDLE_CAP occurrence PRs in
-# DESCENDING ts order (the helper reverses the ascending occurrences[] tail — the
-# emitted order is fact the dispatch prompt states).
+# TOTAL is occurrence_count, falling back to the occurrences[] length. SELECTED_PRS
+# are the most-recent AUDIT_BUNDLE_CAP occurrence PRs in DESCENDING ts order — the
+# emitted order is fact the dispatch prompt states.
 # `dispatch` carries the no-dispatch floor: 8b/8c act only on patterns whose
 # `dispatch` is still 1 here. Start optimistic; clear it on any arm that leaves the
 # pattern without evidence.
 dispatch=1
-# TOTAL is occurrence_count. The jq `// 0` protects a null FIELD, not a failed
-# invocation: on an aborting run-jq.sh, TOTAL is EMPTY and the truncation comparison
-# `[ 0 -lt "" ]` errors under `set -e`. Unknown is not zero — an unestablished TOTAL
-# is recorded and the truncation entry skipped, never fabricated from a laundered 0.
+# The jq `// 0` protects a null FIELD, not a failed invocation. Unknown is not zero —
+# an unestablished TOTAL is recorded and the truncation entry skipped, never
+# fabricated from a laundered 0.
 TOTAL="$($LIB/../scripts/run-jq.sh -r '(.occurrence_count // (.occurrences // [] | length)) // 0' ".prflow/tmp/pattern-${SLUG}.json" 2>/dev/null || true)"
 case "$TOTAL" in
     ''|*[!0-9]*)
         blockers+=("Pattern ${SLUG}: the occurrence total could not be established (got '${TOTAL}') — truncation reporting skipped for this pattern")
         TOTAL="" ;;
 esac
-# Fail CLOSED on a selector failure. Without this arm a non-object pattern, a
-# present-but-non-array `occurrences`, or an unresolvable jq all yield empty stdout,
-# the loop below never runs, and the run records the blocker "all 0 selected
-# occurrence bundle(s) failed to fetch" — asserting a FALSE cause (`gh`) for a
-# config-/corpus-shape defect. The helper's non-zero return exists precisely to
-# prevent that, and it only prevents it if the sole call site checks it. The
-# `::error::` the helper already wrote to stderr carries the real cause.
+# Fail CLOSED on a selector failure. Without this arm the loop below never runs and
+# the run blames `gh` for a config-/corpus-shape defect; the `::error::` the helper
+# already wrote to stderr carries the real cause.
 SELECTED_PRS="$(devflow_select_audit_bundles "$AUDIT_BUNDLE_CAP" "$pattern")" || {
     blockers+=("Pattern ${SLUG}: occurrence selection failed — see the audit-bundle-selection ::error:: above for the cause; not dispatched to Stage B and not filed")
     SELECTED_PRS=""
@@ -667,16 +596,14 @@ selected=0; delivered=0; bundle_paths=()
 for n in $SELECTED_PRS; do
     selected=$((selected + 1))
     BUNDLE="$REPO_ROOT/.prflow/tmp/pr-${n}.context.json"
-    # Use `-s`, not `-f`: fetch-pr-context.sh's terminal `> "$OUT_FILE"` truncates
-    # before its composing jq runs, so an interrupted run leaves a zero-byte bundle
-    # that `-f` would count as evidence. Test and deliver the SAME absolute string, so
-    # an oddly-resolved REPO_ROOT cannot pass the guard on one path while handing Stage
-    # B another.
+    # Use `-s`, not `-f`: an interrupted fetch leaves a zero-byte bundle that `-f`
+    # would count as evidence. Test and deliver the SAME absolute string, or an
+    # oddly-resolved REPO_ROOT passes the guard on one path and hands Stage B another.
     FETCH_ERR=""
     if [ ! -s "$BUNDLE" ]; then
         # Capture fetch-pr-context.sh's own diagnostics instead of discarding them:
         # an expired token, a deleted PR, an absent `gh` and a jq shape error are
-        # fixed differently, and this is the path the cap makes most reachable.
+        # fixed differently.
         FETCH_ERR="$(bash $LIB/fetch-pr-context.sh "$n" 2>&1 >/dev/null || true)"
     fi
     if [ -s "$BUNDLE" ]; then
@@ -685,19 +612,15 @@ for n in $SELECTED_PRS; do
     else
         # A selected occurrence whose bundle is ABSENT (or zero-byte) after the fetch
         # attempt is excluded from the path array handed to Stage B and named in the
-        # blockers — never handed to Stage B as a phantom path, and never counted as
-        # evidence. The blocker quotes the fetcher's own diagnostic rather than
-        # guessing the cause; when it wrote nothing, that absence is stated as such.
+        # blockers — never a phantom path, and never counted as evidence. The blocker
+        # quotes the fetcher's own diagnostic rather than guessing the cause.
         blockers+=("Pattern ${SLUG}: occurrence PR #${n} bundle could not be fetched — ${FETCH_ERR:-fetch-pr-context.sh produced no diagnostic} — excluded from Stage B evidence")
     fi
 done
-# delivered == 0 (every selected bundle failed to fetch — the ordinary shape of a
-# mid-run gh auth expiry once the cap made the selected set small): DO NOT dispatch
-# this pattern to Stage B, record a blocker, and file NOTHING for it. Dispatching an
-# empty bundle set would have Stage B re-derive a root cause from metadata alone and
-# file an evidence-free issue that outlives the run. The decision is owned by
-# devflow_audit_dispatch_ok (which also fails closed on an unestablished count), and
-# `dispatch` is what 8b/8c read — the floor is a mechanism, not a comment.
+# delivered == 0 (every selected bundle failed to fetch): DO NOT dispatch this pattern
+# to Stage B, record a blocker, and file NOTHING for it — an empty bundle set has Stage
+# B re-derive a root cause from metadata alone and file an evidence-free issue.
+# devflow_audit_dispatch_ok owns the decision; `dispatch` is what 8b/8c read.
 if ! devflow_audit_dispatch_ok "$delivered"; then
     blockers+=("Pattern ${SLUG}: no occurrence bundle was delivered out of ${selected} selected — not dispatched to Stage B and not filed")
     dispatch=0
@@ -707,21 +630,17 @@ fi
 # (delivered < selected) distinctly from the cap-dropped gap. Built with jq so the
 # element is valid JSON for the Step 9 slurp.
 #
-# Gated on `dispatch` as well: a pattern that was never dispatched contributed NO
-# Stage B evidence at all, so rendering it under "Stage B read fewer occurrence
-# bundles than the pattern has occurrences" would tell a reader a weakly-evidenced
-# issue exists for it when none does — the same evidence overstatement this change
-# removes, inverted. Its blocker above already covers it. Gated on a non-empty TOTAL
-# too, since an unestablished total cannot establish a shortfall.
+# Gated on `dispatch`: a pattern that was never dispatched contributed NO Stage B
+# evidence, and its blocker above already covers it. Gated on a non-empty TOTAL too,
+# since an unestablished total cannot establish a shortfall.
 if [ "$dispatch" -eq 1 ] && [ -n "$TOTAL" ] && [ "$delivered" -lt "$TOTAL" ]; then
-    # argjson-ok: delivered,total,selected -- bounded per-pattern counts (small integers capped by audit_bundle_cap / occurrence_count), never corpus-sized operands, so they carry no E2BIG risk
+    # argjson-ok: delivered,total,selected -- bounded per-pattern counts, never corpus-sized operands
     TRUNC_ENTRY="$($LIB/../scripts/run-jq.sh -nc --arg tag "$TAG" \
         --argjson delivered "$delivered" --argjson total "$TOTAL" --argjson selected "$selected" \
         '{tag:$tag,delivered:$delivered,total:$total,selected:$selected}' 2>/dev/null || true)"
     # A failed build would otherwise append an EMPTY element that Step 9's
-    # `map(select(. != null))` slurps away silently — the pattern's truncation record
-    # vanishing with no diagnostic, which is exactly the silent evidence loss this
-    # change exists to remove. Record it as a blocker instead.
+    # `map(select(. != null))` slurps away silently, losing the record with no
+    # diagnostic. Record it as a blocker instead.
     if [ -n "$TRUNC_ENTRY" ]; then
         truncations+=("$TRUNC_ENTRY")
     else
@@ -739,9 +658,8 @@ its blocker is what the run report carries for it.**
 
 Issue **one Agent call per pattern whose `dispatch` is `1`, all in a single
 message** so they run in parallel. A pattern whose 8a fence cleared `dispatch` gets
-no Agent call at all — it has no delivered bundle, and dispatching it would have
-Stage B re-derive a root cause from metadata alone. No worktree is created or passed
-— the subagent makes no edits. Each dispatched subagent's prompt:
+no Agent call at all. No worktree is created or passed — the subagent makes no edits.
+Each dispatched subagent's prompt:
 
 > Read and follow
 > `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../retrospective-audit/SKILL.md`
@@ -754,7 +672,7 @@ Stage B re-derive a root cause from metadata alone. No worktree is created or pa
 > `<total>` total occurrences. The pattern metadata's `occurrences[]` below remains
 > the **authoritative full list** of occurrence PRs.
 >
-> Pattern metadata is on disk at the absolute path `<REPO_ROOT>/.prflow/tmp/pattern-<slug>.json` — read it with your file-read tool. It is handed to you by path, not inlined, because the enriched object carries every occurrence's free text.
+> Pattern metadata is on disk at the absolute path `<REPO_ROOT>/.prflow/tmp/pattern-<slug>.json` — read it with your file-read tool.
 >
 > Consumer prompt-extension handoff: your extension file for this skill is at the
 > absolute path `<REPO_ROOT>/.prflow/prompt-extensions/retrospective-audit.md`.
@@ -773,49 +691,39 @@ Stage B re-derive a root cause from metadata alone. No worktree is created or pa
 > on stdout.
 
 **Resolve `<REPO_ROOT>` and `<PLUGIN_ROOT>` before dispatch (by-value handoff).** As in
-Step 4, a subagent resolves no anchor of its own — neither to reach the pattern-metadata
-or extension file nor to reach a bundled helper — so you (the orchestrator) resolve both
-and substitute them into the handoff sentences above:
+Step 4, a subagent resolves no anchor of its own, so you (the orchestrator) resolve
+both and substitute them into the handoff sentences above:
 
 - `<REPO_ROOT>` — `git rev-parse --show-toplevel` (the pattern-metadata path and the prompt-extension path).
-- `<PLUGIN_ROOT>` — the resolved value of `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../`, with the trailing slash dropped. Substitute the resolved absolute path; never hand the child the unexpanded anchor, which it cannot expand. The **same rule already governs the first handoff sentence** — the anchor-relative path to the brief itself — so resolve that one at emission too: a child that cannot expand it cannot find the brief it is told to follow.
+- `<PLUGIN_ROOT>` — resolved exactly as in Step 4, with the first handoff sentence's anchor-relative path to the brief resolved at emission too.
 
-Append the sentences **unconditionally** (the extension sentence is inert when no extension
-exists), run **no** probe, and read **no** extension file yourself — no extension content
-enters this orchestrator's context. For `<REPO_ROOT>` the child performs a file read or a
-textual substitution, so that needs no allowlist entry on any tier — but `<PLUGIN_ROOT>`
-names a bundled helper the child **executes** (`[[PLUGIN_ROOT]]/scripts/run-jq.sh`), so the
-child's tier must grant that helper (the same grant Stage A's dispatch relies on).
+Append the sentences **unconditionally**, run **no** probe, and read **no** extension file
+yourself — no extension content enters this orchestrator's context. `<PLUGIN_ROOT>` names
+a bundled helper the child **executes** (`[[PLUGIN_ROOT]]/scripts/run-jq.sh`), so the
+child's tier must grant that helper.
 
 Wait for **all** subagents to finish. Pair each result JSON with its pattern.
 
 #### 8c — File one issue per selected finding (serial, under the filing back-pressure caps)
 
 The filing set is the patterns 8b dispatched — those whose `dispatch` is `1`. A
-pattern excluded by the 8a floor never reaches a cap decision, is never counted
-against `max_issues_per_run` or `max_open_issues`, and appears in the run report
-through its 8a blocker rather than under a filing-cap heading.
+pattern excluded by the 8a floor never reaches a cap decision and appears in the run
+report through its 8a blocker rather than under a filing-cap heading.
 
 Before filing, read the three back-pressure caps, and source the helper that owns
-both the open-issue counts and the cap decision. The counts are derived
-from the
-`overrides.json` lifecycle records — the meta-issue entries whose reconciled state
-is `filed` — never from the `Retrospective` label query or a title parse, so a
-human-applied label cannot consume the loop's budget and a loop-filed issue whose
-best-effort label failed still counts:
+both the open-issue counts and the cap decision. The counts are derived from the
+`overrides.json` lifecycle records — the meta-issue entries whose reconciled state is
+`filed` — never from a label query or a title parse, so a human-applied label cannot
+consume the loop's budget:
 
 ```bash
 MAX_PER_RUN="$(bash $LIB/../scripts/config-get.sh '.prflow_retrospective.max_issues_per_run' 3)"
 MAX_OPEN="$(bash $LIB/../scripts/config-get.sh '.prflow_retrospective.max_open_issues' 10)"
 MAX_PER_CAT="$(bash $LIB/../scripts/config-get.sh '.prflow_retrospective.max_open_per_category' 2)"
 # Validate the caps HERE, once, before any pattern is judged. config-get.sh coerces
-# whatever JSON the key holds into a string — an object arrives as `[object Object]`,
-# `false` as `false` — so a single config typo makes devflow_filing_cap_verdict return
-# `invalid-operand` for EVERY pattern, and the disposition prose records that as
-# `{tag, cap: "invalid-operand"}` in `withheld`, which the report renders under
-# "Patterns withheld by a filing cap" — indistinguishable from legitimate
-# back-pressure. Aborting and naming the offending key is preferable to a broken
-# config reading as a deliberately throttled week.
+# whatever JSON the key holds into a string, so a single config typo withholds EVERY
+# pattern as `invalid-operand` and the report renders that as ordinary back-pressure.
+# Abort and name the offending key instead.
 case "$MAX_PER_RUN" in
   ''|*[!0-9]*) echo "::error::retrospective Step 8c: .prflow_retrospective.max_issues_per_run is not a count (got '$MAX_PER_RUN') — aborting rather than withholding every pattern behind an invalid-operand verdict that would read as back-pressure" >&2
      exit 1 ;;
@@ -828,19 +736,17 @@ case "$MAX_PER_CAT" in
   ''|*[!0-9]*) echo "::error::retrospective Step 8c: .prflow_retrospective.max_open_per_category is not a count (got '$MAX_PER_CAT') — aborting rather than withholding every pattern behind an invalid-operand verdict that would read as back-pressure" >&2
      exit 1 ;;
 esac
-# Both cap comparands come from `lib/filing-decisions.sh`, which the suite drives
-# over its arms — never from inline jq here. It is sourced at top level so its
-# functions persist in this shell, which is safe because the helper deliberately
-# sets NO shell options: an earlier `set -euo pipefail` in it leaked into this
-# orchestrator, where a later benign non-zero would have aborted the run. If you
-# ever add options to that helper, source it in a subshell instead.
+# Both cap comparands come from `lib/filing-decisions.sh`, never from inline jq here.
+# Source it at top level so its functions persist in this shell; that is safe only
+# because the helper sets NO shell options. If you ever add options to it, source it in
+# a subshell instead — a leaked `set -euo pipefail` aborts this orchestrator.
 source $LIB/filing-decisions.sh || {
   echo "::error::retrospective: lib/filing-decisions.sh could not be sourced — the filing decisions have no owner; aborting rather than silently withholding every pattern" >&2
   exit 1
 }
 # Initialize the per-run counter EXPLICITLY. Left unset it expands empty, which
-# devflow_filing_cap_verdict correctly rejects as `invalid-operand` — withholding
-# every pattern for the whole run. "Starts at 0" in prose is not a binding.
+# devflow_filing_cap_verdict rejects as `invalid-operand`, withholding every pattern
+# for the whole run.
 filed_this_run=0
 ```
 
@@ -848,10 +754,9 @@ filed_this_run=0
 increment it after each successful filing. The two `filed`-count comparands — the
 whole-file total and the per-category count for the slug — are **re-derived from the
 overrides file inside the per-pattern block below**, not tracked here, so they cannot
-drift the way a hand-maintained running total can. A `meta-issue.sh` recovery-path
-filing (create succeeded, lifecycle write failed — exit 0 + URL + a loud `::error::`)
-is missed by that fresh read but still counted by `filed_this_run`, so the per-run cap
-holds and the next run's de-dupe restores the missing record.
+drift. A `meta-issue.sh` recovery-path filing (create succeeded, lifecycle write failed
+— exit 0 + URL + a loud `::error::`) is missed by that fresh read but still counted by
+`filed_this_run`.
 
 Both count helpers fail **closed** by printing nothing — never `0` — when the
 overrides file is missing, unreadable, or malformed. Do not default an empty
@@ -865,8 +770,7 @@ Step 9 reads it unconditionally.
 
 For each `(pattern, result)` pair, bind `$STATUS` once — the operand both
 `select-findings.sh` and the legacy cap check key the `regressed` bypass off. An
-unbound `$STATUS` expands empty (never `"regressed"`), so the bypass would be dead at
-runtime; an empty `$STATUS` is a WIRING failure, not a non-regressed pattern:
+unbound `$STATUS` expands empty, leaving the bypass dead at runtime:
 
 ```bash
 STATUS="$($LIB/../scripts/run-jq.sh -r --arg t "$TAG" '.[] | select((.tag // .slug) == $t) | .status' .prflow/tmp/patterns.json)"
@@ -883,13 +787,12 @@ contain quotes, backticks, newlines, and `$` — never interpolate it inline int
 shell command). Then:
 
 - A result carrying a `findings` array → the normal path. `lib/select-findings.sh`
-  is the **owner of the selection on this path** (the legacy shape below is the other
-  one, and never calls it): it composes and
-  legality-checks each `<category>-<subslug>` key through the composer, aliases a
-  churned subslug onto an existing lifecycle record of the same category (equal token
-  set), ranks by **descending** evidence-PR count and truncates to the top three, and
-  asks `devflow_filing_cap_verdict` for **each finding's** cap decision (passing the running
-  `filed_this_run`, so the per-run and open caps grow as issues are filed). You do
+  is the **owner of the selection on this path**: it composes and legality-checks
+  each `<category>-<subslug>` key through the composer, aliases a churned subslug onto
+  an existing lifecycle record of the same category (equal token set), ranks by
+  **descending** evidence-PR count and truncates to the top three, and asks
+  `devflow_filing_cap_verdict` for **each finding's** cap decision (passing the
+  running `filed_this_run`). You do
   **not** re-derive the per-category or open-total comparands here — the helper owns
   them. An **empty** `findings` array files nothing and records a per-pattern report
   line, distinct from the malformed blocker.
@@ -902,15 +805,14 @@ shell command). Then:
 
 You increment `filed_this_run` once per **issue filed** (not per pattern), and append
 the pattern's coarse tag `$SLUG` — once per pattern that filed anything, never the
-composed key — to `filed_slugs` for Step 9's annotation: `devflow_annotate_patterns`
-indexes on the pattern view's own coarse `.tag // .slug`, which a composed
-`<category>-<subslug>` key can never equal.
+composed key — to `filed_slugs` for Step 9's annotation, which indexes on the coarse
+`.tag // .slug` a composed key can never equal.
 
 ```bash
 # Keep the wrapper precheck a SEPARATE single-statement branch (no rc carried across
-# statements — the inline-bash marshaling constraint), so an unexpanded $LIB or missing
-# run-jq.sh reads as the anchor failure it is, not a malformed subagent result.
-# `[ ! -x ]` (not `[ ! -e ]`) catches a present-but-non-executable wrapper (lost +x → 126).
+# statements), so an unexpanded $LIB or missing run-jq.sh reads as the anchor failure it
+# is, not a malformed subagent result. `[ ! -x ]` (not `[ ! -e ]`) also catches a
+# present-but-non-executable wrapper.
 if [ ! -x "$LIB/../scripts/run-jq.sh" ]; then
     blockers+=("Pattern ${SLUG}: run-jq.sh wrapper not found or not executable (unexpanded \$LIB notation, missing wrapper, or lost +x bit; fix the anchor) — not filed")
 
@@ -922,26 +824,19 @@ elif $LIB/../scripts/run-jq.sh -e '(.findings | type) == "array"' < ".prflow/tmp
     [ -n "$EXT_UNREADABLE" ] && echo "::warning::retrospective Stage B (pattern ${SLUG}): consumer prompt extension for retrospective-audit present but unreadable: ${EXT_UNREADABLE}" >&2
     if [ "$($LIB/../scripts/run-jq.sh -r '.findings | length' < ".prflow/tmp/result-${SLUG}.json")" -eq 0 ]; then
         # Empty findings array: file nothing, record a per-pattern report LINE —
-        # distinct from the malformed blocker (this pattern was well-formed; Stage B
-        # simply found no distinct sub-pattern worth its own issue).
+        # distinct from the malformed blocker.
         skip_records+=("Pattern ${SLUG}: Stage B returned an empty findings array — nothing to file for this pattern")
     else
-        # Ask select-findings which findings become filings. It sources the cap owner,
-        # composes/legality-checks/aliases/ranks/truncates, and returns the to-file
-        # array on stdout. A NON-ZERO exit is a withhold-everything condition (cap
-        # owner unsourceable, or overrides absent/unreadable/unmigrated) — it prints
-        # nothing and names the cause on its own ::error:: channel.
+        # Ask select-findings which findings become filings; it returns the to-file
+        # array on stdout. A NON-ZERO exit is a withhold-everything condition and names
+        # the cause on its own ::error:: channel.
         $LIB/../scripts/run-jq.sh -c '.findings' < ".prflow/tmp/result-${SLUG}.json" > ".prflow/tmp/findings-${SLUG}.json"
-        # GUARD the source. An unsourceable select-findings.sh leaves
-        # devflow_select_findings undefined, and the `else` arm below would then
-        # misattribute that to the helper's own withhold-everything condition — a cause
-        # it is not. Report it as the missing-owner failure it is.
-        # --withheld-file: select-findings writes a JSON array of {tag, cap} for every
-        # finding a cap held back, so the report names them — not only its
-        # own stderr breadcrumb. Read it back into `withheld` below.
-        # --dropped-file: likewise for the top-three truncation — its notice is
-        # stderr-only and we capture stdout, so without this channel the "N dropped"
-        # count can never reach the run report.
+        # GUARD the source: an unsourceable select-findings.sh would otherwise be
+        # misreported by the `else` arm below as its withhold-everything condition.
+        # --withheld-file: a JSON array of {tag, cap} for every finding a cap held
+        # back, read back into `withheld` below.
+        # --dropped-file: likewise for the top-three truncation, whose notice is
+        # otherwise stderr-only and never reaches the run report.
         if ! source $LIB/select-findings.sh; then
             blockers+=("Pattern ${SLUG}: could not source lib/select-findings.sh (missing, unreadable, or a syntax error) — nothing filed for this pattern")
         elif TO_FILE="$(devflow_select_findings \
@@ -956,29 +851,25 @@ elif $LIB/../scripts/run-jq.sh -e '(.findings | type) == "array"' < ".prflow/tmp
                 --withheld-file ".prflow/tmp/withheld-${SLUG}.json" \
                 --dropped-file ".prflow/tmp/dropped-${SLUG}.json")"; then
             # Fold each cap-withheld finding into `withheld` so Step 9 reports it under
-            # "withheld by a filing cap", exactly as the legacy path does.
+            # "withheld by a filing cap".
             if [ -s ".prflow/tmp/withheld-${SLUG}.json" ]; then
                 while IFS= read -r _wh; do
                     [ -n "$_wh" ] && withheld+=("$_wh")
                 done < <($LIB/../scripts/run-jq.sh -c '.[]' < ".prflow/tmp/withheld-${SLUG}.json")
             fi
-            # Fold a truncation record into `skip_records` — the same report channel the
-            # empty-findings case uses — so the run names the pattern and the count that
-            # Stage B returned but this selection dropped. The file holds an empty array
-            # when nothing was dropped, so this emits nothing on the ordinary path.
+            # Fold a truncation record into `skip_records` so the run names the pattern
+            # and the count Stage B returned but this selection dropped.
             if [ -s ".prflow/tmp/dropped-${SLUG}.json" ]; then
                 while IFS= read -r _dr; do
                     [ -n "$_dr" ] && skip_records+=("Pattern ${SLUG}: Stage B returned $($LIB/../scripts/run-jq.sh -r '.total' <<< "$_dr") findings — kept the top 3 by evidence-PR count, dropped $($LIB/../scripts/run-jq.sh -r '.dropped' <<< "$_dr")")
                 done < <($LIB/../scripts/run-jq.sh -c '.[]' < ".prflow/tmp/dropped-${SLUG}.json")
             fi
             FINDINGS_N="$(printf '%s' "$TO_FILE" | $LIB/../scripts/run-jq.sh 'length')"
-            # A pattern whose findings all drop as stderr-only breadcrumbs (absent/empty
-            # subslug, empty title/body, composer rejection, illegal grammar, in-call
-            # duplicate) — with no cap withhold and no truncation — would otherwise
-            # leave no report trace, indistinguishable from a clean week. Record it
-            # here. Test array EMPTINESS BY CONTENT via run-jq.sh's length, not file
-            # size: devflow_select_findings writes both files defaulting to `[]`, so
-            # they are always non-empty and `[ ! -s … ]` is always false.
+            # A pattern whose findings all drop as stderr-only breadcrumbs, with no
+            # cap withhold and no truncation, would otherwise leave no report trace.
+            # Test array EMPTINESS BY CONTENT via run-jq.sh's length, not file size:
+            # devflow_select_findings defaults both files to `[]`, so `[ ! -s … ]` is
+            # always false.
             _WH_N="$($LIB/../scripts/run-jq.sh 'length' < ".prflow/tmp/withheld-${SLUG}.json" 2>/dev/null || echo 0)"
             _DR_N="$($LIB/../scripts/run-jq.sh 'length' < ".prflow/tmp/dropped-${SLUG}.json" 2>/dev/null || echo 0)"
             if [ "${FINDINGS_N:-0}" -eq 0 ] && [ "${_WH_N:-0}" -eq 0 ] && [ "${_DR_N:-0}" -eq 0 ]; then
@@ -1003,28 +894,21 @@ elif $LIB/../scripts/run-jq.sh -e '(.findings | type) == "array"' < ".prflow/tmp
                 fi
                 _fi=$((_fi + 1))
             done
-            # `filed_slugs` feeds Step 9's `devflow_annotate_patterns`, which indexes on
-            # the pattern's coarse `.tag // .slug`; a composed `<category>-<subslug>` key
-            # never equals that, so pushing composed keys here would annotate every filed
-            # pattern as "not filed". Push the coarse $SLUG once per pattern instead.
+            # Push the coarse $SLUG once per pattern, never a composed
+            # `<category>-<subslug>` key: Step 9's `devflow_annotate_patterns` indexes
+            # on `.tag // .slug` and would annotate every filed pattern as "not filed".
             [ "${_pattern_filed:-0}" -eq 1 ] && filed_slugs+=("$SLUG")
-            # Same domain mismatch on the withheld side: the per-finding {tag, cap}
-            # entries folded above carry composed keys and render correctly in the
-            # "withheld by a filing cap" section, but `$wmap` is looked up by the coarse
-            # tag. When a cap held back EVERY finding of this pattern, add one
-            # coarse-tag entry so the pattern row still renders `withheld_by`, exactly
-            # as the legacy path's single per-pattern entry does.
+            # Same domain mismatch on the withheld side: `$wmap` is looked up by the
+            # coarse tag. When a cap held back EVERY finding of this pattern, add one
+            # coarse-tag entry so the pattern row still renders `withheld_by`.
             if [ "${_pattern_filed:-0}" -ne 1 ] && [ -s ".prflow/tmp/withheld-${SLUG}.json" ]; then
                 _FIRST_CAP="$($LIB/../scripts/run-jq.sh -r '.[0].cap // empty' < ".prflow/tmp/withheld-${SLUG}.json")"
                 [ -n "$_FIRST_CAP" ] && withheld+=("$($LIB/../scripts/run-jq.sh -nc --arg tag "$SLUG" --arg cap "$_FIRST_CAP" '{tag:$tag,cap:$cap}')")
             fi
         else
-            # devflow_select_findings returns 2 for a wiring/argument fault (a required
-            # flag missing/empty, or an unreadable findings file) and 1 for every
-            # withhold-everything condition it decides on the pattern's data (cap owner
-            # unsourceable, overrides unreadable/unmigrated, canonicalization/comparand
-            # failure, composer unavailable). Branch on the code so a wiring regression
-            # here is not misreported as ordinary back-pressure.
+            # devflow_select_findings returns 2 for a wiring/argument fault and 1 for
+            # every withhold-everything condition it decides on the pattern's data.
+            # Branch on the code, or a wiring regression reads as back-pressure.
             _SF_RC=$?
             if [ "$_SF_RC" -eq 2 ]; then
                 blockers+=("Pattern ${SLUG}: select-findings.sh refused the call (wiring/argument fault, exit 2) — see its ::error:: breadcrumb for the missing/empty flag; nothing filed")
@@ -1094,18 +978,15 @@ Collect the per-analyzed-PR digest lines (verdict + a one-line summary) and the
 **unfiltered** whole-pattern view produced by `actionable-patterns.sh --full` in
 Step 6 (`patterns-full.json`) — every pattern with its lifecycle status
 (`filed`/`fixed`/`declined`/`regressed`/`open`/`dismissed`), including the
-suppressed and below-threshold ones — so `render-report.sh` shows the whole
-picture, not just the actionable subset that produced an intervention:
+suppressed and below-threshold ones:
 
 ```bash
 ANALYZED_JSON="$($LIB/../scripts/run-jq.sh -sc '[.[] | select(.verdict == "imperfect" or .verdict == "blocked") | {pr, verdict, summary}]' .prflow/tmp/new-entries.jsonl)"
 # The report's `.patterns` is the UNFILTERED whole-pattern view (patterns-full.json),
-# not the filtered actionable list, so the report surfaces suppressed/below-threshold
-# patterns instead of reading like a quiet week.
-# Annotate that view with each pattern's filing outcome for this run and, where a
-# cap withheld it, that cap — the two per-pattern fields render-report.sh reads.
-# The `--full` view carries neither, so without this join both reads
-# render nothing on every pattern.
+# not the filtered actionable list, or the report reads like a quiet week.
+# Annotate that view with each pattern's filing outcome and, where a cap withheld it,
+# that cap: the `--full` view carries neither, so without this join both fields render
+# nothing on every pattern.
 source $LIB/filing-decisions.sh || {
   echo "::error::retrospective: lib/filing-decisions.sh could not be sourced — the filing decisions have no owner; aborting rather than silently withholding every pattern" >&2
   exit 1
@@ -1116,24 +997,21 @@ PATTERNS_JSON="$(devflow_annotate_patterns .prflow/tmp/patterns-full.json "$FILE
 RECURRING_TARGETS_JSON="$(bash $LIB/recurring-targets.sh .prflow/learnings/retrospectives.jsonl)"
 
 # The liveness line actionable-patterns.sh wrote to stderr in Step 6, and the
-# won't-fix patterns this run re-raised — the two remaining report sections.
-# Both come from the same tested helper; both are empty on a run
-# that produced neither, and render-report.sh then omits their sections.
+# won't-fix patterns this run re-raised — the two remaining report sections. Both are
+# empty on a run that produced neither, and render-report.sh omits their sections.
 LIVENESS_WARNING="$(devflow_liveness_warning .prflow/tmp/patterns.stderr)"
 DECLINED_REFILED_JSON="$(devflow_declined_refiled .prflow/tmp/overrides-prefiling.json "$FILED_SLUGS_JSON")"
 
-# Truncation entries: the {tag, delivered, total, selected} objects
-# Step 8a appended for every pattern the audit_bundle_cap (or a fetch failure)
-# truncated. Assembled from the pre-declared `truncations` bash array into a shell
-# variable guarded by :? and passed with --slurpfile — the same carrier shape the
+# Truncation entries: the {tag, delivered, total, selected} objects Step 8a appended
+# for every pattern the audit_bundle_cap (or a fetch failure) truncated. Assembled into
+# a shell variable guarded by :? and passed with --slurpfile, the same carrier shape the
 # `withheld` array uses. `[]` at minimum on a run that truncated nothing.
 TRUNCATIONS_JSON="$(printf '%s\n' "${truncations[@]:-}" | $LIB/../scripts/run-jq.sh -sc 'map(select(. != null))')"
 
-# Filing-queue aggregate operands, derived HERE in Step 9 (not reusing Step 8c's
-# OPEN_TOTAL/MAX_OPEN, a stale pre-filing snapshot): N = open filed meta-issue entries
-# via devflow_open_filed_total, M = resolved max_open_issues. Both pass as --arg
-# STRINGS, so an unestablished value is the empty string — rendered `unavailable`,
-# never laundered to 0; neither is :?-guarded, because empty is a valid state here.
+# Filing-queue aggregate operands, derived HERE in Step 9 — not reusing Step 8c's
+# OPEN_TOTAL/MAX_OPEN, a stale pre-filing snapshot. Both pass as --arg STRINGS, so an
+# unestablished value is the empty string, rendered `unavailable` and never laundered
+# to 0; neither is :?-guarded, because empty is a valid state here.
 FILING_QUEUE_OPEN="$(devflow_open_filed_total .prflow/learnings/overrides.json)"
 FILING_QUEUE_MAX="$(bash $LIB/../scripts/config-get.sh '.prflow_retrospective.max_open_issues' 10)"
 ```
@@ -1228,9 +1106,7 @@ SUMMARY_JSON="$($LIB/../scripts/run-jq.sh -nc \
 rm -rf "$_SUMMARY_TMP"
 ```
 
-(The `"${array[@]:-}"` form handles an empty bash array safely under `set -u`.
-`render-report.sh` renders the `analyzed` and `patterns` sections only when
-those keys are non-empty, so an older caller that omits them still works.)
+(The `"${array[@]:-}"` form handles an empty bash array safely under `set -u`.)
 
 Render the report markdown and post it as a comment on the state PR:
 
@@ -1271,19 +1147,6 @@ after reviewing.
 
 ## § Notes
 
-- **Clean working tree required.** The loop modifies `.prflow/learnings/`
-  in-place on `main`'s working tree; starting dirty risks mixing pre-existing
-  changes into the state PR commit.
-- **State PR before Stage B.** Step 7 commits the learnings files onto
-  `devflow/learnings-<date>` before any issue is filed, so this run's retrospective
-  data is captured even if Stage B or the filing step fails partway. Stage B never
-  touches your `main` checkout.
-- **Issue-per-finding.** Stage B dispatches one drafting subagent per actionable
-  pattern concurrently (each returns a ranked `findings` array of one to three
-  sub-patterns, no edits), then `lib/select-findings.sh` decides which findings
-  become filings and the orchestrator files one GitHub issue per selected finding via
-  `meta-issue.sh` under an opaque `<category>-<subslug>` key. No worktrees, no
-  commits, no PRs — the loop proposes; a human implements.
 - **Overrides after Stage B.** `meta-issue.sh` records each filed pattern's
   lifecycle entry in `.prflow/learnings/overrides.json` **after** the Step 7 state PR
   was opened, so the change lands in next week's state PR. To include it in *this*
@@ -1301,26 +1164,11 @@ after reviewing.
       git checkout main
   fi
   ```
-- **Idempotent.** Re-running re-processes only PRs whose number is not already
-  in `retrospectives.jsonl` on `main`. A pattern already filed this cycle is not
-  re-filed: `meta-issue.sh` finds the open issue and adds a recurrence comment
-  instead of a duplicate, and the pattern's `filed` lifecycle record in
-  `overrides.json` excludes it on subsequent runs.
 - **Never auto-merge, never auto-implement.** The maintainer merges the state PR
   manually after CI, and triages each filed issue manually — the loop never
   starts an implement run for you.
-- **`materialize-retrospectives.sh` signature:** takes two explicit positional
-  args — `<new-entries-file>` and `<jsonl-path>`. Always pass both.
 - **`actionable-patterns.sh` signature:** takes two required positional args
   — `<retrospectives.jsonl>` and `<overrides.json>` — plus an optional third,
   `--full`, which emits the unfiltered whole-pattern view the run report
   renders. Always pass both required args; pass `--full` only for
   the report view. An unrecognized third argument is rejected with rc 2.
-- **`open-state-pr.sh` signature:** no required args; optional `--branch`,
-  `--base` (defaults to `main`), `--dry-run`; prints the PR number
-  to stdout.
-- **`fetch-pr-context.sh` return value:** echoes the bundle *file path* to
-  stdout; the bundle content is on disk at `.prflow/tmp/pr-<n>.context.json`.
-- **`cheap-gate.jq` invocation:** reads from stdin (the bundle content, not
-  the path) — use `$LIB/../scripts/run-jq.sh -c -f $LIB/cheap-gate.jq < "$CTX"` where `$CTX` is
-  the path.
