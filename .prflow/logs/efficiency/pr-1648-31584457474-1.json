@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1648",
+  "generated_at": "2026-08-12T10:10:39Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.51",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 18.641679999999997,
+    "tokens": {
+      "input_tokens": 119,
+      "output_tokens": 73227,
+      "cache_read_input_tokens": 12898891,
+      "cache_creation_input_tokens": 279984,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 243,
+        "outputTokens": 129392,
+        "cacheReadInputTokens": 17594323,
+        "cacheCreationInputTokens": 847551,
+        "webSearchRequests": 0,
+        "costUSD": 18.380310249999997,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 2,
+        "outputTokens": 6090,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 45337,
+        "webSearchRequests": 0,
+        "costUSD": 0.26136975,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 88,
+    "duration_ms": 1344972
+  },
+  "permission_denials": {
+    "count": 30,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---RUNID---\"; echo \"run=${GITHUB_RUN_ID:-none} attempt=${GITHUB_RUN_ATTEMPT:-none}\"; echo \"---BASE---\"; .prflow/vendor/prflow/scripts/config-get.sh .base_branch main 2>&1 || echo \"cfg-rc=$?\"",
+      ".prflow/vendor/prflow/scripts/workpad.py patch 5265100078 .prflow/tmp/review/pr-1648/31584457474-1/review-wp.md 2>.prflow/tmp/review/pr-1648/31584457474-1/rv-patch.err; echo \"patch-rc=$?\"; cat .prflow/tmp/review/pr-1648/31584457474-1/rv-patch.err",
+      "rm -rf .prflow/tmp/review/pr-1648/31584457474-1/verdicts/iter-1; mkdir -p .prflow/tmp/review/pr-1648/31584457474-1/verdicts/iter-1\n# Write displaced-paths file (empty; no displaced list this run)\n: > .prflow/tmp/review/pr-1648/31584457474-1/../../displaced-paths.txt 2>/dev/null || true\necho \"--- lite VC-18 ---\"\ngrep -nF -- \"references/degradation-routing.md\" skills/create-issue/SKILL.md | head -5; echo \"grep-rc=$?\"\necho \"--- nonces ---\"\nfor i in $(seq 1 27); do printf 'VC-%s %s\\n' \"$i\" \"$(head - …[per-command-truncated]",
+      "H=07c79d3206b0ed9f18832c55004b0d852d6cc92e\necho \"=== SKILL.md @head bytes ===\"; git show $H:skills/create-issue/SKILL.md | wc -c\necho \"=== degradation-routing mentions @head ===\"; git show $H:skills/create-issue/SKILL.md | grep -nF \"degradation-routing\"\necho \"=== routing rows in root @head (| ... references/ ...) ===\"; git show $H:skills/create-issue/SKILL.md | grep -cE '^\\| .*references/'\necho \"=== 'routing table above/below' positional @head ===\"; git show $H:skills/create-issue/SKILL.md | gre …[per-command-truncated]",
+      "SHA=07c79d3206b0ed9f18832c55004b0d852d6cc92e\necho \"### VC-1 ci614_marker_id maps degradation-routing\"; git show \"$SHA\":lib/test/modules/create-issue-contract.sh | grep -nE \"degradation-routing\\)|CI614_ROUTING_REFS|CI_REF_ROUTING=\"\necho \"### VC-8 coverage-map 1644\"; git show \"$SHA\":lib/test/modules/coverage-map.json | grep -nA3 '\"1644\"'\necho \"### VC-9 registry minimum_assertions create-issue-contract\"; git show \"$SHA\":scripts/workflow-flight-recorder-registry.json | grep -nB2 -A6 '\"create-issue-c …[per-command-truncated]",
+      "echo \"### VC-2 four docs name new file (@head)\"; for f in CLAUDE.md docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md docs/internal/create-issue-context.md lib/intervention-surfaces.md; do printf '%s: ' \"$f\"; git show 07c79d3206b0ed9f18832c55004b0d852d6cc92e:\"$f\" | grep -cF \"degradation-routing.md\"; done",
+      "echo \"### VC-25 references cross-refs name new file\"; for f in step-2-clarify step-3-6-audit step-4-present-create fallback-audit-round-reconciliation; do printf '%s: ' \"$f\"; git show 07c79d3206b0ed9f18832c55004b0d852d6cc92e:skills/create-issue/references/\"$f\".md | grep -cF \"degradation-routing.md\"; done\necho \"### VC-11 inventory 16 references\"; git show 07c79d3206b0ed9f18832c55004b0d852d6cc92e:lib/test/modules/create-issue-contract.inventory.md | grep -niE \"16 reference|15 reference|references  …[per-command-truncated]",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before\ngit hash-object .prflow/tmp/review-dirty-tree-before; echo \"snap-rc=$?\"",
+      "git show 07c79d3206b0ed9f18832c55004b0d852d6cc92e --stat -- 'skills/create-issue/references/*.md' >/dev/null; echo \"=== reference *.md files at head ===\"; git ls-tree --name-only 07c79d3206b0ed9f18832c55004b0d852d6cc92e:skills/create-issue/references | sort; echo \"=== count ===\"; git ls-tree --name-only 07c79d3206b0ed9f18832c55004b0d852d6cc92e:skills/create-issue/references | grep -c '\\.md$'",
+      "git ls-tree --name-only 07c79d3206b0ed9f18832c55004b0d852d6cc92e:skills/create-issue/references",
+      "git ls-tree --name-only \"07c79d3206b0ed9f18832c55004b0d852d6cc92e:skills/create-issue/references\"",
+      "git show 07c79d3206b0ed9f18832c55004b0d852d6cc92e:skills/create-issue/ | head -60; echo \"==count==\"; git ls-tree 07c79d3206b0ed9f18832c55004b0d852d6cc92e skills/create-issue/references/ | grep -c '\\.md'",
+      "git ls-tree 07c79d3206b0ed9f18832c55004b0d852d6cc92e skills/create-issue/references/ | grep -c '\\.md'",
+      "git ls-tree 07c79d3206b0ed9f18832c55004b0d852d6cc92e --name-only skills/create-issue/references/",
+      "cd /home/runner/work/prflow/prflow\necho \"=== any remaining 'routing table' refs in references/ (shipped) ===\"\nfor f in $(git show 07c79d3206b0ed9f18832c55004b0d852d6cc92e:skills/create-issue/references/ 2>/dev/null | tail -n +3); do\n  content=$(git show \"07c79d3206b0ed9f18832c55004b0d852d6cc92e:skills/create-issue/references/$f\" 2>/dev/null)\n  hits=$(printf '%s' \"$content\" | grep -niE \"root's routing table|routing table (above|below)|per the routing table\" || true)\n  [ -n \"$hits\" ] && echo \"$f:  …[per-command-truncated]",
+      "for f in step-2-clarify step-3-6-audit step-4-present-create fallback-audit-round-reconciliation issue-template revision-delta fallback-visual-specification; do git show 07c79d3206b0ed9f18832c55004b0d852d6cc92e:skills/create-issue/references/$f.md 2>/dev/null | grep -n \"root's routing table\\|routing table above\\|routing table below\" | sed \"s|^|$f: |\"; done; echo \"===done===\"",
+      "cd /home/runner/work/prflow/prflow\necho \"=== remaining stale routing-table phrasing in references/ (shipped) ===\"\ngit show 07c79d3206b0ed9f18832c55004b0d852d6cc92e:skills/create-issue/references/ | tail -n +3 | while read -r f; do\n  git show \"07c79d3206b0ed9f18832c55004b0d852d6cc92e:skills/create-issue/references/$f\" 2>/dev/null \\\n    | grep -niE \"roots routing table|routing table (above|below)|per the routing table\" \\\n    | sed \"s|^|$f: |\" || true\ndone\necho \"--- done ---\"",
+      "cd /home/runner/work/prflow/prflow\ngit show 07c79d3206b0ed9f18832c55004b0d852d6cc92e -- skills/create-issue/references >/dev/null 2>&1\ngit archive 07c79d3206b0ed9f18832c55004b0d852d6cc92e skills/create-issue/references | tar -x -C /tmp/pr1648refs --one-top-level 2>/dev/null || (mkdir -p /tmp/pr1648refs && git archive 07c79d3206b0ed9f18832c55004b0d852d6cc92e skills/create-issue/references | tar -x -C /tmp/pr1648refs)\necho \"extracted\"",
+      "cd /home/runner/work/prflow/prflow\nmkdir -p /tmp/pr1648refs\ngit archive 07c79d3206b0ed9f18832c55004b0d852d6cc92e skills/create-issue/references | tar -x -C /tmp/pr1648refs\necho extracted",
+      "git archive 07c79d3206b0ed9f18832c55004b0d852d6cc92e skills/create-issue/references -o /tmp/refs.tar",
+      "cd /tmp && rm -rf pr1648 && mkdir pr1648 && git -C /home/runner/work/prflow/prflow archive 07c79d3206b0ed9f18832c55004b0d852d6cc92e skills/create-issue | tar -x -C /tmp/pr1648 && echo done && ls /tmp/pr1648/skills/create-issue/references | head",
+      "for p in skills/create-issue/references/step-3-6-audit.md skills/create-issue/references/step-4-present-create.md skills/create-issue/references/step-2-clarify.md skills/create-issue/references/fallback-audit-round-reconciliation.md skills/create-issue/SKILL.md; do n=$(git show 07c79d3206b0ed9f18832c55004b0d852d6cc92e:$p | grep -cE \"root's routing table|routing table above|routing table below|per the routing table\"); echo \"$p: $n\"; done",
+      "rm -rf /tmp/pr1648; mkdir /tmp/pr1648; git -C /home/runner/work/prflow/prflow archive 07c79d3206b0ed9f18832c55004b0d852d6cc92e skills/create-issue | tar -x -C /tmp/pr1648; echo done; ls /tmp/pr1648/skills/create-issue/references",
+      "git -C /home/runner/work/prflow/prflow archive 07c79d3206b0ed9f18832c55004b0d852d6cc92e skills/create-issue -o /tmp/ci.tar",
+      "mkdir -p /tmp/pr1648",
+      "git -C /home/runner/work/prflow/prflow ls-tree --name-only 07c79d3206b0ed9f18832c55004b0d852d6cc92e skills/create-issue/references/",
+      "git ls-tree --name-only 07c79d3206b0ed9f18832c55004b0d852d6cc92e skills/create-issue/references/",
+      "git ls-tree --name-only 07c79d3206b0ed9f18832c55004b0d852d6cc92e skills/create-issue/references/",
+      "echo \"=== references/*.md at head (independent signal: git tree listing) ===\"\ngit ls-tree --name-only 07c79d3206b0ed9f18832c55004b0d852d6cc92e skills/create-issue/references/ | sed 's#skills/create-issue/references/##'\necho \"=== count ===\"; git ls-tree --name-only 07c79d3206b0ed9f18832c55004b0d852d6cc92e skills/create-issue/references/ | grep -c '\\.md$'\necho \"=== routing rows in degradation-routing.md (references/ named) ===\"; git show 07c79d3206b0ed9f18832c55004b0d852d6cc92e:skills/create-issue …[per-command-truncated]",
+      "git ls-tree --name-only 07c79d3206b0ed9f18832c55004b0d852d6cc92e skills/create-issue/references/"
+    ],
+    "total": 30,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
