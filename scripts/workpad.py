@@ -196,10 +196,14 @@ _UPDATE_REMEDY_BY_OUTCOME = {
 
 _UPDATE_OUTCOME_EMITTED = False
 
-# Exit codes an update can reach through a SHARED helper rather than one of
-# `_cmd_update_inner`'s own terminating sites, where no outcome was selected:
-# `_repo_full` -> `_fail` exits 1 and `_require_section_parse` exits 3, both
-# before any mutation. Only the precondition guards' 4 carries its own meaning.
+# Set the instant the PATCH returns, so a fallback reports what was OBSERVED.
+# Keying the fallback on the exit code instead lets an unmapped code report
+# `not-persisted` over a landed write, whose remedy re-sends the call and
+# double-writes the append-only notes.
+_UPDATE_PATCH_LANDED = False
+
+# The one exit code that names its own outcome: both precondition guards refuse
+# before any mutation. Every other code is resolved from `_UPDATE_PATCH_LANDED`.
 _UPDATE_UNSELECTED_OUTCOME = {4: 'precondition-mismatch'}
 
 
@@ -219,27 +223,42 @@ def _emit_update_outcome(outcome):
     )
 
 
-def cmd_update(args):
-    """Emit the terminal outcome line, then re-exit with the code the body chose.
+def _update_fallback_outcome(exit_code=None):
+    """Resolve an unselected outcome from observed state, never from a guess.
 
-    Covers every `SystemExit`-based termination, including one raised inside a
-    shared helper (`_repo_full`, `_require_section_parse`); do not move the
-    emission back onto the individual terminating sites, which is invisible to
-    those two and shipped them with no outcome line. An uncaught non-`SystemExit`
-    exception propagates without an outcome line, which callers read under the
-    absent-line rule as the write not having landed.
+    Do not shorten this to a code lookup defaulting to `not-persisted`: the
+    post-PATCH tail can still raise (a `BrokenPipeError` on the body echo when a
+    caller pipes the command), and reporting a landed write as not-persisted
+    routes the caller to re-send it, double-writing the append-only notes.
     """
-    global _UPDATE_OUTCOME_EMITTED
+    if exit_code in _UPDATE_UNSELECTED_OUTCOME:
+        return _UPDATE_UNSELECTED_OUTCOME[exit_code]
+    return 'landed-status-unverified' if _UPDATE_PATCH_LANDED else 'not-persisted'
+
+
+def cmd_update(args):
+    """Emit the terminal outcome line, then re-raise whatever ended the body.
+
+    `BaseException` is caught rather than `SystemExit` alone because the tail
+    after a successful PATCH can still raise, and letting that escape emits no
+    line over a landed write — which the absent-line rule tells a caller to read
+    as not landed. Each handler re-raises, preserving the exit status.
+    """
+    global _UPDATE_OUTCOME_EMITTED, _UPDATE_PATCH_LANDED
     _UPDATE_OUTCOME_EMITTED = False
+    _UPDATE_PATCH_LANDED = False
     try:
         _cmd_update_inner(args)
     except SystemExit as e:
         if not _UPDATE_OUTCOME_EMITTED:
-            _emit_update_outcome(
-                _UPDATE_UNSELECTED_OUTCOME.get(e.code, 'not-persisted'))
+            _emit_update_outcome(_update_fallback_outcome(e.code))
+        raise
+    except BaseException:
+        if not _UPDATE_OUTCOME_EMITTED:
+            _emit_update_outcome(_update_fallback_outcome())
         raise
     if not _UPDATE_OUTCOME_EMITTED:
-        _emit_update_outcome('landed')
+        _emit_update_outcome(_update_fallback_outcome())
 
 
 def _fail(prefix, exc, code=1):
@@ -3355,6 +3374,10 @@ def _cmd_update_inner(args):
         _fail('update patch', e)
     finally:
         Path(tmp_path).unlink(missing_ok=True)
+    # Mark the write observed here, before the tail that can still raise, so the
+    # wrapper's fallback never reports a landed PATCH as not-persisted.
+    global _UPDATE_PATCH_LANDED
+    _UPDATE_PATCH_LANDED = True
     # The PATCH succeeded: drop the buffer file ONLY when `_plan_buffer_replay`
     # reported that every buffered item is now accounted for (folded into this
     # body or already present). When a buffered item could not be folded — its
@@ -3430,7 +3453,7 @@ def _cmd_update_inner(args):
             sys.stderr.write(
                 f"workpad.py update: WARNING: the PATCH response reads Status "
                 f"{_got or _read_back!r}, not the requested {_want!r} — the write "
-                f"may not have landed; re-issue the update.\n"
+                f"may not have landed; follow up with a --status-only update.\n"
             )
 
     # Volatile tick failures: the PATCH landed (other mutations applied), but

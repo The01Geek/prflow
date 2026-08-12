@@ -1141,11 +1141,8 @@ assert_eq("#169 shadow-3a: --tick-ac-n with a non-integer is rejected by argpars
 
 print("issue #1562: cmd_update's machine-readable terminal outcome line")
 
-# cmd_update writes one `outcome=<token> remedy=<token>` line as the last stderr
-# line before it terminates. The cases below drive its terminating paths end-to-end
-# through the real cmd_update — no mocking of cmd_update itself — asserting the
-# emitted tokens, the exit code, that the line is last, and that the path's
-# pre-existing prose survives.
+# Drive the real cmd_update: mocking it out would assert the emission contract
+# against a stub rather than the shipped terminating paths.
 
 # Spelled here independently of the producer on purpose: reading the prefix from
 # workpad.py would make a producer-side respelling invisible to every assertion below.
@@ -1191,14 +1188,16 @@ def _oc(label, expected_outcome, expected_remedy, expected_code, **kw):
               "workpad.py update: outcome=%s remedy=%s" % (expected_outcome, expected_remedy),
               _line)
     assert_eq("#1562: %s exit code is unchanged" % label, expected_code, _c)
+    # A second emission would hand a line-parsing consumer two contradictory
+    # tokens; _outcome_line reads only the last line and would not notice.
+    assert_eq("#1562: %s emits exactly one outcome line" % label,
+              1, _e.count(_OC_PREFIX))
     _OC_CASES.append((label, _e))
     return _e
 
 
-# The not-persisted paths are homogeneous in outcome, remedy and exit code, so they
-# are data rows: as seven restatements, one row could be edited to a different remedy
-# without the block's intended uniformity being visibly broken. A row carries the
-# prose substring its path must still write before the outcome line.
+# Keep these as data rows: as separate restatements, one row can be edited to a
+# different remedy without the block's intended uniformity being visibly broken.
 for _label, _prose, _kw in [
     ("an id-lookup gh failure", 'workpad.py update id-lookup:', dict(fail_at='id-lookup')),
     ("an unparseable comments response", 'could not parse gh comments response',
@@ -1206,7 +1205,7 @@ for _label, _prose, _kw in [
     ("a body-fetch gh failure", 'workpad.py update body-fetch:', dict(fail_at='body-fetch')),
     ("a PATCH-call failure", 'workpad.py update patch:', dict(patch_fails=True, note=['n'])),
     ("no workpad found", 'no workpad found for issue', dict(id_response='[]')),
-    ("a structural _UpdateError", 'workpad.py update:',
+    ("a structural _UpdateError", 'could not read',
      dict(replace_plan_file='/nonexistent/plan-1562.md')),
     ("an unreadable --reflection-file", '--reflection-file',
      dict(reflection_file='/nonexistent/refl-1562.md')),
@@ -1306,9 +1305,8 @@ assert_eq("#1562: a tick miss co-occurring with an unreadable read-back emits "
 assert_eq("#1562: that co-occurring path still exits 1", 1, _c)
 _OC_CASES.append(("a tick miss with an unreadable read-back", _e))
 
-# --- Transitive terminating paths: the process exits from INSIDE cmd_update via a
-# shared helper, so a lexical enumeration of cmd_update's own body never sees them.
-# Both were shipped without an outcome line until a review pass found them.
+# --- Transitive terminating paths: the exit is inside a shared helper, so do not
+# narrow these cases to cmd_update's own body — a lexical enumeration misses them.
 def _drive_repo_lookup_failure():
     """cmd_update -> _repo_full -> _fail: the repo lookup dies before any of
     cmd_update's own terminating sites is reached."""
@@ -1338,6 +1336,86 @@ assert_eq("#1562: the repo-lookup failure keeps its own prose line and exit code
           (True, 1), ('workpad.py repo lookup:' in _err, _code))
 _OC_CASES.append(("a repo-lookup failure", _err))
 
+# A crash in the tail AFTER the PATCH landed must not report not-persisted, whose
+# remedy re-sends the call and double-writes the append-only notes.
+class _BrokenPipeStdout(io.StringIO):
+    """Raises on write, standing in for a downstream `| head` closing the pipe."""
+
+    def write(self, _s):
+        raise BrokenPipeError('downstream closed the pipe')
+
+
+def _drive_post_patch_crash():
+    saved = (workpad._run, workpad._repo_full, workpad._workpad_marker)
+    workpad._repo_full = lambda: 'owner/repo'
+    workpad._workpad_marker = lambda explicit=None: '<!-- devflow:workpad -->'
+
+    def _run(cmd, **kw):
+        joined = ' '.join(cmd)
+        if '/comments?' in joined or joined.endswith('/comments'):
+            return _FakeRun(_json.dumps([{'id': 7, 'body': '<!-- devflow:workpad -->\n'}]))
+        if '-X' in cmd and 'PATCH' in cmd:
+            return _FakeRun(OC_BODY)
+        return _FakeRun(OC_BODY)
+
+    workpad._run = _run
+    err = io.StringIO()
+    raised = None
+    try:
+        # --print-body drives the post-PATCH stdout echo, the write the reviewer
+        # named; the PATCH has already landed when it raises.
+        with contextlib.redirect_stdout(_BrokenPipeStdout()), contextlib.redirect_stderr(err):
+            workpad.cmd_update(make_args(issue=999, print_body=True))
+    except BaseException as e:
+        raised = type(e).__name__
+    finally:
+        (workpad._run, workpad._repo_full, workpad._workpad_marker) = saved
+    return raised, err.getvalue()
+
+
+_raised, _err = _drive_post_patch_crash()
+assert_eq("#1562: a crash after the PATCH landed still emits an outcome line",
+          "workpad.py update: outcome=landed-status-unverified remedy=reset-status",
+          _outcome_line(_err))
+assert_eq("#1562: that crash is re-raised, not swallowed", "BrokenPipeError", _raised)
+_OC_CASES.append(("a post-PATCH crash", _err))
+
+# The exit-3 shared-helper abort (`_require_section_parse`, reached when the shared
+# parsing module was not deployed) is the second transitive path the wrapper covers.
+def _drive_section_parse_missing():
+    saved = (workpad._run, workpad._repo_full, workpad._workpad_marker,
+             workpad._SECTION_PARSE_IMPORT_ERROR)
+    workpad._repo_full = lambda: 'owner/repo'
+    workpad._workpad_marker = lambda explicit=None: '<!-- devflow:workpad -->'
+    workpad._SECTION_PARSE_IMPORT_ERROR = 'No module named section_parse'
+
+    def _run(cmd, **kw):
+        joined = ' '.join(cmd)
+        if '/comments?' in joined or joined.endswith('/comments'):
+            return _FakeRun(_json.dumps([{'id': 7, 'body': '<!-- devflow:workpad -->\n'}]))
+        return _FakeRun(OC_BODY)
+
+    workpad._run = _run
+    err = io.StringIO()
+    code = None
+    try:
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+            workpad.cmd_update(make_args(
+                issue=999, scope_decision_deferred=[['pending', 'a criterion']]))
+    except SystemExit as e:
+        code = e.code
+    finally:
+        (workpad._run, workpad._repo_full, workpad._workpad_marker,
+         workpad._SECTION_PARSE_IMPORT_ERROR) = saved
+    return code, err.getvalue()
+
+
+_code, _err = _drive_section_parse_missing()
+assert_eq("#1562: the exit-3 shared-helper abort emits not-persisted and keeps its code",
+          ("workpad.py update: outcome=not-persisted remedy=reissue-call", 3),
+          (_outcome_line(_err), _code))
+_OC_CASES.append(("the exit-3 shared-helper abort", _err))
+
 # --- Adjacent-case sweep over both closed sets, across the paths driven above. ---
 _OC_OUTCOMES = {'landed', 'landed-status-unverified', 'landed-partial-ticks',
                 'landed-partial-ticks-status-unverified', 'replay', 'not-persisted',
@@ -1363,10 +1441,8 @@ assert_eq("#1562: every one of the seven outcome tokens is emitted by some drive
 assert_eq("#1562: every one of the six remedy tokens is emitted by some driven path",
           _OC_REMEDIES, _oc_seen_remedies)
 
-# The token->path direction above cannot see a terminating path that emits NOTHING,
-# which is exactly how the two transitive exits shipped uncovered. Assert the
-# path->token direction structurally: cmd_update is required to route termination
-# through one wrapper, so a later exit cannot skip the emission.
+# The token->path direction above cannot see a path that emits NOTHING, so assert
+# the path->token direction structurally too.
 _oc_src = (SCRIPTS / 'workpad.py').read_text(encoding='utf-8')
 _oc_tree = ast.parse(_oc_src)
 _oc_fns = {n.name: n for n in ast.walk(_oc_tree)
@@ -1375,35 +1451,50 @@ assert_eq("#1562: cmd_update is a thin wrapper delegating to an inner implementa
           True, '_cmd_update_inner' in _oc_fns)
 
 
-def _oc_terminates(name, seen=()):
-    """True when `name` can end the process, following calls transitively — the
-    lexical search this guard replaces could not see a helper-reached exit."""
-    if name in seen or name not in _oc_fns:
-        return False
-    for n in ast.walk(_oc_fns[name]):
-        if isinstance(n, ast.Call):
-            nm = getattr(n.func, 'id', None) or getattr(n.func, 'attr', None)
-            if nm == '_fail':
-                return True
-            if (isinstance(n.func, ast.Attribute)
-                    and getattr(n.func.value, 'id', None) == 'sys'
-                    and n.func.attr == 'exit'):
-                return True
-            if nm and nm in _oc_fns and _oc_terminates(nm, seen + (name,)):
-                return True
-    return False
+# Inspect the wrapper's OWN handlers, never a transitive walk: a walk that follows
+# calls reports the wrapper as terminating purely because the inner body exits, so
+# deleting the bare re-raise — which turns every failing update into exit 0 — would
+# leave the assertion green.
+_oc_wrapper = _oc_fns['cmd_update']
+_oc_handlers = [h for n in ast.walk(_oc_wrapper) if isinstance(n, ast.Try)
+                for h in n.handlers]
 
 
-# The wrapper itself must terminate (it re-raises after emitting) while carrying the
-# only emit obligation; the inner body may terminate freely.
-assert_eq("#1562: the cmd_update wrapper still terminates the process",
-          True, _oc_terminates('cmd_update'))
-_oc_wrapper_emits = any(
-    (getattr(n.func, 'id', None) == '_emit_update_outcome')
-    for n in ast.walk(_oc_fns['cmd_update'])
-    if isinstance(n, ast.Call))
-assert_eq("#1562: the cmd_update wrapper is where the outcome line is emitted",
-          True, _oc_wrapper_emits)
+def _oc_handler_catches(handler, exc_name):
+    t = handler.type
+    if t is None:
+        return exc_name == 'BaseException'
+    names = [t] if not isinstance(t, ast.Tuple) else list(t.elts)
+    return any(getattr(x, 'id', None) == exc_name for x in names)
+
+
+def _oc_handler_reraises(handler):
+    """A bare `raise` directly in the handler body — the statement that preserves
+    the caller's exit status."""
+    return any(isinstance(s, ast.Raise) and s.exc is None for s in handler.body)
+
+
+def _oc_handler_emits(handler):
+    return any(isinstance(n, ast.Call)
+               and getattr(n.func, 'id', None) == '_emit_update_outcome'
+               for n in ast.walk(handler))
+
+
+for _exc in ('SystemExit', 'BaseException'):
+    _hs = [h for h in _oc_handlers if _oc_handler_catches(h, _exc)]
+    assert_eq("#1562: the wrapper handles %s" % _exc, 1, len(_hs))
+    assert_eq("#1562: the wrapper's %s handler emits before re-raising" % _exc,
+              True, bool(_hs) and _oc_handler_emits(_hs[0]))
+    assert_eq("#1562: the wrapper's %s handler re-raises, preserving the exit status"
+              % _exc, True, bool(_hs) and _oc_handler_reraises(_hs[0]))
+
+# A hard exit bypasses the wrapper's handlers entirely, so no outcome line would be
+# written; `os` is already imported here, so a future edit could reach it.
+assert_eq("#1562: no hard exit bypasses the wrapper's handlers",
+          [], [n.lineno for n in ast.walk(_oc_tree)
+               if isinstance(n, ast.Call)
+               and getattr(n.func, 'attr', None) == '_exit'
+               and getattr(getattr(n.func, 'value', None), 'id', None) == 'os'])
 
 # Shadow type-design: the _CHECKBOX_ROW_RE group-order contract (group 2 = state cell,
 # preserved by _rewrite_checkbox / overwritten by _tick_checkbox_by_index) is pinned

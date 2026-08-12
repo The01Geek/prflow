@@ -5786,7 +5786,7 @@ assert_eq "#169: implement/SKILL.md 2.2.6 note references the index gate-tick fl
 # whole call (which would double-write append-only notes). Coupled with workpad.py's
 # breadcrumb wording, which test_python_scripts.py shadow-F2 pins. Target-unique phrase.
 assert_pin_unique "#169: implement/SKILL.md warns re-tick-only (don't re-send the whole call on a volatile miss)" \
-  'do not blindly re-send the whole call' "$IMPL_SKILL"  # structural-pin-ok: helper-contract -- a volatile tick miss is re-ticked, never re-sent as the whole call
+  'No remedy re-sends a call whose PATCH already landed' "$IMPL_SKILL"  # structural-pin-ok: helper-contract -- a volatile tick miss is re-ticked, never re-sent as the whole call
 # Shadow Finding 1 (review): workpad.py reports volatile misses on the gh-PATCH-failure
 # path too (not just the structural-abort and clean-PATCH paths), via the single
 # _report_failed_ticks chokepoint — so a miss collected before a 5xx/auth PATCH failure
