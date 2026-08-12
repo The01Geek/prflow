@@ -56,7 +56,6 @@ CI_REF_FB_WRITEREC="$CI_ROOT/skills/create-issue/references/fallback-draft-write
 CI_REF_FB_TIERREAD="$CI_ROOT/skills/create-issue/references/fallback-implement-offer-tier-read.md"
 CI_REF_FB_VISUAL="$CI_ROOT/skills/create-issue/references/fallback-visual-specification.md"
 CI_REF_FB_EVIDENCE="$CI_ROOT/skills/create-issue/references/fallback-audit-evidence-degraded.md"
-# #1644: the relocated reference-routing table lives here now, off the always-read root.
 # T1/T2/T6 read their routing rows from this file (their retargeted operand).
 CI_REF_ROUTING="$CI_ROOT/skills/create-issue/references/degradation-routing.md"
 CI_EXT="$CI_ROOT/.prflow/prompt-extensions/create-issue.md"
@@ -1274,7 +1273,6 @@ for _ci614_ref in $CI614_REFS; do
   assert_eq "#614 T2: $_ci614_ref.md carries no marker naming a foreign reference path" "0" \
     "$(grep -F 'prflow:create-issue-ref' "$_ci614_p" | grep -vcF "file=skills/create-issue/references/$_ci614_ref.md" || true)"
   # The routing table's marker-contract column byte-matches the id this file carries.
-  # #1644: the table now lives in degradation-routing.md, so read the row from there.
   assert_eq "#614 T2: the routing row for $_ci614_ref.md states marker id \`step=$_ci614_id\`" "1" \
     "$(grep -F "references/$_ci614_ref.md\` |" "$CI_REF_ROUTING" | grep -cF "\`step=$_ci614_id\`")"
 done
