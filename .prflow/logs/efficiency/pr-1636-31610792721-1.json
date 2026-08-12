@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1636",
+  "generated_at": "2026-08-12T15:17:25Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.54",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 6.262825999999999,
+    "tokens": {
+      "input_tokens": 34,
+      "output_tokens": 16052,
+      "cache_read_input_tokens": 2473711,
+      "cache_creation_input_tokens": 171305,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 70,
+        "outputTokens": 45691,
+        "cacheReadInputTokens": 3334552,
+        "cacheCreationInputTokens": 449685,
+        "webSearchRequests": 0,
+        "costUSD": 6.262825999999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 23,
+    "duration_ms": 359522
+  },
+  "permission_denials": {
+    "count": 1,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-unset} ATTEMPT=${GITHUB_RUN_ATTEMPT:-unset}\"; date -u +%Y%m%dT%H%M%SZ"
+    ],
+    "total": 1,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
