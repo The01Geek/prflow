@@ -51605,10 +51605,14 @@ assert_eq "#1633 lint: clean on the tree as it stands (every enrolled fence migr
 # Scratch root carrying clean copies of every enrolled file (no tracked file is
 # mutated by any case below — every plant lands on a scratch copy).
 WFS_ROOT="$(mktemp -d)"; _suite_tmp_dir "$WFS_ROOT"
-mkdir -p "$WFS_ROOT/skills/implement/phases"
-for _wfs_f in phase-1-setup phase-2-implement phase-2-sweeps-contract phase-2-sweeps-quality phase-3-review phase-4-documentation; do
-  cp "$REPO_ROOT/skills/implement/phases/$_wfs_f.md" "$WFS_ROOT/skills/implement/phases/$_wfs_f.md"
-done
+# Copy every file the lint's ENROLLED inventory names, derived from --print-inventory so
+# the scratch root cannot drift from the enrolled set (a drift would surface as a loud
+# "enrolled file is missing" in the GREEN case below, never a silent gap).
+while IFS= read -r _wfs_inv; do
+  [ -n "$_wfs_inv" ] || continue
+  mkdir -p "$WFS_ROOT/$(dirname "$_wfs_inv")"
+  cp "$REPO_ROOT/$_wfs_inv" "$WFS_ROOT/$_wfs_inv"
+done < <(python3 "$WFS_LINT" --print-inventory)
 WFS_P1="$WFS_ROOT/skills/implement/phases/phase-1-setup.md"
 _wfs_restore_p1() { cp "$REPO_ROOT/skills/implement/phases/phase-1-setup.md" "$WFS_P1"; }
 # GREEN: the scratch root (clean copies) passes under the default inventory.
@@ -51969,13 +51973,14 @@ print("allran=%s total=%d unbound=%d syn_rc=%d rstop=%d rdeg=%d rno=%d" % (
     "yes" if (total > 0 and ran == total) else "no",
     total, unbound, syn_rc, route(3, "UNAVAILABLE"), route(2, "NOT_IGNORED"), route(0, "")))
 P1633FIH
-P1633_FIH_OUT="$(python3 "$P1633_FIH" \
-  "$REPO_ROOT/skills/implement/phases/phase-1-setup.md" \
-  "$REPO_ROOT/skills/implement/phases/phase-2-implement.md" \
-  "$REPO_ROOT/skills/implement/phases/phase-2-sweeps-contract.md" \
-  "$REPO_ROOT/skills/implement/phases/phase-2-sweeps-quality.md" \
-  "$REPO_ROOT/skills/implement/phases/phase-3-review.md" \
-  "$REPO_ROOT/skills/implement/phases/phase-4-documentation.md" 2>/dev/null)"
+# Derive the swept set from the lint's own ENROLLED inventory so "every enrolled file"
+# below is true by construction and cannot drift from a hardcoded copy. --print-inventory
+# emits ENROLLED in order, so argv[0] stays phase-1-setup.md (the ran-to-completion file).
+WFS_FIH_ARGS=()
+while IFS= read -r _inv_f; do
+  [ -n "$_inv_f" ] && WFS_FIH_ARGS+=("$REPO_ROOT/$_inv_f")
+done < <(python3 "$WFS_LINT" --print-inventory)
+P1633_FIH_OUT="$(python3 "$P1633_FIH" "${WFS_FIH_ARGS[@]}" 2>/dev/null)"
 assert_eq "#1633 AC23 (one enrolled file): every phase-1-setup.md fence runs to completion in isolation" "yes" \
   "$(case "$P1633_FIH_OUT" in "allran=yes "*) echo yes ;; *) echo "no ($P1633_FIH_OUT)" ;; esac)"
 # The cross-fence dependency sweep runs over EVERY enrolled file: `bash -u` turns a
