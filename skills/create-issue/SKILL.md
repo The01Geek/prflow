@@ -106,7 +106,7 @@ output: proceed unchanged.
 
 The per-step procedures and the conditional fallback arms live in `references/`, loaded at their
 trigger. Build a reference's path from this skill's directory per the *Portable helper anchor*
-rules above and read it with the runner's file-read tool — never a new shell invocation. A load is
+rules in `## Runner setup` below and read it with the runner's file-read tool — never a new shell invocation. A load is
 accepted only when the file's first line is its `start` boundary marker and its last line is the
 matching `end` marker, each naming that file's own path, with exactly one of each.
 
