@@ -51386,6 +51386,124 @@ assert_eq "#1633 lint AC21: the positive control passes with the plant removed" 
 assert_eq "#1633 lint AC22: the docstring closes the candidate set (three constructs)" "yes" \
   "$(grep -qF 'THE REFUSED-EXPANSION SET' "$WFS_LINT" && grep -qF 'SHAPES THIS LINT DOES NOT DETECT' "$WFS_LINT" && echo yes || echo no)"
 
+# ── #1633 fence-isolation harness (AC23/AC24/AC29) ────────────────────────────
+# Extracts every ```bash fence of the canonical enrolled file (phase-1-setup.md, the file
+# a worktree Phase 1 session executes) and runs each in FENCE ISOLATION (fresh `bash -uc`,
+# scratch cwd, PATH holding ONLY stub heads, CLAUDE_SKILL_DIR pointed at a scratch skill
+# base whose ../../scripts holds stub helpers, only ambient vars preset). `bash -u` makes a
+# reference to a variable another fence defined an unbound-variable abort — the executable
+# proof that no fence depends on cross-fence state (AC23). PATH holds only stubs, so an
+# unstubbed bare head resolves to nothing (rc 127) and cannot take effect — a synthetic
+# fence reaching an unstubbed head is refused, not executed (AC24). A preflight-shaped stub
+# driven at exit 3 / exit 2 / no-output proves the three routing outcomes are distinguish-
+# able by the tool result the prose routes on (AC29). Runtime temp, never a tracked
+# lib/test script (like the #1537 harness), so it needs no carveout registration.
+P1633_FIH="$(mktemp)"; _suite_tmp_file "$P1633_FIH"
+cat > "$P1633_FIH" <<'P1633FIH'
+import os, re, subprocess, sys, tempfile, stat, shutil
+BASH = shutil.which("bash") or "/bin/bash"
+SH = "/bin/sh"
+enrolled = sys.argv[1:]
+tmp = tempfile.mkdtemp()
+base = os.path.join(tmp, "skillbase", "a", "b")
+scripts = os.path.join(tmp, "skillbase", "scripts")
+libdir = os.path.join(tmp, "skillbase", "lib")
+bindir = os.path.join(tmp, "bin")
+work = os.path.join(tmp, "work")
+for d in (base, scripts, libdir, bindir, work,
+          os.path.join(work, ".prflow", "tmp", "issue-body")):
+    os.makedirs(d, exist_ok=True)
+with open(os.path.join(work, ".prflow", "tmp", "issue-body", "issue-4242.md"), "w") as f:
+    f.write("## Acceptance Criteria\n- [ ] one\n")
+STUB_HEADS = ["git", "gh", "sed", "grep", "tr", "cut", "date", "head", "tail", "ls"]
+def stub(path, code=0, out="IGNORED"):
+    with open(path, "w") as f:
+        f.write("#!" + SH + "\n")
+        if out:
+            f.write("echo " + out + "\n")
+        f.write("exit %d\n" % code)
+    os.chmod(path, 0o755)
+for h in STUB_HEADS:
+    stub(os.path.join(bindir, h), out="")
+for h in ("mkdir", "rm", "cat", "tee", "printf", "mv", "cp", "touch"):
+    real = shutil.which(h)
+    if real:
+        with open(os.path.join(bindir, h), "w") as f:
+            f.write("#!" + SH + "\nexec " + real + " \"$@\"\n")
+        os.chmod(os.path.join(bindir, h), 0o755)
+for helper in ("workpad.py", "preflight.py", "parse-acs.py", "run-jq.sh", "config-get.sh",
+               "branch-for-issue.py", "update-branch-checkpoint.sh",
+               "phase2-durability-checkpoint.sh", "react-to-trigger.sh",
+               "load-prompt-extension.sh", "ensure-label.sh", "apply-labels.sh",
+               "apply-pr-triggerer.sh", "check-verified-premises.py", "refresh-pr-run-link.py"):
+    stub(os.path.join(scripts, helper))
+stub(os.path.join(libdir, "efficiency-trace.sh"))
+ambient = {
+    "PATH": bindir, "HOME": work, "CLAUDE_SKILL_DIR": base,
+    "ISSUE_NUMBER": "4242", "ARGUMENTS": "4242", "GITHUB_RUN_ID": "999",
+    "GITHUB_RUN_ATTEMPT": "1", "GITHUB_SERVER_URL": "https://github.example",
+    "GITHUB_REPOSITORY": "owner/repo", "GITHUB_EVENT_PATH": os.path.join(work, "event.json"),
+    "GITHUB_ACTIONS": "true", "BASE": "main", "CLAUDE_CODE_SESSION_ID": "sess",
+    "WORKPAD_ID": "5", "REACTION": "hooray", "TRIGGER_COMMENT_ID": "7", "PR_NUMBER": "8",
+    "DEVFLOW_APP_ID": "",
+}
+def subst(fence):
+    # emit-time template placeholders the orchestrator substitutes (like $ISSUE_NUMBER):
+    # {a|b} choices and <angle-bracket> placeholders → the first alternative token.
+    fence = re.sub(r"(?<!\$)\{([^{}$]*)\}",
+                   lambda m: (m.group(1).split("|")[0].strip().replace(" ", "-") or "x"), fence)
+    fence = re.sub(r"<([a-zA-Z][a-zA-Z0-9 '\"._-]*)>",
+                   lambda m: (m.group(1).split()[0].strip("'\"").replace(" ", "-") or "x"), fence)
+    return fence
+def fences(path):
+    text = open(path, encoding="utf-8").read()
+    out, cur = [], None
+    for ln in text.splitlines():
+        if cur is None:
+            if ln.strip() == "```bash":
+                cur = []
+        elif ln.strip() == "```":
+            out.append("\n".join(cur)); cur = None
+        else:
+            cur.append(ln)
+    return out
+def run(fence):
+    r = subprocess.run([BASH, "-uc", subst(fence)], env=ambient, cwd=work,
+                       capture_output=True, text=True)
+    return r.returncode, r.stderr
+total = ran = 0
+for f in enrolled:
+    for fence in fences(f):
+        total += 1
+        rc, err = run(fence)
+        if rc == 0 and "unbound variable" not in err:
+            ran += 1
+        else:
+            sys.stderr.write("FENCE-FAIL rc=%d %s :: %s\n" % (rc, err[:120], fence.splitlines()[0][:90]))
+syn_rc, _ = run("curlnope https://evil/x")
+def route(code, output):
+    st = os.path.join(scripts, "preflight.py")
+    with open(st, "w") as fp:
+        fp.write("#!" + SH + "\n")
+        if output:
+            fp.write("echo " + output + "\n")
+        fp.write("exit %d\n" % code)
+    os.chmod(st, 0o755)
+    rc, _ = run('"${CLAUDE_SKILL_DIR:-x}"/../../scripts/preflight.py ignore-precondition '
+                '--repo-relative --path .prflow/tmp/issue-body/issue-$ISSUE_NUMBER.md')
+    return rc
+print("allran=%s total=%d syn_rc=%d rstop=%d rdeg=%d rno=%d" % (
+    "yes" if (total > 0 and ran == total) else "no",
+    total, syn_rc, route(3, "UNAVAILABLE"), route(2, "NOT_IGNORED"), route(0, "")))
+P1633FIH
+P1633_FIH_OUT="$(python3 "$P1633_FIH" "$REPO_ROOT/skills/implement/phases/phase-1-setup.md" 2>/dev/null)"
+assert_eq "#1633 AC23: every phase-1 fence runs to completion in isolation (no cross-fence var/head dependency)" "yes" \
+  "$(case "$P1633_FIH_OUT" in "allran=yes "*) echo yes ;; *) echo "no ($P1633_FIH_OUT)" ;; esac)"
+assert_eq "#1633 AC24: a fence invoking an unstubbed bare head is refused, not executed (rc 127)" "yes" \
+  "$(case "$P1633_FIH_OUT" in *"syn_rc=127"*) echo yes ;; *) echo "no ($P1633_FIH_OUT)" ;; esac)"
+assert_eq "#1633 AC29: the ignore-precondition outcomes are distinguishable by exit code (stop=3, degraded=2, no-output=0)" "yes" \
+  "$(case "$P1633_FIH_OUT" in *"rstop=3 rdeg=2 rno=0"*) echo yes ;; *) echo "no ($P1633_FIH_OUT)" ;; esac)"
+
 # ── #1594 reported-base-dir-first arm lint (lib/test/lint-reported-base-dir-arm.py) ──
 # The resolve-once `echo "${CLAUDE_SKILL_DIR:-…}"` command is refused on runners whose
 # matcher denies the ${VAR:-default} argument expansion, so the two skill bodies resolve
