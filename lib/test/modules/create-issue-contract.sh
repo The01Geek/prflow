@@ -1186,10 +1186,14 @@ echo "#614 create-issue split: routing, markers, purity"
 # can never be registered in one assertion's list and silently dropped from another.
 CI614_STEP_REFS="step-2-clarify step-3-5-steelman revision-delta step-3-6-audit step-4-present-create"
 CI614_FALLBACK_REFS="fallback-no-task-tool fallback-read-only-sandbox fallback-audit-dispatch-arms fallback-state-owner-unavailable fallback-audit-round-reconciliation fallback-audit-boundary-offer fallback-draft-write-recovery fallback-implement-offer-tier-read fallback-visual-specification fallback-audit-evidence-degraded"
-CI614_REFS="$CI614_STEP_REFS $CI614_FALLBACK_REFS"
+# issue-template is a routed reference (gated, T1/T2), but NOT a step reference: it is kept in
+# its own roster group so the T4 default-path purity sweep (which loops CI614_STEP_REFS) does
+# not search it and it takes no ci614_step_unique call.
+CI614_TEMPLATE_REFS="issue-template"
+CI614_REFS="$CI614_STEP_REFS $CI614_FALLBACK_REFS $CI614_TEMPLATE_REFS"
 
 # Marker ids per AC2's decided id space: the step number for step references, the literal
-# `revision-delta`, and `fallback-<name>` for the four fallback files.
+# `revision-delta`, `fallback-<name>` for the fallback files, and the literal `issue-template`.
 ci614_marker_id() {
   case "$1" in
     step-2-clarify)         printf '2' ;;
@@ -1198,12 +1202,13 @@ ci614_marker_id() {
     step-3-6-audit)         printf '3.6' ;;
     step-4-present-create)  printf '4' ;;
     fallback-*)             printf '%s' "$1" ;;
+    issue-template)         printf 'issue-template' ;;
     *)                      return 1 ;;
   esac
 }
 
 # T1 — directory <-> routing reconciliation, both directions. Every routed reference
-# exists on disk, and every references/*.md except the two unchanged template files has
+# exists on disk, and every references/*.md except audit-prompt-template.md has
 # exactly one routing row naming it. A one-directional check would let an orphaned file
 # accumulate unrouted (dead prose the run never loads) or a row point at nothing.
 for _ci614_ref in $CI614_REFS; do
@@ -1214,7 +1219,7 @@ for _ci614_ref in $CI614_REFS; do
 done
 _ci614_ondisk=0
 for _ci614_f in "$CI_ROOT"/skills/create-issue/references/*.md; do
-  case "${_ci614_f##*/}" in issue-template.md|audit-prompt-template.md) continue ;; esac
+  case "${_ci614_f##*/}" in audit-prompt-template.md) continue ;; esac
   _ci614_ondisk=$((_ci614_ondisk + 1))
 done
 # shellcheck disable=SC2086  # deliberate word-split of the space-separated roster

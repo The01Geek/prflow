@@ -1,3 +1,4 @@
+<!-- prflow:create-issue-ref step=issue-template file=skills/create-issue/references/issue-template.md start -->
 # GitHub Issue Template & Quality Guide
 
 Reference for drafting and posting a well-structured GitHub issue. The calling skill (`/prflow:create-issue`) has already gathered documentation findings and **resolved every in-scope decision with the user**. Draft the issue **from that context**, doing only targeted verification reads where a specific claim needs confirming. Do not re-explore the whole codebase; the findings are your map.
@@ -271,3 +272,5 @@ BODY
 **Do NOT add labels** — never pass `--label`. Step 4 applies the reserved `PRFlow` provenance label after creation, so passing it on the create call is redundant.
 
 `gh issue create` prints the new issue URL on success. Report that URL back to the caller.
+
+<!-- prflow:create-issue-ref step=issue-template file=skills/create-issue/references/issue-template.md end -->
