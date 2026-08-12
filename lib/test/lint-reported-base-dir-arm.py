@@ -21,10 +21,11 @@ i.e. the expansion's value is consumed as ``<skill-dir>`` rather than naming a h
 path (``…}"/../../scripts/<helper>``, the path-naming call sites, which this lint
 never flags). A bare prose *mention* of the variable (no ``}"``) is likewise not matched
 — the distinction the lint draws is invocation against mention, never fenced against
-inline. Matching runs over a WHITESPACE-NORMALIZED copy of the file, so an inline-code
-call site written mid-sentence inside a narrative bullet, or an expansion wrapped across
-adjacent lines, is recognised exactly like a fenced one. A value-consuming expansion with
-no sentinel at an earlier offset fails the lint, naming the file.
+inline. Matching runs over a WHITESPACE-NORMALIZED copy of the file (`" ".join(split())`),
+so the sentinel and the value-consuming expansion are located by the same flattened
+offsets whether the call site is fenced or written inline mid-sentence inside a narrative
+bullet, and a sentinel wrapped across adjacent lines is still found. A value-consuming
+expansion with no sentinel at an earlier offset fails the lint, naming the file.
 
 PASSES (each): a site whose value-consuming expansion has the sentinel ahead of it; a
 site carrying no value-consuming expansion at all (nothing to require an arm for, e.g. a
@@ -61,9 +62,10 @@ ENROLLED: tuple[str, ...] = (
 _SENTINEL = "<!-- prflow:skill-dir-reported-base-first -->"
 
 #: A value-consuming anchor expansion: ``${CLAUDE_SKILL_DIR:-<…>}"`` whose ``}"`` is NOT
-#: followed by ``/``. The negative lookahead is what separates it from a path-naming
+#: followed by ``/`` (allowing whitespace the normalization pass may have left before it).
+#: The negative lookahead is what separates it from a path-naming
 #: ``…}"/../../scripts/<helper>`` invocation, which is left unflagged.
-_VALUE_CONSUMING = re.compile(r'\$\{CLAUDE_SKILL_DIR:-[^}]*\}"(?!/)')
+_VALUE_CONSUMING = re.compile(r'\$\{CLAUDE_SKILL_DIR:-[^}]*\}"(?!\s*/)')
 
 
 def audit(root: Path, enrolled: tuple[str, ...] = ENROLLED) -> list[str]:
@@ -84,9 +86,9 @@ def audit(root: Path, enrolled: tuple[str, ...] = ENROLLED) -> list[str]:
         # wrapped across adjacent lines are matched identically to a fenced one.
         norm = " ".join(text.split())
         sentinel_idx = norm.find(_SENTINEL)
-        # The sentinel is a single fixed offset and finditer yields matches in increasing
-        # start order, so if the sentinel precedes the earliest value-consuming match it
-        # precedes every later one — only the first match can decide the file.
+        # search() returns the earliest value-consuming match; if the single sentinel offset
+        # precedes that earliest match it precedes every later one, so the first match alone
+        # decides the file (a later restore to a whole-file loop would only re-express this).
         match = _VALUE_CONSUMING.search(norm)
         if match and (sentinel_idx == -1 or sentinel_idx > match.start()):
             failures.append(
