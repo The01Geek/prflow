@@ -1,0 +1,156 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-12T02:00:00Z",
+  "fix_commit_sha": "405de0016",
+  "fix_files": [
+    "lib/test/lint-reported-base-dir-arm.py",
+    "lib/test/run.sh",
+    "lib/test/fixtures/reported-base-dir-arm/sentinel-after/skills/implement/SKILL.md",
+    "lib/test/fixtures/reported-base-dir-arm/wrapped-sentinel/skills/implement/SKILL.md",
+    ".changeset/issue-1594-anchor-resolution.md"
+  ],
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "current_substep": null,
+  "checklist": [],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:type-design-analyzer"
+  ],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": true,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "sentinel-ahead ordering contract untested",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "kind": "test_gap"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "whitespace-normalization not load-bearing / overclaimed",
+      "defect_signature": {
+        "file": "lib/test/lint-reported-base-dir-arm.py",
+        "kind": "test_gap"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "comment named finditer but code uses .search()",
+      "defect_signature": {
+        "file": "lib/test/lint-reported-base-dir-arm.py",
+        "kind": "comment_accuracy"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "changeset cited PR #1626 not issue #1594",
+      "defect_signature": {
+        "file": ".changeset/issue-1594-anchor-resolution.md",
+        "kind": "reference"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:type-design-analyzer",
+      "severity": "Suggestion",
+      "description": "tighten (?!/) to (?!\\s*/)",
+      "defect_signature": {
+        "file": "lib/test/lint-reported-base-dir-arm.py",
+        "kind": "robustness"
+      },
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "405de0016"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "405de0016"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "405de0016"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "405de0016"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "applied",
+      "commit": "405de0016"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 5,
+    "fix_diff_lines": 55,
+    "new_corroborated_critical_count": 0
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "ran_at": "2026-08-12T02:10:00Z",
+    "reviewed_sha": "405de0016",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": null,
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:pr-test-analyzer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:type-design-analyzer"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:pr-test-analyzer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:type-design-analyzer"
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
