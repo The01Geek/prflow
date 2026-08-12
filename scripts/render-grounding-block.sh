@@ -80,9 +80,8 @@ HEAD_SHA="${HEAD_SHA//\`/}"
 # value any unrecognized MODE falls back to) renders the full block byte-for-byte
 # as before. `implement` and `generic` render the tier-agnostic sections only — the
 # permitted commands, the command shapes, and the headless-run discipline — omitting
-# the CI section (neither tier has a reviewed commit to observe) and the
-# trusted-source-displacement section (a review-only concept), and renumbering the
-# survivors. `implement` additionally adds the one implement-only clause built below
+# every section gated on a reviewed commit (the CI section, the sole-publisher section,
+# and the trusted-source-displacement section), and renumbering the survivors. `implement` additionally adds the one implement-only clause built below
 # as IMPLEMENT_SCOPE_CLAUSE; `generic` adds no tier-specific clause at all, which is
 # what makes it the mode for a run that must not be told the CI fence is its test
 # evidence and does not orchestrate the implement phases either (devflow.yml's

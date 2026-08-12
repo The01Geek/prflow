@@ -45,8 +45,15 @@ DAYS=14
 REPO=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --days) DAYS="${2:-}"; shift 2 ;;
-    --repo) REPO="${2:-}"; shift 2 ;;
+    # Check the operand is PRESENT before `shift 2`: with a value-less trailing
+    # `--days`/`--repo`, $# is 1, `shift 2` fails without shifting, and this loop
+    # (no `set -e`) spins forever on the same argument.
+    --days)
+      [ "$#" -ge 2 ] || { echo "measure-verdict-post-gap-rate: --days requires a value" >&2; exit 2; }
+      DAYS="$2"; shift 2 ;;
+    --repo)
+      [ "$#" -ge 2 ] || { echo "measure-verdict-post-gap-rate: --repo requires a value" >&2; exit 2; }
+      REPO="$2"; shift 2 ;;
     -h|--help) sed -n '2,30p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "measure-verdict-post-gap-rate: unknown argument '$1'" >&2; exit 2 ;;
   esac
@@ -54,6 +61,13 @@ done
 
 case "$DAYS" in
   ''|*[!0-9]*) echo "measure-verdict-post-gap-rate: --days must be a positive integer, got '$DAYS'" >&2; exit 2 ;;
+esac
+# All-zero digits ("0", "00") pass the digit test above but yield a zero-width window
+# that reports "no runs" — a wrong-but-plausible result rather than the contract's
+# refusal. Rejected as a shape, never via arithmetic (no overflow on a huge operand).
+case "$DAYS" in
+  *[!0]*) : ;;
+  *) echo "measure-verdict-post-gap-rate: --days must be a positive integer, got '$DAYS'" >&2; exit 2 ;;
 esac
 
 # Window start (UTC), via python3 (a preflight-guaranteed tool) — never `date -d`,
@@ -93,14 +107,22 @@ trap 'rm -f "$ROWS" "$CMTS"' EXIT
 # comments — and silently bias the emitted rate, which is exactly the number AC5's
 # baseline rests on. So capture the fetch, check its exit status, and count+surface
 # every failure rather than folding it into "no markers".
+#
+# The EXTRACTION stage that follows the fetch is counted the same way and for the same
+# reason: a jq that is absent or errors contributes zero rows, byte-identically to a PR
+# with no markers, and on a host with no runnable jq every PR fails extraction, driving
+# the denominator to 0 and printing "no review runs found in window" — a wrong-but-
+# plausible result instead of an error. So its exit status is checked too, and the
+# counts are reported separately from the fetch failures.
 PR_COUNT=0
 FETCH_FAIL=0
+PROCESS_FAIL=0
 for PR in $PR_NUMBERS; do
   [ -n "$PR" ] || continue
   PR_COUNT=$((PR_COUNT + 1))
   if "$DEVFLOW_GH" api \
        "repos/{owner}/{repo}/issues/$PR/comments?per_page=100" --paginate \
-       --jq '.[] | [.created_at, .body] | @tsv' > "$CMTS" 2>/dev/null; then
+       --jq '.[] | [.created_at, .body] | @tsv' > "$CMTS"; then
     # Progress runs are keyed by run id ALONE (the `-<attempt>` suffix is stripped
     # by capturing only the id group), so a re-attempted Actions run counts once and
     # the denominator's key namespace matches the gap numerator's run-id key.
@@ -111,7 +133,11 @@ for PR in $PR_NUMBERS; do
         | ( [ .body | scan("<!-- (?:pr|dev)flow:review-progress run=([0-9]+)-[0-9]+") ] ) as $rp
         | ( [ .body | scan("<!-- (?:pr|dev)flow:verdict-post-gap run=([0-9]+)") ] ) as $vg
         | ( $rp[] | "progress\t\($d)\t\(.)" ), ( $vg[] | "gap\t\($d)\t\(.)" )
-      ' < "$CMTS" >> "$ROWS" || true
+      ' < "$CMTS" >> "$ROWS" || {
+      _JQ_RC=$?
+      PROCESS_FAIL=$((PROCESS_FAIL + 1))
+      echo "measure-verdict-post-gap-rate: WARNING — marker extraction failed for PR #$PR (jq exited $_JQ_RC); it contributes no markers, so the counts below are incomplete." >&2
+    }
   else
     FETCH_FAIL=$((FETCH_FAIL + 1))
     echo "measure-verdict-post-gap-rate: WARNING — comment fetch failed for PR #$PR; it contributes no markers, so the counts below are incomplete." >&2
@@ -127,7 +153,8 @@ fi
 # never depend on a non-guaranteed PATH tool (awk/sort/grep) that could be absent
 # and silently miscount (CLAUDE.md's un-guaranteed-tool guard). A review run may
 # update its own progress comment, so dedup on the runkey.
-DAYS="$DAYS" SINCE="$SINCE" PR_COUNT="$PR_COUNT" FETCH_FAIL="$FETCH_FAIL" python3 - "$ROWS" <<'__AGG_PY__'
+DAYS="$DAYS" SINCE="$SINCE" PR_COUNT="$PR_COUNT" FETCH_FAIL="$FETCH_FAIL" \
+  PROCESS_FAIL="$PROCESS_FAIL" python3 - "$ROWS" <<'__AGG_PY__'
 import os, sys
 rows_path = sys.argv[1]
 progress, gap = set(), set()
@@ -151,13 +178,28 @@ except OSError as exc:
 
 denom, numer = len(progress), len(gap)
 fetch_fail = int(os.environ.get("FETCH_FAIL", "0") or "0")
+process_fail = int(os.environ.get("PROCESS_FAIL", "0") or "0")
 print(f"verdict-post-gap rate — window: last {os.environ['DAYS']} days (since {os.environ['SINCE']})")
 scanned = os.environ['PR_COUNT']
-print(f"PRs scanned: {scanned}" + (f" ({fetch_fail} with comment-fetch failures — counts below are incomplete)" if fetch_fail else ""))
+incomplete = []
+if fetch_fail:
+    incomplete.append(f"{fetch_fail} with comment-fetch failures")
+if process_fail:
+    incomplete.append(f"{process_fail} with marker-extraction failures")
+print(f"PRs scanned: {scanned}"
+      + (f" ({'; '.join(incomplete)} — counts below are incomplete)" if incomplete else ""))
 print(f"denominator (distinct review runs on PRs): {denom}")
 print(f"numerator   (distinct verdict-post-gap runs): {numer}")
-print(f"rate (numerator / denominator): {100.0*numer/denom:.1f}%" if denom else
-      "rate (numerator / denominator): n/a (no review runs found in window)")
+# A zero denominator reached THROUGH failures is unestablished, not "no runs": saying
+# "no review runs found" for a host whose every PR failed extraction reports an absence
+# the scan never observed.
+if denom:
+    print(f"rate (numerator / denominator): {100.0*numer/denom:.1f}%")
+elif incomplete:
+    print("rate (numerator / denominator): unestablished "
+          "(no review runs counted, and " + "; ".join(incomplete) + ")")
+else:
+    print("rate (numerator / denominator): n/a (no review runs found in window)")
 # A numerator above the denominator is a data-integrity signal (a gap run whose
 # review-progress seed was not counted — e.g. its PR's fetch failed, or an
 # older-spelling seed), never a real >100% rate. Surface it rather than print it silently.

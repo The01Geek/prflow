@@ -502,7 +502,7 @@
       "owner": "unmodularized"
     },
     "scripts/measure-verdict-post-gap-rate.sh": {
-      "note": "issue #1629 offline measurement tool: computes the per-review-run verdict-post-gap rate from PR-comment markers; a network-dependent analyst tool with no automated test module (its only offline contracts are --days validation and the unknown-arg arm)",
+      "note": "issue #1629 offline measurement tool: computes the per-review-run verdict-post-gap rate from PR-comment markers; a network-dependent analyst tool with no automated test module (its only offline contracts are --days validation, the missing-operand arm and the unknown-arg arm)",
       "owner": "unmodularized"
     },
     "scripts/migrate-consumer-tier1.sh": {
