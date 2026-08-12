@@ -10,4 +10,4 @@ type: Added
   not a verdict — so a run that skipped the Phase 4.4 reference cannot mistake a hand-posted
   comment for an approval. The Phase 4.4 routing-table row of `skills/review/SKILL.md` now states
   that constraint rather than only the goal, and `scripts/measure-verdict-post-gap-rate.sh`
-  measures the occurrence rate against a per-review-run denominator. (#1629)
+  measures the occurrence rate against a per-review-run denominator. (#1631)
