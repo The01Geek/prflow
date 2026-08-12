@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.46] — 2026-08-12
+
+### Changed
+Trim justification prose from the `review-and-fix` `fixing.md` and `shadow-review.md` references so both sit further under the boundary-gated reference size ceiling. Removed derivations, design narrative, reviewer-misreading pre-empts, provenance notes and same-file restatements; every instruction, decision arm, invocation contract, command fence and exact literal is unchanged.
+
 ## [2.32.45] — 2026-08-12
 
 ### Changed
