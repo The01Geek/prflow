@@ -2121,15 +2121,13 @@ assert_eq("#1462 live tick substrings were derived from the phase files", True,
           len(_live_ticks) >= 10)
 
 # --- #1630 no live tick operand carries a shell metacharacter ---------------
-# §1.5's mandated `--tick-progress "branch & workpad"` was refused by the local
-# classifier, leaving the Setup row unticked mid-run. Guard the class: no quoted
-# `--tick-progress` operand may carry a character in `_TICK_METACHARS_1630`
-# below (a pragmatic subset covering the observed refusal, not the classifier's
-# full grammar). Scope: this reads the same `_live_ticks` set derived above —
-# quoted `--tick-progress` literals under skills/implement/ ONLY. The disclosed
-# residual is thereby --tick-plan/--tick-ac sites (authored placeholders), any
-# site whose operand is a shell variable, and any future tick site added outside
-# skills/implement/ (there are none today).
+# No quoted `--tick-progress` operand may carry a character in
+# `_TICK_METACHARS_1630` below (a pragmatic subset covering the observed
+# classifier refusal, not its full grammar) — such an operand is refused mid-run.
+# Scope: the `_live_ticks` set derived above, i.e. quoted `--tick-progress`
+# literals under skills/implement/ ONLY. Disclosed residuals: --tick-plan
+# /--tick-ac sites (authored placeholders), any site whose operand is a shell
+# variable, and any future tick site outside skills/implement/ (none today).
 _TICK_METACHARS_1630 = "&;|$`()<>"
 for _t in _live_ticks:
     assert_eq(f"#1630 live tick {_t!r} carries no shell metacharacter", [],
