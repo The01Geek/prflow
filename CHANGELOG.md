@@ -4,6 +4,16 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.40] — 2026-08-12
+
+### Changed
+Relocate the Phase 4.0 follow-up-issue **composition** out of the monolithic gated reference into a new first-party `deferral-drafter` subagent (`agents/deferral-drafter.md`), which composes each follow-up body under `.prflow/tmp/` and returns a filing plan by path. The gated reference `skills/implement/references/deferred-ac-followups.md` now dispatches that agent and holds only the orchestrator's GitHub writes (create fence, `deferred.labels` application, blocked-by dependency registration, `--mark-deferred-filed` discharge); the agent performs no GitHub write and dispatches nothing, so the writes and the one-subagent-layer constraint rest on the orchestrator. The dispatch is authorized by `skills/implement/SKILL.md`'s self-maintaining injection-condition clause (issue #1602) with no edit to it, since the reference is an implement-bundle member. The orchestrator reads the returned plan's degradation signals (`writing_standard_loaded`, `parent_slots_source`, `notes:`) before filing, records every non-clean one as a durable `dropped-failed` workpad reflection, and leaves a criterion the plan reports as unplaced undischarged so a later Phase 4 entry re-files it — without that read a thin follow-up was filed, irreversibly marked done, and left no trace. A pin-exposure measurement (recorded in `docs/internal/cutovers/issue-1604-deferral-drafter-pin-exposure.md` before any prose moved) found 14 `lib/test/run.sh` assertions that read the implement bundle depend on the reference's text; all 14 survive because the reference is retained as the write/dispatch surface (#1604, PR #1615).
+
+## [2.32.39] — 2026-08-12
+
+### Fixed
+- **Compress `skills/create-issue/references/step-3-6-audit.md` so its Step 3.6 load stops truncating.** The file had grown past the file-read tool's per-read token cap, so a whole-file read returned a partial view; because the reference is boundary-gated (its first line must be the `start` marker and its last the matching `end` marker), a truncated read failed the gate and `/prflow:create-issue` fell to its degraded one-round in-chat self-audit instead of dispatching the fresh-context auditor. Only prose the instruction-plus-consequence rule excludes was removed (explanation past one consequence sentence, reviewer pre-emption, restated facts); the fenced commands, section headings, boundary markers, and the literals the create-issue test suite pins are preserved verbatim, verified by the create-issue-contract module and the audit-lifecycle contract check staying green. The file now reads whole in one call, so Step 3.6 enters on its normal path and dispatches the fresh-context auditor. (#1601)
+
 ## [2.32.38] — 2026-08-11
 
 ### Fixed
