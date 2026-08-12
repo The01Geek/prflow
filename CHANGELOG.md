@@ -4,6 +4,36 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.46] — 2026-08-12
+
+### Changed
+Trim justification prose from the `review-and-fix` `fixing.md` and `shadow-review.md` references so both sit further under the boundary-gated reference size ceiling. Removed derivations, design narrative, reviewer-misreading pre-empts, provenance notes and same-file restatements; every instruction, decision arm, invocation contract, command fence and exact literal is unchanged.
+
+## [2.32.45] — 2026-08-12
+
+### Changed
+- **Trimmed justification prose from the `/prflow:retrospective-weekly` skill.** The
+  orchestrator body now carries each instruction with at most one sentence naming what
+  breaks if it is skipped, per the repository's instruction-plus-consequence prose rule:
+  derivations, design narrative, provenance, reviewer pre-emption, and restatements of
+  facts already stated elsewhere in the file were removed. Every operative instruction,
+  decision rule, stop condition, command fence, flag and declaration marker is unchanged,
+  so run behavior is identical. `SKILL.md` drops from 83,427 to 70,113 bytes.
+
+## [2.32.44] — 2026-08-12
+
+### Changed
+Trim justification prose from the `/prflow:implement` Phase 1 and Phase 4 phase files so both sit well clear of the boundary-gated reference size ceiling. Removed derivations, worked rationale, anti-misreading asides, provenance notes and same-file restatements; every instruction, decision arm, stop condition, command fence and exact literal is unchanged.
+
+## [2.32.43] — 2026-08-12
+
+### Changed
+Trimmed justification prose from `/prflow:init`'s skill body — derivations, design
+narrative, reviewer-misreading pre-emption and restatements of facts already stated
+in the same file — bringing it under the reference-size ceiling and retiring its
+`lib/test/reference-size-exemptions.json` rows. Every instruction, decision branch,
+command fence and helper-breadcrumb arm is unchanged.
+
 ## [2.32.42] — 2026-08-12
 
 ### Added
