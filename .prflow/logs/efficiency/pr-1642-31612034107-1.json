@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1642",
+  "generated_at": "2026-08-12T15:44:36Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.54",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 19.617316499999998,
+    "tokens": {
+      "input_tokens": 95,
+      "output_tokens": 49314,
+      "cache_read_input_tokens": 9706102,
+      "cache_creation_input_tokens": 262197,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 231,
+        "outputTokens": 124234,
+        "cacheReadInputTokens": 15943721,
+        "cacheCreationInputTokens": 1154038,
+        "webSearchRequests": 0,
+        "costUSD": 19.27484175,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 2,
+        "outputTokens": 10623,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 48833,
+        "webSearchRequests": 0,
+        "costUSD": 0.34247475000000005,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 64,
+    "duration_ms": 1163830
+  },
+  "permission_denials": {
+    "count": 9,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-none} ATTEMPT=${GITHUB_RUN_ATTEMPT:-none}\"; mkdir -p .prflow/tmp/review/pr-1642/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}; echo done",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve \"1633\" --pr \"1642\" 2>.prflow/tmp/review/pr-1642/31612034107-1/acs.err ; echo \"acs-rc=$?\"",
+      "cd /home/runner/work/prflow/prflow\nD=.prflow/tmp/review/pr-1642/31612034107-1\nawk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' $D/diff.patch > $D/batch-1.patch && test -s $D/batch-1.patch && echo \"slice-ok: batch-1\"\nawk -v s=11 -v e=20 '/^diff --git/{n++} n>=s && n<=e' $D/diff.patch > $D/batch-2.patch && test -s $D/batch-2.patch && echo \"slice-ok: batch-2\"\nawk -v s=21 -v e=30 '/^diff --git/{n++} n>=s && n<=e' $D/diff.patch > $D/batch-3.patch && test -s $D/batch-3.patch && echo \"slice-ok: bat …[per-command-truncated]",
+      "awk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1642/31612034107-1/diff.patch > .prflow/tmp/review/pr-1642/31612034107-1/batch-1.patch && test -s .prflow/tmp/review/pr-1642/31612034107-1/batch-1.patch && echo \"slice-ok: batch-1\"\nawk -v s=11 -v e=20 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1642/31612034107-1/diff.patch > .prflow/tmp/review/pr-1642/31612034107-1/batch-2.patch && test -s .prflow/tmp/review/pr-1642/31612034107-1/batch-2.patch && echo \"slice- …[per-command-truncated]",
+      "awk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1642/31612034107-1/diff.patch > .prflow/tmp/review/pr-1642/31612034107-1/batch-1.patch",
+      "awk -v s=11 -v e=20 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1642/31612034107-1/diff.patch > .prflow/tmp/review/pr-1642/31612034107-1/batch-2.patch",
+      "awk -v s=21 -v e=30 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1642/31612034107-1/diff.patch > .prflow/tmp/review/pr-1642/31612034107-1/batch-3.patch",
+      "for f in phase-2-sweeps-contract phase-2-sweeps-quality phase-3-ac-gate; do\necho \"=== $f: bash fences ===\"; grep -c '^```bash' skills/implement/phases/$f.md\necho \"--- refused constructs in bash context (cmd subst / backtick / \\$?) ---\"; grep -nE '\\$\\(|`|\\$\\?' skills/implement/phases/$f.md | head -15\ndone",
+      "for f in phase-2-sweeps-contract phase-2-sweeps-quality phase-3-ac-gate; do echo \"=== $f bash-fence count ===\"; grep -c 'bash' skills/implement/phases/$f.md; done"
+    ],
+    "total": 9,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
