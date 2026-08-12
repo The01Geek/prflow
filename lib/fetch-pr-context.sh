@@ -274,10 +274,21 @@ CI_FAILURES="1"
 set +e
 # Never fold gh's stderr into this capture: --paginate multiplies the requests
 # that can emit a non-fatal notice, and any such line makes the filter below
-# error, reporting a healthy head as unreadable. Let it reach our own stderr.
-_CI_RUNS_JSON="$("$DEVFLOW_GH" api "repos/${REPO}/commits/${HEAD_SHA}/check-runs?per_page=100" --paginate)"
+# error, reporting a healthy head as unreadable. Route it to a file so the
+# re-emit below can hold it to the same one-line-per-record contract our own
+# breadcrumbs keep; letting it reach our stderr raw fragments a caller's record.
+_CI_GH_ERR_FILE="$_JQ_TMP/gh-checkruns.err"
+_CI_RUNS_JSON="$("$DEVFLOW_GH" api "repos/${REPO}/commits/${HEAD_SHA}/check-runs?per_page=100" --paginate 2>"$_CI_GH_ERR_FILE")"
 _CI_EXIT=$?
 set -e
+# Collapse with a bash builtin, never `tr`: lib/preflight.sh does not guarantee
+# it, and a missing tr would silently empty the diagnostic it is emitting.
+_CI_GH_ERR=""
+IFS= read -r -d '' _CI_GH_ERR < "$_CI_GH_ERR_FILE" || true
+_CI_GH_ERR="${_CI_GH_ERR%$'\n'}"
+if [ -n "$_CI_GH_ERR" ]; then
+    printf 'fetch-pr-context: gh check-runs stderr: %s\n' "${_CI_GH_ERR//$'\n'/ }" >&2
+fi
 if [ $_CI_EXIT -ne 0 ] || [ -z "$_CI_RUNS_JSON" ]; then
     CI_STATUS_UNKNOWN="true"
     CI_FAILURES="1"

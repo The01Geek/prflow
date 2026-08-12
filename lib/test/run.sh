@@ -13584,6 +13584,7 @@ case "$*" in
     # Emitted before the case, not as a `;;&` fallthrough arm: `;;&` is bash 4+
     # and this repo must parse under the bash 3.2 macOS ships.
     [ "${DEVFLOW_CR_MODE:-payload}" = notice ] && echo "gh: rate limit remaining 12" >&2
+    [ "${DEVFLOW_CR_MODE:-payload}" = notice-multiline ] && printf 'gh: notice one\ngh: notice two\n' >&2
     case "${DEVFLOW_CR_MODE:-payload}" in
       exit-nonzero) echo "gh: HTTP 503 Service Unavailable" >&2; exit 1 ;;
       *)
@@ -13639,6 +13640,14 @@ cat > "$F1441/checkruns.json" <<'CR'
 {"check_runs":[{"conclusion":"conclusion_github_has_not_invented_yet"}]}
 CR
 cr1441 "an unrecognised conclusion (denylist fails closed)" "1" "false"
+
+# Never let a superseded conclusion suppress a real red sharing its page: a
+# filter that rejected the whole payload on seeing `cancelled` would leave AC1
+# and AC2 both green, since neither mixes the two on one page.
+cat > "$F1441/checkruns.json" <<'CR'
+{"check_runs":[{"conclusion":"failure"},{"conclusion":"cancelled"}]}
+CR
+cr1441 "a real red beside a superseded conclusion on one page" "1" "false"
 
 # AC4 — a still-running check has conclusion null and is not a failure.
 cat > "$F1441/checkruns.json" <<'CR'
@@ -13736,7 +13745,43 @@ assert_eq "#1441: an rc-0 empty body is not reported as a failed read" "yes" \
   "$(case "$_CR_ERR7" in *"returned an empty body (rc=0)"*) echo yes ;; *) echo no ;; esac)"
 assert_eq "#1441: the empty-body arm carries no read-failure wording" "no" \
   "$(case "$_CR_ERR7" in *"check-runs read failed"*) echo yes ;; *) echo no ;; esac)"
-unset _CR_ERR1 _CR_ERR2 _CR_ERR3 _CR_ERR4 _CR_ERR5 _CR_ERR6 _CR_ERR7
+
+# gh's OWN stderr is re-emitted collapsed, not passed through raw: the caller
+# folds our whole stderr into one record and then splits it on newlines, so an
+# unstripped multi-line gh notice fragments into phantom rows.
+printf '{"check_runs":[{"conclusion":"success"}]}\n' > "$F1441/checkruns.json"
+_CR_ERR8="$(DEVFLOW_FX="$F1441" DEVFLOW_GH="$F1441/gh" DEVFLOW_CR_MODE=notice-multiline \
+            bash "$LIB/fetch-pr-context.sh" 1441 2>&1 >/dev/null || true)"
+assert_eq "#1441: gh's multi-line stderr is re-emitted joined onto one line" "yes" \
+  "$(case "$_CR_ERR8" in *"gh: notice one gh: notice two"*) echo yes ;; *) echo no ;; esac)"
+# Positive control on the same fixture: the request itself succeeded, so this
+# row cannot be green because some earlier arm rejected the payload.
+cr1441 "a multi-line gh notice, request otherwise clean" "0" "false" notice-multiline
+
+# The jq-error operand of the breadcrumb's collapse needs its own driver: real
+# jq emits single-line diagnostics, so only a stub jq exercises that strip.
+cat > "$F1441/jq" <<'JQSTUB1441'
+#!/usr/bin/env bash
+case "$*" in
+  *"no check-run pages"*)
+    printf 'jq: stub error line one\njq: stub error line two\n' >&2
+    exit 5 ;;
+esac
+exec "${DEVFLOW_REAL_JQ}" "$@"
+JQSTUB1441
+chmod +x "$F1441/jq"
+printf '{"check_runs":[{"conclusion":"success"}]}\n' > "$F1441/checkruns.json"
+_CR_ERR9="$(DEVFLOW_FX="$F1441" DEVFLOW_GH="$F1441/gh" \
+            DEVFLOW_REAL_JQ="$(command -v jq)" DEVFLOW_JQ="$F1441/jq" \
+            bash "$LIB/fetch-pr-context.sh" 1441 2>&1 >/dev/null || true)"
+assert_eq "#1441: the jq-error operand is collapsed onto one line" "yes" \
+  "$(case "$_CR_ERR9" in *"jq: stub error line one jq: stub error line two"*) echo yes ;; *) echo no ;; esac)"
+# Attribute the rejection: without this the row stays green if the stub tripped
+# some other arm rather than the unusable-count arm whose strip it names.
+assert_eq "#1441: the jq-error row lands on the unusable-count arm" "yes" \
+  "$(case "$_CR_ERR9" in *"yielded no usable count"*) echo yes ;; *) echo no ;; esac)"
+
+unset _CR_ERR1 _CR_ERR2 _CR_ERR3 _CR_ERR4 _CR_ERR5 _CR_ERR6 _CR_ERR7 _CR_ERR8 _CR_ERR9
 
 # Adversarial input shapes: never give `.check_runs` a `// []` default — these
 # must error into the fail-safe guard, not be laundered into a clean 0.
