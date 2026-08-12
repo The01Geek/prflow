@@ -51602,11 +51602,11 @@ WFS_LINT="$LIB/test/lint-worktree-fence-shapes.py"
 WFS_OUT="$(python3 "$WFS_LINT" 2>&1)"; WFS_RC=$?
 assert_eq "#1633 lint: clean on the tree as it stands (every enrolled fence migrated)" "rc=0" \
   "$([ "$WFS_RC" -eq 0 ] && printf 'rc=0' || printf 'rc=%s | %s' "$WFS_RC" "$WFS_OUT")"
-# Scratch root carrying clean copies of all four enrolled files (no tracked file is
+# Scratch root carrying clean copies of every enrolled file (no tracked file is
 # mutated by any case below — every plant lands on a scratch copy).
 WFS_ROOT="$(mktemp -d)"; _suite_tmp_dir "$WFS_ROOT"
 mkdir -p "$WFS_ROOT/skills/implement/phases"
-for _wfs_f in phase-1-setup phase-2-implement phase-3-review phase-4-documentation; do
+for _wfs_f in phase-1-setup phase-2-implement phase-2-sweeps-contract phase-2-sweeps-quality phase-3-review phase-4-documentation; do
   cp "$REPO_ROOT/skills/implement/phases/$_wfs_f.md" "$WFS_ROOT/skills/implement/phases/$_wfs_f.md"
 done
 WFS_P1="$WFS_ROOT/skills/implement/phases/phase-1-setup.md"
@@ -51692,7 +51692,7 @@ assert_eq "#1633 lint: a construct in a non-bash fence passes" "0" \
   "$(python3 "$WFS_LINT" --root "$WFS_ROOT" >/dev/null 2>&1; echo $?)"
 _wfs_restore_p1
 # AC19: a file OUTSIDE the inventory carrying a refused expansion passes (unmigrated
-# surface stays legal). The 5th file is not in the default inventory.
+# surface stays legal). phase-9-extra.md is not in the default inventory.
 printf '```bash\necho "$(date)"\n```\n' > "$WFS_ROOT/skills/implement/phases/phase-9-extra.md"
 assert_eq "#1633 lint AC19: an unenrolled file with a refused expansion passes" "0" \
   "$(python3 "$WFS_LINT" --root "$WFS_ROOT" >/dev/null 2>&1; echo $?)"
@@ -51842,10 +51842,11 @@ print("bare=%d %s" % (len(bad), ",".join(sorted(set(bad)))))
 ' "$P1633_ANCHOR_PLANT")"
 
 # ── #1633 fence-isolation harness (AC23/AC24/AC29) ────────────────────────────
-# COVERAGE CLAIM, stated exactly: run-to-completion is backed for ONE of the four enrolled
-# files (phase-1-setup.md, the only one this stub environment models); the cross-fence
-# unbound-variable sweep is backed for ALL FOUR. Do not restate either as "every enrolled
-# fence runs" — phases 2/3/4 reach vendored-literal paths and helpers no stub supplies.
+# COVERAGE CLAIM, stated exactly: run-to-completion is backed for exactly ONE enrolled
+# file (phase-1-setup.md, the only one this stub environment models); the cross-fence
+# unbound-variable sweep is backed for EVERY enrolled file. Do not restate either as "every
+# enrolled fence runs" — the other enrolled files reach vendored-literal paths and helpers
+# no stub supplies.
 # Extracts every ```bash fence of the canonical enrolled file (phase-1-setup.md, the file
 # a worktree Phase 1 session executes) and runs each in FENCE ISOLATION (fresh `bash -uc`,
 # scratch cwd, PATH holding ONLY stub heads, CLAUDE_SKILL_DIR pointed at a scratch skill
@@ -51971,15 +51972,17 @@ P1633FIH
 P1633_FIH_OUT="$(python3 "$P1633_FIH" \
   "$REPO_ROOT/skills/implement/phases/phase-1-setup.md" \
   "$REPO_ROOT/skills/implement/phases/phase-2-implement.md" \
+  "$REPO_ROOT/skills/implement/phases/phase-2-sweeps-contract.md" \
+  "$REPO_ROOT/skills/implement/phases/phase-2-sweeps-quality.md" \
   "$REPO_ROOT/skills/implement/phases/phase-3-review.md" \
   "$REPO_ROOT/skills/implement/phases/phase-4-documentation.md" 2>/dev/null)"
-assert_eq "#1633 AC23 (1 of 4 enrolled files): every phase-1-setup.md fence runs to completion in isolation" "yes" \
+assert_eq "#1633 AC23 (one enrolled file): every phase-1-setup.md fence runs to completion in isolation" "yes" \
   "$(case "$P1633_FIH_OUT" in "allran=yes "*) echo yes ;; *) echo "no ($P1633_FIH_OUT)" ;; esac)"
-# The cross-fence dependency sweep runs over ALL FOUR enrolled files: `bash -u` turns a
+# The cross-fence dependency sweep runs over EVERY enrolled file: `bash -u` turns a
 # reference to a variable another fence bound into an unbound-variable abort, so a
-# reintroduced cross-fence dependency in phase-2/3/4 is caught here even though only
+# reintroduced cross-fence dependency in any enrolled file is caught here even though only
 # phase-1's heads are fully stubbed. The lint is same-fence-scoped and cannot see it.
-assert_eq "#1633 AC23 (all 4 enrolled files): no fence references a variable another fence bound" "yes" \
+assert_eq "#1633 AC23 (every enrolled file): no fence references a variable another fence bound" "yes" \
   "$(case "$P1633_FIH_OUT" in *" unbound=0 "*) echo yes ;; *) echo "no ($P1633_FIH_OUT)" ;; esac)"
 assert_eq "#1633 AC24: a fence invoking an unstubbed bare head is refused, not executed (rc 127)" "yes" \
   "$(case "$P1633_FIH_OUT" in *"syn_rc=127"*) echo yes ;; *) echo "no ($P1633_FIH_OUT)" ;; esac)"
