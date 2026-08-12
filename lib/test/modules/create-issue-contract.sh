@@ -172,14 +172,14 @@ devflow_module_build_bundle "ci module: implement-bundle" "$CI_IMPL_BUNDLE" \
 # skill. run.sh hoists an identical build and binds it as the CI_BUNDLE --var so the
 # pin-corpus meta-guard resolves these targets; this in-module assembly is what the
 # focused run-module.sh path uses, mirroring the boundary-vs-self fixture-root split
-# above. Members are DERIVED FROM THE TREE by the same rule run.sh applies — every
-# references/*.md except the two unchanged template files — so a reference added later
-# cannot be routed and pinned while silently sitting outside the bundle that every
-# content-survival pin asserts against. A DROPPED reference is still caught loudly, by the
-# T1 routing-table reconciliation below (its routing row would name a file that is gone),
-# which is why deriving here costs no fail-loud coverage. The two template files keep their
-# own dedicated targets ($CI_TMPL / $CI_TMPL_AUDIT) and are unchanged by the split, so
-# including them would only add uniqueness collisions for prose that never moved.
+# above. Members are DERIVED FROM THE TREE by a references/*.md glob — every references/*.md
+# except issue-template.md and audit-prompt-template.md — so a reference added later is bundled
+# without a transcribed stem list to keep in sync. A DROPPED reference is still caught loudly, by
+# the T1 routing-table reconciliation below (its routing row would name a file that is gone).
+# Bundle membership is NOT the routing reconciliation: T1 exempts only audit-prompt-template.md, so
+# issue-template.md is routed-but-unbundled — do not read one exemption set off the other. Both
+# template files keep their own dedicated targets ($CI_TMPL / $CI_TMPL_AUDIT); including them in
+# the bundle would only add uniqueness collisions for prose no bundle pin needs.
 CI_BUNDLE="$_ci_tmp_root/create-issue-skill-bundle.md"
 _ci_bundle_members=("$CI_SKILL")
 for _ci_bundle_ref in "$CI_ROOT"/skills/create-issue/references/*.md; do
