@@ -183,6 +183,83 @@ def _run(cmd, *, stdout=subprocess.PIPE, stdin=None):
     )
 
 
+_UPDATE_REMEDY_BY_OUTCOME = {
+    'landed': 'none',
+    'replay': 'none',
+    'landed-partial-ticks': 'retick-named-rows',
+    'landed-status-unverified': 'reset-status',
+    'landed-partial-ticks-status-unverified': 'retick-and-reset-status',
+    'not-persisted': 'reissue-call',
+    'precondition-mismatch': 're-resolve-state',
+}
+
+
+_UPDATE_OUTCOME_EMITTED = False
+
+# Do not key the fallback outcome on the exit code instead of this flag: an
+# unmapped code then reports `not-persisted` over a landed write, and that
+# remedy re-sends the call, double-writing the append-only notes.
+_UPDATE_PATCH_LANDED = False
+
+# The one exit code that names its own outcome: both precondition guards refuse
+# before any mutation. Every other code is resolved from `_UPDATE_PATCH_LANDED`.
+_UPDATE_UNSELECTED_OUTCOME = {4: 'precondition-mismatch'}
+
+
+def _emit_update_outcome(outcome):
+    """Write `cmd_update`'s machine-readable terminal outcome line (issue #1562).
+
+    The remedy is derived from the outcome rather than passed in, so a call site
+    cannot pair them wrongly; an outcome outside the map raises KeyError rather
+    than emitting a bogus remedy. Emit AFTER the path's own prose line, because
+    the line's contract is that it is the last line on stderr.
+    """
+    global _UPDATE_OUTCOME_EMITTED
+    _UPDATE_OUTCOME_EMITTED = True
+    sys.stderr.write(
+        f"workpad.py update: outcome={outcome} "
+        f"remedy={_UPDATE_REMEDY_BY_OUTCOME[outcome]}\n"
+    )
+
+
+def _update_fallback_outcome(exit_code=None):
+    """Resolve an unselected outcome from observed state, never from a guess.
+
+    Do not shorten this to a code lookup defaulting to `not-persisted`: the
+    post-PATCH tail can still raise (a `BrokenPipeError` on the body echo when a
+    caller pipes the command), and reporting a landed write as not-persisted
+    routes the caller to re-send it, double-writing the append-only notes.
+    """
+    if exit_code in _UPDATE_UNSELECTED_OUTCOME:
+        return _UPDATE_UNSELECTED_OUTCOME[exit_code]
+    return 'landed-status-unverified' if _UPDATE_PATCH_LANDED else 'not-persisted'
+
+
+def cmd_update(args):
+    """Emit the terminal outcome line, then re-raise whatever ended the body.
+
+    `BaseException` is caught rather than `SystemExit` alone because the tail
+    after a successful PATCH can still raise, and letting that escape emits no
+    line over a landed write — which the absent-line rule tells a caller to read
+    as not landed. Each handler re-raises, preserving the exit status.
+    """
+    global _UPDATE_OUTCOME_EMITTED, _UPDATE_PATCH_LANDED
+    _UPDATE_OUTCOME_EMITTED = False
+    _UPDATE_PATCH_LANDED = False
+    try:
+        _cmd_update_inner(args)
+    except SystemExit as e:
+        if not _UPDATE_OUTCOME_EMITTED:
+            _emit_update_outcome(_update_fallback_outcome(e.code))
+        raise
+    except BaseException:
+        if not _UPDATE_OUTCOME_EMITTED:
+            _emit_update_outcome(_update_fallback_outcome())
+        raise
+    if not _UPDATE_OUTCOME_EMITTED:
+        _emit_update_outcome(_update_fallback_outcome())
+
+
 def _fail(prefix, exc, code=1):
     # `code` defaults to 1 (the historical contract for every subcommand). The
     # callers that override it to 3 are cmd_status (its gh-api/transport/auth
@@ -3092,7 +3169,7 @@ def _clear_workpad_buffer(comment_id) -> None:
         pass
 
 
-def cmd_update(args):
+def _cmd_update_inner(args):
     # Resolve comment ID from the issue. update is stateless for callers.
     # cmd_id prints + sys.exits; we inline the lookup to capture the ID.
     marker = _workpad_marker(args.marker)
@@ -3236,6 +3313,7 @@ def cmd_update(args):
             _clear_workpad_buffer(comment_id)
         if args.print_body:
             sys.stdout.write(body)
+        _emit_update_outcome('replay')
         return
     except _UpdateError as e:
         sys.stderr.write(f"workpad.py update: {e}\n")
@@ -3261,6 +3339,7 @@ def cmd_update(args):
     ) as tf:
         tf.write(body)
         tmp_path = tf.name
+    global _UPDATE_PATCH_LANDED
     try:
         r = _run([
             GH, 'api', '-X', 'PATCH',
@@ -3268,6 +3347,10 @@ def cmd_update(args):
             '-F', f'body=@{tmp_path}',
             '--jq', '.body',
         ])
+        # Mark the write observed on the statement after the PATCH returns, with
+        # no cleanup between: the `finally` unlink below can raise EACCES/EIO,
+        # and a flag set after it reports a landed PATCH as not-persisted.
+        _UPDATE_PATCH_LANDED = True
     except (subprocess.CalledProcessError, OSError) as e:
         # The PATCH itself failed, so NO workpad change was persisted. Report any
         # volatile tick misses collected before the failure too — otherwise this
@@ -3359,14 +3442,18 @@ def cmd_update(args):
     # guard and the breadcrumb cannot disagree about what was read back, and it
     # reports the same distinct unreadable token the clause carries rather than
     # collapsing the two unobserved states.
+    # Derive this once: both PATCH-succeeded tails below pick their outcome token from
+    # it, and deriving it twice would let them disagree about the same read-back.
+    _status_unverified = False
     if args.status:
         _want = _strip_status_glyph(args.status).strip().lower()
         _got = _strip_status_glyph(_live).strip().lower()
         if _want != _got:
+            _status_unverified = True
             sys.stderr.write(
                 f"workpad.py update: WARNING: the PATCH response reads Status "
                 f"{_got or _read_back!r}, not the requested {_want!r} — the write "
-                f"may not have landed; re-issue the update.\n"
+                f"may not have landed; follow up with a --status-only update.\n"
             )
 
     # Volatile tick failures: the PATCH landed (other mutations applied), but
@@ -3381,7 +3468,15 @@ def cmd_update(args):
             f"other mutations were applied — re-tick only these row(s), do not "
             f"re-send the call)",
         )
+        _emit_update_outcome(
+            'landed-partial-ticks-status-unverified' if _status_unverified
+            else 'landed-partial-ticks'
+        )
         sys.exit(1)
+
+    _emit_update_outcome(
+        'landed-status-unverified' if _status_unverified else 'landed'
+    )
 
 
 def _apply_section_ticks(
