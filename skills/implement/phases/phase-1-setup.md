@@ -120,7 +120,7 @@ Set `ISSUE_NUMBER=$ARGUMENTS` and check whether a workpad already exists:
 - **Exit 0** → found; `WORKPAD_ID` is the printed comment ID. Resume it (the resume arm below).
 - **Exit 2** → scanned cleanly, no workpad; create it (the create arm below). This is the **only** value that authorizes a create.
 - **Exit 1** → a gh-api / parse / transport failure: the identity read did not complete. Do **NOT** create and do **NOT** proceed as if absent: stop Phase 1 with a targeted diagnostic naming the failed `id` read, so a transient API/auth failure is never misread as "first run."
-- **Refused / no output** (a classifier denial, an rc 127, or a silent cloud matcher denial) → an *unestablished measurement*, never a decided "absent": take the Exit 1 stop path. Routing an empty result to the create arm would post a second workpad on a transient refusal.
+- **A refused or no-output invocation, or any other exit code** → an *unestablished measurement*, never a decided "no workpad": take the same stop path as exit 1, naming the unestablished `id` read. Routing it to the create arm because nothing was printed would post a second workpad on a transient refusal.
 
 **Handoff-provenance + live-status triage (cloud tier).** On the cloud tier (`GITHUB_ACTIONS` set) the workflow wrote an advisory handoff record naming this run's provenance. Before resetting Status, read it and the live workpad status/body so lifecycle wording is truthful:
 
@@ -153,7 +153,7 @@ Set `ISSUE_NUMBER=$ARGUMENTS` and check whether a workpad already exists:
   Best-effort: a checkpoint failure warns and continues — it never blocks the run. `--checkpoint` repairs an absent `## Progress`, but the legacy-workpad migration below is still required before hydration.
 - **Hydration checkpoint — combined with the existing Phase 1 hydration update below**: append `--checkpoint "gha:${GITHUB_RUN_ID}:${GITHUB_RUN_ATTEMPT}:phase1-hydrated" "<the selected lifecycle event>"` to that update, alongside `--expect-comment-id`/`--expect-status`.
 
-- **Create arm (`id` exit 2 — fresh issue, local-tier run with no `gate` job)** → Build the lean skeleton with the helper and create it, then mirror the issue's Acceptance Criteria into it. **Compose the run link inline** from the ambient `$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID` values the orchestrator substitutes; on a **local run** `$GITHUB_RUN_ID` is empty, so **omit `--run-link` entirely** (never pass `[View run]()`). **Add `--no-reproduction`** to the `new-body` call when the §1.1 classification is **non-bug** (so the bug-only "reproduction captured" sub-item isn't rendered); omit it when bug-report. Decide from the **classification** (1.1), not the label.
+- **`id` exit 2 — no workpad (fresh issue; a local-tier run with no `gate` job)** → Build the lean skeleton with the helper and create it, then mirror the issue's Acceptance Criteria into it. **Compose the run link inline** from the ambient `$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID` values the orchestrator substitutes; on a **local run** `$GITHUB_RUN_ID` is empty, so **omit `--run-link` entirely** (never pass `[View run]()`). **Add `--no-reproduction`** to the `new-body` call when the §1.1 classification is **non-bug** (so the bug-only "reproduction captured" sub-item isn't rendered); omit it when bug-report. Decide from the **classification** (1.1), not the label.
 
   Render the skeleton to a repo-relative scratch file — on the cloud tier, with the run link:
   ```bash
@@ -171,7 +171,7 @@ Set `ISSUE_NUMBER=$ARGUMENTS` and check whether a workpad already exists:
   "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --replace-acs-file <scratch-dir>/acs-$ARGUMENTS.md
   ```
   The `## Reproduction` section is added later in 2.1.5 if applicable.
-- **Resume arm (`id` exit 0 — the normal cloud path, since `gate` pre-created it; or a re-run)** → Read the live body with `workpad.py body $WORKPAD_ID`. Treat its `## Progress` notes and `Devflow Reflection` as load-bearing context (see Workpad Reference). Reset for this run **and populate the Acceptance Criteria** (a `gate`-created workpad carries only a placeholder AC section, so always replace it):
+- **`id` exit 0 — a workpad exists (resume — the normal cloud path, since `gate` pre-created it; or a re-run)** → Read the live body with `workpad.py body $WORKPAD_ID`. Treat its `## Progress` notes and `Devflow Reflection` as load-bearing context (see Workpad Reference). Reset for this run **and populate the Acceptance Criteria** (a `gate`-created workpad carries only a placeholder AC section, so always replace it):
   **Compose the run link inline** from the ambient `$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID` values. The fence below is the **cloud** form; on a **local run** drop the `--run-link "[View run](…)"` argument (empty `$GITHUB_RUN_ID`) alongside the cloud-only `--checkpoint`/`--expect-*` flags per the note below:
   ```bash
   "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER \
@@ -190,7 +190,7 @@ After this step, every later phase boundary touches the workpad via `workpad.py 
 
 **Record the classification and reconcile the skeleton (every entry — fresh run, in-flight resume, and terminal re-trigger).** The 2.1.5 gate reads the recorded classification, and the reproduction skeleton's pre-rendered default can disagree with the §1.1 content classification. `--reconcile-reproduction` below is the authoritative correction, run on every entry. Resume semantics decide whether to classify afresh or read the recorded verdict:
 
-- **Fresh run** (the create arm), **or a resume that finds no `classification: ` note**, **or a re-trigger after a *terminal* workpad `Status`** (🎉/👎/💥/🛑) → **classify now** (per 1.1, from the issue's *current* content and labels) and **record** it, which also supersedes any stale note from a prior verdict:
+- **Fresh run** (the `id` read exited 2), **or a resume that finds no `classification: ` note**, **or a re-trigger after a *terminal* workpad `Status`** (🎉/👎/💥/🛑) → **classify now** (per 1.1, from the issue's *current* content and labels) and **record** it, which also supersedes any stale note from a prior verdict:
   ```bash
   "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --record-classification {bug-report|non-bug} "{one-line rationale}"
   ```
@@ -214,7 +214,7 @@ That load happens before the workpad exists, so this run carries its outcome acr
 
 - **In-flight resume** — the *do-not-re-classify* arm (a non-terminal `Status` with a `classification: ` note already present, i.e. adoption of an **interim** workpad from an earlier in-flight execution) → `resume-kind: in-flight`.
 - **Terminal re-trigger** — a re-trigger after a *terminal* workpad `Status` (🎉/👎/💥/🛑 — the operator's issue-edit correction channel), re-classified fresh → `resume-kind: terminal-re-trigger`.
-- **Fresh run** — the create arm, or a resume over a **non-terminal** `Status` that found no `classification: ` note → `resume-kind: fresh`.
+- **Fresh run** — the `id` read exited 2, or a resume over a **non-terminal** `Status` that found no `classification: ` note → `resume-kind: fresh`.
 
 The three are evaluated **in the order listed, first match wins**: a terminal `Status` selects `terminal-re-trigger` even when no `classification: ` note is present.
 
