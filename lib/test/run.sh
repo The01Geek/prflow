@@ -51372,6 +51372,35 @@ printf '\n```bash\nfor i in 1 2; do echo hi; done\n```\n' >> "$WFS_P1"
 assert_eq "#1633 lint AC2: a for-loop that never references its bound var passes" "0" \
   "$(python3 "$WFS_LINT" --root "$WFS_ROOT" >/dev/null 2>&1; echo $?)"
 _wfs_restore_p1
+# The remaining _bound_names recognizers. This lint is the SOLE backstop for a
+# same-fence bound-variable reference (the bash -u fence harness catches only CROSS-fence
+# deps), so an unexercised recognizer fails open on exactly the construct it guards.
+printf '\n```bash\nread -r NAME\necho "$NAME"\n```\n' >> "$WFS_P1"
+assert_eq "#1633 lint: a read-bound var referenced in the same fence fails and names the construct" "yes" \
+  "$(case "$(python3 "$WFS_LINT" --root "$WFS_ROOT" 2>&1)" in *"variable bound within the same fence"*) echo yes ;; *) echo no ;; esac)"
+_wfs_restore_p1
+printf '\n```bash\nread -r NAME\necho hi\n```\n' >> "$WFS_P1"
+assert_eq "#1633 lint: a read binding with no later reference passes (the reference is the refusal)" "0" \
+  "$(python3 "$WFS_LINT" --root "$WFS_ROOT" >/dev/null 2>&1; echo $?)"
+_wfs_restore_p1
+printf '\n```bash\nexport NAME=x\necho "$NAME"\n```\n' >> "$WFS_P1"
+assert_eq "#1633 lint: an export-bound var referenced in the same fence fails and names the construct" "yes" \
+  "$(case "$(python3 "$WFS_LINT" --root "$WFS_ROOT" 2>&1)" in *"variable bound within the same fence"*) echo yes ;; *) echo no ;; esac)"
+_wfs_restore_p1
+printf '\n```bash\nselect NAME in a b; do echo "$NAME"; done\n```\n' >> "$WFS_P1"
+assert_eq "#1633 lint: a select-bound var referenced in the same fence fails and names the construct" "yes" \
+  "$(case "$(python3 "$WFS_LINT" --root "$WFS_ROOT" 2>&1)" in *"variable bound within the same fence"*) echo yes ;; *) echo no ;; esac)"
+_wfs_restore_p1
+# An UNQUOTED heredoc body IS expanded by the shell, so it is scanned; the terminator
+# word itself is not a binding and must not be flagged.
+printf '\n```bash\ncat <<EOF\ntotal $(date)\nEOF\n```\n' >> "$WFS_P1"
+assert_eq "#1633 lint: a construct in an UNQUOTED heredoc body is scanned and names the construct" "yes" \
+  "$(case "$(python3 "$WFS_LINT" --root "$WFS_ROOT" 2>&1)" in *"command substitution"*) echo yes ;; *) echo no ;; esac)"
+_wfs_restore_p1
+printf '\n```bash\ncat <<EOF\nplain text only\nEOF\n```\n' >> "$WFS_P1"
+assert_eq "#1633 lint: a construct-free UNQUOTED heredoc passes (its terminator is not a binding)" "0" \
+  "$(python3 "$WFS_LINT" --root "$WFS_ROOT" >/dev/null 2>&1; echo $?)"
+_wfs_restore_p1
 # A bare environment variable the fence did not itself bind passes.
 printf '\n```bash\necho "$ISSUE_NUMBER"\n```\n' >> "$WFS_P1"
 assert_eq "#1633 lint: a bare unbound env var passes" "0" \
