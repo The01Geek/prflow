@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1651",
+  "generated_at": "2026-08-12T22:23:37Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.60",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 9.755191000000002,
+    "tokens": {
+      "input_tokens": 70,
+      "output_tokens": 30322,
+      "cache_read_input_tokens": 6197800,
+      "cache_creation_input_tokens": 214835,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 114,
+        "outputTokens": 59011,
+        "cacheReadInputTokens": 7305492,
+        "cacheCreationInputTokens": 611355,
+        "webSearchRequests": 0,
+        "costUSD": 9.755191000000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 43,
+    "duration_ms": 551218
+  },
+  "permission_denials": {
+    "count": 5,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-unset} ATTEMPT=${GITHUB_RUN_ATTEMPT:-unset} GH_ACTIONS=${GITHUB_ACTIONS:-unset}\"",
+      "git show a2fbbca6:scripts/workpad.py > .prflow/tmp/review/pr-1651/31645969652-1/workpad-head.py\necho \"=== cmd_update wrapper + helpers + inner: return/exit/emit sites ===\"\ngrep -nE '(_emit_update_outcome|sys\\.exit|^\\s*return\\b|def cmd_update|def _cmd_update_inner|def _update_fallback|def _emit_update|_UPDATE_PATCH_LANDED|_UPDATE_OUTCOME_EMITTED)' .prflow/tmp/review/pr-1651/31645969652-1/workpad-head.py | awk -F: '$1>=180 && $1<=270 || $1>=3240 && $1<=3480'",
+      "git show a2fbbca6:scripts/workpad.py > /tmp/workpad_head.py; wc -l /tmp/workpad_head.py",
+      "git show a2fbbca6:scripts/workpad.py > /tmp/workpad_head.py",
+      ".prflow/vendor/prflow/scripts/workpad.py patch 5273434203 .prflow/tmp/review/pr-1651/31645969652-1/review-wp.md 2>.prflow/tmp/review/pr-1651/31645969652-1/rv-patch.err && echo \"patch-ok\" || echo \"patch-failed: $(cat .prflow/tmp/review/pr-1651/31645969652-1/rv-patch.err)\""
+    ],
+    "total": 5,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
