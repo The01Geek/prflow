@@ -3603,6 +3603,99 @@ def _strip_completion_marker_rows(content: str) -> str:
     return ''.join(kept)
 
 
+# ── CI-derived completion-evidence family (issue #1611) ────────────────────────
+#
+# Issue #1607 made a CI reading this repository's LOCAL/interactive whole-suite
+# completion gate, but `_completion_evidence_verdict` could recognise only an
+# in-environment verification-flight pass. This is the SECOND accepted family: a
+# local run that established a green required check for the commit it pushed records
+# that reading here, in a marker family DISTINCT from `completion-verification:`, so
+# a reader tells an in-env suite pass from a CI reading without inspecting any command
+# string. The payload is a base64url-unpadded JSON object carrying the four re-audit
+# fields (head SHA, check name, conclusion, run URL); it rides the same keyed-checkpoint
+# marker family, validated OFFLINE by the sibling module's `validate_implement_completion_ci`.
+# Both the `prflow:` and superseded `devflow:` spellings are read per record (#1003).
+_COMPLETION_CI_MARKER_KEY_PREFIX = 'completion-ci:'
+# Composed from `_MARKER_NS_RE` (as the review-coverage grammars are) rather than
+# re-spelling the `(?:pr|dev)flow` alternation, so the confirmation-gated retirement
+# of the superseded `devflow:` spelling reaches this grammar too. That constant fixes
+# the single space `_checkpoint_marker` writes, so this matcher is stricter than the
+# older hand-rolled `_COMPLETION_MARKER_RE` — the safe direction, since a marker shape
+# this gate cannot read is unestablished (refusing the Complete write, never admitting
+# it). Both spellings are still read per record (#1003).
+_COMPLETION_CI_MARKER_RE = re.compile(
+    _MARKER_NS_RE + r'checkpoint completion-ci:([^\s]+?) -->'
+)
+
+
+def _encode_ci_payload(record: dict) -> str:
+    """Encode a CI-evidence record dict as a base64url-unpadded token, so the payload
+    is a single whitespace-free `[^\\s]+` the marker grammar and the checkpoint key
+    grammar (`[A-Za-z0-9._:-]+`, which includes `-` and `_`) both accept."""
+    raw = json.dumps(record, sort_keys=True, separators=(',', ':')).encode('utf-8')
+    return base64.urlsafe_b64encode(raw).rstrip(b'=').decode('ascii')
+
+
+def _decode_ci_payload(payload: str) -> object:
+    """Decode a CI-evidence marker payload back to its JSON object. Best-effort: a
+    payload that is not valid base64url or not valid JSON returns None, which the
+    validator treats as a missing-evidence (non-object) record rather than raising."""
+    try:
+        pad = '=' * (-len(payload) % 4)
+        raw = base64.urlsafe_b64decode(payload + pad)
+        return json.loads(raw.decode('utf-8'))
+    except Exception:  # noqa: BLE001 - a corrupt payload fails closed to a non-object
+        return None
+
+
+def _completion_ci_marker_payloads(progress_content: str) -> list[str]:
+    """Every payload carried by a `completion-ci:` checkpoint marker in the ##
+    Progress content. A marker outside ## Progress is not found here (the caller passes
+    only the Progress section), so it is treated as absent — fail closed. Duplicate
+    markers surface as a >1-length list."""
+    return _COMPLETION_CI_MARKER_RE.findall(progress_content or '')
+
+
+def _strip_completion_ci_marker_rows(content: str) -> str:
+    """Remove any ## Progress row carrying a `completion-ci:` marker, so a later
+    validated record replaces the prior one rather than accumulating."""
+    kept = [ln for ln in content.splitlines(keepends=True)
+            if not _COMPLETION_CI_MARKER_RE.search(ln)]
+    return ''.join(kept)
+
+
+def _validate_ci_evidence(args, payload: str) -> None:
+    """Validate a specific CI-derived completion-evidence marker payload.
+
+    Raises a structural `_UpdateError` (no PATCH) on an absent validator sibling, an
+    internal validator failure, or a non-pass verdict. Returns None on a clean pass.
+    Mirrors `_validate_flight_key`'s failure shape."""
+    validator = _load_completion_validator()
+    if validator is None or not hasattr(validator, 'validate_implement_completion_ci'):
+        # The standalone-copy arm (or an older sibling without the CI entry point):
+        # fail closed BEFORE any PATCH with the missing-evidence token.
+        raise _UpdateError(
+            "completion evidence [missing-evidence]: the completion-evidence "
+            "validator module (check-completion-evidence.py) with a CI-derived "
+            "entry point is not available beside this workpad.py copy, so a "
+            "--status Complete write cannot be backed by CI-derived evidence. "
+            "No PATCH was made."
+        )
+    record = _decode_ci_payload(payload)
+    root = _devflow_repo_root(args)
+    try:
+        token, detail = validator.validate_implement_completion_ci(record, root)
+    except Exception as e:  # noqa: BLE001 - internal validator failure fails closed
+        raise _UpdateError(
+            f"completion evidence: the CI validator raised an internal error "
+            f"({e.__class__.__name__}); treating as unestablished. No PATCH was made."
+        )
+    if token != 'pass':
+        raise _UpdateError(
+            f"completion evidence rejected [{token}]: {detail}. No PATCH was made."
+        )
+
+
 # ── Review-coverage record + disposition (issue #1453) ─────────────────────────
 #
 # A run's Phase 3 review pass can fall short — a shadow that was not verified, a
@@ -4017,6 +4110,7 @@ _RESERVED_CHECKPOINT_KEY_PREFIXES = (
     (_REVIEW_COVERAGE_DISPOSITION_KEY_PREFIX, '`--review-coverage-disposition`'),
     (_REVIEW_COVERAGE_KEY_PREFIX, '`--record-review-coverage`'),
     (_COMPLETION_MARKER_KEY_PREFIX, '`--record-completion-evidence`'),
+    (_COMPLETION_CI_MARKER_KEY_PREFIX, '`--record-completion-evidence-ci`'),
 )
 
 
@@ -4067,24 +4161,40 @@ def _completion_evidence_verdict(args, progress_content: str) -> None:
     pinned `--claim-identity` (loop/test override) is honored verbatim instead, so a
     caller that pins it deliberately opts out of the fresh re-derivation.
 
-    Raises `_UpdateError` (structural — no PATCH) when the marker is absent or
-    duplicated, or when its record fails the implement-completion validator. Returns
-    None on a clean pass."""
+    Two completion-evidence families are accepted (issue #1611): the in-environment
+    verification-flight family (`completion-verification:`) and the CI-derived family
+    (`completion-ci:`, a local/interactive tier's reading of a green required check).
+    Exactly one marker must be present COUNTED ACROSS BOTH FAMILIES TOGETHER; the
+    single marker is then dispatched to the validator its family owns — the flight
+    family to `_validate_flight_key` unchanged, the CI family to `_validate_ci_evidence`.
+
+    Raises `_UpdateError` (structural — no PATCH) when no marker of either family is
+    present or more than one is (combined), or when the single marker's record fails
+    its validator. Returns None on a clean pass."""
     keys = _completion_marker_keys(progress_content)
-    if not keys:
+    ci_payloads = _completion_ci_marker_payloads(progress_content)
+    total = len(keys) + len(ci_payloads)
+    if total == 0:
         raise _UpdateError(
-            "refusing to finalize Status: Complete — no completion "
-            "verification-flight marker present [missing-evidence]. Record one with "
-            "`workpad.py update <issue> --record-completion-evidence <flight-key>` "
-            "after the run's final in-env verification passes. No PATCH was made."
+            "refusing to finalize Status: Complete — no completion-evidence marker "
+            "of either family present [missing-evidence]. Record an in-env "
+            "verification flight with `workpad.py update <issue> "
+            "--record-completion-evidence <flight-key>`, or (local/interactive tier, "
+            "issue #1611) a CI reading with `workpad.py update <issue> "
+            "--record-completion-evidence-ci <head-sha> <check-name> <conclusion> "
+            "<run-url>`, after the run's verification is established. No PATCH was made."
         )
-    if len(keys) > 1:
+    if total > 1:
         raise _UpdateError(
             "refusing to finalize Status: Complete — "
-            f"{len(keys)} completion verification-flight markers present; exactly one "
-            "is required [missing-evidence]. No PATCH was made."
+            f"{total} completion-evidence markers present (counted across the "
+            "verification-flight and CI-derived families); exactly one is required "
+            "[missing-evidence]. No PATCH was made."
         )
-    _validate_flight_key(args, keys[0])
+    if keys:
+        _validate_flight_key(args, keys[0])
+    else:
+        _validate_ci_evidence(args, ci_payloads[0])
 
 
 def _required_artifact_verdict(progress_content: str) -> None:
@@ -4467,6 +4577,7 @@ def _has_non_checkpoint_mutation(args) -> bool:
         args.scope_decision_deferred, args.scope_decision_rewritten,
         args.bind_scope_decisions, args.mark_deferred_filed,
         getattr(args, 'record_completion_evidence', None),
+        getattr(args, 'record_completion_evidence_ci', None),
         getattr(args, 'record_review_coverage', None),
         getattr(args, 'review_coverage_disposition', None),
         getattr(args, 'strip_inherited_checkpoints', False),
@@ -4862,6 +4973,26 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     if record_flight_key:
         _validate_flight_key(args, record_flight_key)
 
+    # CI-derived completion evidence recording (issue #1611). Validate the decoded
+    # record BEFORE any body mutation so a non-pass record is a structural failure
+    # that changes nothing (all-or-nothing), exactly like the flight key above; the
+    # marker row is written below. The four operands are the re-audit fields.
+    record_ci = getattr(args, 'record_completion_evidence_ci', None)
+    ci_payload = None
+    if record_ci:
+        _require_arity(
+            '--record-completion-evidence-ci', record_ci, 4,
+            ('HEAD_SHA', 'CHECK_NAME', 'CONCLUSION', 'RUN_URL'))
+        _ci_head, _ci_check, _ci_concl, _ci_url = record_ci
+        ci_record = {
+            'head_sha': _ci_head,
+            'check_name': _ci_check,
+            'conclusion': _ci_concl,
+            'run_url': _ci_url,
+        }
+        ci_payload = _encode_ci_payload(ci_record)
+        _validate_ci_evidence(args, ci_payload)
+
     # Review-coverage record + dispositions (issue #1453). Validated here, BEFORE any
     # body mutation, for the same all-or-nothing reason as the flight key above; the
     # rows are written below beside the completion-evidence marker. Read via getattr
@@ -5231,6 +5362,17 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
             f'completion verification recorded (flight {record_flight_key[:12]}…, '
             f'validated) {_checkpoint_marker(_ck)}'
         )
+    # CI-derived completion-evidence marker (issue #1611): validated above; a later
+    # validated record REPLACES the prior one, so any existing completion-ci row is
+    # stripped before this marker is appended (mirroring the flight family). The
+    # visible row names the head SHA and conclusion the reading rests on.
+    if ci_payload:
+        _ci_ck = _COMPLETION_CI_MARKER_KEY_PREFIX + ci_payload
+        progress_notes.append(
+            f'completion evidence recorded from CI reading '
+            f'(head {record_ci[0][:12]}…, {record_ci[2]}, validated) '
+            f'{_checkpoint_marker(_ci_ck)}'
+        )
     # Review-coverage record + dispositions (issue #1453): validated above; the prior
     # rows were stripped just before the append loop, mirroring the completion-evidence
     # marker's replace-rather-than-accumulate semantics.
@@ -5311,6 +5453,8 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         heading, content = sections[idx]
         if record_flight_key:
             content = _strip_completion_marker_rows(content)
+        if ci_payload:
+            content = _strip_completion_ci_marker_rows(content)
         if review_coverage_payload:
             # A fresh record REPLACES the prior one (and its now-stale dispositions),
             # so the reader's "exactly one record" contract holds across a re-recorded
@@ -5813,6 +5957,23 @@ def main():
                         'written (replacing any prior completion-verification row). A '
                         'non-pass record aborts the whole call before any PATCH. This '
                         'marker is what a later "--status Complete" write requires.')
+    u.add_argument('--record-completion-evidence-ci', nargs=4, default=None,
+                   metavar=('HEAD_SHA', 'CHECK_NAME', 'CONCLUSION', 'RUN_URL'),
+                   help='Record a CI-derived completion-evidence reading (issue '
+                        '#1611) — the local/interactive tier evidence family for a '
+                        'run that established a green required check for the commit it '
+                        'pushed (issue #1607). HEAD_SHA is the full 40-lowercase-hex '
+                        'head that was read; CHECK_NAME the required check; CONCLUSION '
+                        'its conclusion (must be "success"); RUN_URL the run the '
+                        'conclusion was read from. Validated OFFLINE (no network, no '
+                        'gh): HEAD_SHA must equal git rev-parse HEAD over a clean tree, '
+                        'and CONCLUSION must be a success. Only on a pass is a hidden '
+                        '"<!-- prflow:checkpoint completion-ci:<payload> -->" ## '
+                        'Progress row written (replacing any prior completion-ci row); '
+                        'a non-pass record aborts the whole call before any PATCH. Like '
+                        'the flight marker, this satisfies a later "--status Complete" '
+                        'write — the two families are counted together and exactly one '
+                        'is required.')
     u.add_argument('--record-review-coverage', nargs=4, default=None,
                    metavar=('COVERAGE', 'DISPATCH', 'ROSTER', 'CHECKLIST'),
                    help='Record this run\'s resolved Phase 3 review-coverage state '

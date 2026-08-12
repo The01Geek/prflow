@@ -4,6 +4,29 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.43] — 2026-08-12
+
+### Changed
+Trimmed justification prose from `/prflow:init`'s skill body — derivations, design
+narrative, reviewer-misreading pre-emption and restatements of facts already stated
+in the same file — bringing it under the reference-size ceiling and retiring its
+`lib/test/reference-size-exemptions.json` rows. Every instruction, decision branch,
+command fence and helper-breadcrumb arm is unchanged.
+
+## [2.32.42] — 2026-08-12
+
+### Added
+- **Accept a CI-derived completion-evidence record at the terminal `--status Complete` gate.**
+  `workpad.py` gains a second completion-evidence marker family (`completion-ci:`) written by
+  a new `--record-completion-evidence-ci <head-sha> <check-name> <conclusion> <run-url>` flag
+  and validated offline (no network, no `gh`) by `check-completion-evidence.py`'s new
+  `validate_implement_completion_ci`, so a local/interactive implement run that established a
+  green required check for the commit it pushed (issue #1607's tier ladder) can finalize
+  without running a suite the ladder does not gate on or misdescribing what it verified. Exactly
+  one completion-evidence marker is required across both families together; the in-environment
+  verification-flight path is unchanged, and a consumer repository's run — which never produces
+  the new marker — is behaviourally unchanged. (#1619)
+
 ## [2.32.41] — 2026-08-12
 
 ### Fixed

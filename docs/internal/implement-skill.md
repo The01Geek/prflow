@@ -921,18 +921,38 @@ Phase 4.3 (*Finalize the PR and Finalize Workpad*) is where a run ends. It runs 
 
 **Completion verification-flight evidence gate (issue #1087).** Beyond the self-record reconciliation above, a `--status Complete` write now also requires **current, machine-readable verification evidence** for the run's final in-env verification command. Phase 4.3 establishes it after the last candidate-changing operation (docs/changeset commit, a `fix:` claim-audit commit, the clean-tree backstop, checkpoint 4's merge): it obtains the final candidate identity from the reception preflight (`reception-record.py`'s stdout `candidate_identity`, the git tree id `scripts/reception_identity.py` derives), launches one verification flight through the non-executing `scripts/verification-flight.py` ledger (declaring that identity on the `claim`), and records the validated flight key with `workpad.py update --record-completion-evidence <flight-key>`. That records one hidden `completion-verification:<flight-key>` marker on the existing keyed-checkpoint marker family (no second marker family is minted; a later validated key replaces the prior one). `workpad.py`'s `_terminal_complete_gate` then, immediately before PATCH, resolves the canonical `.prflow/tmp/verification-flights/<flight-key>.json` record, re-derives the candidate identity, and runs the **implement-completion** context of `scripts/check-completion-evidence.py` (an importable entry point, `validate_implement_completion`, reusing the closed eight-token vocabulary — no ninth token). The record passes only when its `state` and `result` are `passed`, its `suite_summary.command` is a nonempty string, its `suite_summary.exit_status` is the integer `0`, its top-level `skipped_checks` is an empty list (the stricter no-skip policy — not even a host-capability skip is admitted), and its `candidate_identity` equals the current tree. Any missing/duplicate marker, unestablished operand, non-`passed` flight state, nonzero exit, non-empty skip population, or stale identity is a **structural abort before PATCH** — the workpad stays at its prior status and the run routes to Blocked (or re-launches a fresh flight for the final tree). The off-switch (`.verification_flight.enabled: false`) suppresses only flight *reuse* for an implement run; the record is still produced. A standalone `workpad.py` copy lacking the evidence sibling fails a Complete write closed with the `missing-evidence` token naming the absent module, while its non-Complete subcommands are unaffected. The `check-completion-evidence.py` validator plus its transitive import closure (`reception_identity.py`, and `workpad.py`'s `section_parse.py` sibling) are byte-pinned in `scripts/devflow-cloud-writer-contract.json` so a mutation to any of them is a `HASH_MISMATCH`.
 
-**This gate is tier-agnostic, and issue #1607 did not change it.** `_terminal_complete_gate` carries no
-tier discriminator on its completion-evidence member, so the required record is the same on the
-local/interactive tier as on the cloud implement tier: a flight in the terminal `passed` state, a nonempty
-`suite_summary.command`, an integer-`0` `suite_summary.exit_status`, an empty `skipped_checks`, and a
-`candidate_identity` equal to the current tree. Issue #1607 made a CI reading the local tier's *policy*
-completion gate in `CLAUDE.md`, and that is a prose rule over which signal an agent may cite — it moved
-nothing in `workpad.py`, `check-completion-evidence.py`, or the flight ledger, none of which can read a
-GitHub Actions conclusion. A local implement run that maintains a workpad therefore still owes this
-record for its final tree before a `--status Complete` write will land. Reconciling the two is open work
-tracked in issue #1611, not something the prose change settled; treat the mechanical gate as the binding
-constraint on what `workpad.py` will accept. `CLAUDE.md`'s local-tier rung carries a pointer to this
-constraint so its operative copy does not omit it.
+**The completion-evidence member accepts two evidence families (issues #1087, #1611).** The
+verification-flight family above is the in-environment family. Issue #1607 made a CI reading the local
+tier's *policy* completion gate in `CLAUDE.md`, and issue #1611 gave `_terminal_complete_gate` a second
+accepted family so a local implement run following that tier ladder can write `Complete` without either
+running a suite the ladder does not gate on or misdescribing what it verified. The two families are:
+
+- **In-environment verification-flight** (`completion-verification:<flight-key>`) — the record described
+  above, unchanged in shape and strictness. This is what the cloud implement tier produces, and its
+  path is byte-for-byte as before.
+- **CI-derived reading** (`completion-ci:<payload>`) — recorded with `workpad.py update <issue>
+  --record-completion-evidence-ci <head-sha> <check-name> <conclusion> <run-url>`, whose four operands
+  are exactly enough for a later reader to re-audit the reading against GitHub. The payload is a
+  base64url-unpadded JSON object riding the **same** keyed-checkpoint marker family under a distinct
+  `completion-ci:` key namespace (no third marker family is minted), so a reader tells an in-env suite
+  pass from a CI reading without inspecting any command string. `workpad.py`'s `_validate_ci_evidence`
+  validates it through the sibling `check-completion-evidence.py`'s importable
+  `validate_implement_completion_ci` — **offline and deterministic: no network call and no `gh`
+  invocation.** The record passes only when every field is a nonempty string, the `head_sha` is exactly
+  40 lowercase hex characters equal to `git rev-parse HEAD` over a clean `git status --porcelain`, and
+  the `conclusion` is `success`. It mints **no ninth token**: a missing or malformed field is
+  `missing-evidence`, a SHA that does not match the current head or a dirty tree is `stale-candidate`,
+  and a non-success conclusion is `verification-not-pass` — the same closed eight-token vocabulary and
+  first-failing-class order the flight context uses. The flight ledger is untouched, so a CI reading is
+  never laundered into a reusable flight.
+
+`_completion_evidence_verdict` collects markers from **both** families and keeps its refuse-unless-exactly-one
+rule over the combined count, dispatching the single marker to the validator its family owns — so a run
+carrying one of each family, or two of either, is refused, and a run recording the CI marker must not also
+record a flight marker. Both the `prflow:` and superseded `devflow:` spellings are read per record for the
+CI family too. Which family a local run records is a tier-scoped **policy** decision that stays in
+`CLAUDE.md` (rung 1) and is deliberately not shipped to consumers; a consumer repository's implement run
+never produces the CI marker and so reaches exactly the outcomes it reaches today.
 
 **Review-coverage gate (issue #1453).** The fourth member of `_terminal_complete_gate`, after the completion-evidence and required-artifact gates: a `--status Complete` write also requires the `## Progress` section to carry exactly one resolvable **review-coverage record** for the run's Phase 3 review pass. Phase 3.3 stamps it on **every** Phase 3 exit that can reach a Complete write — the clean-completion path, the `APPROVE WITH UNRESOLVED SHADOW FINDINGS` and `REJECT` branches, and the severity-aware soft-proceed — with `workpad.py update $ISSUE_NUMBER --record-review-coverage <coverage> <dispatch> <roster> <checklist>`, deriving each operand from the loop-verdict marker (and, for the roster/checklist comparisons, the fix loop's `iter-<N>.json` `shadow` block). The record rides the **existing** keyed-checkpoint marker family under a `review-coverage:` key namespace carrying the colon-joined four-axis payload — not the `_REQUIRED_ARTIFACTS` literal-key family, because the payload legitimately changes between calls and `--checkpoint`'s replay semantics key on the whole key string, so a second call would insert a *second* independent row with nothing to say which is authoritative; the producer therefore strips the prior row and appends a fresh one, and the reader refuses on anything other than exactly one record. Both marker namespaces (`prflow:` and superseded `devflow:`) are read per record.
 
