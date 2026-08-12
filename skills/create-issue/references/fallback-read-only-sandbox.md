@@ -10,6 +10,14 @@ Step 1's on-entry deletes and its writes of `.prflow/tmp/issue-step1-<slug>.md` 
 
 If the write genuinely fails, say so in chat and record the derivation inline in your message **as a visible block — the actual derived list, not a bare claim that you derived it** — so it is still observable; never silently skip writing it down. **When the filesystem is read-only, do not trust any on-disk `issue-derivation-<slug>.md` (the failed delete may have left a stale leftover from a prior run); rely solely on the visible inline block as the gate's stand-in.**
 
+## Step 3.5 — the Steelman record
+
+When the filesystem refuses the append of a `### pass <n>` entry to the `## Steelman record` section of `.prflow/tmp/issue-derivation-<slug>.md`, post the entry as a **visible inline-in-chat block in the current turn** — the actual per-pass fields, not a bare claim that the steelman ran — and re-post it whenever a later turn reaches the Step 3.6 entry confirmation that reads it. **Do not trust any on-disk `## Steelman record`** in that artifact (the failed delete may have left a stale prior-run leftover); the visible block is the record's sole stand-in, and its in-turn posting is what lets the Step 3.6 entry confirmation proceed on this arm. Filing is never blocked.
+
+## Revision-delta record
+
+When the filesystem refuses the append of a revision-delta evidence line to the `## Revision-delta record` section of `.prflow/tmp/issue-derivation-<slug>.md`, post that line — naming its anchor — as a **visible inline-in-chat block in the current turn**, and **do not trust any on-disk `## Revision-delta record`** (it can only be a stale leftover). No confirmation reads this record, so nothing gates on it; the reduced durability is reported and filing is never blocked.
+
 ## Step 2 / Step 3 — the derivation gate's stand-in
 
 A **visible block you posted in chat this run containing the full derived Definition of Ready** — the actual list, not a bare claim of having derived it nor a pointer to earlier prose — stands in for the file. "Present" means it is in *this run's* transcript; because later checks run in subsequent turns, re-post that full block in the current turn whenever you reach a check that fires there. A derivation in neither this run's file nor such a visible block means the pass did not run.

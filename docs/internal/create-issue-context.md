@@ -2,8 +2,7 @@
 
 This document is the single source of truth (SSOT, per issue #762) for **how the
 `/prflow:create-issue` orchestrator spends runtime main-thread context**, and for
-the behavioral instrument that measures it. `CLAUDE.md`'s create-issue bullet and
-`docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md` §11 carry one-line pointers here, not copies.
+the behavioral instrument that measures it. `docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md` §11 carries a one-line pointer here, not a copy.
 
 ## Static shipped size vs. runtime main-thread context
 
@@ -104,7 +103,7 @@ resident copy. Each appended-content class is classified below.
 
 | Class | Canonical durable copy that already holds it | Safely removable here? |
 | --- | --- | --- |
-| **Re-emission (re-quotation) of an already-produced large block** in the orchestrator's own output — an already-produced Step 1 findings block, an already-produced summary | Step 1 findings: the `.prflow/tmp/issue-step1-<slug>.md` artifact; finding-ledger data: the `issue-audit-state-<slug>.json` field reachable via `query-findings` | **Yes** — removed (see below). Its content is already resident from an earlier append; removing the re-quote touches neither compaction recovery nor a mutable file, and needs no new mechanism. |
+| **Re-emission (re-quotation) of an already-produced large block** in the orchestrator's own output — an already-produced Step 1 findings block, an already-produced summary | Step 1 findings: the `.prflow/tmp/issue-step1-<slug>.md` artifact; finding-ledger data: the `issue-audit-state-<slug>.json` field reachable via `query-findings`; the Step 3.5 steelman summary: the `## Steelman record` section of `.prflow/tmp/issue-derivation-<slug>.md` | **Yes** — removed (see below). Its content is already resident from an earlier append; removing the re-quote touches neither compaction recovery nor a mutable file, and needs no new mechanism. |
 | **Reference-body re-Read on step re-entry** (a large `references/*.md` re-Read "on every entry into this step") | The reference file on disk | **No — deferred.** It is *compaction insurance*: on a smaller-context consumer model a compaction evicts the body and the re-Read is the recovery. A static instruction cannot tell a compacting run from a non-compacting one, so safe removal needs an in-run compaction-detection signal this issue does not build. Filed as a follow-up. |
 
 ### Authoritative (in-thread presence is load-bearing — must NOT be removed)
