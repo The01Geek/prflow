@@ -395,7 +395,8 @@ the re-run comparable:
 Six rarely-taken procedural arms moved out of the always-loaded
 `skills/create-issue/references/step-*.md` files into six new
 `references/fallback-*.md` files, each reached only by its own routing-table
-predicate in `skills/create-issue/SKILL.md` — the same gating the pre-existing
+predicate in `skills/create-issue/references/degradation-routing.md` (the routing
+table's home since issue #1644 relocated it off the always-read root) — the same gating the pre-existing
 fallbacks already used. The routing table is the defining enumeration of that set
 and of each member's predicate; see also
 [`DEVFLOW_SYSTEM_OVERVIEW.md`](DEVFLOW_SYSTEM_OVERVIEW.md) §11.

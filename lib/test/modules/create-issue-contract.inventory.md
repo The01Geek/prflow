@@ -40,7 +40,7 @@ per-pin ad hoc:
 
 | Pin class | Post-split target | Why |
 | --- | --- | --- |
-| Content-survival — the pin asserts a contract sentence still exists somewhere in the shipped skill | `$CI_BUNDLE` (root + the 15 references, concatenated) | Which reference currently hosts a sentence is an implementation detail that may be re-partitioned; "present-and-unique in the shipped skill" is the semantically correct claim. Deleting the sentence from a reference still turns the pin RED, because the bundle is rebuilt from the real files on every run. |
+| Content-survival — the pin asserts a contract sentence still exists somewhere in the shipped skill | `$CI_BUNDLE` (root + the 16 references, concatenated) | Which reference currently hosts a sentence is an implementation detail that may be re-partitioned; "present-and-unique in the shipped skill" is the semantically correct claim. Deleting the sentence from a reference still turns the pin RED, because the bundle is rebuilt from the real files on every run. |
 | Location-sensitive — the pin asserts a sentence lives in a *specific* surface | that specific file | A bundle target would pass while the sentence sat anywhere, which is exactly what these pins exist to forbid. |
 
 The location-sensitive population is exactly:
@@ -54,7 +54,7 @@ The location-sensitive population is exactly:
 | the ten `#614 T4` purity representatives | each fallback reference, plus an absence sweep over the root and every step reference | AC8 — the whole claim is *where* the prose is not. |
 | the three `#275` A2b anchor call-site pins (`lib/test/run.sh`) | `step-4-present-create.md` (label helpers), the root (extension load) | Each pin follows the file that now performs the call. |
 
-`$CI_BUNDLE` is assembled in-module from the root plus the 15 references by a `references/*.md`
+`$CI_BUNDLE` is assembled in-module from the root plus the 16 references by a `references/*.md`
 glob (a dropped reference still fails LOUD via the T1 routing reconciliation, whose routing row
 would name a file that is gone, rather than silently shrinking the bundle), and `lib/test/run.sh`
 hoists an identical `CREATE_ISSUE_BUNDLE` and binds it through `CI_MOD_VARS` so these targets

@@ -804,6 +804,19 @@ jobs:
         run: |
           set -euo pipefail
           bash .prflow/vendor/prflow/scripts/install-gh-wrapper.sh
+      # Without this the #1621 Python-lint gate self-skips (blocking-gate) on every
+      # cloud implement run — the tier whose completion gate IS the in-env suite.
+      # Keep it conditional and non-fatal: this workflow ships to consumer repos that
+      # may track no Python at all, and a failed install must not abort the run.
+      - name: Install ruff (arms the #1621 Python-lint gate for in-env verification)
+        run: |
+          set -uo pipefail
+          if [ -z "$(git ls-files '*.py' | head -n 1)" ]; then
+            echo "no tracked *.py — skipping ruff install"
+            exit 0
+          fi
+          python3 -m pip install --quiet 'ruff==0.15.*' \
+            || echo "::warning::ruff install failed; the Python lint gate will self-skip in this run"
       # ── Third-party model provider resolution (issue #313) ─────────────────
       # Resolve this section's (prflow_implement) provider decision from
       # .prflow/config.json via the single-sourced inline jq RESOLVER below.
