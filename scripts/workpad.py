@@ -222,10 +222,12 @@ def _emit_update_outcome(outcome):
 def cmd_update(args):
     """Emit the terminal outcome line, then re-exit with the code the body chose.
 
-    Do not move the emission back onto the individual terminating sites: an exit
-    reached through a shared helper (`_repo_full`, `_require_section_parse`) is
-    invisible to a per-site obligation, and both shipped with no outcome line
-    until this wrapper replaced that scheme.
+    Covers every `SystemExit`-based termination, including one raised inside a
+    shared helper (`_repo_full`, `_require_section_parse`); do not move the
+    emission back onto the individual terminating sites, which is invisible to
+    those two and shipped them with no outcome line. An uncaught non-`SystemExit`
+    exception propagates without an outcome line, which callers read under the
+    absent-line rule as the write not having landed.
     """
     global _UPDATE_OUTCOME_EMITTED
     _UPDATE_OUTCOME_EMITTED = False
