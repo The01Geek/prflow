@@ -28602,6 +28602,29 @@ for _bad, _lbl in [([1, 2], "array"), ("scalar", "scalar-str"), (5, "scalar-int"
     _t, _d = cce.validate_implement_completion_ci(_bad, _ci_root)
     assert_eq(f"#1611 non-object payload {_lbl} → missing-evidence", "missing-evidence", _t)
 
+# present-but-wrong-typed field VALUES inside a well-formed object → missing-evidence
+# (a best-effort parser over an agent-writable payload; a producer bug could emit these).
+for _over, _lbl in [({'conclusion': 5}, "conclusion-int"),
+                    ({'head_sha': 123}, "head_sha-int"),
+                    ({'conclusion': '   '}, "conclusion-whitespace"),
+                    ({'run_url': ['x']}, "run_url-list")]:
+    _t, _d = cce.validate_implement_completion_ci(_ci_rec(**_over), _ci_root)
+    assert_eq(f"#1611 wrong-typed field value {_lbl} → missing-evidence", "missing-evidence", _t)
+
+# internal git-read failure propagates as _Internal (never a verdict): a well-formed
+# record over a NON-git repo_root makes _ci_git_read raise, and the entry point catches
+# only Verdict, so _Internal escapes — the "unknown is not pass" boundary.
+_nongit = _tmp1087.mkdtemp()
+try:
+    cce.validate_implement_completion_ci(_ci_rec(head_sha='a' * 40), _nongit)
+    _raised_internal = False
+except cce._Internal:
+    _raised_internal = True
+except Exception:  # noqa: BLE001
+    _raised_internal = False
+assert_eq("#1611 well-formed record over a non-git repo_root raises _Internal (no verdict)",
+          True, _raised_internal)
+
 # ORDERED_TOKENS unchanged; every CI verdict token is in the closed set.
 assert_eq("#1611 ORDERED_TOKENS still exactly 8 members", 8, len(cce.ORDERED_TOKENS))
 for _tk in ('pass', 'missing-evidence', 'stale-candidate', 'verification-not-pass'):
@@ -28701,6 +28724,42 @@ try:
     except workpad._UpdateError:
         _raised = True
     assert_eq("#1611 verdict: two CI markers → multiple-marker refusal", True, _raised)
+
+    # Standalone-copy / older-sibling arm: when the validator sibling is absent OR
+    # lacks the CI entry point, a Complete over a CI marker fails closed with
+    # missing-evidence and NO PATCH (the vendored-drift guard, CI-family analogue of
+    # the #1087 flight arm).
+    _saved_loader_ci = workpad._load_completion_validator
+    workpad._load_completion_validator = lambda: None
+    try:
+        _cN, _oN, _eN, _pN = _drive_cmd_update(
+            _bB, status='Complete', repo_root=_ci_root)  # _bB carries a CI marker
+        assert_eq("#1611 standalone-copy Complete over a CI marker makes NO PATCH", None, _pN)
+        assert_eq("#1611 standalone-copy CI arm names missing-evidence", True,
+                  'missing-evidence' in _eN)
+    finally:
+        workpad._load_completion_validator = _saved_loader_ci
+    # An older sibling present but lacking validate_implement_completion_ci also fails closed.
+    class _StubNoCi:  # noqa: N801 - test stub
+        pass
+    workpad._load_completion_validator = lambda: _StubNoCi()
+    try:
+        _cH, _oH, _eH, _pH = _drive_cmd_update(_bB, status='Complete', repo_root=_ci_root)
+        assert_eq("#1611 sibling lacking the CI entry point makes NO PATCH", None, _pH)
+        assert_eq("#1611 missing-CI-entry-point arm names missing-evidence", True,
+                  'missing-evidence' in _eH)
+    finally:
+        workpad._load_completion_validator = _saved_loader_ci
+
+    # Internal git-read failure at record time: a well-formed CI record over a NON-git
+    # repo_root makes the validator raise _Internal, which _validate_ci_evidence catches
+    # and converts to a no-PATCH _UpdateError (fail closed, no false Complete).
+    _cI, _oI, _eI, _pI = _drive_cmd_update(
+        GATE_BODY, status='Complete', repo_root=_nongit,
+        record_completion_evidence_ci=['a' * 40, 'c', 'success', 'u'])
+    assert_eq("#1611 CI record over a non-git repo_root makes NO PATCH", None, _pI)
+    assert_eq("#1611 the internal-error CI arm reports unestablished (no PATCH)", True,
+              'internal error' in _eI or 'unestablished' in _eI)
 
     # Both marker spellings recognised for the CI family: a single valid marker in
     # either spelling validates to a clean pass (no raise).

@@ -4176,10 +4176,13 @@ def _completion_evidence_verdict(args, progress_content: str) -> None:
     total = len(keys) + len(ci_payloads)
     if total == 0:
         raise _UpdateError(
-            "refusing to finalize Status: Complete — no completion "
-            "verification-flight marker present [missing-evidence]. Record one with "
-            "`workpad.py update <issue> --record-completion-evidence <flight-key>` "
-            "after the run's final in-env verification passes. No PATCH was made."
+            "refusing to finalize Status: Complete — no completion-evidence marker "
+            "of either family present [missing-evidence]. Record an in-env "
+            "verification flight with `workpad.py update <issue> "
+            "--record-completion-evidence <flight-key>`, or (local/interactive tier, "
+            "issue #1611) a CI reading with `workpad.py update <issue> "
+            "--record-completion-evidence-ci <head-sha> <check-name> <conclusion> "
+            "<run-url>`, after the run's verification is established. No PATCH was made."
         )
     if total > 1:
         raise _UpdateError(
