@@ -1,0 +1,202 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-12T08:00:00Z",
+  "fix_commit_sha": "0ac86c1a",
+  "fix_files": [
+    "lib/test/modules/create-issue-contract.inventory.md",
+    "lib/test/modules/create-issue-contract.sh"
+  ],
+  "loop_role": "fix",
+  "current_step": "3",
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": "small_diff"
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:silent-failure-hunter"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "create-issue-contract.inventory.md coupled site not reconciled: T4 description omits routing reference; '15 references' now 16",
+      "defect_signature": {
+        "file": "lib/test/modules/create-issue-contract.inventory.md",
+        "line_range": [
+          54,
+          57
+        ],
+        "kind": "coupled_doc_stale"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Important",
+      "description": "comment '#1644: Same routing-row predicate as T6 above' — T6 is below, not above (positional reference rot)",
+      "defect_signature": {
+        "file": "lib/test/modules/create-issue-contract.sh",
+        "line_range": [
+          1236,
+          1236
+        ],
+        "kind": "stale_comment_locator"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Important",
+      "description": "CI614_ROUTING_REFS comment exceeds the 3-line cap",
+      "defect_signature": {
+        "file": "lib/test/modules/create-issue-contract.sh",
+        "line_range": [
+          1196,
+          1199
+        ],
+        "kind": "comment_over_cap"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "root->reference reachability untested (orphaned-pointer direction); suggested a source-presence pin over the root",
+      "defect_signature": {
+        "file": "lib/test/modules/create-issue-contract.sh",
+        "line_range": [
+          1233,
+          1242
+        ],
+        "kind": "test_gap"
+      },
+      "fix_decision": "pushed_back"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "issue-614 cutover record line 16 now names a superseded location",
+      "defect_signature": {
+        "file": "docs/internal/cutovers/issue-614-create-issue-thin-root-relocate.md",
+        "line_range": [
+          16,
+          16
+        ],
+        "kind": "stale_prose"
+      },
+      "fix_decision": "deferred"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "two-trigger prose unasserted (agent-consumed, correctly uncovered)",
+      "defect_signature": {
+        "file": "skills/create-issue/references/degradation-routing.md",
+        "line_range": [
+          4,
+          4
+        ],
+        "kind": "prose_uncovered"
+      },
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "0ac86c1a"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "0ac86c1a"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "0ac86c1a"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "pushed_back",
+      "source_file": "lib/test/modules/create-issue-contract.sh",
+      "claim_text": "add a grep pin asserting the root names references/degradation-routing.md",
+      "skip_category": "out-of-scope",
+      "evidence": "AC7 forbids introducing any literal needing a fresh category declaration, and the issue's investigation record deliberately left reachability/retention to the review pass because this repo's pin gate refuses a source-presence literal resolving into the skill (prompt) tree regardless of category. Adding the pin would violate the binding design and likely fail the pin gate.",
+      "parking_evidence": {
+        "basis": "the fix conflicts with binding acceptance criterion AC7 and the issue's documented pin-gate constraint",
+        "failing_input": "n/a — design constraint, not a defect input",
+        "source": "issue #1644 AC7 + investigation record",
+        "finding_ref": {
+          "iter": 1,
+          "index": 4
+        }
+      }
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "deferred",
+      "source_file": "docs/internal/cutovers/issue-614-create-issue-thin-root-relocate.md",
+      "claim_text": "cutover record names superseded routing-table location",
+      "skip_category": "out-of-scope",
+      "evidence": "AC14 explicitly leaves the issue-614 cutover record unchanged as a past-time snapshot.",
+      "parking_evidence": {
+        "basis": "frozen past-time cutover record, AC-mandated to leave unchanged",
+        "failing_input": "n/a",
+        "source": "issue #1644 AC14",
+        "finding_ref": {
+          "iter": 1,
+          "index": 5
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 3,
+    "fix_diff_lines": 8,
+    "new_corroborated_critical_count": 0
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "ran_at": "2026-08-12T08:20:00Z",
+    "reviewed_sha": "0ac86c1a",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:pr-test-analyzer",
+      "prflow:comment-analyzer"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:pr-test-analyzer",
+      "prflow:comment-analyzer"
+    ],
+    "reason": null,
+    "checklist_skipped": "intentional",
+    "phase3_findings": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
