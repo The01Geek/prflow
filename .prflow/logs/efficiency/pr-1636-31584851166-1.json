@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1636",
+  "generated_at": "2026-08-12T10:01:44Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.51",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 8.67202325,
+    "tokens": {
+      "input_tokens": 4596,
+      "output_tokens": 26698,
+      "cache_read_input_tokens": 3984200,
+      "cache_creation_input_tokens": 220969,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 4639,
+        "outputTokens": 57880,
+        "cacheReadInputTokens": 4971389,
+        "cacheCreationInputTokens": 622000,
+        "webSearchRequests": 0,
+        "costUSD": 8.67202325,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 33,
+    "duration_ms": 481020
+  },
+  "permission_denials": {
+    "count": 5,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "RUN_ID=\"local-$(date -u +%Y%m%dT%H%M%SZ)-1\"; echo \"run-id=$RUN_ID\"; mkdir -p \".prflow/tmp/review/pr-1636/$RUN_ID\"; echo \"$RUN_ID\" > .prflow/tmp/review/pr-1636/.runid; gh pr diff 1636 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee \".prflow/tmp/review/pr-1636/$RUN_ID/diff.patch\" | wc -l",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve 1441 --pr 1636 2>.prflow/tmp/review/pr-1636/local-20260812T095410Z-1/acs.err ; echo \"acs-rc=$?\"",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before && [ -f .prflow/tmp/review-dirty-tree-before ] && [ ! -L .prflow/tmp/review-dirty-tree-before ] && git hash-object .prflow/tmp/review-dirty-tree-before",
+      "scripts/load-prompt-extension.sh requesting-code-review",
+      "scripts/load-prompt-extension.sh requesting-code-review"
+    ],
+    "total": 5,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
