@@ -36,12 +36,34 @@ This set is the DISCRIMINATOR the measurement isolated, NOT a documented harness
 contract — see issue #1633's provenance note (24 observations, one macOS session,
 one Claude Code version, no harness source read).
 
+TEMPLATE BLOCKS ARE SCANNED TOO (the second audited population). A construct can
+also reach the shell WITHOUT appearing in any fence's literal text: a phase file
+composes a body in a fenced TEMPLATE block, the agent substitutes it into a
+double-quoted fence argument (``gh pr create … --body "<pr-body>"``), and the
+shell then expands whatever the template carried. A backtick span in such a
+template becomes command substitution at that moment, which is refused on the
+worktree tier and executes on the cloud one. So a fenced block carrying NO info
+string in an enrolled file is audited for an UNESCAPED backtick, ``$(`` or ``$?``:
+in these files such a block is a body the run composes and passes on, never an
+inert illustration. The remedy for a block that really is inert is to give it a
+non-``bash`` info string (``text``), which the residuals below already exclude —
+so no per-block declaration marker is introduced. The same-fence bound-variable
+rule is NOT applied to a template, having no shell of its own to bind in.
+
 SHAPES THIS LINT DOES NOT DETECT (disclosed residuals, in the form
 ``lib/test/lint-anchor-fallback-arm.py``'s docstring uses):
 
-  - Only ``bash``-info-string fenced blocks are scanned. A fence with no info
-    string, or an info string other than ``bash`` (``sh``, ``console``, ``text``,
-    none), is treated as prose/data and NOT scanned — the constructs are refused
+  - PLACEHOLDER SUBSTITUTION more generally. The bash-fence scan reads literal
+    fence text, so it cannot see a construct that materialises only when a
+    placeholder is substituted at emit time. The template-block pass above closes
+    the one shape that arises in these files (a fenced body template). A construct
+    reaching a fence from anywhere else the run composes — a value held only in the
+    agent's context, or prose outside any fenced block — is NOT detected here, and
+    the fence-isolation harness in ``lib/test/run.sh`` (which executes each fence)
+    is the executable backstop.
+  - Only ``bash``-info-string fenced blocks are scanned for the full construct set.
+    A fence with an info string other than ``bash`` (``sh``, ``console``, ``text``)
+    is treated as prose/data and NOT scanned — the constructs are refused
     only when executed as a bash fence. Leading INDENTATION on the fence markers is
     allowed and ignored, so a ```bash fence nested under a Markdown list item is
     scanned exactly like a column-0 one (an implement run executes both). The
@@ -67,9 +89,9 @@ this lint's own test harness (the empty-inventory, omits-one, and scratch-copy
 positive-control cases); the built-in ``ENROLLED`` remains the shipped source.
 
 Exit status is 0 only when every enrolled file was read and carries no refused
-expansion in any bash fence. It is non-zero when an enrolled fence carries a
-refused expansion (naming file, line, and construct), when an enrolled file is
-missing or unreadable, or when the enrollment inventory is empty.
+expansion in any bash fence or template block. It is non-zero when an enrolled
+fence or template carries a refused expansion (naming file, line, and construct),
+when an enrolled file is missing or unreadable, or when the inventory is empty.
 """
 
 from __future__ import annotations
@@ -102,6 +124,15 @@ _REQUIRED: frozenset[str] = frozenset(ENROLLED)
 _FENCE_BASH_OPEN = re.compile(r"^[ \t]*```bash[ \t]*$")
 _FENCE_CLOSE = re.compile(r"^[ \t]*```[ \t]*$")
 _FENCE_ANY_OPEN = re.compile(r"^[ \t]*```")
+# A fence opened with NO info string: the body-template shape whose contents reach a
+# shell only after the agent substitutes them into a double-quoted fence argument.
+_FENCE_PLAIN_OPEN = re.compile(r"^[ \t]*```[ \t]*$")
+
+# Template constructs, matched only when NOT backslash-escaped — an escaped span is
+# exactly the fix, so flagging it would leave the author no green state.
+_TPL_BACKTICK = re.compile(r"(?<!\\)`")
+_TPL_CMD_SUBST = re.compile(r"(?<!\\)\$\(")
+_TPL_EXIT_STATUS = re.compile(r"(?<!\\)\$\?")
 
 # A quoted heredoc redirection: ``<<`` (optionally ``-``) then a quoted or
 # backslash-escaped delimiter word. Its body is data and is stripped before scanning.
@@ -208,6 +239,28 @@ def _scan_fence(fence_lines: list[str], start_lineno: int) -> list[tuple[int, st
     return findings
 
 
+def _scan_template(body_lines: list[str], start_lineno: int) -> list[tuple[int, str]]:
+    """Return ``(lineno, construct)`` findings for one info-string-less fence.
+
+    The construct is flagged only unescaped: the agent substitutes this block into a
+    double-quoted fence argument, where a backslash-escaped span is inert and is the
+    remedy. A block that is genuinely inert takes a ``text`` info string instead.
+    """
+    findings: list[tuple[int, str]] = []
+    for offset, line in enumerate(body_lines):
+        lineno = start_lineno + offset
+        if _TPL_CMD_SUBST.search(line) or _TPL_BACKTICK.search(line):
+            findings.append((
+                lineno,
+                "unescaped command substitution ($(...) or backticks) in a body template "
+                "the run substitutes into a double-quoted fence argument — escape it, or "
+                "give the block a `text` info string if it is inert",
+            ))
+        if _TPL_EXIT_STATUS.search(line):
+            findings.append((lineno, "unescaped exit-status parameter $? in a body template"))
+    return findings
+
+
 def _scan_file(text: str) -> list[tuple[int, str]]:
     """Return ``(lineno, construct)`` findings across every bash fence in ``text``."""
     lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
@@ -223,6 +276,14 @@ def _scan_file(text: str) -> list[tuple[int, str]]:
             fence_lines = lines[body_start:j]
             scanned = _strip_quoted_heredocs(fence_lines)
             findings.extend(_scan_fence(scanned, body_start + 1))
+            i = j + 1
+            continue
+        if _FENCE_PLAIN_OPEN.match(lines[i]):
+            body_start = i + 1
+            j = body_start
+            while j < n and not _FENCE_CLOSE.match(lines[j]):
+                j += 1
+            findings.extend(_scan_template(lines[body_start:j], body_start + 1))
             i = j + 1
             continue
         if _FENCE_ANY_OPEN.match(lines[i]):
@@ -303,7 +364,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         inventory = _load_inventory(args.inventory_file)
-    except OSError as exc:
+    except (OSError, UnicodeDecodeError) as exc:
         print(f"lint-worktree-fence-shapes: could not read --inventory-file: {exc}", file=sys.stderr)
         return 1
 

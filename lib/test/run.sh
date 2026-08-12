@@ -4587,9 +4587,8 @@ assert_pin_unique "#362: Skill rule forbids the mid-phase Skill-tool invocation 
 #     removed by the always-resident Outcome-reaction block, which already binds every
 #     terminal Status transition. Coupled to lib/implement-stop-guard.sh, which globs
 #     exactly this path — change one site and this pin names the other.
-# issue #1633 migrated the run-marker write into two single-statement fences (the
-# has-session-id and empty-marker arms), so the path is now present twice — a presence
-# check, not a uniqueness one. The three-site coupled invariant below still holds.
+# The marker path is present TWICE (the has-session-id and empty-marker fences), so do
+# not convert this to assert_pin_unique: it would fail on the correct tree.
 assert_eq "#362: Phase 1.3 writes the run marker the Stop-hook guard globs" "yes" \
   "$(grep -qF '<scratch-dir>/implement-active-$ISSUE_NUMBER' "$P362_P1" && echo yes || echo no)"  # structural-pin-ok: routing-dispatch-contract -- the run-marker path the Stop-hook guard globs, in the issue-#1633 anchored spelling (<scratch-dir> resolves to the same .prflow/tmp the guard globs); coupled to lib/implement-stop-guard.sh
 assert_pin_unique "#362: the Outcome-reaction block removes the run marker at every terminal transition" \
@@ -5450,15 +5449,9 @@ assert_pin_unique "#493 resume: best-effort warn on PR-body read failure (distin
 # cover that derivation boundary without pinning the detailed `gh pr create` prose.
 P3_REVIEW="$IMPL_PHASES_DIR/phase-3-review.md"
 assert_pin_unique "#224 Phase 3.1: re-derives BASE via config-get with the main default" 'config-get.sh .base_branch main' "$P3_REVIEW"
-# Issue #1633 migrated the fail-closed fallback OFF a `$BASE` shell variable: each fence
-# is its own shell (a worktree-isolated session refuses a captured `BASE=$(config-get…)`
-# read reused later), so the base is read in its OWN fence as `config-get.sh .base_branch
-# main` — the helper's `main` POSITIONAL DEFAULT is now the fail-closed fallback (an
-# empty/missing key returns `main`, never an empty `--base`) — and substituted as a
-# literal into `gh pr create --base <base>`. The former `[ -n "$BASE" ]` guard, its
-# `BASE=main` consequent, and the same-bash-block ordering pin are retired with the shell
-# variable they guarded; the surviving guarantee is the `main` default on the pinned
-# `config-get.sh .base_branch main` read above.
+# Do not re-add a `[ -n "$BASE" ]` guard or a same-block ordering pin here: the fallback
+# is now the `main` positional default on the pinned `config-get.sh .base_branch main`
+# read above, and a guard on a variable no fence binds would assert nothing.
 # Deferred (issue #224 review, Suggestion): we do NOT pin that §3.1 OMITS --head.
 # Low value — `gh pr create` defaults --head to the checked-out branch, which is the
 # correct feature branch at Phase 3.1; a future edit adding --head would not corrupt
@@ -5719,11 +5712,8 @@ assert_eq "implement_pr_state outcome: gh fails + state unconfirmed (re-check er
 
 # Executable assertions below cover the publish-failure breadcrumbs and outcome model.
 # Detailed idempotent and finalize wording is intentionally not pinned.
-# Issue #1633 migrated the publish decision off a `PR_OUTCOME=publish_failed` shell
-# variable to an agent-carried outcome value (`draft`|`published`|`publish_failed`) the
-# orchestrator reads from `gh pr ready`'s tool result (phase-4-documentation.md §4.3). The
-# surviving guarantee — a `gh pr ready` failure is captured as `publish_failed`, not
-# swallowed — is the outcome word itself in the finalize routing.
+# Pin the outcome WORD, not a `PR_OUTCOME=` assignment: no fence binds that variable any
+# more, so a pin on the assignment would pass while the failure path was swallowed.
 assert_eq "implement_pr_state: SKILL captures the publish_failed outcome (gh pr ready failure not swallowed)" "yes" \
   "$(grep -qF 'publish_failed' "$IMPL_SKILL" && echo yes || echo no)"  # raw-guard-ok: non-unique: the publish-failed outcome word appears on multiple finalize-routing lines  # structural-pin-ok: machine-sentinel-provenance -- publish_failed is the outcome value the publish-failure path records
 assert_eq "implement_pr_state: SKILL labels the idempotent re-run breadcrumb" "yes" \
@@ -32474,10 +32464,8 @@ assert_pin_unique "#284 positive: review trace render discriminates via single-s
 # The Phase 4.1 Stage-2 cumulative-diff read is also `if !`-guarded (git's own exit status
 # inline), symmetric to the gh|extractor guard; pin its positive form and prove the old
 # captured-rc form is gone (#284 shadow-review test-coverage completeness).
-# Issue #1633 migrated the doc-gate diff read off a captured `DIFF_OUT=$(git diff …)`
-# (a worktree-isolated session refuses the command substitution) to a single-statement
-# `git diff --name-only "origin/$BASE...HEAD"` fence whose tool result the orchestrator
-# reads and routes on agent-side. Pin the surviving single-statement read.
+# Pin the single-statement read the orchestrator routes on agent-side; a pin on a
+# captured `DIFF_OUT=$(git diff …)` would name a shape no fence carries any more.
 assert_eq "#284 positive: phase-4 doc-gate diff read is a single-statement, tool-result-routed fence" "yes" \
   "$(grep -qF 'git diff --name-only "origin/<base-branch>...HEAD"' "$DEF_SKILL" && echo yes || echo no)"  # raw-guard-ok: presence — #284 the doc-gate diff read the orchestrator routes on (present twice: initial read + re-fetch, so not assert_pin_unique)
 assert_eq "#284 shadow-fix: phase-4 doc-gate no longer carries the old DIFF_RC capture-then-read recipe" \
@@ -32627,13 +32615,9 @@ assert_eq "#289 AC5: gate already-exists branch emits the best-effort Run-link-r
 assert_pin_unique "#289 AC7: the Run-link refresh update line is present exactly once (removal-proof)" \
   'update "$NUMBER" --run-link "[View run]($RUN_URL)"' "$WF289"
 # AC9: the Phase 3.1 draft-PR body carries a [View run](…) line positioned after
-# Resolves #{issue_number}. Issue #1633 migrated the run-link off the captured $RUN_URL
-# to the inline $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID form
-# (each fence composes its own, no cross-fence capture), so the pinned literal follows it.
-# The standalone presence pin is retired: it was a prompt-prose presence pin (the
-# executable-evidence policy's prohibited class) and the positional guard below already
-# establishes presence via its non-empty VIEWRUN_LN289 check. The ordering guarantee
-# (the run-link follows Resolves) is the part that stays.
+# Pin the ORDERING only, against the inline $GITHUB_SERVER_URL… run-link form. A
+# standalone presence pin here would be prompt-prose presence pin authorship (#810), and
+# the non-empty VIEWRUN_LN289 check below already establishes presence.
 P3289="$REPO_ROOT/skills/implement/phases/phase-3-review.md"
 RESOLVES_LN289="$(grep -nF 'Resolves #{issue_number}' "$P3289" | head -1 | cut -d: -f1)"   # raw-guard-ok: line-number lookup for the positional pin
 VIEWRUN_LN289="$(grep -nF '[View run]($GITHUB_SERVER_URL' "$P3289" | head -1 | cut -d: -f1)"  # raw-guard-ok: line-number lookup for the positional pin
@@ -35348,14 +35332,8 @@ assert_eq "#480 phase 4.0's create fence prints its unconditional sentinel (the 
   "$(grep -qF 'echo "phase 4.0 create fence ran; create=[${CREATE_STATE}]"' "$I815_REF" && echo yes || echo no)"  # structural-pin-ok: machine-sentinel-provenance -- the emitted sentinel the reference's three-state routing literal-matches; without it "refused" and "nothing to create" are indistinguishable
 assert_eq "#480 phase 3.1 prints the draft PR number sentinel (the comparand its routing reads)" "yes" \
   "$(grep -qF 'draft PR number: [' "$IMPL_DIR/phases/phase-3-review.md" && echo yes || echo no)"
-# Issue #1633 migrated the Phase 4.1 docs-label channel off the printed-sentinel model:
-# a worktree-isolated session refuses the captured `DOCS_LABELS=$(config-get…)` /
-# `DOCS_PR_NUM=$(gh pr view…)` reads that produced these lines, so the channel now reads
-# `config-get.sh .docs.labels` and `gh pr view` as single-statement fences whose tool
-# results the orchestrator normalizes and routes on agent-side. The `docs labels to
-# apply: [` / `docs PR number: [` printed sentinels are retired with the captures that
-# emitted them; the fail-closed guarantee moves to the tier's "no output is an
-# unestablished measurement → stop" contract the migrated prose states.
+# Do not re-add a `docs labels to apply: [` / `docs PR number: [` sentinel pin: no fence
+# prints them any more, so the pin would fail on the correct tree.
 # The deferred-label comparand `deferred labels to apply: [` left this population with the
 # fence that prints it (#1374) and was RETIRED rather than re-pointed at the reference. Its
 # literal resolves into agent-executed prompt prose that no program consumer reads, so
@@ -51434,6 +51412,35 @@ printf '\n- item:\n  ```text\n  echo "$(date)"\n  ```\n' >> "$WFS_P1"
 assert_eq "#1633 lint: a construct in an INDENTED non-bash fence passes" "0" \
   "$(python3 "$WFS_LINT" --root "$WFS_ROOT" >/dev/null 2>&1; echo $?)"
 _wfs_restore_p1
+# AC20 sibling: an enrolled file that EXISTS but cannot be DECODED fails closed with its
+# own message. Distinct from the missing-file arm above and reached by a different except
+# clause, so a regression letting UnicodeDecodeError escape as a traceback would otherwise
+# keep every assertion here green.
+printf 'ok\n\xff\xfe\x00bad\n' > "$WFS_ROOT/skills/implement/phases/phase-3-review.md"
+WFS_UNREAD_OUT="$(python3 "$WFS_LINT" --root "$WFS_ROOT" 2>&1)"; WFS_UNREAD_RC=$?
+assert_eq "#1633 lint: an undecodable enrolled file fails closed" "1" "$WFS_UNREAD_RC"
+assert_eq "#1633 lint: the undecodable-file report names it and says it could not be read" "yes" \
+  "$(case "$WFS_UNREAD_OUT" in *"phase-3-review.md: enrolled file could not be read"*) echo yes ;; *) echo no ;; esac)"
+cp "$REPO_ROOT/skills/implement/phases/phase-3-review.md" "$WFS_ROOT/skills/implement/phases/phase-3-review.md"
+# TEMPLATE-BLOCK pass: a construct can reach the shell without appearing in any fence's
+# literal text — a body composed in an info-string-less block and substituted into a
+# double-quoted fence argument (`--body "<pr-body>"`) expands when the shell reads it.
+printf '\n```\nGenerated via `/prflow:implement $ARGUMENTS`\n```\n' >> "$WFS_P1"
+WFS_TPL_OUT="$(python3 "$WFS_LINT" --root "$WFS_ROOT" 2>&1)"; WFS_TPL_RC=$?
+assert_eq "#1633 lint: an unescaped backtick span in a body template fails (RED)" "1" "$WFS_TPL_RC"
+assert_eq "#1633 lint: the template report names the substitution hazard" "yes" \
+  "$(case "$WFS_TPL_OUT" in *"body template"*) echo yes ;; *) echo no ;; esac)"
+_wfs_restore_p1
+# The ESCAPED span is the remedy, so it must pass — otherwise the fix has no green state.
+printf '\n```\nGenerated via \\`/prflow:implement $ARGUMENTS\\`\n```\n' >> "$WFS_P1"
+assert_eq "#1633 lint: a backslash-escaped span in a body template passes (the remedy)" "0" \
+  "$(python3 "$WFS_LINT" --root "$WFS_ROOT" >/dev/null 2>&1; echo $?)"
+_wfs_restore_p1
+# A `text`-info-string block is inert prose, the second documented remedy.
+printf '\n```text\nGenerated via `/prflow:implement $ARGUMENTS`\n```\n' >> "$WFS_P1"
+assert_eq "#1633 lint: the same span under a text info string passes (inert prose)" "0" \
+  "$(python3 "$WFS_LINT" --root "$WFS_ROOT" >/dev/null 2>&1; echo $?)"
+_wfs_restore_p1
 # AC22 (the module docstring closes the candidate-construct set and discloses the shapes
 # it does not detect) is discharged by the docstring itself and human review — a
 # docstring-presence grep would be a prohibited wording-only pin (CLAUDE.md's
@@ -51498,6 +51505,10 @@ print("bare=%d %s" % (len(bad), ",".join(sorted(set(bad)))))
 ' "$P1633_ANCHOR_PLANT")"
 
 # ── #1633 fence-isolation harness (AC23/AC24/AC29) ────────────────────────────
+# COVERAGE CLAIM, stated exactly: run-to-completion is backed for ONE of the four enrolled
+# files (phase-1-setup.md, the only one this stub environment models); the cross-fence
+# unbound-variable sweep is backed for ALL FOUR. Do not restate either as "every enrolled
+# fence runs" — phases 2/3/4 reach vendored-literal paths and helpers no stub supplies.
 # Extracts every ```bash fence of the canonical enrolled file (phase-1-setup.md, the file
 # a worktree Phase 1 session executes) and runs each in FENCE ISOLATION (fresh `bash -uc`,
 # scratch cwd, PATH holding ONLY stub heads, CLAUDE_SKILL_DIR pointed at a scratch skill
@@ -51625,13 +51636,13 @@ P1633_FIH_OUT="$(python3 "$P1633_FIH" \
   "$REPO_ROOT/skills/implement/phases/phase-2-implement.md" \
   "$REPO_ROOT/skills/implement/phases/phase-3-review.md" \
   "$REPO_ROOT/skills/implement/phases/phase-4-documentation.md" 2>/dev/null)"
-assert_eq "#1633 AC23: every phase-1 fence runs to completion in isolation (no cross-fence var/head dependency)" "yes" \
+assert_eq "#1633 AC23 (1 of 4 enrolled files): every phase-1-setup.md fence runs to completion in isolation" "yes" \
   "$(case "$P1633_FIH_OUT" in "allran=yes "*) echo yes ;; *) echo "no ($P1633_FIH_OUT)" ;; esac)"
 # The cross-fence dependency sweep runs over ALL FOUR enrolled files: `bash -u` turns a
 # reference to a variable another fence bound into an unbound-variable abort, so a
 # reintroduced cross-fence dependency in phase-2/3/4 is caught here even though only
 # phase-1's heads are fully stubbed. The lint is same-fence-scoped and cannot see it.
-assert_eq "#1633 AC23: no enrolled file's fence references a variable another fence bound" "yes" \
+assert_eq "#1633 AC23 (all 4 enrolled files): no fence references a variable another fence bound" "yes" \
   "$(case "$P1633_FIH_OUT" in *" unbound=0 "*) echo yes ;; *) echo "no ($P1633_FIH_OUT)" ;; esac)"
 assert_eq "#1633 AC24: a fence invoking an unstubbed bare head is refused, not executed (rc 127)" "yes" \
   "$(case "$P1633_FIH_OUT" in *"syn_rc=127"*) echo yes ;; *) echo "no ($P1633_FIH_OUT)" ;; esac)"

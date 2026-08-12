@@ -77,8 +77,10 @@ Work in progress — automated review pending.
 Resolves #{issue_number}
 [View run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)
 
-Generated via `/prflow:implement $ARGUMENTS`
+Generated via \`/prflow:implement $ARGUMENTS\`
 ```
+
+**Keep the backslashes on those backticks.** `--body` stays double-quoted so the run-link variables expand, and an unescaped backtick span in the substituted body is command substitution to the shell — refused outright on a worktree-isolated tier, and run as a nonexistent command on the cloud one.
 
 Open the draft PR, substituting the resolved `<base>` and the composed body for `<pr-body>`:
 
