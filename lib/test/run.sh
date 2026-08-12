@@ -32629,12 +32629,14 @@ assert_pin_unique "#289 AC7: the Run-link refresh update line is present exactly
 # Resolves #{issue_number}. Issue #1633 migrated the run-link off the captured $RUN_URL
 # to the inline $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID form
 # (each fence composes its own, no cross-fence capture), so the pinned literal follows it.
+# The standalone presence pin is retired: it was a prompt-prose presence pin (the
+# executable-evidence policy's prohibited class) and the positional guard below already
+# establishes presence via its non-empty VIEWRUN_LN289 check. The ordering guarantee
+# (the run-link follows Resolves) is the part that stays.
 P3289="$REPO_ROOT/skills/implement/phases/phase-3-review.md"
-assert_pin_unique "#289 AC9: phase-3-review.md draft-PR body carries the [View run](\$GITHUB_SERVER_URL…) literal (removal-proof)" \
-  '[View run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)' "$P3289"  # raw-guard-ok: removal-proof presence of the draft-PR body run-link (prompt prose; issue #289, re-pointed off $RUN_URL for #1633)
 RESOLVES_LN289="$(grep -nF 'Resolves #{issue_number}' "$P3289" | head -1 | cut -d: -f1)"   # raw-guard-ok: line-number lookup for the positional pin
 VIEWRUN_LN289="$(grep -nF '[View run]($GITHUB_SERVER_URL' "$P3289" | head -1 | cut -d: -f1)"  # raw-guard-ok: line-number lookup for the positional pin
-assert_eq "#289 AC9: [View run](\$RUN_URL) is positioned after Resolves #{issue_number} in the draft-PR heredoc" "yes" \
+assert_eq "#289 AC9: [View run](\$GITHUB_SERVER_URL…) is positioned after Resolves #{issue_number} in the draft-PR body" "yes" \
   "$([ -n "$RESOLVES_LN289" ] && [ -n "$VIEWRUN_LN289" ] && [ "$VIEWRUN_LN289" -gt "$RESOLVES_LN289" ] && echo yes || echo no)"
 # ── Issue #1537: Phase 1.3 workpad run-link is composed INLINE in each fence ──
 # §1.3's create arm and resume arm READ $RUN_URL via `--run-link "[View run]($RUN_URL)"`, but
