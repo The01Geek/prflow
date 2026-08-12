@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1625",
+  "generated_at": "2026-08-12T03:05:57Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.46",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 1.9382599999999996,
+    "tokens": {
+      "input_tokens": 19,
+      "output_tokens": 10638,
+      "cache_read_input_tokens": 1108110,
+      "cache_creation_input_tokens": 111816,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 19,
+        "outputTokens": 10638,
+        "cacheReadInputTokens": 1108110,
+        "cacheCreationInputTokens": 111816,
+        "webSearchRequests": 0,
+        "costUSD": 1.9382599999999996,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 18,
+    "duration_ms": 158455
+  },
+  "permission_denials": {
+    "count": 4,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-unset}\"; echo \"PR=1625\"; git rev-parse --show-toplevel",
+      "printf '%s\\n' \"$CLAUDE_SKILL_DIR\"",
+      "echo \"=== references/*.md at head ===\"; git show d7f2d91:skills/create-issue/SKILL.md 2>/dev/null >/dev/null; git ls-tree -r --name-only d7f2d91 -- skills/create-issue/references/ 2>&1 | grep '\\.md$'; echo \"=== count ===\"; git ls-tree -r --name-only d7f2d91 -- skills/create-issue/references/ 2>&1 | grep -c '\\.md$'; echo \"=== routing rows ===\"; git show d7f2d91:skills/create-issue/SKILL.md 2>&1 | grep -cE '^\\| (Step|Any|Step 3).*references/'",
+      "git ls-tree -r --name-only d7f2d91 -- skills/create-issue/references/ | grep -c '\\.md$'"
+    ],
+    "total": 4,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
