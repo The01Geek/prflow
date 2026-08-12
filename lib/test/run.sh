@@ -51216,6 +51216,54 @@ assert_eq "#1124 lint: an enrolled site carrying neither form fails closed (stal
 assert_eq "#1124 lint: the neither-form report names the stale enrolled site" "yes" \
   "$(case "$AF_NEITHER_OUT" in *"carries NEITHER the anchor nor the vendored-literal"*) echo yes ;; *) echo no ;; esac)"
 
+# ── #1594 reported-base-dir-first arm lint (lib/test/lint-reported-base-dir-arm.py) ──
+# The resolve-once `echo "${CLAUDE_SKILL_DIR:-…}"` command is refused on runners whose
+# matcher denies the ${VAR:-default} argument expansion (cloud run 30695072336; observed
+# locally too), so the two skill bodies resolve <skill-dir> from the runner-reported base
+# directory FIRST and keep the echo command only as the fallback. This inventory-driven
+# lint fails when an enrolled site consumes a value-consuming anchor expansion with no
+# reported-base-directory-first arm (the <!-- prflow:skill-dir-reported-base-first -->
+# sentinel) ahead of it. Driven like the #1124 sibling: real tree as the live gate, plus
+# RED/GREEN/fail-closed fixtures so the guard is proven non-vacuous.
+RBD_LINT="$LIB/test/lint-reported-base-dir-arm.py"
+RBD_FX="$LIB/test/fixtures/reported-base-dir-arm"
+# Real tree: both enrolled clauses carry the arm ahead of the fallback → clean.
+RBD_OUT="$(python3 "$RBD_LINT" 2>&1)"; RBD_RC=$?
+assert_eq "#1594 lint: clean on the tree as it stands (enrolled clauses carry the arm)" "rc=0" \
+  "$([ "$RBD_RC" -eq 0 ] && printf 'rc=0' || printf 'rc=%s | %s' "$RBD_RC" "$RBD_OUT")"
+# RED fixture: an arm-less value-consuming anchor at the fenced (implement) and the
+# inline-code-in-bullet (review) sites → rc=1 naming the offending file. The two shapes
+# are asserted separately so a matcher that recognised only the fenced one would go RED.
+RBD_RED_OUT="$(python3 "$RBD_LINT" --root "$RBD_FX/red" 2>&1)"; RBD_RED_RC=$?
+assert_eq "#1594 lint: an arm-less enrolled site is reported (RED, non-vacuous)" "1" "$RBD_RED_RC"
+assert_eq "#1594 lint: the RED report names the fenced-shape site (implement)" "yes" \
+  "$(case "$RBD_RED_OUT" in *"skills/implement/SKILL.md: a value-consuming"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#1594 lint: the RED report names the inline-code-shape site (review)" "yes" \
+  "$(case "$RBD_RED_OUT" in *"skills/review/SKILL.md: a value-consuming"*) echo yes ;; *) echo no ;; esac)"
+# GREEN fixture: the arm precedes the fallback at the enrolled sites → rc=0.
+assert_eq "#1594 lint: an arm-ahead enrolled site passes (GREEN)" "yes" \
+  "$(python3 "$RBD_LINT" --root "$RBD_FX/green" >/dev/null 2>&1 && echo yes || echo no)"
+# PATH-following fixture: an anchor expansion followed by a helper path is not value-
+# consuming → rc=0 (a path-naming call site is not flagged).
+assert_eq "#1594 lint: an anchor followed by a helper path is unflagged (path-naming)" "yes" \
+  "$(python3 "$RBD_LINT" --root "$RBD_FX/path" >/dev/null 2>&1 && echo yes || echo no)"
+# Fail-closed inputs — exactly three, complete by construction: empty inventory, absent
+# enrolled file, unreadable enrolled file. The inventory is reachable via --inventory /
+# --print-inventory so these arms need no source edit.
+RBD_EMPTY_OUT="$(python3 "$RBD_LINT" --inventory "$RBD_FX/inventory-empty.txt" 2>&1)"; RBD_EMPTY_RC=$?
+assert_eq "#1594 lint: an empty enrolled inventory fails closed" "1" "$RBD_EMPTY_RC"
+assert_eq "#1594 lint: the empty-inventory report says so" "yes" \
+  "$(case "$RBD_EMPTY_OUT" in *"inventory is empty"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#1594 lint: a missing enrolled file fails closed" "1" \
+  "$(python3 "$RBD_LINT" --root "$RBD_FX/absent" >/dev/null 2>&1; echo $?)"
+RBD_UNREAD_OUT="$(python3 "$RBD_LINT" --root "$RBD_FX/unreadable" --inventory "$RBD_FX/inventory-implement-only.txt" 2>&1)"; RBD_UNREAD_RC=$?
+assert_eq "#1594 lint: an unreadable enrolled file fails closed" "1" "$RBD_UNREAD_RC"
+assert_eq "#1594 lint: the unreadable-file report says so" "yes" \
+  "$(case "$RBD_UNREAD_OUT" in *"could not be read"*) echo yes ;; *) echo no ;; esac)"
+# Inventory exposure: --print-inventory lists the enrolled sites and exits 0.
+assert_eq "#1594 lint: --print-inventory exposes the enrolled inventory (exit 0)" "yes" \
+  "$(python3 "$RBD_LINT" --print-inventory >/dev/null 2>&1 && echo yes || echo no)"
+
 # ── Public documentation source contract ────────────────────────────────────
 # The public site is source-only: Markdown/MDX, authored CSS and docs.json. Mintlify reads
 # this subtree directly, so route membership, file membership and category
