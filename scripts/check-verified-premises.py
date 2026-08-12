@@ -906,8 +906,14 @@ def _run(args) -> int:
     # Do not let this advisory pass reach main's catch-all (issue #1634): an
     # exception escaping here would turn the clean/refuted adjudication already
     # printed above into an internal-error exit.
+    # Emission is inside the fence, not just detection: an error raised while
+    # printing would otherwise reach main's catch-all and print a second
+    # `VERIFIED_PREMISES unavailable` after a valid adjudicated block.
     try:
         ungraded = find_ungraded_claims(body)
+        for line in ungraded:
+            print(line)
+        print('UNGRADED_CLAIMS total={}'.format(len(ungraded)))
     except Exception as exc:  # noqa: BLE001 — the pass is advisory; never let it move the verdict.
         # Never print `total=0` here: that is byte-identical to "ran, found
         # none", which is the fail-open this pass exists to close.
@@ -916,10 +922,6 @@ def _run(args) -> int:
               f'none: {exc!r}', file=sys.stderr)
         print('UNGRADED_CLAIMS unavailable reason=internal-error '
               f'detail={exc!r}')
-        return EXIT_REFUTED if tally['refuted'] else EXIT_CLEAN
-    for line in ungraded:
-        print(line)
-    print('UNGRADED_CLAIMS total={}'.format(len(ungraded)))
     return EXIT_REFUTED if tally['refuted'] else EXIT_CLEAN
 
 

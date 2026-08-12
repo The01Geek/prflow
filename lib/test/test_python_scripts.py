@@ -25655,16 +25655,9 @@ assert_eq("#868 helper: the remap is narrow — a status-0 parser exit (--help) 
 # issue #1634 — the non-adjudicating ungraded-claim pass
 #
 # A verification asserted in a shape `_MARKER` cannot see ("verified against
-# origin/main") is graded by nothing, yet an implementing run may skip its own
-# investigation on it. The second pass REPORTS such phrases without adjudicating
-# them. These assertions drive the helper at its CLI boundary, like the #868
-# block above, and pin: detection in every premise region, the exclusions
-# (marker span, fenced block, inline code, complement section), the clean exit,
-# the disjoint vocabulary, the count-always-reported contract, and the
-# untouched-surface boundary (adjudicated output byte-identical). The
-# issue-1441 snapshot is the production-realistic reproduction: today's helper
-# produces NO ungraded line for it (captured pre-change), the wrong behaviour on
-# a real filed issue.
+# origin/main") is graded by nothing. The second pass REPORTS such phrases
+# without adjudicating them: do not add an assertion here that lets this pass
+# mint a verdict, move the exit code, or perturb an adjudicated line.
 # ---------------------------------------------------------------------------
 
 _CVP_REPO_ROOT = SCRIPTS.parent
@@ -25815,7 +25808,11 @@ _CVP_1441_BASELINE = (
     'VERIFIED_PREMISES total=4 holds=3 refuted=1 unestablished=0')
 _cvp_rc, _cvp_out = _cvp_run_real(_CVP_1441_FIXTURE)
 assert_eq("#1634 helper: the adjudicated output for the issue-1441 snapshot is byte-identical "
-          "to the pre-change output — the ungraded pass adds lines and moves no verdict",
+          "to the pre-change output — the ungraded pass adds lines and moves no verdict "
+          "(baseline reads the live tree: an edit to a sentence this fixture quotes from "
+          "lib/fetch-pr-context.sh, lib/cheap-gate.jq or scripts/build-experiment-records.py "
+          "flips a bullet's state and breaks this line — re-capture the baseline, do not "
+          "weaken AC #10's byte-identical reproduction)",
           _CVP_1441_BASELINE, _cvp_adjudicated_block(_cvp_out))
 assert_eq("#1634 helper: the issue-1441 snapshot's exit code is unchanged by the ungraded pass",
           2, _cvp_rc)
@@ -25960,10 +25957,9 @@ assert_eq("#1634 helper: UNGRADED_CLAIMS is reported on the refuted exit-2 path 
           True, _cvp_rc == 2 and 'UNGRADED_CLAIMS total=' in _cvp_out
           and len(_cvp_ungraded_lines(_cvp_out)) >= 1)
 
-# The disjoint-vocabulary guarantee is STRUCTURAL: the minted field tokens
-# (ungraded_claim=/region=/phrase=/UNGRADED_CLAIMS) never collide with the
-# adjudicated field/value tokens. The detail= sentence is opaque trailing text
-# and is excluded from the tokens the pass itself mints.
+# Do not widen the ungraded line's minted field set to a token the adjudication
+# also mints: the two vocabularies are disjoint only by that fixed choice of
+# field names, which nothing enforces. detail= is opaque trailing text, excluded.
 _cvp_rc, _cvp_out = _cvp_run(
     '## Current Behavior\n\nThe fixture was verified against main.\n')
 for _u_line in _cvp_ungraded_lines(_cvp_out):
@@ -25979,6 +25975,50 @@ _cvp_rc, _cvp_out = _cvp_run(
 assert_eq("#1634 helper: a collocation preceded by letters ('unverified against') is not a "
           "detection", True, _cvp_ungraded_lines(_cvp_out) == []
           and 'UNGRADED_CLAIMS total=0' in _cvp_out)
+
+# The TRAILING guard of the same lookaround pair, which the leading case above
+# leaves unexercised: a phrase continued by a letter is a different word.
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\nThis was verified againstable main at drafting.\n')
+assert_eq("#1634 helper: a collocation followed by letters ('verified againstable') is not a "
+          "detection", True, _cvp_ungraded_lines(_cvp_out) == []
+          and 'UNGRADED_CLAIMS total=0' in _cvp_out)
+# Positive control on the same sentence shape: only the trailing letters differ,
+# so the rejection above is the boundary guard and not an unrelated precondition.
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\nThis was verified against main at drafting.\n')
+assert_eq("#1634 helper: the same sentence without the trailing letters IS a detection",
+          1, len(_cvp_ungraded_lines(_cvp_out)))
+
+# --- test_ungraded_graded_span_upper_bound_is_exclusive ---------------------
+# The exclusion test is `low <= start < high`: a collocation at or past a graded
+# span's bound is NOT covered by it. The in-span case is asserted above; this is
+# the other side of that bound, which no assertion reached.
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    '**Verified:** the thing was verified against main.\n'
+    '\n'
+    'Separately, the fixture was confirmed against the base ref.\n')
+assert_eq("#1634 helper: a collocation past the graded span's bound is detected, while the one "
+          "inside it stays excluded",
+          ['ungraded_claim=1 region=Current Behavior phrase=confirmed against'],
+          [line.split(' detail=', 1)[0] for line in _cvp_ungraded_lines(_cvp_out)])
+
+# --- test_ungraded_fenced_heading_does_not_open_a_region --------------------
+# The documented `present`-gate divergence: `extract_section` is fence-blind, so
+# a fenced `## Current Behavior` marks the section present, while the region walk
+# skips fenced lines and opens nothing — the safe direction (no detection minted).
+_cvp_fenced_heading = ('```\n## Current Behavior\n```\n\n'
+                       'The fixture was verified against main.\n')
+_cvp_rc, _cvp_out = _cvp_run(_cvp_fenced_heading)
+assert_eq("#1634 helper: a premise heading that exists only inside a fence opens no region, so "
+          "the collocation below it is not detected", True,
+          _cvp_ungraded_lines(_cvp_out) == [] and 'UNGRADED_CLAIMS total=0' in _cvp_out)
+# Positive control: the identical body with the fence removed detects it, so the
+# rejection above is the fenced heading and not the sentence or its placement.
+_cvp_rc, _cvp_out = _cvp_run(_cvp_fenced_heading.replace('```\n', '', 2))
+assert_eq("#1634 helper: the same body with the fence removed does detect the collocation",
+          1, len(_cvp_ungraded_lines(_cvp_out)))
 
 # --- test_ungraded_numbering_counts_detections_not_matches ------------------
 # Numbering runs over the SURVIVING detections: an excluded earlier collocation
@@ -26029,6 +26069,29 @@ assert_eq("#1634 helper: a crash in the ungraded pass reports UNGRADED_CLAIMS un
           and _cvp_ungraded_lines(_cvp_bad_out) == [])
 assert_eq("#1634 helper: a crash in the ungraded pass keeps its stderr breadcrumb", True,
           'ungraded-claim pass failed' in _cvp_bad_err and 'ungraded boom' in _cvp_bad_err)
+
+# The same fence covers EMISSION, not just detection: a failure while printing
+# the lines must not reach main's catch-all, which would print a second
+# `VERIFIED_PREMISES unavailable` after an adjudicated block that is valid.
+class _CvpBoomOnIteration(list):
+    def __iter__(self):
+        raise RuntimeError('emission boom')
+
+
+check_verified_premises.find_ungraded_claims = lambda _body: _CvpBoomOnIteration()
+try:
+    _cvp_emit_rc, _cvp_emit_out, _cvp_emit_err = _cvp_run_capturing_stderr(_CVP_1441_FIXTURE)
+finally:
+    check_verified_premises.find_ungraded_claims = _cvp_prev_ungraded
+
+assert_eq("#1634 helper: a failure while EMITTING the ungraded lines is fenced too — exit code "
+          "and adjudicated block unchanged, no second VERIFIED_PREMISES line", True,
+          _cvp_emit_rc == _cvp_ug_rc
+          and _cvp_adjudicated_block(_cvp_emit_out) == _cvp_adjudicated_block(_cvp_ug_out))
+assert_eq("#1634 helper: an emission failure reports UNGRADED_CLAIMS unavailable, never total=",
+          True, 'UNGRADED_CLAIMS unavailable reason=internal-error detail=' in _cvp_emit_out
+          and 'UNGRADED_CLAIMS total=' not in _cvp_emit_out
+          and 'emission boom' in _cvp_emit_err)
 
 print()
 print("issue-audit-state: tool-owned round kinds (issue #793)")
