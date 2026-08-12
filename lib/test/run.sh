@@ -13673,6 +13673,7 @@ valid JSON with no check_runs key|{"total_count":0}
 check_runs is a scalar, not an array|{"check_runs":7}
 a check_runs element that is not an object|{"check_runs":[7]}
 a check_runs element that is null|{"check_runs":[null]}
+check_runs is an object, not an array|{"check_runs":{"a":{"conclusion":"success"}}}
 CR
 unset _label _payload
 
