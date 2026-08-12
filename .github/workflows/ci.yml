@@ -103,6 +103,12 @@ jobs:
       - name: Install PyYAML
         run: python3 -m pip install --quiet pyyaml
 
+      # Removing this step does not RED the suite — the #1621 gate in lib/test/run.sh
+      # self-skips and `lib + python tests` stays green with no Python lint running.
+      # Coupled pin: bump together with the `lint` job's ruff spec.
+      - name: Install ruff (arms the #1621 Python-lint gate)
+        run: python3 -m pip install --quiet 'ruff==0.15.*'
+
       - name: Preflight (dependency check)
         run: bash lib/preflight.sh
 
