@@ -72,7 +72,7 @@ This narrows *ceremony*, never *coverage*, and is **fail-safe**: each sweep's he
 
 **The §2.3 sweep operand (defined once here — every diff-consuming sweep below reads THIS, never its own `git diff`).** The operand every §2.3.x sweep grades is the delta **from the merge base with the configured base branch to the current working tree** — the whole branch delta, committed and uncommitted work alike. It is defined in this one place; no individual §2.3.x sweep restates it. It is deliberately **not** `git diff HEAD` / `git diff --staged` / `git diff -U0`: the durability checkpoint below commits each sweep boundary's work, so an uncommitted-only operand is near-empty by the time a sweep reads it and the sweep grades almost nothing while still recording a clean pass. Grading the whole branch delta makes a checkpoint remove nothing from any sweep's operand — the checkpoint rule and the sweeps then explain each other rather than conflicting.
 
-Resolve the operand substitution-free (the worktree tier refuses `$(…)`, backticks, `$?`, and a variable bound and read within one fence — issue #1633). First read the base branch — defaulting to `main`, never hardcoded — in its **own** fence, and read the printed value from the tool result:
+Resolve the operand substitution-free (the worktree tier refuses `$(…)`, backticks, `$?`, and a variable bound and read within one fence). First read the base branch — defaulting to `main`, never hardcoded — in its **own** fence, and read the printed value from the tool result:
 
 ```bash
 .prflow/vendor/prflow/scripts/config-get.sh .base_branch main
