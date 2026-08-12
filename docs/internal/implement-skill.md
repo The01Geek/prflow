@@ -27,13 +27,32 @@ bullet against the tree the run will build on.
   working directory. On the degraded arm where §1.1 wrote no cache, the fetched body is written to a
   file and that path is passed instead.
 - **Scope is every bullet the helper's marker recognises**, not only the ones the plan expects to
-  lean on — the run cannot know in advance which premise a later phase will rest on. The recognised
-  set is a **floor, not a closed set**: a bullet written in a spelling the marker does not recognise
-  contributes nothing to the reported total, so the total is read as a floor on the bullets present,
-  never as proof the issue carried no others.
+  lean on — the run cannot know in advance which premise a later phase will rest on. The marker's
+  `_MARKER` constant carries **three alternation arms**: (A) the pure bolded label `**Verified**` /
+  `**Verified:**`, matched anywhere including mid-sentence; (B) a line or list item opening with
+  `Verified:`, optionally bolded or backticked; and (C) a bolded run opening a list item whose first
+  word is `Verified`. The recognised set is a **floor, not a closed set, in BOTH directions** — as
+  the helper's own comment records. *Under-recognition:* a bullet written in a spelling none of the
+  three arms matches contributes nothing to the reported total, so the total is read as a floor on
+  the bullets present, never as proof the issue carried no others. *Over-recognition:* arms B and C
+  can mint a phantom bullet from ordinary prose (a bolded sentence that merely opens with the word
+  Verified, or a `Verified:`-opening line inside a fenced block or table cell); the over-recognition
+  half is the safety-relevant one, because a phantom that cites a genuinely-absent strong path can
+  reach the refuting verdict.
+- **Ungraded claims (issue #1634).** A verification asserted in a shape **none** of the three arms
+  grades — "verified against origin/main" inside a bold-bullet label, a mid-sentence "checked against
+  source" — is graded by nothing, yet an implementing run may skip its own investigation on the
+  strength of it. A second, **non-adjudicating** pass reports each such collocation-family phrase
+  found in a premise-bearing region (the `Current Behavior`, `Technical Context` and
+  `Implementation Notes` sections plus every heading line) that no recognised marker span already
+  covers and that is not inside code. These reports carry no `holds`/`refuted`/`unestablished`, move
+  no exit code, and share no token with the adjudicated vocabulary — they say one thing: this claim
+  is graded by nothing.
 - **Output.** One `bullet=<n> handle=<path-quote|path|quote|command|none> state=<holds|refuted|unestablished> detail=…`
-  line per bullet, then a `VERIFIED_PREMISES` summary line carrying the totals. The handle classes
-  and states are defined authoritatively in the helper's own module docstring.
+  line per bullet, then a `VERIFIED_PREMISES` summary line carrying the totals. On the normal path it
+  then prints one `ungraded_claim=<n> region=… phrase=… detail=…` line per ungraded claim and an
+  `UNGRADED_CLAIMS total=…` summary (emitted even when the total is zero). The handle classes,
+  states, and this ungraded class are defined authoritatively in the helper's own module docstring.
 - **Refuting is deliberately the hardest verdict to reach**, because a refutation makes the run
   discard the premise and file issue-accuracy feedback against the issue. Only a positively
   adjudicated claim refutes — a strongly-cited repository path absent from the tree, or a quoted
@@ -44,13 +63,17 @@ bullet against the tree the run will build on.
   whose fragments do not resolve, a quotation carrying no adjudicable text at all, an unreadable
   cited file, and a path resolving outside the repository (refused, not refuted). A `path` handle never reports `holds` either — the path's presence is checkable, but
   presence is not the premise.
-- **Routing (four arms).** Exit **0** with zero bullets records the falsifiable zero-findings
-  `## Progress` note; exit **0** with bullets records the clean confirmation naming the tallies;
-  exit **2** (a refuted premise) records an `issue-accuracy` reflection, **discards** that premise,
-  and investigates the surface directly from Phase 2 onward — it does **not** Block the run, because
-  a stale premise is recoverable by investigation; exit **3**, a refusal, or no output at all records
-  a `dropped-failed` reflection and treats **every** bullet as unverified. An unestablished
-  measurement is never read as a clean pass.
+- **Routing (four adjudicated arms plus the ungraded arm).** Exit **0** with zero bullets **and**
+  `UNGRADED_CLAIMS total=0` records the falsifiable zero-findings `## Progress` note — the
+  pass-complete arm is reached only when the helper reported no bullets *and* no ungraded claims, so
+  a nonzero `UNGRADED_CLAIMS total` never lands that note; exit **0** with bullets records the clean
+  confirmation naming the tallies; exit **2** (a refuted premise) records an `issue-accuracy`
+  reflection, **discards** that premise, and investigates the surface directly from Phase 2 onward —
+  it does **not** Block the run, because a stale premise is recoverable by investigation; exit **3**,
+  a refusal, or no output at all records a `dropped-failed` reflection and treats **every** bullet as
+  unverified. An unestablished measurement is never read as a clean pass. Orthogonally to the exit
+  code, **each `ungraded_claim=` line** records an `issue-accuracy` reflection naming it as an
+  ungraded claim (never a refutation) that does **not** license a skipped investigation.
 - **`handle=none` and `state=unestablished` are undecided, not refuted.** They restore exactly the
   state the run would have been in had the bullet never existed — go and check. That is the
   fail-closed direction.
