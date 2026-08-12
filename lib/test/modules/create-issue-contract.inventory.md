@@ -40,7 +40,7 @@ per-pin ad hoc:
 
 | Pin class | Post-split target | Why |
 | --- | --- | --- |
-| Content-survival — the pin asserts a contract sentence still exists somewhere in the shipped skill | `$CI_BUNDLE` (root + the 9 references, concatenated) | Which reference currently hosts a sentence is an implementation detail that may be re-partitioned; "present-and-unique in the shipped skill" is the semantically correct claim. Deleting the sentence from a reference still turns the pin RED, because the bundle is rebuilt from the real files on every run. |
+| Content-survival — the pin asserts a contract sentence still exists somewhere in the shipped skill | `$CI_BUNDLE` (root + the 15 references, concatenated) | Which reference currently hosts a sentence is an implementation detail that may be re-partitioned; "present-and-unique in the shipped skill" is the semantically correct claim. Deleting the sentence from a reference still turns the pin RED, because the bundle is rebuilt from the real files on every run. |
 | Location-sensitive — the pin asserts a sentence lives in a *specific* surface | that specific file | A bundle target would pass while the sentence sat anywhere, which is exactly what these pins exist to forbid. |
 
 The location-sensitive population is exactly:
@@ -51,16 +51,19 @@ The location-sensitive population is exactly:
 | `**The audit summary line is mandatory and always renders**` | `$CI_SKILL` (root) | Same invariant, same reason. |
 | the `s/the evidence the audit ran and which arm it took//` mutation | `$CI_SKILL` (root) | Guards the same root sentence; a bundle target would let the invariant drift out of the root. |
 | `A fallback lifecycle is **never silent**` | `$CI_REF_FB_STATEOWNER` | AC4's second never-silent sentence; the two phrasings are near-identical, so a bundle target would collide their uniqueness. |
-| the four `#614 T4` purity representatives | each fallback reference, plus an absence sweep over the root and every step reference | AC8 — the whole claim is *where* the prose is not. |
+| the ten `#614 T4` purity representatives | each fallback reference, plus an absence sweep over the root and every step reference | AC8 — the whole claim is *where* the prose is not. |
 | the three `#275` A2b anchor call-site pins (`lib/test/run.sh`) | `step-4-present-create.md` (label helpers), the root (extension load) | Each pin follows the file that now performs the call. |
 
-`$CI_BUNDLE` is assembled in-module from the root plus the nine references (never a glob, so a
-dropped reference fails LOUD rather than silently shrinking the bundle), and `lib/test/run.sh`
+`$CI_BUNDLE` is assembled in-module from the root plus the 15 references by a `references/*.md`
+glob (a dropped reference still fails LOUD via the T1 routing reconciliation, whose routing row
+would name a file that is gone, rather than silently shrinking the bundle), and `lib/test/run.sh`
 hoists an identical `CREATE_ISSUE_BUNDLE` and binds it through `CI_MOD_VARS` so these targets
-stay **resolved** under the pin-corpus meta-guard instead of dropping out of the lint. The two
-template files (`issue-template.md`, `audit-prompt-template.md`) are deliberately not bundle
-members: the split left them unchanged and they keep their own dedicated targets, so including
-them would add uniqueness collisions for prose that never moved.
+stay **resolved** under the pin-corpus meta-guard instead of dropping out of the lint. Only
+`audit-prompt-template.md` is exempt from the routing reconciliation (its consumer is a Python
+renderer, not a gated runtime read). `issue-template.md` is a routed reference that is
+nonetheless kept out of this bundle: bundle membership tracks where content-survival pins point,
+not runtime routing, and it keeps its own dedicated target (`$CI_TMPL`), so bundling it would add
+uniqueness collisions.
 
 The `#614` block itself adds the structure (T1), marker (T2), budget (T3 + the AC7 planted-defect
 positive control), purity (T4), routing-table (T6), and extension-axis (T7) assertions.

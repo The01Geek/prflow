@@ -331,16 +331,16 @@ _build_skill_bundle "review-skill" "$REVIEW_BUNDLE" "${_review_members[@]}"
 # bundle treatment through the same builder. A pin asserting that a contract sentence
 # SURVIVES the split targets this concatenated bundle; a pin asserting a sentence lives
 # in a SPECIFIC surface (the root's non-degradable invariants, the fallback purity pins)
-# keeps its specific-file target. Membership is DERIVED FROM THE TREE, never transcribed:
-# every references/*.md except the two unchanged template files is a member. A transcribed
-# stem list would let a reference added later be registered in the routing table and in the
-# contract module while this bundle silently omitted it — and every content-survival pin
-# would then assert against a bundle missing the new prose, passing green over unguarded
-# text. The contract module derives its own bundle by the SAME rule, and its T1 assertion
-# reconciles the routing table against this same on-disk set, so a reference can be neither
-# unrouted nor unbundled. The two template files (issue-template.md, audit-prompt-template.md)
-# are excluded deliberately: the split left them unchanged and they carry their own pin
-# targets, so including them would only add uniqueness collisions for prose that never moved.
+# keeps its specific-file target. Membership is DERIVED FROM THE TREE by the glob below,
+# never transcribed: every references/*.md except issue-template.md and audit-prompt-template.md
+# is a member. A transcribed stem list would let a reference added later be registered in the
+# routing table and in the contract module while this bundle silently omitted it — and every
+# content-survival pin would then assert against a bundle missing the new prose, passing green
+# over unguarded text. issue-template.md and audit-prompt-template.md are excluded from this
+# bundle deliberately: they carry their own pin targets, so including them would
+# only add uniqueness collisions for prose no bundle pin needs. Bundle membership is NOT the routing
+# reconciliation: the contract module's T1 exempts only audit-prompt-template.md, so
+# issue-template.md is routed-but-unbundled — a reference can be routed yet outside this bundle.
 CREATE_ISSUE_ROOT="$LIB/../skills/create-issue/SKILL.md"
 CREATE_ISSUE_BUNDLE="$(mktemp)" || { echo "run.sh: could not allocate the create-issue-skill bundle temp" >&2; exit 1; }
 _suite_tmp_file "$CREATE_ISSUE_BUNDLE"
@@ -46375,7 +46375,7 @@ fi
 # The registry and this full-suite call share the same lower-bound contract;
 # test_module_runner.py parses this operand and rejects any coupling drift.
 if ! devflow_run_full_suite_module "$LIB/test/modules/create-issue-contract.sh" \
-  "create-issue-contract" 285; then
+  "create-issue-contract" 292; then
   printf 'ERROR: create-issue-contract boundary could not record its result\n'
   exit 1
 fi
