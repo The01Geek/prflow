@@ -13692,15 +13692,18 @@ printf '{"check_runs":[7]}\n' > "$F1441/checkruns.json"
 _CR_ERR6="$(DEVFLOW_FX="$F1441" DEVFLOW_GH="$F1441/gh" bash "$LIB/fetch-pr-context.sh" 1441 2>&1 >/dev/null || true)"
 assert_eq "#1441: the breadcrumb carries jq's own non-object diagnostic" "yes" \
   "$(case "$_CR_ERR6" in *"non-object check-run"*) echo yes ;; *) echo no ;; esac)"
-# Never drop the counting run's 2>/dev/null: raw multi-line jq output would then
-# precede the breadcrumb and fragment the caller's one-record-per-line contract.
-assert_eq "#1441: an unusable body emits exactly one check-runs record" "1" \
-  "$(printf '%s\n' "$_CR_ERR6" | grep -c 'fetch-pr-context: check-runs')"
+# Never drop the counting run's 2>/dev/null: raw jq output would then land as its
+# own line and fragment the caller's one-record-per-line contract. Match at line
+# start — the breadcrumb carries jq's message mid-line, so only raw output counts.
+assert_eq "#1441: no raw jq output escapes alongside the breadcrumb" "0" \
+  "$(printf '%s\n' "$_CR_ERR6" | grep -c '^jq:')"
 # An rc-0 empty body is not a failed call; it must say so in its own words.
 : > "$F1441/checkruns.json"
 _CR_ERR7="$(DEVFLOW_FX="$F1441" DEVFLOW_GH="$F1441/gh" bash "$LIB/fetch-pr-context.sh" 1441 2>&1 >/dev/null || true)"
 assert_eq "#1441: an rc-0 empty body is not reported as a failed read" "yes" \
   "$(case "$_CR_ERR7" in *"returned an empty body (rc=0)"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#1441: the empty-body arm carries no read-failure wording" "no" \
+  "$(case "$_CR_ERR7" in *"check-runs read failed"*) echo yes ;; *) echo no ;; esac)"
 unset _CR_ERR1 _CR_ERR2 _CR_ERR3 _CR_ERR4 _CR_ERR5 _CR_ERR6 _CR_ERR7
 
 # Adversarial input shapes: never give `.check_runs` a `// []` default — these
