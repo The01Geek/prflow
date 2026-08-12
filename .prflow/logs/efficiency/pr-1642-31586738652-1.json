@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1642",
+  "generated_at": "2026-08-12T10:29:56Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.51",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 12.111486000000001,
+    "tokens": {
+      "input_tokens": 7382,
+      "output_tokens": 24807,
+      "cache_read_input_tokens": 6053408,
+      "cache_creation_input_tokens": 193096,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 7464,
+        "outputTokens": 74867,
+        "cacheReadInputTokens": 9995287,
+        "cacheCreationInputTokens": 716918,
+        "webSearchRequests": 0,
+        "costUSD": 12.111486000000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 42,
+    "duration_ms": 674349
+  },
+  "permission_denials": {
+    "count": 5,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"CLAUDE_SKILL_DIR=${CLAUDE_SKILL_DIR:-<empty>}\"; ls -d skills/review/phases 2>/dev/null && echo \"repo-root skills present\"; ls -d .prflow/vendor/prflow/skills/review/phases 2>/dev/null && echo \"vendored present\"",
+      "ls -d skills/review/phases 2>/dev/null && echo \"repo-root skills present\"; ls -d .prflow/vendor/prflow/skills/review/phases 2>/dev/null && echo \"vendored present\"; echo \"---\"; echo \"$CLAUDE_SKILL_DIR\"",
+      "for f in phase-1-setup phase-2-implement phase-3-review phase-4-documentation; do echo \"== $f ==\"; python3 - \"skills/implement/phases/$f.md\" <<'PY'\nimport sys,re\nt=open(sys.argv[1]).read().split('\\n')\ninb=False\nfor i,l in enumerate(t,1):\n    s=l.strip()\n    if not inb and s=='```bash': inb=True; continue\n    if inb and s=='```': inb=False; continue\n    if inb:\n        if re.search(r'\\$\\(', l) or '`' in l or '$?' in l:\n            print(i, l)\nPY\ndone",
+      "for f in skills/implement/phases/phase-1-setup.md skills/implement/phases/phase-2-implement.md skills/implement/phases/phase-3-review.md skills/implement/phases/phase-4-documentation.md; do\n  echo \"=== $f ===\"\n  grep -nE '\\$\\(|`|\\$\\?' \"$f\" | grep -vE '^\\s*[0-9]+:.*(<!--|prflow:)' | head -20\ndone",
+      "for f in skills/implement/phases/phase-1-setup.md skills/implement/phases/phase-2-implement.md skills/implement/phases/phase-3-review.md skills/implement/phases/phase-4-documentation.md; do\n  echo \"=== $f: command-subst / backtick / exit-status occurrences ===\"\n  grep -nF -e '$(' -e '`' \"$f\" | wc -l\n  grep -noF -e '$?' \"$f\" | wc -l\ndone"
+    ],
+    "total": 5,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
