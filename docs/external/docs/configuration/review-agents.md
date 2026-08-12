@@ -21,9 +21,11 @@ The transitional `devflow:` spelling of each key remains accepted for existing c
 
 | **Nested setting** | **Type and accepted values** | **Fallback or scaffold** | **Tier and security note** | **Example** |
 | --- | --- | --- | --- | --- |
-| `model` | String model identifier | No override; global or session model applies | Shared review engine. The selected model is passed to that reviewer. | `"model": "claude-opus-5"` |
+| `model` | One of `sonnet`, `opus`, `haiku`, or `fable` (the Agent tool's accepted set) | No override; global or session model applies | Shared review engine. The selected model is passed to that reviewer. A value outside the accepted set is dropped with a warning and the agent inherits the top-level `claude_model`. | `"model": "opus"` |
 | `effort` | `low`, `medium`, `high`, `xhigh` or `max` | No override; session effort applies | Shared review engine. The current client cannot apply a different effort value to each agent. Invalid values warn and fall back to the session effort. | `"effort": "low"` |
 | `iterations` | `first-only` | Absent means every applicable iteration | Review-and-fix. `first-only` removes that agent from later fix-loop iterations. | `"iterations": "first-only"` |
+
+A per-agent `model` override is expressible **only** as one of the four accepted aliases (`sonnet`, `opus`, `haiku`, `fable`). A consumer whose model is addressed through a provider route sets it at the top-level [`claude_model`](providers) rather than in an `agent_overrides` entry — that top-level setting still takes the full or provider-routed identifier the route expects.
 
 An agent-specific entry replaces the `default` entry for that agent; the default does not fill missing fields inside a specific entry. The default applies only when no specific entry exists.
 
@@ -37,11 +39,11 @@ An agent-specific entry replaces the `default` entry for that agent; the default
         "effort": "low"
       },
       "prflow:checklist-deduper": {
-        "model": "claude-sonnet-5",
+        "model": "sonnet",
         "effort": "low"
       },
       "prflow:code-reviewer": {
-        "model": "claude-opus-5",
+        "model": "opus",
         "effort": "low",
         "iterations": "first-only"
       }

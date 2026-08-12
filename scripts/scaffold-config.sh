@@ -685,7 +685,7 @@ else
               # inside a single-quoted jq program — keep it apostrophe-free.)
               .key as $k
               | if (.value | type) == "object"
-                   and (((.value.model | strings) // "") | startswith("claude-haiku-"))
+                   and (((.value.model | strings) // "") | (. == "haiku" or startswith("claude-haiku-")))
                    and (.value | has("effort"))
                    and (($userao[$k] // {}) | (type == "object" and has("effort")) | not)
                 then .value |= del(.effort) else . end)
@@ -746,13 +746,39 @@ if "$DEVFLOW_JQ" --version >/dev/null 2>&1 && "$DEVFLOW_JQ" -e . "$CONFIG" >/dev
   elif [ "$ao_type" != "object" ] && [ "$ao_type" != "null" ]; then
     log "agent_overrides is present but not an object ($ao_type); the Haiku effort-cleanup below will no-op (the non-object value is left untouched)."
   fi
+  # issue #1646: rewrite each agent_overrides `model` to its accepted alias BEFORE the
+  # Haiku effort-strip (so a rewritten Haiku id hits that strip's alias arm); keep these
+  # family arms in sync with VALID_MODELS (resolve-review-overrides.py) and the schema enum.
+  MODELALIAS_TMP="$(mktemp)"; MODELALIAS_ERR="$(mktemp)"
+  trap 'rm -f "$MODELALIAS_TMP" "$MODELALIAS_ERR"' EXIT
+  if ! "$DEVFLOW_JQ" '
+        if (.prflow_review | type) == "object" and (.prflow_review.agent_overrides | type) == "object" then
+          .prflow_review.agent_overrides |= with_entries(
+            if (.value | type) == "object" and ((.value.model | type) == "string")
+            then .value.model |= (
+              if startswith("claude-sonnet-") then "sonnet"
+              elif startswith("claude-opus-") then "opus"
+              elif startswith("claude-haiku-") then "haiku"
+              elif startswith("claude-fable-") then "fable"
+              else . end)
+            else . end)
+        else . end' "$CONFIG" > "$MODELALIAS_TMP" 2>"$MODELALIAS_ERR"; then
+    ma_err="$(cat "$MODELALIAS_ERR")"
+    log "agent_overrides model-alias rewrite failed (jq error)${ma_err:+: $ma_err}; leaving $CONFIG unchanged."
+  else
+    rewrite_config_if_changed "$CONFIG" "$MODELALIAS_TMP" \
+      "rewrote agent_overrides model values to their accepted aliases (sonnet/opus/haiku/fable) in $CONFIG." \
+      "could not compare the model-alias rewrite against $CONFIG; leaving it unchanged."
+  fi
+  rm -f "$MODELALIAS_TMP" "$MODELALIAS_ERR"
+  trap - EXIT
   CLEANUP_TMP="$(mktemp)"; CLEANUP_ERR="$(mktemp)"
   trap 'rm -f "$CLEANUP_TMP" "$CLEANUP_ERR"' EXIT
   if ! "$DEVFLOW_JQ" '
         if (.prflow_review | type) == "object" and (.prflow_review.agent_overrides | type) == "object" then
           .prflow_review.agent_overrides |= with_entries(
             if (.value | type) == "object"
-               and (((.value.model | strings) // "") | startswith("claude-haiku-"))
+               and (((.value.model | strings) // "") | (. == "haiku" or startswith("claude-haiku-")))
                and (.value | has("effort"))
             then .value |= del(.effort) else . end)
         else . end' "$CONFIG" > "$CLEANUP_TMP" 2>"$CLEANUP_ERR"; then
@@ -771,9 +797,9 @@ else
   # The backfill block above already logs the specific reason for the SAME guard
   # (jq missing / invalid JSON); cross-reference it here so this line reads as one
   # resolved cause rather than a second, distinct problem — while still emitting
-  # its own breadcrumb so the Haiku migration is never silently dependent on the
-  # backfill block for its skip notice.
-  log "skipping Haiku effort-cleanup for the same reason as the backfill skip above (jq missing or $CONFIG not valid JSON)."
+  # its own breadcrumb so the model-alias rewrite and Haiku migration are never
+  # silently dependent on the backfill block for their skip notice.
+  log "skipping Haiku effort-cleanup and the agent_overrides model-alias rewrite for the same reason as the backfill skip above (jq missing or $CONFIG not valid JSON)."
 fi
 
 # Language-aware tool/runtime auto-population. Scans the target repo and merges

@@ -12134,8 +12134,10 @@ printf '%s' '{"prflow_review":{"agent_overrides":{"default":{"effort":"medium"},
 SC_MIG_OUT="$(bash "$SC" "$SC_MIG" 2>&1)"
 assert_eq "scaffold-migration: Haiku deduper effort stripped" \
   "false" "$(jq '.prflow_review.agent_overrides["prflow:checklist-deduper"] | has("effort")' "$SC_MIG/.prflow/config.json")"
-assert_eq "scaffold-migration: Haiku deduper model preserved" \
-  "claude-haiku-4-5-20251001" "$(jq -r '.prflow_review.agent_overrides["prflow:checklist-deduper"].model' "$SC_MIG/.prflow/config.json")"
+assert_eq "scaffold-migration: Haiku deduper model rewritten to the haiku alias (issue #1646)" \
+  "haiku" "$(jq -r '.prflow_review.agent_overrides["prflow:checklist-deduper"].model' "$SC_MIG/.prflow/config.json")"
+assert_eq "scaffold-migration: Opus code-reviewer model rewritten to the opus alias (issue #1646)" \
+  "opus" "$(jq -r '.prflow_review.agent_overrides["prflow:code-reviewer"].model' "$SC_MIG/.prflow/config.json")"
 assert_eq "scaffold-migration: second Haiku-pinned entry (non-deduper) also stripped" \
   "false" "$(jq '.prflow_review.agent_overrides["prflow:checklist-generator"] | has("effort")' "$SC_MIG/.prflow/config.json")"
 assert_eq "scaffold-migration: non-Haiku override effort left untouched" \
@@ -12158,6 +12160,36 @@ assert_eq "scaffold-migration: second run is a byte-identical no-op" \
 assert_eq "scaffold-migration: clean config does NOT re-emit the cleanup log line" "no" \
   "$(printf '%s' "$SC_MIG_OUT2" | grep -q "removed unsupported 'effort' from Haiku-pinned" && echo yes || echo no)"
 rm -rf "$SC_MIG"
+
+# 6h. issue #1646 model-alias rewrite: an existing config whose agent_overrides
+#     `model` values are full Anthropic family identifiers is rewritten to the
+#     accepted aliases (sonnet/opus/haiku/fable) so the operator keeps the reviewer
+#     tier they chose after the resolver started dropping full identifiers. An
+#     UNRECOGNIZED value and the top-level `claude_model` are left untouched, and a
+#     second pass is a byte-identical no-op. Keys carry the current prflow: spelling.
+SC_ALIAS="$(mktemp -d)"; mkdir -p "$SC_ALIAS/.prflow"
+printf '%s' '{"claude_model":"claude-opus-4-8","prflow_review":{"agent_overrides":{"prflow:checklist-deduper":{"model":"claude-sonnet-5"},"prflow:code-reviewer":{"model":"claude-opus-5","effort":"high"},"prflow:comment-analyzer":{"model":"claude-fable-5"},"prflow:pr-test-analyzer":{"model":"z-ai/glm-5.2"}}}}' \
+  > "$SC_ALIAS/.prflow/config.json"
+SC_ALIAS_OUT="$(bash "$SC" "$SC_ALIAS" 2>&1)"
+assert_eq "scaffold-alias(#1646): claude-sonnet-* rewritten to the sonnet alias" \
+  "sonnet" "$(jq -r '.prflow_review.agent_overrides["prflow:checklist-deduper"].model' "$SC_ALIAS/.prflow/config.json")"
+assert_eq "scaffold-alias(#1646): claude-opus-* rewritten to the opus alias" \
+  "opus" "$(jq -r '.prflow_review.agent_overrides["prflow:code-reviewer"].model' "$SC_ALIAS/.prflow/config.json")"
+assert_eq "scaffold-alias(#1646): claude-fable-* rewritten to the fable alias" \
+  "fable" "$(jq -r '.prflow_review.agent_overrides["prflow:comment-analyzer"].model' "$SC_ALIAS/.prflow/config.json")"
+assert_eq "scaffold-alias(#1646): an unrecognized model value is left untouched" \
+  "z-ai/glm-5.2" "$(jq -r '.prflow_review.agent_overrides["prflow:pr-test-analyzer"].model' "$SC_ALIAS/.prflow/config.json")"
+assert_eq "scaffold-alias(#1646): the top-level claude_model is left untouched" \
+  "claude-opus-4-8" "$(jq -r '.claude_model' "$SC_ALIAS/.prflow/config.json")"
+assert_eq "scaffold-alias(#1646): the rewrite emits the documented log line" "yes" \
+  "$(printf '%s' "$SC_ALIAS_OUT" | grep -q "rewrote agent_overrides model values to their accepted aliases" && echo yes || echo no)"
+SC_ALIAS_BEFORE="$(cat "$SC_ALIAS/.prflow/config.json")"
+SC_ALIAS_OUT2="$(bash "$SC" "$SC_ALIAS" 2>&1)"
+assert_eq "scaffold-alias(#1646): a second pass over the rewritten config is byte-identical" \
+  "$SC_ALIAS_BEFORE" "$(cat "$SC_ALIAS/.prflow/config.json")"
+assert_eq "scaffold-alias(#1646): the clean second pass does NOT re-emit the rewrite log line" "no" \
+  "$(printf '%s' "$SC_ALIAS_OUT2" | grep -q "rewrote agent_overrides model values to their accepted aliases" && echo yes || echo no)"
+rm -rf "$SC_ALIAS"
 
 # 6b. jq unavailable during the Haiku effort-cleanup: a config that DOES carry a
 #     stale Haiku+effort combo must be LEFT UNTOUCHED (cleanup skipped, not
@@ -12222,14 +12254,14 @@ rm -rf "$SC_DR_BAD"
 #     cleanup). Start from a COMPLETE example-derived config so the ONLY thing the
 #     backfill could change is the grafted effort — making this a precise probe.
 SC_GRAFT="$(mktemp -d)"; mkdir -p "$SC_GRAFT/.prflow"
-jq '.prflow_review.agent_overrides["prflow:checklist-deduper"] = {"model":"claude-haiku-4-5-20251001"}' \
+jq '.prflow_review.agent_overrides["prflow:checklist-deduper"] = {"model":"haiku"}' \
   "$TPL_DIR/config.example.json" > "$SC_GRAFT/.prflow/config.json"
 SC_GRAFT_BEFORE="$(cat "$SC_GRAFT/.prflow/config.json")"
 SC_GRAFT_OUT="$(bash "$SC" "$SC_GRAFT" 2>&1)"
 assert_eq "scaffold-graft-guard: backfill does NOT graft effort onto a Haiku deduper" \
   "false" "$(jq '.prflow_review.agent_overrides["prflow:checklist-deduper"] | has("effort")' "$SC_GRAFT/.prflow/config.json")"
-assert_eq "scaffold-graft-guard: Haiku deduper model preserved" \
-  "claude-haiku-4-5-20251001" "$(jq -r '.prflow_review.agent_overrides["prflow:checklist-deduper"].model' "$SC_GRAFT/.prflow/config.json")"
+assert_eq "scaffold-graft-guard: Haiku deduper model preserved (haiku alias, issue #1646)" \
+  "haiku" "$(jq -r '.prflow_review.agent_overrides["prflow:checklist-deduper"].model' "$SC_GRAFT/.prflow/config.json")"
 assert_eq "scaffold-graft-guard: re-scaffold is a byte-identical quiet no-op" \
   "$SC_GRAFT_BEFORE" "$(cat "$SC_GRAFT/.prflow/config.json")"
 assert_eq "scaffold-graft-guard: quiet no-op emits neither backfill nor cleanup log" "yes" \
@@ -12246,7 +12278,7 @@ rm -rf "$SC_GRAFT"
 #     SURVIVED the backfill into the cleanup. Start from a COMPLETE example-derived
 #     config so the backfill is otherwise a byte-identical no-op.
 SC_PRESERVE="$(mktemp -d)"; mkdir -p "$SC_PRESERVE/.prflow"
-jq '.prflow_review.agent_overrides["prflow:checklist-deduper"] = {"model":"claude-haiku-4-5-20251001","effort":"low"}' \
+jq '.prflow_review.agent_overrides["prflow:checklist-deduper"] = {"model":"haiku","effort":"low"}' \
   "$TPL_DIR/config.example.json" > "$SC_PRESERVE/.prflow/config.json"
 SC_PRESERVE_OUT="$(bash "$SC" "$SC_PRESERVE" 2>&1)"
 # The discriminator: the cleanup log fires ⇒ the user's effort survived the backfill
@@ -12259,8 +12291,8 @@ assert_eq "scaffold-graft-guard: preserve-branch sees no backfill rewrite (graft
   "no" "$(printf '%s' "$SC_PRESERVE_OUT" | grep -q 'backfilled newly-added keys' && echo yes || echo no)"
 assert_eq "scaffold-graft-guard: preserve-branch effort ultimately removed" \
   "false" "$(jq '.prflow_review.agent_overrides["prflow:checklist-deduper"] | has("effort")' "$SC_PRESERVE/.prflow/config.json")"
-assert_eq "scaffold-graft-guard: preserve-branch Haiku model kept through both passes" \
-  "claude-haiku-4-5-20251001" "$(jq -r '.prflow_review.agent_overrides["prflow:checklist-deduper"].model' "$SC_PRESERVE/.prflow/config.json")"
+assert_eq "scaffold-graft-guard: preserve-branch Haiku model kept through both passes (haiku alias, issue #1646)" \
+  "haiku" "$(jq -r '.prflow_review.agent_overrides["prflow:checklist-deduper"].model' "$SC_PRESERVE/.prflow/config.json")"
 rm -rf "$SC_PRESERVE"
 
 # 6f. Robustness: a non-string `model` on ONE agent_overrides entry must not
@@ -12273,7 +12305,7 @@ rm -rf "$SC_PRESERVE"
 #     complete example-derived config with a valid Haiku+effort entry AND a
 #     non-string-model entry.
 SC_BADMODEL="$(mktemp -d)"; mkdir -p "$SC_BADMODEL/.prflow"
-jq '.prflow_review.agent_overrides["prflow:checklist-generator"] = {"model":"claude-haiku-4-5-20251001","effort":"high"}
+jq '.prflow_review.agent_overrides["prflow:checklist-generator"] = {"model":"haiku","effort":"high"}
     | .prflow_review.agent_overrides["prflow:checklist-verifier"] = {"model":{"oops":true},"effort":"low"}' \
   "$TPL_DIR/config.example.json" > "$SC_BADMODEL/.prflow/config.json"
 bash "$SC" "$SC_BADMODEL" >/dev/null 2>&1; SC_BADMODEL_RC=$?
@@ -12828,7 +12860,7 @@ assert_eq "agent_overrides: shipped deduper override exists, pins Sonnet 5, and 
   "$(jq -r '
       (.prflow_review.agent_overrides["prflow:checklist-deduper"]) as $d
       | if ($d | type) != "object" then "missing-entry"
-        elif (($d.model // "") != "claude-sonnet-5") then "not-sonnet"
+        elif (($d.model // "") != "sonnet") then "not-sonnet"
         elif ($d | has("effort") | not) then "no-effort"
         else "ok" end' "$TPL_DIR/config.example.json")"
 # Claude Haiku rejects `effort` with HTTP 400 (supported only on Opus 4.5–4.8,
@@ -12841,7 +12873,7 @@ assert_eq "agent_overrides: no shipped Haiku-pinned override carries an effort k
   "$(jq -r '
       [ (.prflow_review.agent_overrides // {}) | to_entries[]
         | select((.value | type) == "object")
-        | select(((.value.model // "") | startswith("claude-haiku-")) and (.value | has("effort"))) ]
+        | select(((.value.model // "") | (. == "haiku" or startswith("claude-haiku-"))) and (.value | has("effort"))) ]
       | if length == 0 then "ok" else "haiku-with-effort" end' "$TPL_DIR/config.example.json")"
 
 # ────────────────────────────────────────────────────────────────────────────
