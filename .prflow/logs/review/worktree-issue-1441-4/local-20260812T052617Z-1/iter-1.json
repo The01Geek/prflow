@@ -1,0 +1,288 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-12T05:26:17Z",
+  "fix_commit_sha": "86013ae88",
+  "fix_files": [
+    "lib/fetch-pr-context.sh",
+    "lib/test/run.sh",
+    ".changeset/issue-1441-ci-failures-conclusion-denylist.md"
+  ],
+  "loop_role": "fix",
+  "current_step": "3.5",
+  "current_substep": null,
+  "pending_dispatch": null,
+  "sweep_evidence": {
+    "status": "run"
+  },
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "dispatched_effort": [
+    {
+      "agent": "prflow:checklist-generator",
+      "phase": "1",
+      "requested": "low",
+      "resolved": "low",
+      "application_point": "session-fallback",
+      "effective": null,
+      "fallback_reason": "per-agent effort 'low' resolved but not applied: no in-session per-agent effort seam"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "phase": "3",
+      "requested": "low",
+      "resolved": "low",
+      "application_point": "session-fallback",
+      "effective": null,
+      "fallback_reason": "effort not applicable per-agent; model override 'claude-opus-4-8' DROPPED — the Agent tool rejects it (InputValidationError: expected sonnet|opus|haiku|fable), so the agent was dispatched unmodified rather than not at all"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "phase": "3",
+      "requested": "low",
+      "resolved": "low",
+      "application_point": "session-fallback",
+      "effective": null,
+      "fallback_reason": "no in-session per-agent effort seam"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "phase": "3",
+      "requested": "low",
+      "resolved": "low",
+      "application_point": "session-fallback",
+      "effective": null,
+      "fallback_reason": "no in-session per-agent effort seam"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "phase": "3",
+      "requested": "low",
+      "resolved": "low",
+      "application_point": "session-fallback",
+      "effective": null,
+      "fallback_reason": "no in-session per-agent effort seam"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "phase": "3",
+      "requested": "low",
+      "resolved": "low",
+      "application_point": "session-fallback",
+      "effective": null,
+      "fallback_reason": "no in-session per-agent effort seam"
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "checklist_summary": {
+    "total": 21,
+    "passed": 17,
+    "failed": 3,
+    "inconclusive": 1,
+    "lite": 1,
+    "agent": 20,
+    "normalized_count": 0,
+    "field_defect_fail_count": 0
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:checklist-verifier",
+      "severity": "Critical",
+      "description": "VC-19/VC-20: a response body parsing to ZERO JSON documents (whitespace-only) passed the shell -z guard, and the -n/inputs filter returned a clean 0 that satisfied the ^[0-9]+$ guard — reporting the head as having no CI failures. A fail-open regression introduced by this diff's own -n/inputs form (the pre-change filter emitted nothing on the same input and correctly tripped the -z guard).",
+      "defect_signature": {
+        "file": "lib/fetch-pr-context.sh",
+        "line_range": [
+          274,
+          293
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "The scenario stub matched on the path substring and ignored flags, so the AC5 two-page fixture was served whether or not the shipped command carried --paginate. Deleting --paginate left every new assertion green — the block proved the jq merge, not the pagination half of the fix.",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          13554,
+          13678
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "The added inline comment in lib/fetch-pr-context.sh ran to four physical source lines, over CLAUDE.md's three-line prevention-only cap.",
+      "defect_signature": {
+        "file": "lib/fetch-pr-context.sh",
+        "line_range": [
+          282,
+          285
+        ],
+        "kind": "style"
+      },
+      "corroboration_count": 3,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "Both fail-safe arms discarded every diagnostic, so a 503, an auth failure, a rate-limit stop mid-pagination and a malformed body all collapsed into the same silent unknown.",
+      "defect_signature": {
+        "file": "lib/fetch-pr-context.sh",
+        "line_range": [
+          275,
+          292
+        ],
+        "kind": "other"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "No coverage for a check_runs element that is not an object.",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          13640,
+          13650
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "Several new test-block comments carried derivation and design narrative rather than naming the wrong change they prevent.",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          13530,
+          13637
+        ],
+        "kind": "style"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "2>&1 on the gh capture couples stderr into the JSON stream; --paginate widens that surface. Direction is safe (fails closed into unknown) but a healthy PR can be converted into a forced LLM analysis.",
+      "defect_signature": {
+        "file": "lib/fetch-pr-context.sh",
+        "line_range": [
+          275,
+          277
+        ],
+        "kind": "api_misuse"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "deferred"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "86013ae88"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "86013ae88"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "86013ae88"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "86013ae88"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "applied",
+      "commit": "86013ae88"
+    },
+    {
+      "finding_id": "F-6",
+      "decision": "applied",
+      "commit": "86013ae88"
+    },
+    {
+      "finding_id": "F-7",
+      "decision": "deferred",
+      "source_file": "lib/fetch-pr-context.sh",
+      "claim_text": "2>&1 on the gh capture couples stderr into the JSON stream",
+      "skip_category": "out-of-scope",
+      "evidence": "the 2>&1 capture is pre-existing (git log -L confirms it predates this branch; the diff only added ?per_page=100 to that line), it fails CLOSED into ci_status_unknown, and decoupling it means restructuring the capture — a change to untouched pre-existing behavior beyond this issue's scope",
+      "parking_evidence": {
+        "basis": "pre-existing behavior the diff did not author, whose failure direction is already safe",
+        "failing_input": "a gh run that exits 0 while writing a deprecation or rate-limit notice to stderr",
+        "source": "lib/fetch-pr-context.sh:275 — the 2>&1 predates this branch",
+        "finding_ref": {
+          "iter": 1,
+          "index": 6
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 6,
+    "fix_diff_lines": 67,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "not_verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "ran_at": null,
+    "reviewed_sha": null,
+    "verdict": null,
+    "coverage": null,
+    "reviewers_dispatched": [],
+    "expected_reviewers": [],
+    "reason": null,
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

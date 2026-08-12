@@ -1,0 +1,39 @@
+{
+ "pairs": [
+  {
+   "item": {
+    "id": "VC-12",
+    "category": "data_format_assumption",
+    "claim": "Omitting a `.check_runs // []` default is intentional so a malformed body errors into the numeric guard rather than counting as 0 - but `.check_runs[]` on a valid object lacking the key might yield empty (not an error) in jq, which would produce `0`, not an error.",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "lib/fetch-pr-context.sh"
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-issue-1441-4/local-20260812T052617Z-1/verdicts/iter-1/VC-12-t7g3v9.json",
+   "response_text": "{\"id\":\"VC-12\",\"verdict\":\"FAIL\",\"evidence\":\"Executed the shipped filter against a valid object lacking the check_runs key: jq raised 'Cannot iterate over null (null)' with a nonzero exit. This is a jq ERROR, not an empty/0 result, so the claim's central worry is factually wrong: the code errors exactly as its comment intends and trips the -z guard, setting CI_STATUS_UNKNOWN=true.\",\"file_checked\":\"lib/fetch-pr-context.sh:282-293\",\"property_proven\":false,\"inaccuracy_scope\":\"generated_claim_text\"}"
+  },
+  {
+   "item": {
+    "id": "VC-19",
+    "category": "absolute_claim",
+    "claim": "The comment asserts a universal: that omitting `// []` means a malformed body ALWAYS errors into the guard rather than counting as 0.",
+    "claim_provenance": "source_authored",
+    "source_excerpt": "never adopt derive-review-preconditions.sh's `.check_runs // []` default here: a malformed body must error into the guard below, not count as 0.",
+    "source_file": "lib/fetch-pr-context.sh"
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-issue-1441-4/local-20260812T052617Z-1/verdicts/iter-1/VC-19-w2c6h5.json",
+   "response_text": "{\"id\":\"VC-19\",\"verdict\":\"FAIL\",\"evidence\":\"Falsified: a whitespace-only body passes the shell -z guard, then the jq filter over zero inputs documents yields length 0 with exit 0, so the numeric regex guard accepts '0' and CI_FAILURES=0 with CI_STATUS_UNKNOWN false - a malformed body silently reads as a clean 0.\",\"file_checked\":\"lib/fetch-pr-context.sh:274-293\",\"property_proven\":false,\"inaccuracy_scope\":\"source_authored_text\"}"
+  },
+  {
+   "item": {
+    "id": "VC-20",
+    "category": "absolute_claim",
+    "claim": "AC6 asserts the three fail-safe conditions are 'complete by construction' - exactly three.",
+    "claim_provenance": "source_authored",
+    "source_excerpt": "Exactly these three - complete by construction, per the block today, where the first two share one `if` arm and the guard is the second arm.",
+    "source_file": "lib/fetch-pr-context.sh"
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-issue-1441-4/local-20260812T052617Z-1/verdicts/iter-1/VC-20-w2c6h5.json",
+   "response_text": "{\"id\":\"VC-20\",\"verdict\":\"FAIL\",\"evidence\":\"The same whitespace-only-body counter-example breaks the 'exactly three, complete by construction' framing: gh exit 0, string non-empty per -z, jq over zero inputs yields numeric '0' which the regex guard accepts, so CI status is effectively unreadable yet the code reports a clean count.\",\"file_checked\":\"lib/fetch-pr-context.sh:272-293\",\"property_proven\":false,\"inaccuracy_scope\":\"source_authored_text\"}"
+  }
+ ]
+}
