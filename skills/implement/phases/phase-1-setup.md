@@ -369,8 +369,10 @@ git push -u origin HEAD
 
 Then tick the Setup phase in the workpad's `## Progress` checklist:
 ```bash
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --tick-progress "branch & workpad"
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --tick-progress "workpad"
 ```
+
+**Tier-refusal arm.** When the tick invocation is refused outright by the tier — a local-tier classifier denial message, an rc 127, or a **silent** cloud matcher denial (no exit code from the helper at all) — record `workpad.py update $ISSUE_NUMBER --reflection-kind note --reflection "Phase 1.5: the Setup tick was refused by this tier (<denial/rc 127>) — the '## Progress' Setup row stayed unticked this run"` and **continue**; a permission boundary must not end the run at Phase 1. A tick that *ran* and exited non-zero is not this arm — it stays governed by SKILL.md's existing re-resolve-or-Blocked contract.
 
 ### 1.6 Issue-Claim Audit
 

@@ -2122,8 +2122,8 @@ assert_eq("#1462 live tick substrings were derived from the phase files", True,
 
 # --- #1630 no live tick operand carries a shell metacharacter ---------------
 # The auto-mode classifier refused §1.5's mandated `--tick-progress
-# "branch & workpad"` (the `&` read as shell control rather than argument
-# text), leaving the Setup row unticked mid-run. Guard the class: no quoted
+# "branch & workpad"` (its operand carried `&`), leaving the Setup row unticked
+# mid-run. Guard the class: no quoted
 # `--tick-progress` operand under skills/implement/ may carry a character from
 # `& ; | $ ` ` ( ) < >`. Scope: this reads the same `_live_ticks` set derived
 # above — quoted `--tick-progress` literals under skills/implement/ ONLY. The
