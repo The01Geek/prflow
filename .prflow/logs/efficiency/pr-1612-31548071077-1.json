@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1612",
+  "generated_at": "2026-08-12T00:00:22Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.38",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 5.334113,
+    "tokens": {
+      "input_tokens": 51,
+      "output_tokens": 23009,
+      "cache_read_input_tokens": 4509485,
+      "cache_creation_input_tokens": 157958,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 65,
+        "outputTokens": 28876,
+        "cacheReadInputTokens": 4894891,
+        "cacheCreationInputTokens": 251536,
+        "webSearchRequests": 0,
+        "costUSD": 5.334113,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 34,
+    "duration_ms": 438926
+  },
+  "permission_denials": {
+    "count": 6,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-unset}\"",
+      "echo \"run_id=${GITHUB_RUN_ID:-none} attempt=${GITHUB_RUN_ATTEMPT:-none}\"; mkdir -p .prflow/tmp/review/pr-1612/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}; gh pr diff 1612 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1612/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}/diff.patch | head -5; echo \"---STAT---\"; gh pr diff 1612 --patch | grep -E '^diff --git' ",
+      "echo \"run_id=$GITHUB_RUN_ID attempt=$GITHUB_RUN_ATTEMPT\"",
+      "mkdir -p .prflow/tmp/review/pr-1612/run; gh pr diff 1612 > .prflow/tmp/review/pr-1612/run/diff.patch; grep -E '^diff --git' .prflow/tmp/review/pr-1612/run/diff.patch",
+      "git show 95eca81ac571c4727b4a32bc8ca1e6c426e36319:skills/create-issue/references/step-3-6-audit.md | tee .prflow/tmp/review/pr-1612/run/head-step36.md >/dev/null; echo \"written bytes:\"; wc -c .prflow/tmp/review/pr-1612/run/head-step36.md; echo \"=== resolve ACs ===\"; .prflow/vendor/prflow/scripts/workpad.py acs-resolve 1601 --pr 1612 2>.prflow/tmp/review/pr-1612/run/acs.err; echo \"acs-rc=$?\"; echo \"--- err ---\"; cat .prflow/tmp/review/pr-1612/run/acs.err",
+      "echo \"=== four-arm text in BASE step-3-6-audit.md? ===\"; git show 2afc25323ebe5aeacf8af46e3bff7e89a4f880d8:skills/create-issue/references/step-3-6-audit.md | grep -c \"recurrence of a previously-RESOLVED\" || true; echo \"=== four-arm text in fallback-audit-round-reconciliation.md (head)? ===\"; git show 95eca81ac571c4727b4a32bc8ca1e6c426e36319:skills/create-issue/references/fallback-audit-round-reconciliation.md | grep -c \"recurrence of a previously-RESOLVED\" || true; echo \"=== reference file count …[per-command-truncated]"
+    ],
+    "total": 6,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
