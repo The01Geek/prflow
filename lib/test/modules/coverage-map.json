@@ -1208,6 +1208,10 @@
       "note": "",
       "owner": "unmodularized"
     },
+    "1594": {
+      "note": "lint-reported-base-dir-arm.py: the reported-base-directory-first arm lint — a value-consuming ${CLAUDE_SKILL_DIR:-…} anchor expansion at an enrolled site with no sentinel ahead of it goes RED (fenced and inline-code shapes), an anchor followed by a helper path passes, and the empty-inventory/absent-file/unreadable-file fail-closed arms; plus the real-tree clean gate and --print-inventory exposure",
+      "owner": "unmodularized"
+    },
     "1595": {
       "note": "the reference-size ceiling in lint-reference-size.py: size verdicts either side of the 61750-byte threshold, the start-marker-without-end exclusion, live/expired/outside-the-recorded-set/outside-the-population exemption semantics, the hand-editable record's malformed-shape matrix, the whole-tree empty-family and empty-skill-root refusals, the unreadable-file and unestablishable-population fail-closed arms, the threshold derivation, and the real-tree run reconciled against an independently derived per-namespace population",
       "owner": "unmodularized"
