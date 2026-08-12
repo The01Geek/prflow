@@ -286,12 +286,14 @@ else
     # Never filter `.` instead of `-n`/`inputs`: --paginate concatenates one
     # object per page, so a per-input filter prints one length per page.
     # Never default `.check_runs`, and never drop the zero-page error arm.
-    _CI_COUNT="$(echo "$_CI_RUNS_JSON" | "$DEVFLOW_JQ" -n '[inputs] as $pages | if ($pages | length) == 0 then error("no check-run pages") else [$pages[] | .check_runs[] | select(.conclusion != null and .conclusion != "success" and .conclusion != "neutral" and .conclusion != "skipped" and .conclusion != "cancelled" and .conclusion != "stale")] | length end' 2>/dev/null || true)"
+    _CI_COUNT="$(echo "$_CI_RUNS_JSON" | "$DEVFLOW_JQ" -n '[inputs] as $pages | if ($pages | length) == 0 then error("no check-run pages") else [$pages[] | .check_runs[] | if type == "object" then . else error("non-object check-run") end | select(.conclusion != null and .conclusion != "success" and .conclusion != "neutral" and .conclusion != "skipped" and .conclusion != "cancelled" and .conclusion != "stale")] | length end' 2>/dev/null || true)"
     if [ -z "$_CI_COUNT" ] || ! [[ "$_CI_COUNT" =~ ^[0-9]+$ ]]; then
         CI_STATUS_UNKNOWN="true"
         CI_FAILURES="1"
+        # Keep this one line: a caller splits our stderr on newlines into
+        # separate records, so an unstripped body fragments into phantom rows.
         printf 'fetch-pr-context: check-runs body yielded no usable count; ci_status_unknown=true; body began: %.200s\n' \
-            "${_CI_RUNS_JSON:-<empty>}" >&2
+            "${_CI_RUNS_JSON//$'\n'/ }" >&2
     else
         CI_FAILURES="$_CI_COUNT"
     fi

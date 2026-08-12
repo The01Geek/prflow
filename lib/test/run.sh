@@ -13638,15 +13638,28 @@ cr1441 "gh returns an empty body" "1" "true"
 # rows below the suite stays green while the arms become indistinguishable.
 printf '{"check_runs":[{"conclusion":"success"}]}\n' > "$F1441/checkruns.json"
 _CR_ERR1="$(DEVFLOW_FX="$F1441" DEVFLOW_GH="$F1441/gh" DEVFLOW_CR_MODE=exit-nonzero bash "$LIB/fetch-pr-context.sh" 1441 2>&1 >/dev/null || true)"
-assert_eq "#1441: the read-failure arm names its exit status" "yes" \
-  "$(case "$_CR_ERR1" in *"check-runs read failed (rc="*) echo yes ;; *) echo no ;; esac)"
+# Pin the exit-status VALUE, not just the label: matching `rc=` alone stays green
+# when the argument is dropped, which is the regression this row names.
+assert_eq "#1441: the read-failure arm reports the failing exit status" "yes" \
+  "$(case "$_CR_ERR1" in *"check-runs read failed (rc=1)"*) echo yes ;; *) echo no ;; esac)"
 printf 'this is not json at all\n' > "$F1441/checkruns.json"
 _CR_ERR2="$(DEVFLOW_FX="$F1441" DEVFLOW_GH="$F1441/gh" bash "$LIB/fetch-pr-context.sh" 1441 2>&1 >/dev/null || true)"
-assert_eq "#1441: the unusable-body arm names the body it could not parse" "yes" \
-  "$(case "$_CR_ERR2" in *"yielded no usable count"*) echo yes ;; *) echo no ;; esac)"
-assert_eq "#1441: the two fail-safe arms are distinguishable" "no" \
-  "$(case "$_CR_ERR2" in *"check-runs read failed (rc="*) echo yes ;; *) echo no ;; esac)"
-unset _CR_ERR1 _CR_ERR2
+# Pin the QUOTED BODY, not the arm's label: the label predates the body clause,
+# so matching it stays green when the clause this row names is deleted.
+assert_eq "#1441: the unusable-body arm quotes the body it could not parse" "yes" \
+  "$(case "$_CR_ERR2" in *"body began: this is not json at all"*) echo yes ;; *) echo no ;; esac)"
+# Check both directions below: a one-sided check stays green once the fail-safe
+# arms drift onto shared wording, which is what makes them indistinguishable.
+assert_eq "#1441: the read-failure arm carries no unusable-body wording" "no" \
+  "$(case "$_CR_ERR1" in *"yielded no usable count"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#1441: the unusable-body arm carries no read-failure wording" "no" \
+  "$(case "$_CR_ERR2" in *"check-runs read failed"*) echo yes ;; *) echo no ;; esac)"
+# A breadcrumb must stay one line: a caller splits our stderr into records.
+printf 'not json line one\nnot json line two\n' > "$F1441/checkruns.json"
+_CR_ERR3="$(DEVFLOW_FX="$F1441" DEVFLOW_GH="$F1441/gh" bash "$LIB/fetch-pr-context.sh" 1441 2>&1 >/dev/null || true)"
+assert_eq "#1441: the quoted body is newline-stripped to one line" "1" \
+  "$(printf '%s\n' "$_CR_ERR3" | grep -c 'body began:')"
+unset _CR_ERR1 _CR_ERR2 _CR_ERR3
 
 # Adversarial input shapes: never give `.check_runs` a `// []` default — these
 # must error into the fail-safe guard, not be laundered into a clean 0.
@@ -13659,6 +13672,7 @@ a body that is not JSON|this is not json at all
 valid JSON with no check_runs key|{"total_count":0}
 check_runs is a scalar, not an array|{"check_runs":7}
 a check_runs element that is not an object|{"check_runs":[7]}
+a check_runs element that is null|{"check_runs":[null]}
 CR
 unset _label _payload
 
