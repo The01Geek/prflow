@@ -36331,6 +36331,8 @@ assert_pin_unique "#363 grounding block states the CONCLUSIONS are API facts, no
   '> doubt the conclusions or to declare the CI evidence unusable.' "$RGB_SH"
 assert_pin_unique "#363 grounding block states an unlisted command is denied and consumes budget without executing" \
   '> Attempting one consumes budget and produces no execution' "$RGB_SH"
+assert_pin_unique "#1629 grounding block states a self-composed verdict comment is not a verdict" \
+  '> is not a verdict — it reads like an approval to a human while counting as' "$RGB_SH"
 
 # Both callers feed the block from summarize-ci-checks.sh, never assume a green CI,
 # and render through the single shared renderer.
@@ -36468,7 +36470,30 @@ assert_eq "#363 generic mode still states the permitted commands, the shapes, an
 _GB363_REV="$(HEAD_SHA=deadbeef CI_SUMMARY='ci: success' ALLOWED_TOOLS='Read' HARDENED_PATHS='a/b.md' MODE=review bash "$RGB_SH")"
 assert_eq "#363 review mode still emits both sections generic mode omits (the absence rows' positive control)" "yes-yes" \
   "$(case "$_GB363_REV" in *'CI results already observed for the reviewed commit'*) echo yes ;; *) echo no ;; esac)-$(case "$_GB363_REV" in *'Trusted-source displacement'*) echo yes ;; *) echo no ;; esac)"
-unset _GB363_GEN _GB363_REV
+# #1629: the sole-publisher section is review-only — gated on the derived REVIEWED_COMMIT=yes
+# selector, so it is present for MODE=review and absent for MODE=implement and MODE=generic.
+_GB363_IMPL="$(HEAD_SHA=deadbeef CI_SUMMARY='ci: success' ALLOWED_TOOLS='Read' HARDENED_PATHS='a/b.md' MODE=implement bash "$RGB_SH")"
+assert_eq "#1629 generic mode emits no sole-publisher section (review-only, no reviewed commit)" "no" \
+  "$(_gb363_gen_has "verdict reaches this pull request through Phase 4.4")"
+assert_eq "#1629 implement mode emits no sole-publisher section (review-only, no reviewed commit)" "no" \
+  "$(case "$_GB363_IMPL" in *"verdict reaches this pull request through Phase 4.4"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#1629 review mode emits the sole-publisher section (its positive control)" "yes" \
+  "$(case "$_GB363_REV" in *"verdict reaches this pull request through Phase 4.4"*) echo yes ;; *) echo no ;; esac)"
+# #1629: in review mode (HARDENED_PATHS set → displacement present) the sole-publisher
+# section is numbered 5 and precedes the renumbered displacement section (6). Guards the
+# tail interpolation order and the 5→6 renumber: a missed bump renders two "5"s, a swapped
+# order renders 6 before 5. Assert on the RENDERED structure (heading line positions), not
+# source prose.
+assert_eq "#1629 review mode numbers sole-publisher 5 before displacement 6" "yes" \
+  "$(printf '%s\n' "$_GB363_REV" | awk '/^> \*\*5\. A verdict reaches/{p=NR} /^> \*\*6\. Trusted-source/{d=NR} END{print (p>0 && d>0 && p<d) ? "yes" : "no"}')"
+# #1629: the ORDINARY review shape — no HARDENED_PATHS, so no displacement section.
+# Every assertion above renders review mode WITH HARDENED_PATHS set, so without this
+# one a regression coupling PUBLISHER_SECTION's emission (or its "5") to a non-empty
+# HARDENED_PATHS would go uncaught on the shape most review runs actually take.
+_GB363_REV_NOHP="$(HEAD_SHA=deadbeef CI_SUMMARY='ci: success' ALLOWED_TOOLS='Read' MODE=review bash "$RGB_SH")"
+assert_eq "#1629 review mode with no HARDENED_PATHS still emits the sole-publisher section, numbered 5, and no displacement section" "yes-yes-no" \
+  "$(case "$_GB363_REV_NOHP" in *"verdict reaches this pull request through Phase 4.4"*) echo yes ;; *) echo no ;; esac)-$(case "$_GB363_REV_NOHP" in *'> **5. A verdict reaches'*) echo yes ;; *) echo no ;; esac)-$(case "$_GB363_REV_NOHP" in *'Trusted-source displacement'*) echo yes ;; *) echo no ;; esac)"
+unset _GB363_GEN _GB363_REV _GB363_IMPL _GB363_REV_NOHP
 
 assert_pin_unique "#363 devflow.yml falls back to the bare command when no block is composed" \
   'prompt: ${{ steps.reviewcompose.outputs.prompt || needs.gate.outputs.command }}' "$DEVFLOW_YML"
