@@ -25885,6 +25885,52 @@ for _u_line in _cvp_ungraded_lines(_cvp_out):
         assert_eq(f"#1634 helper: the ungraded pass's own minted tokens never include the "
                   f"adjudicated token '{_u_tok}'", False, _u_tok in _u_minted)
 
+# --- test_ungraded_collocation_needs_a_letter_boundary ----------------------
+# `unverified against` must not match the `verified against` collocation.
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\nThis was unverified against main at drafting.\n')
+assert_eq("#1634 helper: a collocation preceded by letters ('unverified against') is not a "
+          "detection", True, _cvp_ungraded_lines(_cvp_out) == []
+          and 'UNGRADED_CLAIMS total=0' in _cvp_out)
+
+# --- test_ungraded_internal_error_is_unavailable_not_zero -------------------
+# A crash in the ungraded pass must NOT print `total=0`, which is byte-identical
+# to a clean "found none" and reintroduces the fail-open #1634 closed.
+def _cvp_run_capturing_stderr(body_path):
+    out, err = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        rc = check_verified_premises.main(
+            ['--body-file', str(body_path), '--repo-root', str(_CVP_REPO_ROOT)])
+    return rc, out.getvalue(), err.getvalue()
+
+
+_cvp_ug_rc, _cvp_ug_out, _ = _cvp_run_capturing_stderr(_CVP_1441_FIXTURE)
+_cvp_prev_ungraded = check_verified_premises.find_ungraded_claims
+
+
+def _cvp_ungraded_boom(_body):
+    raise RuntimeError('ungraded boom')
+
+
+check_verified_premises.find_ungraded_claims = _cvp_ungraded_boom
+try:
+    _cvp_bad_rc, _cvp_bad_out, _cvp_bad_err = _cvp_run_capturing_stderr(_CVP_1441_FIXTURE)
+finally:
+    check_verified_premises.find_ungraded_claims = _cvp_prev_ungraded
+
+assert_eq("#1634 helper: a crash in the ungraded pass leaves the exit code unchanged",
+          _cvp_ug_rc, _cvp_bad_rc)
+assert_eq("#1634 helper: a crash in the ungraded pass leaves the adjudicated block "
+          "byte-identical", _cvp_adjudicated_block(_cvp_ug_out),
+          _cvp_adjudicated_block(_cvp_bad_out))
+assert_eq("#1634 helper: a crash in the ungraded pass reports UNGRADED_CLAIMS unavailable, "
+          "never total=0", True,
+          'UNGRADED_CLAIMS unavailable reason=internal-error detail=' in _cvp_bad_out
+          and 'UNGRADED_CLAIMS total=' not in _cvp_bad_out
+          and _cvp_ungraded_lines(_cvp_bad_out) == [])
+assert_eq("#1634 helper: a crash in the ungraded pass keeps its stderr breadcrumb", True,
+          'ungraded-claim pass failed' in _cvp_bad_err and 'ungraded boom' in _cvp_bad_err)
+
 print()
 print("issue-audit-state: tool-owned round kinds (issue #793)")
 

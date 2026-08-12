@@ -87,6 +87,10 @@ non-adjudicating ungraded-claim pass (issue #1634): zero or more
 `UNGRADED_CLAIMS total=<n>` summary. These report a verification asserted in a
 shape the `Verified:` marker does not grade; they carry no state token, never
 move the exit code, and their `detail=` is the opaque trailing sentence text.
+When the pass itself fails, the summary is `UNGRADED_CLAIMS unavailable
+reason=internal-error detail=…` instead — never `total=0`, which would be
+byte-identical to a clean "found none" — and the adjudicated output above it
+and the exit code are both unchanged.
 """
 
 import argparse
@@ -226,23 +230,27 @@ _UNDECIDABLE_REASONS = {
 
 # --- Ungraded-claim detection (issue #1634) --------------------------------
 #
-# The non-adjudicating second pass below must share NO token with the adjudicated
-# vocabulary above, or a downstream verdict parser scanning both would mis-tally.
+# The non-adjudicating second pass below must share no STATE token (`holds`,
+# `refuted`, `unestablished`) with the adjudicated vocabulary above, or a
+# downstream verdict parser scanning both would mis-tally.
 # Rationale and the full design are in docs/internal/implement-skill.md.
 
-# The closed collocation set: the exact case-insensitive phrases the pass treats
-# as an ungraded verification claim. Editing this tuple changes what is detected;
-# a verification worded with none of these ("I checked this") is deliberately not
-# detected (the low-false-positive floor).
+# Do not widen this tuple to catch a verification worded outside it ("I checked
+# this"): the missed detection is the deliberate low-false-positive floor.
 _COLLOCATION_FAMILY = (
     'verified against', 'confirmed against', 'checked against',
     'verified at drafting time')
+# The letter guards keep `verified against` from matching inside `unverified
+# against`. They are lookarounds, not `\b`, so `match.group(0)` stays the bare
+# phrase the report line prints.
 _COLLOCATION_RE = re.compile(
-    '|'.join(re.escape(phrase) for phrase in _COLLOCATION_FAMILY),
+    '(?<![A-Za-z])(?:{})(?![A-Za-z])'.format(
+        '|'.join(re.escape(phrase) for phrase in _COLLOCATION_FAMILY)),
     re.IGNORECASE)
 
-# The premise-bearing sections. `_premise_regions` adds every heading line as a
-# fourth region; everything else is the unscanned residual complement.
+# `_premise_regions` adds every heading line as a fourth region; everything else
+# is the unscanned residual complement, so do not read this tuple as whole-body
+# coverage.
 _PREMISE_SECTIONS = ('Current Behavior', 'Technical Context',
                      'Implementation Notes')
 
@@ -908,9 +916,14 @@ def _run(args) -> int:
     try:
         ungraded = find_ungraded_claims(body)
     except Exception as exc:  # noqa: BLE001 — the pass is advisory; never let it move the verdict.
+        # Never print `total=0` here: that is byte-identical to "ran, found
+        # none", which is the fail-open this pass exists to close.
+        traceback.print_exc(file=sys.stderr)
         print(f'check-verified-premises: ungraded-claim pass failed, reported '
               f'none: {exc!r}', file=sys.stderr)
-        ungraded = []
+        print('UNGRADED_CLAIMS unavailable reason=internal-error '
+              f'detail={exc!r}')
+        return EXIT_REFUTED if tally['refuted'] else EXIT_CLEAN
     for line in ungraded:
         print(line)
     print('UNGRADED_CLAIMS total={}'.format(len(ungraded)))

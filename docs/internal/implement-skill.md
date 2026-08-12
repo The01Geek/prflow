@@ -46,12 +46,14 @@ bullet against the tree the run will build on.
   found in a premise-bearing region (the `Current Behavior`, `Technical Context` and
   `Implementation Notes` sections plus every heading line) that no recognised marker span already
   covers and that is not inside code. These reports carry no `holds`/`refuted`/`unestablished`, move
-  no exit code, and share no token with the adjudicated vocabulary — they say one thing: this claim
-  is graded by nothing.
+  no exit code, and share no *state* token with the adjudicated vocabulary (the field names `detail=`
+  and `total=` are common to both) — they say one thing: this claim is graded by nothing.
 - **Output.** One `bullet=<n> handle=<path-quote|path|quote|command|none> state=<holds|refuted|unestablished> detail=…`
   line per bullet, then a `VERIFIED_PREMISES` summary line carrying the totals. On the normal path it
   then prints one `ungraded_claim=<n> region=… phrase=… detail=…` line per ungraded claim and an
-  `UNGRADED_CLAIMS total=…` summary (emitted even when the total is zero). The handle classes,
+  `UNGRADED_CLAIMS total=…` summary (emitted even when the total is zero). When the ungraded pass
+  itself fails it prints `UNGRADED_CLAIMS unavailable reason=internal-error detail=…` in place of that
+  summary, leaving the adjudicated output above it and the exit code unchanged. The handle classes,
   states, and this ungraded class are defined authoritatively in the helper's own module docstring.
 - **Refuting is deliberately the hardest verdict to reach**, because a refutation makes the run
   discard the premise and file issue-accuracy feedback against the issue. Only a positively
@@ -73,7 +75,9 @@ bullet against the tree the run will build on.
   a refusal, or no output at all records a `dropped-failed` reflection and treats **every** bullet as
   unverified. An unestablished measurement is never read as a clean pass. Orthogonally to the exit
   code, **each `ungraded_claim=` line** records an `issue-accuracy` reflection naming it as an
-  ungraded claim (never a refutation) that does **not** license a skipped investigation.
+  ungraded claim (never a refutation) that does **not** license a skipped investigation, and an
+  `UNGRADED_CLAIMS unavailable` line records a `dropped-failed` reflection — an unestablished ungraded
+  measurement, never zero ungraded claims.
 - **`handle=none` and `state=unestablished` are undecided, not refuted.** They restore exactly the
   state the run would have been in had the bullet never existed — go and check. That is the
   fail-closed direction.
