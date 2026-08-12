@@ -52155,16 +52155,12 @@ elif [ -n "$RSZ_NF_REAL" ]; then
 fi
 
 # ── issue #1621: ruff Python-lint gate (monolith-shard-resident) ─────────────
-# CI's `lint` job runs ruff but is NOT the required check, so a Python lint
-# regression was invisible to the suite's own completion gate AND to the merge
-# gate (PR #1619 shipped an E731 through five green pushes). This runs ruff from
-# inside the suite so a violation reddens `lib + python tests`, the required check.
-# ruff is NOT preflight-guaranteed (preflight guarantees git/gh/jq/python3/PyYAML),
-# so an unrunnable ruff self-skips via skip()/blocking-gate — never a silent pass.
-# Scope is ruff ONLY: shellcheck and actionlint share CI's non-required lint job but
-# are deliberately out of scope for this gate (recorded in the issue-1621 changeset).
-# Presence is EXECUTION-VERIFIED, not `command -v` — mirroring preflight's jq/gh probe,
-# a present-but-unrunnable ruff must route to the skip rather than a spurious FAIL.
+# Runs ruff from inside the suite so a Python lint regression reddens the required
+# `lib + python tests` check (CI's separate `lint` job is not required). ruff is NOT
+# preflight-guaranteed, so an unrunnable ruff must self-skip via skip()/blocking-gate,
+# never a silent pass. Scope is ruff only (the issue-1621 changeset states why
+# shellcheck/actionlint are excluded). Presence is EXECUTION-VERIFIED, not `command -v`:
+# a present-but-unrunnable ruff must route to the skip, not a spurious FAIL.
 RUFF_CMD=()
 if ruff --version >/dev/null 2>&1; then
   RUFF_CMD=(ruff)
@@ -52175,33 +52171,36 @@ if [ "${#RUFF_CMD[@]}" -gt 0 ]; then
   # Collect the tracked Python files via git ls-files (index-reading, no recursive
   # walk) — a walk would scan sibling .claude/worktrees/ checkouts (the
   # lint-tree-enumeration.py convention). Fed into an array rather than `xargs -r`,
-  # whose -r is GNU-only and rejected by BSD/macOS xargs (see the NB earlier in this
-  # file); an empty file list is handled explicitly below, since invoking ruff with
-  # an empty argument list makes it lint the current directory instead.
+  # whose -r is GNU-only and rejected by BSD/macOS xargs (see the NB earlier in this file).
   RUFF_FILES=()
   while IFS= read -r _ruff_f; do RUFF_FILES+=("$_ruff_f"); done < <(git ls-files '*.py')
-  if [ "${#RUFF_FILES[@]}" -eq 0 ]; then
-    RUFF_OUT=""; RUFF_RC=0
-  else
+  # git is preflight-guaranteed and this repo always tracks Python files, so a zero-length
+  # list means the enumeration FAILED (unreadable index), not "nothing to lint" — assert it
+  # non-empty so a failed enumeration reddens rather than passing a vacuous scan of no files.
+  if [ "${#RUFF_FILES[@]}" -gt 0 ]; then RUFF_FILES_NONEMPTY=yes; else RUFF_FILES_NONEMPTY=no; fi
+  assert_eq "#1621 ruff gate: git ls-files enumerated tracked *.py (non-empty)" yes "$RUFF_FILES_NONEMPTY"
+  # Invoke ruff only with a non-empty path list; ruff given no path arguments lints the cwd.
+  if [ "${#RUFF_FILES[@]}" -gt 0 ]; then
     RUFF_OUT="$("${RUFF_CMD[@]}" check "${RUFF_FILES[@]}" 2>&1)"; RUFF_RC=$?
+    # Fail closed on ANY nonzero rc (findings rc 1, or ruff's own error rc 2): a gate whose
+    # whole defect class is failing QUIETLY must never wave an unexpected rc through. Surface
+    # ruff's output on failure so the run can self-correct the violation it introduced.
+    assert_eq "#1621 ruff Python-lint gate: tracked *.py pass ruff check" 0 "$RUFF_RC"
+    if [ "$RUFF_RC" -ne 0 ]; then printf '%s\n' "$RUFF_OUT"; fi
   fi
-  assert_eq "#1621 ruff Python-lint gate: tracked *.py pass ruff check" 0 "$RUFF_RC"
-  # Fail closed on ANY nonzero rc (findings rc>=1, or ruff's own error rc 2): a gate whose
-  # whole defect class is failing QUIETLY must never wave an unexpected rc through. Surface
-  # ruff's output on failure so the run can self-correct the violation it introduced.
-  if [ "$RUFF_RC" -ne 0 ]; then
-    printf '%s\n' "$RUFF_OUT"
-  fi
-  # Non-vacuity proof (AC): a green scan above proves the gate RAN only if the same
-  # mechanism fails on a real violation. Drive a known E731 through ruff in an isolated
-  # mktemp dir — never a tracked file, so it never joins the scanned set — and assert the
-  # failing signal fires; a vacuous gate (ruff inert, wrong invocation) reddens right here.
-  RUFF_FIX_DIR="$(mktemp -d)"
+  # Non-vacuity proof (AC): a green scan above proves the gate RAN only if the same mechanism
+  # produces ruff's SPECIFIC finding signal on a real violation — exit 1 (findings, NOT exit 2
+  # ruff-error) AND the E731 code present — so an inert or errored ruff cannot fake the proof.
+  # The fixture lives under the gitignored .prflow/tmp so ruff resolves the SAME config the
+  # real scan does; it is untracked, so git ls-files never adds it to the scanned set.
+  mkdir -p .prflow/tmp
+  RUFF_FIX_DIR="$(mktemp -d .prflow/tmp/ruff-nonvacuity.XXXXXX)"
   [ -n "$RUFF_FIX_DIR" ] && [ -d "$RUFF_FIX_DIR" ] || { printf 'FATAL: mktemp -d failed for the #1621 ruff non-vacuity fixture\n' >&2; exit 1; }
   printf '%s\n' '_mk = lambda: 0' > "$RUFF_FIX_DIR/violation.py"
-  "${RUFF_CMD[@]}" check "$RUFF_FIX_DIR/violation.py" >/dev/null 2>&1; RUFF_FIX_RC=$?
+  RUFF_FIX_OUT="$("${RUFF_CMD[@]}" check "$RUFF_FIX_DIR/violation.py" 2>&1)"; RUFF_FIX_RC=$?
   rm -rf "$RUFF_FIX_DIR"
-  if [ "$RUFF_FIX_RC" -ne 0 ]; then RUFF_FIX_FIRES=yes; else RUFF_FIX_FIRES=no; fi
+  # A missing grep short-circuits to FIRES=no → the assertion reddens (fail-closed).
+  if [ "$RUFF_FIX_RC" -eq 1 ] && printf '%s\n' "$RUFF_FIX_OUT" | grep -q 'E731'; then RUFF_FIX_FIRES=yes; else RUFF_FIX_FIRES=no; fi
   assert_eq "#1621 ruff Python-lint gate fires on a known E731 violation (non-vacuity)" yes "$RUFF_FIX_FIRES"
 else
   skip "#1621 ruff Python-lint gate" blocking-gate "ruff not runnable on PATH (nor via python3 -m ruff) — the Python lint gate did NOT run; CI installs it in the shard job (see .github/workflows/ci.yml), and 'python3 -m pip install ruff==0.15.*' arms it at the desk"

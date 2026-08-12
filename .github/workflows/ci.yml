@@ -103,21 +103,13 @@ jobs:
       - name: Install PyYAML
         run: python3 -m pip install --quiet pyyaml
 
-      # Install ruff so the #1621 Python-lint gate in lib/test/run.sh (the monolith
-      # shard) ARMS instead of self-skipping. Without it that gate takes its
-      # blocking-gate skip branch on CI, and a ruff regression stays invisible to
-      # `lib + python tests` — the exact defect issue #1621 fixes. ruff is NOT
-      # preflight-guaranteed, so it is installed here rather than assumed.
-      #
-      # PINNED to the SAME `ruff==0.15.*` the `lint` job pins (see that job's ruff
-      # step for the rationale: an unpinned upgrade to 0.16.0 flagged ~645
-      # pre-existing findings and reddened the check tree-wide). The two pins are a
-      # coupled pair — bump them together.
-      #
-      # Installed on EVERY shard uniformly, like the Claude CLI install below and for
-      # the same reason: so a gate that later moves into a module shard does not
-      # quietly revert to self-skipping. Narrow to `if: matrix.shard == 'monolith'`
-      # only if that trade stops being worth it (reopening the silent-revert exposure).
+      # Install ruff so the #1621 Python-lint gate in lib/test/run.sh (monolith shard)
+      # ARMS instead of self-skipping — without it a ruff regression stays invisible to
+      # `lib + python tests`. ruff is NOT preflight-guaranteed, so install it here.
+      # PINNED to the SAME `ruff==0.15.*` the `lint` job pins (see that step's rationale);
+      # the two pins are a coupled pair — bump them together.
+      # Installed on EVERY shard uniformly, like the Claude CLI install below, so a gate
+      # that later moves into a module shard does not quietly revert to self-skipping.
       - name: Install ruff (arms the #1621 Python-lint gate)
         run: python3 -m pip install --quiet 'ruff==0.15.*'
 
