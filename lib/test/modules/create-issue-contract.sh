@@ -1193,10 +1193,9 @@ CI614_FALLBACK_REFS="fallback-no-task-tool fallback-read-only-sandbox fallback-a
 # its own roster group so the T4 default-path purity sweep (which loops CI614_STEP_REFS) does
 # not search it and it takes no ci614_step_unique call.
 CI614_TEMPLATE_REFS="issue-template"
-# #1644: degradation-routing carries the relocated routing table itself. Like issue-template it
-# is a routed reference (gated, T1/T2) but NOT a step reference, so it is kept in its own roster
-# group and takes no ci614_step_unique call; T4 purity sweeps it as a target (search set), not
-# as a source with a representative literal.
+# #1644: degradation-routing carries the relocated routing table. Like issue-template it is a
+# routed reference (gated, T1/T2) but NOT a step reference, so it takes no ci614_step_unique call;
+# T4 purity sweeps it as a search target, not as a source with a representative literal.
 CI614_ROUTING_REFS="degradation-routing"
 CI614_REFS="$CI614_STEP_REFS $CI614_FALLBACK_REFS $CI614_TEMPLATE_REFS $CI614_ROUTING_REFS"
 
@@ -1233,9 +1232,9 @@ done
 assert_eq "#1644 T1: the skill root carries zero routing-table rows (the table relocated)" "0" \
   "$(python3 - "$CI_SKILL" <<'PY1644'
 import sys
-# Same routing-row predicate as T6 above, so the two counters share one definition
-# of "a routing row" (T6 counts rows in the routing reference; this counts them in
-# the root, which must be zero after the relocation).
+# Same routing-row predicate T6 uses, so the two counters share one definition of
+# "a routing row" (T6 counts them in the routing reference; this counts them in the
+# root, which must be zero after the relocation).
 print(sum(1 for l in open(sys.argv[1], encoding='utf-8')
          if l.startswith('| ') and 'references/' in l))
 PY1644
