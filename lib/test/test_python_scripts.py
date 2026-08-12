@@ -28860,7 +28860,8 @@ try:
     assert_eq("#1611 recording a malformed-SHA CI record aborts (no PATCH)", None, _pM)
 
     # ── cross-family combined-count via the verdict function directly ──────────
-    _mk = lambda: make_args(repo_root=_ci_root)
+    def _mk():
+        return make_args(repo_root=_ci_root)
     # zero markers of either family → missing-evidence refusal.
     try:
         workpad._completion_evidence_verdict(_mk(), "- [x] nothing here\n")
