@@ -61,6 +61,8 @@ The helper is `scripts/stage-draft-write.py`, invoked as a leading-token `python
 
 Step 3.5 verifies what the draft *says* but, running **inline in the context that drafted the issue**, is structurally weak at seeing what it *misses*. This step removes that anchoring by **information removal**: after Step 3.5 passes and before Step 4 presents anything, dispatch **one fresh-context audit subagent** whose value is that it did not draft the issue.
 
+**Step 3.5-record entry gate (blocks the audit dispatch only).** Before anything below runs, confirm this run's latest `## Steelman record` `### pass <n>` entry in `.prflow/tmp/issue-derivation-<slug>.md` per the entry-confirmation contract (item 9) of `references/step-3-5-steelman.md`. A missing or stale entry is a skipped Step 3.5 and blocks only this dispatch, not issue creation.
+
 #### The state owner owns the lifecycle
 
 **Obey the state owner (the contract governing this whole step).** The deterministic audit lifecycle — transitions, round numbering, budgets, retry bounds, dispatch-arm routing, digest/sentinel generation and comparison, the T1/T2 triggers, override records, presentation eligibility, and the audit-summary field set — is owned by the bundled `issue-audit-state.py`, **not by this prose**. This step **records each lifecycle event through that tool and obeys the answer it returns.** Never re-derive a transition, a budget, a retry bound, a dispatch arm, or eligibility from this prose or the round history you remember — the tool's answer *is* the decision. **A draft you are certain is clean is presented for approval only after `query-eligibility --mode approve` answers `eligible=yes`.** Your confidence that a revision addressed every finding is not an eligibility answer, and neither is a clean no-options gate.
@@ -179,7 +181,7 @@ It prints `round=`, `arm=`, `digest=`, `body_digest=`, `instructions_digest=` (w
 
 **Reasoning artifacts are out of bounds; the draft file is not.** On the file arm the **generated instruction file** — never a clause you add to the dispatch prompt — must **declare this run's reasoning artifacts out of bounds**, naming exactly these 8 paths and stating that **any finding derived from those files is void**:
 
-- `.prflow/tmp/issue-derivation-<slug>.md` — the Step 2 derivation record.
+- `.prflow/tmp/issue-derivation-<slug>.md` — the Step 2 derivation record plus this run's evidence-bundle, steelman, and revision-delta sections.
 - `.prflow/tmp/issue-step1-<slug>.md` — the Step 1 evidence artifact.
 - `.prflow/tmp/issue-audit-<slug>.md` — the audit report.
 - `.prflow/tmp/issue-audit-state-<slug>.json` — the state owner's record.

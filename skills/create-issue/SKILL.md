@@ -15,7 +15,7 @@ or, when none is exposed or the exposed one is unusable, the inline fallback in
 - [ ] 1. Run Step 1's selected arm and write its evidence artifact
 - [ ] 2. Clarify the user story until the Definition of Ready is met (Step 2)
 - [ ] 3. Draft the issue and pass the no-options gate (Step 3)
-- [ ] 4. Steelman the draft against the code, revise, and re-pass the no-options gate (Step 3.5)
+- [ ] 4. Steelman the draft against the code, revise, re-pass the no-options gate, and append the steelman record to the derivation artifact (Step 3.5)
 - [ ] 5. Audit the draft in a fresh context, act on the verdict, and re-gate any revision (Step 3.6)
 - [ ] 6. Present the rendered issue, get the user's explicit confirmation, then create it (Step 4, sub-steps 1–5)
 - [ ] 7. After creation succeeds, run the gated implement-offer step — present the offer, or print the withheld-offer reason (Step 4, sub-step 6)
