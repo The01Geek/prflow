@@ -4,6 +4,15 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.43] — 2026-08-12
+
+### Changed
+Trimmed justification prose from `/prflow:init`'s skill body — derivations, design
+narrative, reviewer-misreading pre-emption and restatements of facts already stated
+in the same file — bringing it under the reference-size ceiling and retiring its
+`lib/test/reference-size-exemptions.json` rows. Every instruction, decision branch,
+command fence and helper-breadcrumb arm is unchanged.
+
 ## [2.32.42] — 2026-08-12
 
 ### Added
