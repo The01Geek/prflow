@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1639",
+  "generated_at": "2026-08-12T07:15:09Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.51",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 8.130318500000001,
+    "tokens": {
+      "input_tokens": 58,
+      "output_tokens": 26650,
+      "cache_read_input_tokens": 4547356,
+      "cache_creation_input_tokens": 176776,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 98,
+        "outputTokens": 52021,
+        "cacheReadInputTokens": 5790687,
+        "cacheCreationInputTokens": 523368,
+        "webSearchRequests": 0,
+        "costUSD": 8.130318500000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 39,
+    "duration_ms": 553792
+  },
+  "permission_denials": {
+    "count": 4,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-unset} ATTEMPT=${GITHUB_RUN_ATTEMPT:-unset} ACTIONS=${GITHUB_ACTIONS:-unset}\"",
+      "printf 'RUN_ID=%s ATTEMPT=%s ACTIONS=%s\\n' \"$GITHUB_RUN_ID\" \"$GITHUB_RUN_ATTEMPT\" \"$GITHUB_ACTIONS\"",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve 1634 --pr 1639 2>.prflow/tmp/review/pr-1639/31572484569-1/acs.err ; echo \"acs-rc=$?\"",
+      "ls -la /home/runner/work/prflow/prflow/scripts/section_parse.py 2>&1; echo \"---vendor-slice refs---\"; grep -n \"section_parse\\|check-verified-premises\" /home/runner/work/prflow/prflow/vendor-slice.sh 2>/dev/null | head; echo \"---git show head has ungraded?---\"; git -C /home/runner/work/prflow/prflow grep -l \"find_ungraded_claims\" -- scripts/check-verified-premises.py 2>&1"
+    ],
+    "total": 4,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
