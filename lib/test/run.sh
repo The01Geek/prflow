@@ -52180,12 +52180,10 @@ elif [ -n "$RSZ_NF_REAL" ]; then
 fi
 
 # ── issue #1621: ruff Python-lint gate (monolith-shard-resident) ─────────────
-# Runs ruff from inside the suite so a Python lint regression reddens the required
-# `lib + python tests` check (CI's separate `lint` job is not required). ruff is NOT
-# preflight-guaranteed, so an unrunnable ruff must self-skip via skip()/blocking-gate,
-# never a silent pass. Scope is ruff only; shellcheck/actionlint share CI's non-required
-# lint job and are deliberately out of scope. Presence is EXECUTION-VERIFIED, not
-# `command -v`: a present-but-unrunnable ruff must route to the skip, not a spurious FAIL.
+# Rationale and scope: docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md, the #1621 paragraph.
+# An unrunnable ruff must self-skip via skip()/blocking-gate, never a silent pass.
+# Presence is EXECUTION-VERIFIED, not `command -v`: a present-but-unrunnable ruff must
+# route to that skip, not to a spurious FAIL.
 RUFF_CMD=()
 if ruff --version >/dev/null 2>&1; then
   RUFF_CMD=(ruff)
@@ -52206,7 +52204,10 @@ if [ "${#RUFF_CMD[@]}" -gt 0 ]; then
   assert_eq "#1621 ruff gate: git ls-files enumerated tracked *.py (non-empty)" yes "$RUFF_FILES_NONEMPTY"
   # Invoke ruff only with a non-empty path list; ruff given no path arguments lints the cwd.
   if [ "${#RUFF_FILES[@]}" -gt 0 ]; then
-    RUFF_OUT="$("${RUFF_CMD[@]}" check "${RUFF_FILES[@]}" 2>&1)"; RUFF_RC=$?
+    # --no-force-exclude: a future ruff config setting `force-exclude` with an `exclude`
+    # covering tracked *.py would otherwise let this scan return rc 0 having checked
+    # nothing — a vacuous green in the one gate whose defect class is passing quietly.
+    RUFF_OUT="$("${RUFF_CMD[@]}" check --no-force-exclude "${RUFF_FILES[@]}" 2>&1)"; RUFF_RC=$?
     # Fail closed on ANY nonzero rc (findings rc 1, or ruff's own error rc 2): a gate whose
     # whole defect class is failing QUIETLY must never wave an unexpected rc through. Surface
     # ruff's output on failure so the run can self-correct the violation it introduced.
@@ -52216,13 +52217,16 @@ if [ "${#RUFF_CMD[@]}" -gt 0 ]; then
   # Non-vacuity proof (AC): a green scan above proves the gate RAN only if the same mechanism
   # produces ruff's SPECIFIC finding signal on a real violation — exit 1 (findings, NOT exit 2
   # ruff-error) AND the E731 code present — so an inert or errored ruff cannot fake the proof.
-  # The fixture lives under the gitignored .prflow/tmp so ruff resolves the SAME config the
-  # real scan does; it is untracked, so git ls-files never adds it to the scanned set.
+  # The fixture lives under the gitignored .prflow/tmp because it is untracked there, so
+  # git ls-files never adds it to the scanned set above.
+  # Do NOT relax this to "any finding code": the pin is what attributes the rejection to ruff's
+  # lint pass rather than to some other rule firing. Adding a ruff config that deselects E731
+  # disarms the proof (fail-closed, a visible RED) — update the fixture in that same change.
   mkdir -p .prflow/tmp
   RUFF_FIX_DIR="$(mktemp -d .prflow/tmp/ruff-nonvacuity.XXXXXX)"
   [ -n "$RUFF_FIX_DIR" ] && [ -d "$RUFF_FIX_DIR" ] || { printf 'FATAL: mktemp -d failed for the #1621 ruff non-vacuity fixture\n' >&2; exit 1; }
   printf '%s\n' '_mk = lambda: 0' > "$RUFF_FIX_DIR/violation.py"
-  RUFF_FIX_OUT="$("${RUFF_CMD[@]}" check "$RUFF_FIX_DIR/violation.py" 2>&1)"; RUFF_FIX_RC=$?
+  RUFF_FIX_OUT="$("${RUFF_CMD[@]}" check --no-force-exclude "$RUFF_FIX_DIR/violation.py" 2>&1)"; RUFF_FIX_RC=$?
   rm -rf "$RUFF_FIX_DIR"
   # A missing grep short-circuits to FIRES=no → the assertion reddens (fail-closed).
   if [ "$RUFF_FIX_RC" -eq 1 ] && printf '%s\n' "$RUFF_FIX_OUT" | grep -q 'E731'; then RUFF_FIX_FIRES=yes; else RUFF_FIX_FIRES=no; fi
@@ -52230,6 +52234,36 @@ if [ "${#RUFF_CMD[@]}" -gt 0 ]; then
 else
   skip "#1621 ruff Python-lint gate" blocking-gate "ruff not runnable on PATH (nor via python3 -m ruff) — the Python lint gate did NOT run; CI installs it in the shard job (see .github/workflows/ci.yml), and 'python3 -m pip install ruff==0.15.*' arms it at the desk"
 fi
+
+# ── #1621: ci.yml's two ruff pins are a coupled pair; reconcile them mechanically ──
+# The gate above self-skips when ruff is absent, and per #456 a skip never fails the suite —
+# so dropping the shard job's install step leaves `lib + python tests` GREEN with the gate
+# inert, which is the exact defect class #1621 closes. Extract the pinned spec from each
+# job's UNCOMMENTED lines (the devflow_ci_shard_has contract; that helper is unset by here)
+# and assert both halves, so two `absent` values cannot satisfy the equality vacuously.
+devflow_ruff_pin() {  # $1 = job name, $2 = workflow file; prints the ruff version spec
+  local _out
+  [ -s "$2" ] || { printf 'unreadable'; return; }
+  _out="$(awk -v job="^  $1:[[:space:]]*$" '
+    $0 ~ job {ins=1; next}
+    /^  [A-Za-z_][A-Za-z0-9_-]*:/{ins=0}
+    ins && /^[[:space:]]*#/{next}
+    ins && match($0, /ruff==[0-9A-Za-z.*]+/) {print substr($0, RSTART+6, RLENGTH-6); exit}
+  ' "$2")" || { printf 'awk-failed'; return; }
+  [ -n "$_out" ] || { printf 'absent'; return; }
+  printf '%s' "$_out"
+}
+RUFF_PIN_SHARD="$(devflow_ruff_pin shard "$LIB/../.github/workflows/ci.yml")"
+RUFF_PIN_LINT="$(devflow_ruff_pin lint "$LIB/../.github/workflows/ci.yml")"
+case "$RUFF_PIN_SHARD" in [0-9]*) RUFF_PIN_SHARD_OK=yes ;; *) RUFF_PIN_SHARD_OK=no ;; esac
+case "$RUFF_PIN_LINT"  in [0-9]*) RUFF_PIN_LINT_OK=yes  ;; *) RUFF_PIN_LINT_OK=no  ;; esac
+# structural-pin-ok: cross-file-phase-contract -- the workflow line that installs ruff is what ARMS the #1621 gate on CI; removed, the gate self-skips and `lib + python tests` stays green with no Python lint running
+assert_eq "#1621 ci.yml: the shard job installs a version-pinned ruff (arms the lint gate)" yes "$RUFF_PIN_SHARD_OK"
+# structural-pin-ok: cross-file-phase-contract -- positive control on the equality's other operand; without it two `absent` reads would satisfy the reconciliation below vacuously
+assert_eq "#1621 ci.yml: the lint job still declares a version-pinned ruff" yes "$RUFF_PIN_LINT_OK"
+# structural-pin-ok: cross-file-phase-contract -- the two pins are a declared coupled pair; drift means the required check's gate and CI's lint job disagree about which ruff decides a violation
+assert_eq "#1621 ci.yml: the shard and lint jobs pin the SAME ruff version" "$RUFF_PIN_LINT" "$RUFF_PIN_SHARD"
+unset -f devflow_ruff_pin
 
 # ────────────────────────────────────────────────────────────────────────────
 PASS=$(grep -c '^PASS$' "$RESULTS_FILE" || true)

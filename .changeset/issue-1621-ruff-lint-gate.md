@@ -11,5 +11,8 @@ type: Fixed
   failing the suite on any violation and, because `ruff` is not preflight-guaranteed, self-skipping
   through the existing `skip … blocking-gate …` helper — never a silent pass — when `ruff` is not
   installed. The CI shard job now installs `ruff==0.15.*` (the same pin the `lint` job uses) so the
-  gate arms on the required check rather than self-skipping there. Scope is `ruff` only; `shellcheck`
-  and `actionlint`, which share CI's non-required lint job, are deliberately left out of scope. (#1638)
+  gate arms on the required check rather than self-skipping there, and the suite reconciles the two
+  pins mechanically — asserting each job declares one and that the specs are equal — so dropping the
+  shard install cannot leave the gate self-skipping while the required check stays green. Scope is
+  `ruff` only; `shellcheck`
+  and `actionlint`, which share CI's non-required lint job, are deliberately left out of scope. (#1621)
