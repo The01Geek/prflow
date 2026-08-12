@@ -52056,24 +52056,41 @@ case "$RSZ_NF_LIST" in ""|/dev/null) : ;; *) rm -f "$RSZ_NF_LIST" ;; esac
 # fixture's expected NEAR (3250) is proved to match what the lint computes.
 assert_eq "#1614 the near-full band is derived from the reader cap and stated by --print-threshold" "yes" \
   "$(rsz_has "near-full band 3250 bytes = reader cap in bytes 65000 minus the 61750-byte ceiling" "$RSZ_THRESH")"
+# Render helper: turn `path<TAB>headroom` lines into advisory display lines. Shared by the
+# AC4 NOTE-shape assertion (driven off the deterministic fixture output so it is never
+# vacuous) and the real-tree advisory below, so testing it against fixture input proves the
+# same code the real-tree path runs.
+rsz_nf_render() {  # reads path<TAB>headroom lines on stdin -> `  near-full  <path> — <headroom> …`
+  while IFS="$(printf '\t')" read -r _nf_path _nf_head; do
+    [ -n "$_nf_path" ] || continue
+    printf '  near-full  %s — %s bytes of headroom under the ceiling\n' "$_nf_path" "$_nf_head"
+  done
+}
+# AC4: the render never carries the reserved `printf '  NOTE '` shape skip() reserves, so the
+# advisory is never mistaken for a skip and the #456 meta-assertion stays green. Drive the
+# check off the deterministic fixture output ($RSZ_NF_OUT, guaranteed non-empty above) rather
+# than the live tree, so the guarantee holds every run regardless of how many real files sit
+# in the band — a live-tree render is empty on a tree with no near-full file and the check
+# would then pass vacuously.
+RSZ_NF_FIXTURE_RENDER="$(printf '%s\n' "$RSZ_NF_OUT" | rsz_nf_render)"
+assert_eq "#1614 the near-full render is non-empty for a near-full fixture (the NOTE check is not vacuous)" "yes" \
+  "$(rsz_has "near-full  skills/nf/references/at-ceiling.md" "$RSZ_NF_FIXTURE_RENDER")"
+assert_eq "#1614 the near-full render never emits the reserved NOTE shape" "no" \
+  "$(rsz_has "NOTE" "$RSZ_NF_FIXTURE_RENDER")"
 # Real-tree advisory (AC1): report the actual tree's near-full files as plain advisory lines
 # — never via skip(), never `printf '  NOTE '` (the shape the #456 meta-assertion reserves),
 # and never an assertion, so the pass/fail/skip tallies and exit status are identical whether
-# or not a near-full file is present. Guarded so an empty report emits nothing (AC2).
-RSZ_NF_REAL="$(python3 "$RSZ_LINT" --print-near-full 2>&1)"
-RSZ_NF_RENDER=""
-if [ -n "$RSZ_NF_REAL" ]; then
-  RSZ_NF_RENDER="$(printf '%s\n' "$RSZ_NF_REAL" | while IFS="$(printf '\t')" read -r _nf_path _nf_head; do
-    [ -n "$_nf_path" ] || continue
-    printf '  near-full  %s — %s bytes of headroom under the ceiling\n' "$_nf_path" "$_nf_head"
-  done)"
+# or not a near-full file is present. Capture stdout ONLY and the exit status separately —
+# never fold stderr in (a non-zero lint run emits tab-less breadcrumbs that would render as
+# bogus advisory lines) — and render only on a clean exit, so a lint failure is surfaced
+# rather than laundered into cosmetic output. Guarded so an empty report emits nothing (AC2).
+RSZ_NF_REAL="$(python3 "$RSZ_LINT" --print-near-full 2>/dev/null)"; RSZ_NF_REAL_RC=$?
+if [ "$RSZ_NF_REAL_RC" -ne 0 ]; then
+  printf '#1614 near-full advisory unavailable: lint exited %s (its cause is the #1595 real-tree assertion above)\n' "$RSZ_NF_REAL_RC"
+elif [ -n "$RSZ_NF_REAL" ]; then
   printf '%s\n' "#1614 near-full advisory (covered files nearing the reader-cap ceiling; trim while cheap):"
-  printf '%s\n' "$RSZ_NF_RENDER"
+  printf '%s\n' "$RSZ_NF_REAL" | rsz_nf_render
 fi
-# AC4: the rendered advisory never carries the reserved NOTE shape, so it is never mistaken
-# for a skip and the #456 meta-assertion stays green.
-assert_eq "#1614 the near-full advisory never emits the reserved NOTE shape" "no" \
-  "$(rsz_has "NOTE" "$RSZ_NF_RENDER")"
 
 # ────────────────────────────────────────────────────────────────────────────
 PASS=$(grep -c '^PASS$' "$RESULTS_FILE" || true)
