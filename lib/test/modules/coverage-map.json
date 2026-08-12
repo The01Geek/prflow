@@ -501,6 +501,10 @@
       "note": "",
       "owner": "unmodularized"
     },
+    "scripts/measure-verdict-post-gap-rate.sh": {
+      "note": "issue #1629 offline measurement tool: computes the per-review-run verdict-post-gap rate from PR-comment markers; a network-dependent analyst tool with no automated test module (its only offline contracts are --days validation, the missing-operand arm and the unknown-arg arm)",
+      "owner": "unmodularized"
+    },
     "scripts/migrate-consumer-tier1.sh": {
       "note": "issue #1002 all-or-nothing consumer Tier 1 migration",
       "owner": "tier1-rename-migration"
@@ -1238,6 +1242,10 @@
     },
     "1614": {
       "note": "the near-full advisory over lint-reference-size.py's --print-near-full: the derived near-full band stated by --print-threshold, the report's membership/headroom/ascending-order/equal-headroom-tie-break for files inside the band, the exclusion of files just outside the band and of over-ceiling files, the empty-report and exit-0 advisory contract, the positive control that an over-ceiling file still fails the ceiling gate, and the real-tree advisory that never emits the reserved NOTE shape",
+      "owner": "unmodularized"
+    },
+    "1629": {
+      "note": "",
       "owner": "unmodularized"
     },
     "167": {

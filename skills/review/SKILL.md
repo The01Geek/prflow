@@ -338,6 +338,6 @@ After the `Read`: **quote the body's literal first and last lines**, and let `S`
 | 3 | `phase-3-agents.md` | always | review agents, per-agent prompts, `defect_signature` contract |
 | 4 | `phase-4-verdict.md` | always | verdict, report, telemetry |
 | 4.1.7 | `phase-4-1-7-stale-adjudication.md` | **PR mode only**, and only over STALE findings from 0.6 being adjudicated false positives | stale-finding adjudication; runs after 4.1.6 and **before** 4.2 |
-| 4.4 | `phase-4-4-github-post.md` | **standalone only, PR mode only** (`$PR_NUMBER` is non-empty) | post the verdict to GitHub. `/prflow:review-and-fix` **skips 4.4 entirely** — shadow passes included |
+| 4.4 | `phase-4-4-github-post.md` | **standalone only, PR mode only** (`$PR_NUMBER` is non-empty) | only `post-review-verdict.sh` posts a verdict; yours isn't one. `/prflow:review-and-fix` **skips 4.4** |
 
 A gated phase whose condition is unmet is neither loaded nor run; evaluate each gate from the state earlier phases established, never from a guess.

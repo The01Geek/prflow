@@ -2120,6 +2120,19 @@ assert_eq("#1462 every quoted --tick-progress operand parsed into the live set",
 assert_eq("#1462 live tick substrings were derived from the phase files", True,
           len(_live_ticks) >= 10)
 
+# --- #1630 no live tick operand carries a shell metacharacter ---------------
+# No quoted `--tick-progress` operand may carry a character in
+# `_TICK_METACHARS_1630` below (a pragmatic subset covering the observed
+# classifier refusal, not its full grammar) — such an operand is refused mid-run.
+# Scope: the `_live_ticks` set derived above, i.e. quoted `--tick-progress`
+# literals under skills/implement/ ONLY. Disclosed residuals: --tick-plan
+# /--tick-ac sites (authored placeholders), any site whose operand is a shell
+# variable, and any future tick site outside skills/implement/ (none today).
+_TICK_METACHARS_1630 = "&;|$`()<>"
+for _t in _live_ticks:
+    assert_eq(f"#1630 live tick {_t!r} carries no shell metacharacter", [],
+              [_c for _c in _t if _c in _TICK_METACHARS_1630])
+
 # Both reproduction states, because the row's presence changes the candidate set.
 for _label, _body_1462 in (('repro present', _nb), ('repro absent', _nb3)):
     _p = _progress_of(_body_1462)
