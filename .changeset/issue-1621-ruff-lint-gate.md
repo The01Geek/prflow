@@ -12,4 +12,4 @@ type: Fixed
   through the existing `skip … blocking-gate …` helper — never a silent pass — when `ruff` is not
   installed. The CI shard job now installs `ruff==0.15.*` (the same pin the `lint` job uses) so the
   gate arms on the required check rather than self-skipping there. Scope is `ruff` only; `shellcheck`
-  and `actionlint`, which share CI's non-required lint job, are deliberately left out of scope. (#1621)
+  and `actionlint`, which share CI's non-required lint job, are deliberately left out of scope. (#1638)
