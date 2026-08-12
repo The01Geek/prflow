@@ -34,7 +34,7 @@ This skill is a **pipeline that ends with a created GitHub issue and a *gated* o
 1. Run Step 1's selected arm and write its evidence artifact
 2. Clarify the user story until the **Definition of Ready** is met (Step 2)
 3. Draft the issue and pass the **no-options gate** (Step 3)
-4. Steelman the draft against the code, revise, and re-pass the no-options gate (Step 3.5)
+4. Steelman the draft against the code, revise, re-pass the no-options gate, and append the steelman record to the derivation artifact (Step 3.5)
 5. Audit the draft in a fresh context, act on the verdict, and re-gate any revision (Step 3.6)
 6. Present the rendered issue, get the user's explicit confirmation, then create it (Step 4, sub-steps 1–5)
 7. After creation succeeds, run the gated implement-offer step — present the offer, or print the withheld-offer reason (Step 4, sub-step 6)
@@ -51,7 +51,7 @@ The per-step procedures and the conditional fallback arms live in `references/`,
 | --- | --- | --- | --- |
 | Step 2 entry | `references/step-2-clarify.md` | `step=2` | Clarify from the Definition-of-Ready summary in the completion checklist, asking via the runner's user-question tool; record the derivation in chat when it cannot be written to disk, and report the reduced clarification |
 | Step 3 drafting entry | `references/issue-template.md` | `step=issue-template` | Say so in chat, draft against the section list in the completion checklist above, and re-gate the body inline per Step 3's rule; if a loaded prompt extension points into the unreadable template, record that referenced rule as `unestablished` and omit any draft assertion governed by it — never treat the pointer itself as proof that the unavailable rule passed; because the template also carries the exact `gh issue create` recipe, do not improvise the invocation — pass the body through a non-empty-guarded `--body-file`, never a pipe; filing is not blocked and the degradation is reported |
-| Step 3.5 entry | `references/step-3-5-steelman.md` | `step=3.5` | Verify the draft's load-bearing claims and file references against the code inline, and report the steelman as reduced in chat |
+| Step 3.5 entry | `references/step-3-5-steelman.md` | `step=3.5` | Verify the draft's load-bearing claims and file references against the code inline, report the steelman as reduced in chat, and still append the reduced steelman record to the `## Steelman record` section of `.prflow/tmp/issue-derivation-<slug>.md` (or its read-only inline stand-in) before Step 3.6 — that record obligation is load-independent of this reference |
 | Any revise-and-re-gate site | `references/revision-delta.md` | `step=revision-delta` | Re-gate the revision under Step 3 and report that the delta walk was unavailable |
 | Step 3.6 entry | `references/step-3-6-audit.md` | `step=3.6` | Audit the rendered draft yourself in chat for exactly one round, keep the findings in chat, ask the user once whether to continue, and mark the audit summary line as degraded |
 | Step 4 entry | `references/step-4-present-create.md` | `step=4` | Render the full draft in chat, carry the audit summary line, and create only on the user's explicit approval — the invariants below |
