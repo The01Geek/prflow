@@ -927,7 +927,8 @@ assert_eq("#169 TD-1: _TickMatchError is still an Exception",
 # ran. stdout is CAPTURED and returned (issue #814) so the default-suppression and
 # --print-body arms of `update`'s echo are assertable at the unit level — the only
 # level that drives the `_NoOpReplay` checkpoint-replay arm.
-def _drive_cmd_update(body, patch_fails=False, patch_response=None, **arg_overrides):
+def _drive_cmd_update(body, patch_fails=False, patch_response=None,
+                      id_response=None, fail_at=None, **arg_overrides):
     marker = '<!-- devflow:workpad -->'
     saved = (workpad._run, workpad._repo_full, workpad._workpad_marker)
     workpad._repo_full = lambda: 'owner/repo'
@@ -936,6 +937,14 @@ def _drive_cmd_update(body, patch_fails=False, patch_response=None, **arg_overri
     def _run(cmd, **kw):
         joined = ' '.join(cmd)
         if '/comments?' in joined or joined.endswith('/comments'):
+            # `fail_at`/`id_response` (issue #1562) drive cmd_update's two id-lookup
+            # terminating paths and its no-workpad-found path, which the default stub
+            # can never reach: keep both defaulting to None or every pre-#1562 caller
+            # of this harness changes behaviour.
+            if fail_at == 'id-lookup':
+                raise _subprocess.CalledProcessError(1, cmd, stderr='gh: 500 id-lookup')
+            if id_response is not None:
+                return _FakeRun(id_response)
             return _FakeRun(_json.dumps([{'id': 7, 'body': marker + '\n'}]))
         if '-X' in cmd and 'PATCH' in cmd:
             if patch_fails:  # simulate a gh-api PATCH failure (network/auth/5xx)
@@ -952,6 +961,8 @@ def _drive_cmd_update(body, patch_fails=False, patch_response=None, **arg_overri
             if patch_response is not None:
                 return _FakeRun(patch_response)
             return _FakeRun(state['patched'] or '')
+        if fail_at == 'body-fetch':
+            raise _subprocess.CalledProcessError(1, cmd, stderr='gh: 500 body-fetch')
         return _FakeRun(body)   # the body fetch
     workpad._run = _run
     out = io.StringIO()
@@ -1126,6 +1137,209 @@ def _tick_ac_n_noninteger_code():
         sys.argv, workpad._run, workpad._repo_full, workpad._workpad_marker = saved
 assert_eq("#169 shadow-3a: --tick-ac-n with a non-integer is rejected by argparse (type=int, exit 2)",
           2, _tick_ac_n_noninteger_code())
+
+
+print("issue #1562: cmd_update's machine-readable terminal outcome line")
+
+# Every terminating path of cmd_update writes one `outcome=<token> remedy=<token>`
+# line as its LAST stderr line. These drive each path end-to-end through the real
+# cmd_update (no mocking of cmd_update itself) and assert the emitted tokens, the
+# exit code, that the line is last, and that the path's pre-existing prose survives.
+
+def _outcome_line(err):
+    """The last non-empty stderr line, when it is an outcome line; else None."""
+    lines = [ln for ln in err.splitlines() if ln.strip()]
+    if lines and lines[-1].startswith('workpad.py update: outcome='):
+        return lines[-1]
+    return None
+
+
+# A body whose ## Acceptance Criteria has rows to tick and whose Status/Last updated
+# lines are present, so the clean, volatile-miss and status read-back arms all drive.
+OC_BODY = """<!-- devflow:workpad -->
+# DevFlow Workpad — Issue #999
+
+**Status:** 🚀 Setup
+**Last updated:** 2026-05-15T00:00:00Z
+
+## Progress
+- [ ] **Setup** — branch & workpad
+
+## Plan
+- [ ] plan one
+
+## Acceptance Criteria
+- [ ] AC one
+"""
+
+_OC_CASES = []   # (label, kwargs, expected_outcome, expected_remedy, expected_code)
+
+
+def _oc(label, expected_outcome, expected_remedy, expected_code, **kw):
+    """Drive one terminating path and assert its tokens, exit code and line order."""
+    _c, _o, _e, _p = _drive_cmd_update(OC_BODY, **kw)
+    _line = _outcome_line(_e)
+    assert_eq("#1562: %s emits its outcome line LAST on stderr" % label,
+              True, _line is not None)
+    assert_eq("#1562: %s emits outcome=%s remedy=%s" % (label, expected_outcome, expected_remedy),
+              "workpad.py update: outcome=%s remedy=%s" % (expected_outcome, expected_remedy),
+              _line)
+    assert_eq("#1562: %s exit code is unchanged" % label, expected_code, _c)
+    _OC_CASES.append((label, _e))
+    return _e
+
+
+# --- The four paths that delegate their prose to the shared _fail helper. ---
+_e = _oc("an id-lookup gh failure", "not-persisted", "reissue-call", 1, fail_at='id-lookup')
+assert_eq("#1562: the id-lookup failure keeps its existing prose line",
+          True, 'workpad.py update id-lookup:' in _e)
+
+_e = _oc("an unparseable comments response", "not-persisted", "reissue-call", 1,
+         id_response='{not json')
+assert_eq("#1562: the unparseable-comments path keeps its existing prose line",
+          True, 'could not parse gh comments response' in _e)
+
+_e = _oc("a body-fetch gh failure", "not-persisted", "reissue-call", 1, fail_at='body-fetch')
+assert_eq("#1562: the body-fetch failure keeps its existing prose line",
+          True, 'workpad.py update body-fetch:' in _e)
+
+_e = _oc("a PATCH-call failure", "not-persisted", "reissue-call", 1,
+         patch_fails=True, note=['n'])
+assert_eq("#1562: the PATCH-failure path keeps its existing prose line",
+          True, 'workpad.py update patch:' in _e)
+
+# --- The remaining not-persisted paths. ---
+_e = _oc("no workpad found", "not-persisted", "reissue-call", 1, id_response='[]')
+assert_eq("#1562: the no-workpad path keeps its existing prose line",
+          True, 'no workpad found for issue' in _e)
+
+_e = _oc("a structural _UpdateError", "not-persisted", "reissue-call", 1,
+         replace_plan_file='/nonexistent/plan-1562.md')
+assert_eq("#1562: the structural-abort path keeps its existing prose line",
+          True, 'workpad.py update:' in _e)
+
+_e = _oc("an unreadable --reflection-file", "not-persisted", "reissue-call", 1,
+         reflection_file='/nonexistent/refl-1562.md')
+assert_eq("#1562: the unreadable --reflection-file path keeps its existing prose line",
+          True, '--reflection-file' in _e)
+
+# --- The two precondition guards: refused before any mutation, exit 4. ---
+_e = _oc("an --expect-comment-id mismatch", "precondition-mismatch", "re-resolve-state", 4,
+         expect_comment_id='999999')
+assert_eq("#1562: the --expect-comment-id guard keeps its existing prose line",
+          True, 'precondition mismatch — expected comment id' in _e)
+
+_e = _oc("an --expect-status mismatch", "precondition-mismatch", "re-resolve-state", 4,
+         expect_status='Complete')
+assert_eq("#1562: the --expect-status guard keeps its existing prose line",
+          True, 'precondition mismatch — expected Status' in _e)
+
+# --- The checkpoint-only replay: no PATCH, exit 0. ---
+_OC_CPKEY = 'gha:1:1:phase1-entered'
+# Seed the existing checkpoint row through the marker's own producer — a hand-written
+# marker literal silently misses the replay arm and the test then asserts nothing.
+_OC_REPLAY = OC_BODY.replace(
+    "- [ ] **Setup** — branch & workpad",
+    "- [ ] **Setup** — branch & workpad\n  - 02:01:00 — seeded "
+    + workpad._checkpoint_marker(_OC_CPKEY))
+_c, _o, _e, _p = _drive_cmd_update(_OC_REPLAY, checkpoint=[[_OC_CPKEY, 'x']])
+assert_eq("#1562: the checkpoint-replay path emits outcome=replay remedy=none as its last line",
+          "workpad.py update: outcome=replay remedy=none", _outcome_line(_e))
+assert_eq("#1562: the checkpoint-replay path still exits 0 and makes no PATCH",
+          (None, None), (_c, _p))
+assert_eq("#1562: the checkpoint-replay path keeps its existing prose line",
+          True, 'checkpoint replay' in _e)
+_OC_CASES.append(("the checkpoint replay", _e))
+
+# --- The clean PATCH tail, and its three unreadable-Status read-back states. ---
+_c, _o, _e, _p = _drive_cmd_update(OC_BODY, note=['n'])
+assert_eq("#1562: a clean PATCH with no --status emits outcome=landed remedy=none",
+          "workpad.py update: outcome=landed remedy=none", _outcome_line(_e))
+assert_eq("#1562: a clean PATCH exits 0", None, _c)
+assert_eq("#1562: a clean PATCH keeps its existing success breadcrumb",
+          True, 'workpad.py update: PATCHed comment 7' in _e)
+_OC_CASES.append(("a clean PATCH", _e))
+
+_c, _o, _e, _p = _drive_cmd_update(OC_BODY, status='Reviewing')
+assert_eq("#1562: a clean PATCH whose --status read-back MATCHES emits outcome=landed",
+          "workpad.py update: outcome=landed remedy=none", _outcome_line(_e))
+_OC_CASES.append(("a matching --status read-back", _e))
+
+# The three unreadable read-back states share one token because they share one
+# remedy; the pre-existing prose line still reports which of the three occurred.
+_c, _o, _e, _p = _drive_cmd_update(OC_BODY, status='Reviewing', patch_response='')
+assert_eq("#1562: an EMPTY --status read-back emits outcome=landed-status-unverified "
+          "remedy=reset-status",
+          "workpad.py update: outcome=landed-status-unverified remedy=reset-status",
+          _outcome_line(_e))
+assert_eq("#1562: the empty read-back still reports which of the three states occurred",
+          True, '(empty response)' in _e)
+_OC_CASES.append(("an empty --status read-back", _e))
+
+_c, _o, _e, _p = _drive_cmd_update(OC_BODY, status='Reviewing',
+                                   patch_response='no status line here')
+assert_eq("#1562: a Status-less --status read-back emits outcome=landed-status-unverified",
+          "workpad.py update: outcome=landed-status-unverified remedy=reset-status",
+          _outcome_line(_e))
+assert_eq("#1562: the Status-less read-back still reports which of the three states occurred",
+          True, '(not found)' in _e)
+_OC_CASES.append(("a Status-less --status read-back", _e))
+
+_c, _o, _e, _p = _drive_cmd_update(OC_BODY, status='Reviewing',
+                                   patch_response='**Status:** 🚀 Setup\n')
+assert_eq("#1562: a MISMATCHED --status read-back emits outcome=landed-status-unverified",
+          "workpad.py update: outcome=landed-status-unverified remedy=reset-status",
+          _outcome_line(_e))
+assert_eq("#1562: the mismatched read-back keeps its existing WARNING line",
+          True, 'WARNING: the PATCH response reads Status' in _e)
+_OC_CASES.append(("a mismatched --status read-back", _e))
+
+# --- The volatile tick-miss tail, alone and co-occurring with a bad read-back. ---
+_c, _o, _e, _p = _drive_cmd_update(OC_BODY, note=['n'], tick_ac=['NO_SUCH_AC'])
+assert_eq("#1562: a volatile tick miss emits outcome=landed-partial-ticks "
+          "remedy=retick-named-rows",
+          "workpad.py update: outcome=landed-partial-ticks remedy=retick-named-rows",
+          _outcome_line(_e))
+assert_eq("#1562: the volatile-miss path still exits 1 and still PATCHed",
+          (1, True), (_c, _p is not None))
+assert_eq("#1562: the volatile-miss path keeps its existing prose line",
+          True, 'did not resolve' in _e and 're-tick only' in _e)
+_OC_CASES.append(("a volatile tick miss", _e))
+
+_c, _o, _e, _p = _drive_cmd_update(OC_BODY, status='Reviewing', tick_ac=['NO_SUCH_AC'],
+                                   patch_response='')
+assert_eq("#1562: a tick miss co-occurring with an unreadable read-back emits "
+          "outcome=landed-partial-ticks-status-unverified remedy=retick-and-reset-status",
+          "workpad.py update: outcome=landed-partial-ticks-status-unverified "
+          "remedy=retick-and-reset-status",
+          _outcome_line(_e))
+assert_eq("#1562: that co-occurring path still exits 1", 1, _c)
+_OC_CASES.append(("a tick miss with an unreadable read-back", _e))
+
+# --- Adjacent-case sweep over both closed sets, across every path driven above. ---
+_OC_OUTCOMES = {'landed', 'landed-status-unverified', 'landed-partial-ticks',
+                'landed-partial-ticks-status-unverified', 'replay', 'not-persisted',
+                'precondition-mismatch'}
+_OC_REMEDIES = {'none', 'retick-named-rows', 'reset-status', 'retick-and-reset-status',
+                'reissue-call', 're-resolve-state'}
+_oc_seen_outcomes, _oc_seen_remedies, _oc_stray = set(), set(), []
+for _label, _err_text in _OC_CASES:
+    for _ln in _err_text.splitlines():
+        if not _ln.startswith('workpad.py update: outcome='):
+            continue
+        _rest = _ln[len('workpad.py update: outcome='):].split()
+        _tok = _rest[0] if _rest else ''
+        _rem = _rest[1][len('remedy='):] if len(_rest) > 1 and _rest[1].startswith('remedy=') else ''
+        _oc_seen_outcomes.add(_tok)
+        _oc_seen_remedies.add(_rem)
+        if _tok not in _OC_OUTCOMES or _rem not in _OC_REMEDIES:
+            _oc_stray.append((_label, _ln))
+assert_eq("#1562: no driven path emits an outcome or remedy token outside the closed sets",
+          [], _oc_stray)
+assert_eq("#1562: every one of the seven outcome tokens is emitted by some driven path",
+          _OC_OUTCOMES, _oc_seen_outcomes)
+assert_eq("#1562: every one of the six remedy tokens is emitted by some driven path",
+          _OC_REMEDIES, _oc_seen_remedies)
 
 # Shadow type-design: the _CHECKBOX_ROW_RE group-order contract (group 2 = state cell,
 # preserved by _rewrite_checkbox / overwritten by _tick_checkbox_by_index) is pinned

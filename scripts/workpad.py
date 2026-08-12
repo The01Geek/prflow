@@ -183,7 +183,54 @@ def _run(cmd, *, stdout=subprocess.PIPE, stdin=None):
     )
 
 
-def _fail(prefix, exc, code=1):
+_UPDATE_OUTCOMES = (
+    'landed',
+    'landed-status-unverified',
+    'landed-partial-ticks',
+    'landed-partial-ticks-status-unverified',
+    'replay',
+    'not-persisted',
+    'precondition-mismatch',
+)
+
+_UPDATE_REMEDIES = (
+    'none',
+    'retick-named-rows',
+    'reset-status',
+    'retick-and-reset-status',
+    'reissue-call',
+    're-resolve-state',
+)
+
+_UPDATE_REMEDY_BY_OUTCOME = {
+    'landed': 'none',
+    'replay': 'none',
+    'landed-partial-ticks': 'retick-named-rows',
+    'landed-status-unverified': 'reset-status',
+    'landed-partial-ticks-status-unverified': 'retick-and-reset-status',
+    'not-persisted': 'reissue-call',
+    'precondition-mismatch': 're-resolve-state',
+}
+
+
+def _emit_update_outcome(outcome):
+    """Write `cmd_update`'s machine-readable terminal outcome line (issue #1562).
+
+    Every terminating path of `cmd_update` routes its outcome through here so no
+    path can compose a variant spelling — the same single-chokepoint discipline
+    `_report_failed_ticks` uses for volatile-miss reporting. The remedy is derived
+    from the outcome, never passed in, so the two can never disagree at a call site.
+
+    Callers emit this AFTER the path's own prose line and immediately before the
+    exit, because the line's contract is that it is the last line on stderr.
+    """
+    sys.stderr.write(
+        f"workpad.py update: outcome={outcome} "
+        f"remedy={_UPDATE_REMEDY_BY_OUTCOME[outcome]}\n"
+    )
+
+
+def _fail(prefix, exc, code=1, update_outcome=None):
     # `code` defaults to 1 (the historical contract for every subcommand). The
     # callers that override it to 3 are cmd_status (its gh-api/transport/auth
     # failure paths) and the acs surfaces — `_acs_read_workpad` (which passes
@@ -206,6 +253,10 @@ def _fail(prefix, exc, code=1):
     msg = msg.strip() if isinstance(msg, str) else ''
     msg = msg or str(exc)
     sys.stderr.write(f"workpad.py {prefix}: {msg}\n")
+    # `update_outcome` defaults to None so every other subcommand's stderr stays
+    # byte-identical; only cmd_update's four delegating paths pass it.
+    if update_outcome is not None:
+        _emit_update_outcome(update_outcome)
     sys.exit(code)
 
 
@@ -3107,11 +3158,12 @@ def cmd_update(args):
                 f'?page={page}&per_page=100',
             ])
         except (subprocess.CalledProcessError, OSError) as e:
-            _fail('update id-lookup', e)
+            _fail('update id-lookup', e, update_outcome='not-persisted')
         try:
             items = json.loads(r.stdout)
         except json.JSONDecodeError as e:
-            _fail('update id-lookup', f"could not parse gh comments response: {e}")
+            _fail('update id-lookup', f"could not parse gh comments response: {e}",
+                  update_outcome='not-persisted')
         for c in items:
             if (c.get('body') or '').startswith(_marker_variants(marker)):
                 comment_id = c['id']
@@ -3130,6 +3182,7 @@ def cmd_update(args):
             f"workpad.py update: no workpad found for issue #{args.issue}; "
             f"call `workpad.py create` first\n"
         )
+        _emit_update_outcome('not-persisted')
         sys.exit(1)
 
     # Fetch live body (re-fetch invariant).
@@ -3140,7 +3193,7 @@ def cmd_update(args):
             '--jq', '.body',
         ])
     except (subprocess.CalledProcessError, OSError) as e:
-        _fail('update body-fetch', e)
+        _fail('update body-fetch', e, update_outcome='not-persisted')
     body = r.stdout
 
     # Hydration-race preconditions (issue #537, AC24). Phase 1 snapshots the workpad
@@ -3158,6 +3211,7 @@ def cmd_update(args):
             f"{args.expect_comment_id} but the live workpad is comment "
             f"{comment_id} (concurrent delete/recreate). No mutation/PATCH made.\n"
         )
+        _emit_update_outcome('precondition-mismatch')
         sys.exit(4)
     if args.expect_status is not None:
         _live_word = _status_word_from_body(body)
@@ -3168,6 +3222,7 @@ def cmd_update(args):
                 f"{_live_word!r} (concurrent status change / terminal backstop "
                 f"transition). No mutation/PATCH made.\n"
             )
+            _emit_update_outcome('precondition-mismatch')
             sys.exit(4)
 
     # Failed-write buffering/replay (issue #1214). Capture THIS call's own
@@ -3197,6 +3252,7 @@ def cmd_update(args):
             _own_reflections.append(_reflection_file_payload(args))
         except _UpdateError as e:
             sys.stderr.write(f"workpad.py update: {e}\n")
+            _emit_update_outcome('not-persisted')
             sys.exit(1)
     _buffer_safe_to_clear = _plan_buffer_replay(
         comment_id, body, args, _own_notes, _own_reflections)
@@ -3236,6 +3292,7 @@ def cmd_update(args):
             _clear_workpad_buffer(comment_id)
         if args.print_body:
             sys.stdout.write(body)
+        _emit_update_outcome('replay')
         return
     except _UpdateError as e:
         sys.stderr.write(f"workpad.py update: {e}\n")
@@ -3249,6 +3306,7 @@ def cmd_update(args):
                 f"additionally, {len(failed_ticks)} tick(s) did not resolve before "
                 f"the abort (no PATCH was made — re-send the whole call)",
             )
+        _emit_update_outcome('not-persisted')
         sys.exit(1)
 
     # Write to a temp file and PATCH. The body always carries at least the
@@ -3292,7 +3350,7 @@ def cmd_update(args):
                 f"to {_buf_path} for replay on the next successful update "
                 f"(issue #1214).\n"
             )
-        _fail('update patch', e)
+        _fail('update patch', e, update_outcome='not-persisted')
     finally:
         Path(tmp_path).unlink(missing_ok=True)
     # The PATCH succeeded: drop the buffer file ONLY when `_plan_buffer_replay`
@@ -3359,10 +3417,17 @@ def cmd_update(args):
     # guard and the breadcrumb cannot disagree about what was read back, and it
     # reports the same distinct unreadable token the clause carries rather than
     # collapsing the two unobserved states.
+    # `_status_unverified` is the single read-back verdict both PATCH-succeeded tails
+    # below select their outcome token from; deriving it twice would let the clean and
+    # volatile-miss tails disagree about the same read-back. It collapses the three
+    # unreadable states (empty response, no Status line, mismatch) because they share
+    # one remedy — the prose lines above still report which of the three occurred.
+    _status_unverified = False
     if args.status:
         _want = _strip_status_glyph(args.status).strip().lower()
         _got = _strip_status_glyph(_live).strip().lower()
         if _want != _got:
+            _status_unverified = True
             sys.stderr.write(
                 f"workpad.py update: WARNING: the PATCH response reads Status "
                 f"{_got or _read_back!r}, not the requested {_want!r} — the write "
@@ -3381,7 +3446,15 @@ def cmd_update(args):
             f"other mutations were applied — re-tick only these row(s), do not "
             f"re-send the call)",
         )
+        _emit_update_outcome(
+            'landed-partial-ticks-status-unverified' if _status_unverified
+            else 'landed-partial-ticks'
+        )
         sys.exit(1)
+
+    _emit_update_outcome(
+        'landed-status-unverified' if _status_unverified else 'landed'
+    )
 
 
 def _apply_section_ticks(
