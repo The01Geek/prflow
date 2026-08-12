@@ -16,8 +16,8 @@ helper — rather than a new bundled helper — keeps the precondition free of a
 new matcher command head or vendored-literal token, so no install.sh-versus-
 vendor-fetch skew window opens. It reuses the three-class one-token contract:
 IGNORED / PROCEED_EXIT, NOT_IGNORED / BLOCKED_EXIT (a resolved 'not ignored' — the
-degraded arm), UNAVAILABLE / UNAVAILABLE_EXIT (git could not answer). The IGNORED
-line carries the resolved ABSOLUTE target after the token, so a caller that passed
+degraded arm), UNAVAILABLE / UNAVAILABLE_EXIT (git could not answer). Both RESOLVED
+arms carry the resolved ABSOLUTE target after the token, so a caller that passed
 `--repo-relative` writes to the same path this subcommand checked rather than to a
 cwd-relative one that a subdirectory-launched run would resolve elsewhere (#1633).
 
@@ -1089,7 +1089,10 @@ def ignore_precondition(args: argparse.Namespace) -> int:
         f"in-tree cache write is preconditioned on one being in effect",
         file=sys.stderr,
     )
-    print("NOT_IGNORED", flush=True)
+    # Both RESOLVED arms carry the absolute target, so a caller on either arm names
+    # the same in-tree location this subcommand answered about rather than a
+    # cwd-relative one a subdirectory-launched run would resolve elsewhere.
+    print(f"NOT_IGNORED {os.path.abspath(path)}", flush=True)
     return BLOCKED_EXIT
 
 

@@ -12280,12 +12280,17 @@ _STEM_HOMES = {
     "skills/review-and-fix/references/loop-control.md": ("devflow-maxiter.err",),
     "skills/review-and-fix/references/loop-exit.md": ("devflow-et-flag.err", "devflow-et.err"),
 }
+# `<scratch-dir>/` is the SAME home written in its anchored spelling: issue #1633 made the
+# Phase 1 scratch writes substitute the absolute `…/.prflow/tmp` the precondition resolved,
+# so requiring the bare `.prflow/tmp/` prefix here would forbid that anchoring, not a /tmp
+# regression. The negative half above still binds the /tmp absence.
+_STEM_HOME_PREFIX = r"(?:\.prflow/tmp/|<scratch-dir>/)"
 for _mf, _stems in _STEM_HOMES.items():
     _text = (cwc.REPO_ROOT / _mf).read_text(encoding="utf-8")
     for _stem in _stems:
         assert_eq("#915: stem '%s' is present under a .prflow/tmp/ path in %s" % (_stem, _mf),
                   True,
-                  bool(re.search(r"\.prflow/tmp/[^\s`\"')]*" + re.escape(_stem), _text)))
+                  bool(re.search(_STEM_HOME_PREFIX + r"[^\s`\"')]*" + re.escape(_stem), _text)))
 
 # preflight.py's _payload_dir writes a distinct stderr breadcrumb on each fallback
 # arm (unresolvable git root vs os.makedirs failure), still returns None, and
@@ -12415,8 +12420,15 @@ assert_eq("#1633 anchoring: the linked-worktree run reports a target inside that
           True,
           os.path.realpath(_pf_link_1633[0].split(maxsplit=1)[1])
           == os.path.realpath(os.path.join(_wt_link, "scratch/x.md")))
+_pf_ni_1633 = _pf_ignore_1633(str(Path(_wt_repo) / "sub"), "tracked.txt")
 assert_eq("#1633 anchoring: a tracked repo-relative path is NOT_IGNORED (exit 2)",
-          ("NOT_IGNORED", 2), _pf_ignore_1633(str(Path(_wt_repo) / "sub"), "tracked.txt"))
+          ("NOT_IGNORED", 2), (_pf_ni_1633[0].split()[0], _pf_ni_1633[1]))
+# The degraded arm is a RESOLVED answer, so it carries the absolute target too — the
+# §1.2/§1.3 scratch writes derive their directory from it on either resolved arm.
+assert_eq("#1633 anchoring: the NOT_IGNORED arm also reports the resolved absolute target",
+          True,
+          os.path.realpath(_pf_ni_1633[0].split(maxsplit=1)[1])
+          == os.path.realpath(os.path.join(_wt_repo, "tracked.txt")))
 
 # parse-acs.py --anchor-repo-root resolves --body-file the same way; an unresolvable
 # root fails closed (non-zero exit) rather than leaving an empty parse.
@@ -12451,6 +12463,18 @@ assert_eq("#1633 anchoring: parse-acs fails closed when the repo root will not r
           (1, ""), (_pa_fc_1633.returncode, _pa_fc_1633.stdout.strip()))
 assert_eq("#1633 anchoring: the parse-acs fail-closed arm names the unresolvable root",
           True, "could not resolve the repository root" in _pa_fc_1633.stderr)
+# An ABSENT git binary is the same unresolved-root condition, not a traceback: run with a
+# PATH holding no git at all and require the same clean fail-closed breadcrumb.
+_pa_nogit_1633 = _sp915.run(
+    [sys.executable, _PA_PATH_1633, "--anchor-repo-root", "--body-file", "body.md",
+     "--format", "md"],
+    cwd=_nonrepo_1633, capture_output=True, text=True,
+    env={**os.environ, "PATH": os.path.join(_nonrepo_1633, "nobin")})
+assert_eq("#1633 anchoring: parse-acs fails closed with a breadcrumb when git is absent",
+          (1, True, False),
+          (_pa_nogit_1633.returncode,
+           "could not resolve the repository root" in _pa_nogit_1633.stderr,
+           "Traceback" in _pa_nogit_1633.stderr))
 
 # ─────────────────────────────────────────────────────────────────────────────
 # AC2/AC3 (issue #701) — helper leading-token boundary over the AC1 closure.

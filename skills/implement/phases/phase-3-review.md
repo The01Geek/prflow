@@ -112,7 +112,7 @@ echo "draft PR number: [<adopted-pr>]"
 gh pr view --json number,url --jq '.number, .url'
 ```
 
-Read the printed number (line 1) and URL (line 2) from the tool result, and substitute them as literals below — the number is what §3.1's label, assignment, and scope-binding fences consume as the `draft PR number`:
+Read the printed number (line 1) and URL (line 2) from the tool result, and substitute them as literals below — the number is what §3.1's label, assignment, and scope-binding fences consume as the `draft PR number`. **If either line read empty — or the read produced no output at all, a harness refusal — do not run the write fence**, exactly as the adopt arm above: a `[#]()` link PATCHed now is a broken link no later remedy can undo. Record it durably instead and continue: `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 3.1: the created draft PR's number/URL read was empty or produced no output at all (likely a harness denial); the workpad carries no PR link."`
 ```bash
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --pr-link "[#<pr-number>](<pr-url>)"
 echo "draft PR number: [<pr-number>]"

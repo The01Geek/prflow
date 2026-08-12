@@ -4591,7 +4591,7 @@ assert_pin_unique "#362: Skill rule forbids the mid-phase Skill-tool invocation 
 # has-session-id and empty-marker arms), so the path is now present twice — a presence
 # check, not a uniqueness one. The three-site coupled invariant below still holds.
 assert_eq "#362: Phase 1.3 writes the run marker the Stop-hook guard globs" "yes" \
-  "$(grep -qF '.prflow/tmp/implement-active-$ISSUE_NUMBER' "$P362_P1" && echo yes || echo no)"  # structural-pin-ok: routing-dispatch-contract -- the run-marker path the Stop-hook guard globs; coupled to lib/implement-stop-guard.sh
+  "$(grep -qF '<scratch-dir>/implement-active-$ISSUE_NUMBER' "$P362_P1" && echo yes || echo no)"  # structural-pin-ok: routing-dispatch-contract -- the run-marker path the Stop-hook guard globs, in the issue-#1633 anchored spelling (<scratch-dir> resolves to the same .prflow/tmp the guard globs); coupled to lib/implement-stop-guard.sh
 assert_pin_unique "#362: the Outcome-reaction block removes the run marker at every terminal transition" \
   'remove the Phase 1.3 run-marker' "$IMPL_ORCH"
 # The marker filename is a THREE-site coupled invariant: the Phase 1.3 write (pinned above),
@@ -32663,6 +32663,11 @@ base = os.path.join(tmp, "skillbase", "a", "b")
 scripts = os.path.join(tmp, "skillbase", "scripts")
 os.makedirs(base, exist_ok=True)
 os.makedirs(scripts, exist_ok=True)
+# Issue #1633 put the emit-time placeholder <scratch-dir> in these fences' REDIRECT
+# position, where bash reads a leading `<` as an input redirection and aborts the fence
+# before the stub is reached; substitute it exactly as the orchestrator would.
+scratchdir = os.path.join(tmp, "scratch")
+os.makedirs(scratchdir, exist_ok=True)
 rec = os.path.join(tmp, "runlink-values.txt")
 hit = os.path.join(tmp, "stub-hits.txt")
 stub = os.path.join(scripts, "workpad.py")
@@ -32712,6 +32717,7 @@ def run_pass(extra):
     env = dict(base_env)
     env.update(extra)
     for f in runlink_fences:
+        f = f.replace("<scratch-dir>", scratchdir)
         subprocess.run(["bash", "-c", f], env=env, cwd=repo,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     recorded = [l for l in (open(rec).read().splitlines() if os.path.exists(rec) else []) if l]
@@ -51433,6 +51439,64 @@ _wfs_restore_p1
 # docstring-presence grep would be a prohibited wording-only pin (CLAUDE.md's
 # executable-evidence policy), so none is written here.
 
+# ── #1633 scratch-write anchoring (phase-1-setup.md) ──────────────────────────
+# The root .gitignore rule is root-anchored (/.prflow/*), so a cwd-relative scratch
+# write from a run launched in a repository SUBDIRECTORY lands on an untracked in-tree
+# file that trips the run's own clean-tree gates. Every Phase 1 write target is
+# therefore the substituted absolute <scratch-dir>/<absolute-cache-*>, never a bare
+# `.prflow/tmp/...`. This scans the phase file's bash fences for a WRITE position
+# (a `>` redirect target, or a `mkdir -p`/`rm -f` operand) naming the bare path.
+# Helper ARGUMENTS keep the repo-relative spelling — the helper anchors those itself —
+# so only write positions are examined.
+P1633_ANCHOR_OUT="$(python3 -c '
+import re, sys
+text = open(sys.argv[1], encoding="utf-8").read()
+fences, cur = [], None
+for ln in text.splitlines():
+    if cur is None:
+        if ln.strip() == "```bash":
+            cur = []
+    elif ln.strip() == "```":
+        fences.append(cur); cur = None
+    else:
+        cur.append(ln)
+bad = []
+for fence in fences:
+    for ln in fence:
+        for m in re.finditer(r"(?:>\s*|\bmkdir\s+-p\s+|\brm\s+-f\s+)(\S+)", ln):
+            target = m.group(1).strip("\"'"'"'")
+            if target.startswith(".prflow/tmp"):
+                bad.append(target)
+print("bare=%d %s" % (len(bad), ",".join(sorted(set(bad)))))
+' "$REPO_ROOT/skills/implement/phases/phase-1-setup.md")"
+assert_eq "#1633 anchoring: no phase-1 scratch WRITE target is cwd-relative" "bare=0 " "$P1633_ANCHOR_OUT"
+# Non-vacuous: the same scan over a planted bare-target fence reports it, so a scanner
+# that silently matched nothing could not pass the assertion above.
+P1633_ANCHOR_PLANT="$(mktemp)"; _suite_tmp_file "$P1633_ANCHOR_PLANT"
+printf '```bash\nmkdir -p .prflow/tmp\n```\n' > "$P1633_ANCHOR_PLANT"
+assert_eq "#1633 anchoring: the write-position scan reports a planted bare target" "bare=1 .prflow/tmp" \
+  "$(python3 -c '
+import re, sys
+text = open(sys.argv[1], encoding="utf-8").read()
+fences, cur = [], None
+for ln in text.splitlines():
+    if cur is None:
+        if ln.strip() == "```bash":
+            cur = []
+    elif ln.strip() == "```":
+        fences.append(cur); cur = None
+    else:
+        cur.append(ln)
+bad = []
+for fence in fences:
+    for ln in fence:
+        for m in re.finditer(r"(?:>\s*|\bmkdir\s+-p\s+|\brm\s+-f\s+)(\S+)", ln):
+            target = m.group(1).strip("\"'"'"'")
+            if target.startswith(".prflow/tmp"):
+                bad.append(target)
+print("bare=%d %s" % (len(bad), ",".join(sorted(set(bad)))))
+' "$P1633_ANCHOR_PLANT")"
+
 # ── #1633 fence-isolation harness (AC23/AC24/AC29) ────────────────────────────
 # Extracts every ```bash fence of the canonical enrolled file (phase-1-setup.md, the file
 # a worktree Phase 1 session executes) and runs each in FENCE ISOLATION (fresh `bash -uc`,
@@ -51458,6 +51522,10 @@ libdir = os.path.join(tmp, "skillbase", "lib")
 bindir = os.path.join(tmp, "bin")
 work = os.path.join(tmp, "work")
 for d in (base, scripts, libdir, bindir, work,
+          # `scratch-dir` is the emit-time placeholder the §1.2/§1.3 scratch writes
+          # carry; subst() reduces it to this bare name, so the directory must exist
+          # for a write fence that runs in its own shell after the mkdir fence.
+          os.path.join(work, "scratch-dir"),
           os.path.join(work, ".prflow", "tmp", "issue-body")):
     os.makedirs(d, exist_ok=True)
 with open(os.path.join(work, ".prflow", "tmp", "issue-body", "issue-4242.md"), "w") as f:

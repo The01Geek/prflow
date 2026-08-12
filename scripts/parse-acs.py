@@ -314,10 +314,16 @@ def main():
         if args.anchor_repo_root and body_file and not os.path.isabs(body_file):
             # Resolve against `git rev-parse --show-toplevel` so a run from the repo
             # root, a subdirectory, or a linked worktree all resolve the same target.
-            top = subprocess.run(['git', 'rev-parse', '--show-toplevel'],
-                                 capture_output=True, text=True)
-            root = top.stdout.strip()
-            if top.returncode != 0 or not root:
+            # An absent/unlaunchable git is the same unresolved-root condition as a
+            # non-zero exit; letting OSError escape would replace the fail-closed
+            # breadcrumb below with a traceback (preflight.py's _run_git contract).
+            try:
+                top = subprocess.run(['git', 'rev-parse', '--show-toplevel'],
+                                     capture_output=True, text=True)
+                rc, root = top.returncode, top.stdout.strip()
+            except OSError:
+                rc, root = 1, ''
+            if rc != 0 or not root:
                 # Fail closed on a non-zero exit rather than silently anchoring to cwd;
                 # the §1.2 fence routes any non-zero parse exit to the run's stop path.
                 print('parse-acs.py: could not resolve the repository root to anchor '
