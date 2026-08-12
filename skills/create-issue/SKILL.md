@@ -10,7 +10,7 @@ implementation — the offer is presented, or a one-line reason is printed for w
 not a documentation report. Before anything else, fill in this seven-slot tracker using the
 task-tracking tool the runner exposes (`TodoWrite`; `TaskCreate`/`TaskUpdate`; or `update_plan`),
 or, when none is exposed or the exposed one is unusable, the inline fallback in
-`references/fallback-no-task-tool.md` loaded per the routing table below:
+`references/fallback-no-task-tool.md` loaded per the *Reference routing* rules below:
 
 - [ ] 1. Run Step 1's selected arm and write its evidence artifact
 - [ ] 2. Clarify the user story until the Definition of Ready is met (Step 2)
@@ -110,29 +110,11 @@ rules in `## Runner setup` below and read it with the runner's file-read tool �
 accepted only when the file's first line is its `start` boundary marker and its last line is the
 matching `end` marker, each naming that file's own path, with exactly one of each.
 
-Every load failure degrades, and no failure arm terminates the run. On an unreadable or absent
-file, an empty file, a missing / duplicated / foreign-path marker, or a truncated read, emit an
-in-chat breadcrumb naming the file and the failure kind, then continue on that row's named degraded
-behavior below. The five non-degradable invariants stated after this table hold on every degraded arm.
+**Every load failure degrades, and no failure arm terminates the run.** On an unreadable or absent file, an empty file, a missing / duplicated / foreign-path marker, or a truncated read, emit an in-chat breadcrumb naming the file and the failure kind, then continue on that file's degraded behavior. The five non-degradable invariants stated below hold on every degraded arm.
 
-| Load trigger | File | Marker contract | Degraded behavior on a failed load |
-| --- | --- | --- | --- |
-| Step 2 entry | `references/step-2-clarify.md` | `step=2` | Clarify from the Definition-of-Ready summary in the completion checklist, asking via the runner's user-question tool; record the derivation in chat when it cannot be written to disk, and report the reduced clarification |
-| Step 3 drafting entry | `references/issue-template.md` | `step=issue-template` | Say so in chat, draft against the section list in the completion checklist above, and re-gate the body inline per Step 3's rule; if a loaded prompt extension points into the unreadable template, record that referenced rule as `unestablished` and omit any draft assertion governed by it — never treat the pointer itself as proof that the unavailable rule passed; because the template also carries the exact `gh issue create` recipe, do not improvise the invocation — pass the body through a non-empty-guarded `--body-file`, never a pipe; filing is not blocked and the degradation is reported |
-| Step 3.5 entry | `references/step-3-5-steelman.md` | `step=3.5` | Verify the draft's load-bearing claims and file references against the code inline, report the steelman as reduced in chat, and still append the reduced steelman record to the `## Steelman record` section of `.prflow/tmp/issue-derivation-<slug>.md` (or its read-only inline stand-in) before Step 3.6 — that record obligation is load-independent of this reference |
-| Any revise-and-re-gate site | `references/revision-delta.md` | `step=revision-delta` | Re-gate the revision under Step 3 and report that the delta walk was unavailable |
-| Step 3.6 entry | `references/step-3-6-audit.md` | `step=3.6` | Audit the rendered draft yourself in chat for exactly one round, keep the findings in chat, ask the user once whether to continue, and mark the audit summary line as degraded |
-| Step 4 entry | `references/step-4-present-create.md` | `step=4` | Render the full draft in chat, carry the audit summary line, and create only on the user's explicit approval — the invariants below |
-| No task-tracking tool is exposed, or the exposed one is disabled or unusable | `references/fallback-no-task-tool.md` | `step=fallback-no-task-tool` | Track the seven checklist items as a re-rendered in-chat block and report that the state-file mirror was unavailable |
-| A write or delete under `.prflow/tmp/` fails because the filesystem is read-only | `references/fallback-read-only-sandbox.md` | `step=fallback-read-only-sandbox` | Post the affected artifact as a visible in-chat block in the current turn and distrust any on-disk copy |
-| `query-arm` answers a non-file arm, a dispatch retry escalates, or no subagent tool is exposed | `references/fallback-audit-dispatch-arms.md` | `step=fallback-audit-dispatch-arms` | Audit the rendered draft in chat for that round and mark the audit summary line as degraded |
-| The state owner produces no contract output, or a mutation fails to establish or persist state | `references/fallback-state-owner-unavailable.md` | `step=fallback-state-owner-unavailable` | Run one in-chat audit round, offer one continue/decline choice, and proceed only on the user's explicit election |
-| `query-boundary` reports any trigger component (`t1=`, `t2=`, `coverage=`, `calibration=`) at `hold`, or an `unledgered_revise` round | `references/fallback-audit-boundary-offer.md` | `step=fallback-audit-boundary-offer` | Offer one more audit round in chat naming the trigger that fired, honour an explicit decline, and name the offer's outcome in the audit summary line — recording neither `record-offer` nor the boundary `record-override`, so the round falls outside the ceiling accounting and a REVISE-carrying draft clears approval through Step 4's file-anyway election |
-| Adjudicating a second-or-later audit round | `references/fallback-audit-round-reconciliation.md` | `step=fallback-audit-round-reconciliation` | Adjudicate this round's findings against the `query-findings` read-back alone and report that the cross-round reconciliation discipline was unavailable |
-| A staged `apply` answers `agree=no`, a landed re-check disagrees, or a `reason=foreign-nonce` answer is read back from `query-draft-binding` or `query-findings` | `references/fallback-draft-write-recovery.md` | `step=fallback-draft-write-recovery` | On a write disagreement report `--write-landed no` to `query-arm` and present from the in-context bytes; on a drifted nonce report the drift to the user and compose no path from the answer — never `--write-landed no`, which no failed write supports |
-| The leading-token `config-get.sh .workflows.prflow` read is denied or fails | `references/fallback-implement-offer-tier-read.md` | `step=fallback-implement-offer-tier-read` | Withhold the implement offer, naming *tier state unestablished* as the one-line withheld-offer reason — never *config unreadable*, which the degraded read never established |
-| The issue involves user-visible UI changes | `references/fallback-visual-specification.md` | `step=fallback-visual-specification` | Verify the visual details with the user inline before finalizing the draft and report that the visual-specification guidance was unavailable |
-| `record-return` classifies a round `no-parseable-verdict` on absent or mismatched carriage evidence, the instruction-file generation exits non-zero or empty, or the audit-prompt render produces no output or misplaced markers | `references/fallback-audit-evidence-degraded.md` | `step=fallback-audit-evidence-degraded` | Name the arm that fired in the in-chat audit summary line and proceed to presentation with that disclosure, attempting no `record-degraded` call — the summary line is the required surface, and filing is never blocked |
+**Which file loads on which trigger — and the degraded behavior each failed load falls back on — is enumerated in `references/degradation-routing.md`.** Load it (per the boundary-marker rule above) on either of two triggers: when a reference load fails and you need its degraded behavior, and when one of its predicate-gated fallback conditions fires on an otherwise healthy run.
+
+**If `references/degradation-routing.md` itself fails to load**, its routing row is unavailable for the reference that needed it: proceed inline for that step, using the Definition-of-Ready summary and section list in the completion checklist above, disclose the reduced coverage in chat, and do not terminate the run. The five non-degradable invariants below still hold.
 
 ## Non-degradable invariants
 
@@ -234,7 +216,7 @@ questions that arrive before the code findings grounding them interrogate the us
 
 ### Step 2: Clarify until the Definition of Ready is met
 
-Load `references/step-2-clarify.md` per the routing table above and follow it exactly, on every entry into this step.
+Load `references/step-2-clarify.md` per the *Reference routing* rules above and follow it exactly, on every entry into this step.
 
 ### Step 3: Draft the issue and pass the no-options gate
 
@@ -262,9 +244,7 @@ election — are authoritative and exempt.)
 Before composing the draft prose, read the shared writing standard `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/writing-standard.md` and follow it (an issue is change-describing prose).
 Per this skill's degrade-never-terminate contract, a failed load emits a breadcrumb naming the file and the failure kind and you draft without it.
 
-Load `references/issue-template.md` per the routing table above and follow it for the required
-section structure, the no-options rule, the quality checklist, and autolink hygiene, on every entry
-into this step. Key rules:
+Load `references/issue-template.md` per the *Reference routing* rules above and follow it for the required section structure, the **no-options rule**, the quality checklist, and autolink hygiene, on every entry into this step. Key rules:
 
 - No-options gate (run before showing the draft): re-read the rendered body. Outside the `## 🚫 Blocked` section — and outside the Implementation Notes `Relevant files` block, which the scan skips by location exactly as it skips `## 🚫 Blocked` —
   it must contain no unresolved-decision language — no "or", "either", "alternatively", "could", "we might", "TBD", "option", "approach A vs B", "(optional)"-for-undecided, "e.g. X or Y" where X and Y are competing choices.
@@ -275,15 +255,15 @@ Drafting produces a candidate issue in your message only — nothing is posted t
 
 ### Step 3.5: Steelman the draft against the code (mandatory, before the user sees it)
 
-Load `references/step-3-5-steelman.md` per the routing table above and follow it exactly, on every entry into this step.
+Load `references/step-3-5-steelman.md` per the *Reference routing* rules above and follow it exactly, on every entry into this step.
 
 ### Step 3.6: Fresh-context audit (mandatory, before the user sees it)
 
-Load `references/step-3-6-audit.md` per the routing table above and follow it exactly, on every entry into this step.
+Load `references/step-3-6-audit.md` per the *Reference routing* rules above and follow it exactly, on every entry into this step.
 
 ### Step 4: Review with the user, then create
 
-Load `references/step-4-present-create.md` per the routing table above and follow it exactly, on every entry into this step.
+Load `references/step-4-present-create.md` per the *Reference routing* rules above and follow it exactly, on every entry into this step.
 
 ## Runner setup
 
