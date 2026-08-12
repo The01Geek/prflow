@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1648",
+  "generated_at": "2026-08-12T15:21:43Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.54",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 7.43255325,
+    "tokens": {
+      "input_tokens": 62,
+      "output_tokens": 33769,
+      "cache_read_input_tokens": 5169133,
+      "cache_creation_input_tokens": 210100,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 90,
+        "outputTokens": 49851,
+        "cacheReadInputTokens": 6101019,
+        "cacheCreationInputTokens": 375591,
+        "webSearchRequests": 0,
+        "costUSD": 7.43255325,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 39,
+    "duration_ms": 674569
+  },
+  "permission_denials": {
+    "count": 6,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-unset} ATTEMPT=${GITHUB_RUN_ATTEMPT:-unset} ACTIONS=${GITHUB_ACTIONS:-unset}\"; date -u +%Y%m%dT%H%M%SZ",
+      "gh pr diff 1648 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' > .prflow/tmp/review/pr-1648/31610689283-1/diff.patch\necho \"=== line count ===\"; wc -l .prflow/tmp/review/pr-1648/31610689283-1/diff.patch\necho \"=== files ===\"; grep '^diff --git' .prflow/tmp/review/pr-1648/31610689283-1/diff.patch | sed -E 's#^diff --git a/(.*) b/.*#\\1#'\necho \"=== added/removed line counts per file ===\"\nawk '/^diff --git/{if(f)print f\": +\"a\" -\"r; f=$0; sub(/^diff --git a\\//,\"\",f); sub(/ b\\/.*/,\"\", …[per-command-truncated]",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve \"1644\" --pr \"1648\" 2>.prflow/tmp/review/pr-1648/31610689283-1/acs.err ; echo \"acs-rc=$?\"",
+      "echo \"=== head 8a2a442 ===\"; git cat-file -s 8a2a442f:skills/create-issue/SKILL.md\necho \"=== base main dcdf5e2 ===\"; git cat-file -s dcdf5e2:skills/create-issue/SKILL.md\necho \"=== merge-base c1ec60b (if present) ===\"; git cat-file -s c1ec60ba97b5770a4b190ce560b8d676694fd10b:skills/create-issue/SKILL.md 2>&1 || echo \"commit not present locally\"\necho \"=== PR merge-base 88038fa ===\"; git cat-file -s 88038fa4e868b51842457daed0ceec0660b795a2:skills/create-issue/SKILL.md 2>&1 || echo \"commit not prese …[per-command-truncated]",
+      "git grep -n \"root's routing table\\|routing table above\\|routing table below\\|routing table in \\`skills/create-issue/SKILL.md\\`\" -- 'skills/create-issue/**' 'docs/**' 'lib/**' 'CLAUDE.md' 2>/dev/null",
+      "for f in skills/create-issue/SKILL.md skills/create-issue/references/step-2-clarify.md skills/create-issue/references/step-3-6-audit.md skills/create-issue/references/step-4-present-create.md skills/create-issue/references/fallback-audit-round-reconciliation.md; do\n  echo \"=== $f ===\"\n  git show 8a2a442f:$f | grep -nE \"root's routing table|routing table above|routing table below|the routing table\" || echo \"  (none)\"\ndone"
+    ],
+    "total": 6,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
