@@ -107,15 +107,18 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 #: The shipped enrolled set — the SINGLE place it is written down. Each entry is a
 #: repo-relative path to an implement-bundle file whose bash fences an implement run
-#: executes — the four phase files issue #1633 names.
+#: executes — the phase files issue #1633 named, plus the two §2.3 sweep files issue
+#: #1652 enrolled once their operand statement began emitting bash fences.
 ENROLLED: tuple[str, ...] = (
     "skills/implement/phases/phase-1-setup.md",
     "skills/implement/phases/phase-2-implement.md",
+    "skills/implement/phases/phase-2-sweeps-contract.md",
+    "skills/implement/phases/phase-2-sweeps-quality.md",
     "skills/implement/phases/phase-3-review.md",
     "skills/implement/phases/phase-4-documentation.md",
 )
 
-#: The four files the AC requires the inventory to contain at minimum. A built-in (or
+#: The files the AC requires the inventory to contain at minimum. A built-in (or
 #: overridden) inventory that drops any of them is a mis-scoped audit and fails closed.
 _REQUIRED: frozenset[str] = frozenset(ENROLLED)
 

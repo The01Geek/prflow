@@ -9,7 +9,7 @@ Removing a call site, a UI block, a branch, or a whole function almost always st
 
 After every deletion, before running tests, do this sweep:
 
-1. List the functions/methods/templates your diff removed lines from (`git diff --staged -U0` or `git diff -U0`).
+1. List the functions/methods/templates your diff removed lines from (the §2.3 sweep operand, defined in the §2.3 preamble in phase-2-sweeps-contract.md).
 2. For each one, re-read the **whole** surrounding function in its post-edit state.
 3. Delete any local that is now assigned but never read, and any import / `use` clause / dependency declaration that lost its only consumer.
 4. If something is *still* used elsewhere in the function, leave it; this sweep removes only genuinely-orphaned lines, never live ones — and never touch functions the diff didn't already modify.
@@ -41,7 +41,7 @@ Same principle as 2.3.1, applied to `CLAUDE.md` conventions instead of dead code
 
 Do this sweep:
 
-1. From `git diff --staged -U0` (or `git diff -U0`), list every function/method/query/new file your diff added or changed lines in.
+1. From the §2.3 sweep operand (defined in the §2.3 preamble in phase-2-sweeps-contract.md), list every function/method/query/new file your diff added or changed lines in.
 2. Re-read each one in its post-edit state and check it against the rules in `CLAUDE.md` that apply to the languages and surfaces your diff touched.
 3. Fix any violation in code the diff already touches. If fixing it cleanly is genuinely out of scope (it would balloon the diff into an unrelated refactor), say so explicitly in the workpad notes (`--note`) with the reason — do not leave it silent for `/prflow:review` to catch.
 4. Do not reformat or rename code the diff didn't otherwise touch — this sweep covers only lines/functions/files your change already modified or introduced, never a repo-wide cleanup.
@@ -62,7 +62,7 @@ A **boundary assumption** is any factual claim the diff relies on about somethin
 
 Do this sweep:
 
-1. From `git diff --staged -U0` (or `git diff -U0`), list every claim the diff depends on that falls into one of the five kinds above. The diff is the *trigger* for finding which boundaries the change now relies on — a boundary's definition site (an unchanged import, a producer module, a version pin) usually sits in context `-U0` doesn't print, so follow each claim to its actual source. Purely-internal claims (a local you just wrote, a function defined in the same diff) are **out of scope** — this sweep is only about boundaries you don't own. An in-diff guard, predicate, or validator carved out here is **not** left uncovered: it is routed to §2.3.0c's operand-trace sweep, which owns exactly the diff's own code this carve-out excludes.
+1. From the §2.3 sweep operand (defined in the §2.3 preamble in phase-2-sweeps-contract.md), list every claim the diff depends on that falls into one of the five kinds above. The diff is the *trigger* for finding which boundaries the change now relies on — a boundary's definition site (an unchanged import, a producer module, a version pin) usually sits in context `-U0` doesn't print, so follow each claim to its actual source. Purely-internal claims (a local you just wrote, a function defined in the same diff) are **out of scope** — this sweep is only about boundaries you don't own. An in-diff guard, predicate, or validator carved out here is **not** left uncovered: it is routed to §2.3.0c's operand-trace sweep, which owns exactly the diff's own code this carve-out excludes.
 2. For each claim, verify it against the **actual source of truth** — the pinned version's installed source/changelog, the producer module, the documented supported-runtime range across *all* of it, the real host — never from memory.
 3. **A test assertion about a boundary is itself an unverified claim.** A test that asserts a wrong boundary value still passes — it encodes the bug rather than catching it — so a green run at 2.4 is not confirmation. When the diff adds or changes a test that asserts a boundary value, verify that value against the same source of truth here.
 4. If the code is wrong, fix it. If a boundary genuinely **cannot** be verified in-environment, do **not** assert it as true: always record the gap with `workpad.py update $ISSUE_NUMBER --reflection-kind note --reflection "unverified boundary: {claim} — needs {live env} to confirm"` so it is visible to review and the merger. If — and only if — a specific acceptance criterion's verification depends on that boundary, additionally retag that criterion `(post-merge)` (per Phase 1.2, via the Phase 3.4 `--rewrite-ac` retag pattern) so the 3.4 gate doesn't block on a live-only check. An unverifiable external *boundary* is exactly the genuinely-live runtime-environment case the Phase 3.4 gate permits a `(post-merge)` tag for; it is **not** the runnable-but-blocked tooling gap, the self-claim confirmation, nor the self-reconfiguration verification (the change's own hook/flag/setting needing an active session — runnable on this host, so run-and-evidence-or-Blocked) that gate refuses (see §3.4). `(post-merge)` covers code that ships correct but can only be *verified* live — it is never a way to wave through a boundary you suspect is wrong (that is a blocker).
@@ -92,7 +92,7 @@ A **self-authored claim** is any behavioral assertion the diff introduces about 
 
 Do this sweep:
 
-1. From `git diff --staged -U0` (or `git diff -U0`), list every behavioral claim the diff **adds or changes** in the three surfaces above. A claim is any sentence or clause asserting what the code *does* — not a TODO, a rationale, or a statement of intent that makes no factual behavioral assertion.
+1. From the §2.3 sweep operand (defined in the §2.3 preamble in phase-2-sweeps-contract.md), list every behavioral claim the diff **adds or changes** in the three surfaces above. A claim is any sentence or clause asserting what the code *does* — not a TODO, a rationale, or a statement of intent that makes no factual behavioral assertion.
 2. For each claim, trace the **actual shipped code path** it describes and confirm the code does what the prose says — **following dispatch into pre-existing code the diff calls but did not modify** (the claim's truth often resolves only downstream, in a helper your diff doesn't own). Unlike 2.3.4, a claim about code *defined in your own diff* is **in scope** here, not carved out — that blind spot is precisely what this sweep closes.
 3. On any prose↔code divergence, **the code is the fact.** Resolve it one of two ways and never commit the unreconciled pair: either **fix the code** so the claim becomes true, or **rewrite the claim** so it states what the code actually does. Choosing one is mandatory — "note it and move on" is not an option for a contradiction you authored.
 4. If fixing the *code* is genuinely out of scope for this PR (it would balloon the diff into an unrelated refactor), then **rewrite the claim** to the truth now — never leave false prose standing for `/prflow:review` to catch.
@@ -114,16 +114,18 @@ Record the reconciled surfaces — or an intentional verbatim carve-out, with th
 
 Perform this sweep on every diff that adds prose. It owns a claim type 2.3.4a's code-path trace never reaches: a **coverage universal**, a sentence asserting a universal about *this change's own coverage* ("every call site is updated", "all four arms are handled", "exactly these files", "complete by construction"). **Reading the sentence back and finding it plausible does not discharge the obligation** — only a failed attempt to falsify it does. Left unclosed, the claim reaches Phase 3.3 as a `documented_falsehood`, a non-demotable REJECT.
 
-**Population.** Every coverage universal the diff's **added prose** asserts, on whatever surface the diff touches — `skills/` and `phases/*.md` rule prose, `docs/`, `CLAUDE.md`, code comments and docstrings, and explicitly **`.changeset/*.md` and `CHANGELOG.md`**, which the helper's own header already declares in scope as *"human-authored prose about the current change, exactly the surface this lint exists to grade."* The operand is the **uncommitted** delta; a coverage universal authored in an earlier commit of the same branch is outside it, and `skills/review-and-fix/references/fixing.md` item 6a is the backstop for that shape.
+**Population.** Every coverage universal the diff's **added prose** asserts, on whatever surface the diff touches — `skills/` and `phases/*.md` rule prose, `docs/`, `CLAUDE.md`, code comments and docstrings, and explicitly **`.changeset/*.md` and `CHANGELOG.md`**, which the helper's own header already declares in scope as *"human-authored prose about the current change, exactly the surface this lint exists to grade."* The operand is the **§2.3 sweep operand** (defined in the §2.3 preamble in phase-2-sweeps-contract.md — the merge base → working-tree branch delta), so a coverage universal authored in an **earlier commit of the same branch is inside it** and is graded here; `skills/review-and-fix/references/fixing.md` item 6a remains the fix loop's post-fix backstop for any such universal that a later fix reintroduces.
 
 **Derive the population without staging.** Two legs, and **this sweep never mutates the index** — no `git add -A`, no `git add .`, no intent-to-add. An unscoped stage would land unrelated working-tree state on the branch that the fix loop's explicit-path staging exists to keep off.
 
 ```bash
-# Leg 1 — tracked edits (modified and staged alike).
-git diff HEAD -U0 | "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/stale-prose-lint.py --worktree
-# Leg 2 — once per NEW file THIS CHANGE authored, named explicitly. Leg 1 sees NO untracked
-# file (git diff HEAD lists none), so this leg is the ONLY channel that reaches one — a new
-# docs page or phases/*.md reference needs its own invocation exactly as a changeset does:
+# Leg 1 — the branch delta (committed AND uncommitted tracked edits alike), the §2.3
+# sweep operand: <base> is the config-resolved base printed in its own fence per the
+# §2.3 preamble, substituted here as a literal.
+git diff --merge-base origin/<base> -U0 | "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/stale-prose-lint.py --worktree
+# Leg 2 — once per NEW file THIS CHANGE authored, named explicitly. A merge-base diff (like
+# git diff HEAD) lists NO untracked file, so this leg is the ONLY channel that reaches one — a
+# new docs page or phases/*.md reference needs its own invocation exactly as a changeset does:
 git diff --no-index -U0 /dev/null .changeset/issue-<N>-<slug>.md | "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/stale-prose-lint.py --worktree
 ```
 
@@ -137,7 +139,7 @@ git diff --no-index -U0 /dev/null .changeset/issue-<N>-<slug>.md | "${CLAUDE_SKI
 
 1. **Rows produced** → ground each, per the treatments below.
 2. **Zero rows, helper exit `0`, and the producer emitted hunks** → a recorded clean pass. All three conjuncts, not the first two. On leg 2 the *producing* `git diff --no-index` exits **1 on every hit** — that is its success path, not a failure. A hunk-less `--no-index` shape puts no hunks into the pipe, so it fails this arm's third conjunct and lands in arm 3 whatever its exit status.
-3. **Anything else** → a recorded **degraded** pass, never a clean one. Stated as a complement so an outcome nobody enumerated cannot fall through to arm 2: helper exit `2`; **an empty diff stream**, which yields zero rows and exit `0` and is separated from arm 2 by the third conjunct alone; a producing `git diff` that failed and wrote nothing to the pipe; **no output at all**, which is what a refused invocation looks like; a stderr line saying the repository root could not be resolved, after which paths resolve against the process CWD and a non-root CWD makes every file unresolvable; and any stderr line the helper marks as a coverage drop, which announces lines it did not examine. None of these may be laundered into a clean result. **The grounding obligation stands when the detector is unavailable** — absent at its expected path, or refused — degrading to the recorded-note arm `skills/review/phases/phase-0-6-stale-prose-lint.md` already ships for its helper-absent case, with the run's own reading as the seed.
+3. **Anything else** → a recorded **degraded** pass, never a clean one. Stated as a complement so an outcome nobody enumerated cannot fall through to arm 2: helper exit `2`; **the branch-delta operand could not be computed** — an unfetched or absent `origin/<base>` ref, `git diff --merge-base` unavailable (git < 2.30 with no resolving `git merge-base` fallback), no reachable merge base, or an ambiguous multi-merge-base case (the §2.3 operand degraded arm) — each recorded degraded naming the condition that fired; **an empty diff stream**, which yields zero rows and exit `0` and is separated from arm 2 by the third conjunct alone; a producing `git diff` that failed and wrote nothing to the pipe; **no output at all**, which is what a refused invocation looks like; a stderr line saying the repository root could not be resolved, after which paths resolve against the process CWD and a non-root CWD makes every file unresolvable; and any stderr line the helper marks as a coverage drop, which announces lines it did not examine. None of these may be laundered into a clean result. **The grounding obligation stands when the detector is unavailable** — absent at its expected path, or refused — degrading to the recorded-note arm `skills/review/phases/phase-0-6-stale-prose-lint.md` already ships for its helper-absent case, with the run's own reading as the seed.
 
 **The rows are a seed floor, not the population.** A coverage universal the detector does not recognize remains in this sweep's population and is grounded the same way.
 
@@ -162,7 +164,7 @@ Prose the change is **authoring** into a shipped rule surface is **outside** the
 
 The 2.2.4 gate already settled reuse and altitude at plan time. This sweep handles the two cleanup lenses that only become visible once the code is *assembled*.
 
-After implementing, before running tests, re-read every function your diff added or changed lines in (from `git diff --staged -U0` or `git diff -U0`) and apply both lenses:
+After implementing, before running tests, re-read every function your diff added or changed lines in (from the §2.3 sweep operand, defined in the §2.3 preamble in phase-2-sweeps-contract.md) and apply both lenses:
 
 1. **Simplification.** Flag and remove unnecessary complexity the diff *adds*: redundant or derivable state (a field that's always recomputable from another), copy-paste with slight variation (collapse to one parameterized form), needless deep nesting (flatten with early returns), and dead code the diff leaves behind. For each, write the simpler form that does the same job.
 2. **Efficiency.** Flag and fix wasted work the diff *introduces*: redundant computation or repeated I/O inside a loop or hot path that could be hoisted or cached, independent operations run sequentially that could run together, and blocking work added to startup or a hot path. Reach for the cheaper alternative — but don't trade clarity for a micro-optimization that doesn't sit on a hot path.
@@ -189,7 +191,7 @@ A **silent failure** is any error the code can hit that doesn't leave the caller
 
 Do this sweep:
 
-1. From `git diff --staged -U0` (or `git diff -U0`), list every error-handling site the diff **added or changed**: each `try/except` / `catch`, each `|| true` / `|| echo` / `2>/dev/null` / `set +e`, each `$?` check or swallowed exit code, each fallback/default-on-failure, each `jq`/parse step that can fail, each optional-chaining / `// default` that can skip a failing op. If the diff added none, the sweep is a no-op — record that and move on.
+1. From the §2.3 sweep operand (defined in the §2.3 preamble in phase-2-sweeps-contract.md), list every error-handling site the diff **added or changed**: each `try/except` / `catch`, each `|| true` / `|| echo` / `2>/dev/null` / `set +e`, each `$?` check or swallowed exit code, each fallback/default-on-failure, each `jq`/parse step that can fail, each optional-chaining / `// default` that can skip a failing op. If the diff added none, the sweep is a no-op — record that and move on.
 2. For each site, confirm it does **not** silently fail: the failure is either propagated, or handled with (a) a breadcrumb naming the *specific* cause and (b) — for anything user- or caller-facing — an actionable account of what went wrong. A best-effort exit-0 path still leaves the **specific** breadcrumb, never a generic or misdirected one, and never prints success for work that didn't happen.
 3. Narrow every broad catch to the specific type around the smallest scope. For each catch you keep, enumerate what unexpected errors it could swallow — if that list isn't empty, tighten it.
 4. Justify every fallback: it must be documented/intended behavior, it must fail toward the safe side (never default an error to a success-shaped value), and it must leave a breadcrumb distinguishing a masked failure from a real empty result. Remove any production fallback to a mock/stub.
