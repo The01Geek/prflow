@@ -4,6 +4,30 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.54] — 2026-08-12
+
+### Fixed
+- **Pass the draft PR number to the Phase 3.3 fix loop so it runs in PR mode.** `/prflow:implement` Phase 3.3 now passes the draft PR number as a bare leading numeric token to `review-and-fix`, so the fix loop runs against the PR the run owns instead of in current-branch mode, and it states an omit-the-token arm for when Phase 3.1 printed no number. Both engine roots' Input paragraphs bind `$PR_NUMBER` to a bare numeric token so a `--issue` value is not mistaken for it, and the fix loop's Step 0.5 answers an absent `checkout-rc=` token with its existing head-ref/head-commit assertion so the newly-enabled gate does not stop the loop on the cloud implement tier where `gh pr checkout` is ungranted. (#1641)
+
+## [2.32.53] — 2026-08-12
+
+### Changed
+- **`prflow_review.agent_overrides.<agent>.model` now takes the Agent tool's accepted aliases
+  (`sonnet`, `opus`, `haiku`, `fable`) rather than a free-form model identifier.** The review
+  engine dispatches each reviewer through the Agent tool's per-invocation `model` parameter,
+  which is a closed enum; a full model identifier such as `claude-opus-4-8` is rejected there.
+  `scripts/resolve-review-overrides.py` now validates `model` against that accepted set exactly
+  as it already validates `effort`: an out-of-set value is dropped with a warning naming the
+  value and the accepted set, and the agent dispatches with no model override (inheriting the
+  top-level `claude_model`); an in-set value is forwarded unchanged. The config schema gains a
+  matching `enum`, and the engine root states one arm for a dispatch-time rejection of the
+  `model` parameter (re-dispatch that agent once with no model override and report the fallback).
+  A per-agent `model` override is now expressible only in that alias vocabulary; a consumer whose
+  model is addressed through a provider route sets it at the top-level `claude_model` instead.
+  **Existing consumers: re-run `/prflow:init` or `install.sh --apply` to have your
+  `agent_overrides` `model` values rewritten to the accepted aliases. Until you do, a dropped
+  out-of-set override falls back to the top-level `claude_model`.** (#1650)
+
 ## [2.32.52] — 2026-08-12
 
 ### Changed
