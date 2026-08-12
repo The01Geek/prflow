@@ -32615,6 +32615,7 @@ assert_eq "#289 AC5: gate already-exists branch emits the best-effort Run-link-r
 assert_pin_unique "#289 AC7: the Run-link refresh update line is present exactly once (removal-proof)" \
   'update "$NUMBER" --run-link "[View run]($RUN_URL)"' "$WF289"
 # AC9: the Phase 3.1 draft-PR body carries a [View run](…) line positioned after
+# the `Resolves #{issue_number}` line.
 # Pin the ORDERING only, against the inline $GITHUB_SERVER_URL… run-link form. A
 # standalone presence pin here would be prompt-prose presence pin authorship (#810), and
 # the non-empty VIEWRUN_LN289 check below already establishes presence.

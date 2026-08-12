@@ -12430,6 +12430,46 @@ assert_eq("#1633 anchoring: the NOT_IGNORED arm also reports the resolved absolu
           os.path.realpath(_pf_ni_1633[0].split(maxsplit=1)[1])
           == os.path.realpath(os.path.join(_wt_repo, "tracked.txt")))
 
+# `dependencies --repo-relative` anchors its --body-file the same way §1.3.5 invokes
+# it. Without these the anchoring branch of that subcommand ships unexercised, so a
+# regression that anchored to the process cwd would read a body file that is not
+# there and report UNAVAILABLE from a subdirectory-launched run.
+(Path(_wt_repo) / "deps.md").write_text(
+    "## Dependencies\n- none\n", encoding="utf-8")
+
+
+def _pf_deps_1633(cwd, path):
+    r = _sp915.run(
+        [sys.executable, _PF_PATH_1633, "dependencies", "--repo-relative",
+         "--body-file", path],
+        cwd=cwd, capture_output=True, text=True)
+    return (r.stdout.strip(), r.returncode, r.stderr)
+
+
+_dep_root_1633 = _pf_deps_1633(_wt_repo, "deps.md")
+_dep_sub_1633 = _pf_deps_1633(str(Path(_wt_repo) / "sub"), "deps.md")
+assert_eq("#1633 anchoring: dependencies --repo-relative PROCEEDs from the repo root",
+          ("PROCEED", 0), (_dep_root_1633[0], _dep_root_1633[1]))
+assert_eq("#1633 anchoring: dependencies --repo-relative resolves the SAME body from a subdirectory",
+          ("PROCEED", 0), (_dep_sub_1633[0], _dep_sub_1633[1]))
+# The fail-closed arm: outside any checkout no root resolves, so the subcommand must
+# print its own `UNAVAILABLE resolve` token at exit 3 — attributing the rejection to
+# the anchoring guard, not to the body-read guard (`UNAVAILABLE body`). The fixture
+# dir carries a readable deps.md, so an unanchored read would have SUCCEEDED here:
+# the unresolvable root is the only property under test.
+_nonrepo_deps_1633 = tempfile.mkdtemp()
+(Path(_nonrepo_deps_1633) / "deps.md").write_text(
+    "## Dependencies\n- none\n", encoding="utf-8")
+_dep_fc_1633 = _sp915.run(
+    [sys.executable, _PF_PATH_1633, "dependencies", "--repo-relative",
+     "--body-file", "deps.md"],
+    cwd=_nonrepo_deps_1633, capture_output=True, text=True,
+    env={**os.environ, "GIT_CEILING_DIRECTORIES": os.path.realpath(_nonrepo_deps_1633)})
+assert_eq("#1633 anchoring: dependencies --repo-relative fails closed as UNAVAILABLE resolve (exit 3)",
+          ("UNAVAILABLE resolve", 3, True),
+          (_dep_fc_1633.stdout.strip(), _dep_fc_1633.returncode,
+           "could not resolve the repository root" in _dep_fc_1633.stderr))
+
 # parse-acs.py --anchor-repo-root resolves --body-file the same way; an unresolvable
 # root fails closed (non-zero exit) rather than leaving an empty parse.
 _PA_PATH_1633 = str(cwc.REPO_ROOT / "scripts" / "parse-acs.py")
