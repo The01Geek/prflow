@@ -1,0 +1,83 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-12T05:40:00Z",
+  "fix_commit_sha": "3c8e7bb17",
+  "fix_files": [
+    "lib/test/run.sh",
+    ".github/workflows/ci.yml"
+  ],
+  "loop_role": "fix",
+  "current_step": "3",
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "non-vacuity proof accepts any nonzero rc (rc2 ruff-error) as fires",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "kind": "vacuous_assertion"
+      },
+      "corroboration_count": 3,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "comment provenance/narrative exceeds discipline cap",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "kind": "comment_provenance"
+      },
+      "corroboration_count": 2,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "git ls-files failure yields vacuous green scan",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "kind": "silent_failure"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "3c8e7bb17"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "3c8e7bb17"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "3c8e7bb17"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 3,
+    "fix_diff_lines": 36,
+    "new_corroborated_critical_count": 0
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
