@@ -93,10 +93,12 @@ HEAD_SHA="${HEAD_SHA//\`/}"
 # of the allowed-tools text — the coupled-mirror hazard the block was built to avoid.
 MODE="${MODE:-review}"
 # The CI section and the trusted-source-displacement section both speak about a
-# reviewed commit, so they are selected by THIS derived answer rather than by a
-# per-section MODE test: a mode added later gets both sections, or neither, from one
-# decision instead of from two that can drift apart. Bash `case`, never a PATH tool —
-# this value decides which sections are emitted (CLAUDE.md guard-class 2).
+# reviewed commit, and the sole-publisher section (issue #1629) is review-only for the
+# same reason a reviewed commit exists only in review mode, so all three are selected
+# by THIS one derived answer rather than by per-section MODE tests: a mode added later
+# gets these review-only sections, or none, from one decision instead of several that
+# can drift apart. Bash `case`, never a PATH tool — this value decides which sections
+# are emitted (CLAUDE.md guard-class 2).
 case "$MODE" in
   implement|generic) REVIEWED_COMMIT=no ;;
   *) REVIEWED_COMMIT=yes ;;

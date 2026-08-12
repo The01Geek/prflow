@@ -90,7 +90,7 @@ for PR in $PR_NUMBERS; do
     "repos/{owner}/{repo}/issues/$PR/comments?per_page=100" --paginate \
     --jq '.[] | [.created_at, .body] | @tsv' 2>/dev/null \
   | "$DEVFLOW_JQ" -Rr --arg since "$SINCE" '
-      split("\t") | { ts: .[0], body: (.[1:] | join("\t")) }
+      split("\t") | { ts: .[0], body: .[1] }
       | select(.ts >= $since)
       | (.ts[0:10]) as $d
       | ( [ .body | scan("<!-- (?:pr|dev)flow:review-progress run=([0-9]+-[0-9]+)") ] ) as $rp
