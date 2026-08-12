@@ -96,7 +96,7 @@ Schema of `.prflow/tmp/pr-<n>.context.json` produced by `fetch-pr-context.sh`:
 |-----|------|-------------|
 | `review_comments_count` | number | Total inline review comments |
 | `post_bot_commits` | number | Substantive commits by a human AFTER the bot's last commit — pure merge commits (`Merge branch 'main'` etc.) are not counted |
-| `ci_failures_during_pr` | number | Non-success check-runs on the head SHA |
+| `ci_failures_during_pr` | number | Check-runs on the head SHA, across every page, whose conclusion is a real red signal — `failure`, `timed_out`, `action_required`, or any unrecognised conclusion (a denylist, so an unknown future one counts). Superseded runs (`cancelled`, `stale`) and `success`/`neutral`/`skipped`/still-running do not count. |
 | `workpad_final_status` | string | Parsed Status line from the workpad, e.g. `"Complete"`, `"Blocked"`, `"Cancelled"`, or one of the absent/corrupt sentinels `"Unparsed"` / `"Absent"` / `"NoIssue"`. |
 | `pr_devflow_provenance` | boolean | True iff the `PRFlow` provenance label (or its superseded `DevFlow` spelling) is on the PR or the resolved linked issue. |
 | `ttm_hours` | number | Time from PR creation to merge, in decimal hours |

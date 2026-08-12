@@ -272,17 +272,49 @@ POST_BOT_COMMITS="$(echo "$COMMITS" | "$DEVFLOW_JQ" --arg author "$AUTHOR" '
 CI_STATUS_UNKNOWN="false"
 CI_FAILURES="1"
 set +e
-_CI_RUNS_JSON="$("$DEVFLOW_GH" api "repos/${REPO}/commits/${HEAD_SHA}/check-runs" 2>&1)"
+# Never fold gh's stderr into this capture: --paginate multiplies the requests
+# that can emit a non-fatal notice, and any such line makes the filter below
+# error, reporting a healthy head as unreadable. Route it to a file so the
+# re-emit below can hold it to the same one-line-per-record contract our own
+# breadcrumbs keep; letting it reach our stderr raw fragments a caller's record.
+_CI_GH_ERR_FILE="$_JQ_TMP/gh-checkruns.err"
+_CI_RUNS_JSON="$("$DEVFLOW_GH" api "repos/${REPO}/commits/${HEAD_SHA}/check-runs?per_page=100" --paginate 2>"$_CI_GH_ERR_FILE")"
 _CI_EXIT=$?
 set -e
+# Collapse with a bash builtin, never `tr`: lib/preflight.sh does not guarantee
+# it, and a missing tr would silently empty the diagnostic it is emitting.
+_CI_GH_ERR=""
+IFS= read -r -d '' _CI_GH_ERR < "$_CI_GH_ERR_FILE" || true
+_CI_GH_ERR="${_CI_GH_ERR%$'\n'}"
+if [ -n "$_CI_GH_ERR" ]; then
+    printf 'fetch-pr-context: gh check-runs stderr: %s\n' "${_CI_GH_ERR//$'\n'/ }" >&2
+fi
 if [ $_CI_EXIT -ne 0 ] || [ -z "$_CI_RUNS_JSON" ]; then
     CI_STATUS_UNKNOWN="true"
     CI_FAILURES="1"
+    # Name which limb fired: an rc-0 empty body is not a failed call, and one
+    # shared message makes a transport error and an empty response identical.
+    if [ $_CI_EXIT -ne 0 ]; then
+        printf 'fetch-pr-context: check-runs read failed (rc=%s); ci_status_unknown=true\n' "$_CI_EXIT" >&2
+    else
+        printf 'fetch-pr-context: check-runs returned an empty body (rc=0); ci_status_unknown=true\n' >&2
+    fi
 else
-    _CI_COUNT="$(echo "$_CI_RUNS_JSON" | "$DEVFLOW_JQ" '[.check_runs[] | select(.conclusion != null and .conclusion != "success" and .conclusion != "neutral" and .conclusion != "skipped")] | length' 2>/dev/null || true)"
+    # Never filter `.` instead of `-n`/`inputs`, never default `.check_runs`,
+    # and never drop an error arm: each turns an unreadable body into a count.
+    # Hold it in one variable so the diagnostic re-run below cannot drift.
+    _CI_JQ_PROG='[inputs] as $pages | if ($pages | length) == 0 then error("no check-run pages") else [$pages[] | (.check_runs | if type == "array" then . else error("check_runs not an array") end)[] | if type == "object" then . else error("non-object check-run") end | select(.conclusion != null and .conclusion != "success" and .conclusion != "neutral" and .conclusion != "skipped" and .conclusion != "cancelled" and .conclusion != "stale")] | length end'
+    _CI_COUNT="$(echo "$_CI_RUNS_JSON" | "$DEVFLOW_JQ" -n "$_CI_JQ_PROG" 2>/dev/null || true)"
     if [ -z "$_CI_COUNT" ] || ! [[ "$_CI_COUNT" =~ ^[0-9]+$ ]]; then
         CI_STATUS_UNKNOWN="true"
         CI_FAILURES="1"
+        # Re-run for the diagnostic alone: without it the filter's distinct
+        # error() messages, and a broken jq, all read as one unusable body.
+        _CI_JQ_ERR="$(echo "$_CI_RUNS_JSON" | "$DEVFLOW_JQ" -n "$_CI_JQ_PROG" 2>&1 >/dev/null || true)"
+        # Keep this one line: a caller splits our stderr on newlines into
+        # separate records, so an unstripped body fragments into phantom rows.
+        printf 'fetch-pr-context: check-runs body yielded no usable count; ci_status_unknown=true; %.120s; body began: %.200s\n' \
+            "${_CI_JQ_ERR//$'\n'/ }" "${_CI_RUNS_JSON//$'\n'/ }" >&2
     else
         CI_FAILURES="$_CI_COUNT"
     fi

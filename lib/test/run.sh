@@ -13559,6 +13559,280 @@ assert_eq "ci_status_unknown=false (CLEAN fixture)"  "false" "$(jq -r '.signals.
 assert_eq "diff is a non-empty string" "string" "$(jq -r '.diff | type' <<<"$CTX")"
 assert_eq "diff not null"              "false"  "$(jq -r '.diff == null' <<<"$CTX")"
 
+# ────────────────────────────────────────────────────────────────────────────
+echo "fetch-pr-context.sh: ci_failures_during_pr semantics (issue #1441)"
+# ────────────────────────────────────────────────────────────────────────────
+# Never transcribe the shipped jq filter here: a copy keeps passing after the
+# shipped one drifts. Never re-route through gh-stub.sh either — its $SET
+# prefixes every endpoint, so each payload shape costs a whole fixture set.
+F1441="$(mktemp -d)"
+cat > "$F1441/prview.json" <<'PV1441'
+{"number":1441,"headRefName":"claude/issue-1441-x","baseRefName":"main","headRefOid":"sha1441beef","mergeCommit":{"oid":"merge1441"},"mergedAt":"2026-05-08T16:31:00Z","createdAt":"2026-05-08T07:00:00Z","author":{"login":"example-bot"},"title":"t","body":"Closes #1441","additions":1,"deletions":0,"files":[{"path":"x.txt"}],"labels":[]}
+PV1441
+cat > "$F1441/gh" <<'STUB1441'
+#!/usr/bin/env bash
+FX="${DEVFLOW_FX}"
+case "$*" in
+  *"repo view"*) echo "acme/example-repo" ;;
+  *"pr view"*) cat "$FX/prview.json" ;;
+  *"pr diff"*) echo 'diff --git a/x.txt b/x.txt' ;;
+  *"pulls/"*"/comments"*) echo '[]' ;;
+  *"pulls/"*"/reviews"*) echo '[]' ;;
+  *"pulls/"*"/commits"*) echo '[]' ;;
+  *"check-runs"*)
+    printf '%s\n' "$*" >> "$FX/argv.log"
+    # Emitted before the case, not as a `;;&` fallthrough arm: `;;&` is bash 4+
+    # and this repo must parse under the bash 3.2 macOS ships.
+    [ "${DEVFLOW_CR_MODE:-payload}" = notice ] && echo "gh: rate limit remaining 12" >&2
+    [ "${DEVFLOW_CR_MODE:-payload}" = notice-multiline ] && printf 'gh: notice one\ngh: notice two\n' >&2
+    case "${DEVFLOW_CR_MODE:-payload}" in
+      exit-nonzero) echo "gh: HTTP 503 Service Unavailable" >&2; exit 1 ;;
+      *)
+        # Serve page 1 alone unless the caller really paginated, so deleting
+        # --paginate from the shipped command turns the AC5 row RED instead of
+        # leaving it green on a stub that ignores flags.
+        case "$*" in
+          *--paginate*) cat "$FX/checkruns.json" ;;
+          *)            head -1 "$FX/checkruns.json" ;;
+        esac
+        ;;
+    esac
+    ;;
+  *"issues/"*"/comments"*) echo '[]' ;;
+  *"issues/"*) echo '{"number":1441,"title":"i","body":"b","labels":[],"comments":[]}' ;;
+  *"commits/"*) echo '{"files":[]}' ;;
+  *) echo '[]' ;;
+esac
+STUB1441
+chmod +x "$F1441/gh"
+
+# $1 label, $2 expected ci_failures_during_pr, $3 expected ci_status_unknown,
+# $4 optional DEVFLOW_CR_MODE. The payload is whatever the caller last wrote to
+# $F1441/checkruns.json.
+cr1441() {
+  local _out _ctx
+  _out="$(DEVFLOW_FX="$F1441" DEVFLOW_GH="$F1441/gh" DEVFLOW_CR_MODE="${4:-payload}" \
+          bash "$LIB/fetch-pr-context.sh" 1441 2>/dev/null)"
+  _ctx="$(cat "$_out" 2>/dev/null)"
+  assert_eq "#1441: $1 → ci_failures_during_pr=$2" "$2" \
+    "$(jq -r '.signals.ci_failures_during_pr' <<<"$_ctx")"
+  assert_eq "#1441: $1 → ci_status_unknown=$3" "$3" \
+    "$(jq -r '.signals.ci_status_unknown' <<<"$_ctx")"
+}
+
+# AC1 — superseded conclusions never count.
+cat > "$F1441/checkruns.json" <<'CR'
+{"check_runs":[{"conclusion":"cancelled"},{"conclusion":"stale"},{"conclusion":"success"},{"conclusion":"neutral"},{"conclusion":"skipped"}]}
+CR
+cr1441 "cancelled+stale beside success/neutral/skipped" "0" "false"
+
+# AC2 — the three real red signals each increment, asserted one conclusion at a
+# time so a filter that recognises only `failure` cannot pass on a mixed payload.
+for _concl in failure timed_out action_required; do
+  printf '{"check_runs":[{"conclusion":"%s"}]}\n' "$_concl" > "$F1441/checkruns.json"
+  cr1441 "a lone $_concl run" "1" "false"
+done
+unset _concl
+
+# AC3 — never flip the filter to a failure allowlist: an unknown future
+# conclusion would then read as success and the signal would fail OPEN.
+cat > "$F1441/checkruns.json" <<'CR'
+{"check_runs":[{"conclusion":"conclusion_github_has_not_invented_yet"}]}
+CR
+cr1441 "an unrecognised conclusion (denylist fails closed)" "1" "false"
+
+# Never let a superseded conclusion suppress a real red sharing its page: a
+# filter that rejected the whole payload on seeing `cancelled` would leave AC1
+# and AC2 both green, since neither mixes the two on one page.
+cat > "$F1441/checkruns.json" <<'CR'
+{"check_runs":[{"conclusion":"failure"},{"conclusion":"cancelled"}]}
+CR
+cr1441 "a real red beside a superseded conclusion on one page" "1" "false"
+
+# AC4 — a still-running check has conclusion null and is not a failure.
+cat > "$F1441/checkruns.json" <<'CR'
+{"check_runs":[{"conclusion":null},{"conclusion":null}]}
+CR
+cr1441 "every run still in flight (conclusion null)" "0" "false"
+
+# AC5 — a multi-page head. Keep both qualifying runs on page 2 and none on page
+# 1, or the row stops discriminating a merged count from a page-1-only one.
+cat > "$F1441/checkruns.json" <<'CR'
+{"check_runs":[{"conclusion":"success"},{"conclusion":"cancelled"}]}
+{"check_runs":[{"conclusion":"failure"},{"conclusion":"timed_out"}]}
+CR
+cr1441 "two concatenated pages, both qualifying runs on page 2" "2" "false"
+# Keep these argv pins beside the behavioral row: they name the cause when it
+# fails, which a count mismatch alone does not.
+assert_eq "#1441: the shipped call passes --paginate" "yes" \
+  "$(grep -q -- '--paginate' "$F1441/argv.log" && echo yes || echo no)"
+assert_eq "#1441: the shipped call requests the larger page size" "yes" \
+  "$(grep -q 'per_page=100' "$F1441/argv.log" && echo yes || echo no)"
+# Pin the commit selector too: the stub ignores the path, so swapping HEAD_SHA
+# for a merge or base SHA would describe another commit's CI and stay green.
+assert_eq "#1441: the shipped call addresses the PR head SHA" "yes" \
+  "$(grep -q 'commits/sha1441beef/check-runs' "$F1441/argv.log" && echo yes || echo no)"
+
+# AC6 fail-safe arm 1, both ORed conditions. A PR whose CI could not be read
+# must never read as clean, so each sets unknown=true AND failures=1.
+cat > "$F1441/checkruns.json" <<'CR'
+{"check_runs":[{"conclusion":"success"}]}
+CR
+cr1441 "gh exits non-zero" "1" "true" exit-nonzero
+: > "$F1441/checkruns.json"
+cr1441 "gh returns an empty body" "1" "true"
+
+# Never re-add `2>&1` to the shipped capture: a non-fatal gh notice on a
+# SUCCESSFUL request would then contaminate the body and report a healthy head
+# as unreadable — the exact false signal this change exists to remove.
+
+# Two failures, not one: the fail-safe arm also yields 1, so a single-failure
+# payload leaves the count row green when that regression lands.
+printf '{"check_runs":[{"conclusion":"failure"},{"conclusion":"timed_out"}]}\n' > "$F1441/checkruns.json"
+cr1441 "a non-fatal gh notice on stderr, request otherwise clean" "2" "false" notice
+
+# Never delete a fail-safe breadcrumb: cr1441 discards stderr, so without the
+# rows below the suite stays green while the arms become indistinguishable.
+printf '{"check_runs":[{"conclusion":"success"}]}\n' > "$F1441/checkruns.json"
+_CR_ERR1="$(DEVFLOW_FX="$F1441" DEVFLOW_GH="$F1441/gh" DEVFLOW_CR_MODE=exit-nonzero bash "$LIB/fetch-pr-context.sh" 1441 2>&1 >/dev/null || true)"
+# Pin the exit-status VALUE, not just the label: matching `rc=` alone stays green
+# when the argument is dropped, which is the regression this row names.
+assert_eq "#1441: the read-failure arm reports the failing exit status" "yes" \
+  "$(case "$_CR_ERR1" in *"check-runs read failed (rc=1)"*) echo yes ;; *) echo no ;; esac)"
+printf 'this is not json at all\n' > "$F1441/checkruns.json"
+_CR_ERR2="$(DEVFLOW_FX="$F1441" DEVFLOW_GH="$F1441/gh" bash "$LIB/fetch-pr-context.sh" 1441 2>&1 >/dev/null || true)"
+# Pin the QUOTED BODY, not the arm's label: the label predates the body clause,
+# so matching it stays green when the clause this row names is deleted.
+assert_eq "#1441: the unusable-body arm quotes the body it could not parse" "yes" \
+  "$(case "$_CR_ERR2" in *"body began: this is not json at all"*) echo yes ;; *) echo no ;; esac)"
+# Check both directions below: a one-sided check stays green once the fail-safe
+# arms drift onto shared wording, which is what makes them indistinguishable.
+assert_eq "#1441: the read-failure arm carries no unusable-body wording" "no" \
+  "$(case "$_CR_ERR1" in *"yielded no usable count"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#1441: the unusable-body arm carries no read-failure wording" "no" \
+  "$(case "$_CR_ERR2" in *"check-runs read failed"*) echo yes ;; *) echo no ;; esac)"
+# A breadcrumb must stay one line: a caller splits our stderr into records.
+printf 'not json line one\nnot json line two\n' > "$F1441/checkruns.json"
+_CR_ERR3="$(DEVFLOW_FX="$F1441" DEVFLOW_GH="$F1441/gh" bash "$LIB/fetch-pr-context.sh" 1441 2>&1 >/dev/null || true)"
+# Assert the JOINED tail, not the marker's occurrence count: the marker appears
+# once whether or not the newline strip this row names is present.
+assert_eq "#1441: the quoted body is newline-stripped onto one line" "yes" \
+  "$(case "$_CR_ERR3" in *"body began: not json line one not json line two"*) echo yes ;; *) echo no ;; esac)"
+# Pin an arm-specific jq diagnostic, or the whole re-run is freely deletable.
+printf '{"check_runs":{"a":{"conclusion":"success"}}}\n' > "$F1441/checkruns.json"
+_CR_ERR4="$(DEVFLOW_FX="$F1441" DEVFLOW_GH="$F1441/gh" bash "$LIB/fetch-pr-context.sh" 1441 2>&1 >/dev/null || true)"
+assert_eq "#1441: the breadcrumb carries jq's own wrong-type diagnostic" "yes" \
+  "$(case "$_CR_ERR4" in *"jq: "*"check_runs not an array"*) echo yes ;; *) echo no ;; esac)"
+printf '   \n  \n' > "$F1441/checkruns.json"
+_CR_ERR5="$(DEVFLOW_FX="$F1441" DEVFLOW_GH="$F1441/gh" bash "$LIB/fetch-pr-context.sh" 1441 2>&1 >/dev/null || true)"
+assert_eq "#1441: the breadcrumb carries jq's own zero-page diagnostic" "yes" \
+  "$(case "$_CR_ERR5" in *"jq: "*"no check-run pages"*) echo yes ;; *) echo no ;; esac)"
+# This error arm needs its own pin: the behavioral rows expect 1/true, which its
+# sibling arms also produce, so it would otherwise be deletable while green.
+printf '{"check_runs":[7]}\n' > "$F1441/checkruns.json"
+_CR_ERR6="$(DEVFLOW_FX="$F1441" DEVFLOW_GH="$F1441/gh" bash "$LIB/fetch-pr-context.sh" 1441 2>&1 >/dev/null || true)"
+assert_eq "#1441: the breadcrumb carries jq's own non-object diagnostic" "yes" \
+  "$(case "$_CR_ERR6" in *"non-object check-run"*) echo yes ;; *) echo no ;; esac)"
+# Never drop the counting run's 2>/dev/null: raw jq output would then land as its
+# own line and fragment the caller's one-record-per-line contract. Match at line
+# start — the breadcrumb carries jq's message mid-line, so only raw output counts.
+assert_eq "#1441: no raw jq output escapes alongside the breadcrumb" "0" \
+  "$(printf '%s\n' "$_CR_ERR6" | grep -c '^jq:')"
+# An rc-0 empty body is not a failed call; it must say so in its own words.
+: > "$F1441/checkruns.json"
+_CR_ERR7="$(DEVFLOW_FX="$F1441" DEVFLOW_GH="$F1441/gh" bash "$LIB/fetch-pr-context.sh" 1441 2>&1 >/dev/null || true)"
+assert_eq "#1441: an rc-0 empty body is not reported as a failed read" "yes" \
+  "$(case "$_CR_ERR7" in *"returned an empty body (rc=0)"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#1441: the empty-body arm carries no read-failure wording" "no" \
+  "$(case "$_CR_ERR7" in *"check-runs read failed"*) echo yes ;; *) echo no ;; esac)"
+
+# gh's OWN stderr is re-emitted collapsed, not passed through raw: the caller
+# folds our whole stderr into one record and then splits it on newlines, so an
+# unstripped multi-line gh notice fragments into phantom rows.
+printf '{"check_runs":[{"conclusion":"success"}]}\n' > "$F1441/checkruns.json"
+_CR_ERR8="$(DEVFLOW_FX="$F1441" DEVFLOW_GH="$F1441/gh" DEVFLOW_CR_MODE=notice-multiline \
+            bash "$LIB/fetch-pr-context.sh" 1441 2>&1 >/dev/null || true)"
+assert_eq "#1441: gh's multi-line stderr is re-emitted joined onto one line" "yes" \
+  "$(case "$_CR_ERR8" in *"gh: notice one gh: notice two"*) echo yes ;; *) echo no ;; esac)"
+# Positive control on the same fixture: the request itself succeeded, so this
+# row cannot be green because some earlier arm rejected the payload.
+cr1441 "a multi-line gh notice, request otherwise clean" "0" "false" notice-multiline
+
+# The jq-error operand of the breadcrumb's collapse needs its own driver: real
+# jq emits single-line diagnostics, so only a stub jq exercises that strip.
+cat > "$F1441/jq" <<'JQSTUB1441'
+#!/usr/bin/env bash
+case "$*" in
+  *"no check-run pages"*)
+    printf 'jq: stub error line one\njq: stub error line two\n' >&2
+    exit 5 ;;
+esac
+exec "${DEVFLOW_REAL_JQ}" "$@"
+JQSTUB1441
+chmod +x "$F1441/jq"
+printf '{"check_runs":[{"conclusion":"success"}]}\n' > "$F1441/checkruns.json"
+_CR_ERR9="$(DEVFLOW_FX="$F1441" DEVFLOW_GH="$F1441/gh" \
+            DEVFLOW_REAL_JQ="$(command -v jq)" DEVFLOW_JQ="$F1441/jq" \
+            bash "$LIB/fetch-pr-context.sh" 1441 2>&1 >/dev/null || true)"
+assert_eq "#1441: the jq-error operand is collapsed onto one line" "yes" \
+  "$(case "$_CR_ERR9" in *"jq: stub error line one jq: stub error line two"*) echo yes ;; *) echo no ;; esac)"
+# Attribute the rejection: without this the row stays green if the stub tripped
+# some other arm rather than the unusable-count arm whose strip it names.
+assert_eq "#1441: the jq-error row lands on the unusable-count arm" "yes" \
+  "$(case "$_CR_ERR9" in *"yielded no usable count"*) echo yes ;; *) echo no ;; esac)"
+
+unset _CR_ERR1 _CR_ERR2 _CR_ERR3 _CR_ERR4 _CR_ERR5 _CR_ERR6 _CR_ERR7 _CR_ERR8 _CR_ERR9
+
+# Adversarial input shapes: never give `.check_runs` a `// []` default — these
+# must error into the fail-safe guard, not be laundered into a clean 0.
+while IFS='|' read -r _label _payload; do
+  [ -n "$_label" ] || continue
+  printf '%s\n' "$_payload" > "$F1441/checkruns.json"
+  cr1441 "$_label" "1" "true"
+done <<'CR'
+a body that is not JSON|this is not json at all
+valid JSON with no check_runs key|{"total_count":0}
+check_runs is a scalar, not an array|{"check_runs":7}
+a check_runs element that is not an object|{"check_runs":[7]}
+a check_runs element that is null|{"check_runs":[null]}
+check_runs is an object, not an array|{"check_runs":{"a":{"conclusion":"success"}}}
+CR
+unset _label _payload
+
+# Never drop the zero-page error arm: `inputs` yields nothing for a body that
+# parses to zero JSON documents, so the filter would return a clean 0 that
+# passes the numeric guard and reports the head as having no CI failures.
+printf '   \n  \n' > "$F1441/checkruns.json"
+cr1441 "a whitespace-only body (zero JSON documents)" "1" "true"
+
+# AC6 fail-safe arm 2. Never transcribe the guard and never extract it with a
+# fixed line window: a copy drifts, and a fixed offset silently truncates the
+# moment the block grows, dropping its else-arm.
+CI_GUARD_PROG=$(awk 'f{print; if ($0 ~ /^[[:space:]]*fi[[:space:]]*$/) exit; next} /if \[ -z "\$_CI_COUNT" \]/{print; f=1}' "$LIB/fetch-pr-context.sh")
+# Never weaken this to a substring test: if the closing `fi` drifts off its own
+# line the awk over-runs to the next bare `fi`, and a presence test reports a
+# clean extraction over a different, unbalanced program.
+assert_eq "#1441: the extracted guard parses as balanced shell" "0" \
+  "$(printf '%s\n' "$CI_GUARD_PROG" | bash -n /dev/stdin 2>/dev/null; echo $?)"
+assert_eq "#1441: the extracted guard carries its else-arm" "1" \
+  "$(printf '%s\n' "$CI_GUARD_PROG" | grep -c 'CI_FAILURES="\$_CI_COUNT"')"
+# DEVFLOW_JQ=true keeps the guard's diagnostic re-run silent here: the extracted
+# block calls jq, and an unset binary would spray command-not-found across the rows.
+ci_guard1441() {  # $1 label, $2 _CI_COUNT value, $3 expected unknown, $4 expected failures
+  assert_eq "#1441: the shipped guard reads a $1 _CI_COUNT as unknown=$3" "$3" \
+    "$(_CI_COUNT="$2" CI_STATUS_UNKNOWN=false CI_FAILURES=x DEVFLOW_JQ=true bash -c "$CI_GUARD_PROG"'; printf %s "$CI_STATUS_UNKNOWN"' 2>/dev/null)"
+  assert_eq "#1441: the shipped guard reads a $1 _CI_COUNT as failures=$4" "$4" \
+    "$(_CI_COUNT="$2" CI_STATUS_UNKNOWN=false CI_FAILURES=x DEVFLOW_JQ=true bash -c "$CI_GUARD_PROG"'; printf %s "$CI_FAILURES"' 2>/dev/null)"
+}
+ci_guard1441 "multi-line"  "$(printf '0\n1')" true  1
+ci_guard1441 "alphabetic"  "not-a-number"     true  1
+ci_guard1441 "empty"       ""                 true  1
+ci_guard1441 "numeric"     "3"                false 3
+unset -f ci_guard1441
+unset CI_GUARD_PROG
+unset -f cr1441
+rm -rf "$F1441"
+
 # #356: a workpad whose Status is `💥 Failed` yields the bare word `Failed`
 # (fetch-pr-context strips 💥 like the other glyphs), and cheap-gate gates it
 # non-clean with reason "workpad status not Complete".
