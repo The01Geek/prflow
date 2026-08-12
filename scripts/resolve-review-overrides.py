@@ -37,9 +37,11 @@ Resolution rules (mirroring the schema):
     (dispatched exactly as today — global claude_model + session effort).
   - `effort` outside the schema enum is dropped with a warning (falls back to
     the session effort); the run never aborts on a bad effort value.
-  - A non-blank string `model` is forwarded as given (no value validation); a
-    present-but-unusable model (empty, whitespace-only, or non-string) is dropped
-    with a warning, mirroring the invalid-effort path.
+  - `model` outside the accepted set (sonnet, opus, haiku, fable — the Agent
+    tool's per-invocation enum) is dropped with a warning naming the value and the
+    set (falls back to the top-level claude_model); an in-set value is forwarded
+    unchanged; a present-but-unusable model (empty, whitespace-only, or non-string)
+    is dropped with a warning, mirroring the invalid-effort path.
   - An entry that resolves to no model, no valid effort, and no valid
     `iterations` emits no override for that subagent (nothing to apply); an
     entry carrying only a valid `iterations` still produces an override.
@@ -71,6 +73,11 @@ import sys
 from pathlib import Path
 
 VALID_EFFORTS = ("low", "medium", "high", "xhigh", "max")
+
+# The Agent tool's per-invocation `model` parameter is a closed enum; a value
+# outside it raises InputValidationError at dispatch, so drop an out-of-set
+# model (warn, fall back to the session model) exactly as an out-of-enum effort.
+VALID_MODELS = ("sonnet", "opus", "haiku", "fable")
 
 # The only valid `iterations` value (issue #425). An agent whose resolved override
 # carries `iterations: "first-only"` is excluded from the Phase-3 review roster on
@@ -233,12 +240,17 @@ def resolve_overrides(raw, dispatched):
         model = entry.get("model")
         if model is not None:
             # A whitespace-only model is as unusable as an empty one; reject both.
-            if isinstance(model, str) and model.strip():
-                resolved["model"] = model
-            else:
+            if not (isinstance(model, str) and model.strip()):
                 warnings.append(
                     f"agent_overrides[{source}].model={model!r} is not a "
                     f"non-blank string; ignoring it{scope}."
+                )
+            elif model in VALID_MODELS:
+                resolved["model"] = model
+            else:
+                warnings.append(
+                    f"agent_overrides[{source}].model={model!r} is not one of "
+                    f"{list(VALID_MODELS)}; falling back to the session model{scope}."
                 )
 
         effort = entry.get("effort")

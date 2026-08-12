@@ -3860,8 +3860,8 @@ _rro = resolve_review_overrides
 # Specific entry wins over default; default supplies only no-entry agents.
 _raw = {
     "default": {"effort": "medium"},
-    "devflow:code-reviewer": {"model": "claude-opus-4-8", "effort": "high"},
-    "devflow:checklist-deduper": {"model": "claude-haiku-4-5-20251001", "effort": "low"},
+    "devflow:code-reviewer": {"model": "opus", "effort": "high"},
+    "devflow:checklist-deduper": {"model": "haiku", "effort": "low"},
 }
 _res, _warn = _rro.resolve_overrides(
     _raw,
@@ -3869,10 +3869,10 @@ _res, _warn = _rro.resolve_overrides(
      "devflow:checklist-verifier"],
 )
 assert_eq("resolve: specific code-reviewer entry wins",
-          {"model": "claude-opus-4-8", "effort": "high"},
+          {"model": "opus", "effort": "high"},
           _res["devflow:code-reviewer"])
 assert_eq("resolve: specific deduper entry wins",
-          {"model": "claude-haiku-4-5-20251001", "effort": "low"},
+          {"model": "haiku", "effort": "low"},
           _res["devflow:checklist-deduper"])
 assert_eq("resolve: no-entry agent falls back to default",
           {"effort": "medium"}, _res["devflow:checklist-verifier"])
@@ -3883,11 +3883,11 @@ assert_eq("resolve: specific entry does NOT inherit default fields (no warnings)
 # code-reviewer below has only a model, default has effort — effort must NOT leak in.
 _res2, _ = _rro.resolve_overrides(
     {"default": {"effort": "max"},
-     "devflow:code-reviewer": {"model": "m"}},
+     "devflow:code-reviewer": {"model": "opus"}},
     ["devflow:code-reviewer"],
 )
 assert_eq("resolve: own entry is used whole (no default backfill of effort)",
-          {"model": "m"}, _res2["devflow:code-reviewer"])
+          {"model": "opus"}, _res2["devflow:code-reviewer"])
 
 # No entry and no default → no override emitted for that agent.
 _res3, _ = _rro.resolve_overrides({}, ["devflow:code-reviewer"])
@@ -3895,11 +3895,11 @@ assert_eq("resolve: no entry + no default → empty override map", {}, _res3)
 
 # Invalid effort → warning + drop effort (fall back to session); model forwarded.
 _res4, _warn4 = _rro.resolve_overrides(
-    {"devflow:code-reviewer": {"model": "m", "effort": "turbo"}},
+    {"devflow:code-reviewer": {"model": "opus", "effort": "turbo"}},
     ["devflow:code-reviewer"],
 )
 assert_eq("resolve: invalid effort dropped, model forwarded",
-          {"model": "m"}, _res4["devflow:code-reviewer"])
+          {"model": "opus"}, _res4["devflow:code-reviewer"])
 assert_eq("resolve: invalid effort emits exactly one warning", 1, len(_warn4))
 
 # An entry that resolves to neither a model nor a valid effort emits no override.
@@ -3923,15 +3923,15 @@ assert_eq("resolve: empty own entry shadows default → no override", {}, _res6)
 
 # T1: first-only passed through in the resolved map, for its agent only.
 _it_res, _it_warn = _rro.resolve_overrides(
-    {"devflow:code-reviewer": {"model": "m", "effort": "high", "iterations": "first-only"},
-     "devflow:silent-failure-hunter": {"model": "n"}},
+    {"devflow:code-reviewer": {"model": "opus", "effort": "high", "iterations": "first-only"},
+     "devflow:silent-failure-hunter": {"model": "sonnet"}},
     ["devflow:code-reviewer", "devflow:silent-failure-hunter"],
 )
 assert_eq("resolve(#425): first-only passed through for its agent",
-          {"model": "m", "effort": "high", "iterations": "first-only"},
+          {"model": "opus", "effort": "high", "iterations": "first-only"},
           _it_res["devflow:code-reviewer"])
 assert_eq("resolve(#425): an agent without the key has no iterations in its output",
-          {"model": "n"}, _it_res["devflow:silent-failure-hunter"])
+          {"model": "sonnet"}, _it_res["devflow:silent-failure-hunter"])
 assert_eq("resolve(#425): first-only pass-through emits no warning", [], _it_warn)
 
 # T2: invalid iterations value dropped with a warning; run never aborts.
@@ -3946,11 +3946,11 @@ assert_eq("resolve(#425): invalid-iterations warning names the entry + the valid
 
 # Empty-string iterations follows the invalid-value arm (dropped + warning); model forwarded.
 _ite_res, _ite_warn = _rro.resolve_overrides(
-    {"devflow:code-reviewer": {"model": "m", "iterations": ""}},
+    {"devflow:code-reviewer": {"model": "opus", "iterations": ""}},
     ["devflow:code-reviewer"],
 )
 assert_eq("resolve(#425): empty-string iterations dropped, model still forwarded",
-          {"model": "m"}, _ite_res["devflow:code-reviewer"])
+          {"model": "opus"}, _ite_res["devflow:code-reviewer"])
 assert_eq("resolve(#425): empty-string iterations emits exactly one warning", 1, len(_ite_warn))
 
 # An entry carrying ONLY iterations (no model/effort) still resolves.
@@ -3965,13 +3965,13 @@ assert_eq("resolve(#425): only-iterations entry emits no warning", [], _ito_warn
 # T3: default-entry inheritance + entry-level precedence, identical to model/effort.
 _itd_res, _ = _rro.resolve_overrides(
     {"default": {"iterations": "first-only"},
-     "devflow:code-reviewer": {"model": "m"}},
+     "devflow:code-reviewer": {"model": "opus"}},
     ["devflow:code-reviewer", "devflow:silent-failure-hunter"],
 )
 assert_eq("resolve(#425): default iterations applies to a no-entry agent",
           {"iterations": "first-only"}, _itd_res["devflow:silent-failure-hunter"])
 assert_eq("resolve(#425): own entry does NOT inherit default iterations (entry-level precedence)",
-          {"model": "m"}, _itd_res["devflow:code-reviewer"])
+          {"model": "opus"}, _itd_res["devflow:code-reviewer"])
 
 # --- effort-application decision (issue #554): honest fallback, no overclaim ---
 # The resolver runs IN-SESSION, so a per-agent effort override is NEVER applied
@@ -4180,7 +4180,7 @@ assert_eq("effort-obs(#609): default-supplied effort resolves and falls back",
 # EO5: an own entry WITHOUT effort blocks default backfill — requested is null
 # even though default carries an effort (entry-level precedence, mirrored).
 _eo5_raw = {"default": {"effort": "medium"},
-            "devflow:code-reviewer": {"model": "claude-opus-4-8"}}
+            "devflow:code-reviewer": {"model": "opus"}}
 _eo5_res, _ = _rro.resolve_overrides(_eo5_raw, ["devflow:code-reviewer"])
 _eo5 = _rro.build_effort_observability(
     _eo5_raw, _eo5_res, ["devflow:code-reviewer"])
@@ -4193,7 +4193,7 @@ assert_eq("effort-obs(#609): own entry without effort → session-inheritance",
 # EO6: capability-restricted (Haiku) — the block's fallback_reason names the
 # model, same decision the #554 report path computes (single source).
 _eo6_raw = {"devflow:code-reviewer":
-            {"model": "claude-haiku-4-5-20251001", "effort": "low"}}
+            {"model": "haiku", "effort": "low"}}
 _eo6_res, _ = _rro.resolve_overrides(_eo6_raw, ["devflow:code-reviewer"])
 _eo6 = _rro.build_effort_observability(
     _eo6_raw, _eo6_res, ["devflow:code-reviewer"])
@@ -4247,7 +4247,7 @@ with _tempfile.NamedTemporaryFile('w', suffix='.json', delete=False) as _cf:
         '"default":{"effort":"high"},'
         '"devflow:checklist-verifier":{},'
         '"devflow:silent-failure-hunter":{"iterations":{"nested":"obj"}},'
-        '"devflow:code-reviewer":{"model":"m","effort":"low","iterations":"first-only"}}}}'
+        '"devflow:code-reviewer":{"model":"opus","effort":"low","iterations":"first-only"}}}}'
     )
     _cfg_path = _cf.name
 try:
@@ -4261,7 +4261,7 @@ try:
     # #425: the `iterations` leaf round-trips through the real config-get.sh I/O path
     # (the pure-resolver tests never exercise read_raw's field loop for the new key).
     assert_eq("read_raw(#425): full entry reads model+effort+iterations end-to-end",
-              {"model": "m", "effort": "low", "iterations": "first-only"},
+              {"model": "opus", "effort": "low", "iterations": "first-only"},
               _rr_raw.get("devflow:code-reviewer"))
     # #425: an OBJECT-valued iterations leaf is dropped with the sentinel warning (read_raw
     # lines guarding _OBJECT_SENTINEL), leaving the entry empty rather than laundering the
@@ -4313,7 +4313,7 @@ assert_eq("alias: an unrecognized namespace is never treated as an alias",
 
 # The headline contract: an alias-keyed override resolves to the SAME result as
 # its canonically-keyed equivalent for the same dispatched (canonical) agent.
-_al_entry = {"model": "claude-opus-4-8", "effort": "low", "iterations": "first-only"}
+_al_entry = {"model": "opus", "effort": "low", "iterations": "first-only"}
 _al_res, _al_warn = _rro.resolve_overrides(
     {"devflow:code-reviewer": dict(_al_entry)}, ["prflow:code-reviewer"])
 _can_res, _can_warn = _rro.resolve_overrides(
@@ -4328,10 +4328,10 @@ assert_eq("alias: resolving through the alias emits no warning", ([], []),
 # An alias-keyed entry is an OWN entry: it shadows `default` (entry-level
 # precedence), including the present-but-empty {} shape.
 _al_def, _ = _rro.resolve_overrides(
-    {"default": {"effort": "high"}, "devflow:code-reviewer": {"model": "m"}},
+    {"default": {"effort": "high"}, "devflow:code-reviewer": {"model": "opus"}},
     ["prflow:code-reviewer"])
 assert_eq("alias: alias-keyed entry does NOT inherit `default` fields",
-          {"model": "m"}, _al_def.get("prflow:code-reviewer"))
+          {"model": "opus"}, _al_def.get("prflow:code-reviewer"))
 _al_empty, _ = _rro.resolve_overrides(
     {"default": {"effort": "high"}, "devflow:code-reviewer": {}},
     ["prflow:code-reviewer"])
@@ -4341,16 +4341,16 @@ assert_eq("alias: empty alias-keyed entry shadows `default` (no override)",
 # Precedence, asserted directly: with BOTH spellings present the dispatched
 # spelling wins deterministically — and it wins from either dict order, so the
 # rule is positional, not insertion-ordered.
-_both_a = {"prflow:code-reviewer": {"model": "canonical"},
-           "devflow:code-reviewer": {"model": "aliased"}}
-_both_b = {"devflow:code-reviewer": {"model": "aliased"},
-           "prflow:code-reviewer": {"model": "canonical"}}
+_both_a = {"prflow:code-reviewer": {"model": "opus"},
+           "devflow:code-reviewer": {"model": "sonnet"}}
+_both_b = {"devflow:code-reviewer": {"model": "sonnet"},
+           "prflow:code-reviewer": {"model": "opus"}}
 _pa, _ = _rro.resolve_overrides(_both_a, ["prflow:code-reviewer"])
 _pb, _ = _rro.resolve_overrides(_both_b, ["prflow:code-reviewer"])
 assert_eq("alias: dispatched spelling wins over the alias (declaration order A)",
-          {"model": "canonical"}, _pa.get("prflow:code-reviewer"))
+          {"model": "opus"}, _pa.get("prflow:code-reviewer"))
 assert_eq("alias: precedence is positional, not dict-order-dependent",
-          {"model": "canonical"}, _pb.get("prflow:code-reviewer"))
+          {"model": "opus"}, _pb.get("prflow:code-reviewer"))
 
 # An unknown-namespace key is NOT silently adopted as an alias of a known leaf.
 _bogus_res, _ = _rro.resolve_overrides(
@@ -4372,10 +4372,10 @@ with _tempfile.NamedTemporaryFile('w', suffix='.json', delete=False) as _alcf:
     _alcf.write(
         '{"prflow_review":{"agent_overrides":{'
         '"default":{"effort":"high"},'
-        '"devflow:code-reviewer":{"model":"m-alias","effort":"low"},'
+        '"devflow:code-reviewer":{"model":"sonnet","effort":"low"},'
         '"devflow:checklist-verifier":{},'
-        '"prflow:comment-analyzer":{"model":"m-canonical"},'
-        '"devflow:comment-analyzer":{"model":"m-shadowed"}}}}'
+        '"prflow:comment-analyzer":{"model":"opus"},'
+        '"devflow:comment-analyzer":{"model":"haiku"}}}}'
     )
     _al_cfg = _alcf.name
 try:
@@ -4387,12 +4387,12 @@ try:
         _al_raw, ["prflow:code-reviewer", "prflow:checklist-verifier",
                   "prflow:comment-analyzer"])
     assert_eq("alias(e2e): alias-keyed override resolves through the real reader",
-              {"model": "m-alias", "effort": "low"},
+              {"model": "sonnet", "effort": "low"},
               _al_e2e.get("prflow:code-reviewer"))
     assert_eq("alias(e2e): empty alias-keyed entry shadows default through the reader",
               False, "prflow:checklist-verifier" in _al_e2e)
     assert_eq("alias(e2e): canonical key wins when both spellings are present",
-              {"model": "m-canonical"}, _al_e2e.get("prflow:comment-analyzer"))
+              {"model": "opus"}, _al_e2e.get("prflow:comment-analyzer"))
     assert_eq("alias(e2e): the shadowed duplicate spelling is warned, not dropped silently",
               1, len([_w for _w in _al_rwarn
                       if "devflow:comment-analyzer" in _w and "shadowed" in _w]))
@@ -4482,6 +4482,68 @@ _wm_res, _wm_warn = _rro.resolve_overrides(
 assert_eq("resolve: whitespace-only model dropped, effort kept",
           {"effort": "high"}, _wm_res["devflow:code-reviewer"])
 assert_eq("resolve: whitespace-only model emits a warning", 1, len(_wm_warn))
+
+# --- issue #1646: `model` is validated against the Agent tool's accepted alias set
+# (sonnet/opus/haiku/fable) exactly as `effort` is, because the Agent tool's
+# per-invocation `model` parameter is a closed enum that raises InputValidationError
+# on a full model identifier. An out-of-set value is dropped with a warning naming
+# the value AND the accepted set (falls back to the top-level claude_model); an
+# in-set value is forwarded unchanged; the resolver never aborts. RED before #1646:
+# `claude-opus-4-8` resolved to {"model": "claude-opus-4-8"} with no warning.
+_om_res, _om_warn = _rro.resolve_overrides(
+    {"devflow:code-reviewer": {"model": "claude-opus-4-8", "effort": "high"}},
+    ["devflow:code-reviewer"],
+)
+assert_eq("resolve(#1646): out-of-set model dropped, effort kept",
+          {"effort": "high"}, _om_res["devflow:code-reviewer"])
+assert_eq("resolve(#1646): out-of-set model emits exactly one warning", 1, len(_om_warn))
+assert_eq("resolve(#1646): the warning names the rejected value AND the accepted set",
+          True,
+          "claude-opus-4-8" in _om_warn[0]
+          and all(a in _om_warn[0] for a in ("sonnet", "opus", "haiku", "fable")))
+
+# Every accepted alias is forwarded unchanged, for an own entry and for `default`.
+for _accepted in ("sonnet", "opus", "haiku", "fable"):
+    _av_res, _av_warn = _rro.resolve_overrides(
+        {"devflow:code-reviewer": {"model": _accepted}}, ["devflow:code-reviewer"])
+    assert_eq("resolve(#1646): accepted alias %r forwarded unchanged" % _accepted,
+              {"model": _accepted}, _av_res["devflow:code-reviewer"])
+    assert_eq("resolve(#1646): accepted alias %r emits no warning" % _accepted,
+              [], _av_warn)
+_adef_res, _ = _rro.resolve_overrides(
+    {"default": {"model": "haiku"}}, ["devflow:comment-analyzer"])
+assert_eq("resolve(#1646): accepted alias on `default` reaches a no-entry agent",
+          {"model": "haiku"}, _adef_res["devflow:comment-analyzer"])
+
+# Out-of-set shapes each drop the model and never abort: a full identifier, a
+# provider-routed identifier, `inherit`, an unknown alias, and a case variant.
+for _bad in ("claude-opus-4-8", "z-ai/glm-5.2", "inherit", "sonnett", "Opus"):
+    _bad_res, _bad_warn = _rro.resolve_overrides(
+        {"devflow:code-reviewer": {"model": _bad}}, ["devflow:code-reviewer"])
+    assert_eq("resolve(#1646): out-of-set model %r yields no model key" % _bad,
+              {}, _bad_res)
+    assert_eq("resolve(#1646): out-of-set model %r warns (names the value)" % _bad,
+              True, _bad in _bad_warn[0] and "is not one of" in _bad_warn[0])
+
+# Exit-zero contract: main() returns 0 on every model shape, including the rejecting
+# ones, via the real config path (the engine must never abort on a bad model value).
+with _tempfile.NamedTemporaryFile('w', suffix='.json', delete=False) as _m1646:
+    _m1646.write(
+        '{"prflow_review":{"agent_overrides":{'
+        '"prflow:code-reviewer":{"model":"claude-opus-4-8"},'
+        '"prflow:checklist-deduper":{"model":"sonnet"}}}}'
+    )
+    _m1646_cfg = _m1646.name
+try:
+    _m1646_err = io.StringIO()
+    with contextlib.redirect_stderr(_m1646_err), contextlib.redirect_stdout(io.StringIO()):
+        _m1646_rc = _rro.main(
+            ["prflow:code-reviewer", "prflow:checklist-deduper", "--config", _m1646_cfg])
+    assert_eq("resolve(#1646): main() exits 0 on a rejecting model shape", 0, _m1646_rc)
+    assert_eq("resolve(#1646): main() warns on stderr for the rejected model",
+              True, "is not one of" in _m1646_err.getvalue())
+finally:
+    _os.unlink(_m1646_cfg)
 
 # A bad value on the shared `default` must NOT emit one warning per no-entry agent
 # (warning spam: up to nine lines for one fat-fingered default). The default-sourced
@@ -4692,6 +4754,21 @@ for _ent_name, _ent in _ao_entries.items():
 assert_eq("#425 schema: VALID_ITERATIONS mirrors the schema enum",
           ("first-only",), _rro.VALID_ITERATIONS)
 
+# issue #1646: every agent_overrides entry declares the optional `model` property as a
+# string enum whose members are exactly the Agent tool's accepted aliases
+# (sonnet/opus/haiku/fable), and each entry stays additionalProperties:false — so a
+# config setting `model` to a full identifier is rejected for every entry property the
+# schema declares. This pins the schema surface the resolver's VALID_MODELS mirrors.
+# RED before #1646: `model` was {"type": "string"} with no enum, so `claude-opus-4-8`
+# validated cleanly.
+for _ent_name, _ent in _ao_entries.items():
+    _mdl = _ent.get("properties", {}).get("model")
+    assert_eq("#1646 schema: agent_overrides[%s] declares model enum sonnet/opus/haiku/fable"
+              % _ent_name,
+              {"type": "string", "enum": ["sonnet", "opus", "haiku", "fable"]}, _mdl)
+assert_eq("#1646 schema: VALID_MODELS mirrors the schema model enum",
+          ("sonnet", "opus", "haiku", "fable"), _rro.VALID_MODELS)
+
 # T6 (issue #425): the shipped tracked .prflow/config.json pins the code-reviewer
 # override to model+effort+iterations exactly, so a partial edit (dropping iterations,
 # or changing model/effort) fails the suite. config.example.json carries iterations too.
@@ -4702,7 +4779,7 @@ _shipped_cr = (
     _shipped_cfg["prflow_review"]["agent_overrides"]["prflow:code-reviewer"]
 )
 assert_eq("#425 config.json: code-reviewer override is model+effort+iterations exactly",
-          {"model": "claude-opus-4-8", "effort": "low", "iterations": "first-only"},
+          {"model": "opus", "effort": "low", "iterations": "first-only"},
           _shipped_cr)
 _example_cfg_path = SCRIPTS.parent / '.prflow' / 'config.example.json'
 with open(_example_cfg_path) as _ecf:
@@ -4900,9 +4977,13 @@ try:
               None, _arr_res.get("devflow:silent-failure-hunter"))
     assert_eq("char: multi-element array effort warns",
               True, any("high,low" in w for w in _arr_rwarn))
-    # Array model → 'a,b' → forwarded verbatim as a model id (documented gap).
-    assert_eq("char: array model ['a','b'] laundered to 'a,b' (documented gap)",
-              {"model": "a,b"}, _arr_res["devflow:pr-test-analyzer"])
+    # Array model → 'a,b' → out of the accepted set → dropped + warned (before
+    # issue #1646's model-alias validation it was forwarded verbatim; the array
+    # join still happens, but 'a,b' is not one of sonnet/opus/haiku/fable).
+    assert_eq("char: array model ['a','b'] joins to 'a,b' then dropped (out of accepted set)",
+              None, _arr_res.get("devflow:pr-test-analyzer"))
+    assert_eq("char: array model 'a,b' warns (out of accepted set)",
+              True, any("a,b" in w and "is not one of" in w for w in _arr_rwarn))
 finally:
     _os.unlink(_arr_cfg)
 
