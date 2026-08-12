@@ -80,14 +80,32 @@ Exit codes:
 Every terminating path prints a `VERIFIED_PREMISES ` line, so a caller may
 treat that line's ABSENCE as "this did not run" rather than inferring anything
 from the exit code alone.
+
+On the normal (non-unavailable) path the adjudicated output is followed by the
+non-adjudicating ungraded-claim pass (issue #1634): zero or more
+`ungraded_claim=<n> region=… phrase=… detail=…` lines and one
+`UNGRADED_CLAIMS total=<n>` summary. These report a verification asserted in a
+shape the `Verified:` marker does not grade; they carry no state token, never
+move the exit code, and their `detail=` is the opaque trailing sentence text.
+When the pass itself fails, the summary is `UNGRADED_CLAIMS unavailable
+reason=internal-error detail=…` instead — never `total=0`, which would be
+byte-identical to a clean "found none" — and the adjudicated output above it
+and the exit code are both unchanged.
 """
 
 import argparse
+import bisect
 import re
 import sys
 import traceback
 from pathlib import Path
 from typing import NamedTuple
+
+# Import `section_parse` IN-PROCESS — never through a `.sh`/subprocess hop,
+# which fails on Windows ([WinError 193]) and breaks this module's
+# no-subprocess boundary. The path insert is what makes that import resolve.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from section_parse import HEADING_RE, extract_section  # noqa: E402
 
 # The exit codes, named rather than spelled as bare integers at the seven
 # terminating sites. The 2-vs-3 distinction is this module's central discipline
@@ -206,6 +224,39 @@ _UNDECIDABLE_REASONS = {
     'command': 'command handle reported, never executed',
     'none': 'no re-derivation handle in the bullet',
 }
+
+# --- Ungraded-claim detection (issue #1634) --------------------------------
+# The non-adjudicating pass below must share no STATE token (`holds`,
+# `refuted`, `unestablished`) with the adjudicated vocabulary above, or a
+# downstream verdict parser scanning both would mis-tally.
+
+# Do not widen this tuple to catch a verification worded outside it ("I checked
+# this"): the missed detection is the deliberate low-false-positive floor.
+_COLLOCATION_FAMILY = (
+    'verified against', 'confirmed against', 'checked against',
+    'verified at drafting time')
+# The letter guards keep `verified against` from matching inside `unverified
+# against`. They are lookarounds, not `\b`, so `match.group(0)` stays the bare
+# phrase the report line prints.
+_COLLOCATION_RE = re.compile(
+    '(?<![A-Za-z])(?:{})(?![A-Za-z])'.format(
+        '|'.join(re.escape(phrase) for phrase in _COLLOCATION_FAMILY)),
+    re.IGNORECASE)
+
+# `_premise_regions` adds every heading line as a fourth region; everything else
+# is the unscanned residual complement, so do not read this tuple as whole-body
+# coverage.
+_PREMISE_SECTIONS = ('Current Behavior', 'Technical Context',
+                     'Implementation Notes')
+
+# A collocation inside a fenced block is data, not a premise. `_FENCE_RE` also
+# gates heading detection in `_premise_regions`, so a fenced `##`-shaped line
+# does not falsely close a real section.
+_FENCE_RE = re.compile(r'^[ \t]*(?:`{3,}|~{3,})')
+
+# An inline code span. The issue that DEFINES the collocation family as data
+# would otherwise trip its own detector — this exclusion is load-bearing.
+_INLINE_CODE_RE = re.compile(r'`[^`\n]+`')
 
 
 def normalize(text: str) -> str:
@@ -327,6 +378,23 @@ def _is_command(span: str) -> bool:
     return bool(span.strip()) and any(c.isspace() for c in span.strip())
 
 
+def _bullet_bound(rest: str) -> int:
+    """Offset within `rest` where a bullet's span ends.
+
+    The earliest of the next marker, the next list item, or a blank line — the
+    three bounds `parse_bullets` documents. Shared with `_graded_spans` so the
+    ungraded pass subtracts exactly the span the adjudication mined.
+    """
+    limit = len(rest)
+    for bound in (_MARKER.search(rest), _NEXT_ITEM.search(rest)):
+        if bound is not None:
+            limit = min(limit, bound.start())
+    blank = rest.find('\n\n')
+    if blank != -1:
+        limit = min(limit, blank)
+    return limit
+
+
 def parse_bullets(body: str) -> list:
     """Return one text span per `Verified:` bullet, in document order.
 
@@ -357,18 +425,8 @@ def parse_bullets(body: str) -> list:
     their own bound above — but real, and unpinned by construction: it is not
     decidable from the text which of the two shapes an author meant.
     """
-    spans = []
-    for match in _MARKER.finditer(body):
-        rest = body[match.end():]
-        limit = len(rest)
-        for bound in (_MARKER.search(rest), _NEXT_ITEM.search(rest)):
-            if bound is not None:
-                limit = min(limit, bound.start())
-        blank = rest.find('\n\n')
-        if blank != -1:
-            limit = min(limit, blank)
-        spans.append(rest[:limit])
-    return spans
+    return [rest[:_bullet_bound(rest)]
+            for rest in (body[m.end():] for m in _MARKER.finditer(body))]
 
 
 def classify(span: str) -> tuple:
@@ -611,6 +669,137 @@ def recheck(handle: str, paths: list, quotes: list, root: Path) -> tuple:
         'a strong path claim: ' + ','.join(readable))
 
 
+def _graded_spans(body: str) -> list:
+    """Offset ranges the `_MARKER` recogniser already covers.
+
+    A collocation inside a recognised `Verified:` bullet is already graded, so
+    it is not an ungraded claim. Each span runs from the marker to the same
+    bound `parse_bullets` uses, via the shared `_bullet_bound`.
+    """
+    spans = []
+    for match in _MARKER.finditer(body):
+        rest = body[match.end():]
+        spans.append((match.start(), match.end() + _bullet_bound(rest)))
+    return spans
+
+
+def _fenced_line_set(content_lines: list) -> set:
+    """Indices of lines inside a fenced code block, delimiters included.
+
+    A fence opens on a line matching `_FENCE_RE` and closes on the next such
+    line (the whole `[open, close]` range is fenced); an unclosed fence runs to
+    end-of-input. Both consumers share this so heading detection and collocation
+    exclusion agree on which lines are code.
+    """
+    fenced = set()
+    open_index = None
+    for index, line in enumerate(content_lines):
+        if not _FENCE_RE.match(line):
+            continue
+        if open_index is None:
+            open_index = index
+        else:
+            fenced.update(range(open_index, index + 1))
+            open_index = None
+    if open_index is not None:
+        fenced.update(range(open_index, len(content_lines)))
+    return fenced
+
+
+def _code_spans(content_lines: list, line_offset: list, fenced_lines: set) -> list:
+    """Offset ranges inside fenced code blocks or inline code spans.
+
+    A collocation inside either is data, not a premise. A fenced line's whole
+    span is excluded; on every other line, inline backtick runs are excluded.
+    """
+    spans = []
+    for index, line in enumerate(content_lines):
+        base = line_offset[index]
+        if index in fenced_lines:
+            spans.append((base, base + len(line)))
+            continue
+        for inline in _INLINE_CODE_RE.finditer(line):
+            spans.append((base + inline.start(), base + inline.end()))
+    return spans
+
+
+def _premise_regions(body: str, content_lines: list, fenced_lines: set) -> dict:
+    """Map each premise-bearing line index to its region label.
+
+    Regions are the three named sections — resolved through `section_parse`'s
+    extractor, so an absent section contributes nothing and an issue on a
+    consumer's own template is scanned by its heading lines alone — plus every
+    heading line, labelled `heading`. The section walk mirrors the extractor's
+    own first-match-only, level-2/3 open/close rules; it additionally skips
+    fenced lines (below), so where a `##`-shaped line sits inside a fence this
+    walk keeps the real section open while the fence-blind `extract_section`
+    used only for the `present` gate would not — a divergence in the safe
+    direction, since `present` gates eligibility and never mints a detection.
+    """
+    present = {name for name in _PREMISE_SECTIONS if extract_section(body, name)}
+    region = {}
+    active_name = None
+    active_level = None
+    opened = set()
+    for index, line in enumerate(content_lines):
+        if index in fenced_lines:
+            continue
+        heading_match = HEADING_RE.match(line)
+        if heading_match:
+            level = len(heading_match.group(1))
+            heading = heading_match.group(2).strip()
+            region[index] = 'heading'
+            if active_name is not None and level <= active_level:
+                active_name = None
+                active_level = None
+            if active_name is None and level in (2, 3):
+                for name in _PREMISE_SECTIONS:
+                    if (heading.lower() == name.lower()
+                            and name in present and name not in opened):
+                        active_name, active_level = name, level
+                        opened.add(name)
+                        break
+            continue
+        if active_name is not None:
+            region[index] = active_name
+    return region
+
+
+def find_ungraded_claims(body: str) -> list:
+    """Return one report line per ungraded verification claim, document order.
+
+    An ungraded claim is a collocation-family phrase in a premise-bearing region
+    that no recognised marker span already covers and that is not inside code.
+    Non-adjudicating by construction: it mints no verdict and moves no exit code.
+    """
+    content_lines = body.splitlines()
+    line_offset = []
+    acc = 0
+    for raw in body.splitlines(keepends=True):
+        line_offset.append(acc)
+        acc += len(raw)
+
+    fenced_lines = _fenced_line_set(content_lines)
+    region = _premise_regions(body, content_lines, fenced_lines)
+    # A collocation is excluded when it falls inside a graded marker span or inside
+    # code; both suppress a detection identically, so they are one exclusion set.
+    excluded = _graded_spans(body) + _code_spans(content_lines, line_offset, fenced_lines)
+
+    detections = []
+    for match in _COLLOCATION_RE.finditer(body):
+        start = match.start()
+        index = bisect.bisect_right(line_offset, start) - 1
+        if index not in region:
+            continue
+        if any(low <= start < high for low, high in excluded):
+            continue
+        detections.append((region[index], match.group(0),
+                           content_lines[index].strip()))
+    return ['ungraded_claim={} region={} phrase={} detail={}'.format(
+        number, label, phrase, sentence)
+        for number, (label, phrase, sentence) in enumerate(detections, start=1)]
+
+
 class _ArgParser(argparse.ArgumentParser):
     """An argument parser that fails as UNESTABLISHED, not as a refutation.
 
@@ -713,6 +902,26 @@ def _run(args) -> int:
     print('VERIFIED_PREMISES total={} holds={} refuted={} unestablished={}'.format(
         sum(tally.values()), tally['holds'], tally['refuted'],
         tally['unestablished']))
+
+    # Do not let this advisory pass reach main's catch-all (issue #1634): an
+    # exception escaping here would turn the clean/refuted adjudication already
+    # printed above into an internal-error exit.
+    # Emission is inside the fence, not just detection: an error raised while
+    # printing would otherwise reach main's catch-all and print a second
+    # `VERIFIED_PREMISES unavailable` after a valid adjudicated block.
+    try:
+        ungraded = find_ungraded_claims(body)
+        for line in ungraded:
+            print(line)
+        print('UNGRADED_CLAIMS total={}'.format(len(ungraded)))
+    except Exception as exc:  # noqa: BLE001 — the pass is advisory; never let it move the verdict.
+        # Never print `total=0` here: that is byte-identical to "ran, found
+        # none", which is the fail-open this pass exists to close.
+        traceback.print_exc(file=sys.stderr)
+        print(f'check-verified-premises: ungraded-claim pass failed, reported '
+              f'none: {exc!r}', file=sys.stderr)
+        print('UNGRADED_CLAIMS unavailable reason=internal-error '
+              f'detail={exc!r}')
     return EXIT_REFUTED if tally['refuted'] else EXIT_CLEAN
 
 

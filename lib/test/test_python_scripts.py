@@ -25826,6 +25826,448 @@ except SystemExit as _cvp_exc:
 assert_eq("#868 helper: the remap is narrow — a status-0 parser exit (--help) is still 0, "
           "not rewritten into an unestablished measurement", 0, _cvp_rc)
 
+# ---------------------------------------------------------------------------
+# issue #1634 — the non-adjudicating ungraded-claim pass
+#
+# A verification asserted in a shape `_MARKER` cannot see ("verified against
+# origin/main") is graded by nothing. The second pass REPORTS such phrases
+# without adjudicating them: do not add an assertion here that lets this pass
+# mint a verdict, move the exit code, or perturb an adjudicated line.
+# ---------------------------------------------------------------------------
+
+_CVP_REPO_ROOT = SCRIPTS.parent
+_CVP_1441_FIXTURE = _CVP_REPO_ROOT / 'lib' / 'test' / 'fixtures' / 'issue-1441-body.md'
+
+
+def _cvp_ungraded_lines(out):
+    return [line for line in out.splitlines() if line.startswith('ungraded_claim=')]
+
+
+def _cvp_adjudicated_block(out):
+    """The output with every ungraded-vocabulary line removed."""
+    return '\n'.join(
+        line for line in out.splitlines()
+        if not line.startswith(('ungraded_claim=', 'UNGRADED_CLAIMS')))
+
+
+def _cvp_run_real(body_path):
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(io.StringIO()):
+        rc = check_verified_premises.main(
+            ['--body-file', str(body_path), '--repo-root', str(_CVP_REPO_ROOT)])
+    return rc, buf.getvalue()
+
+
+# --- test_ungraded_reports_collocation_in_each_region -----------------------
+for _u_region, _u_head in (('Current Behavior', '## Current Behavior'),
+                           ('Technical Context', '## Technical Context'),
+                           ('Implementation Notes', '## Implementation Notes')):
+    for _u_phrase in ('verified against', 'confirmed against', 'checked against',
+                      'verified at drafting time'):
+        _cvp_rc, _cvp_out = _cvp_run(
+            f'{_u_head}\n\nThe fixture was {_u_phrase} the base ref.\n')
+        _u_lines = _cvp_ungraded_lines(_cvp_out)
+        assert_eq(f"#1634 helper: a '{_u_phrase}' collocation in the {_u_region} region "
+                  "produces exactly one ungraded line naming region and phrase",
+                  True, len(_u_lines) == 1
+                  and f'region={_u_region} ' in _u_lines[0]
+                  and f'phrase={_u_phrase} ' in _u_lines[0])
+        assert_eq(f"#1634 helper: the {_u_region}/{_u_phrase} case reports one ungraded claim",
+                  True, 'UNGRADED_CLAIMS total=1' in _cvp_out)
+
+# --- test_ungraded_reports_issue_1441_snapshot (the reproduction) -----------
+_cvp_rc, _cvp_out = _cvp_run_real(_CVP_1441_FIXTURE)
+assert_eq("#1634 helper: the issue-1441 snapshot yields an ungraded line for its "
+          "'verified against origin/main' bold-bullet label under Implementation Notes",
+          True, any('region=Implementation Notes ' in line
+                    and 'phrase=verified against ' in line
+                    and 'Fixture mechanics' in line
+                    for line in _cvp_ungraded_lines(_cvp_out)))
+
+# --- test_ungraded_scans_headings_only_without_template_sections ------------
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Some Consumer Heading verified against main\n\n'
+    'Body prose confirmed against main sits in the complement.\n')
+_u_lines = _cvp_ungraded_lines(_cvp_out)
+assert_eq("#1634 helper: a body with no template sections scans its heading lines alone — "
+          "the heading collocation is reported, the complement-body one is not",
+          True, len(_u_lines) == 1 and 'region=heading ' in _u_lines[0]
+          and 'phrase=verified against ' in _u_lines[0])
+
+# --- test_ungraded_skips_span_covered_by_marker -----------------------------
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n- **Verified:** confirmed against `origin/main`, still true.\n')
+assert_eq("#1634 helper: a collocation inside a recognised Verified: marker span is already "
+          "graded, so it produces no ungraded line",
+          True, _cvp_ungraded_lines(_cvp_out) == [])
+
+# --- test_ungraded_skips_fenced_block (unclosed, indented, tilde, spanning) -
+for _u_label, _u_body in (
+        ('backtick fence',
+         '## Technical Context\n\n```\nverified against origin/main\n```\n'),
+        ('tilde fence',
+         '## Technical Context\n\n~~~\nchecked against the base ref\n~~~\n'),
+        ('indented fence',
+         '## Technical Context\n\n    ```\n    verified against x\n    ```\n'),
+        ('unclosed fence to EOF',
+         '## Technical Context\n\n```\nverified against origin/main\n'),
+        ('fence opened in section, closed after it',
+         '## Technical Context\n\n```\nverified against x\n'
+         '## Desired Behavior\nchecked against y\n```\n')):
+    _cvp_rc, _cvp_out = _cvp_run(_u_body)
+    assert_eq(f"#1634 helper: a collocation inside a {_u_label} produces no ungraded line",
+              True, _cvp_ungraded_lines(_cvp_out) == [])
+
+# --- test_ungraded_skips_inline_code_span -----------------------------------
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\nThe family is defined as `verified against` here.\n')
+assert_eq("#1634 helper: a collocation inside an inline backticked span produces no ungraded "
+          "line, so a body defining the family as data does not report itself",
+          True, _cvp_ungraded_lines(_cvp_out) == [])
+
+# --- test_ungraded_skips_unscanned_sections ---------------------------------
+for _u_sec in ('Problem Statement', 'Desired Behavior', 'User Impact', 'Acceptance Criteria'):
+    _cvp_rc, _cvp_out = _cvp_run(
+        f'## {_u_sec}\n\nThe fixture was verified against the base ref.\n')
+    assert_eq(f"#1634 helper: a collocation in the complement {_u_sec} section is not scanned",
+              True, _cvp_ungraded_lines(_cvp_out) == [])
+_cvp_rc, _cvp_out = _cvp_run('## Problem Statement checked against source\n\nbody prose\n')
+assert_eq("#1634 helper: a collocation inside a heading is scanned even under a complement "
+          "section — a heading is a region wherever it sits",
+          True, len(_cvp_ungraded_lines(_cvp_out)) == 1
+          and 'region=heading ' in _cvp_ungraded_lines(_cvp_out)[0])
+
+# --- test_ungraded_only_body_exits_clean ------------------------------------
+_cvp_rc, _cvp_out = _cvp_run('## Current Behavior\n\nThe fixture was verified against main.\n')
+assert_eq("#1634 helper: a body whose only findings are ungraded detections exits clean (0)",
+          0, _cvp_rc)
+
+# --- test_ungraded_lines_carry_no_adjudicated_state_token -------------------
+# Two collocations on one line also exercise the multi-detection ordering.
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    'The fixture was verified against main and confirmed against the base ref.\n')
+assert_eq("#1634 helper: one line carrying two collocations yields two ordered ungraded lines",
+          True, [line.split(' ', 1)[0] for line in _cvp_ungraded_lines(_cvp_out)]
+          == ['ungraded_claim=1', 'ungraded_claim=2'])
+for _u_line in _cvp_ungraded_lines(_cvp_out):
+    # Scan the minted-field prefix only: `detail=` is opaque echoed body text, so
+    # asserting over the whole line would pin fixture wording, not the contract.
+    for _u_tok in ('holds', 'refuted', 'unestablished'):
+        assert_eq(f"#1634 helper: no ungraded line carries the adjudicated state token "
+                  f"'{_u_tok}'", False, _u_tok in _u_line.split(' detail=', 1)[0])
+
+# --- test_ungraded_count_reported (zero and nonzero alike) ------------------
+_cvp_rc, _cvp_out = _cvp_run('## Current Behavior\n\nNothing verifiable is asserted here.\n')
+assert_eq("#1634 helper: the summary reports a zero ungraded count on the success path, so a "
+          "run that finds none says so rather than being silent",
+          True, 'UNGRADED_CLAIMS total=0' in _cvp_out and _cvp_ungraded_lines(_cvp_out) == [])
+_cvp_rc, _cvp_out = _cvp_run('## Current Behavior\n\nThe fixture was verified against main.\n')
+assert_eq("#1634 helper: the summary reports a nonzero ungraded count when detections exist",
+          True, 'UNGRADED_CLAIMS total=1' in _cvp_out)
+
+# --- test_adjudicated_output_byte_identical ---------------------------------
+# The issue-1441 snapshot, adjudicated against the tree at this commit: the
+# ungraded pass appends its own lines and changes NO adjudicated line, tally, or
+# exit code. This baseline was captured from the pre-change helper.
+_CVP_1441_BASELINE = (
+    'bullet=1 handle=path-quote state=holds detail=every quoted sentence resolves in '
+    'lib/fetch-pr-context.sh\n'
+    'bullet=2 handle=path-quote state=holds detail=every quoted sentence resolves in '
+    'lib/fetch-pr-context.sh\n'
+    'bullet=3 handle=path-quote state=refuted detail=quoted sentence no longer occurs in '
+    'scripts/build-experiment-records.py: Paginate: /commits/{sha}/check-runs serves only '
+    'the first 30 check-runs per page\n'
+    'bullet=4 handle=path-quote state=holds detail=every quoted sentence resolves in '
+    'lib/cheap-gate.jq\n'
+    'VERIFIED_PREMISES total=4 holds=3 refuted=1 unestablished=0')
+_cvp_rc, _cvp_out = _cvp_run_real(_CVP_1441_FIXTURE)
+assert_eq("#1634 helper: the adjudicated output for the issue-1441 snapshot is byte-identical "
+          "to the pre-change output — the ungraded pass adds lines and moves no verdict "
+          "(baseline reads the live tree: an edit to a sentence this fixture quotes from "
+          "lib/fetch-pr-context.sh, lib/cheap-gate.jq or scripts/build-experiment-records.py "
+          "flips a bullet's state and breaks this line — re-capture the baseline, do not "
+          "weaken AC #10's byte-identical reproduction)",
+          _CVP_1441_BASELINE, _cvp_adjudicated_block(_cvp_out))
+assert_eq("#1634 helper: the issue-1441 snapshot's exit code is unchanged by the ungraded pass",
+          2, _cvp_rc)
+# Deterministic temp-tree bodies: the adjudicated block is unperturbed whether or
+# not an ungraded detection is present in the same body.
+_cvp_rc, _cvp_out = _cvp_run('## Current Behavior\n\n**Verified:** the thing works.\n')
+assert_eq("#1634 helper: a handle=none body's adjudicated block is unchanged by the pass",
+          'bullet=1 handle=none state=unestablished detail=no re-derivation handle in the '
+          'bullet\nVERIFIED_PREMISES total=1 holds=0 refuted=0 unestablished=1',
+          _cvp_adjudicated_block(_cvp_out))
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n**Verified:** the thing.\n\nAlso verified against main here.\n')
+assert_eq("#1634 helper: an ungraded detection alongside a bullet does not perturb the "
+          "adjudicated block",
+          'bullet=1 handle=none state=unestablished detail=no re-derivation handle in the '
+          'bullet\nVERIFIED_PREMISES total=1 holds=0 refuted=0 unestablished=1',
+          _cvp_adjudicated_block(_cvp_out))
+assert_eq("#1634 helper: that same body still reports its ungraded detection",
+          True, len(_cvp_ungraded_lines(_cvp_out)) == 1)
+
+# --- test_guard2_adjudicated_set_unchanged ----------------------------------
+# The ungraded label is NOT a handle class, so the helper's undecidable-handle
+# set — which create-issue-contract.sh guard 2 subtracts to derive the
+# adjudicated-form set — must be unchanged and must not gain an 'ungraded' member.
+assert_eq("#1634 helper: the undecidable-handle set is unchanged and gains no 'ungraded' "
+          "member (guard 2's subset arithmetic is untouched)",
+          {'quote', 'command', 'none'}, set(check_verified_premises._UNDECIDABLE_REASONS))
+
+# --- test_helper_imports_no_subprocess (and body-file-only) -----------------
+_cvp_src_tree = ast.parse(inspect.getsource(check_verified_premises))
+_cvp_mods = set()
+for _cvp_node in ast.walk(_cvp_src_tree):
+    if isinstance(_cvp_node, ast.Import):
+        _cvp_mods.update(a.name.split('.')[0] for a in _cvp_node.names)
+    elif isinstance(_cvp_node, ast.ImportFrom) and _cvp_node.module:
+        _cvp_mods.add(_cvp_node.module.split('.')[0])
+assert_eq("#1634 helper: the ungraded pass introduced no subprocess/network import",
+          True, 'subprocess' not in _cvp_mods
+          and not (_cvp_mods & {'socket', 'urllib', 'http', 'requests'}))
+_cvp_rc, _cvp_out = _cvp_run('body', repo_root=False)
+assert_eq("#1634 helper: a body is still accepted only through --body-file; there is no "
+          "positional body argument", True, isinstance(_cvp_rc, int))
+
+# --- test_capability_profiles_unchanged -------------------------------------
+_cvp_prof = json.loads((_CVP_REPO_ROOT / 'lib' / 'capability-profiles.json').read_text())['profiles']
+_cvp_tok = 'check-verified-premises.py'
+assert_eq("#1634 helper: the vendored literal stays granted on implement and command and "
+          "absent from the read-only review profile, so no capability boundary moved",
+          (True, True, False),
+          (_cvp_tok in json.dumps(_cvp_prof['implement']),
+           _cvp_tok in json.dumps(_cvp_prof['command']),
+           _cvp_tok in json.dumps(_cvp_prof['review'])))
+assert_eq("#1634 helper: the review-profile token lock does not carry the helper",
+          False, _cvp_tok in (_CVP_REPO_ROOT / 'lib' / 'review-profile.tokens').read_text())
+
+# --- Move-2a adversarial matrix for a reader of human-mutable markdown -------
+# The issue's Testing Strategy enumerates this matrix "at minimum"; each row
+# pins a boundary so the low-false-positive floor cannot silently drift.
+
+# A duplicate premise heading at the SAME level: extract_section reads only the
+# FIRST instance, so a collocation in an empty-first/populated-second pair is not
+# scanned (the section extractor's documented behaviour, mirrored here).
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n## Current Behavior\n\nThe fixture was verified against main.\n')
+assert_eq("#1634 helper: a same-level duplicate premise heading scans only the first "
+          "instance (extract_section-consistent), so a collocation under the second is not "
+          "reported", True, _cvp_ungraded_lines(_cvp_out) == []
+          and 'UNGRADED_CLAIMS total=0' in _cvp_out)
+# A DEEPER duplicate does NOT close the section, so its body is scanned — the
+# case the issue names precisely because the extractor differs between the two.
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Implementation Notes\n\nlead\n\n### Implementation Notes\n\n'
+    'The fixture was verified against main.\n')
+assert_eq("#1634 helper: a deeper duplicate premise heading does not close the section, so "
+          "a collocation under it IS reported",
+          True, len(_cvp_ungraded_lines(_cvp_out)) == 1)
+
+# A CRLF body: offsets stay aligned and the detail carries no stray CR.
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\r\n\r\nThe fixture was verified against main.\r\n')
+_u_lines = _cvp_ungraded_lines(_cvp_out)
+assert_eq("#1634 helper: a CRLF body still detects the collocation, offsets aligned, with no "
+          "stray carriage return in the detail",
+          True, len(_u_lines) == 1 and 'region=Current Behavior ' in _u_lines[0]
+          and '\r' not in _u_lines[0])
+
+# A premise heading whose case differs from the expected spelling: the
+# heading-open match is case-insensitive, so the section is still scanned.
+_cvp_rc, _cvp_out = _cvp_run(
+    '## current behavior\n\nThe fixture was verified against main.\n')
+assert_eq("#1634 helper: a premise heading in a different case still opens its region",
+          True, len(_cvp_ungraded_lines(_cvp_out)) == 1)
+
+# A collocation inside a markdown table cell and inside a blockquote are ordinary
+# premise-region prose and ARE detected (they are not code).
+for _u_label, _u_body in (
+        ('table cell', '## Technical Context\n\n| col | verified against main |\n'),
+        ('blockquote', '## Technical Context\n\n> the fixture was verified against main\n')):
+    _cvp_rc, _cvp_out = _cvp_run(_u_body)
+    assert_eq(f"#1634 helper: a collocation in a {_u_label} is scanned as premise prose",
+              True, len(_cvp_ungraded_lines(_cvp_out)) == 1)
+
+# A collocation split across a line break is NOT detected (the phrase regex and
+# the per-line detail are single-line — the low-false-positive floor).
+_cvp_rc, _cvp_out = _cvp_run('## Current Behavior\n\nthe fixture was verified\nagainst main.\n')
+assert_eq("#1634 helper: a collocation split across a line break is not detected",
+          True, _cvp_ungraded_lines(_cvp_out) == [])
+
+# A fenced code block SPANNING out of a premise section does not leak: heading
+# detection skips fenced lines, so a real section stays open and a collocation
+# AFTER the fence in that section is still detected.
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n```\n## Notes inside the fence\n```\n\n'
+    'The fixture was verified against main here.\n')
+assert_eq("#1634 helper: a heading-shaped line inside a fence does not close the enclosing "
+          "premise section, so a collocation after the fence is still reported",
+          True, len(_cvp_ungraded_lines(_cvp_out)) == 1
+          and 'region=Current Behavior ' in _cvp_ungraded_lines(_cvp_out)[0])
+
+# A collocation as the entire body, with no heading and no trailing newline: no
+# premise region, so nothing is scanned.
+_cvp_rc, _cvp_out = _cvp_run('The whole body was verified against main.')
+assert_eq("#1634 helper: a collocation as the entire body with no premise region is not "
+          "scanned (and does not crash on the absent trailing newline)",
+          True, _cvp_ungraded_lines(_cvp_out) == [] and 'UNGRADED_CLAIMS total=0' in _cvp_out)
+# ...but a collocation at the final character positions of a premise section,
+# with no trailing newline, IS detected (offset math handles the last line).
+_cvp_rc, _cvp_out = _cvp_run('## Current Behavior\n\ntext verified against main')
+assert_eq("#1634 helper: a collocation at the last line of a premise section with no "
+          "trailing newline is detected", True, len(_cvp_ungraded_lines(_cvp_out)) == 1)
+
+# Idempotency: running twice over the same body produces identical output.
+_cvp_rc1, _cvp_out1 = _cvp_run('## Current Behavior\n\nThe fixture was verified against main.\n')
+_cvp_rc2, _cvp_out2 = _cvp_run('## Current Behavior\n\nThe fixture was verified against main.\n')
+assert_eq("#1634 helper: the pass is idempotent — two runs over the same body are identical",
+          True, _cvp_out1 == _cvp_out2 and _cvp_rc1 == _cvp_rc2)
+
+# The UNGRADED_CLAIMS summary is emitted even on the refuted (exit-2) path — the
+# count-always contract is independent of the adjudicated exit code.
+_cvp_rc, _cvp_out = _cvp_run_real(_CVP_1441_FIXTURE)
+assert_eq("#1634 helper: UNGRADED_CLAIMS is reported on the refuted exit-2 path too",
+          True, _cvp_rc == 2 and 'UNGRADED_CLAIMS total=' in _cvp_out
+          and len(_cvp_ungraded_lines(_cvp_out)) >= 1)
+
+# Do not widen the ungraded line's minted field set to a token the adjudication
+# also mints: the two vocabularies are disjoint only by that fixed choice of
+# field names, which nothing enforces. detail= is opaque trailing text, excluded.
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\nThe fixture was verified against main.\n')
+for _u_line in _cvp_ungraded_lines(_cvp_out):
+    _u_minted = _u_line.split(' detail=', 1)[0]
+    for _u_tok in ('bullet=', 'handle=', 'state=', 'holds', 'refuted', 'unestablished'):
+        assert_eq(f"#1634 helper: the ungraded pass's own minted tokens never include the "
+                  f"adjudicated token '{_u_tok}'", False, _u_tok in _u_minted)
+
+# --- test_ungraded_collocation_needs_a_letter_boundary ----------------------
+# `unverified against` must not match the `verified against` collocation.
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\nThis was unverified against main at drafting.\n')
+assert_eq("#1634 helper: a collocation preceded by letters ('unverified against') is not a "
+          "detection", True, _cvp_ungraded_lines(_cvp_out) == []
+          and 'UNGRADED_CLAIMS total=0' in _cvp_out)
+
+# The TRAILING guard of the same lookaround pair, which the leading case above
+# leaves unexercised: a phrase continued by a letter is a different word.
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\nThis was verified againstable main at drafting.\n')
+assert_eq("#1634 helper: a collocation followed by letters ('verified againstable') is not a "
+          "detection", True, _cvp_ungraded_lines(_cvp_out) == []
+          and 'UNGRADED_CLAIMS total=0' in _cvp_out)
+# Positive control on the same sentence shape: only the trailing letters differ,
+# so the rejection above is the boundary guard and not an unrelated precondition.
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\nThis was verified against main at drafting.\n')
+assert_eq("#1634 helper: the same sentence without the trailing letters IS a detection",
+          1, len(_cvp_ungraded_lines(_cvp_out)))
+
+# --- test_ungraded_graded_span_upper_bound_is_exclusive ---------------------
+# The exclusion test is `low <= start < high`: a collocation at or past a graded
+# span's bound is NOT covered by it. The in-span case is asserted above; this is
+# the other side of that bound, which no assertion reached.
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    '**Verified:** the thing was verified against main.\n'
+    '\n'
+    'Separately, the fixture was confirmed against the base ref.\n')
+assert_eq("#1634 helper: a collocation past the graded span's bound is detected, while the one "
+          "inside it stays excluded",
+          ['ungraded_claim=1 region=Current Behavior phrase=confirmed against'],
+          [line.split(' detail=', 1)[0] for line in _cvp_ungraded_lines(_cvp_out)])
+
+# --- test_ungraded_fenced_heading_does_not_open_a_region --------------------
+# The documented `present`-gate divergence: `extract_section` is fence-blind, so
+# a fenced `## Current Behavior` marks the section present, while the region walk
+# skips fenced lines and opens nothing — the safe direction (no detection minted).
+_cvp_fenced_heading = ('```\n## Current Behavior\n```\n\n'
+                       'The fixture was verified against main.\n')
+_cvp_rc, _cvp_out = _cvp_run(_cvp_fenced_heading)
+assert_eq("#1634 helper: a premise heading that exists only inside a fence opens no region, so "
+          "the collocation below it is not detected", True,
+          _cvp_ungraded_lines(_cvp_out) == [] and 'UNGRADED_CLAIMS total=0' in _cvp_out)
+# Positive control: the identical body with the fence removed detects it, so the
+# rejection above is the fenced heading and not the sentence or its placement.
+_cvp_rc, _cvp_out = _cvp_run(_cvp_fenced_heading.replace('```\n', '', 2))
+assert_eq("#1634 helper: the same body with the fence removed does detect the collocation",
+          1, len(_cvp_ungraded_lines(_cvp_out)))
+
+# --- test_ungraded_numbering_counts_detections_not_matches ------------------
+# Numbering runs over the SURVIVING detections: an excluded earlier collocation
+# must not consume ordinal 1 and push the reported one to 2.
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    'The phrase `verified against` is quoted as data here.\n'
+    'The fixture was confirmed against the base ref.\n')
+assert_eq("#1634 helper: an excluded earlier collocation does not consume an ordinal — the "
+          "surviving later detection is numbered 1",
+          ['ungraded_claim=1 region=Current Behavior phrase=confirmed against'],
+          [line.split(' detail=', 1)[0] for line in _cvp_ungraded_lines(_cvp_out)])
+
+# --- test_ungraded_internal_error_is_unavailable_not_zero -------------------
+# A crash in the ungraded pass must NOT print `total=0`, which is byte-identical
+# to a clean "found none" and reintroduces the fail-open #1634 closed.
+def _cvp_run_capturing_stderr(body_path):
+    out, err = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        rc = check_verified_premises.main(
+            ['--body-file', str(body_path), '--repo-root', str(_CVP_REPO_ROOT)])
+    return rc, out.getvalue(), err.getvalue()
+
+
+_cvp_ug_rc, _cvp_ug_out, _ = _cvp_run_capturing_stderr(_CVP_1441_FIXTURE)
+_cvp_prev_ungraded = check_verified_premises.find_ungraded_claims
+
+
+def _cvp_ungraded_boom(_body):
+    raise RuntimeError('ungraded boom')
+
+
+check_verified_premises.find_ungraded_claims = _cvp_ungraded_boom
+try:
+    _cvp_bad_rc, _cvp_bad_out, _cvp_bad_err = _cvp_run_capturing_stderr(_CVP_1441_FIXTURE)
+finally:
+    check_verified_premises.find_ungraded_claims = _cvp_prev_ungraded
+
+assert_eq("#1634 helper: a crash in the ungraded pass leaves the exit code unchanged",
+          _cvp_ug_rc, _cvp_bad_rc)
+assert_eq("#1634 helper: a crash in the ungraded pass leaves the adjudicated block "
+          "byte-identical", _cvp_adjudicated_block(_cvp_ug_out),
+          _cvp_adjudicated_block(_cvp_bad_out))
+assert_eq("#1634 helper: a crash in the ungraded pass reports UNGRADED_CLAIMS unavailable, "
+          "never total=0", True,
+          'UNGRADED_CLAIMS unavailable reason=internal-error detail=' in _cvp_bad_out
+          and 'UNGRADED_CLAIMS total=' not in _cvp_bad_out
+          and _cvp_ungraded_lines(_cvp_bad_out) == [])
+assert_eq("#1634 helper: a crash in the ungraded pass keeps its stderr breadcrumb", True,
+          'ungraded-claim pass failed' in _cvp_bad_err and 'ungraded boom' in _cvp_bad_err)
+
+# The same fence covers EMISSION, not just detection: a failure while printing
+# the lines must not reach main's catch-all, which would print a second
+# `VERIFIED_PREMISES unavailable` after an adjudicated block that is valid.
+class _CvpBoomOnIteration(list):
+    def __iter__(self):
+        raise RuntimeError('emission boom')
+
+
+check_verified_premises.find_ungraded_claims = lambda _body: _CvpBoomOnIteration()
+try:
+    _cvp_emit_rc, _cvp_emit_out, _cvp_emit_err = _cvp_run_capturing_stderr(_CVP_1441_FIXTURE)
+finally:
+    check_verified_premises.find_ungraded_claims = _cvp_prev_ungraded
+
+assert_eq("#1634 helper: a failure while EMITTING the ungraded lines is fenced too — exit code "
+          "and adjudicated block unchanged, no second VERIFIED_PREMISES line", True,
+          _cvp_emit_rc == _cvp_ug_rc
+          and _cvp_adjudicated_block(_cvp_emit_out) == _cvp_adjudicated_block(_cvp_ug_out))
+assert_eq("#1634 helper: an emission failure reports UNGRADED_CLAIMS unavailable, never total=",
+          True, 'UNGRADED_CLAIMS unavailable reason=internal-error detail=' in _cvp_emit_out
+          and 'UNGRADED_CLAIMS total=' not in _cvp_emit_out
+          and 'emission boom' in _cvp_emit_err)
+
 print()
 print("issue-audit-state: tool-owned round kinds (issue #793)")
 

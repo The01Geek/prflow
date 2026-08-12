@@ -4,6 +4,28 @@ This document is the single source of truth (SSOT, per issue #762) for **how the
 `/prflow:create-issue` orchestrator spends runtime main-thread context**, and for
 the behavioral instrument that measures it. `docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md` §11 carries a one-line pointer here, not a copy.
 
+## Verified-premise grading and the drafting-side duty for ungraded claims
+
+`scripts/check-verified-premises.py` runs at Step 3.6's pre-dispatch canonical write over the
+assembled draft (the same helper the implement side re-runs at Phase 1.6). **Which spellings it
+grades:** only its marker's three arms — the pure bolded `**Verified**` / `**Verified:**` label
+anywhere in the body, a line or list item opening with `Verified:`, and a bolded run opening a list
+item whose first word is `Verified`. A verification asserted in **any other shape** — a parenthetical
+inside a bold-bullet label, a mid-sentence "verified against origin/main", a lowercase unbolded
+phrase — is **graded by nothing**: the marker never sees it, so nothing re-checks it when the issue
+is later implemented, and a premise wearing the costume of a verified one without being graded is
+worse than no premise at all.
+
+The helper's second, **non-adjudicating** pass surfaces these: it reports every collocation-family
+phrase ("verified against", "confirmed against", "checked against", "verified at drafting time") in a
+premise-bearing region as an `ungraded_claim=…` line. **The drafting-side duty** (stated in
+`skills/create-issue/references/step-3-5-steelman.md` and executed at
+`skills/create-issue/references/step-3-6-audit.md`): resolve **every** ungraded detection before the
+draft is presented to the user — either rewrite the annotation as a `Verified:` bullet carrying a
+re-derivation handle (so the implement side can re-check it), or restate it as ordinary unverified
+prose (so it makes no verification claim at all). Resolving it at authoring time is cheap; a filed
+issue's ungraded annotation misleads both the implementing run and the reviewer.
+
 ## Static shipped size vs. runtime main-thread context
 
 Two quantities are easy to conflate; they are different, and only the second is
