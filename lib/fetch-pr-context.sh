@@ -272,14 +272,16 @@ POST_BOT_COMMITS="$(echo "$COMMITS" | "$DEVFLOW_JQ" --arg author "$AUTHOR" '
 CI_STATUS_UNKNOWN="false"
 CI_FAILURES="1"
 set +e
-_CI_RUNS_JSON="$("$DEVFLOW_GH" api "repos/${REPO}/commits/${HEAD_SHA}/check-runs?per_page=100" --paginate 2>&1)"
+# Never fold gh's stderr into this capture: --paginate multiplies the requests
+# that can emit a non-fatal notice, and any such line makes the filter below
+# error, reporting a healthy head as unreadable. Let it reach our own stderr.
+_CI_RUNS_JSON="$("$DEVFLOW_GH" api "repos/${REPO}/commits/${HEAD_SHA}/check-runs?per_page=100" --paginate)"
 _CI_EXIT=$?
 set -e
 if [ $_CI_EXIT -ne 0 ] || [ -z "$_CI_RUNS_JSON" ]; then
     CI_STATUS_UNKNOWN="true"
     CI_FAILURES="1"
-    printf 'fetch-pr-context: check-runs read failed (rc=%s); ci_status_unknown=true: %.200s\n' \
-        "$_CI_EXIT" "$_CI_RUNS_JSON" >&2
+    printf 'fetch-pr-context: check-runs read failed (rc=%s); ci_status_unknown=true\n' "$_CI_EXIT" >&2
 else
     # Never filter `.` instead of `-n`/`inputs`: --paginate concatenates one
     # object per page, so a per-input filter prints one length per page.
@@ -288,8 +290,8 @@ else
     if [ -z "$_CI_COUNT" ] || ! [[ "$_CI_COUNT" =~ ^[0-9]+$ ]]; then
         CI_STATUS_UNKNOWN="true"
         CI_FAILURES="1"
-        printf 'fetch-pr-context: check-runs body yielded no usable count (%.60s); ci_status_unknown=true\n' \
-            "${_CI_COUNT:-<empty: jq errored on a malformed or page-less body>}" >&2
+        printf 'fetch-pr-context: check-runs body yielded no usable count; ci_status_unknown=true; body began: %.200s\n' \
+            "${_CI_RUNS_JSON:-<empty>}" >&2
     else
         CI_FAILURES="$_CI_COUNT"
     fi

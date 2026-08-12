@@ -13530,13 +13530,9 @@ assert_eq "diff not null"              "false"  "$(jq -r '.diff == null' <<<"$CT
 # ────────────────────────────────────────────────────────────────────────────
 echo "fetch-pr-context.sh: ci_failures_during_pr semantics (issue #1441)"
 # ────────────────────────────────────────────────────────────────────────────
-# Drives the SHIPPED derivation block end to end through a scenario `gh` (the
-# F97 idiom above), never a transcribed copy of its jq filter — a transcribed
-# filter would keep passing after the shipped one drifted.
-#
-# Do NOT re-route these through gh-stub.sh: its $SET is the filename prefix for
-# EVERY endpoint and most of its arms `cat` with no fallback, so each payload
-# shape would cost a whole fixture set instead of one heredoc.
+# Never transcribe the shipped jq filter here: a copy keeps passing after the
+# shipped one drifts. Never re-route through gh-stub.sh either — its $SET
+# prefixes every endpoint, so each payload shape costs a whole fixture set.
 F1441="$(mktemp -d)"
 cat > "$F1441/prview.json" <<'PV1441'
 {"number":1441,"headRefName":"claude/issue-1441-x","baseRefName":"main","headRefOid":"sha1441beef","mergeCommit":{"oid":"merge1441"},"mergedAt":"2026-05-08T16:31:00Z","createdAt":"2026-05-08T07:00:00Z","author":{"login":"example-bot"},"title":"t","body":"Closes #1441","additions":1,"deletions":0,"files":[{"path":"x.txt"}],"labels":[]}
@@ -13615,8 +13611,8 @@ cat > "$F1441/checkruns.json" <<'CR'
 CR
 cr1441 "every run still in flight (conclusion null)" "0" "false"
 
-# AC5 — a multi-page head. Page 2 carries both qualifying runs and page 1 none,
-# so both fields discriminate: before the fix this read 1/true, after it 2/false.
+# AC5 — a multi-page head. Keep both qualifying runs on page 2 and none on page
+# 1, or the row stops discriminating a merged count from a page-1-only one.
 cat > "$F1441/checkruns.json" <<'CR'
 {"check_runs":[{"conclusion":"success"},{"conclusion":"cancelled"}]}
 {"check_runs":[{"conclusion":"failure"},{"conclusion":"timed_out"}]}
@@ -13638,6 +13634,20 @@ cr1441 "gh exits non-zero" "1" "true" exit-nonzero
 : > "$F1441/checkruns.json"
 cr1441 "gh returns an empty body" "1" "true"
 
+# Never delete a fail-safe breadcrumb: cr1441 discards stderr, so without the
+# rows below the suite stays green while the arms become indistinguishable.
+printf '{"check_runs":[{"conclusion":"success"}]}\n' > "$F1441/checkruns.json"
+_CR_ERR1="$(DEVFLOW_FX="$F1441" DEVFLOW_GH="$F1441/gh" DEVFLOW_CR_MODE=exit-nonzero bash "$LIB/fetch-pr-context.sh" 1441 2>&1 >/dev/null || true)"
+assert_eq "#1441: the read-failure arm names its exit status" "yes" \
+  "$(case "$_CR_ERR1" in *"check-runs read failed (rc="*) echo yes ;; *) echo no ;; esac)"
+printf 'this is not json at all\n' > "$F1441/checkruns.json"
+_CR_ERR2="$(DEVFLOW_FX="$F1441" DEVFLOW_GH="$F1441/gh" bash "$LIB/fetch-pr-context.sh" 1441 2>&1 >/dev/null || true)"
+assert_eq "#1441: the unusable-body arm names the body it could not parse" "yes" \
+  "$(case "$_CR_ERR2" in *"yielded no usable count"*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#1441: the two fail-safe arms are distinguishable" "no" \
+  "$(case "$_CR_ERR2" in *"check-runs read failed (rc="*) echo yes ;; *) echo no ;; esac)"
+unset _CR_ERR1 _CR_ERR2
+
 # Adversarial input shapes: never give `.check_runs` a `// []` default — these
 # must error into the fail-safe guard, not be laundered into a clean 0.
 while IFS='|' read -r _label _payload; do
@@ -13652,24 +13662,19 @@ a check_runs element that is not an object|{"check_runs":[7]}
 CR
 unset _label _payload
 
-# A body that parses to ZERO JSON documents — whitespace only — is the shape the
-# `-n`/`inputs` form makes dangerous: `inputs` simply yields nothing, so without
-# the zero-page error arm the filter returns a clean 0 that passes the numeric
-# guard and reports the head as having no CI failures at all.
+# Never drop the zero-page error arm: `inputs` yields nothing for a body that
+# parses to zero JSON documents, so the filter would return a clean 0 that
+# passes the numeric guard and reports the head as having no CI failures.
 printf '   \n  \n' > "$F1441/checkruns.json"
 cr1441 "a whitespace-only body (zero JSON documents)" "1" "true"
 
-# AC6 fail-safe arm 2, the ^[0-9]+$ half. A non-empty non-numeric count is
-# unreachable through the fixed filter (that is the point of the fix), so drive
-# the SHIPPED guard itself — extracted from lib/fetch-pr-context.sh, never
-# transcribed — the way the #1347 checkpoint-4 block above does.
-# Extract to the matching `fi` rather than a fixed line window: a fixed offset
-# silently truncates the moment the guard block grows, dropping its else-arm.
+# AC6 fail-safe arm 2. Never transcribe the guard and never extract it with a
+# fixed line window: a copy drifts, and a fixed offset silently truncates the
+# moment the block grows, dropping its else-arm.
 CI_GUARD_PROG=$(awk 'f{print; if ($0 ~ /^[[:space:]]*fi[[:space:]]*$/) exit; next} /if \[ -z "\$_CI_COUNT" \]/{print; f=1}' "$LIB/fetch-pr-context.sh")
-# Parse the extraction rather than substring-testing it: if the closing `fi` ever
-# drifts off its own line the awk above over-runs to the next bare `fi`, and any
-# presence test still reports a clean extraction while CI_GUARD_PROG holds a
-# different, unbalanced program. `bash -n` is the only check that catches that.
+# Never weaken this to a substring test: if the closing `fi` drifts off its own
+# line the awk over-runs to the next bare `fi`, and a presence test reports a
+# clean extraction over a different, unbalanced program.
 assert_eq "#1441: the extracted guard parses as balanced shell" "0" \
   "$(printf '%s\n' "$CI_GUARD_PROG" | bash -n /dev/stdin 2>/dev/null; echo $?)"
 assert_eq "#1441: the extracted guard carries its else-arm" "1" \
