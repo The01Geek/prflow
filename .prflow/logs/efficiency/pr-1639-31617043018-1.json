@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1639",
+  "generated_at": "2026-08-12T16:34:19Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.57",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 13.501524000000005,
+    "tokens": {
+      "input_tokens": 75,
+      "output_tokens": 31269,
+      "cache_read_input_tokens": 7011038,
+      "cache_creation_input_tokens": 232402,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 191,
+        "outputTokens": 83925,
+        "cacheReadInputTokens": 11987998,
+        "cacheCreationInputTokens": 725910,
+        "webSearchRequests": 0,
+        "costUSD": 13.501524000000005,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 46,
+    "duration_ms": 747273
+  },
+  "permission_denials": {
+    "count": 16,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-none} ATTEMPT=${GITHUB_RUN_ATTEMPT:-none}\"; RUNID=\"${GITHUB_RUN_ID:-local-$(date -u +%Y%m%dT%H%M%SZ)}-${GITHUB_RUN_ATTEMPT:-1}\"; echo \"resolved-run-id=$RUNID\"; mkdir -p \".prflow/tmp/review/pr-1639/$RUNID\"; echo \"$RUNID\" > .prflow/tmp/review/pr-1639/current-run-id.txt; cat .prflow/tmp/review/pr-1639/current-run-id.txt",
+      "echo \"run=$GITHUB_RUN_ID attempt=$GITHUB_RUN_ATTEMPT\"",
+      "mkdir -p .prflow/tmp/review/pr-1639/31617043018-1; gh pr diff 1639 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1639/31617043018-1/diff.patch | head -0; echo \"cached rc=${PIPESTATUS[0]}\"; wc -l .prflow/tmp/review/pr-1639/31617043018-1/diff.patch",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve \"1634\" --pr \"1639\" 2>.prflow/tmp/review/pr-1639/31617043018-1/acs.err ; echo \"acs-rc=$?\"",
+      "mkdir -p .prflow/tmp\nif rm -f \".prflow/tmp/review-dirty-tree-before\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \".prflow/tmp/review-dirty-tree-before\" &&\n   [ -f \".prflow/tmp/review-dirty-tree-before\" ] &&\n   [ ! -L \".prflow/tmp/review-dirty-tree-before\" ] &&\n   git hash-object \".prflow/tmp/review-dirty-tree-before\"; then\n  echo \"snapshot-ok\"\nelse\n  echo \"snapshot-failed\"\nfi",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >/tmp/ext.out 2>/tmp/ext.err; echo \"EXIT=$?\"; echo \"---STDOUT---\"; cat /tmp/ext.out; echo \"---STDERR---\"; cat /tmp/ext.err",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >/tmp/ext.out 2>/tmp/ext.err; echo \"EXIT=$?\"",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >.prflow/tmp/ext.out 2>.prflow/tmp/ext.err; echo \"EXIT=$?\"",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review | tee .prflow/tmp/ext-stdout.txt; echo \"PIPE_EXIT=${PIPESTATUS[0]}\"",
+      "grep -n \"find_ungraded_claims\\|_premise_regions\\|UNGRADED_CLAIMS\\|def _run\\|import bisect\\|from section_parse\" /home/runner/work/prflow/prflow/scripts/check-verified-premises.py; echo \"---LINES---\"; wc -l /home/runner/work/prflow/prflow/scripts/check-verified-premises.py; echo \"---HEAD---\"; git -C /home/runner/work/prflow/prflow log --oneline -3",
+      "printf '## Current Behavior\\n\\nThe fixture was verified against main and confirmed against the base ref.\\n' > .prflow/tmp/t1.md && python3 scripts/check-verified-premises.py --body-file .prflow/tmp/t1.md --repo-root . ; echo \"RC=$?\"",
+      "git apply --check .prflow/tmp/review/pr-1639/31617043018-1/diff.patch 2>&1 && echo \"APPLIES CLEAN\" || echo \"apply-check failed\"",
+      "git apply .prflow/tmp/review/pr-1639/31617043018-1/diff.patch && echo \"APPLIED\"",
+      "git apply .prflow/tmp/review/pr-1639/31617043018-1/diff.patch",
+      "git reset -q lib/test/fixtures/issue-1441-body.md; git status --porcelain",
+      "git reset -q HEAD lib/test/fixtures/issue-1441-body.md"
+    ],
+    "total": 16,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
