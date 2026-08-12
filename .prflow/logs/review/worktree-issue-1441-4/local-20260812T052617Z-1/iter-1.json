@@ -1,14 +1,14 @@
 {
   "iter": 1,
   "started_at": "2026-08-12T05:26:17Z",
-  "fix_commit_sha": "86013ae88",
+  "fix_commit_sha": "49dd3b489",
   "fix_files": [
     "lib/fetch-pr-context.sh",
     "lib/test/run.sh",
     ".changeset/issue-1441-ci-failures-conclusion-denylist.md"
   ],
   "loop_role": "fix",
-  "current_step": "3.5",
+  "current_step": "4.5",
   "current_substep": null,
   "pending_dispatch": null,
   "sweep_evidence": {
@@ -258,8 +258,8 @@
     }
   ],
   "convergence_inputs": {
-    "fixes_applied": 6,
-    "fix_diff_lines": 67,
+    "fixes_applied": 7,
+    "fix_diff_lines": 75,
     "new_corroborated_critical_count": 0
   },
   "cap_drops": {
@@ -268,8 +268,8 @@
   },
   "reference_reads": {
     "fix_delta": {
-      "status": "not_verified",
-      "outcome": "clean",
+      "status": "verified",
+      "outcome": "refixed",
       "reason": null
     }
   },
