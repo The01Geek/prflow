@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1624",
+  "generated_at": "2026-08-12T02:09:56Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.43",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 5.8233175,
+    "tokens": {
+      "input_tokens": 56,
+      "output_tokens": 21640,
+      "cache_read_input_tokens": 3888747,
+      "cache_creation_input_tokens": 145753,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 96,
+        "outputTokens": 34821,
+        "cacheReadInputTokens": 5059165,
+        "cacheCreationInputTokens": 300185,
+        "webSearchRequests": 0,
+        "costUSD": 5.8233175,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 33,
+    "duration_ms": 453658
+  },
+  "permission_denials": {
+    "count": 10,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh review 2>&1 | tee .prflow/tmp/ext-review.out ; echo \"ext-rc=${PIPESTATUS[0]}\"",
+      "echo \"${CLAUDE_SKILL_DIR:-UNSET}\"; echo \"---PR arg: 1624\"",
+      "printf '%s\\n' \"$CLAUDE_SKILL_DIR\"",
+      "RUN_ID=\"${GITHUB_RUN_ID:-local-$(date -u +%Y%m%dT%H%M%SZ)}-${GITHUB_RUN_ATTEMPT:-1}\"; echo \"run-id=$RUN_ID\"; mkdir -p \".prflow/tmp/review/pr-1624/$RUN_ID\"; echo \"$RUN_ID\" > .prflow/tmp/review/pr-1624/current-run-id.txt; cat .prflow/tmp/review/pr-1624/current-run-id.txt",
+      "for ref in 7024458f4cb6c5d7e2ea80df3d4fac5226699c19 2adb65e423202b23f524624e8b50c48db22b653b; do echo \"=== $ref ===\"; git cat-file blob \"$ref:skills/retrospective-weekly/SKILL.md\" | grep -cE 'argjson-ok:|pruned-path-ok:'; echo -n \"error-literals: \"; git cat-file blob \"$ref:skills/retrospective-weekly/SKILL.md\" | grep -c '::error::'; echo -n \"fences: \"; git cat-file blob \"$ref:skills/retrospective-weekly/SKILL.md\" | grep -c '```'; echo -n \"anchor-para: \"; git cat-file blob \"$ref:skills/retrospect …[per-command-truncated]",
+      "git cat-file blob 7024458f4cb6c5d7e2ea80df3d4fac5226699c19:skills/retrospective-weekly/SKILL.md | grep -n '::error::' | sed 's/:.*::error::/ :: /' > .prflow/tmp/base-err.txt\ngit cat-file blob 2adb65e423202b23f524624e8b50c48db22b653b:skills/retrospective-weekly/SKILL.md | grep -n '::error::' | sed 's/:.*::error::/ :: /' > .prflow/tmp/head-err.txt\necho \"=== error message texts: base-only (removed) ===\"; comm -23 <(git cat-file blob 7024458f4cb6c5d7e2ea80df3d4fac5226699c19:skills/retrospective-week …[per-command-truncated]",
+      "git cat-file blob 7024458f4cb6c5d7e2ea80df3d4fac5226699c19:skills/retrospective-weekly/SKILL.md | grep -oE '::error::[^\"]{0,60}' | sort > .prflow/tmp/base-err.txt\ngit cat-file blob 2adb65e423202b23f524624e8b50c48db22b653b:skills/retrospective-weekly/SKILL.md | grep -oE '::error::[^\"]{0,60}' | sort > .prflow/tmp/head-err.txt\necho \"=== removed (base-only) ===\"; comm -23 .prflow/tmp/base-err.txt .prflow/tmp/head-err.txt; echo \"=== added (head-only) ===\"; comm -13 .prflow/tmp/base-err.txt .prflow/tm …[per-command-truncated]",
+      "git cat-file blob 2adb65e423202b23f524624e8b50c48db22b653b:skills/retrospective-weekly/SKILL.md > /tmp/head.md; grep -n \"materialize-retrospectives\\|cheap-gate\\|fetch-pr-context.sh\\|open-state-pr.sh\" /tmp/head.md",
+      "git cat-file blob 2adb65e423202b23f524624e8b50c48db22b653b:skills/retrospective-weekly/SKILL.md > /tmp/head.md",
+      "git cat-file blob 2adb65e423202b23f524624e8b50c48db22b653b:skills/retrospective-weekly/SKILL.md > .prflow/tmp/head.md 2>/dev/null; grep -n \"materialize-retrospectives\\|cheap-gate\\|fetch-pr-context.sh\\|open-state-pr.sh\\|clean working\\|working tree\\|Idempotent\\|checkout main\" .prflow/tmp/head.md"
+    ],
+    "total": 10,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
