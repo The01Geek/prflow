@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1613",
+  "generated_at": "2026-08-12T00:22:47Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.38",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 4.5537174999999985,
+    "tokens": {
+      "input_tokens": 73,
+      "output_tokens": 24004,
+      "cache_read_input_tokens": 5071125,
+      "cache_creation_input_tokens": 141769,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 73,
+        "outputTokens": 24004,
+        "cacheReadInputTokens": 5071125,
+        "cacheCreationInputTokens": 141769,
+        "webSearchRequests": 0,
+        "costUSD": 4.5537174999999985,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 41,
+    "duration_ms": 573935
+  },
+  "permission_denials": {
+    "count": 7,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"SKILL_DIR=${CLAUDE_SKILL_DIR:-EMPTY}\"; git hash-object skills/review/SKILL.md skills/review/phases/phase-0-setup.md skills/review/phases/phase-0-3-6-blocker-recheck.md skills/review/phases/phase-0-6-stale-prose-lint.md skills/review/phases/phase-1-checklist.md skills/review/phases/phase-2-verification.md skills/review/phases/phase-3-agents.md skills/review/phases/phase-4-verdict.md skills/review/phases/phase-4-1-7-stale-adjudication.md skills/review/phases/phase-4-4-github-post.md 2>&1",
+      "gh pr diff 1613 2>&1 | head -5; echo \"rc=${PIPESTATUS[0]}\"",
+      "mkdir -p .prflow/tmp/review/pr-1613/local\ngh pr diff 1613 > .prflow/tmp/review/pr-1613/local/diff.raw 2>.prflow/tmp/review/pr-1613/local/diff.err; echo \"rc=$?\"; wc -l .prflow/tmp/review/pr-1613/local/diff.raw; cat .prflow/tmp/review/pr-1613/local/diff.err",
+      "gh pr diff 1613 2>.prflow/tmp/review/pr-1613/local/diff.err | tee .prflow/tmp/review/pr-1613/local/diff.raw >/dev/null; echo \"rc=${PIPESTATUS[0]}\"; wc -l < .prflow/tmp/review/pr-1613/local/diff.raw; cat .prflow/tmp/review/pr-1613/local/diff.err",
+      "gh pr diff 1613 2>.prflow/tmp/review/pr-1613/local/diff.err | tee .prflow/tmp/review/pr-1613/local/diff.raw >/dev/null; echo \"done\"; wc -l < .prflow/tmp/review/pr-1613/local/diff.raw; echo \"---err---\"; cat .prflow/tmp/review/pr-1613/local/diff.err",
+      "timeout 300 python3 lib/test/test_python_scripts.py 2>&1 | tail -30; echo \"exit=${PIPESTATUS[0]}\"",
+      "timeout 300 python3 lib/test/test_python_scripts.py > .prflow/tmp/review/pr-1613/local/test.out 2>&1; echo \"exit=$?\"; tail -25 .prflow/tmp/review/pr-1613/local/test.out"
+    ],
+    "total": 7,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
