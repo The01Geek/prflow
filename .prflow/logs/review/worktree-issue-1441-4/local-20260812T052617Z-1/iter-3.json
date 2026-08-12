@@ -1,0 +1,175 @@
+{
+  "iter": 3,
+  "started_at": "2026-08-12T06:20:00Z",
+  "fix_commit_sha": "3633cec32",
+  "fix_files": [
+    "lib/fetch-pr-context.sh",
+    "lib/test/run.sh",
+    ".changeset/issue-1441-ci-failures-conclusion-denylist.md"
+  ],
+  "loop_role": "fix",
+  "current_step": "4.5",
+  "current_substep": null,
+  "pending_dispatch": null,
+  "sweep_evidence": {
+    "status": "run"
+  },
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "checklist_summary": {
+    "total": 9,
+    "passed": 9,
+    "failed": 0,
+    "inconclusive": 0,
+    "note": "variance-recovery pass; all nine new items PASS"
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "Changeset claimed the zero-page clean-zero hazard existed in the RELEASED code; it was introduced by this PR's own -n/inputs design and fixed within the same PR.",
+      "defect_signature": {
+        "file": ".changeset/issue-1441-ci-failures-conclusion-denylist.md",
+        "line_range": [
+          17,
+          17
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "The filter's four distinct error() diagnostics were all discarded by 2>/dev/null, so a malformed body and a broken local jq read identically.",
+      "defect_signature": {
+        "file": "lib/fetch-pr-context.sh",
+        "line_range": [
+          289,
+          296
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "The 2>&1 removal had no test: re-adding it left the suite green while turning any warning-emitting run into a false ci_status_unknown.",
+      "defect_signature": {
+        "file": "lib/fetch-pr-context.sh",
+        "line_range": [
+          275,
+          278
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Important",
+      "description": "The one-line breadcrumb row was vacuous (grep -c of a marker that appears once either way) and the jq diagnostic re-run had zero coverage.",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          13664,
+          13668
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "`;;&` is bash 4+ and would be a syntax error on the bash 3.2 macOS ships, against the portability convention.",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          13552,
+          13564
+        ],
+        "kind": "other"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "I3-1",
+      "decision": "applied",
+      "commit": "3633cec32"
+    },
+    {
+      "finding_id": "I3-2",
+      "decision": "applied",
+      "commit": "3633cec32"
+    },
+    {
+      "finding_id": "I3-3",
+      "decision": "applied",
+      "commit": "3633cec32"
+    },
+    {
+      "finding_id": "I3-4",
+      "decision": "applied",
+      "commit": "3633cec32"
+    },
+    {
+      "finding_id": "I3-5",
+      "decision": "applied",
+      "commit": "3633cec32"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 6,
+    "fix_diff_lines": 44,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "refixed",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "ran_at": null,
+    "reviewed_sha": null,
+    "verdict": null,
+    "coverage": null,
+    "reviewers_dispatched": [],
+    "expected_reviewers": [],
+    "reason": null,
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
