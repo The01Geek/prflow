@@ -727,9 +727,11 @@ def _premise_regions(body: str, content_lines: list, fenced_lines: set) -> dict:
     extractor, so an absent section contributes nothing and an issue on a
     consumer's own template is scanned by its heading lines alone — plus every
     heading line, labelled `heading`. The section walk mirrors the extractor's
-    own first-match-only, level-2/3 open/close rules so the two never disagree.
-    A fenced line is neither a heading nor scannable content, so a `##`-shaped
-    line inside a fence does not falsely close a real premise section.
+    own first-match-only, level-2/3 open/close rules; it additionally skips
+    fenced lines (below), so where a `##`-shaped line sits inside a fence this
+    walk keeps the real section open while the fence-blind `extract_section`
+    used only for the `present` gate would not — a divergence in the safe
+    direction, since `present` gates eligibility and never mints a detection.
     """
     present = {name for name in _PREMISE_SECTIONS if extract_section(body, name)}
     region = {}
