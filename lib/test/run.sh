@@ -13552,11 +13552,10 @@ case "$*" in
   *"pulls/"*"/reviews"*) echo '[]' ;;
   *"pulls/"*"/commits"*) echo '[]' ;;
   *"check-runs"*)
-    # Every mode below is driven by an assertion in this block; a mode nothing
-    # drives is a dead failure knob and must be deleted, not left declared.
+    # Only a non-zero exit needs an out-of-band knob; every body shape, the empty
+    # one included, is expressed by the payload file so there is one input channel.
     case "${DEVFLOW_CR_MODE:-payload}" in
       exit-nonzero) echo "gh: HTTP 503 Service Unavailable" >&2; exit 1 ;;
-      empty-body)   : ;;
       *)            cat "$FX/checkruns.json" ;;
     esac
     ;;
@@ -13614,12 +13613,8 @@ cat > "$F1441/checkruns.json" <<'CR'
 CR
 cr1441 "every run still in flight (conclusion null)" "0" "false"
 
-# AC5 — a multi-page head. `gh api --paginate` emits one {"check_runs":[…]}
-# object per page, CONCATENATED rather than merged, so a filter that runs once
-# per input emits one length per page; the resulting multi-line value fails the
-# ^[0-9]+$ guard and flips every multi-page PR to unknown. Page 2 carries two
-# qualifying runs and page 1 none, so both fields discriminate: before the fix
-# this read 1/true, after it 2/false.
+# AC5 — a multi-page head. Page 2 carries both qualifying runs and page 1 none,
+# so both fields discriminate: before the fix this read 1/true, after it 2/false.
 cat > "$F1441/checkruns.json" <<'CR'
 {"check_runs":[{"conclusion":"success"},{"conclusion":"cancelled"}]}
 {"check_runs":[{"conclusion":"failure"},{"conclusion":"timed_out"}]}
@@ -13632,25 +13627,24 @@ cat > "$F1441/checkruns.json" <<'CR'
 {"check_runs":[{"conclusion":"success"}]}
 CR
 cr1441 "gh exits non-zero" "1" "true" exit-nonzero
-cr1441 "gh returns an empty body" "1" "true" empty-body
+: > "$F1441/checkruns.json"
+cr1441 "gh returns an empty body" "1" "true"
 
 # Adversarial input shapes (CLAUDE.md's best-effort-parser matrix, applied to an
 # external structured response): each must land on a fail-safe arm rather than
 # detonating the filter or emitting a non-numeric signal. `check_runs` is read
 # WITHOUT a `// []` default precisely so these error into the guard instead of
 # being laundered into a clean 0.
-cat > "$F1441/checkruns.json" <<'CR'
-this is not json at all
+while IFS='|' read -r _label _payload; do
+  [ -n "$_label" ] || continue
+  printf '%s\n' "$_payload" > "$F1441/checkruns.json"
+  cr1441 "$_label" "1" "true"
+done <<'CR'
+a body that is not JSON|this is not json at all
+valid JSON with no check_runs key|{"total_count":0}
+check_runs is a scalar, not an array|{"check_runs":7}
 CR
-cr1441 "a body that is not JSON" "1" "true"
-cat > "$F1441/checkruns.json" <<'CR'
-{"total_count":0}
-CR
-cr1441 "valid JSON with no check_runs key" "1" "true"
-cat > "$F1441/checkruns.json" <<'CR'
-{"check_runs":7}
-CR
-cr1441 "check_runs is a scalar, not an array" "1" "true"
+unset _label _payload
 
 # AC6 fail-safe arm 2, the ^[0-9]+$ half. A non-empty non-numeric count is
 # unreachable through the fixed filter (that is the point of the fix), so drive

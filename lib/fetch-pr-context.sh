@@ -272,7 +272,7 @@ POST_BOT_COMMITS="$(echo "$COMMITS" | "$DEVFLOW_JQ" --arg author "$AUTHOR" '
 CI_STATUS_UNKNOWN="false"
 CI_FAILURES="1"
 set +e
-_CI_RUNS_JSON="$("$DEVFLOW_GH" api "repos/${REPO}/commits/${HEAD_SHA}/check-runs" --paginate 2>&1)"
+_CI_RUNS_JSON="$("$DEVFLOW_GH" api "repos/${REPO}/commits/${HEAD_SHA}/check-runs?per_page=100" --paginate 2>&1)"
 _CI_EXIT=$?
 set -e
 if [ $_CI_EXIT -ne 0 ] || [ -z "$_CI_RUNS_JSON" ]; then
