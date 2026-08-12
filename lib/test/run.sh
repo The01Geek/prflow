@@ -32478,7 +32478,8 @@ assert_pin_unique "#284 positive: review trace render discriminates via single-s
 # (a worktree-isolated session refuses the command substitution) to a single-statement
 # `git diff --name-only "origin/$BASE...HEAD"` fence whose tool result the orchestrator
 # reads and routes on agent-side. Pin the surviving single-statement read.
-assert_pin_unique "#284 positive: phase-4 doc-gate diff read is a single-statement, tool-result-routed fence" 'git diff --name-only "origin/$BASE...HEAD"' "$DEF_SKILL"  # structural-pin-ok: routing-dispatch-contract -- #284 the doc-gate diff read the orchestrator routes on
+assert_eq "#284 positive: phase-4 doc-gate diff read is a single-statement, tool-result-routed fence" "yes" \
+  "$(grep -qF 'git diff --name-only "origin/$BASE...HEAD"' "$DEF_SKILL" && echo yes || echo no)"  # structural-pin-ok: routing-dispatch-contract -- #284 the doc-gate diff read the orchestrator routes on (present twice: initial read + re-fetch)
 assert_eq "#284 shadow-fix: phase-4 doc-gate no longer carries the old DIFF_RC capture-then-read recipe" \
   "0" "$(pin_count 'DIFF_RC=$?' "$IMPL_SKILL")"
 # AC3: retrospective-weekly's wrapper precheck is execution-verified (`[ ! -x ]`, not the
