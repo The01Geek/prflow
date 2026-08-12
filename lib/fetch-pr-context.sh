@@ -298,7 +298,7 @@ else
         _CI_JQ_ERR="$(echo "$_CI_RUNS_JSON" | "$DEVFLOW_JQ" -n "$_CI_JQ_PROG" 2>&1 >/dev/null || true)"
         # Keep this one line: a caller splits our stderr on newlines into
         # separate records, so an unstripped body fragments into phantom rows.
-        printf 'fetch-pr-context: check-runs body yielded no usable count; ci_status_unknown=true; jq: %.120s; body began: %.200s\n' \
+        printf 'fetch-pr-context: check-runs body yielded no usable count; ci_status_unknown=true; %.120s; body began: %.200s\n' \
             "${_CI_JQ_ERR//$'\n'/ }" "${_CI_RUNS_JSON//$'\n'/ }" >&2
     else
         CI_FAILURES="$_CI_COUNT"

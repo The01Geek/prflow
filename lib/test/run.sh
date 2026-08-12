@@ -13640,8 +13640,10 @@ cr1441 "gh returns an empty body" "1" "true"
 # Never re-add `2>&1` to the shipped capture: a non-fatal gh notice on a
 # SUCCESSFUL request would then contaminate the body and report a healthy head
 # as unreadable — the exact false signal this change exists to remove.
-printf '{"check_runs":[{"conclusion":"failure"}]}\n' > "$F1441/checkruns.json"
-cr1441 "a non-fatal gh notice on stderr, request otherwise clean" "1" "false" notice
+# Two failures, not one: the fail-safe arm also yields 1, so a single-failure
+# payload would leave the count row green when the contamination regression lands.
+printf '{"check_runs":[{"conclusion":"failure"},{"conclusion":"timed_out"}]}\n' > "$F1441/checkruns.json"
+cr1441 "a non-fatal gh notice on stderr, request otherwise clean" "2" "false" notice
 
 # Never delete a fail-safe breadcrumb: cr1441 discards stderr, so without the
 # rows below the suite stays green while the arms become indistinguishable.
