@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1642",
+  "generated_at": "2026-08-12T09:47:48Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.51",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 15.245341999999999,
+    "tokens": {
+      "input_tokens": 27976,
+      "output_tokens": 44456,
+      "cache_read_input_tokens": 6431411,
+      "cache_creation_input_tokens": 269051,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 28065,
+        "outputTokens": 112321,
+        "cacheReadInputTokens": 9917889,
+        "cacheCreationInputTokens": 1012657,
+        "webSearchRequests": 0,
+        "costUSD": 15.245341999999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 50,
+    "duration_ms": 905351
+  },
+  "permission_denials": {
+    "count": 5,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---ENV---\"; echo \"RUN_ID=${GITHUB_RUN_ID:-unset} ATTEMPT=${GITHUB_RUN_ATTEMPT:-unset}\"",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve \"1633\" --pr \"1642\" 2>.prflow/tmp/review/pr-1642/31583285385-1/acs.err ; echo \"acs-rc=$?\"",
+      "D=.prflow/tmp/review/pr-1642/31583285385-1\nawk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' $D/diff.patch > $D/batch-1.patch && test -s $D/batch-1.patch && echo \"slice-ok: batch-1\"\nawk -v s=11 -v e=20 '/^diff --git/{n++} n>=s && n<=e' $D/diff.patch > $D/batch-2.patch && test -s $D/batch-2.patch && echo \"slice-ok: batch-2\"\nawk -v s=21 -v e=30 '/^diff --git/{n++} n>=s && n<=e' $D/diff.patch > $D/batch-3.patch && test -s $D/batch-3.patch && echo \"slice-ok: batch-3\"\ngrep -c '^diff --git' $D/batc …[per-command-truncated]",
+      "awk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1642/31583285385-1/diff.patch > .prflow/tmp/review/pr-1642/31583285385-1/batch-1.patch\nawk -v s=11 -v e=20 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1642/31583285385-1/diff.patch > .prflow/tmp/review/pr-1642/31583285385-1/batch-2.patch\nawk -v s=21 -v e=30 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1642/31583285385-1/diff.patch > .prflow/tmp/review/pr-1642/31583285385-1/batch-3.patch\ngrep -c '^di …[per-command-truncated]",
+      "awk '/^diff --git/{n++} n>=1 && n<=10' .prflow/tmp/review/pr-1642/31583285385-1/diff.patch > .prflow/tmp/review/pr-1642/31583285385-1/batch-1.patch; echo done1"
+    ],
+    "total": 5,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
