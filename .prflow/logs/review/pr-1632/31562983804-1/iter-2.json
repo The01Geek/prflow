@@ -1,0 +1,104 @@
+{
+  "iter": 2,
+  "started_at": "2026-08-12T00:10:00Z",
+  "fix_commit_sha": "b67bea9",
+  "fix_files": [
+    "skills/implement/phases/phase-1-setup.md"
+  ],
+  "loop_role": "promoted",
+  "promotion_provenance": "shadow",
+  "current_step": "2.6",
+  "current_substep": "run_shadow_fanout",
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "tier-refusal arm recovery --reflection operand carried ( < > ), self-defeating on the refusing tier (from iter-1 shadow)",
+      "defect_signature": {
+        "file": "skills/implement/phases/phase-1-setup.md",
+        "line_range": [
+          375,
+          375
+        ],
+        "kind": "self_defeating_recovery"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "bare workpad.py without anchor in the recovery command",
+      "defect_signature": {
+        "file": "skills/implement/phases/phase-1-setup.md",
+        "line_range": [
+          375,
+          375
+        ],
+        "kind": "helper_anchor"
+      },
+      "fix_decision": "pushed_back"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "b67bea9"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "pushed_back",
+      "source_file": "skills/implement/phases/phase-1-setup.md",
+      "claim_text": "bare workpad.py lacks the CLAUDE_SKILL_DIR anchor",
+      "skip_category": "claim-quality",
+      "evidence": "inline-backtick workpad.py is sanctioned source-shorthand per SKILL.md, matching the existing §1.4 arm verbatim",
+      "parking_evidence": {
+        "basis": "the inline reflection-instruction shorthand is the established convention; an anchor would be non-idiomatic there",
+        "failing_input": "the recovery reflection instruction as authored",
+        "source": "skills/implement/SKILL.md 'Inline workpad notation is source shorthand' + phase-1-setup.md:359 (§1.4 arm)",
+        "finding_ref": {
+          "iter": 2,
+          "index": 1
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 1,
+    "fix_diff_lines": 1,
+    "new_corroborated_critical_count": 0
+  },
+  "shadow": {
+    "ran_at": null,
+    "reviewed_sha": null,
+    "verdict": null,
+    "coverage": null,
+    "reviewers_dispatched": [],
+    "expected_reviewers": [],
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

@@ -1,0 +1,112 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-12T00:00:00Z",
+  "fix_commit_sha": "ed32bfc",
+  "fix_files": [
+    "lib/test/test_python_scripts.py",
+    ".changeset/issue-1630-tick-operand-metachar-guard.md"
+  ],
+  "loop_role": "fix",
+  "current_step": "2.6",
+  "current_substep": "run_shadow_fanout",
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "changeset bullet cited (#1632) PR instead of (#1630) issue per AC #10",
+      "defect_signature": {
+        "file": ".changeset/issue-1630-tick-operand-metachar-guard.md",
+        "line_range": [
+          6,
+          6
+        ],
+        "kind": "ac_reference"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "test comment re-listed metachar set the constant beside it carries (mirror-fact)",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          2127,
+          2128
+        ],
+        "kind": "mirror_fact"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "metachar set is a pragmatic subset, not the classifier grammar",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          2133,
+          2133
+        ],
+        "kind": "coverage_note"
+      },
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "ed32bfc"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "ed32bfc"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "ed32bfc"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 3,
+    "fix_diff_lines": 6,
+    "new_corroborated_critical_count": 0
+  },
+  "shadow": {
+    "ran_at": null,
+    "reviewed_sha": null,
+    "verdict": null,
+    "coverage": null,
+    "reviewers_dispatched": [],
+    "expected_reviewers": [],
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
