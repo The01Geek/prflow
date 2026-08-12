@@ -1,0 +1,66 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-12T05:00:00Z",
+  "fix_commit_sha": "iteration-1",
+  "fix_files": [
+    "scripts/check-verified-premises.py",
+    "lib/test/test_python_scripts.py"
+  ],
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:pr-test-analyzer",
+    "prflow:comment-analyzer"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "ungraded pass not exception-isolated",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "fence-blind heading detection in _premise_regions",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "Move-2a adversarial matrix untested",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "comment-discipline: wrong function name, narrative header, module-docstring output gap",
+      "fix_decision": "applied"
+    }
+  ],
+  "shadow": {
+    "ran_at": "2026-08-12T05:00:00Z",
+    "verdict": "APPROVE",
+    "coverage": "not_verified",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:type-design-analyzer",
+      "prflow:pr-test-analyzer"
+    ],
+    "reason": "inline shadow re-review over the converged diff; formal Step 2.6 fan-out roster not fully dispatched",
+    "comparison": {
+      "shadow_total": 1,
+      "new_critical": 0,
+      "new_important": 0
+    }
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
