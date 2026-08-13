@@ -2882,6 +2882,33 @@ assert_eq "#1515 projection filter returns only represented plus zero-unmatched"
 assert_eq "#1515 projection filter durably reports unmatched and missing findings" "2" \
   "$(grep -c 'projection disposition is unusable' "$TMP_SF/sf-projection.err")"
 
+# The withhold-everything arms: each must exit non-zero and emit nothing on stdout,
+# so a regression flipping one to fail-open (empty array, rc 0) turns these RED.
+printf '%s' '{"not":"an array"}' > "$TMP_SF/sf-projection-obj.json"
+printf 'not json' > "$TMP_SF/sf-projection-garbage.json"
+for _case in absent:"$TMP_SF/sf-projection-nonexistent.json" \
+             empty-arg:"" \
+             nonarray:"$TMP_SF/sf-projection-obj.json" \
+             unparseable:"$TMP_SF/sf-projection-garbage.json"; do
+  _label="${_case%%:*}"; _path="${_case#*:}"
+  RL_SF_BAD="$(rl_sf_projection "$_path" 2>"$TMP_SF/sf-projection-$_label.err")"; RL_SF_BAD_RC=$?
+  assert_eq "#1515 projection filter withholds on $_label input (non-zero)" "1" "$RL_SF_BAD_RC"
+  assert_eq "#1515 projection filter emits no findings on $_label input" "" "$RL_SF_BAD"
+  assert_eq "#1515 projection filter names the $_label withhold on its error channel" "1" \
+    "$(grep -c 'withholding every finding' "$TMP_SF/sf-projection-$_label.err")"
+done
+# An unavailable predicate is the same withhold: copy select-findings.sh to a
+# directory with no projection-gate.jq beside it and confirm it refuses.
+mkdir -p "$TMP_SF/nogate" && cp "$REPO_ROOT"/lib/*.sh "$REPO_ROOT"/lib/*.jq "$TMP_SF/nogate/"
+rm -f "$TMP_SF/nogate/projection-gate.jq"
+RL_SF_NOGATE="$( ( # shellcheck disable=SC1090  # relocated copy under test
+  . "$TMP_SF/nogate/select-findings.sh"; devflow_projection_eligible_findings "$TMP_SF/sf-projection.json" ) 2>"$TMP_SF/sf-projection-nogate.err")"
+RL_SF_NOGATE_RC=$?
+assert_eq "#1515 projection filter withholds when projection-gate.jq is unavailable" "1" "$RL_SF_NOGATE_RC"
+assert_eq "#1515 projection filter emits no findings without its predicate" "" "$RL_SF_NOGATE"
+assert_eq "#1515 projection filter names the missing predicate" "1" \
+  "$(grep -c 'projection-gate.jq is unavailable' "$TMP_SF/sf-projection-nogate.err")"
+
 RL_WEEKLY="$REPO_ROOT/skills/retrospective-weekly/SKILL.md"
 _rl1515_weekly_boundary() {
   python3 - "$RL_WEEKLY" "$1" <<'PY'

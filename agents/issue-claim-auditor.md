@@ -46,6 +46,8 @@ Run after the issue data is in hand; passes are independent (read their sources 
 
 Desired Behavior is authoritative intent; Acceptance Criteria are its exhaustive, merge-gated projection. Read the `## Desired Behavior` section from `ISSUE_BODY_PATH` and compare it with the already-resolved checkbox rows in `RESOLVED_AC_PATH` (use both inline operands on the degraded arm). Phase 1.2's existing `scripts/parse-acs.py` invocation remains the sole deterministic extractor. This pass does not run a second extractor, infer criteria from prose, copy Desired Behavior into the workpad, or add a second formal review input.
 
+If the Desired Behavior section or the resolved criteria cannot be read — `RESOLVED_AC_PATH` (or `ISSUE_BODY_PATH`) is absent or unreadable **and** the dispatch prompt pasted no inline copy — return `outcome: blocked-specification` with `projection_disposition: unmatched` and `unmatched_desired_behavior: ["<the operand that could not be read>"]`, naming the unreadable operand in `blocked_reason`. Classifying against an operand you never read would report `represented` on an unverified comparison, and the downstream deterministic gate fires only after `proceed`, so it cannot catch that.
+
 Classify each independently verifiable post-change obligation in Desired Behavior as:
 
 - **represented** — one criterion, or a jointly sufficient set of criteria, preserves the obligation's subject, scope, outcome, and strength;

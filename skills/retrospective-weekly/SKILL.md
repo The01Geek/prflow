@@ -505,7 +505,10 @@ selected finding** via `meta-issue.sh` — under an opaque `<category>-<subslug>
 filing key composed by the composer. Which findings become filings is decided by
 `lib/select-findings.sh`, the owner of that decision **on the findings-array path**;
 the legacy `{title, body}` shape never reaches it and derives its own cap verdict in
-8c. **No worktrees, no commits, no PRs** — the loop proposes; a human triages each issue and runs it through the normal
+8c. That legacy shape carries no projection disposition, so 8c's projection gate
+blocks it unconditionally and loudly — intended, because the shipped Stage B
+composer returns only the findings-array shape, and a stale composer that still
+returns `{title, body}` has had no projection audit to file on. **No worktrees, no commits, no PRs** — the loop proposes; a human triages each issue and runs it through the normal
 `/prflow:implement` → review pipeline. Your main checkout stays on `main` and is
 never edited. The drafting subagents (8b) parallelize; the cheap filing (8c) is done
 serially.

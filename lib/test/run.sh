@@ -10478,8 +10478,7 @@ assert_eq "#190 fix-loop: Phase 4.1 states the fail-closed extraction contract e
 # without holding downstream explanatory prose to exact wording.
 P2_FILE="$IMPL_PHASES_DIR/phase-2-implement.md"
 # Issue #1515: execute fixture routing through the shared structured projection
-# predicate. The AC fixture is genuinely non-empty; it cannot rescue a failed
-# projection gate.
+# predicate rather than re-deriving the routing rule here.
 _issue1515_projection_route() {
   local outcome="$1" disposition="$2" unmatched="$3" state
   if ! grep -qE 'run-jq\.sh[^`]*-e[^`]*-f[^`]*projection-gate\.jq' "$P1_FILE"; then

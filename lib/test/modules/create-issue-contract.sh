@@ -1724,6 +1724,12 @@ assert_eq "#1515 represented plus a nonempty unmatched set fails closed" "blocke
 assert_eq "#1515 unmatched plus an empty set is inconsistent and fails closed" "blocked" \
   "$(_ci1515_gate '{"projection_disposition":"unmatched","unmatched_desired_behavior":[]}')"
 assert_eq "#1515 missing projection fields fail closed" "blocked" "$(_ci1515_gate '{}')"
+# Deleting the gate's array-type clause must go RED: each of these reaches that
+# clause with a represented disposition, so `length` alone would accept or abort.
+assert_eq "#1515 represented plus a null unmatched slot fails closed" "blocked" \
+  "$(_ci1515_gate '{"projection_disposition":"represented","unmatched_desired_behavior":null}')"
+assert_eq "#1515 represented plus an object unmatched slot fails closed" "blocked" \
+  "$(_ci1515_gate '{"projection_disposition":"represented","unmatched_desired_behavior":{}}')"
 
 # Exercise the authoring operand with a real, non-empty AC section parsed by the
 # same helper the implementing run consumes; projection is a second, independent
