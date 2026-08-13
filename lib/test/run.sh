@@ -11456,6 +11456,20 @@ assert_eq "#1663-h regression: a 'none' declaration in the first block does not 
   "docs/internal/implement-skill.md" \
   "$(printf '%s\n' "$fx_1663_multiblock" | bash "$EXTRACT_HELPER")"
 
+# Keep the declaration short-circuit updating paragraph-boundary state; otherwise
+# a following bare-bold opener is missed and its deliverable fails open to empty.
+fx_1663_multibold="## Implementation Notes
+
+- **Documentation Needed**
+  - none.
+
+**Documentation Needed**
+
+update \`docs/internal/implement-skill.md\`"
+assert_eq "#1663-h regression (bold-paragraph second opener): a sub-list 'none' declaration does not hide the later block's deliverable" \
+  "docs/internal/implement-skill.md" \
+  "$(printf '%s\n' "$fx_1663_multibold" | bash "$EXTRACT_HELPER")"
+
 # The same regression for the level-3 heading opener form.
 fx_1663_multihead="## Implementation Notes
 

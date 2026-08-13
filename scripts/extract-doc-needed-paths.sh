@@ -404,7 +404,7 @@ run_stage_a() {
         }
       }
     }
-    if (decl) next
+    if (decl) { prev_blank = ($0 ~ /^[[:space:]]*$/); next }
     print
     if ( ( $0 ~ /^[[:space:]]*-/ || $0 ~ /^\*\*/ ) && arms($0) ) emitted = 1
   }
