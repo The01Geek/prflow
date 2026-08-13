@@ -39,9 +39,8 @@ to remove.
   around the Python suites *it* runs, so such a suite is neutralised whether or not it
   neutralises itself. Do not read that as "a suite runner covers me". It covers neither
   the direct invocation — the form the project's own instructions mandate for a focused
-  Python test — nor the suites `lib/test/run.sh` invokes directly as bare `python3 …`
-  (`test_mutation_pin_census.py`, `test_module_harness.py`,
-  `test_create_issue_context_eval.py`), which set no colour variable at all.
+  Python test — nor the suites `lib/test/run.sh` invokes directly as a bare
+  `python3 "$LIB/test/test_*.py"`, which carry no colour variable at all.
   Self-neutralise regardless.
 
 ## The sanctioned exception
