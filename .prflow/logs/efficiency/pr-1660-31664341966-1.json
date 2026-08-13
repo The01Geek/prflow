@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1660",
+  "generated_at": "2026-08-13T03:57:48Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.64",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 11.110947749999998,
+    "tokens": {
+      "input_tokens": 71,
+      "output_tokens": 35677,
+      "cache_read_input_tokens": 6528808,
+      "cache_creation_input_tokens": 241414,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 146,
+        "outputTokens": 77191,
+        "cacheReadInputTokens": 8743218,
+        "cacheCreationInputTokens": 624565,
+        "webSearchRequests": 0,
+        "costUSD": 11.110947749999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 49,
+    "duration_ms": 1300237
+  },
+  "permission_denials": {
+    "count": 8,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RID=${GITHUB_RUN_ID:-none} ATT=${GITHUB_RUN_ATTEMPT:-none}\"; echo \"run-id=${GITHUB_RUN_ID:-local-$(date -u +%Y%m%dT%H%M%SZ)}-${GITHUB_RUN_ATTEMPT:-1}\"",
+      "echo \"RID=${GITHUB_RUN_ID:-none} ATT=${GITHUB_RUN_ATTEMPT:-none}\"",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve 1653 --pr 1660 2>.prflow/tmp/review/pr-1660/31664341966-1/acs.err ; echo \"acs-rc=$?\"",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review 2>/dev/null | head -50; echo \"---EXIT:${PIPESTATUS[0]}---\"",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >/tmp/o.txt 2>/tmp/e.txt; echo \"exit=$?\"; echo \"stdout bytes:\"; wc -c </tmp/o.txt; echo \"stderr:\"; cat /tmp/e.txt",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >/tmp/o.txt 2>/tmp/e.txt\necho \"exit=$?\"\nwc -c /tmp/o.txt /tmp/e.txt",
+      "git apply .prflow/tmp/review/pr-1660/31664341966-1/diff.patch && echo APPLIED; python3 lib/test/test_python_scripts.py 2>&1 | grep \"1653\"; echo \"===TAIL===\"; python3 lib/test/test_python_scripts.py 2>&1 | tail -3",
+      "git apply .prflow/tmp/review/pr-1660/31664341966-1/diff.patch"
+    ],
+    "total": 8,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
