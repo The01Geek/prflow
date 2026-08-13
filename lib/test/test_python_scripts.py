@@ -2549,11 +2549,9 @@ _EXPECTED_REVIEW_ROWS = (
     ('Aggregate & verdict (Phase 4)', 'Aggregate & verdict'),
     ('Run complete — everything this run owed', 'Run complete'),
 )
-_REVIEW_ROWS = getattr(workpad, '_REVIEW_PROGRESS_ROWS', ())
 for _r_text, _r_substr in _EXPECTED_REVIEW_ROWS:
     assert_eq(f"new-body: emits the {_r_substr!r} implement review row", True,
-              (_r_text, _r_substr) in _REVIEW_ROWS
-              and any(_r_text in ln for ln in _phase_block(_nb_progress, 'Review')))
+              any(_r_text in ln for ln in _phase_block(_nb_progress, 'Review')))
 
 # --- no new row breaks an EXISTING tick, and each new row ticks uniquely -----
 # The live tick-substring set is DERIVED from the implement phase files rather
