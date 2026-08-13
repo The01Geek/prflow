@@ -43,7 +43,7 @@ The `disclosure` object is present **only** on a `settled-by-disclosure` entry (
 
 `symbol` is best-effort: scan the finding's `description` for the first backtick-quoted identifier; if none, leave empty string. Downstream matchers (the /prflow:review verdict engine) fall back to `line_range` + summary similarity when `symbol` is absent.
 
-This step writes the artifact and applies the guard. It does **NOT** file follow-up issues, mutate the PR body, or post a verdict to GitHub — those are /prflow:implement Phase 4.0.5's responsibility. /prflow:review-and-fix posts no formal review and no verdict comment. A standalone PR-mode run maintains the inline engine's run-keyed progress comment; an implement-driven run maintains the caller's existing issue workpad instead. When the caller is standalone /prflow:review-and-fix (no orchestrator wrapping it), the manifest is still written but no consumer reads it — that's fine; it's informational state on disk and useful for debugging.
+This step writes the artifact and applies the guard. It does **NOT** file follow-up issues, mutate the PR body, or post a verdict to GitHub — those are /prflow:implement Phase 4.0.5's responsibility. /prflow:review-and-fix posts no formal review and no verdict comment. A standalone PR-mode run maintains the inline engine's run-keyed progress comment; an implement-driven run maintains the caller's existing issue workpad instead. When the caller is standalone /prflow:review-and-fix (no orchestrator wrapping it), the manifest is still written as informational state on disk useful for debugging.
 
 ### Pre-mapping: Step-3-evaluated REJECT downgrade
 
@@ -329,7 +329,7 @@ If the self-check warns that the record or the workpads were not persisted, the 
 As the loop's last terminal-work step, after the persistence self-check above, read the final `(display_text, tick_substr)` tuple from `scripts/workpad.py::_REVIEW_PROGRESS_ROWS` and route that final Blueprint row by the held progress surface. The Python constant is the sole definition of both fields:
 
 - Exact `progress_surface = workpad` → invoke `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update "$ISSUE_OVERRIDE" --tick-progress "<final tuple's tick_substr>"`. This applies in both PR and current-branch modes. An already-ticked row is the expected idempotent no-op on re-entry; a missing row or update failure remains visible in helper output and never falls back to creating or patching a PR progress comment.
-- Otherwise, in PR mode, tick the row matching the final tuple's `display_text` in this run's progress comment. Current-branch mode has no comment row to tick.
+- Otherwise, when `$PR_NUMBER` is non-empty, tick the row matching the final tuple's `display_text` in this run's progress comment. When `$PR_NUMBER` is empty, no PR-comment target is selected and no PR-comment tick is attempted.
 
 Tick it on every termination that reaches this terminal work — converged, capped, and final REJECT alike — and leave it unticked on an abnormal stop-and-report exit (an unresolved base conflict, say) that never reached here. Here the tick asserts only that the loop reached its terminal work. **This path makes no corrective delivery attempt**, because it posts no verdict to GitHub at all. A run whose Loop Exit steps were dropped leaves the row unticked.
 

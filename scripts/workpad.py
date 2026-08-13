@@ -2197,7 +2197,7 @@ assert set(_STATUS_TO_PROGRESS_PHASE.values()) <= set(_PROGRESS_PHASES), (
     f'{set(_STATUS_TO_PROGRESS_PHASE.values()) - set(_PROGRESS_PHASES)}'
 )
 
-# Same guard for every managed nested row: a phase spelling the canonical list
+# Guard the managed nested-row declarations: a phase spelling the canonical list
 # does not carry would make rendering/reconciliation silently omit that surface.
 assert {phase for phase, _text, _substr in _managed_progress_rows()} <= set(_PROGRESS_PHASES), (
     'workpad: managed Progress rows name a phase not in _PROGRESS_PHASES: '
