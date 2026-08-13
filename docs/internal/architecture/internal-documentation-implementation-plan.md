@@ -1,6 +1,6 @@
 # Internal Documentation Restructure Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use the repository's subagent-driven-development guidance (recommended) or its executing-plans guidance to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Reorganize and improve `docs/internal/` so coding agents and developers can find a code-grounded explanation of the system surface they are about to change.
 
