@@ -303,8 +303,10 @@ ${ALLOWED_TOOLS}
 > - **Permitted:** a single statement whose leading token is a granted head (or a
 >   resolved helper path); author a file with the Write tool under \`.prflow/tmp/\`;
 >   stream or capture through a pipe into \`tee\` (or a \`tee <file> <<'EOF'\` heredoc);
->   capture a command's output with \`VAR=\$(cmd)\`; an in-workspace \`>\`/\`2>\` redirect
->   of a granted head.
+>   capture a command's output with \`VAR=\$(cmd)\`. Redirect evidence is scoped to
+>   the exact tier, command head, target form, and statement that was measured; use the
+>   Write tool for \`.prflow/tmp/**\` scratch unless that exact shell form has a current
+>   recorded PERMITTED verdict.
 > - **Denied — do not emit:** a leading \`VAR=value\` assignment or env-prefix
 >   (\`M=x cmd\`); a leading \`cd\`; \`git -C <path> <subcommand>\` (you never need
 >   the \`-C\` path — the run starts at the repository root and the working directory

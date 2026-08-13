@@ -12959,9 +12959,17 @@ for _ir5_spelling in ("> /tmp/f", "2> /tmp/f", ">> /tmp/f", "&> /tmp/f",
     _ir5_fence = "```bash\ncmd %s\n```" % _ir5_spelling
     assert_eq("#915 IR5: a /tmp redirect '%s' is flagged IR5 under --profile implement"
               % _ir5_spelling, True, "IR5" in _ir5_rules(_ir5_fence))
-# IR5 ignores a .prflow/tmp/ target. (Maps to the .prflow/tmp/-negative criterion.)
-assert_eq("#915 IR5: a .prflow/tmp/ redirect is NOT flagged",
-          [], _ir5_rules("```bash\ncmd > .prflow/tmp/f\n```"))
+# Issue #1514: an in-workspace target is not sufficient evidence. The historic
+# echo row remains the exact positive control, while an unmeasured production head
+# is rejected so authors use Write-tool or helper-owned output instead.
+assert_eq("#1514 IR6: the exact echo control remains permitted",
+          [], _ir5_rules("```bash\necho iprobe11workspace > .prflow/tmp/iprobe11workspace\n```"))
+assert_eq("#1514 IR6: an unmeasured gh scratch redirect is flagged",
+          True, "IR6" in _ir5_rules(
+              "```bash\ngh issue view 1664 --json body --jq '.body' > .prflow/tmp/issue-body/issue-1664.md\n```"))
+assert_eq("#1514 IR6: an absolute-workspace gh scratch redirect is flagged",
+          True, "IR6" in _ir5_rules(
+              "```bash\ngh issue view 1664 --json body --jq '.body' > $GITHUB_WORKSPACE/.prflow/tmp/issue-body/issue-1664.md\n```"))
 # IR5 does NOT inherit R3's cat-heredoc arm (row 12 records a plain heredoc write
 # PERMITTED on this tier). (Maps to the heredoc-negative criterion.)
 assert_eq("#915 IR5: a cat-headed heredoc write with no /tmp target is NOT flagged",

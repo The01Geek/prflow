@@ -551,7 +551,7 @@ _REVIEW_ARM_TABLE = (
 
 REVIEW_ARMS = frozenset(arm for arm, _rule, _pred in _REVIEW_ARM_TABLE)
 REVIEW_RULES = frozenset(rule for _arm, rule, _pred in _REVIEW_ARM_TABLE)
-IMPLEMENT_RULES = frozenset({"IR1", "IR2", "IR3", "IR4", "IR5"})
+IMPLEMENT_RULES = frozenset({"IR1", "IR2", "IR3", "IR4", "IR5", "IR6"})
 
 
 def classify(statement: str) -> list[str]:
@@ -1129,6 +1129,13 @@ def find_implement_violations(text: str) -> list[tuple[int, str, str]]:
                 if _redirect_violation(statement):
                     lineno = _attribute_line(statement, start, len(block_lines), lines)
                     seen.add((lineno, "IR5", statement.strip()))
+                # IR6: workspace-local scratch redirects are permitted only when the
+                # complete statement has its own recorded implement-tier verdict.
+                # Row 11 proves this echo control and nothing broader (issue #1514).
+                if (re.search(r"(?:^|[;&|\s])(?:[12]?>>?|&>)\s*[^\n;]*(?:\$GITHUB_WORKSPACE/)?\.prflow/tmp/", statement)
+                        and statement.strip() != "echo iprobe11workspace > .prflow/tmp/iprobe11workspace"):
+                    lineno = _attribute_line(statement, start, len(block_lines), lines)
+                    seen.add((lineno, "IR6", statement.strip()))
                 if not _label_capture_violation(statement):
                     continue
                 lineno = _attribute_line(statement, start, len(block_lines), lines)

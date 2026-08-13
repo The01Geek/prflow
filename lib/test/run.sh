@@ -35313,6 +35313,12 @@ assert_eq "#401 R1 still fires behind a stripped control word (if M=x cmd; then)
     'printf hi | tee f' 'VAR="$(gh pr view 2)"' 'cdrecord x' 'pythonize data' '```'; } > "$E363/s-ok.md"
 assert_eq "#401 shape-lint does NOT flag permitted shapes (capture, empty reset, IFS= read, tee, pipe-tee, near-miss heads)" "" \
   "$(python3 "$ECS" "$E363/s-ok.md")"
+printf '%s\n' '```bash' "gh issue view 1664 --json body --jq '.body' > .prflow/tmp/issue-body/issue-1664.md" '```' > "$E363/s-ir6.md"
+assert_eq "#1514 shape-lint flags an unmeasured production-head redirect to .prflow/tmp" "yes" \
+  "$(python3 "$ECS" --profile implement "$E363/s-ir6.md" | grep -q '  IR6  ' && echo yes || echo no)"
+printf '%s\n' '```bash' 'echo iprobe11workspace > .prflow/tmp/iprobe11workspace' '```' > "$E363/s-ir6-control.md"
+assert_eq "#1514 shape-lint keeps the exact row-11 echo control permitted" "" \
+  "$(python3 "$ECS" --profile implement "$E363/s-ir6-control.md")"
 # ── (R5 retired, issue #869): the `if`/`elif` `VAR=$(…)` command-substitution CONDITION
 # ── shape the retired R5 rule flagged (#857) is now cloud-PERMITTED — this is exactly the
 # ── `$( )` spelling matcher-probe Shape 18 measured (`if HP=$(config-get.sh …)`, run
