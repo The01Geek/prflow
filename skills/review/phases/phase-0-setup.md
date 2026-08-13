@@ -144,9 +144,39 @@ mkdir -p .prflow/tmp/review/<slug>/<run-id>
 gh pr diff $PR_NUMBER | awk '/^diff --git/{in_logs=/ [ab]\/\.prflow\/logs\//} !in_logs' | tee .prflow/tmp/review/<slug>/<run-id>/diff.patch
 # or, in current-branch mode ($BASE from the guarded config-get capture above):
 # git diff "origin/$BASE...HEAD" | awk '/^diff --git/{in_logs=/ [ab]\/\.prflow\/logs\//} !in_logs' | tee .prflow/tmp/review/<slug>/<run-id>/diff.patch
-# In either local-diff mode, run `git diff "<resolved-local-diff-base>...HEAD"`
-# without a redirect, require exit 0, filter telemetry hunks in orchestrator context,
-# and author the resulting `diff.patch` with the Write tool. Read it back before use.
+# In either local-diff mode, use this checked candidate/promote form.
+# Render <resolved-local-diff-base> as the selected HEAD_OVERRIDE_BASE
+# (PR head override) or origin/$BASE (current branch). Remove stale authority first.
+rm -f .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate .prflow/tmp/review/<slug>/<run-id>/diff.candidate .prflow/tmp/review/<slug>/<run-id>/diff.patch
+if git diff "<resolved-local-diff-base>...HEAD" > .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate; then
+  if awk '/^diff --git/{in_logs=/ [ab]\/\.prflow\/logs\//} !in_logs' .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate > .prflow/tmp/review/<slug>/<run-id>/diff.candidate; then
+    if sed -n 'p' .prflow/tmp/review/<slug>/<run-id>/diff.candidate > .prflow/tmp/review/<slug>/<run-id>/diff.patch; then
+      if cat .prflow/tmp/review/<slug>/<run-id>/diff.patch; then
+        rm -f .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate .prflow/tmp/review/<slug>/<run-id>/diff.candidate
+      else
+        CAT_RC=$?
+        rm -f .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate .prflow/tmp/review/<slug>/<run-id>/diff.candidate .prflow/tmp/review/<slug>/<run-id>/diff.patch
+        echo "::error::devflow review: published diff could not be emitted (rc=$CAT_RC); review cache removed" >&2
+        exit "$CAT_RC"
+      fi
+    else
+      PROMOTE_RC=$?
+      rm -f .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate .prflow/tmp/review/<slug>/<run-id>/diff.candidate .prflow/tmp/review/<slug>/<run-id>/diff.patch
+      echo "::error::devflow review: diff cache promotion failed (rc=$PROMOTE_RC); no review cache was published" >&2
+      exit "$PROMOTE_RC"
+    fi
+  else
+    AWK_RC=$?
+    rm -f .prflow/tmp/review/<slug>/<run-id>/diff.candidate .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate .prflow/tmp/review/<slug>/<run-id>/diff.patch
+    echo "::error::devflow review: head-override diff filter failed (rc=$AWK_RC); no review cache was published" >&2
+    exit "$AWK_RC"
+  fi
+else
+  DIFF_RC=$?
+  rm -f .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate .prflow/tmp/review/<slug>/<run-id>/diff.candidate .prflow/tmp/review/<slug>/<run-id>/diff.patch
+  echo "::error::devflow review: head-override diff producer failed (rc=$DIFF_RC); no review cache was published" >&2
+  exit "$DIFF_RC"
+fi
 ```
 
 **The `awk` filter.** The `awk` program sets `in_logs` on each `diff --git` header (true when the path **starts with** `.prflow/logs/` — anchored to the `a/`/`b/` diff-prefix boundary (` [ab]/.prflow/logs/`) so it matches only paths *rooted* there, never one containing the substring) and suppresses every line while `in_logs` holds; the next non-logs header resets it visible. It strips those `.prflow/logs/` hunks once, at the single cache-write point downstream phases read. A logs-only diff filters `diff.patch` to empty — the upstream "No changes to review" stop tests the *raw* fetched diff (before this filter) so it does **not** fire here; every downstream phase reads the empty `diff.patch` (Phase 0.3 an empty file list, Phase 3 agents an empty diff), so a telemetry-only PR is correctly reviewed as nothing to flag. Standalone review uses the read-only profile's granted `gh pr diff`/`git diff`, `awk`, `tee`, `cat`, and `rm` heads. The wrapper-only local head-override path additionally needs git fetch and git ls-remote; only the writable implement/manual profiles reach it and grant those.
@@ -229,16 +259,16 @@ The numeric guard now lives INSIDE `cmd_acs_resolve`: a non-numeric `$ISSUE_NUM`
 **PR mode** (a `$PR_NUMBER` resolved) — emit this fence and no other:
 
 ```bash
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py acs-resolve "$ISSUE_NUM" --pr "$PR_NUMBER" ; echo "acs-rc=$?"
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py acs-resolve "$ISSUE_NUM" --pr "$PR_NUMBER" 2>.prflow/tmp/review/<slug>/<run-id>/acs.err ; echo "acs-rc=$?"
 ```
 
 **Current-branch mode** (no PR to bind to) — emit this fence and no other. It OMITS `--pr` entirely rather than passing an empty value (`--pr` is `type=int`, so an empty value is an argparse exit 2):
 
 ```bash
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py acs-resolve "$ISSUE_NUM" ; echo "acs-rc=$?"
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py acs-resolve "$ISSUE_NUM" 2>.prflow/tmp/review/<slug>/<run-id>/acs.err ; echo "acs-rc=$?"
 ```
 
-**Read the emitted `acs-rc` token — it is the only mechanism that makes a refusal observable.** On `acs-rc=0`, consume the three blocks the helper printed above the token. On any non-zero or missing token, set `acceptance_criteria_source` to `resolver-unavailable` and quote stderr directly from the tool result; no agent-authored stderr redirect is used.
+**Read the emitted `acs-rc` token — it is the only mechanism that makes a refusal observable.** The invocation's own exit status is what distinguishes "the helper ran and routed an outcome" from "the helper never ran": without it, empty stdout from a denied or non-executable invocation is indistinguishable from a thin-but-successful resolution, and the unestablished state would be collapsed onto the real value `none` — the exact collapse this section forbids. So: on `acs-rc=0`, consume the three blocks the helper printed above the token. On **any** non-zero `acs-rc` — including the 126/127 not-executable-or-not-found codes and the helper's own rc 3 — set `acceptance_criteria_source` to `resolver-unavailable` and read `.prflow/tmp/review/<slug>/<run-id>/acs.err` to quote the cause in the note. A **missing** `acs-rc` token is itself a refusal of the whole statement — likewise `resolver-unavailable`, never a success.
 
 `acs-resolve` itself exits 0 on every resolvable state, including an absent or unreadable workpad, which it routes as an outcome carrying its own source token rather than as a run-ending error; a non-numeric `$ISSUE_NUM` is likewise routed (as `resolver-unavailable`, exit 0) by `cmd_acs_resolve`'s own guard rather than by a pre-call `case`. This mirrors how `skills/review/SKILL.md` seeds its live progress comment: the S1 numeric guard, the S2 `workpad.py` readability precheck, and the S3 rc-2 silent-exit discriminator (screens S1–S3) now live inside the bundled helper `scripts/seed-review-progress.sh`, which owns those screens as executable shell, rather than in a prompt fence.
 

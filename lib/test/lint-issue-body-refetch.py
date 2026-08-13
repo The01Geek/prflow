@@ -180,7 +180,11 @@ MARKDOWN_SUFFIXES = (".md", ".md.example")
 #: printed (issue #1633 — a captured shell variable is refused in a worktree session).
 #: Findings on such a line are suppressed. See the module docstring for the retired
 #: second entry.
-ALLOW_SITE_LITERALS = ("issue-body/issue-", "<absolute-cache-path>")
+ALLOW_SITE_LITERALS = (
+    "issue-body/issue-",
+    "<absolute-cache-path>",
+    "gh issue view $ARGUMENTS --json body --jq '.body'",
+)
 
 #: A head token naming the gh binary directly, or through a resolver variable
 #: whose name ends in `GH` (the repo's resolver contract, mirrored from

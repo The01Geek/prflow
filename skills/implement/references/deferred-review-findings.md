@@ -48,10 +48,7 @@ if ! mkdir -p .prflow/tmp; then
 fi
 rm -f .prflow/tmp/devflow-dm.err
 DISCOVERY_STATE=""
-```
-Invoke `discover-deferral-manifests.py $SEARCH_DIRS` as a redirect-free leading-token statement first. Read its stdout, stderr, and exit status from the tool result; Write stderr to `.prflow/tmp/devflow-dm.err`, and substitute stdout as the literal `MANIFESTS` value before continuing through the branches below. This preserves the helper's partial/failure discrimination without relying on an unproven redirect shape.
-```bash
-if MANIFESTS=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/discover-deferral-manifests.py $SEARCH_DIRS); then
+if MANIFESTS=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/discover-deferral-manifests.py $SEARCH_DIRS 2>.prflow/tmp/devflow-dm.err); then
     DISCOVERY_STATE=ok
 elif grep -q 'devflow: discovery partial:' .prflow/tmp/devflow-dm.err; then
     # PARTIAL: at least one root failed, at least one did not. Keep the captured paths and file
@@ -115,12 +112,10 @@ if { [ "$DISCOVERY_STATE" = ok ] || [ "$DISCOVERY_STATE" = partial ]; } && [ -n 
     # Delete any stale capture so a resumed run cannot read a prior attempt's stderr
     # (the .prflow/tmp leaf was already created at the top of this fence).
     rm -f .prflow/tmp/devflow-fd.err
-    # Invoke file-deferrals.py redirect-free, consume stdout/stderr/rc from the
-    # tool result, and Write stderr to devflow-fd.err before routing these arms.
     if FILED_OUT=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/file-deferrals.py \
         --source-issue $ARGUMENTS \
         --pr "$PR_NUMBER" \
-        --manifest "$AGG"); then
+        --manifest "$AGG" 2>.prflow/tmp/devflow-fd.err); then
         FILED_NUMBERS="$FILED_OUT"
         FILED_STATE=filed
         # file-deferrals.py exits 0 even on PARTIAL success: a per-file group whose
