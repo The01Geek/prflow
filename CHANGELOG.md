@@ -4,6 +4,15 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.69] — 2026-08-13
+
+### Changed
+Drop the removed tool names `LS` and `NotebookRead` from the `code-explorer` and
+`code-architect` agent frontmatter. Claude Code merged `NotebookRead` into `Read` and
+retired `LS` in favour of `Glob`, so both names resolved to nothing; the agents keep the
+same effective tool set and the stale names no longer suggest a broken grant to consumers
+on other runners.
+
 ## [2.32.68] — 2026-08-13
 
 ### Changed
