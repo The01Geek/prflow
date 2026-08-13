@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1665",
+  "generated_at": "2026-08-13T05:24:08Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.64",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 4.628407,
+    "tokens": {
+      "input_tokens": 357,
+      "output_tokens": 16894,
+      "cache_read_input_tokens": 3332170,
+      "cache_creation_input_tokens": 140639,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 369,
+        "outputTokens": 26460,
+        "cacheReadInputTokens": 3548019,
+        "cacheCreationInputTokens": 266185,
+        "webSearchRequests": 0,
+        "costUSD": 4.628407,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 28,
+    "duration_ms": 385840
+  },
+  "permission_denials": {
+    "count": 3,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-none} ATTEMPT=${GITHUB_RUN_ATTEMPT:-none}\"; mkdir -p .prflow/tmp/review/pr-1665/r1; gh pr diff 1665 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1665/r1/diff.patch | head -5; echo \"---STAT---\"; gh pr diff 1665 --name-only",
+      "ls /home/runner/work/prflow/prflow/.changeset/ 2>/dev/null; echo \"---\"; for f in /home/runner/work/prflow/prflow/.changeset/*.md; do echo \"== $f\"; tail -1 \"$f\" | grep -oE '\\(#[0-9]+\\)' ; done 2>/dev/null | head -60",
+      ".prflow/vendor/prflow/scripts/workpad.py patch 5276289122 .prflow/tmp/review/pr-1665/r1/review-wp.md 2>.prflow/tmp/review/pr-1665/r1/rv-patch.err; echo \"patch-rc=$?\"; cat .prflow/tmp/review/pr-1665/r1/rv-patch.err"
+    ],
+    "total": 3,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
