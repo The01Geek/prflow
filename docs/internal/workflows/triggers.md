@@ -21,7 +21,8 @@ Event routing is a security and cost boundary. Restricting the accepted event an
 
 ## Source of truth
 
-- `.github/workflows/devflow.yml`, `.github/workflows/devflow-implement.yml`, and `.github/workflows/ci.yml` — event and job routing.
+- `.github/workflows/devflow.yml` and `.github/workflows/devflow-implement.yml` — event and command routing.
+- `.github/workflows/ci.yml` — pull-request verification jobs.
 - `scripts/authorize-actor.sh`, `scripts/react-to-trigger.sh`, and deduplication helpers — trigger decisions.
 - `skills/*/SKILL.md` — command behavior after dispatch.
 - `docs/internal/workflow-triggers.md` — detailed trigger matrix and historical rationale.

@@ -22,7 +22,7 @@ Specialized roles make the review surface explicit and let the engine ask differ
 ## Source of truth
 
 - `agents/*.md` — agent definitions and role prompts.
-- `skills/review/SKILL.md` and `skills/review/references/` — dispatch and phase routing.
+- `skills/review/SKILL.md` and `skills/review/phases/` — dispatch and phase routing.
 - `.prflow/config.json` and `.prflow/config.schema.json` — override shape and accepted configuration.
 - `docs/internal/review-agent-overrides.md` — detailed resolution and version-skew evidence.
 - `docs/internal/agents-seam-probe.md` — measured effort-seam evidence.

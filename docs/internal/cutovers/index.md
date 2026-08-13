@@ -6,6 +6,7 @@ The records remain in this directory because their issue-oriented names and link
 
 ## Records
 
+- [Internal documentation restructure implementation plan](internal-documentation-implementation-plan.md) — completed 2026-08-12.
 - [Issue #693 — issue-body cache](693-issue-body-cache.md)
 - [Issue #745 — run.sh CI lint](745-run-sh-ci-lint.md)
 - [Issue #1053 — focused-first precondition growth](issue-1053-focused-first-precondition-growth.md)

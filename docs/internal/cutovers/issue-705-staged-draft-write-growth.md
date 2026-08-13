@@ -32,4 +32,4 @@ kind: growth
 - The Step 4 references (`step-4-present-create.md`) grow only by two by-name pointer sentences
   at the presentation and iterate write sites; the substantive procedure lives once in
   `step-3-6-audit.md`. The root-plus-references total moves 25,814 → 27,198 and the default-path
-  measured 29,973 → 31,202, both recorded in `docs/create-issue-budget.md`; no ceiling is raised.
+  measured 29,973 → 31,202, both recorded in `create-issue-budget.md`; no ceiling is raised.

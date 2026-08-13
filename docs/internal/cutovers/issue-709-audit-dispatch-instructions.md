@@ -69,7 +69,7 @@ under the *Prose cutover* convention, and this is its record: both additions rep
 sentence with a true one on the same execution path, neither adds a new rule, and the shipped
 default-path headroom after them is ~0.6% (189 words). The bulk of the new prose lives in the
 renderer-owned template, which no budget operand contains — so the ceiling is not renegotiated and
-`CLAUDE.md` is untouched. Figures and the decision record: `docs/create-issue-budget.md`.
+`CLAUDE.md` is untouched. Figures and the decision record: `create-issue-budget.md`.
 
 ## Consuming paths
 
@@ -157,4 +157,4 @@ path. Each divergence row *plants* the defect the gate exists to catch and asser
 - `CI614_TOTAL_RECORDED` re-anchored 25,814 → 27,146 (the live root+references total), so the ±2%
   conservation band keeps guarding against a silent prose drop from the new size rather than
   reporting this change's intended growth as drift. The #614 split's own conservation arithmetic in
-  `docs/create-issue-budget.md` is left frozen and is now labelled a past-time snapshot.
+  `create-issue-budget.md` is left frozen and is now labelled a past-time snapshot.

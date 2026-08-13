@@ -52,14 +52,14 @@ The prose must distinguish current behavior from historical evidence. A cutover 
 
 ## Root index
 
-`docs/internal/index.md` is the primary entry point. It will provide:
+`docs/internal/index.md` is the primary entry point. It provides:
 
 - A short “before planning a change” path that starts with the relevant system surface, then points to the source files and guards to inspect.
 - A workflow-oriented map for create-issue, implement, review, review-and-fix, documentation, retrospective, and cloud-triggered paths.
 - A surface-oriented map for skills, agents, workflows, operations, and improvement loops.
 - A history link to the navigable `cutovers/` records.
 
-The index will point to canonical pages with short routing descriptions. It will not restate implementation rules, numeric inventories, or decision narratives that can drift from their owners.
+The index points to canonical pages with short routing descriptions. It does not restate implementation rules, numeric inventories, or decision narratives that can drift from their owners.
 
 ## Splitting and migration rules
 

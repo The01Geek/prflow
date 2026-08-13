@@ -14,7 +14,7 @@ Both figures are measured against `origin/main` **after** merging it into this b
 are this change's own contribution and not the merge's.
 
 The default-path ceiling **was** renegotiated, as a merge collision and at the operator's
-direction (`docs/create-issue-budget.md`, the 2026-07-22 PR #728 decision row):
+direction (`create-issue-budget.md`, the 2026-07-22 PR #728 decision row):
 
 - root 2,732 (ceiling 2,754, **unchanged**)
 - default path 32,475 → **32,619**; ceiling 32,491 → **34,249** (measured + the full AC6 5% maximum)
@@ -75,4 +75,4 @@ single-change growth: the ratchet-down-only rule resumes immediately, so a later
 lowers the recorded ceiling, and the next contributor adding to a default-path member should still
 prefer shedding prose over spending the margin. Re-measure with the suite's python3 word-split
 (`ci614_words` in `lib/test/modules/create-issue-contract.sh`), never `wc -w`; the live figures live
-in `docs/create-issue-budget.md`, which is the record this paragraph defers to.
+in `create-issue-budget.md`, which is the record this paragraph defers to.
