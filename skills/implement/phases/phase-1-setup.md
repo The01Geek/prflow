@@ -416,7 +416,7 @@ Read every `ISSUE-CLAIM-AUDIT RECORD` field: `outcome` (`proceed` / `blocked-spe
   Only exit zero is usable (`represented` plus an empty array). Carry Pass 5 flags, Pass 2 surfaces, and superseding assumptions forward. A refused/non-zero invocation or missing, wrong-typed, inconsistent, or non-empty tuple takes the inline-audit fallback; never enter Phase 2 from it.
 - **`outcome: blocked-specification`** → even with non-empty ACs, record `Blocked` naming every exact unmatched statement, emit 👎, remove the run marker, and stop before Phase 2. Never synthesize or rewrite an AC.
 - **`outcome: blocked-policy`** → record `Blocked` with the returned AC, policy file, and policy text; emit 👎, remove the run marker, and stop.
-- **`outcome: blocked-capability`** → record `Blocked` naming the all-workflow-resident set and observed credential boundary; emit 👎 and stop without a PR.
+- **`outcome: blocked-capability`** → record `Blocked` with `issue-claim audit (execution-capability): every in-scope acceptance criterion requires editing .github/workflows/`, naming the observed credential boundary; emit 👎 and stop without a PR.
 
 If dispatch fails or returns no usable record, record `dropped-failed` and run `agents/issue-claim-auditor.md` inline; never skip the audit.
 
