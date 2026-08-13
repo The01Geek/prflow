@@ -718,6 +718,7 @@ assert_eq "rpe: no skill name → unestablished naming the missing argument" "ye
 # to prevent. The fixture copies the WRAPPER ALONE into an empty directory, so the only
 # property under test is the missing sibling.
 RPE_LONE_DIR="$(mktemp -d)"
+RPE_LONE_DIR="$(cd "$RPE_LONE_DIR" && pwd -P)"
 mkdir -p "$RPE_LONE_DIR/bin" "$RPE_LONE_DIR/closure"
 cp "$RPE" "$RPE_LONE_DIR/bin/render-prompt-extension.sh"
 printf 'lone policy line\n' > "$RPE_LONE_DIR/closure/review.md"
