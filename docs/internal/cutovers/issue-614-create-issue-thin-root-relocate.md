@@ -70,7 +70,7 @@ overhead the split is required to add (boundary markers 108, routing table 325, 
 prose 155, non-degradable-invariants block 175, seam pointers 222) leaves 24,829 against a
 pre-split baseline of 24,473 — **+1.45%**, inside the ±2% tolerance. The full itemization,
 the two enforced ceilings, and the decision record live in
-[`docs/create-issue-budget.md`](../create-issue-budget.md).
+[`create-issue-budget.md`](create-issue-budget.md).
 
 The always-loaded surface drops from 24,473 words to 2,732, and a default-path run — task
 tool usable, writable filesystem, file-arm dispatch, state owner available — no longer loads

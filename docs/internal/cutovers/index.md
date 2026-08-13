@@ -21,6 +21,7 @@ The records remain in this directory because their issue-oriented names and link
 - [Issue #611 — create-issue section wiring growth](issue-611-create-issue-section-wiring-growth.md)
 - [Issue #613 — create-issue shift-left disciplines](issue-613-create-issue-shift-left-disciplines.md)
 - [Issue #614 — create-issue thin-root relocation](issue-614-create-issue-thin-root-relocate.md)
+- [Retired create-issue budget record](create-issue-budget.md)
 - [Issue #618 — self-apply authorization](issue-618-self-apply-authorization.md)
 - [Issue #619 — batched artifact regeneration](issue-619-batched-artifact-regeneration.md)
 - [Issue #620 — reception extension port](issue-620-reception-extension-port.md)
