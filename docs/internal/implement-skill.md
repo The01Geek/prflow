@@ -1366,10 +1366,13 @@ in the issue template), Phase 4.1 enforces delivery through a two-stage gate.
 
 **The bullet is a floor, not a ceiling.** The `Documentation Needed` bullet is an *additive* floor of
 mandatory deliverables — it can only *add* required files. A narrative claim that documentation is
-unnecessary — including an absent, empty, or contradictory `Documentation Needed` bullet — never
+unnecessary — including an absent, empty, contradictory, or standalone-`none`-declared (issue #1663)
+`Documentation Needed` bullet — never
 suppresses the routine doc pass: the `prflow:docs` subagent still runs and updates documentation
 warranted by the shipped behavior change, and the bullet is never read as a ceiling that authorizes
-skipping otherwise-warranted documentation. This mirrors the Phase 2.1 authority hierarchy (the issue
+skipping otherwise-warranted documentation. The standalone-`none` declaration (below) changes only what
+the extractor treats as a *named deliverable* — it removes the block's floor of mandatory files; it does
+not, and cannot, suppress the routine doc pass, exactly like the absent/empty/contradictory states. This mirrors the Phase 2.1 authority hierarchy (the issue
 narrative is a non-authoritative starting point; only Desired Behavior and Acceptance Criteria are the
 decided spec). The two-stage gate described below is unchanged by this framing — it enforces the floor
 of named deliverables; it does not decide whether the doc pass runs.
@@ -1413,6 +1416,25 @@ construction (no judgement call, and none of the LLM-extraction drift that earli
 gate suffered). Its behavior is verified by a fixture-based input-shape matrix in `lib/test/run.sh`
 (bullet-with-paths, no-paths, absent section, path-in-another-section-not-extracted, directory-token and
 rooted-token rejection) rather than by the shadow review.
+
+**Standalone `none` declaration (issue #1663).** A writer can declare that the block promises nothing by
+opening it with the standalone word `none`, so the honest phrasing that explains *why* a page needs no
+change no longer creates work (the friction hit on issue #1659, where `none.` followed by a backticked
+already-correct file turned that file into a mandatory deliverable). The extractor examines the block's
+**first content token alone**, wherever it falls (after the label on the opener line for the list-item and
+bold-paragraph openers, or on a later line for a bare opener's sub-list and the level-3 heading): the
+declaration is recognized when that token is exactly `none` (case-insensitive) carrying at most one
+trailing terminator from the closed set `,` `.` `;` `:`, or when `none` stands alone as the block's only
+content. It is a whole-token literal comparison (never a leading prefix, so no multibyte separator is
+decomposed under the script's byte-wise locale), which is why an ordinary sentence opening `None of these
+pages may be skipped:` runs on into prose and still extracts its paths, and `none!` / `none)` — carrying a
+character outside the terminator set — are not declarations. Content after the first token, including a
+backticked path, is deliberately not consulted. When the declaration is recognized the extractor emits no
+paths for the block, so the read helper reports `no-deliverables` (exit 10) — the existing empty-extraction
+signal, needing no new token — and Stage 1's existing safety-net note records that the cross-check was
+skipped. **Stated residual:** a writer who declares `none` and then names a file that genuinely needs
+editing loses that file's mandatory status; the routine doc pass still runs and updates what the change
+warrants, so the case is auditable rather than silent — the accepted cost of a declared empty form.
 
 **Span, call-group, and fence rules (issue #644).** Inside the scoped block, three constructs are
 treated as scope markers rather than deliverable text, so a routine PRFlow issue that quotes a

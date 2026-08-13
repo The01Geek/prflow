@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.66] — 2026-08-13
+
+### Added
+- **Let an issue declare that no documentation is needed without creating work.** The `Documentation Needed` block extractor (`scripts/extract-doc-needed-paths.sh`) now recognizes a standalone `none` as the block's first content token — exactly `none` (case-insensitive) plus at most one terminator from `,.;:`, or `none` standing alone — and emits no deliverables for that block, so a writer can explain why a page needs no change (and name it) without turning it into a mandatory deliverable. The match is a whole-token literal, so an ordinary sentence opening `None of these …` still extracts its paths. (#1666)
+
 ## [2.32.65] — 2026-08-13
 
 ### Fixed

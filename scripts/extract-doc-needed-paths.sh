@@ -86,9 +86,28 @@
 #     in-tree deliverable, so both are dropped outright — this also stops a token
 #     that carries a recognized extension (`../notes.md`) from reaching the
 #     extension branch, which emits on the extension alone (issue #254).
+#   * standalone `none` declaration (issue #1663) — a block whose FIRST content
+#     token is the recognized declaration promises nothing, so no paths are
+#     emitted for it (the reading helper then reports `no-deliverables`). The
+#     declaration is examined on the first content token ALONE, wherever it falls:
+#     that token must be exactly `none` (case-insensitively) carrying at most one
+#     trailing terminator from the closed set comma/period/semicolon/colon, OR
+#     `none` standing alone as that first content token (any later block content
+#     is then suppressed, per the residual below). It is a whole-token
+#     literal comparison, never a leading prefix, so `None of these pages may be
+#     skipped:` runs on into a sentence and still extracts its paths, and `none!` /
+#     `none)` carry a char outside the terminator set and are not declarations.
+#     Content after the first token — the writer's explanatory sentence and any
+#     path it names — is deliberately NOT consulted. STATED RESIDUAL: a writer who
+#     opens with the declaration and then names a file that genuinely needs editing
+#     loses that file's mandatory status; the routine Phase 4.1 documentation pass
+#     still runs and still updates what the change warrants, and Stage 1's
+#     safety-net workpad note records that the cross-check was skipped, so the case
+#     is auditable rather than silent — the accepted cost of a declared empty form.
 #
-# Output is sorted and de-duplicated; absent section / empty bullet / no
-# path-like tokens all yield empty output and exit 0 (a true no-op signal).
+# Output is sorted and de-duplicated; absent section / empty bullet / standalone
+# `none` declaration / no path-like tokens all yield empty output and exit 0 (a
+# true no-op signal).
 set -euo pipefail
 
 body="$(cat "${1:-/dev/stdin}")"
@@ -189,6 +208,29 @@ run_stage_a() {
     }
     return 0
   }
+  # decl_candidate(line): the standalone-`none` declaration contract is in the
+  # header. This returns the line'"'"'s content with the label and the separator run
+  # after it stripped, so is_none_declaration() sees the first content token. The
+  # em-dash separator is stripped as a regex LITERAL, never a byte class, so the
+  # byte-wise locale cannot decompose it into a stray single-byte match.
+  function decl_candidate(line,   s) {
+    s = line
+    gsub(/`/, "", s)
+    sub(/^(- )?\*\*Documentation Needed\*\*/, "", s)
+    sub(/^([[:space:]*:.-]|—)+/, "", s)
+    return s
+  }
+  # is_none_declaration(cand): true for the two recognized forms (see the header
+  # contract) and nothing else — `none` plus one terminator from `,.;:` at a
+  # whitespace-or-end boundary, or `none` standing alone. The terminator/boundary
+  # anchor is what keeps a leading prefix like `None of these …` (word `none`
+  # followed by more content) and `none!` / `none)` from matching.
+  function is_none_declaration(cand) {
+    cand = tolower(cand)
+    if (cand ~ /^none[,.;:]([[:space:]]|$)/) return 1   # none + one terminator
+    if (cand ~ /^none[[:space:]]*$/) return 1           # none standing alone
+    return 0
+  }
   BEGIN { prev_blank = 1; in_fence = 0 }   # start-of-file is a paragraph boundary
   # Fence tracking (issue #644) — the FIRST thing, before any scope arm, from the
   # top of the body (a fence can open before any scope opener). A GFM fence
@@ -225,6 +267,11 @@ run_stage_a() {
   /^###+ / {
     if (state >= 1 && $0 ~ /^###[[:space:]]+\*{0,2}Documentation Needed/) {
       if (state != 2) emitted = 0
+      # Reset the declaration latch on EVERY Documentation Needed opener (issue
+      # #1663): without this a `none` block silently suppresses a later block
+      # deliverable — a fail-open across blocks. Unlike emitted, this is not gated
+      # on state!=2, so back-to-back openers (already state 2) still re-examine.
+      decl = 0; decl_examined = 0
       state = 2
       entered_scope = 1
     } else if (state == 2) {
@@ -284,6 +331,10 @@ run_stage_a() {
   state >= 1 && ( /^- \*\*[^`]/ || ( /^\*\*[^`]/ && prev_blank ) ) {
     ns = ($0 ~ /^(- )?\*\*Documentation Needed\*\*/) ? 2 : 1
     if (ns == 2 && state != 2) emitted = 0
+    # Reset the declaration latch on EVERY Documentation Needed opener (issue
+    # #1663): a `none` block must not suppress a later block deliverable. Not gated
+    # on state!=2, so back-to-back openers (already state 2) still re-examine.
+    if (ns == 2) { decl = 0; decl_examined = 0 }
     if (ns == 2) entered_scope = 1
     entered_section = 1
     state = ns
@@ -335,6 +386,25 @@ run_stage_a() {
   # reach here (the fence rule `next`-skips them), so a fenced heading-shaped or
   # bold-shaped line drives no scope transition and no arm.
   state == 2 {
+    # issue #1663 — the standalone `none` declaration. Examine the block'"'"'s FIRST
+    # content token (wherever it falls): if it is the recognized declaration, the
+    # block promises nothing, so suppress ALL of its output. The reading helper
+    # then turns the empty extraction into `no-deliverables` (exit 10), the signal
+    # the run already treats as "nothing to cross-check". Runs before any token is
+    # classified, so a backticked path anywhere after the declaration cannot defeat
+    # it. Placed here rather than as an unconditional close so it expresses a
+    # writer'"'"'s declaration, not a second way for content to vanish.
+    if (!decl_examined) {
+      cand = decl_candidate($0)
+      if (cand != "") {
+        decl_examined = 1
+        if (is_none_declaration(cand)) {
+          decl = 1
+          print "extract-doc-needed-paths.sh: the Documentation Needed block opens with a standalone none declaration (first content token none); emitting no deliverables for this block" > "/dev/stderr"
+        }
+      }
+    }
+    if (decl) { prev_blank = ($0 ~ /^[[:space:]]*$/); next }
     print
     if ( ( $0 ~ /^[[:space:]]*-/ || $0 ~ /^\*\*/ ) && arms($0) ) emitted = 1
   }

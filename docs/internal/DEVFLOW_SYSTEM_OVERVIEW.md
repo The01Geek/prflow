@@ -1,11 +1,10 @@
-# PRFlow: Complete System Reference
+# PRFlow detailed system reference
 
-> **Purpose of this document.** This is a single, detail-rich reference describing
-> *everything* about the PRFlow system: what it is, who it's for, how every piece
-> works, and why the design is the way it is. It is written to be handed to other
-> agents (and people) as source material for **marketing decks, technical decks,
-> and explainer videos**. It mixes the "elevator pitch" framing marketers need with
-> the precise mechanics engineers need, and flags which is which.
+> **Role of this document.** This is the retained detail reference behind the concise
+> [system overview](architecture/system-overview.md). It contains deep mechanics and historical
+> context for maintainers. Its positioning section (§21 of this document) remains the messaging
+> source of truth that `CLAUDE.md`'s marketing convention points to; agents should begin with the
+> overview and follow the focused page for the surface they are changing.
 >
 > **Provenance & accuracy.** Every fact here was extracted from the PRFlow source
 > repository (`The01Geek/prflow`): the README, the skill definitions
@@ -1110,9 +1109,9 @@ The plugin install above runs **no installer script** — `install.sh` belongs t
 
 **Cloud tier (optional, from repo root)** — download, read, then run, with both refs pinned to a release tag:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.32.65/install.sh -o devflow-install.sh
+curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.32.66/install.sh -o devflow-install.sh
 # review devflow-install.sh, then:
-DEVFLOW_REF=v2.32.65 bash devflow-install.sh
+DEVFLOW_REF=v2.32.66 bash devflow-install.sh
 ```
 The URL ref fixes which installer bytes you review and run; `DEVFLOW_REF` (default `main`; a tag, SHA, or branch) fixes which ref the installer clones its payload from — pinning the URL alone leaves the payload on `main`. Substitute a newer tag in both places to move the pin; every version is tagged, so the [Tags page](https://github.com/The01Geek/prflow/tags) names the current one, while the [Releases page](https://github.com/The01Geek/prflow/releases) announces the feature releases — see [`docs/internal/install.md`](install.md#pinning-the-installer). Piping the download straight to `bash` works but forfeits the review step. Thin by default (installs workflows, actions, a local marketplace, a config scaffold, and pins `prflow_version`). `DEVFLOW_VENDOR=1` commits the tree instead.
 

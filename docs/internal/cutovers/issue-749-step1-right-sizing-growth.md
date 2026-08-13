@@ -57,7 +57,8 @@ AC4 forbids, since the peer's own contract wins.
 
 The cost is bounded and paid for. Both create-issue ceilings were renegotiated by explicit human
 authorization in the same change, and the legality band widened 5% → 10% after the previous band
-was consumed to ~0.8% root / ~1.5% default-path headroom — the record is in
-[`create-issue-budget.md`](../create-issue-budget.md). `skills/docs-verify/SKILL.md` is loaded on
+was consumed to ~0.8% root / ~1.5% default-path headroom. These figures are historical; see
+[`create-issue-budget.md`](create-issue-budget.md) for the retained context and `CHANGELOG.md` for
+the subsystem's retirement. `skills/docs-verify/SKILL.md` is loaded on
 the default path but sits outside both ceiling operands: it is dispatched into a peer's context
 and never read into the orchestrator's, so its growth costs the caller nothing.

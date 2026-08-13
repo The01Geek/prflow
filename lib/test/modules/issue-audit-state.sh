@@ -2217,6 +2217,7 @@ fi
 # rather than collapsed onto the omitted case. The check is scoped inside the file arm.
 WP_SB="$(git_sandbox '#569 write_path_crosscheck_rows')"
 if [ -d "$WP_SB" ]; then
+  WP_SB="$(cd "$WP_SB" && pwd -P)"
   (
     cd "$WP_SB" || exit 1
     git init -q .
