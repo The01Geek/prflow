@@ -1,0 +1,63 @@
+{
+  "iter": 1,
+  "loop_role": "fix",
+  "fix_commit_sha": "f78e9563a1ecba2997196a2161fd50a836c328d7",
+  "fix_files": [
+    "agents/ac-claim-verifier.md"
+  ],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:silent-failure-hunter",
+    "prflow:type-design-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "measurement arm left an undecidable instrument-fit unrouted (fail-open) after the fallback was narrowed to 'fits none of the shapes'",
+      "defect_signature": {
+        "file": "agents/ac-claim-verifier.md",
+        "kind": "unrouted_outcome"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "'bears out' reads loosely vs 'targets/tests its literal claim'",
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "f78e9563a1ecba2997196a2161fd50a836c328d7"
+    }
+  ],
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": "silent-failure-hunter re-review confirmed the undecidable-fit route closes the gap and introduces no new issue"
+    }
+  },
+  "verification_evidence": {
+    "result": "in-env",
+    "note": "test_python_scripts.py 5018 passed; stale-prose-lint clean on delta; frontmatter/JSON valid"
+  },
+  "verdict": "APPROVE",
+  "coverage": "not-verified (full fresh-context Phase-3 roster dispatched + independent fix-delta re-review; no separately-labeled Step 2.6 shadow fan-out)",
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
