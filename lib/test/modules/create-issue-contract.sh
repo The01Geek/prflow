@@ -1712,6 +1712,146 @@ assert_eq "#1098 guard2: narrowing the helper's adjudicated set is caught (subse
 assert_eq "#1098 fixture: pre-change command-form bullet classifies handle=command" "command" "$(_ci_guard1098 classify-command)"
 assert_eq "#1098 fixture: post-change path-quote-form bullet classifies handle=path-quote" "path-quote" "$(_ci_guard1098 classify-pathquote)"
 
+# Issue #1515: execute the shared projection predicate over structured state. These
+# fixtures intentionally invert one semantic axis at a time, so swapping `==` for
+# `!=` or accepting a non-empty unmatched array turns a GREEN assertion RED.
+CI1515_GATE="$CI_ROOT/lib/projection-gate.jq"
+_ci1515_gate() { printf '%s' "$1" | jq -e -f "$CI1515_GATE" >/dev/null 2>&1 && echo eligible || echo blocked; }
+assert_eq "#1515 represented plus zero unmatched is filing-eligible" "eligible" \
+  "$(_ci1515_gate '{"projection_disposition":"represented","unmatched_desired_behavior":[]}')"
+assert_eq "#1515 represented plus a nonempty unmatched set fails closed" "blocked" \
+  "$(_ci1515_gate '{"projection_disposition":"represented","unmatched_desired_behavior":["stable ordering"]}')"
+assert_eq "#1515 unmatched plus an empty set is inconsistent and fails closed" "blocked" \
+  "$(_ci1515_gate '{"projection_disposition":"unmatched","unmatched_desired_behavior":[]}')"
+assert_eq "#1515 missing projection fields fail closed" "blocked" "$(_ci1515_gate '{}')"
+# Deleting the gate's array-type clause must go RED: each of these reaches that
+# clause with a represented disposition, so `length` alone would accept or abort.
+assert_eq "#1515 represented plus a null unmatched slot fails closed" "blocked" \
+  "$(_ci1515_gate '{"projection_disposition":"represented","unmatched_desired_behavior":null}')"
+assert_eq "#1515 represented plus an object unmatched slot fails closed" "blocked" \
+  "$(_ci1515_gate '{"projection_disposition":"represented","unmatched_desired_behavior":{}}')"
+
+# Exercise the authoring operand with a real, non-empty AC section parsed by the
+# same helper the implementing run consumes; projection is a second, independent
+# gate rather than a replacement for AC parseability.
+cat > "$_ci_tmp_root/ci1515-body.md" <<'EOF'
+## Desired Behavior
+Exports retain stable ordering.
+## Acceptance Criteria
+- [ ] A repeated export of the same input preserves item order.
+EOF
+CI1515_AC_JSON="$(python3 "$CI_ROOT/scripts/parse-acs.py" --body-file "$_ci_tmp_root/ci1515-body.md" --format json)"
+assert_eq "#1515 fixture contains one actually parsed AC" "1" \
+  "$(printf '%s' "$CI1515_AC_JSON" | jq '.acceptance_criteria | length')"
+assert_eq "#1515 nonempty AC does not rescue an unmatched projection" "blocked" \
+  "$(_ci1515_gate '{"projection_disposition":"unmatched","unmatched_desired_behavior":["Exports retain stable ordering."]}')"
+
+# Compare a broad tree discovery against the durable inventory, then parse each
+# producer's ACTUAL returned schema/construction (never a detached sample marker).
+CI1515_INVENTORY="$CI_ROOT/lib/desired-behavior-producers.json"
+CI1515_CENSUS="$(python3 - "$CI_ROOT" "$CI1515_INVENTORY" <<'PY'
+import json, pathlib, re, sys
+root, inv = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
+expected = set(json.loads(inv.read_text())["noninteractive_issue_body_producers"])
+found = set()
+for base in (root / "agents", root / "skills"):
+    for path in base.rglob("*.md"):  # tree-walk-ok: census all prompt producers so a newly added noninteractive Desired Behavior issue author cannot escape inventory validation
+        text = path.read_text(encoding="utf-8")
+        if "Desired Behavior" in text and any(x in text for x in ("filing plan", "findings` array", "findings array", "meta-issue.sh")) and "interactive" not in path.name:
+            if "issue-template.md" not in str(path): found.add(str(path.relative_to(root)))
+print("census-ok" if found == expected else "drift:" + ",".join(sorted(found ^ expected)))
+for rel in sorted(expected):
+    text=(root/rel).read_text()
+    if rel.endswith("deferral-drafter.md"):
+        ok=bool(re.search(r'drafts:\n(?:.|\n)*?projection_disposition: represented\n\s+unmatched_desired_behavior: \[\]', text))
+    else:
+        ok=('"projection_disposition", "unmatched_desired_behavior"' in text and
+            'projection_disposition:"represented", unmatched_desired_behavior:[]' in text)
+    print(rel + "=" + ("schema-ok" if ok else "schema-missing"))
+PY
+)"
+assert_eq "#1515 durable producer inventory equals broad tree discovery" "census-ok" "$(printf '%s\n' "$CI1515_CENSUS" | head -1)"
+assert_eq "#1515 actual producer return schemas carry the canonical tuple" "0" \
+  "$(printf '%s\n' "$CI1515_CENSUS" | tail -n +2 | grep -c 'schema-missing')"
+
+# The implement-side consumers must invoke the SAME executable predicate tested
+# above. Resolve the filter from each production prompt, then execute that resolved
+# operation; removing the invocation is a production-consumer regression, not a
+# harmless prose rewrite.
+CI1515_PHASE1="$CI_ROOT/skills/implement/phases/phase-1-setup.md"
+CI1515_DEFERRED="$CI_ROOT/skills/implement/references/deferred-ac-followups.md"
+_ci1515_production_consumer() {
+  python3 - "$CI_ROOT" "$1" "$2" <<'PY'
+import json, pathlib, re, subprocess, sys, tempfile
+root, prompt_path, mutation = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2]), sys.argv[3]
+text = prompt_path.read_text(encoding="utf-8")
+if mutation == "remove-call":
+    text = text.replace("projection-gate.jq", "projection-gate.REMOVED")
+elif mutation == "invert-route":
+    text = text.replace("Only exit zero", "Only non-zero").replace("only when that operation exits zero", "only when that operation exits non-zero")
+matches = re.findall(r'run-jq\.sh[^\n`]*-e[^\n`]*-f[^\n`]*projection-gate\.jq', text)
+if len(matches) != 1:
+    print("caught" if mutation else "consumer-unbound")
+    raise SystemExit
+zero_eligible = ("Only exit zero" in text or "only when that operation exits zero" in text)
+nonzero_unusable = ("non-zero invocation" in text or "refused/non-zero" in text)
+if not zero_eligible or not nonzero_unusable:
+    print("caught" if mutation else "route-unbound")
+    raise SystemExit
+if "unmatched_desired_behavior" not in text or "JSON array" not in text:
+    print("noncanonical-shape")
+    raise SystemExit
+gate = root / "lib/projection-gate.jq"
+fixtures = [
+    ({"projection_disposition":"represented","unmatched_desired_behavior":[]}, 0),
+    ({"projection_disposition":"represented","unmatched_desired_behavior":["exact obligation"]}, 1),
+    ({"projection_disposition":"unmatched","unmatched_desired_behavior":[]}, 1),
+]
+for fixture, expected in fixtures:
+    proc = subprocess.run(["jq", "-e", "-f", str(gate)], input=json.dumps(fixture), text=True,
+                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    actual = 0 if proc.returncode == 0 else 1
+    if actual != expected:
+        print("route-inverted")
+        raise SystemExit
+print("consumer-bound")
+PY
+}
+assert_eq "#1515 Phase 1 consumes the shared projection operation over canonical arrays" \
+  "consumer-bound" "$(_ci1515_production_consumer "$CI1515_PHASE1" live)"
+assert_eq "#1515 deferred filing consumes the shared projection operation over canonical arrays" \
+  "consumer-bound" "$(_ci1515_production_consumer "$CI1515_DEFERRED" live)"
+assert_eq "#1515 production-consumer mutation: removing Phase 1's gate invocation is caught" \
+  "caught" "$(_ci1515_production_consumer "$CI1515_PHASE1" remove-call)"
+assert_eq "#1515 production-consumer mutation: removing deferred filing's gate invocation is caught" \
+  "caught" "$(_ci1515_production_consumer "$CI1515_DEFERRED" remove-call)"
+assert_eq "#1515 production-consumer mutation: inverting Phase 1 rc polarity is caught" \
+  "caught" "$(_ci1515_production_consumer "$CI1515_PHASE1" invert-route)"
+assert_eq "#1515 production-consumer mutation: inverting deferred rc polarity is caught" \
+  "caught" "$(_ci1515_production_consumer "$CI1515_DEFERRED" invert-route)"
+
+CI1515_STEP4="$CI_ROOT/skills/create-issue/references/step-4-present-create.md"
+_ci1515_feedback_route() {
+  python3 - "$CI1515_STEP4" "$1" <<'PY'
+import pathlib, sys
+t=pathlib.Path(sys.argv[1]).read_text(); mut=sys.argv[2]
+if mut == 'remove-projection': t=t.replace('run Step 3.5 again', 'skip Step 3.5')
+if mut == 'projection-before-delta':
+    t=t.replace('run **Revision-delta verification**, then **run Step 3.5 again', 'run Step 3.5 again, then **Revision-delta verification**')
+start=t.find('4. **Iterate on feedback.'); end=t.find('5. **Create', start)
+arm=t[start:end]
+delta=arm.find('Revision-delta verification')
+projection=arm.find('run Step 3.5 again')
+overwrite=arm.find('Overwrite the same')
+between=arm[projection:overwrite] if 0 <= projection < overwrite else ''
+ok=(0 <= delta < projection < overwrite and 'fix what' not in between.lower() and 'revise the draft' not in between.lower())
+print('projection-rerun' if ok else 'caught')
+PY
+}
+assert_eq "#1515 feedback revision reprojects after Revision-delta and before overwrite/approval" "projection-rerun" "$(_ci1515_feedback_route live)"
+assert_eq "#1515 feedback mutation: skipping projection rerun is caught" "caught" "$(_ci1515_feedback_route remove-projection)"
+assert_eq "#1515 feedback mutation: projection before mutating Revision-delta is caught" "caught" "$(_ci1515_feedback_route projection-before-delta)"
+
 # Complete normal cleanup explicitly so a removal or marker failure changes the
 # module status. EXIT remains a fallback for earlier returns and shell errors.
 if ! _ci_cleanup; then

@@ -2869,6 +2869,64 @@ printf '%s' '{"schema_version":3,"patterns":{},"dismissed":{}}' > "$TMP_SF/sf-ov
 # call devflow_select_findings; stdout is captured, stderr routed under $TMP_SF.
 # shellcheck disable=SC1090  # $RL_SF is the select-findings.sh path under test
 rl_sf() { ( . "$RL_SF"; devflow_select_findings "$@" ); }
+# shellcheck disable=SC1090  # $RL_SF is the select-findings.sh path under test
+rl_sf_projection() { ( . "$RL_SF"; devflow_projection_eligible_findings "$@" ); }
+
+# Issue #1515: Stage B's filing boundary consumes structured projection state for
+# every finding. One invalid finding is omitted without suppressing clean siblings.
+printf '%s' '[{"subslug":"clean","title":"C","body":"b","evidence_prs":[1],"rationale":"r","projection_disposition":"represented","unmatched_desired_behavior":[]},{"subslug":"bad","title":"B","body":"b","evidence_prs":[2],"rationale":"r","projection_disposition":"represented","unmatched_desired_behavior":["missing outcome"]},{"subslug":"missing","title":"M","body":"b","evidence_prs":[3],"rationale":"r"}]' > "$TMP_SF/sf-projection.json"
+RL_SF_PROJECTED="$(rl_sf_projection "$TMP_SF/sf-projection.json" 2>"$TMP_SF/sf-projection.err")"; RL_SF_PROJECTED_RC=$?
+assert_eq "#1515 projection filter succeeds while omitting degraded findings" "0" "$RL_SF_PROJECTED_RC"
+assert_eq "#1515 projection filter returns only represented plus zero-unmatched" "clean" \
+  "$(printf '%s' "$RL_SF_PROJECTED" | jq -r '.[].subslug')"
+assert_eq "#1515 projection filter durably reports unmatched and missing findings" "2" \
+  "$(grep -c 'projection disposition is unusable' "$TMP_SF/sf-projection.err")"
+
+# The withhold-everything arms: each must exit non-zero and emit nothing on stdout,
+# so a regression flipping one to fail-open (empty array, rc 0) turns these RED.
+printf '%s' '{"not":"an array"}' > "$TMP_SF/sf-projection-obj.json"
+printf 'not json' > "$TMP_SF/sf-projection-garbage.json"
+for _case in absent:"$TMP_SF/sf-projection-nonexistent.json" \
+             empty-arg:"" \
+             nonarray:"$TMP_SF/sf-projection-obj.json" \
+             unparseable:"$TMP_SF/sf-projection-garbage.json"; do
+  _label="${_case%%:*}"; _path="${_case#*:}"
+  RL_SF_BAD="$(rl_sf_projection "$_path" 2>"$TMP_SF/sf-projection-$_label.err")"; RL_SF_BAD_RC=$?
+  assert_eq "#1515 projection filter withholds on $_label input (non-zero)" "1" "$RL_SF_BAD_RC"
+  assert_eq "#1515 projection filter emits no findings on $_label input" "" "$RL_SF_BAD"
+  assert_eq "#1515 projection filter names the $_label withhold on its error channel" "1" \
+    "$(grep -c 'withholding every finding' "$TMP_SF/sf-projection-$_label.err")"
+done
+# An unavailable predicate is the same withhold: copy select-findings.sh to a
+# directory with no projection-gate.jq beside it and confirm it refuses.
+mkdir -p "$TMP_SF/nogate" && cp "$REPO_ROOT"/lib/*.sh "$REPO_ROOT"/lib/*.jq "$TMP_SF/nogate/"
+rm -f "$TMP_SF/nogate/projection-gate.jq"
+RL_SF_NOGATE="$( ( # shellcheck disable=SC1090  # relocated copy under test
+  . "$TMP_SF/nogate/select-findings.sh"; devflow_projection_eligible_findings "$TMP_SF/sf-projection.json" ) 2>"$TMP_SF/sf-projection-nogate.err")"
+RL_SF_NOGATE_RC=$?
+assert_eq "#1515 projection filter withholds when projection-gate.jq is unavailable" "1" "$RL_SF_NOGATE_RC"
+assert_eq "#1515 projection filter emits no findings without its predicate" "" "$RL_SF_NOGATE"
+assert_eq "#1515 projection filter names the missing predicate" "1" \
+  "$(grep -c 'projection-gate.jq is unavailable' "$TMP_SF/sf-projection-nogate.err")"
+
+RL_WEEKLY="$REPO_ROOT/skills/retrospective-weekly/SKILL.md"
+_rl1515_weekly_boundary() {
+  python3 - "$RL_WEEKLY" "$1" <<'PY'
+import pathlib,re,sys
+t=pathlib.Path(sys.argv[1]).read_text(); m=sys.argv[2]
+if m=='remove-array': t=t.replace('devflow_projection_eligible_findings', 'projection_filter_REMOVED')
+if m=='invert-array': t=t.replace('elif ! devflow_projection_eligible_findings', 'elif devflow_projection_eligible_findings')
+if m=='remove-legacy': t=t.replace('-f $LIB/projection-gate.jq', '-f $LIB/projection-gate.REMOVED')
+if m=='invert-legacy': t=t.replace('if ! $LIB/../scripts/run-jq.sh -e -f $LIB/projection-gate.jq', 'if $LIB/../scripts/run-jq.sh -e -f $LIB/projection-gate.jq')
+a='elif ! devflow_projection_eligible_findings' in t and 'projection-filtered finding set' in t
+l='if ! $LIB/../scripts/run-jq.sh -e -f $LIB/projection-gate.jq' in t and 'legacy Stage B result omitted' in t
+print('bound' if a and l else 'caught')
+PY
+}
+assert_eq "#1515 weekly boundary gates array and legacy results" "bound" "$(_rl1515_weekly_boundary live)"
+for mutation in remove-array invert-array remove-legacy invert-legacy; do
+  assert_eq "#1515 weekly production mutation $mutation is caught" "caught" "$(_rl1515_weekly_boundary "$mutation")"
+done
 
 # select: compose + descending evidence order + truncate top 3
 printf '%s' '[{"subslug":"aa","title":"A","body":"b","evidence_prs":[1],"rationale":"r"},{"subslug":"bb","title":"B","body":"b","evidence_prs":[2,3,4],"rationale":"r"},{"subslug":"cc","title":"C","body":"b","evidence_prs":[5,6],"rationale":"r"},{"subslug":"dd","title":"D","body":"b","evidence_prs":[7],"rationale":"r"}]' > "$TMP_SF/sf-f4.json"

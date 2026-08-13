@@ -377,7 +377,7 @@ Then tick the Setup phase in the workpad's `## Progress` checklist:
 
 Before Phase 2 begins, run the targeted pre-checks below, which catch wrong scope, policy, dependency, and execution-capability assumptions before any code edit. The **pass procedure runs in a dispatched subagent** (`prflow:issue-claim-auditor`, `agents/issue-claim-auditor.md`) that shares this checkout and records each pass on the workpad as it runs; the **decision stays here**. Run this after the issue data from 1.1 is in hand.
 
-**Scope:** the auditor verifies the explicitly-defined claim types only (count/enumeration, negative-scope, policy, execution-capability, verified-premise) — never every sentence in the issue body, which creates a runaway discovery loop and false positives on subjective claims.
+**Scope:** the auditor first reconciles independently verifiable post-change obligations in Desired Behavior against the resolved Acceptance Criteria, then verifies the explicitly-defined claim types (count/enumeration, negative-scope, policy, execution-capability, verified-premise). It does not verify every sentence: explanation, motivation, estimates, and current-behavior descriptions are non-obligations.
 
 **Commit any uncommitted tree state before dispatching** — the same rule §1.4 states, since the auditor shares this checkout too. Confirm the working tree carries no uncommitted changes and commit anything that does (a `feat:`/`docs:` commit as appropriate) **before** the dispatch. When the tree state cannot be established, establish it before dispatching at all; when the run holds work it must deliberately not commit, park it under a recorded handle and restore it after the auditor returns, or do not dispatch and record `Blocked` naming the uncommittable work.
 
@@ -397,26 +397,27 @@ Use the **Agent tool** with `subagent_type: prflow:issue-claim-auditor` and `run
 - `SCRIPTS` — the same bundled-helper directory prefix (for `check-verified-premises.py`).
 - `REPO_ROOT` — the checkout root path, for Pass 6's `--repo-root` (a distinct value from `SCRIPTS`).
 - `ISSUE_BODY_PATH` — the absolute §1.1 cache path the precondition printed, when the cache was written; on the degraded arm where no cache was written, paste the full issue body inline and say so (the auditor must not re-fetch a body the run already holds).
+- `RESOLVED_AC_PATH` — the absolute `<scratch-dir>/acs-$ARGUMENTS.md` path Phase 1.2 produced; on the degraded arm paste those resolved checkbox rows inline. This is the existing `parse-acs.py` output, not a second extraction.
 - `BASE` — `$BASE` (the §1.4 base branch; `origin/$BASE` is the read target under the read-target rule).
 - `FRESHNESS` — `fresh` / `unverified` / `behind-<n>`, from Phase 1.4's recorded behind-by count (an absent record reads as `unverified`).
 - `GITHUB_ACTIONS` and `DEVFLOW_APP_ID` — the two routing signals Pass 5 keys on, read from this run's environment (instruct the auditor to use these values, not a live credential probe).
 - The GitHub issue title and labels inline.
 
-#### The returned record (read all four items — a bare verdict is insufficient)
+#### Returned record and routing
 
-The auditor returns an `ISSUE-CLAIM-AUDIT RECORD` block carrying at least:
-
-- **`outcome`** — `proceed` / `blocked-policy` / `blocked-capability` (the overall Blocked/proceed outcome).
-- **`pass5_workflow_resident_acs`** — the AC identifiers Pass 5 flagged as workflow-resident (the capability-blocked set Phase 2.2.5 combines with its own plan-time recheck).
-- **`pass2_wrongly_excluded_surfaces`** — any surface Pass 2 found wrongly excluded by the issue's negative-scope claims, since it mutates Phase 2's plan.
-- **`superseding_assumptions`** — any Pass 1 verified-count correction and Pass 6 refuted premise that supersedes the issue body as Phase 2's working assumptions.
+Read every `ISSUE-CLAIM-AUDIT RECORD` field: `outcome` (`proceed` / `blocked-specification` / `blocked-policy` / `blocked-capability`), `projection_disposition`, `unmatched_desired_behavior` (a JSON array preserving every exact unmatched statement, or `[]`), `pass5_workflow_resident_acs`, `pass2_wrongly_excluded_surfaces`, and `superseding_assumptions`. A bare verdict is unusable.
 
 #### Act on the record (the decision is yours, not the auditor's)
 
-- **`outcome: proceed`** → continue to §1.5/Phase 2. Carry the record forward: hand `pass5_workflow_resident_acs` to Phase 2.2.5's scope-adjustment, add each `pass2_wrongly_excluded_surfaces` entry to the working plan before §2.2, and adopt every `superseding_assumptions` entry as Phase 2's working assumption (discarding the superseded issue-body claim).
-- **`outcome: blocked-policy`** (a Pass 3 AC-vs-policy contradiction) → do **not** proceed to Phase 2. Fill the record's `blocked_reason` into `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --status Blocked --reflection-kind blocked --reflection "issue-claim audit (policy): AC claims '{AC text}' but operative policy in {file} states '{policy text}' — contradiction requires user resolution before Phase 2"`, then emit the 👎 outcome reaction (see *Outcome reaction* in the Workpad Reference), remove the run marker, and stop the run.
-- **`outcome: blocked-capability`** (Pass 5 found every in-scope acceptance criterion is workflow-resident and this cloud run's `GITHUB_TOKEN` fallback cannot push it) → do **not** open a near-empty PR. Record `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --status Blocked --reflection-kind blocked --reflection "issue-claim audit (execution-capability): every in-scope acceptance criterion requires editing .github/workflows/, which this cloud run's GITHUB_TOKEN fallback (no workflow-capable App token; DEVFLOW_APP_ID unset) cannot push — this issue must be implemented by a workflows-capable run (a human/PAT, or a cloud run with the DevFlow App configured). Re-dispatch there; no PR opened"`, then emit the 👎 outcome reaction and stop the run.
+- **`outcome: proceed`** → write the two projection fields to `<scratch-dir>/issue-claim-projection-$ISSUE_NUMBER.json`, preserving the unmatched JSON array, then invoke the shared gate:
+  ```bash
+  "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/run-jq.sh -e -f "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/projection-gate.jq <scratch-dir>/issue-claim-projection-$ISSUE_NUMBER.json
+  ```
+  Only exit zero is usable (`represented` plus an empty array). Carry Pass 5 flags, Pass 2 surfaces, and superseding assumptions forward. A refused/non-zero invocation or missing, wrong-typed, inconsistent, or non-empty tuple takes the inline-audit fallback; never enter Phase 2 from it.
+- **`outcome: blocked-specification`** → even with non-empty ACs, record `Blocked` naming every exact unmatched statement, emit 👎, remove the run marker, and stop before Phase 2. Never synthesize or rewrite an AC.
+- **`outcome: blocked-policy`** → record `Blocked` with the returned AC, policy file, and policy text; emit 👎, remove the run marker, and stop.
+- **`outcome: blocked-capability`** → record `Blocked` with `issue-claim audit (execution-capability): every in-scope acceptance criterion requires editing .github/workflows/`, naming the observed credential boundary; emit 👎 and stop without a PR.
 
-**If the auditor dispatch fails or returns no usable record**, record `--reflection-kind dropped-failed` naming the failure and run the passes inline yourself from `agents/issue-claim-auditor.md` (the procedure is preserved there) as the fallback — never skip the audit silently.
+If dispatch fails or returns no usable record, record `dropped-failed` and run `agents/issue-claim-auditor.md` inline; never skip the audit.
 
 <!-- prflow:implement-ref phase=1 file=skills/implement/phases/phase-1-setup.md end -->
