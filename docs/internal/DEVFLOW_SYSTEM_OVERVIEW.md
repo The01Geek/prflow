@@ -2,9 +2,9 @@
 
 > **Role of this document.** This is the retained detail reference behind the concise
 > [system overview](architecture/system-overview.md). It contains deep mechanics and historical
-> context for maintainers. Its positioning section remains the messaging source referenced by
-> §21 of `CLAUDE.md`; agents should begin with the overview and follow the focused page for the
-> surface they are changing.
+> context for maintainers. Its positioning section (§21 of this document) remains the messaging
+> source of truth that `CLAUDE.md`'s marketing convention points to; agents should begin with the
+> overview and follow the focused page for the surface they are changing.
 >
 > **Provenance & accuracy.** Every fact here was extracted from the PRFlow source
 > repository (`The01Geek/prflow`): the README, the skill definitions

@@ -69,7 +69,8 @@ under the *Prose cutover* convention, and this is its record: both additions rep
 sentence with a true one on the same execution path, neither adds a new rule, and the shipped
 default-path headroom after them is ~0.6% (189 words). The bulk of the new prose lives in the
 renderer-owned template, which no budget operand contains — so the ceiling is not renegotiated and
-`CLAUDE.md` is untouched. Figures and the decision record: `create-issue-budget.md`.
+`CLAUDE.md` is untouched. The figures and decision record are historical; the retained context is
+in `create-issue-budget.md`, and `CHANGELOG.md` records the subsystem's retirement.
 
 ## Consuming paths
 

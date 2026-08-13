@@ -74,5 +74,6 @@ authorized in this change. That margin is a one-time renegotiation, not a standi
 single-change growth: the ratchet-down-only rule resumes immediately, so a later measured reduction
 lowers the recorded ceiling, and the next contributor adding to a default-path member should still
 prefer shedding prose over spending the margin. Re-measure with the suite's python3 word-split
-(`ci614_words` in `lib/test/modules/create-issue-contract.sh`), never `wc -w`; the live figures live
-in `create-issue-budget.md`, which is the record this paragraph defers to.
+(`ci614_words` in `lib/test/modules/create-issue-contract.sh`), never `wc -w`; these figures are
+historical. The retired budget record is `create-issue-budget.md`, and `CHANGELOG.md` records the
+subsystem's retirement.
