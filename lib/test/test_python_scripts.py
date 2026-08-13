@@ -2969,11 +2969,9 @@ assert_eq("#1653 the file neutralises colour for its children (PYTHON_COLORS, NO
 # statement against a line that no longer spawns anything.
 _SRC_1653 = Path(__file__).resolve().read_text(encoding='utf-8')
 _TREE_1653 = ast.parse(_SRC_1653)
-# Keep each set a superset of its own module's spawner names — _SPAWNERS_1653 for
-# subprocess, _OS_SPAWNERS_1653 for os: a name either set misses silently moves the
-# earliest-child line later and weakens the ordering assertion below. (A spawner in a
-# third module — pty.fork, asyncio's — is outside both and would need its own alias
-# scan; none is used here, and the assertions above fail closed if that stops holding.)
+# Keep both sets complete for their module: omitting a spawner silently moves the
+# earliest-child line later and weakens the ordering assertion. Add an alias scan
+# before introducing a spawner from another module.
 _SPAWNERS_1653 = {'run', 'Popen', 'call', 'check_call', 'check_output',
                   'getoutput', 'getstatusoutput'}
 _OS_SPAWNERS_1653 = {'system', 'popen', 'startfile', 'fork', 'forkpty',
@@ -3072,6 +3070,17 @@ assert_eq(f"#1653 a child of this file inherits both neutralising values ({_PYV_
 # was not measurable here, so the gate sits at the version whose colourisation was
 # observed — under-claiming exercise there rather than reporting a vacuous hold as proof.
 if sys.version_info >= (3, 14):
+    _unneutralised_env_1653 = dict(os.environ, FORCE_COLOR='3')
+    _unneutralised_env_1653.pop('PYTHON_COLORS', None)
+    _unneutralised_env_1653.pop('NO_COLOR', None)
+    _unneutralised_help_1653 = _sp1550.run(
+        [sys.executable, str(SCRIPTS / 'workpad.py'), '--help'],
+        capture_output=True, text=True, env=_unneutralised_env_1653)
+    assert_eq(f"#1653 FORCE_COLOR emits ANSI when both neutralisers are removed "
+              f"({_PYV_1653})",
+              True, _unneutralised_help_1653.returncode == 0
+              and 'usage:' in _unneutralised_help_1653.stdout
+              and '\x1b' in _unneutralised_help_1653.stdout)
     # Never build this from a fresh dict instead of os.environ: the neutralisation
     # under test lives in that mapping, and a replacement environment drops it, so
     # the assertion would pass on a tree with the fix removed.
