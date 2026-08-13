@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1660",
+  "generated_at": "2026-08-13T02:11:20Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.63",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 9.416114500000003,
+    "tokens": {
+      "input_tokens": 60,
+      "output_tokens": 29561,
+      "cache_read_input_tokens": 5439885,
+      "cache_creation_input_tokens": 215976,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 111,
+        "outputTokens": 63506,
+        "cacheReadInputTokens": 6629374,
+        "cacheCreationInputTokens": 592530,
+        "webSearchRequests": 0,
+        "costUSD": 9.416114500000003,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 42,
+    "duration_ms": 649705
+  },
+  "permission_denials": {
+    "count": 4,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-} ATTEMPT=${GITHUB_RUN_ATTEMPT:-} ACTIONS=${GITHUB_ACTIONS:-}\"; mkdir -p .prflow/tmp/review/pr-1660/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}; echo done",
+      "gh pr diff 1660 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' > .prflow/tmp/review/pr-1660/diff.patch; wc -l .prflow/tmp/review/pr-1660/diff.patch; echo \"---files---\"; grep '^diff --git' .prflow/tmp/review/pr-1660/diff.patch",
+      "mkdir -p .prflow/tmp/review/pr-1660/run; echo \"ACTIONS=$GITHUB_ACTIONS RUN=$GITHUB_RUN_ID\"",
+      "git status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before"
+    ],
+    "total": 4,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
