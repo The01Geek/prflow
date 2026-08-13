@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.68] — 2026-08-13
+
+### Changed
+Scope cloud scratch-redirect guidance to exact matcher evidence, add production `gh issue view` probe rows, and use Write-tool authoring for unmeasured issue-body cache writes.
+
 ## [2.32.67] — 2026-08-13
 
 ### Fixed
