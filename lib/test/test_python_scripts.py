@@ -2538,6 +2538,23 @@ for _r_phase, _r_text, _r_substr in _XR:
     assert_eq(f"new-body: {_r_substr!r} row sits under **{_r_phase}**", True,
               any(_r_text in ln for ln in _phase_block(_nb_progress, _r_phase)))
 
+
+print("workpad implement-driven review Progress rows (issue #1657)")
+
+_EXPECTED_REVIEW_ROWS = (
+    ('Classify diff (Phase 0.5)', 'Classify diff'),
+    ('Generate verification checklist (Phase 1)', 'Generate verification checklist'),
+    ('Verify checklist (Phase 2)', 'Verify checklist'),
+    ('Review agents (Phase 3)', 'Review agents'),
+    ('Aggregate & verdict (Phase 4)', 'Aggregate & verdict'),
+    ('Run complete — everything this run owed', 'Run complete'),
+)
+_REVIEW_ROWS = getattr(workpad, '_REVIEW_PROGRESS_ROWS', ())
+for _r_text, _r_substr in _EXPECTED_REVIEW_ROWS:
+    assert_eq(f"new-body: emits the {_r_substr!r} implement review row", True,
+              (_r_text, _r_substr) in _REVIEW_ROWS
+              and any(_r_text in ln for ln in _phase_block(_nb_progress, 'Review')))
+
 # --- no new row breaks an EXISTING tick, and each new row ticks uniquely -----
 # The live tick-substring set is DERIVED from the implement phase files rather
 # than transcribed here, so a `--tick-progress` site added later is caught by
