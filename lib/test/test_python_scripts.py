@@ -12978,6 +12978,9 @@ assert_eq("#1514 IR6: a clobber redirect to workspace scratch is flagged",
 assert_eq("#1514 IR6: a non-gh non-exempt head stays outside the measured rule",
           False, "IR6" in _ir5_rules(
               "```bash\nawk '{print}' input > .prflow/tmp/awk-output\n```"))
+assert_eq("#1514 IR6: a gh redirect outside .prflow/tmp stays outside the measured rule",
+          False, "IR6" in _ir5_rules(
+              "```bash\ngh issue view 1 > out.txt\n```"))
 
 # Do not delegate IR6 into the command tier; implement-profile matcher evidence
 # cannot establish a command-profile denial.

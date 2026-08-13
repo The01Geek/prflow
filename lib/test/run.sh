@@ -3745,10 +3745,11 @@ assert_eq "#365: the compgen-in-skills guard fails closed on a git error (sentin
 # to pin and were removed with the block. The compgen_scan above still guards that
 # no skills/ prose block reintroduces the bash-only builtin.)
 # The detector references $ROOT and $BEFORE literally, so it stays GREEN even if the $ROOT
-# derivation drifts to a cwd-relative form. $ROOT is derived in both backstop bash blocks
-# (the pre-loop snapshot and the post-return detector), so the exact count preserves both sites.
-assert_eq "#235 (B) phase-3.3: the no-inputs detector root is derived from the git toplevel (not cwd), in both blocks" \
-  "2" "$(pin_count 'ROOT=$(git rev-parse --show-toplevel' "$DEF_SKILL")"
+# derivation drifts to a cwd-relative form. $ROOT is derived in the pre-loop snapshot,
+# the post-return snapshot check, and the post-Write consumer, so the exact count preserves
+# every separate-shell re-anchor.
+assert_eq "#235 (B) phase-3.3: the no-inputs detector root is derived from the git toplevel (not cwd), in all three blocks" \
+  "3" "$(pin_count 'ROOT=$(git rev-parse --show-toplevel' "$DEF_SKILL")"
 # Symmetric to the $ROOT-derivation pin: the `--persist` invocation pinned above depends on
 # the inline portable anchor that resolves it (issue #275: the former cross-statement `LIB=`
 # derivation is gone — Copilot CLI's inline-bash marshaling drops such variables). The exact-one

@@ -56,6 +56,24 @@ Follow the skill's instructions. It handles evaluation, fixing, testing, and re-
 # cwd-relative path could diverge from the wrapper and fire a false "telemetry lost" reflection
 # or mask a real loss.
 ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+BEFORE="$ROOT/.prflow/tmp/.phase33-iters-before"
+if [ -f "$BEFORE" ]; then
+  echo "phase-3.3: pre-loop iter-*.json snapshot present"
+else
+  echo "::warning::phase-3.3: pre-loop iter-*.json snapshot missing; author an empty snapshot with the Write tool before continuing" >&2
+fi
+```
+If the tool result reports the snapshot missing, author an empty file at `$ROOT/.prflow/tmp/.phase33-iters-before` with the Write tool before continuing. The next shell step re-anchors the path and disables the comparison with a distinct warning if that Write did not produce the file, so an absent operand cannot masquerade as a telemetry-loss result.
+
+```bash
+ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+BEFORE="$ROOT/.prflow/tmp/.phase33-iters-before"
+if [ -f "$BEFORE" ]; then
+  BEFORE_READY=1
+else
+  BEFORE_READY=0
+  echo "::warning::phase-3.3: pre-loop iter-*.json snapshot remains missing; no-inputs comparison disabled because comm cannot classify this run without its baseline" >&2
+fi
 # Idempotent Layer-3 persist: derives the effectiveness record and durable workpad copy
 # from whatever iter-*.json this run left under .prflow/tmp/review/ and writes them to the
 # long-lived orphan telemetry branch (default `prflow-telemetry`, key telemetry.branch) via
@@ -102,24 +120,17 @@ cat "$PERSIST_ERR" >&2
 # inline loop — i.e. exactly what THIS run wrote. This is immune to prior-run leftovers on the
 # persistent local tier, where a whole-tree presence check would let a leftover mask a real
 # loss. If the snapshot file is somehow absent, treating it as empty degrades to whole-tree
-# presence — and that degrade direction can MASK a real loss, not surface it: comm -13 against
-# an empty snapshot counts every pre-existing leftover iter-*.json on the persistent local tier
-# as if this run wrote it, so a leftover file makes the -z check false and suppresses the
-# reflection even when this run's loop wrote nothing. Because this snapshot-absent path is the
-# reachable failure mode the detector exists to guard against, emit a distinct ::warning:: so
-# the degrade is visible on the run log rather than silently indistinguishable from the healthy
-# case. Zero NEW iter-*.json means the inline loop wrote no per-iteration workpad, so --persist
+# presence — and that degrade direction can MASK a real loss, not surface it. The separate
+# preflight step above gives the agent a Write-tool seam for authoring the empty baseline; if
+# the file remains absent, $BEFORE_READY disables comm rather than converting its missing-file
+# error into an empty command substitution and a false telemetry-loss reflection. Zero NEW
+# iter-*.json means the inline loop wrote no per-iteration workpad, so --persist
 # had nothing to derive from and this run's effectiveness telemetry is genuinely lost — surface
 # it, do not swallow. (A persist that DID find inputs but failed to write still leaves
 # efficiency-trace.sh's own ::warning:: on the run log, surfaced above.) The detector counts NEW
 # iter-*.json unconditionally, which is correct here because at THIS seam the review-and-fix
 # loop just driven inline is what writes this tree, so a foreign review-sourced dir being the
 # sole new occupant is not a reachable in-flow shape.
-BEFORE="$ROOT/.prflow/tmp/.phase33-iters-before"
-if [ ! -f "$BEFORE" ]; then
-  # Author an empty `$BEFORE` file with the Write tool before continuing.
-  echo "::warning::phase-3.3: pre-loop iter-*.json snapshot missing; no-inputs detector degrades to whole-tree presence, which can MASK a real this-run telemetry loss behind a leftover iter-*.json from a prior local run" >&2
-fi
 # Portable, no bash-only glob-completion builtin (this prose runs under the agent's shell — zsh/dash/sh). The
 # zsh nomatch guard + `set --` capture the current iter-*.json into "$@"; the two arms then make
 # the "no inputs FROM THIS RUN" decision STRUCTURALLY distinguish a genuine zero-set from a failed
@@ -133,14 +144,16 @@ fi
 # here (this DevFlow-controlled iter-*.json tree is never symlinked).
 [ -n "${ZSH_VERSION:-}" ] && setopt nonomatch || :
 set -- "$ROOT"/.prflow/tmp/review/*/*/iter-*.json
-if [ ! -e "$1" ] || [ -z "$(printf '%s\n' "$@" | sort | comm -13 "$BEFORE" -)" ]; then
-  # Guard the loss-record write itself: if workpad.py fails (gh API/permission error,
-  # absent reflection section, bad $ISSUE_NUMBER) the ::warning:: keeps the gap visible on
-  # the run log rather than silently dropping both the telemetry AND its loss-record — a
-  # double silent failure at the exact seam this clause exists to make visible. Mirrors the
-  # --persist line's best-effort breadcrumb discipline.
-  "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "review-and-fix inline loop wrote no iter-*.json this run AND lib/efficiency-trace.sh --persist synthesized nothing (no unrecorded 'fix: address review findings (iteration N)' commit to reconstruct from, a failed search — unresolvable base ref, a base ref left unestablished by a failed origin refresh, or failed git log — failed synthesized writes, or a discovery-mode skip such as multi-slug ambiguity or a refused unsubstituted placeholder identity; --persist's own warnings name which when a candidate dir was visited), so this run's effectiveness telemetry (.prflow/logs/efficiency/) is missing" \
-    || echo "::warning::phase-3.3: failed to record dropped-failed observability-gap reflection on issue #$ISSUE_NUMBER; this run's effectiveness telemetry is lost AND its loss-record could not be written" >&2
+if [ "$BEFORE_READY" -eq 1 ]; then
+  if [ ! -e "$1" ] || [ -z "$(printf '%s\n' "$@" | sort | comm -13 "$BEFORE" -)" ]; then
+    # Guard the loss-record write itself: if workpad.py fails (gh API/permission error,
+    # absent reflection section, bad $ISSUE_NUMBER) the ::warning:: keeps the gap visible on
+    # the run log rather than silently dropping both the telemetry AND its loss-record — a
+    # double silent failure at the exact seam this clause exists to make visible. Mirrors the
+    # --persist line's best-effort breadcrumb discipline.
+    "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "review-and-fix inline loop wrote no iter-*.json this run AND lib/efficiency-trace.sh --persist synthesized nothing (no unrecorded 'fix: address review findings (iteration N)' commit to reconstruct from, a failed search — unresolvable base ref, a base ref left unestablished by a failed origin refresh, or failed git log — failed synthesized writes, or a discovery-mode skip such as multi-slug ambiguity or a refused unsubstituted placeholder identity; --persist's own warnings name which when a candidate dir was visited), so this run's effectiveness telemetry (.prflow/logs/efficiency/) is missing" \
+      || echo "::warning::phase-3.3: failed to record dropped-failed observability-gap reflection on issue #$ISSUE_NUMBER; this run's effectiveness telemetry is lost AND its loss-record could not be written" >&2
+  fi
 fi
 # The no-new-inputs case above only catches a dropped LOOP EXIT (the inline loop wrote no
 # iter-*.json at all). It does NOT catch the sibling failure mode where the loop DID write
