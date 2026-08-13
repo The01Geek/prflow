@@ -3,8 +3,9 @@
 # SPDX-License-Identifier: MIT
 """DevFlow workpad helper for the /implement skill.
 
-The /implement orchestrator maintains exactly one marker-tagged comment per
-GitHub issue (the workpad). Claude Code's Bash tool spawns a fresh shell per
+The /implement orchestrator maintains one canonical marker-tagged comment per
+GitHub issue (the workpad); concurrent create races remain a documented residual.
+Claude Code's Bash tool spawns a fresh shell per
 call, so shell functions and env vars don't survive across phase boundaries.
 This script gives the orchestrator a stateless CLI that re-derives everything
 from arguments + live GitHub state on each call.
@@ -2646,11 +2647,9 @@ def _reconcile_extension_rows(content: str) -> str:
     processed in reverse declared order and each insert lands at the anchor, so a
     wholly-unrepaired phase ends up carrying them in declared order.
 
-    A phase whose top-level row is absent (a malformed or legacy skeleton) is
-    SKIPPED rather than raising: this runs inside Phase 1.3 hydration, and
-    failing the whole call would cost a resumed run its status reset over a row
-    whose only consequence is a later volatile tick miss. Operates on the
-    `## Progress` section content."""
+    A missing `**Review**` anchor is repaired before its required review-engine
+    rows are inserted. Other absent phase anchors keep the existing warn-and-skip
+    hydration behavior. Operates on the `## Progress` section content."""
     lines = content.split('\n')
     for phase, text, substr in reversed(tuple(_managed_progress_rows())):
         if any(
@@ -2667,15 +2666,37 @@ def _reconcile_extension_rows(content: str) -> str:
             None,
         )
         if anchor is None:
-            # Legible fail-open: a skip that emitted nothing would be indistinguishable
-            # from a surface that was never in scope, and an ABSENT row is worse than
-            # the unticked row this feature exists to leave behind.
-            sys.stderr.write(
-                f"workpad.py update: WARNING: no '**{phase}**' phase row in "
-                f"## Progress — the '{substr}' managed row was NOT repaired; "
-                f"a later --tick-progress for it will miss.\n"
-            )
-            continue
+            if phase == 'Review':
+                # Review is now a required progress surface. Recreate its top-level
+                # row at the canonical phase boundary: immediately before the first
+                # later lifecycle phase, or at the section tail when none survives.
+                review_pos = _PROGRESS_PHASES.index('Review')
+                later_phases = tuple(_PROGRESS_PHASES[review_pos + 1:])
+                insert_at = next(
+                    (
+                        i for i, ln in enumerate(lines)
+                        if (m := _TOP_LEVEL_CHECKBOX_RE.match(ln))
+                        and any(p.lower() in m.group(2).lower()
+                                for p in later_phases)
+                    ),
+                    len(lines) - 1 if lines and lines[-1] == '' else len(lines),
+                )
+                lines = lines[:insert_at] + ['- [ ] **Review**'] + lines[insert_at:]
+                anchor = insert_at
+                sys.stderr.write(
+                    "workpad.py update: re-created missing '**Review**' phase row "
+                    "in ## Progress before reconciling managed review rows.\n"
+                )
+            else:
+                # Legible fail-open for optional extension-only phases: a skip that
+                # emitted nothing would be indistinguishable from a surface that was
+                # never in scope.
+                sys.stderr.write(
+                    f"workpad.py update: WARNING: no '**{phase}**' phase row in "
+                    f"## Progress — the '{substr}' managed row was NOT repaired; "
+                    f"a later --tick-progress for it will miss.\n"
+                )
+                continue
         lines = lines[:anchor + 1] + [f'  - [ ] {text}'] + lines[anchor + 1:]
     return _join_preserving_newline(lines, content)
 
@@ -3311,30 +3332,26 @@ def _cmd_update_inner(args):
     failed_ticks = []
     try:
         body = _apply_mutations(body, args, failed_ticks)
-    except _NoOpReplay:
-        # A checkpoint-only call whose every key already exists (issue #537, AC14):
-        # a pure replay. Do NOT refresh `Last updated` and do NOT PATCH — echo the
-        # unchanged live body to stdout only under `--print-body` (issue #814
-        # suppressed the echo by default; the class docstring owns that rationale),
-        # then exit 0. The non-obvious point here: this arm's OWN replay message
-        # (written three lines down) is deliberately NOT the `PATCHed comment <id>`
-        # success breadcrumb, which the PATCH tail writes and this arm never reaches,
-        # because no PATCH happened. A replay COMBINED with any other mutation never
-        # reaches here (`_has_non_checkpoint_mutation` is true — `print_body` is
-        # deliberately absent from its allowlist, so the flag alone never makes a call
-        # a mutation), so it applies that mutation once and PATCHes normally without
-        # duplicating the checkpoint.
-        sys.stderr.write(
-            "workpad.py update: checkpoint replay — all requested checkpoint "
-            "key(s) already present; no Last updated refresh, no PATCH.\n"
-        )
+    except _NoOpReplay as replay:
+        # Pure replay: preserve the live body, skip PATCH, and emit the replay-specific
+        # breadcrumb. Combined mutations never reach this arm; the class contract owns
+        # the shared no-op semantics.
+        if replay.kind == 'review-progress':
+            sys.stderr.write(
+                "workpad.py update: review boundary replay — every requested "
+                "review row is already ticked; no Last updated refresh, no PATCH.\n"
+            )
+        else:
+            sys.stderr.write(
+                "workpad.py update: checkpoint replay — all requested checkpoint "
+                "key(s) already present; no Last updated refresh, no PATCH.\n"
+            )
         # Reclaim the buffer on this arm too. Reaching here means the call carried no
-        # non-checkpoint mutation, and `args.note`/`args.reflection` are part of that
-        # enumeration — so if the replay above had folded anything, this arm would not
-        # have been taken. A True flag here therefore means every buffered item was
-        # already present in the live body: reclaimable, and nothing is being dropped
-        # by clearing. Without this the buffer file survives an arbitrary number of
-        # checkpoint-replay calls before a later non-noop update collects it.
+        # effective mutation beyond a supported replay. If the replay above had folded
+        # any note or reflection, this arm would not have been taken. A True flag here
+        # therefore means every buffered item was already present in the live body:
+        # reclaimable, and nothing is being dropped by clearing. Without this the
+        # buffer file survives repeated replay calls until a later update collects it.
         if _buffer_safe_to_clear:
             _clear_workpad_buffer(comment_id)
         if args.print_body:
@@ -4671,14 +4688,21 @@ def _strip_required_artifact_checkpoint_rows(content: str) -> str:
 
 
 class _NoOpReplay(Exception):
-    """Signals a checkpoint-only call whose every key already exists — a pure
-    replay. Raised by `_apply_mutations` BEFORE it mutates anything; `cmd_update`
-    catches it, writes its replay breadcrumb to stderr, echoes the unchanged body to
-    stdout only under `--print-body` (issue #814 suppressed that echo by default),
-    and exits 0 WITHOUT refreshing `Last updated` and WITHOUT issuing a PATCH (the
-    AC14 idempotency guarantee).
-    Deliberately NOT an `_UpdateError` subclass: it is a success no-op, not a
-    structural failure, so the structural `except _UpdateError` never captures it."""
+    """Signals a supported pure replay before any mutation occurs.
+
+    `kind` distinguishes the existing keyed-checkpoint replay from an
+    implement-driven review-boundary replay, so `cmd_update` can emit an accurate
+    breadcrumb while sharing the same success/no-PATCH control path.
+
+    Raised by `_apply_mutations` BEFORE it mutates anything; `cmd_update` catches
+    it, echoes the unchanged body only under `--print-body`, and exits 0 without
+    refreshing `Last updated` or issuing a PATCH. Deliberately not an
+    `_UpdateError`: a replay is success, not a structural failure.
+    """
+
+    def __init__(self, kind: str = 'checkpoint'):
+        super().__init__(kind)
+        self.kind = kind
 
 
 def _has_non_checkpoint_mutation(args) -> bool:
@@ -4704,6 +4728,38 @@ def _has_non_checkpoint_mutation(args) -> bool:
         getattr(args, 'strip_inherited_checkpoints', False),
         getattr(args, 'reconcile_extension_rows', False),
     ])
+
+
+def _is_review_progress_replay(body: str, args) -> bool:
+    """Return true for a pure replay of already-ticked review-boundary rows.
+
+    Exact operands declared by `_REVIEW_PROGRESS_ROWS` are successful no-ops only
+    when every requested row resolves uniquely and is already ticked. Unknown,
+    missing, ambiguous, or unticked operands retain ordinary tick/miss behavior.
+    """
+    requested = list(args.tick_progress or [])
+    declared = {substr for _text, substr in _REVIEW_PROGRESS_ROWS}
+    if not requested or any(text not in declared for text in requested):
+        return False
+    if getattr(args, 'checkpoint', None):
+        return False
+    without_review_ticks = argparse.Namespace(**vars(args))
+    without_review_ticks.tick_progress = []
+    if _has_non_checkpoint_mutation(without_review_ticks):
+        return False
+
+    _preamble, sections = _split_sections(body)
+    idx = _find_section(sections, 'Progress')
+    if idx is None:
+        return False
+    _heading, content = sections[idx]
+    rows = [m for line in content.splitlines()
+            if (m := _CHECKBOX_ROW_RE.match(line))]
+    for text in requested:
+        matches = [m for m in rows if text.lower() in m.group(4).lower()]
+        if len(matches) != 1 or matches[0].group(2).lower() != '[x]':
+            return False
+    return True
 
 
 def _require_arity(flag: str, value: object, n: int, labels: tuple[str, ...]) -> None:
@@ -5086,6 +5142,11 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         checkpoint_inserts = _plan_checkpoints(body, checkpoint_reqs)
         if not checkpoint_inserts and not _has_non_checkpoint_mutation(args):
             raise _NoOpReplay()
+
+    # Review re-entry can repeat a boundary whose tuple row is already ticked.
+    # Decide that pure replay before Last updated or any other body mutation.
+    if _is_review_progress_replay(body, args):
+        raise _NoOpReplay('review-progress')
 
     # Completion verification-flight evidence recording (issue #1087). Validate the
     # record BEFORE any body mutation so a non-pass key is a structural failure that
