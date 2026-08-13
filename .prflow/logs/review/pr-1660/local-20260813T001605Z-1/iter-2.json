@@ -1,0 +1,233 @@
+{
+  "iter": 2,
+  "started_at": "2026-08-13T00:40:00Z",
+  "fix_commit_sha": "3324210f2",
+  "fix_files": [
+    "lib/test/test_python_scripts.py",
+    "docs/internal/test-suite-probe-conventions.md",
+    "lib/test/modules/issue-audit-state.sh"
+  ],
+  "loop_role": "promoted",
+  "promotion_provenance": "shadow",
+  "current_step": "loop-exit",
+  "current_substep": null,
+  "pending_dispatch": null,
+  "sweep_evidence": {
+    "status": "run"
+  },
+  "checklist": [],
+  "phase3_dispatched": [],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "detect_all_audit": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [],
+  "fix_decisions": [
+    {
+      "finding_id": "S-1",
+      "decision": "applied",
+      "commit": "c0e33070c"
+    },
+    {
+      "finding_id": "S-2",
+      "decision": "applied",
+      "commit": "c0e33070c"
+    },
+    {
+      "finding_id": "S-3",
+      "decision": "applied",
+      "commit": "c0e33070c"
+    },
+    {
+      "finding_id": "S-4",
+      "decision": "applied",
+      "commit": "c0e33070c"
+    },
+    {
+      "finding_id": "S-5",
+      "decision": "applied",
+      "commit": "c0e33070c"
+    },
+    {
+      "finding_id": "S-6",
+      "decision": "applied",
+      "commit": "3324210f2"
+    },
+    {
+      "finding_id": "S-7",
+      "decision": "applied",
+      "commit": "3324210f2"
+    },
+    {
+      "finding_id": "S-8",
+      "decision": "applied",
+      "commit": "3324210f2"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 8,
+    "fix_diff_lines": 96,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "ran_at": "2026-08-13T00:35:00Z",
+    "reviewed_sha": "ad420aec5",
+    "verdict": "REJECT",
+    "coverage": "full",
+    "prompt_addenda": null,
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:comment-analyzer",
+        "severity": "Critical",
+        "description": "the >= (3,13) gate is off by one minor version — argparse coloured help is 3.14, so a 3.13 host takes the exercised arm and reports a vacuous hold as proof",
+        "defect_signature": {
+          "file": "lib/test/test_python_scripts.py",
+          "line_range": [
+            3072,
+            3095
+          ],
+          "kind": "documented_falsehood"
+        },
+        "fix_decision": "applied"
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "severity": "Critical",
+        "description": "'the one help probe in the tree that already sets both' is falsified by this same diff",
+        "defect_signature": {
+          "file": "docs/internal/test-suite-probe-conventions.md",
+          "line_range": [
+            20,
+            22
+          ],
+          "kind": "documented_falsehood"
+        },
+        "fix_decision": "applied"
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Important",
+        "description": "the harness claim generalises to 'a suite runner', false for lib/test/run.sh's bare python3 suite invocations",
+        "defect_signature": {
+          "file": "docs/internal/test-suite-probe-conventions.md",
+          "line_range": [
+            36,
+            41
+          ],
+          "kind": "documented_falsehood"
+        },
+        "fix_decision": "applied"
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Important",
+        "description": "NO_COLOR has no behavioural coverage — deleting it breaks no executable assertion",
+        "defect_signature": {
+          "file": "lib/test/test_python_scripts.py",
+          "line_range": [
+            3050,
+            3072
+          ],
+          "kind": "test_gap"
+        },
+        "fix_decision": "applied"
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Important",
+        "description": "the only behavioural proof is gated off on every interpreter CI runs, so the regression cannot be caught by the merge-gating suite",
+        "defect_signature": {
+          "file": "lib/test/test_python_scripts.py",
+          "line_range": [
+            3040,
+            3080
+          ],
+          "kind": "test_gap"
+        },
+        "fix_decision": "applied"
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "severity": "Suggestion",
+        "description": "module-scope max() still false-REDs on this file's dominant save/restore idiom",
+        "defect_signature": {
+          "file": "lib/test/test_python_scripts.py",
+          "line_range": [
+            2982,
+            2987
+          ],
+          "kind": "logic_error"
+        },
+        "fix_decision": "applied"
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 6,
+      "overlap_with_iter_N": 0,
+      "new": 6,
+      "new_critical": 2,
+      "new_important": 3
+    },
+    "promoted_to_iter_next": true
+  },
+  "telemetry": {
+    "phase_0": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 20
+    },
+    "phase_3": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 0
+    },
+    "step_2_6": {
+      "calls": 5,
+      "tokens": 395000,
+      "wall_clock_s": 243
+    },
+    "step_3_5": {
+      "calls": 2,
+      "tokens": 60000,
+      "wall_clock_s": 341
+    },
+    "phase_4_x": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 30
+    }
+  },
+  "synthesized": false
+}
