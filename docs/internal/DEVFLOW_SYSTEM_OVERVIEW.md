@@ -1,11 +1,9 @@
-# PRFlow: Complete System Reference
+# PRFlow detailed system reference
 
-> **Purpose of this document.** This is a single, detail-rich reference describing
-> *everything* about the PRFlow system: what it is, who it's for, how every piece
-> works, and why the design is the way it is. It is written to be handed to other
-> agents (and people) as source material for **marketing decks, technical decks,
-> and explainer videos**. It mixes the "elevator pitch" framing marketers need with
-> the precise mechanics engineers need, and flags which is which.
+> **Role of this document.** This is the retained detail reference behind the concise
+> [system overview](architecture/system-overview.md). It contains deep mechanics and historical
+> context for maintainers; agents should begin with the overview and follow the
+> focused page for the surface they are changing.
 >
 > **Provenance & accuracy.** Every fact here was extracted from the PRFlow source
 > repository (`The01Geek/prflow`): the README, the skill definitions

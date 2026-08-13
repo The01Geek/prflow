@@ -67,11 +67,11 @@ The restructuring preserves the existing content while changing its ownership an
 
 A page is split when its sections have different readers, different source-of-truth files, different failure paths, or different verification methods. A page stays together when its sections describe one inseparable mechanism and separating them would force an agent to reconstruct the behavior from multiple fragments.
 
-The large mixed documents are treated as source material rather than permanent canonical containers. In particular, `DEVFLOW_SYSTEM_OVERVIEW.md`, `implement-skill.md`, `cloud-setup.md`, `cloud-allowlist.md`, `workflow-triggers.md`, and `efficiency-trace.md` will be decomposed along their existing conceptual boundaries, then replaced by concise overview pages and focused canonical pages.
+The large mixed documents are treated as deep reference material rather than the first page an agent reads. In particular, `DEVFLOW_SYSTEM_OVERVIEW.md`, `implement-skill.md`, `cloud-setup.md`, `cloud-allowlist.md`, `workflow-triggers.md`, and `efficiency-trace.md` gain concise, focused canonical pages. Their legacy paths remain when tests, installers, prompt guards, or shipped source comments consume those exact paths; those records are linked as compatibility references and are not primary navigation.
 
 The current decision and rationale records are merged into the canonical page for the behavior they govern. A record that spans several surfaces is placed with the surface whose invariant it explains and linked from the other affected pages. Historical cutovers remain in `cutovers/` and retain their historical framing.
 
-All tracked references are updated when a canonical page moves, including references in `CLAUDE.md`, source comments, workflows, tests, cutover records, and other internal pages. Internal documentation links use relative paths appropriate to their new location. No hard-coded line numbers are introduced.
+Current references are updated when a canonical page is added or its ownership changes. Machine-read legacy paths remain intact unless their readers are migrated in the same verified change. Internal documentation links use relative paths appropriate to their new location. No hard-coded line numbers are introduced.
 
 ## Source-of-truth and validation rules
 
@@ -80,7 +80,8 @@ The codebase remains the authority when prose and implementation disagree. Durin
 Validation covers:
 
 - Every index link resolves to a tracked page.
-- Every moved or split page has its tracked references updated.
+- Every new canonical page has its tracked references updated.
+- Machine-read legacy paths remain present and retain the contract content their readers consume.
 - Every canonical page names existing source paths and symbols without line-number anchors.
 - No canonical page contains a duplicated block that is owned by another page.
 - Historical pages remain clearly labeled as historical and do not present stale behavior as current.
@@ -90,11 +91,11 @@ Validation covers:
 
 The existing corpus supplies the first migration set:
 
-- `create-issue-context.md`, `implement-skill.md`, and `implement-context.md` become focused pages under `skills/`.
-- `shadow-review.md`, `review-agent-overrides.md`, `agents-seam-probe.md`, `execution-file-shape.md`, and `subagent-write-probe.observed.md` become focused pages under `agents/`.
-- `workflow-triggers.md` becomes a workflow page, with workpad and lifecycle material separated when its source and reader boundaries differ.
-- `install.md`, `cloud-setup.md`, `cloud-allowlist.md`, `working-directory-contract.md`, and `mintlify-publishing.md` become focused pages under `operations/` or `architecture/` according to the boundary they explain.
-- `efficiency-trace.md`, `workflow-flight-recorder.md`, calibration records, runtime-context studies, and measured incident records become focused pages under `improvement-loops/`.
-- `DEVFLOW_SYSTEM_OVERVIEW.md` becomes the concise architecture entry point and links to the canonical skill, agent, workflow, operations, and improvement-loop pages.
+- `create-issue-context.md`, `implement-skill.md`, and `implement-context.md` remain as deep or machine-read records while focused pages under `skills/` and `improvement-loops/` become the agent-facing entry points.
+- `shadow-review.md`, `review-agent-overrides.md`, `agents-seam-probe.md`, `execution-file-shape.md`, and `subagent-write-probe.observed.md` remain available as evidence records while focused pages under `agents/` become the agent-facing entry points.
+- `workflow-triggers.md` remains the detailed workflow contract while focused pages under `workflows/` separate triggers, workpads, and lifecycle behavior.
+- `install.md`, `cloud-setup.md`, `cloud-allowlist.md`, `working-directory-contract.md`, and `mintlify-publishing.md` remain available to their machine readers while focused pages under `operations/` explain the relevant task boundary.
+- `efficiency-trace.md`, `workflow-flight-recorder.md`, calibration records, runtime-context studies, and measured incident records remain as deep evidence while focused pages under `improvement-loops/` explain what each mechanism establishes.
+- `DEVFLOW_SYSTEM_OVERVIEW.md` remains the detailed compatibility reference while `architecture/system-overview.md` becomes the concise architecture entry point.
 
 This map is a starting point for implementation. The final page boundaries are validated against the actual headings, links, source references, and machine readers before files are moved.
