@@ -123,5 +123,64 @@
       "iter": 5,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.64",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 9.779429999999998,
+    "tokens": {
+      "input_tokens": 83,
+      "output_tokens": 30895,
+      "cache_read_input_tokens": 6102049,
+      "cache_creation_input_tokens": 169690,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 163,
+        "outputTokens": 63889,
+        "cacheReadInputTokens": 9218755,
+        "cacheCreationInputTokens": 469708,
+        "webSearchRequests": 0,
+        "costUSD": 9.779429999999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 48,
+    "duration_ms": 642108
+  },
+  "permission_denials": {
+    "count": 11,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---RUN_ID=${GITHUB_RUN_ID:-unset} ATTEMPT=${GITHUB_RUN_ATTEMPT:-unset}\"; echo \"---date\"; date -u +%Y%m%dT%H%M%SZ",
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-unset} ATTEMPT=${GITHUB_RUN_ATTEMPT:-unset}\"",
+      "git ls-tree -r --name-only b27802aaf8a84904a699e94105c45d22e68c22ee -- docs/internal/ | sort",
+      "git ls-tree -r --name-only b27802aaf8a84904a699e94105c45d22e68c22ee -- docs/internal/",
+      "git diff --name-only 509ad0a2c22b75634fdd2e2abb5c3b0d5722c643 b27802aaf8a84904a699e94105c45d22e68c22ee > .prflow/tmp/review/pr-1667/31669115159-1/changed.txt; wc -l .prflow/tmp/review/pr-1667/31669115159-1/changed.txt",
+      "cd /home/runner/work/prflow/prflow\nfor f in docs/internal/review-agent-overrides.md docs/internal/agents-seam-probe.md docs/internal/workflow-triggers.md docs/internal/install.md docs/internal/cloud-allowlist.md scripts/authorize-actor.sh scripts/react-to-trigger.sh scripts/scaffold-config.sh install.sh .github/actions/vendor-plugin lib/capability-profiles.json lib/generate-capability-profiles.py lib/test/extract-command-heads.py lib/test/extract-command-shapes.py scripts/render-grounding-block. …[per-command-truncated]",
+      "for p in \\\ndocs/internal/subagent-write-probe.observed.md \\\n.github/workflows/agents-seam-probe.yml \\\n.github/workflows/matcher-probe.yml \\\ndocs/internal/agents-seam-probe.md \\\ndocs/internal/execution-file-shape.md \\\nscripts/extract-execution-cost.py \\\nlib/test/cloud_writer_contract.py \\\nscripts/validate-cloud-writer-contract.py \\\ndocs/internal/cloud-writer-boundary.md \\\nscripts/check-completion-evidence.py \\\nscripts/derive-review-verdict.sh \\\nscripts/seed-review-progress.sh \\\nscripts/post-revie …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\nfor f in docs/internal/review-agent-overrides.md docs/internal/agents-seam-probe.md docs/internal/workflow-triggers.md docs/internal/install.md docs/internal/cloud-allowlist.md docs/internal/implement-skill.md scripts/authorize-actor.sh scripts/react-to-trigger.sh scripts/scaffold-config.sh install.sh .github/actions/vendor-plugin lib/capability-profiles.json lib/generate-capability-profiles.py lib/test/extract-command-heads.py lib/test/extract-command-shapes.p …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\nfor f in \\\n  skills/init/SKILL.md \\\n  skills/docs-sync-internal/SKILL.md \\\n  skills/docs-sync-external/SKILL.md \\\n  skills/docs-release-notes/SKILL.md \\\n  skills/docs-verify/SKILL.md \\\n  skills/docs-verify/references/write-mode.md \\\n  scripts/issue-audit-state.py \\\n  scripts/check-completion-evidence.py \\\n  scripts/build-experiment-records.py \\\n  scripts/create-issue-context-eval.py \\\n  scripts/implement-context-eval.py \\\n  scripts/prompt-surface-growth.py \\\n   …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\ngit ls-files > /tmp/allfiles.txt\nfor f in scripts/issue-audit-state.py scripts/check-completion-evidence.py scripts/build-experiment-records.py scripts/create-issue-context-eval.py scripts/implement-context-eval.py scripts/prompt-surface-growth.py scripts/workflow_flight_recorder.py scripts/extract-execution-cost.py scripts/derive-review-verdict.sh scripts/validate-cloud-writer-contract.py lib/test/cloud_writer_contract.py scripts/extract-doc-needed-paths.sh sc …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\nprintf '%s\\n' \\\nscripts/issue-audit-state.py \\\nscripts/check-completion-evidence.py \\\nscripts/build-experiment-records.py \\\nscripts/create-issue-context-eval.py \\\nscripts/implement-context-eval.py \\\nscripts/prompt-surface-growth.py \\\nscripts/workflow_flight_recorder.py \\\nscripts/extract-execution-cost.py \\\nscripts/derive-review-verdict.sh \\\nscripts/validate-cloud-writer-contract.py \\\nlib/test/cloud_writer_contract.py \\\nscripts/extract-doc-needed-paths.sh \\\nscri …[per-command-truncated]"
+    ],
+    "total": 11,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
