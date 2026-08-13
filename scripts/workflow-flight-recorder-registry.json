@@ -13,7 +13,7 @@
     },
     "tier1-rename-migration": {
       "path": "lib/test/modules/tier1-rename-migration.sh",
-      "minimum_assertions": 300,
+      "minimum_assertions": 301,
       "description": "Focused #1002 Tier 1 rename/migration contract: the rename map as the single source every site resolves against, the state-directory transitional read-through and its shell/python coupled pair, config-get.sh's superseded-key probe over the absent-versus-present-and-empty distinction and the six-shape config matrix, scaffold-config.sh's config-key migration with its fail-closed shipped-workflow freshness gate and the superseded-key anti-graft guard on the refusal and jq-unusable paths, migrate-consumer-tier1.sh's all-or-nothing atomic unit driven by per-member induced blockers asserting whole-tree byte-identity, and the workflow config-job per-family fail-loud guard, issue #1083's stray-superseded-family detector driven over the adversarial shape matrix from the shipped jq program itself with its valid-falsy and non-object-root rows, its outside-the-enable-gate placement, a frozen-non-family negative control with its own liveness row bounding the shape against over-reach, a reconciliation against the rename map's config_keys and frozen config keys whose pattern is read out of the shipped program rather than transcribed so it bounds under-reach, and the byte-identity of the whole block across both shipped workflows, and issue #1004's frozen out-of-repo DEVFLOW_* identifier inventory: the two-arm criterion re-run over the live tree and reconciled against lib/rename-map.json's frozen.env_identifiers, the generated advisory region's round trip and fail-closed banner handling, and install.sh's upgrade-gated advisory"
     },
     "retrospective-lifecycle": {
