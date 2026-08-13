@@ -128,7 +128,7 @@ The Technical Context scope note is **verbatim, fixed boilerplate** — include 
 Print **exactly one** JSON object to stdout and stop. It carries a `findings` array of **one to three** elements, ranked with the **dominant** finding first:
 
 ```json
-{"findings": [{"subslug", "title", "body", "evidence_prs", "rationale"}, ...]}
+{"findings": [{"subslug", "title", "body", "evidence_prs", "rationale", "projection_disposition", "unmatched_desired_behavior"}, ...]}
 ```
 
 Each element of `findings`:
@@ -137,6 +137,8 @@ Each element of `findings`:
 - `body` — the issue body authored per § 4 for this finding.
 - `evidence_prs` — the array of occurrence PR numbers whose bundles support this finding. The orchestrator ranks findings by descending `evidence_prs` length, so a tight cluster is offered to the filing caps first.
 - `rationale` — one sentence naming why this sub-pattern is distinct from the others in the array.
+- `projection_disposition` — exactly `represented`; a missing or different value is ineligible for filing.
+- `unmatched_desired_behavior` — exactly an empty JSON array after the final composition audit. Never omit it or return a finding while it is non-empty.
 
 Top-level:
 - `extension_unreadable` *(optional)* — include this one string key **only** when the consumer prompt-extension file was **present but could not be read**; its value names the path and the read failure. Omit it in every other case. The return stays **exactly one JSON object** — the `findings` array plus at most this optional key — with nothing else on stdout.
@@ -156,8 +158,10 @@ BODY1="$(mktemp)"; BODY2="$(mktemp)"   # one per finding — never a fixed share
   --arg sub1 "<dominant finding subslug>" --arg t1 "<title 1>" --arg b1 "$(cat "$BODY1")" --argjson prs1 '[<pr>, ...]' --arg r1 "<rationale 1>" \
   --arg sub2 "<second finding subslug>"  --arg t2 "<title 2>" --arg b2 "$(cat "$BODY2")" --argjson prs2 '[<pr>, ...]' --arg r2 "<rationale 2>" \
   '{findings: [
-      {subslug:$sub1, title:$t1, body:$b1, evidence_prs:$prs1, rationale:$r1},
-      {subslug:$sub2, title:$t2, body:$b2, evidence_prs:$prs2, rationale:$r2}
+      {subslug:$sub1, title:$t1, body:$b1, evidence_prs:$prs1, rationale:$r1,
+       projection_disposition:"represented", unmatched_desired_behavior:[]},
+      {subslug:$sub2, title:$t2, body:$b2, evidence_prs:$prs2, rationale:$r2,
+       projection_disposition:"represented", unmatched_desired_behavior:[]}
    ]}'
 ```
 

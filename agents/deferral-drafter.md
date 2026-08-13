@@ -65,6 +65,7 @@ drafts:
     title: <short descriptive title>
     capability_blocked: yes | no
     projection_disposition: represented
+    unmatched_desired_behavior: []
     covers_criteria:
       - marker_value: <criterion text exactly as the predicate's `criterion:` line printed it — the NORMALIZED projection the orchestrator matches --mark-deferred-filed against; on the unestablished arm where no projection line exists, the criterion verbatim with leading/trailing whitespace stripped, one trailing " (post-merge)" tag removed, and every remaining whitespace run collapsed to a single space>
         verbatim: <the criterion verbatim, as it appears under this draft's `## Acceptance Criteria`>

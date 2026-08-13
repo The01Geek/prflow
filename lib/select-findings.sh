@@ -13,7 +13,7 @@
 # three, and asks the SHIPPED `devflow_filing_cap_verdict` (lib/filing-decisions.sh)
 # for every cap decision rather than re-implementing one.
 #
-# Defines: devflow_select_findings
+# Defines: devflow_projection_eligible_findings, devflow_select_findings
 #
 # Contract (mirrors lib/filing-decisions.sh's sourceable, fail-closed-but-loud shape):
 #   - This file is SOURCED, so it sets NO shell options — a `set -euo pipefail` here
@@ -46,6 +46,33 @@
   || { echo "devflow: resolve-jq.sh could not be sourced beside ${BASH_SOURCE[0]} — using bare 'jq' (set DEVFLOW_JQ to override)" >&2; : "${DEVFLOW_JQ:=jq}"; }
 
 _SF_HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Filter a Stage B findings array through the shared projection predicate. Invalid
+# findings are omitted individually; the optional second path receives structured
+# drop records for the orchestrator's durable run report.
+devflow_projection_eligible_findings() {
+    local findings_file="${1:-}" dropped_file="${2:-}" _out="[]" _dropped="[]" _f _subslug
+    if [ -z "$findings_file" ] || [ ! -r "$findings_file" ] || \
+       ! "$DEVFLOW_JQ" -e 'type == "array"' "$findings_file" >/dev/null 2>&1; then
+        echo "::error::select-findings: projection input is absent, unreadable, or not an array — withholding every finding" >&2
+        return 1
+    fi
+    if [ ! -r "$_SF_HERE/projection-gate.jq" ]; then
+        echo "::error::select-findings: projection-gate.jq is unavailable — withholding every finding" >&2
+        return 1
+    fi
+    while IFS= read -r _f; do
+        if "$DEVFLOW_JQ" -e -f "$_SF_HERE/projection-gate.jq" <<<"$_f" >/dev/null 2>&1; then
+            _out="$("$DEVFLOW_JQ" -c --argjson f "$_f" '. + [$f]' <<<"$_out")"
+        else
+            _subslug="$("$DEVFLOW_JQ" -r '.subslug // "(missing)"' <<<"$_f" 2>/dev/null || echo '(unreadable)')"
+            echo "select-findings: finding '${_subslug}' omitted because its projection disposition is unusable (requires represented plus zero unmatched Desired Behavior statements)" >&2
+            _dropped="$("$DEVFLOW_JQ" -c --arg subslug "$_subslug" '. + [{subslug:$subslug,reason:"projection-unusable"}]' <<<"$_dropped")"
+        fi
+    done < <("$DEVFLOW_JQ" -c '.[]' "$findings_file")
+    [ -z "$dropped_file" ] || printf '%s' "$_dropped" > "$dropped_file" || return 1
+    printf '%s\n' "$_out"
+}
 
 # Source the shipped cap owner. A missing owner must WITHHOLD (return non-zero),
 # never file uncapped — so a failed source is a hard fail of the whole selection,

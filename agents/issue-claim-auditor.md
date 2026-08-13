@@ -54,7 +54,7 @@ Classify each independently verifiable post-change obligation in Desired Behavio
 
 Semantic topic overlap is not representation. For example, Desired Behavior says “Every exported report retains stable ordering,” while the only AC says “Existing report fields remain present”: both discuss reports, but the AC preserves fields rather than ordering, so the exact Desired Behavior statement is **unmatched**. If one AC requires stable sorting and another requires that every exported report uses that sorter, the two jointly represent the obligation. “Today, report order varies because the upstream API is inconsistent” is explanatory current-behavior prose and is a **non-obligation**.
 
-Return `projection_disposition: represented` when every obligation is represented (including the zero-obligation case), with `unmatched_desired_behavior: none`, and record `--note "issue-claim audit (projection): every Desired Behavior obligation is represented in the resolved acceptance criteria — pass complete"`. Return `projection_disposition: unmatched` and overall `outcome: blocked-specification` when any obligation is unmatched; include every exact unmatched statement and record `--note "issue-claim audit (projection): Desired Behavior obligation is unmatched by the resolved acceptance criteria — reporting specification defect to orchestrator: {exact statement}"`. Never synthesize, rewrite, or append an AC: author refinement is the only route out of this result.
+Return `projection_disposition: represented` when every obligation is represented (including the zero-obligation case), with `unmatched_desired_behavior: []`, and record `--note "issue-claim audit (projection): every Desired Behavior obligation is represented in the resolved acceptance criteria — pass complete"`. Return `projection_disposition: unmatched` and overall `outcome: blocked-specification` when any obligation is unmatched; set `unmatched_desired_behavior` to a JSON array containing every exact unmatched statement and record `--note "issue-claim audit (projection): Desired Behavior obligation is unmatched by the resolved acceptance criteria — reporting specification defect to orchestrator: {exact statement}"`. Never synthesize, rewrite, or append an AC: author refinement is the only route out of this result.
 
 ### Pass 1 — Count or enumeration claims
 
@@ -139,7 +139,7 @@ ISSUE-CLAIM-AUDIT RECORD
 outcome: <proceed | blocked-specification | blocked-policy | blocked-capability>
 blocked_reason: <verbatim reason when outcome is blocked-*, else "n/a" — for blocked-specification: the exact unmatched Desired Behavior statement(s); for blocked-policy: the AC text, the policy file, and the policy text; for blocked-capability: the workflow-resident AC list and the observed GITHUB_ACTIONS/DEVFLOW_APP_ID signals>
 projection_disposition: <represented | unmatched>
-unmatched_desired_behavior: <each exact unmatched Desired Behavior statement, or "none">
+unmatched_desired_behavior: <JSON array of each exact unmatched Desired Behavior statement, or []>
 pass5_workflow_resident_acs: <comma-separated AC identifiers/text Pass 5 flagged as workflow-resident (the capability-blocked set for 2.2.5), or "none">
 pass2_wrongly_excluded_surfaces: <surfaces the issue's negative-scope claims wrongly excluded that must enter Phase 2's plan, or "none">
 superseding_assumptions: <Pass 1 verified-count corrections and Pass 6 refuted premises that supersede the issue body as Phase 2's working assumptions, or "none">

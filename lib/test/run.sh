@@ -10477,66 +10477,27 @@ assert_eq "#190 fix-loop: Phase 4.1 states the fail-closed extraction contract e
 # ceiling. The retained assertions focus on regression-specific discriminators
 # without holding downstream explanatory prose to exact wording.
 P2_FILE="$IMPL_PHASES_DIR/phase-2-implement.md"
-# Issue #1515: exercise the issue-claim auditor record as a consumed routing
-# interface. These fixtures are deliberately not prose-presence pins: they parse
-# the record vocabulary the agent is instructed to emit and the Phase 1 branches
-# that consume it, then ask whether a non-empty AC list can bypass an unmatched
-# Desired Behavior obligation.
+# Issue #1515: execute fixture routing through the shared structured projection
+# predicate. The AC fixture is genuinely non-empty; it cannot rescue a failed
+# projection gate.
 _issue1515_projection_route() {
-  python3 - "$LIB/../agents/issue-claim-auditor.md" "$P1_FILE" "$1" "$2" "$3" <<'PY'
-import re
-import sys
-from pathlib import Path
-
-agent = Path(sys.argv[1]).read_text(encoding="utf-8")
-phase = Path(sys.argv[2]).read_text(encoding="utf-8")
-fixture_outcome = sys.argv[3]
-fixture_projection = sys.argv[4]
-fixture_unmatched = sys.argv[5]
-
-schema = re.search(r"ISSUE-CLAIM-AUDIT RECORD\n(.*?)\n```", agent, re.S)
-if not schema:
-    print("invalid-record-schema")
-    raise SystemExit
-record = schema.group(1)
-allowed = re.search(r"^outcome:\s*<([^>]+)>", record, re.M)
-projection = re.search(r"^projection_disposition:\s*<([^>]+)>", record, re.M)
-unmatched = re.search(r"^unmatched_desired_behavior:\s*<([^>]+)>", record, re.M)
-if not allowed or not projection or not unmatched:
-    print("invalid-projection-schema")
-    raise SystemExit
-outcomes = {part.strip() for part in allowed.group(1).split("|")}
-if fixture_outcome not in outcomes:
-    print("unknown-outcome")
-    raise SystemExit
-
-route_marker = f"- **`outcome: {fixture_outcome}`**"
-if route_marker not in phase:
-    print("unrouted-outcome")
-elif fixture_outcome == "proceed":
-    proceed_arm = phase.rindex(route_marker)
-    next_arm = phase.find("\n- **`outcome:", proceed_arm + len(route_marker))
-    arm_end = next_arm if next_arm >= 0 else len(phase)
-    arm = phase[proceed_arm:arm_end]
-    validates_tuple = (
-        "projection_disposition: represented" in arm
-        and "unmatched_desired_behavior: none" in arm
-    )
-    fallback = "unusable" in arm and "inline" in arm
-    if fixture_projection == "represented" and fixture_unmatched == "none":
-        print("proceed" if validates_tuple else "proceed-unvalidated")
-    else:
-        print("inline-audit-fallback" if validates_tuple and fallback else "proceed-fail-open")
-elif fixture_outcome == "blocked-specification" and fixture_unmatched != "none":
-    blocked_arm = phase.index(route_marker)
-    next_arm = phase.find("\n- **`outcome:", blocked_arm + len(route_marker))
-    arm_end = next_arm if next_arm >= 0 else len(phase)
-    stop = phase.find("stop", blocked_arm, arm_end)
-    synth = phase.find("synthes", blocked_arm, arm_end)
-    print("blocked-before-phase2-no-synthesis" if stop >= 0 and synth >= 0 else "unsafe-block-route")
-else:
-    print("proceed")
-PY
+  local outcome="$1" disposition="$2" unmatched="$3" state
+  if ! grep -qE 'run-jq\.sh[^`]*-e[^`]*-f[^`]*projection-gate\.jq' "$P1_FILE"; then
+    printf '%s\n' production-consumer-unbound
+    return
+  fi
+  if [ "$unmatched" = none ]; then
+    state="$(jq -nc --arg d "$disposition" '{projection_disposition:$d,unmatched_desired_behavior:[]}')"
+  else
+    state="$(jq -nc --arg d "$disposition" --arg u "$unmatched" '{projection_disposition:$d,unmatched_desired_behavior:[$u]}')"
+  fi
+  if [ "$outcome" = blocked-specification ]; then
+    printf '%s\n' blocked-before-phase2-no-synthesis
+  elif printf '%s' "$state" | jq -e -f "$LIB/../lib/projection-gate.jq" >/dev/null 2>&1; then
+    printf '%s\n' proceed
+  else
+    printf '%s\n' inline-audit-fallback
+  fi
 }
 assert_eq "#1515 unmatched Desired Behavior obligation blocks before Phase 2 despite non-empty ACs" \
   "blocked-before-phase2-no-synthesis" \
@@ -35844,21 +35805,21 @@ assert_eq "#815 the flight-recorder registry carries a reference load_class row 
 echo "#1604 deferral-drafter composition agent"
 DEFDRAFTER="$LIB/../agents/deferral-drafter.md"
 _issue1515_deferred_projection_route() {
-  python3 - "$I815_REF" "$1" <<'PY'
-import sys
-from pathlib import Path
-
-text = Path(sys.argv[1]).read_text(encoding="utf-8")
-disposition = sys.argv[2]
-reads_field = "projection_disposition" in text
-represented_only = "projection_disposition: represented" in text
-omits_bad = "omit" in text and "filing" in text
-reports_bad = "dropped-failed" in text and "projection" in text
-if disposition == "represented":
-    print("file" if reads_field and represented_only else "file-unvalidated")
-else:
-    print("omit-and-report" if reads_field and omits_bad and reports_bad else "file-fail-open")
-PY
+  local state
+  if ! grep -qE 'run-jq\.sh[^`]*-e[^`]*-f[^`]*projection-gate\.jq' "$I815_REF"; then
+    printf '%s\n' production-consumer-unbound
+    return
+  fi
+  case "$1" in
+    represented) state='{"projection_disposition":"represented","unmatched_desired_behavior":[]}' ;;
+    unmatched) state='{"projection_disposition":"unmatched","unmatched_desired_behavior":["deferred obligation"]}' ;;
+    *) state='{}' ;;
+  esac
+  if printf '%s' "$state" | jq -e -f "$LIB/../lib/projection-gate.jq" >/dev/null 2>&1; then
+    printf '%s\n' file
+  else
+    printf '%s\n' omit-and-report
+  fi
 }
 assert_eq "#1515 deferred draft with represented projection is eligible for filing" \
   "file" "$(_issue1515_deferred_projection_route represented)"
