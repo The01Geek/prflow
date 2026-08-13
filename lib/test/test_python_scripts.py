@@ -3056,13 +3056,15 @@ assert_eq(f"#1653 the two #1550 probes captured escape-free help "
           True, '\x1b' not in _top_help_1550.stdout
           and '\x1b' not in _upd_help_1550.stdout)
 
-# The mechanism proof, and the only one that runs on the interpreter CI pins: a child
-# of this file inherits both values. Do not fold it into the colour arm below — that
-# arm is gated off on CI, which would leave the fix with no executable proof there.
+# The executable mechanism proof. Do not fold it into the colour arm below — that arm
+# is gated off on the interpreter CI pins, which would leave the fix with no executable
+# proof there at all.
 _inherit_1653 = _sp1550.run(
     [sys.executable, '-c',
      "import os; print(os.environ.get('PYTHON_COLORS'), os.environ.get('NO_COLOR'))"],
     capture_output=True, text=True)
+assert_eq(f"#1653 the inheritance-probe child ran ({_PYV_1653})",
+          0, _inherit_1653.returncode)
 assert_eq(f"#1653 a child of this file inherits both neutralising values ({_PYV_1653})",
           ('0', '1'), tuple(_inherit_1653.stdout.split()))
 
