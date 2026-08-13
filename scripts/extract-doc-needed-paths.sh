@@ -207,18 +207,11 @@ run_stage_a() {
     }
     return 0
   }
-  # decl_candidate(line): the block'"'"'s first content, with the label and the
-  # separator after it removed, so is_none_declaration() can examine the first
-  # content token alone (issue #1663). The first content does NOT sit at a fixed
-  # line position — the list-item and bold-paragraph openers can carry it after
-  # the label on the opener line, while a bare opener with a sub-list and the
-  # level-3 heading put it on a later line — so this runs on whichever in-scope
-  # line first yields non-empty content. Backticks are markdown formatting, not
-  # content; the label is dropped only when present (a no-op on a sub-list line);
-  # and the leading separator run — whitespace, a list dash, bold stars, a colon,
-  # a period, and the multibyte em-dash — is stripped. The em-dash is matched as a
-  # regex LITERAL (never a byte class), so the byte-wise locale this script uses
-  # cannot decompose it into a stray single-byte match.
+  # decl_candidate(line): the standalone-`none` declaration contract is in the
+  # header. This returns the line'"'"'s content with the label and the separator run
+  # after it stripped, so is_none_declaration() sees the first content token. The
+  # em-dash separator is stripped as a regex LITERAL, never a byte class, so the
+  # byte-wise locale cannot decompose it into a stray single-byte match.
   function decl_candidate(line,   s) {
     s = line
     gsub(/`/, "", s)
@@ -226,24 +219,15 @@ run_stage_a() {
     sub(/^([[:space:]*:.-]|—)+/, "", s)
     return s
   }
-  # is_none_declaration(cand): is CAND the recognized standalone `none` declaration
-  # (issue #1663)? TWO forms, and nothing else: (1) the first whitespace token is
-  # exactly `none` plus one trailing terminator from the closed set comma, period,
-  # semicolon, colon — after which the writer'"'"'s explanatory sentence and any path
-  # it names are deliberately NOT consulted; (2) `none` standing alone as the
-  # block'"'"'s only content. The token is compared as a whole-token literal via
-  # tolower(), never a leading-prefix match: `None of these pages may be skipped:`
-  # has a token of `None` (no terminator) and is not the whole content, so it is
-  # NOT a declaration and its paths still extract. `none!` / `none)` carry a
-  # trailing char outside the terminator set, so their token is not `none[,.;:]`
-  # and they are not declarations either.
-  function is_none_declaration(cand,   whole, tok) {
-    whole = cand
-    sub(/[[:space:]]+$/, "", whole)
-    tok = cand
-    sub(/[[:space:]].*/, "", tok)
-    if (tolower(tok) ~ /^none[,.;:]$/) return 1
-    if (tolower(whole) == "none") return 1
+  # is_none_declaration(cand): true for the two recognized forms (see the header
+  # contract) and nothing else — `none` plus one terminator from `,.;:` at a
+  # whitespace-or-end boundary, or `none` standing alone. The terminator/boundary
+  # anchor is what keeps a leading prefix like `None of these …` (word `none`
+  # followed by more content) and `none!` / `none)` from matching.
+  function is_none_declaration(cand) {
+    cand = tolower(cand)
+    if (cand ~ /^none[,.;:]([[:space:]]|$)/) return 1   # none + one terminator
+    if (cand ~ /^none[[:space:]]*$/) return 1           # none standing alone
     return 0
   }
   BEGIN { prev_blank = 1; in_fence = 0 }   # start-of-file is a paragraph boundary
