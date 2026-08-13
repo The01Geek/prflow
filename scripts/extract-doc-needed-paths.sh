@@ -92,7 +92,8 @@
 #     declaration is examined on the first content token ALONE, wherever it falls:
 #     that token must be exactly `none` (case-insensitively) carrying at most one
 #     trailing terminator from the closed set comma/period/semicolon/colon, OR
-#     `none` standing alone as the block's only content. It is a whole-token
+#     `none` standing alone as that first content token (any later block content
+#     is then suppressed, per the residual below). It is a whole-token
 #     literal comparison, never a leading prefix, so `None of these pages may be
 #     skipped:` runs on into a sentence and still extracts its paths, and `none!` /
 #     `none)` carry a char outside the terminator set and are not declarations.
@@ -266,6 +267,11 @@ run_stage_a() {
   /^###+ / {
     if (state >= 1 && $0 ~ /^###[[:space:]]+\*{0,2}Documentation Needed/) {
       if (state != 2) emitted = 0
+      # Reset the declaration latch on EVERY Documentation Needed opener (issue
+      # #1663): without this a `none` block silently suppresses a later block
+      # deliverable — a fail-open across blocks. Unlike emitted, this is not gated
+      # on state!=2, so back-to-back openers (already state 2) still re-examine.
+      decl = 0; decl_examined = 0
       state = 2
       entered_scope = 1
     } else if (state == 2) {
@@ -325,6 +331,10 @@ run_stage_a() {
   state >= 1 && ( /^- \*\*[^`]/ || ( /^\*\*[^`]/ && prev_blank ) ) {
     ns = ($0 ~ /^(- )?\*\*Documentation Needed\*\*/) ? 2 : 1
     if (ns == 2 && state != 2) emitted = 0
+    # Reset the declaration latch on EVERY Documentation Needed opener (issue
+    # #1663): a `none` block must not suppress a later block deliverable. Not gated
+    # on state!=2, so back-to-back openers (already state 2) still re-examine.
+    if (ns == 2) { decl = 0; decl_examined = 0 }
     if (ns == 2) entered_scope = 1
     entered_section = 1
     state = ns

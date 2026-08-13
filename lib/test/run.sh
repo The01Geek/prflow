@@ -11441,6 +11441,80 @@ assert_eq "#1663-g 'nonexistent' (token merely begins with the letters) is not a
   "docs/internal/implement-skill.md" \
   "$(printf '%s\n' "$fx_1663_prefix" | bash "$EXTRACT_HELPER")"
 
+# #1663-h — REGRESSION PIN (fail-open across blocks): a `none` declaration in the
+# FIRST Documentation Needed block must NOT suppress a real deliverable named in a
+# LATER block. The declaration latch (decl/decl_examined) resets on every opener,
+# symmetric with `emitted`; without that reset the first block's `none` latched and
+# silently dropped the second block's path — a fail-open that disables the Phase 4.1
+# gate for that deliverable (caught by the silent-failure review on this PR).
+fx_1663_multiblock="## Implementation Notes
+
+- **Documentation Needed** — none.
+
+- **Documentation Needed** — update \`docs/internal/implement-skill.md\`"
+assert_eq "#1663-h regression: a 'none' declaration in the first block does not suppress a later block's real deliverable" \
+  "docs/internal/implement-skill.md" \
+  "$(printf '%s\n' "$fx_1663_multiblock" | bash "$EXTRACT_HELPER")"
+
+# The same regression for the level-3 heading opener form.
+fx_1663_multihead="## Implementation Notes
+
+### Documentation Needed
+none.
+### Documentation Needed
+update \`docs/internal/implement-skill.md\`"
+assert_eq "#1663-h regression (heading form): a first-heading 'none' does not suppress a later heading's deliverable" \
+  "docs/internal/implement-skill.md" \
+  "$(printf '%s\n' "$fx_1663_multihead" | bash "$EXTRACT_HELPER")"
+
+# #1663-i — every member of the closed terminator set `,.;:` is a declaration, not
+# only the period the other fixtures use. A regression narrowing the set (e.g. to
+# `.` alone, or dropping the colon — which is also the separator char) would pass
+# every other #1663 fixture; these pin the whole set.
+fx_1663_comma="## Implementation Notes
+
+- **Documentation Needed** — none, nothing to update \`docs/internal/implement-skill.md\`"
+assert_eq "#1663-i terminator ',' is a declaration: no deliverables" \
+  "" \
+  "$(printf '%s\n' "$fx_1663_comma" | bash "$EXTRACT_HELPER")"
+fx_1663_semi="## Implementation Notes
+
+- **Documentation Needed** — none; nothing to update \`docs/internal/implement-skill.md\`"
+assert_eq "#1663-i terminator ';' is a declaration: no deliverables" \
+  "" \
+  "$(printf '%s\n' "$fx_1663_semi" | bash "$EXTRACT_HELPER")"
+fx_1663_colon="## Implementation Notes
+
+- **Documentation Needed** — none: nothing to update \`docs/internal/implement-skill.md\`"
+assert_eq "#1663-i terminator ':' is a declaration: no deliverables" \
+  "" \
+  "$(printf '%s\n' "$fx_1663_colon" | bash "$EXTRACT_HELPER")"
+
+# #1663-j — case-insensitive ACCEPTANCE: a capitalized `None.` opening the block is
+# a declaration. #1663-b's `None of these …` is a run-on non-declaration whose
+# outcome does not depend on tolower(), so without this a regression dropping
+# tolower() would keep the whole suite green while breaking a writer who opens with
+# `None.`.
+fx_1663_capital="## Implementation Notes
+
+- **Documentation Needed** — None. \`docs/internal/implement-skill.md\`"
+assert_eq "#1663-j case-insensitive: 'None.' is a declaration: no deliverables" \
+  "" \
+  "$(printf '%s\n' "$fx_1663_capital" | bash "$EXTRACT_HELPER")"
+
+# #1663-k — the first-content-token latch across LINES: a real deliverable on the
+# first content line is captured, and a later line beginning `none …` in the same
+# block suppresses nothing (the latch armed on the first content line, not the
+# `none` line). A regression re-examining every line would drop the path.
+fx_1663_latch="## Implementation Notes
+
+- **Documentation Needed**
+  - update \`docs/internal/implement-skill.md\`
+  - none needed elsewhere"
+assert_eq "#1663-k first-token latch: a later 'none' line does not suppress the first line's captured deliverable" \
+  "docs/internal/implement-skill.md" \
+  "$(printf '%s\n' "$fx_1663_latch" | bash "$EXTRACT_HELPER")"
+
 # ── issue #1554: read-doc-needed-deliverables.sh — the Phase 4.1 read boundary ──
 # Phase 4.1's Documentation-Needed read used to be inline shell written twice in
 # the phase file: it captured its result into a shell variable no later Bash call
