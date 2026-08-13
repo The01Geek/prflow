@@ -146,4 +146,16 @@ superseding_assumptions: <Pass 1 verified-count corrections and Pass 6 refuted p
 notes: <one-line summary of the per-pass records you wrote to the workpad>
 ```
 
-**Report `outcome: proceed` for every non-terminal outcome** — a clean projection, a Pass 1/Pass 6 correction, a Pass 2 added surface, or a Pass 5 partial deferral. Report `blocked-specification` **only** for an unmatched Pass 0 obligation, `blocked-policy` **only** for a Pass 3 contradiction, and `blocked-capability` **only** for the Pass 5 every-in-scope-AC-workflow-resident case; those three are the orchestrator's to stop on.
+A clean projection reports `outcome: proceed`.
+
+A Pass 1/Pass 6 correction reports `outcome: proceed`.
+
+A Pass 2 added surface reports `outcome: proceed`.
+
+A Pass 5 partial deferral reports `outcome: proceed`.
+
+Report `blocked-specification` **only** for an unmatched Pass 0 obligation.
+
+Report `blocked-policy` **only** for a Pass 3 contradiction.
+
+Report `blocked-capability` **only** when Pass 5 finds the complete in-scope AC set workflow-resident. The orchestrator stops the run for a blocked outcome.
