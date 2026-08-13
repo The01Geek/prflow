@@ -37533,14 +37533,9 @@ assert_eq "#363 skill: does not attribute a suite-execution obligation to Phase 
 _OVERVIEW_MD="$LIB/../docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md"
 assert_eq "#363 docs: the overview's paraphrase does not attribute that obligation to Phase 2 either" "0" \
   "$(pin_count 'Phase 2'"'"'s "establish the suite passes" obligation' "$_OVERVIEW_MD")"
-# No-verdict reporting follows the selected progress surface. A held PR-comment target
-# gets the terminal stamp; the no-comment and issue-workpad paths use their owned surfaces.
-assert_pin_unique "#363 skill: stamps a held PR progress comment on a no-verdict exit" \
-  "**No verdict on the PR-comment surface — stamp a terminal \`❌\` as your final action when \`\$WP\` is set.**" "$REVIEW_SKILL"
-assert_pin_unique "#1657 skill: owns no-verdict reporting on the issue-workpad surface" \
-  "**Intentional issue-workpad surface**" "$REVIEW_SKILL"
-assert_pin_unique "#1657 skill: owns no-verdict reporting when the PR-comment handle is absent" \
-  "**No progress comment on the PR-comment surface**" "$REVIEW_SKILL"
+# Terminal ❌ on ANY no-verdict path, not only a fatal abort.
+assert_pin_unique "#363 skill: stamps a terminal ❌ on ANY path that reaches no verdict" \
+  "**Any path that reaches no verdict — stamp a terminal \`❌\` as your final action.**" "$REVIEW_SKILL"
 # The stale claim: the profile now DOES grant tee. Absence pin — a reintroduced
 # sentence would tell the engine not to use a command it holds.
 assert_eq "#363 skill: no longer claims the review profile lacks Bash(tee:*)" "0" \
