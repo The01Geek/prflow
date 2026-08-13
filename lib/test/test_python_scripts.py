@@ -2969,13 +2969,18 @@ assert_eq("#1653 the file neutralises colour for its children (PYTHON_COLORS, NO
 # statement against a line that no longer spawns anything.
 _SRC_1653 = Path(__file__).resolve().read_text(encoding='utf-8')
 _TREE_1653 = ast.parse(_SRC_1653)
-# Keep each set a superset of the spawner names it covers — _SPAWNERS_1653 for the
-# subprocess module, _OS_SPAWNERS_1653 for os: a name either set misses silently moves
-# the earliest-child line later and weakens the ordering assertion below.
-_SPAWNERS_1653 = {'run', 'Popen', 'call', 'check_call', 'check_output'}
-_OS_SPAWNERS_1653 = {'system', 'popen', 'fork', 'forkpty', 'posix_spawn', 'posix_spawnp',
+# Keep each set a superset of its own module's spawner names — _SPAWNERS_1653 for
+# subprocess, _OS_SPAWNERS_1653 for os: a name either set misses silently moves the
+# earliest-child line later and weakens the ordering assertion below. (A spawner in a
+# third module — pty.fork, asyncio's — is outside both and would need its own alias
+# scan; none is used here, and the assertions above fail closed if that stops holding.)
+_SPAWNERS_1653 = {'run', 'Popen', 'call', 'check_call', 'check_output',
+                  'getoutput', 'getstatusoutput'}
+_OS_SPAWNERS_1653 = {'system', 'popen', 'startfile', 'fork', 'forkpty',
+                     'posix_spawn', 'posix_spawnp',
                      'spawnl', 'spawnle', 'spawnlp', 'spawnv', 'spawnve', 'spawnvp',
-                     'execl', 'execle', 'execlp', 'execv', 'execve', 'execvp'}
+                     'spawnvpe', 'execl', 'execle', 'execlp', 'execv', 'execve',
+                     'execvp', 'execvpe'}
 # Both keys are scanned, so moving either one below a child process fails this —
 # keying on PYTHON_COLORS alone would pass a tree whose NO_COLOR was left late.
 _ENV_KEYS_1653 = {'PYTHON_COLORS', 'NO_COLOR'}
@@ -3009,10 +3014,10 @@ for _n in ast.walk(_TREE_1653):
     elif isinstance(_f, ast.Name) and _f.id in _bare_spawners_1653:
         _child_linenos_1653.append(_n.lineno)
 
-# Module scope only: a later test that legitimately saves and restores one of these
-# keys around a probe of its own must not read as the neutralisation moving below a
-# child, which is a false RED whose message would name the wrong cause.
-_env_stmt_linenos_1653 = []
+# Take each key's EARLIEST module-scope assignment, never the latest: this file's own
+# idiom for a temporary override is a module-scope save/restore block, so a max() would
+# false-RED on a later legitimate one with a message naming the wrong cause.
+_env_stmt_linenos_1653 = {}
 for _n in _TREE_1653.body:
     if not isinstance(_n, ast.Assign):
         continue
@@ -3020,11 +3025,15 @@ for _n in _TREE_1653.body:
         if isinstance(_t, ast.Subscript) and isinstance(_t.value, ast.Attribute) \
            and _t.value.attr == 'environ' and isinstance(_t.slice, ast.Constant) \
            and _t.slice.value in _ENV_KEYS_1653:
-            _env_stmt_linenos_1653.append((_t.slice.value, _n.lineno))
+            _env_stmt_linenos_1653.setdefault(_t.slice.value, _n.lineno)
 
-_env_keys_found_1653 = {_k for _k, _ in _env_stmt_linenos_1653}
-# Floors, so a derivation that silently collapses to the empty set (a renamed alias, a
-# moved statement) fails here instead of vacuously comparing two empty sequences.
+_env_keys_found_1653 = set(_env_stmt_linenos_1653)
+# Floors, so a derivation that silently collapses — a renamed alias, a moved statement,
+# one alias family going empty — fails here instead of vacuously comparing empty sets.
+# Assert BOTH alias families, or a half-collapsed derivation still clears a count floor.
+assert_eq("#1653 both spawner-alias families were derived from this file's source",
+          (True, True),
+          (len(_sp_aliases_1653) >= 1, len(_os_aliases_1653) >= 1))
 assert_eq("#1653 the child-process invocation set was derived from this file's source",
           True, len(_child_linenos_1653) >= 3)
 assert_eq("#1653 both colour-neutralising statements were located in this file's source",
@@ -3034,7 +3043,7 @@ assert_eq("#1653 both neutralising statements precede every child-process invoca
           True,
           bool(_child_linenos_1653)
           and _env_keys_found_1653 == _ENV_KEYS_1653
-          and max(_l for _, _l in _env_stmt_linenos_1653) < min(_child_linenos_1653))
+          and max(_env_stmt_linenos_1653.values()) < min(_child_linenos_1653))
 
 _PYV_1653 = f"python {sys.version_info[0]}.{sys.version_info[1]}"
 del _SRC_1653, _TREE_1653  # nothing below reads these
@@ -3047,7 +3056,20 @@ assert_eq(f"#1653 the two #1550 probes captured escape-free help "
           True, '\x1b' not in _top_help_1550.stdout
           and '\x1b' not in _upd_help_1550.stdout)
 
-if sys.version_info >= (3, 13):
+# The mechanism proof, and the only one that runs on the interpreter CI pins: a child
+# of this file inherits both values. Do not fold it into the colour arm below — that
+# arm is gated off on CI, which would leave the fix with no executable proof there.
+_inherit_1653 = _sp1550.run(
+    [sys.executable, '-c',
+     "import os; print(os.environ.get('PYTHON_COLORS'), os.environ.get('NO_COLOR'))"],
+    capture_output=True, text=True)
+assert_eq(f"#1653 a child of this file inherits both neutralising values ({_PYV_1653})",
+          ('0', '1'), tuple(_inherit_1653.stdout.split()))
+
+# argparse colourises help on 3.14 and not on 3.12 (both measured on this host); 3.13
+# was not measurable here, so the gate sits at the version whose colourisation was
+# observed — under-claiming exercise there rather than reporting a vacuous hold as proof.
+if sys.version_info >= (3, 14):
     # Never build this from a fresh dict instead of os.environ: the neutralisation
     # under test lives in that mapping, and a replacement environment drops it, so
     # the assertion would pass on a tree with the fix removed.
@@ -3064,13 +3086,24 @@ if sys.version_info >= (3, 13):
     assert_eq(f"#1653 the neutralisation defeats FORCE_COLOR in the child's own "
               f"environment ({_PYV_1653})",
               True, '\x1b' not in _forced_help_1653.stdout)
+    # Isolates NO_COLOR: without this, deleting that assignment breaks no executable
+    # assertion, because PYTHON_COLORS alone already defeats FORCE_COLOR.
+    _nc_env_1653 = dict(os.environ, FORCE_COLOR='3')
+    _nc_env_1653.pop('PYTHON_COLORS', None)
+    _nc_help_1653 = _sp1550.run(
+        [sys.executable, str(SCRIPTS / 'workpad.py'), '--help'],
+        capture_output=True, text=True, env=_nc_env_1653)
+    assert_eq(f"#1653 NO_COLOR alone defeats FORCE_COLOR with PYTHON_COLORS removed "
+              f"({_PYV_1653})",
+              True, 'usage:' in _nc_help_1653.stdout
+              and '\x1b' not in _nc_help_1653.stdout)
 else:
-    # Assert the interpreter really is one that colourises nothing, rather than a bare
-    # True==True: a constant would let this arm absorb a 3.13+ host that owed the proof
-    # and still report a pass.
+    # Assert the interpreter really is one whose argparse colourises nothing, rather
+    # than a bare True==True: a constant would let this arm absorb a colourising host
+    # that owed the proof and still report a pass.
     assert_eq(f"#1653 forced-colour proof NOT EXERCISED on {_PYV_1653} "
-              f"(argparse colourises help only on python >= 3.13)",
-              True, sys.version_info < (3, 13))
+              f"(argparse colourises help only on python >= 3.14)",
+              True, sys.version_info < (3, 14))
 
 # --- the wording constraint itself, stated as a property --------------------
 # A new row whose text contained a live tick substring would break that EXISTING
