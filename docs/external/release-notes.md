@@ -9,6 +9,10 @@ This page summarizes user-visible PRFlow changes. For a complete change history,
 
 **Legacy review tier:** Entries about automatic pull-request-triggered review apply only to repositories that installed that tier before July 29, 2026. Fresh installations do not receive it. Use a collaborator comment with `/prflow:review` for the supported cloud review path.
 
+## August 13, 2026
+
+- **An issue can now say "no documentation is needed" without turning a page it mentions into required work.** When you write an issue, its `Documentation Needed` block can list files that the change must update, and `/prflow:implement` treats every file named there as a mandatory deliverable. Previously, if you wrote that no documentation was needed and then named a file to explain *why* it was already fine, that mentioned file was still demanded — so the honest, informative phrasing was punished and an otherwise-finished run stalled asking you to edit a page that needed no change. You can now open the block with the standalone word `none` (case-insensitive, optionally followed by a single `,` `.` `;` or `:`), and the block promises nothing — you can still add a sentence and name the page that explains the decision. The word must stand alone as the block's opener: an ordinary sentence such as `None of these pages may be skipped:` still names its files as required. The routine documentation pass runs and updates whatever the change warrants regardless. (#1663)
+
 ## August 12, 2026
 
 - **Improvement: Acceptance Criteria Now Cover Every Desired Outcome** — PRFlow now checks that every independently testable outcome in an issue's Desired Behavior is represented by its acceptance criteria before implementation begins. If an outcome is uncovered, issue creation revises the draft and implementation stops for refinement instead of silently omitting the requirement or inventing a criterion. (#1662)
