@@ -28,8 +28,9 @@ fi
 # unmatched pattern — via the builtin `printf` (no external tool whose absence could fake output).
 [ -n "${ZSH_VERSION:-}" ] && setopt nonomatch || :
 set -- "$ROOT"/.prflow/tmp/review/*/*/iter-*.json
-{ [ -e "$1" ] && printf '%s\n' "$@" | sort; } > "$ROOT/.prflow/tmp/.phase33-iters-before" || :
+if [ -e "$1" ]; then printf '%s\n' "$@" | sort; fi
 ```
+Consume the sorted listing from the tool result and author it to `$ROOT/.prflow/tmp/.phase33-iters-before` with the Write tool (an empty listing authors an empty file). Do not emit a shell redirect for this snapshot.
 
 Invoke the **Skill tool** with `skill: review-and-fix` and `args: "<pr-number> --push-each-iteration --issue $ISSUE_NUMBER"`, while continuing to hold this orchestrator's `$ISSUE_NUMBER` in caller context. That caller-held value — not the public argument string — is the sole implement-origin signal the loop uses to bind its internal `progress_surface = workpad`; do not clear or reconstruct it at the invocation seam. `<pr-number>` is the draft PR number passed as a **bare leading numeric token** — the digits read from **inside the brackets** of the `draft PR number: [<n>]` line Phase 3.1 printed (passed without the brackets, so the token is bare) — and the issue number is likewise substituted as its literal digits. The bare leading token is what puts the loop in PR mode: this phase operates on the live draft PR created in 3.1, and only in PR mode does the shared engine apply the PR-specific branch-sync gate and Loop Exit's base-branch update Checkpoint 3; review progress itself stays on the issue workpad in both modes. **Omit-the-token arm:** when Phase 3.1's `draft PR number:` line printed **empty brackets** (`[]`), and when it **did not print at all**, omit the numeric token and pass `--push-each-iteration --issue $ISSUE_NUMBER` alone — the loop then runs in current-branch mode exactly as it did before this token existed. **Record on the issue workpad which arm you took** (the PR number passed, or that the token was omitted) with a workpad `--note`, so a compacted run's mode choice stays auditable. `--issue` remains load-bearing only for acceptance-criteria resolution; it does not select the progress surface. The `--push-each-iteration` flag is load-bearing here too: it propagates each fix iteration to the remote branch so its CI validates the converging state and progress survives a mid-loop crash, but it likewise does not select the progress surface. (Direct users of `/prflow:review-and-fix` omit the flag and the loop's **fix commits** stay local — though Loop Exit's `--persist` still pushes the `prflow-telemetry` branch regardless of the flag; see that skill's Input section for the flag's semantics.)
 
@@ -91,11 +92,10 @@ else
 fi
 # Targeted persist FIRST (substituting this run's held <slug>/<run-id> — the
 # targeted form is exempt from every discovery-mode skip by caller intent):
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/efficiency-trace.sh --workpad-dir "$ROOT/.prflow/tmp/review/<slug>/<run-id>" --slug "<slug>" --persist 2>"$PERSIST_ERR" || true
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/efficiency-trace.sh --workpad-dir "$ROOT/.prflow/tmp/review/<slug>/<run-id>" --slug "<slug>" --persist || true
 # Then argument-less discovery for every OTHER leftover run dir on disk; its
 # stderr appends to the same capture so the single surfacing line carries both:
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/efficiency-trace.sh --persist 2>>"$PERSIST_ERR" || true   # best-effort; captured (not swallowed) so its ::warning:: breadcrumbs both surface to the run log below AND are checked for a record-write failure by the detector
-cat "$PERSIST_ERR" >&2   # surface every --persist breadcrumb to the run log
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/efficiency-trace.sh --persist || true
 # Detect the "no inputs FROM THIS RUN" case by diffing against the pre-loop snapshot, anchored
 # on $ROOT (matching --persist): comm -13 lists iter-*.json present now but NOT before the
 # inline loop — i.e. exactly what THIS run wrote. This is immune to prior-run leftovers on the
@@ -116,7 +116,7 @@ cat "$PERSIST_ERR" >&2   # surface every --persist breadcrumb to the run log
 # sole new occupant is not a reachable in-flow shape.
 BEFORE="$ROOT/.prflow/tmp/.phase33-iters-before"
 if [ ! -f "$BEFORE" ]; then
-  : > "$BEFORE"
+  # Author an empty `$BEFORE` file with the Write tool before continuing.
   echo "::warning::phase-3.3: pre-loop iter-*.json snapshot missing; no-inputs detector degrades to whole-tree presence, which can MASK a real this-run telemetry loss behind a leftover iter-*.json from a prior local run" >&2
 fi
 # Portable, no bash-only glob-completion builtin (this prose runs under the agent's shell — zsh/dash/sh). The

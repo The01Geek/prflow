@@ -480,6 +480,28 @@ def _redirect_violation(statement: str) -> bool:
     return False
 
 
+def _workspace_scratch_redirect(statement: str) -> bool:
+    """Whether a gh redirect targets repo-local `.prflow/tmp/**`.
+
+    Issue #1514 has exact denial evidence for the production `gh` head. Other heads
+    remain unmeasured and are governed by the Write-default prompt contract rather
+    than being mislabeled as matcher-denied by this evidence-backed lint.
+    """
+    head = _heads._head_of(statement)
+    if not head or head[0] != "gh":
+        return False
+    tokens = _heads._tokenize(statement)
+    for idx, tok in enumerate(tokens):
+        match = _REDIR.match(tok)
+        if not match:
+            continue
+        target = match.group(2) or (tokens[idx + 1] if idx + 1 < len(tokens) else "")
+        target = target.strip("'\"")
+        if target.startswith(".prflow/tmp/") or "/.prflow/tmp/" in target:
+            return True
+    return False
+
+
 def _cat_heredoc_violation(statement: str) -> bool:
     head = _heads._head_of(statement)
     if not head or head[0] != "cat":
@@ -1132,7 +1154,7 @@ def find_implement_violations(text: str) -> list[tuple[int, str, str]]:
                 # IR6: workspace-local scratch redirects are permitted only when the
                 # complete statement has its own recorded implement-tier verdict.
                 # Row 11 proves this echo control and nothing broader (issue #1514).
-                if (re.search(r"(?:^|[;&|\s])(?:[12]?>>?|&>)\s*[^\n;]*(?:\$GITHUB_WORKSPACE/)?\.prflow/tmp/", statement)
+                if (_workspace_scratch_redirect(statement)
                         and statement.strip() != "echo iprobe11workspace > .prflow/tmp/iprobe11workspace"):
                     lineno = _attribute_line(statement, start, len(block_lines), lines)
                     seen.add((lineno, "IR6", statement.strip()))
@@ -1203,17 +1225,14 @@ COMMAND_RULES = frozenset(_IR_TO_CR.values())
 def find_command_violations(text: str) -> list[tuple[int, str, str]]:
     """Every (approx line, rule, statement) command-tier denied-shape hit.
 
-    The command tier inherits the implement tier's denied shapes verbatim
-    (issue #1152), so this delegates to `find_implement_violations` and remaps its
-    `IR*` rule ids to the command tier's `CR*` ids — reusing the whole tested
-    implement scan (loop, capture, redirect, leading-`cd`) rather than inlining a
-    third copy, so the two tiers cannot drift. `_IR_TO_CR` is total over the ids
-    `find_implement_violations` can emit; a KeyError here would mean an implement rule
-    was added without a command mapping, which fails loud rather than silently
-    dropping a hit."""
+    The command tier inherits only the explicitly mapped implement rules. IR6 is
+    implement-evidence-specific and must not become command-tier proof by delegation.
+    The mapped loop, capture, /tmp redirect, and leading-cd predicates are reused so
+    their established common subset cannot drift."""
     return [
         (lineno, _IR_TO_CR[rule], statement)
         for lineno, rule, statement in find_implement_violations(text)
+        if rule in _IR_TO_CR
     ]
 
 

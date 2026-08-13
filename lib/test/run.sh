@@ -37028,6 +37028,12 @@ assert_eq "#363 review mode still emits both sections generic mode omits (the ab
 # #1629: the sole-publisher section is review-only — gated on the derived REVIEWED_COMMIT=yes
 # selector, so it is present for MODE=review and absent for MODE=implement and MODE=generic.
 _GB363_IMPL="$(HEAD_SHA=deadbeef CI_SUMMARY='ci: success' ALLOWED_TOOLS='Read' HARDENED_PATHS='a/b.md' MODE=implement bash "$RGB_SH")"
+for _gb1514 in "$_GB363_GEN" "$_GB363_REV" "$_GB363_IMPL"; do
+  assert_eq "#1514 grounding modes omit the head-independent in-workspace redirect claim" "no" \
+    "$(case "$_gb1514" in *'an in-workspace `>`/`2>` redirect of a granted head'*) echo yes ;; *) echo no ;; esac)"
+  assert_eq "#1514 grounding modes default unmeasured scratch authoring to Write" "yes" \
+    "$(case "$_gb1514" in *'Write tool for `.prflow/tmp/**` scratch unless that exact shell form has a current'*) echo yes ;; *) echo no ;; esac)"
+done
 assert_eq "#1629 generic mode emits no sole-publisher section (review-only, no reviewed commit)" "no" \
   "$(_gb363_gen_has "verdict reaches this pull request through Phase 4.4")"
 assert_eq "#1629 implement mode emits no sole-publisher section (review-only, no reviewed commit)" "no" \

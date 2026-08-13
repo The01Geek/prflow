@@ -12699,6 +12699,7 @@ _sc_planted = {
     "IR3": 'OUT=$(.prflow/vendor/prflow/scripts/apply-labels.sh 1 X)',
     "IR4": "cd somewhere",
     "IR5": "printf hi > /tmp/devflow-915.txt",
+    "IR6": "gh issue view 1 > .prflow/tmp/devflow-1514.txt",
     # issue #1152: the command tier inherits the implement tier's denied shapes
     # verbatim (CR* == the IR* shapes remapped), so its controls are the same
     # planted violations under the command rule ids.
