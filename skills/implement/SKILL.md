@@ -160,8 +160,8 @@ If the triggering comment can't be resolved (a review-body trigger has no reacti
 **Run-marker removal (same terminal transitions).** This block already binds *every* terminal `Status` transition, so it is also where the run's local-tier marker file is retired: at each such transition — 🎉 `Complete` and **any** 👎 `Blocked` finalizer alike — also remove the Phase 1.3 run-marker written for this issue, **and the Phase 1.1 issue-body cache** (`.prflow/tmp/issue-body/issue-$ISSUE_NUMBER.md`). Both removals are best-effort like the reaction; a failure to remove either never blocks the run.
 
 ```bash
-rm -f "$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.prflow/tmp/implement-active-$ISSUE_NUMBER" 2>/dev/null || true
-rm -f "$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.prflow/tmp/issue-body/issue-$ISSUE_NUMBER.md" 2>/dev/null || true
+rm -f "$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.prflow/tmp/implement-active-$ISSUE_NUMBER" || true
+rm -f "$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.prflow/tmp/issue-body/issue-$ISSUE_NUMBER.md" || true
 ```
 
 **GitHub autolink hygiene** (every GitHub surface you write — workpad comment, PR body, follow-up issue bodies, completion summary): never put a bare `#` immediately before a number unless it is a real issue or PR reference, because GitHub renders `#2` as a link to issue/PR 2. Spell out an ordinal, count, or list position ("item 2", "step 3"); genuine references like `#123` stay as-is. <!-- pruned-path-ok: illustrative autolink examples, not citations -->

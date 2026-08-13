@@ -76,7 +76,6 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import os
-import re
 import sys
 from pathlib import Path
 
@@ -139,9 +138,6 @@ EXCLUDED_PATHS = ("CHANGELOG.md",)
 #: the repository tracks prompt-extension examples with that suffix, whose prose
 #: would otherwise be scanned as if it were shell.
 MARKDOWN_SUFFIXES = (".md", ".md.example")
-
-#: A head token naming the gh binary directly, or through a resolver variable.
-_GH_VAR_HEAD = re.compile(r"^\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?$")
 
 #: The two spellings of the prohibited variable inside a path argument.
 _FORBIDDEN = ("$GITHUB_REPOSITORY", "${GITHUB_REPOSITORY}")
@@ -222,13 +218,6 @@ def statements_in(text: str) -> list[str]:
     return found
 
 
-def _is_gh_head(token: str) -> bool:
-    if token in ("gh", "gh.exe"):
-        return True
-    match = _GH_VAR_HEAD.match(token)
-    return bool(match) and match.group(1).endswith("GH")
-
-
 def violations_in_statement(statement: str) -> list[str]:
     """Return the offending path arguments of one statement (usually none).
 
@@ -243,7 +232,7 @@ def violations_in_statement(statement: str) -> list[str]:
     evade it.
     """
     tokens = [_heads._normalize(t) for t in _heads._tokenize(statement)]
-    if not tokens or not _is_gh_head(tokens[0]):
+    if not tokens or not _heads._is_gh_head(tokens[0]):
         return []
     if "api" not in tokens[1:]:
         return []

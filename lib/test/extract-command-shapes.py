@@ -134,10 +134,9 @@ _HEREDOC = _heads._HEREDOC
 
 _INTERPRETERS = frozenset({"python3", "python", "node"})
 
-# A redirection token: an optional fd/`&` then `>`/`>>`, with the target either
-# attached (`2>/tmp/f`) or in the next token (`> /tmp/f`).
-_REDIR = re.compile(r"^&?[0-9]*(>>|>)(.*)$")
-
+# A redirection token: an optional fd/`&` then `>`/`>>`/`>|`, with the target
+# either attached (`2>/tmp/f`) or in the next token (`> /tmp/f`).
+_REDIR = re.compile(r"^&?[0-9]*(>>|>\||>)(.*)$")
 
 def _strip_line_comment(line: str, quote: str | None = None) -> tuple[str, str | None]:
     """Drop a quote-aware `#` comment from one line. Returns `(cleaned, quote_state_out)`.
@@ -480,6 +479,30 @@ def _redirect_violation(statement: str) -> bool:
     return False
 
 
+def _workspace_scratch_redirect(statement: str) -> bool:
+    """Whether a gh-family redirect targets repo-local `.prflow/tmp/**`.
+
+    Issue #1514 keeps every unmeasured gh-family scratch form on the Write-default
+    path. Non-gh heads remain outside this evidence-scoped lint.
+    """
+    head = _heads._head_of(statement)
+    if not head:
+        return False
+    head_token = head[0]
+    if not _heads._is_gh_head(head_token):
+        return False
+    tokens = _heads._tokenize(statement)
+    for idx, tok in enumerate(tokens):
+        match = _REDIR.match(tok)
+        if not match:
+            continue
+        target = match.group(2) or (tokens[idx + 1] if idx + 1 < len(tokens) else "")
+        target = target.strip("'\"")
+        if target.startswith(".prflow/tmp/") or "/.prflow/tmp/" in target:
+            return True
+    return False
+
+
 def _cat_heredoc_violation(statement: str) -> bool:
     head = _heads._head_of(statement)
     if not head or head[0] != "cat":
@@ -551,7 +574,7 @@ _REVIEW_ARM_TABLE = (
 
 REVIEW_ARMS = frozenset(arm for arm, _rule, _pred in _REVIEW_ARM_TABLE)
 REVIEW_RULES = frozenset(rule for _arm, rule, _pred in _REVIEW_ARM_TABLE)
-IMPLEMENT_RULES = frozenset({"IR1", "IR2", "IR3", "IR4", "IR5"})
+IMPLEMENT_RULES = frozenset({"IR1", "IR2", "IR3", "IR4", "IR5", "IR6"})
 
 
 def classify(statement: str) -> list[str]:
@@ -1129,6 +1152,11 @@ def find_implement_violations(text: str) -> list[tuple[int, str, str]]:
                 if _redirect_violation(statement):
                     lineno = _attribute_line(statement, start, len(block_lines), lines)
                     seen.add((lineno, "IR5", statement.strip()))
+                # IR6: do not generalize one head's recorded verdict to another;
+                # `_workspace_scratch_redirect` limits this rule to the gh family.
+                if _workspace_scratch_redirect(statement):
+                    lineno = _attribute_line(statement, start, len(block_lines), lines)
+                    seen.add((lineno, "IR6", statement.strip()))
                 if not _label_capture_violation(statement):
                     continue
                 lineno = _attribute_line(statement, start, len(block_lines), lines)
@@ -1184,6 +1212,17 @@ def find_implement_violations(text: str) -> list[tuple[int, str, str]]:
 # position denial (run 30695072336) is measured by the `command-probe` job's
 # argument-position rows, not modelled as a static rule.
 _IR_TO_CR = {"IR1": "CR1", "IR2": "CR2", "IR3": "CR3", "IR4": "CR4", "IR5": "CR5"}
+_COMMAND_RULE_EXCLUSIONS = frozenset({"IR6"})
+
+_command_mapped_rules = frozenset(_IR_TO_CR)
+if (_command_mapped_rules & _COMMAND_RULE_EXCLUSIONS
+        or _command_mapped_rules | _COMMAND_RULE_EXCLUSIONS != IMPLEMENT_RULES):
+    raise RuntimeError(
+        "command-tier implement-rule partition is incomplete or overlapping: "
+        f"mapped={sorted(_command_mapped_rules)!r}, "
+        f"excluded={sorted(_COMMAND_RULE_EXCLUSIONS)!r}, "
+        f"implement={sorted(IMPLEMENT_RULES)!r}"
+    )
 
 # Exported beside REVIEW_RULES / IMPLEMENT_RULES so a consumer that must enumerate the
 # tables (cloud_writer_contract.py's AC4 shape-conformance guard and the `#678 AC8`
@@ -1196,18 +1235,16 @@ COMMAND_RULES = frozenset(_IR_TO_CR.values())
 def find_command_violations(text: str) -> list[tuple[int, str, str]]:
     """Every (approx line, rule, statement) command-tier denied-shape hit.
 
-    The command tier inherits the implement tier's denied shapes verbatim
-    (issue #1152), so this delegates to `find_implement_violations` and remaps its
-    `IR*` rule ids to the command tier's `CR*` ids — reusing the whole tested
-    implement scan (loop, capture, redirect, leading-`cd`) rather than inlining a
-    third copy, so the two tiers cannot drift. `_IR_TO_CR` is total over the ids
-    `find_implement_violations` can emit; a KeyError here would mean an implement rule
-    was added without a command mapping, which fails loud rather than silently
-    dropping a hit."""
-    return [
-        (lineno, _IR_TO_CR[rule], statement)
-        for lineno, rule, statement in find_implement_violations(text)
-    ]
+    The command tier inherits only the explicitly mapped implement rules. IR6 is
+    implement-evidence-specific and must not become command-tier proof by delegation.
+    The mapped loop, capture, /tmp redirect, and leading-cd predicates are reused so
+    their established common subset cannot drift."""
+    hits = []
+    for lineno, rule, statement in find_implement_violations(text):
+        if rule in _COMMAND_RULE_EXCLUSIONS:
+            continue
+        hits.append((lineno, _IR_TO_CR[rule], statement))
+    return hits
 
 
 _USAGE = "usage: extract-command-shapes.py [--profile review|implement|command] FILE..."

@@ -11,7 +11,7 @@ Output: `Phase 1/4: Setup — creating the workpad and branch...`
 
 **Cache the issue body ONCE per run attempt.** The first body read of the run writes the body to a single in-tree cache file, `.prflow/tmp/issue-body/issue-<ISSUE_NUMBER>.md`, and the Phase 1–2 consumers below read it by explicit hand-off (shell helpers through their `--body-file` arms; subagents through an `Issue body path:` line) instead of re-fetching. **Every verdict-bearing reader** (the §4.1 Documentation-Needed gate, the Phase 3.3 inline review, `/pr-description`, `receiving-code-review`) keeps fetching live, because a human can amend the issue mid-run.
 
-**The in-tree write is preconditioned on an ignore rule already covering `.prflow/tmp/` — the run never creates one**, because a new dotfile would itself be an untracked file the run's `git add -A` calls would stage. Resolve the precondition through the already-granted `preflight.py`. Anchor the cache to the repo-or-worktree root with the run-marker idiom, run the precondition, then — only on the satisfied arm — **delete any stale cache and fetch the body fresh, unconditionally**, so a resumed / re-triggered / stall-backstop-auto-resumed run always writes a freshly-fetched cache rather than reading a prior attempt's file. The producer uses the **extracting** form `--json body --jq '.body'` and the run-marker's **in-workspace redirect** shape (never a `/tmp` target, a denied class). The fetch carries a retry:
+**The in-tree write is preconditioned on an ignore rule already covering `.prflow/tmp/` — the run never creates one**, because a new dotfile would itself be an untracked file the run's `git add -A` calls would stage. Resolve the precondition through the already-granted `preflight.py`. Anchor the cache to the repo-or-worktree root with the run-marker idiom, run the precondition, then — only on the satisfied arm — **delete any stale cache and fetch the body fresh**, so a resumed / re-triggered / stall-backstop-auto-resumed run never reads a prior attempt's file. The agent fetches with the extracting form `--json body --jq '.body'`, consumes stdout from the tool result, and uses the Write tool for the cache; no shell redirect is emitted. Retry only when the first fetch exits non-zero.
 
 Run the precondition as its own single statement; the helper resolves the repo root itself, so pass the cache path **repo-relative** under `--repo-relative`:
 
@@ -21,20 +21,19 @@ Run the precondition as its own single statement; the helper resolves the repo r
 
 **Read the exit code and printed token from the tool result** — never a captured shell variable — and route agent-side on the exit code:
 
-- **`IGNORED <absolute-cache-path>` / exit 0** — precondition satisfied; the token is followed by the **absolute** cache path the helper resolved and checked. Substitute that printed path for `<absolute-cache-path>` below and its parent directory for `<absolute-cache-directory>`, then delete-then-fetch **in that order and unconditionally** — a cwd-relative target would write the cache where the precondition never checked, and a resumed run would read a prior attempt's:
+- **`IGNORED <absolute-cache-path>` / exit 0** — precondition satisfied; the token is followed by the **absolute** cache path the helper resolved and checked. Substitute that printed path for `<absolute-cache-path>` below and its parent directory for `<absolute-cache-directory>`. Run these as separate statements and inspect each tool result:
   ```bash
   mkdir -p <absolute-cache-directory>
   rm -f <absolute-cache-path>
-  gh issue view $ARGUMENTS --json body --jq '.body' > <absolute-cache-path> \
-    || gh issue view $ARGUMENTS --json body --jq '.body' > <absolute-cache-path>
+  gh issue view $ARGUMENTS --json body --jq '.body'
   ```
-  Carry that absolute path in your context as the cache location every later consumer is handed.
+  If the `gh` call fails, retry that same redirect-free command once; do not retry an exit-0 empty body. After an exit-0 result, require stdout to be non-empty, then author those exact bare-body bytes to `<absolute-cache-path>` with the Write tool. Carry that absolute path in your context as the cache location every later consumer is handed.
 - **`NOT_IGNORED <absolute-cache-path>` / exit 2** — a resolved "not ignored": `.prflow/tmp/` is not gitignored, so the issue-body cache is **not** written; take the degraded arm. The resolved absolute path is printed on this arm too.
 - **`UNAVAILABLE` / exit 3, or a refused / no-output invocation** — an *unestablished measurement*, never a decided "not ignored": take the run's existing **STOP** path. Absent output is never a decided answer, and a matcher refusal must not masquerade as the degraded arm.
 
 **Hold the scratch directory as `<scratch-dir>` — every Phase 1 scratch write substitutes it.** Both resolved arms print an absolute path ending `…/.prflow/tmp/issue-body/issue-<n>.md`; its grandparent, `…/.prflow/tmp`, is `<scratch-dir>`, and you substitute that absolute directory wherever `<scratch-dir>` appears below. A bare `.prflow/tmp/…` target resolves against the **cwd** instead, so a run launched from a repository subdirectory writes untracked in-tree files the root-anchored `/.prflow/*` rule does not cover — tripping this run's own clean-tree gates.
 
-**Fail closed on the fetch's exit status AND on the written content.** After the write, **Read the cache file back** — hold that single copy rather than a second copy from the fetch output. Treat the cache as valid only when it is **non-empty** and does **not** begin with `{` (a JSON envelope). A retry that also failed, a zero-byte file, or a JSON-object body is a failed write: route to the run's existing stop path (report "Error: Could not read GitHub issue #$ARGUMENTS body into the cache") rather than leaving a plausible-looking cache for later phases to consume.
+**Fail closed on the fetch's exit status AND on the written content.** After the Write-tool authoring, **Read the cache file back**. Treat it as valid only when it is **non-empty** and does **not** begin with `{` (a JSON envelope). A retry that also failed, an exit-0 empty fetch, a failed Write/Read, a zero-byte file, or a JSON-object body is a failed cache: route to the run's existing stop path (report "Error: Could not read GitHub issue #$ARGUMENTS body into the cache") rather than leaving a plausible-looking cache for later phases to consume. There is no preliminary relative or absolute redirect attempt.
 
 **Two non-satisfied arms:**
 - **`UNAVAILABLE` / denied / no output (exit 3 or the else arm)** — the precondition is an *unestablished measurement*, never a decided "not ignored". Take the run's existing stop path; a matcher refusal must not masquerade as the degraded arm.
@@ -75,15 +74,15 @@ mkdir -p <scratch-dir>
 rm -f <scratch-dir>/acs-$ARGUMENTS.md
 ```
 
-Then run the parser, reading the §1.1 cache **repo-relative** under `--anchor-repo-root` (parse-acs.py resolves the repo root itself):
+Then run the parser, reading the §1.1 cache **repo-relative** under `--anchor-repo-root` (parse-acs.py resolves the repo root itself), and consume its stdout from the tool result:
 
 ```bash
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/parse-acs.py --anchor-repo-root --body-file .prflow/tmp/issue-body/issue-$ARGUMENTS.md > <scratch-dir>/acs-$ARGUMENTS.md
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/parse-acs.py --anchor-repo-root --body-file .prflow/tmp/issue-body/issue-$ARGUMENTS.md
 ```
 
-**Read the parser's exit code from the tool result.** A non-zero exit means the cache could not be read — take the run's existing **STOP** path. Do **NOT** proceed with an empty AC section.
+**Read the parser's exit code from the tool result.** A non-zero exit means the cache could not be read — take the run's existing **STOP** path. On exit 0, author the exact stdout to `<scratch-dir>/acs-$ARGUMENTS.md` with the Write tool and Read it back; a failed write/read takes the same STOP path. Do **NOT** proceed with an empty AC section.
 
-On the **degraded arm** where §1.1 wrote no cache, revert to `parse-acs.py --anchor-repo-root --issue $ARGUMENTS > <scratch-dir>/acs-$ARGUMENTS.md` (still preceded by the same `mkdir -p <scratch-dir>` and `rm -f` of that target, each rc-checked from its own tool result), which fetches internally.
+On the **degraded arm** where §1.1 wrote no cache, invoke `parse-acs.py --anchor-repo-root --issue $ARGUMENTS` without a redirect, then use the same exit-checked tool-result → Write-tool → Read validation above.
 
 The output is checkbox lines ready to splice into the workpad's `## Acceptance Criteria` section, with ` (post-merge)` appended to any criterion whose text matches the bundled trigger phrases (see `parse-acs.py`'s `POST_MERGE_TRIGGERS` list for what's matched). When no AC section exists, the helper prints `_(none provided in issue body)_` and Phase 3.4 passes trivially.
 

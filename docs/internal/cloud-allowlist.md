@@ -708,7 +708,7 @@ then shipped both halves — the explicit vendored-literal grants in
 `devflow-implement.yml` **and** the call-site rework — so the split is retired and
 the job now measures the **real shipped profile end-to-end**.
 
-### The issue #571 re-measurement (rows 1–16)
+### The issue #571/#1514 re-measurements (rows 1–20)
 
 Observed 2026-07-18 UTC (issue #571): user-directed `workflow_dispatch` run
 **29623046995**, `implement-probe` job **88021801138** (completed success before
@@ -731,6 +731,23 @@ re-measurement rows 2/3 are PERMITTED because the shipped profile now carries
 there proves the leading-token call **runs** but attributes to **neither form**
 (I3's recorded glob denial remains the standing evidence that the glob does not
 match a vendored-literal leading token).
+
+Issue #1514 added exact rows 17–20. User-directed run
+[`31733588260`](https://github.com/The01Geek/prflow/actions/runs/31733588260),
+`implement-probe` job `94559726777`, at
+`8eafa06e605b0f043a1e014acb35fb27e63cc008` recorded:
+
+```
+17 PERMITTED  18 DENIED  19 PERMITTED  20 DENIED
+```
+
+Rows 19 and 20 use the same `gh issue view 1514 --json body --jq '.body'`
+head and differ in target form: the repo-relative target was PERMITTED, while
+the `$GITHUB_WORKSPACE` absolute target was DENIED. Both recorded
+`tool_use=yes; shape=ok`. This is exact-command evidence only, not a universal
+permission for `gh`, redirects, or `.prflow/tmp/**`. Agent-authored scratch
+defaults to the Write tool unless current evidence covers the complete
+tier/head/target/statement tuple; deterministic helpers may own their output.
 
 ### Rows 8/9 — the non-label-capture disambiguators
 
