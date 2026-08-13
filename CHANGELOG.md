@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.67] — 2026-08-13
+
+### Fixed
+- **Keep implement review progress on one surface.** Route the review engine's live progress through the issue workpad during `/prflow:implement`, while preserving standalone review progress comments. (#1668)
+
 ## [2.32.66] — 2026-08-13
 
 ### Added
