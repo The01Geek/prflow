@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1667",
+  "generated_at": "2026-08-13T16:18:30Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.65",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 20.49389124999999,
+    "tokens": {
+      "input_tokens": 119,
+      "output_tokens": 59328,
+      "cache_read_input_tokens": 11703239,
+      "cache_creation_input_tokens": 272893,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 250,
+        "outputTokens": 149393,
+        "cacheReadInputTokens": 17463160,
+        "cacheCreationInputTokens": 1120462,
+        "webSearchRequests": 0,
+        "costUSD": 20.49389124999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 73,
+    "duration_ms": 1180297
+  },
+  "permission_denials": {
+    "count": 24,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-EMPTY} ATTEMPT=${GITHUB_RUN_ATTEMPT:-EMPTY} ACTIONS=${GITHUB_ACTIONS:-EMPTY}\"\n.prflow/vendor/prflow/scripts/config-get.sh .prflow_review.live_progress_comment_enabled true 2>&1",
+      "git fetch origin 92f427c8d50ab83b00afa12edbe41199ef1f9967 2>&1 | tail -2; echo \"---\"; git ls-tree -r --name-only 92f427c8d50ab83b00afa12edbe41199ef1f9967 -- docs/internal/ | head -80",
+      "git ls-tree -r --name-only 92f427c8d50ab83b00afa12edbe41199ef1f9967 -- docs/internal/",
+      "D=.prflow/tmp/review/pr-1667/31718167373-1\nawk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' $D/diff.patch > $D/batch-1.patch && test -s $D/batch-1.patch && echo \"ok b1 $(grep -c '^diff --git' $D/batch-1.patch)\"\nawk -v s=11 -v e=20 '/^diff --git/{n++} n>=s && n<=e' $D/diff.patch > $D/batch-2.patch && test -s $D/batch-2.patch && echo \"ok b2 $(grep -c '^diff --git' $D/batch-2.patch)\"\nawk -v s=21 -v e=30 '/^diff --git/{n++} n>=s && n<=e' $D/diff.patch > $D/batch-3.patch && test -s $D/batch-3.pat …[per-command-truncated]",
+      "awk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1667/31718167373-1/diff.patch > .prflow/tmp/review/pr-1667/31718167373-1/batch-1.patch\nawk -v s=11 -v e=20 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1667/31718167373-1/diff.patch > .prflow/tmp/review/pr-1667/31718167373-1/batch-2.patch\nawk -v s=21 -v e=30 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1667/31718167373-1/diff.patch > .prflow/tmp/review/pr-1667/31718167373-1/batch-3.patch\nawk -v s=31  …[per-command-truncated]",
+      "awk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1667/31718167373-1/diff.patch > .prflow/tmp/review/pr-1667/31718167373-1/batch-1.patch\nawk -v s=11 -v e=20 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1667/31718167373-1/diff.patch > .prflow/tmp/review/pr-1667/31718167373-1/batch-2.patch\nawk -v s=21 -v e=30 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1667/31718167373-1/diff.patch > .prflow/tmp/review/pr-1667/31718167373-1/batch-3.patch\nawk -v s=31  …[per-command-truncated]",
+      "awk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1667/31718167373-1/diff.patch > .prflow/tmp/review/pr-1667/31718167373-1/batch-1.patch",
+      ".prflow/vendor/prflow/scripts/resolve-review-overrides.py \"prflow:checklist-generator\" 2>.prflow/tmp/review/pr-1667/31718167373-1/rv-ovr.phase1.err; echo \"rc=$?\"; echo \"---err---\"; cat .prflow/tmp/review/pr-1667/31718167373-1/rv-ovr.phase1.err",
+      "printf '%s\\n' \\\n92f427c8:.github/workflows/devflow.yml \\\n92f427c8:.github/workflows/devflow-implement.yml \\\n92f427c8:.github/workflows/devflow-runner.yml \\\n92f427c8:.github/workflows/agents-seam-probe.yml \\\n92f427c8:.github/workflows/matcher-probe.yml \\\n92f427c8:.github/workflows/ci.yml \\\n92f427c8:lib/capability-profiles.json \\\n92f427c8:lib/generate-capability-profiles.py \\\n92f427c8:lib/test/extract-command-heads.py \\\n92f427c8:lib/test/extract-command-shapes.py \\\n92f427c8:lib/test/regenerate-art …[per-command-truncated]",
+      "HEAD=92f427c8d50ab83b00afa12edbe41199ef1f9967\nfor p in \\\n  .github/workflows/agents-seam-probe.yml \\\n  .github/workflows/matcher-probe.yml \\\n  .github/workflows/devflow-runner.yml \\\n  .github/workflows/devflow.yml \\\n  .github/workflows/devflow-implement.yml \\\n  scripts/extract-execution-cost.py \\\n  lib/test/cloud_writer_contract.py \\\n  scripts/validate-cloud-writer-contract.py \\\n  scripts/devflow-cloud-writer-contract.json \\\n  lib/test/cloud-writer-retention-check.py \\\n  scripts/check-completion …[per-command-truncated]",
+      "for p in \\\n  .github/workflows/agents-seam-probe.yml \\\n  .github/workflows/matcher-probe.yml \\\n  .github/workflows/devflow-runner.yml \\\n  .github/workflows/devflow.yml \\\n  .github/workflows/devflow-implement.yml \\\n  scripts/extract-execution-cost.py \\\n  lib/test/cloud_writer_contract.py \\\n  scripts/validate-cloud-writer-contract.py \\\n  scripts/devflow-cloud-writer-contract.json \\\n  lib/test/cloud-writer-retention-check.py \\\n  scripts/check-completion-evidence.py \\\n  scripts/build-experiment-reco …[per-command-truncated]",
+      "head=92f427c8d50ab83b00afa12edbe41199ef1f9967\nfor p in \\\n  .github/workflows/devflow-runner.yml \\\n  .github/workflows/devflow.yml \\\n  .github/workflows/devflow-implement.yml \\\n  .github/workflows/agents-seam-probe.yml \\\n  .github/workflows/matcher-probe.yml \\\n  .github/workflows/ci.yml \\\n  scripts/extract-execution-cost.py \\\n  scripts/validate-cloud-writer-contract.py \\\n  lib/test/cloud_writer_contract.py \\\n  scripts/devflow-cloud-writer-contract.json \\\n  lib/test/cloud-writer-retention-check.py …[per-command-truncated]",
+      "git ls-tree -r --name-only 92f427c8d50ab83b00afa12edbe41199ef1f9967 -- scripts lib/test .github/workflows skills > /tmp/headfiles.txt; wc -l /tmp/headfiles.txt",
+      "git ls-tree -r --name-only 92f427c8d50ab83b00afa12edbe41199ef1f9967 -- scripts lib/test .github/workflows skills",
+      "for p in \\\n  .github/workflows/devflow-runner.yml \\\n  .github/workflows/devflow.yml \\\n  .github/workflows/devflow-implement.yml \\\n  .github/workflows/agents-seam-probe.yml \\\n  .github/workflows/matcher-probe.yml \\\n  .github/workflows/ci.yml \\\n  scripts/extract-execution-cost.py \\\n  scripts/validate-cloud-writer-contract.py \\\n  lib/test/cloud_writer_contract.py \\\n  scripts/devflow-cloud-writer-contract.json \\\n  lib/test/cloud-writer-retention-check.py \\\n  lib/test/regenerate-artifacts.py \\\n  scri …[per-command-truncated]",
+      "git ls-files 'scripts/*' 'lib/test/*' '.github/workflows/*' 'skills/*/SKILL.md' > /tmp/allfiles.txt; wc -l /tmp/allfiles.txt",
+      "cd /home/runner/work/prflow/prflow\nH=92f427c8d50ab83b00afa12edbe41199ef1f9967\nfor p in \\\n  .github/workflows/devflow.yml \\\n  .github/workflows/devflow-implement.yml \\\n  .github/workflows/devflow-runner.yml \\\n  .github/workflows/agents-seam-probe.yml \\\n  .github/workflows/matcher-probe.yml \\\n  .github/workflows/ci.yml \\\n  scripts/extract-execution-cost.py \\\n  scripts/build-experiment-records.py \\\n  scripts/create-issue-context-eval.py \\\n  scripts/implement-context-eval.py \\\n  scripts/prompt-surfa …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\nfor p in \\\n  .github/workflows/devflow.yml \\\n  .github/workflows/devflow-implement.yml \\\n  .github/workflows/devflow-runner.yml \\\n  .github/workflows/agents-seam-probe.yml \\\n  .github/workflows/matcher-probe.yml \\\n  .github/workflows/ci.yml \\\n  scripts/extract-execution-cost.py \\\n  scripts/build-experiment-records.py \\\n  scripts/create-issue-context-eval.py \\\n  scripts/implement-context-eval.py \\\n  scripts/prompt-surface-growth.py \\\n  scripts/check-verified-pre …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\ngit ls-tree -r --name-only 92f427c8d50ab83b00afa12edbe41199ef1f9967 -- .github/workflows scripts lib/test lib/resolve-state-dir.sh lib/efficiency-trace.sh > /tmp/head-files.txt 2>&1\nwc -l /tmp/head-files.txt",
+      "git ls-tree -r --name-only 92f427c8d50ab83b00afa12edbe41199ef1f9967 -- .github/workflows scripts lib > /tmp/head-files.txt",
+      "git ls-tree -r --name-only 92f427c8d50ab83b00afa12edbe41199ef1f9967 -- .github/workflows scripts lib > /home/runner/work/prflow/prflow/.prflow/tmp/head-files.txt",
+      "git ls-tree -r --name-only 92f427c8d50ab83b00afa12edbe41199ef1f9967 -- .github/workflows scripts | grep -E 'devflow-runner|agents-seam-probe|matcher-probe|extract-execution-cost|build-experiment-records|create-issue-context-eval|implement-context-eval|prompt-surface-growth|check-verified-premises|extract-doc-needed-paths|read-doc-needed-deliverables|derive-review-verdict|seed-review-progress|post-review-verdict|validate-cloud-writer-contract|check-completion-evidence'",
+      "git ls-tree -r --name-only 92f427c8d50ab83b00afa12edbe41199ef1f9967 -- .github/workflows scripts lib/test",
+      "git ls-tree -r --name-only 92f427c8d50ab83b00afa12edbe41199ef1f9967 -- scripts"
+    ],
+    "total": 24,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
