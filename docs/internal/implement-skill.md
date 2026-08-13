@@ -676,9 +676,15 @@ So Phase 3.4 **dispatches two fresh-context verifiers in the same turn** and rou
   criterion's verification evidence. It is the **only** one that runs an in-env verification command or
   touches the single-flight coordination, so the two verifiers never race the same command run.
 - **`prflow:ac-claim-verifier`** (`agents/ac-claim-verifier.md`) checks the shipped code against each
-  criterion's literal claim from the diff and current tree, and **executes nothing** — for a
-  verification-command criterion it reads the command's *source* and checks that each clause of the
-  criterion has a corresponding assertion in it.
+  criterion's literal claim from the diff and current tree, and **executes nothing** — its declared
+  `tools:` list (`Read, Grep, Glob`, with no `Bash`) is what enforces that inability to run a command.
+  For a verification-command criterion it reads the command's *source* and checks that each clause of the
+  criterion has a corresponding assertion in it; for a **measurement criterion** — one whose verification
+  names a measuring instrument whose output is a value (a `wc -c` byte count, a `git merge-base`-driven
+  list comparison) — it grades whether that instrument measures the criterion's literal claim (a byte
+  counter for a byte ceiling → `satisfied`; a byte counter for a word ceiling → `unmet`), leaving the
+  measured value itself to the evidence verifier, and so no longer reports `unestablished` merely because
+  producing the value would require execution.
 
 The orchestrator commits any uncommitted tree first (issue #1254's shared-checkout convention), resolves
 the extension-governed facts the verifiers need (the test command, the single-flight helper paths, the
