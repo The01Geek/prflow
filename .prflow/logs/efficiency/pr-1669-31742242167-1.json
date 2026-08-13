@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1669",
+  "generated_at": "2026-08-13T20:56:44Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.67",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 10.106920250000002,
+    "tokens": {
+      "input_tokens": 66,
+      "output_tokens": 33128,
+      "cache_read_input_tokens": 5472678,
+      "cache_creation_input_tokens": 209923,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 126,
+        "outputTokens": 73284,
+        "cacheReadInputTokens": 7670533,
+        "cacheCreationInputTokens": 584274,
+        "webSearchRequests": 0,
+        "costUSD": 10.106920250000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 40,
+    "duration_ms": 712220
+  },
+  "permission_denials": {
+    "count": 5,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---ENV---\"; echo \"RUN_ID=${GITHUB_RUN_ID:-none} ATTEMPT=${GITHUB_RUN_ATTEMPT:-none} ACTIONS=${GITHUB_ACTIONS:-none}\"",
+      "printf 'RUN_ID=%s\\n' \"$GITHUB_RUN_ID\"; printf 'ATTEMPT=%s\\n' \"$GITHUB_RUN_ATTEMPT\"; printf 'ACTIONS=%s\\n' \"$GITHUB_ACTIONS\"",
+      "gh pr diff 1669 > .prflow/tmp/review/pr-1669/31742242167-1/diff.raw; wc -l .prflow/tmp/review/pr-1669/31742242167-1/diff.raw; echo \"==TAIL==\"; tail -12 .prflow/tmp/review/pr-1669/31742242167-1/diff.raw",
+      "cp lib/test/extract-command-shapes.py /tmp/ecs_head_check_orig.py 2>/dev/null; python3 - <<'PY'\nimport subprocess, tempfile, os, re, importlib.util, sys\n# Apply the diff's IR6 logic by importing current shapes? Current tree is main (no IR6). Simulate IR6 predicate directly.\nsys.path.insert(0, \"lib/test\")\nspec = importlib.util.spec_from_file_location(\"_heads\", \"lib/test/extract-command-heads.py\")\n_heads = importlib.util.module_from_spec(spec); spec.loader.exec_module(_heads)\n\n# Reproduce _is_gh_h …[per-command-truncated]",
+      ".prflow/vendor/prflow/scripts/workpad.py patch 5286221279 .prflow/tmp/review/pr-1669/31742242167-1/review-wp.md 2>.prflow/tmp/review/pr-1669/31742242167-1/rv-patch.err; echo \"patch-rc=$?\""
+    ],
+    "total": 5,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
