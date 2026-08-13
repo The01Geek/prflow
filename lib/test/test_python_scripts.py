@@ -12744,14 +12744,9 @@ assert_eq("#678 AC8: stripping the frozenset declarations actually removed them 
            "COMMAND_RULES = " in _sc_shapes_emit_src))
 _sc_src_review = set(re.findall(r'^\s*\("[^"]+",\s*"(R\d+)",', _sc_shapes_emit_src, re.M))
 _sc_src_implement = set(re.findall(r'"(IR\d+)"', _sc_shapes_emit_src))
-# issue #1152: the command ids (CR*) appear in source only as `_IR_TO_CR`'s values
-# ("IR1": "CR1", …). COMMAND_RULES is `frozenset(_IR_TO_CR.values())`, so both sides
-# derive from that one dict — this is NOT the independent-drift check the IMPLEMENT
-# reconciliation above is (a new IR rule with no `_IR_TO_CR` mapping is caught THERE,
-# and by find_command_violations' KeyError, not here). What it DOES catch, because the
-# `COMMAND_RULES = ` declaration line is stripped from the scanned source at
-# `_sc_shapes_emit_src`, is COMMAND_RULES being re-typed as a hardcoded literal that
-# disagrees with the `_IR_TO_CR` values the finder actually remaps to.
+# COMMAND_RULES derives from the mapping, so this check catches only a hardcoded retype.
+# The production mapped/excluded partition rejects new unclassified IR rules at import;
+# an unknown emitted id still raises in find_command_violations.
 _sc_src_command = set(re.findall(r'"(CR\d+)"', _sc_shapes_emit_src))
 assert_eq("#678 AC8: REVIEW_RULES mirrors exactly the R-ids extract-command-shapes.py's "
           "review classifier emits (a rule added to the finder alone goes RED here)",
@@ -12956,7 +12951,7 @@ def _ir5_rules(txt):
 # IR5 fires on every redirect spelling to a /tmp/ target — attached and space-
 # separated stdout/stderr/append/&>. (Maps to the IR5-definition criterion.)
 for _ir5_spelling in ("> /tmp/f", "2> /tmp/f", ">> /tmp/f", "&> /tmp/f",
-                      ">/tmp/f", "2>/tmp/f", "&>/tmp/f"):
+                      ">| /tmp/f", ">/tmp/f", "2>/tmp/f", "&>/tmp/f", ">|/tmp/f"):
     _ir5_fence = "```bash\ncmd %s\n```" % _ir5_spelling
     assert_eq("#915 IR5: a /tmp redirect '%s' is flagged IR5 under --profile implement"
               % _ir5_spelling, True, "IR5" in _ir5_rules(_ir5_fence))
@@ -12971,6 +12966,40 @@ assert_eq("#1514 IR6: an unmeasured gh scratch redirect is flagged",
 assert_eq("#1514 IR6: an absolute-workspace gh scratch redirect is flagged",
           True, "IR6" in _ir5_rules(
               "```bash\ngh issue view 1664 --json body --jq '.body' > $GITHUB_WORKSPACE/.prflow/tmp/issue-body/issue-1664.md\n```"))
+assert_eq("#1514 IR6: a resolver-selected gh head is flagged",
+          True, "IR6" in _ir5_rules(
+              "```bash\n\"$DEVFLOW_GH\" issue view 1664 > .prflow/tmp/issue-body/issue-1664.md\n```"))
+assert_eq("#1514 IR6: the Windows gh executable head is flagged",
+          True, "IR6" in _ir5_rules(
+              "```bash\ngh.exe issue view 1664 > .prflow/tmp/issue-body/issue-1664.md\n```"))
+assert_eq("#1514 IR6: a clobber redirect to workspace scratch is flagged",
+          True, "IR6" in _ir5_rules(
+              "```bash\ngh issue view 1664 >| .prflow/tmp/issue-body/issue-1664.md\n```"))
+assert_eq("#1514 IR6: a non-gh non-exempt head stays outside the measured rule",
+          False, "IR6" in _ir5_rules(
+              "```bash\nawk '{print}' input > .prflow/tmp/awk-output\n```"))
+
+# Do not delegate IR6 into the command tier; implement-profile matcher evidence
+# cannot establish a command-profile denial.
+assert_eq("#1514 command isolation: a gh scratch redirect is not a command-tier hit",
+          [], _shapes_mod.find_command_violations(
+              "```bash\ngh issue view 1664 > .prflow/tmp/issue-body/issue-1664.md\n```"))
+
+# Do not silently drop a future implement rule that is neither mapped nor explicitly
+# excluded; omission must fail loud while the mapping decision is still missing.
+_command_original_finder = _shapes_mod.find_implement_violations
+try:
+    _shapes_mod.find_implement_violations = lambda _text: [(1, "IR7", "future rule")]
+    try:
+        _shapes_mod.find_command_violations("ignored")
+    except KeyError as _command_unmapped_error:
+        _command_unmapped_result = _command_unmapped_error.args
+    else:
+        _command_unmapped_result = ()
+    assert_eq("#1514 command inheritance: an unclassified future IR rule fails loud",
+              ("IR7",), _command_unmapped_result)
+finally:
+    _shapes_mod.find_implement_violations = _command_original_finder
 # IR5 does NOT inherit R3's cat-heredoc arm (row 12 records a plain heredoc write
 # PERMITTED on this tier). (Maps to the heredoc-negative criterion.)
 assert_eq("#915 IR5: a cat-headed heredoc write with no /tmp target is NOT flagged",
