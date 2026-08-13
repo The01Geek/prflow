@@ -117,6 +117,8 @@ The `body` you return is filed verbatim as the GitHub issue, so it must read lik
 
 Author the `## 🔁 Retrospective provenance` block **per finding**, inside each finding's own `body`.
 
+**Projection disposition gates each finding.** Desired Behavior is authoritative intent; Acceptance Criteria are its exhaustive, merge-gated projection. Before adding a finding to the returned JSON, account for every independently verifiable post-change Desired Behavior obligation as represented, unmatched, or non-obligation. Record `projection disposition: represented` in your internal composition check only when the unmatched set is empty. If any obligation is unmatched, revise its issue body and re-audit before it is eligible for filing; never return an unmatched body. Representation may be one AC or a jointly sufficient AC set and must preserve subject, scope, outcome, and strength; explanatory, motivational, estimate, and current-behavior prose is a non-obligation.
+
 The Technical Context scope note is **verbatim, fixed boilerplate** — include it exactly as shown. Observe the template's **no-options discipline** in the issue sections (Problem → Implementation Notes): no choice / hedge / deferral language — the proposed change is a resolved decision. The one exception is the Implementation Notes `Relevant files` block, inside which hedged phrasing is permitted. Keep the `## 🔁 Retrospective provenance` block after the issue sections, separated by the `---` rule.
 
 ---
@@ -126,7 +128,7 @@ The Technical Context scope note is **verbatim, fixed boilerplate** — include 
 Print **exactly one** JSON object to stdout and stop. It carries a `findings` array of **one to three** elements, ranked with the **dominant** finding first:
 
 ```json
-{"findings": [{"subslug", "title", "body", "evidence_prs", "rationale"}, ...]}
+{"findings": [{"subslug", "title", "body", "evidence_prs", "rationale", "projection_disposition", "unmatched_desired_behavior"}, ...]}
 ```
 
 Each element of `findings`:
@@ -135,6 +137,8 @@ Each element of `findings`:
 - `body` — the issue body authored per § 4 for this finding.
 - `evidence_prs` — the array of occurrence PR numbers whose bundles support this finding. The orchestrator ranks findings by descending `evidence_prs` length, so a tight cluster is offered to the filing caps first.
 - `rationale` — one sentence naming why this sub-pattern is distinct from the others in the array.
+- `projection_disposition` — exactly `represented`; a missing or different value is ineligible for filing.
+- `unmatched_desired_behavior` — exactly an empty JSON array after the final composition audit. Never omit it or return a finding while it is non-empty.
 
 Top-level:
 - `extension_unreadable` *(optional)* — include this one string key **only** when the consumer prompt-extension file was **present but could not be read**; its value names the path and the read failure. Omit it in every other case. The return stays **exactly one JSON object** — the `findings` array plus at most this optional key — with nothing else on stdout.
@@ -154,8 +158,10 @@ BODY1="$(mktemp)"; BODY2="$(mktemp)"   # one per finding — never a fixed share
   --arg sub1 "<dominant finding subslug>" --arg t1 "<title 1>" --arg b1 "$(cat "$BODY1")" --argjson prs1 '[<pr>, ...]' --arg r1 "<rationale 1>" \
   --arg sub2 "<second finding subslug>"  --arg t2 "<title 2>" --arg b2 "$(cat "$BODY2")" --argjson prs2 '[<pr>, ...]' --arg r2 "<rationale 2>" \
   '{findings: [
-      {subslug:$sub1, title:$t1, body:$b1, evidence_prs:$prs1, rationale:$r1},
-      {subslug:$sub2, title:$t2, body:$b2, evidence_prs:$prs2, rationale:$r2}
+      {subslug:$sub1, title:$t1, body:$b1, evidence_prs:$prs1, rationale:$r1,
+       projection_disposition:"represented", unmatched_desired_behavior:[]},
+      {subslug:$sub2, title:$t2, body:$b2, evidence_prs:$prs2, rationale:$r2,
+       projection_disposition:"represented", unmatched_desired_behavior:[]}
    ]}'
 ```
 

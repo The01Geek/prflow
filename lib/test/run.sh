@@ -10477,6 +10477,37 @@ assert_eq "#190 fix-loop: Phase 4.1 states the fail-closed extraction contract e
 # ceiling. The retained assertions focus on regression-specific discriminators
 # without holding downstream explanatory prose to exact wording.
 P2_FILE="$IMPL_PHASES_DIR/phase-2-implement.md"
+# Issue #1515: execute fixture routing through the shared structured projection
+# predicate rather than re-deriving the routing rule here.
+_issue1515_projection_route() {
+  local outcome="$1" disposition="$2" unmatched="$3" state
+  if ! grep -qE 'run-jq\.sh[^`]*-e[^`]*-f[^`]*projection-gate\.jq' "$P1_FILE"; then
+    printf '%s\n' production-consumer-unbound
+    return
+  fi
+  if [ "$unmatched" = none ]; then
+    state="$(jq -nc --arg d "$disposition" '{projection_disposition:$d,unmatched_desired_behavior:[]}')"
+  else
+    state="$(jq -nc --arg d "$disposition" --arg u "$unmatched" '{projection_disposition:$d,unmatched_desired_behavior:[$u]}')"
+  fi
+  if [ "$outcome" = blocked-specification ]; then
+    printf '%s\n' blocked-before-phase2-no-synthesis
+  elif printf '%s' "$state" | jq -e -f "$LIB/../lib/projection-gate.jq" >/dev/null 2>&1; then
+    printf '%s\n' proceed
+  else
+    printf '%s\n' inline-audit-fallback
+  fi
+}
+assert_eq "#1515 unmatched Desired Behavior obligation blocks before Phase 2 despite non-empty ACs" \
+  "blocked-before-phase2-no-synthesis" \
+  "$(_issue1515_projection_route blocked-specification unmatched 'Desired Behavior: exports retain stable ordering')"
+assert_eq "#1515 represented Desired Behavior obligation proceeds through the existing AC channel" \
+  "proceed" "$(_issue1515_projection_route proceed represented none)"
+assert_eq "#1515 proceed plus unmatched projection is unusable and runs the inline audit fallback" \
+  "inline-audit-fallback" \
+  "$(_issue1515_projection_route proceed unmatched 'Desired Behavior: exports retain stable ordering')"
+assert_eq "#1515 proceed with missing projection fields is unusable and runs the inline audit fallback" \
+  "inline-audit-fallback" "$(_issue1515_projection_route proceed missing missing)"
 # P4_FILE is defined once next to IMPL_PHASES_DIR above (shared by the #232 and #230 blocks).
 # AC1's operational prohibition remains covered directly.
 assert_pin_unique "#230: phase-2 §2.1 keeps the operational 'narrow or suppress' prohibition (AC1 meaning)" \
@@ -35772,6 +35803,29 @@ assert_eq "#815 the flight-recorder registry carries a reference load_class row 
 # the agent for prose text.
 echo "#1604 deferral-drafter composition agent"
 DEFDRAFTER="$LIB/../agents/deferral-drafter.md"
+_issue1515_deferred_projection_route() {
+  local state
+  if ! grep -qE 'run-jq\.sh[^`]*-e[^`]*-f[^`]*projection-gate\.jq' "$I815_REF"; then
+    printf '%s\n' production-consumer-unbound
+    return
+  fi
+  case "$1" in
+    represented) state='{"projection_disposition":"represented","unmatched_desired_behavior":[]}' ;;
+    unmatched) state='{"projection_disposition":"unmatched","unmatched_desired_behavior":["deferred obligation"]}' ;;
+    *) state='{}' ;;
+  esac
+  if printf '%s' "$state" | jq -e -f "$LIB/../lib/projection-gate.jq" >/dev/null 2>&1; then
+    printf '%s\n' file
+  else
+    printf '%s\n' omit-and-report
+  fi
+}
+assert_eq "#1515 deferred draft with represented projection is eligible for filing" \
+  "file" "$(_issue1515_deferred_projection_route represented)"
+assert_eq "#1515 deferred draft with missing projection is omitted and durably reported" \
+  "omit-and-report" "$(_issue1515_deferred_projection_route missing)"
+assert_eq "#1515 deferred draft with unmatched projection is omitted and durably reported" \
+  "omit-and-report" "$(_issue1515_deferred_projection_route unmatched)"
 # pin_count (not raw `grep -cF … || true`) so a renamed/unreadable agent file emits the
 # `unestablished` sentinel and FAILS these prohibitions instead of coercing to a vacuous "0"
 # (the fail-open hole pin_count exists to close); it also counts occurrences, not lines.
@@ -46689,7 +46743,7 @@ fi
 # The registry and this full-suite call share the same lower-bound contract;
 # test_module_runner.py parses this operand and rejects any coupling drift.
 if ! devflow_run_full_suite_module "$LIB/test/modules/create-issue-contract.sh" \
-  "create-issue-contract" 300; then
+  "create-issue-contract" 319; then
   printf 'ERROR: create-issue-contract boundary could not record its result\n'
   exit 1
 fi

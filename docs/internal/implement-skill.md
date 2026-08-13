@@ -9,6 +9,19 @@ any branch checkout, creation, checkpoint merge, or push. An open or
 unresolvable dependency terminalizes the workpad as Blocked; Phase 1.6 keeps
 the other audit passes without re-running this gate.
 
+## Phase 1.6 Pass 0 — Desired Behavior projection
+
+Desired Behavior is the issue's authoritative statement of intent. Acceptance Criteria are its exhaustive, merge-gated projection and remain the only formal specification consumed by implementation and review. The run does not copy Desired Behavior into the workpad, widen `scripts/parse-acs.py`, or create duplicate checklist items from narrative prose.
+
+The existing `prflow:issue-claim-auditor` dispatch checks that boundary before Phase 2. It reads the cached issue body and the Acceptance Criteria already resolved by `scripts/parse-acs.py`, then classifies each independently verifiable post-change obligation in Desired Behavior as represented, unmatched, or non-obligatory explanation. Representation can come from one criterion or a jointly sufficient set, but it must preserve the obligation's subject, scope, outcome, and strength.
+
+- A clean record returns `projection_disposition: represented` with an empty `unmatched_desired_behavior` array. Phase 1 writes that tuple to a scratch JSON file and evaluates it with `lib/projection-gate.jq` through `scripts/run-jq.sh` before proceeding.
+- An uncovered obligation returns `outcome: blocked-specification`, `projection_disposition: unmatched`, and the exact Desired Behavior statement in `unmatched_desired_behavior`. The orchestrator records the issue as needing refinement and stops before Phase 2, even when the issue already contains other Acceptance Criteria.
+- A missing field, wrong type, inconsistent tuple, unavailable gate, or non-zero gate result is not treated as clean. Phase 1 takes the existing unusable-record fallback and reruns the audit inline rather than entering implementation.
+- The auditor never invents or rewrites a criterion. The issue author must repair the specification.
+
+The same projection contract applies before PRFlow files an issue itself. `/prflow:create-issue` records a structured projection result and reruns the check after feedback has finished mutating the draft. Implement-generated deferred follow-ups carry the tuple in the deferral-drafter plan, and `skills/implement/references/deferred-ac-followups.md` omits an ineligible entry from filing, labeling, dependency registration, and deferred-criterion discharge. The weekly retrospective filters each Stage B finding through the same canonical predicate before selection and filing. `lib/desired-behavior-producers.json` records the non-interactive producer set so the contract test can detect a new producer that has not adopted the gate.
+
 ## Phase 1.6 Pass 6 — Verified-premise re-check (`scripts/check-verified-premises.py`)
 
 A `Verified:` bullet in an issue body is what licenses an implementing run to **skip its own

@@ -505,7 +505,10 @@ selected finding** via `meta-issue.sh` — under an opaque `<category>-<subslug>
 filing key composed by the composer. Which findings become filings is decided by
 `lib/select-findings.sh`, the owner of that decision **on the findings-array path**;
 the legacy `{title, body}` shape never reaches it and derives its own cap verdict in
-8c. **No worktrees, no commits, no PRs** — the loop proposes; a human triages each issue and runs it through the normal
+8c. That legacy shape carries no projection disposition, so 8c's projection gate
+blocks it unconditionally and loudly — intended, because the shipped Stage B
+composer returns only the findings-array shape, and a stale composer that still
+returns `{title, body}` has had no projection audit to file on. **No worktrees, no commits, no PRs** — the loop proposes; a human triages each issue and runs it through the normal
 `/prflow:implement` → review pipeline. Your main checkout stays on `main` and is
 never edited. The drafting subagents (8b) parallelize; the cheap filing (8c) is done
 serially.
@@ -839,7 +842,17 @@ elif $LIB/../scripts/run-jq.sh -e '(.findings | type) == "array"' < ".prflow/tmp
         # otherwise stderr-only and never reaches the run report.
         if ! source $LIB/select-findings.sh; then
             blockers+=("Pattern ${SLUG}: could not source lib/select-findings.sh (missing, unreadable, or a syntax error) — nothing filed for this pattern")
-        elif TO_FILE="$(devflow_select_findings \
+        elif ! devflow_projection_eligible_findings ".prflow/tmp/findings-${SLUG}.json" ".prflow/tmp/projection-dropped-${SLUG}.json" > ".prflow/tmp/findings-projected-${SLUG}.json"; then
+            blockers+=("Pattern ${SLUG}: the Stage B projection gate could not establish eligibility — nothing filed for this pattern")
+        elif ! mv ".prflow/tmp/findings-projected-${SLUG}.json" ".prflow/tmp/findings-${SLUG}.json"; then
+            blockers+=("Pattern ${SLUG}: the projection-filtered finding set could not replace its input — nothing filed for this pattern")
+        else
+            if [ -s ".prflow/tmp/projection-dropped-${SLUG}.json" ]; then
+                while IFS= read -r _pd; do
+                    [ -n "$_pd" ] && blockers+=("Pattern ${SLUG}: finding $($LIB/../scripts/run-jq.sh -r '.subslug' <<< "$_pd") omitted before filing because its projection disposition was missing, inconsistent, or unmatched")
+                done < <($LIB/../scripts/run-jq.sh -c '.[]' < ".prflow/tmp/projection-dropped-${SLUG}.json")
+            fi
+          if TO_FILE="$(devflow_select_findings \
                 --category "$CATEGORY" \
                 --findings-file ".prflow/tmp/findings-${SLUG}.json" \
                 --overrides .prflow/learnings/overrides.json \
@@ -915,6 +928,7 @@ elif $LIB/../scripts/run-jq.sh -e '(.findings | type) == "array"' < ".prflow/tmp
             else
                 blockers+=("Pattern ${SLUG}: select-findings.sh withheld every finding (cap owner unsourceable, or overrides unreadable/unmigrated — see its ::error:: breadcrumb) — nothing filed")
             fi
+          fi
         fi
     fi
 
@@ -922,10 +936,12 @@ elif $LIB/../scripts/run-jq.sh -e '.title and .body' < ".prflow/tmp/result-${SLU
     # ── Legacy title/body coexistence path: bare category key, cap-checked ────
     EXT_UNREADABLE="$($LIB/../scripts/run-jq.sh -r '.extension_unreadable // empty' < ".prflow/tmp/result-${SLUG}.json")"
     [ -n "$EXT_UNREADABLE" ] && echo "::warning::retrospective Stage B (pattern ${SLUG}): consumer prompt extension for retrospective-audit present but unreadable: ${EXT_UNREADABLE}" >&2
-    source $LIB/filing-decisions.sh || {
+    if ! $LIB/../scripts/run-jq.sh -e -f $LIB/projection-gate.jq < ".prflow/tmp/result-${SLUG}.json" >/dev/null 2>&1; then
+      blockers+=("Pattern ${SLUG}: legacy Stage B result omitted because its projection disposition was missing, inconsistent, or unmatched — not filed")
+    elif ! source $LIB/filing-decisions.sh; then
       echo "::error::retrospective: lib/filing-decisions.sh could not be sourced — the filing decisions have no owner; aborting rather than silently withholding" >&2
       exit 1
-    }
+    else
     PER_CAT="$(devflow_open_filed_for_category .prflow/learnings/overrides.json "$CATEGORY")"
     case "$PER_CAT" in
       ''|*[!0-9]*) echo "::error::retrospective Step 8c: could not derive the per-category filed count for category '$CATEGORY' (got '$PER_CAT') — the overrides file is missing, unreadable, or malformed; aborting rather than withholding every pattern behind an invalid-operand verdict that would read as back-pressure" >&2
@@ -950,6 +966,7 @@ elif $LIB/../scripts/run-jq.sh -e '.title and .body' < ".prflow/tmp/result-${SLU
         # Build the element with jq so what lands in `withheld` is valid JSON (Step 9
         # slurps it with `run-jq.sh -sc`).
         withheld+=("$($LIB/../scripts/run-jq.sh -nc --arg tag "$SLUG" --arg cap "$VERDICT" '{tag:$tag,cap:$cap}')")
+    fi
     fi
 
 else
