@@ -40,6 +40,7 @@ is mandatory-path operative prose, not rare-path explanation.
 
 Growth was minimized under the create-issue word budget's remedy ladder (redundant parentheticals
 trimmed first) before the default-path word ceiling was renegotiated 33,917 → 34,800 words as a
-this-issue-authorized departure recorded in `docs/create-issue-budget.md`'s decision record. No
+historical departure recorded in `create-issue-budget.md`. The subsystem was later retired, as
+recorded in `CHANGELOG.md`. No
 prose was removed or relocated (this is a pure additive growth), so no `cutover`/`trim`/`relocate`
 coverage is required.
