@@ -2552,6 +2552,26 @@ _EXPECTED_REVIEW_ROWS = (
 for _r_text, _r_substr in _EXPECTED_REVIEW_ROWS:
     assert_eq(f"new-body: emits the {_r_substr!r} implement review row", True,
               any(_r_text in ln for ln in _phase_block(_nb_progress, 'Review')))
+    assert_eq(f"#1657 review tick {_r_substr!r} matches exactly one row", True,
+              _ticks_once(_nb_progress, _r_substr))
+for _r_phase in ('Setup', 'Implement', 'Documentation'):
+    assert_eq(f"#1657 {_r_phase} owns no review-engine rows", '',
+              workpad._review_progress_rows_block(_r_phase))
+
+# Replaying an engine iteration is an expected no-op for a completed boundary:
+# the existing volatile tick contract reports the already-ticked row and leaves
+# the persisted body unchanged.
+_review_once = workpad._tick_checkbox(
+    _nb_progress, _EXPECTED_REVIEW_ROWS[0][1], 'Progress')
+try:
+    workpad._tick_checkbox(
+        _review_once, _EXPECTED_REVIEW_ROWS[0][1], 'Progress')
+except workpad._TickMatchError:
+    _review_twice = _review_once
+else:
+    _review_twice = None
+assert_eq("#1657 a repeated review boundary tick is a volatile no-op", _review_once,
+          _review_twice)
 
 # --- no new row breaks an EXISTING tick, and each new row ticks uniquely -----
 # The live tick-substring set is DERIVED from the implement phase files rather
@@ -2697,6 +2717,14 @@ for _r_phase, _r_text, _r_substr in _XR:
     assert_eq(f"#1462 reconcile places {_r_substr!r} under **{_r_phase}**", True,
               any(_r_text in ln
                   for ln in _phase_block(_progress_of(_rec1), _r_phase)))
+for _r_text, _r_substr in _EXPECTED_REVIEW_ROWS:
+    assert_eq(f"#1657 reconcile inserts {_r_substr!r} into a pre-change Progress", 1,
+              _rec1.count(f'- [ ] {_r_text}'))
+    assert_eq(f"#1657 reconcile is idempotent for {_r_substr!r}", 1,
+              _rec2.count(f'- [ ] {_r_text}'))
+    assert_eq(f"#1657 reconcile places {_r_substr!r} under **Review**", True,
+              any(_r_text in ln
+                  for ln in _phase_block(_progress_of(_rec1), 'Review')))
 # Fixture 2: rows present and already TICKED — reconcile must not re-insert.
 _ticked_1462 = _rec1
 for _r_phase, _r_text, _r_substr in _XR:
@@ -2708,6 +2736,17 @@ for _r_phase, _r_text, _r_substr in _XR:
               _rec4.count(f'- [x] {_r_text}'))
     assert_eq(f"#1462 reconcile adds no duplicate beside a ticked {_r_substr!r}", 0,
               _rec4.count(f'- [ ] {_r_text}'))
+_review_ticked_1657 = _rec1
+for _r_text, _r_substr in _EXPECTED_REVIEW_ROWS:
+    _review_ticked_1657 = _review_ticked_1657.replace(
+        f'- [ ] {_r_text}', f'- [x] {_r_text}')
+_review_rec_1657 = apply_mut(
+    _review_ticked_1657, make_args(reconcile_extension_rows=True))
+for _r_text, _r_substr in _EXPECTED_REVIEW_ROWS:
+    assert_eq(f"#1657 reconcile preserves ticked {_r_substr!r}", 1,
+              _review_rec_1657.count(f'- [x] {_r_text}'))
+    assert_eq(f"#1657 reconcile adds no duplicate {_r_substr!r}", 0,
+              _review_rec_1657.count(f'- [ ] {_r_text}'))
 # A wholly-unrepaired phase carries its rows in DECLARED order — the docstring says so,
 # and without this a reconciled workpad's Review rows could come out reversed relative
 # to a freshly-created one.

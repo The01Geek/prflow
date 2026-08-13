@@ -43,7 +43,7 @@ The `disclosure` object is present **only** on a `settled-by-disclosure` entry (
 
 `symbol` is best-effort: scan the finding's `description` for the first backtick-quoted identifier; if none, leave empty string. Downstream matchers (the /prflow:review verdict engine) fall back to `line_range` + summary similarity when `symbol` is absent.
 
-This step writes the artifact and applies the guard. It does **NOT** file follow-up issues, mutate the PR body, or touch GitHub — those are /prflow:implement Phase 4.0.5's responsibility. /prflow:review-and-fix posts no formal review and no verdict comment — in PR mode its inline engine maintains only the run's progress comment — and stays so. When the caller is standalone /prflow:review-and-fix (no orchestrator wrapping it), the manifest is still written but no consumer reads it — that's fine; it's informational state on disk and useful for debugging.
+This step writes the artifact and applies the guard. It does **NOT** file follow-up issues, mutate the PR body, or post a verdict to GitHub — those are /prflow:implement Phase 4.0.5's responsibility. /prflow:review-and-fix posts no formal review and no verdict comment. A standalone PR-mode run maintains the inline engine's run-keyed progress comment; an implement-driven run maintains the caller's existing issue workpad instead. When the caller is standalone /prflow:review-and-fix (no orchestrator wrapping it), the manifest is still written but no consumer reads it — that's fine; it's informational state on disk and useful for debugging.
 
 ### Pre-mapping: Step-3-evaluated REJECT downgrade
 
@@ -79,7 +79,7 @@ This gate is also `reviewed_sha`-absent fail-closed: if no shadow block carries 
 
 ### Verdict → chat output
 
-The fix loop posts no verdict to GitHub — it does NOT post a `gh pr review` or `gh pr comment` for any verdict; the only GitHub artifact it maintains is its inline engine's run-keyed progress comment in PR mode. The final report (including any `## Advisory Findings`, `## Coverage`, and `## Unresolved Shadow Findings` sections) is emitted to chat only. A human who wants a formal `--request-changes` / `--approve` / `--comment` review on the PR runs `/prflow:review <PR>` separately; that skill performs an independent re-review and posts the result via its own Phase 4.4.
+The fix loop posts no verdict to GitHub — it does NOT post a `gh pr review` or `gh pr comment` for any verdict. Its progress artifact is surface-dependent: the inline engine's run-keyed progress comment for a standalone PR-mode run, or the existing issue workpad for an implement-driven run. The final report (including any `## Advisory Findings`, `## Coverage`, and `## Unresolved Shadow Findings` sections) is emitted to chat only. A human who wants a formal `--request-changes` / `--approve` / `--comment` review on the PR runs `/prflow:review <PR>` separately; that skill performs an independent re-review and posts the result via its own Phase 4.4.
 
 **Over-grade gate non-convergence (fail-closed).** A promote-path `Critical`/`Important` Phase 3 finding that the Step 2.6 **Over-grade calibration gate** flagged but for which **no `decision: "severity-calibrated"` technical-evaluation `fix_decisions` entry was recorded** is **non-convergence**: the run may **not** emit a clean APPROVE-family verdict while one exists. It is the over-grade analogue of the park-calibration gate's promoted re-grade — at the iteration cap it surfaces through the `APPROVE WITH UNRESOLVED SHADOW FINDINGS` (or **REJECT**, if the unexamined finding was Critical) path, never as a clean approve and never silently dropped. This makes the recorded technical evaluation the gate requires *detectable by its absence* — a run that skipped the calibration discipline cannot exit clean.
 
@@ -326,7 +326,12 @@ If the self-check warns that the record or the workpads were not persisted, the 
 
 ### Tick the final Blueprint row
 
-As the loop's last terminal-work step, after the persistence self-check above, tick the final Blueprint row (*Run complete — everything this run owed*) in this run's progress comment — PR mode only, since non-PR mode has no comment to tick. Tick it on every termination that reaches this terminal work — converged, capped, and final REJECT alike — and leave it unticked on an abnormal stop-and-report exit (an unresolved base conflict, say) that never reached here. Here the tick asserts only that the loop reached its terminal work. **This path makes no corrective delivery attempt**, because it posts no verdict to GitHub at all. A run whose Loop Exit steps were dropped leaves the row unticked.
+As the loop's last terminal-work step, after the persistence self-check above, read the final `(display_text, tick_substr)` tuple from `scripts/workpad.py::_REVIEW_PROGRESS_ROWS` and route that final Blueprint row by the held progress surface. The Python constant is the sole definition of both fields:
+
+- Exact `progress_surface = workpad` → invoke `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update "$ISSUE_OVERRIDE" --tick-progress "<final tuple's tick_substr>"`. This applies in both PR and current-branch modes. An already-ticked row is the expected idempotent no-op on re-entry; a missing row or update failure remains visible in helper output and never falls back to creating or patching a PR progress comment.
+- Otherwise, in PR mode, tick the row matching the final tuple's `display_text` in this run's progress comment. Current-branch mode has no comment row to tick.
+
+Tick it on every termination that reaches this terminal work — converged, capped, and final REJECT alike — and leave it unticked on an abnormal stop-and-report exit (an unresolved base conflict, say) that never reached here. Here the tick asserts only that the loop reached its terminal work. **This path makes no corrective delivery attempt**, because it posts no verdict to GitHub at all. A run whose Loop Exit steps were dropped leaves the row unticked.
 
 ---
 

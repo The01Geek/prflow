@@ -422,7 +422,7 @@ jobs:
         # absorbed by continue-on-error (best-effort ack).
         run: bash .prflow/vendor/prflow/scripts/react-to-trigger.sh
 
-      # Early workpad: post the run's single comment NOW — before the heavy
+      # Early workpad: post the run's single issue comment NOW — before the heavy
       # `claude` job boots and provisions its runtime (setup-project-env:
       # Python/Node/services/deps). The workpad is a pure acknowledgment that
       # needs none of that, so creating it here (right after auth + dedupe) is

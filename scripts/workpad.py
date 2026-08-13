@@ -1948,6 +1948,27 @@ _EXTENSION_ROWS = (
 )
 
 
+# Review-engine phase boundaries that an implement-driven fix loop records in
+# the issue workpad instead of a second live PR comment (issue #1657). The first
+# value is rendered text; the second is the stable, unique tick operand.
+_REVIEW_PROGRESS_ROWS = (
+    ('Classify diff (Phase 0.5)', 'Classify diff'),
+    ('Generate verification checklist (Phase 1)',
+     'Generate verification checklist'),
+    ('Verify checklist (Phase 2)', 'Verify checklist'),
+    ('Review agents (Phase 3)', 'Review agents'),
+    ('Aggregate & verdict (Phase 4)', 'Aggregate & verdict'),
+    ('Run complete — everything this run owed', 'Run complete'),
+)
+
+
+def _managed_progress_rows():
+    """Rows hydrated by the existing Phase 1.3 reconciliation pass."""
+    yield from _EXTENSION_ROWS
+    for text, substr in _REVIEW_PROGRESS_ROWS:
+        yield 'Review', text, substr
+
+
 def _extension_rows_block(phase: str) -> str:
     """The rendered nested rows for one phase, newline-terminated (empty when the
     phase owns none), for splicing into the `cmd_new_body` template."""
@@ -1955,6 +1976,13 @@ def _extension_rows_block(phase: str) -> str:
         f'  - [ ] {text}\n' for row_phase, text, _ in _EXTENSION_ROWS
         if row_phase == phase
     )
+
+
+def _review_progress_rows_block(phase: str) -> str:
+    """The review engine's issue-workpad rows for their owning phase."""
+    if phase != 'Review':
+        return ''
+    return ''.join(f'  - [ ] {text}\n' for text, _ in _REVIEW_PROGRESS_ROWS)
 
 
 def cmd_new_body(args):
@@ -1999,7 +2027,7 @@ def cmd_new_body(args):
 - [ ] **Implement**
 {repro}  - [ ] code + sweeps
 - [ ] **Review**
-{_extension_rows_block('Review')}  - [ ] `/simplify`
+{_extension_rows_block('Review')}{_review_progress_rows_block('Review')}  - [ ] `/simplify`
   - [ ] `review-and-fix`
   - [ ] acceptance-criteria gate
 - [ ] **Documentation**
@@ -2169,13 +2197,11 @@ assert set(_STATUS_TO_PROGRESS_PHASE.values()) <= set(_PROGRESS_PHASES), (
     f'{set(_STATUS_TO_PROGRESS_PHASE.values()) - set(_PROGRESS_PHASES)}'
 )
 
-# Same guard for the prompt-extension rows (issue #1462): each names the phase it
-# anchors under, and a phase spelling the canonical list does not carry would make
-# `_extension_rows_block` render nothing and `_reconcile_extension_rows` find no
-# anchor — a surface silently absent from every workpad.
-assert {phase for phase, _text, _substr in _EXTENSION_ROWS} <= set(_PROGRESS_PHASES), (
-    'workpad: _EXTENSION_ROWS names a phase not in _PROGRESS_PHASES: '
-    f'{ {phase for phase, _t, _s in _EXTENSION_ROWS} - set(_PROGRESS_PHASES)}'
+# Same guard for every managed nested row: a phase spelling the canonical list
+# does not carry would make rendering/reconciliation silently omit that surface.
+assert {phase for phase, _text, _substr in _managed_progress_rows()} <= set(_PROGRESS_PHASES), (
+    'workpad: managed Progress rows name a phase not in _PROGRESS_PHASES: '
+    f'{ {phase for phase, _t, _s in _managed_progress_rows()} - set(_PROGRESS_PHASES)}'
 )
 
 # A top-level (column-0, no leading whitespace) ## Progress checkbox — one row
@@ -2610,11 +2636,11 @@ def _reconcile_reproduction_row(content: str, classification: str) -> str:
 
 
 def _reconcile_extension_rows(content: str) -> str:
-    """Idempotently repair the missing prompt-extension `## Progress` rows into a
-    workpad created before they existed (issue #1462), mirroring the shape
+    """Idempotently repair managed nested `## Progress` rows into a workpad
+    created before they existed (issues #1462 and #1657), mirroring the shape
     `_reconcile_reproduction_row` uses.
 
-    A row is detected by its `_EXTENSION_ROWS` substring in ANY tick state, so a
+    A row is detected by its stable substring in ANY tick state, so a
     present-and-ticked row is left exactly as it is and never duplicated; a
     missing row is inserted directly under its phase's top-level row. Rows are
     processed in reverse declared order and each insert lands at the anchor, so a
@@ -2626,7 +2652,7 @@ def _reconcile_extension_rows(content: str) -> str:
     whose only consequence is a later volatile tick miss. Operates on the
     `## Progress` section content."""
     lines = content.split('\n')
-    for phase, text, substr in reversed(_EXTENSION_ROWS):
+    for phase, text, substr in reversed(tuple(_managed_progress_rows())):
         if any(
             (m := _CHECKBOX_ROW_RE.match(ln)) and substr.lower() in m.group(4).lower()
             for ln in lines
@@ -2646,7 +2672,7 @@ def _reconcile_extension_rows(content: str) -> str:
             # the unticked row this feature exists to leave behind.
             sys.stderr.write(
                 f"workpad.py update: WARNING: no '**{phase}**' phase row in "
-                f"## Progress — the '{substr}' extension row was NOT repaired; "
+                f"## Progress — the '{substr}' managed row was NOT repaired; "
                 f"a later --tick-progress for it will miss.\n"
             )
             continue

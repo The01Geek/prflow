@@ -20,6 +20,8 @@ The engine-ground-truth block prepended to this run (rendered by `scripts/render
 
 ### 0.2 Determine diff scope and cache the diff
 
+**Caller progress-surface binding (internal).** Bind `$PROGRESS_SURFACE` to the caller-provided internal `progress_surface` value for this engine entry. Preserve the value exactly; do not normalize it or derive it from `$ISSUE_OVERRIDE`, `--issue`, `--push-each-iteration`, PR mode, or workpad presence. Only exact `workpad` selects the issue-workpad route. An absent, empty, or unrecognized value selects the existing PR-comment behavior. This is not a public flag or config key.
+
 Resolve the configured checkpoint base once for both modes, so current-branch diffing and the PR-mode retargeting check consume one value:
 
 ```bash
@@ -187,9 +189,11 @@ This replaces the bare `gh pr diff` / `git diff` invocation at the top of Phase 
 
 Extract the list of changed files **by parsing the filtered `diff.patch` cached in 0.2** (read its `diff --git a/<path> b/<path>` headers), **not** from an independent `git diff --name-only` / `gh pr diff --name-only`. `.prflow/logs/**` paths were stripped from `diff.patch` in 0.2, so deriving the file list from it excludes them by construction — and Phase 1.1's batch slicing reads the **same** filtered `diff.patch`, so a `.prflow/logs/` hunk can never re-enter a batch slice, and Phase 3's agents Read the same cached diff. An independent `--name-only` would re-introduce those paths and desync the file list from the sliced batches. Store this list — Phase 1 and Phase 3 need it.
 
-### 0.3.5 Seed the live progress comment (PR mode)
+### 0.3.5 Select and seed the progress surface
 
-In PR mode, and when `prflow_review.live_progress_comment_enabled` is `true` (read it via `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .prflow_review.live_progress_comment_enabled true`), seed **this run's** live progress comment **now** — the engine's first GitHub write, so "review started" lands as early as possible. Create a fresh comment for this run, keyed by the run-keyed marker, with the Blueprint template (all boxes unticked) and the `Run` link to this job, per the **Live Progress Comment** section above. Because the marker carries this run's id, the find-or-resume lookup matches **only this run's** comment: on a mid-run retry (`rc=0`) it resumes that same comment, never overwriting a **previous** run's comment (those stay on the PR as review history). Thereafter follow the update protocol at each phase boundary. In non-PR mode, or when the flag is off, skip this step (the narrative goes to chat as you proceed, or once at the end).
+When `$PROGRESS_SURFACE` is exactly `workpad`, do **not** seed a live PR progress comment, regardless of PR mode or `prflow_review.live_progress_comment_enabled`; the caller's existing issue workpad is the progress surface, and the six phase-boundary ticks route there per the **Progress Surfaces** section above.
+
+For every absent, empty, or unrecognized `$PROGRESS_SURFACE`, retain the existing behavior: in PR mode, and when `prflow_review.live_progress_comment_enabled` is `true` (read it via `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .prflow_review.live_progress_comment_enabled true`), seed **this run's** live progress comment **now** — the engine's first GitHub write, so "review started" lands as early as possible. Create a fresh comment for this run, keyed by the run-keyed marker, with the Blueprint template (all boxes unticked) and the `Run` link to this job, per the **Progress Surfaces** section above. Because the marker carries this run's id, the find-or-resume lookup matches **only this run's** comment: on a mid-run retry (`rc=0`) it resumes that same comment, never overwriting a **previous** run's comment (those stay on the PR as review history). Thereafter follow the update protocol at each phase boundary. In non-PR mode, or when the flag is off, skip this step (the narrative goes to chat as you proceed, or once at the end).
 
 **Phase 0.3.6 runs at this seam — after 0.3.5, before 0.4 — when its gate is met**; on a hit it ends the run, so 0.4/0.5 never run.
 
