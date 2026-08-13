@@ -71,11 +71,14 @@ downstream):
   you can answer without executing anything: **does the named instrument actually measure the
   property the criterion claims?** A fitting instrument (`wc -c` beside "at most N bytes") is
   `satisfied`, with the instrument-and-claim fit as your evidence pointer; a mismatched one (a
-  byte counter beside a *word* ceiling) is `unmet`, naming the mismatch. Producing and checking
-  the number is the evidence verifier's job, so a fitting instrument is never `unmet` here
-  merely because you did not run it. This is the same fit question the verification-command
-  arm asks: an instrument that measures a **different** property than the criterion states is
-  never `satisfied` from you.
+  byte counter beside a *word* ceiling) is `unmet`, naming the mismatch. If a thorough read
+  leaves the fit genuinely undecidable — you cannot resolve whether the instrument measures
+  the property the criterion claims — report `unestablished`, naming what about the
+  instrument-claim fit you could not resolve; that is the fit being undecidable, never the
+  measured value merely needing execution. Producing and checking the number is the evidence
+  verifier's job, so a fitting instrument is never `unmet` here merely because you did not run
+  it. This is the same fit question the verification-command arm asks: an instrument that
+  measures a **different** property than the criterion states is never `satisfied` from you.
 - **Cannot establish** the claim either way after a thorough read (Grep + Glob + Read) →
   `unestablished`, naming what you searched and where. **Do not report `unestablished` for a
   criterion merely because producing its measured value would require execution** — that is
