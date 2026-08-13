@@ -6,7 +6,7 @@ This page explains the correction loop that reviews a change, applies authorized
 
 The loop reuses the review engine, records findings and fix decisions, applies the authorized corrections, and re-runs the relevant review and verification steps until it reaches a terminal outcome or its configured iteration limit. It distinguishes findings that are fixed, deferred, advisory, invalid, or still blocking.
 
-The loop can run as part of `/prflow:implement` or as a standalone command. Its prompt extension and reference files define the loop-specific obligations that do not belong in the shared review engine.
+The loop can run as part of `/prflow:implement` or as a standalone command. An implement caller binds the shared engine to the issue-workpad progress surface, while a standalone PR-mode loop keeps the run-keyed PR progress comment. Its prompt extension and reference files define the loop-specific obligations that do not belong in the shared review engine.
 
 ## Why it works this way
 
@@ -17,6 +17,8 @@ A review that only reports findings leaves the developer with the cleanup work. 
 - A clean review result does not authorize skipping the fix-delta or verification checks required by the loop.
 - A deferred finding must remain visible with its reason and follow-up path.
 - A loop that cannot establish its review or verification evidence must not report a clean terminal outcome.
+- The implement-origin signal is caller-held state. The loop must not infer it from `--issue`, `--push-each-iteration`, PR mode, or an existing workpad.
+- The terminal review row is ticked at Loop Exit. Re-entry may replay an already-ticked declared row without rewriting the workpad.
 - The shadow pass is independent of the fixing agent and does not close the gap by itself.
 
 ## Source of truth

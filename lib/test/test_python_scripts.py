@@ -2538,6 +2538,43 @@ for _r_phase, _r_text, _r_substr in _XR:
     assert_eq(f"new-body: {_r_substr!r} row sits under **{_r_phase}**", True,
               any(_r_text in ln for ln in _phase_block(_nb_progress, _r_phase)))
 
+
+print("workpad implement-driven review Progress rows (issue #1657)")
+
+_review_rows_1657 = tuple(workpad._REVIEW_PROGRESS_ROWS)
+assert_eq("#1657 the authoritative review-boundary tuple has six rows", 6,
+          len(_review_rows_1657))
+_rendered_review_rows_1657 = [
+    ln.strip() for ln in _phase_block(_nb_progress, 'Review')
+    if any(text in ln for text, _ in _review_rows_1657)
+]
+assert_eq("#1657 new-body renders the authoritative review tuple in order",
+          [f'- [ ] {text}' for text, _ in _review_rows_1657],
+          _rendered_review_rows_1657)
+for _r_text, _r_substr in _review_rows_1657:
+    assert_eq(f"new-body: emits the {_r_substr!r} implement review row", True,
+              any(_r_text in ln for ln in _phase_block(_nb_progress, 'Review')))
+    assert_eq(f"#1657 review tick {_r_substr!r} matches exactly one row", True,
+              _ticks_once(_nb_progress, _r_substr))
+for _r_phase in ('Setup', 'Implement', 'Documentation'):
+    assert_eq(f"#1657 {_r_phase} owns no review-engine rows", '',
+              workpad._review_progress_rows_block(_r_phase))
+
+# Replaying an engine iteration is an observable update-contract no-op: the
+# public command succeeds without refreshing Last updated or issuing a PATCH.
+for _r_text, _r_substr in _review_rows_1657:
+    _review_once = workpad._tick_checkbox(_nb, _r_substr, 'Progress')
+    _review_once = workpad._LAST_UPDATED_RE.sub(
+        '**Last updated:** 2000-01-01 00:00 UTC', _review_once, count=1)
+    _code, _out, _err, _patched = _drive_cmd_update(
+        _review_once, tick_progress=[_r_substr], print_body=True)
+    assert_eq(f"#1657 repeated {_r_substr!r} tick exits successfully", None, _code)
+    assert_eq(f"#1657 repeated {_r_substr!r} tick does not PATCH", None, _patched)
+    assert_eq(f"#1657 repeated {_r_substr!r} tick reports replay", True,
+              'outcome=replay remedy=none' in _err)
+    assert_eq(f"#1657 repeated {_r_substr!r} tick leaves the body byte-identical",
+              _review_once, _out)
+
 # --- no new row breaks an EXISTING tick, and each new row ticks uniquely -----
 # The live tick-substring set is DERIVED from the implement phase files rather
 # than transcribed here, so a `--tick-progress` site added later is caught by
@@ -2682,6 +2719,14 @@ for _r_phase, _r_text, _r_substr in _XR:
     assert_eq(f"#1462 reconcile places {_r_substr!r} under **{_r_phase}**", True,
               any(_r_text in ln
                   for ln in _phase_block(_progress_of(_rec1), _r_phase)))
+for _r_text, _r_substr in _review_rows_1657:
+    assert_eq(f"#1657 reconcile inserts {_r_substr!r} into a pre-change Progress", 1,
+              _rec1.count(f'- [ ] {_r_text}'))
+    assert_eq(f"#1657 reconcile is idempotent for {_r_substr!r}", 1,
+              _rec2.count(f'- [ ] {_r_text}'))
+    assert_eq(f"#1657 reconcile places {_r_substr!r} under **Review**", True,
+              any(_r_text in ln
+                  for ln in _phase_block(_progress_of(_rec1), 'Review')))
 # Fixture 2: rows present and already TICKED — reconcile must not re-insert.
 _ticked_1462 = _rec1
 for _r_phase, _r_text, _r_substr in _XR:
@@ -2693,6 +2738,17 @@ for _r_phase, _r_text, _r_substr in _XR:
               _rec4.count(f'- [x] {_r_text}'))
     assert_eq(f"#1462 reconcile adds no duplicate beside a ticked {_r_substr!r}", 0,
               _rec4.count(f'- [ ] {_r_text}'))
+_review_ticked_1657 = _rec1
+for _r_text, _r_substr in _review_rows_1657:
+    _review_ticked_1657 = _review_ticked_1657.replace(
+        f'- [ ] {_r_text}', f'- [x] {_r_text}')
+_review_rec_1657 = apply_mut(
+    _review_ticked_1657, make_args(reconcile_extension_rows=True))
+for _r_text, _r_substr in _review_rows_1657:
+    assert_eq(f"#1657 reconcile preserves ticked {_r_substr!r}", 1,
+              _review_rec_1657.count(f'- [x] {_r_text}'))
+    assert_eq(f"#1657 reconcile adds no duplicate {_r_substr!r}", 0,
+              _review_rec_1657.count(f'- [ ] {_r_text}'))
 # A wholly-unrepaired phase carries its rows in DECLARED order — the docstring says so,
 # and without this a reconciled workpad's Review rows could come out reversed relative
 # to a freshly-created one.
@@ -2701,6 +2757,18 @@ _rec_review = [ln for ln in _phase_block(_progress_of(_rec1), 'Review')
 assert_eq("#1462 reconcile inserts a phase's rows in declared order", True,
           [t for p, t, s in _XR if p == 'Review']
           == [t for ln in _rec_review for p, t, s in _XR if t in ln])
+
+# Review-engine rows are required on the selected issue-workpad surface. A
+# malformed legacy workpad with no Review anchor is repaired structurally so
+# later boundary ticks remain visible.
+_no_review_anchor_1657 = _pre_1462.replace('- [ ] **Review**\n', '', 1)
+_repaired_review_anchor_1657 = apply_mut(
+    _no_review_anchor_1657, make_args(reconcile_extension_rows=True))
+assert_eq("#1657 reconcile repairs a missing required Review anchor", 1,
+          _repaired_review_anchor_1657.count('- [ ] **Review**'))
+for _r_text, _r_substr in _review_rows_1657:
+    assert_eq(f"#1657 repaired Review anchor carries {_r_substr!r}", 1,
+              _repaired_review_anchor_1657.count(f'- [ ] {_r_text}'))
 
 # Fixture 3: a PARTIALLY-present row set (a workpad resumed under an intermediate
 # version, or hand-edited) — the reconcile must add exactly the missing rows and no
@@ -2713,31 +2781,21 @@ for _r_phase, _r_text, _r_substr in _XR:
     assert_eq(f"#1462 partial reconcile yields exactly one {_r_substr!r} row", 1,
               _rec_p.count(f'- [ ] {_r_text}'))
 
-# The missing-anchor path: a `## Progress` with no top-level row for a phase that
-# owns extension rows is the legacy shape phase-1-setup.md documents as reachable.
-# That phase is SKIPPED, not raised — losing the whole call would cost a resumed run
-# its classification reconcile — and the other phases' rows still land. **Review** is
-# the probe phase (issue #1577: **Documentation** no longer owns an extension row).
-_probe_substr = next(s for p, t, s in _XR if p == 'Review')
+# The missing-Review-anchor path is repaired because Review now owns required
+# engine-boundary rows. The same repair also gives its extension rows an anchor.
 _noanchor_1462 = '\n'.join(
     ln for ln in _pre_1462.split('\n') if ln != '- [ ] **Review**')
 _na_stderr_1462 = io.StringIO()
 with contextlib.redirect_stderr(_na_stderr_1462):
     _rec_na = apply_mut(_noanchor_1462, make_args(reconcile_extension_rows=True))
-assert_eq("#1462 a missing phase anchor skips that phase's rows, without raising", 0,
-          sum(_rec_na.count(f'- [ ] {t}') for p, t, s in _XR if p == 'Review'))
+assert_eq("#1657 a missing Review anchor is recreated once", 1,
+          _rec_na.count('- [ ] **Review**'))
 for _r_phase, _r_text, _r_substr in _XR:
-    if _r_phase == 'Review':
-        continue
-    assert_eq(f"#1462 a missing anchor still lands the {_r_substr!r} row", 1,
+    assert_eq(f"#1462 repaired anchors land the {_r_substr!r} row", 1,
               _rec_na.count(f'- [ ] {_r_text}'))
-# The skip is a LEGIBLE fail-open, not a silent one — asserting only non-raise and
-# non-insertion would leave the breadcrumb free to be deleted, and a silent skip is
-# indistinguishable from a surface that was never in scope.
-assert_eq("#1462 the missing-anchor skip emits a breadcrumb naming the phase and row",
-          True,
-          "no '**Review**' phase row" in _na_stderr_1462.getvalue()
-          and _probe_substr in _na_stderr_1462.getvalue())
+assert_eq("#1657 the repaired Review anchor emits one specific breadcrumb", True,
+          "re-created missing '**Review**' phase row" in _na_stderr_1462.getvalue()
+          and 'WARNING' not in _na_stderr_1462.getvalue())
 assert_eq("#1462 a reconcile that repairs every row emits no missing-anchor breadcrumb",
           '', _rec1_stderr_1462.getvalue())
 

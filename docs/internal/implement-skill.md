@@ -563,7 +563,7 @@ under **Retiring existence-only pins**; adjudications are read from the inventor
 changed only in `lib/test/pin-corpus-adjudications.tsv`, never by hand-editing the
 generated inventory.
 
-**Phase 3.3 invocation and PR mode (issue #1640).** Phase 3.3 invokes the shared fix loop with the
+**Phase 3.3 invocation, PR mode, and progress routing.** Phase 3.3 invokes the shared fix loop with the
 draft PR number Phase 3.1 printed passed as a **bare leading numeric token** ahead of the flags —
 `review-and-fix <pr-number> --push-each-iteration --issue <issue-number>` (the Skill-tool `args` string).
 The bare numeric token binds `$PR_NUMBER` in each engine root; the `--issue <issue-number>` value binds
@@ -574,13 +574,18 @@ live draft PR created in 3.1." When Phase 3.1 printed no PR number (an empty or 
 <issue-number>` alone, falling back to current-branch mode; the bounded re-review carries the same
 argument shape and the same omit-the-token arm, and the taken arm is recorded on the issue
 workpad. Passing the PR number **activates** the PR-mode engine surfaces that stay dormant in
-current-branch mode — at minimum: the **live progress comment** (the engine's real-time review surface
-seeded on the PR, and the only durable narrative of a cloud run's review — `skills/review/phases/phase-0-setup.md`
-§0.3.5); **Step 0.5**, the branch-sync gate that makes the head-override diff precondition non-vacuous
+current-branch mode: **Step 0.5**, the branch-sync gate that makes the head-override diff precondition non-vacuous
 (`skills/review-and-fix/references/loop-control.md`); **Loop Exit Checkpoint 3**, the base-branch update
 that keeps the terminal pushed state current for the merge gate; **§0.4's `pr-identity-mismatch`
 acceptance-criteria identity check** (the `--pr`-bearing acceptance-criteria resolution fence); and
-**§0.6's stale-prose adjudication carry-forward join**. Because `Bash(gh pr checkout:*)` is granted only
+**§0.6's stale-prose adjudication carry-forward join**. PR mode does not select the progress surface.
+The caller-held `$ISSUE_NUMBER` is the only implement-origin signal, and the fix loop converts it to the
+internal `progress_surface = workpad` binding. The public `--issue` value, the push flag, PR mode, and
+workpad lookup results never select that binding. Each review iteration therefore suppresses the
+run-keyed `prflow:review-progress` PR comment and ticks the ordered review-engine rows under the issue
+workpad's **Review** phase instead. The rows cover diff classification, checklist generation, checklist
+verification, review agents, aggregation and verdict, and terminal run completion. The final row belongs
+to Loop Exit, not to an iteration's aggregation phase. Because `Bash(gh pr checkout:*)` is granted only
 in the `command` profile — not in `implement` — Step 0.5's newly-activated `gh pr checkout` is refused
 before it runs on the cloud implement tier and emits no `checkout-rc=` token; §0.5 answers that **absent
 token** with its own head-ref and head-commit assertion (the sole authority on that arm), which

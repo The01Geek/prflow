@@ -24,7 +24,7 @@ The issue defines the intended outcome. Before implementation begins, PRFlow che
 
 ## Branch and Workpad Behavior
 
-The workpad is the single GitHub issue comment that records the run's branch, status, plan, progress, mirrored acceptance criteria and notable problems. A resumed run updates the same workpad instead of creating another one.
+The workpad is the single GitHub issue comment that records the run's branch, status, plan, progress, mirrored acceptance criteria and notable problems. The review phase records its classification, verification checklist, reviewer and verdict stages in that same workpad instead of creating a separate progress comment on the draft pull request. A resumed run updates the same workpad instead of creating another one.
 
 PRFlow checks for an existing open pull request before it creates a branch. It can adopt a validated issue branch or resume the pull request head.
 

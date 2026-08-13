@@ -11,7 +11,7 @@ This page explains the implement orchestrator's four-phase lifecycle and the bou
 3. Review and fix runs the review loop and applies authorized corrections until the loop reaches a terminal outcome.
 4. Documentation updates the required internal or external documentation and finalizes the pull request state.
 
-The orchestrator is thin at the root. Phase-specific behavior is loaded from `skills/implement/phases/` and shared helpers under `scripts/` and `lib/`. The workpad is the durable handoff between phases and resumes.
+The orchestrator is thin at the root. Phase-specific behavior is loaded from `skills/implement/phases/` and shared helpers under `scripts/` and `lib/`. The workpad is the durable handoff between phases and resumes. During Phase 3, the orchestrator keeps review progress on that issue workpad, even when the shared review engine is operating on the draft pull request.
 
 ## Why it works this way
 

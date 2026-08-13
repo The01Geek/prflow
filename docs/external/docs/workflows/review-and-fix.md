@@ -45,7 +45,7 @@ Shadow agreement narrows the chance of a false clean result. It does not replace
 
 ## Formal Review Boundary
 
-Review-and-fix skips the standalone review workflow's attempt to post a formal verdict. Its final verdict, completed-reviewer list and known gaps go to chat. In pull request mode, its progress comment is not a substitute for a formal GitHub review.
+Review-and-fix skips the standalone review workflow's attempt to post a formal verdict. Its final verdict, completed-reviewer list and known gaps go to chat. A standalone pull-request run can maintain its own progress comment, but that comment is not a substitute for a formal GitHub review. When implementation runs this loop inline, the review stages appear in the issue workpad instead of a separate pull-request progress comment.
 
 Run an independent assessment after the fixes converge:
 

@@ -422,19 +422,9 @@ jobs:
         # absorbed by continue-on-error (best-effort ack).
         run: bash .prflow/vendor/prflow/scripts/react-to-trigger.sh
 
-      # Early workpad: post the run's single comment NOW — before the heavy
-      # `claude` job boots and provisions its runtime (setup-project-env:
-      # Python/Node/services/deps). The workpad is a pure acknowledgment that
-      # needs none of that, so creating it here (right after auth + dedupe) is
-      # the earliest the requester can see a durable "job started" comment. The
-      # `claude` job's Phase 1.3 detects this workpad via `workpad.py id` and
-      # resumes it (filling Plan + Acceptance Criteria into the same comment) —
-      # it never posts a second one. Best-effort: continue-on-error so a hiccup
-      # never blocks the run. The `workpad.py id` guard below skips creation
-      # when a workpad already exists (a re-trigger on the same thread), but the
-      # *real* guarantee against two concurrent runs both creating one is the
-      # upstream `dedupe` step (this step only runs when duplicate != 'true');
-      # the `id` guard can't be atomic on its own.
+      # Create the canonical workpad before the heavy job; Phase 1.3 resumes its marker.
+      # Best-effort id lookup plus upstream dedupe minimize duplicate creation, but the
+      # lookup/create sequence is not atomic under concurrency.
       - name: Create workpad (early acknowledgement)
         id: early_workpad
         if: ${{ steps.resolve.outputs.should_run == 'true' && steps.dedupe.outputs.duplicate != 'true' }}

@@ -621,9 +621,9 @@ surface is wired in.
 > a separate issue. This section covers only the markdown-aware anchoring and the
 > self-marker guard.
 
-## A `/prflow:implement` run posts exactly one comment — the workpad
+## A `/prflow:implement` run keeps progress on the issue workpad
 
-A run maintains a **single** GitHub comment, the marker-tagged *workpad*
+A run maintains one canonical issue comment, the marker-tagged *workpad*
 (`scripts/workpad.py`). It is both the immediate "job started" acknowledgment
 and the durable progress surface — Status, the `## Progress` phase checklist
 (with append-only timestamped notes nested under each phase), run/branch/PR
@@ -633,12 +633,14 @@ Reflection. There is no separate Decisions / Notes section — notes live inside
 not raw ISO-8601.
 
 - **`track_progress: false`** on the `claude-code-action` step in
-  `.github/workflows/devflow-implement.yml` disables the action's *own*
-  progress comment, so the workpad is the only comment a run posts. (The
-  light `/prflow:review` · `/prflow:pr-description` listener in `devflow.yml`
-  keeps `track_progress` as-is. `/prflow:pr-description` has no workpad;
-  `/prflow:review` in PR mode now authors its own live progress comment —
-  see below.)
+  `.github/workflows/devflow-implement.yml` disables the action's own
+  progress comment. The inline review-and-fix loop also receives the internal
+  `progress_surface = workpad` binding, so it does not seed a
+  `prflow:review-progress` comment on the draft PR. The light
+  `/prflow:review` · `/prflow:pr-description` listener in `devflow.yml` keeps
+  `track_progress` as-is. `/prflow:pr-description` has no workpad, while a
+  standalone `/prflow:review` in PR mode authors the live progress comment
+  described below.
 - The workpad is created **as early as possible**, before the requester waits
   on any runtime. In a cloud run the **`gate` job** creates a lean workpad
   (`workpad.py new-body` → `create`) right after authorization + dedupe — *before*
@@ -654,6 +656,13 @@ not raw ISO-8601.
   Phase 3.1 — freshly created, or, on a resume whose prior attempt already opened
   one, adopted by Phase 3.1's existing-PR resolver
   (`scripts/resolve-existing-pr.sh`).
+- The workpad's **Review** phase contains the ordered review-engine rows rendered from
+  `scripts/workpad.py::_REVIEW_PROGRESS_ROWS`. The shared engine ticks the rows
+  in order for diff classification, checklist generation, checklist verification,
+  review agents, aggregation and verdict, and terminal run completion. For an exact
+  tuple-declared operand whose unique row is already ticked, replay succeeds without
+  refreshing `Last updated` or issuing a GitHub PATCH. A missing, ambiguous, unknown,
+  or unticked row keeps the normal update behavior so drift remains visible.
 
 ### Status-glyph / reaction vocabulary
 
