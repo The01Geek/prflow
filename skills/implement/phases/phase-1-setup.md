@@ -403,28 +403,21 @@ Use the **Agent tool** with `subagent_type: prflow:issue-claim-auditor` and `run
 - `GITHUB_ACTIONS` and `DEVFLOW_APP_ID` — the two routing signals Pass 5 keys on, read from this run's environment (instruct the auditor to use these values, not a live credential probe).
 - The GitHub issue title and labels inline.
 
-#### The returned record (read every item — a bare verdict is insufficient)
+#### Returned record and routing
 
-The auditor returns an `ISSUE-CLAIM-AUDIT RECORD` block carrying at least:
-
-- **`outcome`** — `proceed` / `blocked-specification` / `blocked-policy` / `blocked-capability` (the overall Blocked/proceed outcome).
-- **`projection_disposition`** — `represented` / `unmatched` for the Desired-Behavior-to-Acceptance-Criteria projection.
-- **`unmatched_desired_behavior`** — a JSON array containing every exact unmatched Desired Behavior statement, or `[]`.
-- **`pass5_workflow_resident_acs`** — the AC identifiers Pass 5 flagged as workflow-resident (the capability-blocked set Phase 2.2.5 combines with its own plan-time recheck).
-- **`pass2_wrongly_excluded_surfaces`** — any surface Pass 2 found wrongly excluded by the issue's negative-scope claims, since it mutates Phase 2's plan.
-- **`superseding_assumptions`** — any Pass 1 verified-count correction and Pass 6 refuted premise that supersedes the issue body as Phase 2's working assumptions.
+Read every `ISSUE-CLAIM-AUDIT RECORD` field: `outcome` (`proceed` / `blocked-specification` / `blocked-policy` / `blocked-capability`), `projection_disposition`, `unmatched_desired_behavior` (a JSON array preserving every exact unmatched statement, or `[]`), `pass5_workflow_resident_acs`, `pass2_wrongly_excluded_surfaces`, and `superseding_assumptions`. A bare verdict is unusable.
 
 #### Act on the record (the decision is yours, not the auditor's)
 
-- **`outcome: proceed`** → write the returned projection fields as one JSON object to `<scratch-dir>/issue-claim-projection-$ISSUE_NUMBER.json`, preserving the exact strings in `unmatched_desired_behavior`, then invoke the canonical consumer as a single statement:
+- **`outcome: proceed`** → write the two projection fields to `<scratch-dir>/issue-claim-projection-$ISSUE_NUMBER.json`, preserving the unmatched JSON array, then invoke the shared gate:
   ```bash
   "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/run-jq.sh -e -f "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/projection-gate.jq <scratch-dir>/issue-claim-projection-$ISSUE_NUMBER.json
   ```
-  The record is usable only when that operation exits zero, which requires `projection_disposition: represented` and an empty `unmatched_desired_behavior` JSON array. With that clean tuple, continue to §1.5/Phase 2 and carry the record forward: hand `pass5_workflow_resident_acs` to Phase 2.2.5's scope-adjustment, add the surfaces listed in `pass2_wrongly_excluded_surfaces` to the working plan before §2.2, and adopt the corrections listed in `superseding_assumptions` as Phase 2's working assumptions (discarding the superseded issue-body claims they identify). A refused/non-zero invocation, missing field, wrong type, inconsistent disposition, or non-empty unmatched array makes the record unusable: take the existing failed/no-usable-record path below and run the audit inline, never enter Phase 2 from that record.
-- **`outcome: blocked-specification`** (at least one Desired Behavior obligation is unmatched even if the issue already has non-empty ACs) → do **not** proceed to Phase 2. Set `Status: Blocked` and record a `blocked` reflection naming every exact statement from `unmatched_desired_behavior`: `issue-claim audit (projection): the issue needs refinement before implementation; Desired Behavior obligation unmatched by the merge-gated Acceptance Criteria: {exact statement}`. Emit the 👎 outcome reaction, remove the run marker, and stop. Do not synthesize, rewrite, or append an acceptance criterion on the author's behalf.
-- **`outcome: blocked-policy`** (a Pass 3 AC-vs-policy contradiction) → do **not** proceed to Phase 2. Fill the record's `blocked_reason` into `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --status Blocked --reflection-kind blocked --reflection "issue-claim audit (policy): AC claims '{AC text}' but operative policy in {file} states '{policy text}' — contradiction requires user resolution before Phase 2"`, then emit the 👎 outcome reaction (see *Outcome reaction* in the Workpad Reference), remove the run marker, and stop the run.
-- **`outcome: blocked-capability`** (Pass 5 found every in-scope acceptance criterion is workflow-resident and this cloud run's `GITHUB_TOKEN` fallback cannot push it) → do **not** open a near-empty PR. Record `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --status Blocked --reflection-kind blocked --reflection "issue-claim audit (execution-capability): every in-scope acceptance criterion requires editing .github/workflows/, which this cloud run's GITHUB_TOKEN fallback (no workflow-capable App token; DEVFLOW_APP_ID unset) cannot push — this issue must be implemented by a workflows-capable run (a human/PAT, or a cloud run with the DevFlow App configured). Re-dispatch there; no PR opened"`, then emit the 👎 outcome reaction and stop the run.
+  Only exit zero is usable (`represented` plus an empty array). Carry Pass 5 flags, Pass 2 surfaces, and superseding assumptions forward. A refused/non-zero invocation or missing, wrong-typed, inconsistent, or non-empty tuple takes the inline-audit fallback; never enter Phase 2 from it.
+- **`outcome: blocked-specification`** → even with non-empty ACs, record `Blocked` naming every exact unmatched statement, emit 👎, remove the run marker, and stop before Phase 2. Never synthesize or rewrite an AC.
+- **`outcome: blocked-policy`** → record `Blocked` with the returned AC, policy file, and policy text; emit 👎, remove the run marker, and stop.
+- **`outcome: blocked-capability`** → record `Blocked` naming the all-workflow-resident set and observed credential boundary; emit 👎 and stop without a PR.
 
-**If the auditor dispatch fails or returns no usable record**, record `--reflection-kind dropped-failed` naming the failure and run the passes inline yourself from `agents/issue-claim-auditor.md` (the procedure is preserved there) as the fallback — never skip the audit silently.
+If dispatch fails or returns no usable record, record `dropped-failed` and run `agents/issue-claim-auditor.md` inline; never skip the audit.
 
 <!-- prflow:implement-ref phase=1 file=skills/implement/phases/phase-1-setup.md end -->

@@ -1749,7 +1749,7 @@ root, inv = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
 expected = set(json.loads(inv.read_text())["noninteractive_issue_body_producers"])
 found = set()
 for base in (root / "agents", root / "skills"):
-    for path in base.rglob("*.md"):
+    for path in base.rglob("*.md"):  # tree-walk-ok: census all prompt producers so a newly added noninteractive Desired Behavior issue author cannot escape inventory validation
         text = path.read_text(encoding="utf-8")
         if "Desired Behavior" in text and any(x in text for x in ("filing plan", "findings` array", "findings array", "meta-issue.sh")) and "interactive" not in path.name:
             if "issue-template.md" not in str(path): found.add(str(path.relative_to(root)))

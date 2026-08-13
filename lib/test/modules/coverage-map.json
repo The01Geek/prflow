@@ -111,6 +111,10 @@
       "note": "shared execution-file readers (exec state, CLI version, transcript/permission_denials search) for the matcher-probe hook-arm observation renderers; driven through those renderers' arm matrices",
       "owner": "unmodularized"
     },
+    "lib/projection-gate.jq": {
+      "note": "issue #1515 canonical Desired Behavior projection predicate; exercised by create-issue-contract eligibility and consumer-routing fixtures",
+      "owner": "create-issue-contract"
+    },
     "lib/recurring-targets.jq": {
       "note": "",
       "owner": "unmodularized"
@@ -782,6 +786,7 @@
   "generated_by": "lib/test/coverage_map_guard.py — its shared label derivation (derive_labels) owns the run_sh_blocks half: arm 9 derives the label set from lib/test/run.sh and every lib/test/modules/*.sh at assertion-name position, fails the suite RED on a run.sh label with no entry and on a fully-extracted label misattributed to 'unmodularized', and `python3 lib/test/coverage_map_guard.py . --fix` is the hand-invoked repair.",
   "non_code_exempt": [
     "lib/capability-profiles.json",
+    "lib/desired-behavior-producers.json",
     "lib/intervention-surfaces.md",
     "lib/plugin-identity.json",
     "lib/rename-map.json",
