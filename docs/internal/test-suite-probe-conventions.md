@@ -49,7 +49,7 @@ is a deliberate exception, not an oversight, and it is not to be converted.
 
 ## Scope
 
-This convention governs **new** rendered-output probes and **existing ones a change
-touches**. The rendered-output probes already in the tree were not audited when this page
-was written, so a probe that predates it and that no change has touched may still read
-colour from its host.
+The rendered-output probes already in the tree were not audited when this page was
+written, so a probe that predates it and that no change has touched may still read colour
+from its host — `lib/test/test_module_runner.py` and `lib/test/test_render_audit_prompt.py`
+are two known such probes.

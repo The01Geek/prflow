@@ -2972,48 +2972,69 @@ assert_eq("#1653 the file neutralises colour for its children (PYTHON_COLORS, NO
 # statement against a line that no longer spawns anything.
 _SRC_1653 = Path(__file__).resolve().read_text(encoding='utf-8')
 _TREE_1653 = ast.parse(_SRC_1653)
-_SP_ALIASES_1653 = {
-    _a.asname or _a.name
-    for _n in ast.walk(_TREE_1653) if isinstance(_n, ast.Import)
-    for _a in _n.names if _a.name == 'subprocess'
-}
 _SPAWNERS_1653 = {'run', 'Popen', 'call', 'check_call', 'check_output'}
-_child_linenos_1653 = [
-    _n.lineno
-    for _n in ast.walk(_TREE_1653)
-    if isinstance(_n, ast.Call) and isinstance(_n.func, ast.Attribute)
-    and _n.func.attr in _SPAWNERS_1653
-    and isinstance(_n.func.value, ast.Name)
-    and _n.func.value.id in _SP_ALIASES_1653
-]
-_env_stmt_linenos_1653 = [
-    _n.lineno
-    for _n in ast.walk(_TREE_1653)
-    if isinstance(_n, ast.Assign)
-    for _t in _n.targets
-    if isinstance(_t, ast.Subscript) and isinstance(_t.value, ast.Attribute)
-    and _t.value.attr == 'environ' and isinstance(_t.slice, ast.Constant)
-    and _t.slice.value == 'PYTHON_COLORS'
-]
+# Keep this a SUPERSET of every spawner name, and never narrow it to a shared
+# constant defined for another purpose: this scan must find the EARLIEST child, so a
+# name it misses silently moves that line later and weakens the ordering assertion.
+_OS_SPAWNERS_1653 = {'system', 'popen', 'spawnv', 'spawnvp', 'execv', 'execvp'}
+# Both keys are scanned, so moving either one below a child process fails this —
+# keying on PYTHON_COLORS alone would pass a tree whose NO_COLOR was left late.
+_ENV_KEYS_1653 = {'PYTHON_COLORS', 'NO_COLOR'}
+_sp_aliases_1653 = set()
+_bare_spawners_1653 = set()
+for _n in ast.walk(_TREE_1653):
+    if isinstance(_n, ast.Import):
+        for _a in _n.names:
+            if _a.name == 'subprocess':
+                _sp_aliases_1653.add(_a.asname or _a.name)
+    elif isinstance(_n, ast.ImportFrom) and _n.module == 'subprocess':
+        for _a in _n.names:
+            if _a.name in _SPAWNERS_1653:
+                _bare_spawners_1653.add(_a.asname or _a.name)
+
+_child_linenos_1653 = []
+_env_stmt_linenos_1653 = []
+for _n in ast.walk(_TREE_1653):
+    if isinstance(_n, ast.Call):
+        _f = _n.func
+        # subprocess.run(...) / sp.Popen(...), a `from subprocess import run` bare
+        # call, and os.system(...) / os.popen(...) all spawn a child.
+        if isinstance(_f, ast.Attribute) and isinstance(_f.value, ast.Name):
+            if (_f.attr in _SPAWNERS_1653 and _f.value.id in _sp_aliases_1653) \
+               or (_f.attr in _OS_SPAWNERS_1653 and _f.value.id in ('os', '_os')):
+                _child_linenos_1653.append(_n.lineno)
+        elif isinstance(_f, ast.Name) and _f.id in _bare_spawners_1653:
+            _child_linenos_1653.append(_n.lineno)
+    elif isinstance(_n, ast.Assign):
+        for _t in _n.targets:
+            if isinstance(_t, ast.Subscript) and isinstance(_t.value, ast.Attribute) \
+               and _t.value.attr == 'environ' and isinstance(_t.slice, ast.Constant) \
+               and _t.slice.value in _ENV_KEYS_1653:
+                _env_stmt_linenos_1653.append((_t.slice.value, _n.lineno))
+
+_env_keys_found_1653 = {_k for _k, _ in _env_stmt_linenos_1653}
 # Floors, so a derivation that silently collapses to the empty set (a renamed alias, a
 # moved statement) fails here instead of vacuously comparing two empty sequences.
 assert_eq("#1653 the child-process invocation set was derived from this file's source",
           True, len(_child_linenos_1653) >= 3)
-assert_eq("#1653 the colour-neutralising statement was located in this file's source",
-          True, len(_env_stmt_linenos_1653) >= 1)
-assert_eq("#1653 the neutralising statement precedes every child-process invocation "
+assert_eq("#1653 both colour-neutralising statements were located in this file's source",
+          _ENV_KEYS_1653, _env_keys_found_1653)
+assert_eq("#1653 both neutralising statements precede every child-process invocation "
           "in this file",
           True,
-          bool(_child_linenos_1653) and bool(_env_stmt_linenos_1653)
-          and min(_env_stmt_linenos_1653) < min(_child_linenos_1653))
+          bool(_child_linenos_1653)
+          and _env_keys_found_1653 == _ENV_KEYS_1653
+          and max(_l for _, _l in _env_stmt_linenos_1653) < min(_child_linenos_1653))
 
 # Do not drop this version gate and let the escape-byte checks run unconditionally:
 # argparse colourises help only on python >= 3.13, so on the 3.11 CI pins they would
 # hold vacuously and report as passes for a behaviour they never drove.
 _PYV_1653 = f"python {sys.version_info[0]}.{sys.version_info[1]}"
-_COLOURISES_1653 = sys.version_info >= (3, 13)
+_NOT_EXER_1653 = (f"NOT EXERCISED on {_PYV_1653} "
+                  f"(argparse colourises help only on python >= 3.13)")
+del _SRC_1653, _TREE_1653  # a 165k-node tree; nothing below reads it
 
-if _COLOURISES_1653:
+if sys.version_info >= (3, 13):
     # Never build this from a fresh dict instead of os.environ: the neutralisation
     # under test lives in that mapping, and a replacement environment drops it, so
     # the assertion would pass on a tree with the fix removed.
@@ -3034,10 +3055,8 @@ if _COLOURISES_1653:
               True, '\x1b' not in _top_help_1550.stdout
               and '\x1b' not in _upd_help_1550.stdout)
 else:
-    assert_eq(f"#1653 forced-colour neutralisation: NOT EXERCISED on {_PYV_1653} "
-              f"(argparse colourises help only on python >= 3.13)", True, True)
-    assert_eq(f"#1653 #1550 probe help is escape-free: NOT EXERCISED on {_PYV_1653} "
-              f"(argparse colourises help only on python >= 3.13)", True, True)
+    assert_eq(f"#1653 forced-colour neutralisation: {_NOT_EXER_1653}", True, True)
+    assert_eq(f"#1653 #1550 probe help is escape-free: {_NOT_EXER_1653}", True, True)
 
 # --- the wording constraint itself, stated as a property --------------------
 # A new row whose text contained a live tick substring would break that EXISTING
