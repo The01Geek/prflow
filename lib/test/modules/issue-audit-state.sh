@@ -120,7 +120,7 @@ ias_stage() {  # <slug> <nonce> <draft-file>
 # help_surface_pin — pinned against the RENDERED --help output, whitespace-normalized.
 # Never a source grep on the argparse help= strings: those are concatenated across
 # adjacent literals, so a source pin would live on no single line (#375).
-# NO_COLOR/PYTHON_COLORS: argparse colorizes its help on python >= 3.13 when the
+# NO_COLOR/PYTHON_COLORS: argparse colorizes its help on python >= 3.14 when the
 # rendering path allows it, and the ANSI escapes would land INSIDE a pinned phrase and
 # fail the match on exactly the newer interpreters this repo supports.
 IAS_HELP_546="$(NO_COLOR=1 PYTHON_COLORS=0 python3 "$IAS" --help 2>&1 | tr -s '[:space:]' ' ')"
