@@ -92,10 +92,11 @@ else
 fi
 # Targeted persist FIRST (substituting this run's held <slug>/<run-id> — the
 # targeted form is exempt from every discovery-mode skip by caller intent):
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/efficiency-trace.sh --workpad-dir "$ROOT/.prflow/tmp/review/<slug>/<run-id>" --slug "<slug>" --persist || true
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/efficiency-trace.sh --workpad-dir "$ROOT/.prflow/tmp/review/<slug>/<run-id>" --slug "<slug>" --persist 2>"$PERSIST_ERR" || true
 # Then argument-less discovery for every OTHER leftover run dir on disk; its
 # stderr appends to the same capture so the single surfacing line carries both:
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/efficiency-trace.sh --persist || true
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/efficiency-trace.sh --persist 2>>"$PERSIST_ERR" || true
+cat "$PERSIST_ERR" >&2
 # Detect the "no inputs FROM THIS RUN" case by diffing against the pre-loop snapshot, anchored
 # on $ROOT (matching --persist): comm -13 lists iter-*.json present now but NOT before the
 # inline loop — i.e. exactly what THIS run wrote. This is immune to prior-run leftovers on the
