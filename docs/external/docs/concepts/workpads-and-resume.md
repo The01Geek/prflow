@@ -20,7 +20,7 @@ It records:
 - Reproduction evidence for bug reports.
 - Blockers, deferrals, dropped work and other reflections a human should inspect.
 
-PRFlow updates the same comment instead of posting a new progress comment at each step. A local run creates it as its first GitHub write. A cloud run can create an initial version before implementation begins, then fill it in during setup.
+PRFlow updates the same comment instead of posting a new progress comment at each step. The inline review-and-fix phase also records its review stages in this workpad instead of opening a separate progress comment on the draft pull request. A local run creates the workpad as its first GitHub write. A cloud run can create an initial version before implementation begins, then fill it in during setup.
 
 ## How Resume Finds Prior Work
 

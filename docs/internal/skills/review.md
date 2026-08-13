@@ -4,7 +4,7 @@ This page explains the comprehensive review skill and how its engine reaches a v
 
 ## Current behavior
 
-`/prflow:review` classifies the diff, builds or reads the verification checklist, dispatches specialized review agents, aggregates their evidence, and emits a terminal verdict. In PR mode it can maintain a live progress comment whose content is sourced from the review run rather than invented by the caller.
+`/prflow:review` classifies the diff, builds or reads the verification checklist, dispatches specialized review agents, aggregates their evidence, and emits a terminal verdict. The caller selects one progress surface through an internal binding. Exact `workpad` routes phase boundaries to the existing issue workpad and suppresses the PR progress comment. Every other value retains the standalone behavior: in PR mode, when enabled, the engine maintains a live progress comment whose content comes from the review run.
 
 The review engine is a bundle of the root skill, reference procedures, reviewer agents, scripts, and configured permission profiles. A reviewer result is evidence for a developer's decision; it is not an automatic merge action.
 
@@ -15,6 +15,8 @@ Independent checklist generation, specialized review, mechanical corroboration, 
 ## Boundaries and failure paths
 
 - A missing engine reference, missing verdict marker, or unavailable required evidence is not an approval.
+- The progress-surface binding is internal. Public `--issue`, push flags, PR mode, and workpad presence do not select it.
+- A no-verdict exit writes a terminal `❌` signal to the selected surface and never creates a different fallback surface.
 - Review agents are scoped by the review engine's dispatch rules and configured model/effort overrides.
 - Cloud command permissions and prompt grounding are part of the execution contract.
 - The shadow review is a separate corroborating pass; it narrows risk but does not prove that no defect remains.
