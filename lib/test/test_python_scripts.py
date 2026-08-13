@@ -2957,12 +2957,9 @@ for _kind, _key, _tgt, _argv, _detect in (
     assert_eq(f"#1550 negative control ({_kind}): dropping help= for {_tgt!r} goes RED",
               False, _detect(_mut_help_1550.stdout, _tgt))
 
-# ---------------------------------------------------------------------------
-# #1653 the colour neutralisation this file establishes for its own children.
-# Do not delete these as redundant with the #1550 checks above: CI pins python 3.11
-# and the pooled shard neutralises colour around this file, so #1550 is green either
-# way and these are the only checks that fail when the neutralisation is removed.
-# ---------------------------------------------------------------------------
+# #1653 Do not delete these as redundant with the #1550 checks above: CI pins an
+# interpreter that colourises nothing and the pooled shard neutralises colour around
+# this file, so #1550 stays green either way and only these fail if the fix is removed.
 assert_eq("#1653 the file neutralises colour for its children (PYTHON_COLORS, NO_COLOR)",
           ('0', '1'),
           (os.environ.get('PYTHON_COLORS'), os.environ.get('NO_COLOR')))
@@ -2972,45 +2969,58 @@ assert_eq("#1653 the file neutralises colour for its children (PYTHON_COLORS, NO
 # statement against a line that no longer spawns anything.
 _SRC_1653 = Path(__file__).resolve().read_text(encoding='utf-8')
 _TREE_1653 = ast.parse(_SRC_1653)
+# Keep each set a superset of the spawner names it covers — _SPAWNERS_1653 for the
+# subprocess module, _OS_SPAWNERS_1653 for os: a name either set misses silently moves
+# the earliest-child line later and weakens the ordering assertion below.
 _SPAWNERS_1653 = {'run', 'Popen', 'call', 'check_call', 'check_output'}
-# Keep this a SUPERSET of every spawner name, and never narrow it to a shared
-# constant defined for another purpose: this scan must find the EARLIEST child, so a
-# name it misses silently moves that line later and weakens the ordering assertion.
-_OS_SPAWNERS_1653 = {'system', 'popen', 'spawnv', 'spawnvp', 'execv', 'execvp'}
+_OS_SPAWNERS_1653 = {'system', 'popen', 'fork', 'forkpty', 'posix_spawn', 'posix_spawnp',
+                     'spawnl', 'spawnle', 'spawnlp', 'spawnv', 'spawnve', 'spawnvp',
+                     'execl', 'execle', 'execlp', 'execv', 'execve', 'execvp'}
 # Both keys are scanned, so moving either one below a child process fails this —
 # keying on PYTHON_COLORS alone would pass a tree whose NO_COLOR was left late.
 _ENV_KEYS_1653 = {'PYTHON_COLORS', 'NO_COLOR'}
+# Derive the os aliases too, never a hardcoded pair: this file's idiom is a per-block
+# aliased import, so a later `import os as _os1700` spawning through that name would
+# otherwise escape the scan and move the earliest-child line later unnoticed.
 _sp_aliases_1653 = set()
+_os_aliases_1653 = set()
 _bare_spawners_1653 = set()
 for _n in ast.walk(_TREE_1653):
     if isinstance(_n, ast.Import):
         for _a in _n.names:
             if _a.name == 'subprocess':
                 _sp_aliases_1653.add(_a.asname or _a.name)
+            elif _a.name == 'os':
+                _os_aliases_1653.add(_a.asname or _a.name)
     elif isinstance(_n, ast.ImportFrom) and _n.module == 'subprocess':
         for _a in _n.names:
             if _a.name in _SPAWNERS_1653:
                 _bare_spawners_1653.add(_a.asname or _a.name)
 
 _child_linenos_1653 = []
-_env_stmt_linenos_1653 = []
 for _n in ast.walk(_TREE_1653):
-    if isinstance(_n, ast.Call):
-        _f = _n.func
-        # subprocess.run(...) / sp.Popen(...), a `from subprocess import run` bare
-        # call, and os.system(...) / os.popen(...) all spawn a child.
-        if isinstance(_f, ast.Attribute) and isinstance(_f.value, ast.Name):
-            if (_f.attr in _SPAWNERS_1653 and _f.value.id in _sp_aliases_1653) \
-               or (_f.attr in _OS_SPAWNERS_1653 and _f.value.id in ('os', '_os')):
-                _child_linenos_1653.append(_n.lineno)
-        elif isinstance(_f, ast.Name) and _f.id in _bare_spawners_1653:
+    if not isinstance(_n, ast.Call):
+        continue
+    _f = _n.func
+    if isinstance(_f, ast.Attribute) and isinstance(_f.value, ast.Name):
+        if (_f.attr in _SPAWNERS_1653 and _f.value.id in _sp_aliases_1653) \
+           or (_f.attr in _OS_SPAWNERS_1653 and _f.value.id in _os_aliases_1653):
             _child_linenos_1653.append(_n.lineno)
-    elif isinstance(_n, ast.Assign):
-        for _t in _n.targets:
-            if isinstance(_t, ast.Subscript) and isinstance(_t.value, ast.Attribute) \
-               and _t.value.attr == 'environ' and isinstance(_t.slice, ast.Constant) \
-               and _t.slice.value in _ENV_KEYS_1653:
-                _env_stmt_linenos_1653.append((_t.slice.value, _n.lineno))
+    elif isinstance(_f, ast.Name) and _f.id in _bare_spawners_1653:
+        _child_linenos_1653.append(_n.lineno)
+
+# Module scope only: a later test that legitimately saves and restores one of these
+# keys around a probe of its own must not read as the neutralisation moving below a
+# child, which is a false RED whose message would name the wrong cause.
+_env_stmt_linenos_1653 = []
+for _n in _TREE_1653.body:
+    if not isinstance(_n, ast.Assign):
+        continue
+    for _t in _n.targets:
+        if isinstance(_t, ast.Subscript) and isinstance(_t.value, ast.Attribute) \
+           and _t.value.attr == 'environ' and isinstance(_t.slice, ast.Constant) \
+           and _t.slice.value in _ENV_KEYS_1653:
+            _env_stmt_linenos_1653.append((_t.slice.value, _n.lineno))
 
 _env_keys_found_1653 = {_k for _k, _ in _env_stmt_linenos_1653}
 # Floors, so a derivation that silently collapses to the empty set (a renamed alias, a
@@ -3026,13 +3036,16 @@ assert_eq("#1653 both neutralising statements precede every child-process invoca
           and _env_keys_found_1653 == _ENV_KEYS_1653
           and max(_l for _, _l in _env_stmt_linenos_1653) < min(_child_linenos_1653))
 
-# Do not drop this version gate and let the escape-byte checks run unconditionally:
-# argparse colourises help only on python >= 3.13, so on the 3.11 CI pins they would
-# hold vacuously and report as passes for a behaviour they never drove.
 _PYV_1653 = f"python {sys.version_info[0]}.{sys.version_info[1]}"
-_NOT_EXER_1653 = (f"NOT EXERCISED on {_PYV_1653} "
-                  f"(argparse colourises help only on python >= 3.13)")
-del _SRC_1653, _TREE_1653  # a 165k-node tree; nothing below reads it
+del _SRC_1653, _TREE_1653  # nothing below reads these
+
+# Runs on every interpreter, and its label names the axis it is vacuous on — the
+# host's colour setting, not the interpreter — so a trivial hold is never read as
+# proof that the neutralisation was exercised.
+assert_eq(f"#1653 the two #1550 probes captured escape-free help "
+          f"({_PYV_1653}; holds trivially unless the host forces colour)",
+          True, '\x1b' not in _top_help_1550.stdout
+          and '\x1b' not in _upd_help_1550.stdout)
 
 if sys.version_info >= (3, 13):
     # Never build this from a fresh dict instead of os.environ: the neutralisation
@@ -3051,12 +3064,13 @@ if sys.version_info >= (3, 13):
     assert_eq(f"#1653 the neutralisation defeats FORCE_COLOR in the child's own "
               f"environment ({_PYV_1653})",
               True, '\x1b' not in _forced_help_1653.stdout)
-    assert_eq(f"#1653 the two #1550 probes captured escape-free help ({_PYV_1653})",
-              True, '\x1b' not in _top_help_1550.stdout
-              and '\x1b' not in _upd_help_1550.stdout)
 else:
-    assert_eq(f"#1653 forced-colour neutralisation: {_NOT_EXER_1653}", True, True)
-    assert_eq(f"#1653 #1550 probe help is escape-free: {_NOT_EXER_1653}", True, True)
+    # Assert the interpreter really is one that colourises nothing, rather than a bare
+    # True==True: a constant would let this arm absorb a 3.13+ host that owed the proof
+    # and still report a pass.
+    assert_eq(f"#1653 forced-colour proof NOT EXERCISED on {_PYV_1653} "
+              f"(argparse colourises help only on python >= 3.13)",
+              True, sys.version_info < (3, 13))
 
 # --- the wording constraint itself, stated as a property --------------------
 # A new row whose text contained a live tick substring would break that EXISTING

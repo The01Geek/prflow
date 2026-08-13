@@ -15,8 +15,8 @@ answers on a machine that forces colour and on one that does not.
 The variables that do it are **`PYTHON_COLORS=0`** and **`NO_COLOR=1`**. Set both. Each
 was measured to override a forced-colour setting on its own, and `PYTHON_COLORS` alone is
 the narrower guard — it reaches Python's own rendering, while `NO_COLOR` is the
-cross-language convention a non-Python child also honours. The repository's help probe in
-`lib/test/modules/issue-audit-state.sh` sets both; the harness sites in
+cross-language convention a non-Python child also honours. The one help probe in the tree
+that already sets both is `lib/test/modules/issue-audit-state.sh`; the harness sites in
 `lib/test/module-harness.sh` predate this convention and set `PYTHON_COLORS` only, which
 suffices there because every child they neutralise is a Python one.
 
@@ -34,7 +34,7 @@ to remove.
   the file was invoked. A statement placed below an earlier child leaves that child inheriting
   the host's setting, which is why the placement is asserted in that file and not only
   the values.
-- **The shared harness** (`lib/test/module-harness.sh`) already exports `PYTHON_COLORS=0`
+- **The shared harness** (`lib/test/module-harness.sh`) already sets `PYTHON_COLORS=0`
   around the Python suites it runs, so a suite is neutralised when run through a suite
   runner whether or not it neutralises itself. That is not a substitute: the direct
   invocation — the form the project's own instructions mandate for a focused Python
