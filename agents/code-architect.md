@@ -1,7 +1,7 @@
 ---
 name: code-architect
 description: PRFlow's implement-phase planning agent. Designs feature architectures by analyzing existing codebase patterns and conventions, then providing comprehensive implementation blueprints with specific files to create/modify, component designs, data flows, and build sequences
-tools: Glob, Grep, LS, Read, NotebookRead, WebFetch, TodoWrite, WebSearch
+tools: Glob, Grep, Read, WebFetch, TodoWrite, WebSearch
 model: sonnet
 color: green
 ---
