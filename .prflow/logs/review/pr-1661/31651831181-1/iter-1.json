@@ -1,0 +1,115 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-13T00:00:00Z",
+  "fix_commit_sha": "7fd57229e",
+  "fix_files": [
+    "skills/create-issue/references/issue-template.md"
+  ],
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "current_substep": null,
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:pr-test-analyzer",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "worked example Technical Context omitted the mandatory verbatim scope note",
+      "defect_signature": {
+        "file": "skills/create-issue/references/issue-template.md",
+        "line_range": [
+          260,
+          262
+        ],
+        "kind": "prose_incompleteness"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "worked example is a UI change without a Visual Specification section",
+      "defect_signature": {
+        "file": "skills/create-issue/references/issue-template.md",
+        "line_range": [
+          255,
+          270
+        ],
+        "kind": "prose_note"
+      },
+      "fix_decision": "advisory"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "worked example bullet labels unbolded where the template uses bold",
+      "defect_signature": {
+        "file": "skills/create-issue/references/issue-template.md",
+        "line_range": [
+          263,
+          278
+        ],
+        "kind": "cosmetic"
+      },
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "7fd57229e"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "advisory",
+      "skip_category": "advisory-parked",
+      "evidence": "debatable (a standard button may need no visual spec); AC13 forbids adding a `## Visual Specification` heading to the example (would change the heading set)"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "advisory",
+      "skip_category": "advisory-parked",
+      "evidence": "cosmetic; bullet labels are not machine-parsed and nothing breaks; adding bold would breach the 49705-byte ceiling"
+    }
+  ],
+  "shadow": {
+    "ran_at": "2026-08-13T00:00:00Z",
+    "reviewed_sha": "7fd57229e",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "comparison": {
+      "shadow_total": 3,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
