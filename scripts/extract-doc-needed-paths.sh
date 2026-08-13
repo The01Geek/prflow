@@ -86,9 +86,27 @@
 #     in-tree deliverable, so both are dropped outright — this also stops a token
 #     that carries a recognized extension (`../notes.md`) from reaching the
 #     extension branch, which emits on the extension alone (issue #254).
+#   * standalone `none` declaration (issue #1663) — a block whose FIRST content
+#     token is the recognized declaration promises nothing, so no paths are
+#     emitted for it (the reading helper then reports `no-deliverables`). The
+#     declaration is examined on the first content token ALONE, wherever it falls:
+#     that token must be exactly `none` (case-insensitively) carrying at most one
+#     trailing terminator from the closed set comma/period/semicolon/colon, OR
+#     `none` standing alone as the block's only content. It is a whole-token
+#     literal comparison, never a leading prefix, so `None of these pages may be
+#     skipped:` runs on into a sentence and still extracts its paths, and `none!` /
+#     `none)` carry a char outside the terminator set and are not declarations.
+#     Content after the first token — the writer's explanatory sentence and any
+#     path it names — is deliberately NOT consulted. STATED RESIDUAL: a writer who
+#     opens with the declaration and then names a file that genuinely needs editing
+#     loses that file's mandatory status; the routine Phase 4.1 documentation pass
+#     still runs and still updates what the change warrants, and Stage 1's
+#     safety-net workpad note records that the cross-check was skipped, so the case
+#     is auditable rather than silent — the accepted cost of a declared empty form.
 #
-# Output is sorted and de-duplicated; absent section / empty bullet / no
-# path-like tokens all yield empty output and exit 0 (a true no-op signal).
+# Output is sorted and de-duplicated; absent section / empty bullet / standalone
+# `none` declaration / no path-like tokens all yield empty output and exit 0 (a
+# true no-op signal).
 set -euo pipefail
 
 body="$(cat "${1:-/dev/stdin}")"
@@ -187,6 +205,45 @@ run_stage_a() {
       if (t ~ /\/\.\.\//) continue
       if (t ~ ("[A-Za-z0-9._-][.](" extre ")$")) return 1
     }
+    return 0
+  }
+  # decl_candidate(line): the block'"'"'s first content, with the label and the
+  # separator after it removed, so is_none_declaration() can examine the first
+  # content token alone (issue #1663). The first content does NOT sit at a fixed
+  # line position — the list-item and bold-paragraph openers can carry it after
+  # the label on the opener line, while a bare opener with a sub-list and the
+  # level-3 heading put it on a later line — so this runs on whichever in-scope
+  # line first yields non-empty content. Backticks are markdown formatting, not
+  # content; the label is dropped only when present (a no-op on a sub-list line);
+  # and the leading separator run — whitespace, a list dash, bold stars, a colon,
+  # a period, and the multibyte em-dash — is stripped. The em-dash is matched as a
+  # regex LITERAL (never a byte class), so the byte-wise locale this script uses
+  # cannot decompose it into a stray single-byte match.
+  function decl_candidate(line,   s) {
+    s = line
+    gsub(/`/, "", s)
+    sub(/^(- )?\*\*Documentation Needed\*\*/, "", s)
+    sub(/^([[:space:]*:.-]|—)+/, "", s)
+    return s
+  }
+  # is_none_declaration(cand): is CAND the recognized standalone `none` declaration
+  # (issue #1663)? TWO forms, and nothing else: (1) the first whitespace token is
+  # exactly `none` plus one trailing terminator from the closed set comma, period,
+  # semicolon, colon — after which the writer'"'"'s explanatory sentence and any path
+  # it names are deliberately NOT consulted; (2) `none` standing alone as the
+  # block'"'"'s only content. The token is compared as a whole-token literal via
+  # tolower(), never a leading-prefix match: `None of these pages may be skipped:`
+  # has a token of `None` (no terminator) and is not the whole content, so it is
+  # NOT a declaration and its paths still extract. `none!` / `none)` carry a
+  # trailing char outside the terminator set, so their token is not `none[,.;:]`
+  # and they are not declarations either.
+  function is_none_declaration(cand,   whole, tok) {
+    whole = cand
+    sub(/[[:space:]]+$/, "", whole)
+    tok = cand
+    sub(/[[:space:]].*/, "", tok)
+    if (tolower(tok) ~ /^none[,.;:]$/) return 1
+    if (tolower(whole) == "none") return 1
     return 0
   }
   BEGIN { prev_blank = 1; in_fence = 0 }   # start-of-file is a paragraph boundary
@@ -335,6 +392,25 @@ run_stage_a() {
   # reach here (the fence rule `next`-skips them), so a fenced heading-shaped or
   # bold-shaped line drives no scope transition and no arm.
   state == 2 {
+    # issue #1663 — the standalone `none` declaration. Examine the block'"'"'s FIRST
+    # content token (wherever it falls): if it is the recognized declaration, the
+    # block promises nothing, so suppress ALL of its output. The reading helper
+    # then turns the empty extraction into `no-deliverables` (exit 10), the signal
+    # the run already treats as "nothing to cross-check". Runs before any token is
+    # classified, so a backticked path anywhere after the declaration cannot defeat
+    # it. Placed here rather than as an unconditional close so it expresses a
+    # writer'"'"'s declaration, not a second way for content to vanish.
+    if (!decl_examined) {
+      cand = decl_candidate($0)
+      if (cand != "") {
+        decl_examined = 1
+        if (is_none_declaration(cand)) {
+          decl = 1
+          print "extract-doc-needed-paths.sh: the Documentation Needed block opens with a standalone none declaration (first content token none); emitting no deliverables for this block" > "/dev/stderr"
+        }
+      }
+    }
+    if (decl) next
     print
     if ( ( $0 ~ /^[[:space:]]*-/ || $0 ~ /^\*\*/ ) && arms($0) ) emitted = 1
   }

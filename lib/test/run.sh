@@ -11326,6 +11326,121 @@ assert_eq "#327 Shape 2 fail-open pin: a list item whose only ext token is a roo
   "docs/guide.md" \
   "$(printf '%s\n' "$fx_327_arms_rooted" | bash "$EXTRACT_HELPER")"
 
+# ── issue #1663: standalone `none` declaration suppresses the block's paths ──────
+# A writer who opens the Documentation Needed block with the standalone word `none`
+# declares the block promises nothing, so the extractor emits no paths for it — even
+# when the block also names a backticked in-tree path (the #1659 shape). The
+# declaration is examined on the block's FIRST content token ALONE: exactly `none`
+# (case-insensitive) plus at most one terminator from the closed set `,.;:`, or
+# `none` standing alone. It is a whole-token literal match, never a leading prefix,
+# so an ordinary English sentence opening `None of these …` still extracts its paths.
+#
+# #1663-a — the #1659 shape: a list-item opener whose declaration (`none.`) is
+# followed by a backticked tracked in-tree file yields NOTHING (the extractor emits
+# no path; the reading helper then reports no-deliverables). Fails before the change,
+# which extracts DEVFLOW_SYSTEM_OVERVIEW.md.
+fx_1663_1659="## Implementation Notes
+
+- **Documentation Needed** — none. \`docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md\` describes rules this template carries but quotes no wording."
+assert_eq "#1663-a: declaration (none.) followed by a backticked tracked path emits NO deliverables (the #1659 shape)" \
+  "" \
+  "$(printf '%s\n' "$fx_1663_1659" | bash "$EXTRACT_HELPER")"
+
+# #1663-b — the over-suppression complement: a block opening `None of these pages
+# may be skipped:` followed by a backticked tracked path STILL yields that path.
+# This is the case that fails against an implementation matching a leading prefix
+# rather than a standalone word — the required guard against silently disabling the
+# gate for an issue that genuinely named deliverables.
+fx_1663_runon="## Implementation Notes
+
+- **Documentation Needed** — None of these pages may be skipped: \`docs/internal/implement-skill.md\`"
+assert_eq "#1663-b over-suppression complement: 'None of these …' runs on into a sentence and still yields its path" \
+  "docs/internal/implement-skill.md" \
+  "$(printf '%s\n' "$fx_1663_runon" | bash "$EXTRACT_HELPER")"
+
+# #1663-c — a first token of `none` carrying a terminator OUTSIDE the accepted set
+# (`none!`, and equally `none)`) is not a declaration; the block extracts its paths
+# exactly as before the change.
+fx_1663_bang="## Implementation Notes
+
+- **Documentation Needed** — none! but update \`docs/internal/implement-skill.md\`"
+assert_eq "#1663-c: 'none!' (terminator outside ,.;:) is not a declaration; the path still extracts" \
+  "docs/internal/implement-skill.md" \
+  "$(printf '%s\n' "$fx_1663_bang" | bash "$EXTRACT_HELPER")"
+fx_1663_paren="## Implementation Notes
+
+- **Documentation Needed** — none) update \`docs/internal/implement-skill.md\`"
+assert_eq "#1663-c: 'none)' (terminator outside ,.;:) is not a declaration; the path still extracts" \
+  "docs/internal/implement-skill.md" \
+  "$(printf '%s\n' "$fx_1663_paren" | bash "$EXTRACT_HELPER")"
+
+# #1663-d — a first content token that is any OTHER word extracts paths as before,
+# and a `none` appearing LATER in the block's prose suppresses nothing.
+fx_1663_otherfirst="## Implementation Notes
+
+- **Documentation Needed** — update \`docs/internal/implement-skill.md\`; none of it is optional."
+assert_eq "#1663-d: an ordinary first token extracts normally; a later 'none' in prose suppresses nothing" \
+  "docs/internal/implement-skill.md" \
+  "$(printf '%s\n' "$fx_1663_otherfirst" | bash "$EXTRACT_HELPER")"
+
+# #1663-e — the declaration is recognized for EVERY accepted opener shape with the
+# content on a FOLLOWING line: the list-item bare opener + indented sub-list, the
+# blank-line-preceded bold paragraph, and the level-3 heading. Each yields empty.
+fx_1663_list_next="## Implementation Notes
+
+- **Documentation Needed**
+  - none. \`docs/internal/implement-skill.md\`"
+assert_eq "#1663-e list-item opener, declaration on the following (sub-list) line: no deliverables" \
+  "" \
+  "$(printf '%s\n' "$fx_1663_list_next" | bash "$EXTRACT_HELPER")"
+fx_1663_bold_next="## Implementation Notes
+
+**Documentation Needed**
+
+none. \`docs/internal/implement-skill.md\`"
+assert_eq "#1663-e bold-paragraph opener, declaration on the following line: no deliverables" \
+  "" \
+  "$(printf '%s\n' "$fx_1663_bold_next" | bash "$EXTRACT_HELPER")"
+fx_1663_head_next="## Implementation Notes
+
+### Documentation Needed
+
+none. \`docs/internal/implement-skill.md\`"
+assert_eq "#1663-e level-3 heading opener, declaration on the following line: no deliverables" \
+  "" \
+  "$(printf '%s\n' "$fx_1663_head_next" | bash "$EXTRACT_HELPER")"
+
+# #1663-f — the on-opener-line placement, for the list-item and bold-paragraph
+# openers alone (the heading arm ends the line before any content is read, so it has
+# no on-opener-line placement). Content follows the label on the opener line.
+fx_1663_list_same="## Implementation Notes
+
+- **Documentation Needed** — none. \`docs/internal/implement-skill.md\`"
+assert_eq "#1663-f list-item opener, declaration on the opener line: no deliverables" \
+  "" \
+  "$(printf '%s\n' "$fx_1663_list_same" | bash "$EXTRACT_HELPER")"
+fx_1663_bold_same="## Implementation Notes
+
+**Documentation Needed** — none. \`docs/internal/implement-skill.md\`"
+assert_eq "#1663-f bold-paragraph opener, declaration on the opener line: no deliverables" \
+  "" \
+  "$(printf '%s\n' "$fx_1663_bold_same" | bash "$EXTRACT_HELPER")"
+
+# #1663-g — bare `none` standing alone (no path, no terminator) is a declaration;
+# `nonexistent…` (first token merely BEGINS with the letters) is not.
+fx_1663_bare="## Implementation Notes
+
+- **Documentation Needed** — none"
+assert_eq "#1663-g bare 'none' standing alone is a declaration: no deliverables" \
+  "" \
+  "$(printf '%s\n' "$fx_1663_bare" | bash "$EXTRACT_HELPER")"
+fx_1663_prefix="## Implementation Notes
+
+- **Documentation Needed** — nonexistent yet: update \`docs/internal/implement-skill.md\`"
+assert_eq "#1663-g 'nonexistent' (token merely begins with the letters) is not a declaration; the path extracts" \
+  "docs/internal/implement-skill.md" \
+  "$(printf '%s\n' "$fx_1663_prefix" | bash "$EXTRACT_HELPER")"
+
 # ── issue #1554: read-doc-needed-deliverables.sh — the Phase 4.1 read boundary ──
 # Phase 4.1's Documentation-Needed read used to be inline shell written twice in
 # the phase file: it captured its result into a shell variable no later Bash call
