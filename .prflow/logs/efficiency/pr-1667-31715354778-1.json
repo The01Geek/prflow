@@ -100,5 +100,73 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.65",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 19.566620750000002,
+    "tokens": {
+      "input_tokens": 117,
+      "output_tokens": 57247,
+      "cache_read_input_tokens": 12724917,
+      "cache_creation_input_tokens": 298802,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 235,
+        "outputTokens": 142387,
+        "cacheReadInputTokens": 17280264,
+        "cacheCreationInputTokens": 999221,
+        "webSearchRequests": 0,
+        "costUSD": 19.566620750000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 86,
+    "duration_ms": 1128858
+  },
+  "permission_denials": {
+    "count": 20,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain ; echo \"---ENV---\" ; echo \"RUN_ID=${GITHUB_RUN_ID:-EMPTY}\" ; echo \"RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT:-EMPTY}\" ; echo \"GHA=${GITHUB_ACTIONS:-EMPTY}\"",
+      "grep '^diff --git' .prflow/tmp/review/pr-1667/31715354778-1/diff.patch | sed -E 's|^diff --git a/(.*) b/.*|\\1|' | sort > .prflow/tmp/review/pr-1667/31715354778-1/files.txt ; echo \"count=$(wc -l < .prflow/tmp/review/pr-1667/31715354778-1/files.txt)\" ; echo \"---non-doc/non-config files---\" ; grep -vE '\\.(yml|yaml|json|md|toml|ini|lock|txt)$' .prflow/tmp/review/pr-1667/31715354778-1/files.txt",
+      "/home/runner/work/prflow/prflow/skills/review/../../scripts/compose-run-url.sh",
+      ".prflow/vendor/prflow/scripts/resolve-review-overrides.py \"prflow:checklist-generator\" \"prflow:checklist-deduper\" 2>.prflow/tmp/review/pr-1667/31715354778-1/rv-ovr.phase1.err ; echo \"ovr-rc=$?\" ; echo \"---stderr---\" ; cat .prflow/tmp/review/pr-1667/31715354778-1/rv-ovr.phase1.err",
+      "D=.prflow/tmp/review/pr-1667/31715354778-1\nfor k in 1 2 3 4 5; do s=$(( (k-1)*10+1 )); e=$(( k*10 )); awk -v s=\"$s\" -v e=\"$e\" '/^diff --git/{n++} n>=s && n<=e' \"$D/diff.patch\" | tee \"$D/batch-$k.patch\" > /dev/null; echo \"batch-$k: files=$(grep -c '^diff --git' \"$D/batch-$k.patch\") bytes=$(wc -c < \"$D/batch-$k.patch\")\"; done",
+      "D=.prflow/tmp/review/pr-1667/31715354778-1\nawk '/^diff --git/{n++} n>=1 && n<=10'  \"$D/diff.patch\" | tee \"$D/batch-1.patch\" >/dev/null\nawk '/^diff --git/{n++} n>=11 && n<=20' \"$D/diff.patch\" | tee \"$D/batch-2.patch\" >/dev/null\nawk '/^diff --git/{n++} n>=21 && n<=30' \"$D/diff.patch\" | tee \"$D/batch-3.patch\" >/dev/null\nawk '/^diff --git/{n++} n>=31 && n<=40' \"$D/diff.patch\" | tee \"$D/batch-4.patch\" >/dev/null\nawk '/^diff --git/{n++} n>=41 && n<=49' \"$D/diff.patch\" | tee \"$D/batch-5.patch\" >/dev/nu …[per-command-truncated]",
+      "for k in 1 2 3 4 5; do echo \"=== batch-$k ===\"; grep '^diff --git' .prflow/tmp/review/pr-1667/31715354778-1/batch-$k.patch | sed -E 's|^diff --git a/(.*) b/.*|\\1|'; done",
+      "echo \"=== drift-prone cited source paths ===\"\nfor p in \\\n  scripts/phase2-durability-checkpoint.sh \\\n  scripts/update-branch-checkpoint.sh \\\n  scripts/verification-flight.py \\\n  scripts/workpad.py \\\n  scripts/render-prompt-extension.sh \\\n  scripts/render-audit-prompt.py \\\n  lib/capability-profiles.json \\\n  lib/generate-capability-profiles.py \\\n  lib/test/extract-command-heads.py \\\n  lib/test/extract-command-shapes.py \\\n  lib/test/regenerate-artifacts.py \\\n  lib/test/lint-reference-size.py \\\n  li …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\nfor f in \\\n  .github/workflows/agents-seam-probe.yml \\\n  .github/workflows/matcher-probe.yml \\\n  scripts/extract-execution-cost.py \\\n  scripts/build-experiment-records.py \\\n  scripts/check-completion-evidence.py \\\n  scripts/create-issue-context-eval.py \\\n  scripts/implement-context-eval.py \\\n  scripts/prompt-surface-growth.py \\\n  scripts/derive-review-verdict.sh \\\n  scripts/seed-review-progress.sh \\\n  scripts/post-review-verdict.sh \\\n  scripts/validate-cloud-wr …[per-command-truncated]",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >/tmp/ext.out 2>/tmp/ext.err; echo \"EXIT=$?\"; echo \"--- STDOUT BYTES ---\"; wc -c </tmp/ext.out; echo \"--- STDOUT ---\"; cat /tmp/ext.out; echo \"--- STDERR ---\"; cat /tmp/ext.err",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review 2>/tmp/ext.err 1>/tmp/ext.out; echo \"EXIT=$?\"",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review 2>.prflow/tmp/ext.err 1>.prflow/tmp/ext.out; echo \"EXIT=$?\"",
+      "cd /home/runner/work/prflow/prflow; for p in .claude/settings.json lib/test/cloud_writer_contract.py scripts/validate-cloud-writer-contract.py scripts/devflow-cloud-writer-contract.json lib/test/regenerate-artifacts.py scripts/check-completion-evidence.py scripts/derive-review-verdict.sh scripts/extract-doc-needed-paths.sh scripts/read-doc-needed-deliverables.sh scripts/build-experiment-records.py; do if [ -e \"$p\" ]; then echo \"EXISTS $p\"; else echo \"MISSING $p\"; fi; done",
+      "for p in .claude/settings.json lib/test/cloud_writer_contract.py scripts/validate-cloud-writer-contract.py scripts/devflow-cloud-writer-contract.json lib/test/regenerate-artifacts.py scripts/check-completion-evidence.py scripts/derive-review-verdict.sh scripts/extract-doc-needed-paths.sh scripts/read-doc-needed-deliverables.sh scripts/build-experiment-records.py scripts/extract-execution-cost.py .github/workflows/agents-seam-probe.yml scripts/prompt-surface-growth.py scripts/create-issue-context …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow; for f in docs/internal/subagent-write-probe.observed.md docs/internal/review-agent-overrides.md docs/internal/agents-seam-probe.md docs/internal/execution-file-shape.md docs/internal/shadow-review.md docs/internal/efficiency-trace.md docs/internal/workflow-flight-recorder.md docs/internal/advisory-adjudication-calibration.md docs/internal/implement-context.md docs/internal/review-and-fix-split-wording-study.md docs/internal/review-skill-load-outage-2026-08.md  …[per-command-truncated]",
+      "echo \"=== base: any create-issue-budget file ===\"; git ls-tree -r --name-only 6a27970e8 | grep -i \"create-issue-budget\"; echo \"=== base: issue-614 reference line ===\"; git show 6a27970e8:docs/internal/cutovers/issue-614-create-issue-thin-root-relocate.md 2>&1 | grep -n \"create-issue-budget\"; echo \"=== base: does docs/create-issue-budget.md exist? ===\"; git cat-file -e 6a27970e8:docs/create-issue-budget.md 2>&1 && echo EXISTS-docs; echo \"=== head: full stub content ===\"; cat docs/internal/cutover …[per-command-truncated]",
+      "git ls-tree -r --name-only 6a27970e8 | grep -i \"create-issue-budget\"; echo \"---614ref---\"; git show 6a27970e8:docs/internal/cutovers/issue-614-create-issue-thin-root-relocate.md | grep -n \"create-issue-budget\"",
+      "git ls-tree -r --name-only 6a27970e8 | grep -i create-issue-budget",
+      "for f in lib/test/cloud_writer_contract.py scripts/validate-cloud-writer-contract.py scripts/derive-review-verdict.sh scripts/read-doc-needed-deliverables.sh scripts/extract-doc-needed-paths.sh scripts/build-experiment-records.py scripts/prompt-surface-growth.py .github/workflows/agents-seam-probe.yml scripts/check-completion-evidence.py; do [ -e \"$f\" ] && echo \"OK  $f\" || echo \"MISSING  $f\"; done",
+      ".prflow/vendor/prflow/scripts/workpad.py patch 5282465648 .prflow/tmp/review/pr-1667/31715354778-1/review-wp.md 2>.prflow/tmp/review/pr-1667/31715354778-1/rv-patch.err || echo \"patch-rc=$? err=$(cat .prflow/tmp/review/pr-1667/31715354778-1/rv-patch.err 2>/dev/null)\""
+    ],
+    "total": 20,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
