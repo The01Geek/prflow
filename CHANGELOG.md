@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.64] — 2026-08-13
+
+### Changed
+Require interactive and automated issue authors, plus the implement preflight, to prove that Acceptance Criteria exhaustively represent every verifiable post-change obligation in Desired Behavior before creation or implementation proceeds.
+
 ## [2.32.63] — 2026-08-13
 
 ### Changed
