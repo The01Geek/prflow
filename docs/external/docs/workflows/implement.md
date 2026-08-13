@@ -20,7 +20,7 @@ PRFlow runs all four implementation phases:
 3. Open a draft pull request, simplify the change and run the review-and-fix loop.
 4. File required follow-up issues, update documentation, refresh the pull request description and finalize the run.
 
-The issue defines the intended outcome. PRFlow verifies its claims against the current tree before using them as implementation instructions.
+The issue defines the intended outcome. Before implementation begins, PRFlow checks that its acceptance criteria represent every independently testable outcome in Desired Behavior. An uncovered outcome blocks the run for issue refinement instead of becoming an inferred criterion or being omitted from review. PRFlow also verifies the issue's repository claims against the current tree before using them as implementation instructions.
 
 ## Branch and Workpad Behavior
 

@@ -36,7 +36,7 @@ The Blocked section serves a different purpose. It contains unresolved product o
 
 ## Expected Result
 
-The issue contains a problem statement, current and desired behavior, user impact, technical context, acceptance criteria, implementation notes and a testing strategy. Quantitative criteria include the command or counting rule that measures them.
+The issue contains a problem statement, current and desired behavior, user impact, technical context, acceptance criteria, implementation notes and a testing strategy. Desired behavior states the intended outcome. Acceptance criteria must represent every independently testable outcome in that section before PRFlow presents the draft for approval. Quantitative criteria include the command or counting rule that measures them.
 
 The result is an approved issue. It is implementation-ready only when no unresolved decision remains in its Blocked section.
 
