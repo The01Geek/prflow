@@ -2869,11 +2869,13 @@ printf '%s' '{"schema_version":3,"patterns":{},"dismissed":{}}' > "$TMP_SF/sf-ov
 # call devflow_select_findings; stdout is captured, stderr routed under $TMP_SF.
 # shellcheck disable=SC1090  # $RL_SF is the select-findings.sh path under test
 rl_sf() { ( . "$RL_SF"; devflow_select_findings "$@" ); }
+# shellcheck disable=SC1090  # $RL_SF is the select-findings.sh path under test
+rl_sf_projection() { ( . "$RL_SF"; devflow_projection_eligible_findings "$@" ); }
 
 # Issue #1515: Stage B's filing boundary consumes structured projection state for
 # every finding. One invalid finding is omitted without suppressing clean siblings.
 printf '%s' '[{"subslug":"clean","title":"C","body":"b","evidence_prs":[1],"rationale":"r","projection_disposition":"represented","unmatched_desired_behavior":[]},{"subslug":"bad","title":"B","body":"b","evidence_prs":[2],"rationale":"r","projection_disposition":"represented","unmatched_desired_behavior":["missing outcome"]},{"subslug":"missing","title":"M","body":"b","evidence_prs":[3],"rationale":"r"}]' > "$TMP_SF/sf-projection.json"
-RL_SF_PROJECTED="$( ( . "$RL_SF"; devflow_projection_eligible_findings "$TMP_SF/sf-projection.json" ) 2>"$TMP_SF/sf-projection.err" )"; RL_SF_PROJECTED_RC=$?
+RL_SF_PROJECTED="$(rl_sf_projection "$TMP_SF/sf-projection.json" 2>"$TMP_SF/sf-projection.err")"; RL_SF_PROJECTED_RC=$?
 assert_eq "#1515 projection filter succeeds while omitting degraded findings" "0" "$RL_SF_PROJECTED_RC"
 assert_eq "#1515 projection filter returns only represented plus zero-unmatched" "clean" \
   "$(printf '%s' "$RL_SF_PROJECTED" | jq -r '.[].subslug')"
