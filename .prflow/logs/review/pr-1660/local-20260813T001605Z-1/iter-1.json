@@ -1,0 +1,387 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-13T00:16:05Z",
+  "fix_commit_sha": "ad420aec5",
+  "fix_files": [
+    "lib/test/test_python_scripts.py",
+    "docs/internal/test-suite-probe-conventions.md"
+  ],
+  "loop_role": "fix",
+  "promotion_provenance": null,
+  "current_step": "loop-exit",
+  "current_substep": null,
+  "pending_dispatch": null,
+  "sweep_evidence": {
+    "status": "run"
+  },
+  "checklist": [
+    {
+      "id": "VC-11",
+      "claim": "CONTRIBUTING.md links to docs/internal/test-suite-probe-conventions.md",
+      "file": "CONTRIBUTING.md",
+      "verification_mode": "lite",
+      "claim_signature": "issue_acceptance:CONTRIBUTING.md:links-probe-conventions",
+      "verdict": "PASS",
+      "evidence": "link present at CONTRIBUTING.md:105-106",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-16",
+      "claim": "module-scope assignment covers the file's existing probes and any added later",
+      "file": "docs/internal/test-suite-probe-conventions.md",
+      "verification_mode": "agent",
+      "claim_signature": "absolute_claim:test-suite-probe-conventions.md:module-scope-covers-all-probes",
+      "verdict": "PASS",
+      "evidence": "executed enumeration of every env= site: all derive from os.environ (dict(os.environ,...) / {**os.environ,...} / dict(_os.environ)); no replacement environment exists",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-24",
+      "claim": "added assertions do not break the assertion-count equality triple",
+      "file": "lib/test/test_python_scripts.py",
+      "verification_mode": "agent",
+      "claim_signature": "api_contract:test_python_scripts.py:assertion-count-triple",
+      "verdict": "PASS",
+      "evidence": "no count pin for this pooled suite in the registry or run.sh; pool uses dynamic self-tally reconciliation, corroborated by code-reviewer",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-3",
+      "claim": "the AST spawner scan covers every child-process invocation in the file",
+      "file": "lib/test/test_python_scripts.py",
+      "verification_mode": "agent",
+      "claim_signature": "dependency_interaction:test_python_scripts.py:ast-spawner-coverage",
+      "verdict": "FAIL",
+      "raw_verdict": "FAIL",
+      "normalized": false,
+      "evidence": "completeness critic re-enumerated independently: os.fork() was NOT in the matched set — superset verdict NO. FIXED this iteration.",
+      "reused_from_iter_prev": false
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "detect_all_audit": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "ordering assertion is a whole-file ast.walk scan, so a legitimate future in-function assignment false-REDs with a misleading message",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          2996,
+          3003
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 2,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "_OS_SPAWNERS_1653 comment claims SUPERSET while the set omits execl/execve/posix_spawn/fork etc.",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          2977,
+          2979
+        ],
+        "kind": "comment_drift"
+      },
+      "corroboration_count": 3,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "the <3.13 arm records two True==True passes; on CI that is the only arm, so evidence reads as two more passes than earned",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          3037,
+          3059
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 2,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "banner comment block exceeds the three-physical-line cap",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          2960,
+          2964
+        ],
+        "kind": "style"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "mirror-fact comment restating the isinstance branches beneath it",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          3000,
+          3001
+        ],
+        "kind": "comment_drift"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "checked-in measured figure (165k-node tree) rots on ordinary file growth",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          3035,
+          3035
+        ],
+        "kind": "comment_drift"
+      },
+      "corroboration_count": 2,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "'The repository's help probe' reads as a uniqueness claim the tree contradicts",
+      "defect_signature": {
+        "file": "docs/internal/test-suite-probe-conventions.md",
+        "line_range": [
+          51,
+          52
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "os alias tuple ('os','_os') hardcoded while subprocess aliases are AST-derived",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          2985,
+          2986
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "vacuity label on the #1550-probe check names the interpreter axis rather than the host colour setting",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          3053,
+          3059
+        ],
+        "kind": "comment_drift"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "the two sibling rendered-output probes remain unaudited (scoped out by AC8)",
+      "defect_signature": {
+        "file": "docs/internal/test-suite-probe-conventions.md",
+        "line_range": [
+          83,
+          88
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 2,
+      "fix_decision": "deferred"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "the convention has no mechanical backstop (no lint over the probe population)",
+      "defect_signature": {
+        "file": "docs/internal/test-suite-probe-conventions.md",
+        "line_range": [
+          9,
+          13
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "deferred"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "ad420aec5"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "ad420aec5"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "ad420aec5"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "ad420aec5"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "applied",
+      "commit": "ad420aec5"
+    },
+    {
+      "finding_id": "F-6",
+      "decision": "applied",
+      "commit": "ad420aec5"
+    },
+    {
+      "finding_id": "F-7",
+      "decision": "applied",
+      "commit": "ad420aec5"
+    },
+    {
+      "finding_id": "F-8",
+      "decision": "applied",
+      "commit": "ad420aec5"
+    },
+    {
+      "finding_id": "F-9",
+      "decision": "applied",
+      "commit": "ad420aec5"
+    },
+    {
+      "finding_id": "F-10",
+      "decision": "deferred",
+      "source_file": "docs/internal/test-suite-probe-conventions.md",
+      "claim_text": "the two sibling rendered-output probes (test_module_runner.py, test_render_audit_prompt.py) remain un-neutralised",
+      "skip_category": "out-of-scope",
+      "evidence": "acceptance criterion 8 requires the shipped page to state that the probes already in the tree are not audited by this change; auditing them here would make that shipped sentence false",
+      "parking_evidence": {
+        "basis": "the issue's decided scope explicitly bounds this change to new and changed probes, and AC8 makes that boundary a shipped statement",
+        "failing_input": "a rendered-output probe in either sibling file run directly on a colour-forcing host with python >= 3.13",
+        "source": "issue #1653 acceptance criterion 8; docs/internal/test-suite-probe-conventions.md Scope section names both files",
+        "finding_ref": {
+          "iter": 1,
+          "index": 9
+        }
+      }
+    },
+    {
+      "finding_id": "F-11",
+      "decision": "deferred",
+      "source_file": "docs/internal/test-suite-probe-conventions.md",
+      "claim_text": "the convention has no mechanical backstop enforcing it over the probe population",
+      "skip_category": "out-of-scope",
+      "evidence": "a lint over the probe population is new scope beyond this issue's twelve criteria; the repo's prose-pin prohibition also rules out a wording lint, so the backstop would need to be behavioural",
+      "parking_evidence": {
+        "basis": "adding an enforcement lint is a separate deliverable the issue does not specify and no acceptance criterion requires",
+        "failing_input": "a new rendered-output probe added later with no colour neutralisation",
+        "source": "issue #1653 acceptance criteria (none mandates a lint)",
+        "finding_ref": {
+          "iter": 1,
+          "index": 10
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 9,
+    "fix_diff_lines": 74,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "refixed",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "ran_at": null,
+    "reviewed_sha": null,
+    "verdict": null,
+    "coverage": null,
+    "reviewers_dispatched": [],
+    "expected_reviewers": [],
+    "reason": null,
+    "phase3_findings": [],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "telemetry": {
+    "phase_0": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 40
+    },
+    "phase_1": {
+      "calls": 1,
+      "tokens": 67555,
+      "wall_clock_s": 102
+    },
+    "phase_2": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 60
+    },
+    "phase_3": {
+      "calls": 6,
+      "tokens": 426000,
+      "wall_clock_s": 365
+    },
+    "phase_4_x": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 30
+    }
+  },
+  "synthesized": false
+}
