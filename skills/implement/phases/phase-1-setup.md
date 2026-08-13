@@ -377,7 +377,7 @@ Then tick the Setup phase in the workpad's `## Progress` checklist:
 
 Before Phase 2 begins, run the targeted pre-checks below, which catch wrong scope, policy, dependency, and execution-capability assumptions before any code edit. The **pass procedure runs in a dispatched subagent** (`prflow:issue-claim-auditor`, `agents/issue-claim-auditor.md`) that shares this checkout and records each pass on the workpad as it runs; the **decision stays here**. Run this after the issue data from 1.1 is in hand.
 
-**Scope:** the auditor verifies the explicitly-defined claim types only (count/enumeration, negative-scope, policy, execution-capability, verified-premise) — never every sentence in the issue body, which creates a runaway discovery loop and false positives on subjective claims.
+**Scope:** the auditor first reconciles independently verifiable post-change obligations in Desired Behavior against the resolved Acceptance Criteria, then verifies the explicitly-defined claim types (count/enumeration, negative-scope, policy, execution-capability, verified-premise). It does not verify every sentence: explanation, motivation, estimates, and current-behavior descriptions are non-obligations.
 
 **Commit any uncommitted tree state before dispatching** — the same rule §1.4 states, since the auditor shares this checkout too. Confirm the working tree carries no uncommitted changes and commit anything that does (a `feat:`/`docs:` commit as appropriate) **before** the dispatch. When the tree state cannot be established, establish it before dispatching at all; when the run holds work it must deliberately not commit, park it under a recorded handle and restore it after the auditor returns, or do not dispatch and record `Blocked` naming the uncommittable work.
 
@@ -397,16 +397,19 @@ Use the **Agent tool** with `subagent_type: prflow:issue-claim-auditor` and `run
 - `SCRIPTS` — the same bundled-helper directory prefix (for `check-verified-premises.py`).
 - `REPO_ROOT` — the checkout root path, for Pass 6's `--repo-root` (a distinct value from `SCRIPTS`).
 - `ISSUE_BODY_PATH` — the absolute §1.1 cache path the precondition printed, when the cache was written; on the degraded arm where no cache was written, paste the full issue body inline and say so (the auditor must not re-fetch a body the run already holds).
+- `RESOLVED_AC_PATH` — the absolute `<scratch-dir>/acs-$ARGUMENTS.md` path Phase 1.2 produced; on the degraded arm paste those resolved checkbox rows inline. This is the existing `parse-acs.py` output, not a second extraction.
 - `BASE` — `$BASE` (the §1.4 base branch; `origin/$BASE` is the read target under the read-target rule).
 - `FRESHNESS` — `fresh` / `unverified` / `behind-<n>`, from Phase 1.4's recorded behind-by count (an absent record reads as `unverified`).
 - `GITHUB_ACTIONS` and `DEVFLOW_APP_ID` — the two routing signals Pass 5 keys on, read from this run's environment (instruct the auditor to use these values, not a live credential probe).
 - The GitHub issue title and labels inline.
 
-#### The returned record (read all four items — a bare verdict is insufficient)
+#### The returned record (read every item — a bare verdict is insufficient)
 
 The auditor returns an `ISSUE-CLAIM-AUDIT RECORD` block carrying at least:
 
-- **`outcome`** — `proceed` / `blocked-policy` / `blocked-capability` (the overall Blocked/proceed outcome).
+- **`outcome`** — `proceed` / `blocked-specification` / `blocked-policy` / `blocked-capability` (the overall Blocked/proceed outcome).
+- **`projection_disposition`** — `represented` / `unmatched` for the Desired-Behavior-to-Acceptance-Criteria projection.
+- **`unmatched_desired_behavior`** — every exact unmatched Desired Behavior statement, or `none`.
 - **`pass5_workflow_resident_acs`** — the AC identifiers Pass 5 flagged as workflow-resident (the capability-blocked set Phase 2.2.5 combines with its own plan-time recheck).
 - **`pass2_wrongly_excluded_surfaces`** — any surface Pass 2 found wrongly excluded by the issue's negative-scope claims, since it mutates Phase 2's plan.
 - **`superseding_assumptions`** — any Pass 1 verified-count correction and Pass 6 refuted premise that supersedes the issue body as Phase 2's working assumptions.
@@ -414,6 +417,7 @@ The auditor returns an `ISSUE-CLAIM-AUDIT RECORD` block carrying at least:
 #### Act on the record (the decision is yours, not the auditor's)
 
 - **`outcome: proceed`** → continue to §1.5/Phase 2. Carry the record forward: hand `pass5_workflow_resident_acs` to Phase 2.2.5's scope-adjustment, add each `pass2_wrongly_excluded_surfaces` entry to the working plan before §2.2, and adopt every `superseding_assumptions` entry as Phase 2's working assumption (discarding the superseded issue-body claim).
+- **`outcome: blocked-specification`** (at least one Desired Behavior obligation is unmatched even if the issue already has non-empty ACs) → do **not** proceed to Phase 2. Set `Status: Blocked` and record a `blocked` reflection naming every exact statement from `unmatched_desired_behavior`: `issue-claim audit (projection): the issue needs refinement before implementation; Desired Behavior obligation unmatched by the merge-gated Acceptance Criteria: {exact statement}`. Emit the 👎 outcome reaction, remove the run marker, and stop. Do not synthesize, rewrite, or append an acceptance criterion on the author's behalf.
 - **`outcome: blocked-policy`** (a Pass 3 AC-vs-policy contradiction) → do **not** proceed to Phase 2. Fill the record's `blocked_reason` into `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --status Blocked --reflection-kind blocked --reflection "issue-claim audit (policy): AC claims '{AC text}' but operative policy in {file} states '{policy text}' — contradiction requires user resolution before Phase 2"`, then emit the 👎 outcome reaction (see *Outcome reaction* in the Workpad Reference), remove the run marker, and stop the run.
 - **`outcome: blocked-capability`** (Pass 5 found every in-scope acceptance criterion is workflow-resident and this cloud run's `GITHUB_TOKEN` fallback cannot push it) → do **not** open a near-empty PR. Record `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --status Blocked --reflection-kind blocked --reflection "issue-claim audit (execution-capability): every in-scope acceptance criterion requires editing .github/workflows/, which this cloud run's GITHUB_TOKEN fallback (no workflow-capable App token; DEVFLOW_APP_ID unset) cannot push — this issue must be implemented by a workflows-capable run (a human/PAT, or a cloud run with the DevFlow App configured). Re-dispatch there; no PR opened"`, then emit the 👎 outcome reaction and stop the run.
 

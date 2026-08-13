@@ -1712,6 +1712,38 @@ assert_eq "#1098 guard2: narrowing the helper's adjudicated set is caught (subse
 assert_eq "#1098 fixture: pre-change command-form bullet classifies handle=command" "command" "$(_ci_guard1098 classify-command)"
 assert_eq "#1098 fixture: post-change path-quote-form bullet classifies handle=path-quote" "path-quote" "$(_ci_guard1098 classify-pathquote)"
 
+# Issue #1515: execute the authoring-side projection protocol over the closed set
+# of first-party producers. Each producer must expose a disposition that keeps a
+# draft in revision while a Desired Behavior obligation is unmatched. This checks
+# the producer protocol as a parsed state machine rather than pinning exact prose.
+_ci1515_projection_protocol() {
+  python3 - "$@" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+def protocol(path):
+    text = Path(path).read_text(encoding="utf-8")
+    disposition = re.search(
+        r"projection(?:_| )disposition[^\n]*(?:represented|clean)[^\n]*(?:unmatched|revise)",
+        text,
+        re.I,
+    )
+    revise = re.search(r"unmatched[^\n]*(?:revis|rewrite)[^\n]*(?:re-audit|recheck|check again)", text, re.I)
+    filing_gate = re.search(r"(?:before|eligible|until)[^\n]*(?:fil|creat)", text, re.I)
+    return bool(disposition and revise and filing_gate)
+
+bad = [path for path in sys.argv[1:] if not protocol(path)]
+print("projection-gated" if not bad else "missing:" + ",".join(bad))
+PY
+}
+assert_eq "#1515 create-issue steelman produces and enforces a projection disposition" \
+  "projection-gated" "$(_ci1515_projection_protocol "$CI_REF_STEP35")"
+assert_eq "#1515 closed non-interactive producer set enforces the projection before filing" \
+  "projection-gated" "$(_ci1515_projection_protocol \
+    "$CI_ROOT/agents/deferral-drafter.md" \
+    "$CI_ROOT/skills/retrospective-audit/SKILL.md")"
+
 # Complete normal cleanup explicitly so a removal or marker failure changes the
 # module status. EXIT remains a fallback for earlier returns and shell errors.
 if ! _ci_cleanup; then

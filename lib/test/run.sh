@@ -10477,6 +10477,57 @@ assert_eq "#190 fix-loop: Phase 4.1 states the fail-closed extraction contract e
 # ceiling. The retained assertions focus on regression-specific discriminators
 # without holding downstream explanatory prose to exact wording.
 P2_FILE="$IMPL_PHASES_DIR/phase-2-implement.md"
+# Issue #1515: exercise the issue-claim auditor record as a consumed routing
+# interface. These fixtures are deliberately not prose-presence pins: they parse
+# the record vocabulary the agent is instructed to emit and the Phase 1 branches
+# that consume it, then ask whether a non-empty AC list can bypass an unmatched
+# Desired Behavior obligation.
+_issue1515_projection_route() {
+  python3 - "$LIB/../agents/issue-claim-auditor.md" "$P1_FILE" "$1" "$2" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+agent = Path(sys.argv[1]).read_text(encoding="utf-8")
+phase = Path(sys.argv[2]).read_text(encoding="utf-8")
+fixture_outcome = sys.argv[3]
+fixture_unmatched = sys.argv[4]
+
+schema = re.search(r"ISSUE-CLAIM-AUDIT RECORD\n(.*?)\n```", agent, re.S)
+if not schema:
+    print("invalid-record-schema")
+    raise SystemExit
+record = schema.group(1)
+allowed = re.search(r"^outcome:\s*<([^>]+)>", record, re.M)
+projection = re.search(r"^projection_disposition:\s*<([^>]+)>", record, re.M)
+unmatched = re.search(r"^unmatched_desired_behavior:\s*<([^>]+)>", record, re.M)
+if not allowed or not projection or not unmatched:
+    print("invalid-projection-schema")
+    raise SystemExit
+outcomes = {part.strip() for part in allowed.group(1).split("|")}
+if fixture_outcome not in outcomes:
+    print("unknown-outcome")
+    raise SystemExit
+
+route_marker = f"outcome: {fixture_outcome}"
+if route_marker not in phase:
+    print("unrouted-outcome")
+elif fixture_outcome == "blocked-specification" and fixture_unmatched != "none":
+    blocked_arm = phase.index(route_marker)
+    next_arm = phase.find("\n- **`outcome:", blocked_arm + len(route_marker))
+    arm_end = next_arm if next_arm >= 0 else len(phase)
+    stop = phase.find("stop", blocked_arm, arm_end)
+    synth = phase.find("synthes", blocked_arm, arm_end)
+    print("blocked-before-phase2-no-synthesis" if stop >= 0 and synth >= 0 else "unsafe-block-route")
+else:
+    print("proceed")
+PY
+}
+assert_eq "#1515 unmatched Desired Behavior obligation blocks before Phase 2 despite non-empty ACs" \
+  "blocked-before-phase2-no-synthesis" \
+  "$(_issue1515_projection_route blocked-specification 'Desired Behavior: exports retain stable ordering')"
+assert_eq "#1515 represented Desired Behavior obligation proceeds through the existing AC channel" \
+  "proceed" "$(_issue1515_projection_route proceed none)"
 # P4_FILE is defined once next to IMPL_PHASES_DIR above (shared by the #232 and #230 blocks).
 # AC1's operational prohibition remains covered directly.
 assert_pin_unique "#230: phase-2 §2.1 keeps the operational 'narrow or suppress' prohibition (AC1 meaning)" \

@@ -117,6 +117,8 @@ The `body` you return is filed verbatim as the GitHub issue, so it must read lik
 
 Author the `## 🔁 Retrospective provenance` block **per finding**, inside each finding's own `body`.
 
+**Projection disposition gates each finding.** Desired Behavior is authoritative intent; Acceptance Criteria are its exhaustive, merge-gated projection. Before adding a finding to the returned JSON, account for every independently verifiable post-change Desired Behavior obligation as represented, unmatched, or non-obligation. Record `projection disposition: represented` in your internal composition check only when the unmatched set is empty. If any obligation is unmatched, revise its issue body and re-audit before it is eligible for filing; never return an unmatched body. Representation may be one AC or a jointly sufficient AC set and must preserve subject, scope, outcome, and strength; explanatory, motivational, estimate, and current-behavior prose is a non-obligation.
+
 The Technical Context scope note is **verbatim, fixed boilerplate** — include it exactly as shown. Observe the template's **no-options discipline** in the issue sections (Problem → Implementation Notes): no choice / hedge / deferral language — the proposed change is a resolved decision. The one exception is the Implementation Notes `Relevant files` block, inside which hedged phrasing is permitted. Keep the `## 🔁 Retrospective provenance` block after the issue sections, separated by the `---` rule.
 
 ---
