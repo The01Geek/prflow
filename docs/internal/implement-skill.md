@@ -38,7 +38,13 @@ bullet against the tree the run will build on.
   helper with `--body-file` pointing at `.prflow/tmp/issue-body/issue-<ISSUE_NUMBER>.md` and
   `--repo-root` naming the tree to adjudicate against, so the helper never guesses a root from the
   working directory. On the degraded arm where §1.1 wrote no cache, the fetched body is written to a
-  file and that path is passed instead.
+  file and that path is passed instead. The helper decodes that `--body-file` **explicitly as UTF-8**
+  (not the ambient locale codec), so a non-ASCII issue body survives on a non-UTF-8 default host — a
+  local-file decoding layer distinct from the stream/`gh`-I/O UTF-8 forcing (issue #222); invalid
+  UTF-8 exits non-zero with a flag-specific diagnostic and no traceback rather than adjudicating
+  against mojibake. The same explicit-UTF-8 decode covers `workpad.py`'s section-file flags and
+  `branch-for-issue.py --title-file`, and an AST guard over `scripts/*.py` blocks any new
+  ambient-codec text read.
 - **Scope is every bullet the helper's marker recognises**, not only the ones the plan expects to
   lean on — the run cannot know in advance which premise a later phase will rest on. The marker's
   `_MARKER` constant carries **three alternation arms**: (A) the pure bolded label `**Verified**` /

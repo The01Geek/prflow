@@ -10,4 +10,4 @@ type: Fixed
   emoji, non-ASCII identifiers) survives on Windows and a non-ASCII title no longer blocks fresh
   branch creation. Invalid UTF-8 on each reader now exits non-zero with a flag-specific
   diagnostic and no traceback (the workpad path makes no GitHub PATCH), and an AST guard blocks
-  new ambient-codec `read_text`/`open` calls in `scripts/*.py`. (#1683)
+  new ambient-codec `read_text`/`open` calls in `scripts/*.py`. (#1678)
