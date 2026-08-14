@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1699",
+  "generated_at": "2026-08-14T19:39:36Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.78",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 11.47748475,
+    "tokens": {
+      "input_tokens": 93,
+      "output_tokens": 40098,
+      "cache_read_input_tokens": 9485309,
+      "cache_creation_input_tokens": 255420,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 316,
+        "outputTokens": 65974,
+        "cacheReadInputTokens": 10873147,
+        "cacheCreationInputTokens": 549145,
+        "webSearchRequests": 0,
+        "costUSD": 11.47748475,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 61,
+    "duration_ms": 826648
+  },
+  "permission_denials": {
+    "count": 8,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-unset} ATTEMPT=${GITHUB_RUN_ATTEMPT:-unset}\"",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve \"1696\" --pr \"1699\" 2>.prflow/tmp/review/pr-1699/r1/acs.err ; echo \"acs-rc=$?\"",
+      "git show 796b7f085d1ff1710ea3a95d6b10a790dda7fc8a:skills/create-issue/references/issue-template.md > .prflow/tmp/review/pr-1699/r1/head-issue-template.md; echo \"wrote issue-template rc=$?\"; git show 796b7f085d1ff1710ea3a95d6b10a790dda7fc8a:skills/create-issue/references/step-2-clarify.md > .prflow/tmp/review/pr-1699/r1/head-step-2-clarify.md; echo \"wrote step-2 rc=$?\"; wc -l .prflow/tmp/review/pr-1699/r1/head-*.md",
+      "for f in skills/create-issue/references/issue-template.md skills/create-issue/references/step-2-clarify.md; do echo \"== $f ==\"; git show 796b7f085d1ff1710ea3a95d6b10a790dda7fc8a:$f | wc -c; done",
+      "git show 796b7f085d1ff1710ea3a95d6b10a790dda7fc8a:skills/create-issue/references/issue-template.md > /tmp/it.md; wc -c /tmp/it.md; git show 796b7f085d1ff1710ea3a95d6b10a790dda7fc8a:skills/create-issue/references/step-2-clarify.md > /tmp/s2.md; wc -c /tmp/s2.md",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review > /tmp/ext.out 2> /tmp/ext.err; echo \"EXIT=$?\"; echo \"--- stdout ---\"; cat /tmp/ext.out; echo \"--- stderr ---\"; cat /tmp/ext.err",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review > /tmp/ext.out 2> /tmp/ext.err; echo \"EXIT=$?\"",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review 1>.prflow/tmp/ext.out 2>.prflow/tmp/ext.err; echo \"EXIT=$?\""
+    ],
+    "total": 8,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
