@@ -1904,6 +1904,23 @@ class ManifestIngestionTest(unittest.TestCase):
         if all(isinstance(mmtc[k], (int, float)) for k in ("baseline", "revised")):
             self.assertEqual(comparison["revised_median_within_baseline"],
                              mmtc["revised"] <= mmtc["baseline"])
+            # The emitted median delta equals revised-minus-baseline (ties the delta lambda
+            # to the per-side medians, so a regression in either is caught).
+            self.assertEqual(comparison["delta"]["median_main_thread_context"],
+                             mmtc["revised"] - mmtc["baseline"])
+
+    def test_ac10_case_swapped_identity_fails_closed(self):
+        # Equal counts but a differing (scenario_id, repetition) on one side hits the
+        # case_identity_mismatch branch distinctly (the added-case test hits count_mismatch).
+        def swap_candidate_scenario(doc):
+            for run in doc["runs"]:
+                if run["configuration"] != "baseline":
+                    run["scenario_id"] = "swapped-scenario"
+        comparison = self._api("build_manifest_report")(
+            self._mutated_manifest(swap_candidate_scenario))["comparison"]
+        self.assertEqual(comparison["status"], "unestablished")
+        self.assertEqual(comparison["diagnostic"], "case_identity_mismatch")
+        self.assertEqual(set(comparison["delta"].values()), {"unestablished"})
 
     def test_ac10_case_split_by_resume_fails_closed(self):
         # A case identity appearing twice within one configuration (a run split by resume)

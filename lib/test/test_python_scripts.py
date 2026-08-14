@@ -33158,6 +33158,75 @@ finally:
     _alc795.STEP36_MANIFEST = _saved_manifest_1702
     shutil.rmtree(_tmp_manifest_1702, ignore_errors=True)
 
+# #1702 AC4 — check_step36_manifest rejects each set-incomplete/boundary state with a distinct
+# Refusal. Build a temp tree with crafted member markers and rebind the checker's REPO + manifest
+# so each guard is exercised in isolation (the shipped set covers only the happy path + the AC8
+# omitted-member control).
+_SET_MARKER = "<!-- prflow:create-issue-set step=3.6 part={k} of={n} -->"
+
+
+def _alc_step36_case(members_meta, manifest_members, entry_marker=False, extra_ondisk=None):
+    """Build a temp tree and run check_step36_manifest; return None (pass) or the Refusal text.
+
+    members_meta: list of (basename, part, of) for files written under refs/ that carry a marker.
+    manifest_members: list of basenames the manifest declares as members (refs-relative built here).
+    entry_marker: give the entry file a part marker (should be refused).
+    extra_ondisk: list of (basename, part, of) written to disk but NOT in the manifest.
+    """
+    tmp = tempfile.mkdtemp()
+    root = _alc795.Path(tmp)
+    refs = root / "skills" / "create-issue" / "references"
+    refs.mkdir(parents=True)
+    entry_body = "entry\n"
+    if entry_marker:
+        entry_body += _SET_MARKER.format(k=1, n=len(manifest_members)) + "\n"
+    (refs / "entry.md").write_text(entry_body, encoding="utf-8")
+    for name, part, of in members_meta:
+        body = "member\n"
+        if part is not None:
+            body += _SET_MARKER.format(k=part, n=of) + "\n"
+        (refs / name).write_text(body, encoding="utf-8")
+    for name, part, of in (extra_ondisk or []):
+        (refs / name).write_text("x\n" + _SET_MARKER.format(k=part, n=of) + "\n", encoding="utf-8")
+    manifest = root / "manifest.json"
+    import json as _j1702c
+    manifest.write_text(_j1702c.dumps({
+        "entry": "skills/create-issue/references/entry.md",
+        "members": [f"skills/create-issue/references/{m}" for m in manifest_members],
+        "per_member_limit_bytes": 55000, "aggregate_baseline_bytes": 72458,
+        "aggregate_baseline_commit": "testsha",
+    }), encoding="utf-8")
+    saved_repo, saved_manifest = _alc795.REPO, _alc795.STEP36_MANIFEST
+    try:
+        _alc795.REPO, _alc795.STEP36_MANIFEST = root, manifest
+        _alc795.check_step36_manifest([])
+        return None
+    except _alc795.Refusal as exc:
+        return str(exc)
+    finally:
+        _alc795.REPO, _alc795.STEP36_MANIFEST = saved_repo, saved_manifest
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+assert_eq("#1702 AC4: a well-formed 2-member set passes check_step36_manifest",
+          None, _alc_step36_case([("m1.md", 1, 2), ("m2.md", 2, 2)], ["m1.md", "m2.md"]))
+assert_eq("#1702 AC4: a member carrying no part marker is refused",
+          True, "part marker" in (_alc_step36_case(
+              [("m1.md", 1, 2), ("m2.md", None, None)], ["m1.md", "m2.md"]) or ""))
+assert_eq("#1702 AC4: a member whose of=N disagrees with the manifest count is refused",
+          True, "declares of=" in (_alc_step36_case(
+              [("m1.md", 1, 3), ("m2.md", 2, 2)], ["m1.md", "m2.md"]) or ""))
+assert_eq("#1702 AC4: a non-contiguous part sequence (part gap) is refused",
+          True, "part numbers" in (_alc_step36_case(
+              [("m1.md", 1, 2), ("m2.md", 1, 2)], ["m1.md", "m2.md"]) or ""))
+assert_eq("#1702 AC4: an entry file carrying a member part marker is refused",
+          True, "must not be a member" in (_alc_step36_case(
+              [("m1.md", 1, 2), ("m2.md", 2, 2)], ["m1.md", "m2.md"], entry_marker=True) or ""))
+assert_eq("#1702 AC4: an on-disk member absent from the manifest is refused (omitted member)",
+          True, "absent from the manifest" in (_alc_step36_case(
+              [("m1.md", 1, 2), ("m2.md", 2, 2)], ["m1.md", "m2.md"],
+              extra_ondisk=[("m3.md", 3, 2)]) or ""))
+
 # The REAL declared set on the live tree stays within both limits (guards the shipped split).
 _f1702_real, _r1702_real = _rsz1702.check_step36_set(
     SCRIPTS.parent,

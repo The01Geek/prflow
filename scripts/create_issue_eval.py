@@ -2320,8 +2320,8 @@ def _paired_delta(before, after):
         # corpus yields a large negative `total_peak_context` that is pure population
         # difference. This key divides each side by its OWN `run_count` first, so the
         # confound cannot enter. It is a float by construction (a mean, not a token
-        # count) — the one non-integer delta, named as an average so a reader is not
-        # invited to read it as a measured total.
+        # count) — a non-integer delta (as the median below can also be), named as an
+        # average so a reader is not invited to read it as a measured total.
         "mean_peak_context_per_run": _delta(_mean_peak_context),
         # issue #1702 (AC10): the median runtime main-thread context per run. `_degraded`
         # guarantees a non-empty run list on the established path, so `_median` never sees

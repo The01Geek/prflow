@@ -237,14 +237,16 @@ def check_step36_manifest(report):
     refs_dir = REPO / "skills" / "create-issue" / "references"
     ondisk = sorted(
         str(p.relative_to(REPO)) for p in refs_dir.glob("*.md")
-        if _STEP36_SET_MARKER.search(p.read_text(encoding="utf-8")))
+        if _STEP36_SET_MARKER.search(_read(p)))
+    # Check the entry FIRST: an entry carrying a member marker is also "on disk not in members",
+    # so the missing-member check below would otherwise fire on it with the wrong diagnosis.
+    if entry in ondisk:
+        raise Refusal(f"step36-manifest: the entry {entry} carries a member part marker; the "
+                      "entry declares the set and must not be a member")
     missing = sorted(set(ondisk) - set(members))
     if missing:
         raise Refusal(f"step36-manifest: {missing} carry a Step 3.6 set marker on disk but are "
                       "absent from the manifest — an omitted member the manifest under-declares")
-    if entry in ondisk:
-        raise Refusal(f"step36-manifest: the entry {entry} carries a member part marker; the "
-                      "entry declares the set and must not be a member")
     report.append(f"step36-manifest: {n} declared members reconciled against on-disk "
                   f"`create-issue-set` part markers 1..{n}, with no omitted member")
 
