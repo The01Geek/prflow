@@ -2599,28 +2599,25 @@ _TICK_STATIC_QUOTES = frozenset({'double', 'single', 'unquoted'})
 # are runtime-resolved and exempt from the static checks; a single-quoted `'$X'`
 # suppresses expansion, so it is a STATIC literal run through the ordinary guards.
 _TICK_VAR_FORMS = frozenset({'unquoted-$', 'double-$', 'double-${}', 'single-$'})
-_TICK_VAR_RUNTIME = frozenset({'unquoted-$', 'double-$', 'double-${}'})
+# Derived, not a second literal, so the "single-quoted is the one static form"
+# relationship stays self-maintaining and cannot drift from _TICK_VAR_FORMS.
+_TICK_VAR_RUNTIME = _TICK_VAR_FORMS - frozenset({'single-$'})
 # The three no-simple-token shapes, complete by construction (AC3).
 _TICK_NO_SIMPLE = frozenset({'exec-no-operand', 'prose-mention', 'continuation-split'})
 _TICK_METACHARS_1630 = "&;|$`()<>"
-# A whole operand that is exactly a braced/unbraced shell-variable reference.
+# A whole operand that is exactly a shell-variable reference: group(1) is the
+# unbraced `$X` form, group(2) the braced `${X}` form.
 _TICK_VAR_RE_1679 = re.compile(r'^\$(?:([A-Za-z_]\w*)|\{([A-Za-z_]\w*)\})$')
-# An UNQUOTED operand that is exactly an unbraced variable reference (`$X`); an
-# unquoted braced form is not one of AC4's four and does not occur.
-_TICK_UVAR_RE_1679 = re.compile(r'^\$[A-Za-z_]\w*$')
 
 
 def _tick_fenced_lines_1679(text):
     """0-based indices of lines inside a ``` fenced code block — the executable
     context that tells a real invocation (fail closed on a missing operand) from
-    an inert prose mention (ignored)."""
-    inside, fenced = set(), False
-    for _i, _ln in enumerate(text.split('\n')):
-        if _ln.lstrip().startswith('```'):
-            fenced = not fenced
-        elif fenced:
-            inside.add(_i)
-    return inside
+    an inert prose mention (ignored). Reuses stale_prose_lint._fenced_mask, which
+    also handles nested and unclosed fences (fail-open) correctly."""
+    return {_i for _i, _inside
+            in enumerate(stale_prose_lint._fenced_mask(text.split('\n')))
+            if _inside}
 
 
 def _classify_tick_1679(text, after, line_idx, fenced):
@@ -2639,18 +2636,17 @@ def _classify_tick_1679(text, after, line_idx, fenced):
         i += 2
         while i < n and text[i] in ' \t':
             i += 1
-    no_operand = {'quote': None, 'var_form': None, 'value': None,
-                  'via_continuation': via_continuation}
+    no_operand = {'shape': 'exec-no-operand' if line_idx in fenced
+                  else 'prose-mention', 'quote': None, 'var_form': None,
+                  'value': None, 'via_continuation': via_continuation}
     # No operand token: newline / EOF / prose backtick / a following flag.
     if i >= n or text[i] in '\n`' or text[i:i + 2] == '--':
-        return {'shape': 'exec-no-operand' if line_idx in fenced
-                else 'prose-mention', **no_operand}
+        return no_operand
     ch = text[i]
     if ch in '"\'':
         j = text.find(ch, i + 1)
         if j == -1:  # unterminated quote → treat as a missing operand
-            return {'shape': 'exec-no-operand' if line_idx in fenced
-                    else 'prose-mention', **no_operand}
+            return no_operand
         inner = text[i + 1:j]
         if ch == '"':
             m = _TICK_VAR_RE_1679.match(inner)
@@ -2665,12 +2661,15 @@ def _classify_tick_1679(text, after, line_idx, fenced):
         var_form = 'single-$' if _TICK_VAR_RE_1679.match(inner) else None
         return {'shape': 'static', 'quote': 'single', 'var_form': var_form,
                 'value': inner, 'via_continuation': via_continuation}
-    # Unquoted operand: a run of non-whitespace characters.
+    # Unquoted operand: a run of non-whitespace characters. Only the unbraced
+    # `$X` form (group 1) is one of AC4's four; an unquoted braced `${X}` is not
+    # one of them and does not occur, so it falls through to a static literal.
     j = i
     while j < n and text[j] not in ' \t\n':
         j += 1
     token = text[i:j]
-    if _TICK_UVAR_RE_1679.match(token):
+    m = _TICK_VAR_RE_1679.match(token)
+    if m and m.group(1):
         return {'shape': 'runtime-var', 'quote': 'unquoted',
                 'var_form': 'unquoted-$', 'value': None,
                 'via_continuation': via_continuation}
@@ -2770,26 +2769,23 @@ assert_eq("#1679 the metacharacter check still fires on a planted operand", True
 # --- #1679 the three no-simple-token shapes, complete by construction (AC3) ----
 # exec-no-operand (fenced, no operand) fails closed; prose-mention (unfenced, no
 # operand) is ignored; a continuation-split operand is still parsed.
-assert_eq("#1679 executable --tick-progress with no operand fails closed",
-          'exec-no-operand',
-          _classify_tick_str_1679('workpad.py update 7 --tick-progress\n',
-                                  fenced=True)['shape'])
-assert_eq("#1679 an inert prose mention of --tick-progress stays ignored",
-          'prose-mention',
-          _classify_tick_str_1679('the `--tick-progress` flag', fenced=False)['shape'])
+_rec_exec = _classify_tick_str_1679('workpad.py update 7 --tick-progress\n',
+                                    fenced=True)
+_rec_prose = _classify_tick_str_1679('the `--tick-progress` flag', fenced=False)
 _cont = _classify_tick_str_1679(
     'workpad.py update 7 --tick-progress \\\n    "deferred"', fenced=True)
+assert_eq("#1679 executable --tick-progress with no operand fails closed",
+          'exec-no-operand', _rec_exec['shape'])
+assert_eq("#1679 an inert prose mention of --tick-progress stays ignored",
+          'prose-mention', _rec_prose['shape'])
 assert_eq("#1679 a continuation-split static operand is parsed (value)",
           'deferred', _cont['value'])
 assert_eq("#1679 a continuation-split static operand is parsed (shape)",
           'continuation-split', _tick_no_simple_shape_1679(_cont))
 assert_eq("#1679 the no-simple-token shapes are exactly the three declared",
           _TICK_NO_SIMPLE,
-          frozenset({_tick_no_simple_shape_1679(_classify_tick_str_1679(_s, _f))
-                     for _s, _f in (
-                         ('workpad.py update 7 --tick-progress\n', True),
-                         ('the `--tick-progress` flag', False),
-                         ('workpad.py update 7 --tick-progress \\\n    "x"', True))}))
+          frozenset(_tick_no_simple_shape_1679(_r)
+                    for _r in (_rec_exec, _rec_prose, _cont)))
 
 # --- #1679 shell-variable classification, exactly four forms (AC4) ------------
 # Unquoted `$X`, double-quoted `"$X"`/`"${X}"` are runtime-resolved (exempt from
