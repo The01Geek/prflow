@@ -4,6 +4,17 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.71] — 2026-08-14
+
+### Fixed
+- **Protect workpad ticks from MSYS path conversion.** The Phase 3 `/simplify` gate now ticks
+  its Progress row with the host-safe substring `simplify` instead of `/simplify`, so Git Bash
+  and MSYS no longer rewrite the standalone slash-leading argument into a Windows path before
+  native `python3` receives it. The derived live-tick guard is extended to reject every static
+  standalone slash-leading `--tick-progress` operand (quoted and unquoted) and to classify the
+  shell-variable operand forms, and the Windows docs gain the standalone-argument hazard and the
+  host-safe operand rule. (#1680)
+
 ## [2.32.70] — 2026-08-14
 
 ### Fixed
