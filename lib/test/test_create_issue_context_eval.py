@@ -12,6 +12,7 @@ test can witness it). Driven serially from lib/test/run.sh.
 
 import contextlib
 import copy
+import hashlib
 import importlib.util
 import io
 import json
@@ -1642,6 +1643,16 @@ class ManifestIngestionTest(unittest.TestCase):
         self.assertEqual(report["comparison"]["status"], "established")
         self.assertIsNone(report["comparison"]["diagnostic"])
 
+    def test_manifest_mode_adds_explicit_draft_audit_and_grade_artifacts(self):
+        report = self._api("build_manifest_report")(self.manifest_path)
+        for run in report["runs"]:
+            self.assertIn("draft_metrics", run)
+            self.assertEqual(run["audit_outcomes"]["status"], "established")
+            self.assertTrue(run["grade"]["assertions"])
+        quality = report["comparison"]["pairs"][0]["quality"]
+        self.assertTrue(quality["passed"])
+        self.assertTrue(quality["efficiency_eligible"])
+
     def test_a_resumed_session_requires_its_own_explicit_benchmark_run_id(self):
         path = self._mutated_manifest(
             lambda doc: doc["runs"][1].pop("run_id")
@@ -1892,6 +1903,389 @@ class ManifestIngestionTest(unittest.TestCase):
             json.dump(doc, fh)
         with self.assertRaisesRegex(ValueError, "path_escape"):
             self._api("load_eval_manifest")(path)
+
+
+class DraftCheckpointMetricsTest(unittest.TestCase):
+    def _api(self, name):
+        self.assertTrue(hasattr(CICE, name), "missing required API {}".format(name))
+        return getattr(CICE, name)
+
+    def test_measure_draft_counts_sections_items_and_duplicate_paragraphs(self):
+        text = (
+            "# Improve sync\r\n\r\n"
+            "Intro paragraph.\r\n\r\n"
+            "## Acceptance Criteria\r\n"
+            "- Preserve cache.\r\n"
+            "- Reject stale writes.\r\n\r\n"
+            "## Testing Strategy\r\n"
+            "1. Unit test cache.\r\n"
+            "2. Integration test writes.\r\n\r\n"
+            "Repeat me.\r\n\r\n"
+            " Repeat   me. \r\n"
+        )
+        measured = self._api("measure_draft")(text)
+        normalized = text.replace("\r\n", "\n")
+        self.assertEqual(measured["word_count"], 23)
+        self.assertEqual(measured["character_count"], len(normalized))
+        self.assertEqual(measured["acceptance_criteria_count"], 2)
+        self.assertEqual(measured["testing_strategy_count"], 2)
+        self.assertEqual(
+            measured["sections"]["acceptance criteria"]["item_count"], 2
+        )
+        self.assertEqual(measured["paragraph_count"], 6)
+        self.assertEqual(measured["duplicate_paragraph_count"], 1)
+        self.assertAlmostEqual(measured["duplicate_paragraph_density"], 1 / 6)
+
+    def test_measure_draft_empty_duplicate_population_is_unestablished(self):
+        measured = self._api("measure_draft")("\r\n\n")
+        self.assertEqual(measured["word_count"], 0)
+        self.assertEqual(measured["duplicate_paragraph_density"], "unestablished")
+
+    def test_measure_checkpoints_reports_sequence_line_deltas_and_growth(self):
+        with tempfile.TemporaryDirectory() as root:
+            paths = {}
+            for name, body in {
+                "initial": "one\ntwo\n",
+                "revision": "one\nnew\ntwo changed\n",
+                "final": "one\nnew\ntwo changed\nfinal\n",
+            }.items():
+                path = os.path.join(root, name + ".md")
+                with open(path, "w", encoding="utf-8", newline="") as fh:
+                    fh.write(body)
+                paths[name] = path
+            measured = self._api("measure_checkpoints")({
+                "checkpoints": {
+                    "initial": paths["initial"],
+                    "revisions": [paths["revision"]],
+                    "final": paths["final"],
+                }
+            })
+
+        self.assertEqual(
+            [(change["additions"], change["removals"])
+             for change in measured["changes"]],
+            [(2, 1), (1, 0)],
+        )
+        self.assertEqual(
+            measured["initial_to_final"],
+            {
+                "word_growth": 3,
+                "character_growth": 18,
+                "additions": 3,
+                "removals": 1,
+            },
+        )
+
+    def test_final_byte_digest_uses_the_newest_recognizable_object_format(self):
+        with tempfile.TemporaryDirectory() as root:
+            path = os.path.join(root, "draft.md")
+            data = b"draft bytes\n"
+            with open(path, "wb") as fh:
+                fh.write(data)
+            state = {"rounds": [
+                {"attempts": [{"digest": "a" * 40}]},
+                {"attempts": [{"digest": "b" * 64}]},
+            ]}
+            measured = self._api("_current_draft_digest")(path, state)
+
+        expected = hashlib.sha256(
+            b"blob " + str(len(data)).encode("ascii") + b"\0" + data
+        ).hexdigest()
+        self.assertEqual(measured, expected)
+
+
+class ValidatedAuditOutcomesTest(unittest.TestCase):
+    @staticmethod
+    def _attempt(digest):
+        return {
+            "arm": "file",
+            "digest": digest,
+            "body_digest": "body-" + digest,
+            "sentinel_open": None,
+            "sentinel_close": None,
+            "instructions": None,
+        }
+
+    @classmethod
+    def _round(cls, number, digest, **extra):
+        result = {
+            "round": number,
+            "attempts": [cls._attempt(digest)],
+            "steering": {"state": "established", "reason": "canonical-match"},
+            "no_parseable_retry_used": False,
+            "unreadable_retry_used": False,
+            "outcome": "REVISE",
+            "findings_count": 0,
+            "consumer_dimensions_appended": False,
+            "embed_markers": [],
+            "degraded": False,
+            "kind": "discovery",
+            "kind_reason": "no-round-dispatched" if number == 1 else "empty-delta",
+            "adjudicated_verdict": "REVISE",
+            "unresolved_must_revise": "unestablished",
+            "must_revise_count": None,
+            "advisory_count": None,
+            "invalid_count": None,
+        }
+        result.update(extra)
+        return result
+
+    @classmethod
+    def _semantic_state(cls):
+        first = cls._round(
+            1,
+            "D1",
+            findings_count=2,
+            unresolved_must_revise=2,
+            must_revise_count=2,
+            advisory_count=0,
+            invalid_count=0,
+            findings=[
+                {
+                    "id": 1,
+                    "summary": "first defect",
+                    "status": "resolved",
+                    "ingested_status": "unresolved",
+                    "quoted_draft_line": 10,
+                    "resolution_ordinal": 1,
+                },
+                {
+                    "id": 2,
+                    "summary": "second defect",
+                    "status": "invalidated",
+                    "ingested_status": "unresolved",
+                    "invalidation_provenance": 1,
+                    "invalidation_reason": "duplicate report",
+                },
+            ],
+        )
+        second = cls._round(
+            2,
+            "D2",
+            findings_count=4,
+            unresolved_must_revise=1,
+            must_revise_count=1,
+            advisory_count=2,
+            invalid_count=1,
+            findings=[{
+                "id": 1,
+                "summary": "later defect",
+                "status": "unresolved",
+                "ingested_status": "unresolved",
+                "quoted_draft_line": 20,
+            }],
+            advisory_records=[
+                {
+                    "id": 1,
+                    "summary": "correctness advisory",
+                    "rationale": "could change behavior",
+                    "auditor_block": "ADVISORY: correctness advisory",
+                    "impact_class": "implementation-correctness",
+                    "evidence": "",
+                },
+                {
+                    "id": 2,
+                    "summary": "optional cleanup",
+                    "rationale": "style only",
+                    "auditor_block": "ADVISORY: optional cleanup",
+                    "impact_class": "clearly-optional",
+                    "evidence": "",
+                },
+            ],
+            invalid_records=[{
+                "id": 1,
+                "summary": "invalid scope claim",
+                "rationale": "outside the requested change",
+                "auditor_block": "INVALID: invalid scope claim",
+                "impact_class": "scope",
+                "evidence": "checked scope",
+            }],
+            adjudication_render="reported",
+        )
+        return {
+            "schema_version": 3,
+            "slug": "quality-eval",
+            "nonce": "nonce-1",
+            "rounds": [first, second],
+            "revisions": [{
+                "ordinal": 1,
+                "after_round": 1,
+                "floor_round": 1,
+                "stdin_digest": "D2",
+            }],
+            "overrides": [],
+            "finding_evidence": {
+                "1:1": {
+                    "locator": "src/cache.py:10",
+                    "command": "python3 -m unittest",
+                    "observed": "failed before fix",
+                    "baseline_revision": "abc123",
+                    "completeness": "complete",
+                },
+                "1:2": {
+                    "locator": "unestablished",
+                    "command": "unestablished",
+                    "observed": "unestablished",
+                    "completeness": "incomplete",
+                },
+            },
+        }
+
+    @classmethod
+    def _coverage_state(cls):
+        clean = cls._round(
+            1,
+            "FINAL",
+            outcome="FILE",
+            findings_count=0,
+            adjudicated_verdict="FILE",
+            unresolved_must_revise=0,
+            must_revise_count=0,
+            advisory_count=0,
+            invalid_count=0,
+            coverage_render="full",
+            coverage_expected=["correctness", "testing"],
+            coverage=[
+                {"key": "correctness", "outcome": "exercised", "anchor": "AC 1"},
+                {"key": "testing", "outcome": "skipped", "anchor": None},
+            ],
+        )
+        return {
+            "schema_version": 3,
+            "slug": "coverage-eval",
+            "nonce": "nonce-2",
+            "rounds": [clean],
+            "revisions": [],
+            "overrides": [],
+            "finding_evidence": {},
+        }
+
+    def _api(self, name):
+        self.assertTrue(hasattr(CICE, name), "missing required API {}".format(name))
+        return getattr(CICE, name)
+
+    def test_semantic_outcomes_use_validated_ledgers_and_evidence(self):
+        outcomes = self._api("audit_outcomes")(self._semantic_state())
+        self.assertEqual(outcomes["status"], "established")
+        self.assertEqual(outcomes["first_round_unresolved"], 2)
+        self.assertEqual(outcomes["settled_status_counts"], {
+            "resolved": 1,
+            "invalidated": 1,
+            "superseded": 0,
+        })
+        self.assertEqual(outcomes["final_unresolved"], 1)
+        self.assertEqual(outcomes["advisory_by_impact"], {
+            "implementation-correctness": 1,
+            "scope": 0,
+            "safety": 0,
+            "verifiability": 0,
+            "clearly-optional": 1,
+        })
+        self.assertEqual(outcomes["invalid_by_impact"]["scope"], 1)
+        self.assertEqual(outcomes["findings_without_usable_evidence"], 2)
+        self.assertEqual(outcomes["findings_without_draft_line"], 1)
+        self.assertEqual(outcomes["later_finding_identity"], {
+            "novel": "unestablished",
+            "recurring": "unestablished",
+            "revision_induced": "unestablished",
+        })
+
+    def test_coverage_and_final_byte_results_come_from_owner_derivations(self):
+        outcomes = self._api("audit_outcomes")(
+            self._coverage_state(), current_digest="FINAL"
+        )
+        self.assertEqual(outcomes["coverage"], {
+            "backing": "not-backed",
+            "render": "full",
+            "reason": None,
+            "outcomes": {"correctness": "exercised", "testing": "skipped"},
+        })
+        self.assertEqual(outcomes["final_byte_coverage"], "covered")
+
+    def test_full_validation_failure_makes_every_semantic_axis_unestablished(self):
+        state = self._coverage_state()
+        state["rounds"][0].pop("coverage_expected")
+        outcomes = self._api("audit_outcomes")(state, current_digest="FINAL")
+        self.assertEqual(outcomes["status"], "unestablished")
+        self.assertIn("coverage_expected", outcomes["diagnostic"])
+        self.assertEqual(outcomes["first_round_unresolved"], "unestablished")
+        self.assertEqual(outcomes["final_unresolved"], "unestablished")
+        self.assertEqual(outcomes["coverage"], "unestablished")
+        self.assertEqual(outcomes["final_byte_coverage"], "unestablished")
+
+
+class QualityRubricTest(unittest.TestCase):
+    def setUp(self):
+        path = os.path.join(_MANIFEST_FIX, "rubrics", "quality.json")
+        with open(path, encoding="utf-8") as fh:
+            self.rubric = json.load(fh)
+
+    def _api(self, name):
+        self.assertTrue(hasattr(CICE, name), "missing required API {}".format(name))
+        return getattr(CICE, name)
+
+    @staticmethod
+    def _complete_issue(extra=""):
+        return (
+            "# Fix stale cache\n\n"
+            "## Context\nA refresh can leave a stale cache entry.\n\n"
+            "## Reproduction\n1. Refresh an item.\n2. Observe stale cache data.\n\n"
+            "## Acceptance Criteria\n"
+            "- Cache invalidation prevents stale cache reads.\n"
+            "- The change has a safe rollback.\n\n"
+            "## Testing Strategy\n- Reproduce the bug, then verify the fix.\n"
+            + extra
+        )
+
+    def test_shorter_complete_issue_passes_with_viewer_compatible_assertions(self):
+        grade = self._api("grade_issue")(self._complete_issue(), self.rubric)
+        self.assertTrue(grade["passed"])
+        self.assertEqual(grade["pass_rate"], 1.0)
+        self.assertEqual(grade["forbidden_failures"], 0)
+        self.assertTrue(grade["assertions"])
+        for assertion in grade["assertions"]:
+            self.assertEqual(set(assertion), {"text", "passed", "evidence"})
+
+    def test_shorter_underspecified_and_new_invented_obligation_fail(self):
+        grade = self._api("grade_issue")(
+            "# Fix stale cache\n\n## Context\nA stale cache exists.\n",
+            self.rubric,
+        )
+        self.assertFalse(grade["passed"])
+        invented = self._api("grade_issue")(
+            self._complete_issue("\nRequires a database migration.\n"),
+            self.rubric,
+        )
+        self.assertFalse(invented["passed"])
+        self.assertEqual(invented["forbidden_failures"], 1)
+
+    def test_word_count_never_changes_grade_or_quality_gate(self):
+        baseline = self._api("grade_issue")(
+            self._complete_issue("\n" + "Background detail. " * 30),
+            self.rubric,
+        )
+        candidate = self._api("grade_issue")(self._complete_issue(), self.rubric)
+        gate = self._api("quality_gate")(baseline, candidate)
+        self.assertTrue(gate["passed"])
+        self.assertTrue(gate["efficiency_eligible"])
+
+        underspecified = self._api("grade_issue")(
+            "# Fix\n\n" + "Background detail. " * 100,
+            self.rubric,
+        )
+        failed_gate = self._api("quality_gate")(baseline, underspecified)
+        self.assertFalse(failed_gate["passed"])
+        self.assertFalse(failed_gate["efficiency_eligible"])
+
+    def test_new_forbidden_failure_withholds_efficiency_credit(self):
+        baseline = self._api("grade_issue")(self._complete_issue(), self.rubric)
+        candidate = self._api("grade_issue")(
+            self._complete_issue("\nRequires a schema migration.\n"), self.rubric
+        )
+        gate = self._api("quality_gate")(baseline, candidate)
+        self.assertFalse(gate["passed"])
+        self.assertEqual(gate["new_forbidden_failures"], 1)
+        self.assertFalse(gate["efficiency_eligible"])
 
 
 class LegacyMultiRunStateSafetyTest(unittest.TestCase):

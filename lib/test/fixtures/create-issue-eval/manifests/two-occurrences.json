@@ -10,6 +10,7 @@
       "repetition": 1,
       "transcript": "runs/shared/transcript.jsonl",
       "state_file": "runs/baseline/audit-state.json",
+      "rubric": "rubrics/quality.json",
       "occurrence": {
         "session_id": "session-a",
         "occurrence_id": "create-issue-1",
@@ -40,6 +41,7 @@
       "repetition": 1,
       "transcript": "runs/shared/transcript.jsonl",
       "state_file": "runs/candidate/audit-state.json",
+      "rubric": "rubrics/quality.json",
       "occurrence": {
         "session_id": "session-a",
         "occurrence_id": "create-issue-2",

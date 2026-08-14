@@ -8013,6 +8013,26 @@ print("issue-audit-state: the malformed-state matrix (issue #546)")
 _GOOD = {'schema_version': issue_audit_state.SCHEMA_VERSION, 'slug': 's', 'nonce': 'n0',
          'rounds': [], 'revisions': [], 'overrides': []}
 
+_public_state_validator = getattr(issue_audit_state, 'validate_state_document', None)
+assert_eq("#create-issue-eval: audit-state exposes its complete document validator",
+          True, callable(_public_state_validator))
+if callable(_public_state_validator):
+    assert_eq("#create-issue-eval: public validation accepts the same valid document",
+              's', _public_state_validator(dict(_GOOD), 's')['slug'])
+    assert_raises(
+        "#create-issue-eval: public validation rejects a malformed coverage record",
+        issue_audit_state.StateError,
+        lambda: _public_state_validator(
+            dict(_GOOD, rounds=[dict(
+                _round(1, 'file', 'FILE'),
+                coverage_render='full',
+                coverage=[{'key': 'correctness', 'outcome': 'exercised',
+                           'anchor': 'AC 1'}],
+            )]),
+            's',
+        ),
+    )
+
 
 def _malformed(name, doc, slug='s'):
     assert_raises(f"#546 malformed-state matrix: {name}", issue_audit_state.StateError,

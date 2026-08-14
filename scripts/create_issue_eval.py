@@ -90,6 +90,9 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import collections
+import copy
+import difflib
 import hashlib
 import importlib.util
 import json
@@ -151,6 +154,21 @@ UNESTABLISHED = "unestablished"
 MANIFEST_SCHEMA_VERSION = 1
 REPORT_SCHEMA_VERSION = 1
 BOUNDARY_CONFIDENCE = ("exact", "approximate", "unknown")
+RUBRIC_SCHEMA_VERSION = 1
+_AUDIT_STATE_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "issue-audit-state.py"
+)
+_AUDIT_STATE_OWNER = None
+_HEADING_RE = re.compile(r"^(#{1,6})[ \t]+(.+?)[ \t]*#*[ \t]*$")
+_LIST_ITEM_RE = re.compile(r"^[ \t]*(?:[-+*]|[0-9]+[.)])[ \t]+\S")
+_WORD_RE = re.compile(r"\b[\w'-]+\b", re.UNICODE)
+_IMPACT_CLASSES = (
+    "implementation-correctness",
+    "scope",
+    "safety",
+    "verifiability",
+    "clearly-optional",
+)
 # The closed round-kind vocabulary #793 records on each round.
 #
 # Coupled with `_ROUND_KINDS` in scripts/issue-audit-state.py — the closed, complete
@@ -200,6 +218,460 @@ _REOPEN_RE = re.compile(r"issue-audit-state\.py\s+record-reopen\b")
 def _digest(text):
     """Stable, salt-independent content digest for byte-identity comparison."""
     return hashlib.sha1(text.encode("utf-8", "replace")).hexdigest()
+
+
+def _normalize_analysis_text(text):
+    if not isinstance(text, str):
+        raise TypeError("draft text must be a string")
+    return text.replace("\r\n", "\n").replace("\r", "\n")
+
+
+def _heading_name(raw):
+    return " ".join(raw.split()).casefold()
+
+
+def _heading_records(text):
+    records = []
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        match = _HEADING_RE.match(line)
+        if match:
+            records.append((index, len(match.group(1)), _heading_name(match.group(2))))
+    return lines, records
+
+
+def _word_count(text):
+    prose_lines = []
+    for line in text.splitlines():
+        line = re.sub(r"^[ \t]*#{1,6}[ \t]+", "", line)
+        line = re.sub(r"^[ \t]*(?:[-+*]|[0-9]+[.)])[ \t]+", "", line)
+        prose_lines.append(line)
+    return len(_WORD_RE.findall("\n".join(prose_lines)))
+
+
+def measure_draft(text):
+    """Measure one explicitly supplied issue draft without retaining its body."""
+    normalized = _normalize_analysis_text(text)
+    lines, headings = _heading_records(normalized)
+    sections = {}
+    for position, (start, level, name) in enumerate(headings):
+        end = len(lines)
+        for next_start, next_level, _next_name in headings[position + 1:]:
+            if next_level <= level:
+                end = next_start
+                break
+        body = "\n".join(lines[start + 1:end])
+        metric = sections.setdefault(name, {
+            "level": level,
+            "occurrences": 0,
+            "word_count": 0,
+            "character_count": 0,
+            "item_count": 0,
+        })
+        metric["level"] = min(metric["level"], level)
+        metric["occurrences"] += 1
+        metric["word_count"] += _word_count(body)
+        metric["character_count"] += len(body)
+        metric["item_count"] += sum(1 for line in lines[start + 1:end]
+                                     if _LIST_ITEM_RE.match(line))
+
+    paragraphs = []
+    for paragraph in re.split(r"\n[ \t]*\n+", normalized):
+        folded = " ".join(paragraph.split()).casefold()
+        if folded:
+            paragraphs.append(folded)
+    duplicate_count = sum(
+        count - 1 for count in collections.Counter(paragraphs).values() if count > 1
+    )
+    density = duplicate_count / len(paragraphs) if paragraphs else UNESTABLISHED
+    return {
+        "word_count": _word_count(normalized),
+        "character_count": len(normalized),
+        "sections": sections,
+        "acceptance_criteria_count": sections.get(
+            "acceptance criteria", {"item_count": 0}
+        )["item_count"],
+        "testing_strategy_count": sections.get(
+            "testing strategy", {"item_count": 0}
+        )["item_count"],
+        "paragraph_count": len(paragraphs),
+        "duplicate_paragraph_count": duplicate_count,
+        "duplicate_paragraph_density": density,
+    }
+
+
+def _read_explicit_text(path, label):
+    try:
+        with open(path, "r", encoding="utf-8", newline="") as handle:
+            return handle.read()
+    except (OSError, UnicodeError) as exc:
+        raise ValueError("invalid_checkpoint: {}: {}".format(label, exc)) from exc
+
+
+def _line_delta(before, after):
+    additions = removals = 0
+    matcher = difflib.SequenceMatcher(
+        None,
+        _normalize_analysis_text(before).splitlines(),
+        _normalize_analysis_text(after).splitlines(),
+        autojunk=False,
+    )
+    for tag, old_start, old_end, new_start, new_end in matcher.get_opcodes():
+        if tag in ("replace", "delete"):
+            removals += old_end - old_start
+        if tag in ("replace", "insert"):
+            additions += new_end - new_start
+    return {"additions": additions, "removals": removals}
+
+
+def measure_checkpoints(run_manifest):
+    """Measure initial, revision, and final artifacts from one manifest run."""
+    checkpoints = run_manifest.get("checkpoints") if isinstance(run_manifest, dict) else None
+    if not isinstance(checkpoints, dict):
+        raise ValueError("invalid_checkpoint: checkpoints is not an object")
+    revisions = checkpoints.get("revisions")
+    if not isinstance(revisions, list):
+        raise ValueError("invalid_checkpoint: revisions is not a list")
+    paths = [checkpoints.get("initial")] + revisions + [checkpoints.get("final")]
+    if any(not isinstance(path, str) or not path for path in paths):
+        raise ValueError("invalid_checkpoint: every checkpoint needs a path")
+    labels = ["initial"] + ["revision-{}".format(i) for i in range(1, len(revisions) + 1)]
+    labels.append("final")
+    texts = [_read_explicit_text(path, label) for path, label in zip(paths, labels)]
+    metrics = [measure_draft(text) for text in texts]
+    changes = []
+    for index in range(len(texts) - 1):
+        delta = _line_delta(texts[index], texts[index + 1])
+        delta.update({"from": labels[index], "to": labels[index + 1]})
+        changes.append(delta)
+    total_delta = _line_delta(texts[0], texts[-1])
+    return {
+        "initial": metrics[0],
+        "revisions": metrics[1:-1],
+        "final": metrics[-1],
+        "changes": changes,
+        "initial_to_final": {
+            "word_growth": metrics[-1]["word_count"] - metrics[0]["word_count"],
+            "character_growth": (
+                metrics[-1]["character_count"] - metrics[0]["character_count"]
+            ),
+            "additions": total_delta["additions"],
+            "removals": total_delta["removals"],
+        },
+    }
+
+
+def _audit_state_owner():
+    global _AUDIT_STATE_OWNER
+    if _AUDIT_STATE_OWNER is not None:
+        return _AUDIT_STATE_OWNER
+    spec = importlib.util.spec_from_file_location(
+        "create_issue_eval_audit_state_owner", _AUDIT_STATE_PATH
+    )
+    if spec is None or spec.loader is None:
+        raise ImportError("audit-state owner is not importable")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    _AUDIT_STATE_OWNER = module
+    return module
+
+
+def _unestablished_audit(diagnostic):
+    impacts = {key: UNESTABLISHED for key in _IMPACT_CLASSES}
+    return {
+        "status": UNESTABLISHED,
+        "diagnostic": diagnostic,
+        "first_round_unresolved": UNESTABLISHED,
+        "later_finding_identity": {
+            "novel": UNESTABLISHED,
+            "recurring": UNESTABLISHED,
+            "revision_induced": UNESTABLISHED,
+        },
+        "settled_status_counts": {
+            "resolved": UNESTABLISHED,
+            "invalidated": UNESTABLISHED,
+            "superseded": UNESTABLISHED,
+        },
+        "final_unresolved": UNESTABLISHED,
+        "advisory_by_impact": dict(impacts),
+        "invalid_by_impact": dict(impacts),
+        "findings_without_usable_evidence": UNESTABLISHED,
+        "findings_without_draft_line": UNESTABLISHED,
+        "coverage": UNESTABLISHED,
+        "final_byte_coverage": UNESTABLISHED,
+        "reopened_findings": UNESTABLISHED,
+        "scope_escape": {"count": UNESTABLISHED, "unattributable": UNESTABLISHED},
+    }
+
+
+def _impact_counts(state, record_class):
+    counts = {key: 0 for key in _IMPACT_CLASSES}
+    for rnd in state["rounds"]:
+        expected = rnd.get(record_class + "_count")
+        records = rnd.get(record_class + "_records")
+        if records is None:
+            if expected in (None, 0):
+                continue
+            return {key: UNESTABLISHED for key in _IMPACT_CLASSES}
+        for record in records:
+            counts[record["impact_class"]] += 1
+    return counts
+
+
+def audit_outcomes(validated_state, current_digest=None):
+    """Derive audit semantics only after the state owner's complete validation."""
+    if not isinstance(validated_state, dict):
+        return _unestablished_audit("state-unavailable")
+    try:
+        owner = _audit_state_owner()
+        slug = validated_state.get("slug")
+        state = owner.validate_state_document(copy.deepcopy(validated_state), slug)
+    except Exception as exc:  # noqa: BLE001 - unavailable validation is an honest unknown
+        return _unestablished_audit(str(exc) or type(exc).__name__)
+
+    completed = owner.completed_rounds(state)
+    first_unresolved = UNESTABLISHED
+    if completed:
+        value = completed[0].get("unresolved_must_revise")
+        if isinstance(value, int) and not isinstance(value, bool):
+            first_unresolved = value
+
+    ledgers = []
+    ledger_missing = False
+    for rnd in state["rounds"]:
+        findings = rnd.get("findings")
+        if isinstance(findings, list):
+            ledgers.extend((rnd["round"], entry) for entry in findings)
+        elif isinstance(rnd.get("must_revise_count"), int) and rnd["must_revise_count"] > 0:
+            ledger_missing = True
+    settled = {key: 0 for key in ("resolved", "invalidated", "superseded")}
+    for _round_number, entry in ledgers:
+        if entry.get("status") in settled:
+            settled[entry["status"]] += 1
+
+    convergence = owner.evaluate_convergence(state)
+    final_unresolved = convergence.get("effective")
+    if final_unresolved is None:
+        final_unresolved = UNESTABLISHED
+
+    if ledger_missing:
+        missing_evidence = UNESTABLISHED
+        missing_draft_line = UNESTABLISHED
+    else:
+        evidence = state.get("finding_evidence") or {}
+        conflicts = owner.evidence_conflicts(evidence)
+        missing_evidence = 0
+        missing_draft_line = 0
+        for round_number, entry in ledgers:
+            key = "{}:{}".format(round_number, entry["id"])
+            item = evidence.get(key)
+            usable = (
+                isinstance(item, dict)
+                and owner.evidence_completeness(item)[0] == "complete"
+                and not conflicts.get(key)
+            )
+            if not usable:
+                missing_evidence += 1
+            if not (isinstance(entry.get("quoted_draft_line"), int)
+                    and not isinstance(entry.get("quoted_draft_line"), bool)
+                    and entry["quoted_draft_line"] >= 1):
+                missing_draft_line += 1
+
+    coverage_result = owner.evaluate_coverage(state)
+    coverage_round = coverage_result.get("round")
+    coverage = {
+        "backing": coverage_result["backing"],
+        "render": coverage_result["render"],
+        "reason": coverage_result.get("reason"),
+        "outcomes": {
+            entry["key"]: entry["outcome"]
+            for entry in ((coverage_round or {}).get("coverage") or [])
+        },
+    }
+    final_byte = owner.evaluate_final_byte_coverage(state, current_digest)
+    projected = {
+        rnd["round"]: {
+            "kind": rnd.get("kind", _ABSENT_KIND_DEFAULT),
+            "scope": rnd.get("scope"),
+            "findings": rnd.get("findings") or [],
+        }
+        for rnd in state["rounds"]
+    }
+    return {
+        "status": "established",
+        "diagnostic": None,
+        "first_round_unresolved": first_unresolved,
+        "later_finding_identity": {
+            "novel": UNESTABLISHED,
+            "recurring": UNESTABLISHED,
+            "revision_induced": UNESTABLISHED,
+        },
+        "settled_status_counts": settled,
+        "final_unresolved": final_unresolved,
+        "advisory_by_impact": _impact_counts(state, "advisory"),
+        "invalid_by_impact": _impact_counts(state, "invalid"),
+        "findings_without_usable_evidence": missing_evidence,
+        "findings_without_draft_line": missing_draft_line,
+        "coverage": coverage,
+        "final_byte_coverage": final_byte["coverage"],
+        "reopened_findings": sum(
+            1 for _round_number, entry in ledgers if "reopen_provenance" in entry
+        ),
+        "scope_escape": scope_escape_proxy(projected),
+    }
+
+
+def _validated_rubric(rubric):
+    if not isinstance(rubric, dict):
+        raise ValueError("invalid_rubric: top level is not an object")
+    version = rubric.get("schema_version")
+    if version != RUBRIC_SCHEMA_VERSION or isinstance(version, bool):
+        raise ValueError("unsupported_rubric_schema_version: {!r}".format(version))
+    result = dict(rubric)
+    for key in ("required_concepts", "forbidden_concepts"):
+        entries = result.get(key)
+        if not isinstance(entries, list):
+            raise ValueError("invalid_rubric: {} is not a list".format(key))
+        for index, entry in enumerate(entries):
+            alternatives = entry.get("any_of") if isinstance(entry, dict) else None
+            if (not isinstance(entry, dict)
+                    or not isinstance(entry.get("text"), str)
+                    or not entry["text"].strip()
+                    or not isinstance(alternatives, list)
+                    or not alternatives
+                    or not all(isinstance(value, str) and value.strip()
+                               for value in alternatives)):
+                raise ValueError("invalid_rubric: {}[{}]".format(key, index))
+    for key in ("required_sections", "forbidden_sections"):
+        values = result.get(key)
+        if (not isinstance(values, list)
+                or not all(isinstance(value, str) and value.strip() for value in values)):
+            raise ValueError("invalid_rubric: {} is not a string list".format(key))
+    for key in ("blocked_expected", "bug_reproduction_expected"):
+        if not isinstance(result.get(key), bool):
+            raise ValueError("invalid_rubric: {} is not a boolean".format(key))
+    return result
+
+
+def _grade_assertion(text, passed, evidence):
+    return {"text": text, "passed": bool(passed), "evidence": evidence}
+
+
+def grade_issue(text, rubric):
+    """Grade explicit issue bytes with a deterministic schema-1 rubric."""
+    rubric = _validated_rubric(rubric)
+    normalized = _normalize_analysis_text(text)
+    searchable = " ".join(normalized.split()).casefold()
+    _lines, heading_records = _heading_records(normalized)
+    headings = {name for _index, _level, name in heading_records}
+    assertions = []
+    forbidden_failures = 0
+    forbidden_section_failures = 0
+
+    for entry in rubric["required_concepts"]:
+        matched = next((alt for alt in entry["any_of"]
+                        if " ".join(alt.split()).casefold() in searchable), None)
+        assertions.append(_grade_assertion(
+            entry["text"],
+            matched is not None,
+            "matched alternative: {}".format(matched) if matched else "no alternative matched",
+        ))
+    for entry in rubric["forbidden_concepts"]:
+        matched = next((alt for alt in entry["any_of"]
+                        if " ".join(alt.split()).casefold() in searchable), None)
+        passed = matched is None
+        forbidden_failures += int(not passed)
+        assertions.append(_grade_assertion(
+            entry["text"],
+            passed,
+            "absent" if passed else "matched forbidden alternative: {}".format(matched),
+        ))
+    for section in rubric["required_sections"]:
+        normalized_section = _heading_name(section)
+        passed = normalized_section in headings
+        assertions.append(_grade_assertion(
+            "Required section: {}".format(section),
+            passed,
+            "present" if passed else "absent",
+        ))
+    for section in rubric["forbidden_sections"]:
+        normalized_section = _heading_name(section)
+        passed = normalized_section not in headings
+        forbidden_section_failures += int(not passed)
+        assertions.append(_grade_assertion(
+            "Forbidden section absent: {}".format(section),
+            passed,
+            "absent" if passed else "present",
+        ))
+
+    blocked_present = "blocked" in headings
+    blocked_passed = blocked_present == rubric["blocked_expected"]
+    assertions.append(_grade_assertion(
+        "Blocked section {}".format(
+            "present" if rubric["blocked_expected"] else "absent"
+        ),
+        blocked_passed,
+        "present" if blocked_present else "absent",
+    ))
+    reproduction_present = bool(
+        headings.intersection({"reproduction", "reproduction steps", "bug reproduction"})
+    )
+    reproduction_passed = reproduction_present == rubric["bug_reproduction_expected"]
+    assertions.append(_grade_assertion(
+        "Bug reproduction contract {}".format(
+            "present" if rubric["bug_reproduction_expected"] else "absent"
+        ),
+        reproduction_passed,
+        "present" if reproduction_present else "absent",
+    ))
+    passed_count = sum(1 for assertion in assertions if assertion["passed"])
+    return {
+        "schema_version": RUBRIC_SCHEMA_VERSION,
+        "passed": passed_count == len(assertions),
+        "pass_rate": passed_count / len(assertions),
+        "forbidden_failures": forbidden_failures,
+        "forbidden_section_failures": forbidden_section_failures,
+        "assertions": assertions,
+    }
+
+
+def quality_gate(baseline_grade, candidate_grade):
+    """Compare paired formal grades; size and finding counts are intentionally absent."""
+    try:
+        baseline_rate = baseline_grade["pass_rate"]
+        candidate_rate = candidate_grade["pass_rate"]
+        baseline_forbidden = baseline_grade["forbidden_failures"]
+        candidate_forbidden = candidate_grade["forbidden_failures"]
+        valid = (
+            isinstance(baseline_rate, (int, float))
+            and not isinstance(baseline_rate, bool)
+            and isinstance(candidate_rate, (int, float))
+            and not isinstance(candidate_rate, bool)
+            and isinstance(baseline_forbidden, int)
+            and not isinstance(baseline_forbidden, bool)
+            and isinstance(candidate_forbidden, int)
+            and not isinstance(candidate_forbidden, bool)
+        )
+    except (KeyError, TypeError):
+        valid = False
+    if not valid:
+        return {
+            "status": UNESTABLISHED,
+            "passed": False,
+            "pass_rate_preserved": UNESTABLISHED,
+            "new_forbidden_failures": UNESTABLISHED,
+            "efficiency_eligible": False,
+        }
+    rate_preserved = candidate_rate >= baseline_rate
+    new_forbidden = max(0, candidate_forbidden - baseline_forbidden)
+    passed = rate_preserved and new_forbidden == 0
+    return {
+        "status": "established",
+        "passed": passed,
+        "pass_rate_preserved": rate_preserved,
+        "new_forbidden_failures": new_forbidden,
+        "efficiency_eligible": passed,
+    }
 
 
 def _median(values):
@@ -1240,6 +1712,10 @@ def load_eval_manifest(path):
         run["state_file"] = _resolved_artifact(
             root, run.get("state_file"), "{} state_file".format(run_id)
         )
+        if "rubric" in run:
+            run["rubric"] = _resolved_artifact(
+                root, run.get("rubric"), "{} rubric".format(run_id)
+            )
         run["checkpoints"] = normalized_checkpoints
         normalized_runs.append(run)
 
@@ -1292,6 +1768,53 @@ def _validate_manifest_event(record, run_id, event_index):
                 "invalid_transcript",
                 "{} event {} has invalid usage.{}".format(run_id, event_index, key),
             )
+
+
+def _json_artifact(path):
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            return json.load(handle)
+    except (OSError, ValueError, TypeError):
+        return None
+
+
+def _current_draft_digest(path, state):
+    digests = [
+        attempt.get("digest")
+        for rnd in (state.get("rounds", []) if isinstance(state, dict) else [])
+        for attempt in (rnd.get("attempts", []) if isinstance(rnd, dict) else [])
+        if isinstance(attempt, dict)
+    ]
+    algorithm = None
+    for value in reversed(digests):
+        if isinstance(value, str) and re.fullmatch(r"[0-9a-fA-F]{40}", value):
+            algorithm = "sha1"
+            break
+        if isinstance(value, str) and re.fullmatch(r"[0-9a-fA-F]{64}", value):
+            algorithm = "sha256"
+            break
+    if algorithm is None:
+        return None
+    try:
+        with open(path, "rb") as handle:
+            data = handle.read()
+    except OSError:
+        return None
+    header = "blob {}\0".format(len(data)).encode("ascii")
+    return hashlib.new(algorithm, header + data).hexdigest()
+
+
+def _unestablished_grade(diagnostic):
+    return {
+        "schema_version": RUBRIC_SCHEMA_VERSION,
+        "status": UNESTABLISHED,
+        "diagnostic": diagnostic,
+        "passed": False,
+        "pass_rate": UNESTABLISHED,
+        "forbidden_failures": UNESTABLISHED,
+        "forbidden_section_failures": UNESTABLISHED,
+        "assertions": [],
+    }
 
 
 def _observe_manifest_run(run, large_block_chars):
@@ -1356,9 +1879,32 @@ def _observe_manifest_run(run, large_block_chars):
         "revisions": list(run["checkpoints"]["revisions"]),
         "final": run["checkpoints"]["final"],
     }
+    result["draft_metrics"] = measure_checkpoints(run)
+    state_document = _json_artifact(run["state_file"])
+    result["audit_outcomes"] = audit_outcomes(
+        state_document,
+        _current_draft_digest(run["checkpoints"]["final"], state_document),
+    )
+    if "rubric" in run:
+        rubric = _json_artifact(run["rubric"])
+        if rubric is None:
+            _manifest_error("invalid_rubric", run["run_id"])
+        final_text = _read_explicit_text(run["checkpoints"]["final"], "final")
+        try:
+            result["grade"] = grade_issue(final_text, rubric)
+        except ValueError as exc:
+            _manifest_error("invalid_rubric", "{}: {}".format(run["run_id"], exc))
+    else:
+        result["grade"] = _unestablished_grade("rubric-unavailable")
     result["provenance"] = dict(run["provenance"])
-    result["state_established"] = run_summary["state_established"]
-    result["finding_count"] = run_summary["finding_count"]
+    result["state_established"] = (
+        run_summary["state_established"]
+        and result["audit_outcomes"]["status"] == "established"
+    )
+    result["finding_count"] = (
+        run_summary["finding_count"]
+        if result["state_established"] else UNESTABLISHED
+    )
     return result, run_summary, _empty_skipped()
 
 
@@ -1416,6 +1962,7 @@ def _manifest_comparison(run_records):
                 {"configuration": configurations[0], "run_id": before["run_id"]},
                 {"configuration": configurations[1], "run_id": after["run_id"]},
             ],
+            "quality": quality_gate(before.get("grade"), after.get("grade")),
         })
         if any(before["provenance"][key] != after["provenance"][key]
                for key in controlled):
