@@ -1,0 +1,342 @@
+{
+ "pairs": [
+  {
+   "item": {
+    "id": "VC-1",
+    "category": "api_contract",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "skills/create-issue/SKILL.md",
+    "verification_mode": "agent",
+    "claim": "(see run checklist)"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1698/local-20260814T181648Z-1/verdicts/iter-1/VC-1-n7a3f1.json",
+   "response_text": "```json\n{\"id\":\"VC-1\",\"verdict\":\"PASS\",\"evidence\":\"lib/test/run.sh:15757-15758 pins 'when the runner exposes no task-tracking tool or the exposed one is disabled or unusable' via assert_pin_unique against $CI_SKILL_560. skills/create-issue/SKILL.md:26 carries the exact same string byte-for-byte, now folded into the Step 1 mandate ladder's fallback-routing sentence ('the route this skill takes / when the runner exposes no task-tracking tool or the exposed one is disabled or unusable:' followed by the numbered mandate steps). Confirmed via grep exact-match on the literal in both files.\",\"file_checked\":\"lib/test/run.sh:15757-15758; skills/create-issue/SKILL.md:26\",\"property_proven\":true,\"inaccuracy_scope\":\"none\"}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-2",
+    "category": "api_contract",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "skills/create-issue/SKILL.md",
+    "verification_mode": "agent",
+    "claim": "(see run checklist)"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1698/local-20260814T181648Z-1/verdicts/iter-1/VC-2-k2p9x4.json",
+   "response_text": "```json\n{\"id\":\"VC-2\",\"verdict\":\"PASS\",\"evidence\":\"Resolved CREATE_ISSUE_BUNDLE in lib/test/run.sh (lines 330-352): root skills/create-issue/SKILL.md + every skills/create-issue/references/*.md except issue-template.md and audit-prompt-template.md. Concatenated all 16 member files and grepped the #560-pinned literals used by assert_pin_unique/assert_eq at lines 15757-15768: 'when the runner exposes no task-tracking tool or the exposed one is disabled or unusable' -> 1 occurrence; 're-confirm two things in the current conversation' -> 1 occurrence; 'approved the rendered draft, and the active tracking mechanism shows item 6 in progress' -> 1 occurrence; 'create a TodoWrite todo list' -> 0 occurrences (confirming the absence pin). Each literal appears exactly once (or zero, for the absence pin) across the bundle, confirming no duplicate copy remains after the standalone was removed.\",\"file_checked\":\"lib/test/run.sh:330-368 and skills/create-issue/SKILL.md + skills/create-issue/references/*.md\",\"property_proven\":true,\"inaccuracy_scope\":\"none\"}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-3",
+    "category": "data_format_assumption",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "skills/create-issue/SKILL.md",
+    "verification_mode": "agent",
+    "claim": "(see run checklist)"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1698/local-20260814T181648Z-1/verdicts/iter-1/VC-3-w8m2q6.json",
+   "response_text": "```json\n{\"id\":\"VC-3\",\"verdict\":\"PASS\",\"evidence\":\"lib/test/run.sh:407 pin_count() runs `grep -oF -- \\\"$1\\\" \\\"$2\\\" | grep -c .`, which is inherently line-based (grep matches within a single line, never across a break), so a pinned literal spanning two physical lines would never be counted. The #560 AC1 pin at lib/test/run.sh:15757-15758 checks the literal 'when the runner exposes no task-tracking tool or the exposed one is disabled or unusable' against $CI_SKILL_560 (bound to $CREATE_ISSUE_BUNDLE, built from create-issue skill files per lib/test/run.sh:352). In skills/create-issue/SKILL.md the mandate paragraph does fold mid-sentence: line 25 ends '...the route this skill takes' and line 26 begins 'when the runner exposes...'. The pinned literal itself is fully contained within line 26 alone (confirmed via grep -n and grep -c returning exactly 1 in skills/create-issue/SKILL.md), i.e. the fold happens before the pinned substring starts, not inside it. So the claim is accurate: the mid-sentence line break exists but does not break the AC1 pin because the pinned literal sits wholly on one physical line.\",\"file_checked\":\"lib/test/run.sh:390-409,418-422; skills/create-issue/SKILL.md:15-26\",\"property_proven\":true,\"inaccuracy_scope\":\"none\"}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-4",
+    "category": "api_contract",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "skills/create-issue/references/degradation-routing.md",
+    "verification_mode": "agent",
+    "claim": "(see run checklist)"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1698/local-20260814T181648Z-1/verdicts/iter-1/VC-4-r5t8v1.json",
+   "response_text": "```json\n{\"id\":\"VC-4\",\"verdict\":\"FAIL\",\"evidence\":\"The premise is false: the word 'seven' does not appear anywhere in skills/create-issue/references/degradation-routing.md (grep -rn seven over skills/create-issue/ finds it only in SKILL.md and fallback-no-task-tool.md, never in the routing table). The fallback-no-task-tool row (degradation-routing.md line 14 in the current tree, not the line the claim assumed) reads '| No task-tracking tool is exposed, or the exposed one is disabled or unusable | `references/fallback-no-task-tool.md` | `step=fallback-no-task-tool` | Track the checklist items as a re-rendered in-chat block and report that the state-file mirror was unavailable |' with no 'seven' token to remove. Separately, lib/test/modules/create-issue-contract.sh's #614 T1/T2/T6 reconciliation (lines ~1268-1332) parses the table by row predicate (`| ` prefix + 'references/' substring), checks the 4-pipe-delimited column count and non-empty last cell (T6), the marker id in column 3, and the exact `references/<ref>.md\\\\` |` substring in column 2 \u2014 none of these assertions pin or reference the word 'seven' or any specific degraded-behavior cell wording for the fallback-no-task-tool row (confirmed via grep -n seven over create-issue-contract.sh, zero hits). So while the mechanical claim about reconciliation robustness would hold for an edit that actually removed 'seven' from that row, the claim as written misidentifies its own source location/content, which is a false factual assertion about the code.\",\"file_checked\":\"lib/test/modules/create-issue-contract.sh:1268-1332, skills/create-issue/references/degradation-routing.md:14\",\"property_proven\":false,\"inaccuracy_scope\":\"generated_claim_text\"}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-5",
+    "category": "api_contract",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "skills/create-issue/references/fallback-no-task-tool.md",
+    "verification_mode": "agent",
+    "claim": "(see run checklist)"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1698/local-20260814T181648Z-1/verdicts/iter-1/VC-5-b4h7n3.json",
+   "response_text": "```json\n{\"id\":\"VC-5\",\"verdict\":\"PASS\",\"evidence\":\"grep -n 'seven' across lib/test/run.sh and lib/test/modules/create-issue-contract.sh finds no pin asserting a seven-item count against fallback-no-task-tool.md content; the only fallback-no-task-tool.md reference in create-issue-contract.sh (lines 49, 1236) is a path/routing-table membership check unrelated to counting descriptive-sentence 'seven' occurrences. grep -c on the literal 'status markers are exactly three, complete by construction' in skills/create-issue/references/fallback-no-task-tool.md returns 1, confirming it appears exactly once.\",\"file_checked\":\"lib/test/modules/create-issue-contract.sh:49,1236; skills/create-issue/references/fallback-no-task-tool.md\",\"property_proven\":true,\"inaccuracy_scope\":\"none\"}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-6",
+    "category": "api_contract",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "skills/create-issue/SKILL.md",
+    "verification_mode": "agent",
+    "claim": "(see run checklist)"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1698/local-20260814T181648Z-1/verdicts/iter-1/VC-6-y1c6j9.json",
+   "response_text": "```json\n{\"id\":\"VC-6\",\"verdict\":\"PASS\",\"evidence\":\"skills/create-issue/SKILL.md is 24,119 bytes (wc -c), well under the 61,750-byte ceiling enforced by lib/test/lint-reference-size.py. The file carries no entry in lib/test/reference-size-exemptions.json, which is consistent since it does not need one \u2014 the file is under the ceiling.\",\"file_checked\":\"skills/create-issue/SKILL.md\",\"property_proven\":true,\"inaccuracy_scope\":\"none\"}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-7",
+    "category": "api_contract",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "docs/internal/skills/create-issue.md",
+    "verification_mode": "agent",
+    "claim": "(see run checklist)"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1698/local-20260814T181648Z-1/verdicts/iter-1/VC-7-q3z8m5.json",
+   "response_text": "```json\n{\"id\":\"VC-7\",\"verdict\":\"PASS\",\"evidence\":\"skills/create-issue/SKILL.md contains no 'docs/internal' or 'docs/external' references (grep returned no matches), so the new docs/internal/skills/create-issue.md section adds no reference forbidden by the lint into the shipped skill. Confirmed lib/test/lint-shipped-pruned-path.py:10,18 states its audited population is 'skills/** / agents/**' \u2014 it does not audit docs/internal/** itself, consistent with the claim's second clause.\",\"file_checked\":\"skills/create-issue/SKILL.md; lib/test/lint-shipped-pruned-path.py:10-18\",\"property_proven\":true,\"inaccuracy_scope\":\"none\"}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-8",
+    "category": "absolute_claim",
+    "claim_provenance": "source_authored",
+    "source_file": "skills/create-issue/SKILL.md",
+    "verification_mode": "agent",
+    "claim": "(see run checklist)",
+    "source_excerpt": "(authored universal under scrutiny)"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1698/local-20260814T181648Z-1/verdicts/iter-1/VC-8-f3d5s7.json",
+   "response_text": "```json\n{\"id\":\"VC-8\",\"verdict\":\"PASS\",\"evidence\":\"Walked the ladder in skills/create-issue/SKILL.md lines 10-26 and the Reference routing section lines 118-130. (a) If the discovery mechanism itself fails/is unavailable, the text explicitly says to conclude 'no task tool is available' (line 19) and proceed to 'Once every candidate is exhausted, use the inline fallback in references/fallback-no-task-tool.md' (lines 22-24) \u2014 a stated continue arm, not a dead end. (b) If that fallback reference load itself fails, the general Reference routing rule at line 126 applies ('Every load failure degrades, and no failure arm terminates the run... emit an in-chat breadcrumb... then continue on that file's degraded behavior'), and even if the routing table file (degradation-routing.md) itself fails to load, line 130 states 'proceed inline for that step... and do not terminate the run.' Every rung examined has an explicit degrade-and-continue arm; no rung is left with an unstated next step.\",\"file_checked\":\"skills/create-issue/SKILL.md:10-26,118-130\",\"property_proven\":true,\"inaccuracy_scope\":\"none\"}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-9",
+    "category": "absolute_claim",
+    "claim_provenance": "source_authored",
+    "source_file": "skills/create-issue/SKILL.md",
+    "verification_mode": "agent",
+    "claim": "(see run checklist)",
+    "source_excerpt": "(authored universal under scrutiny)"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1698/local-20260814T181648Z-1/verdicts/iter-1/VC-9-g8k4l2.json",
+   "response_text": "```json\n{\n  \"id\": \"VC-9\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"skills/create-issue/SKILL.md lines 10-26 describe the tracker-establishment ladder, where a failed candidate 'record[s] a breadcrumb naming that failure and carry[ies] on to the next rung' (line 20) \u2014 this can happen before a tracker is established. Lines 44-52 (Announcement section) explicitly resolve the apparent ordering conflict rather than leaving it unsatisfiable: 'Emit the announcement only once a tracker is established, and emit it as the run's first line of output on every path' (line 46), and 'Report a breadcrumb about a failed candidate immediately after that first line, never before it' (lines 50-51). The text deliberately separates recording a failure (which can occur at any point during the ladder, silently/internally) from reporting/emitting it (which is deferred until immediately after the announcement line). On the inline-fallback path, the tracker 'counts as established once the run has settled on that fallback' (lines 48-49), so the announcement still becomes the first emitted line, with the checklist block and any accumulated breadcrumbs following it. The discovery-tool-call path (lines 15-19) involves tool invocations, not authored chat output, so it does not itself produce a 'line of output' that would precede the announcement. Read together, the three instructions ('only once established', 'first line on every path', 'breadcrumb immediately after') are jointly satisfiable by design: internally record failures during the ladder, defer all emission until the announcement has been printed, then emit the deferred breadcrumb(s). No falsifying path was found in the source text itself; the section explicitly anticipates and resolves the tension the claim raises.\",\n  \"file_checked\": \"skills/create-issue/SKILL.md:10-52\",\n  \"property_proven\": true,\n  \"inaccuracy_scope\": \"none\"\n}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-10",
+    "category": "issue_acceptance",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "skills/create-issue/SKILL.md",
+    "verification_mode": "agent",
+    "claim": "(see run checklist)"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1698/local-20260814T181648Z-1/verdicts/iter-1/VC-10-a6d2r8.json",
+   "response_text": "```json\n{\n  \"id\": \"VC-10\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"skills/create-issue/SKILL.md lines 10-14: 'Work down the candidate task-tracking tools in order \u2014 TodoWrite, then TaskCreate/TaskUpdate, then update_plan \u2014 picking only from candidates the runner lists as currently exposed, and moving to the next candidate whenever the one you tried is unavailable.' All three clauses (stated order, pick only from currently-exposed candidates, move to next when unavailable) are present verbatim.\",\n  \"file_checked\": \"skills/create-issue/SKILL.md:10-14\",\n  \"property_proven\": true,\n  \"inaccuracy_scope\": \"none\"\n}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-11",
+    "category": "issue_acceptance",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "skills/create-issue/SKILL.md",
+    "verification_mode": "agent",
+    "claim": "(see run checklist)"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1698/local-20260814T181648Z-1/verdicts/iter-1/VC-11-h9w4t1.json",
+   "response_text": "```json\n{\n  \"id\": \"VC-11\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"skills/create-issue/SKILL.md:13-15 states verbatim: 'When you cannot establish which tools are visible, try the candidates in that same order instead and treat a returned failure as the failure arm below.' This matches all three clauses of the claim: the cannot-establish-visibility case, trying candidates in the same order, and routing a returned failure to the failure arm.\",\n  \"file_checked\": \"skills/create-issue/SKILL.md:13-15\",\n  \"property_proven\": true,\n  \"inaccuracy_scope\": \"none\"\n}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-12",
+    "category": "issue_acceptance",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "skills/create-issue/SKILL.md",
+    "verification_mode": "agent",
+    "claim": "(see run checklist)"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1698/local-20260814T181648Z-1/verdicts/iter-1/VC-12-e5n7b3.json",
+   "response_text": "```json\n{\n  \"id\": \"VC-12\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"skills/create-issue/SKILL.md:15-18 states: 'When no candidate appears in the visible tool list, first re-read any listing the runner already supplied of tools it has not yet exposed; failing that, look for a discovery mechanism the runner itself advertises \u2014 a listed tool whose stated purpose is to find and load tools the runner has not yet exposed \u2014 and use it to search for the candidates above, never as a candidate itself, before concluding that no task tool is available.' This matches the claim: it fires on the no-candidate-in-visible-list condition and supplies the observable cue 'a listed tool whose stated purpose is to find and load tools it has not yet exposed'.\",\n  \"file_checked\": \"skills/create-issue/SKILL.md:15-18\",\n  \"property_proven\": true,\n  \"inaccuracy_scope\": \"none\"\n}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-13",
+    "category": "issue_acceptance",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "skills/create-issue/SKILL.md",
+    "verification_mode": "agent",
+    "claim": "(see run checklist)"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1698/local-20260814T181648Z-1/verdicts/iter-1/VC-13-u2j6c9.json",
+   "response_text": "```json\n{\n  \"id\": \"VC-13\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"skills/create-issue/SKILL.md:16-18 defines the discovery clause: 'look for a discovery mechanism the runner itself advertises \u2014 a listed tool whose stated purpose is to find and load tools the runner has not yet exposed \u2014 and use it to search for the candidates above, never as a candidate itself'. This sentence names no concrete product/tool (only generic language: 'a listed tool whose stated purpose is...'), keeping it runner-neutral. The three named candidates (TodoWrite/TaskCreate/TaskUpdate/update_plan, lines 11-12) are explicitly distinct from the discovery mechanism, matching the hint. Confirmed lib/test/run.sh:15767-15768 still asserts the absence of the literal 'create a TodoWrite todo list' from $CI_SKILL_560 (the create-issue bundle), and a direct grep of skills/create-issue/ for that literal returns no matches, so the #560 assertion still holds.\",\n  \"file_checked\": \"skills/create-issue/SKILL.md:16-18; lib/test/run.sh:15767-15768\",\n  \"property_proven\": true,\n  \"inaccuracy_scope\": \"none\"\n}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-14",
+    "category": "issue_acceptance",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "skills/create-issue/SKILL.md",
+    "verification_mode": "agent",
+    "claim": "(see run checklist)"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1698/local-20260814T181648Z-1/verdicts/iter-1/VC-14-v8x3p7.json",
+   "response_text": "```json\n{\n  \"id\": \"VC-14\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"skills/create-issue/SKILL.md lines 19-22 state verbatim: 'When a candidate call is made and the runner returns a failure to the run as a result, record a breadcrumb naming that failure and carry on to the next rung \u2014 the same degrade-and-continue arm the *Reference routing* rules below already define for a failed load, so no rung of this ladder ends the run.' This matches the claim's trigger (runner-returned failure to a candidate call), the breadcrumb-naming-failure requirement, and the continue-to-next-rung prescription exactly.\",\n  \"file_checked\": \"skills/create-issue/SKILL.md:19-22\",\n  \"property_proven\": true,\n  \"inaccuracy_scope\": \"none\"\n}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-15",
+    "category": "issue_acceptance",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "skills/create-issue/SKILL.md",
+    "verification_mode": "agent",
+    "claim": "(see run checklist)"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1698/local-20260814T181648Z-1/verdicts/iter-1/VC-15-s4g1k8.json",
+   "response_text": "```json\n{\n  \"id\": \"VC-15\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"skills/create-issue/SKILL.md:22-26 states: 'Once every candidate is exhausted, use the inline fallback in `references/fallback-no-task-tool.md`, loaded per the *Reference routing* rules below'. The routing row exists in skills/create-issue/references/degradation-routing.md:14: '| No task-tracking tool is exposed, or the exposed one is disabled or unusable | `references/fallback-no-task-tool.md` | `step=fallback-no-task-tool` | ... |'. The file skills/create-issue/references/degradation-routing.md is unmodified by this branch's commit (884ba73a6 only touched other files per its message about slot counts), confirming no new routing row was introduced.\",\n  \"file_checked\": \"skills/create-issue/SKILL.md:22-26; skills/create-issue/references/degradation-routing.md:14\",\n  \"property_proven\": true,\n  \"inaccuracy_scope\": \"none\"\n}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-16",
+    "category": "issue_acceptance",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "skills/create-issue/SKILL.md",
+    "verification_mode": "agent",
+    "claim": "(see run checklist)"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1698/local-20260814T181648Z-1/verdicts/iter-1/VC-16-m7l5y2.json",
+   "response_text": "```json\n{\n  \"id\": \"VC-16\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"skills/create-issue/SKILL.md line 46 states: 'Emit the announcement only once a tracker is established, and emit it as the run's first line of output on every path...'. This is an explicit worded CONDITION ('only once a tracker is established'), not a bare temporal 'once' and not left to be inferred from the instruction's position in the file.\",\n  \"file_checked\": \"skills/create-issue/SKILL.md:46\",\n  \"property_proven\": true,\n  \"inaccuracy_scope\": \"none\"\n}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-17",
+    "category": "issue_acceptance",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "skills/create-issue/SKILL.md",
+    "verification_mode": "agent",
+    "claim": "(see run checklist)"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1698/local-20260814T181648Z-1/verdicts/iter-1/VC-17-d9f2h6.json",
+   "response_text": "```json\n{\n  \"id\": \"VC-17\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"Pre-change (git show origin/main:skills/create-issue/SKILL.md:37) and post-change working tree (skills/create-issue/SKILL.md:48) both contain the identical quoted string: \\\"Running /prflow:create-issue; the seven-slot completion tracker is set up.\\\" The wording is byte-for-byte unchanged; only surrounding prose position/context differs.\",\n  \"file_checked\": \"skills/create-issue/SKILL.md:48\",\n  \"property_proven\": true,\n  \"inaccuracy_scope\": \"none\"\n}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-18",
+    "category": "issue_acceptance",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "skills/create-issue/SKILL.md",
+    "verification_mode": "agent",
+    "claim": "(see run checklist)"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1698/local-20260814T181648Z-1/verdicts/iter-1/VC-18-t4b8k1.json",
+   "response_text": "```json\n{\n  \"id\": \"VC-18\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"skills/create-issue/SKILL.md lines 44-52, ## Announcement section, states both clauses verbatim: (1) 'emit it as the run's first line of output on every path' (line 46), and (2) 'Report a breadcrumb about a failed candidate immediately after that first line, never before it' (lines 50-51).\",\n  \"file_checked\": \"skills/create-issue/SKILL.md:44-52\",\n  \"property_proven\": true,\n  \"inaccuracy_scope\": \"none\"\n}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-19",
+    "category": "issue_acceptance",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "skills/create-issue/SKILL.md",
+    "verification_mode": "agent",
+    "claim": "(see run checklist)"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1698/local-20260814T181648Z-1/verdicts/iter-1/VC-19-p6r3w9.json",
+   "response_text": "```json\n{\n  \"id\": \"VC-19\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"skills/create-issue/SKILL.md lines 44-50 (Announcement section) state: 'Emit the announcement only once a tracker is established... On the inline-fallback path the tracker counts as established once the run has settled on that fallback, and the rendered checklist block follows the announcement line rather than preceding it.' Both clauses (tracker-established-on-fallback-settle, checklist-follows-announcement) are present and explicitly scoped to 'the inline-fallback path'.\",\n  \"file_checked\": \"skills/create-issue/SKILL.md:46-50\",\n  \"property_proven\": true,\n  \"inaccuracy_scope\": \"none\"\n}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-20",
+    "category": "issue_acceptance",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "skills/create-issue/references/degradation-routing.md",
+    "verification_mode": "agent",
+    "claim": "(see run checklist)"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1698/local-20260814T181648Z-1/verdicts/iter-1/VC-20-l2m5c8.json",
+   "response_text": "```json\n{\n  \"id\": \"VC-20\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"git diff --name-status origin/main...HEAD -- skills/create-issue/references/ shows only two entries, both status M: skills/create-issue/references/degradation-routing.md and skills/create-issue/references/fallback-no-task-tool.md. No A (added) or D (deleted) entries exist under that path, so the reference file set is unchanged (only modified in place) and the create-issue-contract.sh reconciliation, which checks the routing table against the on-disk references/*.md set, stays satisfied.\",\n  \"file_checked\": \"skills/create-issue/references/ (git diff --name-status origin/main...HEAD)\",\n  \"property_proven\": true,\n  \"inaccuracy_scope\": \"none\"\n}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-22",
+    "category": "issue_acceptance",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "skills/create-issue/SKILL.md",
+    "verification_mode": "agent",
+    "claim": "(see run checklist)"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1698/local-20260814T181648Z-1/verdicts/iter-1/VC-22-x7v4n2.json",
+   "response_text": "```json\n{\n  \"id\": \"VC-22\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"Ran `git diff --name-only origin/main...HEAD` (after `git fetch origin main`) in the working tree; neither `.prflow/logs/pin-corpus-inventory.tsv` nor `lib/test/pin-corpus-adjudications.tsv` appears in the changed-file list, confirming both TSVs are unchanged by this branch's work relative to origin/main.\",\n  \"file_checked\": \"git diff --name-only origin/main...HEAD (repo root)\",\n  \"property_proven\": true,\n  \"inaccuracy_scope\": \"none\"\n}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-23",
+    "category": "issue_acceptance",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "skills/create-issue/references/fallback-no-task-tool.md",
+    "verification_mode": "agent",
+    "claim": "(see run checklist)"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1698/local-20260814T181648Z-1/verdicts/iter-1/VC-23-j3q9z5.json",
+   "response_text": "```json\n{\n  \"id\": \"VC-23\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"Literal 'The status markers are exactly three, complete by construction' appears exactly once in skills/create-issue/references/fallback-no-task-tool.md (grep -c = 1). It is absent (0 occurrences) from skills/create-issue/SKILL.md, and absent from every file in CI614_STEP_REFS as defined at lib/test/modules/create-issue-contract.sh:1235 (step-2-clarify, step-3-5-steelman, revision-delta, step-3-6-audit, step-4-present-create), each checked as skills/create-issue/references/<name>.md.\",\n  \"file_checked\": \"lib/test/modules/create-issue-contract.sh:1235\",\n  \"property_proven\": true,\n  \"inaccuracy_scope\": \"none\"\n}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-25",
+    "category": "issue_acceptance",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "skills/create-issue/references/fallback-no-task-tool.md",
+    "verification_mode": "agent",
+    "claim": "(see run checklist)"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1698/local-20260814T181648Z-1/verdicts/iter-1/VC-25-c1y6g4.json",
+   "response_text": "```json\n{\n  \"id\": \"VC-25\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"In skills/create-issue/references/fallback-no-task-tool.md, grep for 'seven'/'item' shows the only numeric count (\\\"seven-item definition\\\") is in the Fail-closed arm paragraph at line 17. The inline-checklist paragraph (line 5) and state-file-mirror paragraph (line 11) mention 'items'/'item 6' without stating the total count, and both remain complete, grammatical sentences.\",\n  \"file_checked\": \"skills/create-issue/references/fallback-no-task-tool.md:5,11,17\",\n  \"property_proven\": true,\n  \"inaccuracy_scope\": \"none\"\n}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-26",
+    "category": "issue_acceptance",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "docs/internal/skills/create-issue.md",
+    "verification_mode": "agent",
+    "claim": "(see run checklist)"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1698/local-20260814T181648Z-1/verdicts/iter-1/VC-26-k8s2d7.json",
+   "response_text": "```json\n{\n  \"id\": \"VC-26\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"docs/internal/skills/create-issue.md ## The completion tracker section covers all four required topics: tracker slots and their gate meaning (line 15, incl. slot 6 as creation gate, slot 7 as post-creation hand-off), the candidate list (line 17, TodoWrite -> TaskCreate/TaskUpdate -> update_plan ladder), the announcement ordering (line 23), and the inline fallback (line 21). The Source of truth list (lines 36-45) names both skills/create-issue/references/degradation-routing.md (line 42) and skills/create-issue/references/fallback-no-task-tool.md (line 43). Cross-checked factual statements against skills/create-issue/SKILL.md lines 10-48 (seven-slot tracker, candidate order, slot 6/7 semantics, announcement wording) and against the reference files: fallback-no-task-tool.md confirms the re-rendered in-chat checklist block plus state-file mirror under .prflow/tmp/, and degradation-routing.md's 'No task-tracking tool is exposed...' row confirms the degrade-and-continue behavior described in doc line 19/21. No misdescriptions found.\",\n  \"file_checked\": \"docs/internal/skills/create-issue.md:13-45, skills/create-issue/SKILL.md:10-48, skills/create-issue/references/fallback-no-task-tool.md, skills/create-issue/references/degradation-routing.md\",\n  \"property_proven\": true,\n  \"inaccuracy_scope\": \"none\"\n}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-27",
+    "category": "issue_acceptance",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "skills/create-issue/SKILL.md",
+    "verification_mode": "agent",
+    "claim": "(see run checklist)"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1698/local-20260814T181648Z-1/verdicts/iter-1/VC-27-z5w8n1.json",
+   "response_text": "```json\n{\n  \"id\": \"VC-27\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"Per CLAUDE.md's Commands tier ladder (rung 1), the local/interactive tier's whole-suite completion gate is a green required 'lib + python tests' CI reading for the pushed head. Read PR #1698 head via `gh pr view 1698 --json headRefOid` = 5c65bdf3c9a23f5eb2fd936ff2034be27c041d82 (full 40-char SHA). `gh run list --commit <that SHA>` shows a completed/success run (31827830166). `gh pr checks 1698` lists 'lib + python tests' by name with conclusion 'pass'. Re-read `gh pr view 1698 --json headRefOid` after the checks read and it still equals 5c65bdf3c9a23f5eb2fd936ff2034be27c041d82, so the reading is bound to a head that has not moved.\",\n  \"file_checked\": \"CLAUDE.md (Commands section, tier ladder rung 1); gh pr checks 1698\",\n  \"property_proven\": true,\n  \"inaccuracy_scope\": \"none\"\n}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-28",
+    "category": "issue_acceptance",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "skills/create-issue/SKILL.md",
+    "verification_mode": "agent",
+    "claim": "(see run checklist)"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1698/local-20260814T181648Z-1/verdicts/iter-1/VC-28-m4j7v2.json",
+   "response_text": "```json\n{\n  \"id\": \"VC-28\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"git diff --name-only origin/main...HEAD shows only .changeset/issue-1689-create-issue-tracker-ladder.md, docs/internal/skills/create-issue.md, skills/create-issue/SKILL.md, skills/create-issue/references/degradation-routing.md, skills/create-issue/references/fallback-no-task-tool.md \u2014 no .sh or .py file is touched. Per the claim's own stated condition, the lint AC is satisfied vacuously.\",\n  \"file_checked\": \"git diff --name-only origin/main...HEAD\",\n  \"property_proven\": true,\n  \"inaccuracy_scope\": \"none\"\n}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-29",
+    "category": "issue_acceptance",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": "skills/create-issue/SKILL.md",
+    "verification_mode": "agent",
+    "claim": "(see run checklist)"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1698/local-20260814T181648Z-1/verdicts/iter-1/VC-29-b2t9k6.json",
+   "response_text": "```json\n{\n  \"id\": \"VC-29\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"skills/create-issue/SKILL.md:11-26. Trace 1 (TodoWrite absent, TaskCreate/TaskUpdate present): line 12 says the agent picks 'only from candidates the runner lists as currently exposed', so TodoWrite (absent) is skipped and TaskCreate/TaskUpdate (present) is selected \u2014 this never reaches the 'no candidate appears in the visible tool list' branch (line 15, which requires none of the candidates to be present) nor the inline fallback (line 22-24, reserved for 'once every candidate is exhausted'). Trace 2 (tool list unestablished, TodoWrite call fails): line 13-14 says when visibility cannot be established, try candidates in the same order and 'treat a returned failure as the failure arm below'; the failure arm (lines 19-22) says a candidate call returning a failure gets a breadcrumb and the run 'carr[ies] on to the next rung ... so no rung of this ladder ends the run' \u2014 i.e. proceeds to TaskCreate/TaskUpdate rather than terminating. Both traces match the claim.\",\n  \"file_checked\": \"skills/create-issue/SKILL.md:6-26\",\n  \"property_proven\": true,\n  \"inaccuracy_scope\": \"none\"\n}\n```"
+  },
+  {
+   "item": {
+    "id": "VC-30",
+    "category": "api_contract",
+    "claim_provenance": "generated_paraphrase",
+    "source_file": ".changeset/issue-1689-create-issue-tracker-ladder.md",
+    "verification_mode": "agent",
+    "claim": "(see run checklist)"
+   },
+   "verdict_path": ".prflow/tmp/review/pr-1698/local-20260814T181648Z-1/verdicts/iter-1/VC-30-r8h3q5.json",
+   "response_text": "```json\n{\n  \"id\": \"VC-30\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"The file .changeset/issue-1689-create-issue-tracker-ladder.md contains frontmatter '---\\\\nbump: patch\\\\n---' followed by prose, matching the accepted contract in scripts/consolidate-changesets.py's _parse_changeset/_split_frontmatter (lines 123-185): requires a '---' fenced YAML mapping with a 'bump:' key whose value is one of VALID_BUMPS ('patch' qualifies). This is the repo-required form, not npm-style '\\\"prflow\\\": patch'. The only other file in .changeset/ is README.md, so the filename does not collide with any existing changeset.\",\n  \"file_checked\": \"scripts/consolidate-changesets.py:123-185\",\n  \"property_proven\": true,\n  \"inaccuracy_scope\": \"none\"\n}\n```"
+  }
+ ]
+}

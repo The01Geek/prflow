@@ -1,0 +1,319 @@
+{
+  "iter": 1,
+  "fix_commit_sha": "2946bd4ef63977769659ea4a3b2b7c3d4260a7c4",
+  "fix_files": [
+    "skills/create-issue/SKILL.md",
+    "docs/internal/skills/create-issue.md"
+  ],
+  "loop_role": "fix",
+  "current_step": "3.5",
+  "current_substep": null,
+  "pending_dispatch": null,
+  "sweep_defs_read": [
+    {
+      "path": "../implement/phases/phase-2-implement.md",
+      "read": "whole",
+      "sweeps": [
+        "2.0",
+        "2.1",
+        "2.2.4",
+        "2.2.5",
+        "2.2.6",
+        "2.2.7"
+      ]
+    },
+    {
+      "path": "../implement/phases/phase-2-sweeps-contract.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0",
+        "2.3.0a",
+        "2.3.0b",
+        "2.3.0c",
+        "2.3.0d"
+      ]
+    },
+    {
+      "path": "../implement/phases/phase-2-sweeps-quality.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.1",
+        "2.3.2",
+        "2.3.3",
+        "2.3.4",
+        "2.3.4a",
+        "2.3.4b",
+        "2.3.5",
+        "2.3.6",
+        "2.3.7"
+      ]
+    }
+  ],
+  "sweep_evidence": {
+    "status": "run",
+    "classification": "prose-only fix delta: relocated/reworded prose in one shipped skill body plus its internal-doc mirror; no code, no deletion, no enumerated-set membership change, no collection output",
+    "ran": [
+      "2.3.0",
+      "2.3.0c",
+      "2.3.3",
+      "2.3.4",
+      "2.3.4a",
+      "2.3.4b",
+      "2.3.5",
+      "2.3.6"
+    ],
+    "not_run": {
+      "2.3.1": "the fix delta deletes no code",
+      "2.3.2": "the fix delta deletes no method, file, route or page",
+      "2.3.0a": "the widened failure arm has no co-equal peer sites; it is stated once and the routing table is its consumer",
+      "2.3.0b": "no value added to an enumerated set",
+      "2.3.0d": "no member removed from an enumerated set; the announcement universal was SCOPED, and that scoping is itself the reconciliation this sweep would demand",
+      "2.3.7": "no collection output with ordering, dedup or aggregation logic"
+    },
+    "notes": "2.3.0 re-run after the Checkpoint-3 base merge auto-merged skills/create-issue/SKILL.md: main's arriving edit was the self-assignment election invariant, disjoint from the tracker mandate and Announcement; pin invariants re-verified. 2.3.4b: stale-prose-lint over the branch delta exited 0 with 3 UNRESOLVABLE rows (informational, never gating) and no STALE row."
+  },
+  "checklist_note": "Phase 1+2 ran this iteration; the 30-item checklist and its verdicts are recorded in the Phase 2 tallies (29 passed, 1 failed, 0 inconclusive; 2 lite, 28 agent). Per-item verdict files are retained under verdicts/iter-1/.",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "detect_all_audit": false,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "the 'first line of output on every path' universal conflicts with the skill's own unconditional load-failure breadcrumb rule",
+      "defect_signature": {
+        "file": "skills/create-issue/SKILL.md",
+        "line_range": [
+          46,
+          52
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "the 'on every path' universal is contradicted by the consumer-extension load-failure arm",
+      "defect_signature": {
+        "file": "skills/create-issue/SKILL.md",
+        "line_range": [
+          45,
+          52
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "a discovery-mechanism failure has no stated route and is excluded from the breadcrumb arm",
+      "defect_signature": {
+        "file": "skills/create-issue/SKILL.md",
+        "line_range": [
+          15,
+          20
+        ],
+        "kind": "unhandled_exception"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "the inline-fallback fall-through carries no disclosure obligation, so the degraded path reports as healthy",
+      "defect_signature": {
+        "file": "skills/create-issue/SKILL.md",
+        "line_range": [
+          20,
+          26
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "gating the announcement on tracker establishment removes the signal from the run it exists to expose",
+      "defect_signature": {
+        "file": "skills/create-issue/SKILL.md",
+        "line_range": [
+          46,
+          52
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "pushed_back"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "the folded fallback clause leaves a dangling appositive before the checklist colon",
+      "defect_signature": {
+        "file": "skills/create-issue/SKILL.md",
+        "line_range": [
+          10,
+          24
+        ],
+        "kind": "style"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "the colon introducing the checklist attaches to the fallback rung, and the mandate is one run-on carrying five rungs",
+      "defect_signature": {
+        "file": "skills/create-issue/SKILL.md",
+        "line_range": [
+          10,
+          31
+        ],
+        "kind": "other"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "the docs assert a corpus-wide uniqueness fact about the reference files that nothing pins",
+      "defect_signature": {
+        "file": "docs/internal/skills/create-issue.md",
+        "line_range": [
+          28,
+          28
+        ],
+        "kind": "comment_drift"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "2946bd4ef63977769659ea4a3b2b7c3d4260a7c4"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "2946bd4ef63977769659ea4a3b2b7c3d4260a7c4"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "2946bd4ef63977769659ea4a3b2b7c3d4260a7c4"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "applied",
+      "commit": "2946bd4ef63977769659ea4a3b2b7c3d4260a7c4"
+    },
+    {
+      "finding_id": "F-7",
+      "decision": "applied",
+      "commit": "2946bd4ef63977769659ea4a3b2b7c3d4260a7c4"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "pushed_back",
+      "source_file": "skills/create-issue/SKILL.md",
+      "claim_text": "gating the announcement on tracker establishment removes the always-visible signal from the run the announcement exists to expose",
+      "skip_category": "claim-quality",
+      "evidence": "the driving issue's acceptance criterion mandates exactly this ordering; and no rung ends the run, so every path reaches an established tracker (the inline fallback counts as established the moment the run settles on it)",
+      "parking_evidence": {
+        "basis": "the prescription contradicts an in-scope acceptance criterion, and the failure mode it names is closed by the ladder's own no-rung-ends-the-run property",
+        "failing_input": "a session where every candidate is unavailable and the run reaches the inline fallback",
+        "source": "skills/create-issue/SKILL.md — 'Once every candidate is exhausted, use the inline fallback' plus the Announcement section's 'On the inline-fallback path the tracker counts as established once the run has settled on that fallback'",
+        "finding_ref": {
+          "iter": 1,
+          "index": 4
+        }
+      }
+    },
+    {
+      "finding_id": "VC-4",
+      "decision": "pushed_back",
+      "source_file": "skills/create-issue/references/degradation-routing.md",
+      "claim_text": "removing 'seven' from the fallback-no-task-tool row does not break the #614 reconciliation",
+      "skip_category": "claim-quality",
+      "evidence": "the verifier read the post-change tree and misread the absence of 'seven' as a false premise; the diff hunk shows the removal, and the verifier's own reading of create-issue-contract.sh confirms no assertion pins that cell's wording",
+      "parking_evidence": {
+        "basis": "the verifier's evidence is correct in form but its premise-check inspected post-change state; the underlying property it was asked to test holds",
+        "failing_input": "the degradation-routing.md fallback-no-task-tool row after the count removal",
+        "source": "git diff of skills/create-issue/references/degradation-routing.md ('Track the seven checklist items' -> 'Track the checklist items'), plus lib/test/run-module.sh create-issue-contract at 326 passed / 0 failed",
+        "finding_ref": {
+          "iter": 1,
+          "index": 8
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 5,
+    "fix_diff_lines": 50,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "base_checkpoint": {
+    "token": "UPDATED",
+    "behind_by": 4
+  },
+  "stale_prose_check": {
+    "rows": [
+      "UNRESOLVABLE\tCU\tdocs/internal/skills/create-issue.md\t23\tcoverage-universal: recognition-only (every path)",
+      "UNRESOLVABLE\tCU\tskills/create-issue/SKILL.md\t50\tcoverage-universal: recognition-only (every path)",
+      "UNRESOLVABLE\tCU\tskills/create-issue/references/fallback-no-task-tool.md\t11\tcoverage-universal: recognition-only (no creation path)"
+    ],
+    "stale_count": 0,
+    "note": "exit 0; no STALE row. The two 'every path' rows are the announcement universal, grounded this iteration by SCOPING (the load-failure-breadcrumb exception clause). The fallback-no-task-tool row is unchanged pre-existing prose pulled in by an adjacent edit."
+  },
+  "verification_evidence": {
+    "command": "lib/test/run-module.sh create-issue-contract; lib/test/lint-reference-size.py; lib/test/lint-shipped-pruned-path.py; ruff check; lib/test/regenerate-artifacts.py",
+    "result": "pass",
+    "skipped_checks": [],
+    "note": "focused + lint verification on the post-fix and post-base-merge tree. The whole-suite gate for this repository's local/interactive tier is the CI reading for the pushed head, taken at Phase 4.3 on the run's final head; a green reading was already established for the pre-fix head 5c65bdf3c9a23f5eb2fd936ff2034be27c041d82."
+  },
+  "test_first_gate": [
+    {
+      "decision": "no-automated-test (model-context prose)",
+      "command": "subagent RED/GREEN micro-test over the fix delta; scenario = no candidate visible, no supplied listing, discovery mechanism called and errors",
+      "result": "pass",
+      "evidence": "RED (pre-fix candidate-scoped failure arm): quoted the breadcrumb trigger clause and concluded the discovery call falls outside it — 'Nothing in the text requires disclosing that the discovery call specifically failed'. GREEN (post-fix widened arm): quoted 'any call you make while walking these rungs returns a failure to the run — a candidate's or the discovery mechanism's', judged the failure 'falls squarely within it', and reported the breadcrumb as a disclosure obligation."
+    }
+  ],
+  "telemetry": "unavailable",
+  "synthesized": false
+}
