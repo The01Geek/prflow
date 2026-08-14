@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.80] — 2026-08-14
+
+### Changed
+create-issue: make `references/issue-template.md` the single canonical owner of the no-options vocabulary, its category structure, and its full carve-out set, and state the unconditional-acceptance-criterion rule in that same section. The always-loaded skill root, the deferral drafter, the retrospective-audit subagent, the clarification reference, and the main-pipeline degradation route now point at that canonical rule and carry only the compact semantic fallback used when the template cannot be read (PR #1697).
+
 ## [2.32.79] — 2026-08-14
 
 ### Changed
