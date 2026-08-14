@@ -1653,6 +1653,21 @@ class ManifestIngestionTest(unittest.TestCase):
         self.assertTrue(quality["passed"])
         self.assertTrue(quality["efficiency_eligible"])
 
+    def test_deeply_nested_rubric_has_stable_named_diagnostic(self):
+        positive = self._api("build_manifest_report")(self.manifest_path)
+        self.assertTrue(positive["runs"][0]["grade"]["assertions"])
+
+        def deeply_nested_rubric(_doc, root):
+            path = os.path.join(root, "rubrics", "quality.json")
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write("[" * 10000 + "0" + "]" * 10000)
+
+        path, _root = self._mutate_copied_manifest(deeply_nested_rubric)
+        with self.assertRaisesRegex(
+            ValueError, "invalid_rubric: baseline-vague-1"
+        ):
+            self._api("build_manifest_report")(path)
+
     def test_a_resumed_session_requires_its_own_explicit_benchmark_run_id(self):
         path = self._mutated_manifest(
             lambda doc: doc["runs"][1].pop("run_id")
@@ -1888,6 +1903,48 @@ class ManifestIngestionTest(unittest.TestCase):
                 self.assertEqual(
                     set(comparison["delta"].values()), {"unestablished"}
                 )
+
+    def test_deeply_nested_state_makes_all_semantics_and_comparison_unestablished(self):
+        positive = self._api("build_manifest_report")(self.manifest_path)
+        self.assertEqual(positive["comparison"]["status"], "established")
+        self.assertEqual(
+            positive["runs"][0]["audit_outcomes"]["status"], "established"
+        )
+
+        def deeply_nested_state(_doc, root):
+            path = os.path.join(root, "runs", "baseline", "audit-state.json")
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write("[" * 10000 + "0" + "]" * 10000)
+
+        path, _root = self._mutate_copied_manifest(deeply_nested_state)
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            report = self._api("build_manifest_report")(path)
+        baseline = next(
+            run for run in report["runs"] if run["configuration"] == "baseline"
+        )
+        outcomes = baseline["audit_outcomes"]
+        self.assertEqual(outcomes["status"], "unestablished")
+
+        def scalar_values(value):
+            if isinstance(value, dict):
+                for child in value.values():
+                    yield from scalar_values(child)
+            else:
+                yield value
+
+        semantic_axes = {
+            key: value for key, value in outcomes.items()
+            if key not in ("status", "diagnostic")
+        }
+        self.assertEqual(set(scalar_values(semantic_axes)), {"unestablished"})
+        self.assertEqual(report["comparison"]["status"], "unestablished")
+        self.assertEqual(
+            report["comparison"]["diagnostic"], "unestablished_run_state"
+        )
+        self.assertEqual(
+            set(report["comparison"]["delta"].values()), {"unestablished"}
+        )
 
     def test_symlinked_artifact_escaping_declared_root_is_rejected(self):
         path, root = self._copied_manifest()

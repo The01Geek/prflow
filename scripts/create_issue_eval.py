@@ -1774,7 +1774,11 @@ def _json_artifact(path):
     try:
         with open(path, "r", encoding="utf-8") as handle:
             return json.load(handle)
-    except (OSError, ValueError, TypeError):
+    # Match the legacy state's residual decoder boundary: deeply nested JSON raises
+    # RecursionError rather than ValueError, and no decoder failure may turn a
+    # manifest artifact into a traceback. Exception deliberately excludes process
+    # controls such as KeyboardInterrupt and SystemExit.
+    except Exception:  # noqa: BLE001 - malformed explicit artifacts fail closed
         return None
 
 
