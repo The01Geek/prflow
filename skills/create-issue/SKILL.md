@@ -13,17 +13,17 @@ not a documentation report. Before anything else, establish this seven-slot trac
 as currently exposed — `TodoWrite` first, then `TaskCreate`/`TaskUpdate`, then `update_plan` — and
 move to the next candidate whenever the one you tried is unavailable. When you cannot establish
 which tools are visible, try the candidates in that same order instead and treat a returned failure
-as the failure rung below. When no candidate appears in the visible tool list, first re-read any
+as the failure arm below. When no candidate appears in the visible tool list, first re-read any
 listing the runner already supplied of tools it has not yet exposed; failing that, look for a
 discovery mechanism the runner itself advertises — a listed tool whose stated purpose is to find
 and load tools the runner has not yet exposed — and use it to search for the candidates above,
 never as a candidate itself, before concluding that no task tool is available. When any call you
-make while walking these rungs returns a failure to the run — a candidate's or the discovery
-mechanism's — record a breadcrumb naming that failure and carry on to the next rung, the same
+make while walking these rungs returns a failure to the run — the discovery mechanism's call
+included — record a breadcrumb naming that failure and carry on to the next rung, the same
 degrade-and-continue arm the *Reference routing* rules below already define for a failed load, so
 no rung ends the run. Once every candidate is exhausted, use the inline fallback in
-`references/fallback-no-task-tool.md`, loaded per the *Reference routing* rules below — the route
-this skill takes
+`references/fallback-no-task-tool.md`, loaded per the *Reference routing* rules below
+— the route this skill takes
 when the runner exposes no task-tracking tool or the exposed one is disabled or unusable.
 
 The seven slots:
@@ -47,8 +47,8 @@ successful creation: it is the post-creation hand-off, not a gate on creating th
 ## Announcement
 
 Emit the announcement only once a tracker is established, and emit it as the run's first line of
-output on every path, save for a load-failure breadcrumb the *Reference routing* rules require at
-the moment the load fails — it names this skill and confirms the seven tracked slots exist, for
+output on every path, save for a breadcrumb another rule here requires at the moment a load or a
+helper invocation fails — it names this skill and confirms the seven tracked slots exist, for
 example: "Running /prflow:create-issue; the seven-slot completion tracker is set up." On the
 inline-fallback path the tracker counts as established once the run has settled on that fallback;
 name that fallback and the reason you reached it on the line after the announcement, then render
