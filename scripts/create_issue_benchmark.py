@@ -116,9 +116,12 @@ def load_benchmark_spec(path):
                 or not all(isinstance(value, str) and value for value in argv)):
             _error("invalid_argv", name)
         timeout_seconds = item.get("timeout_seconds")
+        # math.isfinite is load-bearing: subprocess.run(timeout=nan) never fires, so
+        # a NaN accepted here turns a declared limit into no limit at all.
         if timeout_seconds is not None and (
             not isinstance(timeout_seconds, (int, float))
             or isinstance(timeout_seconds, bool)
+            or not math.isfinite(timeout_seconds)
             or timeout_seconds <= 0
         ):
             _error("invalid_timeout_seconds", name)
@@ -539,6 +542,10 @@ def _evaluate_manifest(manifest_path):
     # every metric unestablished instead of naming the malformed manifest.
     if not isinstance(executions, list):
         _error("invalid_manifest", "executions is not a list")
+    # A list of non-objects reaches aggregate_benchmark's defensive normalization and
+    # degrades every metric silently, which is the outcome this guard exists to name.
+    if any(not isinstance(item, dict) for item in executions):
+        _error("invalid_manifest", "executions contains a non-object member")
     if manifest.get("runs"):
         evaluation = _EVAL.build_manifest_report(str(manifest_path))
     else:

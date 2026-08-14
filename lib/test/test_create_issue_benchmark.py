@@ -84,6 +84,38 @@ class SpecValidationTest(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, diagnostic):
                         BENCHMARK.load_benchmark_spec(path)
 
+    def test_a_non_finite_or_non_positive_timeout_is_refused(self):
+        """NaN is the load-bearing row: subprocess.run(timeout=nan) never fires."""
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "spec.json"
+            for label, bad in (
+                ("nan", float("nan")),
+                ("inf", float("inf")),
+                ("zero", 0),
+                ("negative", -1),
+                ("bool", True),
+                ("string", "30"),
+                ("object", {}),
+                ("array", []),
+            ):
+                with self.subTest(timeout_seconds=label):
+                    value = benchmark_spec()
+                    value["configurations"]["candidate"]["timeout_seconds"] = bad
+                    write_json(path, value)
+                    with self.assertRaisesRegex(ValueError, "invalid_timeout_seconds"):
+                        BENCHMARK.load_benchmark_spec(path)
+            # Positive controls: a real limit and an omitted one both load.
+            for label, good in (("finite", 30), ("float", 1.5), ("absent", None)):
+                with self.subTest(timeout_seconds=label):
+                    value = benchmark_spec()
+                    if good is not None:
+                        value["configurations"]["candidate"]["timeout_seconds"] = good
+                    write_json(path, value)
+                    spec = BENCHMARK.load_benchmark_spec(path)
+                    self.assertEqual(
+                        spec["configurations"]["candidate"]["timeout_seconds"], good
+                    )
+
     def test_paths_may_not_escape_declared_root_and_argv_must_be_a_string_list(self):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "spec.json"
@@ -152,6 +184,11 @@ class RunnerTest(unittest.TestCase):
                 ("zeta", 2, "baseline"), ("zeta", 2, "candidate"),
             ])
             self.assertEqual([item["duration_ms"] for item in manifest["executions"]], [1] * 8)
+            # Assert the shell-injection guard BEFORE the run-count assertion: under
+            # shell=True the count assertion aborts first and this one never runs.
+            # The provider runs with cwd=spec["root"], so the file would land there.
+            self.assertFalse((FIXTURE / "should-not-exist").exists())
+            self.assertFalse((Path.cwd() / "should-not-exist").exists())
             self.assertEqual(len(manifest["runs"]), 8)
             controlled_names = {
                 "PRFLOW_BENCHMARK_CONFIGURATION",
@@ -176,10 +213,6 @@ class RunnerTest(unittest.TestCase):
                 self.assertEqual(
                     "provider stderr\n", (output / execution["stderr"]).read_text()
                 )
-            # The provider runs with cwd=spec["root"], so a shell-interpreted argv
-            # would land the file THERE; asserting against Path.cwd() cannot fail.
-            self.assertFalse((FIXTURE / "should-not-exist").exists())
-            self.assertFalse((Path.cwd() / "should-not-exist").exists())
             for name in ("run-manifest.json", "benchmark.json", "benchmark.md", "review.json"):
                 self.assertTrue((output / name).is_file(), name)
 
@@ -351,8 +384,11 @@ class AggregationTest(unittest.TestCase):
         graded = BENCHMARK.aggregate_benchmark(fixture, complete)
         self.assertNotEqual(graded["diagnostic"], "incomplete_pairs")
 
-    def test_a_wrong_typed_executions_field_is_refused_not_raised(self):
-        """A non-list/non-object executions field takes the module's error exit."""
+    def test_a_wrong_typed_executions_field_degrades_rather_than_raising(self):
+        """aggregate_benchmark itself never raises on a wrong-typed executions field.
+
+        It returns an unestablished report; the CLI-level refusal is its sibling.
+        """
         fixture = json.loads(
             (FIXTURE / "historical-4-to-8.json").read_text(encoding="utf-8")
         )
@@ -367,15 +403,47 @@ class AggregationTest(unittest.TestCase):
                 self.assertEqual(report["diagnostic"], "incomplete_pairs")
 
     def test_a_wrong_typed_executions_field_exits_two_through_the_cli(self):
-        fixture = json.loads(
-            (FIXTURE / "historical-4-to-8.json").read_text(encoding="utf-8")
-        )
-        fixture["executions"] = "oops"
+        """The exit code alone does not attribute: pin the executions diagnostic.
+
+        The historical fixture fails an earlier `root` check, so asserting rc 2 on it
+        would pass with this guard deleted.
+        """
+        for label, value, expected in (
+            ("string", "oops", "executions is not a list"),
+            ("mapping", {"a": 1}, "executions is not a list"),
+            ("scalar-members", ["oops"], "executions contains a non-object member"),
+        ):
+            with self.subTest(executions=label):
+                with tempfile.TemporaryDirectory() as tmp:
+                    manifest = Path(tmp) / "manifest.json"
+                    manifest.write_text(json.dumps({
+                        "schema_version": 1,
+                        "benchmark_id": "b",
+                        "root": ".",
+                        "runs": [],
+                        "executions": value,
+                    }), encoding="utf-8")
+                    err = io.StringIO()
+                    with contextlib.redirect_stderr(err):
+                        code = BENCHMARK.main(["report", "--manifest", str(manifest)])
+                self.assertEqual(code, 2)
+                self.assertIn(expected, err.getvalue())
+        # Positive control: the same otherwise-valid manifest with a well-formed
+        # executions list is not refused, so the matrix cannot pass by refusing all.
         with tempfile.TemporaryDirectory() as tmp:
             manifest = Path(tmp) / "manifest.json"
-            manifest.write_text(json.dumps(fixture), encoding="utf-8")
-            code = BENCHMARK.main(["report", "--manifest", str(manifest)])
-        self.assertEqual(code, 2)
+            manifest.write_text(json.dumps({
+                "schema_version": 1,
+                "benchmark_id": "b",
+                "root": ".",
+                "runs": [],
+                "executions": [],
+            }), encoding="utf-8")
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                code = BENCHMARK.main(["report", "--manifest", str(manifest)])
+        self.assertEqual(code, 0)
+        self.assertNotIn("executions", err.getvalue())
 
     def test_historical_four_to_eight_findings_withholds_reduced_token_credit(self):
         fixture = json.loads(
