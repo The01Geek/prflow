@@ -2561,6 +2561,51 @@ class QualityRubricTest(unittest.TestCase):
         self.assertFalse(invented["passed"])
         self.assertEqual(invented["forbidden_failures"], 1)
 
+    def test_reproduction_facts_in_current_behavior_satisfy_the_contract(self):
+        """The shipped template records the reproduction facts inside `Current Behavior`.
+
+        It ships no reproduction-named heading, so a heading-name probe graded every
+        template-conforming bug report as missing the contract.
+        """
+        conforming = (
+            "# Fix stale cache\n\n"
+            "## Current Behavior\n"
+            "Refreshing an item leaves the previous value cached; readers observe "
+            "stale cache data where the refreshed value is expected.\n\n"
+            "## Acceptance Criteria\n"
+            "- Cache invalidation prevents stale cache reads.\n"
+            "- The change has a safe rollback.\n\n"
+            "## Testing Strategy\n- Reproduce the bug, then verify the fix.\n"
+        )
+        grade = self._api("grade_issue")(conforming, self.rubric)
+        texts = {a["text"]: a for a in grade["assertions"]}
+        assertion = texts["Bug reproduction contract present"]
+        self.assertTrue(assertion["passed"])
+        self.assertIn("current behavior", assertion["evidence"])
+        # Negative control: the same section without the declared evidence is absent,
+        # so a bare `Current Behavior` heading cannot pass the axis on its own.
+        featureish = conforming.replace(
+            "Refreshing an item leaves the previous value cached; readers observe "
+            "stale cache data where the refreshed value is expected.",
+            "Exports are unavailable today.",
+        )
+        bare = self._api("grade_issue")(featureish, self.rubric)
+        bare_texts = {a["text"]: a for a in bare["assertions"]}
+        self.assertFalse(bare_texts["Bug reproduction contract present"]["passed"])
+        self.assertEqual(
+            bare_texts["Bug reproduction contract present"]["evidence"], "absent"
+        )
+
+    def test_a_rubric_expecting_the_contract_with_no_evidence_is_refused(self):
+        rubric = dict(self.rubric, bug_reproduction_any_of=[])
+        with self.assertRaises(ValueError) as caught:
+            self._api("grade_issue")(self._complete_issue(), rubric)
+        self.assertIn("bug_reproduction_any_of", str(caught.exception))
+        missing = dict(self.rubric)
+        missing.pop("bug_reproduction_any_of")
+        with self.assertRaises(ValueError):
+            self._api("grade_issue")(self._complete_issue(), missing)
+
     def test_word_count_never_changes_grade_or_quality_gate(self):
         baseline = self._api("grade_issue")(
             self._complete_issue("\n" + "Background detail. " * 30),

@@ -19,5 +19,6 @@
   "required_sections": ["Acceptance Criteria", "Testing Strategy"],
   "forbidden_sections": ["Blocked"],
   "blocked_expected": false,
-  "bug_reproduction_expected": true
+  "bug_reproduction_expected": true,
+  "bug_reproduction_any_of": ["observe stale cache", "observe the stale cache"]
 }

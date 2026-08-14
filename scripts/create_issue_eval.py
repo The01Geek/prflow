@@ -276,6 +276,27 @@ def _heading_records(text):
     return lines, records
 
 
+def _section_extent(lines, records, position):
+    start, level, _name = records[position]
+    end = len(lines)
+    for next_start, next_level, _next_name in records[position + 1:]:
+        if next_level <= level:
+            end = next_start
+            break
+    return start, end
+
+
+def _section_bodies(lines, records):
+    """Section body text keyed by every alias its heading is recognized under."""
+    bodies = {}
+    for position in range(len(records)):
+        start, end = _section_extent(lines, records, position)
+        body = "\n".join(lines[start + 1:end])
+        for alias in _heading_aliases(records[position][2]):
+            bodies.setdefault(alias, []).append(body)
+    return {alias: "\n".join(parts) for alias, parts in bodies.items()}
+
+
 def _word_count(text):
     prose_lines = []
     for line in text.splitlines():
@@ -290,12 +311,8 @@ def measure_draft(text):
     normalized = _normalize_analysis_text(text)
     lines, headings = _heading_records(normalized)
     sections = {}
-    for position, (start, level, name) in enumerate(headings):
-        end = len(lines)
-        for next_start, next_level, _next_name in headings[position + 1:]:
-            if next_level <= level:
-                end = next_start
-                break
+    for position, (_start, level, name) in enumerate(headings):
+        start, end = _section_extent(lines, headings, position)
         body = "\n".join(lines[start + 1:end])
         metric = sections.setdefault(name, {
             "level": level,
@@ -594,7 +611,41 @@ def _validated_rubric(rubric):
     for key in ("blocked_expected", "bug_reproduction_expected"):
         if not isinstance(result.get(key), bool):
             raise ValueError("invalid_rubric: {} is not a boolean".format(key))
+    alternatives = result.get("bug_reproduction_any_of")
+    if (not isinstance(alternatives, list)
+            or not all(isinstance(value, str) and value.strip()
+                       for value in alternatives)):
+        raise ValueError("invalid_rubric: bug_reproduction_any_of is not a string list")
+    # A rubric expecting the contract but naming nothing to match would grade every
+    # draft as missing it, so refuse it rather than publish a never-satisfiable axis.
+    if result["bug_reproduction_expected"] and not alternatives:
+        raise ValueError("invalid_rubric: bug_reproduction_any_of is empty")
     return result
+
+
+# The shipped create-issue template records the reproduction facts as prose inside
+# `### Current Behavior` and ships no reproduction-named heading, so a heading-name
+# probe graded every conforming bug report as missing the contract. Recognize the
+# contract by its rubric-declared evidence in whichever of these sections carries it.
+_REPRODUCTION_SECTIONS = (
+    "current behavior",
+    "reproduction",
+    "reproduction steps",
+    "bug reproduction",
+)
+
+
+def _reproduction_match(section_bodies, alternatives):
+    """The (section, alternative) the reproduction contract is evidenced by, or None."""
+    for section in _REPRODUCTION_SECTIONS:
+        body = section_bodies.get(section)
+        if body is None:
+            continue
+        folded = " ".join(body.split()).casefold()
+        for alternative in alternatives:
+            if " ".join(alternative.split()).casefold() in folded:
+                return (section, alternative)
+    return None
 
 
 def _grade_assertion(text, passed, evidence):
@@ -606,7 +657,7 @@ def grade_issue(text, rubric):
     rubric = _validated_rubric(rubric)
     normalized = _normalize_analysis_text(text)
     searchable = " ".join(normalized.split()).casefold()
-    _lines, heading_records = _heading_records(normalized)
+    lines, heading_records = _heading_records(normalized)
     headings = set()
     for _index, _level, name in heading_records:
         headings |= _heading_aliases(name)
@@ -659,16 +710,21 @@ def grade_issue(text, rubric):
         blocked_passed,
         "present" if blocked_present else "absent",
     ))
-    reproduction_present = bool(
-        headings.intersection({"reproduction", "reproduction steps", "bug reproduction"})
+    reproduction_match = _reproduction_match(
+        _section_bodies(lines, heading_records), rubric["bug_reproduction_any_of"]
     )
-    reproduction_passed = reproduction_present == rubric["bug_reproduction_expected"]
+    reproduction_passed = (
+        (reproduction_match is not None) == rubric["bug_reproduction_expected"]
+    )
     assertions.append(_grade_assertion(
         "Bug reproduction contract {}".format(
             "present" if rubric["bug_reproduction_expected"] else "absent"
         ),
         reproduction_passed,
-        "present" if reproduction_present else "absent",
+        "absent" if reproduction_match is None else
+        "matched {!r} in section {!r}".format(
+            reproduction_match[1], reproduction_match[0]
+        ),
     ))
     passed_count = sum(1 for assertion in assertions if assertion["passed"])
     return {
