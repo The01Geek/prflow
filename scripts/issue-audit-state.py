@@ -5637,10 +5637,9 @@ def cmd_record_dispatch(args):
         # resolutions over exactly such a round. Unguarded, an accepted pass would
         # increment BOTH counters and hand the run a phantom third round the widened
         # funding test then admits with no offer behind it.
-        # `targeted_return_unusable` is recorded BESIDE `outcome`, so an unusable targeted
-        # round whose terminal token is REVISE would otherwise satisfy this branch and pay
-        # for a CONFIRMATION out of the automatic pool — leaving `confirming_rounds_used`
-        # at 0, so the exhaustion -> boundary-election transition never becomes reachable.
+        # `targeted_return_unusable` sits BESIDE `outcome`, so without the third clause an
+        # unusable targeted REVISE pays for a CONFIRMATION out of the automatic pool,
+        # leaving `confirming_rounds_used` at 0 and the boundary election unreachable.
         if (not final_byte_pass
                 and prev is not None and prev.get('outcome') == 'REVISE'
                 and not _targeted_confirmation_needed(prev)

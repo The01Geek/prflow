@@ -28309,9 +28309,8 @@ assert_eq("#1675: unusable targeted REVISE uses one predicate for scheduling and
            _m793._targeted_confirmation_needed(_1675_revise_funding)))
 
 # Issue #1675: the same dead-end grading as `_d6b` above, for the REVISE terminal shape.
-# Driven end to end through the real CLI, because only the round-trip catches the funding
-# branch spending the AUTOMATIC pool (prev outcome REVISE) on a round `next_action`
-# scheduled as a CONFIRMATION.
+# Drive it end to end through the real CLI — a unit-level predicate assertion does not
+# catch the funding branch spending the AUTOMATIC pool on a scheduled CONFIRMATION.
 _r7, _scope7, _draft7 = _793_scoped_round(_793_tds)
 _d7 = _793_dispatch_scoped(_r7, _scope7, _draft7)
 _dig7 = _d7.stdout.split('digest=', 1)[1].split()[0]
@@ -28330,10 +28329,10 @@ assert_eq("#1675: ... and next_action schedules the confirming whole-draft round
           "unusable REVISE return",
           True, 'confirm-whole-draft' in _na7.stdout)
 
-# Re-fund round 2 from the user-chosen pool instead of the automatic one, so the
-# confirming round below opens with the automatic budget INTACT. That is the state the
-# funding branches actually disagree on: with the automatic pool already spent, its guard
-# masks the wrong-pool selection and the round funds correctly by accident.
+# Open the confirming round with the automatic budget INTACT — the state a
+# `final_byte_pass`-funded predecessor produces, since that pass suppresses the derived
+# automatic spend. Seeding it is required: with the pool already spent its own guard masks
+# the wrong-pool selection and the round funds correctly by accident.
 _p7 = Path(_r7.tmp, '.prflow', 'tmp', f'issue-audit-state-{_r7.slug}.json')
 _seed7 = json.loads(_p7.read_text(encoding='utf-8'))
 _seed7['automatic_reaudits_used'] = 0
