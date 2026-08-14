@@ -221,9 +221,13 @@ class ProviderLaunchFailureTest(unittest.TestCase):
                 {item["status"] for item in control["executions"]}, {"succeeded"}
             )
 
+            # Do not inline this into both the side_effect and the assertion below:
+            # a second spelling makes the assertion a source-literal presence pin the
+            # issue-810 mutation-routing gate reports, instead of a round-trip check.
+            strerror = "Exec format error"
             with unittest.mock.patch.object(
                 BENCHMARK.subprocess, "run",
-                side_effect=OSError(8, "Exec format error"),
+                side_effect=OSError(8, strerror),
             ):
                 manifest = BENCHMARK.run_benchmark(spec_path, output / "failed")
 
@@ -235,7 +239,7 @@ class ProviderLaunchFailureTest(unittest.TestCase):
                 recorded = (output / "failed" / execution["error"]).read_text(
                     encoding="utf-8")
                 self.assertIn("provider_launch_error", recorded)
-                self.assertIn("Exec format error", recorded)
+                self.assertIn(strerror, recorded)
 
 
 class AggregationTest(unittest.TestCase):
