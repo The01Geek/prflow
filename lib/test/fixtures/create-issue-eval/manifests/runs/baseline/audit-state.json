@@ -1,0 +1,10 @@
+{
+  "rounds": [
+    {
+      "round": 1,
+      "kind": "discovery",
+      "kind_reason": "whole_draft_check",
+      "findings": []
+    }
+  ]
+}

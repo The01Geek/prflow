@@ -11,6 +11,7 @@ test can witness it). Driven serially from lib/test/run.sh.
 """
 
 import contextlib
+import copy
 import importlib.util
 import io
 import json
@@ -23,7 +24,9 @@ import unittest.mock
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _REPO = os.path.abspath(os.path.join(_HERE, "..", ".."))
 _EVAL_PATH = os.path.join(_REPO, "scripts", "create-issue-context-eval.py")
+_MODULAR_EVAL_PATH = os.path.join(_REPO, "scripts", "create_issue_eval.py")
 _FIX = os.path.join(_HERE, "fixtures", "create-issue-eval")
+_MANIFEST_FIX = os.path.join(_FIX, "manifests")
 
 
 def _load_module(name, path):
@@ -1553,6 +1556,202 @@ class PairedDeltaDegradedChannelsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as empty:
             _runs, skipped = CICE.eval_corpus(empty)
         self.assertEqual(set(skipped), set(self._CHANNELS))
+
+
+class ManifestIngestionTest(unittest.TestCase):
+    def setUp(self):
+        self.manifest_path = os.path.join(_MANIFEST_FIX, "two-occurrences.json")
+
+    def _api(self, name):
+        self.assertTrue(
+            hasattr(CICE, name),
+            "create-issue evaluator is missing the required {} API".format(name),
+        )
+        return getattr(CICE, name)
+
+    def _mutated_manifest(self, mutate):
+        with open(self.manifest_path, encoding="utf-8") as fh:
+            doc = json.load(fh)
+        doc["root"] = _MANIFEST_FIX
+        mutate(doc)
+        temp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False)
+        self.addCleanup(lambda: os.path.exists(temp.name) and os.unlink(temp.name))
+        with temp:
+            json.dump(doc, temp)
+        return temp.name
+
+    def test_modular_analyzer_exports_the_legacy_and_manifest_interfaces(self):
+        self.assertTrue(
+            os.path.isfile(_MODULAR_EVAL_PATH),
+            "scripts/create_issue_eval.py does not exist",
+        )
+        module = _load_module("create_issue_eval", _MODULAR_EVAL_PATH)
+        for name in (
+            "RunAccumulator",
+            "eval_corpus",
+            "read_state",
+            "aggregate",
+            "render_text",
+            "load_eval_manifest",
+            "build_manifest_report",
+        ):
+            self.assertTrue(hasattr(module, name), name)
+            self.assertTrue(hasattr(CICE, name), "legacy import surface lost {}".format(name))
+
+    def test_event_bounds_split_two_occurrences_and_join_each_runs_state(self):
+        report = self._api("build_manifest_report")(self.manifest_path)
+        self.assertEqual(report["schema_version"], 1)
+        self.assertEqual(report["benchmark_id"], "two-occurrences")
+        self.assertEqual([run["run_id"] for run in report["runs"]], [
+            "baseline-vague-1",
+            "candidate-vague-1",
+        ])
+        self.assertEqual([run["peak_context"] for run in report["runs"]], [10, 100])
+        self.assertEqual(report["runs"][0]["round_kinds"], {1: "discovery"})
+        self.assertEqual(report["runs"][1]["round_kinds"], {1: "targeted"})
+        self.assertEqual(
+            [run["occurrence"]["occurrence_id"] for run in report["runs"]],
+            ["create-issue-1", "create-issue-2"],
+        )
+        self.assertEqual(report["comparison"]["status"], "established")
+        self.assertIsNone(report["comparison"]["diagnostic"])
+
+    def test_a_resumed_session_requires_its_own_explicit_benchmark_run_id(self):
+        path = self._mutated_manifest(
+            lambda doc: doc["runs"][1].pop("run_id")
+        )
+        with self.assertRaisesRegex(ValueError, "missing_run_id"):
+            self._api("load_eval_manifest")(path)
+
+    def test_manifest_validation_fails_closed_with_named_diagnostics(self):
+        cases = {
+            "duplicate_run_id": lambda doc: doc["runs"].append(
+                copy.deepcopy(doc["runs"][0])
+            ),
+            "missing_occurrence_identity": lambda doc: doc["runs"][0][
+                "occurrence"
+            ].pop("occurrence_id"),
+            "path_escape": lambda doc: doc["runs"][0].__setitem__(
+                "transcript", "../escaped.jsonl"
+            ),
+            "missing_artifact": lambda doc: doc["runs"][0]["checkpoints"].__setitem__(
+                "final", "runs/baseline/missing-final.md"
+            ),
+            "unsupported_schema_version": lambda doc: doc.__setitem__(
+                "schema_version", 2
+            ),
+        }
+        for diagnostic, mutate in cases.items():
+            with self.subTest(diagnostic=diagnostic):
+                path = self._mutated_manifest(mutate)
+                with self.assertRaisesRegex(ValueError, diagnostic):
+                    self._api("load_eval_manifest")(path)
+
+    def test_mixed_pair_provenance_is_unestablished(self):
+        path = self._mutated_manifest(
+            lambda doc: doc["runs"][1]["provenance"].__setitem__(
+                "provider", "different-provider"
+            )
+        )
+        comparison = self._api("build_manifest_report")(path)["comparison"]
+        self.assertEqual(comparison["status"], "unestablished")
+        self.assertEqual(comparison["diagnostic"], "mixed_provenance")
+        self.assertTrue(comparison["delta"])
+        self.assertEqual(set(comparison["delta"].values()), {"unestablished"})
+
+    def test_forward_compatible_metadata_survives_without_changing_identity(self):
+        def add_metadata(doc):
+            doc["future_manifest_note"] = "preserve-me"
+            run = doc["runs"][0]
+            run["future_run_note"] = "preserve-me"
+            run["occurrence"]["future_boundary_note"] = "preserve-me"
+            run["checkpoints"]["future_checkpoint_note"] = "preserve-me"
+            run["provenance"]["future_provenance_note"] = "preserve-me"
+
+        loaded = self._api("load_eval_manifest")(
+            self._mutated_manifest(add_metadata)
+        )
+        run = loaded["runs"][0]
+        self.assertEqual(loaded["future_manifest_note"], "preserve-me")
+        self.assertEqual(run["run_id"], "baseline-vague-1")
+        self.assertEqual(run["future_run_note"], "preserve-me")
+        self.assertEqual(run["occurrence"]["future_boundary_note"], "preserve-me")
+        self.assertEqual(run["checkpoints"].get("future_checkpoint_note"), "preserve-me")
+        self.assertEqual(run["provenance"]["future_provenance_note"], "preserve-me")
+
+
+class LegacyMultiRunStateSafetyTest(unittest.TestCase):
+    def _corpus(self, root, name, peak):
+        os.makedirs(root, exist_ok=True)
+        _write(root, name, [
+            json.dumps({
+                "type": "assistant",
+                "attributionSkill": "devflow:create-issue",
+                "message": {
+                    "usage": {"input_tokens": peak},
+                    "content": [{
+                        "type": "tool_use",
+                        "id": "dispatch-{}".format(name),
+                        "name": "Bash",
+                        "input": {
+                            "command": "issue-audit-state.py record-dispatch --round 1"
+                        },
+                    }],
+                },
+            }),
+            json.dumps({
+                "type": "assistant",
+                "isSidechain": True,
+                "attributionSkill": "devflow:create-issue",
+                "message": {"usage": {"input_tokens": 1}},
+            }),
+        ])
+
+    def test_one_state_file_is_not_reused_across_multiple_legacy_runs(self):
+        with tempfile.TemporaryDirectory() as root:
+            before = os.path.join(root, "before")
+            after = os.path.join(root, "after")
+            for corpus, peaks in ((before, (10, 20)), (after, (30, 40))):
+                for index, peak in enumerate(peaks, 1):
+                    self._corpus(corpus, "run-{}.jsonl".format(index), peak)
+            state = os.path.join(root, "state.json")
+            with open(state, "w", encoding="utf-8") as fh:
+                json.dump({"rounds": [{
+                    "round": 1,
+                    "kind": "targeted",
+                    "kind_reason": "high_signal_finding",
+                    "findings": [{"id": 1}],
+                }]}, fh)
+
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                report = CICE.build_paired_report(
+                    before, after, state, state, large_block_chars=500
+                )
+
+        self.assertEqual(
+            [run["peak_context"] for run in report["before"]["runs"]], [10, 20]
+        )
+        for side in ("before", "after"):
+            self.assertFalse(report[side]["summary"]["state_established"])
+            for run in report[side]["runs"]:
+                self.assertEqual(run["round_kinds"], {1: "unestablished"})
+        self.assertEqual(report["delta"]["finding_count"], "unestablished")
+        self.assertIn("unsafe_multi_run_state_join", err.getvalue())
+
+
+class LegacyCliCompatibilityTest(unittest.TestCase):
+    def test_raw_directory_json_keeps_the_legacy_top_level_shape(self):
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            rc = CICE.main([
+                os.path.join(_FIX, "after"),
+                "--format",
+                "json",
+            ])
+        self.assertEqual(rc, 0)
+        self.assertEqual(set(json.loads(out.getvalue())), {"runs", "summary", "skipped"})
+        self.assertEqual(err.getvalue(), "")
 
 
 if __name__ == "__main__":

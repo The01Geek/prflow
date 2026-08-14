@@ -294,6 +294,11 @@
       "note": "issue #767 create-issue runtime-context eval; tested directly by lib/test/test_create_issue_context_eval.py (serial)",
       "owner": "unmodularized"
     },
+    "scripts/create_issue_eval.py": {
+      "focused_test": "lib/test/test_create_issue_context_eval.py",
+      "note": "run-addressable create-issue evaluator module; tested directly by lib/test/test_create_issue_context_eval.py (serial)",
+      "owner": "unmodularized"
+    },
     "scripts/dead-run-verdict-present.sh": {
       "note": "issue #1172: the verdict-presence gate for devflow.yml's dead-run flip step; reuses derive-review-verdict.sh and is driven per arm (both-channels + truly-absent) in the #1172 section of lib/test/modules/review-trigger-helpers.sh",
       "owner": "review-trigger-helpers"

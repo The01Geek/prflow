@@ -1,0 +1,12 @@
+{
+  "rounds": [
+    {
+      "round": 1,
+      "kind": "targeted",
+      "kind_reason": "high_signal_finding",
+      "findings": [
+        {"id": 1, "status": "unresolved"}
+      ]
+    }
+  ]
+}
