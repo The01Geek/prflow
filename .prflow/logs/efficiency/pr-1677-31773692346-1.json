@@ -123,5 +123,82 @@
       "iter": 5,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.72",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 26.87458634999998,
+    "tokens": {
+      "input_tokens": 635,
+      "output_tokens": 73310,
+      "cache_read_input_tokens": 12951485,
+      "cache_creation_input_tokens": 309657,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 716,
+        "outputTokens": 124435,
+        "cacheReadInputTokens": 15627928,
+        "cacheCreationInputTokens": 943880,
+        "webSearchRequests": 0,
+        "costUSD": 17.988882750000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 361,
+        "outputTokens": 61615,
+        "cacheReadInputTokens": 8026527,
+        "cacheCreationInputTokens": 1480650,
+        "webSearchRequests": 0,
+        "costUSD": 8.885703600000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 100,
+    "duration_ms": 1380885
+  },
+  "permission_denials": {
+    "count": 17,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-unset} ATTEMPT=${GITHUB_RUN_ATTEMPT:-unset}\"; git status --porcelain",
+      "mkdir -p .prflow/tmp/review/pr-1677/31773692346-1\ngh pr diff 1677 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1677/31773692346-1/diff.patch | tail -5\necho \"diff-rc=${PIPESTATUS[0]}\"",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve \"1675\" --pr \"1677\" 2>.prflow/tmp/review/pr-1677/31773692346-1/acs.err ; echo \"acs-rc=$?\"",
+      ".prflow/vendor/prflow/scripts/resolve-review-overrides.py \"prflow:checklist-generator\" 2>&1; echo \"ovr-rc=$?\"\necho \"=== slices ===\"\nawk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1677/31773692346-1/diff.patch > .prflow/tmp/review/pr-1677/31773692346-1/batch-1.patch && test -s .prflow/tmp/review/pr-1677/31773692346-1/batch-1.patch && echo \"slice-ok: batch-1\" || echo \"slice-failed: batch-1\"\nawk -v s=11 -v e=20 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1677 …[per-command-truncated]",
+      "awk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1677/31773692346-1/diff.patch > .prflow/tmp/review/pr-1677/31773692346-1/batch-1.patch",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1677/31773692346-1/verdicts/iter-0\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1677/31773692346-1/verdicts/iter-0/VC-3-n3c.json << 'EOF'\n{\n  \"id\": \"VC-3\",\n  \"verdict\": \"FAIL\",\n  \"evidence\": \"scripts/post-issue-comment.sh:28-29 reads args with ${1:?...}/${2:?...}, NOT ${1-}/${2-}. Under `set -uo pipefail` (line 20), a missing $1 or $2 triggers bash's own parameter-expansion error, which prints the given message to stde …[per-command-truncated]",
+      "mkdir -p \"/home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1677/31773692346-1/verdicts/iter-0\"\ncat > \"/home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1677/31773692346-1/verdicts/iter-0/VC-5-n5e.json\" << 'EOF'\n{\n  \"id\": \"VC-5\",\n  \"verdict\": \"FAIL\",\n  \"evidence\": \"skills/create-issue/references/step-4-present-create.md lines 51-55 handle the exhausted-AC-rewrite case solely by rendering the token 'acceptance criteria count unavailable' in the summary line, and line 51 explicitly states  …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1677/31773692346-1/verdicts/iter-0\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1677/31773692346-1/verdicts/iter-0/VC-8-n8h.json << 'EOF'\n{\n  \"id\": \"VC-8\",\n  \"verdict\": \"FAIL\",\n  \"evidence\": \"The claim asserts helper predicates named _targeted_confirmation_needed and _targeted_return_unusable exist and are consumed by next_action, evaluate_triggers, and cmd_record_dispatch. Grep across scripts/issue-audit-state.py find …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1677/31773692346-1/verdicts/iter-0\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1677/31773692346-1/verdicts/iter-0/VC-7-n7g.json << 'EOF'\n{\n  \"id\": \"VC-7\",\n  \"verdict\": \"FAIL\",\n  \"evidence\": \"The claim asserts that lib/test/modules/create-issue-contract.sh (with lib/test/test_python_scripts.py / lib/test/run.sh) contains new #1675 executable tests exercising: (1) a corrected missing-arg helper behavior for post-issue-c …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1677/31773692346-1/verdicts/iter-0\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1677/31773692346-1/verdicts/iter-0/VC-6-n6f.json << 'EOF'\n{\n  \"id\": \"VC-6\",\n  \"verdict\": \"FAIL\",\n  \"evidence\": \"scripts/issue-audit-state.py:5982 sets rnd['targeted_return_unusable'] = True but this field is never read anywhere else in the file (single grep hit). It does not participate in next_action (lines 3793-3833, which branches only o …[per-command-truncated]",
+      "mkdir -p \"/home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1677/31773692346-1/verdicts/iter-0\"\ncat > \"/home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1677/31773692346-1/verdicts/iter-0/VC-4-n4d.json\" << 'EOF'\n{\n  \"id\": \"VC-4\",\n  \"verdict\": \"FAIL\",\n  \"evidence\": \"docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md:831 and skills/create-issue/references/step-3-5-steelman.md:28 both explicitly state the gate's operand is 'the emptiness of the acceptance_criteria array in that JSON output — nothing  …[per-command-truncated]",
+      "for f in fallback-audit-boundary-offer.md fallback-read-only-sandbox.md issue-template.md step-3-5-steelman.md step-3-6-audit.md step-4-present-create.md; do echo \"=== $f ===\"; grep -nE \"docs/internal|docs/external|lib/test|\\.prflow/vendor|pruned-path-ok\" \"skills/create-issue/references/$f\"; done",
+      "python3 lib/test/lint-shipped-pruned-path.py 2>&1 | tail -50; echo EXIT:$?",
+      "python3 lib/test/lint-shipped-pruned-path.py > /tmp/out.txt 2>&1; echo \"EXIT:$?\"; cat /tmp/out.txt | tail -60",
+      "git -C /home/runner/work/prflow/prflow diff --stat HEAD~1 -- skills/create-issue/references/ 2>/dev/null | tail -10",
+      "SNAP=$(git status --porcelain); echo \"before-snapshot: [${SNAP}]\"; echo \"head: $(git rev-parse HEAD)\"",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review 2>/dev/null | head -50; echo \"---EXIT:${PIPESTATUS[0]}---\""
+    ],
+    "total": 17,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
