@@ -965,6 +965,36 @@ matcher-denied on cloud, where the recap rides in the runner log instead). The r
 preserves `run.sh`'s exit status, so `scripts/verification-flight.py` still records
 `failed` for a RED suite; on a clean run nothing extra prints.
 
+## PR-body composition: two writers and the provenance line (issue #1655)
+
+A `/prflow:implement` PR body has **two distinct writers**, and both must be understood together
+because the second regenerates over the first's output:
+
+- **Phase 3.1 (the draft-PR create fence)** is the sole author of the **provenance line** —
+  `Generated via /prflow:implement (v<version>[, <model>][, <effort>])`. The line is rendered by
+  the bundled helper `scripts/render-pr-provenance-line.py` in its own fence and substituted into
+  the `gh pr create --body` as a literal, because each phase fence is a separate shell and the
+  create fence must stay a single statement. The helper resolves the **version** from the plugin
+  manifest beside itself (mirroring `lib/efficiency-trace.sh`), the **model** from the most-recent
+  assistant record of the session transcript (never the `resolvedModel` field, which names a
+  dispatched subagent's model), and the **effort** from `CLAUDE_EFFORT`; any value it cannot
+  establish is omitted with a stderr breadcrumb rather than guessed, so a cloud run — which has no
+  model or effort source — renders the version alone. The line carries no backtick and no other
+  shell-active construct by construction, so nothing in it can reach the double-quoted `--body` it
+  is substituted into. This writes only on the **CREATE** arm; a resumed run that adopts an
+  existing PR leaves the body untouched. The provenance line is gated by the config key
+  `prflow_implement.publish_model_effort` (default `true`; an explicit JSON `false` suppresses the
+  model+effort clause while the version is always emitted), read at run time from the working tree
+  so the value is live in the same run (it is absent from the trigger-time extract step of
+  `devflow-implement.yml`).
+- **Phase 4.2 (`skills/pr-description/SKILL.md`)** authors the rest of the body — the summary,
+  `Resolves #N`, acceptance-criteria and test-plan sections — and **regenerates** it late in the
+  run. Before issue #1655 the provenance line survived that regeneration only by accident, as
+  unnamed pre-marker content the regenerator happened to re-emit. `skills/pr-description/SKILL.md`
+  now carries an explicit rule naming the provenance line, so it is **preserved deliberately across
+  Phase 4.2 regeneration** rather than by luck — the line is present in the PR body after the
+  regeneration.
+
 ## Phase 3.1.1 assigns the draft PR to the triggering user (issue #1165)
 
 Immediately after Phase 3.1's **CREATE** path opens a draft PR, the engine best-effort-assigns it to the developer who triggered the run, so reviewers can read ownership from the standard GitHub assignee field. This runs on the **CREATE arm only** — the **ADOPT** path (a resumed run whose PR a prior attempt created) skips it entirely and leaves the existing PR's assignees untouched.
