@@ -18,7 +18,7 @@ The gate scans the whole body except the `## 🚫 Blocked` section, and **three 
 
 If drafting surfaces any of these, you have an unresolved decision. Resolve it with the user, or — only if the user has disengaged — move it verbatim into the Blocked section; never leave it as prose in the body.
 
-Every acceptance criterion is **one concrete, unconditional assertion**. A criterion that needs a conditional ("if links are public…") hides an unresolved fork — resolve the fork, never ship the conditional.
+Every acceptance criterion is **one concrete, unconditional assertion**; a conditional criterion hides an unresolved fork — resolve the fork rather than shipping the conditional.
 
 ## Brief / investigation-record routing (decided rule — sort as you draft)
 
