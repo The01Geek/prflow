@@ -21,7 +21,16 @@ establishes two facts:
 | Fact | What it asks | How it is measured | Confidence |
 |---|---|---|---|
 | **(i) forwarding** | Does `claude-code-action` forward a startup `--agents` JSON from `claude_args`, so a subagent type defined only there is dispatchable? | **Deterministic.** The agent-definition makes the subagent emit `SEAM_PROBE_FORWARDED_OK`, which can appear in the execution file only if the block was forwarded and the type recognized. | High — a harness-recorded `tool_use`. |
-| **(ii) governance** | Does an `effort` on that startup agent-definition govern the reasoning effort of a runtime Agent-tool dispatch of that subagent type? | **Not auto-measurable.** Effort is not a harness-recorded field, so the only signal is the subagent's own `SEAM_PROBE_EFFORT=<effort>` self-report. A `low` self-report (vs. the session's `high`) is evidence for fact (ii). | Low — model self-report; must be **adjudicated by a human**. |
+| **(ii) governance** | Does an `effort` on that startup agent-definition govern the reasoning effort of a runtime Agent-tool dispatch of that subagent type? | **Not auto-measurable.** At **this cloud per-agent seam** effort is not a harness-recorded field, so the only signal is the subagent's own `SEAM_PROBE_EFFORT=<effort>` self-report. A `low` self-report (vs. the session's `high`) is evidence for fact (ii). | Low — model self-report; must be **adjudicated by a human**. |
+
+**Scope of the "not a harness-recorded field" claim.** That statement is about **this cloud
+per-agent seam only** — a runtime Agent-tool dispatch's per-agent effort, which no harness field
+records, so the probe must fall back to a model self-report. It is **not** a claim that effort is
+unreadable everywhere: on the **local/interactive tier** the session's own effort *is* exposed to a
+process through the `CLAUDE_EFFORT` environment variable, which `scripts/render-pr-provenance-line.py`
+reads directly to name the effort in an implement PR's provenance line (issue #1655). The two are
+different questions — a per-agent override at a cloud dispatch versus the local session's own effort —
+and only the former is what this probe finds unmeasurable.
 
 ## Decision rule
 

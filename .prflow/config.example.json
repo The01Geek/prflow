@@ -19,6 +19,7 @@
     "implement_pr_state": "ready_for_review",
     "allowed_tools": [],
     "update_branch_checkpoints": true,
+    "publish_model_effort": true,
     "stall_backstop": {
       "enabled": true,
       "max_resume_attempts": 2
