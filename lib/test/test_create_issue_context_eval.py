@@ -2517,6 +2517,28 @@ class QualityRubricTest(unittest.TestCase):
             + extra
         )
 
+    def test_a_decorated_blocked_heading_is_recognized_as_the_blocked_section(self):
+        """The shipped template writes `## 🚫 Blocked — resolve...`, not `## Blocked`.
+
+        Matching the bare literal made both Blocked axes inert against every issue
+        the create-issue skill actually produces.
+        """
+        decorated = self._complete_issue(
+            "\n## \N{NO ENTRY SIGN} Blocked \N{EM DASH} resolve before implementation\n"
+            "- Waiting on the cache owner.\n"
+        )
+        grade = self._api("grade_issue")(decorated, self.rubric)
+        texts = {a["text"]: a["passed"] for a in grade["assertions"]}
+        self.assertFalse(texts["Forbidden section absent: Blocked"])
+        self.assertFalse(texts["Blocked section absent"])
+        self.assertEqual(grade["forbidden_section_failures"], 1)
+        # Positive control: the same rubric on an issue with no Blocked section
+        # still passes both, so the matrix cannot pass by failing everything.
+        clean = self._api("grade_issue")(self._complete_issue(), self.rubric)
+        clean_texts = {a["text"]: a["passed"] for a in clean["assertions"]}
+        self.assertTrue(clean_texts["Forbidden section absent: Blocked"])
+        self.assertTrue(clean_texts["Blocked section absent"])
+
     def test_shorter_complete_issue_passes_with_viewer_compatible_assertions(self):
         grade = self._api("grade_issue")(self._complete_issue(), self.rubric)
         self.assertTrue(grade["passed"])

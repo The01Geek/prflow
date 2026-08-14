@@ -245,6 +245,27 @@ def _heading_name(raw):
     return " ".join(raw.split()).casefold()
 
 
+# The shipped issue template decorates and qualifies its headings
+# (`## 🚫 Blocked — resolve before implementation`), so an exact-literal match
+# against `blocked` recognizes no real issue. Strip leading non-word decoration
+# and any trailing qualifier introduced by a dash or colon.
+_HEADING_DECORATION_RE = re.compile(r"^\W+", re.UNICODE)
+_HEADING_QUALIFIER_RE = re.compile(r"\s+[—–-]\s+|:\s+")
+
+
+def _heading_aliases(raw):
+    """Every spelling under which a heading may be recognized by name."""
+    full = _heading_name(raw)
+    aliases = {full}
+    stripped = _HEADING_DECORATION_RE.sub("", full).strip()
+    if stripped:
+        aliases.add(stripped)
+        core = _HEADING_QUALIFIER_RE.split(stripped, maxsplit=1)[0].strip()
+        if core:
+            aliases.add(core)
+    return aliases
+
+
 def _heading_records(text):
     records = []
     lines = text.splitlines()
@@ -586,7 +607,9 @@ def grade_issue(text, rubric):
     normalized = _normalize_analysis_text(text)
     searchable = " ".join(normalized.split()).casefold()
     _lines, heading_records = _heading_records(normalized)
-    headings = {name for _index, _level, name in heading_records}
+    headings = set()
+    for _index, _level, name in heading_records:
+        headings |= _heading_aliases(name)
     assertions = []
     forbidden_failures = 0
     forbidden_section_failures = 0
