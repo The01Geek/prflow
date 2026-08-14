@@ -194,6 +194,62 @@ def _step36_member_paths() -> list[Path]:
     return [REPO / entry] + [REPO / m for m in members]
 
 
+_STEP36_SET_MARKER = re.compile(
+    r"<!--\s*prflow:create-issue-set\s+step=3\.6\s+part=(\d+)\s+of=(\d+)\s*-->")
+
+
+def check_step36_manifest(report):
+    """Reconcile the declared Step 3.6 manifest against the on-disk set markers (issue #1702).
+
+    The positive-control target for the omitted-member case: a member present on disk with a
+    `create-issue-set part=k of=N` marker but absent from the manifest — or a part gap, or an
+    `of=N` that disagrees with the manifest's member count — is RED, so the manifest cannot
+    silently under-declare the set. Skipped under the single-file test seam (`STEP36` set),
+    which has no manifest set to reconcile.
+    """
+    if STEP36 is not None:
+        return
+    try:
+        data = json.loads(STEP36_MANIFEST.read_text(encoding="utf-8"))
+        entry = data["entry"]
+        members = list(data["members"])
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError, KeyError, TypeError) as exc:
+        raise Refusal(f"step36-manifest: could not read the manifest "
+                      f"{_display_path(STEP36_MANIFEST)}: {exc}") from exc
+    if not isinstance(entry, str) or not members or not all(isinstance(m, str) for m in members):
+        raise Refusal(f"step36-manifest: the manifest {_display_path(STEP36_MANIFEST)} has no "
+                      "usable entry/members")
+    n = len(members)
+    parts = []
+    for rel in members:
+        text = _read(REPO / rel)
+        hit = _STEP36_SET_MARKER.search(text)
+        if hit is None:
+            raise Refusal(f"step36-manifest: manifest member {rel} carries no "
+                          "`prflow:create-issue-set` part marker")
+        k, of = int(hit.group(1)), int(hit.group(2))
+        if of != n:
+            raise Refusal(f"step36-manifest: member {rel} declares of={of}, but the manifest "
+                          f"lists {n} members — a member was added or omitted on one side")
+        parts.append(k)
+    if sorted(parts) != list(range(1, n + 1)):
+        raise Refusal(f"step36-manifest: the members' part numbers are {sorted(parts)}, "
+                      f"not the contiguous 1..{n} the ordered set requires")
+    refs_dir = REPO / "skills" / "create-issue" / "references"
+    ondisk = sorted(
+        str(p.relative_to(REPO)) for p in refs_dir.glob("*.md")
+        if _STEP36_SET_MARKER.search(p.read_text(encoding="utf-8")))
+    missing = sorted(set(ondisk) - set(members))
+    if missing:
+        raise Refusal(f"step36-manifest: {missing} carry a Step 3.6 set marker on disk but are "
+                      "absent from the manifest — an omitted member the manifest under-declares")
+    if entry in ondisk:
+        raise Refusal(f"step36-manifest: the entry {entry} carries a member part marker; the "
+                      "entry declares the set and must not be a member")
+    report.append(f"step36-manifest: {n} declared members reconciled against on-disk "
+                  f"`create-issue-set` part markers 1..{n}, with no omitted member")
+
+
 def _sole_paragraph(text: str, anchor: str, where: str) -> str:
     """The single paragraph following `anchor`, or a refusal naming why not."""
     lines = text.splitlines()
@@ -947,6 +1003,7 @@ def main():
         check_round_defaulted(module, registered, report)
         check_next_action_routing_totality(module, report)
         check_flag_vocabulary(module, module.build_parser(), registered, report)
+        check_step36_manifest(report)
         sequence = check_sequence(registered, report)
         unconditional = len(sequence)
         check_fenced_completeness(registered, report, sequence)

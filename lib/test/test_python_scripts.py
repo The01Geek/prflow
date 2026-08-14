@@ -33060,6 +33060,111 @@ _p = _subprocess.run([sys.executable, str(_R1655 / "lib/generate-capability-prof
 assert_eq("#1655 generate-capability-profiles --check reports no drift", 0, _p.returncode)
 
 
+# ── issue #1702: Step 3.6 declared-set size checks (AC2 per-member limit, AC3 aggregate) ──
+# Drive check_step36_set directly over crafted fixture trees + manifests — the real byte
+# reader (Path.read_bytes), never mocked. A clean set passes; an oversized member and an
+# over-baseline aggregate each fail; a malformed manifest fails closed.
+_rsz1702_spec = importlib.util.spec_from_file_location(
+    "_rsz1702", os.path.join(str(SCRIPTS.parent), "lib", "test", "lint-reference-size.py"))
+_rsz1702 = importlib.util.module_from_spec(_rsz1702_spec)
+_rsz1702_spec.loader.exec_module(_rsz1702)
+
+
+def _rsz1702_fixture(sizes, per_member_limit, baseline):
+    """Build root + manifest with member files of the given byte sizes; return (findings, report)."""
+    import json as _j1702
+    tmp = tempfile.mkdtemp()
+    root = _rsz1702.Path(tmp)
+    names = ["e.md", "m1.md", "m2.md"]
+    for name, size in zip(names, sizes):
+        (root / name).write_bytes(b"x" * size)
+    manifest = root / "manifest.json"
+    manifest.write_text(_j1702.dumps({
+        "entry": names[0], "members": names[1:],
+        "per_member_limit_bytes": per_member_limit,
+        "aggregate_baseline_bytes": baseline,
+        "aggregate_baseline_commit": "testsha",
+    }), encoding="utf-8")
+    try:
+        return _rsz1702.check_step36_set(root, manifest)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+_f1702_clean, _r1702_clean = _rsz1702_fixture([100, 200, 200], 55000, 1000)
+assert_eq("#1702 AC2/AC3: a clean set (each member under the limit, total under baseline) passes",
+          [], _f1702_clean)
+assert_eq("#1702 AC2/AC3: the clean report emits the aggregate line naming the baseline",
+          True, any("aggregate 500 bytes over 3 files (baseline 1000" in ln for ln in _r1702_clean))
+assert_eq("#1702 AC2: the clean report emits a per-member measurement line with the limit",
+          True, any("m1.md 200 bytes (per-member limit 55000)" in ln for ln in _r1702_clean))
+
+_f1702_over_member, _ = _rsz1702_fixture([100, 300, 200], 250, 100000)
+assert_eq("#1702 AC2: a member over the per-member limit fails",
+          True, any("over the 250-byte per-member" in f for f in _f1702_over_member))
+
+_f1702_over_agg, _ = _rsz1702_fixture([100, 200, 200], 55000, 400)
+assert_eq("#1702 AC3: an aggregate over the source-recorded baseline fails",
+          True, any("over the source-recorded pre-refactor baseline of 400" in f for f in _f1702_over_agg))
+
+# Malformed manifest fails closed (Step36Error), never a silent empty population.
+_tmp1702 = tempfile.mkdtemp()
+try:
+    _bad = _rsz1702.Path(_tmp1702) / "bad.json"
+    _bad.write_text('{"entry": "e.md"}', encoding="utf-8")  # no members
+    _raised1702 = False
+    try:
+        _rsz1702.check_step36_set(_rsz1702.Path(_tmp1702), _bad)
+    except _rsz1702.Step36Error:
+        _raised1702 = True
+    assert_eq("#1702: a manifest with no members fails closed (Step36Error)", True, _raised1702)
+finally:
+    shutil.rmtree(_tmp1702, ignore_errors=True)
+
+# #1702 AC8 — omitted-member positive control: the manifest-driven set reconciliation in
+# check-audit-lifecycle-contracts.py goes RED when the manifest under-declares the on-disk
+# set (a member present on disk with a part marker but dropped from the manifest).
+_saved_manifest_1702 = _alc795.STEP36_MANIFEST
+_tmp_manifest_1702 = tempfile.mkdtemp()
+try:
+    import json as _j1702b
+    _real_1702 = _j1702b.loads(_alc795.STEP36_MANIFEST.read_text(encoding="utf-8"))
+    _omitted = _alc795.Path(_tmp_manifest_1702) / "omitted.json"
+    _omitted.write_text(_j1702b.dumps({
+        "entry": _real_1702["entry"],
+        "members": _real_1702["members"][:-1],  # drop the last member — the planted omission
+        "per_member_limit_bytes": 55000,
+        "aggregate_baseline_bytes": 72458,
+        "aggregate_baseline_commit": "testsha",
+    }), encoding="utf-8")
+    # Real-manifest control: the guard passes over the intact set.
+    _alc795.STEP36_MANIFEST = _saved_manifest_1702
+    _pc_clean = None
+    try:
+        _alc795.check_step36_manifest([])
+    except _alc795.Refusal as _exc:
+        _pc_clean = str(_exc)
+    assert_eq("#1702 AC8: the manifest reconciliation passes over the intact declared set",
+              None, _pc_clean)
+    # Positive control: the omitted-member manifest makes the guard fail.
+    _alc795.STEP36_MANIFEST = _omitted
+    _pc_omitted = None
+    try:
+        _alc795.check_step36_manifest([])
+    except _alc795.Refusal as _exc:
+        _pc_omitted = str(_exc)
+    assert_eq("#1702 AC8: an omitted member (dropped from the manifest, present on disk) fails the guard",
+              True, _pc_omitted is not None)
+finally:
+    _alc795.STEP36_MANIFEST = _saved_manifest_1702
+    shutil.rmtree(_tmp_manifest_1702, ignore_errors=True)
+
+# The REAL declared set on the live tree stays within both limits (guards the shipped split).
+_f1702_real, _r1702_real = _rsz1702.check_step36_set(
+    SCRIPTS.parent,
+    SCRIPTS.parent / "lib" / "test" / "create-issue-step-3-6-members.json")
+assert_eq("#1702: the shipped Step 3.6 set is within the per-member limit and aggregate baseline",
+          [], _f1702_real)
+
 print()
 print(f"{PASS} passed, {FAIL} failed")
 sys.exit(0 if FAIL == 0 else 1)
