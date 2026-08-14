@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1681",
+  "generated_at": "2026-08-14T08:17:32Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.75",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 13.702203499999992,
+    "tokens": {
+      "input_tokens": 41,
+      "output_tokens": 22692,
+      "cache_read_input_tokens": 3220240,
+      "cache_creation_input_tokens": 194199,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 223,
+        "outputTokens": 87564,
+        "cacheReadInputTokens": 10396222,
+        "cacheCreationInputTokens": 893701,
+        "webSearchRequests": 0,
+        "costUSD": 13.702203499999992,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 32,
+    "duration_ms": 499464
+  },
+  "permission_denials": {
+    "count": 11,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---RUN---\"; echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-<empty>}\"; echo \"GITHUB_RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT:-<empty>}\"; echo \"---BASE---\"; .prflow/vendor/prflow/scripts/config-get.sh .base_branch main 2>&1; echo \"cfg-rc=$?\"",
+      "git status --porcelain -z > .prflow/tmp/review-dirty-tree-before; ls -la .prflow/tmp/review-dirty-tree-before",
+      "for f in scripts/create-issue-benchmark.py scripts/create_issue_benchmark.py scripts/create_issue_eval.py scripts/issue-audit-state.py; do echo \"=== $f ===\"; git show origin/codex/create-issue-eval-benchmark:$f 2>&1 | wc -l; done",
+      "git show origin/codex/create-issue-eval-benchmark:scripts/create-issue-benchmark.py > /tmp/b1.py 2>&1; wc -l /tmp/b1.py\ngit show origin/codex/create-issue-eval-benchmark:scripts/create_issue_benchmark.py > /tmp/b2.py 2>&1; wc -l /tmp/b2.py\ngit show origin/codex/create-issue-eval-benchmark:scripts/create_issue_eval.py > /tmp/b3.py 2>&1; wc -l /tmp/b3.py",
+      "git show origin/codex/create-issue-eval-benchmark:scripts/create-issue-benchmark.py > /tmp/b1.py; git show origin/codex/create-issue-eval-benchmark:scripts/create_issue_benchmark.py > /tmp/b2.py; git show origin/codex/create-issue-eval-benchmark:scripts/create_issue_eval.py > /tmp/b3.py; wc -l /tmp/b1.py /tmp/b2.py /tmp/b3.py",
+      "git show origin/codex/create-issue-eval-benchmark:scripts/create-issue-benchmark.py > /tmp/b1.py",
+      "for f in scripts/create-issue-benchmark.py scripts/create-issue-context-eval.py scripts/create_issue_benchmark.py scripts/create_issue_eval.py scripts/issue-audit-state.py lib/test/test_create_issue_benchmark.py lib/test/test_create_issue_context_eval.py lib/test/test_module_runner.py; do echo \"$f: $([ -f \"$f\" ] && echo EXISTS || echo MISSING)\"; done",
+      "mkdir -p .prflow/tmp/rev; git show origin/codex/create-issue-eval-benchmark:scripts/create-issue-benchmark.py > .prflow/tmp/rev/b1.py",
+      "scripts/load-prompt-extension.sh requesting-code-review",
+      "wc -l /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1681/local/diff.patch; echo \"---\"; git -C /home/runner/work/prflow/prflow diff --stat 3890c672dcfa4028708b366df9ae6b7a8b29920b c158d6bc6b326d680c5bf0ae4d1c95e84ff91e41 2>/dev/null | tail -40",
+      "git -C /home/runner/work/prflow/prflow rev-parse HEAD"
+    ],
+    "total": 11,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
