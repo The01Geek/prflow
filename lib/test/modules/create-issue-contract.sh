@@ -1233,8 +1233,10 @@ echo "#614 create-issue split: routing, markers, purity"
 # The reference roster is stated ONCE here and drives every loop below, so a reference
 # can never be registered in one assertion's list and silently dropped from another.
 # #1702: the Step 3.6 procedure is a declared ordered reference set — the entry
-# (step-3-6-audit) plus three ordered procedure members. Each member is a routed step
-# reference with its own marker id, routing row, and unique representative literal.
+# (step-3-6-audit) plus its ordered procedure members, enumerated in
+# lib/test/create-issue-step-3-6-members.json. Every member is a routed step reference with
+# its own marker id, routing row, and unique representative literal, enforced by the
+# T1/T2/T4 loops below over this roster.
 CI614_STEP_REFS="step-2-clarify step-3-5-steelman revision-delta step-3-6-audit step-3-6-audit-shared step-3-6-audit-dispatch step-3-6-audit-adjudication step-4-present-create"
 CI614_FALLBACK_REFS="fallback-no-task-tool fallback-read-only-sandbox fallback-audit-dispatch-arms fallback-state-owner-unavailable fallback-audit-round-reconciliation fallback-audit-boundary-offer fallback-draft-write-recovery fallback-implement-offer-tier-read fallback-visual-specification fallback-audit-evidence-degraded"
 # issue-template is a routed reference (gated, T1/T2), but NOT a step reference: it is kept in
