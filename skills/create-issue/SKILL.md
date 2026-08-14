@@ -7,10 +7,21 @@ argument-hint: <user-story>
 
 This skill is a pipeline that ends with a created GitHub issue and a gated offer to start
 implementation — the offer is presented, or a one-line reason is printed for why it was withheld —
-not a documentation report. Before anything else, fill in this seven-slot tracker using the
-task-tracking tool the runner exposes (`TodoWrite`; `TaskCreate`/`TaskUpdate`; or `update_plan`),
-or, when none is exposed or the exposed one is unusable, the inline fallback in
-`references/fallback-no-task-tool.md` loaded per the *Reference routing* rules below:
+not a documentation report. Before anything else, establish this seven-slot tracker. Work down the
+candidate task-tracking tools in order — `TodoWrite`, then `TaskCreate`/`TaskUpdate`, then
+`update_plan` — picking only from candidates the runner lists as currently exposed, and moving to
+the next candidate whenever the one you tried is unavailable. When you cannot establish which tools
+are visible, try the candidates in that same order instead and treat a returned failure as the
+failure arm below. When no candidate appears in the visible tool list, look first for a discovery
+mechanism the runner itself advertises — a listed tool whose stated purpose is to find and load
+tools the runner has not yet exposed — and use it to check for the candidates before concluding
+that no task tool is available. When a candidate call is made and the runner returns a failure to
+the run as a result, record a breadcrumb naming that failure and carry on to the next rung; a
+failed task-tool call degrades the run exactly as a failed reference load does, and no arm of this
+ladder terminates the run. Once every candidate is exhausted, use the inline fallback in
+`references/fallback-no-task-tool.md`, loaded per the *Reference routing* rules below — the route
+this skill takes
+when the runner exposes no task-tracking tool or the exposed one is disabled or unusable:
 
 - [ ] 1. Run Step 1's selected arm and write its evidence artifact
 - [ ] 2. Clarify the user story until the Definition of Ready is met (Step 2)
@@ -19,9 +30,6 @@ or, when none is exposed or the exposed one is unusable, the inline fallback in
 - [ ] 5. Audit the draft in a fresh context, act on the verdict, and re-gate any revision (Step 3.6)
 - [ ] 6. Present the rendered issue, get the user's explicit confirmation, then create it (Step 4, sub-steps 1–5)
 - [ ] 7. After creation succeeds, run the gated implement-offer step — present the offer, or print the withheld-offer reason (Step 4, sub-step 6)
-
-This fallback also applies
-when the runner exposes no task-tracking tool or the exposed one is disabled or unusable.
 
 Mark each slot in_progress when you start it and completed only when done — the canonical status
 vocabulary; a task tool whose status fields differ uses its nearest equivalents, and the inline
@@ -33,10 +41,13 @@ successful creation: it is the post-creation hand-off, not a gate on creating th
 
 ## Announcement
 
-Your run's first line of output names this skill and confirms the seven tracked slots exist —
-for example: "Running /prflow:create-issue; the seven-slot completion tracker is set up." That
-makes an omitted checklist visible in the first line of output rather than inferable from its
-later absence.
+Emit the announcement once a tracker is established, and emit it as the run's first line of output
+on every path — it names this skill and confirms the seven tracked slots exist, for example:
+"Running /prflow:create-issue; the seven-slot completion tracker is set up." On the inline-fallback
+path the tracker counts as established once the run has settled on that fallback, and the rendered
+checklist block follows the announcement line rather than preceding it. Report a breadcrumb about a
+failed candidate immediately after that first line, never before it. That makes an omitted
+checklist visible in the first line of output rather than inferable from its later absence.
 
 ## Iron Law
 
