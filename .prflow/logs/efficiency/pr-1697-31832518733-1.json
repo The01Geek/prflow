@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1697",
+  "generated_at": "2026-08-14T19:36:07Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.78",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 17.595951549999995,
+    "tokens": {
+      "input_tokens": 130,
+      "output_tokens": 57965,
+      "cache_read_input_tokens": 13683756,
+      "cache_creation_input_tokens": 271190,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 194,
+        "outputTokens": 86501,
+        "cacheReadInputTokens": 15639995,
+        "cacheCreationInputTokens": 636657,
+        "webSearchRequests": 0,
+        "costUSD": 14.979561250000003,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 110,
+        "outputTokens": 19568,
+        "cacheReadInputTokens": 2592426,
+        "cacheCreationInputTokens": 411950,
+        "webSearchRequests": 0,
+        "costUSD": 2.616390299999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 82,
+    "duration_ms": 1091809
+  },
+  "permission_denials": {
+    "count": 8,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-EMPTY} ATTEMPT=${GITHUB_RUN_ATTEMPT:-EMPTY}\"; .prflow/vendor/prflow/scripts/config-get.sh .base_branch main",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve \"1688\" --pr \"1697\" 2>.prflow/tmp/review/pr-1697/31832518733-1/acs.err ; echo \"acs-rc=$?\"",
+      "H=1c9255825ce88d8fb7cc176b95407b097d0470ac\necho \"===== SKILL.md Step 3 no-options gate (head) =====\"\ngit show $H:skills/create-issue/SKILL.md | sed -n '244,252p'\necho \"\"\necho \"===== stray word-list / carve-out-count check across changed drafting surfaces (head) =====\"\nfor f in skills/create-issue/SKILL.md agents/deferral-drafter.md skills/retrospective-audit/SKILL.md skills/create-issue/references/step-2-clarify.md docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md docs/internal/skills/create-issue.md ski …[per-command-truncated]",
+      "for f in skills/create-issue/SKILL.md agents/deferral-drafter.md skills/retrospective-audit/SKILL.md skills/create-issue/references/step-2-clarify.md docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md skills/create-issue/references/degradation-routing.md; do\n  echo \"--- $f ---\"\n  git show \"1c9255825ce88d8fb7cc176b95407b097d0470ac:$f\" | grep -nE 'alternatively|approach A vs B|three (further )?surfaces|two fixed surfaces|carve-out count|\"could\", \"consider\"|\"for now\", \"\\(optional\\)\"' || echo \"  (no stray enu …[per-command-truncated]",
+      "for f in skills/create-issue/SKILL.md skills/create-issue/references/issue-template.md skills/create-issue/references/step-2-clarify.md skills/create-issue/references/degradation-routing.md; do\n  b=$(git show \"86e2d96318126fe19b32c9e7267f67bc187df56b:$f\" 2>/dev/null | grep -oc \"no-options gate\")\n  h=$(git show \"1c9255825ce88d8fb7cc176b95407b097d0470ac:$f\" 2>/dev/null | grep -oc \"no-options gate\")\n  echo \"$f : base=$b head=$h\"\ndone",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before\necho \"=== overrides ===\"\n.prflow/vendor/prflow/scripts/resolve-review-overrides.py \"prflow:code-reviewer\" \"prflow:silent-failure-hunter\" \"prflow:comment-analyzer\" \"prflow:requesting-code-review\" 2>&1",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review 2>/dev/null | head -50; echo \"---EXITCODE:${PIPESTATUS[0]}---\"",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review 2>/dev/null > /tmp/ext-stdout.txt; echo \"EXIT:$?\"; wc -c /tmp/ext-stdout.txt"
+    ],
+    "total": 8,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
