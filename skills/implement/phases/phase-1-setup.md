@@ -306,7 +306,7 @@ The branch resume pre-check, the reuse-vs-create signals, feature-branch creatio
 Use the **Agent tool** with `subagent_type: prflow:branch-setup` and `run_in_background: false` (its return must be in hand this turn — a launch acknowledgment is never the return) and **no worktree isolation** (it must land the branch in this checkout). Pass in its prompt, as literals you already hold:
 
 - `ISSUE_NUMBER` — `$ISSUE_NUMBER`.
-- `WORKPAD` — the `workpad.py` helper path this tier uses as a leading token (the vendored literal `.prflow/vendor/prflow/scripts/workpad.py` on the cloud tier; the resolved `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py` on the local tier).
+- `WORKPAD` — the `workpad.py` helper path this tier uses as a leading token (the vendored literal `.prflow/vendor/prflow/scripts/workpad.py` on the cloud tier; the resolved `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py` on the local tier). Pass the ladder's rung order alongside this path — this leading-token form is rung 1 and the remaining rungs follow it in order — so the agent can fall through when the leading-token form does not run.
 - `SCRIPTS` — the same bundled-helper directory prefix (for `config-get.sh`, `branch-for-issue.py`, `preflight.py`, `run-jq.sh`, `refresh-pr-run-link.py`).
 - `BASE` — `$BASE` (the base branch; the agent re-derives it with the same fail-closed guard so a stale value cannot silently mistarget).
 - `WORKPAD_BODY` — the live workpad body read in §1.3/§1.4 (the agent reads its `**Branch:**` line from it; it must not re-fetch).
@@ -392,7 +392,7 @@ Every pass the auditor runs *reads the tree* to adjudicate a claim, and a stale 
 Use the **Agent tool** with `subagent_type: prflow:issue-claim-auditor` and `run_in_background: false`, as §1.4 does. The auditor dispatches nothing of its own. Pass in its prompt, as literals you already hold:
 
 - `ISSUE_NUMBER` — the issue number (`$ISSUE_NUMBER`).
-- `WORKPAD` — the same tier-appropriate `workpad.py` leading-token path §1.4 passes.
+- `WORKPAD` — the same tier-appropriate `workpad.py` leading-token path §1.4 passes, including the rung order §1.4 passes with it.
 - `SCRIPTS` — the same bundled-helper directory prefix (for `check-verified-premises.py`).
 - `REPO_ROOT` — the checkout root path, for Pass 6's `--repo-root` (a distinct value from `SCRIPTS`).
 - `ISSUE_BODY_PATH` — the absolute §1.1 cache path the precondition printed, when the cache was written; on the degraded arm where no cache was written, paste the full issue body inline and say so (the auditor must not re-fetch a body the run already holds).
