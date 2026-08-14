@@ -28095,6 +28095,58 @@ for _kind_label, _verdicts, _unusable in (('a clean sweep', {'1.1': 'addressed'}
                _m793._round_kind(_st793['rounds'][0]) == 'targeted'
                and _st793['rounds'][0].get('outcome') == 'FILE'))
 
+# Issue #1675: once the dedicated confirmation slot is spent, an unusable targeted
+# return must not disappear behind the ordinary targeted-FILE `proceed` answer. The
+# next-action reader still walks to the boundary, convergence stays explicitly false,
+# and the existing boundary election is forced with a named reason.
+_1675_unusable_exhausted = _793_state(
+    rounds=[{'round': 2, 'outcome': 'FILE', 'kind': 'targeted',
+             'claim_verdicts': {}, 'targeted_return_unusable': True,
+             'attempts': [{'arm': 'file'}]}],
+    confirming_rounds_used=_m793._MAX_CONFIRMING_ROUNDS)
+assert_eq("#1675: an exhausted unusable targeted return proceeds to the existing "
+          "boundary rather than requesting an unfundable confirmation",
+          'proceed', _m793.next_action(_1675_unusable_exhausted, 2))
+assert_eq("#1675: an exhausted unusable targeted return remains non-converged for its "
+          "own named reason",
+          (False, 'targeted-return-unusable'),
+          (lambda answer: (answer['converged'], answer['reason']))(
+              _m793.evaluate_convergence(_1675_unusable_exhausted)))
+assert_eq("#1675: an exhausted unusable targeted return fires the existing disclosed "
+          "boundary election",
+          (True, 'targeted-return-unusable'),
+          (lambda answer: (answer['t2'], answer['reason']))(
+              _m793.evaluate_triggers(_1675_unusable_exhausted)))
+assert_eq("#1675: the exhausted unusable targeted return cannot ground approval before "
+          "the boundary election is recorded",
+          'not-eligible',
+          _m793.evaluate_eligibility(
+              _1675_unusable_exhausted, 'approve', 'd' * 40)['answer'])
+for _1675_override_kind in ('user-decline', 'cap-reached'):
+    _1675_elected = dict(_1675_unusable_exhausted)
+    _1675_elected['overrides'] = [{
+        'kind': _1675_override_kind,
+        'surface': 't1t2-boundary',
+        'recorded_at_ordinal': 0,
+        'draft_digest': 'd' * 40,
+    }]
+    assert_eq(f"#1675: only the recorded {_1675_override_kind} boundary election can "
+              "later ground approval for exhausted unusable targeted evidence",
+              ('eligible', 'override'),
+              (lambda answer: (answer['answer'], answer['ground']))(
+                  _m793.evaluate_eligibility(
+                      _1675_elected, 'approve', 'd' * 40)))
+
+# Additive-state compatibility: an older targeted record without the new flag keeps
+# the pre-change exhausted behavior. Absence is false, never an unreadable-state arm.
+_1675_old_targeted_exhausted = _793_state(
+    rounds=[{'round': 2, 'outcome': 'FILE', 'kind': 'targeted',
+             'claim_verdicts': {}, 'attempts': [{'arm': 'file'}]}],
+    confirming_rounds_used=_m793._MAX_CONFIRMING_ROUNDS)
+assert_eq("#1675: an older targeted record with no unusable flag keeps the ordinary "
+          "exhausted next action",
+          'proceed', _m793.next_action(_1675_old_targeted_exhausted, 2))
+
 # ── AC32 limb one: a targeted round NEVER grounds the clean scan ──────────────────────
 # The guard is a `continue` in evaluate_eligibility's reverse scan. Without it a clean
 # SCOPED round becomes the clean ground and a run resolves `eligible` on evidence that

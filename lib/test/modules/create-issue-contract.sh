@@ -472,6 +472,50 @@ devflow_module_pin_unique "#709: the cutover preserved the out-of-bounds declara
 devflow_module_pin_unique "#709: Step 4 renders the steering marker on the audit-summary line" \
   'audit independence unestablished' "$CI_ROOT/skills/create-issue/references/step-4-present-create.md"  # structural-pin-ok: machine-sentinel-provenance -- the ledger keeps the exact steering marker Step 4 renders on the summary line
 
+# Issue #1675: instruction-only contracts whose consumers are the create-issue
+# orchestrator. These typed pins hold the exact cross-step grammar/remedy and the
+# lifecycle transition that no standalone runtime helper can observe.
+devflow_module_pin_unique "#1675: the template states the helper's exact recognized-quotation grammar" \
+  'A recognized quotation starts with either ASCII `"` or typographic `“`, has at least eight body characters containing none of ASCII `"`, typographic `“`, or typographic `”`, and ends with either ASCII `"` or typographic `”`; backticks and single quotes are not quotation delimiters.' \
+  "$CI_TMPL"  # structural-pin-ok: cross-file-phase-contract -- the authoring template must generate quotation handles accepted by check-verified-premises.py's fixed recognizer
+assert_eq "#1675: both Verified-premise remedy sites route handle=path to a recognized quotation beside the path" \
+  "2" "$(devflow_module_pin_count 'For `handle=path`, add a recognized quotation beside the cited repository path.' "$CI_BUNDLE")"  # structural-pin-ok: cross-file-phase-contract -- Step 3.5 authors the remedy and Step 3.6 executes it; either side missing reopens the unrepairable handle=path loop
+devflow_module_pin_unique "#1675: exhausted AC rewrites require the disclosed file-anyway election before approval" \
+  'An exhausted Acceptance Criteria rewrite requires an explicit file-anyway election before the ordinary approval gate can authorize creation.' \
+  "$CI_REF_STEP4"  # structural-pin-ok: lifecycle-state-transition -- exhaustion must transition through disclosure and a user election rather than silently blocking or falling into ordinary approval
+
+# The investigation-record neutralization command is agent-executed, so extract the
+# shipped bash fence and drive all three grep outcomes instead of wording-pinning its
+# intended semantics. A missing or duplicated fence yields an empty program and fails
+# the positive control before the result rows can pass vacuously.
+CI1675_GREP_BLOCK="$(python3 - "$CI_REF_STEP4" <<'PY'
+import pathlib, re, sys, textwrap
+text = pathlib.Path(sys.argv[1]).read_text(encoding='utf-8')
+blocks = [textwrap.dedent(b) for b in re.findall(
+          r'^[ \t]*```bash[ \t]*\n(.*?)^[ \t]*```[ \t]*$', text, re.S | re.M)
+          if 'neutralization_grep_status=' in b
+          and "grep -nE '/(pr|dev)flow:|@claude'" in b]
+print(blocks[0] if len(blocks) == 1 else '')
+PY
+)"
+assert_eq "#1675 neutralization: exactly one executable grep-status fence is extractable" \
+  "yes" "$([ -n "$CI1675_GREP_BLOCK" ] && echo yes || echo no)"
+printf 'ordinary investigation text\n' > "$_ci_tmp_root/ci1675-clean.md"
+CI1675_CLEAN_CMD="${CI1675_GREP_BLOCK//<record-file>/$_ci_tmp_root/ci1675-clean.md}"
+CI1675_CLEAN_OUT="$(bash -c "$CI1675_CLEAN_CMD" 2>&1)"
+assert_eq "#1675 neutralization: a clean no-match emits the explicit status 1 result" \
+  "neutralization_grep_status=1" "$(printf '%s\n' "$CI1675_CLEAN_OUT" | tail -1)"
+printf 'rejected /prflow:implement trigger\n' > "$_ci_tmp_root/ci1675-match.md"
+CI1675_MATCH_CMD="${CI1675_GREP_BLOCK//<record-file>/$_ci_tmp_root/ci1675-match.md}"
+CI1675_MATCH_OUT="$(bash -c "$CI1675_MATCH_CMD" 2>&1)"
+assert_eq "#1675 neutralization: a surviving trigger emits its match and explicit status 0" \
+  "yes" "$(printf '%s\n' "$CI1675_MATCH_OUT" | grep -qF '/prflow:implement' && \
+    [ "$(printf '%s\n' "$CI1675_MATCH_OUT" | tail -1)" = 'neutralization_grep_status=0' ] && echo yes || echo no)"
+CI1675_FAIL_CMD="${CI1675_GREP_BLOCK//<record-file>/$_ci_tmp_root/ci1675-absent.md}"
+CI1675_FAIL_STATUS="$(bash -c "$CI1675_FAIL_CMD" 2>&1 | tail -1 | sed 's/^neutralization_grep_status=//')"
+assert_eq "#1675 neutralization: a grep failure emits its non-clean status (2 or greater)" \
+  "yes" "$([ "${CI1675_FAIL_STATUS:-0}" -ge 2 ] 2>/dev/null && echo yes || echo no)"
+
 # ── issue #803: the create-issue final-byte prose ↔ issue-audit-state.py registry ─
 # Per-contract determination for issue #792's six agent-executed prose contracts
 # (the deliverable AC1 asks for). Each contract's MACHINE-CONSUMED surface is already
@@ -1329,6 +1373,9 @@ ci614_purity "$CI_REF_FB_RECON" \
   'A recurrence of an INVALIDATED entry'
 ci614_purity "$CI_REF_FB_OFFER" \
   'One further arm you must check yourself, because no trigger fires on it'
+devflow_module_pin_unique "#1675: exhausted unusable targeted return routes through the existing boundary election" \
+  'An exhausted unusable targeted return fires T2 with `reason=targeted-return-unusable` and routes through this existing boundary election.' \
+  "$CI_REF_FB_OFFER"  # structural-pin-ok: lifecycle-state-transition -- the prompt must consume the state owner's new fail-closed reason at the existing audit boundary
 ci614_purity "$CI_REF_FB_WRITEREC" \
   'If that single re-attempt also disagrees, stop retrying'
 ci614_purity "$CI_REF_FB_TIERREAD" \

@@ -36,7 +36,7 @@ The `issue-audit-dispatch-<slug>.md` write fails exactly as the draft write does
 
 ## Step 4 — the investigation-record artifact
 
-When the filesystem refuses the `.prflow/tmp/issue-record-<slug>.md` write, **present the record inline in chat** — the actual routed-out content as a visible block — **report the reduced durability**, and **never block filing**. Publication is **withheld** on this arm rather than attempted: `scripts/post-issue-comment.sh` takes its body **only from a file** (`BODY_FILE="${2:?…}"`), so with no record file there is nothing to post — the inline block is the whole delivery, and the reduced-durability report **names the record as unpublished**. **Do not trust any on-disk `issue-record-<slug>.md`**; the visible inline block is the sole stand-in.
+When the filesystem refuses the `.prflow/tmp/issue-record-<slug>.md` write, **present the record inline in chat** — the actual routed-out content as a visible block — **report the reduced durability**, and **never block filing**. Publication is **withheld** on this arm rather than attempted: `scripts/post-issue-comment.sh` requires its body input from a file, so with no record file there is nothing to post. A missing issue-number or body-file argument is a caller slip; the helper reports it, returns on its best-effort path, and makes no API request. The inline block is the whole delivery, and the reduced-durability report **names the record as unpublished**. **Do not trust any on-disk `issue-record-<slug>.md`**; the visible inline block is the sole stand-in.
 
 ## Step 3.6 / Step 4 — the staged canonical-draft write
 

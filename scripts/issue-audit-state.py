@@ -2828,10 +2828,11 @@ def evaluate_triggers(state):
     silently drop it — the offer fires rather than being skipped, exactly the absent-comparand
     fail-closed the guard would otherwise fail open on); and whenever state is unestablishable
     (unknown is not zero). A naming `reason` is surfaced on the fail-closed arms that need one
-    — `state-unestablished`, `no-verdict-round`, `unadjudicated-round`, and (issue #709)
-    `steering-unestablished` — and is `None` when T2 holds purely because a revision postdates a
-    known, audited last round WHOSE steering-absence was established (the offer fires, but there
-    is no anomaly to name). An un-adjudicated *FILE* round is none of the pre-#709 arms — its raw
+    — `state-unestablished`, `no-verdict-round`, `unadjudicated-round`,
+    `targeted-return-unusable`, and (issue #709) `steering-unestablished` — and is `None` when T2
+    holds purely because a revision postdates a known, audited last round WHOSE steering-absence
+    was established (the offer fires, but there is no anomaly to name). An un-adjudicated *FILE*
+    round is none of the pre-#709 arms — its raw
     signal is clean and pre-#548 it fired no offer — so T2's behavior on it is unchanged EXCEPT
     where its steering-absence was not established, which is exactly what the #709 arm below
     names (the Quiet-Killer case: a clean round whose independence could not be established
@@ -2855,7 +2856,15 @@ def evaluate_triggers(state):
     t1 = eff is not None and eff >= 1
     t2 = _revision_postdates(state, last)
     reason = None
-    if last.get('outcome') == 'no-verdict':
+    if _targeted_return_unusable(last):
+        # issue #1675 — an unusable scoped return established no whole-draft verdict.
+        # While confirmation capacity remains, next_action schedules that whole-draft
+        # round. Once the dedicated slot is spent, this arm routes through the existing
+        # disclosed boundary election rather than letting the scoped FILE token fall
+        # silently into ordinary approval.
+        t2 = True
+        reason = 'targeted-return-unusable'
+    elif last.get('outcome') == 'no-verdict':
         # The verdict-less terminal: T1 does not hold (there is no adjudicated must-revise
         # finding on an unaudited round), but the content is effectively unaudited, so T2 is
         # treated as holding and the boundary offer fires naming the state.
@@ -2916,6 +2925,12 @@ def evaluate_convergence(state):
     if last is None:
         return {'converged': False, 'reason': 'no-completed-round', 'basis': 'none',
                 'effective': None}
+    if _targeted_return_unusable(last):
+        # A scoped return whose per-claim block was unusable established nothing. Name
+        # that durable fact directly instead of collapsing it into generic missing
+        # adjudication; old records carry no flag and keep their historical answer.
+        return {'converged': False, 'reason': 'targeted-return-unusable',
+                'basis': 'none', 'effective': None}
     adjudicated = last.get('adjudicated_verdict')
     if adjudicated is None:
         return {'converged': False, 'reason': 'unadjudicated', 'basis': 'none',
@@ -3810,10 +3825,16 @@ def next_action(state, round_no):
             # run to Step 4 — is the permissive answer here in every sub-case, not just the
             # clean one. While a confirming round is still fundable, ask for it: on a clean
             # sweep to confirm it, and on an UNUSABLE return precisely because the round
-            # established nothing. Only once that budget is spent does the run fall through
-            # to `proceed`, and by then a whole-draft round has already been paid for.
+            # established nothing. Once that budget is spent, a usable return falls through
+            # because its whole-draft confirmation was already funded; an unusable return
+            # takes the explicit boundary handoff below instead.
             if state.get('confirming_rounds_used', 0) < _MAX_CONFIRMING_ROUNDS:
                 return 'confirm-whole-draft'
+            if _targeted_return_unusable(rnd):
+                # No confirmation slot remains. Proceed to the boundary query, whose
+                # targeted-return-unusable trigger forces the existing disclosed user
+                # election; do not answer with an unfundable confirmation.
+                return 'proceed'
         return 'proceed'
     if outcome == 'REVISE':
         if state.get('automatic_reaudits_used', 0) < _MAX_AUTOMATIC_REAUDITS:
@@ -3860,6 +3881,17 @@ def _round_kind(rnd):
         return None
     kind = rnd.get('kind')
     return kind if kind in _ROUND_KINDS else 'discovery'
+
+
+def _targeted_return_unusable(rnd):
+    """Whether a scoped round durably recorded an unusable per-claim return.
+
+    The field is additive: pre-#1675 state has no key and reads false. Require the
+    literal boolean rather than truthiness so a hand-corrupted string cannot force a
+    boundary election.
+    """
+    return (_round_kind(rnd) == 'targeted'
+            and rnd.get('targeted_return_unusable') is True)
 
 
 def _checked_kind(token):
