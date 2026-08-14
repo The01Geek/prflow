@@ -75,13 +75,7 @@ Read the printed base from the tool result; on an **empty** read (malformed conf
 .prflow/vendor/prflow/scripts/render-pr-provenance-line.py
 ```
 
-**Tier-agnostic invocation procedure (the conditional form — do not classify your own tier).** Emit the vendored literal above first. If it reports the file was not found (`command not found` / `No such file` / exit 127 — this repository's own local tier, where `.prflow/vendor/` is materialized only at runtime and so is absent from a working checkout), re-invoke **the same helper with the `.prflow/vendor/prflow/` prefix removed** as a single leading-token statement:
-
-```bash
-scripts/render-pr-provenance-line.py
-```
-
-If *that* is also not found (a non-Claude-Code runner — Copilot CLI, Cursor, Codex CLI, Gemini CLI — where neither repo-relative path exists), fall back to the portable anchor form below, which **preserves the helper's portability on those runners** (`${CLAUDE_SKILL_DIR}` is empty there and the runner reports a base directory the agent substitutes for the placeholder):
+**Tier-agnostic invocation procedure (the conditional form — do not classify your own tier).** Emit the vendored literal above first. If it reports the file was not found (`command not found` / `No such file` / exit 127 — this repository's own local tier, where `.prflow/vendor/` is materialized only at runtime and so is absent from a working checkout), re-invoke **the same helper with the `.prflow/vendor/prflow/` prefix removed** (`scripts/render-pr-provenance-line.py`) as a single leading-token statement, then route on that invocation's outcome. If *that* is also not found (a non-Claude-Code runner — Copilot CLI, Cursor, Codex CLI, Gemini CLI — where neither repo-relative path exists), fall back to the portable anchor form below, which **preserves the helper's portability on those runners** (`${CLAUDE_SKILL_DIR}` is empty there and the runner reports a base directory the agent substitutes for the placeholder):
 
 ```bash
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/render-pr-provenance-line.py
