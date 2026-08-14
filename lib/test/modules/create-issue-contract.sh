@@ -482,7 +482,7 @@ devflow_module_pin_unique "#1675: Step 3.5 routes handle=path to a recognized qu
   'For `handle=path`, add a recognized quotation beside the cited repository path.' \
   "$CI_REF_STEP35"  # structural-pin-ok: cross-file-phase-contract -- Step 3.5 authors the remedy; losing this site reopens the unrepairable handle=path loop before canonical write
 devflow_module_pin_unique "#1675: Step 3.6 routes handle=path to a recognized quotation beside the path" \
-  'For `handle=path`, add a recognized quotation beside the cited repository path.' \
+  'for `handle=path`, add a recognized quotation beside the cited repository path' \
   "$CI_REF_STEP36"  # structural-pin-ok: cross-file-phase-contract -- Step 3.6 executes the remedy independently; a second copy in Step 3.5 cannot substitute for this consumer site
 devflow_module_pin_unique "#1675: Step 3.5 routes usable unestablished premise results to investigation" \
   '`state=unestablished` on an otherwise usable helper result is a usable classification, not helper unavailability' \
