@@ -1717,7 +1717,7 @@ class ManifestIngestionTest(unittest.TestCase):
         def add_repetition(doc):
             repeats = []
             for index, run in enumerate(copy.deepcopy(doc["runs"])):
-                run["run_id"] = run["run_id"][:-1] + "2"
+                run["run_id"] = "{}-2".format(run["run_id"])
                 run["repetition"] = 2
                 run["occurrence"]["occurrence_id"] = "create-issue-{}".format(
                     index + 3
@@ -1758,6 +1758,9 @@ class ManifestIngestionTest(unittest.TestCase):
                 self.assertEqual(
                     set(comparison["delta"].values()), {"unestablished"}
                 )
+                # A pairwise rejection returns after the first pair; only the
+                # per-configuration guard rejects with both pairs recorded.
+                self.assertEqual(len(comparison["pairs"]), 2)
 
     def test_forward_compatible_metadata_survives_without_changing_identity(self):
         def add_metadata(doc):
