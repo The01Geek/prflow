@@ -1,0 +1,102 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1681",
+  "generated_at": "2026-08-14T07:45:12Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.73",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 21.978084749999987,
+    "tokens": {
+      "input_tokens": 96,
+      "output_tokens": 53523,
+      "cache_read_input_tokens": 9172319,
+      "cache_creation_input_tokens": 274120,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 407,
+        "outputTokens": 140718,
+        "cacheReadInputTokens": 20048940,
+        "cacheCreationInputTokens": 1131875,
+        "webSearchRequests": 0,
+        "costUSD": 21.64662374999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 2,
+        "outputTokens": 9728,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 49476,
+        "webSearchRequests": 0,
+        "costUSD": 0.331461,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 62,
+    "duration_ms": 1133438
+  },
+  "permission_denials": {
+    "count": 32,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "RUN_ID=\"${GITHUB_RUN_ID:-local-$(date -u +%Y%m%dT%H%M%SZ)}-${GITHUB_RUN_ATTEMPT:-1}\"; echo \"run-id=$RUN_ID\"; mkdir -p \".prflow/tmp/review/pr-1681/$RUN_ID\"; echo \"$RUN_ID\" | tee .prflow/tmp/review/pr-1681/run-id.txt",
+      "echo \"run=${GITHUB_RUN_ID:-none} attempt=${GITHUB_RUN_ATTEMPT:-none}\"",
+      "cd /home/runner/work/prflow/prflow\nD=.prflow/tmp/review/pr-1681/31779827284-1\nawk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' $D/diff.patch > $D/batch-1.patch && test -s $D/batch-1.patch && echo \"slice-ok: batch-1\" || echo \"slice-failed: batch-1\"\nawk -v s=11 -v e=20 '/^diff --git/{n++} n>=s && n<=e' $D/diff.patch > $D/batch-2.patch && test -s $D/batch-2.patch && echo \"slice-ok: batch-2\" || echo \"slice-failed: batch-2\"\nawk -v s=21 -v e=30 '/^diff --git/{n++} n>=s && n<=e' $D/diff.patch > $D/ …[per-command-truncated]",
+      "awk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1681/31779827284-1/diff.patch > .prflow/tmp/review/pr-1681/31779827284-1/batch-1.patch && test -s .prflow/tmp/review/pr-1681/31779827284-1/batch-1.patch && echo \"slice-ok: batch-1\" || echo \"slice-failed: batch-1\"\nawk -v s=11 -v e=20 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1681/31779827284-1/diff.patch > .prflow/tmp/review/pr-1681/31779827284-1/batch-2.patch && test -s .prflow/tmp/review/pr-1681/31779827284 …[per-command-truncated]",
+      "awk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1681/31779827284-1/diff.patch > .prflow/tmp/review/pr-1681/31779827284-1/batch-1.patch && test -s .prflow/tmp/review/pr-1681/31779827284-1/batch-1.patch && echo \"slice-ok: batch-1\" || echo \"slice-failed: batch-1\"",
+      ".prflow/vendor/prflow/scripts/resolve-review-overrides.py \"prflow:checklist-generator\" 2>.prflow/tmp/review/pr-1681/31779827284-1/rv-ovr.phase1.err; echo \"ovr-rc=$?\"; echo \"---STDERR---\"; cat .prflow/tmp/review/pr-1681/31779827284-1/rv-ovr.phase1.err",
+      "for f in scripts/create-issue-benchmark.py scripts/create-issue-context-eval.py; do echo \"=== $f ===\"; git show 823973ea41f275a3096db791f4c1337ff258d957:$f 2>&1 | head -5; done",
+      "git apply --numstat .prflow/tmp/review/pr-1681/31779827284-1/diff.patch 2>/dev/null | sort -rn | head -50",
+      "git show 823973ea41f275a3096db791f4c1337ff258d957:scripts/create_issue_eval.py > /tmp/create_issue_eval.py 2>&1; wc -l /tmp/create_issue_eval.py; git show 823973ea41f275a3096db791f4c1337ff258d957:scripts/create_issue_benchmark.py > /tmp/create_issue_benchmark.py 2>&1; wc -l /tmp/create_issue_benchmark.py",
+      "git apply --numstat .prflow/tmp/review/pr-1681/31779827284-1/diff.patch",
+      "git show 823973ea41f275a3096db791f4c1337ff258d957:scripts/create_issue_eval.py > /tmp/create_issue_eval.py; wc -l /tmp/create_issue_eval.py",
+      "git show 823973ea41f275a3096db791f4c1337ff258d957:scripts/create_issue_eval.py > /tmp/create_issue_eval.py",
+      "git show 823973ea41f275a3096db791f4c1337ff258d957:scripts/create_issue_eval.py > .prflow/tmp/eval.py; git show 823973ea41f275a3096db791f4c1337ff258d957:scripts/create_issue_benchmark.py > .prflow/tmp/benchmark.py; git show 823973ea41f275a3096db791f4c1337ff258d957:scripts/create-issue-context-eval.py > .prflow/tmp/context-eval.py; wc -l .prflow/tmp/eval.py .prflow/tmp/benchmark.py .prflow/tmp/context-eval.py",
+      "git show 823973ea41f275a3096db791f4c1337ff258d957:scripts/create_issue_eval.py > .prflow/tmp/eval.py",
+      "for f in scripts/create_issue_eval.py scripts/create_issue_benchmark.py scripts/issue-audit-state.py; do echo \"=== $f ===\"; git show 823973ea41f275a3096db791f4c1337ff258d957:$f | grep -nE 'class |@dataclass|namedtuple|NamedTuple|Enum|frozenset|= \\(' | head -60; done",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review 2>/tmp/ext_err.txt >/tmp/ext_out.txt; echo \"EXIT=$?\"; echo \"=== STDOUT bytes ===\"; wc -c </tmp/ext_out.txt; echo \"=== STDOUT ===\"; cat /tmp/ext_out.txt; echo \"=== STDERR ===\"; cat /tmp/ext_err.txt",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review 2>/tmp/ext_err.txt >/tmp/ext_out.txt; echo \"EXIT=$?\"",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review 2>.prflow/tmp/ext_err.txt >.prflow/tmp/ext_out.txt; echo \"EXIT=$?\"",
+      "for f in scripts/create-issue-benchmark.py scripts/create-issue-context-eval.py; do echo \"=== $f ===\"; git show 823973ea41f275a3096db791f4c1337ff258d957:$f; done",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review 2>/dev/null | wc -c; echo \"PIPESTATUS=${PIPESTATUS[0]}\"",
+      "git show 823973ea41f275a3096db791f4c1337ff258d957 --stat --name-only 2>/dev/null | grep -i 'create-issue-eval/corpus' | head; echo \"---tree---\"; git ls-tree -r --name-only 823973ea41f275a3096db791f4c1337ff258d957 lib/test/fixtures/create-issue-eval/ 2>/dev/null | head -40",
+      "git ls-tree -r --name-only 823973ea41f275a3096db791f4c1337ff258d957 lib/test/fixtures/create-issue-eval/",
+      "git apply --stat .prflow/tmp/review/pr-1681/31779827284-1/diff.patch 2>&1 | head -80",
+      "git apply --stat .prflow/tmp/review/pr-1681/31779827284-1/diff.patch",
+      "git show 823973ea41f275a3096db791f4c1337ff258d957:lib/test/fixtures/create-issue-eval/corpus 2>&1 | head -3; echo \"---ls---\"; git ls-tree 823973ea41f275a3096db791f4c1337ff258d957 lib/test/fixtures/create-issue-eval/ | head",
+      "git ls-tree 823973ea41f275a3096db791f4c1337ff258d957 lib/test/fixtures/create-issue-eval/",
+      "git ls-tree -r --name-only 823973ea41f275a3096db791f4c1337ff258d957 lib/test/fixtures/create-issue-eval | head -40",
+      "git ls-tree -r --name-only 823973ea41f275a3096db791f4c1337ff258d957 lib/test/fixtures/create-issue-eval/corpus",
+      "git show 823973ea41f275a3096db791f4c1337ff258d957:lib/test/fixtures/create-issue-eval/corpus 2>&1 | head -5; echo \"---two-occ---\"; git ls-tree 823973ea41f275a3096db791f4c1337ff258d957 lib/test/fixtures/create-issue-eval/ 2>&1 | head",
+      "git ls-tree -r --name-only 823973ea41f275a3096db791f4c1337ff258d957 lib/test/fixtures/create-issue-eval/ | grep -E 'corpus|two-occurrences' | head",
+      "git ls-tree -r --name-only 823973ea41f275a3096db791f4c1337ff258d957 lib/test/fixtures/create-issue-eval/",
+      "git ls-tree -r --name-only 823973ea41f275a3096db791f4c1337ff258d957 -- lib/test/fixtures/create-issue-eval"
+    ],
+    "total": 32,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
