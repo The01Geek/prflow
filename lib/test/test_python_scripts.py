@@ -32391,6 +32391,13 @@ _o, _e, _rc = _prov_run(version="2.32.58", config_dir=None, write_transcript=Fal
 assert_eq("#1655 no transcript store -> version alone (default dir branch)", f"{_PB} (v2.32.58)", _o)
 assert_eq("#1655 no-store run exits 0", 0, _rc)
 
+# Wrong-typed manifest .version (non-string) -> version omitted, established values still named.
+_o, _e, _rc = _prov_run(version={"version": 123}, effort="high",
+                        transcript=_prov_transcript(model="claude-opus-5"))
+assert_eq("#1655 wrong-typed manifest .version -> version omitted",
+          f"{_PB} (claude-opus-5, high)", _o)
+assert_eq("#1655 wrong-typed .version breadcrumb names version", True, "version unestablished" in _e)
+
 # No manifest beside the helper -> version omitted, established values still named.
 _o, _e, _rc = _prov_run(version=None, effort="high",
                         transcript=_prov_transcript(model="claude-opus-5"))

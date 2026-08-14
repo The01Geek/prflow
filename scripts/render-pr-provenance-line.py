@@ -56,6 +56,13 @@ def _breadcrumb(msg: str) -> None:
     print(f"render-pr-provenance-line: {msg}", file=sys.stderr)
 
 
+def _env_nonblank(name: str) -> str | None:
+    """Return the environment variable stripped, when set and not whitespace-only; else None.
+    An unset variable expands to None, and an empty or blank value is treated as unset."""
+    raw = os.environ.get(name)
+    return raw.strip() if raw and raw.strip() else None
+
+
 def read_version() -> str | None:
     """Return the beside-the-helper manifest ``.version`` string, or None + breadcrumb."""
     path = _MANIFEST_BESIDE_HELPER
@@ -77,9 +84,9 @@ def read_version() -> str | None:
 
 def read_effort() -> str | None:
     """Return CLAUDE_EFFORT when set and non-blank, else None + breadcrumb."""
-    raw = os.environ.get("CLAUDE_EFFORT")
-    if raw is not None and raw.strip():
-        return raw.strip()
+    effort = _env_nonblank("CLAUDE_EFFORT")
+    if effort is not None:
+        return effort
     _breadcrumb("effort unestablished (CLAUDE_EFFORT unset, empty, or whitespace-only)")
     return None
 
@@ -87,10 +94,8 @@ def read_effort() -> str | None:
 def _config_dir() -> Path:
     """The Claude Code config directory: CLAUDE_CONFIG_DIR when set and non-blank,
     else the default user-level ~/.claude directory."""
-    raw = os.environ.get("CLAUDE_CONFIG_DIR")
-    if raw is not None and raw.strip():
-        return Path(raw.strip())
-    return Path.home() / ".claude"
+    raw = _env_nonblank("CLAUDE_CONFIG_DIR")
+    return Path(raw) if raw is not None else Path.home() / ".claude"
 
 
 def _project_segment(cwd: Path) -> str:
@@ -103,12 +108,12 @@ def transcript_path() -> Path | None:
     """Derive the session transcript path from CLAUDE_CONFIG_DIR (or the default), the
     session's own working directory, and CLAUDE_CODE_SESSION_ID. Returns None (with a
     breadcrumb) only when there is no session id to name the file with."""
-    session_id = os.environ.get("CLAUDE_CODE_SESSION_ID")
-    if session_id is None or not session_id.strip():
+    session_id = _env_nonblank("CLAUDE_CODE_SESSION_ID")
+    if session_id is None:
         _breadcrumb("model unestablished (CLAUDE_CODE_SESSION_ID unset, empty, or whitespace-only)")
         return None
     segment = _project_segment(Path.cwd())
-    return _config_dir() / "projects" / segment / f"{session_id.strip()}.jsonl"
+    return _config_dir() / "projects" / segment / f"{session_id}.jsonl"
 
 
 def _model_from_record(rec: object) -> str | None:
