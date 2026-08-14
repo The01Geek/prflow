@@ -191,8 +191,6 @@ All derivation lives in `lib/efficiency-trace.jq` (a mechanical jq filter, no LL
    # Copilot CLI / Cursor / Codex CLI / Gemini CLI — would leave the rc empty and make the
    # fail check inert). On a resolver failure, warn and force ENABLED=false so the read
    # fails CLOSED (skips the trace) rather than masquerading as a deliberate flag-off.
-   # Ensure the scratch leaf exists (rc-checked, never `|| true`) and drop any stale capture.
-   # Repo-relative `.prflow/tmp/` is the probe-permitted target; a bare system-temp redirect is denied.
    if ! mkdir -p .prflow/tmp; then
      echo "::warning::devflow review-and-fix: could not create .prflow/tmp for the efficiency-trace gate read"
    fi

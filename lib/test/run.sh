@@ -3745,10 +3745,11 @@ assert_eq "#365: the compgen-in-skills guard fails closed on a git error (sentin
 # to pin and were removed with the block. The compgen_scan above still guards that
 # no skills/ prose block reintroduces the bash-only builtin.)
 # The detector references $ROOT and $BEFORE literally, so it stays GREEN even if the $ROOT
-# derivation drifts to a cwd-relative form. $ROOT is derived in both backstop bash blocks
-# (the pre-loop snapshot and the post-return detector), so the exact count preserves both sites.
-assert_eq "#235 (B) phase-3.3: the no-inputs detector root is derived from the git toplevel (not cwd), in both blocks" \
-  "2" "$(pin_count 'ROOT=$(git rev-parse --show-toplevel' "$DEF_SKILL")"
+# derivation drifts to a cwd-relative form. $ROOT is derived in the pre-loop snapshot,
+# the post-return snapshot check, and the post-Write consumer, so the exact count preserves
+# every separate-shell re-anchor.
+assert_eq "#235 (B) phase-3.3: the no-inputs detector root is derived from the git toplevel (not cwd), in all three blocks" \
+  "3" "$(pin_count 'ROOT=$(git rev-parse --show-toplevel' "$DEF_SKILL")"
 # Symmetric to the $ROOT-derivation pin: the `--persist` invocation pinned above depends on
 # the inline portable anchor that resolves it (issue #275: the former cross-statement `LIB=`
 # derivation is gone — Copilot CLI's inline-bash marshaling drops such variables). The exact-one
@@ -35313,6 +35314,12 @@ assert_eq "#401 R1 still fires behind a stripped control word (if M=x cmd; then)
     'printf hi | tee f' 'VAR="$(gh pr view 2)"' 'cdrecord x' 'pythonize data' '```'; } > "$E363/s-ok.md"
 assert_eq "#401 shape-lint does NOT flag permitted shapes (capture, empty reset, IFS= read, tee, pipe-tee, near-miss heads)" "" \
   "$(python3 "$ECS" "$E363/s-ok.md")"
+printf '%s\n' '```bash' "gh issue view 1664 --json body --jq '.body' > .prflow/tmp/issue-body/issue-1664.md" '```' > "$E363/s-ir6.md"
+assert_eq "#1514 shape-lint flags an unmeasured production-head redirect to .prflow/tmp" "yes" \
+  "$(python3 "$ECS" --profile implement "$E363/s-ir6.md" | grep -q '  IR6  ' && echo yes || echo no)"
+printf '%s\n' '```bash' 'echo iprobe11workspace > .prflow/tmp/iprobe11workspace' '```' > "$E363/s-ir6-control.md"
+assert_eq "#1514 shape-lint keeps the exact row-11 echo control permitted" "" \
+  "$(python3 "$ECS" --profile implement "$E363/s-ir6-control.md")"
 # ── (R5 retired, issue #869): the `if`/`elif` `VAR=$(…)` command-substitution CONDITION
 # ── shape the retired R5 rule flagged (#857) is now cloud-PERMITTED — this is exactly the
 # ── `$( )` spelling matcher-probe Shape 18 measured (`if HP=$(config-get.sh …)`, run
@@ -37022,6 +37029,12 @@ assert_eq "#363 review mode still emits both sections generic mode omits (the ab
 # #1629: the sole-publisher section is review-only — gated on the derived REVIEWED_COMMIT=yes
 # selector, so it is present for MODE=review and absent for MODE=implement and MODE=generic.
 _GB363_IMPL="$(HEAD_SHA=deadbeef CI_SUMMARY='ci: success' ALLOWED_TOOLS='Read' HARDENED_PATHS='a/b.md' MODE=implement bash "$RGB_SH")"
+for _gb1514 in "$_GB363_GEN" "$_GB363_REV" "$_GB363_IMPL"; do
+  assert_eq "#1514 grounding modes omit the head-independent in-workspace redirect claim" "no" \
+    "$(case "$_gb1514" in *'an in-workspace `>`/`2>` redirect of a granted head'*) echo yes ;; *) echo no ;; esac)"
+  assert_eq "#1514 grounding modes default unmeasured scratch authoring to Write" "yes" \
+    "$(case "$_gb1514" in *'Write tool for `.prflow/tmp/**` scratch unless that exact shell form has a current'*) echo yes ;; *) echo no ;; esac)"
+done
 assert_eq "#1629 generic mode emits no sole-publisher section (review-only, no reviewed commit)" "no" \
   "$(_gb363_gen_has "verdict reaches this pull request through Phase 4.4")"
 assert_eq "#1629 implement mode emits no sole-publisher section (review-only, no reviewed commit)" "no" \

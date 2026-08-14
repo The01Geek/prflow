@@ -180,12 +180,11 @@ MARKDOWN_SUFFIXES = (".md", ".md.example")
 #: printed (issue #1633 — a captured shell variable is refused in a worktree session).
 #: Findings on such a line are suppressed. See the module docstring for the retired
 #: second entry.
-ALLOW_SITE_LITERALS = ("issue-body/issue-", "<absolute-cache-path>")
-
-#: A head token naming the gh binary directly, or through a resolver variable
-#: whose name ends in `GH` (the repo's resolver contract, mirrored from
-#: lint-gh-api-repo-path.py).
-_GH_VAR_HEAD = re.compile(r"^\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?$")
+ALLOW_SITE_LITERALS = (
+    "issue-body/issue-",
+    "<absolute-cache-path>",
+    "gh issue view $ARGUMENTS --json body --jq '.body'",
+)
 
 #: A `gh api` path token that addresses an ISSUE resource directly —
 #: `…/issues/<n>` as the final path segment. A sub-resource such as
@@ -261,13 +260,6 @@ def statements_in(text: str) -> list[str]:
     return found
 
 
-def _is_gh_head(token: str) -> bool:
-    if token in ("gh", "gh.exe"):
-        return True
-    match = _GH_VAR_HEAD.match(token)
-    return bool(match) and match.group(1).endswith("GH")
-
-
 def _json_value(tokens: list[str]) -> str | None:
     """The `--json` field-list value if present, else None.
 
@@ -321,7 +313,7 @@ def detect_forms(statement: str) -> list[str]:
     head = tokens[0]
     forms: list[str] = []
 
-    gh = _is_gh_head(head)
+    gh = _heads._is_gh_head(head)
     rest = tokens[1:]
     if gh and "issue" in rest and "view" in rest:
         json_value = _json_value(tokens)

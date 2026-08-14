@@ -57,9 +57,7 @@ Use the **same identifier string** in `phase3_dispatched` that you write to each
 # inert). On failure warn (surfacing a missing `python3` / malformed config.json in the
 # Actions UI) and leave MAX_ITERS empty; the integer-check fallback below then supplies the
 # default 5. That fallback is also what makes a stripped-empty value fail-safe.
-# Ensure the scratch leaf exists (rc-checked, never `|| true`) and drop any stale capture,
-# so a resumed run cannot read a prior attempt's file. Repo-relative `.prflow/tmp/` is the
-# probe-permitted target (row 11); a bare system-temp redirect is matcher-denied.
+# Ensure the scratch leaf exists (rc-checked, never `|| true`) and drop any stale capture.
 if ! mkdir -p .prflow/tmp; then
   echo "::warning::devflow review-and-fix: could not create .prflow/tmp for the max_iterations read"
 fi

@@ -139,6 +139,15 @@ _REDIRECTION = re.compile(r"^&?[0-9]*[<>]")
 _MAX_HEAD_WORDS = 3
 
 _SEPARATORS = ("|&", "&&", "||", ";", "|", "&", "\n")
+_GH_VAR_HEAD = re.compile(r"^\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?$")
+
+
+def _is_gh_head(token: str) -> bool:
+    """Whether a normalized command-head token selects the gh binary."""
+    if token in ("gh", "gh.exe"):
+        return True
+    match = _GH_VAR_HEAD.match(token)
+    return bool(match) and match.group(1).endswith("GH")
 
 
 def _fenced_bash_blocks(text: str) -> list[str]:
@@ -346,6 +355,10 @@ def _split_statements(text: str) -> list[str]:
                 # `>&2`, and `&>log` it is part of a redirection, and splitting
                 # there would emit the file descriptor (`1`, `2`) as a command.
                 if sep == "&" and (prev in ("<", ">") or text.startswith("&>", i)):
+                    continue
+                # `|` immediately after `>` is the clobber redirect `>|`, not a pipe;
+                # splitting it hides the redirect target from every downstream guard.
+                if sep == "|" and prev == ">":
                     continue
                 statements.append("".join(current))
                 current = []

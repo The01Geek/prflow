@@ -4,6 +4,25 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.70] — 2026-08-14
+
+### Fixed
+- **The implement skill now documents a no-shell fallback ladder for its `workpad.py` call sites, so a run that genuinely cannot execute the program stops at Blocked instead of hand-writing a Complete that skips the finishing checks.** `skills/implement/SKILL.md` states once that `workpad.py` is a Python program needing no shell (only Python 3.11+, an authenticated `gh`, and `scripts/section_parse.py` for the section-reading subcommands), the invocation rungs to try in order (vendored path, portable anchor, and — local/interactive tier only — the `python3` interpreter against each), the rung-failure and re-read-before-retrying-a-write rules, and the Blocked-plus-skip-record outcome that leaves the workpad status untouched. The two workpad-writing subagents each state their pre-resolved handle is the ladder's first rung, and the hand-rolled `gh api` PATCH passage keeps its marker-preservation rule but loses its standing as a way to write the terminal status. (#1673)
+
+## [2.32.69] — 2026-08-13
+
+### Changed
+Drop the removed tool names `LS` and `NotebookRead` from the `code-explorer` and
+`code-architect` agent frontmatter. Claude Code merged `NotebookRead` into `Read` and
+retired `LS` in favour of `Glob`, so both names resolved to nothing; the agents keep the
+same effective tool set and the stale names no longer suggest a broken grant to consumers
+on other runners.
+
+## [2.32.68] — 2026-08-13
+
+### Changed
+Scope cloud scratch-redirect guidance to exact matcher evidence, add production `gh issue view` probe rows, and use Write-tool authoring for unmeasured issue-body cache writes.
+
 ## [2.32.67] — 2026-08-13
 
 ### Fixed
