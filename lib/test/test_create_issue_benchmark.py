@@ -141,6 +141,8 @@ class RunnerTest(unittest.TestCase):
                 )
                 self.assertEqual(set(observation["controlled_environment"]), controlled_names)
                 self.assertIn("$(touch should-not-exist); * $HOME", observation["argv"])
+                # structural-pin-ok: machine-sentinel-provenance -- the provider's fixed
+                # stdout/stderr sentinels prove each captured stream maps to its named artifact
                 self.assertIn("provider stdout", (output / execution["stdout"]).read_text())
                 self.assertIn("provider stderr", (output / execution["stderr"]).read_text())
             self.assertFalse((Path.cwd() / "should-not-exist").exists())
