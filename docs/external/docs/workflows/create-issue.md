@@ -15,7 +15,7 @@ The example uses Claude Code syntax. Use `/prflow/create-issue` in GitHub Copilo
 
 A short feature idea, bug report or improvement is enough. Include the affected user, the desired outcome and any constraint that must not change when you know them.
 
-PRFlow inspects the repository and existing documentation before it drafts. It asks focused questions until scope, behavior, dependencies, verification and important edge cases are decided. If you explicitly decline to resolve a blocking decision, the draft records it in a visible Blocked section instead of inventing a default.
+PRFlow inspects the repository and existing documentation before it drafts. It asks focused questions until scope, behavior, dependencies, verification and important edge cases are decided. When it reads your request as a bug report, it captures the facts needed to reproduce the defect — what triggered it, what happened, what you expected instead, and the environment — and records any fact nobody can establish as unestablished rather than guessing. If you explicitly decline to resolve a blocking decision, the draft records it in a visible Blocked section instead of inventing a default.
 
 ## Approval Points
 
