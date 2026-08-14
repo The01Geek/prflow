@@ -2866,25 +2866,31 @@ def _append_reflection(content: str, kind: str, text: str) -> str:
 
 
 def _read_section_file(path: str, flag: str) -> str:
-    """Read a file passed via one of the --replace-*-file flags. Converts any
-    OS-level error into a clean `_UpdateError` so the orchestrator gets a
-    targeted message instead of a Python traceback, and the surrounding
-    `cmd_update` aborts before the PATCH (no partial update)."""
+    """Read a file passed via one of the --replace-*-file flags. Decodes UTF-8
+    EXPLICITLY (never the ambient locale codec) so non-ASCII section content
+    round-trips byte-identical on any host, and converts an OS-level error or a
+    `UnicodeDecodeError` (a `ValueError` the plain `except OSError` shape would
+    let escape as a raw traceback) into a clean `_UpdateError` so the
+    orchestrator gets a targeted message instead of a Python traceback, and the
+    surrounding `cmd_update` aborts before the PATCH (no partial update)."""
     try:
-        return Path(path).read_text()
+        return Path(path).read_text(encoding="utf-8")
     except OSError as e:
         raise _UpdateError(f"{flag}: could not read {path!r}: {e}")
+    except UnicodeDecodeError as e:
+        raise _UpdateError(f"{flag}: {path!r} is not valid UTF-8: {e}")
 
 
 def _read_reflection_payload(path: str) -> str:
     """Read a reflection payload for --reflection-file, bypassing shell
     interpolation: the text is read verbatim as UTF-8 from a file, or from stdin
-    when `path` is `-`. Hardened past _read_section_file on the encoding axis —
-    UTF-8 is decoded EXPLICITLY (never the ambient locale codec) so a payload with
-    an em-dash or emoji round-trips byte-identical on any host, and a decode
-    failure (a `UnicodeDecodeError`, which is a `ValueError` the plain
-    `except OSError` shape would let escape as a raw traceback) is converted to the
-    file's clean `_UpdateError` contract. An empty or whitespace-only payload is
+    when `path` is `-`. Like `_read_section_file`, UTF-8 is decoded EXPLICITLY
+    (never the ambient locale codec) so a payload with an em-dash or emoji
+    round-trips byte-identical on any host, and a decode failure (a
+    `UnicodeDecodeError`, which is a `ValueError` the plain `except OSError` shape
+    would let escape as a raw traceback) is converted to the file's clean
+    `_UpdateError` contract; this reader additionally accepts stdin (`path` `-`)
+    and rejects an empty/whitespace-only payload. An empty or whitespace-only payload is
     also a structural failure — a blank reflection bullet carries no signal — so it
     aborts before any PATCH. All failure modes raise `_UpdateError`, so
     `_apply_mutations` aborts with no partial workpad write."""
