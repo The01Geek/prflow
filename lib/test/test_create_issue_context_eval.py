@@ -1257,7 +1257,8 @@ class PairedDeltaTest(unittest.TestCase):
         delta = report["delta"]
         self.assertEqual(set(delta), {
             "total_attributed_auditor_cost", "total_peak_context",
-            "mean_peak_context_per_run", "total_round_count", "finding_count",
+            "mean_peak_context_per_run", "median_main_thread_context",
+            "total_round_count", "finding_count",
         })
         # Latency is deliberately NOT a delta field (wall-clock is unestablished).
         self.assertNotIn("latency", delta)
@@ -1885,6 +1886,55 @@ class ManifestIngestionTest(unittest.TestCase):
         )["comparison"]
         self.assertEqual(comparison["status"], "established")
         self.assertIsNone(comparison["diagnostic"])
+
+    def test_ac10_established_carries_case_identity_and_median(self):
+        # issue #1702 AC10: an established paired comparison emits the case-identity block,
+        # the median runtime main-thread token cost per side with corpus size, the median
+        # delta key, and the non-regression verdict.
+        comparison = self._api("build_manifest_report")(self.manifest_path)["comparison"]
+        self.assertEqual(comparison["status"], "established")
+        self.assertEqual(comparison["case_identity"]["case_count"],
+                         len(comparison["case_identity"]["cases"]))
+        mmtc = comparison["median_main_thread_context"]
+        self.assertIn("baseline", mmtc)
+        self.assertIn("revised", mmtc)
+        self.assertIn("corpus_size", mmtc)
+        self.assertIn("median_main_thread_context", comparison["delta"])
+        self.assertIn("revised_median_within_baseline", comparison)
+        if all(isinstance(mmtc[k], (int, float)) for k in ("baseline", "revised")):
+            self.assertEqual(comparison["revised_median_within_baseline"],
+                             mmtc["revised"] <= mmtc["baseline"])
+
+    def test_ac10_case_split_by_resume_fails_closed(self):
+        # A case identity appearing twice within one configuration (a run split by resume)
+        # fails closed before any comparison.
+        def dup_case(doc):
+            extra = copy.deepcopy(doc["runs"][0])
+            extra["run_id"] = extra["run_id"] + "-resume"
+            extra["occurrence"]["occurrence_id"] = (
+                extra["occurrence"]["occurrence_id"] + "-resume")
+            doc["runs"].append(extra)
+        comparison = self._api("build_manifest_report")(
+            self._mutated_manifest(dup_case))["comparison"]
+        self.assertEqual(comparison["status"], "unestablished")
+        self.assertEqual(comparison["diagnostic"], "case_split_by_resume")
+        self.assertEqual(set(comparison["delta"].values()), {"unestablished"})
+
+    def test_ac10_case_identity_mismatch_fails_closed(self):
+        # A case present on one side but not the other (missing / count mismatch) fails closed.
+        def baseline_only_case(doc):
+            extra = copy.deepcopy(doc["runs"][0])
+            extra["run_id"] = extra["run_id"] + "-extra"
+            extra["scenario_id"] = "brand-new-scenario"
+            extra["occurrence"]["occurrence_id"] = (
+                extra["occurrence"]["occurrence_id"] + "-extra")
+            doc["runs"].append(extra)
+        comparison = self._api("build_manifest_report")(
+            self._mutated_manifest(baseline_only_case))["comparison"]
+        self.assertEqual(comparison["status"], "unestablished")
+        self.assertIn(comparison["diagnostic"],
+                      ("case_count_mismatch", "case_identity_mismatch"))
+        self.assertEqual(set(comparison["delta"].values()), {"unestablished"})
 
     def test_mixed_provenance_within_one_configuration_is_unestablished(self):
         # repo_sha is also pair-controlled, so it is drifted in BOTH repetition-2
@@ -2765,6 +2815,7 @@ class LegacyCliCompatibilityTest(unittest.TestCase):
             "total_attributed_auditor_cost",
             "total_peak_context",
             "mean_peak_context_per_run",
+            "median_main_thread_context",
             "total_round_count",
             "finding_count",
         })

@@ -2061,6 +2061,10 @@ def _manifest_comparison(run_records):
         "total_attributed_auditor_cost",
         "total_peak_context",
         "mean_peak_context_per_run",
+        # issue #1702 (AC10): the MEDIAN runtime main-thread context (token) cost per run,
+        # after-minus-before. A median, not a sum, so it carries no population confound and a
+        # non-positive value means the revised corpus's median did not exceed the baseline's.
+        "median_main_thread_context",
         "total_round_count",
         "finding_count",
     )
@@ -2079,6 +2083,25 @@ def _manifest_comparison(run_records):
     )
     if len(configurations) != 2:
         return unestablished("no_pairable_configurations")
+
+    # issue #1702 (AC10): verify equal case identities and counts on both sides BEFORE any
+    # comparison, failing closed when a case is missing, duplicated, or split by resume. The
+    # case identity is (scenario_id, repetition); a resume that split one run into two records
+    # surfaces as that identity appearing more than once within a single configuration.
+    per_config_cases = {configuration: [] for configuration in configurations}
+    for run in run_records:
+        per_config_cases[run["configuration"]].append(
+            (run["scenario_id"], run["repetition"]))
+    for cases in per_config_cases.values():
+        if len(cases) != len(set(cases)):
+            return unestablished("case_split_by_resume")
+    baseline_cases = sorted(set(per_config_cases[configurations[0]]))
+    revised_cases = sorted(set(per_config_cases[configurations[1]]))
+    if len(baseline_cases) != len(revised_cases):
+        return unestablished("case_count_mismatch")
+    if baseline_cases != revised_cases:
+        return unestablished("case_identity_mismatch")
+
     grouped = {}
     for run in run_records:
         key = (run["scenario_id"], run["repetition"])
@@ -2145,11 +2168,41 @@ def _manifest_comparison(run_records):
             "finding_count": finding_count,
         }
 
+    # issue #1702 (AC10): emit the median runtime main-thread token cost per side and the
+    # non-regression verdict, after the identity gate above has passed. UNESTABLISHED when any
+    # run's main-thread context could not be measured — never a number collapsed onto unknown.
+    before_peaks = [run["peak_context"] for run in before_runs]
+    after_peaks = [run["peak_context"] for run in after_runs]
+    _all_numeric = all(
+        isinstance(value, (int, float)) for value in before_peaks + after_peaks)
+    median_before = _median(before_peaks) if _all_numeric else UNESTABLISHED
+    median_after = _median(after_peaks) if _all_numeric else UNESTABLISHED
+    within_baseline = (
+        (median_after <= median_before) if _all_numeric else UNESTABLISHED)
+
     return {
         "status": "established",
         "diagnostic": None,
         "delta": _paired_delta(report_for(before_runs), report_for(after_runs)),
         "pairs": pairs,
+        "case_identity": {
+            "baseline_configuration": configurations[0],
+            "revised_configuration": configurations[1],
+            "case_count": len(baseline_cases),
+            "cases": [
+                {"scenario_id": scenario_id, "repetition": repetition}
+                for scenario_id, repetition in baseline_cases
+            ],
+        },
+        "median_main_thread_context": {
+            "baseline": median_before,
+            "revised": median_after,
+            "corpus_size": {
+                configurations[0]: len(before_runs),
+                configurations[1]: len(after_runs),
+            },
+        },
+        "revised_median_within_baseline": within_baseline,
     }
 
 
@@ -2270,6 +2323,11 @@ def _paired_delta(before, after):
         # count) — the one non-integer delta, named as an average so a reader is not
         # invited to read it as a measured total.
         "mean_peak_context_per_run": _delta(_mean_peak_context),
+        # issue #1702 (AC10): the median runtime main-thread context per run. `_degraded`
+        # guarantees a non-empty run list on the established path, so `_median` never sees
+        # an empty list here.
+        "median_main_thread_context": _delta(
+            lambda rep: _median([r["peak_context"] for r in rep["runs"]])),
         "total_round_count": _delta(_rounds),
         "finding_count": _findings_delta(),
     }
