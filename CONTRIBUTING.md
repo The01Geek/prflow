@@ -772,9 +772,19 @@ fails the suite. The summary renderer lives in `lib/test/summary.sh`.
   `.gitattributes` pins every `*.sh`/`*.py`/`*.jq` to `eol=lf` on checkout (so
   `core.autocrlf=true` can't turn a shebang into `bash\r`), and every first-party
   `scripts/*.py` forces its own `stdout`/`stderr` and `gh` I/O to UTF-8 (so an em-dash
-  or emoji can't trip a cp1252 codec). Two caller-side traps remain the contributor's
-  responsibility on Windows, because they corrupt output **after** the helper ran
-  cleanly:
+  or emoji can't trip a cp1252 codec). A **third, distinct** layer decodes the local
+  text files a helper reads as input: `parse-acs.py --body-file`, `workpad.py`'s
+  section-file flags (`--replace-plan-file`/`--replace-acs-file`/`--set-reproduction-file`,
+  via a shared `_decode_utf8` helper) and `branch-for-issue.py --title-file` pass
+  `encoding="utf-8"` explicitly instead of the ambient locale codec, so UTF-8 issue text
+  survives on a non-UTF-8 default host — separate from the stream/subprocess hardening
+  above, which governs the helpers' own streams and `gh` I/O rather than the files they
+  read. A decode or OS failure routes through the parser, workpad, and branch-create
+  clean non-zero paths (a flag-specific diagnostic, no traceback, no partial output, and
+  no GitHub PATCH on the workpad path); an AST guard over tracked `scripts/*.py` fails the suite on any new
+  ambient-codec `read_text`/`Path.open`/builtin `open` text read. Two caller-side traps
+  remain the contributor's responsibility on Windows, because they corrupt output
+  **after** the helper ran cleanly:
   - **bash file-association.** Invoking a `.sh` via the `git-bash.exe --no-cd "%L"`
     file association (e.g. from PowerShell) can capture no stdout while exiting 0 —
     invoke `bash` explicitly with a POSIX path (`bash scripts/foo.sh`), never rely on

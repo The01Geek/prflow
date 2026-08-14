@@ -141,7 +141,7 @@ PRFlow's skills now work when invoked from **any subdirectory** of your reposito
 
 ### Windows: PowerShell file-write encoding (UTF-16LE pitfall)
 
-PowerShell 5.x's `>` redirection and `Out-File` write **UTF-16LE with a BOM** by default. PRFlow's helpers read their input files (issue bodies, workpad body files, AC lists) as **UTF-8**, so a file produced with a PowerShell `>` silently arrives corrupted (NUL-interleaved text, a `ÿþ` BOM). When preparing any file a PRFlow helper will read from PowerShell, write UTF-8 **without** BOM explicitly — e.g. `[IO.File]::WriteAllText($path, $text)` or `Set-Content -Encoding utf8NoBOM` (PowerShell 7+) — or simply create the file from inside your POSIX bash instead.
+PowerShell 5.x's `>` redirection and `Out-File` write **UTF-16LE with a BOM** by default. PRFlow's helpers decode their local input files (issue bodies, workpad body files, AC lists) **explicitly as UTF-8** — `parse-acs.py --body-file`, `workpad.py`'s section-file flags (`--replace-plan-file`/`--replace-acs-file`/`--set-reproduction-file`), and `branch-for-issue.py --title-file` all pass `encoding="utf-8"` rather than trusting the ambient locale codec, which is a separate hardening layer from the stream/`gh`-I/O UTF-8 forcing (issue #222) that governs the helpers' own stdout/stderr and subprocess I/O. Because that decode is UTF-8, a file produced with a PowerShell `>` (UTF-16LE) is not valid UTF-8 and is **rejected cleanly** — the reader exits non-zero with a flag-specific diagnostic and no traceback (and `workpad.py` issues no GitHub PATCH), rather than silently arriving as NUL-interleaved mojibake. When preparing any file a PRFlow helper will read from PowerShell, write UTF-8 **without** BOM explicitly — e.g. `[IO.File]::WriteAllText($path, $text)` or `Set-Content -Encoding utf8NoBOM` (PowerShell 7+) — or simply create the file from inside your POSIX bash instead.
 
 ### Windows: quoting `workpad.py` text arguments from PowerShell
 
@@ -154,9 +154,9 @@ PowerShell's double-quote handling can split a `--note`/`--reflection` text argu
 For autonomous GitHub Actions automation, run the installer from your repo root. It is idempotent, so re-running it at a *newer* release tag is also how you update. It writes into your repository — the workflows and composite actions under `.github/`, a local `marketplace.json`, and `.prflow/` templates (config scaffold, schema, ignore file) — so those changes land in version control. **Download it, read it, then run the downloaded file:**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.32.73/install.sh -o devflow-install.sh
+curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.32.74/install.sh -o devflow-install.sh
 # review devflow-install.sh, then:
-DEVFLOW_REF=v2.32.73 bash devflow-install.sh
+DEVFLOW_REF=v2.32.74 bash devflow-install.sh
 ```
 
 <a id="pinning-the-installer"></a>
@@ -175,8 +175,8 @@ Independently of either pin, `install.sh` stamps `.prflow/config.json`'s `prflow
 `curl … | bash` runs the script without giving you a chance to read it. If you accept that, still pin both refs:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.32.73/install.sh \
-  | DEVFLOW_REF=v2.32.73 bash
+curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.32.74/install.sh \
+  | DEVFLOW_REF=v2.32.74 bash
 ```
 
 </details>

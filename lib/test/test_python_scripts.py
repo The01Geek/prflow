@@ -32595,6 +32595,168 @@ assert_eq("#1580 a reasonless slot value blocks the criterion end-to-end",
                 "dispositions": _CL_D}])["criteria"][0]["status"])
 
 
+# ── issue #1678: explicit UTF-8 decoding on PRFlow local text-file readers ──────
+# parse-acs.py --body-file, workpad.py::_read_section_file, and
+# branch-for-issue.py --title-file must decode local files as UTF-8 explicitly
+# (never the ambient locale codec) so non-ASCII issue text survives on Windows,
+# and a decode failure routes through the parser, workpad, and branch-create
+# clean non-zero paths (no traceback). AC5's static guard below enforces the rule across ALL tracked
+# scripts/*.py; AC1/AC2/AC3 and the CLI half of AC4 are the hostile-codec
+# subprocess RED->GREEN tests in lib/test/run.sh (the entry-path decode is only
+# observable when the script runs as a CLI under a forced-ASCII file codec).
+print("issue #1678: explicit UTF-8 decoding on local text-file readers")
+
+# AC5 — the text-reader guard. Families checked, complete by construction:
+#   read_text  (pathlib.Path.read_text; encoding is positional slot 1)
+#   Path.open  (pathlib .open;          encoding is positional slot 3)
+#   open       (builtin;                encoding is positional slot 4)
+# os.open is the raw fd syscall (integer flags, no text decode) and is NOT a
+# text reader — excluding it is why a bare `os.open(path, flags)` must not flag.
+_U8_FAMILIES = {"read_text", "Path.open", "open"}
+_U8_ENC_SLOT = {"read_text": 1, "Path.open": 3, "open": 4}
+
+
+def _u8_os_aliases(tree):
+    al = set()
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Import):
+            for a in n.names:
+                if a.name == "os":
+                    al.add(a.asname or a.name)
+    return al
+
+
+def _u8_classify(call, os_aliases):
+    f = call.func
+    if isinstance(f, ast.Attribute):
+        if f.attr == "read_text":
+            return "read_text"
+        if f.attr == "open":
+            if isinstance(f.value, ast.Name) and f.value.id in os_aliases:
+                return None  # os.open — not a text reader
+            return "Path.open"
+    elif isinstance(f, ast.Name) and f.id == "open":
+        return "open"
+    return None
+
+
+def _u8_mode_node(call, family):
+    for kw in call.keywords:
+        if kw.arg == "mode":
+            return kw.value
+    if family == "Path.open" and call.args:
+        return call.args[0]
+    if family == "open" and len(call.args) >= 2:
+        return call.args[1]
+    return None
+
+
+def _u8_is_binary(node):
+    return (isinstance(node, ast.Constant) and isinstance(node.value, str)
+            and "b" in node.value)
+
+
+def _u8_has_encoding(call, family):
+    # Keyword OR positional encoding form both count (the AC's requirement).
+    if any(kw.arg == "encoding" for kw in call.keywords):
+        return True
+    return len(call.args) >= _U8_ENC_SLOT[family]
+
+
+def _u8_scan_source(src, filename="<planted>"):
+    tree = ast.parse(src, filename=filename)
+    os_aliases = _u8_os_aliases(tree)
+    fams, viols = set(), []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        fam = _u8_classify(node, os_aliases)
+        if fam is None:
+            continue
+        fams.add(fam)
+        mode = _u8_mode_node(node, fam)
+        if mode is not None and _u8_is_binary(mode):
+            continue  # binary mode takes no encoding
+        if not _u8_has_encoding(node, fam):
+            viols.append((filename, node.lineno, fam))
+    return fams, viols
+
+
+# Real scan over the tracked scripts/*.py population (git ls-files: index-reading,
+# never a recursive filesystem walk into sibling worktrees — issue #711).
+_u8_tracked = [p for p in _subprocess.run(
+    ["git", "ls-files", "-z", "--", "scripts/*.py"],
+    cwd=str(SCRIPTS.parent), capture_output=True, text=True, check=True
+).stdout.split("\0") if p]
+assert_eq("#1678 AC5: tracked scripts/*.py enumeration is non-empty (guard has a population)",
+          True, len(_u8_tracked) >= 10)
+_u8_all_fams, _u8_all_viols = set(), []
+for _rel in _u8_tracked:
+    _f, _v = _u8_scan_source((SCRIPTS.parent / _rel).read_text(encoding="utf-8"), _rel)
+    _u8_all_fams |= _f
+    _u8_all_viols.extend(_v)
+assert_eq("#1678 AC5: every text-reader in tracked scripts/*.py decodes UTF-8 explicitly",
+          [], _u8_all_viols)
+# All three families are exercised over the real tree AND the scan produces no
+# out-of-taxonomy token — the "exactly these three, complete by construction" claim.
+assert_eq("#1678 AC5: the checked text-reader family set is exactly the three",
+          _U8_FAMILIES, _u8_all_fams)
+
+# Planted-omission self-check: a bare call in EACH family (no encoding) is flagged.
+_u8_planted_prelude = "import os\nfrom pathlib import Path\np = Path('x')\n"
+for _fam, _snip in {"read_text": "p.read_text()",
+                    "Path.open": "p.open('r')",
+                    "open": "open('x')"}.items():
+    _f, _v = _u8_scan_source(_u8_planted_prelude + _snip + "\n")
+    assert_eq(f"#1678 AC5 self-check: a bare {_fam} (no encoding) is flagged RED", 1, len(_v))
+    assert_eq(f"#1678 AC5 self-check: the flag names the {_fam} family",
+              _fam, _v[0][2] if _v else None)
+# And the accepted forms — keyword encoding, positional encoding, binary mode,
+# and os.open — must NOT flag.
+for _snip in ("p.read_text(encoding='utf-8')", "p.read_text('utf-8')",
+              "p.open('r', encoding='utf-8')", "p.open('r', -1, 'utf-8')",
+              "open('x', encoding='utf-8')", "open('x', 'w', -1, 'utf-8')",
+              "open('x', 'rb')", "p.open('rb')", "os.open('x', 0)"):
+    _f, _v = _u8_scan_source(_u8_planted_prelude + _snip + "\n")
+    assert_eq(f"#1678 AC5 self-check: accepted form is not flagged: {_snip}", [], _v)
+
+# AC2 (completeness half) — the _read_section_file flag set is exactly the three,
+# by construction: collect the flag literal from the _read_section_file call
+# sites and assert the set (the assertion below pins it to the three).
+_u8_wp_tree = ast.parse((SCRIPTS / "workpad.py").read_text(encoding="utf-8"))
+_u8_rsf_flags = set()
+for _n in ast.walk(_u8_wp_tree):
+    if (isinstance(_n, ast.Call) and isinstance(_n.func, ast.Name)
+            and _n.func.id == "_read_section_file" and len(_n.args) >= 2
+            and isinstance(_n.args[1], ast.Constant)):
+        _u8_rsf_flags.add(_n.args[1].value)
+assert_eq("#1678 AC2: _read_section_file flag set is exactly the three (complete by construction)",
+          {"--replace-plan-file", "--replace-acs-file", "--set-reproduction-file"},
+          _u8_rsf_flags)
+
+# AC4 (workpad half) — invalid UTF-8 through `workpad.py update --replace-acs-file`
+# exits non-zero with a flag-specific UTF-8 diagnostic (no traceback) and makes NO
+# GitHub PATCH. Driven through the real cmd_update mutation boundary (only the gh
+# transport is stubbed by _drive_cmd_update; decoding and mutation are NOT mocked).
+# The try/except keeps a regression's raw UnicodeDecodeError from aborting the file
+# mid-run — on the fixed code the read raises _UpdateError and cmd_update exits 1.
+_u8_bad = tempfile.NamedTemporaryFile("wb", suffix=".md", delete=False)
+_u8_bad.write(b"\xff\xfe\x00 not utf-8 \xe2\x28")
+_u8_bad.close()
+try:
+    _u8c, _u8o, _u8e, _u8p = _drive_cmd_update(IDX_BODY, replace_acs_file=_u8_bad.name)
+except UnicodeDecodeError:
+    _u8c, _u8o, _u8e, _u8p = "raw-decode-error", "", "", "unknown"
+assert_eq("#1678 AC4 workpad: invalid-UTF-8 --replace-acs-file exits non-zero (clean, not a crash)",
+          1, _u8c)
+assert_eq("#1678 AC4 workpad: no GitHub PATCH was made", None, _u8p)
+assert_eq("#1678 AC4 workpad: stderr carries the flag-specific UTF-8 diagnostic", True,
+          "--replace-acs-file" in _u8e and "not valid UTF-8" in _u8e)
+assert_eq("#1678 AC4 workpad: the diagnostic is clean (no Python traceback)", True,
+          "Traceback (most recent call last)" not in _u8e)
+os.remove(_u8_bad.name)
+
+
 # ── issue #1655: render-pr-provenance-line.py ───────────────────────────────────
 # The helper renders the /prflow:implement draft-PR provenance line. Driven as a
 # subprocess against a fixture COPY of the helper placed beside a fixture manifest, so

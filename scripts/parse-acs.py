@@ -330,7 +330,16 @@ def main():
                       f'{body_file!r}', file=sys.stderr)
                 return 1
             body_file = os.path.join(root, body_file)
-        body = Path(body_file).read_text()
+        try:
+            body = Path(body_file).read_text(encoding="utf-8")
+        except OSError as e:
+            print(f"parse-acs.py: --body-file: could not read {body_file!r}: "
+                  f"{e}", file=sys.stderr)
+            return 1
+        except UnicodeDecodeError as e:
+            print(f"parse-acs.py: --body-file: {body_file!r} is not valid "
+                  f"UTF-8: {e}", file=sys.stderr)
+            return 1
 
     ac_lines = extract_section(body, 'Acceptance Criteria')
     criteria = _parse_checkboxes(ac_lines)
