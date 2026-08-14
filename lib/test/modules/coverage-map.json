@@ -629,6 +629,11 @@
       "note": "issue #908 PreToolUse guard visibility renderer (neutralizes extract-execution-shape.sh's un-redacted permission_denials_commands before check-run rendering)",
       "owner": "unmodularized"
     },
+    "scripts/render-pr-provenance-line.py": {
+      "focused_test": "lib/test/test_python_scripts.py",
+      "note": "issue #1655 draft-PR provenance-line renderer; always exits 0, prints one backtick-free line (version from the beside-helper manifest, model from the session transcript's most-recent assistant record never resolvedModel, effort from CLAUDE_EFFORT, model+effort gated by prflow_implement.publish_model_effort). Driven directly in lib/test/test_python_scripts.py over rendering, the config six-shape matrix, the transcript JSON-Lines matrix, and the phase-file lint/profile contract assertions",
+      "owner": "unmodularized"
+    },
     "scripts/render-prompt-extension.sh": {
       "note": "issue #1264 render-time prompt-extension injection wrapper; always exits 0 and emits the three-token PROMPT-EXTENSION-STATUS line, driven by the prompt-extension-reader module over every input shape the contract names, including each unestablished cause",
       "owner": "prompt-extension-reader"
