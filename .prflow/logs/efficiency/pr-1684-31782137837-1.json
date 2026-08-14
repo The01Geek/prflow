@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1684",
+  "generated_at": "2026-08-14T08:17:50Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.74",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 19.3529057,
+    "tokens": {
+      "input_tokens": 472,
+      "output_tokens": 48156,
+      "cache_read_input_tokens": 10298726,
+      "cache_creation_input_tokens": 261534,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 544,
+        "outputTokens": 74957,
+        "cacheReadInputTokens": 12458497,
+        "cacheCreationInputTokens": 612848,
+        "webSearchRequests": 0,
+        "costUSD": 12.916946000000006,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 250,
+        "outputTokens": 41968,
+        "cacheReadInputTokens": 5852574,
+        "cacheCreationInputTokens": 1079978,
+        "webSearchRequests": 0,
+        "costUSD": 6.435959700000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 78,
+    "duration_ms": 942682
+  },
+  "permission_denials": {
+    "count": 10,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---ENV---\"; echo \"RUN_ID=${GITHUB_RUN_ID:-unset} ATTEMPT=${GITHUB_RUN_ATTEMPT:-unset} GHA=${GITHUB_ACTIONS:-unset}\"",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve \"1676\" --pr \"1684\" 2>.prflow/tmp/review/pr-1684/31782137837-1/acs.err ; echo \"acs-rc=$?\"",
+      "find / -name \"check-verified-premises.py\" 2>/dev/null",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1684/31782137837-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1684/31782137837-1/verdicts/iter-1/VC-12-dcda2056d4d5.json << 'EOF'\n{\n  \"id\": \"VC-12\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"All four named consumers exist and read the exact sections claimed. (1) scripts/apply-issue-dependencies.py reads `## Dependencies` prerequisites (lines 32, 264-282 confirm section-scoped parsing). (2) scripts/parse-acs …[per-command-truncated]",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before\ngit hash-object .prflow/tmp/review-dirty-tree-before",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >/tmp/ext.out 2>/tmp/ext.err; echo \"EXIT=$?\"; echo \"---STDOUT bytes---\"; wc -c </tmp/ext.out; echo \"---STDOUT---\"; cat /tmp/ext.out; echo \"---STDERR---\"; cat /tmp/ext.err",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >/tmp/ext.out 2>/tmp/ext.err; echo \"EXIT=$?\"",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >.prflow/tmp/ext.out 2>.prflow/tmp/ext.err; echo \"EXIT=$?\"",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review 2>/dev/null | tee .prflow/tmp/extout.txt | head -5; echo \"EXIT=${PIPESTATUS[0]}\"",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review 2>/dev/null; echo \"EXIT=$?\"; ls -la /home/runner/work/_temp/devflow-trusted-prompt-ext/ 2>/dev/null || echo \"no dir\""
+    ],
+    "total": 10,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
