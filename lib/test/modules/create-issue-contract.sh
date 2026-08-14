@@ -304,7 +304,7 @@ devflow_module_pin_unique "#443: audit summary renders the word degraded wheneve
 devflow_module_pin_unique "#546: the step records each lifecycle event through the tool and obeys its answer" \
   'records each lifecycle event through that tool and obeys the answer it returns' "$CI_BUNDLE"
 devflow_module_pin_unique "#546: no tool-owned decision is ever re-derived from this prose" \
-  'never re-deriving a transition, budget, retry bound, dispatch arm, or eligibility from this prose' \
+  'Never re-derive a transition, a budget, a retry bound, a dispatch arm, or eligibility from this prose' \
   "$CI_BUNDLE"
 # An illegal-transition rejection is NOT unavailability (SKILL.md's contract line). Without
 # this rule a rejected mutation routes to the `state-owner unavailable` fallback — turning the
