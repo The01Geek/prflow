@@ -25,9 +25,10 @@ Three values, three sources, each read soft:
 
 An unestablished value is omitted rather than guessed, and a stderr breadcrumb names
 it and why, so a short line reports its own reason. The line carries no backtick or
-other shell-active construct, because its caller substitutes it into a double-quoted
-``--body``. The helper always exits 0: an unreadable source shortens the line, it never
-fails the caller's fence.
+other shell-active construct — the caller substitutes it into a double-quoted ``--body``,
+so every value is dropped (omitted + breadcrumbed) if it carries one, enforcing the
+guarantee by construction rather than trusting the source. The helper always exits 0: an
+unreadable source shortens the line, it never fails the caller's fence.
 """
 from __future__ import annotations
 
@@ -39,21 +40,39 @@ import subprocess
 import sys
 from pathlib import Path
 
-#: The plugin manifest, resolved relative to THIS file's location (scripts/ -> repo
-#: root), mirroring lib/efficiency-trace.sh: the version that is actually executing,
-#: not a repository-root manifest a consumer lacks.
+#: The plugin manifest, resolved beside this file (mirroring lib/efficiency-trace.sh).
 _MANIFEST_BESIDE_HELPER = Path(__file__).resolve().parent.parent / ".claude-plugin" / "plugin.json"
 
-#: The config key (under prflow_implement) that gates the model+effort clause. An
-#: explicit JSON ``false`` suppresses the clause; anything else (absent, true, a
-#: wrong-typed value) leaves it enabled — the version is emitted whatever it holds.
+#: The prflow_implement config key gating the model+effort clause (raw JSON false suppresses).
 _CONFIG_SECTION = "prflow_implement"
 _CONFIG_KEY = "publish_model_effort"
+
+#: Characters that would make a value shell-active once substituted into the caller's
+#: double-quoted --body, or break the single-line body: backtick and ``$`` (command/var
+#: substitution), backslash and double-quote (quoting escapes), and any control char
+#: including newline/tab. A value carrying one is dropped rather than shipped, so the
+#: "no shell-active construct" guarantee is enforced by construction, not by trust.
+_SHELL_ACTIVE = re.compile(r'[`$\\"\x00-\x1f\x7f]')
 
 
 def _breadcrumb(msg: str) -> None:
     """Emit a provenance breadcrumb on stderr (never stdout)."""
     print(f"render-pr-provenance-line: {msg}", file=sys.stderr)
+
+
+def _shell_inert(label: str, value: str | None) -> str | None:
+    """Return value stripped when it is non-blank and carries no shell-active or control
+    character; else None + breadcrumb. This is the single enforcement point for the
+    line's shell-inert guarantee, applied to every value whatever its source."""
+    if value is None:
+        return None
+    stripped = value.strip()
+    if not stripped:
+        return None
+    if _SHELL_ACTIVE.search(stripped):
+        _breadcrumb(f"{label} omitted (carries a shell-active or control character; the provenance line must stay shell-inert)")
+        return None
+    return stripped
 
 
 def _env_nonblank(name: str) -> str | None:
@@ -223,10 +242,10 @@ def model_effort_permitted(explicit_config: str | None) -> bool:
 def render_line(*, explicit_config: str | None = None) -> str:
     """Compose the provenance line. Established values are named in order (version,
     model, effort); an empty set yields no parenthetical at all — never empty punctuation."""
-    version = read_version()
+    version = _shell_inert("version", read_version())
     if model_effort_permitted(explicit_config):
-        model = read_model()
-        effort = read_effort()
+        model = _shell_inert("model", read_model())
+        effort = _shell_inert("effort", read_effort())
     else:
         _breadcrumb(f"model+effort clause suppressed ({_CONFIG_SECTION}.{_CONFIG_KEY} is false)")
         model = None

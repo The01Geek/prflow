@@ -32406,6 +32406,54 @@ assert_eq("#1655 no manifest -> version omitted, model+effort named",
 assert_eq("#1655 no-manifest breadcrumb names version", True, "version unestablished" in _e)
 assert_eq("#1655 no-manifest run exits 0", 0, _rc)
 
+# Shell-inert enforcement: a value carrying a shell-active/control char is DROPPED (not
+# shipped), so the "no backtick / no shell-active construct" guarantee holds by construction.
+_o, _e, _rc = _prov_run(version="2.32.58", effort="high",
+                        transcript=_prov_transcript(model="claude`whoami`5"))
+assert_eq("#1655 model carrying a backtick is dropped, not shipped", f"{_PB} (v2.32.58, high)", _o)
+assert_eq("#1655 dropped-for-backtick line carries no backtick", False, "`" in _o)
+assert_eq("#1655 shell-active drop emits a breadcrumb", True, "shell-active" in _e)
+
+_o, _e, _rc = _prov_run(version="2.32.58", effort="high",
+                        transcript=_prov_transcript(model="claude$(id)5"))
+assert_eq("#1655 model carrying a $-substitution is dropped", f"{_PB} (v2.32.58, high)", _o)
+assert_eq("#1655 dropped-for-dollar line carries no dollar", False, "$" in _o)
+
+_o, _e, _rc = _prov_run(version="2.32.58\n9.9.9", write_transcript=False)
+assert_eq("#1655 version carrying a newline is dropped", _PB, _o)
+
+# Config matrix — the section/top-level dimensions of model_effort_permitted's guards.
+_o, _e, _rc = _prov_run(version="2.32.58", effort="high",
+                        transcript=_prov_transcript(model="claude-opus-5"), config=[1, 2, 3])
+assert_eq("#1655 top-level config not an object -> clause enabled",
+          f"{_PB} (v2.32.58, claude-opus-5, high)", _o)
+_o, _e, _rc = _prov_run(version="2.32.58", effort="high",
+                        transcript=_prov_transcript(model="claude-opus-5"),
+                        config={"prflow_implement": [False]})
+assert_eq("#1655 prflow_implement section as an array -> clause enabled",
+          f"{_PB} (v2.32.58, claude-opus-5, high)", _o)
+_o, _e, _rc = _prov_run(version="2.32.58", effort="high",
+                        transcript=_prov_transcript(model="claude-opus-5"),
+                        config={"prflow_implement": "off"})
+assert_eq("#1655 prflow_implement section as a scalar -> clause enabled",
+          f"{_PB} (v2.32.58, claude-opus-5, high)", _o)
+
+# valid-falsy non-coercion: JSON 0 and "" are not the boolean false and must not suppress.
+for _fv, _lbl in ((0, "zero"), ("", "empty-string")):
+    _o, _e, _rc = _prov_run(version="2.32.58", effort="high",
+                            transcript=_prov_transcript(model="claude-opus-5"),
+                            config={"prflow_implement": {"publish_model_effort": _fv}})
+    assert_eq(f"#1655 config value {_lbl} does not suppress (only JSON false does)",
+              f"{_PB} (v2.32.58, claude-opus-5, high)", _o)
+
+# read_model most-recent semantics: a valid earlier record then a wrong-typed later one
+# falls back to the last COMPLETE assistant model, not to no model.
+_o, _e, _rc = _prov_run(version="2.32.58",
+                        transcript=_prov_transcript(model="claude-good") +
+                        [json.dumps({"type": "assistant", "message": {"model": 123}})])
+assert_eq("#1655 wrong-typed later record falls back to the last valid model",
+          f"{_PB} (v2.32.58, claude-good)", _o)
+
 # Contract assertions tied to acceptance criteria: the phase-file lints and the profile
 # drift check pass over the real tree after the change.
 _R1655 = Path(__file__).resolve().parents[2]
