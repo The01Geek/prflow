@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1680",
+  "generated_at": "2026-08-14T04:25:48Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.70",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 14.882787699999994,
+    "tokens": {
+      "input_tokens": 97,
+      "output_tokens": 47363,
+      "cache_read_input_tokens": 9152432,
+      "cache_creation_input_tokens": 253481,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 188,
+        "outputTokens": 98302,
+        "cacheReadInputTokens": 12212838,
+        "cacheCreationInputTokens": 691034,
+        "webSearchRequests": 0,
+        "costUSD": 13.834425249999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 42,
+        "outputTokens": 7193,
+        "cacheReadInputTokens": 878309,
+        "cacheCreationInputTokens": 180493,
+        "webSearchRequests": 0,
+        "costUSD": 1.04836245,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 63,
+    "duration_ms": 1072150
+  },
+  "permission_denials": {
+    "count": 13,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---RUNID---\"; echo \"${GITHUB_RUN_ID:-none}-${GITHUB_RUN_ATTEMPT:-1}\"; echo \"---PRVIEW---\"; gh pr view 1680 --json headRefName,baseRefName,baseRefOid,headRefOid --jq '.'",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve \"1679\" --pr \"1680\" 2>.prflow/tmp/review/pr-1680/31768821070-1/acs.err ; echo \"acs-rc=$?\"",
+      "grep -rnoE '\\-\\-tick-progress[= ]*(\"[^\"]*\"|'\"'\"'[^'\"'\"']*'\"'\"'|\\$\\{?[A-Za-z_][A-Za-z_0-9]*\\}?|[^ ]*)?' skills/implement --include=*.md | grep -oE '\\-\\-tick-progress.*' | sort -u | head -40",
+      "mkdir -p .prflow/tmp; rm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null; git status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before",
+      "lib/test/test_python_scripts.py 2>&1 | tail -15",
+      "lib/test/test_python_scripts.py | tail -15",
+      "python3 lib/test/test_python_scripts.py > /tmp/tpy.out 2>&1; echo \"rc=$?\"; tail -8 /tmp/tpy.out",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review > /tmp/ext.out 2>/tmp/ext.err; echo \"rc=$?\"; echo \"--- stdout bytes:\"; wc -c < /tmp/ext.out; echo \"--- stdout:\"; cat /tmp/ext.out; echo \"--- stderr:\"; cat /tmp/ext.err",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review > /tmp/ext.out 2>/tmp/ext.err\necho \"rc=$?\"\necho \"stdout-bytes=$(wc -c < /tmp/ext.out)\"\necho \"=== stdout ===\"; cat /tmp/ext.out\necho \"=== stderr ===\"; cat /tmp/ext.err",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review > /tmp/ext.out 2>/tmp/ext.err; echo \"rc=$? stdout-bytes=$(wc -c < /tmp/ext.out)\"",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review > /tmp/ext.out 2>/tmp/ext.err; printf 'rc=%s\\n' \"$?\"; python3 -c \"import os;print('stdout-bytes',os.path.getsize('/tmp/ext.out'))\"",
+      "ls -la /home/runner/work/_temp/devflow-trusted-prompt-ext/",
+      "git status --porcelain | head; echo \"rc-clean-if-empty\"; cmp -s .prflow/tmp/review-dirty-tree-before <(git status --porcelain -z) && echo \"TREE-UNCHANGED\" || echo \"TREE-CHANGED\""
+    ],
+    "total": 13,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
