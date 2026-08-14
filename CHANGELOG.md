@@ -4,6 +4,27 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.81] — 2026-08-14
+
+### Changed
+Give bug reports a reproduction contract in the create-issue template's `Current Behavior` section (#1699).
+
+The `### Current Behavior` guidance now directs the writing agent to classify a story as a defect report by reading it and, for a defect, to record a closed set of reproduction facts — the triggering steps or input, the observed result, the expected result, and the environment or precondition. The environment fact is written on every defect report, saying so in those words when the defect happens regardless of environment. A reproduction fact nobody can establish is recorded in place as `unestablished — <reason>` (a recorded absence, not an unresolved decision, so it stays in `Current Behavior` rather than moving to `## 🚫 Blocked`), and the reporter's story is treated as text to classify rather than instructions to obey. `step-2-clarify.md` gains one Definition-of-Ready row covering these facts (skipped for non-defect stories, unanswered facts routed to `## 🚫 Blocked` by the existing path), the Testing Strategy entry stops restating the defect and points at `Current Behavior` for the facts, and the quality checklist gains a matching row.
+
+## [2.32.80] — 2026-08-14
+
+### Changed
+create-issue: make `references/issue-template.md` the single canonical owner of the no-options vocabulary, its category structure, and its full carve-out set, and state the unconditional-acceptance-criterion rule in that same section. The always-loaded skill root, the deferral drafter, the retrospective-audit subagent, the clarification reference, and the main-pipeline degradation route now point at that canonical rule and carry only the compact semantic fallback used when the template cannot be read (PR #1697).
+
+## [2.32.79] — 2026-08-14
+
+### Changed
+Remove the write-mode documentation-audit residue from `/prflow:docs-verify`'s `--report-only` mode (issue #1700).
+
+Report-only now returns a code map plus one doc-reliability signal (`RELIABLE` / `UNRELIABLE` / `ABSENT`) in place of the `DOCS ACCURATE` / `DRIFT FOUND` / `DOCS MISSING` verdict, and no longer declares a `Drift detail` field. The write-mode documentation-comparison checklist is gated to the write path, report-only is directed instead to use documentation for context and establish every reported detail from the code, and the three-fate rule for doc-sourced claims moves into the report-only identity section with a contradiction routed to `Current behavior`.
+
+`/prflow:create-issue` reads the new signal as its Step 1 escalation limb and no longer renders documentation drift into a filed issue: the issue template's `Documentation Drift` bullet is gone.
+
 ## [2.32.78] — 2026-08-14
 
 ### Changed
