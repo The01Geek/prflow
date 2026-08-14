@@ -30033,7 +30033,17 @@ U8PY
     assert_eq "#1678 AC3: the reference positional branch name is non-empty (guards a vacuous ==)" "yes" \
       "$( [ -n "$U8D_REF" ] && echo yes || echo no )"
     rm -f "$U8D_TITLE"
+    ;;
+  *)
+    skip "#1678 UTF-8 local-file decode hostile-codec self-scan (AC1/AC2/AC3)" host-capability "forced env did not downgrade the file codec to ASCII (got ${U8D_ENC:-<empty>}); the hostile-codec RED->GREEN condition is not reproducible on this host" ;;
+esac
 
+# AC4 runs UNCONDITIONALLY, OUTSIDE the hostile-codec case above: invalid UTF-8 and
+# an unavailable path fail under every codec, so gating these regression legs behind
+# the ASCII-codec self-skip would drop coverage of the new except-OSError/decode arms
+# on a host that cannot reproduce that codec. AC1/AC2/AC3 stay gated — they need the
+# hostile codec to be RED on baseline.
+if true; then
     # AC4 (CLI half) — invalid UTF-8 on each affected CLI exits non-zero with a
     # flag-specific UTF-8 diagnostic, NO traceback, and NO partial stdout. (Invalid
     # UTF-8 fails under any codec, so no hostile env is needed for this leg.)
@@ -30085,10 +30095,7 @@ U8PY
     assert_eq "#1678 AC4: branch-for-issue.py unavailable-path emits no partial stdout" "0" \
       "$(wc -c < "$U8D_MBFO" | tr -d ' ')"
     rm -f "$U8D_BAD" "$U8D_PAO" "$U8D_PAE" "$U8D_BFO" "$U8D_BFE" "$U8D_MPAO" "$U8D_MPAE" "$U8D_MBFO" "$U8D_MBFE"
-    ;;
-  *)
-    skip "#1678 UTF-8 local-file decode hostile-codec self-scan" host-capability "forced env did not downgrade the file codec to ASCII (got ${U8D_ENC:-<empty>}); the hostile-codec RED->GREEN condition is not reproducible on this host" ;;
-esac
+fi
 
 # ────────────────────────────────────────────────────────────────────────────
 echo "python3 interpreter resolution: resolve-python.sh / provision-python3-shim.sh / preflight.sh (issue #225)"
