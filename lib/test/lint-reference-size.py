@@ -153,6 +153,13 @@ NEAR_FULL_HEADROOM = READER_CAP_BYTES - MAX_BYTES
 #: The exemption record, relative to the resolved root.
 EXEMPTIONS_DEFAULT = "lib/test/reference-size-exemptions.json"
 
+#: The declared Step 3.6 audit reference set (issue #1702), relative to the resolved root.
+#: The single source of the entry reference plus every ordered procedure member that this
+#: lint's per-member and aggregate source-byte checks resolve against — the same manifest
+#: `lib/test/check-audit-lifecycle-contracts.py` and `lib/test/modules/create-issue-contract.sh`
+#: read. Both checks below measure with `Path.read_bytes()`.
+STEP36_MANIFEST_DEFAULT = "lib/test/create-issue-step-3-6-members.json"
+
 #: Schema versions this reader understands. An unrecognized version is refused rather
 #: than read under guessed semantics.
 KNOWN_SCHEMA_VERSIONS = (1,)
@@ -342,6 +349,93 @@ def load_record(path: Path) -> tuple[dict[str, int], dict[str, str]]:
     return recorded, exemptions
 
 
+class Step36Error(Exception):
+    """The Step 3.6 member manifest could not be read as a well-formed record."""
+
+
+def load_step36_manifest(path: Path) -> tuple[str, list[str], int, int, str]:
+    """Return `(entry, members, per_member_limit, baseline_bytes, baseline_commit)`.
+
+    Fails CLOSED on any malformed shape (never an empty population that would read as a
+    stricter check passing over nothing), exactly like `load_record`.
+    """
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise Step36Error(f"the Step 3.6 manifest could not be read ({path}): {exc}") from exc
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise Step36Error(f"the Step 3.6 manifest is not valid JSON ({path}): {exc}") from exc
+    if not isinstance(data, dict):
+        raise Step36Error("the Step 3.6 manifest's top-level value must be an object")
+    entry = data.get("entry")
+    if not isinstance(entry, str) or not entry.strip():
+        raise Step36Error("the Step 3.6 manifest's `entry` must be a non-empty string")
+    members = data.get("members")
+    if not isinstance(members, list) or not members or not all(
+        isinstance(m, str) and m.strip() for m in members
+    ):
+        raise Step36Error("the Step 3.6 manifest's `members` must be a non-empty list of "
+                          "non-empty strings")
+    if len(set(members)) != len(members) or entry in members:
+        raise Step36Error("the Step 3.6 manifest names a duplicate or entry-as-member path")
+    limit = data.get("per_member_limit_bytes")
+    if not isinstance(limit, int) or isinstance(limit, bool) or limit <= 0:
+        raise Step36Error("the Step 3.6 manifest's `per_member_limit_bytes` must be a "
+                          "positive integer")
+    baseline = data.get("aggregate_baseline_bytes")
+    if not isinstance(baseline, int) or isinstance(baseline, bool) or baseline <= 0:
+        raise Step36Error("the Step 3.6 manifest's `aggregate_baseline_bytes` must be a "
+                          "positive integer")
+    commit = data.get("aggregate_baseline_commit")
+    if not isinstance(commit, str) or not commit.strip():
+        raise Step36Error("the Step 3.6 manifest's `aggregate_baseline_commit` must be a "
+                          "non-empty string")
+    return entry, members, limit, baseline, commit
+
+
+def check_step36_set(root: Path, manifest_path: Path) -> tuple[list[str], list[str]]:
+    """Enforce the Step 3.6 set's per-member ceiling and aggregate source-byte budget.
+
+    Returns `(findings, report_lines)`. `findings` is non-empty when any member exceeds the
+    per-member limit or the population's total exceeds the source-recorded pre-refactor
+    baseline. Every measurement is `Path.read_bytes()`, and the emitted report names the
+    measured population and the baseline commit (issue #1702, AC2/AC3).
+    """
+    entry, members, limit, baseline, commit = load_step36_manifest(manifest_path)
+    population = [entry, *members]
+    findings: list[str] = []
+    report: list[str] = []
+    total = 0
+    for relative in population:
+        target = root / relative
+        try:
+            size = len(target.read_bytes())
+        except OSError as exc:
+            # An unmeasurable member is unknown, never zero — refuse rather than under-count
+            # the aggregate and pass a population it never read.
+            findings.append(
+                f"step-3-6-set: {relative} could not be measured ({exc.__class__.__name__}: "
+                f"{exc}) — the declared member set could not be established")
+            continue
+        total += size
+        report.append(f"step-3-6-set: {relative} {size} bytes (per-member limit {limit})")
+        if size > limit:
+            findings.append(
+                f"step-3-6-set: {relative} is {size} bytes, over the {limit}-byte per-member "
+                "authoring limit — split or trim this member")
+    report.append(
+        f"step-3-6-set: aggregate {total} bytes over {len(population)} files "
+        f"(baseline {baseline} bytes @ {commit})")
+    if total > baseline:
+        findings.append(
+            f"step-3-6-set: the population totals {total} bytes, over the source-recorded "
+            f"pre-refactor baseline of {baseline} bytes (@ {commit}) — the decomposition must "
+            "stay within the pre-refactor total; trim a member")
+    return findings, report
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
@@ -353,6 +447,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--exemptions", default=None,
         help=f"the exemption record to read (default: <root>/{EXEMPTIONS_DEFAULT})",
+    )
+    parser.add_argument(
+        "--step36-manifest", default=None,
+        help=f"the Step 3.6 member manifest (default: <root>/{STEP36_MANIFEST_DEFAULT})",
+    )
+    parser.add_argument(
+        "--check-step36-set", action="store_true",
+        help=("enforce ONLY the Step 3.6 set's per-member ceiling and aggregate source-byte "
+              "budget (issue #1702), then exit"),
     )
     parser.add_argument(
         "--print-population", action="store_true",
@@ -374,6 +477,23 @@ def main(argv: list[str] | None = None) -> int:
         help="prove the density floor does not exceed the recorded measurements' minimum, and exit",
     )
     args = parser.parse_args(argv)
+
+    if args.check_step36_set:
+        root = _pop.resolve_root(args.root, tool=_TOOL)
+        manifest = (
+            Path(args.step36_manifest) if args.step36_manifest
+            else root / STEP36_MANIFEST_DEFAULT
+        )
+        try:
+            s36_findings, s36_report = check_step36_set(root, manifest)
+        except Step36Error as exc:
+            print(f"{_TOOL}: {exc}", file=sys.stderr)
+            return 1
+        for line in s36_report:
+            print(line)
+        for finding in s36_findings:
+            print(finding)
+        return 1 if s36_findings else 0
 
     if args.self_check:
         # Without this the floor is a transcribed number, and a reader who re-derives it
@@ -543,6 +663,20 @@ def main(argv: list[str] | None = None) -> int:
                     f"row from {exemption_path} too; a row left standing re-authorizes a "
                     "future exemption for this file with no visible roster edit"
                 )
+
+    if whole_tree:
+        manifest = (
+            Path(args.step36_manifest) if args.step36_manifest
+            else root / STEP36_MANIFEST_DEFAULT
+        )
+        try:
+            s36_findings, s36_report = check_step36_set(root, manifest)
+        except Step36Error as exc:
+            findings.append(f"{_TOOL}: {exc}")
+        else:
+            for line in s36_report:
+                print(line)
+            findings.extend(s36_findings)
 
     for relative in sorted(covered):
         _kind, _detail, size = covered[relative]

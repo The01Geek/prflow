@@ -58,14 +58,26 @@ import contextlib
 import importlib.util
 import inspect
 import io
+import json
 import re
 import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 IAS = REPO / "scripts" / "issue-audit-state.py"
-STEP36 = REPO / "skills" / "create-issue" / "references" / "step-3-6-audit.md"
+# The Step 3.6 audit procedure is a declared ordered reference set (issue #1702): the entry
+# plus its ordered procedure members. The manifest is the single source both the sequence and
+# fenced-completeness arms read across, and the same file `lint-reference-size.py` and
+# `create-issue-contract.sh` resolve the set against.
+STEP36_MANIFEST = REPO / "lib" / "test" / "create-issue-step-3-6-members.json"
 STEP4 = REPO / "skills" / "create-issue" / "references" / "step-4-present-create.md"
+
+# Test-injection seam: when a caller rebinds `STEP36` to a single crafted document, the
+# Step 3.6 set is exactly `[STEP36]` and the sequence/fenced arms grade that one file plus
+# `STEP4` — byte-identical to the pre-#1702 single-file contract, so every crafted-document
+# test drives the checker unchanged. In a real run it stays `None` and the set is read from
+# the declared manifest.
+STEP36 = None
 
 # The paragraph that opens the ordered call sequence. A closed anchor, not a fuzzy match:
 # exactly one line must carry it, so a duplicated or renamed heading is RED rather than
@@ -160,6 +172,26 @@ def _read(path: Path) -> str:
         return path.read_text(encoding="utf-8")
     except OSError as exc:
         raise Refusal(f"could not read {_display_path(path)}: {exc}") from exc
+
+
+def _step36_member_paths() -> list[Path]:
+    """The entry plus ordered procedure members of the Step 3.6 set, from the declared
+    manifest. Fails closed (Refusal) on a manifest that cannot be read or is malformed —
+    an unestablished set is never an empty one silently reported clean."""
+    if STEP36 is not None:
+        return [STEP36]
+    try:
+        data = json.loads(STEP36_MANIFEST.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise Refusal(f"could not read the Step 3.6 manifest "
+                      f"{_display_path(STEP36_MANIFEST)}: {exc}") from exc
+    entry = data.get("entry") if isinstance(data, dict) else None
+    members = data.get("members") if isinstance(data, dict) else None
+    if not isinstance(entry, str) or not entry.strip() or not isinstance(members, list) \
+            or not members or not all(isinstance(m, str) and m.strip() for m in members):
+        raise Refusal(f"the Step 3.6 manifest {_display_path(STEP36_MANIFEST)} has no usable "
+                      "`entry`/`members` — refusing rather than scanning an empty set")
+    return [REPO / entry] + [REPO / m for m in members]
 
 
 def _sole_paragraph(text: str, anchor: str, where: str) -> str:
@@ -674,7 +706,11 @@ def check_sequence(registered, report):
     invocation list itself — with multiplicity, in document order — so its length is the
     unconditional joint count and `check_fenced_completeness` can grade the same parse
     rather than repeating it."""
-    seq_text = _read(STEP36)
+    members = _step36_member_paths()
+    # Concatenate the Step 3.6 set (entry + ordered members): the call-sequence anchor lives
+    # in exactly one member, so `_sole_paragraph`'s exactly-one-hit contract holds over the
+    # whole set and a duplicated/rewrapped anchor across members is still RED.
+    seq_text = "\n".join(_read(p) for p in members)
     paragraph = _sole_paragraph(seq_text, _SEQUENCE_ANCHOR, "sequence")
     # `_invocations` REFUSES on a subcommand-shaped token that is not registered, so the
     # "the prose can never name a call the tool would not accept" guarantee is genuinely
@@ -696,8 +732,9 @@ def check_sequence(registered, report):
     if "query-draft-binding" not in step4:
         raise Refusal("sequence: step-4-present-create.md no longer mandates the "
                       "query-draft-binding re-detect the sequence's joint scope counts")
-    report.append(f"sequence: {len(named)} unconditional invocations jointly mandated, "
-                  "every one a registered subcommand")
+    report.append(f"sequence: {len(named)} unconditional invocations jointly mandated across "
+                  f"{len(members)} Step 3.6 member(s) + step-4-present-create.md, every one a "
+                  "registered subcommand")
     return named
 
 
@@ -829,7 +866,7 @@ def check_fenced_completeness(registered, report, named):
     read from `STEP36`/`STEP4`, the same module-level source `check_sequence` reads, so a
     crafted document drives this arm by rebinding those and grades under identical rules.
     """
-    seq_text = _read(STEP36)
+    members = _step36_member_paths()
     step4 = _read(STEP4)
     named = frozenset(named)
 
@@ -852,8 +889,9 @@ def check_fenced_completeness(registered, report, named):
     empty: list[str] = []
     orphans: list[str] = []
     all_calls: set[str] = set()
-    for label, text in (("step-3-6-audit.md", seq_text),
-                        ("step-4-present-create.md", step4)):
+    scan_targets = [(p.name, _read(p)) for p in members]
+    scan_targets.append(("step-4-present-create.md", step4))
+    for label, text in scan_targets:
         calls = _fenced_state_owner_calls(extractor, text, registered)
         if not calls:
             empty.append(label)
@@ -893,8 +931,9 @@ def check_fenced_completeness(registered, report, named):
             "```bash fence of either reference file — a stale exemption pre-accounts a call "
             "the sequence may now be omitting; retire the entry, or restore the fence")
     report.append(f"fenced-completeness: all {scanned} fenced state-owner invocations across "
-                  "both reference files are named in the call sequence, the declared "
-                  "exemption set, or the conditional set")
+                  f"each declared Step 3.6 member ({len(members)}) and step-4-present-create.md "
+                  "are named in the call sequence, the declared exemption set, or the "
+                  "conditional set")
 
 
 def main():

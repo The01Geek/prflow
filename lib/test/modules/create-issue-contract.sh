@@ -35,15 +35,15 @@ CI_TMPL_AUDIT="$CI_ROOT/skills/create-issue/references/audit-prompt-template.md"
 CI_REF_STEP35="$CI_ROOT/skills/create-issue/references/step-3-5-steelman.md"
 # shellcheck disable=SC2034  # pin-retarget seam (see the block comment above)
 CI_REF_REVDELTA="$CI_ROOT/skills/create-issue/references/revision-delta.md"
-# #793: step-3-6-audit.md and fallback-audit-dispatch-arms.md (CI_REF_FB_DISPATCH below)
-# are the two references whose out-of-bounds enumerations are LOCATION-sensitive — each
-# list must live in its own arm's file, since a file-arm list surviving only in the
-# embed-arm file would leave the file arm undeclared. Their pins therefore keep a
-# specific-file target rather than the concatenated bundle, per the per-pin routing rule
-# above. These two seams are the binding sites; do not reintroduce separately-named
-# aliases for the same paths, which is what shellcheck flagged as unused.
+# #793: the file-arm out-of-bounds enumeration and fallback-audit-dispatch-arms.md
+# (CI_REF_FB_DISPATCH below) are the LOCATION-sensitive lists — each must live in its own
+# arm's file, since a file-arm list surviving only in the embed-arm file would leave the
+# file arm undeclared. Their pins therefore keep a specific-file target rather than the
+# concatenated bundle. #1702: the Step 3.6 procedure is now an ordered reference set, and
+# the file-arm out-of-bounds list plus the #1675 handle=path remedy live in the DISPATCH
+# member — so this seam targets that member.
 # shellcheck disable=SC2034  # pin-retarget seam (see the block comment above)
-CI_REF_STEP36="$CI_ROOT/skills/create-issue/references/step-3-6-audit.md"
+CI_REF_STEP36="$CI_ROOT/skills/create-issue/references/step-3-6-audit-dispatch.md"
 # shellcheck disable=SC2034  # pin-retarget seam (see the block comment above)
 CI_REF_STEP4="$CI_ROOT/skills/create-issue/references/step-4-present-create.md"
 CI_REF_FB_NOTASK="$CI_ROOT/skills/create-issue/references/fallback-no-task-tool.md"
@@ -304,7 +304,7 @@ devflow_module_pin_unique "#443: audit summary renders the word degraded wheneve
 devflow_module_pin_unique "#546: the step records each lifecycle event through the tool and obeys its answer" \
   'records each lifecycle event through that tool and obeys the answer it returns' "$CI_BUNDLE"
 devflow_module_pin_unique "#546: no tool-owned decision is ever re-derived from this prose" \
-  'Never re-derive a transition, a budget, a retry bound, a dispatch arm, or eligibility from this prose' \
+  'never re-deriving a transition, budget, retry bound, dispatch arm, or eligibility from this prose' \
   "$CI_BUNDLE"
 # An illegal-transition rejection is NOT unavailability (SKILL.md's contract line). Without
 # this rule a rejected mutation routes to the `state-owner unavailable` fallback — turning the
@@ -1232,7 +1232,10 @@ echo "#614 create-issue split: routing, markers, purity"
 
 # The reference roster is stated ONCE here and drives every loop below, so a reference
 # can never be registered in one assertion's list and silently dropped from another.
-CI614_STEP_REFS="step-2-clarify step-3-5-steelman revision-delta step-3-6-audit step-4-present-create"
+# #1702: the Step 3.6 procedure is a declared ordered reference set — the entry
+# (step-3-6-audit) plus three ordered procedure members. Each member is a routed step
+# reference with its own marker id, routing row, and unique representative literal.
+CI614_STEP_REFS="step-2-clarify step-3-5-steelman revision-delta step-3-6-audit step-3-6-audit-shared step-3-6-audit-dispatch step-3-6-audit-adjudication step-4-present-create"
 CI614_FALLBACK_REFS="fallback-no-task-tool fallback-read-only-sandbox fallback-audit-dispatch-arms fallback-state-owner-unavailable fallback-audit-round-reconciliation fallback-audit-boundary-offer fallback-draft-write-recovery fallback-implement-offer-tier-read fallback-visual-specification fallback-audit-evidence-degraded"
 # issue-template is a routed reference (gated, T1/T2), but NOT a step reference: it is kept in
 # its own roster group so the T4 default-path purity sweep (which loops CI614_STEP_REFS) does
@@ -1253,6 +1256,9 @@ ci614_marker_id() {
     step-3-5-steelman)      printf '3.5' ;;
     revision-delta)         printf 'revision-delta' ;;
     step-3-6-audit)         printf '3.6' ;;
+    step-3-6-audit-shared)  printf '3.6-shared' ;;
+    step-3-6-audit-dispatch) printf '3.6-dispatch' ;;
+    step-3-6-audit-adjudication) printf '3.6-adjudication' ;;
     step-4-present-create)  printf '4' ;;
     fallback-*)             printf '%s' "$1" ;;
     issue-template)         printf 'issue-template' ;;
@@ -1397,6 +1403,9 @@ ci614_step_unique step-2-clarify 'Clarification is the default, not the exceptio
 ci614_step_unique step-3-5-steelman 'This is a **code-grounded verification loop, not a re-read**'
 ci614_step_unique revision-delta '**Bind and walk the delta per edit-batch.**'
 ci614_step_unique step-3-6-audit '**Obey the state owner (the contract governing this whole step).**'
+ci614_step_unique step-3-6-audit-shared 'Staged canonical-draft write (shared procedure — referenced by every canonical-draft write site)'
+ci614_step_unique step-3-6-audit-dispatch 'Information diet (the whole mechanism — do not widen it).'
+ci614_step_unique step-3-6-audit-adjudication 'Wholesale misadjudication has no amend path, by design.'
 ci614_step_unique step-4-present-create '**Show the complete rendered issue in chat.**'
 unset -f ci614_step_unique
 

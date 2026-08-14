@@ -28086,8 +28086,14 @@ assert_eq("#793/AC39: an all-not-addressed targeted round leaves the run-wide ef
 # token added to _NEXT_ACTIONS and forgotten in the skill's obey list goes RED — the exact
 # drift this change introduced (confirm-whole-draft), which a literal wording pin would
 # only have caught because the sentence happened to be rewritten.
-_793_STEP36 = (SCRIPTS.parent / 'skills' / 'create-issue' / 'references'
-               / 'step-3-6-audit.md').read_text(encoding='utf-8')
+# The Step 3.6 procedure is a declared ordered reference set (issue #1702), so the
+# answer-vocabulary contract resolves against the whole member manifest (entry + members),
+# not the single entry file the obey-verbatim list moved out of.
+_793_MANIFEST = json.loads((SCRIPTS.parent / 'lib' / 'test'
+                            / 'create-issue-step-3-6-members.json').read_text(encoding='utf-8'))
+_793_STEP36 = "\n".join(
+    (SCRIPTS.parent / _p).read_text(encoding='utf-8')
+    for _p in [_793_MANIFEST['entry'], *_793_MANIFEST['members']])
 assert_eq("#793: every _NEXT_ACTIONS token the tool can answer appears in the skill's "
           "obey-verbatim list (derived from the tuple, never transcribed)",
           [], [t for t in _m793._NEXT_ACTIONS if f'`{t}`' not in _793_STEP36])
