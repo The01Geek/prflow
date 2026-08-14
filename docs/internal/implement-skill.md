@@ -673,6 +673,42 @@ the read-only `review` runner uses `--permission-mode acceptEdits`, but `/prflow
 **not** — friction at the seam is reduced by single-statement leading-token helper forms and the Write
 tool for scratch, never by widening the permission grant.
 
+## Phase 2 criterion-lifecycle ledger: the producer side (issue #1674)
+
+The exhaustive, criterion-level accounting of *how every resolved acceptance criterion will be
+verified* is owned here, in the Phase 2 test-first gate (`skills/implement/phases/phase-2-sweeps-contract.md`),
+not in the filed issue. The gate no longer decides testability only for the change as a whole:
+**before any implementation code is written**, it enumerates every resolved workpad
+acceptance-criterion row (the exact rows `scripts/parse-acs.py` mirrored into the workpad, never new
+criteria inferred from narrative prose) and records each row's verification lifecycle route through
+the existing test-first workpad note channel. The recorded routes are the criterion's *existing*
+lifecycle dispositions, one per row:
+
+- **Testable** → a named RED/GREEN automated assertion, preserving test-first RED-for-the-right-reason
+  evidence. One assertion may discharge several rows when it directly proves each one, and a shared
+  assertion lists every criterion it covers so grouping never hides a row the assertion does not prove.
+- **Genuinely-untestable Phase 2 deliverable** → the existing Phase 2.4 reproducible dry trace.
+- **Documentation criterion owned by the documentation pass** → the existing Phase 3.4 deferral, then
+  the mandatory Phase 4.1 discharge — not a Phase 2.4 trace.
+- **Genuinely-live** → the existing `(post-merge)` disposition and its pre-merge probe contract (the
+  gated tag whose permitted conditions the Phase 3.4 gate below enforces), never a fabricated
+  pre-merge assertion.
+
+Recording the ledger through the workpad note makes any resolved criterion with no lifecycle route
+visible **before implementation begins**, which is where an uncovered criterion is cheapest to catch.
+
+**Ownership split.** This is the completeness half of a deliberate division of labor introduced by
+issue #1674. `/prflow:create-issue`'s Testing Strategy is a **residual-risk supplement**: it no longer
+restates a named assertion for every acceptance criterion, and records only cases that add information
+beyond the criteria (bug reproduction, hostile-input pairing, new mutable-input-reader Move 2a matrices
+with their `governing conventions consulted:` record, guarantee-class skipped-step paths,
+retry/idempotency) — or a single concise statement that the acceptance criteria fully express the
+verification contract when no residual-risk case exists. The Acceptance Criteria remain the exhaustive,
+merge-gated specification. **Exhaustive criterion-level verification-lifecycle accounting lives here in
+implement Phase 2**, and the Phase 3.4 gate below is its downstream verifier. The old "every AC maps to
+a named assertion, and every assertion maps back" duty in the issue body is retired; do not reintroduce
+it as current create-issue behavior.
+
 ## Acceptance-criteria gate: the gated `(post-merge)` tag (Phase 3.4)
 
 ### Two dispatched fresh-context verifiers, reconciled (issue #1575)
