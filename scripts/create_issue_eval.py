@@ -1088,8 +1088,10 @@ def eval_corpus(corpus_root, large_block_chars=LARGE_BLOCK_MIN_CHARS):
                     continue
                 try:
                     record = json.loads(line)
-                except (ValueError, TypeError):
-                    # A truncated final line or a non-JSON line: skip, do not detonate.
+                # Do not narrow, here or at the two sibling decode sites: on the
+                # recursive-decoder Pythons in the supported range (< 3.14) a
+                # deeply-nested document raises `RecursionError`, a `RuntimeError`.
+                except Exception:  # noqa: BLE001 - skip the record, never detonate
                     skipped["non_json_line"] += 1
                     continue
                 if not isinstance(record, dict):
@@ -1598,7 +1600,8 @@ def load_eval_manifest(path):
     try:
         with open(path, "r", encoding="utf-8") as handle:
             manifest = json.load(handle)
-    except (OSError, ValueError, TypeError) as exc:
+    # Do not narrow: see the decode-site note in `eval_corpus`.
+    except Exception as exc:  # noqa: BLE001 - fail closed on `invalid_manifest`
         _manifest_error("invalid_manifest", "{}: {}".format(path, exc))
     if not isinstance(manifest, dict):
         _manifest_error("invalid_manifest", "top level is not an object")
@@ -1850,7 +1853,8 @@ def _observe_manifest_run(run, large_block_chars):
                 continue
             try:
                 record = json.loads(line)
-            except (ValueError, TypeError) as exc:
+            # Do not narrow: see the decode-site note in `eval_corpus`.
+            except Exception as exc:  # noqa: BLE001 - fail closed on `invalid_transcript`
                 _manifest_error(
                     "invalid_transcript",
                     "{} line {}: {}".format(run["run_id"], line_number, exc),

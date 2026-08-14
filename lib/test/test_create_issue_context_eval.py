@@ -45,6 +45,30 @@ def _load_eval():
 CICE = _load_eval()
 
 
+# A deeply-nested JSON document: the shape that makes CPython's recursive scanner raise
+# `RecursionError` (a `RuntimeError`, not a `ValueError`) out of `json.loads`.
+_DEEP_JSON = "[" * 40000 + "]" * 40000
+
+
+@contextlib.contextmanager
+def _recursion_error_on(text):
+    """Force `json.loads(text)` to raise `RecursionError` for the duration.
+
+    Do not replace this with a bare deeply-nested literal: 3.14's iterative decoder
+    parses `_DEEP_JSON` without overflowing, so a literal-only test would stop
+    discriminating a narrow `(ValueError, TypeError)` clause from a broad one there.
+    """
+    real_loads = json.loads
+
+    def _loads(value, *args, **kwargs):
+        if isinstance(value, str) and value.strip() == text:
+            raise RecursionError("maximum recursion depth exceeded while decoding")
+        return real_loads(value, *args, **kwargs)
+
+    with unittest.mock.patch.object(json, "loads", _loads):
+        yield
+
+
 def _write(dirpath, name, lines):
     os.makedirs(dirpath, exist_ok=True)
     with open(os.path.join(dirpath, name), "w", encoding="utf-8") as fh:
@@ -324,6 +348,20 @@ class AdversarialTest(_SingleSessionMixin, unittest.TestCase):
         self.assertEqual(skipped["non_json_line"], 2)  # 'not json' + truncated
         self.assertEqual(skipped["not_object"], 1)
         self.assertEqual(skipped["no_type"], 1)
+
+    def test_a_deeply_nested_line_is_skipped_rather_than_raised(self):
+        attributed = (
+            '{"type":"assistant","attributionSkill":"devflow:create-issue",'
+            '"message":{"usage":{"input_tokens":4}}}'
+        )
+        control_runs, control_skipped = self._run_one([attributed])
+        self.assertEqual(len(control_runs), 1)
+        self.assertEqual(control_skipped["non_json_line"], 0)
+        with _recursion_error_on(_DEEP_JSON):
+            runs, skipped = self._run_one([_DEEP_JSON, attributed])
+        self.assertEqual(skipped["non_json_line"], 1)
+        self.assertEqual(len(runs), 1)
+        self.assertEqual(runs[0]["turn_count"], 1)
 
     def test_message_wrong_shape_does_not_detonate(self):
         # `message` as a truthy non-dict (a list here) must NOT raise AttributeError and
@@ -1701,6 +1739,47 @@ class ManifestIngestionTest(unittest.TestCase):
             ValueError, "invalid_rubric: baseline-vague-1"
         ):
             self._api("build_manifest_report")(path)
+
+    def test_a_deeply_nested_manifest_fails_closed_rather_than_raising(self):
+        path = self._mutated_manifest(lambda doc: None)
+        self._api("load_eval_manifest")(path)  # positive control on the same fixture
+        deep = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False)
+        self.addCleanup(lambda: os.path.exists(deep.name) and os.unlink(deep.name))
+        with deep:
+            deep.write(_DEEP_JSON)
+        # Key the patch on the handle: an unconditional one would attribute a failure to
+        # the wrong call if a second `json.load` is ever added to `load_eval_manifest`.
+        real_load = json.load
+
+        def _load(handle, *args, **kwargs):
+            if getattr(handle, "name", None) == deep.name:
+                raise RecursionError("maximum recursion depth exceeded while decoding")
+            return real_load(handle, *args, **kwargs)
+
+        with unittest.mock.patch.object(json, "load", _load):
+            with self.assertRaisesRegex(
+                ValueError, "invalid_manifest: .*maximum recursion depth"
+            ):
+                self._api("load_eval_manifest")(deep.name)
+
+    def test_a_deeply_nested_transcript_line_fails_closed_rather_than_raising(self):
+        control = self._api("build_manifest_report")(self.manifest_path)
+        self.assertTrue(control["runs"])
+
+        def _append_deep_line(_doc, root):
+            transcript = os.path.join(root, "runs", "shared", "transcript.jsonl")
+            with open(transcript, "a", encoding="utf-8") as fh:
+                fh.write(_DEEP_JSON + "\n")
+
+        path, _root = self._mutate_copied_manifest(_append_deep_line)
+        # `_DEEP_JSON` decodes to a LIST, so the not-an-object arm two statements below
+        # raises the same `invalid_transcript` diagnostic: match the decode arm's own
+        # message or the test passes without ever reaching the widened clause.
+        with _recursion_error_on(_DEEP_JSON):
+            with self.assertRaisesRegex(
+                ValueError, r"invalid_transcript: .* line \d+: maximum recursion depth"
+            ):
+                self._api("build_manifest_report")(path)
 
     def test_a_resumed_session_requires_its_own_explicit_benchmark_run_id(self):
         path = self._mutated_manifest(

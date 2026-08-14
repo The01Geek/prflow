@@ -208,6 +208,36 @@ class RunnerTest(unittest.TestCase):
             self.assertIn("invalid_manifest", (output / candidate["error"]).read_text())
 
 
+class ProviderLaunchFailureTest(unittest.TestCase):
+    def test_an_unlaunchable_provider_is_recorded_as_a_failed_execution(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            spec_path = root / "spec.json"
+            output = root / "result"
+            write_json(spec_path, benchmark_spec())
+            control = BENCHMARK.run_benchmark(spec_path, output / "control")
+            self.assertTrue(control["runs"])
+            self.assertEqual(
+                {item["status"] for item in control["executions"]}, {"succeeded"}
+            )
+
+            with unittest.mock.patch.object(
+                BENCHMARK.subprocess, "run",
+                side_effect=OSError(8, "Exec format error"),
+            ):
+                manifest = BENCHMARK.run_benchmark(spec_path, output / "failed")
+
+            self.assertEqual(manifest["runs"], [])
+            self.assertTrue(manifest["executions"])
+            for execution in manifest["executions"]:
+                self.assertEqual(execution["status"], "failed")
+                self.assertIn("error", execution)
+                recorded = (output / "failed" / execution["error"]).read_text(
+                    encoding="utf-8")
+                self.assertIn("provider_launch_error", recorded)
+                self.assertIn("Exec format error", recorded)
+
+
 class AggregationTest(unittest.TestCase):
     def test_statistics_include_count_mean_median_population_stddev_and_variance(self):
         self.assertEqual(BENCHMARK.describe([1, 3]), {
@@ -219,6 +249,51 @@ class AggregationTest(unittest.TestCase):
             "coefficient_of_variation": 0.5,
             "high_variance": True,
         })
+
+    def test_a_zero_mean_population_reports_an_unestablished_coefficient(self):
+        self.assertEqual(BENCHMARK.describe([0, 0]), {
+            "status": "established",
+            "count": 2,
+            "mean": 0.0,
+            "median": 0.0,
+            "population_stddev": 0.0,
+            "coefficient_of_variation": 0.0,
+            "high_variance": False,
+        })
+        self.assertEqual(BENCHMARK.describe([-1, 1]), {
+            "status": "established",
+            "count": 2,
+            "mean": 0.0,
+            "median": 0.0,
+            "population_stddev": 1.0,
+            "coefficient_of_variation": BENCHMARK.UNESTABLISHED,
+            "high_variance": True,
+        })
+
+    def test_a_zero_mean_metric_reaches_the_disclosures_list(self):
+        fixture = json.loads(
+            (FIXTURE / "historical-4-to-8.json").read_text(encoding="utf-8")
+        )
+        clean = BENCHMARK.aggregate_benchmark(fixture, fixture["executions"])
+        self.assertNotIn(
+            "high_variance:paired_delta:finding_count", clean["disclosures"]
+        )
+        # A mirrored second pair makes the finding_count deltas [+4, -4]: mean exactly 0
+        # with a non-zero deviation, the only population that reaches the mean == 0 arm.
+        for run in list(fixture["runs"]):
+            mirrored = json.loads(json.dumps(run))
+            mirrored["run_id"] = run["run_id"] + "-mirror"
+            mirrored["scenario_id"] = "mirror"
+            mirrored["finding_count"] = 4 if run["configuration"] == "candidate" else 8
+            fixture["runs"].append(mirrored)
+            fixture["executions"].append(
+                {"run_id": mirrored["run_id"], "duration_ms": 1500, "status": "succeeded"}
+            )
+        report = BENCHMARK.aggregate_benchmark(fixture, fixture["executions"])
+        summary = report["paired_deltas"]["finding_count"]
+        self.assertEqual(summary["mean"], 0.0)
+        self.assertEqual(summary["coefficient_of_variation"], BENCHMARK.UNESTABLISHED)
+        self.assertIn("high_variance:paired_delta:finding_count", report["disclosures"])
 
     def test_historical_four_to_eight_findings_withholds_reduced_token_credit(self):
         fixture = json.loads(
