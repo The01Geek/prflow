@@ -2508,6 +2508,42 @@ class QualityRubricTest(unittest.TestCase):
         self.assertEqual(gate["new_forbidden_failures"], 1)
         self.assertFalse(gate["efficiency_eligible"])
 
+    def test_new_forbidden_section_withholds_credit_even_at_a_flat_pass_rate(self):
+        rubric = dict(self.rubric, forbidden_sections=["Appendix"])
+        baseline = self._api("grade_issue")(
+            "# Fix stale cache\n\n## Context\nA stale cache exists.\n", rubric
+        )
+        candidate = self._api("grade_issue")(
+            self._complete_issue() + "\n## Appendix\nExtra.\n", rubric
+        )
+        gate = self._api("quality_gate")(baseline, candidate)
+        self.assertEqual(gate["new_forbidden_sections"], 1)
+        self.assertFalse(gate["passed"])
+        self.assertFalse(gate["efficiency_eligible"])
+
+    def test_a_malformed_grade_is_unestablished_and_never_credits_efficiency(self):
+        good = self._api("grade_issue")(self._complete_issue(), self.rubric)
+        malformed = [
+            None,
+            {},
+            {k: v for k, v in good.items() if k != "pass_rate"},
+            {k: v for k, v in good.items() if k != "forbidden_failures"},
+            {k: v for k, v in good.items() if k != "forbidden_section_failures"},
+            dict(good, pass_rate="1.0"),
+            dict(good, forbidden_failures=True),
+            dict(good, forbidden_section_failures=1.5),
+        ]
+        for grade in malformed:
+            for baseline, candidate in ((grade, good), (good, grade)):
+                with self.subTest(grade=grade, side="baseline" if baseline is grade else "candidate"):
+                    gate = self._api("quality_gate")(baseline, candidate)
+                    self.assertEqual(gate["status"], "unestablished")
+                    self.assertFalse(gate["passed"])
+                    self.assertFalse(gate["efficiency_eligible"])
+                    self.assertEqual(gate["pass_rate_preserved"], "unestablished")
+                    self.assertEqual(gate["new_forbidden_failures"], "unestablished")
+                    self.assertEqual(gate["new_forbidden_sections"], "unestablished")
+
 
 class LegacyMultiRunStateSafetyTest(unittest.TestCase):
     def _corpus(self, root, name, peak):

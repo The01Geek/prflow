@@ -98,6 +98,31 @@ class SpecValidationTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "invalid_argv"):
                 BENCHMARK.load_benchmark_spec(path)
 
+    def test_scenario_ids_that_could_reach_outside_their_run_directory_are_refused(self):
+        # scenario_id is joined into run/artifact paths, so every rejected shape
+        # here is a directory-traversal or collision vector; a widened charset
+        # or a dropped duplicate check must fail this, not ship green.
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "spec.json"
+            rejected = [".", "..", "a/b", "a\\b", "a\0b", "a b", "~root", "$HOME", ""]
+            for scenario_id in rejected:
+                with self.subTest(scenario_id=scenario_id):
+                    value = benchmark_spec()
+                    value["scenarios"][0]["scenario_id"] = scenario_id
+                    write_json(path, value)
+                    with self.assertRaisesRegex(ValueError, "invalid_scenario"):
+                        BENCHMARK.load_benchmark_spec(path)
+            value = benchmark_spec()
+            value["scenarios"][1]["scenario_id"] = value["scenarios"][0]["scenario_id"]
+            write_json(path, value)
+            with self.assertRaisesRegex(ValueError, "invalid_scenario"):
+                BENCHMARK.load_benchmark_spec(path)
+            accepted = benchmark_spec()
+            accepted["scenarios"][0]["scenario_id"] = "Alpha_2.beta-3"
+            write_json(path, accepted)
+            spec = BENCHMARK.load_benchmark_spec(path)
+            self.assertEqual(spec["scenarios"][0]["scenario_id"], "Alpha_2.beta-3")
+
 
 class RunnerTest(unittest.TestCase):
     def test_runs_matched_peers_with_literal_argv_controlled_environment_and_artifacts(self):

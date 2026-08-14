@@ -9,6 +9,11 @@ transcript directory and measures the *runtime main-thread context* a
 `/devflow:create-issue` run accumulates — a distinct quantity from the static
 shipped word count of the skill files.
 
+The module also owns the paired A/B evaluation surface built on those measurements:
+deterministic rubric grading (`grade_issue`), the fail-closed paired quality gate that
+withholds efficiency credit (`quality_gate`), and the explicit-manifest evaluation
+engine (`load_eval_manifest`, `build_manifest_report`).
+
 Issue #889 extends the instrument to attribute the **Step 3.6 audit round** cost
 that #793 introduced. That cost is spent by the auditor **subagent**, whose turns
 the harness emits as `isSidechain` records — records the pre-#889 instrument
@@ -653,15 +658,17 @@ def quality_gate(baseline_grade, candidate_grade):
         candidate_rate = candidate_grade["pass_rate"]
         baseline_forbidden = baseline_grade["forbidden_failures"]
         candidate_forbidden = candidate_grade["forbidden_failures"]
+        baseline_forbidden_sections = baseline_grade["forbidden_section_failures"]
+        candidate_forbidden_sections = candidate_grade["forbidden_section_failures"]
         valid = (
             isinstance(baseline_rate, (int, float))
             and not isinstance(baseline_rate, bool)
             and isinstance(candidate_rate, (int, float))
             and not isinstance(candidate_rate, bool)
-            and isinstance(baseline_forbidden, int)
-            and not isinstance(baseline_forbidden, bool)
-            and isinstance(candidate_forbidden, int)
-            and not isinstance(candidate_forbidden, bool)
+            and all(isinstance(count, int) and not isinstance(count, bool)
+                    for count in (baseline_forbidden, candidate_forbidden,
+                                  baseline_forbidden_sections,
+                                  candidate_forbidden_sections))
         )
     except (KeyError, TypeError):
         valid = False
@@ -671,16 +678,23 @@ def quality_gate(baseline_grade, candidate_grade):
             "passed": False,
             "pass_rate_preserved": UNESTABLISHED,
             "new_forbidden_failures": UNESTABLISHED,
+            "new_forbidden_sections": UNESTABLISHED,
             "efficiency_eligible": False,
         }
     rate_preserved = candidate_rate >= baseline_rate
     new_forbidden = max(0, candidate_forbidden - baseline_forbidden)
-    passed = rate_preserved and new_forbidden == 0
+    # Gate forbidden SECTIONS separately from the aggregate pass_rate: a new
+    # section failure offset by a newly-satisfied required concept leaves
+    # pass_rate flat, so folding it into rate_preserved credits a worse issue.
+    new_forbidden_sections = max(
+        0, candidate_forbidden_sections - baseline_forbidden_sections)
+    passed = rate_preserved and new_forbidden == 0 and new_forbidden_sections == 0
     return {
         "status": "established",
         "passed": passed,
         "pass_rate_preserved": rate_preserved,
         "new_forbidden_failures": new_forbidden,
+        "new_forbidden_sections": new_forbidden_sections,
         "efficiency_eligible": passed,
     }
 
@@ -1784,7 +1798,7 @@ def _validate_manifest_event(record, run_id, event_index):
             )
 
 
-def _json_artifact(path):
+def _json_artifact(path, label="artifact"):
     try:
         with open(path, "r", encoding="utf-8") as handle:
             return json.load(handle)
@@ -1792,7 +1806,11 @@ def _json_artifact(path):
     # RecursionError rather than ValueError, and no decoder failure may turn a
     # manifest artifact into a traceback. Exception deliberately excludes process
     # controls such as KeyboardInterrupt and SystemExit.
-    except Exception:  # noqa: BLE001 - malformed explicit artifacts fail closed
+    except Exception as exc:  # noqa: BLE001 - malformed explicit artifacts fail closed
+        sys.stderr.write(
+            "create-issue-eval: {} not usable ({}: {}); "
+            "every figure it feeds reads unestablished\n".format(label, path, exc)
+        )
         return None
 
 
@@ -1899,13 +1917,13 @@ def _observe_manifest_run(run, large_block_chars):
         "final": run["checkpoints"]["final"],
     }
     result["draft_metrics"] = measure_checkpoints(run)
-    state_document = _json_artifact(run["state_file"])
+    state_document = _json_artifact(run["state_file"], "state file")
     result["audit_outcomes"] = audit_outcomes(
         state_document,
         _current_draft_digest(run["checkpoints"]["final"], state_document),
     )
     if "rubric" in run:
-        rubric = _json_artifact(run["rubric"])
+        rubric = _json_artifact(run["rubric"], "rubric")
         if rubric is None:
             _manifest_error("invalid_rubric", run["run_id"])
         final_text = _read_explicit_text(run["checkpoints"]["final"], "final")
