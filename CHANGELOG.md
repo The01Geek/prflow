@@ -4,6 +4,20 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.76] — 2026-08-14
+
+### Changed
+Make create-issue's Testing Strategy a residual-risk supplement instead of a mirror of every acceptance criterion, and move exhaustive criterion-level verification accounting into the implement Phase 2 test-first gate.
+
+`skills/create-issue/references/issue-template.md` Move 3 no longer requires the issue body to restate a named test for every already-clear acceptance criterion; it records only cases that add information beyond the criteria (bug reproduction, hostile-input pairing, new-mutable-input-reader matrices with their `governing conventions consulted:` record, guarantee-class skipped-step paths, retry/idempotency), each naming the risk it covers and the contract it protects — or, when none exists, one concise statement that the acceptance criteria fully express the verification contract. The Acceptance Criteria remain the exhaustive, merge-gated specification.
+
+`skills/implement/phases/phase-2-sweeps-contract.md` gains a criterion-lifecycle accounting step: before any implementation code, the test-first gate enumerates every resolved workpad acceptance-criterion row and records each one's verification-lifecycle route (testable → named RED/GREEN assertion; genuinely-untestable Phase 2 deliverable → Phase 2.4 trace; documentation criterion → Phase 3.4 deferral then Phase 4.1 discharge; genuinely-live → the existing `(post-merge)` disposition) through the existing workpad note channel, exposing any uncovered criterion before implementation begins. See PR #1685.
+
+## [2.32.75] — 2026-08-14
+
+### Changed
+`/prflow:create-issue` now produces a minimum-sufficient implementation brief. The brief/investigation-record routing rule (`skills/create-issue/references/issue-template.md`) states the positive retention rule — the competent implementer's non-inferable contract, plus the reserved parser-consumed sections — and makes the investigation-narrative examples candidates governed by the vanish test and the reserved-surface check rather than an independent removal taxonomy; severity, mutability, list shape, and implementation-detail form give no independent removal reason, and no word-count, estimated-size, criterion-count, or proportionality gate decides what survives. A `Verified:` bullet is now governed by the vanish test (retained when the implementation contract relies on its premise, routed to the record when purely confirmatory) rather than held unconditionally, while `scripts/check-verified-premises.py` keeps re-checking every premise that remains in the body. The over-retention audit dimension (`skills/create-issue/references/audit-prompt-template.md`) reports a repeated claim only when the copy serves no distinct consumer and no distinct enforcement role, and never reports the required Desired-Behavior→Acceptance-Criteria projection or a copy a parser, gate, presentation, filing, or implementation consumer requires. Audit-driven revisions edit the brief as a document — replace, consolidate, and delete superseded prose while retaining required homes — via the shared revision procedure (`skills/create-issue/references/revision-delta.md`). See #1684.
+
 ## [2.32.74] — 2026-08-14
 
 ### Fixed

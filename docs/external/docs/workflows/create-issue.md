@@ -38,6 +38,8 @@ The Blocked section serves a different purpose. It contains unresolved product o
 
 The issue contains a problem statement, current and desired behavior, user impact, technical context, acceptance criteria, implementation notes and a testing strategy. Desired behavior states the intended outcome. Acceptance criteria must represent every independently testable outcome in that section before PRFlow presents the draft for approval. Quantitative criteria include the command or counting rule that measures them.
 
+The body is a minimum-sufficient implementation brief: it carries the decisions an implementer cannot safely derive on their own, and it keeps material only when removing it could change what gets built. The investigation that produced those decisions — supporting evidence, audit history and other detail the repository would rediscover during implementation — is recorded separately rather than mixed into the body, so an approver reviews the implementation contract instead of the whole investigation. This never drops a load-bearing detail to make the body shorter, and no length or size limit decides what stays.
+
 The result is an approved issue. It is implementation-ready only when no unresolved decision remains in its Blocked section.
 
 PRFlow offers implementation only when the issue has no unresolved blocking decision and the repository checks needed for the handoff succeeded. You can also run the [Implement workflow](/docs/workflows/implement) later with the new issue number.
