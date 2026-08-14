@@ -1,0 +1,140 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-14T08:00:00Z",
+  "fix_commit_sha": "b8b238c6d",
+  "fix_files": [
+    "skills/create-issue/references/issue-template.md",
+    "skills/implement/phases/phase-2-sweeps-contract.md"
+  ],
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "current_substep": null,
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": "intentional"
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:comment-analyzer",
+    "prflow:silent-failure-hunter"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "Testing Strategy overview clause (3) at issue-template.md:142 still described Move 3 as 'commit to named assertions tied to ACs', a stale coupled mirror of the reframed Move 3.",
+      "defect_signature": {
+        "file": "skills/create-issue/references/issue-template.md",
+        "line_range": [
+          142,
+          142
+        ],
+        "kind": "stale_describing_prose"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "The 'genuinely untestable -> Phase 2.4' route had no per-criterion forcing function, so a testable criterion could be silently laundered onto a dry-trace.",
+      "defect_signature": {
+        "file": "skills/implement/phases/phase-2-sweeps-contract.md",
+        "line_range": [
+          20,
+          20
+        ],
+        "kind": "fail_open_route"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "The per-criterion ledger relocation assumes the DevFlow implement Phase 2 path; a human/non-DevFlow implementer sees no ledger in the issue body.",
+      "defect_signature": {
+        "file": "skills/create-issue/references/issue-template.md",
+        "line_range": [
+          163,
+          163
+        ],
+        "kind": "handoff_assumption"
+      },
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "b8b238c6d"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "b8b238c6d"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "advisory",
+      "source_file": "skills/create-issue/references/issue-template.md",
+      "claim_text": "ledger relocation assumes DevFlow implement path",
+      "skip_category": "advisory-parked",
+      "evidence": "Acceptance Criteria remain the exhaustive merge-gated spec; the issue explicitly scopes exhaustive accounting to the implement Phase 2 gate. Bounded, fail-toward-under-verification, not data loss.",
+      "parking_evidence": {
+        "basis": "advisory: bounded handoff assumption the issue scopes deliberately",
+        "failing_input": "a non-DevFlow implementer reading the issue body",
+        "source": "skills/create-issue/references/issue-template.md:163",
+        "finding_ref": {
+          "iter": 1,
+          "index": 2
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 2,
+    "fix_diff_lines": 4,
+    "new_corroborated_critical_count": 0
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "ran_at": "2026-08-14T08:00:00Z",
+    "reviewed_sha": "b8b238c6d",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": null,
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:comment-analyzer",
+      "prflow:silent-failure-hunter"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:comment-analyzer",
+      "prflow:silent-failure-hunter"
+    ],
+    "reason": "type-design-analyzer and pr-test-analyzer gated out: no new types, no testable code added (prose-only diff)",
+    "checklist_skipped": "intentional",
+    "phase3_findings": [],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
