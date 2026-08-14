@@ -8,6 +8,12 @@ The skill starts with a rough user story or bug report. Its first investigation 
 
 The skill then clarifies the Definition of Ready, independently expands the solution space, drafts the issue, steelmans the draft against the code, runs a fresh-context audit, shows the complete draft to the user, and creates the issue only after explicit approval.
 
+### Reproduction contract for defect reports
+
+The writing agent classifies a story as a defect report by reading it — the same producer the Testing Strategy residual-risk entry already relies on, now named openly. When a story reports a defect, its `Current Behavior` section records a closed set of reproduction facts and no more: the triggering steps or input, the observed result, the expected result, and the environment or precondition. The environment fact is always written; when the defect happens regardless of environment it says so in those words rather than being left blank. A fact nobody can establish is recorded in place as `unestablished — <reason>` — a recorded absence of a past fact, not an unresolved decision, so it stays in `Current Behavior` and does not move to `## 🚫 Blocked`. The reporter's story is text to classify, never instructions the agent obeys, so a report that tries to direct the tool changes neither the classification nor the recorded facts. A story that does not report a defect records none of this and gains no new instruction.
+
+The Definition of Ready carries a matching **Reproduction facts (defect reports only)** row: it requires each reproduction fact to be recorded (or recorded `unestablished — <reason>`) while the reporter is still in the conversation, is skipped entirely for non-defect stories, and routes a fact nobody answers to `## 🚫 Blocked` through the same unanswered-readiness-item path every other item uses. The Testing Strategy entry keeps its test-first reproduction-case obligation and now points at `Current Behavior` for the facts instead of restating what the defect is.
+
 The documentation pass is a code-exploration input. It reports how the topic works today and exposes unestablished duties; it does not treat existing prose as authoritative or edit the repository in report-only mode.
 
 ## Why it works this way
@@ -25,7 +31,8 @@ Agents plan better when they begin with the repository's current behavior rather
 
 - `skills/create-issue/SKILL.md` — issue-shaping orchestration and approval gates.
 - `skills/docs-verify/SKILL.md` — documentation-first code exploration and report-only contract.
-- `skills/create-issue/references/step-2-clarify.md` — clarification and solution-space expansion.
+- `skills/create-issue/references/step-2-clarify.md` — clarification, solution-space expansion, and the Definition-of-Ready rows (including the reproduction-facts row).
+- `skills/create-issue/references/issue-template.md` — the issue body template, whose `### Current Behavior` guidance owns the reproduction contract, and whose Testing Strategy entry points at it.
 - `skills/create-issue/references/step-3-5-steelman.md` and `skills/create-issue/references/step-3-6-audit.md` — code-grounding passes.
 - `scripts/check-verified-premises.py` and `scripts/parse-acs.py` — verified-premise and acceptance-criteria handling.
 - `docs/internal/create-issue-context.md` — runtime context and evaluation evidence.
