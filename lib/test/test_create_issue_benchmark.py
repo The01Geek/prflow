@@ -141,8 +141,12 @@ class RunnerTest(unittest.TestCase):
                 )
                 self.assertEqual(set(observation["controlled_environment"]), controlled_names)
                 self.assertIn("$(touch should-not-exist); * $HOME", observation["argv"])
-                self.assertIn("provider stdout", (output / execution["stdout"]).read_text())  # structural-pin-ok: machine-sentinel-provenance -- provider stdout artifact sentinel
-                self.assertIn("provider stderr", (output / execution["stderr"]).read_text())  # structural-pin-ok: machine-sentinel-provenance -- provider stderr artifact sentinel
+                self.assertEqual(
+                    "provider stdout\n", (output / execution["stdout"]).read_text()
+                )
+                self.assertEqual(
+                    "provider stderr\n", (output / execution["stderr"]).read_text()
+                )
             self.assertFalse((Path.cwd() / "should-not-exist").exists())
             for name in ("run-manifest.json", "benchmark.json", "benchmark.md", "review.json"):
                 self.assertTrue((output / name).is_file(), name)
