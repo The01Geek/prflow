@@ -18,7 +18,7 @@ The skill names the tracking tools it can use as an ordered ladder rather than a
 
 A task-tool call that the runner answers with a failure degrades the run exactly as a failed reference load does: the run records a breadcrumb naming the failure and continues to the next rung. No arm of the ladder terminates the run.
 
-Once every candidate is exhausted, the run uses the inline checklist fallback, reached through the row already in the reference-routing table. The fallback tracks the same items as a re-rendered in-chat block mirrored to a state file under `.prflow/tmp/`, and its fail-closed arm is the one place that still states how many items there are, because a run rebuilding the block from scratch has no other source for the count.
+Once every candidate is exhausted, the run uses the inline checklist fallback, reached through the row already in the reference-routing table. The fallback tracks the same items as a re-rendered in-chat block mirrored to a state file under `.prflow/tmp/`, and its fail-closed arm is the only place in the reference files that still states how many items there are, because a run rebuilding the block from scratch has no other source for the count.
 
 The announcement is ordered against that ladder rather than against its position in the file: a run emits it only once a tracker has been established, and on the inline-fallback path the tracker counts as established the moment the run settles on that fallback. The announcement is then the run's first line of output on every path, with the rendered checklist block following it and any breadcrumb about a failed candidate reported immediately after it — so setup detail never displaces the line that makes a missing tracker visible.
 

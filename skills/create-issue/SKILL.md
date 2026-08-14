@@ -41,7 +41,7 @@ successful creation: it is the post-creation hand-off, not a gate on creating th
 
 ## Announcement
 
-Emit the announcement once a tracker is established, and emit it as the run's first line of output
+Emit the announcement only once a tracker is established, and emit it as the run's first line of output
 on every path — it names this skill and confirms the seven tracked slots exist, for example:
 "Running /prflow:create-issue; the seven-slot completion tracker is set up." On the inline-fallback
 path the tracker counts as established once the run has settled on that fallback, and the rendered
