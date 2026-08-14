@@ -5,10 +5,12 @@
 
 import contextlib
 import importlib.util
+import inspect
 import io
 import json
 from pathlib import Path
 import socket
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -325,6 +327,10 @@ class CliTest(unittest.TestCase):
             with self.assertRaises(ValueError) as caught:
                 BENCHMARK.write_benchmark_outputs(manifest)
             self.assertIn("invalid_manifest: top level is not an object", str(caught.exception))
+            # Positive control in the same method: an object manifest still writes.
+            write_json(manifest, {"benchmark_id": "b", "executions": []})
+            BENCHMARK.write_benchmark_outputs(manifest)
+            self.assertTrue((Path(tmp) / "benchmark.json").is_file())
 
 
 class WrapperTest(unittest.TestCase):
@@ -341,10 +347,27 @@ class WrapperTest(unittest.TestCase):
         for name in ("main", "run_benchmark", "build_benchmark_report", "SCHEMA_VERSION"):
             self.assertTrue(hasattr(self.wrapper, name), name)
         # The wrapper execs its own copy of the implementation, so identity does not
-        # hold; the re-export contract is that the NAMES resolve to the same callables.
-        self.assertEqual(self.wrapper.build_benchmark_report.__name__,
-                         BENCHMARK.build_benchmark_report.__name__)
+        # hold; assert behavioral equivalence rather than a name, which any same-named
+        # callable would satisfy.
+        self.assertEqual(inspect.signature(self.wrapper.build_benchmark_report),
+                         inspect.signature(BENCHMARK.build_benchmark_report))
         self.assertEqual(self.wrapper.SCHEMA_VERSION, BENCHMARK.SCHEMA_VERSION)
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = Path(tmp) / "manifest.json"
+            write_json(manifest, {"benchmark_id": "b", "executions": []})
+            self.assertEqual(self.wrapper.build_benchmark_report(manifest),
+                             BENCHMARK.build_benchmark_report(manifest))
+
+    def test_the_wrapper_runs_as_a_script(self):
+        """`load_module` never executes `__main__`, so the process entry point needs this."""
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = Path(tmp) / "manifest.json"
+            manifest.write_text("[]", encoding="utf-8")
+            completed = subprocess.run(
+                [sys.executable, str(WRAPPER_PATH), "report", "--manifest", str(manifest)],
+                capture_output=True, text=True, check=False)
+            self.assertEqual(completed.returncode, 2, completed.stderr)
+            self.assertIn("invalid_manifest", completed.stderr)
 
     def test_wrapper_main_dispatches_to_the_implementation(self):
         with tempfile.TemporaryDirectory() as tmp:

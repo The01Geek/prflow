@@ -982,6 +982,16 @@ class RoundKindCouplingTest(unittest.TestCase):
             CICE._impact_counts(state, "advisory"),
             {name: CICE.UNESTABLISHED for name in CICE._IMPACT_CLASSES})
 
+    def test_impact_counts_fails_closed_on_a_non_dict_record(self):
+        """The record-shape row of the matrix: a scalar previously raised TypeError."""
+        for record in ("a string", None, 7, ["nested"]):
+            with self.subTest(record=record):
+                state = {"rounds": [{
+                    "advisory_count": 1, "advisory_records": [record]}]}
+                self.assertEqual(
+                    CICE._impact_counts(state, "advisory"),
+                    {name: CICE.UNESTABLISHED for name in CICE._IMPACT_CLASSES})
+
     def test_the_pointer_constants_name_this_test(self):
         """A hand-written test path rots silently; assert it resolves to THIS class."""
         for const in (CICE.ROUND_KINDS_COUPLING_ASSERTED_BY,
