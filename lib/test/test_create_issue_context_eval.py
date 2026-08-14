@@ -17,6 +17,7 @@ import io
 import json
 import os
 import re
+import shutil
 import tempfile
 import unittest
 import unittest.mock
@@ -1580,6 +1581,31 @@ class ManifestIngestionTest(unittest.TestCase):
             json.dump(doc, temp)
         return temp.name
 
+    def _copied_manifest(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        root = os.path.join(temp.name, "manifest-root")
+        shutil.copytree(_MANIFEST_FIX, root)
+        return os.path.join(root, "two-occurrences.json"), root
+
+    def _mutate_copied_manifest(self, mutate):
+        path, root = self._copied_manifest()
+        with open(path, encoding="utf-8") as fh:
+            doc = json.load(fh)
+        mutate(doc, root)
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(doc, fh)
+        return path, root
+
+    def _mutate_transcript(self, root, mutate):
+        path = os.path.join(root, "runs", "shared", "transcript.jsonl")
+        with open(path, encoding="utf-8") as fh:
+            records = [json.loads(line) for line in fh if line.strip()]
+        mutate(records)
+        _write(os.path.dirname(path), os.path.basename(path), [
+            json.dumps(record) for record in records
+        ])
+
     def test_modular_analyzer_exports_the_legacy_and_manifest_interfaces(self):
         self.assertTrue(
             os.path.isfile(_MODULAR_EVAL_PATH),
@@ -1679,6 +1705,194 @@ class ManifestIngestionTest(unittest.TestCase):
         self.assertEqual(run["checkpoints"].get("future_checkpoint_note"), "preserve-me")
         self.assertEqual(run["provenance"]["future_provenance_note"], "preserve-me")
 
+    def test_selected_events_with_missing_or_unsupported_types_are_rejected(self):
+        cases = {
+            "missing": lambda records: records[0].pop("type"),
+            "unsupported": lambda records: records[0].__setitem__("type", "progress"),
+        }
+        for case, mutate in cases.items():
+            with self.subTest(case=case):
+                path, root = self._copied_manifest()
+                self._mutate_transcript(root, mutate)
+                with self.assertRaisesRegex(ValueError, "invalid_transcript"):
+                    self._api("build_manifest_report")(path)
+
+    def test_selected_metric_operands_never_collapse_to_zero(self):
+        cases = {
+            "missing usage": lambda records: records[0]["message"].pop("usage"),
+            "wrong usage container": lambda records: records[0]["message"].__setitem__(
+                "usage", []
+            ),
+            "missing output tokens": lambda records: records[0]["message"][
+                "usage"
+            ].pop("output_tokens", None),
+            "wrong input tokens": lambda records: records[0]["message"][
+                "usage"
+            ].__setitem__("input_tokens", "10"),
+            "negative input tokens": lambda records: records[0]["message"][
+                "usage"
+            ].__setitem__("input_tokens", -1),
+        }
+        for case, mutate in cases.items():
+            with self.subTest(case=case):
+                path, root = self._copied_manifest()
+                self._mutate_transcript(root, mutate)
+                with self.assertRaisesRegex(ValueError, "invalid_transcript"):
+                    self._api("build_manifest_report")(path)
+
+    def test_boundary_confidence_uses_the_recorder_vocabulary(self):
+        path = self._mutated_manifest(
+            lambda doc: doc["runs"][0]["occurrence"].__setitem__(
+                "boundary_confidence", "certain"
+            )
+        )
+        with self.assertRaisesRegex(ValueError, "invalid_boundary_confidence"):
+            self._api("load_eval_manifest")(path)
+
+    def test_unknown_boundary_has_no_recorder_end_or_duration(self):
+        def unknown_with_duration(doc):
+            doc["runs"][0]["occurrence"].update({
+                "boundary_confidence": "unknown",
+                "end_event": None,
+                "duration_ms": 1,
+            })
+
+        path = self._mutated_manifest(unknown_with_duration)
+        with self.assertRaisesRegex(ValueError, "invalid_occurrence_boundary"):
+            self._api("load_eval_manifest")(path)
+
+    def test_only_exact_boundaries_establish_a_comparison(self):
+        cases = {
+            "approximate": lambda occurrence: occurrence.__setitem__(
+                "boundary_confidence", "approximate"
+            ),
+            "unknown": lambda occurrence: occurrence.update({
+                "boundary_confidence": "unknown",
+                "end_event": None,
+                "duration_ms": None,
+            }),
+        }
+        for confidence, mutate in cases.items():
+            with self.subTest(confidence=confidence):
+                path = self._mutated_manifest(
+                    lambda doc: mutate(doc["runs"][0]["occurrence"])
+                )
+                try:
+                    report = self._api("build_manifest_report")(path)
+                except ValueError as exc:
+                    self.fail("{} boundary was rejected: {}".format(confidence, exc))
+                self.assertEqual(len(report["runs"]), 2)
+                comparison = report["comparison"]
+                self.assertEqual(comparison["status"], "unestablished")
+                self.assertEqual(
+                    comparison["diagnostic"], "inexact_occurrence_boundary"
+                )
+                self.assertEqual(
+                    set(comparison["delta"].values()), {"unestablished"}
+                )
+
+    def test_duration_key_is_required_but_explicit_unavailable_is_accepted(self):
+        missing = self._mutated_manifest(
+            lambda doc: doc["runs"][0]["occurrence"].pop("duration_ms")
+        )
+        with self.assertRaisesRegex(ValueError, "missing_duration_ms"):
+            self._api("load_eval_manifest")(missing)
+
+        unavailable = self._mutated_manifest(
+            lambda doc: doc["runs"][0]["occurrence"].__setitem__(
+                "duration_ms", None
+            )
+        )
+        loaded = self._api("load_eval_manifest")(unavailable)
+        self.assertIsNone(loaded["runs"][0]["occurrence"]["duration_ms"])
+
+    def test_any_unestablished_required_run_state_invalidates_the_comparison(self):
+        def malformed(_doc, root):
+            path = os.path.join(root, "runs", "baseline", "audit-state.json")
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write("{broken")
+
+        def partial(_doc, root):
+            path = os.path.join(root, "runs", "baseline", "audit-state.json")
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump({"rounds": [{
+                    "round": 2,
+                    "kind": "discovery",
+                    "kind_reason": "whole_draft_check",
+                    "findings": [],
+                }]}, fh)
+
+        def incompatible(_doc, root):
+            path = os.path.join(root, "runs", "baseline", "audit-state.json")
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump({"rounds": [{
+                    "round": 1,
+                    "kind": "unsupported-kind",
+                    "findings": [],
+                }]}, fh)
+
+        def missing_reason(_doc, root):
+            path = os.path.join(root, "runs", "baseline", "audit-state.json")
+            with open(path, encoding="utf-8") as fh:
+                doc = json.load(fh)
+            doc["rounds"][0].pop("kind_reason")
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump(doc, fh)
+
+        def extra_round(_doc, root):
+            path = os.path.join(root, "runs", "baseline", "audit-state.json")
+            with open(path, encoding="utf-8") as fh:
+                doc = json.load(fh)
+            doc["rounds"].append({
+                "round": 2,
+                "kind": "targeted",
+                "kind_reason": "high_signal_finding",
+                "findings": [{"id": 2, "status": "unresolved"}],
+            })
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump(doc, fh)
+
+        def unreadable(_doc, root):
+            path = os.path.join(root, "runs", "baseline", "audit-state.json")
+            self.addCleanup(os.chmod, path, 0o600)
+            os.chmod(path, 0)
+
+        for case, mutate in {
+            "unreadable": unreadable,
+            "malformed": malformed,
+            "partial": partial,
+            "incompatible": incompatible,
+            "missing reason": missing_reason,
+            "extra round": extra_round,
+        }.items():
+            with self.subTest(case=case):
+                path, _root = self._mutate_copied_manifest(mutate)
+                err = io.StringIO()
+                with contextlib.redirect_stderr(err):
+                    report = self._api("build_manifest_report")(path)
+                self.assertEqual(len(report["runs"]), 2)
+                comparison = report["comparison"]
+                self.assertEqual(comparison["status"], "unestablished")
+                self.assertEqual(comparison["diagnostic"], "unestablished_run_state")
+                self.assertEqual(
+                    set(comparison["delta"].values()), {"unestablished"}
+                )
+
+    def test_symlinked_artifact_escaping_declared_root_is_rejected(self):
+        path, root = self._copied_manifest()
+        outside = os.path.join(os.path.dirname(root), "outside.jsonl")
+        with open(outside, "w", encoding="utf-8") as fh:
+            fh.write("{}\n")
+        link = os.path.join(root, "runs", "shared", "escaped.jsonl")
+        os.symlink(outside, link)
+        with open(path, encoding="utf-8") as fh:
+            doc = json.load(fh)
+        doc["runs"][0]["transcript"] = "runs/shared/escaped.jsonl"
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(doc, fh)
+        with self.assertRaisesRegex(ValueError, "path_escape"):
+            self._api("load_eval_manifest")(path)
+
 
 class LegacyMultiRunStateSafetyTest(unittest.TestCase):
     def _corpus(self, root, name, peak):
@@ -1751,6 +1965,32 @@ class LegacyCliCompatibilityTest(unittest.TestCase):
             ])
         self.assertEqual(rc, 0)
         self.assertEqual(set(json.loads(out.getvalue())), {"runs", "summary", "skipped"})
+        self.assertEqual(err.getvalue(), "")
+
+    def test_paired_json_keeps_the_exact_legacy_shape(self):
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            rc = CICE.main([
+                "--before", MainCliTest._BEFORE,
+                "--after", MainCliTest._AFTER,
+                "--before-state", MainCliTest._BSTATE,
+                "--after-state", MainCliTest._ASTATE,
+                "--format", "json",
+            ])
+        self.assertEqual(rc, 0)
+        document = json.loads(out.getvalue())
+        self.assertEqual(set(document), {"before", "after", "delta"})
+        for side in ("before", "after"):
+            self.assertEqual(set(document[side]), {
+                "runs", "summary", "skipped", "state_established", "finding_count",
+            })
+        self.assertEqual(set(document["delta"]), {
+            "total_attributed_auditor_cost",
+            "total_peak_context",
+            "mean_peak_context_per_run",
+            "total_round_count",
+            "finding_count",
+        })
         self.assertEqual(err.getvalue(), "")
 
 

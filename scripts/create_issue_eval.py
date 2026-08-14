@@ -150,6 +150,7 @@ BUCKET_400K = 400_000
 UNESTABLISHED = "unestablished"
 MANIFEST_SCHEMA_VERSION = 1
 REPORT_SCHEMA_VERSION = 1
+BOUNDARY_CONFIDENCE = ("exact", "approximate", "unknown")
 # The closed round-kind vocabulary #793 records on each round.
 #
 # Coupled with `_ROUND_KINDS` in scripts/issue-audit-state.py — the closed, complete
@@ -1163,21 +1164,37 @@ def load_eval_manifest(path):
         if identity in occurrence_ids:
             _manifest_error("duplicate_occurrence_identity", repr(identity))
         occurrence_ids.add(identity)
+        confidence = occurrence.get("boundary_confidence")
+        if confidence not in BOUNDARY_CONFIDENCE:
+            _manifest_error("invalid_boundary_confidence", "{}: {!r}".format(
+                run_id, confidence
+            ))
         start = occurrence.get("start_event")
         end = occurrence.get("end_event")
-        if (
-            not isinstance(start, int)
-            or isinstance(start, bool)
-            or not isinstance(end, int)
-            or isinstance(end, bool)
-            or start < 0
-            or end < start
-        ):
+        start_valid = (
+            isinstance(start, int) and not isinstance(start, bool) and start >= 0
+        )
+        end_valid = (
+            confidence == "unknown" and end is None
+        ) or (
+            confidence != "unknown"
+            and isinstance(end, int)
+            and not isinstance(end, bool)
+            and start_valid
+            and end >= start
+        )
+        if not start_valid or not end_valid:
             _manifest_error("invalid_occurrence_boundary", run_id)
-        _required_string(occurrence, "boundary_confidence")
+        if "duration_ms" not in occurrence:
+            _manifest_error("missing_duration_ms", run_id)
         duration = occurrence.get("duration_ms")
-        if duration is not None and (
-            not isinstance(duration, int) or isinstance(duration, bool) or duration < 0
+        if (
+            confidence == "unknown" and duration is not None
+        ) or (
+            duration is not None
+            and (not isinstance(duration, int)
+                 or isinstance(duration, bool)
+                 or duration < 0)
         ):
             _manifest_error("invalid_occurrence_boundary", "{} duration_ms".format(run_id))
 
@@ -1245,10 +1262,43 @@ def _empty_skipped():
     }
 
 
+def _validate_manifest_event(record, run_id, event_index):
+    rtype = record.get("type")
+    if rtype not in ("assistant", "user", "system"):
+        _manifest_error(
+            "invalid_transcript",
+            "{} event {} has unsupported type {!r}".format(
+                run_id, event_index, rtype
+            ),
+        )
+    if rtype != "assistant" or record.get("attributionSkill") not in ATTRIBUTION:
+        return
+    message = record.get("message")
+    usage = message.get("usage") if isinstance(message, dict) else None
+    if not isinstance(usage, dict):
+        _manifest_error(
+            "invalid_transcript",
+            "{} event {} has no usage object".format(run_id, event_index),
+        )
+    for key in (
+        "input_tokens",
+        "cache_read_input_tokens",
+        "cache_creation_input_tokens",
+        "output_tokens",
+    ):
+        value = usage.get(key)
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+            _manifest_error(
+                "invalid_transcript",
+                "{} event {} has invalid usage.{}".format(run_id, event_index, key),
+            )
+
+
 def _observe_manifest_run(run, large_block_chars):
     occurrence = run["occurrence"]
     start = occurrence["start_event"]
-    end = occurrence["end_event"]
+    declared_end = occurrence["end_event"]
+    end = start if declared_end is None else declared_end
     acc = RunAccumulator(os.path.basename(run["transcript"]), large_block_chars)
     event_index = 0
     selected = 0
@@ -1274,6 +1324,7 @@ def _observe_manifest_run(run, large_block_chars):
                 )
             if start <= event_index <= end:
                 selected += 1
+                _validate_manifest_event(record, run["run_id"], event_index)
                 rtype = record.get("type")
                 if rtype == "assistant":
                     acc.observe_assistant(record)
@@ -1288,6 +1339,13 @@ def _observe_manifest_run(run, large_block_chars):
         _manifest_error("occurrence_not_analyzable", run["run_id"])
     result = acc.result()
     state = read_state(run["state_file"])
+    required_rounds = set(result["dispatch_rounds"])
+    if state is not None and (
+        required_rounds != set(state)
+        or any(state[number]["kind_reason"] == UNESTABLISHED
+               for number in required_rounds)
+    ):
+        state = _degraded_state(run["state_file"], "partial_run_state")
     _join_round_kinds([result], state)
     run_summary = aggregate([result], state)
     for key in ("run_id", "configuration", "scenario_id", "repetition"):
@@ -1364,6 +1422,14 @@ def _manifest_comparison(run_records):
             return unestablished("mixed_provenance", pairs)
         before_runs.append(before)
         after_runs.append(after)
+
+    if any(
+        run["occurrence"]["boundary_confidence"] != "exact"
+        for run in before_runs + after_runs
+    ):
+        return unestablished("inexact_occurrence_boundary", pairs)
+    if any(not run["state_established"] for run in before_runs + after_runs):
+        return unestablished("unestablished_run_state", pairs)
 
     for configuration in configurations:
         members = [run for run in run_records if run["configuration"] == configuration]
