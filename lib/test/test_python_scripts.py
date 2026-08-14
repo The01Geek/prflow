@@ -2582,40 +2582,243 @@ for _r_text, _r_substr in _review_rows_1657:
 _IMPL_SKILL_DIR = Path(__file__).resolve().parents[2] / 'skills' / 'implement'
 _tick_md = [(_p, _p.read_text(encoding='utf-8'))
             for _p in sorted(_IMPL_SKILL_DIR.rglob('*.md'))]  # tree-walk-ok: anchored to skills/implement/, which cannot reach the sibling checkouts under .claude/worktrees/ a repo-root-anchored walk would descend into
-# Accept both quote styles, so a later site spelled with single quotes is not
-# invisible to this derivation.
-_TICK_RE_1462 = re.compile(r'''--tick-progress\s+(?:"([^"]+)"|'([^']+)')''')
-_live_ticks = sorted({
-    (m.group(1) if m.group(1) is not None else m.group(2))
-    for _p, _txt in _tick_md
-    for m in _TICK_RE_1462.finditer(_txt)
-})
-# Equality, not a floor: every QUOTED-OPERAND `--tick-progress` occurrence in the
-# shipped implement surface must have parsed, so a call site written in a quoting
-# style this regex cannot read fails CLOSED here instead of silently escaping the
-# collision assertions below. The opening-quote probe is what separates a real call
-# site from a prose mention that names the flag without an operand; a site whose
-# operand is a shell variable is outside both counts and is the disclosed residual.
-_tick_quoted = sum(len(re.findall(r'''--tick-progress\s+["']''', _txt))
-                   for _p, _txt in _tick_md)
-_tick_parsed = sum(len(_TICK_RE_1462.findall(_txt)) for _p, _txt in _tick_md)
-assert_eq("#1462 every quoted --tick-progress operand parsed into the live set",
-          _tick_quoted, _tick_parsed)
+# Classify EVERY `--tick-progress` occurrence under skills/implement/ into
+# exactly one shape (issue #1679), so no unsafe operand escapes the guard. Git
+# Bash/MSYS rewrites a standalone slash-leading argument to a Windows path before
+# native python3 receives it, so a `/simplify`-style operand ticks nothing and the
+# helper reports a volatile miss. A STATIC literal (quoted OR unquoted) is the tick
+# substring — it must never begin with `/` and must carry no shell metacharacter; a
+# shell-VARIABLE operand is runtime-resolved and exempt from the static checks; a
+# bare flag with no operand is a fail-closed executable command or an ignored
+# prose mention. See docs/internal/install.md for the host-safe operand rule.
+_TICK_FLAG_1679 = '--tick-progress'
+# The static-literal quote styles, complete by construction (AC2): quoted (either
+# quote character) and unquoted.
+_TICK_STATIC_QUOTES = frozenset({'double', 'single', 'unquoted'})
+# The four shell-variable forms, complete by construction (AC4). The first three
+# are runtime-resolved and exempt from the static checks; a single-quoted `'$X'`
+# suppresses expansion, so it is a STATIC literal run through the ordinary guards.
+_TICK_VAR_FORMS = frozenset({'unquoted-$', 'double-$', 'double-${}', 'single-$'})
+_TICK_VAR_RUNTIME = frozenset({'unquoted-$', 'double-$', 'double-${}'})
+# The three no-simple-token shapes, complete by construction (AC3).
+_TICK_NO_SIMPLE = frozenset({'exec-no-operand', 'prose-mention', 'continuation-split'})
+_TICK_METACHARS_1630 = "&;|$`()<>"
+# A whole operand that is exactly a braced/unbraced shell-variable reference.
+_TICK_VAR_RE_1679 = re.compile(r'^\$(?:([A-Za-z_]\w*)|\{([A-Za-z_]\w*)\})$')
+# An UNQUOTED operand that is exactly an unbraced variable reference (`$X`); an
+# unquoted braced form is not one of AC4's four and does not occur.
+_TICK_UVAR_RE_1679 = re.compile(r'^\$[A-Za-z_]\w*$')
+
+
+def _tick_fenced_lines_1679(text):
+    """0-based indices of lines inside a ``` fenced code block — the executable
+    context that tells a real invocation (fail closed on a missing operand) from
+    an inert prose mention (ignored)."""
+    inside, fenced = set(), False
+    for _i, _ln in enumerate(text.split('\n')):
+        if _ln.lstrip().startswith('```'):
+            fenced = not fenced
+        elif fenced:
+            inside.add(_i)
+    return inside
+
+
+def _classify_tick_1679(text, after, line_idx, fenced):
+    """Classify the `--tick-progress` occurrence whose char index just past the
+    flag is `after`, on 0-based `line_idx`. Returns a dict: `shape` (one of
+    'static' / 'runtime-var' / 'exec-no-operand' / 'prose-mention'), `quote`,
+    `var_form`, `value`, and `via_continuation` (the AC3 continuation-split
+    shape — a `\\`-newline before the operand). A missing operand is
+    `exec-no-operand` inside a fence, `prose-mention` otherwise."""
+    n, i = len(text), after
+    via_continuation = False
+    while i < n and text[i] in ' \t':
+        i += 1
+    if i + 1 < n and text[i] == '\\' and text[i + 1] == '\n':
+        via_continuation = True
+        i += 2
+        while i < n and text[i] in ' \t':
+            i += 1
+    no_operand = {'quote': None, 'var_form': None, 'value': None,
+                  'via_continuation': via_continuation}
+    # No operand token: newline / EOF / prose backtick / a following flag.
+    if i >= n or text[i] in '\n`' or text[i:i + 2] == '--':
+        return {'shape': 'exec-no-operand' if line_idx in fenced
+                else 'prose-mention', **no_operand}
+    ch = text[i]
+    if ch in '"\'':
+        j = text.find(ch, i + 1)
+        if j == -1:  # unterminated quote → treat as a missing operand
+            return {'shape': 'exec-no-operand' if line_idx in fenced
+                    else 'prose-mention', **no_operand}
+        inner = text[i + 1:j]
+        if ch == '"':
+            m = _TICK_VAR_RE_1679.match(inner)
+            if m:
+                return {'shape': 'runtime-var', 'quote': 'double',
+                        'var_form': 'double-${}' if m.group(2) else 'double-$',
+                        'value': None, 'via_continuation': via_continuation}
+            return {'shape': 'static', 'quote': 'double', 'var_form': None,
+                    'value': inner, 'via_continuation': via_continuation}
+        # Single quotes suppress expansion: ALWAYS a static literal, even when the
+        # text is a variable reference (AC4's fourth form).
+        var_form = 'single-$' if _TICK_VAR_RE_1679.match(inner) else None
+        return {'shape': 'static', 'quote': 'single', 'var_form': var_form,
+                'value': inner, 'via_continuation': via_continuation}
+    # Unquoted operand: a run of non-whitespace characters.
+    j = i
+    while j < n and text[j] not in ' \t\n':
+        j += 1
+    token = text[i:j]
+    if _TICK_UVAR_RE_1679.match(token):
+        return {'shape': 'runtime-var', 'quote': 'unquoted',
+                'var_form': 'unquoted-$', 'value': None,
+                'via_continuation': via_continuation}
+    return {'shape': 'static', 'quote': 'unquoted', 'var_form': None,
+            'value': token, 'via_continuation': via_continuation}
+
+
+def _tick_sites_1679(text):
+    """Every classified `--tick-progress` occurrence in `text`, in order."""
+    fenced = _tick_fenced_lines_1679(text)
+    out = []
+    start = 0
+    while True:
+        k = text.find(_TICK_FLAG_1679, start)
+        if k == -1:
+            break
+        out.append(_classify_tick_1679(
+            text, k + len(_TICK_FLAG_1679), text[:k].count('\n'), fenced))
+        start = k + len(_TICK_FLAG_1679)
+    return out
+
+
+def _tick_no_simple_shape_1679(rec):
+    """The AC3 no-simple-token label for a record, or None for a simple-token
+    site. A continuation-split site parses a real operand yet had no simple token
+    immediately after the flag, so it is a no-simple-token shape too."""
+    if rec['via_continuation']:
+        return 'continuation-split'
+    if rec['shape'] in ('exec-no-operand', 'prose-mention'):
+        return rec['shape']
+    return None
+
+
+def _classify_tick_str_1679(s, fenced=True):
+    """Classify the first `--tick-progress` occurrence in `s`; `fenced` sets the
+    executable-context flag for the no-operand shapes."""
+    k = s.index(_TICK_FLAG_1679)
+    fenced_lines = set(range(s.count('\n') + 1)) if fenced else set()
+    return _classify_tick_1679(
+        s, k + len(_TICK_FLAG_1679), s[:k].count('\n'), fenced_lines)
+
+
+_tick_sites = [(_p, _rec) for _p, _txt in _tick_md for _rec in _tick_sites_1679(_txt)]
+# Every occurrence classifies into exactly one known shape — complete by
+# construction, so a site written in a shape this guard cannot read fails CLOSED
+# here instead of silently escaping the collision assertions below.
+_TICK_SHAPES_1679 = frozenset(
+    {'static', 'runtime-var', 'exec-no-operand', 'prose-mention'})
+assert_eq("#1679 every --tick-progress site classifies into a known shape", set(),
+          {_rec['shape'] for _p, _rec in _tick_sites} - _TICK_SHAPES_1679)
+# No SHIPPED executable command is missing its operand (fail-closed sanity: the
+# shape exists to catch a planted one, and there is none live).
+assert_eq("#1679 no shipped executable --tick-progress is missing its operand", 0,
+          sum(1 for _p, _rec in _tick_sites if _rec['shape'] == 'exec-no-operand'))
+# Live static literals are the tick substrings — the operand consumers below use
+# this set; runtime-variable sites carry no static value and are excluded.
+_live_ticks = sorted({_rec['value'] for _p, _rec in _tick_sites
+                      if _rec['shape'] == 'static'})
+# Every shipped static operand uses one of the two supported quote styles (AC2).
+assert_eq("#1679 every static --tick-progress operand is quoted or unquoted", set(),
+          {_rec['quote'] for _p, _rec in _tick_sites if _rec['shape'] == 'static'}
+          - _TICK_STATIC_QUOTES)
 assert_eq("#1462 live tick substrings were derived from the phase files", True,
           len(_live_ticks) >= 10)
 
-# --- #1630 no live tick operand carries a shell metacharacter ---------------
-# No quoted `--tick-progress` operand may carry a character in
+# --- #1679 no static tick operand begins with `/` (MSYS path-conversion trap) --
+# The host-safe rule: a standalone slash-leading argument is rewritten by Git
+# Bash/MSYS, so the shipped operand must not begin with `/` — the `/simplify` row
+# is ticked with the unique host-safe substring `simplify`.
+for _t in _live_ticks:
+    assert_eq(f"#1679 live tick {_t!r} does not begin with '/'", False,
+              _t.startswith('/'))
+
+# --- #1630 no static tick operand carries a shell metacharacter -------------
+# No static `--tick-progress` operand may carry a character in
 # `_TICK_METACHARS_1630` below (a pragmatic subset covering the observed
 # classifier refusal, not its full grammar) — such an operand is refused mid-run.
-# Scope: the `_live_ticks` set derived above, i.e. quoted `--tick-progress`
-# literals under skills/implement/ ONLY. Disclosed residuals: --tick-plan
-# /--tick-ac sites (authored placeholders), any site whose operand is a shell
-# variable, and any future tick site outside skills/implement/ (none today).
-_TICK_METACHARS_1630 = "&;|$`()<>"
+# Scope: the static `_live_ticks` set derived above. Runtime-variable operands
+# (AC4's three runtime-resolved forms) are the disclosed residual, exempt because
+# their value is resolved by the shell at run time, not statically.
 for _t in _live_ticks:
     assert_eq(f"#1630 live tick {_t!r} carries no shell metacharacter", [],
               [_c for _c in _t if _c in _TICK_METACHARS_1630])
+
+# --- #1679 the guard rejects planted unsafe operands, both quote styles -------
+# A static standalone slash-leading literal is rejected whether quoted or
+# unquoted, and the shell-metacharacter check is retained.
+for _label, _fixture in (('double-quoted', '--tick-progress "/simplify"'),
+                         ('single-quoted', "--tick-progress '/simplify'"),
+                         ('unquoted', '--tick-progress /simplify')):
+    _rec = _classify_tick_str_1679(_fixture)
+    assert_eq(f"#1679 planted {_label} slash-leading operand is a static literal",
+              'static', _rec['shape'])
+    assert_eq(f"#1679 planted {_label} slash-leading operand is caught by the "
+              f"slash check", True, _rec['value'].startswith('/'))
+assert_eq("#1679 the metacharacter check still fires on a planted operand", True,
+          any(_c in _TICK_METACHARS_1630
+              for _c in _classify_tick_str_1679('--tick-progress "a;rm"')['value']))
+
+# --- #1679 the three no-simple-token shapes, complete by construction (AC3) ----
+# exec-no-operand (fenced, no operand) fails closed; prose-mention (unfenced, no
+# operand) is ignored; a continuation-split operand is still parsed.
+assert_eq("#1679 executable --tick-progress with no operand fails closed",
+          'exec-no-operand',
+          _classify_tick_str_1679('workpad.py update 7 --tick-progress\n',
+                                  fenced=True)['shape'])
+assert_eq("#1679 an inert prose mention of --tick-progress stays ignored",
+          'prose-mention',
+          _classify_tick_str_1679('the `--tick-progress` flag', fenced=False)['shape'])
+_cont = _classify_tick_str_1679(
+    'workpad.py update 7 --tick-progress \\\n    "deferred"', fenced=True)
+assert_eq("#1679 a continuation-split static operand is parsed (value)",
+          'deferred', _cont['value'])
+assert_eq("#1679 a continuation-split static operand is parsed (shape)",
+          'continuation-split', _tick_no_simple_shape_1679(_cont))
+assert_eq("#1679 the no-simple-token shapes are exactly the three declared",
+          _TICK_NO_SIMPLE,
+          frozenset({_tick_no_simple_shape_1679(_classify_tick_str_1679(_s, _f))
+                     for _s, _f in (
+                         ('workpad.py update 7 --tick-progress\n', True),
+                         ('the `--tick-progress` flag', False),
+                         ('workpad.py update 7 --tick-progress \\\n    "x"', True))}))
+
+# --- #1679 shell-variable classification, exactly four forms (AC4) ------------
+# Unquoted `$X`, double-quoted `"$X"`/`"${X}"` are runtime-resolved (exempt from
+# the static guards); single-quoted `'$X'` is a static literal subject to them.
+_TICK_VAR_FIXTURES_1679 = {
+    'unquoted-$': '--tick-progress $TICK',
+    'double-$': '--tick-progress "$TICK"',
+    'double-${}': '--tick-progress "${TICK}"',
+    'single-$': "--tick-progress '$TICK'",
+}
+_tick_var_recs_1679 = {_f: _classify_tick_str_1679(_s)
+                       for _f, _s in _TICK_VAR_FIXTURES_1679.items()}
+assert_eq("#1679 shell-variable classification covers exactly the four forms",
+          _TICK_VAR_FORMS, frozenset(_tick_var_recs_1679))
+for _form, _rec in _tick_var_recs_1679.items():
+    assert_eq(f"#1679 var form {_form!r} classifies to itself", _form,
+              _rec['var_form'])
+assert_eq("#1679 exactly the three unquoted/double var forms are runtime-resolved",
+          _TICK_VAR_RUNTIME,
+          frozenset(_f for _f, _r in _tick_var_recs_1679.items()
+                    if _r['shape'] == 'runtime-var'))
+assert_eq("#1679 the single-quoted var form is a static literal (subject to guards)",
+          ('static', True),
+          (_tick_var_recs_1679['single-$']['shape'],
+           any(_c in _TICK_METACHARS_1630
+               for _c in _tick_var_recs_1679['single-$']['value'])))
 
 # Both reproduction states, because the row's presence changes the candidate set.
 for _label, _body_1462 in (('repro present', _nb), ('repro absent', _nb3)):
