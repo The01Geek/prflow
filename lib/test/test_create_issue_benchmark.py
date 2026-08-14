@@ -188,7 +188,6 @@ class RunnerTest(unittest.TestCase):
             # shell=True the count assertion aborts first and this one never runs.
             # The provider runs with cwd=spec["root"], so the file would land there.
             self.assertFalse((FIXTURE / "should-not-exist").exists())
-            self.assertFalse((Path.cwd() / "should-not-exist").exists())
             self.assertEqual(len(manifest["runs"]), 8)
             controlled_names = {
                 "PRFLOW_BENCHMARK_CONFIGURATION",
@@ -396,6 +395,9 @@ class AggregationTest(unittest.TestCase):
             ("string", "oops"),
             ("mapping", {"a": {"run_id": "x", "status": "succeeded"}}),
             ("scalar-members", ["oops", 3, None]),
+            # A non-iterable is the row that discriminates the isinstance-list
+            # normalization; every iterable row survives without it.
+            ("non-iterable", 3),
         ):
             with self.subTest(executions=label):
                 report = BENCHMARK.aggregate_benchmark(fixture, executions)
