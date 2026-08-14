@@ -38,8 +38,23 @@ provisional evidence — it is never your subject. The *Objective* and *Primary 
 describe the standalone write-mode run; they are not your goal here.
 
 Your caller is drafting work against this topic and needs to know what exists, how it behaves, and
-what will bite an implementer. Documentation accuracy is something you **observe in passing and
-report briefly** — it is not what you were dispatched to produce.
+what will bite an implementer. Documentation accuracy is not what you were dispatched to produce —
+you return one **doc reliability** signal and nothing else about documentation quality.
+
+**Documentation is provisional evidence, and every doc-derived claim gets one of three fates.**
+Documentation lets you find the right code fast; it does not tell you what the code does. Before a
+claim you took from a document enters your report as fact, confirm it against the code that
+implements it. No doc-derived claim enters the report unmarked:
+
+| Fate | Condition | Where it goes |
+| --- | --- | --- |
+| **Finding** | You confirmed it against the implementing code | `Relevant code files` / `Current behavior` |
+| **Contradiction** | The code disagrees with the document | `Current behavior` — the code wins |
+| **Unconfirmed** | You did not check it | Stated in-line, marked `doc-sourced, unconfirmed` |
+
+Never silently promote an unconfirmed doc claim to a finding. "The documentation says so" is not a
+code read, and a caller that cannot tell the two apart will plan against a document instead of the
+system.
 
 **Assume the system is more coupled than it looks.** This skill ships for brownfield codebases, where
 the behavior that matters is frequently not visible at the call site: it lives in a guard several
@@ -125,7 +140,7 @@ you measured and how you counted it, so the caller has a defined comparand to re
 to quantities only — `file:line` references and qualitative judgments stay as decisive as the rest of
 the report.
 
-**A report-only pass dispatches no subagent of its own** — nested dispatch is unsupported on some harnesses and on DevFlow's cloud tier, so the pass is always a leaf. Escalation is a **return-value contract**: return your verdict and your per-duty statuses, and the caller decides. Never branch into a deeper pass internally.
+**A report-only pass dispatches no subagent of its own** — nested dispatch is unsupported on some harnesses and on DevFlow's cloud tier, so the pass is always a leaf. Escalation is a **return-value contract**: return your doc-reliability signal and your per-duty statuses, and the caller decides. Never branch into a deeper pass internally.
 
 ## **Objective** (write mode)
 
@@ -182,7 +197,12 @@ Identify all code related to the topic, **searching the supplied `--search-space
 - Review all relevant source files
 - Document the key files and features involved
 
-### **Step 3: Compare Documentation vs Code**
+### **Step 3: Compare Documentation vs Code** (write mode)
+
+> **In `--report-only` mode, skip this comparison.** Use the documentation you located as context
+> for reaching the right code, and establish every detail you report from the code itself; a
+> doc-derived claim takes one of the three fates stated under *Who you are in report-only mode*
+> above.
 
 For **existing documentation**:
 - Read the documentation file(s)
@@ -197,24 +217,9 @@ For **missing documentation**:
 - Note that no documentation exists for this topic
 - Flag this as a gap that needs to be filled
 
-**Report-only mode — documentation is provisional evidence, and every doc-derived claim gets one of
-three fates.** Documentation lets you find the right code fast; it does not tell you what the code
-does. Before a claim you took from a document enters your report as fact, confirm it against the code
-that implements it. No doc-derived claim enters the report unmarked:
-
-| Fate | Condition | Where it goes |
-| --- | --- | --- |
-| **Finding** | You confirmed it against the implementing code | `Relevant code files` / `Current behavior` |
-| **Contradiction** | The code disagrees with the document | `Drift detail` — the code wins |
-| **Unconfirmed** | You did not check it | Stated in-line, marked `doc-sourced, unconfirmed` |
-
-Never silently promote an unconfirmed doc claim to a finding. "The documentation says so" is not a
-code read, and a caller that cannot tell the two apart will plan against a document instead of the
-system.
-
 ### **Step 4: Determine Actions Needed**
 
-**Report-only mode (`--report-only`):** do not edit or create any files. Produce the *Report-Only Output* below, classifying the topic as accurate / drifted / missing per the verdict rule stated there. **Do not load the write-mode reference** — none of it applies to you, and your contract is complete without it.
+**Report-only mode (`--report-only`):** do not edit or create any files. Produce the *Report-Only Output* below, classifying the documentation's reliability per the rule stated there. **Do not load the write-mode reference** — none of it applies to you, and your contract is complete without it.
 
 **Write mode (default): load `references/write-mode.md` now and follow it.** Build its path from this
 skill's directory per the *Portable helper anchor* rules above and read it with the runner's
@@ -234,26 +239,26 @@ constraints and file-operation rules is worse than not running at all.
 
 Return findings as text — **do not write them to a file**. Structure:
 
-- **Verdict:** `DOCS ACCURATE` | `DRIFT FOUND` | `DOCS MISSING`
+- **Doc reliability:** `RELIABLE` | `UNRELIABLE` | `ABSENT`
 - **Relevant code files:** the files that implement the topic — the map for the issue and the implementer. Mark which are **essential** (the minimum set someone must read to understand the topic) and cite `file:line` for the specific entry points, guards, and writers you identified.
 - **Current behavior:** what the code actually does today, grounded in the code you read. Include the failure paths and non-obvious couplings an implementer would otherwise discover the hard way.
-- **Drift detail:** for `DRIFT FOUND` / `DOCS MISSING`, the doc path(s) and the specific inaccurate / outdated / missing sections. **Keep this brief — a few lines.** You are not producing a documentation audit: report the drift you met while mapping the code and move on. Do not sweep for further discrepancies, and do not enumerate every mismatch you could find.
 
-**What the verdict ranges over (decide it this way, every time).** The verdict is a judgment about
-**documents inside `[[INTERNAL_DOC_LOCATION]]`, and nothing else**:
+**What the doc-reliability signal ranges over (decide it this way, every time).** It says whether the
+**documents inside `[[INTERNAL_DOC_LOCATION]]`, and nothing else**, were a reliable map for this
+topic:
 
-- `DOCS MISSING` — no document inside that location covers the topic.
-- `DRIFT FOUND` — a document there covers the topic, and at least one claim you spot-checked was
+- `ABSENT` — no document inside that location covers the topic.
+- `UNRELIABLE` — a document there covers the topic, and at least one claim you spot-checked was
   contradicted by the code or is materially incomplete.
-- `DOCS ACCURATE` — a document there covers the topic and everything you spot-checked held.
+- `RELIABLE` — a document there covers the topic and everything you spot-checked held.
 
 A discrepancy in any file **outside** that location — a stale default in a schema, a wrong literal in
-a code comment, an out-of-date example config — is **not a verdict input**. Note it under
-*Drift detail* as an out-of-location contradiction if it is load-bearing, and leave the verdict
-unchanged. Two runs over the same tree must return the same token; without a stated boundary they do
-not, and the caller's escalation decision turns on noise.
+a code comment, an out-of-date example config — is **not an input to this signal**. Report it under
+*Current behavior* if it is load-bearing, and leave the signal unchanged. Two runs over the same tree
+must return the same token; without a stated boundary they do not, and the caller's escalation
+decision turns on noise.
 
-If `[[INTERNAL_DOC_LOCATION]]` itself cannot be read, that is **not** `DOCS MISSING` — an absence you
+If `[[INTERNAL_DOC_LOCATION]]` itself cannot be read, that is **not** `ABSENT` — an absence you
 could not establish is not an established absence. Report the *exact operand and population identity*
 duty as `unestablished` and say which read failed.
 - **Search space surveyed:** the `--search-space` operand this run used, or the default it fell back to
@@ -270,7 +275,7 @@ Make no Edit, Write, commit, or push in this mode, and dispatch no subagent. The
 re-exploring it — the code map, the current behavior including its failure paths, and an honest
 account of what you could not establish — returned as text, with the working tree unchanged (no files
 created or edited). A report that is accurate about the documentation but thin about the code has
-failed, however clean its verdict.
+failed, however clean its doc-reliability signal.
 
 This mode is typically a **sub-step of another skill (e.g. `/prflow:create-issue`)** — when you
 finish, hand the report back to the calling flow and let it continue. Do **not** announce overall task

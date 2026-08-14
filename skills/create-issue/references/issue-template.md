@@ -89,7 +89,6 @@ Ground this in the documentation findings passed by the caller. Open the section
 > **Scope note:** The files and details below are the known starting points, not the full list. Before implementing, trace the change through the codebase to find every affected call site, consumer, and layer — this issue maps the work, it does not bound it.
 
 - **Relevant Classes/Files** — specific files from the findings (see load-bearing-premise verification below).
-- **Documentation Drift** — the landing site for the Step 1 pass's **drift detail** field. On a `DRIFT FOUND` or `DOCS MISSING` verdict, name the doc path(s) and the specific inaccurate, outdated, or missing sections reported, so the drift terminates here rather than in Step 1. Omit only on `DOCS ACCURATE`; say so explicitly when the Step 1 evidence is degraded, since an unestablished drift picture is never rendered as a clean one.
 - **Architecture Alignment** — how this fits existing patterns.
 - **Dependencies** — the specific service/module/library this depends on. If a library is needed, name the **one** chosen (decided in Step 2), not a shortlist.
 - **Data/Schema Considerations** — schema changes, queries, or data-access patterns.

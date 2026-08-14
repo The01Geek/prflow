@@ -186,8 +186,8 @@ An incomplete return — one that succeeds but omits or malforms its duty status
 bearing observation for a duty it reported `judged-not-engaged` — records that duty unestablished
 with a breadcrumb naming the missing field, never a discharged floor.
 
-Escalation shallow→deep is the verdict token's only role, never the arm selector. Escalate on drift
-or a missing document, on an unestablished duty, and on any judged-not-engaged duty whose returned
+Escalation shallow→deep is the doc-reliability signal's only role, never the arm selector. Escalate
+on `UNRELIABLE` or `ABSENT`, on an unestablished duty, and on any judged-not-engaged duty whose returned
 bearing observation is non-empty once the producer's explicit `none-observed` token is excluded —
 that field is always present, so escalate on any value other than `none-observed` and record
 unestablished (which escalates) when it is absent or unparseable. That comparand is a field of the
@@ -232,7 +232,7 @@ effective list recomputed here (the second, unconditional site of the *Bundle-co
 it is missing or an axis has no entry, stop and run the evidence-bundle sub-pass now before drafting.
 
 Draft the issue from the context you already hold — the documentation findings from Step 1
-(relevant files, current behavior, any drift) and the decisions from Step 2 — doing only targeted
+(relevant files, current behavior) and the decisions from Step 2 — doing only targeted
 verification reads where a specific claim needs confirming.
 Do not re-explore the whole codebase; the findings are your map, resident in context and durably
 held in `.prflow/tmp/issue-step1-<slug>.md`, so reference them by pointer and do not re-emit the
