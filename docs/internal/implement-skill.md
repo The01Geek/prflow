@@ -918,8 +918,9 @@ standalone-argument hazard in `docs/internal/install.md`), so a `/simplify` oper
 nothing and report a volatile miss on those hosts; `simplify` still uniquely matches the row. The
 derived guard in `lib/test/test_python_scripts.py` enforces the rule: a static standalone
 `--tick-progress` operand under `skills/implement/` may be quoted or unquoted, must not begin with
-`/`, and must carry no shell metacharacter — a shell-variable operand is runtime-resolved and
-exempt.
+`/`, and must carry no shell metacharacter — an unquoted or double-quoted shell-variable operand
+is runtime-resolved and exempt (a single-quoted `'$X'` suppresses expansion, so it is a static
+literal and stays guarded).
 
 **The same command must work on both tiers**, so a focused Python test is invoked as a
 **direct leading token** (`lib/test/test_python_scripts.py <selector>`) — never `python3

@@ -2583,14 +2583,17 @@ _IMPL_SKILL_DIR = Path(__file__).resolve().parents[2] / 'skills' / 'implement'
 _tick_md = [(_p, _p.read_text(encoding='utf-8'))
             for _p in sorted(_IMPL_SKILL_DIR.rglob('*.md'))]  # tree-walk-ok: anchored to skills/implement/, which cannot reach the sibling checkouts under .claude/worktrees/ a repo-root-anchored walk would descend into
 # Classify the `--tick-progress` operands under skills/implement/ by shape
-# (issue #1679), so no unsafe operand escapes the guard. Git
+# (issue #1679), so no unsafe STANDALONE-ARGUMENT operand escapes the guard. Git
 # Bash/MSYS rewrites a standalone slash-leading argument to a Windows path before
 # native python3 receives it, so a `/simplify`-style operand ticks nothing and the
 # helper reports a volatile miss. A STATIC literal (quoted OR unquoted) is the tick
 # substring — it must never begin with `/` and must carry no shell metacharacter; a
 # shell-VARIABLE operand is runtime-resolved and exempt from the static checks; a
 # bare flag with no operand is a fail-closed executable command or an ignored
-# prose mention. See docs/internal/install.md for the host-safe operand rule.
+# prose mention. Scope matches issue #1679: the flag-attached `--tick-progress=…`
+# form and path-list arguments are out of scope (the classifier reads the
+# space-separated operand form the shipped call sites use). See
+# docs/internal/install.md for the host-safe operand rule.
 _TICK_FLAG_1679 = '--tick-progress'
 # The static-literal quote styles, complete by construction (AC2): quoted (either
 # quote character) and unquoted.
