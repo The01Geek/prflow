@@ -2582,8 +2582,8 @@ for _r_text, _r_substr in _review_rows_1657:
 _IMPL_SKILL_DIR = Path(__file__).resolve().parents[2] / 'skills' / 'implement'
 _tick_md = [(_p, _p.read_text(encoding='utf-8'))
             for _p in sorted(_IMPL_SKILL_DIR.rglob('*.md'))]  # tree-walk-ok: anchored to skills/implement/, which cannot reach the sibling checkouts under .claude/worktrees/ a repo-root-anchored walk would descend into
-# Classify EVERY `--tick-progress` occurrence under skills/implement/ into
-# exactly one shape (issue #1679), so no unsafe operand escapes the guard. Git
+# Classify the `--tick-progress` operands under skills/implement/ by shape
+# (issue #1679), so no unsafe operand escapes the guard. Git
 # Bash/MSYS rewrites a standalone slash-leading argument to a Windows path before
 # native python3 receives it, so a `/simplify`-style operand ticks nothing and the
 # helper reports a volatile miss. A STATIC literal (quoted OR unquoted) is the tick
@@ -2679,7 +2679,7 @@ def _classify_tick_1679(text, after, line_idx, fenced):
 
 
 def _tick_sites_1679(text):
-    """Every classified `--tick-progress` occurrence in `text`, in order."""
+    """The classified `--tick-progress` occurrences in `text`, in order."""
     fenced = _tick_fenced_lines_1679(text)
     out = []
     start = 0
@@ -2714,9 +2714,6 @@ def _classify_tick_str_1679(s, fenced=True):
 
 
 _tick_sites = [(_p, _rec) for _p, _txt in _tick_md for _rec in _tick_sites_1679(_txt)]
-# Every occurrence classifies into exactly one known shape — complete by
-# construction, so a site written in a shape this guard cannot read fails CLOSED
-# here instead of silently escaping the collision assertions below.
 _TICK_SHAPES_1679 = frozenset(
     {'static', 'runtime-var', 'exec-no-operand', 'prose-mention'})
 assert_eq("#1679 every --tick-progress site classifies into a known shape", set(),
