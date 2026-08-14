@@ -9,7 +9,7 @@ Write the issue in plain language. Read the writing standard at `"${CLAUDE_SKILL
 
 The issue describes **one decided behavior built one decided way.** A developer reading it never has to choose between alternatives or fill a gap to start work.
 
-Outside the `## 🚫 Blocked` section and the Implementation Notes `Relevant files` block, the body must contain **none** of the following. The scan skips both of those by **location**, exactly as it skips `## 🚫 Blocked`, never by judging whether a single word inside describes a decision:
+The gate scans the whole body except the `## 🚫 Blocked` section, and **three further surfaces are carved out of the scan** — this is the complete carve-out set: the Implementation Notes `Relevant files` block (skipped by **location**, exactly as `## 🚫 Blocked` is), the verbatim Technical Context scope note (mandated boilerplate, not an undecided choice), and an `— assumption, confirm before implementing` bullet (a factual premise to confirm, not a decision to make). Everywhere else the body must contain **none** of the following — never judged by whether a single word inside a carve-out describes a decision:
 
 - choice words: "or", "either / or", "alternatively", "vs", "option", "approach A vs B"
 - hedge words: "could", "we might", "we may want to", "consider", "perhaps", "possibly"
@@ -17,6 +17,8 @@ Outside the `## 🚫 Blocked` section and the Implementation Notes `Relevant fil
 - competing examples: "e.g. WeasyPrint or ReportLab" where the two are rival choices the developer would have to pick between
 
 If drafting surfaces any of these, you have an unresolved decision. Resolve it with the user, or — only if the user has disengaged — move it verbatim into the Blocked section; never leave it as prose in the body.
+
+Every acceptance criterion is **one concrete, unconditional assertion**. A criterion that needs a conditional ("if links are public…") hides an unresolved fork — resolve the fork, never ship the conditional.
 
 ## Brief / investigation-record routing (decided rule — sort as you draft)
 
