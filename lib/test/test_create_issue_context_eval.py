@@ -11,11 +11,14 @@ test can witness it). Driven serially from lib/test/run.sh.
 """
 
 import contextlib
+import copy
+import hashlib
 import importlib.util
 import io
 import json
 import os
 import re
+import shutil
 import tempfile
 import unittest
 import unittest.mock
@@ -23,7 +26,9 @@ import unittest.mock
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _REPO = os.path.abspath(os.path.join(_HERE, "..", ".."))
 _EVAL_PATH = os.path.join(_REPO, "scripts", "create-issue-context-eval.py")
+_MODULAR_EVAL_PATH = os.path.join(_REPO, "scripts", "create_issue_eval.py")
 _FIX = os.path.join(_HERE, "fixtures", "create-issue-eval")
+_MANIFEST_FIX = os.path.join(_FIX, "manifests")
 
 
 def _load_module(name, path):
@@ -38,6 +43,30 @@ def _load_eval():
 
 
 CICE = _load_eval()
+
+
+# A deeply-nested JSON document: the shape that makes CPython's recursive scanner raise
+# `RecursionError` (a `RuntimeError`, not a `ValueError`) out of `json.loads`.
+_DEEP_JSON = "[" * 40000 + "]" * 40000
+
+
+@contextlib.contextmanager
+def _recursion_error_on(text):
+    """Force `json.loads(text)` to raise `RecursionError` for the duration.
+
+    Do not replace this with a bare deeply-nested literal: 3.14's iterative decoder
+    parses `_DEEP_JSON` without overflowing, so a literal-only test would stop
+    discriminating a narrow `(ValueError, TypeError)` clause from a broad one there.
+    """
+    real_loads = json.loads
+
+    def _loads(value, *args, **kwargs):
+        if isinstance(value, str) and value.strip() == text:
+            raise RecursionError("maximum recursion depth exceeded while decoding")
+        return real_loads(value, *args, **kwargs)
+
+    with unittest.mock.patch.object(json, "loads", _loads):
+        yield
 
 
 def _write(dirpath, name, lines):
@@ -72,7 +101,21 @@ class SecretDetectorTest(unittest.TestCase):
     def test_added_files_are_clean(self):
         # The clean scan covers the eval, the determination doc, and every fixture,
         # excluding the positive-control file by name.
-        targets = [_EVAL_PATH, os.path.join(_REPO, "docs", "create-issue-context.md")]
+        # Name every module that carries eval/benchmark source: scanning only the
+        # hyphenated shim would leave the relocated implementation unscanned.
+        targets = [
+            _EVAL_PATH,
+            _MODULAR_EVAL_PATH,
+            os.path.join(_REPO, "scripts", "create_issue_benchmark.py"),
+            os.path.join(_REPO, "scripts", "create-issue-benchmark.py"),
+            os.path.join(_REPO, "docs", "internal", "create-issue-context.md"),
+        ]
+        for required in targets:
+            # A silently-skipped absent target is how this scan shrank to a shim.
+            self.assertTrue(
+                os.path.exists(required),
+                "secret-scan target does not exist: {}".format(required),
+            )
         for dirpath, _dirs, files in os.walk(_FIX):  # tree-walk-ok: rooted at the fixed committed create-issue-eval fixtures subdir, not the repo root — never descends into sibling worktrees
             for f in sorted(files):
                 if f == "planted-owner-id.txt":
@@ -319,6 +362,20 @@ class AdversarialTest(_SingleSessionMixin, unittest.TestCase):
         self.assertEqual(skipped["non_json_line"], 2)  # 'not json' + truncated
         self.assertEqual(skipped["not_object"], 1)
         self.assertEqual(skipped["no_type"], 1)
+
+    def test_a_deeply_nested_line_is_skipped_rather_than_raised(self):
+        attributed = (
+            '{"type":"assistant","attributionSkill":"devflow:create-issue",'
+            '"message":{"usage":{"input_tokens":4}}}'
+        )
+        control_runs, control_skipped = self._run_one([attributed])
+        self.assertEqual(len(control_runs), 1)
+        self.assertEqual(control_skipped["non_json_line"], 0)
+        with _recursion_error_on(_DEEP_JSON):
+            runs, skipped = self._run_one([_DEEP_JSON, attributed])
+        self.assertEqual(skipped["non_json_line"], 1)
+        self.assertEqual(len(runs), 1)
+        self.assertEqual(runs[0]["turn_count"], 1)
 
     def test_message_wrong_shape_does_not_detonate(self):
         # `message` as a truthy non-dict (a list here) must NOT raise AttributeError and
@@ -954,10 +1011,44 @@ class RoundKindCouplingTest(unittest.TestCase):
             self.assertEqual(outstanding, status == CICE._UNRESOLVED_STATUS,
                              "status {!r} classified wrongly".format(status))
 
+    def test_impact_classes_mirror_the_state_owner(self):
+        """A sixth impact class added to the owner must not ship green here."""
+        self.assertEqual(set(CICE._IMPACT_CLASSES), set(self._owner()._IMPACT_CLASSES))
+
+    def test_impact_counts_fails_closed_on_an_unmirrored_class(self):
+        """An owner-accepted class this mirror lacks reads unestablished, never raises."""
+        state = {"rounds": [{
+            "advisory_count": 1,
+            "advisory_records": [{"impact_class": "a-class-this-mirror-does-not-carry"}],
+        }]}
+        self.assertEqual(
+            CICE._impact_counts(state, "advisory"),
+            {name: CICE.UNESTABLISHED for name in CICE._IMPACT_CLASSES})
+        # Positive control on the same fixture shape: a mirrored class still tallies.
+        state["rounds"][0]["advisory_records"] = [{"impact_class": "scope"}]
+        self.assertEqual(CICE._impact_counts(state, "advisory")["scope"], 1)
+
+    def test_impact_counts_fails_closed_on_an_absent_class_field(self):
+        state = {"rounds": [{"advisory_count": 1, "advisory_records": [{}]}]}
+        self.assertEqual(
+            CICE._impact_counts(state, "advisory"),
+            {name: CICE.UNESTABLISHED for name in CICE._IMPACT_CLASSES})
+
+    def test_impact_counts_fails_closed_on_a_non_dict_record(self):
+        """The record-shape row of the matrix: a scalar previously raised TypeError."""
+        for record in ("a string", None, 7, ["nested"]):
+            with self.subTest(record=record):
+                state = {"rounds": [{
+                    "advisory_count": 1, "advisory_records": [record]}]}
+                self.assertEqual(
+                    CICE._impact_counts(state, "advisory"),
+                    {name: CICE.UNESTABLISHED for name in CICE._IMPACT_CLASSES})
+
     def test_the_pointer_constants_name_this_test(self):
         """A hand-written test path rots silently; assert it resolves to THIS class."""
         for const in (CICE.ROUND_KINDS_COUPLING_ASSERTED_BY,
-                      CICE.LEDGER_STATUS_COUPLING_ASSERTED_BY):
+                      CICE.LEDGER_STATUS_COUPLING_ASSERTED_BY,
+                      CICE.IMPACT_CLASS_COUPLING_ASSERTED_BY):
             self.assertEqual(const, self._SELF)
         path, _, cls = self._SELF.partition("::")
         self.assertTrue(os.path.isfile(os.path.join(_REPO, path)))
@@ -1553,6 +1644,1131 @@ class PairedDeltaDegradedChannelsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as empty:
             _runs, skipped = CICE.eval_corpus(empty)
         self.assertEqual(set(skipped), set(self._CHANNELS))
+
+
+class ManifestIngestionTest(unittest.TestCase):
+    def setUp(self):
+        self.manifest_path = os.path.join(_MANIFEST_FIX, "two-occurrences.json")
+
+    def _api(self, name):
+        self.assertTrue(
+            hasattr(CICE, name),
+            "create-issue evaluator is missing the required {} API".format(name),
+        )
+        return getattr(CICE, name)
+
+    def _mutated_manifest(self, mutate):
+        with open(self.manifest_path, encoding="utf-8") as fh:
+            doc = json.load(fh)
+        doc["root"] = _MANIFEST_FIX
+        mutate(doc)
+        temp = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False)
+        self.addCleanup(lambda: os.path.exists(temp.name) and os.unlink(temp.name))
+        with temp:
+            json.dump(doc, temp)
+        return temp.name
+
+    def _copied_manifest(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        root = os.path.join(temp.name, "manifest-root")
+        shutil.copytree(_MANIFEST_FIX, root)
+        return os.path.join(root, "two-occurrences.json"), root
+
+    def _mutate_copied_manifest(self, mutate):
+        path, root = self._copied_manifest()
+        with open(path, encoding="utf-8") as fh:
+            doc = json.load(fh)
+        mutate(doc, root)
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(doc, fh)
+        return path, root
+
+    def _mutate_transcript(self, root, mutate):
+        path = os.path.join(root, "runs", "shared", "transcript.jsonl")
+        with open(path, encoding="utf-8") as fh:
+            records = [json.loads(line) for line in fh if line.strip()]
+        mutate(records)
+        _write(os.path.dirname(path), os.path.basename(path), [
+            json.dumps(record) for record in records
+        ])
+
+    def test_modular_analyzer_exports_the_legacy_and_manifest_interfaces(self):
+        self.assertTrue(
+            os.path.isfile(_MODULAR_EVAL_PATH),
+            "scripts/create_issue_eval.py does not exist",
+        )
+        module = _load_module("create_issue_eval", _MODULAR_EVAL_PATH)
+        for name in (
+            "RunAccumulator",
+            "eval_corpus",
+            "read_state",
+            "aggregate",
+            "render_text",
+            "load_eval_manifest",
+            "build_manifest_report",
+        ):
+            self.assertTrue(hasattr(module, name), name)
+            self.assertTrue(hasattr(CICE, name), "legacy import surface lost {}".format(name))
+
+    def test_event_bounds_split_two_occurrences_and_join_each_runs_state(self):
+        report = self._api("build_manifest_report")(self.manifest_path)
+        self.assertEqual(report["schema_version"], 1)
+        self.assertEqual(report["benchmark_id"], "two-occurrences")
+        self.assertEqual([run["run_id"] for run in report["runs"]], [
+            "baseline-vague-1",
+            "candidate-vague-1",
+        ])
+        self.assertEqual([run["peak_context"] for run in report["runs"]], [10, 100])
+        self.assertEqual(report["runs"][0]["round_kinds"], {1: "discovery"})
+        self.assertEqual(report["runs"][1]["round_kinds"], {1: "targeted"})
+        self.assertEqual(
+            [run["occurrence"]["occurrence_id"] for run in report["runs"]],
+            ["create-issue-1", "create-issue-2"],
+        )
+        self.assertEqual(report["comparison"]["status"], "established")
+        self.assertIsNone(report["comparison"]["diagnostic"])
+
+    def test_a_state_file_missing_a_dispatched_round_degrades_that_runs_kinds(self):
+        """Delete this guard and a mismatched state ships confidently-wrong kinds."""
+        def add_undispatched_round(doc, root):
+            # The state records a round the transcript never dispatched, so the two
+            # round sets disagree. Without the guard round 1 still resolves to its
+            # recorded kind — a confident answer from a state that does not match
+            # this run — which is exactly what the degradation must replace.
+            state_path = os.path.join(root, doc["runs"][0]["state_file"])
+            with open(state_path, encoding="utf-8") as fh:
+                state = json.load(fh)
+            extra = json.loads(json.dumps(state["rounds"][0]))
+            extra["round"] = 2
+            state["rounds"].append(extra)
+            with open(state_path, "w", encoding="utf-8") as fh:
+                json.dump(state, fh)
+
+        path, _root = self._mutate_copied_manifest(add_undispatched_round)
+        report = self._api("build_manifest_report")(path)
+        self.assertEqual(report["runs"][0]["round_kinds"], {1: CICE.UNESTABLISHED})
+        # Positive control: the untouched sibling run still resolves its real kind,
+        # so the degradation is scoped to the run whose state actually mismatched.
+        self.assertEqual(report["runs"][1]["round_kinds"], {1: "targeted"})
+
+    def test_manifest_mode_adds_explicit_draft_audit_and_grade_artifacts(self):
+        report = self._api("build_manifest_report")(self.manifest_path)
+        for run in report["runs"]:
+            self.assertIn("draft_metrics", run)
+            self.assertEqual(run["audit_outcomes"]["status"], "established")
+            self.assertTrue(run["grade"]["assertions"])
+        quality = report["comparison"]["pairs"][0]["quality"]
+        self.assertTrue(quality["passed"])
+        self.assertTrue(quality["efficiency_eligible"])
+
+    def test_deeply_nested_rubric_has_stable_named_diagnostic(self):
+        positive = self._api("build_manifest_report")(self.manifest_path)
+        self.assertTrue(positive["runs"][0]["grade"]["assertions"])
+
+        def deeply_nested_rubric(_doc, root):
+            path = os.path.join(root, "rubrics", "quality.json")
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write("[" * 10000 + "0" + "]" * 10000)
+
+        path, _root = self._mutate_copied_manifest(deeply_nested_rubric)
+        with self.assertRaisesRegex(
+            ValueError, "invalid_rubric: baseline-vague-1"
+        ):
+            self._api("build_manifest_report")(path)
+
+    def test_a_deeply_nested_manifest_fails_closed_rather_than_raising(self):
+        path = self._mutated_manifest(lambda doc: None)
+        self._api("load_eval_manifest")(path)  # positive control on the same fixture
+        deep = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False)
+        self.addCleanup(lambda: os.path.exists(deep.name) and os.unlink(deep.name))
+        with deep:
+            deep.write(_DEEP_JSON)
+        # Key the patch on the handle: an unconditional one would attribute a failure to
+        # the wrong call if a second `json.load` is ever added to `load_eval_manifest`.
+        real_load = json.load
+
+        def _load(handle, *args, **kwargs):
+            if getattr(handle, "name", None) == deep.name:
+                raise RecursionError("maximum recursion depth exceeded while decoding")
+            return real_load(handle, *args, **kwargs)
+
+        with unittest.mock.patch.object(json, "load", _load):
+            with self.assertRaisesRegex(
+                ValueError, "invalid_manifest: .*maximum recursion depth"
+            ):
+                self._api("load_eval_manifest")(deep.name)
+
+    def test_a_deeply_nested_transcript_line_fails_closed_rather_than_raising(self):
+        control = self._api("build_manifest_report")(self.manifest_path)
+        self.assertTrue(control["runs"])
+
+        def _append_deep_line(_doc, root):
+            transcript = os.path.join(root, "runs", "shared", "transcript.jsonl")
+            with open(transcript, "a", encoding="utf-8") as fh:
+                fh.write(_DEEP_JSON + "\n")
+
+        path, _root = self._mutate_copied_manifest(_append_deep_line)
+        # `_DEEP_JSON` decodes to a LIST, so the not-an-object arm two statements below
+        # raises the same `invalid_transcript` diagnostic: match the decode arm's own
+        # message or the test passes without ever reaching the widened clause.
+        with _recursion_error_on(_DEEP_JSON):
+            with self.assertRaisesRegex(
+                ValueError, r"invalid_transcript: .* line \d+: maximum recursion depth"
+            ):
+                self._api("build_manifest_report")(path)
+
+    def test_a_resumed_session_requires_its_own_explicit_benchmark_run_id(self):
+        path = self._mutated_manifest(
+            lambda doc: doc["runs"][1].pop("run_id")
+        )
+        with self.assertRaisesRegex(ValueError, "missing_run_id"):
+            self._api("load_eval_manifest")(path)
+
+    def test_manifest_validation_fails_closed_with_named_diagnostics(self):
+        cases = {
+            "duplicate_run_id": lambda doc: doc["runs"].append(
+                copy.deepcopy(doc["runs"][0])
+            ),
+            "missing_occurrence_identity": lambda doc: doc["runs"][0][
+                "occurrence"
+            ].pop("occurrence_id"),
+            "path_escape": lambda doc: doc["runs"][0].__setitem__(
+                "transcript", "../escaped.jsonl"
+            ),
+            "missing_artifact": lambda doc: doc["runs"][0]["checkpoints"].__setitem__(
+                "final", "runs/baseline/missing-final.md"
+            ),
+            "unsupported_schema_version": lambda doc: doc.__setitem__(
+                "schema_version", 2
+            ),
+        }
+        for diagnostic, mutate in cases.items():
+            with self.subTest(diagnostic=diagnostic):
+                path = self._mutated_manifest(mutate)
+                with self.assertRaisesRegex(ValueError, diagnostic):
+                    self._api("load_eval_manifest")(path)
+
+    def test_mixed_pair_provenance_is_unestablished(self):
+        path = self._mutated_manifest(
+            lambda doc: doc["runs"][1]["provenance"].__setitem__(
+                "provider", "different-provider"
+            )
+        )
+        comparison = self._api("build_manifest_report")(path)["comparison"]
+        self.assertEqual(comparison["status"], "unestablished")
+        self.assertEqual(comparison["diagnostic"], "mixed_provenance")
+        self.assertTrue(comparison["delta"])
+        self.assertEqual(set(comparison["delta"].values()), {"unestablished"})
+
+    def _second_repetition(self, mutate_repeat=None):
+        # The per-configuration provenance guard only fires with >=2 runs of one
+        # configuration; a one-repetition manifest never reaches it.
+        def add_repetition(doc):
+            repeats = []
+            for index, run in enumerate(copy.deepcopy(doc["runs"])):
+                run["run_id"] = "{}-2".format(run["run_id"])
+                run["repetition"] = 2
+                run["occurrence"]["occurrence_id"] = "create-issue-{}".format(
+                    index + 3
+                )
+                repeats.append(run)
+            if mutate_repeat is not None:
+                mutate_repeat(repeats)
+            doc["runs"].extend(repeats)
+
+        return self._mutated_manifest(add_repetition)
+
+    def test_repetitions_of_one_configuration_share_provenance(self):
+        comparison = self._api("build_manifest_report")(
+            self._second_repetition()
+        )["comparison"]
+        self.assertEqual(comparison["status"], "established")
+        self.assertIsNone(comparison["diagnostic"])
+
+    def test_mixed_provenance_within_one_configuration_is_unestablished(self):
+        # repo_sha is also pair-controlled, so it is drifted in BOTH repetition-2
+        # runs: an only-one-side drift would be refused by the pairwise guard under
+        # the same diagnostic and would not exercise this guard.
+        drifts = {
+            "skill_fingerprint": lambda repeats: repeats[0]["provenance"].__setitem__(
+                "skill_fingerprint", "sha256:drifted"
+            ),
+            "repo_sha": lambda repeats: [
+                run["provenance"].__setitem__("repo_sha", "fedcba9876543210")
+                for run in repeats
+            ],
+        }
+        for key, drift in drifts.items():
+            with self.subTest(key=key):
+                path = self._second_repetition(drift)
+                comparison = self._api("build_manifest_report")(path)["comparison"]
+                self.assertEqual(comparison["status"], "unestablished")
+                self.assertEqual(comparison["diagnostic"], "mixed_provenance")
+                self.assertEqual(
+                    set(comparison["delta"].values()), {"unestablished"}
+                )
+                # A pairwise rejection returns after the first pair; only the
+                # per-configuration guard rejects with both pairs recorded.
+                self.assertEqual(len(comparison["pairs"]), 2)
+
+    def test_forward_compatible_metadata_survives_without_changing_identity(self):
+        def add_metadata(doc):
+            doc["future_manifest_note"] = "preserve-me"
+            run = doc["runs"][0]
+            run["future_run_note"] = "preserve-me"
+            run["occurrence"]["future_boundary_note"] = "preserve-me"
+            run["checkpoints"]["future_checkpoint_note"] = "preserve-me"
+            run["provenance"]["future_provenance_note"] = "preserve-me"
+
+        loaded = self._api("load_eval_manifest")(
+            self._mutated_manifest(add_metadata)
+        )
+        run = loaded["runs"][0]
+        self.assertEqual(loaded["future_manifest_note"], "preserve-me")
+        self.assertEqual(run["run_id"], "baseline-vague-1")
+        self.assertEqual(run["future_run_note"], "preserve-me")
+        self.assertEqual(run["occurrence"]["future_boundary_note"], "preserve-me")
+        self.assertEqual(run["checkpoints"].get("future_checkpoint_note"), "preserve-me")
+        self.assertEqual(run["provenance"]["future_provenance_note"], "preserve-me")
+
+    def test_selected_events_with_missing_or_unsupported_types_are_rejected(self):
+        cases = {
+            "missing": lambda records: records[0].pop("type"),
+            "unsupported": lambda records: records[0].__setitem__("type", "progress"),
+        }
+        for case, mutate in cases.items():
+            with self.subTest(case=case):
+                path, root = self._copied_manifest()
+                self._mutate_transcript(root, mutate)
+                with self.assertRaisesRegex(ValueError, "invalid_transcript"):
+                    self._api("build_manifest_report")(path)
+
+    def test_selected_metric_operands_never_collapse_to_zero(self):
+        cases = {
+            "missing usage": lambda records: records[0]["message"].pop("usage"),
+            "wrong usage container": lambda records: records[0]["message"].__setitem__(
+                "usage", []
+            ),
+            "missing output tokens": lambda records: records[0]["message"][
+                "usage"
+            ].pop("output_tokens", None),
+            "wrong input tokens": lambda records: records[0]["message"][
+                "usage"
+            ].__setitem__("input_tokens", "10"),
+            "negative input tokens": lambda records: records[0]["message"][
+                "usage"
+            ].__setitem__("input_tokens", -1),
+        }
+        for case, mutate in cases.items():
+            with self.subTest(case=case):
+                path, root = self._copied_manifest()
+                self._mutate_transcript(root, mutate)
+                with self.assertRaisesRegex(ValueError, "invalid_transcript"):
+                    self._api("build_manifest_report")(path)
+
+    def test_boundary_confidence_uses_the_recorder_vocabulary(self):
+        path = self._mutated_manifest(
+            lambda doc: doc["runs"][0]["occurrence"].__setitem__(
+                "boundary_confidence", "certain"
+            )
+        )
+        with self.assertRaisesRegex(ValueError, "invalid_boundary_confidence"):
+            self._api("load_eval_manifest")(path)
+
+    def test_unknown_boundary_has_no_recorder_end_or_duration(self):
+        def unknown_with_duration(doc):
+            doc["runs"][0]["occurrence"].update({
+                "boundary_confidence": "unknown",
+                "end_event": None,
+                "duration_ms": 1,
+            })
+
+        path = self._mutated_manifest(unknown_with_duration)
+        with self.assertRaisesRegex(ValueError, "invalid_occurrence_boundary"):
+            self._api("load_eval_manifest")(path)
+
+    def test_only_exact_boundaries_establish_a_comparison(self):
+        cases = {
+            "approximate": lambda occurrence: occurrence.__setitem__(
+                "boundary_confidence", "approximate"
+            ),
+            "unknown": lambda occurrence: occurrence.update({
+                "boundary_confidence": "unknown",
+                "end_event": None,
+                "duration_ms": None,
+            }),
+        }
+        for confidence, mutate in cases.items():
+            with self.subTest(confidence=confidence):
+                path = self._mutated_manifest(
+                    lambda doc: mutate(doc["runs"][0]["occurrence"])
+                )
+                try:
+                    report = self._api("build_manifest_report")(path)
+                except ValueError as exc:
+                    self.fail("{} boundary was rejected: {}".format(confidence, exc))
+                self.assertEqual(len(report["runs"]), 2)
+                comparison = report["comparison"]
+                self.assertEqual(comparison["status"], "unestablished")
+                self.assertEqual(
+                    comparison["diagnostic"], "inexact_occurrence_boundary"
+                )
+                self.assertEqual(
+                    set(comparison["delta"].values()), {"unestablished"}
+                )
+
+    def test_duration_key_is_required_but_explicit_unavailable_is_accepted(self):
+        missing = self._mutated_manifest(
+            lambda doc: doc["runs"][0]["occurrence"].pop("duration_ms")
+        )
+        with self.assertRaisesRegex(ValueError, "missing_duration_ms"):
+            self._api("load_eval_manifest")(missing)
+
+        unavailable = self._mutated_manifest(
+            lambda doc: doc["runs"][0]["occurrence"].__setitem__(
+                "duration_ms", None
+            )
+        )
+        loaded = self._api("load_eval_manifest")(unavailable)
+        self.assertIsNone(loaded["runs"][0]["occurrence"]["duration_ms"])
+
+    def test_any_unestablished_required_run_state_invalidates_the_comparison(self):
+        def malformed(_doc, root):
+            path = os.path.join(root, "runs", "baseline", "audit-state.json")
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write("{broken")
+
+        def partial(_doc, root):
+            path = os.path.join(root, "runs", "baseline", "audit-state.json")
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump({"rounds": [{
+                    "round": 2,
+                    "kind": "discovery",
+                    "kind_reason": "whole_draft_check",
+                    "findings": [],
+                }]}, fh)
+
+        def incompatible(_doc, root):
+            path = os.path.join(root, "runs", "baseline", "audit-state.json")
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump({"rounds": [{
+                    "round": 1,
+                    "kind": "unsupported-kind",
+                    "findings": [],
+                }]}, fh)
+
+        def missing_reason(_doc, root):
+            path = os.path.join(root, "runs", "baseline", "audit-state.json")
+            with open(path, encoding="utf-8") as fh:
+                doc = json.load(fh)
+            doc["rounds"][0].pop("kind_reason")
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump(doc, fh)
+
+        def extra_round(_doc, root):
+            path = os.path.join(root, "runs", "baseline", "audit-state.json")
+            with open(path, encoding="utf-8") as fh:
+                doc = json.load(fh)
+            doc["rounds"].append({
+                "round": 2,
+                "kind": "targeted",
+                "kind_reason": "high_signal_finding",
+                "findings": [{"id": 2, "status": "unresolved"}],
+            })
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump(doc, fh)
+
+        def unreadable(_doc, root):
+            path = os.path.join(root, "runs", "baseline", "audit-state.json")
+            self.addCleanup(os.chmod, path, 0o600)
+            os.chmod(path, 0)
+
+        for case, mutate in {
+            "unreadable": unreadable,
+            "malformed": malformed,
+            "partial": partial,
+            "incompatible": incompatible,
+            "missing reason": missing_reason,
+            "extra round": extra_round,
+        }.items():
+            with self.subTest(case=case):
+                path, _root = self._mutate_copied_manifest(mutate)
+                err = io.StringIO()
+                with contextlib.redirect_stderr(err):
+                    report = self._api("build_manifest_report")(path)
+                self.assertEqual(len(report["runs"]), 2)
+                comparison = report["comparison"]
+                self.assertEqual(comparison["status"], "unestablished")
+                self.assertEqual(comparison["diagnostic"], "unestablished_run_state")
+                self.assertEqual(
+                    set(comparison["delta"].values()), {"unestablished"}
+                )
+
+    def test_deeply_nested_state_makes_all_semantics_and_comparison_unestablished(self):
+        positive = self._api("build_manifest_report")(self.manifest_path)
+        self.assertEqual(positive["comparison"]["status"], "established")
+        self.assertEqual(
+            positive["runs"][0]["audit_outcomes"]["status"], "established"
+        )
+
+        def deeply_nested_state(_doc, root):
+            path = os.path.join(root, "runs", "baseline", "audit-state.json")
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write("[" * 10000 + "0" + "]" * 10000)
+
+        path, _root = self._mutate_copied_manifest(deeply_nested_state)
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            report = self._api("build_manifest_report")(path)
+        baseline = next(
+            run for run in report["runs"] if run["configuration"] == "baseline"
+        )
+        outcomes = baseline["audit_outcomes"]
+        self.assertEqual(outcomes["status"], "unestablished")
+
+        def scalar_values(value):
+            if isinstance(value, dict):
+                for child in value.values():
+                    yield from scalar_values(child)
+            else:
+                yield value
+
+        semantic_axes = {
+            key: value for key, value in outcomes.items()
+            if key not in ("status", "diagnostic")
+        }
+        self.assertEqual(set(scalar_values(semantic_axes)), {"unestablished"})
+        self.assertEqual(report["comparison"]["status"], "unestablished")
+        self.assertEqual(
+            report["comparison"]["diagnostic"], "unestablished_run_state"
+        )
+        self.assertEqual(
+            set(report["comparison"]["delta"].values()), {"unestablished"}
+        )
+
+    def test_symlinked_artifact_escaping_declared_root_is_rejected(self):
+        path, root = self._copied_manifest()
+        outside = os.path.join(os.path.dirname(root), "outside.jsonl")
+        with open(outside, "w", encoding="utf-8") as fh:
+            fh.write("{}\n")
+        link = os.path.join(root, "runs", "shared", "escaped.jsonl")
+        try:
+            os.symlink(outside, link)
+        except (OSError, NotImplementedError):
+            self.skipTest("symlinks unavailable on this host")
+        with open(path, encoding="utf-8") as fh:
+            doc = json.load(fh)
+        doc["runs"][0]["transcript"] = "runs/shared/escaped.jsonl"
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(doc, fh)
+        with self.assertRaisesRegex(ValueError, "path_escape"):
+            self._api("load_eval_manifest")(path)
+
+
+class DraftCheckpointMetricsTest(unittest.TestCase):
+    def _api(self, name):
+        self.assertTrue(hasattr(CICE, name), "missing required API {}".format(name))
+        return getattr(CICE, name)
+
+    def test_measure_draft_counts_sections_items_and_duplicate_paragraphs(self):
+        text = (
+            "# Improve sync\r\n\r\n"
+            "Intro paragraph.\r\n\r\n"
+            "## Acceptance Criteria\r\n"
+            "- Preserve cache.\r\n"
+            "- Reject stale writes.\r\n\r\n"
+            "## Testing Strategy\r\n"
+            "1. Unit test cache.\r\n"
+            "2. Integration test writes.\r\n\r\n"
+            "Repeat me.\r\n\r\n"
+            " Repeat   me. \r\n"
+        )
+        measured = self._api("measure_draft")(text)
+        normalized = text.replace("\r\n", "\n")
+        self.assertEqual(measured["word_count"], 23)
+        self.assertEqual(measured["character_count"], len(normalized))
+        self.assertEqual(measured["acceptance_criteria_count"], 2)
+        self.assertEqual(measured["testing_strategy_count"], 2)
+        self.assertEqual(
+            measured["sections"]["acceptance criteria"]["item_count"], 2
+        )
+        self.assertEqual(measured["paragraph_count"], 6)
+        self.assertEqual(measured["duplicate_paragraph_count"], 1)
+        self.assertAlmostEqual(measured["duplicate_paragraph_density"], 1 / 6)
+
+    def test_measure_draft_empty_duplicate_population_is_unestablished(self):
+        measured = self._api("measure_draft")("\r\n\n")
+        self.assertEqual(measured["word_count"], 0)
+        self.assertEqual(measured["duplicate_paragraph_density"], "unestablished")
+
+    def test_measure_checkpoints_reports_sequence_line_deltas_and_growth(self):
+        with tempfile.TemporaryDirectory() as root:
+            paths = {}
+            for name, body in {
+                "initial": "one\ntwo\n",
+                "revision": "one\nnew\ntwo changed\n",
+                "final": "one\nnew\ntwo changed\nfinal\n",
+            }.items():
+                path = os.path.join(root, name + ".md")
+                with open(path, "w", encoding="utf-8", newline="") as fh:
+                    fh.write(body)
+                paths[name] = path
+            measured = self._api("measure_checkpoints")({
+                "checkpoints": {
+                    "initial": paths["initial"],
+                    "revisions": [paths["revision"]],
+                    "final": paths["final"],
+                }
+            })
+
+        self.assertEqual(
+            [(change["additions"], change["removals"])
+             for change in measured["changes"]],
+            [(2, 1), (1, 0)],
+        )
+        self.assertEqual(
+            measured["initial_to_final"],
+            {
+                "word_growth": 3,
+                "character_growth": 18,
+                "additions": 3,
+                "removals": 1,
+            },
+        )
+
+    def test_final_byte_digest_uses_the_newest_recognizable_object_format(self):
+        with tempfile.TemporaryDirectory() as root:
+            path = os.path.join(root, "draft.md")
+            data = b"draft bytes\n"
+            with open(path, "wb") as fh:
+                fh.write(data)
+            state = {"rounds": [
+                {"attempts": [{"digest": "a" * 40}]},
+                {"attempts": [{"digest": "b" * 64}]},
+            ]}
+            measured, digest_failed = self._api("_current_draft_digest")(path, state)
+
+        expected = hashlib.sha256(
+            b"blob " + str(len(data)).encode("ascii") + b"\0" + data
+        ).hexdigest()
+        self.assertEqual(measured, expected)
+        self.assertFalse(digest_failed)
+
+    def test_an_unreadable_final_draft_is_undigestible_not_no_digest_supplied(self):
+        """The owner reports two different reasons; a bare None collapses them."""
+        with tempfile.TemporaryDirectory() as root:
+            missing = os.path.join(root, "absent.md")
+            state = {"rounds": [{"attempts": [{"digest": "a" * 40}]}]}
+            digest, digest_failed = self._api("_current_draft_digest")(missing, state)
+        self.assertIsNone(digest)
+        self.assertTrue(digest_failed)
+
+    def test_a_state_recording_no_digest_format_is_not_a_read_failure(self):
+        with tempfile.TemporaryDirectory() as root:
+            path = os.path.join(root, "draft.md")
+            with open(path, "wb") as fh:
+                fh.write(b"draft bytes\n")
+            digest, digest_failed = self._api("_current_draft_digest")(path, {})
+        self.assertIsNone(digest)
+        self.assertFalse(digest_failed)
+
+
+class ValidatedAuditOutcomesTest(unittest.TestCase):
+    @staticmethod
+    def _attempt(digest):
+        return {
+            "arm": "file",
+            "digest": digest,
+            "body_digest": "body-" + digest,
+            "sentinel_open": None,
+            "sentinel_close": None,
+            "instructions": None,
+        }
+
+    @classmethod
+    def _round(cls, number, digest, **extra):
+        result = {
+            "round": number,
+            "attempts": [cls._attempt(digest)],
+            "steering": {"state": "established", "reason": "canonical-match"},
+            "no_parseable_retry_used": False,
+            "unreadable_retry_used": False,
+            "outcome": "REVISE",
+            "findings_count": 0,
+            "consumer_dimensions_appended": False,
+            "embed_markers": [],
+            "degraded": False,
+            "kind": "discovery",
+            "kind_reason": "no-round-dispatched" if number == 1 else "empty-delta",
+            "adjudicated_verdict": "REVISE",
+            "unresolved_must_revise": "unestablished",
+            "must_revise_count": None,
+            "advisory_count": None,
+            "invalid_count": None,
+        }
+        result.update(extra)
+        return result
+
+    @classmethod
+    def _semantic_state(cls):
+        first = cls._round(
+            1,
+            "D1",
+            findings_count=2,
+            unresolved_must_revise=2,
+            must_revise_count=2,
+            advisory_count=0,
+            invalid_count=0,
+            findings=[
+                {
+                    "id": 1,
+                    "summary": "first defect",
+                    "status": "resolved",
+                    "ingested_status": "unresolved",
+                    "quoted_draft_line": 10,
+                    "resolution_ordinal": 1,
+                },
+                {
+                    "id": 2,
+                    "summary": "second defect",
+                    "status": "invalidated",
+                    "ingested_status": "unresolved",
+                    "invalidation_provenance": 1,
+                    "invalidation_reason": "duplicate report",
+                },
+            ],
+        )
+        second = cls._round(
+            2,
+            "D2",
+            findings_count=4,
+            unresolved_must_revise=1,
+            must_revise_count=1,
+            advisory_count=2,
+            invalid_count=1,
+            findings=[{
+                "id": 1,
+                "summary": "later defect",
+                "status": "unresolved",
+                "ingested_status": "unresolved",
+                "quoted_draft_line": 20,
+            }],
+            advisory_records=[
+                {
+                    "id": 1,
+                    "summary": "correctness advisory",
+                    "rationale": "could change behavior",
+                    "auditor_block": "ADVISORY: correctness advisory",
+                    "impact_class": "implementation-correctness",
+                    "evidence": "",
+                },
+                {
+                    "id": 2,
+                    "summary": "optional cleanup",
+                    "rationale": "style only",
+                    "auditor_block": "ADVISORY: optional cleanup",
+                    "impact_class": "clearly-optional",
+                    "evidence": "",
+                },
+            ],
+            invalid_records=[{
+                "id": 1,
+                "summary": "invalid scope claim",
+                "rationale": "outside the requested change",
+                "auditor_block": "INVALID: invalid scope claim",
+                "impact_class": "scope",
+                "evidence": "checked scope",
+            }],
+            adjudication_render="reported",
+        )
+        return {
+            "schema_version": 3,
+            "slug": "quality-eval",
+            "nonce": "nonce-1",
+            "rounds": [first, second],
+            "revisions": [{
+                "ordinal": 1,
+                "after_round": 1,
+                "floor_round": 1,
+                "stdin_digest": "D2",
+            }],
+            "overrides": [],
+            "finding_evidence": {
+                "1:1": {
+                    "locator": "src/cache.py:10",
+                    "command": "python3 -m unittest",
+                    "observed": "failed before fix",
+                    "baseline_revision": "abc123",
+                    "completeness": "complete",
+                },
+                "1:2": {
+                    "locator": "unestablished",
+                    "command": "unestablished",
+                    "observed": "unestablished",
+                    "completeness": "incomplete",
+                },
+            },
+        }
+
+    @classmethod
+    def _coverage_state(cls):
+        clean = cls._round(
+            1,
+            "FINAL",
+            outcome="FILE",
+            findings_count=0,
+            adjudicated_verdict="FILE",
+            unresolved_must_revise=0,
+            must_revise_count=0,
+            advisory_count=0,
+            invalid_count=0,
+            coverage_render="full",
+            coverage_expected=["correctness", "testing"],
+            coverage=[
+                {"key": "correctness", "outcome": "exercised", "anchor": "AC 1"},
+                {"key": "testing", "outcome": "skipped", "anchor": None},
+            ],
+        )
+        return {
+            "schema_version": 3,
+            "slug": "coverage-eval",
+            "nonce": "nonce-2",
+            "rounds": [clean],
+            "revisions": [],
+            "overrides": [],
+            "finding_evidence": {},
+        }
+
+    def _api(self, name):
+        self.assertTrue(hasattr(CICE, name), "missing required API {}".format(name))
+        return getattr(CICE, name)
+
+    def test_semantic_outcomes_use_validated_ledgers_and_evidence(self):
+        outcomes = self._api("audit_outcomes")(self._semantic_state())
+        self.assertEqual(outcomes["status"], "established")
+        self.assertEqual(outcomes["first_round_unresolved"], 2)
+        self.assertEqual(outcomes["settled_status_counts"], {
+            "resolved": 1,
+            "invalidated": 1,
+            "superseded": 0,
+        })
+        self.assertEqual(outcomes["final_unresolved"], 1)
+        self.assertEqual(outcomes["advisory_by_impact"], {
+            "implementation-correctness": 1,
+            "scope": 0,
+            "safety": 0,
+            "verifiability": 0,
+            "clearly-optional": 1,
+        })
+        self.assertEqual(outcomes["invalid_by_impact"]["scope"], 1)
+        self.assertEqual(outcomes["findings_without_usable_evidence"], 2)
+        self.assertEqual(outcomes["findings_without_draft_line"], 1)
+        self.assertEqual(outcomes["later_finding_identity"], {
+            "novel": "unestablished",
+            "recurring": "unestablished",
+            "revision_induced": "unestablished",
+        })
+
+    def test_coverage_and_final_byte_results_come_from_owner_derivations(self):
+        outcomes = self._api("audit_outcomes")(
+            self._coverage_state(), current_digest="FINAL"
+        )
+        self.assertEqual(outcomes["coverage"], {
+            "backing": "not-backed",
+            "render": "full",
+            "reason": None,
+            "outcomes": {"correctness": "exercised", "testing": "skipped"},
+        })
+        self.assertEqual(outcomes["final_byte_coverage"], "covered")
+
+    def test_full_validation_failure_makes_every_semantic_axis_unestablished(self):
+        state = self._coverage_state()
+        state["rounds"][0].pop("coverage_expected")
+        outcomes = self._api("audit_outcomes")(state, current_digest="FINAL")
+        self.assertEqual(outcomes["status"], "unestablished")
+        self.assertIn("coverage_expected", outcomes["diagnostic"])
+        self.assertEqual(outcomes["first_round_unresolved"], "unestablished")
+        self.assertEqual(outcomes["final_unresolved"], "unestablished")
+        self.assertEqual(outcomes["coverage"], "unestablished")
+        self.assertEqual(outcomes["final_byte_coverage"], "unestablished")
+
+
+class QualityRubricTest(unittest.TestCase):
+    def setUp(self):
+        path = os.path.join(_MANIFEST_FIX, "rubrics", "quality.json")
+        with open(path, encoding="utf-8") as fh:
+            self.rubric = json.load(fh)
+
+    def _api(self, name):
+        self.assertTrue(hasattr(CICE, name), "missing required API {}".format(name))
+        return getattr(CICE, name)
+
+    @staticmethod
+    def _complete_issue(extra=""):
+        return (
+            "# Fix stale cache\n\n"
+            "## Context\nA refresh can leave a stale cache entry.\n\n"
+            "## Reproduction\n1. Refresh an item.\n2. Observe stale cache data.\n\n"
+            "## Acceptance Criteria\n"
+            "- Cache invalidation prevents stale cache reads.\n"
+            "- The change has a safe rollback.\n\n"
+            "## Testing Strategy\n- Reproduce the bug, then verify the fix.\n"
+            + extra
+        )
+
+    def test_a_decorated_blocked_heading_is_recognized_as_the_blocked_section(self):
+        """The shipped template writes `## 🚫 Blocked — resolve...`, not `## Blocked`.
+
+        Matching the bare literal made both Blocked axes inert against every issue
+        the create-issue skill actually produces.
+        """
+        decorated = self._complete_issue(
+            "\n## \N{NO ENTRY SIGN} Blocked \N{EM DASH} resolve before implementation\n"
+            "- Waiting on the cache owner.\n"
+        )
+        grade = self._api("grade_issue")(decorated, self.rubric)
+        texts = {a["text"]: a["passed"] for a in grade["assertions"]}
+        self.assertFalse(texts["Forbidden section absent: Blocked"])
+        self.assertFalse(texts["Blocked section absent"])
+        self.assertEqual(grade["forbidden_section_failures"], 1)
+        # Positive control: the same rubric on an issue with no Blocked section
+        # still passes both, so the matrix cannot pass by failing everything.
+        clean = self._api("grade_issue")(self._complete_issue(), self.rubric)
+        clean_texts = {a["text"]: a["passed"] for a in clean["assertions"]}
+        self.assertTrue(clean_texts["Forbidden section absent: Blocked"])
+        self.assertTrue(clean_texts["Blocked section absent"])
+
+    def test_shorter_complete_issue_passes_with_viewer_compatible_assertions(self):
+        grade = self._api("grade_issue")(self._complete_issue(), self.rubric)
+        self.assertTrue(grade["passed"])
+        self.assertEqual(grade["pass_rate"], 1.0)
+        self.assertEqual(grade["forbidden_failures"], 0)
+        self.assertTrue(grade["assertions"])
+        for assertion in grade["assertions"]:
+            self.assertEqual(set(assertion), {"text", "passed", "evidence"})
+
+    def test_shorter_underspecified_and_new_invented_obligation_fail(self):
+        grade = self._api("grade_issue")(
+            "# Fix stale cache\n\n## Context\nA stale cache exists.\n",
+            self.rubric,
+        )
+        self.assertFalse(grade["passed"])
+        invented = self._api("grade_issue")(
+            self._complete_issue("\nRequires a database migration.\n"),
+            self.rubric,
+        )
+        self.assertFalse(invented["passed"])
+        self.assertEqual(invented["forbidden_failures"], 1)
+
+    def test_reproduction_facts_in_current_behavior_satisfy_the_contract(self):
+        """The shipped template records the reproduction facts inside `Current Behavior`.
+
+        It ships no reproduction-named heading, so a heading-name probe graded every
+        template-conforming bug report as missing the contract.
+        """
+        conforming = (
+            "# Fix stale cache\n\n"
+            "## Current Behavior\n"
+            "Refreshing an item leaves the previous value cached; readers observe "
+            "stale cache data where the refreshed value is expected.\n\n"
+            "## Acceptance Criteria\n"
+            "- Cache invalidation prevents stale cache reads.\n"
+            "- The change has a safe rollback.\n\n"
+            "## Testing Strategy\n- Reproduce the bug, then verify the fix.\n"
+        )
+        grade = self._api("grade_issue")(conforming, self.rubric)
+        texts = {a["text"]: a for a in grade["assertions"]}
+        assertion = texts["Bug reproduction contract present"]
+        self.assertTrue(assertion["passed"])
+        self.assertIn("current behavior", assertion["evidence"])
+        # Negative control: the same section without the declared evidence is absent,
+        # so a bare `Current Behavior` heading cannot pass the axis on its own.
+        featureish = conforming.replace(
+            "Refreshing an item leaves the previous value cached; readers observe "
+            "stale cache data where the refreshed value is expected.",
+            "Exports are unavailable today.",
+        )
+        bare = self._api("grade_issue")(featureish, self.rubric)
+        bare_texts = {a["text"]: a for a in bare["assertions"]}
+        self.assertFalse(bare_texts["Bug reproduction contract present"]["passed"])
+        self.assertEqual(
+            bare_texts["Bug reproduction contract present"]["evidence"], "absent"
+        )
+
+    def test_a_rubric_expecting_the_contract_with_no_evidence_is_refused(self):
+        rubric = dict(self.rubric, bug_reproduction_any_of=[])
+        with self.assertRaises(ValueError) as caught:
+            self._api("grade_issue")(self._complete_issue(), rubric)
+        self.assertIn("bug_reproduction_any_of", str(caught.exception))
+        missing = dict(self.rubric)
+        missing.pop("bug_reproduction_any_of")
+        with self.assertRaises(ValueError):
+            self._api("grade_issue")(self._complete_issue(), missing)
+
+    def test_word_count_never_changes_grade_or_quality_gate(self):
+        baseline = self._api("grade_issue")(
+            self._complete_issue("\n" + "Background detail. " * 30),
+            self.rubric,
+        )
+        candidate = self._api("grade_issue")(self._complete_issue(), self.rubric)
+        gate = self._api("quality_gate")(baseline, candidate)
+        self.assertTrue(gate["passed"])
+        self.assertTrue(gate["efficiency_eligible"])
+
+        underspecified = self._api("grade_issue")(
+            "# Fix\n\n" + "Background detail. " * 100,
+            self.rubric,
+        )
+        failed_gate = self._api("quality_gate")(baseline, underspecified)
+        self.assertFalse(failed_gate["passed"])
+        self.assertFalse(failed_gate["efficiency_eligible"])
+
+    def test_new_forbidden_failure_withholds_efficiency_credit(self):
+        baseline = self._api("grade_issue")(self._complete_issue(), self.rubric)
+        candidate = self._api("grade_issue")(
+            self._complete_issue("\nRequires a schema migration.\n"), self.rubric
+        )
+        gate = self._api("quality_gate")(baseline, candidate)
+        self.assertFalse(gate["passed"])
+        self.assertEqual(gate["new_forbidden_failures"], 1)
+        self.assertFalse(gate["efficiency_eligible"])
+
+    def test_new_forbidden_section_withholds_credit_even_at_a_flat_pass_rate(self):
+        rubric = dict(self.rubric, forbidden_sections=["Appendix"])
+        baseline = self._api("grade_issue")(
+            "# Fix stale cache\n\n## Context\nA stale cache exists.\n", rubric
+        )
+        candidate = self._api("grade_issue")(
+            self._complete_issue() + "\n## Appendix\nExtra.\n", rubric
+        )
+        gate = self._api("quality_gate")(baseline, candidate)
+        self.assertEqual(gate["new_forbidden_sections"], 1)
+        self.assertFalse(gate["passed"])
+        self.assertFalse(gate["efficiency_eligible"])
+
+    def test_a_malformed_grade_is_unestablished_and_never_credits_efficiency(self):
+        good = self._api("grade_issue")(self._complete_issue(), self.rubric)
+        malformed = [
+            None,
+            {},
+            {k: v for k, v in good.items() if k != "pass_rate"},
+            {k: v for k, v in good.items() if k != "forbidden_failures"},
+            {k: v for k, v in good.items() if k != "forbidden_section_failures"},
+            dict(good, pass_rate="1.0"),
+            dict(good, forbidden_failures=True),
+            dict(good, forbidden_section_failures=1.5),
+        ]
+        for grade in malformed:
+            for baseline, candidate in ((grade, good), (good, grade)):
+                with self.subTest(grade=grade, side="baseline" if baseline is grade else "candidate"):
+                    gate = self._api("quality_gate")(baseline, candidate)
+                    self.assertEqual(gate["status"], "unestablished")
+                    self.assertFalse(gate["passed"])
+                    self.assertFalse(gate["efficiency_eligible"])
+                    self.assertEqual(gate["pass_rate_preserved"], "unestablished")
+                    self.assertEqual(gate["new_forbidden_failures"], "unestablished")
+                    self.assertEqual(gate["new_forbidden_sections"], "unestablished")
+
+
+class LegacyMultiRunStateSafetyTest(unittest.TestCase):
+    def _corpus(self, root, name, peak):
+        os.makedirs(root, exist_ok=True)
+        _write(root, name, [
+            json.dumps({
+                "type": "assistant",
+                "attributionSkill": "devflow:create-issue",
+                "message": {
+                    "usage": {"input_tokens": peak},
+                    "content": [{
+                        "type": "tool_use",
+                        "id": "dispatch-{}".format(name),
+                        "name": "Bash",
+                        "input": {
+                            "command": "issue-audit-state.py record-dispatch --round 1"
+                        },
+                    }],
+                },
+            }),
+            json.dumps({
+                "type": "assistant",
+                "isSidechain": True,
+                "attributionSkill": "devflow:create-issue",
+                "message": {"usage": {"input_tokens": 1}},
+            }),
+        ])
+
+    def test_one_state_file_is_not_reused_across_multiple_legacy_runs(self):
+        with tempfile.TemporaryDirectory() as root:
+            before = os.path.join(root, "before")
+            after = os.path.join(root, "after")
+            for corpus, peaks in ((before, (10, 20)), (after, (30, 40))):
+                for index, peak in enumerate(peaks, 1):
+                    self._corpus(corpus, "run-{}.jsonl".format(index), peak)
+            state = os.path.join(root, "state.json")
+            with open(state, "w", encoding="utf-8") as fh:
+                json.dump({"rounds": [{
+                    "round": 1,
+                    "kind": "targeted",
+                    "kind_reason": "high_signal_finding",
+                    "findings": [{"id": 1}],
+                }]}, fh)
+
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                report = CICE.build_paired_report(
+                    before, after, state, state, large_block_chars=500
+                )
+
+        self.assertEqual(
+            [run["peak_context"] for run in report["before"]["runs"]], [10, 20]
+        )
+        for side in ("before", "after"):
+            self.assertFalse(report[side]["summary"]["state_established"])
+            for run in report[side]["runs"]:
+                self.assertEqual(run["round_kinds"], {1: "unestablished"})
+        self.assertEqual(report["delta"]["finding_count"], "unestablished")
+        self.assertIn("unsafe_multi_run_state_join", err.getvalue())
+
+
+class LegacyCliCompatibilityTest(unittest.TestCase):
+    def test_raw_directory_json_keeps_the_legacy_top_level_shape(self):
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            rc = CICE.main([
+                os.path.join(_FIX, "after"),
+                "--format",
+                "json",
+            ])
+        self.assertEqual(rc, 0)
+        self.assertEqual(set(json.loads(out.getvalue())), {"runs", "summary", "skipped"})
+        self.assertEqual(err.getvalue(), "")
+
+    def test_paired_json_keeps_the_exact_legacy_shape(self):
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            rc = CICE.main([
+                "--before", MainCliTest._BEFORE,
+                "--after", MainCliTest._AFTER,
+                "--before-state", MainCliTest._BSTATE,
+                "--after-state", MainCliTest._ASTATE,
+                "--format", "json",
+            ])
+        self.assertEqual(rc, 0)
+        document = json.loads(out.getvalue())
+        self.assertEqual(set(document), {"before", "after", "delta"})
+        for side in ("before", "after"):
+            self.assertEqual(set(document[side]), {
+                "runs", "summary", "skipped", "state_established", "finding_count",
+            })
+        self.assertEqual(set(document["delta"]), {
+            "total_attributed_auditor_cost",
+            "total_peak_context",
+            "mean_peak_context_per_run",
+            "total_round_count",
+            "finding_count",
+        })
+        self.assertEqual(err.getvalue(), "")
 
 
 if __name__ == "__main__":

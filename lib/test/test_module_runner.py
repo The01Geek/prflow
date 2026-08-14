@@ -2116,6 +2116,9 @@ SERIAL_BY_EXCLUSION_SUITES = (
     # serially on the main shell (invoked directly by run.sh, like the entries
     # above), not through the pool or a full-suite module.
     "test_import_review_verdict_handoff.py",
+    # The provider-neutral create-issue benchmark runs serially on the main shell
+    # because its focused test launches matched local provider subprocesses.
+    "test_create_issue_benchmark.py",
 )
 MODULE_DRIVEN_SUITES = (
     "test_reconcile_module_floors.py",

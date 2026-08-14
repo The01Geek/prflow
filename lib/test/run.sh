@@ -47943,6 +47943,13 @@ CICE_TEST_RC=$?
 assert_eq "issue #767: create-issue context eval focused tests pass" "0" "$CICE_TEST_RC"
 [ "$CICE_TEST_RC" -eq 0 ] || while IFS= read -r _cice_line || [ -n "$_cice_line" ]; do printf '    %s\n' "$_cice_line"; done <<< "$CICE_TEST_OUT"
 
+# Do not move this into the Python pool: it launches matched local provider
+# subprocesses per test, so it runs serially on the main shell.
+CIB_TEST_OUT="$(python3 "$LIB/test/test_create_issue_benchmark.py" 2>&1)"
+CIB_TEST_RC=$?
+assert_eq "create-issue benchmark focused tests pass" "0" "$CIB_TEST_RC"
+[ "$CIB_TEST_RC" -eq 0 ] || while IFS= read -r _cib_line || [ -n "$_cib_line" ]; do printf '    %s\n' "$_cib_line"; done <<< "$CIB_TEST_OUT"
+
 # issue #1209: the implement runtime main-thread context eval
 # (scripts/implement-context-eval.py) and its committed synthetic fixtures. Runs
 # SERIALLY on the main shell, mirroring the create-issue eval block above — a focused
