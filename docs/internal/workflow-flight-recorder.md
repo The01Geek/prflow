@@ -82,6 +82,14 @@ point for existing callers. Generalized bundles and legacy implement bundles
 under `.prflow/tmp/implement-runs/` remain readable by the analyzer; legacy
 bundles are normalized in memory and are never rewritten.
 
+### Evaluation manifests and checkpoint privacy
+
+The create-issue evaluation manifest is a separate, maintainer-curated index over recorder evidence; it is not the recorder's start manifest and it is not another transcript bundle. One evaluation run points to a transcript artifact, one `(session_id, occurrence_id)` from `occurrences.json`, that occurrence's inclusive event range and confidence, its audit-state artifact, and explicit initial/revision/final issue checkpoints. A controlled provider may produce the same schema directly inside its assigned benchmark output directory. `scripts/create_issue_eval.py` resolves every declared artifact beneath the evaluation manifest's `root`, so a lexical or symlink escape is refused before content is read.
+
+Recorder bundles can supply the transcript, occurrence boundaries, duration confidence, and recorder provenance needed to assemble that index. They do not implicitly capture issue checkpoints or rubrics. Those artifacts must be deliberately supplied by the benchmark harness or maintainer and remain local sensitive content. The raw-directory evaluator never opens them. Manifest analysis opens only the declared checkpoint and rubric paths, emits derived metrics and formal assertion results rather than draft or transcript bodies, and preserves unavailable or non-exact timing as unestablished instead of manufacturing a duration claim.
+
+Keep evaluation manifests, checkpoint drafts, benchmark output directories, and review workspaces under ignored local storage such as `.prflow/tmp/`. `review.json` contains anonymized pointers to local issue and grade artifacts, not copied issue bodies, but the pointed-to Markdown files still contain the full drafts. Do not commit, attach, or upload any of these artifacts without an explicit redaction and sharing decision.
+
 ## Configuration and experimental validity
 
 Keep Claude Code's `outputStyle` at `Default` for observational baselines.

@@ -67,23 +67,35 @@ execution-weighted traffic; it is restated here directly (as a standalone concep
 rather than by cross-referencing a budget doc #766 removed, and it does not reuse the
 "budget" name.
 
-**`attributionSkill` bounds the main thread only.** A run is bounded by
-`attributionSkill == "prflow:create-issue"` on `type == "assistant"` records, with
-`isSidechain` records excluded. Dispatched subagents (the docs-verify peers, the
-fresh-context auditor) are **not** so attributed, so the measured figures are the
-orchestrator's own context — they deliberately exclude subagent cost, which isolates
-the reducible main-thread quantity but should not be misread as the run's total cost.
+**`attributionSkill` identifies both measured threads, but their costs remain separate.** A run exists when a session file contains a non-sidechain `type == "assistant"` record attributed to any declared `<namespace>:create-issue` identity. Those records supply the orchestrator's main-thread context axis. Attributed `isSidechain` assistant usage is no longer excluded: the evaluator assigns the auditor's full token cost to the most recent `issue-audit-state.py record-dispatch --round N` marker, and separately reports cost that had no matching round. Other dispatched subagents remain outside these axes unless the transcript attributes them to create-issue. A file containing only sidechain records is skipped and makes the sum-based paired comparison unestablished rather than silently deflating it.
 
 ## The behavioral eval
 
 `scripts/create-issue-context-eval.py` (stdlib-only Python, mirroring
 `scripts/workpad.py`) is a **maintainer/CI-adjacent instrument, never invoked by the
 skill's runtime path** (neither the local nor the cloud tier), so it needs **no** new
-cloud-workflow tool grant. It takes a transcript-directory path as an argument:
+cloud-workflow tool grant. Legacy mode takes a transcript-directory path as an argument:
 
+```bash
+python3 scripts/create-issue-context-eval.py \
+  lib/test/fixtures/create-issue-eval/corpus --format json
 ```
-python3 scripts/create-issue-context-eval.py <transcript-dir>
+
+The legacy JSON contract remains exactly the top-level `runs`, `summary`, and `skipped` fields. Raw mode reads transcript and optional state artifacts only. It never reads a draft or rubric, and it never emits transcript, draft, or finding bodies.
+
+### Run-addressable manifest analysis
+
+Manifest mode is exposed by the reusable `scripts.create_issue_eval` module. This committed-fixture example analyzes two bounded occurrences without provider access:
+
+```bash
+python3 -c 'import json; from scripts.create_issue_eval import build_manifest_report; print(json.dumps(build_manifest_report("lib/test/fixtures/create-issue-eval/manifests/two-occurrences.json"), indent=2, sort_keys=True))'
 ```
+
+A schema-1 manifest contains `schema_version`, a `benchmark_id`, a declared `root`, and a non-empty `runs` list. Each run declares `run_id`, `configuration`, `scenario_id`, positive `repetition`, `transcript`, `state_file`, `occurrence`, `checkpoints`, `provenance`, and optionally `rubric`. Occurrence identity is the unique `(session_id, occurrence_id)` pair. `start_event` and `end_event` are zero-based inclusive indexes into nonblank transcript records. `boundary_confidence` is exactly `exact`, `approximate`, or `unknown`; unknown boundaries require `end_event: null` and `duration_ms: null`, while known boundaries require an ordered integer end. The `duration_ms` key is always present, but a number alone does not establish comparable duration: paired statistics require exact boundaries.
+
+`checkpoints` names an initial draft, an ordered `revisions` list, and a final draft. Every transcript, state, checkpoint, and rubric path is realpath-resolved beneath the declared root; lexical and symlink escapes fail with `path_escape`. Provenance requires `repo_sha`, `skill_fingerprint`, `prompt_fingerprint`, `model`, `effort`, `output_style`, and `provider`. A pair compares only when repository, prompt, model, effort, output style, and provider match across its two runs, and each configuration keeps one repository SHA and skill fingerprint across its population. Unknown non-identity metadata is retained for forward compatibility.
+
+Manifest reports add `schema_version`, `benchmark_id`, `manifest_provenance`, and `comparison` around the run, summary, and skip records. Each run receives checkpoint metrics, owner-validated audit outcomes, and a schema-1 grade when a rubric is declared. The deterministic rubric tests required and forbidden concept alternatives, required and forbidden Markdown headings, the expected `Blocked` heading state, and the expected bug-reproduction heading state. Every assertion has exactly `text`, `passed`, and `evidence`. The paired quality gate passes only when the candidate preserves or improves the baseline pass rate and introduces no new forbidden-concept failure; issue length and finding count are measurements, not grade operands.
 
 That command is the measurement command for **every** figure this document reports.
 Running it with no corpus present exits non-zero with a diagnostic naming the missing
@@ -93,13 +105,9 @@ session, degrades per malformed record without detonating (reporting what it ski
 is deterministic (re-running yields byte-identical output), and never reads a file
 whose real path escapes the supplied corpus directory.
 
-**Per-run metrics:** turn count; per-turn main-thread context; peak and final context;
-total output tokens; `compact_boundary` count; and the two redundant-addition metrics
-below.
+**Per-run metrics:** turn count; per-turn main-thread context; peak and final context; total output tokens; `compact_boundary` count; dispatch rounds; per-round, attributed, and unrounded auditor cost; sidechain record attribution counts; reopen count; the two redundant-addition metrics below; and, in manifest mode, checkpoint/draft metrics, audit outcomes, formal grade, provenance, occurrence identity, and duration metadata.
 
-**Aggregate summary (exactly these fields, complete by construction):** run count,
-median peak context, max peak context, count of runs exceeding 200K, count of runs
-exceeding 400K, median repeated-Read count, median re-emission count.
+**Aggregate summary (exactly these fields, complete by construction):** `run_count`, `state_established`, `finding_count`, `median_peak_context`, `max_peak_context`, `runs_over_200k`, `runs_over_400k`, `median_repeated_read_count`, `median_reemission_count`, `median_attributed_auditor_cost`, `median_unrounded_auditor_cost`, `total_unrounded_auditor_cost`, `median_auditor_cost_discovery`, `median_auditor_cost_targeted`, `total_sidechain_records_seen`, `total_sidechain_records_attributed`, `total_record_reopen`, `scope_escape_count`, `scope_escape_unattributable`, `post_filing_escapes`, and `wall_clock`. Run-derived fields are `unestablished` for an empty population except the measured `run_count: 0`. State-derived fields can still establish against a valid state file. `post_filing_escapes` and `wall_clock` are deliberately `unestablished` on this instrument.
 
 ### The two redundant-addition metrics
 
