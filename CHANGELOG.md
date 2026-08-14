@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.84] — 2026-08-14
+
+### Added
+- **`/prflow:create-issue` Step 3.5 now sweeps the assembled draft for unrequested guarantees.** A new mandatory request-origin sweep flags every acceptance criterion and named Testing-Strategy assertion whose asserted guarantee the request did not name and which no failure the change introduces requires, reporting them in the step's one-line summary (with a falsifiable zero arm) and its persisted `### pass <n>` record so the drafter revises them away under the existing revise-and-re-gate loop; a criterion resting on a change-introduced failure is not flagged, and the sweep refuses no draft. (#1703)
+
 ## [2.32.83] — 2026-08-14
 
 ### Changed
