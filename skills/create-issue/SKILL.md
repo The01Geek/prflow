@@ -186,8 +186,8 @@ An incomplete return — one that succeeds but omits or malforms its duty status
 bearing observation for a duty it reported `judged-not-engaged` — records that duty unestablished
 with a breadcrumb naming the missing field, never a discharged floor.
 
-Escalation shallow→deep is the verdict token's only role, never the arm selector. Escalate on drift
-or a missing document, on an unestablished duty, and on any judged-not-engaged duty whose returned
+Escalation shallow→deep is the doc-reliability signal's only role, never the arm selector. Escalate
+on `UNRELIABLE` or `ABSENT`, on an unestablished duty, and on any judged-not-engaged duty whose returned
 bearing observation is non-empty once the producer's explicit `none-observed` token is excluded —
 that field is always present, so escalate on any value other than `none-observed` and record
 unestablished (which escalates) when it is absent or unparseable. That comparand is a field of the
@@ -232,7 +232,7 @@ effective list recomputed here (the second, unconditional site of the *Bundle-co
 it is missing or an axis has no entry, stop and run the evidence-bundle sub-pass now before drafting.
 
 Draft the issue from the context you already hold — the documentation findings from Step 1
-(relevant files, current behavior, any drift) and the decisions from Step 2 — doing only targeted
+(relevant files, current behavior) and the decisions from Step 2 — doing only targeted
 verification reads where a specific claim needs confirming.
 Do not re-explore the whole codebase; the findings are your map, resident in context and durably
 held in `.prflow/tmp/issue-step1-<slug>.md`, so reference them by pointer and do not re-emit the
@@ -245,9 +245,7 @@ Per this skill's degrade-never-terminate contract, a failed load emits a breadcr
 
 Load `references/issue-template.md` per the *Reference routing* rules above and follow it for the required section structure, the **no-options rule**, the quality checklist, and autolink hygiene, on every entry into this step. Key rules:
 
-- No-options gate (run before showing the draft): re-read the rendered body. Outside the `## 🚫 Blocked` section — and outside the Implementation Notes `Relevant files` block, which the scan skips by location exactly as it skips `## 🚫 Blocked` —
-  it must contain no unresolved-decision language — no "or", "either", "alternatively", "could", "we might", "TBD", "option", "approach A vs B", "(optional)"-for-undecided, "e.g. X or Y" where X and Y are competing choices.
-  Each acceptance criterion is one concrete unconditional assertion. If you find any such language, you skipped a decision: either ask the user now, or move it to the Blocked section. Do not proceed to Step 4 until the body is clean.
+- No-options gate (run before showing the draft): re-read the rendered body against the no-options rule. On a healthy run its worked vocabulary, category structure, and full carve-out set live in `references/issue-template.md` (loaded above) — apply them. When that template could not be read, apply the compact semantic fallback — the body carries no unresolved implementation decision outside the rule's permitted locations, and every acceptance criterion is one concrete unconditional assertion — and report in chat that the worked no-options vocabulary was unavailable. If you find an unresolved decision, either ask the user now, or move it verbatim to the Blocked section. Do not proceed to Step 4 until the body is clean.
 
 Drafting produces a candidate issue in your message only — nothing is posted to GitHub in this step. Posting happens in Step 4, and only after the user confirms — but first the draft must survive Step 3.5.
 

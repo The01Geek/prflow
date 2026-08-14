@@ -1410,10 +1410,10 @@ unset -f ci614_marker_id
 CI_DV="$CI_ROOT/skills/docs-verify/SKILL.md"
 
 # AC13 — surface-presence pins over the peer's declared interface: the mode flag, every
-# verdict token, and every report-output field name. AC19 states these carry NO mutation
+# doc-reliability token, and every report-output field name. AC19 states these carry NO mutation
 # obligation (they guard an interface's existence, not a named behavioral regression), so
 # each declares itself structural.
-# The mode flag and the three verdict tokens are the same surface-presence shape, so they
+# The mode flag and the three doc-reliability tokens are the same surface-presence shape, so they
 # ride one helper — the sibling of ci749_field below — rather than four copies of the row
 # and its exemption comment.
 ci749_iface() {  # <what it declares> <pin literal>
@@ -1424,9 +1424,9 @@ ci749_iface '--report-only mode flag' '`--report-only`'
 ci749_iface 'discharged duty-status token' '`discharged` — carried out on this run.'
 ci749_iface 'unestablished duty-status token' '`unestablished` — engaged but could not be discharged.'
 ci749_iface 'judged-not-engaged duty-status token' '`judged-not-engaged` — judged not to bear on this topic.'
-ci749_iface 'DOCS ACCURATE verdict token' 'DOCS ACCURATE'
-ci749_iface 'DRIFT FOUND verdict token' 'DRIFT FOUND'
-ci749_iface 'DOCS MISSING verdict token' 'DOCS MISSING'
+ci749_iface 'RELIABLE doc-reliability token' '`RELIABLE`'  # structural-pin-ok: routing-dispatch-contract -- the doc-reliability token the create-issue Step 1 escalation predicate routes on
+ci749_iface 'UNRELIABLE doc-reliability token' '`UNRELIABLE`'  # structural-pin-ok: routing-dispatch-contract -- the doc-reliability token the create-issue Step 1 escalation predicate routes on
+ci749_iface 'ABSENT doc-reliability token' '`ABSENT`'  # structural-pin-ok: routing-dispatch-contract -- the doc-reliability token the create-issue Step 1 escalation predicate routes on
 unset -f ci749_iface
 # The count word '**all six**' is pinned above; ground it against the enumeration it counts, or a
 # dropped duty leaves the count self-contradicting while every #749 pin stays green (the #705
@@ -1443,13 +1443,9 @@ ci749_field() {  # <field label>
   devflow_module_pin_present "#749/AC13: docs-verify's report-only output declares the $1 field" \
     "- **$1:**" "$CI_DV"  # structural-pin-ok: AC19 exempts AC13's surface-presence pins from the mutation obligation; runtime-pin-ok: the pin literal is the helper's $1 positional, resolved at each call site and unresolvable at the definition
 }
-ci749_field 'Verdict'
+ci749_field 'Doc reliability'
 ci749_field 'Relevant code files'
 ci749_field 'Current behavior'
-# AC7 — one exact-count guard couples the report producer to its issue-template consumer.
-assert_eq "#749/AC7: Drift detail report field and Documentation Drift landing site remain coupled" \
-  "producer=1 consumer=1" \
-  "producer=$(devflow_module_pin_count '- **Drift detail:**' "$CI_DV") consumer=$(devflow_module_pin_count '- **Documentation Drift** —' "$CI_TMPL")"
 ci749_field 'Search space surveyed'
 ci749_field 'Duty statuses'
 ci749_field 'Bearing observations'

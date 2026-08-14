@@ -9,7 +9,7 @@ Write the issue in plain language. Read the writing standard at `"${CLAUDE_SKILL
 
 The issue describes **one decided behavior built one decided way.** A developer reading it never has to choose between alternatives or fill a gap to start work.
 
-Outside the `## 🚫 Blocked` section and the Implementation Notes `Relevant files` block, the body must contain **none** of the following. The scan skips both of those by **location**, exactly as it skips `## 🚫 Blocked`, never by judging whether a single word inside describes a decision:
+The gate scans the whole body except the `## 🚫 Blocked` section, and **three further surfaces are carved out of the scan** — this is the complete carve-out set: the Implementation Notes `Relevant files` block (skipped by **location**, exactly as `## 🚫 Blocked` is), the verbatim Technical Context scope note (mandated boilerplate, not an undecided choice), and an `— assumption, confirm before implementing` bullet (a factual premise to confirm, not a decision to make). Everywhere else the body must contain **none** of the following — never judged by whether a single word inside a carve-out describes a decision:
 
 - choice words: "or", "either / or", "alternatively", "vs", "option", "approach A vs B"
 - hedge words: "could", "we might", "we may want to", "consider", "perhaps", "possibly"
@@ -17,6 +17,8 @@ Outside the `## 🚫 Blocked` section and the Implementation Notes `Relevant fil
 - competing examples: "e.g. WeasyPrint or ReportLab" where the two are rival choices the developer would have to pick between
 
 If drafting surfaces any of these, you have an unresolved decision. Resolve it with the user, or — only if the user has disengaged — move it verbatim into the Blocked section; never leave it as prose in the body.
+
+Every acceptance criterion is **one concrete, unconditional assertion**; a conditional criterion hides an unresolved fork — resolve the fork rather than shipping the conditional.
 
 ## Brief / investigation-record routing (decided rule — sort as you draft)
 
@@ -89,7 +91,6 @@ Ground this in the documentation findings passed by the caller. Open the section
 > **Scope note:** The files and details below are the known starting points, not the full list. Before implementing, trace the change through the codebase to find every affected call site, consumer, and layer — this issue maps the work, it does not bound it.
 
 - **Relevant Classes/Files** — specific files from the findings (see load-bearing-premise verification below).
-- **Documentation Drift** — the landing site for the Step 1 pass's **drift detail** field. On a `DRIFT FOUND` or `DOCS MISSING` verdict, name the doc path(s) and the specific inaccurate, outdated, or missing sections reported, so the drift terminates here rather than in Step 1. Omit only on `DOCS ACCURATE`; say so explicitly when the Step 1 evidence is degraded, since an unestablished drift picture is never rendered as a clean one.
 - **Architecture Alignment** — how this fits existing patterns.
 - **Dependencies** — the specific service/module/library this depends on. If a library is needed, name the **one** chosen (decided in Step 2), not a shortlist.
 - **Data/Schema Considerations** — schema changes, queries, or data-access patterns.
@@ -222,7 +223,7 @@ When a feature touches the frontend, trace the data flow back to the backend cha
 - [ ] Every enumerated test/case/example list inside an AC declares its form (`at minimum` floor marker or an explicit closed-set statement), and each floor-marked list has had Move 2's coverage sweep written back as closed AC items
 - [ ] Implementation notes describe a single chosen approach (the `Relevant files` block excepted — a floor-declared map, hedges permitted)
 - [ ] Testing Strategy is a residual-risk supplement, not a restated criterion list: it runs Moves 1–2, and Move 3 records only cases that add information beyond the criteria (each naming the risk it covers and the contract it protects), such as bug reproduction, hostile-input pairing, a new-mutable-input-reader matrix, a guarantee-class skipped-step path, or retry/idempotency — or, when none exists, one concise statement that the acceptance criteria fully express the verification contract; every surviving no-automated-boundary case names a reason and a reproducible stand-in verification
-- [ ] **No-options gate passed**: no choice/hedge/deferral language outside `## 🚫 Blocked` and the Implementation Notes `Relevant files` block
+- [ ] **No-options gate passed**: no choice/hedge/deferral language outside the carve-out set named in *The no-options rule (read first)*
 - [ ] Any unresolved decision is in `## 🚫 Blocked`, phrased as a question — nowhere else
 - [ ] Edge cases and error handling are considered
 - [ ] Architecture constraints are explicitly noted

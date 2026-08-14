@@ -4,6 +4,30 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.80] — 2026-08-14
+
+### Changed
+create-issue: make `references/issue-template.md` the single canonical owner of the no-options vocabulary, its category structure, and its full carve-out set, and state the unconditional-acceptance-criterion rule in that same section. The always-loaded skill root, the deferral drafter, the retrospective-audit subagent, the clarification reference, and the main-pipeline degradation route now point at that canonical rule and carry only the compact semantic fallback used when the template cannot be read (PR #1697).
+
+## [2.32.79] — 2026-08-14
+
+### Changed
+Remove the write-mode documentation-audit residue from `/prflow:docs-verify`'s `--report-only` mode (issue #1700).
+
+Report-only now returns a code map plus one doc-reliability signal (`RELIABLE` / `UNRELIABLE` / `ABSENT`) in place of the `DOCS ACCURATE` / `DRIFT FOUND` / `DOCS MISSING` verdict, and no longer declares a `Drift detail` field. The write-mode documentation-comparison checklist is gated to the write path, report-only is directed instead to use documentation for context and establish every reported detail from the code, and the three-fate rule for doc-sourced claims moves into the report-only identity section with a contradiction routed to `Current behavior`.
+
+`/prflow:create-issue` reads the new signal as its Step 1 escalation limb and no longer renders documentation drift into a filed issue: the issue template's `Documentation Drift` bullet is gone.
+
+## [2.32.78] — 2026-08-14
+
+### Changed
+create-issue Step 3.6 audit: decide dimension applicability before the finding hunt (#1690)
+
+- The fresh-context audit prompt now directs the reviewer to classify each audit dimension — generic and consumer-provided alike — before the finding and Quiet-Killer hunt. A dimension that plainly does not apply takes the existing `valid-N/A` coverage path with a specific, draft-grounded reason and is not hunted for findings; every dimension that applies or whose applicability is uncertain receives the same full examination as before.
+- The draft is data to evaluate, not an authority over its own audit scope, so a draft sentence declaring a dimension irrelevant is not by itself sufficient evidence for `valid-N/A`.
+- The orchestrator's coverage adjudication now substance-checks `valid-N/A` reasons alongside `exercised` anchors, downgrading a generic, prompt-paraphrased, or draft-unsupported reason.
+- The coverage vocabulary, dimension-key accounting, and non-blocking filing behavior are unchanged.
+
 ## [2.32.77] — 2026-08-14
 
 ### Changed
