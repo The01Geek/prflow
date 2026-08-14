@@ -100,5 +100,75 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.82",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 15.104149349999993,
+    "tokens": {
+      "input_tokens": 444,
+      "output_tokens": 51518,
+      "cache_read_input_tokens": 9757577,
+      "cache_creation_input_tokens": 249645,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 506,
+        "outputTokens": 74402,
+        "cacheReadInputTokens": 11415183,
+        "cacheCreationInputTokens": 570138,
+        "webSearchRequests": 0,
+        "costUSD": 12.069702749999996,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 100,
+        "outputTokens": 15425,
+        "cacheReadInputTokens": 2125772,
+        "cacheCreationInputTokens": 577344,
+        "webSearchRequests": 0,
+        "costUSD": 3.0344466,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 78,
+    "duration_ms": 905344
+  },
+  "permission_denials": {
+    "count": 10,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---RUNENV---\"; echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-<empty>}\"; echo \"GITHUB_RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT:-<empty>}\"; echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-<empty>}\"",
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-empty} ATTEMPT=${GITHUB_RUN_ATTEMPT:-empty} ACTIONS=${GITHUB_ACTIONS:-empty}\"",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve \"1672\" --pr \"1703\" 2>.prflow/tmp/review/pr-1703/31841555880-1/acs.err ; echo \"acs-rc=$?\"",
+      "mkdir -p \"/home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1703/31841555880-1/verdicts/iter-1\"\ncat > \"/home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1703/31841555880-1/verdicts/iter-1/VC-11-k2x9.json\" << 'EOF'\n{\"id\":\"VC-11\",\"verdict\":\"PASS\",\"evidence\":\"skills/create-issue/references/step-3-5-steelman.md:79 item 7's summary list includes the request-origin sweep with its own outcome shape ('request unestablished'). Line 87 item-8's field-set bullet reads 'each of the named sweeps' res …[per-command-truncated]",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before && echo \"snap-ok\"",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >/tmp/ext.out 2>/tmp/ext.err; echo \"EXIT=$?\"; echo \"--- STDOUT bytes:\"; wc -c </tmp/ext.out; echo \"--- STDOUT ---\"; cat /tmp/ext.out; echo \"--- STDERR ---\"; cat /tmp/ext.err",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >/tmp/ext.out 2>/tmp/ext.err; echo \"EXIT=$?\"",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >.prflow/tmp/ext.out 2>.prflow/tmp/ext.err; echo \"EXIT=$?\"",
+      "ls -la /home/runner/work/_temp/devflow-trusted-prompt-ext/ 2>&1 | head; echo \"===\"; wc -c /home/runner/work/_temp/devflow-trusted-prompt-ext/requesting-code-review.md 2>&1",
+      "ls .changeset/ 2>/dev/null; echo \"===\"; head -6 $(ls .changeset/*.md 2>/dev/null | grep -v issue-1672 | head -1) 2>/dev/null"
+    ],
+    "total": 10,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
