@@ -959,10 +959,34 @@ class RoundKindCouplingTest(unittest.TestCase):
             self.assertEqual(outstanding, status == CICE._UNRESOLVED_STATUS,
                              "status {!r} classified wrongly".format(status))
 
+    def test_impact_classes_mirror_the_state_owner(self):
+        """A sixth impact class added to the owner must not ship green here."""
+        self.assertEqual(set(CICE._IMPACT_CLASSES), set(self._owner()._IMPACT_CLASSES))
+
+    def test_impact_counts_fails_closed_on_an_unmirrored_class(self):
+        """An owner-accepted class this mirror lacks reads unestablished, never raises."""
+        state = {"rounds": [{
+            "advisory_count": 1,
+            "advisory_records": [{"impact_class": "a-class-this-mirror-does-not-carry"}],
+        }]}
+        self.assertEqual(
+            CICE._impact_counts(state, "advisory"),
+            {name: CICE.UNESTABLISHED for name in CICE._IMPACT_CLASSES})
+        # Positive control on the same fixture shape: a mirrored class still tallies.
+        state["rounds"][0]["advisory_records"] = [{"impact_class": "scope"}]
+        self.assertEqual(CICE._impact_counts(state, "advisory")["scope"], 1)
+
+    def test_impact_counts_fails_closed_on_an_absent_class_field(self):
+        state = {"rounds": [{"advisory_count": 1, "advisory_records": [{}]}]}
+        self.assertEqual(
+            CICE._impact_counts(state, "advisory"),
+            {name: CICE.UNESTABLISHED for name in CICE._IMPACT_CLASSES})
+
     def test_the_pointer_constants_name_this_test(self):
         """A hand-written test path rots silently; assert it resolves to THIS class."""
         for const in (CICE.ROUND_KINDS_COUPLING_ASSERTED_BY,
-                      CICE.LEDGER_STATUS_COUPLING_ASSERTED_BY):
+                      CICE.LEDGER_STATUS_COUPLING_ASSERTED_BY,
+                      CICE.IMPACT_CLASS_COUPLING_ASSERTED_BY):
             self.assertEqual(const, self._SELF)
         path, _, cls = self._SELF.partition("::")
         self.assertTrue(os.path.isfile(os.path.join(_REPO, path)))

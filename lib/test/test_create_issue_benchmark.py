@@ -295,6 +295,67 @@ class CliTest(unittest.TestCase):
                 ]), 0)
             self.assertLess(output.getvalue().index("Quality"), output.getvalue().index("Efficiency"))
 
+    def test_non_object_manifest_exits_two_with_the_contracted_diagnostic(self):
+        """A VALID-JSON non-object manifest must take the module's own error exit."""
+        for payload in ("[]", '"a string"', "7", "null"):
+            with self.subTest(payload=payload), tempfile.TemporaryDirectory() as tmp:
+                manifest = Path(tmp) / "manifest.json"
+                manifest.write_text(payload, encoding="utf-8")
+                errors = io.StringIO()
+                with contextlib.redirect_stderr(errors):
+                    rc = BENCHMARK.main(["report", "--manifest", str(manifest)])
+                self.assertEqual(rc, 2)
+                # Attribute the rejection: the top-level-shape guard, not a parse error
+                # and not a missing-file OSError, both of which also exit 2 here.
+                self.assertIn("invalid_manifest: top level is not an object",
+                              errors.getvalue())
+
+    def test_a_well_formed_manifest_is_not_rejected_by_that_guard(self):
+        """Positive control: the same code path succeeds on an object manifest."""
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = Path(tmp) / "manifest.json"
+            write_json(manifest, {"benchmark_id": "b", "executions": []})
+            report = BENCHMARK.build_benchmark_report(manifest)
+            self.assertEqual(report["benchmark_id"], "b")
+
+    def test_write_benchmark_outputs_guards_the_same_shape(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = Path(tmp) / "manifest.json"
+            manifest.write_text("[]", encoding="utf-8")
+            with self.assertRaises(ValueError) as caught:
+                BENCHMARK.write_benchmark_outputs(manifest)
+            self.assertIn("invalid_manifest: top level is not an object", str(caught.exception))
+
+
+class WrapperTest(unittest.TestCase):
+    """The hyphenated compatibility entry point is a real, exercised surface.
+
+    Loading only the underscore module leaves the wrapper's re-export loop and its
+    `main` delegation untested, so a broken wrapper would ship green.
+    """
+
+    def setUp(self):
+        self.wrapper = load_module("create_issue_benchmark_wrapper", WRAPPER_PATH)
+
+    def test_the_wrapper_re_exports_the_implementation_names(self):
+        for name in ("main", "run_benchmark", "build_benchmark_report", "SCHEMA_VERSION"):
+            self.assertTrue(hasattr(self.wrapper, name), name)
+        # The wrapper execs its own copy of the implementation, so identity does not
+        # hold; the re-export contract is that the NAMES resolve to the same callables.
+        self.assertEqual(self.wrapper.build_benchmark_report.__name__,
+                         BENCHMARK.build_benchmark_report.__name__)
+        self.assertEqual(self.wrapper.SCHEMA_VERSION, BENCHMARK.SCHEMA_VERSION)
+
+    def test_wrapper_main_dispatches_to_the_implementation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = Path(tmp) / "manifest.json"
+            manifest.write_text("[]", encoding="utf-8")
+            errors = io.StringIO()
+            with contextlib.redirect_stderr(errors):
+                rc = self.wrapper.main(["report", "--manifest", str(manifest)])
+            self.assertEqual(rc, 2)
+            self.assertIn("invalid_manifest", errors.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()

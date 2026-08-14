@@ -455,6 +455,10 @@ def aggregate_benchmark(evaluation, executions):
 
 def build_benchmark_report(manifest_path):
     manifest = _read_json(manifest_path, "invalid_manifest")
+    # `_read_json` converts only JSON PARSE errors; a valid non-object top level would
+    # reach `.get` as an AttributeError instead of this module's contracted exit 2.
+    if not isinstance(manifest, dict):
+        _error("invalid_manifest", "top level is not an object")
     if manifest.get("runs"):
         evaluation = _EVAL.build_manifest_report(str(manifest_path))
     else:
@@ -535,6 +539,8 @@ def _review_workspace(manifest_path, evaluation):
 def write_benchmark_outputs(manifest_path):
     manifest_path = Path(manifest_path).resolve()
     manifest = _read_json(manifest_path, "invalid_manifest")
+    if not isinstance(manifest, dict):
+        _error("invalid_manifest", "top level is not an object")
     if manifest.get("runs"):
         evaluation = _EVAL.build_manifest_report(str(manifest_path))
     else:

@@ -169,6 +169,11 @@ _IMPACT_CLASSES = (
     "verifiability",
     "clearly-optional",
 )
+# Coupled with `_IMPACT_CLASSES` in scripts/issue-audit-state.py, which owns the closed
+# vocabulary. A member added there and not mirrored here must NOT reach `_impact_counts`
+# as an uncaught KeyError — this module's contract is best-effort, never a crash.
+IMPACT_CLASS_COUPLING_ASSERTED_BY = (
+    "lib/test/test_create_issue_context_eval.py::RoundKindCouplingTest")
 # The closed round-kind vocabulary #793 records on each round.
 #
 # Coupled with `_ROUND_KINDS` in scripts/issue-audit-state.py — the closed, complete
@@ -414,7 +419,13 @@ def _impact_counts(state, record_class):
                 continue
             return {key: UNESTABLISHED for key in _IMPACT_CLASSES}
         for record in records:
-            counts[record["impact_class"]] += 1
+            # Fail CLOSED on a class this mirror does not carry: an owner-accepted
+            # member absent here must read unestablished, never raise out of
+            # `audit_outcomes`' already-returned result.
+            key = record.get("impact_class") if isinstance(record, dict) else None
+            if key not in counts:
+                return {name: UNESTABLISHED for name in _IMPACT_CLASSES}
+            counts[key] += 1
     return counts
 
 
