@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.77] — 2026-08-14
+
+### Changed
+create-issue: ask every user question in one ordered pre-approval pause. The audit-round offer (boundary, steering, final-byte, post-revision grounds), the file-anyway election (AC-rewrite exhaustion, not-eligible bytes) and the combined approve-and-assign question now sit at Step 4 sub-steps 3a–3c, after the rendered draft is shown and before `record-creation-epoch` binds creation.
+
 ## [2.32.76] — 2026-08-14
 
 ### Changed

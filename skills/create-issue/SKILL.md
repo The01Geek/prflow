@@ -124,8 +124,7 @@ These five hold on every path, including every degraded arm above, and are load-
 2. **The no-options gate** (stated under Step 3 below) passes on the body that is shown and on every revision of it.
 3. **The audit summary line is mandatory and always renders** — even on a clean `VERDICT: FILE` with zero findings. A skipped or degraded audit is never silent; the summary line is the evidence the audit ran and which arm it took.
 4. **The reserved `PRFlow` provenance label is applied best-effort after creation, and any degradation is reported explicitly** — a label hiccup never blocks creation, and a `PRFlow` label that could not be applied is named in the final outcome rather than passed over.
-5. **The self-assignment election runs after approval and before creation, on every path including every degraded arm.** After the user approves the full rendered draft and before any `gh issue create`, ask whether to assign the new issue to the user:
-   an explicit yes adds `--assignee "@me"`, an explicit no creates it unassigned, and silence or any non-yes/non-no reply pauses and re-asks — no issue-creation command runs until the answer is an explicit yes or no. This election belongs to the interactive create path only; a draft-only request never reaches it.
+5. **The self-assignment election is resolved before creation, on every path including every degraded arm.** It is asked in the same pause as the approval question, so the user answers both at once rather than in two consecutive pauses; an explicit yes adds `--assignee "@me"`, an explicit no creates it unassigned, and silence or any non-yes/non-no reply pauses and re-asks — no issue-creation command runs until the answer is an explicit yes or no, whatever the approval answer was. This election belongs to the interactive create path only; a draft-only request never reaches it.
 
 ## Subagent dispatch is user-requested here (injection-condition clause)
 
