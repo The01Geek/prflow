@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1681",
+  "generated_at": "2026-08-14T20:17:48Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.81",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 18.414266500000007,
+    "tokens": {
+      "input_tokens": 84,
+      "output_tokens": 35168,
+      "cache_read_input_tokens": 7862143,
+      "cache_creation_input_tokens": 227275,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 310,
+        "outputTokens": 110757,
+        "cacheReadInputTokens": 16252833,
+        "cacheCreationInputTokens": 1066415,
+        "webSearchRequests": 0,
+        "costUSD": 18.414266500000007,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 54,
+    "duration_ms": 672060
+  },
+  "permission_denials": {
+    "count": 23,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      ".prflow/vendor/prflow/scripts/config-get.sh .base_branch main; echo \"RUN_ID=${GITHUB_RUN_ID:-none} ATTEMPT=${GITHUB_RUN_ATTEMPT:-none}\"; echo \"SURFACE unset by default\"",
+      "cd /home/runner/work/prflow/prflow\nD=.prflow/tmp/review/pr-1681/31836220115-1\nfor k in 1 2 3 4; do s=$(( (k-1)*10+1 )); e=$(( k*10 )); awk -v s=$s -v e=$e '/^diff --git/{n++} n>=s && n<=e' $D/diff.patch > $D/batch-$k.patch && test -s $D/batch-$k.patch && echo \"slice-ok: batch-$k ($(grep -c '^diff --git' $D/batch-$k.patch) files)\" || echo \"slice-failed: batch-$k\"; done\n# dirty-tree snapshot before Phase 3 dispatch\nmkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review- …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\nD=.prflow/tmp/review/pr-1681/31836220115-1\nawk -v s=1  -v e=10 '/^diff --git/{n++} n>=s && n<=e' $D/diff.patch > $D/batch-1.patch\nawk -v s=11 -v e=20 '/^diff --git/{n++} n>=s && n<=e' $D/diff.patch > $D/batch-2.patch\nawk -v s=21 -v e=30 '/^diff --git/{n++} n>=s && n<=e' $D/diff.patch > $D/batch-3.patch\nawk -v s=31 -v e=40 '/^diff --git/{n++} n>=s && n<=e' $D/diff.patch > $D/batch-4.patch\nfor f in batch-1 batch-2 batch-3 batch-4; do test -s $D/$f.patch && echo \" …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\nawk -v s=1  -v e=10 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1681/31836220115-1/diff.patch > .prflow/tmp/review/pr-1681/31836220115-1/batch-1.patch\nawk -v s=11 -v e=20 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1681/31836220115-1/diff.patch > .prflow/tmp/review/pr-1681/31836220115-1/batch-2.patch\nawk -v s=21 -v e=30 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1681/31836220115-1/diff.patch > .prflow/tmp/review/pr-1681/3183 …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\nawk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1681/31836220115-1/diff.patch > .prflow/tmp/review/pr-1681/31836220115-1/batch-1.patch",
+      "git apply --stat .prflow/tmp/review/pr-1681/31836220115-1/diff.patch 2>&1 | head -100",
+      "git apply --stat .prflow/tmp/review/pr-1681/31836220115-1/diff.patch",
+      "for f in scripts/create-issue-benchmark.py scripts/create-issue-context-eval.py scripts/create_issue_benchmark.py scripts/create_issue_eval.py; do echo \"=== $f ===\"; wc -l \"$f\" 2>/dev/null; done",
+      "sed -n '4791,7271p' .prflow/tmp/review/pr-1681/31836220115-1/diff.patch > /tmp/create_issue_eval.patch; wc -l /tmp/create_issue_eval.patch; head -3 /tmp/create_issue_eval.patch",
+      "cd /home/runner/work/prflow/prflow; for f in scripts/create_issue_eval.py scripts/create_issue_benchmark.py; do echo \"=== $f ===\"; grep -nE '^def |^    def |^class ' \"$f\" | head -80; done",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >/tmp/ext.out 2>/tmp/ext.err; echo \"EXIT=$?\"; echo \"--- stdout bytes:\"; wc -c </tmp/ext.out; echo \"--- stdout:\"; cat /tmp/ext.out; echo \"--- stderr:\"; cat /tmp/ext.err",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >/tmp/ext.out 2>/tmp/ext.err; echo \"EXIT=$?\"",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >.prflow/tmp/ext.out 2>.prflow/tmp/ext.err; echo \"EXIT=$?\"",
+      "cd /home/runner/work/prflow/prflow; r=origin/codex/create-issue-eval-benchmark; echo \"=== eval defs ===\"; git show $r:scripts/create_issue_eval.py | grep -nE '^(def |class )'; echo \"=== benchmark defs ===\"; git show $r:scripts/create_issue_benchmark.py | grep -nE '^(def |class )'",
+      "for t in no_pairable_configurations duplicate_pair_member unpaired_runs duplicate_occurrence_identity occurrence_out_of_range occurrence_not_analyzable invalid_run_identity scope_escape record_reopen escaped_path walk_error sidechain_only_file unrounded reopen_provenance; do\n  c=$(grep -c \"$t\" .prflow/tmp/review/pr-1681/31836220115-1/diff.patch)\n  echo \"$t: $c\"\ndone",
+      "for t in no_pairable_configurations duplicate_pair_member unpaired_runs duplicate_occurrence_identity occurrence_out_of_range occurrence_not_analyzable invalid_run_identity scope_escape record_reopen escaped_path walk_error sidechain_only_file unrounded_auditor reopen_provenance repeated_read reemission; do\n  c=$(grep -c \"$t\" .prflow/tmp/review/pr-1681/31836220115-1/diff.patch)\n  printf '%s: %s\\n' \"$t\" \"$c\"\ndone",
+      "cd /home/runner/work/prflow/prflow\necho \"=== dirty tree after dispatch ===\"; git status --porcelain | head\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-after .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\necho \"=== VC-3A validate_state_document/completed_rounds ===\"; grep -nE 'def (validate_state_document|completed_rounds)' scripts/issue-audit-state.py\necho \"=== VC-6A ROUND_KINDS ===\"; grep -nE '_?ROUND_KINDS\\s*=' scripts/issue-audit-state.py scripts/create_issue_ …[per-command-truncated]",
+      "git cat-file -e f3efa652201f1339c16f6c83b13872a361a6cae7 2>&1 && echo \"HEAD-COMMIT-PRESENT\" || echo \"HEAD-COMMIT-ABSENT\"\necho \"=== files at head ===\"\ngit ls-tree -r --name-only f3efa652201f1339c16f6c83b13872a361a6cae7 2>&1 | grep -E 'create_issue_eval|test_create_issue_benchmark|create_issue_benchmark' || echo \"cannot list head tree\"",
+      "H=f3efa652201f1339c16f6c83b13872a361a6cae7\necho \"=== VC-3A validate_state_document at head ===\"; git show \"$H:scripts/issue-audit-state.py\" | grep -nE 'def (validate_state_document|completed_rounds)'\necho \"=== VC-6A ROUND_KINDS at head ===\"; git show \"$H:scripts/create_issue_eval.py\" | grep -nE '^ROUND_KINDS\\s*=|_ROUND_KINDS\\s*=' | head\necho \"=== VC-1B grant present at head ===\"; git show \"$H:.prflow/config.json\" | grep -c 'test_create_issue_benchmark.py'; git show \"$H:.github/workflows/matcher- …[per-command-truncated]",
+      "echo \"=== VC-6A ROUND_KINDS at head ===\"; git show f3efa652201f1339c16f6c83b13872a361a6cae7:scripts/create_issue_eval.py | grep -nE 'ROUND_KINDS = |ROUND_KINDS_COUPLING_ASSERTED_BY = ' | head\necho \"=== VC-1B config grant count ===\"; git show f3efa652201f1339c16f6c83b13872a361a6cae7:.prflow/config.json | grep -c 'test_create_issue_benchmark.py'\necho \"=== VC-1B matcher-probe grant count ===\"; git show f3efa652201f1339c16f6c83b13872a361a6cae7:.github/workflows/matcher-probe.yml | grep -c 'test_crea …[per-command-truncated]",
+      "git show f3efa652201f1339c16f6c83b13872a361a6cae7:.prflow/config.json | grep -c 'test_create_issue_benchmark'\necho \"---matcher---\"\ngit show f3efa652201f1339c16f6c83b13872a361a6cae7:.github/workflows/matcher-probe.yml | grep -c 'test_create_issue_benchmark'\necho \"---testfiles---\"\ngit ls-tree -r --name-only f3efa652201f1339c16f6c83b13872a361a6cae7 | grep -E 'lib/test/test_create_issue'",
+      "git ls-tree -r --name-only f3efa652201f1339c16f6c83b13872a361a6cae7 | grep 'lib/test/test_create_issue'",
+      ".prflow/vendor/prflow/scripts/workpad.py patch 5297683993 .prflow/tmp/review/pr-1681/31836220115-1/review-wp.md 2>.prflow/tmp/review/pr-1681/31836220115-1/rv-patch.err; echo \"patch-rc=$?\""
+    ],
+    "total": 23,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
