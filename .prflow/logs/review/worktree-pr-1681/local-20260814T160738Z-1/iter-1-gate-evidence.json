@@ -1,0 +1,20 @@
+[
+ {
+  "decision": "test-first: wrote the executions-coverage tests before the guard",
+  "command": "python3 lib/test/test_create_issue_benchmark.py",
+  "result": "RED then GREEN",
+  "evidence": "Pre-fix run failed with AssertionError: 'established' != 'unestablished' on the absent/short/unrelated executions subTests, and errored on the wrong-typed subTests; post-fix 24/24 OK."
+ },
+ {
+  "decision": "mutation-check: partial_run_state regression test",
+  "command": "python3 .prflow/tmp/mutation_check.py against a copy with the guard replaced by pass",
+  "result": "first attempt VACUOUS, rewritten, then RED against the mutant",
+  "evidence": "The first fixture (rounds: []) yielded {1: 'unestablished'} with the guard removed, so it proved nothing. Rewritten to add an undispatched round 2: the mutant then reports {1: 'discovery'} while the test asserts unestablished — MUTANT DETECTED True."
+ },
+ {
+  "decision": "no-automated-test arm: prose and docstring corrections",
+  "command": "read each cited source of truth before editing",
+  "result": "pass",
+  "evidence": "quality_gate line 691 (three conjuncts) checked before amending create-issue-context.md; describe()'s zero-mean arm read before amending runtime-evaluations.md; four decode sites counted before dropping the 'two sibling' numeral."
+ }
+]

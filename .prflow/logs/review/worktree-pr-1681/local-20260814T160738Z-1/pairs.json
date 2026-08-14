@@ -1,0 +1,884 @@
+{
+ "pairs": [
+  {
+   "item": {
+    "id": "VC-1",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-1-n7k2q.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-3",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-3-b4m8x.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-4",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-4-p9w3d.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-5",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-5-t2v6r.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-6",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-6-k5j1c.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-7",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-7-h8z4n.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-8",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-8-f3q7l.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-9",
+    "verification_mode": "agent",
+    "claim_provenance": "source_authored",
+    "source_excerpt": "The committed `historical-4-to-8.json` fixture is the canonical counterexample: fewer auditor tokens alongside worse formal quality and more findings receives no reduction credit."
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-9-w6y2s.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-10",
+    "verification_mode": "agent",
+    "claim_provenance": "source_authored",
+    "source_excerpt": "Every transcript, state, checkpoint, and rubric path is realpath-resolved beneath the declared root; lexical and symlink escapes fail with `path_escape`."
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-10-d1x9v.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-11",
+    "verification_mode": "agent",
+    "claim_provenance": "source_authored",
+    "source_excerpt": "**Aggregate summary (exactly these fields, complete by construction):** run_count, state_established, finding_count, median_peak_context, max_peak_context, runs_over_200k, runs_over_400k, median_repeated_read_count, median_reemission_count, median_attributed_auditor_cost, median_unrounded_auditor_cost, total_unrounded_auditor_cost, median_auditor_cost_discovery, median_auditor_cost_targeted, total_sidechain_records_seen, total_sidechain_records_attributed, total_record_reopen, scope_escape_count, scope_escape_unattributable, post_filing_escapes, and wall_clock."
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-11-g4r7m.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-12",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-12-s8t3b.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-13",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-13-y5n8k.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-14",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-14-q2h6w.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-15",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-15-c9l4j.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-16",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-16-z3p5f.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-17",
+    "verification_mode": "agent",
+    "claim_provenance": "source_authored",
+    "source_excerpt": "Raw mode reads transcript and optional state artifacts only. It never reads a draft or rubric, and it never emits transcript, draft, or finding bodies."
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-17-m7v1g.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-18",
+    "verification_mode": "agent",
+    "claim_provenance": "source_authored",
+    "source_excerpt": "The review export deterministically assigns each exact pair to `A` and `B`, copies the local final issue and grade into a blinded review workspace, and exposes only pointers in `review.json`; it does not reveal configuration names or copy draft bodies into the JSON."
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-18-r6k2t.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-19",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-19-split-j4d8p.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-20",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-20-split-j4d8p.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-21",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-21-split-j4d8p.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-22",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-22-split-x1c5h.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-23",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-23-split-x1c5h.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-24",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-24-split-x1c5h.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-25",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-25-split-x1c5h.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-26",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-26-split-x1c5h.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-27",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-27-split-v8b2q.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-28",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-28-split-v8b2q.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-29",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-29-split-v8b2q.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-30",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-30-split-v8b2q.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-31",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-31-split-v8b2q.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-32",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-32-split-v8b2q.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-33",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-33-split-v8b2q.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-34",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-34-split-n5g9w.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-35",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-35-split-n5g9w.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-36",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-36-split-n5g9w.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-37",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-37-split-w3t7k.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-38",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-38-split-w3t7k.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-40",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-40-split-w3t7k.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-41",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-41-split-w3t7k.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-42",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-42-split-b6m1z.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-43",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-43-split-b6m1z.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-44",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-44-split-l9c3d.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-45",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-45-split-l9c3d.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-46",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-46-split-h2k7r.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-47",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-47-split-h2k7r.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-48",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-48-split-h2k7r.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-49",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-49-split-t8w4c.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-50",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-50-split-t8w4c.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-51",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-51-split-t8w4c.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-52",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-52-split-p3n9x.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-53",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-53-split-p3n9x.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-54",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-54-split-m6b1v.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-55",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-55-split-m6b1v.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-56",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-56-split-m6b1v.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-57",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-57-split-k9j2s.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-58",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-58-split-k9j2s.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-59",
+    "verification_mode": "agent",
+    "claim_provenance": "source_authored",
+    "source_excerpt": "Do not replace this with a bare deeply-nested literal: 3.14's iterative decoder parses `_DEEP_JSON` without overflowing, so a literal-only test would stop discriminating a narrow `(ValueError, TypeError)` clause from a broad one there."
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-59-split-k9j2s.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-60",
+    "verification_mode": "agent",
+    "claim_provenance": "source_authored",
+    "source_excerpt": "A mirrored second pair makes the finding_count deltas [+4, -4]: mean exactly 0 with a non-zero deviation, the only population that reaches the mean == 0 arm."
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-60-split-f5d8t.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-61",
+    "verification_mode": "agent",
+    "claim_provenance": "source_authored",
+    "source_excerpt": "A VALID-JSON non-object manifest must take the module's own error exit."
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-61-split-f5d8t.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-62",
+    "verification_mode": "agent",
+    "claim_provenance": "source_authored",
+    "source_excerpt": "scenario_id is joined into run/artifact paths, so every rejected shape here is a directory-traversal or collision vector; a widened charset or a dropped duplicate check must fail this, not ship green."
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-62-split-f5d8t.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-63",
+    "verification_mode": "agent",
+    "claim_provenance": "source_authored",
+    "source_excerpt": "self.assertEqual(set(scalar_values(semantic_axes)), {\"unestablished\"})"
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-63-split-f5d8t.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-64",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-64-split-r2y5n.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-65",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-65-split-r2y5n.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-66",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-66-split-r2y5n.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-67",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-67-split-c4g7b.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-68",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-68-split-c4g7b.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-69",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-69-split-c4g7b.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-70",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-70-split-c4g7b.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-71",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-71-split-q7x3m.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-72",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-72-split-q7x3m.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-73",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-73-split-q7x3m.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-74",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-74-split-q7x3m.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-75",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-75-split-q7x3m.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-76",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-76-split-q7x3m.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-77",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-77-split-q7x3m.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-78",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-78-split-z2v6c.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-79",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-79-split-z2v6c.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-80",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-80-split-z2v6c.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-81",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-81-split-w4h8n.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-82",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-82-split-w4h8n.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-83",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-83-split-w4h8n.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-84",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-84-split-t5r2j.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-85",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-85-split-t5r2j.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-86",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-86-split-t5r2j.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-87",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-87-split-g8k4d.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-88",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-88-split-g8k4d.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-89",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-89-split-g8k4d.json",
+   "response_text": ""
+  },
+  {
+   "item": {
+    "id": "VC-90",
+    "verification_mode": "agent",
+    "claim_provenance": "generated_paraphrase",
+    "source_excerpt": null
+   },
+   "verdict_path": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/verdicts/iter-1/VC-90-split-g8k4d.json",
+   "response_text": ""
+  }
+ ]
+}

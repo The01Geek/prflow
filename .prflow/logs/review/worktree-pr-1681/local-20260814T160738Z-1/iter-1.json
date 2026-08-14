@@ -1,0 +1,288 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-14T16:07:38Z",
+  "fix_commit_sha": "6fc91eeefbfbc86c82560c25b53934944a4f58f1",
+  "fix_files": [
+    ".changeset/create-issue-eval-benchmark.md",
+    "docs/internal/create-issue-context.md",
+    "docs/internal/improvement-loops/runtime-evaluations.md",
+    "lib/test/fixtures/create-issue-eval/manifests/runs/candidate/audit-state.json",
+    "lib/test/run.sh",
+    "lib/test/test_create_issue_benchmark.py",
+    "lib/test/test_create_issue_context_eval.py",
+    "scripts/create-issue-benchmark.py",
+    "scripts/create_issue_benchmark.py",
+    "scripts/create_issue_eval.py",
+    "scripts/issue-audit-state.py"
+  ],
+  "loop_role": "fix",
+  "current_step": "3.5",
+  "current_substep": null,
+  "pending_dispatch": null,
+  "sweep_defs_read": [],
+  "sweep_evidence": {
+    "status": "run",
+    "note": "Class-sweep applied over the changed surface: the documented_falsehood class was swept across every diff-added doc/comment claim (create-issue-context.md, runtime-evaluations.md, the changeset, the module docstrings, the decode-site count, the _read_json comment, the run.sh rationale, the wrapper docstring); the fail-open-guard class was swept from aggregate_benchmark to the stale run-manifest reuse; the vacuous-test class was swept from the socket patch to the cwd injection assertion and the symlink host guard."
+  },
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": true,
+    "engine_self_modifying": true,
+    "detect_all_audit": true,
+    "checklist_skipped": null
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:type-design-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "checklist_summary": {
+    "items": 90,
+    "passed": 81,
+    "failed": 9,
+    "inconclusive": 0,
+    "lite": 2,
+    "agent": 88,
+    "normalized_wording_only": 1,
+    "field_defect_fail_count": 0,
+    "failed_ids": [
+      "VC-1",
+      "VC-7",
+      "VC-30",
+      "VC-35",
+      "VC-41",
+      "VC-60",
+      "VC-62",
+      "VC-69",
+      "VC-88"
+    ]
+  },
+  "verification_evidence": {
+    "command": "python3 lib/test/test_create_issue_benchmark.py; python3 lib/test/test_create_issue_context_eval.py; python3 lib/test/test_python_scripts.py; ruff check; shellcheck lib/test/run.sh; lib/test/regenerate-artifacts.py",
+    "result": "pass",
+    "skipped_checks": [],
+    "note": "Focused suites: 24/24 and 147/147 OK. test_python_scripts.py reports 5248 passed, 21 failed; the same 21 #1655 failures reproduce at origin/main (5245 passed there), so they are pre-existing and not this branch's. regenerate-artifacts reconciled clean; the exact-module-floors row is 'not measured' (opt-in --with-floors), so that floor is unchecked here and is caught on CI.",
+    "focused_selection": {
+      "surfaces": [
+        {
+          "surface": "scripts/create_issue_eval.py",
+          "target": "lib/test/test_create_issue_context_eval.py",
+          "basis": "coverage-map focused_test"
+        },
+        {
+          "surface": "scripts/create_issue_benchmark.py",
+          "target": "lib/test/test_create_issue_benchmark.py",
+          "basis": "coverage-map focused_test"
+        },
+        {
+          "surface": "scripts/issue-audit-state.py",
+          "target": "lib/test/test_python_scripts.py",
+          "basis": "coverage-map focused_test"
+        },
+        {
+          "surface": "lib/test/run.sh",
+          "target": "comment-only edit",
+          "basis": "exempt: no behavioral change"
+        },
+        {
+          "surface": "docs/**, .changeset/**",
+          "target": null,
+          "basis": "exempt: no coverage-map entry"
+        }
+      ],
+      "single_flight_consulted": false
+    }
+  },
+  "test_first_gate": "see iter-1-gate-evidence.json (consumed verbatim): RED-first on the executions-coverage tests and the decorated-Blocked-heading test; mutation-check on the partial_run_state test caught a vacuous first attempt and the rewritten test goes RED against the guard-removed mutant",
+  "stale_prose_check": {
+    "rc": 0,
+    "stale_rows": 0,
+    "note": "No STALE rows. One count-locked row this iteration authored ('the two call sites diverge') was reworded drift-proof per the repo's pin-or-don't-write policy; the remaining count-locked row is pre-existing relocated prose. All other rows are UNRESOLVABLE (informational, non-gating)."
+  },
+  "base_checkpoint": {
+    "token": "UPDATED",
+    "behind_by": 17
+  },
+  "convergence_inputs": {
+    "fixes_applied": 24,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "fix_decisions": [
+    {
+      "finding_id": "C1-executions-fail-open",
+      "decision": "applied",
+      "commit": "e4923d1"
+    },
+    {
+      "finding_id": "C2-only-population-comment",
+      "decision": "applied",
+      "commit": "e4923d1"
+    },
+    {
+      "finding_id": "I-json-artifact-breadcrumb",
+      "decision": "applied",
+      "commit": "e4923d1"
+    },
+    {
+      "finding_id": "I-quality-gate-doc-limb",
+      "decision": "applied",
+      "commit": "e4923d1"
+    },
+    {
+      "finding_id": "I-secret-scan-shim",
+      "decision": "applied",
+      "commit": "e4923d1"
+    },
+    {
+      "finding_id": "I-digest-failed",
+      "decision": "applied",
+      "commit": "e4923d1"
+    },
+    {
+      "finding_id": "I-metric-silent-degradation",
+      "decision": "applied",
+      "commit": "e4923d1"
+    },
+    {
+      "finding_id": "I-provider-timeout",
+      "decision": "applied",
+      "commit": "e4923d1"
+    },
+    {
+      "finding_id": "I-stale-run-manifest",
+      "decision": "applied",
+      "commit": "e4923d1"
+    },
+    {
+      "finding_id": "I-partial-run-state-untested",
+      "decision": "applied",
+      "commit": "e4923d1"
+    },
+    {
+      "finding_id": "I-symlink-host-guard",
+      "decision": "applied",
+      "commit": "e4923d1"
+    },
+    {
+      "finding_id": "VC-30-quoted-draft-line",
+      "decision": "applied",
+      "commit": "e4923d1"
+    },
+    {
+      "finding_id": "I-decode-site-count",
+      "decision": "applied",
+      "commit": "e4923d1"
+    },
+    {
+      "finding_id": "I-read-json-oserror-comment",
+      "decision": "applied",
+      "commit": "e4923d1"
+    },
+    {
+      "finding_id": "I-zero-mean-variance-doc",
+      "decision": "applied",
+      "commit": "e4923d1"
+    },
+    {
+      "finding_id": "I-that-command-anaphora",
+      "decision": "applied",
+      "commit": "e4923d1"
+    },
+    {
+      "finding_id": "I-changeset-traceback-claim",
+      "decision": "applied",
+      "commit": "e4923d1"
+    },
+    {
+      "finding_id": "VC-88-blocked-heading",
+      "decision": "applied",
+      "commit": "6fc91ee"
+    },
+    {
+      "finding_id": "VC-88b-reproduction-heading",
+      "decision": "pushed_back",
+      "source_file": "scripts/create_issue_eval.py",
+      "claim_text": "grade_issue's reproduction literals match no heading the create-issue template emits",
+      "skip_category": "out-of-scope",
+      "evidence": "The observation is correct but the remedy belongs to the template, not this diff: skills/create-issue/references/issue-template.md is not in this PR's changed set (git diff origin/main...HEAD names it nowhere; it arrived in the working tree via the base merge). The grader's vocabulary (reproduction / reproduction steps / bug reproduction) is a reasonable rubric axis and each rubric is maintainer-authored per scenario, so a scenario that expects a reproduction section supplies a rubric that requires it.",
+      "parking_evidence": {
+        "basis": "the flagged mismatch is resolved in a file this PR does not modify",
+        "failing_input": "an issue produced from the shipped template graded against a rubric with bug_reproduction_expected true",
+        "source": "git diff origin/main...HEAD -- skills/create-issue/references/issue-template.md is empty",
+        "finding_ref": {
+          "iter": 1,
+          "index": 18
+        }
+      }
+    },
+    {
+      "finding_id": "I-occurrence-guards-untested",
+      "decision": "deferred",
+      "source_file": "scripts/create_issue_eval.py",
+      "claim_text": "occurrence_out_of_range and occurrence_not_analyzable are untested",
+      "skip_category": "uncategorized",
+      "evidence": "Real coverage gap, not fixed this iteration. Deliberately left so it is not laundered: unlike partial_run_state (fixed above, with a mutation-check) these two guards need new transcript fixtures whose event windows run past EOF, which is a larger fixture change than the rest of this iteration's delta. Revisit condition: add to the manifest-validation named-diagnostic table using the existing _mutate_copied_manifest harness."
+    },
+    {
+      "finding_id": "I-provider-identity-mismatch-untested",
+      "decision": "deferred",
+      "source_file": "scripts/create_issue_benchmark.py",
+      "claim_text": "provider_identity_mismatch has no fixture driving it",
+      "skip_category": "uncategorized",
+      "evidence": "The adjacent fail-open (a re-run inheriting the previous run's manifest) IS fixed this iteration by unlinking the assigned manifest before launch. The remaining gap is the assertion itself, which needs a new --wrong-run-id flag on the provider stub. Revisit condition: add that stub flag alongside the existing --fail / --escape-root / --omit-manifest set."
+    },
+    {
+      "finding_id": "T-runaccumulator-dataclass",
+      "decision": "pushed_back",
+      "source_file": "scripts/create_issue_eval.py",
+      "claim_text": "RunAccumulator.result() returns an incomplete untyped dict",
+      "skip_category": "out-of-scope",
+      "evidence": "A dataclass refactor of the pre-join/post-join run record touches every consumer in both modules and is disproportionate to a review-fix iteration on a relocation PR. The concrete half of the finding — consumers hard-indexing keys the producer may not set — was checked and refuted this iteration: VC-81 and VC-87 both verified that _observe_manifest_run sets grade on every path (including the rubric-unavailable arm) and always copies run_id/configuration/scenario_id/repetition, so no live KeyError exists.",
+      "parking_evidence": {
+        "basis": "the design comment is valid but the live-defect half was verified absent",
+        "failing_input": "a consumer built from eval_corpus output rather than _observe_manifest_run output",
+        "source": "scripts/create_issue_eval.py:_observe_manifest_run grade set on both the rubric-present and rubric-unavailable arms",
+        "finding_ref": {
+          "iter": 1,
+          "index": 21
+        }
+      }
+    },
+    {
+      "finding_id": "T-validated-rubric-deepcopy",
+      "decision": "deferred",
+      "source_file": "scripts/create_issue_eval.py",
+      "claim_text": "_validated_rubric returns a shallow copy aliasing the caller's nested lists",
+      "skip_category": "uncategorized",
+      "evidence": "A durability nit with no live caller that mutates a rubric after validation. Revisit condition: if a caller ever retains a rubric across a mutation boundary."
+    },
+    {
+      "finding_id": "R-two-dot-diff-note",
+      "decision": "pushed_back",
+      "source_file": "N/A",
+      "claim_text": "the supplied review diff is two-dot and shows spurious deletions of CHANGELOG.md, docs/external/**, the cloud-writer contract",
+      "skip_category": "claim-quality",
+      "evidence": "Refuted: the cached diff this run supplied was produced by `git diff origin/main...HEAD` (three-dot) and its file list is exactly the 34 files this branch changes — CHANGELOG.md, docs/external/**, and scripts/devflow-cloud-writer-contract.json appear nowhere in it. The reviewer appears to have re-derived its own two-dot range rather than reading the cached path it was given.",
+      "parking_evidence": {
+        "basis": "the reviewer's observation does not describe the artifact it was handed",
+        "failing_input": "the cached diff.patch supplied in the dispatch prompt",
+        "source": ".prflow/tmp/review/worktree-pr-1681/local-20260814T160738Z-1/diff.patch, produced by git diff origin/main...HEAD",
+        "finding_ref": {
+          "iter": 1,
+          "index": 22
+        }
+      }
+    }
+  ],
+  "telemetry": "unavailable",
+  "synthesized": false
+}
