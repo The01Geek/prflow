@@ -105,8 +105,16 @@ def main():
         p.error('provide exactly one of TITLE (positional) or --title-file')
 
     if args.title_file:
-        with open(args.title_file) as f:
-            title = f.read().strip()
+        # Do not drop `encoding="utf-8"`: without it a non-ASCII title decodes
+        # under the ambient locale codec and crashes fresh branch creation on
+        # Windows (the AC5 AST guard in test_python_scripts.py fails if dropped).
+        try:
+            with open(args.title_file, encoding="utf-8") as f:
+                title = f.read().strip()
+        except OSError as e:
+            p.error(f"--title-file: could not read {args.title_file!r}: {e}")
+        except UnicodeDecodeError as e:
+            p.error(f"--title-file: {args.title_file!r} is not valid UTF-8: {e}")
     else:
         title = args.title
 
