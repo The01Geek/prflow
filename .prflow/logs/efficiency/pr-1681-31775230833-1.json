@@ -123,5 +123,77 @@
       "iter": 5,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.73",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 22.414127999999998,
+    "tokens": {
+      "input_tokens": 127,
+      "output_tokens": 59444,
+      "cache_read_input_tokens": 12255256,
+      "cache_creation_input_tokens": 284420,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 353,
+        "outputTokens": 140300,
+        "cacheReadInputTokens": 20582719,
+        "cacheCreationInputTokens": 1148668,
+        "webSearchRequests": 0,
+        "costUSD": 22.0463745,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 2,
+        "outputTokens": 11974,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 50170,
+        "webSearchRequests": 0,
+        "costUSD": 0.36775349999999996,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 78,
+    "duration_ms": 1169473
+  },
+  "permission_denials": {
+    "count": 12,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-}\"; echo \"RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT:-}\"; echo \"ACTIONS=${GITHUB_ACTIONS:-}\"; git status --porcelain",
+      ".prflow/vendor/prflow/scripts/workpad.py patch 5290108962 .prflow/tmp/review/pr-1681/31775230833-1/review-wp.md 2>.prflow/tmp/review/pr-1681/31775230833-1/rv-patch.err || echo \"patch-rc=$? $(cat .prflow/tmp/review/pr-1681/31775230833-1/rv-patch.err)\"",
+      "cat .prflow/tmp/review/pr-1681/31775230833-1/diff.patch | .prflow/vendor/prflow/scripts/stale-prose-lint.py --rev HEAD 2>/dev/null | grep -cE '^STALE'; echo \"---sample---\"; cat .prflow/tmp/review/pr-1681/31775230833-1/diff.patch | .prflow/vendor/prflow/scripts/stale-prose-lint.py --rev HEAD 2>/dev/null | grep -E '^STALE' | head -20; echo \"sp-rc=${PIPESTATUS[0]}\"",
+      "cd /home/runner/work/prflow/prflow\nfor k in 1 2 3 4; do\n  s=$(( (k-1)*10+1 )); e=$(( k*10 ))\n  awk -v s=\"$s\" -v e=\"$e\" '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1681/31775230833-1/diff.patch > .prflow/tmp/review/pr-1681/31775230833-1/batch-$k.patch && test -s .prflow/tmp/review/pr-1681/31775230833-1/batch-$k.patch && echo \"slice-ok: batch-$k ($(grep -c '^diff --git' .prflow/tmp/review/pr-1681/31775230833-1/batch-$k.patch) files, $(wc -l < .prflow/tmp/review/pr-1681/31775230833-1/ba …[per-command-truncated]",
+      "awk '/^diff --git/{n++} n>=1 && n<=10' .prflow/tmp/review/pr-1681/31775230833-1/diff.patch > .prflow/tmp/review/pr-1681/31775230833-1/batch-1.patch && test -s .prflow/tmp/review/pr-1681/31775230833-1/batch-1.patch && echo \"slice-ok: batch-1\" || echo \"slice-failed: batch-1\"",
+      "for f in batch-1 batch-2 batch-3 batch-4; do echo \"=== $f ===\"; grep '^diff --git' .prflow/tmp/review/pr-1681/31775230833-1/$f.patch | sed -E 's|^diff --git a/(.*) b/.*|\\1|'; done",
+      "SHA=028f9ef20437aa7c7fd5985c8dc6f15645700702\necho \"=== create_issue_benchmark.py (VC-26,45,57,58) ===\"\ngit show $SHA:scripts/create_issue_benchmark.py | grep -nE '^(def |SCHEMA_VERSION)' | grep -E 'load_benchmark_spec|run_benchmark|def describe|aggregate_benchmark|write_benchmark_outputs|build_benchmark_report|def main|SCHEMA_VERSION'\necho \"=== create_issue_eval.py (VC-31,33,44,56) ===\"\ngit show $SHA:scripts/create_issue_eval.py | grep -nE '^(def |class |UNESTABLISHED|_IMPACT_CLASSES|ROUND_KINDS …[per-command-truncated]",
+      "for f in scripts/create-issue-benchmark.py scripts/create-issue-context-eval.py scripts/create_issue_benchmark.py scripts/create_issue_eval.py; do echo \"=== $f ===\"; wc -l \"$f\" 2>/dev/null; done",
+      "wc -l /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1681/31775230833-1/diff.patch; echo \"---\"; git -C /home/runner/work/prflow/prflow diff --stat df3667f20eaba5418eab2ef2d1b93004feaca5f8 028f9ef20437aa7c7fd5985c8dc6f15645700702 | tail -40",
+      "git -C /home/runner/work/prflow/prflow diff --stat df3667f20eaba5418eab2ef2d1b93004feaca5f8 028f9ef20437aa7c7fd5985c8dc6f15645700702",
+      "cd /home/runner/work/prflow/prflow; benchmark_repo=\"$(pwd)\"; benchmark_tmp=\"$(mktemp -d)\"; cat >\"$benchmark_tmp/spec.json\" <<EOF\n{\n  \"schema_version\": 1,\n  \"root\": \"$benchmark_repo\",\n  \"benchmark_id\": \"committed-local-stub\",\n  \"repetitions\": 1,\n  \"configurations\": {\n    \"baseline\": {\"skill_root\": \"lib/test/fixtures/create-issue-benchmark/skills/baseline\",\"argv\": [\"python3\", \"lib/test/fixtures/create-issue-benchmark/provider_stub.py\"]},\n    \"candidate\": {\"skill_root\": \"lib/test/fixtures/create-is …[per-command-truncated]",
+      "git show df3667f20eaba5418eab2ef2d1b93004feaca5f8:scripts/issue-audit-state.py > /tmp/old-audit.py 2>/dev/null; diff /tmp/old-audit.py scripts/issue-audit-state.py"
+    ],
+    "total": 12,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
