@@ -25,11 +25,19 @@ set -uo pipefail
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/resolve-gh.sh"
 : "${DEVFLOW_GH:=$(devflow_resolve_gh)}"
 
-NUMBER="${1:?Usage: post-issue-comment.sh <issue-number> <body-file>}"
-BODY_FILE="${2:?Usage: post-issue-comment.sh <issue-number> <body-file>}"
+NUMBER="${1-}"
+BODY_FILE="${2-}"
 
 # Best-effort input validation: a bad number or missing file gets a specific
 # breadcrumb and a clean exit 0 (never an abort, never a masked success).
+if [ -z "$NUMBER" ]; then
+  echo "devflow: warning: post-issue-comment.sh missing issue-number argument (caller argument slip; best-effort, no comment posted)" >&2
+  exit 0
+fi
+if [ -z "$BODY_FILE" ]; then
+  echo "devflow: warning: post-issue-comment.sh missing body-file argument (caller argument slip; best-effort, no comment posted on #$NUMBER)" >&2
+  exit 0
+fi
 if ! [[ "$NUMBER" =~ ^[0-9]+$ ]]; then
   echo "devflow: warning: post-issue-comment.sh got a non-numeric issue number '$NUMBER' (best-effort, no comment posted)" >&2
   exit 0

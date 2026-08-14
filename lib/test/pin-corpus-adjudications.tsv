@@ -94,6 +94,7 @@ literal:210344ba25ad639c530b0ab21fecb0e6759ce5fc97c05d42c3022961702758b7	boundar
 literal:21bd679f658f86689440c03f0a6d5b78916d6f3c544e7395862c5caeb22fbb59	boundary	Retain executable/helper contract: #275 pin (P3-live): phase-3 carries the live --persist backstop via the portable anchor.
 literal:21eadc872864d695c8007861be0ea48e4daf45ac1529c009d8b2162ecc26d445	boundary	Retain review-loop routing boundary: convergence #196: union does not retire a finding a later run ranked lower controls finding disposition, re-entry, or fix verification.
 literal:22120dad95161582841e1787299b94966cb2d0de6db3ef218b88bbd1b471a7c2	boundary	Machine-consumed section-end sentinel.
+literal:229fedf539a3ed600f20f3129708acf59fe6ddb2f81c1596dc5ee99d268876ee	boundary	maintainer adjudication (#1675): Step 3.6 independently consumes check-verified-premises.py's handle=path result and must route it to the recognized-quotation repair; the Step 3.5 copy cannot substitute for this pre-dispatch consumer site.
 literal:22f410543edc81cf76ecf1cb7b496d2ed3bbe735fedc9ea72b96a7127240b47e	boundary	Retain security/integrity boundary: #467 C3: quality-checklist mirror for the trust-boundary closure rule.
 literal:23257d16eee51ef524d37f33c709c20ccd21d140c8350bfbe9e4e8ca00be166c	boundary	maintainer adjudication: runtime schema-contract: The helper's documented input object includes the provenance discriminator consumed by normalization routing.
 literal:2328d10be70409ed883467060adbd29ed75a6013a5c67b30a3801638791b94aa	boundary	maintainer adjudication: final-modules conflict-state: Defines the fail-closed needs-human-reconciliation transition shared by all three conflict handlers.
@@ -342,6 +343,7 @@ literal:874d7df0cecd29c30e6b91ca3ecada9415f32e467c2157fcf91cfc3b8437fc0f	boundar
 literal:87cb1dec80a8793ac42bec9a0c1046adf9b1a9fffbacce31083de2c3efabea2b	boundary	Retain review-loop routing boundary: fix-as-new-code: deletion class re-reads the unit and greps for stranded references controls finding disposition, re-entry, or fix verification.
 literal:88164226a5e57be7072aa0ce2fca01d4e80bf37cf2f22a36b796c1fe3bbe377f	boundary	Identity and recency query operand used by the authority decision.
 literal:88c34f938570cf0cac329fc863bd3642f587bc7439a383ebd19ceb2b8b55bdf7	boundary	maintainer adjudication: declared security or interface boundary
+literal:894e1230d2da9f05ba78e37586672f3cd955c5e4f8c2d89edb7fec3368ce8456	boundary	maintainer adjudication (#1675): Step 3.5 authors the handle=path repair that check-verified-premises.py's recognized-quotation contract requires before canonical write; losing this exact remedy reopens an unrepairable cross-file loop.
 literal:8a44c4cd00b7775f36f52a79904eb3b9dd674a86f8601cbd8c58896fe514ae47	boundary	maintainer adjudication: declared security or interface boundary
 literal:8a4ba186897aef935f5d80792dfabf333e7e682586476f47d314f6713e9b4cb4	boundary	Retain preflight state boundary: rcv/#545 P-hm-match: head-match `match` arm is a SHA string-equality, not a ref compare fixes a subject, freshness, or authorization decision arm.
 literal:8a6a989d9000486a11cc9c125e8a4511bbfe5e51b52d8e1190b0defcd239caa2	boundary	Unknown-CI failure direction maps to a named evidence state.
@@ -413,6 +415,7 @@ literal:a9bc685012e9a24d5aeb6397dfeb13a4360604fcdae16b1b18d2ce441cc32c51	boundar
 literal:aa2f609c5c92c86984c0cb270afdd2e7a0845912dabb604bfd0806359935a867	boundary	maintainer adjudication: review VC: verification/checklist interface boundary: #556 T-6a(AC7): helper invoked as the single leading token
 literal:aa550b738271c486fe7566596000d221d24d42d916449ad2f51927a272b9862d	boundary	maintainer adjudication: runtime state-routing: Executable provenance arm routes shadow records into the shadow classification.
 literal:aa744c4457eff1ecbbc2e79da54354fe6312bb0db434d712e2080050c6446cc8	boundary	maintainer adjudication: declared security or interface boundary
+literal:aba7802617f5c6a5ff10dca8669e4f22d08adbac6e8dfb31f981ca8446cc683f	boundary	maintainer adjudication (#1675): the exhausted Acceptance Criteria rewrite is a lifecycle transition from bounded repair to disclosed file-anyway election; this exact Step 4 instruction prevents exhaustion from silently blocking or falling into ordinary approval.
 literal:abcfd22ee1a96cf6112493d0c9d90edcc440fd8940499cec1416dcefb336c9ce	boundary	maintainer adjudication: runtime security-boundary: Executable sanitizer prevents attacker-controlled check names from closing the prompt fence.
 literal:ac33cfbe588a6c957fa4a668cf76846d41511b6181616cc1853fbd9d96b7d84b	boundary	maintainer adjudication: declared security or interface boundary
 literal:ac462ea40f184c6583b273a0b6ab86bacc851204f62e98474553a06e05fa43ee	boundary	Two-arm durable-record routing contract keyed by invocation context.
