@@ -7,23 +7,26 @@ argument-hint: <user-story>
 
 This skill is a pipeline that ends with a created GitHub issue and a gated offer to start
 implementation — the offer is presented, or a one-line reason is printed for why it was withheld —
-not a documentation report. Before anything else, establish this seven-slot tracker. Work down the
-candidate task-tracking tools in order — `TodoWrite`, then `TaskCreate`/`TaskUpdate`, then
-`update_plan` — picking only from candidates the runner lists as currently exposed, and moving to
-the next candidate whenever the one you tried is unavailable. When you cannot establish which tools
-are visible, try the candidates in that same order instead and treat a returned failure as the
-failure arm below. When no candidate appears in the visible tool list, first re-read any listing
-the runner already supplied of tools it has not yet exposed; failing that, look for a discovery
-mechanism the runner itself advertises — a listed tool whose stated purpose is to find and load
-tools the runner has not yet exposed — and use it to search for the candidates above, never as a
-candidate itself, before concluding that no task tool is available. When a candidate call is made
-and the runner returns a failure to the run as a result, record a breadcrumb naming that failure
-and carry on to the next rung — the same degrade-and-continue arm the *Reference routing* rules
-below already define for a failed load, so no rung of this ladder ends the run. Once every
-candidate is exhausted, use the inline fallback in
+not a documentation report. Before anything else, establish this seven-slot tracker.
+
+**Establish it by working down these rungs in order.** Pick only from candidates the runner lists
+as currently exposed — `TodoWrite` first, then `TaskCreate`/`TaskUpdate`, then `update_plan` — and
+move to the next candidate whenever the one you tried is unavailable. When you cannot establish
+which tools are visible, try the candidates in that same order instead and treat a returned failure
+as the failure rung below. When no candidate appears in the visible tool list, first re-read any
+listing the runner already supplied of tools it has not yet exposed; failing that, look for a
+discovery mechanism the runner itself advertises — a listed tool whose stated purpose is to find
+and load tools the runner has not yet exposed — and use it to search for the candidates above,
+never as a candidate itself, before concluding that no task tool is available. When any call you
+make while walking these rungs returns a failure to the run — a candidate's or the discovery
+mechanism's — record a breadcrumb naming that failure and carry on to the next rung, the same
+degrade-and-continue arm the *Reference routing* rules below already define for a failed load, so
+no rung ends the run. Once every candidate is exhausted, use the inline fallback in
 `references/fallback-no-task-tool.md`, loaded per the *Reference routing* rules below — the route
 this skill takes
-when the runner exposes no task-tracking tool or the exposed one is disabled or unusable:
+when the runner exposes no task-tracking tool or the exposed one is disabled or unusable.
+
+The seven slots:
 
 - [ ] 1. Run Step 1's selected arm and write its evidence artifact
 - [ ] 2. Clarify the user story until the Definition of Ready is met (Step 2)
@@ -43,13 +46,16 @@ successful creation: it is the post-creation hand-off, not a gate on creating th
 
 ## Announcement
 
-Emit the announcement only once a tracker is established, and emit it as the run's first line of output
-on every path — it names this skill and confirms the seven tracked slots exist, for example:
-"Running /prflow:create-issue; the seven-slot completion tracker is set up." On the inline-fallback
-path the tracker counts as established once the run has settled on that fallback, and the rendered
-checklist block follows the announcement line rather than preceding it. Report a breadcrumb about a
-failed candidate immediately after that first line, never before it. That makes an omitted
-checklist visible in the first line of output rather than inferable from its later absence.
+Emit the announcement only once a tracker is established, and emit it as the run's first line of
+output on every path, save for a load-failure breadcrumb the *Reference routing* rules require at
+the moment the load fails — it names this skill and confirms the seven tracked slots exist, for
+example: "Running /prflow:create-issue; the seven-slot completion tracker is set up." On the
+inline-fallback path the tracker counts as established once the run has settled on that fallback;
+name that fallback and the reason you reached it on the line after the announcement, then render
+the checklist block, which follows the announcement line rather than preceding it. Report a
+breadcrumb about a failed candidate immediately after that first line, never before it. That makes
+an omitted checklist visible in the first line of output rather than inferable from its later
+absence.
 
 ## Iron Law
 
