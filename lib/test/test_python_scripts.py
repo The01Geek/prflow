@@ -28246,7 +28246,7 @@ assert_eq("#1675: the real persisted boundary path then offers the election with
           "targeted-return-unusable reason",
           (0, True),
           (_1675_boundary_exhausted.returncode,
-           't2=yes reason=targeted-return-unusable' in _1675_boundary_exhausted.stdout))
+           't2=hold reason=targeted-return-unusable' in _1675_boundary_exhausted.stdout))
 
 # ── AC32 limb one: a targeted round NEVER grounds the clean scan ──────────────────────
 # The guard is a `continue` in evaluate_eligibility's reverse scan. Without it a clean
