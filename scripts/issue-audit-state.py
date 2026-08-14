@@ -2425,7 +2425,12 @@ def _validate(doc, slug):
 
 
 def validate_state_document(doc, slug):
-    """Validate an in-memory state document through the complete owner boundary."""
+    """Validate an in-memory state document through the complete owner boundary.
+
+    Raises StateError on every untrustworthy shape. Returns the SAME object it was
+    handed, not a copy — a caller that must not alias the validated document copies
+    it itself.
+    """
     return _validate(doc, slug)
 
 

@@ -10,9 +10,10 @@ transcript directory and measures the *runtime main-thread context* a
 shipped word count of the skill files.
 
 The module also owns the paired A/B evaluation surface built on those measurements:
-deterministic rubric grading (`grade_issue`), the fail-closed paired quality gate that
-withholds efficiency credit (`quality_gate`), and the explicit-manifest evaluation
-engine (`load_eval_manifest`, `build_manifest_report`).
+deterministic rubric grading (`grade_issue`), the fail-closed paired quality gate whose
+result gates efficiency credit in `create_issue_benchmark` (`quality_gate`), and the
+explicit-manifest evaluation engine (`load_eval_manifest`, `build_manifest_report`).
+Nothing in this module withholds credit itself — `aggregate_benchmark` does.
 
 Issue #889 extends the instrument to attribute the **Step 3.6 audit round** cost
 that #793 introduced. That cost is spent by the auditor **subagent**, whose turns
@@ -156,6 +157,10 @@ BUCKET_400K = 400_000
 # supply the operand it needs. It is NEVER a number and NEVER 0 — an unestablished
 # measurement collapsed onto a real value is the bug the whole axis guards against.
 UNESTABLISHED = "unestablished"
+# Every stderr breadcrumb this module writes carries one prefix: the module is
+# reachable under two script names, and a second literal makes an operator
+# grepping by prefix miss a whole degradation class.
+BREADCRUMB_PREFIX = "create-issue-context-eval"
 MANIFEST_SCHEMA_VERSION = 1
 REPORT_SCHEMA_VERSION = 1
 BOUNDARY_CONFIDENCE = ("exact", "approximate", "unknown")
@@ -434,7 +439,7 @@ def _impact_counts(state, record_class):
     return counts
 
 
-def audit_outcomes(validated_state, current_digest=None):
+def audit_outcomes(validated_state, current_digest=None, digest_failed=False):
     """Derive audit semantics only after the state owner's complete validation."""
     if not isinstance(validated_state, dict):
         return _unestablished_audit("state-unavailable")
@@ -504,7 +509,9 @@ def audit_outcomes(validated_state, current_digest=None):
             for entry in ((coverage_round or {}).get("coverage") or [])
         },
     }
-    final_byte = owner.evaluate_final_byte_coverage(state, current_digest)
+    final_byte = owner.evaluate_final_byte_coverage(
+        state, current_digest, digest_failed
+    )
     projected = {
         rnd["round"]: {
             "kind": rnd.get("kind", _ABSENT_KIND_DEFAULT),
@@ -1102,7 +1109,7 @@ def eval_corpus(corpus_root, large_block_chars=LARGE_BLOCK_MIN_CHARS):
                     continue
                 try:
                     record = json.loads(line)
-                # Do not narrow, here or at the two sibling decode sites: on the
+                # Do not narrow, here or at the sibling decode sites: on the
                 # recursive-decoder Pythons in the supported range (< 3.14) a
                 # deeply-nested document raises `RecursionError`, a `RuntimeError`.
                 except Exception:  # noqa: BLE001 - skip the record, never detonate
@@ -1798,7 +1805,13 @@ def _validate_manifest_event(record, run_id, event_index):
             )
 
 
-def _json_artifact(path, label="artifact"):
+def _json_artifact(path, label="artifact", consequence="the caller degrades it"):
+    """Read a JSON artifact, returning None on any read/decode failure.
+
+    The caller supplies `consequence` because the call sites diverge: an unusable
+    state file degrades its figures, while an unusable rubric refuses the whole
+    report. A single hardcoded clause would be false at one of them.
+    """
     try:
         with open(path, "r", encoding="utf-8") as handle:
             return json.load(handle)
@@ -1808,13 +1821,20 @@ def _json_artifact(path, label="artifact"):
     # controls such as KeyboardInterrupt and SystemExit.
     except Exception as exc:  # noqa: BLE001 - malformed explicit artifacts fail closed
         sys.stderr.write(
-            "create-issue-eval: {} not usable ({}: {}); "
-            "every figure it feeds reads unestablished\n".format(label, path, exc)
+            "{}: {} not usable ({}: {}); {}\n".format(
+                BREADCRUMB_PREFIX, label, path, exc, consequence
+            )
         )
         return None
 
 
 def _current_draft_digest(path, state):
+    """Return (digest, digest_failed).
+
+    `digest_failed` distinguishes an unreadable draft from a state that recorded no
+    digest format; the owner reports those as different reasons, so collapsing them
+    onto a bare None mislabels an undigestible draft as no-digest-supplied.
+    """
     digests = [
         attempt.get("digest")
         for rnd in (state.get("rounds", []) if isinstance(state, dict) else [])
@@ -1830,14 +1850,20 @@ def _current_draft_digest(path, state):
             algorithm = "sha256"
             break
     if algorithm is None:
-        return None
+        return None, False
     try:
         with open(path, "rb") as handle:
             data = handle.read()
-    except OSError:
-        return None
+    except OSError as exc:
+        sys.stderr.write(
+            "{}: final draft not digestible ({}: {}); "
+            "final-byte coverage reads draft-undigestible\n".format(
+                BREADCRUMB_PREFIX, path, exc
+            )
+        )
+        return None, True
     header = "blob {}\0".format(len(data)).encode("ascii")
-    return hashlib.new(algorithm, header + data).hexdigest()
+    return hashlib.new(algorithm, header + data).hexdigest(), False
 
 
 def _unestablished_grade(diagnostic):
@@ -1917,13 +1943,19 @@ def _observe_manifest_run(run, large_block_chars):
         "final": run["checkpoints"]["final"],
     }
     result["draft_metrics"] = measure_checkpoints(run)
-    state_document = _json_artifact(run["state_file"], "state file")
+    state_document = _json_artifact(
+        run["state_file"], "state file", "every figure it feeds reads unestablished"
+    )
+    current_digest, digest_failed = _current_draft_digest(
+        run["checkpoints"]["final"], state_document
+    )
     result["audit_outcomes"] = audit_outcomes(
-        state_document,
-        _current_draft_digest(run["checkpoints"]["final"], state_document),
+        state_document, current_digest, digest_failed
     )
     if "rubric" in run:
-        rubric = _json_artifact(run["rubric"], "rubric")
+        rubric = _json_artifact(
+            run["rubric"], "rubric", "the manifest report is refused"
+        )
         if rubric is None:
             _manifest_error("invalid_rubric", run["run_id"])
         final_text = _read_explicit_text(run["checkpoints"]["final"], "final")

@@ -47943,8 +47943,8 @@ CICE_TEST_RC=$?
 assert_eq "issue #767: create-issue context eval focused tests pass" "0" "$CICE_TEST_RC"
 [ "$CICE_TEST_RC" -eq 0 ] || while IFS= read -r _cice_line || [ -n "$_cice_line" ]; do printf '    %s\n' "$_cice_line"; done <<< "$CICE_TEST_OUT"
 
-# The provider-neutral create-issue A/B runner has a serial focused test because its
-# local provider stubs create matched subprocess artifacts that must not share a pool.
+# Do not move this into the Python pool: it launches matched local provider
+# subprocesses per test, so it runs serially on the main shell.
 CIB_TEST_OUT="$(python3 "$LIB/test/test_create_issue_benchmark.py" 2>&1)"
 CIB_TEST_RC=$?
 assert_eq "create-issue benchmark focused tests pass" "0" "$CIB_TEST_RC"

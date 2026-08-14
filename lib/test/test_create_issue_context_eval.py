@@ -101,7 +101,21 @@ class SecretDetectorTest(unittest.TestCase):
     def test_added_files_are_clean(self):
         # The clean scan covers the eval, the determination doc, and every fixture,
         # excluding the positive-control file by name.
-        targets = [_EVAL_PATH, os.path.join(_REPO, "docs", "create-issue-context.md")]
+        # Name every module that carries eval/benchmark source: scanning only the
+        # hyphenated shim would leave the relocated implementation unscanned.
+        targets = [
+            _EVAL_PATH,
+            _MODULAR_EVAL_PATH,
+            os.path.join(_REPO, "scripts", "create_issue_benchmark.py"),
+            os.path.join(_REPO, "scripts", "create-issue-benchmark.py"),
+            os.path.join(_REPO, "docs", "internal", "create-issue-context.md"),
+        ]
+        for required in targets:
+            # A silently-skipped absent target is how this scan shrank to a shim.
+            self.assertTrue(
+                os.path.exists(required),
+                "secret-scan target does not exist: {}".format(required),
+            )
         for dirpath, _dirs, files in os.walk(_FIX):  # tree-walk-ok: rooted at the fixed committed create-issue-eval fixtures subdir, not the repo root — never descends into sibling worktrees
             for f in sorted(files):
                 if f == "planted-owner-id.txt":
@@ -1715,6 +1729,29 @@ class ManifestIngestionTest(unittest.TestCase):
         self.assertEqual(report["comparison"]["status"], "established")
         self.assertIsNone(report["comparison"]["diagnostic"])
 
+    def test_a_state_file_missing_a_dispatched_round_degrades_that_runs_kinds(self):
+        """Delete this guard and a mismatched state ships confidently-wrong kinds."""
+        def add_undispatched_round(doc, root):
+            # The state records a round the transcript never dispatched, so the two
+            # round sets disagree. Without the guard round 1 still resolves to its
+            # recorded kind — a confident answer from a state that does not match
+            # this run — which is exactly what the degradation must replace.
+            state_path = os.path.join(root, doc["runs"][0]["state_file"])
+            with open(state_path, encoding="utf-8") as fh:
+                state = json.load(fh)
+            extra = json.loads(json.dumps(state["rounds"][0]))
+            extra["round"] = 2
+            state["rounds"].append(extra)
+            with open(state_path, "w", encoding="utf-8") as fh:
+                json.dump(state, fh)
+
+        path, _root = self._mutate_copied_manifest(add_undispatched_round)
+        report = self._api("build_manifest_report")(path)
+        self.assertEqual(report["runs"][0]["round_kinds"], {1: CICE.UNESTABLISHED})
+        # Positive control: the untouched sibling run still resolves its real kind,
+        # so the degradation is scoped to the run whose state actually mismatched.
+        self.assertEqual(report["runs"][1]["round_kinds"], {1: "targeted"})
+
     def test_manifest_mode_adds_explicit_draft_audit_and_grade_artifacts(self):
         report = self._api("build_manifest_report")(self.manifest_path)
         for run in report["runs"]:
@@ -2116,7 +2153,10 @@ class ManifestIngestionTest(unittest.TestCase):
         with open(outside, "w", encoding="utf-8") as fh:
             fh.write("{}\n")
         link = os.path.join(root, "runs", "shared", "escaped.jsonl")
-        os.symlink(outside, link)
+        try:
+            os.symlink(outside, link)
+        except (OSError, NotImplementedError):
+            self.skipTest("symlinks unavailable on this host")
         with open(path, encoding="utf-8") as fh:
             doc = json.load(fh)
         doc["runs"][0]["transcript"] = "runs/shared/escaped.jsonl"
@@ -2207,12 +2247,31 @@ class DraftCheckpointMetricsTest(unittest.TestCase):
                 {"attempts": [{"digest": "a" * 40}]},
                 {"attempts": [{"digest": "b" * 64}]},
             ]}
-            measured = self._api("_current_draft_digest")(path, state)
+            measured, digest_failed = self._api("_current_draft_digest")(path, state)
 
         expected = hashlib.sha256(
             b"blob " + str(len(data)).encode("ascii") + b"\0" + data
         ).hexdigest()
         self.assertEqual(measured, expected)
+        self.assertFalse(digest_failed)
+
+    def test_an_unreadable_final_draft_is_undigestible_not_no_digest_supplied(self):
+        """The owner reports two different reasons; a bare None collapses them."""
+        with tempfile.TemporaryDirectory() as root:
+            missing = os.path.join(root, "absent.md")
+            state = {"rounds": [{"attempts": [{"digest": "a" * 40}]}]}
+            digest, digest_failed = self._api("_current_draft_digest")(missing, state)
+        self.assertIsNone(digest)
+        self.assertTrue(digest_failed)
+
+    def test_a_state_recording_no_digest_format_is_not_a_read_failure(self):
+        with tempfile.TemporaryDirectory() as root:
+            path = os.path.join(root, "draft.md")
+            with open(path, "wb") as fh:
+                fh.write(b"draft bytes\n")
+            digest, digest_failed = self._api("_current_draft_digest")(path, {})
+        self.assertIsNone(digest)
+        self.assertFalse(digest_failed)
 
 
 class ValidatedAuditOutcomesTest(unittest.TestCase):

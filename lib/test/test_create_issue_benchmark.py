@@ -132,6 +132,8 @@ class RunnerTest(unittest.TestCase):
             output = root / "result with spaces"
             write_json(spec_path, benchmark_spec(repetitions=2))
             ticks = iter(range(0, 16_000_000, 1_000_000))
+            # Parent-process only: the provider is a separate interpreter, so this
+            # covers the runner's own code, never the stub's network behaviour.
             with unittest.mock.patch.object(
                 socket, "create_connection", side_effect=AssertionError("network used")
             ):
@@ -174,6 +176,9 @@ class RunnerTest(unittest.TestCase):
                 self.assertEqual(
                     "provider stderr\n", (output / execution["stderr"]).read_text()
                 )
+            # The provider runs with cwd=spec["root"], so a shell-interpreted argv
+            # would land the file THERE; asserting against Path.cwd() cannot fail.
+            self.assertFalse((FIXTURE / "should-not-exist").exists())
             self.assertFalse((Path.cwd() / "should-not-exist").exists())
             for name in ("run-manifest.json", "benchmark.json", "benchmark.md", "review.json"):
                 self.assertTrue((output / name).is_file(), name)
@@ -308,7 +313,8 @@ class AggregationTest(unittest.TestCase):
             "high_variance:paired_delta:finding_count", clean["disclosures"]
         )
         # A mirrored second pair makes the finding_count deltas [+4, -4]: mean exactly 0
-        # with a non-zero deviation, the only population that reaches the mean == 0 arm.
+        # with a non-zero deviation, so aggregate_benchmark reaches describe()'s
+        # zero-mean arm end to end and discloses high variance.
         for run in list(fixture["runs"]):
             mirrored = json.loads(json.dumps(run))
             mirrored["run_id"] = run["run_id"] + "-mirror"
@@ -323,6 +329,53 @@ class AggregationTest(unittest.TestCase):
         self.assertEqual(summary["mean"], 0.0)
         self.assertEqual(summary["coefficient_of_variation"], BENCHMARK.UNESTABLISHED)
         self.assertIn("high_variance:paired_delta:finding_count", report["disclosures"])
+
+    def test_executions_not_covering_every_run_withholds_credit(self):
+        """Absent execution evidence must not read as "every run succeeded"."""
+        fixture = json.loads(
+            (FIXTURE / "historical-4-to-8.json").read_text(encoding="utf-8")
+        )
+        complete = fixture["executions"]
+        for label, executions in (
+            ("absent", []),
+            ("short", complete[:1]),
+            ("unrelated", [{"run_id": "no-such-run", "status": "succeeded"}]),
+        ):
+            with self.subTest(executions=label):
+                report = BENCHMARK.aggregate_benchmark(fixture, executions)
+                self.assertEqual(report["status"], BENCHMARK.UNESTABLISHED)
+                self.assertEqual(report["diagnostic"], "incomplete_pairs")
+                self.assertEqual(report["efficiency"]["status"], "withheld")
+        # Positive control: the same fixture with its own complete executions is
+        # graded, so the matrix above cannot pass by refusing every input.
+        graded = BENCHMARK.aggregate_benchmark(fixture, complete)
+        self.assertNotEqual(graded["diagnostic"], "incomplete_pairs")
+
+    def test_a_wrong_typed_executions_field_is_refused_not_raised(self):
+        """A non-list/non-object executions field takes the module's error exit."""
+        fixture = json.loads(
+            (FIXTURE / "historical-4-to-8.json").read_text(encoding="utf-8")
+        )
+        for label, executions in (
+            ("string", "oops"),
+            ("mapping", {"a": {"run_id": "x", "status": "succeeded"}}),
+            ("scalar-members", ["oops", 3, None]),
+        ):
+            with self.subTest(executions=label):
+                report = BENCHMARK.aggregate_benchmark(fixture, executions)
+                self.assertEqual(report["status"], BENCHMARK.UNESTABLISHED)
+                self.assertEqual(report["diagnostic"], "incomplete_pairs")
+
+    def test_a_wrong_typed_executions_field_exits_two_through_the_cli(self):
+        fixture = json.loads(
+            (FIXTURE / "historical-4-to-8.json").read_text(encoding="utf-8")
+        )
+        fixture["executions"] = "oops"
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = Path(tmp) / "manifest.json"
+            manifest.write_text(json.dumps(fixture), encoding="utf-8")
+            code = BENCHMARK.main(["report", "--manifest", str(manifest)])
+        self.assertEqual(code, 2)
 
     def test_historical_four_to_eight_findings_withholds_reduced_token_credit(self):
         fixture = json.loads(

@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-"""Provider-neutral controlled A/B runner for create-issue evaluation."""
+"""Provider-neutral controlled A/B runner for create-issue evaluation.
+
+The spec file is effectively an execution manifest: it names an argv this module
+launches, and only `PRFLOW_BENCHMARK_*` is scrubbed from the inherited environment.
+Run it on maintainer-authored specs only.
+"""
 
 from __future__ import annotations
 
@@ -110,11 +115,19 @@ def load_benchmark_spec(path):
         if (not isinstance(argv, list) or not argv
                 or not all(isinstance(value, str) and value for value in argv)):
             _error("invalid_argv", name)
+        timeout_seconds = item.get("timeout_seconds")
+        if timeout_seconds is not None and (
+            not isinstance(timeout_seconds, (int, float))
+            or isinstance(timeout_seconds, bool)
+            or timeout_seconds <= 0
+        ):
+            _error("invalid_timeout_seconds", name)
         normalized_configurations[name] = {
             "skill_root": str(_contained(
                 root, item.get("skill_root"), "{}.skill_root".format(name), directory=True
             )),
             "argv": list(argv),
+            "timeout_seconds": timeout_seconds,
         }
 
     scenarios = source.get("scenarios")
@@ -199,6 +212,10 @@ def run_benchmark(spec_path, output_dir, monotonic_ns=time.monotonic_ns):
                 ) / configuration
                 assigned = output / relative_dir
                 assigned.mkdir(parents=True, exist_ok=True)
+                # Re-running into a populated --output would otherwise let a provider
+                # that writes no manifest inherit the previous run's, which passes the
+                # identity check by construction and is recorded as succeeded.
+                (assigned / "run-manifest.json").unlink(missing_ok=True)
                 rubric_path = assigned / "rubric.json"
                 shutil.copyfile(scenario["rubric"], rubric_path)
                 stdout_path = relative_dir / "stdout.txt"
@@ -227,6 +244,10 @@ def run_benchmark(spec_path, output_dir, monotonic_ns=time.monotonic_ns):
                     "stderr": str(stderr_path),
                     "exit_code": None,
                     "error": None,
+                    # main() indexes status unguarded; a future early-continue in
+                    # this loop would otherwise raise KeyError past its exit-2 arm.
+                    "status": "pending",
+                    "duration_ms": None,
                 }
                 started = monotonic_ns()
                 try:
@@ -240,8 +261,17 @@ def run_benchmark(spec_path, output_dir, monotonic_ns=time.monotonic_ns):
                             stderr=stderr_handle,
                             shell=False,
                             check=False,
+                            timeout=config.get("timeout_seconds"),
                         )
                     execution["exit_code"] = completed.returncode
+                except subprocess.TimeoutExpired as exc:
+                    # TimeoutExpired is not an OSError, so it would otherwise escape
+                    # main()'s (OSError, ValueError) arm as an uncaught traceback.
+                    completed = None
+                    _record_error(
+                        output, execution,
+                        "provider_timeout: {}s".format(exc.timeout),
+                    )
                 except OSError as exc:
                     completed = None
                     _record_error(output, execution, "provider_launch_error: {}".format(exc))
@@ -284,7 +314,12 @@ def run_benchmark(spec_path, output_dir, monotonic_ns=time.monotonic_ns):
 
 
 def describe(values):
-    """Describe a numeric population with population standard deviation."""
+    """Describe a numeric population with population standard deviation.
+
+    `status: "established"` does not mean every field is numeric: on a zero mean with
+    a non-zero deviation `coefficient_of_variation` is the UNESTABLISHED string, so a
+    consumer must check that field before doing arithmetic on it.
+    """
     if (not isinstance(values, list) or not values
             or any(not isinstance(value, (int, float)) or isinstance(value, bool)
                    or not math.isfinite(value) for value in values)):
@@ -324,10 +359,15 @@ METRICS = (
 )
 
 
-def _metric(run, execution, extractor):
+def _metric(run, execution, extractor, name=None, unextractable=None):
     try:
         value = extractor(run, execution)
-    except (KeyError, TypeError, ValueError):
+    except (KeyError, TypeError, ValueError) as exc:
+        # An extractor that cannot reach its key means the eval-report contract
+        # broke; without this record the report reads as an honest "measured
+        # nothing" rather than a schema break.
+        if unextractable is not None and name is not None:
+            unextractable.setdefault(name, "{}: {}".format(type(exc).__name__, exc))
         return UNESTABLISHED
     if not isinstance(value, (int, float)) or isinstance(value, bool) or not math.isfinite(value):
         return UNESTABLISHED
@@ -336,9 +376,15 @@ def _metric(run, execution, extractor):
 
 def aggregate_benchmark(evaluation, executions):
     """Aggregate exact pairs from an evaluator report, with quality before efficiency."""
+    # `executions` is the only evidence that the runs were actually produced, so a
+    # non-list or non-object member is absent evidence, never a succeeded run.
+    execution_items = [
+        item for item in (executions if isinstance(executions, list) else [])
+        if isinstance(item, dict)
+    ]
     execution_by_run = {
-        item["run_id"]: item for item in executions
-        if isinstance(item, dict) and isinstance(item.get("run_id"), str)
+        item["run_id"]: item for item in execution_items
+        if isinstance(item.get("run_id"), str)
     }
     runs = evaluation.get("runs", [])
     grouped = {}
@@ -348,8 +394,15 @@ def aggregate_benchmark(evaluation, executions):
         ] = run
     comparison = evaluation.get("comparison", {})
     diagnostic = comparison.get("diagnostic")
-    failed_execution = any(item.get("status") != "succeeded" for item in executions)
-    if failed_execution or diagnostic in (
+    failed_execution = any(
+        item.get("status") != "succeeded" for item in execution_items
+    )
+    # `any` over an empty population is False, so the failed-execution test alone
+    # credits a run set carrying no execution evidence at all: require coverage too.
+    uncovered_run = any(
+        run.get("run_id") not in execution_by_run for run in runs
+    )
+    if failed_execution or uncovered_run or diagnostic in (
         "unpaired_runs", "no_pairable_configurations", "duplicate_pair_member"
     ):
         status = UNESTABLISHED
@@ -362,6 +415,7 @@ def aggregate_benchmark(evaluation, executions):
         diagnostic = None
 
     pairs = []
+    unextractable = {}
     for scenario_repetition in sorted(grouped):
         members = grouped[scenario_repetition]
         if set(members) != set(CONFIGURATIONS):
@@ -374,8 +428,16 @@ def aggregate_benchmark(evaluation, executions):
         delta = {}
         values = {"baseline": {}, "candidate": {}}
         for name, extractor in METRICS:
-            before = _metric(baseline, baseline_execution, extractor)
-            after = _metric(candidate, candidate_execution, extractor)
+            # An absent execution record is already reported as incomplete_pairs, so
+            # only a key missing from a PRESENT record evidences a schema break.
+            before = _metric(
+                baseline, baseline_execution, extractor, name,
+                unextractable if baseline_execution else None,
+            )
+            after = _metric(
+                candidate, candidate_execution, extractor, name,
+                unextractable if candidate_execution else None,
+            )
             values["baseline"][name] = before
             values["candidate"][name] = after
             delta[name] = (
@@ -439,6 +501,13 @@ def aggregate_benchmark(evaluation, executions):
         for metric, summary in paired_deltas.items():
             if isinstance(summary, dict) and summary["high_variance"]:
                 disclosures.append("high_variance:paired_delta:{}".format(metric))
+    for metric in sorted(unextractable):
+        sys.stderr.write(
+            "create-issue-benchmark: metric {} unextractable ({})\n".format(
+                metric, unextractable[metric]
+            )
+        )
+        disclosures.append("metric_unextractable:{}".format(metric))
     return {
         "schema_version": SCHEMA_VERSION,
         "benchmark_id": evaluation.get("benchmark_id"),
@@ -453,12 +522,23 @@ def aggregate_benchmark(evaluation, executions):
     }
 
 
-def build_benchmark_report(manifest_path):
+def _evaluate_manifest(manifest_path):
+    """Read a benchmark manifest and return (evaluation, report).
+
+    Single-sourced so `build_benchmark_report` and `write_benchmark_outputs` cannot
+    drift in their manifest-shape guards or their empty-runs fallback.
+    """
     manifest = _read_json(manifest_path, "invalid_manifest")
-    # `_read_json` converts only JSON PARSE errors; a valid non-object top level would
-    # reach `.get` as an AttributeError instead of this module's contracted exit 2.
+    # A valid non-object top level would reach `.get` as an AttributeError instead of
+    # this module's contracted exit 2.
     if not isinstance(manifest, dict):
         _error("invalid_manifest", "top level is not an object")
+    executions = manifest.get("executions", [])
+    # Refuse a wrong-typed executions field here rather than letting it reach
+    # `aggregate_benchmark`, whose defensive normalization would silently report
+    # every metric unestablished instead of naming the malformed manifest.
+    if not isinstance(executions, list):
+        _error("invalid_manifest", "executions is not a list")
     if manifest.get("runs"):
         evaluation = _EVAL.build_manifest_report(str(manifest_path))
     else:
@@ -467,7 +547,11 @@ def build_benchmark_report(manifest_path):
             "runs": [],
             "comparison": {"status": UNESTABLISHED, "diagnostic": "unpaired_runs"},
         }
-    return aggregate_benchmark(evaluation, manifest.get("executions", []))
+    return evaluation, aggregate_benchmark(evaluation, executions)
+
+
+def build_benchmark_report(manifest_path):
+    return _evaluate_manifest(manifest_path)[1]
 
 
 def render_text(report):
@@ -538,18 +622,7 @@ def _review_workspace(manifest_path, evaluation):
 
 def write_benchmark_outputs(manifest_path):
     manifest_path = Path(manifest_path).resolve()
-    manifest = _read_json(manifest_path, "invalid_manifest")
-    if not isinstance(manifest, dict):
-        _error("invalid_manifest", "top level is not an object")
-    if manifest.get("runs"):
-        evaluation = _EVAL.build_manifest_report(str(manifest_path))
-    else:
-        evaluation = {
-            "benchmark_id": manifest.get("benchmark_id"),
-            "runs": [],
-            "comparison": {"status": UNESTABLISHED, "diagnostic": "unpaired_runs"},
-        }
-    report = aggregate_benchmark(evaluation, manifest.get("executions", []))
+    evaluation, report = _evaluate_manifest(manifest_path)
     output = manifest_path.parent
     _write_json(output / "benchmark.json", report)
     (output / "benchmark.md").write_text(render_text(report) + "\n", encoding="utf-8")

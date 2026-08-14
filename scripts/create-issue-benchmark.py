@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-"""Compatibility entry point for :mod:`create_issue_benchmark`."""
+"""Hyphenated CLI spelling for :mod:`create_issue_benchmark`."""
 
 import importlib.util
 import os
