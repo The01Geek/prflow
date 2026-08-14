@@ -238,7 +238,7 @@ The body is posted to GitHub, which turns `#`-number into a link. Never put a ba
 
 Create the issue **directly**, sourcing the body from the **single presentation source** — the same bytes the user approved. Which source depends on the epoch's arm:
 
-**Consume the self-assignment answer.** Step 4 sub-step 5 obtains the user's answer to *"Assign this issue to you?"* before any creation command runs. Substitute `<assignee-args>` into the `gh issue create` call on **both** arms below: on an explicit **yes** it is the token pair `--assignee "@me"` (in the same create call, no post-create edit); on an explicit **no** it is **empty**, preserving unassigned creation byte-for-byte. Never invoke a creation command before that answer is an explicit yes or no — silence or any non-yes/non-no reply pauses and re-asks (Step 4 sub-step 5).
+**Consume the self-assignment answer.** Step 4 sub-step 3c obtains the user's answer to *"Assign this issue to you?"* — asked in the same pause as the approval question — before any creation command runs. Substitute `<assignee-args>` into the `gh issue create` call on **both** arms below: on an explicit **yes** it is the token pair `--assignee "@me"` (in the same create call, no post-create edit); on an explicit **no** it is **empty**, preserving unassigned creation byte-for-byte. Never invoke a creation command before that answer is an explicit yes or no — silence or any non-yes/non-no reply pauses and re-asks (Step 4 sub-step 3c).
 
 **On a file-arm epoch**, the body comes from the gated canonical file, via the state owner's gated `emit-body` emitter (neither a query nor a mutation: unlike a query it does not always exit 0 — it refuses with a non-zero exit and empty stdout). **Do not pipe it into `gh`**:
 
