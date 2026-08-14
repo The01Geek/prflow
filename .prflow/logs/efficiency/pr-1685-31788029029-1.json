@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1685",
+  "generated_at": "2026-08-14T09:34:32Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.75",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 5.097780500000001,
+    "tokens": {
+      "input_tokens": 49,
+      "output_tokens": 18754,
+      "cache_read_input_tokens": 3529042,
+      "cache_creation_input_tokens": 151309,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 85,
+        "outputTokens": 26780,
+        "cacheReadInputTokens": 4754631,
+        "cacheCreationInputTokens": 237301,
+        "webSearchRequests": 0,
+        "costUSD": 5.097780500000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 31,
+    "duration_ms": 424317
+  },
+  "permission_denials": {
+    "count": 5,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---RUNENV---\"; echo \"run_id=${GITHUB_RUN_ID:-none} attempt=${GITHUB_RUN_ATTEMPT:-none}\"; echo \"---PRVIEW---\"; gh pr view 1685 --json headRefName,baseRefName,baseRefOid,headRefOid,body,closingIssuesReferences --jq '{head:.headRefName,base:.baseRefName,baseOid:.baseRefOid,headOid:.headRefOid,closes:.closingIssuesReferences}'",
+      "for f in phase-1-setup phase-2-implement phase-3-ac-gate phase-4-documentation phase-2-sweeps-contract; do echo \"=== $f ===\"; git show f36215ad:skills/implement/phases/$f.md 2>&1 | grep -nE '^#|§|Documentation-AC|post-merge|Test-first gate' | head -40; done",
+      "for f in issue-template step-3-5-steelman; do echo \"=== $f ===\"; git show f36215ad:skills/create-issue/references/$f.md 2>&1 | grep -niE 'every ac|maps to|orphan|named assertion|mirror' | head -20; done",
+      "for f in step-3-6-audit audit-prompt-template; do echo \"=== $f ===\"; git show f36215ad:skills/create-issue/references/$f.md 2>&1 | grep -niE 'every ac|maps to|named assertion|testing strategy.*assert|orphan' | head; done",
+      "for f in skills/create-issue/references/issue-template.md skills/implement/phases/phase-2-sweeps-contract.md; do echo -n \"$f: \"; git show f36215ad:$f 2>/dev/null | wc -c; done"
+    ],
+    "total": 5,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
