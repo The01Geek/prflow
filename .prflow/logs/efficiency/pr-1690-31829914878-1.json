@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1690",
+  "generated_at": "2026-08-14T18:51:02Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.77",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 4.60149625,
+    "tokens": {
+      "input_tokens": 348,
+      "output_tokens": 24308,
+      "cache_read_input_tokens": 2960044,
+      "cache_creation_input_tokens": 173051,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 368,
+        "outputTokens": 29860,
+        "cacheReadInputTokens": 3477730,
+        "cacheCreationInputTokens": 234456,
+        "webSearchRequests": 0,
+        "costUSD": 4.60149625,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 24,
+    "duration_ms": 422373
+  },
+  "permission_denials": {
+    "count": 3,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "gh pr diff 1690 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' > .prflow/tmp/review/pr-1690/local-run/diff.patch\necho \"=== FILES ===\"\ngrep -E '^diff --git' .prflow/tmp/review/pr-1690/local-run/diff.patch | sed -E 's#^diff --git a/(.*) b/.*#\\1#'\necho \"=== LINE COUNT ===\"\nwc -l .prflow/tmp/review/pr-1690/local-run/diff.patch",
+      "cd /home/runner/work/prflow/prflow; for f in skills/create-issue/references/audit-prompt-template.md skills/create-issue/references/step-3-6-audit.md docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md; do echo \"== $f ==\"; git show ebc3926443c4ed3bb474af0bfe0d9d00a98fa300:$f | grep -niE \"after the (finding|hunt)|post-hunt|keeps precedence|emitted after\" || echo \"(none)\"; done",
+      "for f in skills/create-issue/references/audit-prompt-template.md skills/create-issue/references/step-3-6-audit.md docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md; do echo \"== $f ==\"; git show ebc3926443c4ed3bb474af0bfe0d9d00a98fa300:\"$f\" | grep -niE \"after the finding|post-hunt|keeps precedence|emitted after|after that hunt\" || echo \"(none)\"; done"
+    ],
+    "total": 3,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
