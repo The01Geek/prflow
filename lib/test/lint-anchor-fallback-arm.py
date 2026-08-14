@@ -72,6 +72,11 @@ ENROLLED: tuple[tuple[str, str], ...] = (
     # enrollment tracks cloud-reachability, which is a policy scope, not a tree fact.
     ("skills/implement/SKILL.md", "load-prompt-extension.sh implement"),
     ("skills/implement/phases/phase-3-review.md", "apply-pr-triggerer.sh <draft-pr-number>"),
+    # Enrolled at issue #1655, which added the Phase 3.1 provenance-line render fence.
+    # The helper is invoked on the cloud implement tier, so an anchor-only spelling
+    # would be refused there; it carries the vendored-literal leading token with the
+    # bare anchor as its fallback arm.
+    ("skills/implement/phases/phase-3-review.md", "render-pr-provenance-line.py"),
     # Enrolled at issue #1374, which put Phase 4.0.5's filing procedure behind this
     # presence predicate. The predicate runs on the cloud implement tier on every run
     # that reaches Phase 4, so an anchor-only spelling would be refused there, route to

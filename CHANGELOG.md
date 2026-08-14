@@ -4,6 +4,49 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.74] — 2026-08-14
+
+### Fixed
+- **Decode PRFlow local text-file inputs explicitly as UTF-8.** `parse-acs.py --body-file`,
+  `workpad.py`'s `_read_section_file` (serving `--replace-plan-file`, `--replace-acs-file`,
+  and `--set-reproduction-file`), and `branch-for-issue.py --title-file` now decode with
+  `encoding="utf-8"` instead of the ambient locale codec, so non-ASCII issue text (punctuation,
+  emoji, non-ASCII identifiers) survives on Windows and a non-ASCII title no longer blocks fresh
+  branch creation. Invalid UTF-8 on each reader now exits non-zero with a flag-specific
+  diagnostic and no traceback (the workpad path makes no GitHub PATCH), and an AST guard blocks
+  new ambient-codec `read_text`/`open` calls in `scripts/*.py`. (#1678)
+
+## [2.32.73] — 2026-08-14
+
+### Fixed
+- **Correct create-issue helper and gate contracts.** Preserve best-effort comment posting on missing arguments, distinguish grep and Acceptance Criteria parser outcomes, and route unusable targeted audit returns through the disclosed boundary election. (#1677)
+
+## [2.32.72] — 2026-08-14
+
+### Changed
+Name the running plugin version, model, and effort in the implement PR provenance line.
+
+A `/prflow:implement` run's draft PR body now carries a provenance line naming the plugin
+build that executed the run — for example `Generated via /prflow:implement (v2.32.70,
+claude-opus-5, high)` — with the model and reasoning effort added when they can be
+established. A new bundled helper `scripts/render-pr-provenance-line.py` renders the line:
+the version from the plugin manifest resolved beside the helper, the effort from
+`CLAUDE_EFFORT`, and the model from the session transcript's most recent assistant record.
+An unestablished value is omitted rather than guessed, so a run with no readable source
+renders the version alone. The new `prflow_implement.publish_model_effort` config key (default
+true) lets a repository suppress the model and effort clause while keeping the version.
+
+## [2.32.71] — 2026-08-14
+
+### Fixed
+- **Protect workpad ticks from MSYS path conversion.** The Phase 3 `/simplify` gate now ticks
+  its Progress row with the host-safe substring `simplify` instead of `/simplify`, so Git Bash
+  and MSYS no longer rewrite the standalone slash-leading argument into a Windows path before
+  native `python3` receives it. The derived live-tick guard is extended to reject every static
+  standalone slash-leading `--tick-progress` operand (quoted and unquoted) and to classify the
+  shell-variable operand forms, and the Windows docs gain the standalone-argument hazard and the
+  host-safe operand rule. (#1680)
+
 ## [2.32.70] — 2026-08-14
 
 ### Fixed

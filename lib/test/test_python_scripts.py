@@ -41,6 +41,7 @@ import inspect
 import io
 import os
 import re
+import shutil
 import sys
 import tempfile
 import textwrap
@@ -2582,40 +2583,245 @@ for _r_text, _r_substr in _review_rows_1657:
 _IMPL_SKILL_DIR = Path(__file__).resolve().parents[2] / 'skills' / 'implement'
 _tick_md = [(_p, _p.read_text(encoding='utf-8'))
             for _p in sorted(_IMPL_SKILL_DIR.rglob('*.md'))]  # tree-walk-ok: anchored to skills/implement/, which cannot reach the sibling checkouts under .claude/worktrees/ a repo-root-anchored walk would descend into
-# Accept both quote styles, so a later site spelled with single quotes is not
-# invisible to this derivation.
-_TICK_RE_1462 = re.compile(r'''--tick-progress\s+(?:"([^"]+)"|'([^']+)')''')
-_live_ticks = sorted({
-    (m.group(1) if m.group(1) is not None else m.group(2))
-    for _p, _txt in _tick_md
-    for m in _TICK_RE_1462.finditer(_txt)
-})
-# Equality, not a floor: every QUOTED-OPERAND `--tick-progress` occurrence in the
-# shipped implement surface must have parsed, so a call site written in a quoting
-# style this regex cannot read fails CLOSED here instead of silently escaping the
-# collision assertions below. The opening-quote probe is what separates a real call
-# site from a prose mention that names the flag without an operand; a site whose
-# operand is a shell variable is outside both counts and is the disclosed residual.
-_tick_quoted = sum(len(re.findall(r'''--tick-progress\s+["']''', _txt))
-                   for _p, _txt in _tick_md)
-_tick_parsed = sum(len(_TICK_RE_1462.findall(_txt)) for _p, _txt in _tick_md)
-assert_eq("#1462 every quoted --tick-progress operand parsed into the live set",
-          _tick_quoted, _tick_parsed)
+# Classify the `--tick-progress` operands under skills/implement/ by shape
+# (issue #1679), so no unsafe STANDALONE-ARGUMENT operand escapes the guard. Git
+# Bash/MSYS rewrites a standalone slash-leading argument to a Windows path before
+# native python3 receives it, so a `/simplify`-style operand ticks nothing and the
+# helper reports a volatile miss. A STATIC literal (quoted OR unquoted) is the tick
+# substring — it must never begin with `/` and must carry no shell metacharacter; a
+# shell-VARIABLE operand is runtime-resolved and exempt from the static checks; a
+# bare flag with no operand is a fail-closed executable command or an ignored
+# prose mention. Scope matches issue #1679: the flag-attached `--tick-progress=…`
+# form and path-list arguments are out of scope (the classifier reads the
+# space-separated operand form the shipped call sites use). See
+# docs/internal/install.md for the host-safe operand rule.
+_TICK_FLAG_1679 = '--tick-progress'
+# The static-literal quote styles, complete by construction (AC2): quoted (either
+# quote character) and unquoted.
+_TICK_STATIC_QUOTES = frozenset({'double', 'single', 'unquoted'})
+# The four shell-variable forms, complete by construction (AC4). The first three
+# are runtime-resolved and exempt from the static checks; a single-quoted `'$X'`
+# suppresses expansion, so it is a STATIC literal run through the ordinary guards.
+_TICK_VAR_FORMS = frozenset({'unquoted-$', 'double-$', 'double-${}', 'single-$'})
+# Derived, not a second literal, so the "single-quoted is the one static form"
+# relationship stays self-maintaining and cannot drift from _TICK_VAR_FORMS.
+_TICK_VAR_RUNTIME = _TICK_VAR_FORMS - frozenset({'single-$'})
+# The three no-simple-token shapes, complete by construction (AC3).
+_TICK_NO_SIMPLE = frozenset({'exec-no-operand', 'prose-mention', 'continuation-split'})
+_TICK_METACHARS_1630 = "&;|$`()<>"
+# A whole operand that is exactly a shell-variable reference: group(1) is the
+# unbraced `$X` form, group(2) the braced `${X}` form.
+_TICK_VAR_RE_1679 = re.compile(r'^\$(?:([A-Za-z_]\w*)|\{([A-Za-z_]\w*)\})$')
+
+
+def _tick_fenced_lines_1679(text):
+    """0-based indices of lines inside a ``` fenced code block — the executable
+    context that tells a real invocation (fail closed on a missing operand) from
+    an inert prose mention (ignored). Reuses stale_prose_lint._fenced_mask, which
+    also handles nested and unclosed fences (fail-open) correctly."""
+    return {_i for _i, _inside
+            in enumerate(stale_prose_lint._fenced_mask(text.split('\n')))
+            if _inside}
+
+
+def _classify_tick_1679(text, after, line_idx, fenced):
+    """Classify the `--tick-progress` occurrence whose char index just past the
+    flag is `after`, on 0-based `line_idx`. Returns a dict: `shape` (one of
+    'static' / 'runtime-var' / 'exec-no-operand' / 'prose-mention'), `quote`,
+    `var_form`, `value`, and `via_continuation` (the AC3 continuation-split
+    shape — a `\\`-newline before the operand). A missing operand is
+    `exec-no-operand` inside a fence, `prose-mention` otherwise."""
+    n, i = len(text), after
+    via_continuation = False
+    while i < n and text[i] in ' \t':
+        i += 1
+    if i + 1 < n and text[i] == '\\' and text[i + 1] == '\n':
+        via_continuation = True
+        i += 2
+        while i < n and text[i] in ' \t':
+            i += 1
+    no_operand = {'shape': 'exec-no-operand' if line_idx in fenced
+                  else 'prose-mention', 'quote': None, 'var_form': None,
+                  'value': None, 'via_continuation': via_continuation}
+    # No operand token: newline / EOF / prose backtick / a following flag.
+    if i >= n or text[i] in '\n`' or text[i:i + 2] == '--':
+        return no_operand
+    ch = text[i]
+    if ch in '"\'':
+        j = text.find(ch, i + 1)
+        if j == -1:  # unterminated quote → treat as a missing operand
+            return no_operand
+        inner = text[i + 1:j]
+        if ch == '"':
+            m = _TICK_VAR_RE_1679.match(inner)
+            if m:
+                return {'shape': 'runtime-var', 'quote': 'double',
+                        'var_form': 'double-${}' if m.group(2) else 'double-$',
+                        'value': None, 'via_continuation': via_continuation}
+            return {'shape': 'static', 'quote': 'double', 'var_form': None,
+                    'value': inner, 'via_continuation': via_continuation}
+        # Single quotes suppress expansion: ALWAYS a static literal, even when the
+        # text is a variable reference (AC4's fourth form).
+        var_form = 'single-$' if _TICK_VAR_RE_1679.match(inner) else None
+        return {'shape': 'static', 'quote': 'single', 'var_form': var_form,
+                'value': inner, 'via_continuation': via_continuation}
+    # Unquoted operand: a run of non-whitespace characters. Only the unbraced
+    # `$X` form (group 1) is one of AC4's four; an unquoted braced `${X}` is not
+    # one of them and does not occur, so it falls through to a static literal.
+    j = i
+    while j < n and text[j] not in ' \t\n':
+        j += 1
+    token = text[i:j]
+    m = _TICK_VAR_RE_1679.match(token)
+    if m and m.group(1):
+        return {'shape': 'runtime-var', 'quote': 'unquoted',
+                'var_form': 'unquoted-$', 'value': None,
+                'via_continuation': via_continuation}
+    return {'shape': 'static', 'quote': 'unquoted', 'var_form': None,
+            'value': token, 'via_continuation': via_continuation}
+
+
+def _tick_sites_1679(text):
+    """The classified `--tick-progress` occurrences in `text`, in order."""
+    fenced = _tick_fenced_lines_1679(text)
+    out = []
+    start = 0
+    while True:
+        k = text.find(_TICK_FLAG_1679, start)
+        if k == -1:
+            break
+        out.append(_classify_tick_1679(
+            text, k + len(_TICK_FLAG_1679), text[:k].count('\n'), fenced))
+        start = k + len(_TICK_FLAG_1679)
+    return out
+
+
+def _tick_no_simple_shape_1679(rec):
+    """The AC3 no-simple-token label for a record, or None for a simple-token
+    site. A continuation-split site parses a real operand yet had no simple token
+    immediately after the flag, so it is a no-simple-token shape too."""
+    if rec['via_continuation']:
+        return 'continuation-split'
+    if rec['shape'] in ('exec-no-operand', 'prose-mention'):
+        return rec['shape']
+    return None
+
+
+def _classify_tick_str_1679(s, fenced=True):
+    """Classify the first `--tick-progress` occurrence in `s`; `fenced` sets the
+    executable-context flag for the no-operand shapes."""
+    k = s.index(_TICK_FLAG_1679)
+    fenced_lines = set(range(s.count('\n') + 1)) if fenced else set()
+    return _classify_tick_1679(
+        s, k + len(_TICK_FLAG_1679), s[:k].count('\n'), fenced_lines)
+
+
+_tick_sites = [(_p, _rec) for _p, _txt in _tick_md for _rec in _tick_sites_1679(_txt)]
+_TICK_SHAPES_1679 = frozenset(
+    {'static', 'runtime-var', 'exec-no-operand', 'prose-mention'})
+assert_eq("#1679 every --tick-progress site classifies into a known shape", set(),
+          {_rec['shape'] for _p, _rec in _tick_sites} - _TICK_SHAPES_1679)
+# No SHIPPED executable command is missing its operand (fail-closed sanity: the
+# shape exists to catch a planted one, and there is none live).
+assert_eq("#1679 no shipped executable --tick-progress is missing its operand", 0,
+          sum(1 for _p, _rec in _tick_sites if _rec['shape'] == 'exec-no-operand'))
+# Live static literals are the tick substrings — the operand consumers below use
+# this set; runtime-variable sites carry no static value and are excluded.
+_live_ticks = sorted({_rec['value'] for _p, _rec in _tick_sites
+                      if _rec['shape'] == 'static'})
+# Every shipped static operand uses one of the two supported quote styles (AC2).
+assert_eq("#1679 every static --tick-progress operand is quoted or unquoted", set(),
+          {_rec['quote'] for _p, _rec in _tick_sites if _rec['shape'] == 'static'}
+          - _TICK_STATIC_QUOTES)
 assert_eq("#1462 live tick substrings were derived from the phase files", True,
           len(_live_ticks) >= 10)
 
-# --- #1630 no live tick operand carries a shell metacharacter ---------------
-# No quoted `--tick-progress` operand may carry a character in
+# --- #1679 no static tick operand begins with `/` (MSYS path-conversion trap) --
+# The host-safe rule: a standalone slash-leading argument is rewritten by Git
+# Bash/MSYS, so the shipped operand must not begin with `/` — the `/simplify` row
+# is ticked with the unique host-safe substring `simplify`.
+for _t in _live_ticks:
+    assert_eq(f"#1679 live tick {_t!r} does not begin with '/'", False,
+              _t.startswith('/'))
+
+# --- #1630 no static tick operand carries a shell metacharacter -------------
+# No static `--tick-progress` operand may carry a character in
 # `_TICK_METACHARS_1630` below (a pragmatic subset covering the observed
 # classifier refusal, not its full grammar) — such an operand is refused mid-run.
-# Scope: the `_live_ticks` set derived above, i.e. quoted `--tick-progress`
-# literals under skills/implement/ ONLY. Disclosed residuals: --tick-plan
-# /--tick-ac sites (authored placeholders), any site whose operand is a shell
-# variable, and any future tick site outside skills/implement/ (none today).
-_TICK_METACHARS_1630 = "&;|$`()<>"
+# Scope: the static `_live_ticks` set derived above. Disclosed residuals, each
+# out of this guard's scope: runtime-variable operands (AC4's three
+# runtime-resolved forms, exempt because the shell resolves their value at run
+# time); the sibling `--tick-plan`/`--tick-ac` flags (not scanned here); and the
+# flag-attached `--tick-progress=…` form (issue #1679 scopes it out).
 for _t in _live_ticks:
     assert_eq(f"#1630 live tick {_t!r} carries no shell metacharacter", [],
               [_c for _c in _t if _c in _TICK_METACHARS_1630])
+
+# --- #1679 the guard rejects planted unsafe operands, both quote styles -------
+# A static standalone slash-leading literal is rejected whether quoted or
+# unquoted, and the shell-metacharacter check is retained.
+for _label, _fixture in (('double-quoted', '--tick-progress "/simplify"'),
+                         ('single-quoted', "--tick-progress '/simplify'"),
+                         ('unquoted', '--tick-progress /simplify')):
+    _rec = _classify_tick_str_1679(_fixture)
+    assert_eq(f"#1679 planted {_label} slash-leading operand is a static literal",
+              'static', _rec['shape'])
+    assert_eq(f"#1679 planted {_label} slash-leading operand is caught by the "
+              f"slash check", True, _rec['value'].startswith('/'))
+assert_eq("#1679 the metacharacter check still fires on a planted operand", True,
+          any(_c in _TICK_METACHARS_1630
+              for _c in _classify_tick_str_1679('--tick-progress "a;rm"')['value']))
+
+# --- #1679 the three no-simple-token shapes, complete by construction (AC3) ----
+# exec-no-operand (fenced, no operand) fails closed; prose-mention (unfenced, no
+# operand) is ignored; a continuation-split operand is still parsed.
+_rec_exec = _classify_tick_str_1679('workpad.py update 7 --tick-progress\n',
+                                    fenced=True)
+_rec_prose = _classify_tick_str_1679('the `--tick-progress` flag', fenced=False)
+_cont = _classify_tick_str_1679(
+    'workpad.py update 7 --tick-progress \\\n    "deferred"', fenced=True)
+assert_eq("#1679 executable --tick-progress with no operand fails closed",
+          'exec-no-operand', _rec_exec['shape'])
+assert_eq("#1679 an inert prose mention of --tick-progress stays ignored",
+          'prose-mention', _rec_prose['shape'])
+assert_eq("#1679 a continuation-split static operand is parsed (value)",
+          'deferred', _cont['value'])
+assert_eq("#1679 a continuation-split static operand is parsed (shape)",
+          'continuation-split', _tick_no_simple_shape_1679(_cont))
+assert_eq("#1679 the no-simple-token shapes are exactly the three declared",
+          _TICK_NO_SIMPLE,
+          frozenset(_tick_no_simple_shape_1679(_r)
+                    for _r in (_rec_exec, _rec_prose, _cont)))
+
+# --- #1679 shell-variable classification, exactly four forms (AC4) ------------
+# Unquoted `$X`, double-quoted `"$X"`/`"${X}"` are runtime-resolved (exempt from
+# the static guards); single-quoted `'$X'` is a static literal subject to them.
+_TICK_VAR_FIXTURES_1679 = {
+    'unquoted-$': '--tick-progress $TICK',
+    'double-$': '--tick-progress "$TICK"',
+    'double-${}': '--tick-progress "${TICK}"',
+    'single-$': "--tick-progress '$TICK'",
+}
+_tick_var_recs_1679 = {_f: _classify_tick_str_1679(_s)
+                       for _f, _s in _TICK_VAR_FIXTURES_1679.items()}
+# Derive the observed side from the CLASSIFIER OUTPUT (each fixture's assigned
+# var_form), not the fixture dict's keys — comparing the keys would only pin two
+# hand-typed literals against each other and never exercise the classifier.
+assert_eq("#1679 shell-variable classification covers exactly the four forms",
+          _TICK_VAR_FORMS,
+          frozenset(_r['var_form'] for _r in _tick_var_recs_1679.values()))
+for _form, _rec in _tick_var_recs_1679.items():
+    assert_eq(f"#1679 var form {_form!r} classifies to itself", _form,
+              _rec['var_form'])
+assert_eq("#1679 exactly the three unquoted/double var forms are runtime-resolved",
+          _TICK_VAR_RUNTIME,
+          frozenset(_f for _f, _r in _tick_var_recs_1679.items()
+                    if _r['shape'] == 'runtime-var'))
+assert_eq("#1679 the single-quoted var form is a static literal (subject to guards)",
+          ('static', True),
+          (_tick_var_recs_1679['single-$']['shape'],
+           any(_c in _TICK_METACHARS_1630
+               for _c in _tick_var_recs_1679['single-$']['value'])))
 
 # Both reproduction states, because the row's presence changes the candidate set.
 for _label, _body_1462 in (('repro present', _nb), ('repro absent', _nb3)):
@@ -28112,8 +28318,205 @@ for _kind_label, _verdicts, _unusable in (('a clean sweep', {'1.1': 'addressed'}
               f"the funding predicate record-dispatch gates on holds for the same state",
               ('confirm-whole-draft', True),
               (_m793.next_action(_st793, 1),
-               _m793._round_kind(_st793['rounds'][0]) == 'targeted'
-               and _st793['rounds'][0].get('outcome') == 'FILE'))
+               _m793._targeted_confirmation_needed(_st793['rounds'][0])))
+
+_1675_revise_funding = {'round': 1, 'outcome': 'REVISE', 'kind': 'targeted',
+                        'targeted_return_unusable': True,
+                        'attempts': [{'arm': 'file'}]}
+assert_eq("#1675: unusable targeted REVISE uses one predicate for scheduling and funding",
+          ('confirm-whole-draft', True),
+          (_m793.next_action({'rounds': [_1675_revise_funding],
+                              'confirming_rounds_used': 0}, 1),
+           _m793._targeted_confirmation_needed(_1675_revise_funding)))
+
+# Issue #1675: the same dead-end grading as `_d6b` above, for the REVISE terminal shape.
+# Drive it end to end through the real CLI — a unit-level predicate assertion does not
+# catch the funding branch spending the AUTOMATIC pool on a scheduled CONFIRMATION.
+_r7, _scope7, _draft7 = _793_scoped_round(_793_tds)
+_d7 = _793_dispatch_scoped(_r7, _scope7, _draft7)
+_dig7 = _d7.stdout.split('digest=', 1)[1].split()[0]
+_ret7 = _r7('record-return', _r7.slug, '--round', '2', '--verdict', 'REVISE',
+            '--findings-count', '1', '--carriage-object-id', _dig7, nonce=True)
+_doc7 = json.loads(Path(_r7.tmp, '.prflow', 'tmp',
+                        f'issue-audit-state-{_r7.slug}.json').read_text(encoding='utf-8'))
+assert_eq("#1675: a targeted REVISE return with no per-claim block records outcome REVISE "
+          "and marks the round UNUSABLE",
+          (0, 'REVISE', True),
+          (_ret7.returncode, _doc7['rounds'][1]['outcome'],
+           _doc7['rounds'][1].get('targeted_return_unusable')))
+
+_na7 = _r7('query-next-action', _r7.slug, '--round', '2', nonce=True)
+assert_eq("#1675: ... and next_action schedules the confirming whole-draft round on the "
+          "unusable REVISE return",
+          True, 'confirm-whole-draft' in _na7.stdout)
+
+# Open the confirming round with the automatic budget INTACT — the state a
+# `final_byte_pass`-funded predecessor produces, since that pass suppresses the derived
+# automatic spend. Seeding it is required: with the pool already spent its own guard masks
+# the wrong-pool selection and the round funds correctly by accident.
+_p7 = Path(_r7.tmp, '.prflow', 'tmp', f'issue-audit-state-{_r7.slug}.json')
+_seed7 = json.loads(_p7.read_text(encoding='utf-8'))
+_seed7['automatic_reaudits_used'] = 0
+_seed7['user_rounds_used'] = _seed7.get('user_rounds_used', 0) + 1
+_p7.write_text(json.dumps(_seed7), encoding='utf-8')
+
+_d7b = _r7('record-dispatch', '--kind', 'discovery', _r7.slug, '--round', '3',
+           '--arm', 'file', '--draft-file', str(_draft7.resolve()), nonce=True)
+_doc7b = json.loads(Path(_r7.tmp, '.prflow', 'tmp',
+                         f'issue-audit-state-{_r7.slug}.json').read_text(encoding='utf-8'))
+assert_eq("#1675: ... and that scheduled round is funded from the CONFIRMING pool, leaving "
+          "the automatic re-audit budget unspent — otherwise a confirmation round consumes "
+          "the automatic pool and the exhaustion -> boundary-election transition is "
+          "unreachable for the REVISE shape",
+          (0, 1, 0),
+          (_d7b.returncode, _doc7b.get('confirming_rounds_used'),
+           _doc7b.get('automatic_reaudits_used')))
+
+# Issue #1675: after the confirmation slot is spent, an unusable targeted return walks
+# to the named boundary election and remains explicitly non-converged.
+_1675_unusable_exhausted = _793_state(
+    rounds=[{'round': 2, 'outcome': 'FILE', 'kind': 'targeted',
+             'claim_verdicts': {}, 'targeted_return_unusable': True,
+             'attempts': [{'arm': 'file'}]}],
+    confirming_rounds_used=_m793._MAX_CONFIRMING_ROUNDS)
+assert_eq("#1675: an exhausted unusable targeted return proceeds to the existing "
+          "boundary rather than requesting an unfundable confirmation",
+          'proceed', _m793.next_action(_1675_unusable_exhausted, 2))
+assert_eq("#1675: an exhausted unusable targeted return remains non-converged for its "
+          "own named reason",
+          (False, 'targeted-return-unusable'),
+          (lambda answer: (answer['converged'], answer['reason']))(
+              _m793.evaluate_convergence(_1675_unusable_exhausted)))
+assert_eq("#1675: an exhausted unusable targeted return fires the existing disclosed "
+          "boundary election",
+          (True, 'targeted-return-unusable'),
+          (lambda answer: (answer['t2'], answer['reason']))(
+              _m793.evaluate_triggers(_1675_unusable_exhausted)))
+assert_eq("#1675: the exhausted unusable targeted return cannot ground approval before "
+          "the boundary election is recorded",
+          'not-eligible',
+          _m793.evaluate_eligibility(
+              _1675_unusable_exhausted, 'approve', 'd' * 40)['answer'])
+
+# The unusable-return route is outcome-independent. While the dedicated slot remains,
+# both terminal verdict shapes must schedule confirmation and withhold the election.
+for _1675_outcome in ('FILE', 'REVISE'):
+    _1675_unusable_remaining = _793_state(
+        rounds=[{'round': 2, 'outcome': _1675_outcome, 'kind': 'targeted',
+                 'claim_verdicts': {}, 'targeted_return_unusable': True,
+                 'attempts': [{'arm': 'file'}]}],
+        confirming_rounds_used=0)
+    assert_eq(f"#1675: an unusable targeted {_1675_outcome} return with confirmation "
+              "capacity schedules whole-draft confirmation",
+              'confirm-whole-draft',
+              _m793.next_action(_1675_unusable_remaining, 2))
+    assert_eq(f"#1675: an unusable targeted {_1675_outcome} return does not offer the "
+              "boundary election while confirmation capacity remains",
+              (False, None),
+              (lambda answer: (answer['t2'], answer['reason']))(
+                  _m793.evaluate_triggers(_1675_unusable_remaining)))
+
+_1675_unusable_revise_exhausted = _793_state(
+    rounds=[{'round': 2, 'outcome': 'REVISE', 'kind': 'targeted',
+             'claim_verdicts': {}, 'targeted_return_unusable': True,
+             'attempts': [{'arm': 'file'}]}],
+    confirming_rounds_used=_m793._MAX_CONFIRMING_ROUNDS)
+assert_eq("#1675: an exhausted unusable targeted REVISE return also proceeds to the "
+          "boundary instead of spending the unrelated automatic re-audit budget",
+          'proceed', _m793.next_action(_1675_unusable_revise_exhausted, 2))
+for _1675_override_kind in ('user-decline', 'cap-reached'):
+    _1675_elected = dict(_1675_unusable_exhausted)
+    _1675_elected['overrides'] = [{
+        'kind': _1675_override_kind,
+        'surface': 't1t2-boundary',
+        'recorded_at_ordinal': 0,
+        'draft_digest': 'd' * 40,
+    }]
+    assert_eq(f"#1675: only the recorded {_1675_override_kind} boundary election can "
+              "later ground approval for exhausted unusable targeted evidence",
+              ('eligible', 'override'),
+              (lambda answer: (answer['answer'], answer['ground']))(
+                  _m793.evaluate_eligibility(
+                      _1675_elected, 'approve', 'd' * 40)))
+
+# Additive-state compatibility: an older targeted record without the new flag keeps
+# the pre-change exhausted behavior. Absence is false, never an unreadable-state arm.
+_1675_old_targeted_exhausted = _793_state(
+    rounds=[{'round': 2, 'outcome': 'FILE', 'kind': 'targeted',
+             'claim_verdicts': {}, 'attempts': [{'arm': 'file'}]}],
+    confirming_rounds_used=_m793._MAX_CONFIRMING_ROUNDS)
+assert_eq("#1675: an older targeted record with no unusable flag keeps the ordinary "
+          "exhausted next action",
+          'proceed', _m793.next_action(_1675_old_targeted_exhausted, 2))
+
+# The additive persisted flag is optional for old state, but when present it is a typed
+# decision field. Cover accepted booleans and common truthy corruption shapes.
+_1675_validate_base = json.loads(json.dumps(_doc6))
+for _1675_flag in (False, True):
+    _1675_typed = json.loads(json.dumps(_1675_validate_base))
+    _1675_typed['rounds'][-1]['targeted_return_unusable'] = _1675_flag
+    assert_eq(f"#1675: persisted targeted_return_unusable={_1675_flag!r} passes the "
+              "typed state boundary",
+              _1675_flag,
+              _m793._validate(_1675_typed, _r6.slug)['rounds'][-1][
+                  'targeted_return_unusable'])
+
+_1675_absent = json.loads(json.dumps(_1675_validate_base))
+_1675_absent['rounds'][-1].pop('targeted_return_unusable', None)
+assert_eq("#1675: old persisted state with no targeted_return_unusable field remains "
+          "loadable and reads false through the predicate",
+          False,
+          _m793._targeted_return_unusable(
+              _m793._validate(_1675_absent, _r6.slug)['rounds'][-1]))
+
+for _1675_corrupt_flag in ('true', 1):
+    _1675_corrupt = json.loads(json.dumps(_1675_validate_base))
+    _1675_corrupt['rounds'][-1]['targeted_return_unusable'] = _1675_corrupt_flag
+    assert_raises(f"#1675: persisted targeted_return_unusable={_1675_corrupt_flag!r} "
+                  "fails closed at the typed state boundary",
+                  _m793.StateError,
+                  lambda doc=_1675_corrupt: _m793._validate(doc, _r6.slug))
+
+# Exercise the real persisted query path too: a corrupted flag collapses the entire state
+# to unestablished and the always-zero query emits its fail-closed action plus diagnosis.
+_1675_state_path = Path(_r6.tmp, '.prflow', 'tmp',
+                        f'issue-audit-state-{_r6.slug}.json')
+_1675_saved_bytes = _1675_state_path.read_bytes()
+try:
+    _1675_persisted_corrupt = json.loads(_1675_saved_bytes.decode('utf-8'))
+    _1675_persisted_corrupt['rounds'][-1]['targeted_return_unusable'] = 'true'
+    _1675_state_path.write_text(json.dumps(_1675_persisted_corrupt), encoding='utf-8')
+    _1675_query_corrupt = _r6('query-next-action', _r6.slug, '--round', '2', nonce=True)
+finally:
+    _1675_state_path.write_bytes(_1675_saved_bytes)
+assert_eq("#1675: the real CLI query collapses a wrong-typed persisted unusable flag to "
+          "unestablished instead of treating the truthy string as a decision",
+          (0, True, True),
+          (_1675_query_corrupt.returncode,
+           'action=round-closed-no-verdict' in _1675_query_corrupt.stdout,
+           'targeted_return_unusable' in _1675_query_corrupt.stderr))
+
+# Persist a valid exhausted variant and drive both public query surfaces. This joins the
+# next-action token and boundary-election reason through the loader the orchestrator uses.
+try:
+    _1675_persisted_exhausted = json.loads(_1675_saved_bytes.decode('utf-8'))
+    _1675_persisted_exhausted['confirming_rounds_used'] = _m793._MAX_CONFIRMING_ROUNDS
+    _1675_state_path.write_text(json.dumps(_1675_persisted_exhausted), encoding='utf-8')
+    _1675_query_exhausted = _r6('query-next-action', _r6.slug, '--round', '2', nonce=True)
+    _1675_boundary_exhausted = _r6('query-boundary', _r6.slug, nonce=True)
+finally:
+    _1675_state_path.write_bytes(_1675_saved_bytes)
+assert_eq("#1675: the real persisted query path proceeds only after confirmation capacity "
+          "is exhausted",
+          (0, True),
+          (_1675_query_exhausted.returncode,
+           'action=proceed' in _1675_query_exhausted.stdout))
+assert_eq("#1675: the real persisted boundary path then offers the election with the "
+          "targeted-return-unusable reason",
+          (0, True),
+          (_1675_boundary_exhausted.returncode,
+           't2=hold' in _1675_boundary_exhausted.stdout
+           and 'reason=targeted-return-unusable' in _1675_boundary_exhausted.stdout))
 
 # ── AC32 limb one: a targeted round NEVER grounds the clean scan ──────────────────────
 # The guard is a `continue` in evaluate_eligibility's reverse scan. Without it a clean
@@ -28736,9 +29139,9 @@ assert_eq("#1104: recording the same staged write twice leaves ONE history entry
           (len(_1104_state(_1104_id)['staged_paths']), _1104_idd.returncode,
            len(_1104_state(_1104_id)['rounds'])))
 
-import shutil as _shutil1104  # noqa: E402
+import shutil as shutil1104  # noqa: E402
 
-_shutil1104.rmtree(_1104_ROOT, ignore_errors=True)
+shutil1104.rmtree(_1104_ROOT, ignore_errors=True)
 
 # ══════════════════════════════════════════════════════════════════════════════
 # scripts/pretooluse-shape-guard.py — the review-tier PreToolUse shape guard (#805)
@@ -28748,7 +29151,7 @@ _shutil1104.rmtree(_1104_ROOT, ignore_errors=True)
 # root. To drive it hermetically (isolated store, no collision with the real repo or the
 # parallel pool), each invocation runs in a throwaway git repo that carries copies of the
 # guard's importlib closure at their committed relative paths.
-import shutil as _shutil805  # noqa: E402
+import shutil as shutil805  # noqa: E402
 import subprocess as _sp805  # noqa: E402
 import json as _json805  # noqa: E402
 
@@ -28789,9 +29192,9 @@ class _GuardRig:
         self.root = Path(_GUARD_RIG_PARENT.name) / f'rig{_GUARD_RIG_SEQ[0]}'
         (self.root / 'scripts').mkdir(parents=True)
         (self.root / 'lib' / 'test').mkdir(parents=True)
-        _shutil805.copy(_GUARD_SRC, self.root / 'scripts' / 'pretooluse-shape-guard.py')
-        _shutil805.copy(_SHAPES_SRC, self.root / 'lib' / 'test' / 'extract-command-shapes.py')
-        _shutil805.copy(_HEADS_SRC, self.root / 'lib' / 'test' / 'extract-command-heads.py')
+        shutil805.copy(_GUARD_SRC, self.root / 'scripts' / 'pretooluse-shape-guard.py')
+        shutil805.copy(_SHAPES_SRC, self.root / 'lib' / 'test' / 'extract-command-shapes.py')
+        shutil805.copy(_HEADS_SRC, self.root / 'lib' / 'test' / 'extract-command-heads.py')
         _sp805.run(['git', 'init', '-q'], cwd=self.root, check=False,
                    stdout=_sp805.DEVNULL, stderr=_sp805.DEVNULL)
 
@@ -32210,6 +32613,445 @@ assert_eq("#1580 a reasonless slot value blocks the criterion end-to-end",
                 "dispositions": _reasonless}],
               [{"criterion": 1, "status": "satisfied", "evidence": "ok",
                 "dispositions": _CL_D}])["criteria"][0]["status"])
+
+
+# ── issue #1678: explicit UTF-8 decoding on PRFlow local text-file readers ──────
+# parse-acs.py --body-file, workpad.py::_read_section_file, and
+# branch-for-issue.py --title-file must decode local files as UTF-8 explicitly
+# (never the ambient locale codec) so non-ASCII issue text survives on Windows,
+# and a decode failure routes through the parser, workpad, and branch-create
+# clean non-zero paths (no traceback). AC5's static guard below enforces the rule across ALL tracked
+# scripts/*.py; AC1/AC2/AC3 and the CLI half of AC4 are the hostile-codec
+# subprocess RED->GREEN tests in lib/test/run.sh (the entry-path decode is only
+# observable when the script runs as a CLI under a forced-ASCII file codec).
+print("issue #1678: explicit UTF-8 decoding on local text-file readers")
+
+# AC5 — the text-reader guard. Families checked, complete by construction:
+#   read_text  (pathlib.Path.read_text; encoding is positional slot 1)
+#   Path.open  (pathlib .open;          encoding is positional slot 3)
+#   open       (builtin;                encoding is positional slot 4)
+# os.open is the raw fd syscall (integer flags, no text decode) and is NOT a
+# text reader — excluding it is why a bare `os.open(path, flags)` must not flag.
+_U8_FAMILIES = {"read_text", "Path.open", "open"}
+_U8_ENC_SLOT = {"read_text": 1, "Path.open": 3, "open": 4}
+
+
+def _u8_os_aliases(tree):
+    al = set()
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Import):
+            for a in n.names:
+                if a.name == "os":
+                    al.add(a.asname or a.name)
+    return al
+
+
+def _u8_classify(call, os_aliases):
+    f = call.func
+    if isinstance(f, ast.Attribute):
+        if f.attr == "read_text":
+            return "read_text"
+        if f.attr == "open":
+            if isinstance(f.value, ast.Name) and f.value.id in os_aliases:
+                return None  # os.open — not a text reader
+            return "Path.open"
+    elif isinstance(f, ast.Name) and f.id == "open":
+        return "open"
+    return None
+
+
+def _u8_mode_node(call, family):
+    for kw in call.keywords:
+        if kw.arg == "mode":
+            return kw.value
+    if family == "Path.open" and call.args:
+        return call.args[0]
+    if family == "open" and len(call.args) >= 2:
+        return call.args[1]
+    return None
+
+
+def _u8_is_binary(node):
+    return (isinstance(node, ast.Constant) and isinstance(node.value, str)
+            and "b" in node.value)
+
+
+def _u8_has_encoding(call, family):
+    # Keyword OR positional encoding form both count (the AC's requirement).
+    if any(kw.arg == "encoding" for kw in call.keywords):
+        return True
+    return len(call.args) >= _U8_ENC_SLOT[family]
+
+
+def _u8_scan_source(src, filename="<planted>"):
+    tree = ast.parse(src, filename=filename)
+    os_aliases = _u8_os_aliases(tree)
+    fams, viols = set(), []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        fam = _u8_classify(node, os_aliases)
+        if fam is None:
+            continue
+        fams.add(fam)
+        mode = _u8_mode_node(node, fam)
+        if mode is not None and _u8_is_binary(mode):
+            continue  # binary mode takes no encoding
+        if not _u8_has_encoding(node, fam):
+            viols.append((filename, node.lineno, fam))
+    return fams, viols
+
+
+# Real scan over the tracked scripts/*.py population (git ls-files: index-reading,
+# never a recursive filesystem walk into sibling worktrees — issue #711).
+_u8_tracked = [p for p in _subprocess.run(
+    ["git", "ls-files", "-z", "--", "scripts/*.py"],
+    cwd=str(SCRIPTS.parent), capture_output=True, text=True, check=True
+).stdout.split("\0") if p]
+assert_eq("#1678 AC5: tracked scripts/*.py enumeration is non-empty (guard has a population)",
+          True, len(_u8_tracked) >= 10)
+_u8_all_fams, _u8_all_viols = set(), []
+for _rel in _u8_tracked:
+    _f, _v = _u8_scan_source((SCRIPTS.parent / _rel).read_text(encoding="utf-8"), _rel)
+    _u8_all_fams |= _f
+    _u8_all_viols.extend(_v)
+assert_eq("#1678 AC5: every text-reader in tracked scripts/*.py decodes UTF-8 explicitly",
+          [], _u8_all_viols)
+# All three families are exercised over the real tree AND the scan produces no
+# out-of-taxonomy token — the "exactly these three, complete by construction" claim.
+assert_eq("#1678 AC5: the checked text-reader family set is exactly the three",
+          _U8_FAMILIES, _u8_all_fams)
+
+# Planted-omission self-check: a bare call in EACH family (no encoding) is flagged.
+_u8_planted_prelude = "import os\nfrom pathlib import Path\np = Path('x')\n"
+for _fam, _snip in {"read_text": "p.read_text()",
+                    "Path.open": "p.open('r')",
+                    "open": "open('x')"}.items():
+    _f, _v = _u8_scan_source(_u8_planted_prelude + _snip + "\n")
+    assert_eq(f"#1678 AC5 self-check: a bare {_fam} (no encoding) is flagged RED", 1, len(_v))
+    assert_eq(f"#1678 AC5 self-check: the flag names the {_fam} family",
+              _fam, _v[0][2] if _v else None)
+# And the accepted forms — keyword encoding, positional encoding, binary mode,
+# and os.open — must NOT flag.
+for _snip in ("p.read_text(encoding='utf-8')", "p.read_text('utf-8')",
+              "p.open('r', encoding='utf-8')", "p.open('r', -1, 'utf-8')",
+              "open('x', encoding='utf-8')", "open('x', 'w', -1, 'utf-8')",
+              "open('x', 'rb')", "p.open('rb')", "os.open('x', 0)"):
+    _f, _v = _u8_scan_source(_u8_planted_prelude + _snip + "\n")
+    assert_eq(f"#1678 AC5 self-check: accepted form is not flagged: {_snip}", [], _v)
+
+# AC2 (completeness half) — the _read_section_file flag set is exactly the three,
+# by construction: collect the flag literal from the _read_section_file call
+# sites and assert the set (the assertion below pins it to the three).
+_u8_wp_tree = ast.parse((SCRIPTS / "workpad.py").read_text(encoding="utf-8"))
+_u8_rsf_flags = set()
+for _n in ast.walk(_u8_wp_tree):
+    if (isinstance(_n, ast.Call) and isinstance(_n.func, ast.Name)
+            and _n.func.id == "_read_section_file" and len(_n.args) >= 2
+            and isinstance(_n.args[1], ast.Constant)):
+        _u8_rsf_flags.add(_n.args[1].value)
+assert_eq("#1678 AC2: _read_section_file flag set is exactly the three (complete by construction)",
+          {"--replace-plan-file", "--replace-acs-file", "--set-reproduction-file"},
+          _u8_rsf_flags)
+
+# AC4 (workpad half) — invalid UTF-8 through `workpad.py update --replace-acs-file`
+# exits non-zero with a flag-specific UTF-8 diagnostic (no traceback) and makes NO
+# GitHub PATCH. Driven through the real cmd_update mutation boundary (only the gh
+# transport is stubbed by _drive_cmd_update; decoding and mutation are NOT mocked).
+# The try/except keeps a regression's raw UnicodeDecodeError from aborting the file
+# mid-run — on the fixed code the read raises _UpdateError and cmd_update exits 1.
+_u8_bad = tempfile.NamedTemporaryFile("wb", suffix=".md", delete=False)
+_u8_bad.write(b"\xff\xfe\x00 not utf-8 \xe2\x28")
+_u8_bad.close()
+try:
+    _u8c, _u8o, _u8e, _u8p = _drive_cmd_update(IDX_BODY, replace_acs_file=_u8_bad.name)
+except UnicodeDecodeError:
+    _u8c, _u8o, _u8e, _u8p = "raw-decode-error", "", "", "unknown"
+assert_eq("#1678 AC4 workpad: invalid-UTF-8 --replace-acs-file exits non-zero (clean, not a crash)",
+          1, _u8c)
+assert_eq("#1678 AC4 workpad: no GitHub PATCH was made", None, _u8p)
+assert_eq("#1678 AC4 workpad: stderr carries the flag-specific UTF-8 diagnostic", True,
+          "--replace-acs-file" in _u8e and "not valid UTF-8" in _u8e)
+assert_eq("#1678 AC4 workpad: the diagnostic is clean (no Python traceback)", True,
+          "Traceback (most recent call last)" not in _u8e)
+os.remove(_u8_bad.name)
+
+
+# ── issue #1655: render-pr-provenance-line.py ───────────────────────────────────
+# The helper renders the /prflow:implement draft-PR provenance line. Driven as a
+# subprocess against a fixture COPY of the helper placed beside a fixture manifest, so
+# the beside-the-helper version resolution is genuinely exercised; the session model
+# comes from a fixture transcript store injected by env, never the developer's real one.
+# Every assertion pins a SPECIFIC rendered line / breadcrumb / exit code derived from the
+# issue's acceptance criteria (never "did not crash").
+_PROV_SRC = (SCRIPTS / 'render-pr-provenance-line.py').read_text(encoding='utf-8')
+_PROV_UNSET = object()
+
+
+def _prov_transcript(*, model=None, resolved_model=None, extra=()):
+    """Build fixture transcript lines: an optional user Agent-dispatch record carrying
+    resolvedModel, then an optional assistant record carrying message.model, then extras."""
+    lines = []
+    if resolved_model is not None:
+        lines.append(json.dumps({"type": "user", "resolvedModel": resolved_model}))
+    if model is not None:
+        lines.append(json.dumps({"type": "assistant", "message": {"model": model}}))
+    lines.extend(extra)
+    return lines
+
+
+def _prov_run(*, version="9.9.9", config=_PROV_UNSET, effort=_PROV_UNSET,
+              session_id=_PROV_UNSET, transcript=None, write_transcript=True,
+              config_dir=_PROV_UNSET, prflow_version=None):
+    """Drive a fixture copy of the helper; return (stdout_stripped, stderr, rc)."""
+    d = tempfile.mkdtemp(prefix="prov1655-")
+    try:
+        scripts_dir = os.path.join(d, "scripts")
+        os.makedirs(scripts_dir)
+        helper = os.path.join(scripts_dir, "render-pr-provenance-line.py")
+        Path(helper).write_text(_PROV_SRC, encoding="utf-8")
+        if version is not None:
+            os.makedirs(os.path.join(d, ".claude-plugin"))
+            payload = version if not isinstance(version, str) else {"version": version}
+            Path(os.path.join(d, ".claude-plugin", "plugin.json")).write_text(
+                json.dumps(payload), encoding="utf-8")
+        env = dict(os.environ)
+        for k in ("CLAUDE_EFFORT", "CLAUDE_CODE_SESSION_ID", "CLAUDE_CONFIG_DIR"):
+            env.pop(k, None)
+        if effort is not _PROV_UNSET and effort is not None:
+            env["CLAUDE_EFFORT"] = effort
+        sid = "sess-1655-fixture" if session_id is _PROV_UNSET else session_id
+        if sid is not None:
+            env["CLAUDE_CODE_SESSION_ID"] = sid
+        store = os.path.join(d, "store") if config_dir is _PROV_UNSET else config_dir
+        if store is not None:
+            env["CLAUDE_CONFIG_DIR"] = store
+        if write_transcript and transcript is not None and sid and store:
+            segment = re.sub(r"[^a-zA-Z0-9]", "-", d)
+            proj = os.path.join(store, "projects", segment)
+            os.makedirs(proj, exist_ok=True)
+            Path(os.path.join(proj, f"{sid}.jsonl")).write_text(
+                "\n".join(transcript), encoding="utf-8")
+        argv = [sys.executable, helper]
+        if config is not _PROV_UNSET:
+            cfg = os.path.join(d, "cfg.json")
+            body = config if isinstance(config, str) else json.dumps(config)
+            # prflow_version alongside — the config value that must NOT win over the manifest.
+            Path(cfg).write_text(body, encoding="utf-8")
+            argv += ["--config", cfg]
+        proc = _subprocess.run(argv, cwd=d, env=env, capture_output=True, text=True)
+        return proc.stdout.rstrip("\n"), proc.stderr, proc.returncode
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
+_PB = "Generated via /prflow:implement"
+
+# Full line — version, model, effort all established.
+_o, _e, _rc = _prov_run(version="2.32.58", effort="high",
+                        transcript=_prov_transcript(model="claude-opus-5"))
+assert_eq("#1655 full line names version, model, effort", f"{_PB} (v2.32.58, claude-opus-5, high)", _o)
+assert_eq("#1655 full line exits 0", 0, _rc)
+assert_eq("#1655 rendered line carries no backtick", False, "`" in _o)
+
+# Guarantee class: neither model nor effort — version alone, no empty punctuation, breadcrumbs name each.
+_o, _e, _rc = _prov_run(version="2.32.58", write_transcript=False)
+assert_eq("#1655 only version established -> version alone", f"{_PB} (v2.32.58)", _o)
+assert_eq("#1655 version-alone exits 0", 0, _rc)
+assert_eq("#1655 breadcrumb names omitted effort", True, "effort unestablished" in _e)
+assert_eq("#1655 breadcrumb names omitted model", True, "model unestablished" in _e)
+
+# Effort unset, model readable -> version + model only.
+_o, _e, _rc = _prov_run(version="2.32.58", transcript=_prov_transcript(model="claude-opus-5"))
+assert_eq("#1655 effort unset -> version + model only", f"{_PB} (v2.32.58, claude-opus-5)", _o)
+
+# Model unavailable, effort set -> version + effort only.
+_o, _e, _rc = _prov_run(version="2.32.58", effort="max", write_transcript=False)
+assert_eq("#1655 no model, effort set -> version + effort only", f"{_PB} (v2.32.58, max)", _o)
+
+# CLAUDE_EFFORT whitespace-only is unestablished.
+_o, _e, _rc = _prov_run(version="2.32.58", effort="   ", write_transcript=False)
+assert_eq("#1655 whitespace-only CLAUDE_EFFORT is unestablished", f"{_PB} (v2.32.58)", _o)
+
+# Beside-the-helper manifest wins over a config prflow_version that differs.
+_o, _e, _rc = _prov_run(version="1.1.1", write_transcript=False,
+                        config={"prflow_version": "2.2.2", "prflow_implement": {}})
+assert_eq("#1655 names the beside-the-helper manifest version", f"{_PB} (v1.1.1)", _o)
+assert_eq("#1655 does NOT name the config prflow_version", False, "2.2.2" in _o)
+
+# resolvedModel is never a source; the bare assistant model wins.
+_o, _e, _rc = _prov_run(version="2.32.58",
+                        transcript=_prov_transcript(resolved_model="claude-opus-5[1m]",
+                                                    model="claude-sonnet-5"))
+assert_eq("#1655 names the assistant message.model, not resolvedModel",
+          f"{_PB} (v2.32.58, claude-sonnet-5)", _o)
+assert_eq("#1655 the marked resolvedModel id is never emitted", False, "[1m]" in _o)
+
+# Most-recent assistant record wins.
+_o, _e, _rc = _prov_run(version="2.32.58",
+                        transcript=_prov_transcript(model="claude-old") +
+                        _prov_transcript(model="claude-new"))
+assert_eq("#1655 names the MOST RECENT assistant model", f"{_PB} (v2.32.58, claude-new)", _o)
+
+# Truncated final record -> last complete assistant record still read.
+_trunc = _prov_transcript(model="claude-opus-5") + ['{"type": "assistant", "message": {"mod']
+_o, _e, _rc = _prov_run(version="2.32.58", transcript=_trunc)
+assert_eq("#1655 truncated final record -> last complete record wins",
+          f"{_PB} (v2.32.58, claude-opus-5)", _o)
+assert_eq("#1655 truncated-record run exits 0", 0, _rc)
+
+# Config off-switch: explicit false suppresses the model+effort clause; version stays.
+_o, _e, _rc = _prov_run(version="2.32.58", effort="high",
+                        transcript=_prov_transcript(model="claude-opus-5"),
+                        config={"prflow_implement": {"publish_model_effort": False}})
+assert_eq("#1655 explicit false suppresses model+effort clause", f"{_PB} (v2.32.58)", _o)
+assert_eq("#1655 suppression breadcrumb emitted", True, "suppressed" in _e)
+assert_eq("#1655 suppressed run exits 0", 0, _rc)
+
+# Config six-shape adversarial matrix for publish_model_effort (a config-JSON consumer).
+_shapes = [
+    ("object", {"prflow_implement": {"publish_model_effort": {"x": 1}}}, True),
+    ("array", {"prflow_implement": {"publish_model_effort": [False]}}, True),
+    ("scalar-true", {"prflow_implement": {"publish_model_effort": True}}, True),
+    ("valid-falsy-false", {"prflow_implement": {"publish_model_effort": False}}, False),
+    ("missing", {"prflow_implement": {}}, True),
+    ("wrong-type-string-false", {"prflow_implement": {"publish_model_effort": "false"}}, True),
+]
+for _name, _cfg, _permits in _shapes:
+    _o, _e, _rc = _prov_run(version="2.32.58", effort="high",
+                            transcript=_prov_transcript(model="claude-opus-5"), config=_cfg)
+    _expect = f"{_PB} (v2.32.58, claude-opus-5, high)" if _permits else f"{_PB} (v2.32.58)"
+    assert_eq(f"#1655 config shape '{_name}' renders correctly", _expect, _o)
+    assert_eq(f"#1655 config shape '{_name}' exits 0", 0, _rc)
+
+# The string "false" is NOT the boolean false — a truthy-default read must not coerce it.
+_o, _e, _rc = _prov_run(version="2.32.58", effort="high",
+                        transcript=_prov_transcript(model="claude-opus-5"),
+                        config={"prflow_implement": {"publish_model_effort": "false"}})
+assert_eq("#1655 string 'false' does not suppress (raw JSON, not string-coerced)",
+          f"{_PB} (v2.32.58, claude-opus-5, high)", _o)
+
+# Malformed config JSON -> clause left enabled, breadcrumb, exit 0.
+_o, _e, _rc = _prov_run(version="2.32.58", effort="high",
+                        transcript=_prov_transcript(model="claude-opus-5"),
+                        config="{not valid json")
+assert_eq("#1655 malformed config -> clause enabled", f"{_PB} (v2.32.58, claude-opus-5, high)", _o)
+assert_eq("#1655 malformed config exits 0", 0, _rc)
+
+# Transcript JSON-Lines matrix — each shape exits 0 and renders version alone (no model).
+_o, _e, _rc = _prov_run(version="2.32.58", transcript=[])  # empty file
+assert_eq("#1655 empty transcript -> version alone", f"{_PB} (v2.32.58)", _o)
+assert_eq("#1655 empty transcript exits 0", 0, _rc)
+
+_o, _e, _rc = _prov_run(version="2.32.58",
+                        transcript=[json.dumps({"type": "user", "message": {"model": "x"}})])
+assert_eq("#1655 no assistant record -> version alone", f"{_PB} (v2.32.58)", _o)
+assert_eq("#1655 no-assistant-record run exits 0", 0, _rc)
+
+_o, _e, _rc = _prov_run(version="2.32.58", transcript=["{ this is not json"])
+assert_eq("#1655 malformed transcript JSON -> version alone", f"{_PB} (v2.32.58)", _o)
+assert_eq("#1655 malformed transcript exits 0", 0, _rc)
+
+_o, _e, _rc = _prov_run(version="2.32.58",
+                        transcript=[json.dumps({"type": "assistant", "message": {"model": 123}})])
+assert_eq("#1655 wrong-typed message.model -> version alone", f"{_PB} (v2.32.58)", _o)
+assert_eq("#1655 wrong-typed field exits 0", 0, _rc)
+
+# Session id set but the derived transcript is missing: version alone + breadcrumb naming the path tried.
+_o, _e, _rc = _prov_run(version="2.32.58", write_transcript=False)
+assert_eq("#1655 absent transcript -> version alone", f"{_PB} (v2.32.58)", _o)
+assert_eq("#1655 absent-transcript breadcrumb names the derived path tried",
+          True, "no transcript at derived path" in _e)
+
+# No session id at all -> model unestablished naming the missing session id.
+_o, _e, _rc = _prov_run(version="2.32.58", session_id=None, write_transcript=False)
+assert_eq("#1655 no session id -> version alone", f"{_PB} (v2.32.58)", _o)
+assert_eq("#1655 missing-session-id breadcrumb names CLAUDE_CODE_SESSION_ID",
+          True, "CLAUDE_CODE_SESSION_ID" in _e)
+
+# Default config dir with a missing transcript store: version alone, exit 0.
+_o, _e, _rc = _prov_run(version="2.32.58", config_dir=None, write_transcript=False,
+                        session_id="sess-1655-nostore-unique")
+assert_eq("#1655 no transcript store -> version alone (default dir branch)", f"{_PB} (v2.32.58)", _o)
+assert_eq("#1655 no-store run exits 0", 0, _rc)
+
+# Wrong-typed manifest .version (non-string) -> version omitted, established values still named.
+_o, _e, _rc = _prov_run(version={"version": 123}, effort="high",
+                        transcript=_prov_transcript(model="claude-opus-5"))
+assert_eq("#1655 wrong-typed manifest .version -> version omitted",
+          f"{_PB} (claude-opus-5, high)", _o)
+assert_eq("#1655 wrong-typed .version breadcrumb names version", True, "version unestablished" in _e)
+
+# No manifest beside the helper -> version omitted, established values still named.
+_o, _e, _rc = _prov_run(version=None, effort="high",
+                        transcript=_prov_transcript(model="claude-opus-5"))
+assert_eq("#1655 no manifest -> version omitted, model+effort named",
+          f"{_PB} (claude-opus-5, high)", _o)
+assert_eq("#1655 no-manifest breadcrumb names version", True, "version unestablished" in _e)
+assert_eq("#1655 no-manifest run exits 0", 0, _rc)
+
+# Shell-inert enforcement: a value carrying a shell-active/control char is DROPPED (not
+# shipped), so the "no backtick / no shell-active construct" guarantee holds by construction.
+_o, _e, _rc = _prov_run(version="2.32.58", effort="high",
+                        transcript=_prov_transcript(model="claude`whoami`5"))
+assert_eq("#1655 model carrying a backtick is dropped, not shipped", f"{_PB} (v2.32.58, high)", _o)
+assert_eq("#1655 dropped-for-backtick line carries no backtick", False, "`" in _o)
+assert_eq("#1655 shell-active drop emits a breadcrumb", True, "shell-active" in _e)
+
+_o, _e, _rc = _prov_run(version="2.32.58", effort="high",
+                        transcript=_prov_transcript(model="claude$(id)5"))
+assert_eq("#1655 model carrying a $-substitution is dropped", f"{_PB} (v2.32.58, high)", _o)
+assert_eq("#1655 dropped-for-dollar line carries no dollar", False, "$" in _o)
+
+_o, _e, _rc = _prov_run(version="2.32.58\n9.9.9", write_transcript=False)
+assert_eq("#1655 version carrying a newline is dropped", _PB, _o)
+
+# Config matrix — the section/top-level dimensions of model_effort_permitted's guards.
+_o, _e, _rc = _prov_run(version="2.32.58", effort="high",
+                        transcript=_prov_transcript(model="claude-opus-5"), config=[1, 2, 3])
+assert_eq("#1655 top-level config not an object -> clause enabled",
+          f"{_PB} (v2.32.58, claude-opus-5, high)", _o)
+_o, _e, _rc = _prov_run(version="2.32.58", effort="high",
+                        transcript=_prov_transcript(model="claude-opus-5"),
+                        config={"prflow_implement": [False]})
+assert_eq("#1655 prflow_implement section as an array -> clause enabled",
+          f"{_PB} (v2.32.58, claude-opus-5, high)", _o)
+_o, _e, _rc = _prov_run(version="2.32.58", effort="high",
+                        transcript=_prov_transcript(model="claude-opus-5"),
+                        config={"prflow_implement": "off"})
+assert_eq("#1655 prflow_implement section as a scalar -> clause enabled",
+          f"{_PB} (v2.32.58, claude-opus-5, high)", _o)
+
+# valid-falsy non-coercion: JSON 0 and "" are not the boolean false and must not suppress.
+for _fv, _lbl in ((0, "zero"), ("", "empty-string")):
+    _o, _e, _rc = _prov_run(version="2.32.58", effort="high",
+                            transcript=_prov_transcript(model="claude-opus-5"),
+                            config={"prflow_implement": {"publish_model_effort": _fv}})
+    assert_eq(f"#1655 config value {_lbl} does not suppress (only JSON false does)",
+              f"{_PB} (v2.32.58, claude-opus-5, high)", _o)
+
+# read_model most-recent semantics: a valid earlier record then a wrong-typed later one
+# falls back to the last COMPLETE assistant model, not to no model.
+_o, _e, _rc = _prov_run(version="2.32.58",
+                        transcript=_prov_transcript(model="claude-good") +
+                        [json.dumps({"type": "assistant", "message": {"model": 123}})])
+assert_eq("#1655 wrong-typed later record falls back to the last valid model",
+          f"{_PB} (v2.32.58, claude-good)", _o)
+
+# Contract assertions tied to acceptance criteria: the phase-file lints and the profile
+# drift check pass over the real tree after the change.
+_R1655 = Path(__file__).resolve().parents[2]
+for _lint, _label in (
+    ("lib/test/lint-worktree-fence-shapes.py", "worktree-fence-shapes"),
+    ("lib/test/lint-anchor-fallback-arm.py", "anchor-fallback-arm"),
+):
+    _p = _subprocess.run([sys.executable, str(_R1655 / _lint)], cwd=str(_R1655),
+                         capture_output=True, text=True)
+    assert_eq(f"#1655 {_label} lint passes over the tree", 0, _p.returncode)
+
+_p = _subprocess.run([sys.executable, str(_R1655 / "lib/generate-capability-profiles.py"), "--check"],
+                     cwd=str(_R1655), capture_output=True, text=True)
+assert_eq("#1655 generate-capability-profiles --check reports no drift", 0, _p.returncode)
 
 
 print()

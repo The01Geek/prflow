@@ -38,7 +38,13 @@ bullet against the tree the run will build on.
   helper with `--body-file` pointing at `.prflow/tmp/issue-body/issue-<ISSUE_NUMBER>.md` and
   `--repo-root` naming the tree to adjudicate against, so the helper never guesses a root from the
   working directory. On the degraded arm where §1.1 wrote no cache, the fetched body is written to a
-  file and that path is passed instead.
+  file and that path is passed instead. The helper decodes that `--body-file` **explicitly as UTF-8**
+  (not the ambient locale codec), so a non-ASCII issue body survives on a non-UTF-8 default host — a
+  local-file decoding layer distinct from the stream/`gh`-I/O UTF-8 forcing (issue #222); invalid
+  UTF-8 exits non-zero with a flag-specific diagnostic and no traceback rather than adjudicating
+  against mojibake. The same explicit-UTF-8 decode covers `workpad.py`'s section-file flags and
+  `branch-for-issue.py --title-file`, and an AST guard over `scripts/*.py` blocks any new
+  ambient-codec text read.
 - **Scope is every bullet the helper's marker recognises**, not only the ones the plan expects to
   lean on — the run cannot know in advance which premise a later phase will rest on. The marker's
   `_MARKER` constant carries **three alternation arms**: (A) the pure bolded label `**Verified**` /
@@ -108,7 +114,8 @@ bullet against the tree the run will build on.
 
 The drafting side of the same fix is in `/prflow:create-issue`: `skills/create-issue/references/issue-template.md`
 now requires every `Verified:` bullet to carry a self-contained re-derivation handle — the repository
-path in backticks plus the sentence quoted verbatim from it — with a matching drafting-checklist row. `skills/create-issue/references/step-3-5-steelman.md`
+path in backticks followed by the source sentence verbatim inside an ASCII or typographic double-quoted span (with
+any bullet punctuation after the closing quote) — with a matching drafting-checklist row. `skills/create-issue/references/step-3-5-steelman.md`
 states the obligation, and `skills/create-issue/references/step-3-6-audit.md`'s pre-dispatch canonical
 write is where it executes (the first anchor at which the canonical draft file exists). A
 `handle=none` bullet is rewritten before the user sees the draft; a `state=refuted` bullet is
@@ -911,6 +918,17 @@ Phase 3.3's `review-and-fix` loop runs a verification as its first act, so the j
 owe a verification round when the very next step verifies it — `skills/implement/phases/phase-3-review.md`
 §3.2 states this for the shipped skill.
 
+The Phase 3.2 tick passes the **host-safe substring** `simplify`, not `/simplify`, while the
+displayed `` `/simplify` `` Progress row keeps its label. A standalone slash-leading argument is
+rewritten by Git Bash/MSYS into a Windows path before native `python3` receives it (see the
+standalone-argument hazard in `docs/internal/install.md`), so a `/simplify` operand would tick
+nothing and report a volatile miss on those hosts; `simplify` still uniquely matches the row. The
+derived guard in `lib/test/test_python_scripts.py` enforces the rule: a static standalone
+`--tick-progress` operand under `skills/implement/` may be quoted or unquoted, must not begin with
+`/`, and must carry no shell metacharacter — an unquoted or double-quoted shell-variable operand
+is runtime-resolved and exempt (a single-quoted `'$X'` suppresses expansion, so it is a static
+literal and stays guarded).
+
 **The same command must work on both tiers**, so a focused Python test is invoked as a
 **direct leading token** (`lib/test/test_python_scripts.py <selector>`) — never `python3
 lib/test/test_python_scripts.py`, which is the interpreter-head shape the cloud matcher
@@ -964,6 +982,36 @@ Recovering *which* assertion failed reads that recap plus the stderr-merged capt
 matcher-denied on cloud, where the recap rides in the runner log instead). The recap
 preserves `run.sh`'s exit status, so `scripts/verification-flight.py` still records
 `failed` for a RED suite; on a clean run nothing extra prints.
+
+## PR-body composition: two writers and the provenance line (issue #1655)
+
+A `/prflow:implement` PR body has **two distinct writers**, and both must be understood together
+because the second regenerates over the first's output:
+
+- **Phase 3.1 (the draft-PR create fence)** is the sole author of the **provenance line** —
+  `Generated via /prflow:implement (v<version>[, <model>][, <effort>])`. The line is rendered by
+  the bundled helper `scripts/render-pr-provenance-line.py` in its own fence and substituted into
+  the `gh pr create --body` as a literal, because each phase fence is a separate shell and the
+  create fence must stay a single statement. The helper resolves the **version** from the plugin
+  manifest beside itself (mirroring `lib/efficiency-trace.sh`), the **model** from the most-recent
+  assistant record of the session transcript (never the `resolvedModel` field, which names a
+  dispatched subagent's model), and the **effort** from `CLAUDE_EFFORT`; any value it cannot
+  establish is omitted with a stderr breadcrumb rather than guessed, so a cloud run — which has no
+  model or effort source — renders the version alone. The line carries no backtick and no other
+  shell-active construct by construction, so nothing in it can reach the double-quoted `--body` it
+  is substituted into. This writes only on the **CREATE** arm; a resumed run that adopts an
+  existing PR leaves the body untouched. The provenance line is gated by the config key
+  `prflow_implement.publish_model_effort` (default `true`; an explicit JSON `false` suppresses the
+  model+effort clause while the version is always emitted), read at run time from the working tree
+  so the value is live in the same run (it is absent from the trigger-time extract step of
+  `devflow-implement.yml`).
+- **Phase 4.2 (`skills/pr-description/SKILL.md`)** authors the rest of the body — the summary,
+  `Resolves #N`, acceptance-criteria and test-plan sections — and **regenerates** it late in the
+  run. Before issue #1655 the provenance line survived that regeneration only by accident, as
+  unnamed pre-marker content the regenerator happened to re-emit. `skills/pr-description/SKILL.md`
+  now carries an explicit rule naming the provenance line, so it is **preserved deliberately across
+  Phase 4.2 regeneration** rather than by luck — the line is present in the PR body after the
+  regeneration.
 
 ## Phase 3.1.1 assigns the draft PR to the triggering user (issue #1165)
 

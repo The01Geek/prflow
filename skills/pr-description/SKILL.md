@@ -123,6 +123,7 @@ Fetch the existing body and apply these merge rules:
 
 **Preserve as-is:**
 - Any non-template sections found between the markers (e.g., "## Reviewer Notes", "## Deploy Steps") — carry them forward in the same position
+- A provenance line of the form `Generated via /prflow:implement (...)` when it appears before `<!-- PR_BODY_START -->` — preserve it verbatim in that position. It is a durable record of the run that opened the PR, so carry it forward deliberately rather than dropping it as unrecognized pre-marker text.
 - Any content that appears BEFORE `<!-- PR_BODY_START -->` or AFTER `<!-- PR_BODY_END -->` in the existing body — output it in the same position relative to the markers
 
 **If the existing body has NO markers:** Treat the entire existing body as pre-marker content. Output it above `<!-- PR_BODY_START -->`, then generate the full template below the marker.

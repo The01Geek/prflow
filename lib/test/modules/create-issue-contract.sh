@@ -472,6 +472,52 @@ devflow_module_pin_unique "#709: the cutover preserved the out-of-bounds declara
 devflow_module_pin_unique "#709: Step 4 renders the steering marker on the audit-summary line" \
   'audit independence unestablished' "$CI_ROOT/skills/create-issue/references/step-4-present-create.md"  # structural-pin-ok: machine-sentinel-provenance -- the ledger keeps the exact steering marker Step 4 renders on the summary line
 
+# Issue #1675: the two instruction-only handle=path remedies and the exhausted
+# rewrite transition are the typed structural boundaries required by the issue.
+# The remaining changed contracts are exercised through their observable helper,
+# parser, command, and state-owner interfaces below and in test_python_scripts.py.
+devflow_module_pin_unique "#1675: Step 3.5 routes handle=path to a recognized quotation beside the path" \
+  'For `handle=path`, add a recognized quotation beside the cited repository path.' \
+  "$CI_REF_STEP35"  # structural-pin-ok: cross-file-phase-contract -- Step 3.5 authors the remedy; losing this site reopens the unrepairable handle=path loop before canonical write
+devflow_module_pin_unique "#1675: Step 3.6 routes handle=path to a recognized quotation beside the path" \
+  'for `handle=path`, add a recognized quotation beside the cited repository path' \
+  "$CI_REF_STEP36"  # structural-pin-ok: cross-file-phase-contract -- Step 3.6 executes the remedy independently; a second copy in Step 3.5 cannot substitute for this consumer site
+devflow_module_pin_unique "#1675: exhausted AC rewrites require the disclosed file-anyway election before approval" \
+  'An exhausted Acceptance Criteria rewrite requires an explicit file-anyway election before the ordinary approval gate can authorize creation.' \
+  "$CI_REF_STEP4"  # structural-pin-ok: lifecycle-state-transition -- exhaustion must transition through disclosure and a user election rather than silently blocking or falling into ordinary approval
+
+# The investigation-record neutralization command is agent-executed, so extract the
+# shipped bash fence and drive all three grep outcomes instead of wording-pinning its
+# intended semantics. A missing or duplicated fence yields an empty program and fails
+# the positive control before the result rows can pass vacuously.
+CI1675_GREP_BLOCK="$(python3 - "$CI_REF_STEP4" <<'PY'
+import pathlib, re, sys, textwrap
+text = pathlib.Path(sys.argv[1]).read_text(encoding='utf-8')
+blocks = [textwrap.dedent(b) for b in re.findall(
+          r'^[ \t]*```bash[ \t]*\n(.*?)^[ \t]*```[ \t]*$', text, re.S | re.M)
+          if 'neutralization_grep_status=' in b
+          and "grep -nE '/(pr|dev)flow:|@claude'" in b]
+print(blocks[0] if len(blocks) == 1 else '')
+PY
+)"
+assert_eq "#1675 neutralization: exactly one executable grep-status fence is extractable" \
+  "yes" "$([ -n "$CI1675_GREP_BLOCK" ] && echo yes || echo no)"
+printf 'ordinary investigation text\n' > "$_ci_tmp_root/ci1675-clean.md"
+CI1675_CLEAN_CMD="${CI1675_GREP_BLOCK//<record-file>/$_ci_tmp_root/ci1675-clean.md}"
+CI1675_CLEAN_OUT="$(bash -c "$CI1675_CLEAN_CMD" 2>&1)"
+assert_eq "#1675 neutralization: a clean no-match emits the explicit status 1 result" \
+  "neutralization_grep_status=1" "$(printf '%s\n' "$CI1675_CLEAN_OUT" | tail -1)"
+printf 'rejected /prflow:implement trigger\n' > "$_ci_tmp_root/ci1675-match.md"
+CI1675_MATCH_CMD="${CI1675_GREP_BLOCK//<record-file>/$_ci_tmp_root/ci1675-match.md}"
+CI1675_MATCH_OUT="$(bash -c "$CI1675_MATCH_CMD" 2>&1)"
+assert_eq "#1675 neutralization: a surviving trigger emits its match and explicit status 0" \
+  "yes" "$(printf '%s\n' "$CI1675_MATCH_OUT" | grep -qF '/prflow:implement' && \
+    [ "$(printf '%s\n' "$CI1675_MATCH_OUT" | tail -1)" = 'neutralization_grep_status=0' ] && echo yes || echo no)"
+CI1675_FAIL_CMD="${CI1675_GREP_BLOCK//<record-file>/$_ci_tmp_root/ci1675-absent.md}"
+CI1675_FAIL_STATUS="$(bash -c "$CI1675_FAIL_CMD" 2>&1 | tail -1 | sed 's/^neutralization_grep_status=//')"
+assert_eq "#1675 neutralization: a grep failure emits its non-clean status (2 or greater)" \
+  "yes" "$([ "${CI1675_FAIL_STATUS:-0}" -ge 2 ] 2>/dev/null && echo yes || echo no)"
+
 # ── issue #803: the create-issue final-byte prose ↔ issue-audit-state.py registry ─
 # Per-contract determination for issue #792's six agent-executed prose contracts
 # (the deliverable AC1 asks for). Each contract's MACHINE-CONSUMED surface is already

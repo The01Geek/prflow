@@ -2127,17 +2127,16 @@ def _validate(doc, slug):
                                              'dispatch-inline-degraded'):
             raise StateError(f'round {num} names a pending action outside the canonical '
                              f'set: {pend!r}')
-        # The per-round retry booleans DECIDE dispatch routing (`no_parseable_retry_used`
-        # gates the same-arm-vs-inline escalation; `unreadable_retry_used` gates the
-        # DRAFT-UNREADABLE embed retry and the `prior_unreadable` route), so a
-        # hand-corrupted or absent value must fail closed here for exactly the reason
+        # These per-round booleans DECIDE routing: the first two gate retries, while
+        # `targeted_return_unusable` selects confirmation or the boundary election.
+        # A hand-corrupted value must fail closed here for the same reason
         # `pending`/`findings_count`/`outcome` above do — a falsy-corrupted
         # `unreadable_retry_used` would admit a SECOND DRAFT-UNREADABLE re-dispatch,
         # breaching the "exactly one per round" bound (a fail OPEN this read boundary
-        # exists to catch). `degraded`/`consumer_dimensions_appended` feed the summary
-        # line, so shape them too rather than trusting a corrupted flag.
+        # exists to catch). The remaining flags feed the summary, so shape them too.
         for bkey in ('no_parseable_retry_used', 'unreadable_retry_used',
-                     'degraded', 'consumer_dimensions_appended'):
+                     'degraded', 'consumer_dimensions_appended',
+                     'targeted_return_unusable'):
             bval = rnd.get(bkey)
             if bval is not None and not isinstance(bval, bool):
                 raise StateError(f'round {num} {bkey} {bval!r} is not a boolean')
@@ -2831,12 +2830,14 @@ def evaluate_triggers(state):
     comparand — T1 itself reads the effective count since #603) is absent — whether the round was never adjudicated OR was adjudicated with an `unestablished`
     count (the pre-#548 raw-REVISE token fired the offer, so either low-evidence path must not
     silently drop it — the offer fires rather than being skipped, exactly the absent-comparand
-    fail-closed the guard would otherwise fail open on); and whenever state is unestablishable
-    (unknown is not zero). A naming `reason` is surfaced on the fail-closed arms that need one
-    — `state-unestablished`, `no-verdict-round`, `unadjudicated-round`, and (issue #709)
-    `steering-unestablished` — and is `None` when T2 holds purely because a revision postdates a
-    known, audited last round WHOSE steering-absence was established (the offer fires, but there
-    is no anomaly to name). An un-adjudicated *FILE* round is none of the pre-#709 arms — its raw
+    fail-closed the guard would otherwise fail open on); when an unusable targeted return has
+    exhausted its dedicated whole-draft confirmation capacity; and whenever state is
+    unestablishable (unknown is not zero). A naming `reason` is surfaced on the fail-closed
+    arms that need one — `state-unestablished`, `no-verdict-round`, `unadjudicated-round`,
+    `targeted-return-unusable`, and (issue #709) `steering-unestablished` — and is `None` when T2
+    holds purely because a revision postdates a known, audited last round WHOSE steering-absence
+    was established (the offer fires, but there is no anomaly to name). An un-adjudicated *FILE*
+    round is none of the pre-#709 arms — its raw
     signal is clean and pre-#548 it fired no offer — so T2's behavior on it is unchanged EXCEPT
     where its steering-absence was not established, which is exactly what the #709 arm below
     names (the Quiet-Killer case: a clean round whose independence could not be established
@@ -2860,7 +2861,13 @@ def evaluate_triggers(state):
     t1 = eff is not None and eff >= 1
     t2 = _revision_postdates(state, last)
     reason = None
-    if last.get('outcome') == 'no-verdict':
+    if _targeted_return_unusable(last):
+        # Confirmation owns this state while its slot remains; only exhaustion exposes
+        # the disclosed election. Do not fall through to generic REVISE routing.
+        if state.get('confirming_rounds_used', 0) >= _MAX_CONFIRMING_ROUNDS:
+            t2 = True
+            reason = 'targeted-return-unusable'
+    elif last.get('outcome') == 'no-verdict':
         # The verdict-less terminal: T1 does not hold (there is no adjudicated must-revise
         # finding on an unaudited round), but the content is effectively unaudited, so T2 is
         # treated as holding and the boundary offer fires naming the state.
@@ -2921,6 +2928,12 @@ def evaluate_convergence(state):
     if last is None:
         return {'converged': False, 'reason': 'no-completed-round', 'basis': 'none',
                 'effective': None}
+    if _targeted_return_unusable(last):
+        # A scoped return whose per-claim block was unusable established nothing. Name
+        # that durable fact directly instead of collapsing it into generic missing
+        # adjudication; old records carry no flag and keep their historical answer.
+        return {'converged': False, 'reason': 'targeted-return-unusable',
+                'basis': 'none', 'effective': None}
     adjudicated = last.get('adjudicated_verdict')
     if adjudicated is None:
         return {'converged': False, 'reason': 'unadjudicated', 'basis': 'none',
@@ -3803,6 +3816,14 @@ def next_action(state, round_no):
     if rnd is None:
         return 'round-closed-no-verdict'
     outcome = rnd.get('outcome')
+    # An unusable targeted return established no whole-draft evidence regardless of the
+    # auditor's terminal verdict token. Confirm it while the dedicated slot remains; once
+    # exhausted, hand off to the boundary query instead of spending another retry pool.
+    if (_targeted_confirmation_needed(rnd)
+            and state.get('confirming_rounds_used', 0) < _MAX_CONFIRMING_ROUNDS):
+        return 'confirm-whole-draft'
+    if _targeted_return_unusable(rnd):
+        return 'proceed'
     if outcome == 'FILE':
         # issue #793 — a clean `targeted` round is CONFIRMED, not trusted. It audited a
         # claim set and a changed-section span, never the whole draft, so answering
@@ -3810,15 +3831,8 @@ def next_action(state, round_no):
         # whole-draft. Schedule the confirming whole-draft round instead — once, from its
         # own counter; a second clean scoped round after the confirmation has already been
         # paid for answers `proceed` normally.
-        if _round_kind(rnd) == 'targeted':
-            # A scoped round is NEVER whole-draft evidence, so `proceed` — which walks the
-            # run to Step 4 — is the permissive answer here in every sub-case, not just the
-            # clean one. While a confirming round is still fundable, ask for it: on a clean
-            # sweep to confirm it, and on an UNUSABLE return precisely because the round
-            # established nothing. Only once that budget is spent does the run fall through
-            # to `proceed`, and by then a whole-draft round has already been paid for.
-            if state.get('confirming_rounds_used', 0) < _MAX_CONFIRMING_ROUNDS:
-                return 'confirm-whole-draft'
+        # The shared predicate above owns the targeted fundable case. Once its budget is
+        # spent, the usable scoped return proceeds because confirmation was already funded.
         return 'proceed'
     if outcome == 'REVISE':
         if state.get('automatic_reaudits_used', 0) < _MAX_AUTOMATIC_REAUDITS:
@@ -3865,6 +3879,23 @@ def _round_kind(rnd):
         return None
     kind = rnd.get('kind')
     return kind if kind in _ROUND_KINDS else 'discovery'
+
+
+def _targeted_return_unusable(rnd):
+    """Whether a scoped round durably recorded an unusable per-claim return.
+
+    The field is additive: pre-#1675 state has no key and reads false. Require the
+    literal boolean rather than truthiness so a hand-corrupted string cannot force a
+    boundary election.
+    """
+    return (_round_kind(rnd) == 'targeted'
+            and rnd.get('targeted_return_unusable') is True)
+
+
+def _targeted_confirmation_needed(rnd):
+    """Whether a scoped terminal return needs whole-draft confirmation."""
+    return (_round_kind(rnd) == 'targeted'
+            and (rnd.get('outcome') == 'FILE' or _targeted_return_unusable(rnd)))
 
 
 def _checked_kind(token):
@@ -5611,27 +5642,20 @@ def cmd_record_dispatch(args):
         # resolutions over exactly such a round. Unguarded, an accepted pass would
         # increment BOTH counters and hand the run a phantom third round the widened
         # funding test then admits with no offer behind it.
+        # `targeted_return_unusable` sits BESIDE `outcome`, so without the third clause an
+        # unusable targeted REVISE pays for a CONFIRMATION out of the automatic pool,
+        # leaving `confirming_rounds_used` at 0 and the boundary election unreachable.
         if (not final_byte_pass
                 and prev is not None and prev.get('outcome') == 'REVISE'
+                and not _targeted_confirmation_needed(prev)
                 and doc.get('automatic_reaudits_used', 0) < _MAX_AUTOMATIC_REAUDITS):
             doc['automatic_reaudits_used'] = doc.get('automatic_reaudits_used', 0) + 1
-        # issue #793 — the confirming whole-draft round's OWN spend, on its own counter,
-        # leaving the predicate above and `_MAX_AUTOMATIC_REAUDITS` byte-untouched. It
-        # fires on exactly the state `next_action` answers `confirm-whole-draft` for: the
-        # predecessor is a `targeted` round whose outcome is FILE, and this round is the
-        # whole-draft one that confirms it. The predicate is deliberately the SAME one
-        # `next_action` schedules under, not the narrower all-claims-addressed sweep: a
-        # targeted round whose return was UNUSABLE also closes FILE and is also sent to
-        # `confirm-whole-draft` — precisely because it established nothing — so funding it
-        # only on a clean sweep left the scheduled round unfundable and dead-ended the
-        # error-recovery path on `not funded`. Guarded on `not final_byte_pass` for the
-        # sibling is — an accepted final-byte pass would otherwise increment two counters
-        # and hand the run a phantom round the widened funding test then admits with no
-        # offer behind it.
+        # The confirming round spends its own counter. Fund exactly what `next_action`
+        # schedules: targeted FILE, or an unusable targeted terminal return of either
+        # verdict shape, while a dedicated slot remains. A final-byte pass stays excluded.
         elif (not final_byte_pass
                 and prev is not None
-                and _round_kind(prev) == 'targeted'
-                and prev.get('outcome') == 'FILE'
+                and _targeted_confirmation_needed(prev)
                 and doc.get('confirming_rounds_used', 0) < _MAX_CONFIRMING_ROUNDS):
             doc['confirming_rounds_used'] = doc.get('confirming_rounds_used', 0) + 1
         # Round funding: every round past the initial one is funded by the automatic
@@ -5979,15 +6003,19 @@ def _ingest_targeted_verdicts(doc, rnd, args):
     # A return that carries NO per-claim block at all is UNUSABLE, not a sweep of
     # not-addressed verdicts. The distinction is load-bearing in two directions: recording
     # every claim not-addressed would REOPEN every entry the drafter had resolved, and
-    # recording them addressed would schedule the confirming round on nothing. Neither is
-    # honest, so an absent block records the round as unusable and reopens nothing — the
-    # next action then selects a fresh `discovery` round.
+    # recording them addressed would schedule confirmation on nothing. An absent block
+    # therefore records the round as unusable and reopens nothing.
     if args.claim_verdicts is None or not args.claim_verdicts.strip():
         rnd['claim_verdicts'] = {}
         rnd['targeted_return_unusable'] = True
+        if doc.get('confirming_rounds_used', 0) < _MAX_CONFIRMING_ROUNDS:
+            route = 'the next action schedules whole-draft confirmation'
+        else:
+            route = ('confirmation capacity is exhausted, so the next action proceeds '
+                     'to the disclosed boundary election')
         print('record-return: warning: a targeted round returned no per-claim block '
               '(--claim-verdicts absent or empty); the round is recorded UNUSABLE — no '
-              'ledger entry is reopened and the next action selects a discovery round',
+              f'ledger entry is reopened and {route}',
               file=sys.stderr)
         return
     returned = {}

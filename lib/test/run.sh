@@ -29963,6 +29963,141 @@ assert_eq "#222 smoke: workpad.py id resolves a comment with a non-ASCII body" "
 rm -rf "$U8_GHD"
 
 # ────────────────────────────────────────────────────────────────────────────
+echo "issue #1678: explicit UTF-8 decoding on local text-file readers (hostile file codec)"
+# parse-acs.py --body-file, workpad.py::_read_section_file, and
+# branch-for-issue.py --title-file decode local files as UTF-8 EXPLICITLY (never
+# the ambient locale codec), so non-ASCII issue text survives on Windows and a
+# decode failure routes through the parser, workpad, and branch-create clean
+# non-zero paths (no traceback).
+# AC5 (the static AST guard over ALL tracked scripts/*.py) lives in
+# test_python_scripts.py; these are the hostile-codec RED->GREEN CLI and
+# mutation-boundary tests — only observable when the scripts run as CLIs under a
+# forced-ASCII FILE codec. PYTHONCOERCECLOCALE=0/PYTHONUTF8=0/LC_ALL=C/LANG=C
+# makes locale.getpreferredencoding(False) == ASCII (the codec read_text()/open()
+# use with no encoding=), reproducing the Windows/cp1252 threat model. A vacuity
+# self-check (mirrors the #423 T6b guard) skips VISIBLY when a host (some
+# macOS/Homebrew builds) does not reproduce the strict-ASCII file codec, so a
+# trivially-green host is observable, never a silent pass.
+U8D_ENC="$( env PYTHONCOERCECLOCALE=0 PYTHONUTF8=0 LC_ALL=C LANG=C python3 -c 'import locale,sys; sys.stdout.write((locale.getpreferredencoding(False) or "").lower())' 2>/dev/null )"
+case "$U8D_ENC" in
+  ascii|us-ascii|ansi_x3.4-1968|646)
+    # AC1 — parse-acs.py --body-file preserves an em-dash+emoji AC and Test Plan
+    # item (RED on baseline: the ambient-ASCII read_text() raises → empty output).
+    U8D_BODY="$(mktemp)"
+    printf '## Acceptance Criteria\n\n- [ ] Models/CompanySettings.cs \xe2\x80\x94 preserve \xf0\x9f\x9a\x80\n\n## Test Plan\n\n- [ ] Verify Models/CompanySettings.cs \xe2\x80\x94 preserve \xf0\x9f\x9a\x80\n' > "$U8D_BODY"
+    U8D_OUT="$(mktemp)"
+    env PYTHONCOERCECLOCALE=0 PYTHONUTF8=0 LC_ALL=C LANG=C python3 "$U8_SCRIPTS/parse-acs.py" --body-file "$U8D_BODY" > "$U8D_OUT" 2>/dev/null
+    U8D_PA_RC=$?
+    assert_eq "#1678 AC1: parse-acs.py --body-file exits 0 under ASCII file codec (codec=$U8D_ENC)" "0" "$U8D_PA_RC"
+    assert_eq "#1678 AC1: the em-dash+emoji item survives in AC and Test Plan output" "2" \
+      "$(grep -cF 'Models/CompanySettings.cs — preserve 🚀' "$U8D_OUT")"
+    rm -f "$U8D_BODY" "$U8D_OUT"
+
+    # AC2 — the three _read_section_file flags each preserve a UTF-8 em-dash+emoji
+    # fixture through the REAL workpad mutation boundary (_read_section_file →
+    # _set_section_content/_insert_section_after → _join_sections; nothing mocked).
+    # RED on baseline (the ambient-ASCII read raises, so the driver prints nothing).
+    U8D_DRV="$(mktemp -d)"
+    cat > "$U8D_DRV/drv.py" <<'U8PY'
+import sys
+sys.path.insert(0, sys.argv[1])
+import workpad
+fix = sys.argv[2]
+BODY = ("<!-- m -->\n# T\n\n**Status:** \U0001f680 Setup\n"
+        "**Last updated:** x\n\n## Plan\n- [ ] a\n\n"
+        "## Acceptance Criteria\n- [ ] b\n")
+pre, secs = workpad._split_sections(BODY)
+secs = workpad._set_section_content(secs, 'Plan', workpad._read_section_file(fix, '--replace-plan-file'))
+secs = workpad._set_section_content(secs, 'Acceptance Criteria', workpad._read_section_file(fix, '--replace-acs-file'))
+secs = workpad._insert_section_after(secs, 'Acceptance Criteria', '## Reproduction', workpad._read_section_file(fix, '--set-reproduction-file'))
+out = workpad._join_sections(pre, secs)
+n = out.count("— preserve \U0001f680")
+sys.stdout.write("AC2_OK" if n == 3 else ("AC2_FAIL:%d" % n))
+U8PY
+    U8D_FIX="$(mktemp)"
+    printf -- '- [ ] Models/CompanySettings.cs \xe2\x80\x94 preserve \xf0\x9f\x9a\x80\n' > "$U8D_FIX"
+    U8D_AC2="$( env PYTHONCOERCECLOCALE=0 PYTHONUTF8=0 LC_ALL=C LANG=C python3 "$U8D_DRV/drv.py" "$U8_SCRIPTS" "$U8D_FIX" 2>/dev/null )"
+    assert_eq "#1678 AC2: the 3 _read_section_file flags preserve UTF-8 through the real mutation boundary (codec=$U8D_ENC)" "AC2_OK" "$U8D_AC2"
+    rm -rf "$U8D_DRV"; rm -f "$U8D_FIX"
+
+    # AC3 — branch-for-issue.py --title-file under the hostile codec == the
+    # identical positional UTF-8 title. The reference is the positional form under
+    # PYTHONUTF8=1 (forces UTF-8 argv decoding regardless of host locale — argv
+    # itself corrupts under the hostile codec, which is NOT the axis under test).
+    # RED on baseline: the file read raises under ASCII → empty output.
+    U8D_TITLE="$(mktemp)"
+    printf 'Fix crash in Mod\xc3\xa8le \xf0\x9f\x9a\x80 handler' > "$U8D_TITLE"
+    U8D_REF="$( env PYTHONUTF8=1 python3 "$U8_SCRIPTS/branch-for-issue.py" 1678 'Fix crash in Modèle 🚀 handler' 2>/dev/null )"
+    U8D_FROMFILE="$( env PYTHONCOERCECLOCALE=0 PYTHONUTF8=0 LC_ALL=C LANG=C python3 "$U8_SCRIPTS/branch-for-issue.py" 1678 --title-file "$U8D_TITLE" 2>/dev/null )"
+    assert_eq "#1678 AC3: --title-file (codec=$U8D_ENC) == positional UTF-8 title branch name" "$U8D_REF" "$U8D_FROMFILE"
+    assert_eq "#1678 AC3: the reference positional branch name is non-empty (guards a vacuous ==)" "yes" \
+      "$( [ -n "$U8D_REF" ] && echo yes || echo no )"
+    rm -f "$U8D_TITLE"
+    ;;
+  *)
+    skip "#1678 UTF-8 local-file decode hostile-codec self-scan (AC1/AC2/AC3)" host-capability "forced env did not downgrade the file codec to ASCII (got ${U8D_ENC:-<empty>}); the hostile-codec RED->GREEN condition is not reproducible on this host" ;;
+esac
+
+# AC4 runs UNCONDITIONALLY, OUTSIDE the hostile-codec case above: invalid UTF-8 and
+# an unavailable path fail under every codec, so gating these regression legs behind
+# the ASCII-codec self-skip would drop coverage of the new except-OSError/decode arms
+# on a host that cannot reproduce that codec. AC1/AC2/AC3 stay gated — they need the
+# hostile codec to be RED on baseline.
+if true; then
+    # AC4 (CLI half) — invalid UTF-8 on each affected CLI exits non-zero with a
+    # flag-specific UTF-8 diagnostic, NO traceback, and NO partial stdout. (Invalid
+    # UTF-8 fails under any codec, so no hostile env is needed for this leg.)
+    U8D_BAD="$(mktemp)"
+    printf 'bad\xff\xfe\x00utf8\xe2\x28' > "$U8D_BAD"
+    U8D_PAO="$(mktemp)"; U8D_PAE="$(mktemp)"
+    python3 "$U8_SCRIPTS/parse-acs.py" --body-file "$U8D_BAD" > "$U8D_PAO" 2>"$U8D_PAE"
+    U8D_PA4=$?
+    assert_eq "#1678 AC4: parse-acs.py --body-file invalid-UTF-8 exits non-zero" "yes" \
+      "$( [ "$U8D_PA4" -ne 0 ] && echo yes || echo no )"
+    assert_eq "#1678 AC4: parse-acs.py invalid-UTF-8 diagnostic is flag-specific, no traceback" "yes" \
+      "$( grep -qF -- '--body-file' "$U8D_PAE" && grep -qF 'not valid UTF-8' "$U8D_PAE" \
+          && ! grep -qF 'Traceback (most recent call last)' "$U8D_PAE" && echo yes || echo no )"
+    assert_eq "#1678 AC4: parse-acs.py invalid-UTF-8 emits no partial stdout" "0" \
+      "$(wc -c < "$U8D_PAO" | tr -d ' ')"
+    U8D_BFO="$(mktemp)"; U8D_BFE="$(mktemp)"
+    python3 "$U8_SCRIPTS/branch-for-issue.py" 1678 --title-file "$U8D_BAD" > "$U8D_BFO" 2>"$U8D_BFE"
+    U8D_BF4=$?
+    assert_eq "#1678 AC4: branch-for-issue.py --title-file invalid-UTF-8 exits non-zero" "yes" \
+      "$( [ "$U8D_BF4" -ne 0 ] && echo yes || echo no )"
+    assert_eq "#1678 AC4: branch-for-issue.py invalid-UTF-8 diagnostic is flag-specific, no traceback" "yes" \
+      "$( grep -qF -- '--title-file' "$U8D_BFE" && grep -qF 'not valid UTF-8' "$U8D_BFE" \
+          && ! grep -qF 'Traceback (most recent call last)' "$U8D_BFE" && echo yes || echo no )"
+    assert_eq "#1678 AC4: branch-for-issue.py invalid-UTF-8 emits no partial stdout" "0" \
+      "$(wc -c < "$U8D_BFO" | tr -d ' ')"
+    # AC4 (unavailable-path half) — the issue's "unavailable path" byte-matrix row:
+    # a nonexistent --body-file / --title-file exits non-zero with a flag-specific
+    # "could not read" diagnostic, no traceback, and no partial stdout (the new
+    # except-OSError arms this change added to the two CLIs).
+    U8D_MISS="$U8D_BAD-nonexistent"   # a path guaranteed not to exist (never created)
+    U8D_MPAO="$(mktemp)"; U8D_MPAE="$(mktemp)"
+    python3 "$U8_SCRIPTS/parse-acs.py" --body-file "$U8D_MISS" > "$U8D_MPAO" 2>"$U8D_MPAE"
+    U8D_MPA=$?
+    assert_eq "#1678 AC4: parse-acs.py --body-file unavailable-path exits non-zero" "yes" \
+      "$( [ "$U8D_MPA" -ne 0 ] && echo yes || echo no )"
+    assert_eq "#1678 AC4: parse-acs.py unavailable-path diagnostic is flag-specific, no traceback" "yes" \
+      "$( grep -qF -- '--body-file' "$U8D_MPAE" && grep -qF 'could not read' "$U8D_MPAE" \
+          && ! grep -qF 'Traceback (most recent call last)' "$U8D_MPAE" && echo yes || echo no )"
+    assert_eq "#1678 AC4: parse-acs.py unavailable-path emits no partial stdout" "0" \
+      "$(wc -c < "$U8D_MPAO" | tr -d ' ')"
+    U8D_MBFO="$(mktemp)"; U8D_MBFE="$(mktemp)"
+    python3 "$U8_SCRIPTS/branch-for-issue.py" 1678 --title-file "$U8D_MISS" > "$U8D_MBFO" 2>"$U8D_MBFE"
+    U8D_MBF=$?
+    assert_eq "#1678 AC4: branch-for-issue.py --title-file unavailable-path exits non-zero" "yes" \
+      "$( [ "$U8D_MBF" -ne 0 ] && echo yes || echo no )"
+    assert_eq "#1678 AC4: branch-for-issue.py unavailable-path diagnostic is flag-specific, no traceback" "yes" \
+      "$( grep -qF -- '--title-file' "$U8D_MBFE" && grep -qF 'could not read' "$U8D_MBFE" \
+          && ! grep -qF 'Traceback (most recent call last)' "$U8D_MBFE" && echo yes || echo no )"
+    assert_eq "#1678 AC4: branch-for-issue.py unavailable-path emits no partial stdout" "0" \
+      "$(wc -c < "$U8D_MBFO" | tr -d ' ')"
+    rm -f "$U8D_BAD" "$U8D_PAO" "$U8D_PAE" "$U8D_BFO" "$U8D_BFE" "$U8D_MPAO" "$U8D_MPAE" "$U8D_MBFO" "$U8D_MBFE"
+fi
+
+# ────────────────────────────────────────────────────────────────────────────
 echo "python3 interpreter resolution: resolve-python.sh / provision-python3-shim.sh / preflight.sh (issue #225)"
 # ────────────────────────────────────────────────────────────────────────────
 # Stock Windows Python (python.org / winget) ships `python` + the `py -3` launcher and NO
@@ -32280,6 +32415,42 @@ assert_eq "#266 post-issue-comment: missing body file -> exit 0 (best-effort)" "
 POST_ERR266="$(DEVFLOW_GH=true bash "$POST_SH266" 5 /no/such/body/file 2>&1 >/dev/null)"
 assert_eq "#266 post-issue-comment: missing body file leaves a specific breadcrumb" "yes" \
   "$(printf '%s' "$POST_ERR266" | grep -q 'body file not found' && echo yes || echo no)"
+
+# Issue #1675: the always-zero contract begins when the helper starts, not after
+# positional expansion. Both missing-argument arms must identify a caller slip and
+# must return before the API helper is invoked.
+POST_T1675="$(mktemp -d)" || { echo "FAIL  #1675: mktemp -d failed"; exit 1; }
+POST_CALLS1675="$POST_T1675/calls"
+POST_BODY1675="$POST_T1675/body"
+printf '%s\n' 'valid body' > "$POST_BODY1675"
+cat > "$POST_T1675/gh" <<'SH'
+#!/usr/bin/env bash
+printf 'called\n' >> "$POST_CALLS1675"
+exit 0
+SH
+chmod +x "$POST_T1675/gh"
+# Positive control: prove the recording stub sees a real helper call before the negative
+# arms use that same stub to establish that caller slips make no request.
+POST_RC1675_VALID="$(POST_CALLS1675="$POST_CALLS1675" DEVFLOW_GH="$POST_T1675/gh" \
+  bash "$POST_SH266" 5 "$POST_BODY1675" >/dev/null 2>&1; echo $?)"
+assert_eq "#1675 post-issue-comment: a valid call reaches the API stub once" \
+  "0:1" "$POST_RC1675_VALID:$([ -f "$POST_CALLS1675" ] && wc -l < "$POST_CALLS1675" || echo 0)"
+: > "$POST_CALLS1675"
+POST_ERR1675_NUMBER="$(POST_CALLS1675="$POST_CALLS1675" DEVFLOW_GH="$POST_T1675/gh" \
+  bash "$POST_SH266" 2>&1 >/dev/null)"; POST_RC1675_NUMBER=$?
+assert_eq "#1675 post-issue-comment: missing issue number exits 0 (best-effort)" \
+  "0" "$POST_RC1675_NUMBER"
+assert_eq "#1675 post-issue-comment: missing issue number identifies a caller argument slip" \
+  "yes" "$(printf '%s' "$POST_ERR1675_NUMBER" | grep -qF 'caller argument slip' && echo yes || echo no)"
+POST_ERR1675_BODY="$(POST_CALLS1675="$POST_CALLS1675" DEVFLOW_GH="$POST_T1675/gh" \
+  bash "$POST_SH266" 5 2>&1 >/dev/null)"; POST_RC1675_BODY=$?
+assert_eq "#1675 post-issue-comment: missing body-file argument exits 0 (best-effort)" \
+  "0" "$POST_RC1675_BODY"
+assert_eq "#1675 post-issue-comment: missing body-file identifies a caller argument slip" \
+  "yes" "$(printf '%s' "$POST_ERR1675_BODY" | grep -qF 'caller argument slip' && echo yes || echo no)"
+assert_eq "#1675 post-issue-comment: missing arguments make zero API requests" \
+  "0" "$([ -f "$POST_CALLS1675" ] && wc -l < "$POST_CALLS1675" || echo 0)"
+rm -rf "$POST_T1675"
 
 # Config keys are a coupled peer set (2.3.0a): example template ↔ schema must
 # both carry stall_backstop.{enabled,max_resume_attempts}. Parse structurally so
@@ -46959,7 +47130,7 @@ fi
 # The registry and this full-suite call share the same lower-bound contract;
 # test_module_runner.py parses this operand and rejects any coupling drift.
 if ! devflow_run_full_suite_module "$LIB/test/modules/create-issue-contract.sh" \
-  "create-issue-contract" 319; then
+  "create-issue-contract" 326; then
   printf 'ERROR: create-issue-contract boundary could not record its result\n'
   exit 1
 fi

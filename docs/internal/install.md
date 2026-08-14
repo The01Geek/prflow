@@ -115,6 +115,14 @@ export DEVFLOW_BASH=/path/to/bash   # e.g. a WSL, Git Bash, or MSYS2 bash
 
 **Known non-goal.** A host with **no POSIX bash at all** (PowerShell-only, with no WSL, Git Bash, or MSYS2 installed) cannot run the `.sh` helpers regardless — that irreducible case is out of scope. Install any one of the three supported bashes; that is the fix, not a `DEVFLOW_BASH` value.
 
+### Windows: the standalone-argument path-conversion hazard (MSYS/Git Bash)
+
+Git Bash and MSYS2 rewrite a **standalone slash-leading argument** — one whose whole value looks like a Unix path (e.g. `/simplify`) — into a Windows path such as `C:/Program Files/Git/simplify` **before** a native (non-MSYS) executable like `python3` receives it. This conversion is silent and applies to the argument itself, not to a flag it is attached to; the [MSYS2 filesystem-paths docs](https://www.msys2.org/docs/filesystem-paths/) describe it. A PRFlow argument that reaches native `python3` this way arrives as a Windows path and no longer matches what the step expected.
+
+**Host-safe operand rule.** PRFlow avoids the hazard at the source rather than with an environment prefix: a value passed as a standalone argument to a native tool must not be a static slash-leading literal. The Phase 3 workpad tick is the worked case — it passes the substring `simplify` (which still uniquely matches the displayed `` `/simplify` `` Progress row), not `/simplify`. The derived guard in `lib/test/test_python_scripts.py` fails the suite if a static standalone `--tick-progress` operand under `skills/implement/` begins with `/`.
+
+**Do not add an environment prefix to PRFlow's own call sites.** `MSYS_NO_PATHCONV=1` or `MSYS2_ARG_CONV_EXCL=…` suppress the conversion for your *own* commands, but PRFlow does not prepend either to its invocations — the host-safe-operand rule keeps the argument non-convertible instead, so no per-call environment variable is required.
+
 ### Non-Claude-Code runners (Copilot CLI, Cursor, Codex CLI, Gemini CLI): the skill anchor
 
 Every local-tier skill locates its bundled helpers through a **portable single-statement anchor**: `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/…`. On Claude Code, `$CLAUDE_SKILL_DIR` is exported and the command runs as written. On other runners the variable expands **empty**; the agent substitutes the placeholder with the skill base directory the runner reports in context (Copilot CLI prints a `Base directory for this skill:` line), normalizing a Windows-form path (`C:\...`) to POSIX form first (`wslpath -u` / `cygpath -u`, or the `lib/normalize-path.sh` drive-letter rules). Two constraints make the *single-statement* shape load-bearing rather than stylistic:
@@ -133,7 +141,7 @@ PRFlow's skills now work when invoked from **any subdirectory** of your reposito
 
 ### Windows: PowerShell file-write encoding (UTF-16LE pitfall)
 
-PowerShell 5.x's `>` redirection and `Out-File` write **UTF-16LE with a BOM** by default. PRFlow's helpers read their input files (issue bodies, workpad body files, AC lists) as **UTF-8**, so a file produced with a PowerShell `>` silently arrives corrupted (NUL-interleaved text, a `ÿþ` BOM). When preparing any file a PRFlow helper will read from PowerShell, write UTF-8 **without** BOM explicitly — e.g. `[IO.File]::WriteAllText($path, $text)` or `Set-Content -Encoding utf8NoBOM` (PowerShell 7+) — or simply create the file from inside your POSIX bash instead.
+PowerShell 5.x's `>` redirection and `Out-File` write **UTF-16LE with a BOM** by default. PRFlow's helpers decode their local input files (issue bodies, workpad body files, AC lists) **explicitly as UTF-8** — `parse-acs.py --body-file`, `workpad.py`'s section-file flags (`--replace-plan-file`/`--replace-acs-file`/`--set-reproduction-file`), and `branch-for-issue.py --title-file` all pass `encoding="utf-8"` rather than trusting the ambient locale codec, which is a separate hardening layer from the stream/`gh`-I/O UTF-8 forcing (issue #222) that governs the helpers' own stdout/stderr and subprocess I/O. Because that decode is UTF-8, a file produced with a PowerShell `>` (UTF-16LE) is not valid UTF-8 and is **rejected cleanly** — the reader exits non-zero with a flag-specific diagnostic and no traceback (and `workpad.py` issues no GitHub PATCH), rather than silently arriving as NUL-interleaved mojibake. When preparing any file a PRFlow helper will read from PowerShell, write UTF-8 **without** BOM explicitly — e.g. `[IO.File]::WriteAllText($path, $text)` or `Set-Content -Encoding utf8NoBOM` (PowerShell 7+) — or simply create the file from inside your POSIX bash instead.
 
 ### Windows: quoting `workpad.py` text arguments from PowerShell
 
@@ -146,9 +154,9 @@ PowerShell's double-quote handling can split a `--note`/`--reflection` text argu
 For autonomous GitHub Actions automation, run the installer from your repo root. It is idempotent, so re-running it at a *newer* release tag is also how you update. It writes into your repository — the workflows and composite actions under `.github/`, a local `marketplace.json`, and `.prflow/` templates (config scaffold, schema, ignore file) — so those changes land in version control. **Download it, read it, then run the downloaded file:**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.32.70/install.sh -o devflow-install.sh
+curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.32.74/install.sh -o devflow-install.sh
 # review devflow-install.sh, then:
-DEVFLOW_REF=v2.32.70 bash devflow-install.sh
+DEVFLOW_REF=v2.32.74 bash devflow-install.sh
 ```
 
 <a id="pinning-the-installer"></a>
@@ -167,8 +175,8 @@ Independently of either pin, `install.sh` stamps `.prflow/config.json`'s `prflow
 `curl … | bash` runs the script without giving you a chance to read it. If you accept that, still pin both refs:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.32.70/install.sh \
-  | DEVFLOW_REF=v2.32.70 bash
+curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.32.74/install.sh \
+  | DEVFLOW_REF=v2.32.74 bash
 ```
 
 </details>
