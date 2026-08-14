@@ -5637,8 +5637,13 @@ def cmd_record_dispatch(args):
         # resolutions over exactly such a round. Unguarded, an accepted pass would
         # increment BOTH counters and hand the run a phantom third round the widened
         # funding test then admits with no offer behind it.
+        # `targeted_return_unusable` is recorded BESIDE `outcome`, so an unusable targeted
+        # round whose terminal token is REVISE would otherwise satisfy this branch and pay
+        # for a CONFIRMATION out of the automatic pool — leaving `confirming_rounds_used`
+        # at 0, so the exhaustion -> boundary-election transition never becomes reachable.
         if (not final_byte_pass
                 and prev is not None and prev.get('outcome') == 'REVISE'
+                and not _targeted_confirmation_needed(prev)
                 and doc.get('automatic_reaudits_used', 0) < _MAX_AUTOMATIC_REAUDITS):
             doc['automatic_reaudits_used'] = doc.get('automatic_reaudits_used', 0) + 1
         # The confirming round spends its own counter. Fund exactly what `next_action`

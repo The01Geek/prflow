@@ -108,7 +108,7 @@ bullet against the tree the run will build on.
 
 The drafting side of the same fix is in `/prflow:create-issue`: `skills/create-issue/references/issue-template.md`
 now requires every `Verified:` bullet to carry a self-contained re-derivation handle — the repository
-path in backticks followed by the source sentence verbatim inside literal ASCII double quotes (with
+path in backticks followed by the source sentence verbatim inside an ASCII or typographic double-quoted span (with
 any bullet punctuation after the closing quote) — with a matching drafting-checklist row. `skills/create-issue/references/step-3-5-steelman.md`
 states the obligation, and `skills/create-issue/references/step-3-6-audit.md`'s pre-dispatch canonical
 write is where it executes (the first anchor at which the canonical draft file exists). A
