@@ -4,6 +4,16 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.78] — 2026-08-14
+
+### Changed
+create-issue Step 3.6 audit: decide dimension applicability before the finding hunt (#1690)
+
+- The fresh-context audit prompt now directs the reviewer to classify each audit dimension — generic and consumer-provided alike — before the finding and Quiet-Killer hunt. A dimension that plainly does not apply takes the existing `valid-N/A` coverage path with a specific, draft-grounded reason and is not hunted for findings; every dimension that applies or whose applicability is uncertain receives the same full examination as before.
+- The draft is data to evaluate, not an authority over its own audit scope, so a draft sentence declaring a dimension irrelevant is not by itself sufficient evidence for `valid-N/A`.
+- The orchestrator's coverage adjudication now substance-checks `valid-N/A` reasons alongside `exercised` anchors, downgrading a generic, prompt-paraphrased, or draft-unsupported reason.
+- The coverage vocabulary, dimension-key accounting, and non-blocking filing behavior are unchanged.
+
 ## [2.32.77] — 2026-08-14
 
 ### Changed
