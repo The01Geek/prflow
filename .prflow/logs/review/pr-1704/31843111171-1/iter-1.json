@@ -1,0 +1,190 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-14T00:00:00Z",
+  "fix_commit_sha": "039e26a",
+  "fix_files": [
+    "lib/test/check-audit-lifecycle-contracts.py",
+    "scripts/create_issue_eval.py",
+    "lib/test/test_python_scripts.py",
+    "lib/test/test_create_issue_context_eval.py"
+  ],
+  "loop_role": "fix",
+  "current_step": "3",
+  "current_substep": null,
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:pr-test-analyzer",
+    "prflow:comment-analyzer"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "stale 'one non-integer delta' comment in create_issue_eval.py",
+      "defect_signature": {
+        "file": "scripts/create_issue_eval.py",
+        "line_range": [
+          2323,
+          2323
+        ],
+        "kind": "comment_accuracy"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "on-disk glob used p.read_text directly instead of the _read Refusal path",
+      "defect_signature": {
+        "file": "lib/test/check-audit-lifecycle-contracts.py",
+        "line_range": [
+          240,
+          240
+        ],
+        "kind": "inconsistent_error_handling"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "AC4 set-incomplete branches of check_step36_manifest untested (no-part-marker, of=N disagreement, part-gap, entry-carrying-marker, missing)",
+      "defect_signature": {
+        "file": "lib/test/check-audit-lifecycle-contracts.py",
+        "line_range": [
+          227,
+          247
+        ],
+        "kind": "test_coverage_gap"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "AC10 case_identity_mismatch branch never distinctly triggered",
+      "defect_signature": {
+        "file": "scripts/create_issue_eval.py",
+        "line_range": [
+          753,
+          753
+        ],
+        "kind": "test_coverage_gap"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "AC10 median value not asserted equals revised-minus-baseline",
+      "defect_signature": {
+        "file": "scripts/create_issue_eval.py",
+        "line_range": [
+          808,
+          809
+        ],
+        "kind": "test_coverage_gap"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "AC10 UNESTABLISHED median path untested",
+      "defect_signature": {
+        "file": "scripts/create_issue_eval.py",
+        "line_range": [
+          768,
+          773
+        ],
+        "kind": "unreachable_branch"
+      },
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "039e26a"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "039e26a"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "039e26a"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "039e26a"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "applied",
+      "commit": "039e26a"
+    },
+    {
+      "finding_id": "F-6",
+      "decision": "advisory",
+      "source_file": "scripts/create_issue_eval.py",
+      "claim_text": "UNESTABLISHED median path untested",
+      "skip_category": "uncategorized",
+      "evidence": "unreachable by construction: peak_context is always an int from Runner.result(), and _degraded catches empty/skipped corpora before the established branch; the _all_numeric guard is defensive-but-unreachable, so a driving test would require injecting a non-numeric peak that also crashes _paired_delta's median key — no reachable input exists to exercise it."
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 5,
+    "fix_diff_lines": 90,
+    "new_corroborated_critical_count": 0
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "refixed",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "ran_at": "2026-08-14T00:00:00Z",
+    "reviewed_sha": "039e26a20c89d81997b61973d5bde04cb225a18d",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "checklist_skipped": null,
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:pr-test-analyzer",
+      "prflow:comment-analyzer"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:pr-test-analyzer",
+      "prflow:comment-analyzer"
+    ],
+    "phase3_findings": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
