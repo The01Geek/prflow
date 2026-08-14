@@ -229,8 +229,12 @@ def model_effort_permitted(explicit_config: str | None) -> bool:
         _breadcrumb(f"config unreadable at {path} ({exc}); model+effort clause left enabled")
         return True
     if not isinstance(data, dict):
+        _breadcrumb(f"config at {path} is not a JSON object; model+effort clause left enabled")
         return True
     section = data.get(_CONFIG_SECTION)
+    if section is not None and not isinstance(section, dict):
+        _breadcrumb(f"config {_CONFIG_SECTION} is not an object; model+effort clause left enabled")
+        return True
     if not isinstance(section, dict):
         return True
     value = section.get(_CONFIG_KEY)
