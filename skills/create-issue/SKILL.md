@@ -12,13 +12,15 @@ candidate task-tracking tools in order — `TodoWrite`, then `TaskCreate`/`TaskU
 `update_plan` — picking only from candidates the runner lists as currently exposed, and moving to
 the next candidate whenever the one you tried is unavailable. When you cannot establish which tools
 are visible, try the candidates in that same order instead and treat a returned failure as the
-failure arm below. When no candidate appears in the visible tool list, look first for a discovery
+failure arm below. When no candidate appears in the visible tool list, first re-read any listing
+the runner already supplied of tools it has not yet exposed; failing that, look for a discovery
 mechanism the runner itself advertises — a listed tool whose stated purpose is to find and load
-tools the runner has not yet exposed — and use it to check for the candidates before concluding
-that no task tool is available. When a candidate call is made and the runner returns a failure to
-the run as a result, record a breadcrumb naming that failure and carry on to the next rung; a
-failed task-tool call degrades the run exactly as a failed reference load does, and no arm of this
-ladder terminates the run. Once every candidate is exhausted, use the inline fallback in
+tools the runner has not yet exposed — and use it to search for the candidates above, never as a
+candidate itself, before concluding that no task tool is available. When a candidate call is made
+and the runner returns a failure to the run as a result, record a breadcrumb naming that failure
+and carry on to the next rung — the same degrade-and-continue arm the *Reference routing* rules
+below already define for a failed load, so no rung of this ladder ends the run. Once every
+candidate is exhausted, use the inline fallback in
 `references/fallback-no-task-tool.md`, loaded per the *Reference routing* rules below — the route
 this skill takes
 when the runner exposes no task-tracking tool or the exposed one is disabled or unusable:
