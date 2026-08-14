@@ -1,0 +1,120 @@
+{
+  "iter": 1,
+  "source": "review-and-fix",
+  "started_at": "2026-08-14T20:00:00Z",
+  "fix_commit_sha": "df1c28d576f8b3d3d5573f83bb639f2eef53a018",
+  "fix_files": [
+    "skills/create-issue/references/step-3-5-steelman.md",
+    "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md"
+  ],
+  "loop_role": "fix",
+  "current_step": "3",
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "checklist": [
+    {
+      "id": "VC-1",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-2",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-3",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-4",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-5",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-6",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-7",
+      "verdict": "FAIL",
+      "claim_signature": "issue_acceptance:devflow_system_overview.md:self-steelman-names-sweep"
+    },
+    {
+      "id": "VC-8",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-9",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-10",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-11",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-12",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-13",
+      "verdict": "PASS"
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "request-origin sweep gives no route for an unestablished request record (fail-open on the core discriminator)",
+      "defect_signature": {
+        "file": "skills/create-issue/references/step-3-5-steelman.md",
+        "line_range": [
+          20,
+          20
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "VC-7",
+      "decision": "applied",
+      "commit": "df1c28d576f8b3d3d5573f83bb639f2eef53a018"
+    },
+    {
+      "finding_id": "F-shf-1",
+      "decision": "applied",
+      "commit": "df1c28d576f8b3d3d5573f83bb639f2eef53a018"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 2,
+    "fix_diff_lines": 4,
+    "new_corroborated_critical_count": 0
+  },
+  "shadow": {
+    "ran_at": null,
+    "coverage": null
+  },
+  "telemetry": "unavailable",
+  "synthesized": false
+}
