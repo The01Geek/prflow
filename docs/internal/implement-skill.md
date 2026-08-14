@@ -912,6 +912,17 @@ Phase 3.3's `review-and-fix` loop runs a verification as its first act, so the j
 owe a verification round when the very next step verifies it — `skills/implement/phases/phase-3-review.md`
 §3.2 states this for the shipped skill.
 
+The Phase 3.2 tick passes the **host-safe substring** `simplify`, not `/simplify`, while the
+displayed `` `/simplify` `` Progress row keeps its label. A standalone slash-leading argument is
+rewritten by Git Bash/MSYS into a Windows path before native `python3` receives it (see the
+standalone-argument hazard in `docs/internal/install.md`), so a `/simplify` operand would tick
+nothing and report a volatile miss on those hosts; `simplify` still uniquely matches the row. The
+derived guard in `lib/test/test_python_scripts.py` enforces the rule: a static standalone
+`--tick-progress` operand under `skills/implement/` may be quoted or unquoted, must not begin with
+`/`, and must carry no shell metacharacter — an unquoted or double-quoted shell-variable operand
+is runtime-resolved and exempt (a single-quoted `'$X'` suppresses expansion, so it is a static
+literal and stays guarded).
+
 **The same command must work on both tiers**, so a focused Python test is invoked as a
 **direct leading token** (`lib/test/test_python_scripts.py <selector>`) — never `python3
 lib/test/test_python_scripts.py`, which is the interpreter-head shape the cloud matcher
