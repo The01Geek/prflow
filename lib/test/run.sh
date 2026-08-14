@@ -32286,12 +32286,21 @@ assert_eq "#266 post-issue-comment: missing body file leaves a specific breadcru
 # must return before the API helper is invoked.
 POST_T1675="$(mktemp -d)" || { echo "FAIL  #1675: mktemp -d failed"; exit 1; }
 POST_CALLS1675="$POST_T1675/calls"
+POST_BODY1675="$POST_T1675/body"
+printf '%s\n' 'valid body' > "$POST_BODY1675"
 cat > "$POST_T1675/gh" <<'SH'
 #!/usr/bin/env bash
 printf 'called\n' >> "$POST_CALLS1675"
 exit 0
 SH
 chmod +x "$POST_T1675/gh"
+# Positive control: prove the recording stub sees a real helper call before the negative
+# arms use that same stub to establish that caller slips make no request.
+POST_RC1675_VALID="$(POST_CALLS1675="$POST_CALLS1675" DEVFLOW_GH="$POST_T1675/gh" \
+  bash "$POST_SH266" 5 "$POST_BODY1675" >/dev/null 2>&1; echo $?)"
+assert_eq "#1675 post-issue-comment: a valid call reaches the API stub once" \
+  "0:1" "$POST_RC1675_VALID:$([ -f "$POST_CALLS1675" ] && wc -l < "$POST_CALLS1675" || echo 0)"
+: > "$POST_CALLS1675"
 POST_ERR1675_NUMBER="$(POST_CALLS1675="$POST_CALLS1675" DEVFLOW_GH="$POST_T1675/gh" \
   bash "$POST_SH266" 2>&1 >/dev/null)"; POST_RC1675_NUMBER=$?
 assert_eq "#1675 post-issue-comment: missing issue number exits 0 (best-effort)" \
@@ -46986,7 +46995,7 @@ fi
 # The registry and this full-suite call share the same lower-bound contract;
 # test_module_runner.py parses this operand and rejects any coupling drift.
 if ! devflow_run_full_suite_module "$LIB/test/modules/create-issue-contract.sh" \
-  "create-issue-contract" 327; then
+  "create-issue-contract" 334; then
   printf 'ERROR: create-issue-contract boundary could not record its result\n'
   exit 1
 fi

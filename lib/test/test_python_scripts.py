@@ -28092,13 +28092,19 @@ for _kind_label, _verdicts, _unusable in (('a clean sweep', {'1.1': 'addressed'}
               f"the funding predicate record-dispatch gates on holds for the same state",
               ('confirm-whole-draft', True),
               (_m793.next_action(_st793, 1),
-               _m793._round_kind(_st793['rounds'][0]) == 'targeted'
-               and _st793['rounds'][0].get('outcome') == 'FILE'))
+               _m793._targeted_confirmation_needed(_st793['rounds'][0])))
 
-# Issue #1675: once the dedicated confirmation slot is spent, an unusable targeted
-# return must not disappear behind the ordinary targeted-FILE `proceed` answer. The
-# next-action reader still walks to the boundary, convergence stays explicitly false,
-# and the existing boundary election is forced with a named reason.
+_1675_revise_funding = {'round': 1, 'outcome': 'REVISE', 'kind': 'targeted',
+                        'targeted_return_unusable': True,
+                        'attempts': [{'arm': 'file'}]}
+assert_eq("#1675: unusable targeted REVISE uses one predicate for scheduling and funding",
+          ('confirm-whole-draft', True),
+          (_m793.next_action({'rounds': [_1675_revise_funding],
+                              'confirming_rounds_used': 0}, 1),
+           _m793._targeted_confirmation_needed(_1675_revise_funding)))
+
+# Issue #1675: after the confirmation slot is spent, an unusable targeted return walks
+# to the named boundary election and remains explicitly non-converged.
 _1675_unusable_exhausted = _793_state(
     rounds=[{'round': 2, 'outcome': 'FILE', 'kind': 'targeted',
              'claim_verdicts': {}, 'targeted_return_unusable': True,
@@ -28122,6 +28128,33 @@ assert_eq("#1675: the exhausted unusable targeted return cannot ground approval 
           'not-eligible',
           _m793.evaluate_eligibility(
               _1675_unusable_exhausted, 'approve', 'd' * 40)['answer'])
+
+# The unusable-return route is outcome-independent. While the dedicated slot remains,
+# both terminal verdict shapes must schedule confirmation and withhold the election.
+for _1675_outcome in ('FILE', 'REVISE'):
+    _1675_unusable_remaining = _793_state(
+        rounds=[{'round': 2, 'outcome': _1675_outcome, 'kind': 'targeted',
+                 'claim_verdicts': {}, 'targeted_return_unusable': True,
+                 'attempts': [{'arm': 'file'}]}],
+        confirming_rounds_used=0)
+    assert_eq(f"#1675: an unusable targeted {_1675_outcome} return with confirmation "
+              "capacity schedules whole-draft confirmation",
+              'confirm-whole-draft',
+              _m793.next_action(_1675_unusable_remaining, 2))
+    assert_eq(f"#1675: an unusable targeted {_1675_outcome} return does not offer the "
+              "boundary election while confirmation capacity remains",
+              (False, None),
+              (lambda answer: (answer['t2'], answer['reason']))(
+                  _m793.evaluate_triggers(_1675_unusable_remaining)))
+
+_1675_unusable_revise_exhausted = _793_state(
+    rounds=[{'round': 2, 'outcome': 'REVISE', 'kind': 'targeted',
+             'claim_verdicts': {}, 'targeted_return_unusable': True,
+             'attempts': [{'arm': 'file'}]}],
+    confirming_rounds_used=_m793._MAX_CONFIRMING_ROUNDS)
+assert_eq("#1675: an exhausted unusable targeted REVISE return also proceeds to the "
+          "boundary instead of spending the unrelated automatic re-audit budget",
+          'proceed', _m793.next_action(_1675_unusable_revise_exhausted, 2))
 for _1675_override_kind in ('user-decline', 'cap-reached'):
     _1675_elected = dict(_1675_unusable_exhausted)
     _1675_elected['overrides'] = [{
@@ -28146,6 +28179,74 @@ _1675_old_targeted_exhausted = _793_state(
 assert_eq("#1675: an older targeted record with no unusable flag keeps the ordinary "
           "exhausted next action",
           'proceed', _m793.next_action(_1675_old_targeted_exhausted, 2))
+
+# The additive persisted flag is optional for old state, but when present it is a typed
+# decision field. Cover accepted booleans and common truthy corruption shapes.
+_1675_validate_base = json.loads(json.dumps(_doc6))
+for _1675_flag in (False, True):
+    _1675_typed = json.loads(json.dumps(_1675_validate_base))
+    _1675_typed['rounds'][-1]['targeted_return_unusable'] = _1675_flag
+    assert_eq(f"#1675: persisted targeted_return_unusable={_1675_flag!r} passes the "
+              "typed state boundary",
+              _1675_flag,
+              _m793._validate(_1675_typed, _r6.slug)['rounds'][-1][
+                  'targeted_return_unusable'])
+
+_1675_absent = json.loads(json.dumps(_1675_validate_base))
+_1675_absent['rounds'][-1].pop('targeted_return_unusable', None)
+assert_eq("#1675: old persisted state with no targeted_return_unusable field remains "
+          "loadable and reads false through the predicate",
+          False,
+          _m793._targeted_return_unusable(
+              _m793._validate(_1675_absent, _r6.slug)['rounds'][-1]))
+
+for _1675_corrupt_flag in ('true', 1):
+    _1675_corrupt = json.loads(json.dumps(_1675_validate_base))
+    _1675_corrupt['rounds'][-1]['targeted_return_unusable'] = _1675_corrupt_flag
+    assert_raises(f"#1675: persisted targeted_return_unusable={_1675_corrupt_flag!r} "
+                  "fails closed at the typed state boundary",
+                  _m793.StateError,
+                  lambda doc=_1675_corrupt: _m793._validate(doc, _r6.slug))
+
+# Exercise the real persisted query path too: a corrupted flag collapses the entire state
+# to unestablished and the always-zero query emits its fail-closed action plus diagnosis.
+_1675_state_path = Path(_r6.tmp, '.prflow', 'tmp',
+                        f'issue-audit-state-{_r6.slug}.json')
+_1675_saved_bytes = _1675_state_path.read_bytes()
+try:
+    _1675_persisted_corrupt = json.loads(_1675_saved_bytes.decode('utf-8'))
+    _1675_persisted_corrupt['rounds'][-1]['targeted_return_unusable'] = 'true'
+    _1675_state_path.write_text(json.dumps(_1675_persisted_corrupt), encoding='utf-8')
+    _1675_query_corrupt = _r6('query-next-action', _r6.slug, '--round', '2', nonce=True)
+finally:
+    _1675_state_path.write_bytes(_1675_saved_bytes)
+assert_eq("#1675: the real CLI query collapses a wrong-typed persisted unusable flag to "
+          "unestablished instead of treating the truthy string as a decision",
+          (0, True, True),
+          (_1675_query_corrupt.returncode,
+           'action=round-closed-no-verdict' in _1675_query_corrupt.stdout,
+           'targeted_return_unusable' in _1675_query_corrupt.stderr))
+
+# Persist a valid exhausted variant and drive both public query surfaces. This joins the
+# next-action token and boundary-election reason through the loader the orchestrator uses.
+try:
+    _1675_persisted_exhausted = json.loads(_1675_saved_bytes.decode('utf-8'))
+    _1675_persisted_exhausted['confirming_rounds_used'] = _m793._MAX_CONFIRMING_ROUNDS
+    _1675_state_path.write_text(json.dumps(_1675_persisted_exhausted), encoding='utf-8')
+    _1675_query_exhausted = _r6('query-next-action', _r6.slug, '--round', '2', nonce=True)
+    _1675_boundary_exhausted = _r6('query-boundary', _r6.slug, nonce=True)
+finally:
+    _1675_state_path.write_bytes(_1675_saved_bytes)
+assert_eq("#1675: the real persisted query path proceeds only after confirmation capacity "
+          "is exhausted",
+          (0, True),
+          (_1675_query_exhausted.returncode,
+           'action=proceed' in _1675_query_exhausted.stdout))
+assert_eq("#1675: the real persisted boundary path then offers the election with the "
+          "targeted-return-unusable reason",
+          (0, True),
+          (_1675_boundary_exhausted.returncode,
+           't2=yes reason=targeted-return-unusable' in _1675_boundary_exhausted.stdout))
 
 # ── AC32 limb one: a targeted round NEVER grounds the clean scan ──────────────────────
 # The guard is a `continue` in evaluate_eligibility's reverse scan. Without it a clean
