@@ -30059,7 +30059,32 @@ U8PY
           && ! grep -qF 'Traceback (most recent call last)' "$U8D_BFE" && echo yes || echo no )"
     assert_eq "#1678 AC4: branch-for-issue.py invalid-UTF-8 emits no partial stdout" "0" \
       "$(wc -c < "$U8D_BFO" | tr -d ' ')"
-    rm -f "$U8D_BAD" "$U8D_PAO" "$U8D_PAE" "$U8D_BFO" "$U8D_BFE"
+    # AC4 (unavailable-path half) — the issue's "unavailable path" byte-matrix row:
+    # a nonexistent --body-file / --title-file exits non-zero with a flag-specific
+    # "could not read" diagnostic, no traceback, and no partial stdout (the new
+    # except-OSError arms this change added to the two CLIs).
+    U8D_MISS="$U8D_BAD-nonexistent"   # a path guaranteed not to exist (never created)
+    U8D_MPAO="$(mktemp)"; U8D_MPAE="$(mktemp)"
+    python3 "$U8_SCRIPTS/parse-acs.py" --body-file "$U8D_MISS" > "$U8D_MPAO" 2>"$U8D_MPAE"
+    U8D_MPA=$?
+    assert_eq "#1678 AC4: parse-acs.py --body-file unavailable-path exits non-zero" "yes" \
+      "$( [ "$U8D_MPA" -ne 0 ] && echo yes || echo no )"
+    assert_eq "#1678 AC4: parse-acs.py unavailable-path diagnostic is flag-specific, no traceback" "yes" \
+      "$( grep -qF -- '--body-file' "$U8D_MPAE" && grep -qF 'could not read' "$U8D_MPAE" \
+          && ! grep -qF 'Traceback (most recent call last)' "$U8D_MPAE" && echo yes || echo no )"
+    assert_eq "#1678 AC4: parse-acs.py unavailable-path emits no partial stdout" "0" \
+      "$(wc -c < "$U8D_MPAO" | tr -d ' ')"
+    U8D_MBFO="$(mktemp)"; U8D_MBFE="$(mktemp)"
+    python3 "$U8_SCRIPTS/branch-for-issue.py" 1678 --title-file "$U8D_MISS" > "$U8D_MBFO" 2>"$U8D_MBFE"
+    U8D_MBF=$?
+    assert_eq "#1678 AC4: branch-for-issue.py --title-file unavailable-path exits non-zero" "yes" \
+      "$( [ "$U8D_MBF" -ne 0 ] && echo yes || echo no )"
+    assert_eq "#1678 AC4: branch-for-issue.py unavailable-path diagnostic is flag-specific, no traceback" "yes" \
+      "$( grep -qF -- '--title-file' "$U8D_MBFE" && grep -qF 'could not read' "$U8D_MBFE" \
+          && ! grep -qF 'Traceback (most recent call last)' "$U8D_MBFE" && echo yes || echo no )"
+    assert_eq "#1678 AC4: branch-for-issue.py unavailable-path emits no partial stdout" "0" \
+      "$(wc -c < "$U8D_MBFO" | tr -d ' ')"
+    rm -f "$U8D_BAD" "$U8D_PAO" "$U8D_PAE" "$U8D_BFO" "$U8D_BFE" "$U8D_MPAO" "$U8D_MPAE" "$U8D_MBFO" "$U8D_MBFE"
     ;;
   *)
     skip "#1678 UTF-8 local-file decode hostile-codec self-scan" host-capability "forced env did not downgrade the file codec to ASCII (got ${U8D_ENC:-<empty>}); the hostile-codec RED->GREEN condition is not reproducible on this host" ;;

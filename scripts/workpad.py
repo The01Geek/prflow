@@ -2893,17 +2893,13 @@ def _read_section_file(path: str, flag: str) -> str:
 
 def _read_reflection_payload(path: str) -> str:
     """Read a reflection payload for --reflection-file, bypassing shell
-    interpolation: the text is read verbatim as UTF-8 from a file, or from stdin
-    when `path` is `-`. Like `_read_section_file`, UTF-8 is decoded EXPLICITLY
-    (never the ambient locale codec) so a payload with an em-dash or emoji
-    round-trips byte-identical on any host, and a decode failure (a
-    `UnicodeDecodeError`, which is a `ValueError` the plain `except OSError` shape
-    would let escape as a raw traceback) is converted to the file's clean
-    `_UpdateError` contract; this reader additionally accepts stdin (`path` `-`)
-    and rejects an empty/whitespace-only payload. An empty or whitespace-only payload is
-    also a structural failure — a blank reflection bullet carries no signal — so it
-    aborts before any PATCH. All failure modes raise `_UpdateError`, so
-    `_apply_mutations` aborts with no partial workpad write."""
+    interpolation: bytes are read verbatim from a file, or from stdin when
+    `path` is `-`, and decoded via `_decode_utf8` (explicit UTF-8, no ambient
+    codec) so an em-dash or emoji round-trips byte-identical on any host. An
+    empty or whitespace-only payload is a structural failure — a blank reflection
+    bullet carries no signal — so it aborts before any PATCH. All failure modes
+    raise `_UpdateError`, so `_apply_mutations` aborts with no partial workpad
+    write."""
     try:
         if path == '-':
             raw = sys.stdin.buffer.read()
