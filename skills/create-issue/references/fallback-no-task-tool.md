@@ -2,7 +2,7 @@
 
 ## The inline checklist
 
-When the runner exposes no task-tracking tool, or the exposed one is disabled or unusable, track the same items as a compact markdown checklist block rendered directly in your reply: render the items once, then re-render the whole block with updated status markers on each status change. The status markers are exactly three, complete by construction: `[ ]` pending, `[~]` in progress, `[x]` completed. The paused-at-todo-6 waiting state renders as item 6 marked in progress. Every rendered block ends with a one-line pointer to re-read the state file before creating the issue, so that reminder recurs with each re-render instead of living only in this turn-one text.
+When the runner exposes no task-tracking tool, or the exposed one is disabled or unusable, track the same items as the skill root's completion checklist, rendered as a compact markdown checklist block directly in your reply: render the items once, then re-render the whole block with updated status markers on each status change. The status markers are exactly three, complete by construction: `[ ]` pending, `[~]` in progress, `[x]` completed. The paused-at-todo-6 waiting state renders as item 6 marked in progress. Every rendered block ends with a one-line pointer to re-read the state file before creating the issue, so that reminder recurs with each re-render instead of living only in this turn-one text.
 
 ## The state-file mirror
 
