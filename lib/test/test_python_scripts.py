@@ -2747,9 +2747,11 @@ for _t in _live_ticks:
 # No static `--tick-progress` operand may carry a character in
 # `_TICK_METACHARS_1630` below (a pragmatic subset covering the observed
 # classifier refusal, not its full grammar) — such an operand is refused mid-run.
-# Scope: the static `_live_ticks` set derived above. Runtime-variable operands
-# (AC4's three runtime-resolved forms) are the disclosed residual, exempt because
-# their value is resolved by the shell at run time, not statically.
+# Scope: the static `_live_ticks` set derived above. Disclosed residuals, each
+# out of this guard's scope: runtime-variable operands (AC4's three
+# runtime-resolved forms, exempt because the shell resolves their value at run
+# time); the sibling `--tick-plan`/`--tick-ac` flags (not scanned here); and the
+# flag-attached `--tick-progress=…` form (issue #1679 scopes it out).
 for _t in _live_ticks:
     assert_eq(f"#1630 live tick {_t!r} carries no shell metacharacter", [],
               [_c for _c in _t if _c in _TICK_METACHARS_1630])
@@ -2801,8 +2803,12 @@ _TICK_VAR_FIXTURES_1679 = {
 }
 _tick_var_recs_1679 = {_f: _classify_tick_str_1679(_s)
                        for _f, _s in _TICK_VAR_FIXTURES_1679.items()}
+# Derive the observed side from the CLASSIFIER OUTPUT (each fixture's assigned
+# var_form), not the fixture dict's keys — comparing the keys would only pin two
+# hand-typed literals against each other and never exercise the classifier.
 assert_eq("#1679 shell-variable classification covers exactly the four forms",
-          _TICK_VAR_FORMS, frozenset(_tick_var_recs_1679))
+          _TICK_VAR_FORMS,
+          frozenset(_r['var_form'] for _r in _tick_var_recs_1679.values()))
 for _form, _rec in _tick_var_recs_1679.items():
     assert_eq(f"#1679 var form {_form!r} classifies to itself", _form,
               _rec['var_form'])
