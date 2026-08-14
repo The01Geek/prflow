@@ -1,0 +1,87 @@
+{
+  "iter": 1,
+  "fix_commit_sha": "c753da07c",
+  "fix_files": [
+    "scripts/render-pr-provenance-line.py",
+    "lib/test/test_python_scripts.py"
+  ],
+  "loop_role": "fix",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:pr-test-analyzer",
+    "prflow:comment-analyzer",
+    "prflow:type-design-analyzer"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "multiple (4-way corroborated)",
+      "severity": "Important",
+      "description": "AC-backed 'no shell-active construct' guarantee asserted but not enforced (version/model interpolated unsanitized).",
+      "defect_signature": {
+        "file": "scripts/render-pr-provenance-line.py",
+        "line_range": [
+          241,
+          256
+        ],
+        "kind": "unenforced_invariant"
+      },
+      "corroboration_count": 4,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "Config matrix gaps (top-level/section non-dict, 0/'' non-coercion), tautological no-backtick test, untested read_model fallback.",
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "11e14a922"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "11e14a922"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "c753da07c"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 3,
+    "fix_diff_lines": 110,
+    "new_corroborated_critical_count": 0
+  },
+  "shadow": {
+    "ran_at": "iteration-1-convergence",
+    "reviewed_sha": "11e14a922",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter"
+    ],
+    "checklist_skipped": null,
+    "comparison": {
+      "shadow_total": 1,
+      "overlap_with_iter_N": 0,
+      "new": 1,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false,
+    "reason": "both shadow reviewers APPROVE; sole low/informational residual (malformed-config breadcrumb parity) fixed in c753da07c"
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
