@@ -1711,6 +1711,54 @@ class ManifestIngestionTest(unittest.TestCase):
         self.assertTrue(comparison["delta"])
         self.assertEqual(set(comparison["delta"].values()), {"unestablished"})
 
+    def _second_repetition(self, mutate_repeat=None):
+        # The per-configuration provenance guard only fires with >=2 runs of one
+        # configuration; a one-repetition manifest never reaches it.
+        def add_repetition(doc):
+            repeats = []
+            for index, run in enumerate(copy.deepcopy(doc["runs"])):
+                run["run_id"] = run["run_id"][:-1] + "2"
+                run["repetition"] = 2
+                run["occurrence"]["occurrence_id"] = "create-issue-{}".format(
+                    index + 3
+                )
+                repeats.append(run)
+            if mutate_repeat is not None:
+                mutate_repeat(repeats)
+            doc["runs"].extend(repeats)
+
+        return self._mutated_manifest(add_repetition)
+
+    def test_repetitions_of_one_configuration_share_provenance(self):
+        comparison = self._api("build_manifest_report")(
+            self._second_repetition()
+        )["comparison"]
+        self.assertEqual(comparison["status"], "established")
+        self.assertIsNone(comparison["diagnostic"])
+
+    def test_mixed_provenance_within_one_configuration_is_unestablished(self):
+        # repo_sha is also pair-controlled, so it is drifted in BOTH repetition-2
+        # runs: an only-one-side drift would be refused by the pairwise guard under
+        # the same diagnostic and would not exercise this guard.
+        drifts = {
+            "skill_fingerprint": lambda repeats: repeats[0]["provenance"].__setitem__(
+                "skill_fingerprint", "sha256:drifted"
+            ),
+            "repo_sha": lambda repeats: [
+                run["provenance"].__setitem__("repo_sha", "fedcba9876543210")
+                for run in repeats
+            ],
+        }
+        for key, drift in drifts.items():
+            with self.subTest(key=key):
+                path = self._second_repetition(drift)
+                comparison = self._api("build_manifest_report")(path)["comparison"]
+                self.assertEqual(comparison["status"], "unestablished")
+                self.assertEqual(comparison["diagnostic"], "mixed_provenance")
+                self.assertEqual(
+                    set(comparison["delta"].values()), {"unestablished"}
+                )
+
     def test_forward_compatible_metadata_survives_without_changing_identity(self):
         def add_metadata(doc):
             doc["future_manifest_note"] = "preserve-me"
