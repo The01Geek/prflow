@@ -395,6 +395,11 @@ def load_step36_manifest(path: Path) -> tuple[str, list[str], int, int, str]:
     return entry, members, limit, baseline, commit
 
 
+def _resolve_step36_manifest(args, root: Path) -> Path:
+    """The Step 3.6 manifest path: the `--step36-manifest` override, else the default under root."""
+    return Path(args.step36_manifest) if args.step36_manifest else root / STEP36_MANIFEST_DEFAULT
+
+
 def check_step36_set(root: Path, manifest_path: Path) -> tuple[list[str], list[str]]:
     """Enforce the Step 3.6 set's per-member ceiling and aggregate source-byte budget.
 
@@ -480,10 +485,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.check_step36_set:
         root = _pop.resolve_root(args.root, tool=_TOOL)
-        manifest = (
-            Path(args.step36_manifest) if args.step36_manifest
-            else root / STEP36_MANIFEST_DEFAULT
-        )
+        manifest = _resolve_step36_manifest(args, root)
         try:
             s36_findings, s36_report = check_step36_set(root, manifest)
         except Step36Error as exc:
@@ -665,10 +667,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
 
     if whole_tree:
-        manifest = (
-            Path(args.step36_manifest) if args.step36_manifest
-            else root / STEP36_MANIFEST_DEFAULT
-        )
+        manifest = _resolve_step36_manifest(args, root)
         try:
             s36_findings, s36_report = check_step36_set(root, manifest)
         except Step36Error as exc:

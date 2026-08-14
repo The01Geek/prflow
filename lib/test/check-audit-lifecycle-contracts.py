@@ -174,12 +174,11 @@ def _read(path: Path) -> str:
         raise Refusal(f"could not read {_display_path(path)}: {exc}") from exc
 
 
-def _step36_member_paths() -> list[Path]:
-    """The entry plus ordered procedure members of the Step 3.6 set, from the declared
-    manifest. Fails closed (Refusal) on a manifest that cannot be read or is malformed —
-    an unestablished set is never an empty one silently reported clean."""
-    if STEP36 is not None:
-        return [STEP36]
+def _read_step36_manifest() -> tuple[str, list[str]]:
+    """The validated `(entry, members)` of the Step 3.6 manifest, or a Refusal. One reader
+    for both `_step36_member_paths` and `check_step36_manifest`, so they cannot drift in how
+    they parse or validate the same file. Fails closed on a manifest that cannot be read or
+    is malformed — an unestablished set is never an empty one silently reported clean."""
     try:
         data = json.loads(STEP36_MANIFEST.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
@@ -191,6 +190,15 @@ def _step36_member_paths() -> list[Path]:
             or not members or not all(isinstance(m, str) and m.strip() for m in members):
         raise Refusal(f"the Step 3.6 manifest {_display_path(STEP36_MANIFEST)} has no usable "
                       "`entry`/`members` — refusing rather than scanning an empty set")
+    return entry, members
+
+
+def _step36_member_paths() -> list[Path]:
+    """The entry plus ordered procedure members of the Step 3.6 set, from the declared
+    manifest (or the single-file test seam when `STEP36` is set)."""
+    if STEP36 is not None:
+        return [STEP36]
+    entry, members = _read_step36_manifest()
     return [REPO / entry] + [REPO / m for m in members]
 
 
@@ -209,16 +217,7 @@ def check_step36_manifest(report):
     """
     if STEP36 is not None:
         return
-    try:
-        data = json.loads(STEP36_MANIFEST.read_text(encoding="utf-8"))
-        entry = data["entry"]
-        members = list(data["members"])
-    except (OSError, json.JSONDecodeError, UnicodeDecodeError, KeyError, TypeError) as exc:
-        raise Refusal(f"step36-manifest: could not read the manifest "
-                      f"{_display_path(STEP36_MANIFEST)}: {exc}") from exc
-    if not isinstance(entry, str) or not members or not all(isinstance(m, str) for m in members):
-        raise Refusal(f"step36-manifest: the manifest {_display_path(STEP36_MANIFEST)} has no "
-                      "usable entry/members")
+    entry, members = _read_step36_manifest()
     n = len(members)
     parts = []
     for rel in members:

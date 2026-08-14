@@ -1249,6 +1249,24 @@ CI614_TEMPLATE_REFS="issue-template"
 CI614_ROUTING_REFS="degradation-routing"
 CI614_REFS="$CI614_STEP_REFS $CI614_FALLBACK_REFS $CI614_TEMPLATE_REFS $CI614_ROUTING_REFS"
 
+# #1702 AC8: reconcile this shell roster's Step 3.6 members against the DECLARED manifest, so a
+# member added to lib/test/create-issue-step-3-6-members.json (and passing the Python
+# manifest<->on-disk reconciliation) but omitted from CI614_STEP_REFS goes RED here instead of
+# being silently uncovered by the #614 routing/marker/purity sweeps. The roster is the single
+# source only when it stays in lockstep with the manifest the other consumers read.
+assert_eq "#1702 AC8: CI614_STEP_REFS's Step 3.6 members match the declared manifest" "match" \
+  "$(python3 - "$CI_ROOT/lib/test/create-issue-step-3-6-members.json" "$CI614_STEP_REFS" <<'PY1702'
+import json, sys
+try:
+    doc = json.load(open(sys.argv[1], encoding='utf-8'))
+    manifest = sorted(m.rsplit('/', 1)[-1][:-3] for m in doc['members'])
+except Exception as exc:  # noqa: BLE001 - a manifest fault is a RED reconciliation, not a traceback
+    print(f"manifest-unreadable: {exc}"); sys.exit(0)
+roster = sorted(s for s in sys.argv[2].split() if s.startswith('step-3-6-audit-'))
+print('match' if manifest == roster else f'drift manifest={manifest} roster={roster}')
+PY1702
+)"
+
 # Marker ids per AC2's decided id space: the step number for step references, the literal
 # `revision-delta`, `fallback-<name>` for the fallback files, the literal `issue-template`, and
 # (#1644) the literal `degradation-routing` for the relocated routing table.
