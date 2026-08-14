@@ -1,0 +1,128 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-14T00:00:00Z",
+  "fix_commit_sha": "89f26d28053213f080dfb237a23b8478846d8607",
+  "fix_files": [
+    "skills/create-issue/references/issue-template.md"
+  ],
+  "loop_role": "fix",
+  "current_step": "2.6",
+  "current_substep": "shadow-complete",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "issue-template.md checklist line 226 named only 2 no-options carve-outs, contradicting the new line-12 'complete carve-out set' (Blocked + 3 surfaces).",
+      "defect_signature": {
+        "file": "skills/create-issue/references/issue-template.md",
+        "line_range": [
+          12,
+          226
+        ],
+        "kind": "comment_drift"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "89f26d28053213f080dfb237a23b8478846d8607"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 1,
+    "fix_diff_lines": 1,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "ran_at": "2026-08-14T00:00:00Z",
+    "reviewed_sha": "89f26d28053213f080dfb237a23b8478846d8607",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Suggestion",
+        "description": "retrospective-audit could optionally disclose the reduction inside the returned body; advisory only — AC7 sanctions the silent residual, no change required.",
+        "defect_signature": {
+          "file": "skills/retrospective-audit/SKILL.md",
+          "line_range": [
+            69,
+            69
+          ],
+          "kind": "other"
+        }
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "severity": "Suggestion",
+        "description": "retrospective-audit fallback sentence is a dense run-on; purely stylistic legibility, no correctness impact.",
+        "defect_signature": {
+          "file": "skills/retrospective-audit/SKILL.md",
+          "line_range": [
+            69,
+            69
+          ],
+          "kind": "style"
+        }
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 2,
+      "overlap_with_iter_N": 0,
+      "new": 2,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "park_calibration": {
+    "evidence_comparisons": []
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
