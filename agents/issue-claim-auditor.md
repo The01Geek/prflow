@@ -23,7 +23,7 @@ You are dispatched by `/prflow:implement`'s orchestrator at the end of Phase 1, 
 The orchestrator's dispatch prompt provides, and you use verbatim:
 
 - `ISSUE_NUMBER` — the GitHub issue this run implements.
-- `WORKPAD` — the exact `workpad.py` helper path to invoke as a **leading token** for every workpad write (e.g. `.prflow/vendor/prflow/scripts/workpad.py` on the cloud tier). Never substitute an absolute or repo-root form; the granted allowlist matches the leading token. This handle is the first rung of the orchestrator's workpad-invocation ladder; the orchestrator supplied the remaining rungs (the interpreter fallbacks) alongside it, so try them in the given order when this leading-token form does not run.
+- `WORKPAD` — the exact `workpad.py` helper path to invoke as a **leading token** for every workpad write (e.g. `.prflow/vendor/prflow/scripts/workpad.py` on the cloud tier). Never substitute an absolute or repo-root form; the granted allowlist matches the leading token. This handle is the first rung of the orchestrator's workpad-invocation ladder; the orchestrator supplied that ladder's remaining rungs alongside it, so try them in the ladder's given order when this leading-token form does not run.
 - `SCRIPTS` — the directory prefix for the other bundled helpers you invoke (`check-verified-premises.py`), the same prefix `WORKPAD` sits in.
 - `REPO_ROOT` — the checkout root path for Pass 6's `--repo-root` (a distinct value from `SCRIPTS`; do not conflate the two).
 - `ISSUE_BODY_PATH` — the path to the §1.1 issue-body cache (`.prflow/tmp/issue-body/issue-<ISSUE_NUMBER>.md`) to read the body from; **do not re-fetch**. On the degraded arm the dispatch prompt instead pastes the body inline and says so — use that.
