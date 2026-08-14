@@ -472,39 +472,19 @@ devflow_module_pin_unique "#709: the cutover preserved the out-of-bounds declara
 devflow_module_pin_unique "#709: Step 4 renders the steering marker on the audit-summary line" \
   'audit independence unestablished' "$CI_ROOT/skills/create-issue/references/step-4-present-create.md"  # structural-pin-ok: machine-sentinel-provenance -- the ledger keeps the exact steering marker Step 4 renders on the summary line
 
-# Issue #1675: instruction-only contracts whose consumers are the create-issue
-# orchestrator. These typed pins hold the exact cross-step grammar/remedy and the
-# lifecycle transition that no standalone runtime helper can observe.
-devflow_module_pin_unique "#1675: the template states the helper's exact recognized-quotation grammar" \
-  'A recognized quotation starts with either ASCII `"` or typographic `“`, has at least eight body characters containing none of ASCII `"`, typographic `“`, or typographic `”`, and ends with either ASCII `"` or typographic `”`; backticks and single quotes are not quotation delimiters.' \
-  "$CI_TMPL"  # structural-pin-ok: cross-file-phase-contract -- the authoring template must generate quotation handles accepted by check-verified-premises.py's fixed recognizer
+# Issue #1675: the two instruction-only handle=path remedies and the exhausted
+# rewrite transition are the typed structural boundaries required by the issue.
+# The remaining changed contracts are exercised through their observable helper,
+# parser, command, and state-owner interfaces below and in test_python_scripts.py.
 devflow_module_pin_unique "#1675: Step 3.5 routes handle=path to a recognized quotation beside the path" \
   'For `handle=path`, add a recognized quotation beside the cited repository path.' \
   "$CI_REF_STEP35"  # structural-pin-ok: cross-file-phase-contract -- Step 3.5 authors the remedy; losing this site reopens the unrepairable handle=path loop before canonical write
 devflow_module_pin_unique "#1675: Step 3.6 routes handle=path to a recognized quotation beside the path" \
   'for `handle=path`, add a recognized quotation beside the cited repository path' \
   "$CI_REF_STEP36"  # structural-pin-ok: cross-file-phase-contract -- Step 3.6 executes the remedy independently; a second copy in Step 3.5 cannot substitute for this consumer site
-devflow_module_pin_unique "#1675: Step 3.5 routes usable unestablished premise results to investigation" \
-  '`state=unestablished` on an otherwise usable helper result is a usable classification, not helper unavailability' \
-  "$CI_REF_STEP35"  # structural-pin-ok: routing-dispatch-contract -- the steelman must consume this helper classification instead of collapsing it into helper refusal
-devflow_module_pin_unique "#1675: Step 3.6 routes usable unestablished premise results to investigation" \
-  '`state=unestablished` on a usable result also routes to ordinary investigation' \
-  "$CI_REF_STEP36"  # structural-pin-ok: routing-dispatch-contract -- the pre-dispatch consumer independently owns this classification route
-devflow_module_pin_unique "#1675: Step 3.5 keeps unreadable repairs out of the genuinely-empty counter" \
-  'A `true` result never increments or resets the genuinely-empty counter.' \
-  "$CI_REF_STEP35"  # structural-pin-ok: lifecycle-state-transition -- the two repair paths have independent budgets at the steelman decision site
-devflow_module_pin_unique "#1675: Step 3.6 keeps unreadable repairs out of the genuinely-empty counter" \
-  'A true result never increments or resets the genuinely-empty counter.' \
-  "$CI_REF_STEP36"  # structural-pin-ok: lifecycle-state-transition -- the executable prompt consumer must preserve the independent-budget transition too
 devflow_module_pin_unique "#1675: exhausted AC rewrites require the disclosed file-anyway election before approval" \
   'An exhausted Acceptance Criteria rewrite requires an explicit file-anyway election before the ordinary approval gate can authorize creation.' \
   "$CI_REF_STEP4"  # structural-pin-ok: lifecycle-state-transition -- exhaustion must transition through disclosure and a user election rather than silently blocking or falling into ordinary approval
-devflow_module_pin_unique "#1675: absent or malformed grep results are a harness refusal" \
-  'Zero result lines, multiple result lines, a non-decimal value, or trailing text are all `neutralization grep harness refusal`' \
-  "$CI_REF_STEP4"  # structural-pin-ok: routing-dispatch-contract -- Step 4 must withhold the post unless the executable grep fence returns one typed result
-devflow_module_pin_unique "#1675: caller-slip breadcrumbs are not posted-success results" \
-  'A caller-slip breadcrumb is therefore never success merely because rc is 0' \
-  "$CI_REF_STEP4"  # structural-pin-ok: routing-dispatch-contract -- the always-zero helper's typed stderr result, not its exit code, decides Step 4 publication state
 
 # The investigation-record neutralization command is agent-executed, so extract the
 # shipped bash fence and drive all three grep outcomes instead of wording-pinning its
@@ -1395,9 +1375,6 @@ ci614_purity "$CI_REF_FB_RECON" \
   'A recurrence of an INVALIDATED entry'
 ci614_purity "$CI_REF_FB_OFFER" \
   'One further arm you must check yourself, because no trigger fires on it'
-devflow_module_pin_unique "#1675: exhausted unusable targeted return routes through the existing boundary election" \
-  'An exhausted unusable targeted return fires T2 with `reason=targeted-return-unusable` and routes through this existing boundary election.' \
-  "$CI_REF_FB_OFFER"  # structural-pin-ok: lifecycle-state-transition -- the prompt must consume the state owner's new fail-closed reason at the existing audit boundary
 ci614_purity "$CI_REF_FB_WRITEREC" \
   'If that single re-attempt also disagrees, stop retrying'
 ci614_purity "$CI_REF_FB_TIERREAD" \
