@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1677",
+  "generated_at": "2026-08-14T05:14:28Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.71",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 8.83530775,
+    "tokens": {
+      "input_tokens": 7416,
+      "output_tokens": 28564,
+      "cache_read_input_tokens": 3516008,
+      "cache_creation_input_tokens": 187260,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 7478,
+        "outputTokens": 66580,
+        "cacheReadInputTokens": 5702598,
+        "cacheCreationInputTokens": 572783,
+        "webSearchRequests": 0,
+        "costUSD": 8.83530775,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 29,
+    "duration_ms": 559930
+  },
+  "permission_denials": {
+    "count": 2,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "gh pr diff 1677 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' > .prflow/tmp/review/pr-1677/run1/diff.patch; wc -l .prflow/tmp/review/pr-1677/run1/diff.patch; grep -n '^diff --git' .prflow/tmp/review/pr-1677/run1/diff.patch",
+      "git show origin/issue-1675-correct-false-create-issue-helper-and-gate:scripts/issue-audit-state.py > .prflow/tmp/head-issue-audit-state.py 2>&1; wc -l .prflow/tmp/head-issue-audit-state.py"
+    ],
+    "total": 2,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
