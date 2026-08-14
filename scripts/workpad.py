@@ -2865,20 +2865,30 @@ def _append_reflection(content: str, kind: str, text: str) -> str:
     return _rewrap_details(head, new_inner, tail)
 
 
+def _decode_utf8(raw: bytes, flag: str, path: str) -> str:
+    """Decode bytes as UTF-8, converting a `UnicodeDecodeError` (a `ValueError`
+    the plain `except OSError` shape would let escape as a raw traceback) into
+    the flag's clean `_UpdateError` contract. Single-sourced so the two file
+    readers below (`_read_section_file`, `_read_reflection_payload`) cannot drift
+    the decode-failure message shape apart."""
+    try:
+        return raw.decode('utf-8')
+    except UnicodeDecodeError as e:
+        raise _UpdateError(f"{flag}: {path!r} is not valid UTF-8: {e}")
+
+
 def _read_section_file(path: str, flag: str) -> str:
-    """Read a file passed via one of the --replace-*-file flags. Decodes UTF-8
-    EXPLICITLY (never the ambient locale codec) so non-ASCII section content
-    round-trips byte-identical on any host, and converts an OS-level error or a
-    `UnicodeDecodeError` (a `ValueError` the plain `except OSError` shape would
-    let escape as a raw traceback) into a clean `_UpdateError` so the
+    """Read a file passed via one of the --replace-*-file flags. Reads bytes and
+    decodes UTF-8 EXPLICITLY (never the ambient locale codec) so non-ASCII
+    section content round-trips byte-identical on any host, and converts an
+    OS-level error or a decode failure into a clean `_UpdateError` so the
     orchestrator gets a targeted message instead of a Python traceback, and the
     surrounding `cmd_update` aborts before the PATCH (no partial update)."""
     try:
-        return Path(path).read_text(encoding="utf-8")
+        raw = Path(path).read_bytes()
     except OSError as e:
         raise _UpdateError(f"{flag}: could not read {path!r}: {e}")
-    except UnicodeDecodeError as e:
-        raise _UpdateError(f"{flag}: {path!r} is not valid UTF-8: {e}")
+    return _decode_utf8(raw, flag, path)
 
 
 def _read_reflection_payload(path: str) -> str:
@@ -2901,11 +2911,7 @@ def _read_reflection_payload(path: str) -> str:
             raw = Path(path).read_bytes()
     except OSError as e:
         raise _UpdateError(f"--reflection-file: could not read {path!r}: {e}")
-    try:
-        text = raw.decode('utf-8')
-    except UnicodeDecodeError as e:
-        raise _UpdateError(
-            f"--reflection-file: {path!r} is not valid UTF-8: {e}")
+    text = _decode_utf8(raw, '--reflection-file', path)
     if not text.strip():
         raise _UpdateError(
             "--reflection-file: payload is empty or whitespace-only; a "
