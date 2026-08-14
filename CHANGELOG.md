@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.82] — 2026-08-14
+
+### Added
+- **Provider-neutral create-issue A/B benchmark harness.** Add `scripts/create_issue_benchmark.py`, a controlled baseline-vs-candidate runner over the create-issue evaluation, alongside the renamed `scripts/create_issue_eval.py` implementation module; both keep their hyphenated compatibility entry points so existing invocations resolve unchanged. Malformed manifests and unmirrored audit-state vocabularies now fail closed with the modules' own diagnostics rather than an interpreter traceback. The paired quality gate withholds efficiency credit for a new forbidden-*section* failure as well as a new forbidden-concept one, so a regression the aggregate pass rate hides cannot be credited as a win. Efficiency credit also now requires an execution record for every run: an absent or short `executions` list is incomplete evidence, not a clean sweep. (#1681)
+
 ## [2.32.81] — 2026-08-14
 
 ### Changed

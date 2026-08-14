@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-"""Compatibility entry point for :mod:`create_issue_eval`."""
+"""Hyphenated CLI spelling for :mod:`create_issue_benchmark`."""
 
 import importlib.util
 import os
 import sys
 
+
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _SPEC = importlib.util.spec_from_file_location(
-    "create_issue_eval", os.path.join(_SCRIPT_DIR, "create_issue_eval.py")
+    "create_issue_benchmark", os.path.join(_SCRIPT_DIR, "create_issue_benchmark.py")
 )
 if _SPEC is None or _SPEC.loader is None:
-    raise ImportError("could not load scripts/create_issue_eval.py")
+    raise ImportError("could not load scripts/create_issue_benchmark.py")
 _implementation = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(_implementation)
 

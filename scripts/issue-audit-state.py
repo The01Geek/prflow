@@ -2424,6 +2424,16 @@ def _validate(doc, slug):
     return doc
 
 
+def validate_state_document(doc, slug):
+    """Validate an in-memory state document through the complete owner boundary.
+
+    Raises StateError on every untrustworthy shape. Returns the SAME object it was
+    handed, not a copy — a caller that must not alias the validated document copies
+    it itself.
+    """
+    return _validate(doc, slug)
+
+
 def load_state(slug, root=None):
     """Load and validate. Raises StateError for every untrustworthy shape."""
     path = state_path(slug, root)

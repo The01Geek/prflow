@@ -289,9 +289,24 @@
       "note": "",
       "owner": "unmodularized"
     },
+    "scripts/create-issue-benchmark.py": {
+      "focused_test": "lib/test/test_create_issue_benchmark.py",
+      "note": "provider-neutral create-issue benchmark CLI (compatibility wrapper over create_issue_benchmark.py); its re-exports and main dispatch are covered by WrapperTest in its serial focused test",
+      "owner": "unmodularized"
+    },
     "scripts/create-issue-context-eval.py": {
       "focused_test": "lib/test/test_create_issue_context_eval.py",
       "note": "issue #767 create-issue runtime-context eval; tested directly by lib/test/test_create_issue_context_eval.py (serial)",
+      "owner": "unmodularized"
+    },
+    "scripts/create_issue_benchmark.py": {
+      "focused_test": "lib/test/test_create_issue_benchmark.py",
+      "note": "provider-neutral create-issue benchmark module; tested directly by its serial focused test",
+      "owner": "unmodularized"
+    },
+    "scripts/create_issue_eval.py": {
+      "focused_test": "lib/test/test_create_issue_context_eval.py",
+      "note": "run-addressable create-issue evaluator module; tested directly by lib/test/test_create_issue_context_eval.py (serial)",
       "owner": "unmodularized"
     },
     "scripts/dead-run-verdict-present.sh": {
