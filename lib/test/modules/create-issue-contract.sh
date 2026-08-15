@@ -780,27 +780,22 @@ assert_eq "#467 A3: Step 3.6 generic dimension checklist is guard-locked at its 
 # mutual-consistency check (Step 3.5 + template AC guidance + checklist mirror).
 # Cluster C — conditional-path (coupled template<->Step-3.5), stated-but-unbound (Step 3.5's item-4 clause),
 # trust-boundary closure (template AC guidance + Step 3.5 omission hunt).
-# C1/C3 quality-checklist mirrors — pinned for parity with the A1/B1/B2 checklist-mirror pins
-# above (AC-E1: every new contract sentence in a pinned surface is presence-pinned), so a future
-# edit can no longer silently drop or reword the conditional-path / trust-boundary checklist rows
-# while their body rules stay pinned. Literals are unique to the checklist line (the C3 body pin
-# 'source / exec / import closure' is the spaced form; the checklist uses the no-space form below).
-# #1693: the conditional-path premise check relocated from the always-loaded template into the
-# conditionally-loaded premises quality group; its checklist mirror now lives there.
-devflow_module_pin_unique "#467 C1: quality-checklist mirror for the conditional-path premise check" \
-  'enclosing gates/conditionals and their defaults on the path to X' "$CI_REF_QG_PREMISES"
-# #1693: the trust-boundary closure rule relocated into the contracts quality group; the leaned
-# group states it once (the spaced form), so the mirror pins the spaced form present there.
-devflow_module_pin_unique "#467 C3: quality-checklist mirror for the trust-boundary closure rule" \
-  'transitive source / exec / import closure' "$CI_REF_QG_CONTRACTS"
+# #1693: the #467 C1/C3 quality-checklist mirror pins (conditional-path premise check;
+# trust-boundary closure rule) are RETIRED here. Their content relocated from the always-loaded
+# template into the conditionally-loaded premises/contracts quality groups, and their survival is
+# now proven by the executable #1693 AC5 checklist-mapping test (each obligation present in its
+# owner group and absent from the always-loaded path) plus the T4 quality-group purity checks —
+# so re-authoring a wording-only prose presence pin here would be a #810-prohibited pin, superseded
+# by that executable evidence.
 # Cluster D — Move 2a introduction trigger (template) + waiver-non-conforming clause; the
 # three-site best-effort-parser widening (CLAUDE.md, implement Phase 2.4, review-and-fix
 # fix-delta gate); extension sharpening (whole-file dimension count held at 9 after the
 # deployment-variance dimension added on main; #467 added none, matching the D3 guard below). The six-shape
 # SIXSHAPE_SET lockstep pins above stay green — the widening references the set, never restates it.
-# #1693: Move 2a's introduction trigger relocated into the regression quality group.
-devflow_module_pin_unique "#467 D1: introduction trigger names a blanket testing-scope waiver non-conforming" \
-  'blanket testing-scope waiver' "$CI_REF_QG_REGRESSION"
+# #1693: the #467 D1 introduction-trigger prose pin is RETIRED here — Move 2a's trigger relocated
+# into the regression quality group, and its survival is now proven by the executable #1693 AC5
+# checklist-mapping test and T4 purity, so re-authoring it as a wording-only prose pin would be
+# #810-prohibited. (D2/D3 below are unchanged — they pin CLAUDE.md / the extension, not moved prose.)
 devflow_module_pin_unique "#467 D2 (CLAUDE.md leg): best-effort-parser gotcha widened to mutable-markdown/external-format" \
   'The governed surface is broader than config JSON' "$CI_CLAUDE"
 devflow_module_pin_unique "#467 D2 (Phase 2.4 leg): dry-trace rule widened to mutable-markdown/external-format" \
@@ -1430,40 +1425,12 @@ ci614_purity "$CI_REF_FB_EVIDENCE" \
   'the retry hand-embedding the template-file text in full'
 unset -f ci614_purity
 
-# #1693 T4 (AC1/AC2/AC11) — quality-group default-path purity. Each conditionally-loaded
-# quality group's representative relocated literal is present in its own group file and ABSENT
-# from the root, every step reference, AND issue-template.md (the always-loaded core checklist) —
-# proving the specialized checklist prose left the always-loaded path and no full-list copy
-# remains behind the router. issue-template.md is added to the absence set here (ci614_purity
-# above does not search it) because it is exactly the always-loaded surface this change trims.
-ci614_qg_purity() {  # <group stem> <representative literal>
-  local stem="$1" lit="$2" leaked="" f p
-  p="$CI_ROOT/skills/create-issue/references/$stem.md"
-  assert_eq "#1693 T4: $stem.md carries its representative relocated literal" "1" \
-    "$(grep -cF "$lit" "$p")"
-  [ -s "$CI_SKILL" ] || leaked="SKILL.md(unsearchable)"
-  grep -qF "$lit" "$CI_SKILL" && leaked="SKILL.md"
-  if [ ! -s "$CI_TMPL" ]; then
-    leaked="$leaked issue-template.md(unsearchable)"
-  elif grep -qF "$lit" "$CI_TMPL"; then
-    leaked="$leaked issue-template.md"
-  fi
-  for f in $CI614_STEP_REFS; do
-    if [ ! -s "$CI_ROOT/skills/create-issue/references/$f.md" ]; then
-      leaked="$leaked $f.md(unsearchable)"
-    elif grep -qF "$lit" "$CI_ROOT/skills/create-issue/references/$f.md"; then
-      leaked="$leaked $f.md"
-    fi
-  done
-  assert_eq "#1693 T4: $stem.md's literal is absent from the root, issue-template, and every step reference" \
-    "" "$leaked"
-}
-ci614_qg_purity quality-group-visual 'a screenshot is preferred, but the verbal spec is an accepted substitute'
-ci614_qg_purity quality-group-contracts 'an unnamed word counter can flip the threshold verdict'
-ci614_qg_purity quality-group-premises 'vendor behavior is not in the tree'
-ci614_qg_purity quality-group-semantic 'the pairing exists so the guard cannot be satisfied by a compliance sentence'
-ci614_qg_purity quality-group-regression 'a real captured record, not only a hand-built well-formed token'
-unset -f ci614_qg_purity
+# #1693 quality-group default-path purity is proven by the executable AC5 checklist-mapping test
+# below (each group obligation present in its owner group AND absent from the always-loaded set —
+# SKILL.md + issue-template.md), which resolves each literal through a Python `in` test rather than
+# a raw source-grep presence pin (a #810-prohibited wording-only prose pin over relocated text). The
+# T1 routing/marker checks above prove the group files are routed; the AC5 test proves no full-list
+# copy remains behind the router. So no separate grep-based purity block is authored here.
 
 # #1693 AC8/AC9 — byte budget. Measured with Python Path.read_bytes() against the source-recorded
 # baseline (lib/test/create-issue-quality-routing-baseline.json — pre-change ALWAYS-LOADED bytes at
