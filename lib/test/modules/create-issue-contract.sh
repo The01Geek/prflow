@@ -870,6 +870,33 @@ devflow_module_pin_unique "#611 AC2: the recovery never sanctions a bare re-reco
 assert_eq "#611 AC2: the sequencing rule is not restated at the Step 4 override sites" \
   "1" "$(devflow_module_pin_count 'completes **before** a digest-bound override is recorded' "$CI_BUNDLE")"
 
+# issue #1695 (AC9): each chat-sink clarification is pinned to the reference that must
+# carry it, so removing it makes the suite RED. devflow_module_pin_unique (the corpus
+# classifier's recognized pin-helper form) under structural-pin-ok (routing/cross-file
+# contract) with matching boundary rows in pin-corpus-adjudications.tsv, so the
+# mutation-routing gate accepts these AC9-mandated chat-sink presence checks.
+# AC5 — the live create-issue file-arm caller contract states BOTH --write-path layers.
+devflow_module_pin_unique "#1695 AC5: step-3-6-audit-dispatch names the CLI-optional --write-path layer" \
+  'omission bypasses only the reported-path cross-check' \
+  "$CI_REF_STEP36"  # structural-pin-ok: routing-dispatch-contract -- the CLI-boundary optionality layer of the two-layer --write-path contract (AC5)
+devflow_module_pin_unique "#1695 AC5: step-3-6-audit-dispatch names the required-live-caller --write-path layer" \
+  'required of the bound live caller' \
+  "$CI_REF_STEP36"  # structural-pin-ok: routing-dispatch-contract -- the bound-live-caller --write-path forwarding obligation (AC5); removal drops the two-layer distinction the CLI help and the live caller must agree on
+# AC8 — the Verified-premise unavailable arm names the in-chat sink in BOTH the declaring
+# reference (step-3-5-steelman) and the executing reference (step-3-6-audit-dispatch).
+devflow_module_pin_unique "#1695 AC8: step-3-5-steelman (declaring) names the Verified-premise in-chat sink" \
+  'reports its failure kind as an in-chat breadcrumb' \
+  "$CI_REF_STEP35"  # structural-pin-ok: cross-file-phase-contract -- the declaring reference names the Verified-premise in-chat sink and must agree with the executing reference (AC8)
+devflow_module_pin_unique "#1695 AC8: step-3-6-audit-dispatch (executing) names the Verified-premise in-chat sink" \
+  'reports its failure kind as an in-chat breadcrumb' \
+  "$CI_REF_STEP36"  # structural-pin-ok: cross-file-phase-contract -- the executing reference names the Verified-premise in-chat sink and must agree with the declaring reference (AC8)
+# AC7 — the Step 3.5-record entry gate's executing contract (item 9 of step-3-5-steelman,
+# the site that actually routes) reports confirmed/missing/stale as an in-chat breadcrumb
+# before routing.
+devflow_module_pin_unique "#1695 AC7: step-3-5-steelman item 9 (executing) emits the three-outcome in-chat breadcrumb before routing" \
+  'in-chat breadcrumb distinguishing the three outcomes' \
+  "$CI_REF_STEP35"  # structural-pin-ok: routing-dispatch-contract -- the Step 3.5-record entry gate's observable outcome sink that Step 3.6 routes on (AC7)
+
 # AC6 — the Step 2 sentence stays the specification of record, now carrying the
 # terminator precision and naming its single implementation. The '## '-plus-space
 # precision is what makes a `###` sub-heading section CONTENT rather than a

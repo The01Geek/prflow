@@ -224,7 +224,7 @@ def main(argv: list[str]) -> int:
     # 0 rather than raising before any handler exists.
     try:
         sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-        from preflight import dependency_section_scan
+        from preflight import dependency_section_scan, malformed_reserved_dependency_heading
     except Exception as exc:  # noqa: BLE001 - best-effort: any import failure exits 0
         _err(
             f"could not import the dependency recognizer from scripts/preflight.py "
@@ -247,10 +247,23 @@ def main(argv: list[str]) -> int:
     # import, not a guarantee this file controls).
     try:
         numbers, skipped = dependency_section_scan(body)
+        malformed = malformed_reserved_dependency_heading(body)
     except Exception as exc:  # noqa: BLE001 - best-effort: any recognizer failure exits 0
         _err(
             f"the dependency recognizer failed on issue #{number}'s body "
             f"({type(exc).__name__}: {exc}); no dependency registered."
+        )
+        return 0
+
+    # A malformed reserved heading is unknown, not zero: breadcrumb it rather than
+    # falling through to the "declares no prerequisites" summary, which would assert
+    # a confirmed empty set the recognizer never established.
+    if malformed is not None:
+        _err(
+            f"issue #{number}'s reserved leading dependency section is spelled "
+            f"`{malformed} Dependencies`, not the canonical `## Dependencies` "
+            f"(Markdown level two); no dependency registered — restate it as "
+            f"`## Dependencies` to register its prerequisites."
         )
         return 0
 

@@ -141,6 +141,14 @@ assert_eq "#546 help_surface_pin: the eligibility query renders both decided mod
   "1" "$(printf '%s' "$IAS_HELP_546" | grep -oF -- 'Presentation eligibility in approve or iterate mode' | grep -c .)"
 assert_eq "#546 help_surface_pin: the gated emitter renders its refusal contract" \
   "1" "$(printf '%s' "$IAS_HELP_546" | grep -oF -- 'refuses with empty stdout when not eligible' | grep -c .)"
+# issue #1695: record-dispatch --help states the two `--write-path` layers so the CLI help
+# AGREES with the live create-issue caller contract (optional at the CLI boundary, required
+# of the bound live caller). Pinned against the RENDERED subparser help, never a source grep.
+IAS_HELP_1695="$(NO_COLOR=1 PYTHON_COLORS=0 python3 "$IAS" record-dispatch --help 2>&1 | tr -s '[:space:]' ' ')"
+assert_eq "#1695 help_surface_pin: --write-path renders optional-at-CLI-boundary" \
+  "1" "$(printf '%s' "$IAS_HELP_1695" | grep -oF -- 'Optional at THIS CLI boundary' | grep -c .)"
+assert_eq "#1695 help_surface_pin: --write-path renders the required-live-caller layer" \
+  "1" "$(printf '%s' "$IAS_HELP_1695" | grep -oF -- 'the live create-issue file-arm caller is required to forward the bound canonical path' | grep -c .)"
 
 # cli_roundtrip_restricted_path — the full lifecycle end-to-end under a PATH holding only
 # git and python3, proving no value that decides a selection or an emitted result is derived
