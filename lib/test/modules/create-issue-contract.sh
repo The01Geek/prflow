@@ -1465,6 +1465,96 @@ ci614_qg_purity quality-group-semantic 'the pairing exists so the guard cannot b
 ci614_qg_purity quality-group-regression 'a real captured record, not only a hand-built well-formed token'
 unset -f ci614_qg_purity
 
+# #1693 AC8/AC9 — byte budget. Measured with Python Path.read_bytes() against the source-recorded
+# baseline (lib/test/create-issue-quality-routing-baseline.json — pre-change ALWAYS-LOADED bytes at
+# the recorded commit). AC8: the post-change core-only-loaded population is strictly smaller than the
+# baseline. AC9: the combined reference surface this routing ships (template + every quality group)
+# does not exceed the baseline. The baseline byte total is re-derived from the recorded commit when
+# it is present in the checkout (fail-closed on a mismatch); a shallow clone that lacks the commit
+# reports baseline-verify=absent and the check falls back to the recorded literal (never silently green).
+_ci1693_budget() {
+  python3 - "$CI_ROOT" <<'PY1693'
+import json, pathlib, subprocess, sys
+root = pathlib.Path(sys.argv[1])
+spec = json.loads((root / 'lib/test/create-issue-quality-routing-baseline.json').read_text(encoding='utf-8'))
+baseline = spec['always_loaded_baseline_bytes']
+# Re-derive the baseline from the recorded commit when available (source-recorded, fail-closed).
+verify = 'absent'
+try:
+    total = 0
+    for rel in spec['always_loaded_baseline_files']:
+        blob = subprocess.run(['git', 'show', f"{spec['baseline_commit']}:{rel}"],
+                              cwd=root, capture_output=True)
+        if blob.returncode != 0:
+            raise FileNotFoundError(rel)
+        total += len(blob.stdout)
+    verify = 'ok' if total == baseline else f'mismatch({total}!={baseline})'
+except Exception:
+    verify = 'absent'
+def measure(key):
+    return sum(len((root / rel).read_bytes()) for rel in spec[key])
+core = measure('core_only_loaded_files')
+refs = measure('reference_surface_files')
+print(f"baseline-verify={verify}")
+print(f"ac8={'PASS' if core < baseline else 'FAIL'} core={core} baseline={baseline}")
+print(f"ac9={'PASS' if refs <= baseline else 'FAIL'} refs={refs} baseline={baseline}")
+PY1693
+}
+_ci1693_out="$(_ci1693_budget)"
+printf '%s\n' "$_ci1693_out" | sed 's/^/  /'
+# baseline-verify must be ok when the commit is present, or absent (shallow clone) — never a mismatch.
+assert_eq "#1693 AC8/AC9: recorded baseline re-derives from its commit (or the commit is absent), never a mismatch" "yes" \
+  "$(printf '%s\n' "$_ci1693_out" | grep -q 'baseline-verify=mismatch' && echo no || echo yes)"
+assert_eq "#1693 AC8: core-only-loaded population is strictly smaller than the pre-change baseline" "1" \
+  "$(printf '%s\n' "$_ci1693_out" | grep -c 'ac8=PASS')"
+assert_eq "#1693 AC9: combined reference surface does not exceed the pre-change baseline" "1" \
+  "$(printf '%s\n' "$_ci1693_out" | grep -c 'ac9=PASS')"
+unset -f _ci1693_budget
+unset -v _ci1693_out
+
+# #1693 AC4 — static routing cases cover a core-only draft, one positive and one negative case for
+# every quality group, and an uncertain-applicability case (which loads its group in full). The
+# fixture (lib/test/create-issue-quality-routing-cases.json) is the checked-in coverage matrix; this
+# check proves it is complete against the live group roster, so a group added without its routing
+# cases fails closed here rather than shipping unrouted-in-fixture.
+_ci1693_routing() {
+  python3 - "$CI_ROOT" "$CI614_QUALITY_REFS" <<'PY1693R'
+import json, pathlib, sys
+root = pathlib.Path(sys.argv[1])
+groups = sys.argv[2].split()
+spec = json.loads((root / 'lib/test/create-issue-quality-routing-cases.json').read_text(encoding='utf-8'))
+cases = spec['cases']
+problems = []
+# Exactly one core-only case, loading no group.
+core = [c for c in cases if c['kind'] == 'core-only']
+if len(core) != 1 or core[0]['expected_loaded'] != []:
+    problems.append('core-only')
+# An uncertain case that loads its group.
+unc = [c for c in cases if c['kind'] == 'uncertain' and c['group'] in c['expected_loaded']]
+if not unc:
+    problems.append('uncertain')
+# Every group named in a case is a real roster member; every expected-loaded stem is too.
+for c in cases:
+    if c['group'] is not None and c['group'] not in groups:
+        problems.append('unknown-group:' + c['group'])
+    for g in c['expected_loaded']:
+        if g not in groups:
+            problems.append('unknown-loaded:' + g)
+# Each group has >=1 positive (loads it) and >=1 negative (does not load it) case.
+for g in groups:
+    pos = [c for c in cases if c['kind'] == 'positive' and c['group'] == g and g in c['expected_loaded']]
+    neg = [c for c in cases if c['kind'] == 'negative' and c['group'] == g and g not in c['expected_loaded']]
+    if not pos:
+        problems.append('no-positive:' + g)
+    if not neg:
+        problems.append('no-negative:' + g)
+print('OK' if not problems else 'PROBLEMS:' + ','.join(problems))
+PY1693R
+}
+assert_eq "#1693 AC4: routing cases cover core-only, positive+negative per group, and uncertain" "OK" \
+  "$(_ci1693_routing)"
+unset -f _ci1693_routing
+
 # Step-reference purity (shadow finding): T4 proves fallback prose left the default path, but
 # nothing proved a STEP reference's prose did not ALSO remain in the root — a duplicated
 # procedure would load twice and drift into two disagreeing copies, this repo's dominant
