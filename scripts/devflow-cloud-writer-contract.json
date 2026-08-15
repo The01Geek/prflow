@@ -1,7 +1,7 @@
 {
   "files": {
     "lib/efficiency-trace.sh": "3e8675e50ca272c91f9e3e65f4ac1ff84ea12dad8371d0b0d24f77a3dd18ab14",
-    "scripts/apply-issue-dependencies.py": "87724c993e84b3c45b2d1a703ba027f478bf70b7dd1bb498db5cccb4df29491b",
+    "scripts/apply-issue-dependencies.py": "ef79f4c862935616b0ee0fd85740d6fc9f3cbd2ddaa06865b70a0f108837961f",
     "scripts/apply-labels.sh": "7ea8de21f888b038ab0d6a2324b197e6e865144caf51d8b7a765d06996ab3ad2",
     "scripts/branch-for-issue.py": "255b1673c4f1a84781b807cef00cf008bc32a9bfeb9a145da7dcab0cc9cbbbce",
     "scripts/check-completion-evidence.py": "d6da90003c47d0722f6dbc9aba1b8e52f072a16221703badcf1d664326d91de0",
