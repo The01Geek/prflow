@@ -56,6 +56,14 @@ CI_REF_FB_WRITEREC="$CI_ROOT/skills/create-issue/references/fallback-draft-write
 CI_REF_FB_TIERREAD="$CI_ROOT/skills/create-issue/references/fallback-implement-offer-tier-read.md"
 CI_REF_FB_VISUAL="$CI_ROOT/skills/create-issue/references/fallback-visual-specification.md"
 CI_REF_FB_EVIDENCE="$CI_ROOT/skills/create-issue/references/fallback-audit-evidence-degraded.md"
+# #1693: the five conditionally-loaded quality-guidance group references (Step 3 router).
+CI_REF_QG_VISUAL="$CI_ROOT/skills/create-issue/references/quality-group-visual.md"
+CI_REF_QG_CONTRACTS="$CI_ROOT/skills/create-issue/references/quality-group-contracts.md"
+CI_REF_QG_PREMISES="$CI_ROOT/skills/create-issue/references/quality-group-premises.md"
+# shellcheck disable=SC2034  # referenced by name in the #1693 routing/purity pins below
+CI_REF_QG_SEMANTIC="$CI_ROOT/skills/create-issue/references/quality-group-semantic.md"
+# shellcheck disable=SC2034  # referenced by name in the #1693 routing/purity pins below
+CI_REF_QG_REGRESSION="$CI_ROOT/skills/create-issue/references/quality-group-regression.md"
 # T1/T2/T6 read their routing rows from this file (their retargeted operand).
 CI_REF_ROUTING="$CI_ROOT/skills/create-issue/references/degradation-routing.md"
 CI_EXT="$CI_ROOT/.prflow/prompt-extensions/create-issue.md"
@@ -777,17 +785,22 @@ assert_eq "#467 A3: Step 3.6 generic dimension checklist is guard-locked at its 
 # edit can no longer silently drop or reword the conditional-path / trust-boundary checklist rows
 # while their body rules stay pinned. Literals are unique to the checklist line (the C3 body pin
 # 'source / exec / import closure' is the spaced form; the checklist uses the no-space form below).
+# #1693: the conditional-path premise check relocated from the always-loaded template into the
+# conditionally-loaded premises quality group; its checklist mirror now lives there.
 devflow_module_pin_unique "#467 C1: quality-checklist mirror for the conditional-path premise check" \
-  'enclosing gates/conditionals and their defaults on the path to X' "$CI_TMPL"
+  'enclosing gates/conditionals and their defaults on the path to X' "$CI_REF_QG_PREMISES"
+# #1693: the trust-boundary closure rule relocated into the contracts quality group; the leaned
+# group states it once (the spaced form), so the mirror pins the spaced form present there.
 devflow_module_pin_unique "#467 C3: quality-checklist mirror for the trust-boundary closure rule" \
-  'transitive source/exec/import closure of its entry points' "$CI_TMPL"
+  'transitive source / exec / import closure' "$CI_REF_QG_CONTRACTS"
 # Cluster D — Move 2a introduction trigger (template) + waiver-non-conforming clause; the
 # three-site best-effort-parser widening (CLAUDE.md, implement Phase 2.4, review-and-fix
 # fix-delta gate); extension sharpening (whole-file dimension count held at 9 after the
 # deployment-variance dimension added on main; #467 added none, matching the D3 guard below). The six-shape
 # SIXSHAPE_SET lockstep pins above stay green — the widening references the set, never restates it.
+# #1693: Move 2a's introduction trigger relocated into the regression quality group.
 devflow_module_pin_unique "#467 D1: introduction trigger names a blanket testing-scope waiver non-conforming" \
-  'blanket testing-scope waiver' "$CI_TMPL"
+  'blanket testing-scope waiver' "$CI_REF_QG_REGRESSION"
 devflow_module_pin_unique "#467 D2 (CLAUDE.md leg): best-effort-parser gotcha widened to mutable-markdown/external-format" \
   'The governed surface is broader than config JSON' "$CI_CLAUDE"
 devflow_module_pin_unique "#467 D2 (Phase 2.4 leg): dry-trace rule widened to mutable-markdown/external-format" \
@@ -1247,7 +1260,12 @@ CI614_TEMPLATE_REFS="issue-template"
 # into CI614_STEP_REFS or give it a ci614_step_unique call, and do not T4 purity-sweep it: it is
 # no default-path surface, and the pin gate refuses a fallback-prose absence pin over a skill file.
 CI614_ROUTING_REFS="degradation-routing"
-CI614_REFS="$CI614_STEP_REFS $CI614_FALLBACK_REFS $CI614_TEMPLATE_REFS $CI614_ROUTING_REFS"
+# #1693: the five conditionally-loaded quality-guidance groups. Like the fallback references
+# they are routed (T1/T2/T6) and T4 default-path-purity-swept — their specialized checklist
+# prose must be present in the group and ABSENT from the always-loaded root, step references,
+# AND the issue-template (the core checklist), proving no full-list copy remains behind the router.
+CI614_QUALITY_REFS="quality-group-visual quality-group-contracts quality-group-premises quality-group-semantic quality-group-regression"
+CI614_REFS="$CI614_STEP_REFS $CI614_FALLBACK_REFS $CI614_TEMPLATE_REFS $CI614_ROUTING_REFS $CI614_QUALITY_REFS"
 
 # #1702 AC8: reconcile this shell roster's Step 3.6 members against the DECLARED manifest, so a
 # member added to lib/test/create-issue-step-3-6-members.json (and passing the Python
@@ -1281,6 +1299,7 @@ ci614_marker_id() {
     step-3-6-audit-adjudication) printf '3.6-adjudication' ;;
     step-4-present-create)  printf '4' ;;
     fallback-*)             printf '%s' "$1" ;;
+    quality-group-*)        printf '%s' "$1" ;;
     issue-template)         printf 'issue-template' ;;
     degradation-routing)    printf 'degradation-routing' ;;
     *)                      return 1 ;;
@@ -1410,6 +1429,41 @@ ci614_purity "$CI_REF_FB_VISUAL" \
 ci614_purity "$CI_REF_FB_EVIDENCE" \
   'the retry hand-embedding the template-file text in full'
 unset -f ci614_purity
+
+# #1693 T4 (AC1/AC2/AC11) — quality-group default-path purity. Each conditionally-loaded
+# quality group's representative relocated literal is present in its own group file and ABSENT
+# from the root, every step reference, AND issue-template.md (the always-loaded core checklist) —
+# proving the specialized checklist prose left the always-loaded path and no full-list copy
+# remains behind the router. issue-template.md is added to the absence set here (ci614_purity
+# above does not search it) because it is exactly the always-loaded surface this change trims.
+ci614_qg_purity() {  # <group stem> <representative literal>
+  local stem="$1" lit="$2" leaked="" f p
+  p="$CI_ROOT/skills/create-issue/references/$stem.md"
+  assert_eq "#1693 T4: $stem.md carries its representative relocated literal" "1" \
+    "$(grep -cF "$lit" "$p")"
+  [ -s "$CI_SKILL" ] || leaked="SKILL.md(unsearchable)"
+  grep -qF "$lit" "$CI_SKILL" && leaked="SKILL.md"
+  if [ ! -s "$CI_TMPL" ]; then
+    leaked="$leaked issue-template.md(unsearchable)"
+  elif grep -qF "$lit" "$CI_TMPL"; then
+    leaked="$leaked issue-template.md"
+  fi
+  for f in $CI614_STEP_REFS; do
+    if [ ! -s "$CI_ROOT/skills/create-issue/references/$f.md" ]; then
+      leaked="$leaked $f.md(unsearchable)"
+    elif grep -qF "$lit" "$CI_ROOT/skills/create-issue/references/$f.md"; then
+      leaked="$leaked $f.md"
+    fi
+  done
+  assert_eq "#1693 T4: $stem.md's literal is absent from the root, issue-template, and every step reference" \
+    "" "$leaked"
+}
+ci614_qg_purity quality-group-visual 'a screenshot is preferred, but the verbal spec is an accepted substitute'
+ci614_qg_purity quality-group-contracts 'an unnamed word counter can flip the threshold verdict'
+ci614_qg_purity quality-group-premises 'vendor behavior is not in the tree'
+ci614_qg_purity quality-group-semantic 'the pairing exists so the guard cannot be satisfied by a compliance sentence'
+ci614_qg_purity quality-group-regression 'a real captured record, not only a hand-built well-formed token'
+unset -f ci614_qg_purity
 
 # Step-reference purity (shadow finding): T4 proves fallback prose left the default path, but
 # nothing proved a STEP reference's prose did not ALSO remain in the root — a duplicated
@@ -1732,7 +1786,9 @@ def main():
             print('caught' if verdict == 'mismatch' else 'MISSED')
     if mode.startswith('guard2'):
         cvp = _load('scripts/check-verified-premises.py', 'check_verified_premises')
-        tmpl = (root / 'skills/create-issue/references/issue-template.md').read_text(encoding='utf-8')
+        # #1693: the `Verified:` re-derivation-handle mandate relocated from issue-template.md into
+        # the conditionally-loaded premises quality group; read it from its new home.
+        tmpl = (root / 'skills/create-issue/references/quality-group-premises.md').read_text(encoding='utf-8')
         if mode == 'guard2-real':
             verdict, tf, adj = guard2(tmpl, cvp)
             sys.stderr.write(f'  template forms={sorted(tf)} helper-adjudicated={sorted(adj)}\n')
