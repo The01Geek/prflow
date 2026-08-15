@@ -3049,16 +3049,19 @@ assert_eq "#620: both extension loads sit in the entry preamble, own load first"
 
 # ── #312 remaining-item prose pins (the sharpenings this issue lands; each fails if its
 #    rule is reworded away). File vars: $IMPL_SKILL_BUNDLE (implement orchestrator+phase bundle,
-#    includes phase-2 and phase-3), $CI312_SKILL (create-issue bundle) + $CI312_TMPL (template).
-CI312_TMPL="$LIB/../skills/create-issue/references/issue-template.md"
+#    includes phase-2 and phase-3), $CI312_SKILL (create-issue bundle).
 CI312_SKILL="$CREATE_ISSUE_BUNDLE"   # #614: content-survival target — the split bundle, not the root alone
 # item 2 (broadened by #446) — the premise class widened from "an AC's mechanism" to every
 # relied-on third-party behavior, with the WebFetch → WebSearch → ask-the-user ladder, in BOTH
 # the template and Step 3.5. The pins cover the relied-on breadth AND the ladder's ask-user arm.
-assert_pin_unique "#312 item 2 (broadened #446): issue-template names the relied-on third-party premise class" \
-  'relied-on third-party behavior** — every behavior of an external platform' "$CI312_TMPL"
-assert_pin_unique "#312 item 2 (broadened #446): issue-template ladder reaches the ask-the-user arm" \
-  '**(3)** when search is unavailable or fails, **ask the user to' "$CI312_TMPL"
+# #1693: the two #312 issue-template prose pins (relied-on third-party premise class; the
+# WebFetch→WebSearch→ask ladder's ask-the-user arm) are RETIRED here. That content relocated from
+# the always-loaded issue-template into the conditionally-loaded premises quality group, and its
+# survival is now proven by the executable #1693 AC5 checklist-mapping test (which asserts the
+# premises group carries the relied-on-third-party ladder obligation and it left the always-loaded
+# path) plus T4 purity — so re-authoring a wording-only prose presence pin over the moved sentences
+# would be a #810-prohibited pin, superseded by that executable evidence. The two Step 3.5 #312
+# pins below are unchanged (Step 3.5 prose, not moved by this change).
 assert_pin_unique "#312 item 2 (broadened #446): create-issue Step 3.5 re-applies the relied-on class" \
   'relied-on-third-party-behavior** class: every behavior of an external platform' "$CI312_SKILL"
 assert_pin_unique "#312 item 2 (broadened #446): Step 3.5 ladder reaches the ask-the-user arm" \
@@ -16061,7 +16064,7 @@ for PA_FILE in "$LIB"/../skills/review/phases/*.md "$LIB"/../skills/review-and-f
     "$(if grep -qF 'CLAUDE_SKILL_DIR' "$PA_FILE"; then grep -qF "$PORTABLE_ANCHOR_LITERAL" "$PA_FILE" && echo yes || echo no; else echo yes; fi)"  # raw-guard-ok: loop body: conditional presence pin over the enumerated $PA_FILE loop variable
 done
 assert_eq "#275 pin (R0): portable-anchor coverage spans every review phase + fix-loop + create-issue + implement reference file (enumeration reconciled)" \
-  "40" "$PA_REF_COUNT"
+  "45" "$PA_REF_COUNT"
 # Mutation proof (PASS->FAIL, self-contained): the absence EREs must actually MATCH the
 # two fragile forms they exist to reject — an ERE typo would leave P1/P2 green forever
 # (vacuous absence pins). Inject each fragile form into a temp copy of a migrated file
@@ -47130,7 +47133,7 @@ fi
 # The registry and this full-suite call share the same lower-bound contract;
 # test_module_runner.py parses this operand and rejects any coupling drift.
 if ! devflow_run_full_suite_module "$LIB/test/modules/create-issue-contract.sh" \
-  "create-issue-contract" 350; then
+  "create-issue-contract" 387; then
   printf 'ERROR: create-issue-contract boundary could not record its result\n'
   exit 1
 fi
