@@ -66,7 +66,8 @@ UNAVAILABLE_EXIT = 3
 DEPENDENCY_HEADING = re.compile(r"^##\s+Dependencies\s*$", re.IGNORECASE)
 HEADING = re.compile(r"^#{1,6}\s+")
 # Group 1 is the heading level (the `#`-run), read by the reserved-leading
-# malformed-heading detector below; group 2 is its normalized text.
+# malformed-heading detector below; group 2 is the heading text (whitespace-trimmed
+# by the pattern; case-folded by the detector).
 _ATX_HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*$")
 ISSUE_REF = re.compile(r"#(\d+)")
 # Each declaration keyword may be followed by a run of additional numbers joined

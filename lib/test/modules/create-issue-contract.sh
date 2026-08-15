@@ -867,10 +867,9 @@ devflow_module_pin_unique "#611 AC2: the recovery never sanctions a bare re-reco
 assert_eq "#611 AC2: the sequencing rule is not restated at the Step 4 override sites" \
   "1" "$(devflow_module_pin_count 'completes **before** a digest-bound override is recorded' "$CI_BUNDLE")"
 
-# issue #1695: three contract clarifications, each pinned to the reference that must
-# carry it so removal makes the suite RED (AC9). File-specific greps under raw-guard-ok,
-# the same idiom the #614 T4 routing pins above use — the sinks are agent-executed prose,
-# and these presence checks are the observable regression coverage the issue mandates.
+# issue #1695 (AC9): each chat-sink clarification is pinned to the reference that must
+# carry it, so removing it makes the suite RED. File-specific greps under raw-guard-ok —
+# the sinks are agent-executed prose with no executable surface, so a presence check is the coverage AC9 mandates.
 # AC5 — the live create-issue file-arm caller contract states BOTH --write-path layers.
 assert_eq "#1695 AC5: step-3-6-audit-dispatch names the CLI-optional --write-path layer" "yes" \
   "$(grep -qF 'omission bypasses only the reported-path cross-check' "$CI_REF_STEP36" && echo yes || echo no)"  # raw-guard-ok: routing-dispatch-contract: the CLI-boundary optionality layer of the two-layer --write-path contract

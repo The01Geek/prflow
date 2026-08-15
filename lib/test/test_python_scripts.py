@@ -30288,8 +30288,7 @@ for a in "$@"; do
       # issue #1268: the same number outbound on one line and inbound on another. It is
       # rescued into `found` and must NOT also be reported as a skip (no false breadcrumb).
       112) printf '%s\n' '## Dependencies' '- Blocks #201 — this issue is the prerequisite' '- Blocked by #201 — b' ;;
-      # issue #1695: a malformed reserved LEADING dependency heading. #201 resolves to a
-      # linkable id below, so a malformed-blind helper would POST a persistent blocked_by.
+      # issue #1695: a malformed reserved LEADING dependency heading (`### Dependencies`).
       113) printf '%s\n' '### Dependencies' '- Blocked by #201 — a' '## Problem Statement' 'body' ;;
       # issue #1695: a later-NESTED `### Dependencies` after `## Problem Statement` is not
       # the reserved section — it is absent, so the "declares no prerequisites" arm holds.
@@ -30383,20 +30382,21 @@ assert_eq("#1011 out-of-section: breadcrumb says no prerequisites in a section",
           "declares no prerequisites in a `## Dependencies` section" in _se)
 
 # ── issue #1695: a malformed reserved LEADING `### Dependencies` heading. The native
-# stamp exits 0, breadcrumbs the malformed heading under its own prefix, performs NO
-# GitHub dependency write (no POST — asserted by the ABSENCE of any "linked"/
-# "blocked_by" line, the same discriminating shape #1197 AC6 uses; #201 resolves to a
-# linkable id, so a malformed-blind helper WOULD have linked it), and does NOT emit its
-# "declares no prerequisites" outcome. ──
+# stamp exits 0, breadcrumbs the malformed heading under its own prefix, performs no
+# GitHub dependency write, and does NOT emit its "declares no prerequisites" outcome.
+# DISCRIMINATION: the section scanner is level-2-only, so a `### Dependencies` yields no
+# numbers regardless — a malformed-blind helper would emit "declares no prerequisites"
+# (never a POST), so it is the ABSENCE of that summary (asserted below) that separates
+# old from new; the "no link posted" row is a non-discriminating sanity check. ──
 _rc, _se = _run_deps(113)
 assert_eq("#1695 malformed native-stamp: exit 0", 0, _rc)
 assert_eq("#1695 malformed native-stamp: breadcrumb names the malformed reserved heading", True,
           "reserved leading dependency section is spelled `### Dependencies`" in _se)
 assert_eq("#1695 malformed native-stamp: breadcrumb is helper-prefixed", True,
           all(line.startswith("apply-issue-dependencies.py:") for line in _se.strip().splitlines()))
-assert_eq("#1695 malformed native-stamp: performs NO dependency write (no link posted)", True,
+assert_eq("#1695 malformed native-stamp: sanity — no dependency write (non-discriminating)", True,
           "linked #113 blocked_by" not in _se and "was already blocked_by" not in _se)
-assert_eq("#1695 malformed native-stamp: does NOT claim it declares no prerequisites", True,
+assert_eq("#1695 malformed native-stamp: DISCRIMINATING — does NOT claim it declares no prerequisites", True,
           "declares no prerequisites" not in _se)
 # A later-nested `### Dependencies` after `## Problem Statement` is absent (not the
 # reserved section), so the existing "declares no prerequisites" outcome still holds (AC4).
