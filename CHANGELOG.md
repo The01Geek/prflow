@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.91] — 2026-08-15
+
+### Added
+- **Gate compatibility and rollout decisions by applicability in `/prflow:create-issue`.** Added a sixth conditionally-loaded quality group, `references/quality-group-compatibility.md`, registered with the #1693 quality-guidance router. It loads only when a grounded change moves a supported-version boundary, alters a contract already used by existing data/config/consumers, spans independently upgraded components that can run at mixed versions, or introduces rollout behavior — resolving each touched support-boundary, transition, mixed-version, and rollback decision through the existing issue sections, with one consolidated clarification question reserved for a remaining load-bearing policy choice. Ordinary issues load no compatibility reference, gain no body section, and pay no added prompt bytes; the generic migration/coexistence evidence axis and the deployment-variance steelman keep their existing roles and forward compatibility *decisions* to the new group. (#1712)
+
 ## [2.32.90] — 2026-08-15
 
 ### Fixed
