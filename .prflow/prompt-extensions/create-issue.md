@@ -192,6 +192,11 @@ subagent. Judge the draft against each of these, in addition to the generic dime
   environment-variance defect ships. The narrower dimensions above (allowlist skew, matcher shapes,
   non-preflight PATH tools, shallow clone) are specific instances; this one catches the axis a draft
   never considered at all.
+  The *compatibility decisions* this dimension may surface — supported old/new combinations, how
+  existing data/config/consumers cross a change boundary, upgrade order and mixed-version behavior,
+  and rollback/coexistence — are owned by the conditionally-loaded compatibility-and-rollout quality
+  group (`skills/create-issue/references/quality-group-compatibility.md`), not settled here; this
+  dimension stays a portability-variance check.
 <!-- dim-key: executable-evidence-for-behavioral-regressions -->
 - **Executable evidence for behavioral regressions (issues #464 and #810).** A Testing
   Strategy that protects a named bug or regression must exercise its rendered interface
