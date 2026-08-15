@@ -20670,6 +20670,14 @@ def _cov_read_boundary(r):
     out = r('query-summary', r.slug, nonce=True).stdout
     assert_eq("#708-12: a corrupt coverage outcome collapses state to unestablished",
               'unestablished', out.split('state=', 1)[1].split()[0])
+    # issue #1694 precision control: the widened coverage trigger keys on the
+    # `no-coverage-recorded` reason ALONE. A corrupt/unreadable state derives the DISTINCT
+    # `state-unestablished` reason, so it must stay disclosure-only — pinned here directly at
+    # the trigger level (the summary assertion above is at the state level), completing the
+    # "degraded / no-clean-round / foreign / unestablished stay not-hold" precision set.
+    trig = r('query-triggers', r.slug, nonce=True).stdout
+    assert_eq("#708-12/#1694: a corrupt (state-unestablished) read fires no coverage offer",
+              'not-hold', trig.split('coverage=', 1)[1].split()[0])
 
 
 _with_run603(_cov_read_boundary)
