@@ -30156,6 +30156,73 @@ with contextlib.redirect_stderr(_io1268):
 assert_eq("#1268 new accessor: emits no stderr of its own on an outbound body",
           (([], ['5']), ""), (_1268_scan, _io1268.getvalue()))
 
+# ── issue #1695: a malformed reserved LEADING dependency heading is unknown, not
+# an empty prerequisite set. `malformed_reserved_dependency_heading` returns the
+# offending `#`-marker for a `Dependencies` heading at a level other than two in the
+# reserved leading position, and None for the canonical/absent/later-nested cases. ──
+_mrdh = _preflight1011.malformed_reserved_dependency_heading
+assert_eq("#1695 malformed: a leading `### Dependencies` is malformed (returns '###')",
+          "###",
+          _mrdh("### Dependencies\n- #201\n## Problem Statement\nbody\n"))
+assert_eq("#1695 malformed: a leading `# Dependencies` is malformed (returns '#')",
+          "#",
+          _mrdh("# Dependencies\n- #201\n## Problem Statement\nbody\n"))
+assert_eq("#1695 malformed: a leading `#### Dependencies` is malformed",
+          "####",
+          _mrdh("#### Dependencies\n- #7\n## Problem Statement\nbody\n"))
+# Normalization mirrors DEPENDENCY_HEADING: case-insensitive, whitespace-tolerant.
+assert_eq("#1695 malformed: normalization is case- and whitespace-insensitive",
+          "###",
+          _mrdh("###   dependencies   \n- #7\n## Problem Statement\nbody\n"))
+# The canonical level-two reserved heading is NOT malformed (existing recognizer owns it).
+assert_eq("#1695 canonical: a leading `## Dependencies` is not malformed (None)",
+          None,
+          _mrdh("## Dependencies\n- #201\n## Problem Statement\nbody\n"))
+# Absent section: no Dependencies heading at all → None.
+assert_eq("#1695 absent: a body with no Dependencies heading returns None",
+          None,
+          _mrdh("## Problem Statement\nbody with no dependency section\n"))
+assert_eq("#1695 absent: an empty body returns None", None, _mrdh(""))
+# AC4: a later NESTED `### Dependencies` after `## Problem Statement` is NOT promoted
+# into the reserved section — the first level-≤2 non-Dependencies heading closes the
+# reserved leading region, so the nested heading is never judged malformed here.
+assert_eq("#1695 later-nested: `### Dependencies` after `## Problem Statement` is not flagged",
+          None,
+          _mrdh("## Problem Statement\nbody\n### Dependencies\n- #201\n"))
+# A leading `## Problem Statement` before any Dependencies heading closes the region.
+assert_eq("#1695 boundary: a `## Dependencies` that is not leading (after another ## section) is not the reserved one",
+          None,
+          _mrdh("## Problem Statement\nbody\n## Dependencies\n- #201\n"))
+
+# ── issue #1695: the reversible implement preflight (`dependencies` CLI) fails
+# closed with UNAVAILABLE on a malformed reserved heading, naming `## Dependencies`,
+# and never resolves a referenced issue (no gh call) nor reports PROCEED. Driven
+# in-process through a --body-file so no network/gh is touched. ──
+def _run_deps_cli(body_text):
+    _bf = tempfile.NamedTemporaryFile("w", suffix=".md", delete=False, encoding="utf-8")
+    _bf.write(body_text)
+    _bf.close()
+    _args = argparse.Namespace(body_file=_bf.name, issue=None, repo_relative=False)
+    _out, _errio = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(_out), contextlib.redirect_stderr(_errio):
+        _rc = _preflight1011.dependencies(_args)
+    os.unlink(_bf.name)
+    return _rc, _out.getvalue(), _errio.getvalue()
+
+_rc1695, _out1695, _err1695 = _run_deps_cli("### Dependencies\n- #201\n## Problem Statement\nbody\n")
+assert_eq("#1695 CLI malformed: exits UNAVAILABLE (3)", _preflight1011.UNAVAILABLE_EXIT, _rc1695)
+assert_eq("#1695 CLI malformed: stdout is the UNAVAILABLE malformed token, never PROCEED",
+          "UNAVAILABLE malformed-dependency-heading", _out1695.strip())
+assert_eq("#1695 CLI malformed: diagnostic names the canonical `## Dependencies` spelling",
+          True, "## Dependencies" in _err1695)
+assert_eq("#1695 CLI malformed: never reports PROCEED", True, "PROCEED" not in _out1695)
+# The canonical section still PROCEEDs unchanged (no open prerequisite here → PROCEED
+# with the resolved list requires gh; a section-less body PROCEEDs with no numbers and
+# no gh call). AC4 absent/canonical retention on the reversible gate:
+_rc1695b, _out1695b, _err1695b = _run_deps_cli("## Problem Statement\nno dependency section here\n")
+assert_eq("#1695 CLI absent: a section-less body still PROCEEDs (exit 0)", _preflight1011.PROCEED_EXIT, _rc1695b)
+assert_eq("#1695 CLI absent: stdout is PROCEED", "PROCEED", _out1695b.strip())
+
 _HELPER1011 = SCRIPTS / 'apply-issue-dependencies.py'
 
 
@@ -30201,6 +30268,12 @@ for a in "$@"; do
       # issue #1268: the same number outbound on one line and inbound on another. It is
       # rescued into `found` and must NOT also be reported as a skip (no false breadcrumb).
       112) printf '%s\n' '## Dependencies' '- Blocks #201 — this issue is the prerequisite' '- Blocked by #201 — b' ;;
+      # issue #1695: a malformed reserved LEADING dependency heading. #201 resolves to a
+      # linkable id below, so a malformed-blind helper would POST a persistent blocked_by.
+      113) printf '%s\n' '### Dependencies' '- Blocked by #201 — a' '## Problem Statement' 'body' ;;
+      # issue #1695: a later-NESTED `### Dependencies` after `## Problem Statement` is not
+      # the reserved section — it is absent, so the "declares no prerequisites" arm holds.
+      114) printf '%s\n' '## Problem Statement' 'body' '### Dependencies' '- #201' ;;
       200) exit 1 ;;
       *) printf '\n' ;;
     esac
@@ -30288,6 +30361,31 @@ _rc, _se = _run_deps(106)
 assert_eq("#1011 out-of-section: exit 0", 0, _rc)
 assert_eq("#1011 out-of-section: breadcrumb says no prerequisites in a section", True,
           "declares no prerequisites in a `## Dependencies` section" in _se)
+
+# ── issue #1695: a malformed reserved LEADING `### Dependencies` heading. The native
+# stamp exits 0, breadcrumbs the malformed heading under its own prefix, performs NO
+# GitHub dependency write (no POST — asserted by the ABSENCE of any "linked"/
+# "blocked_by" line, the same discriminating shape #1197 AC6 uses; #201 resolves to a
+# linkable id, so a malformed-blind helper WOULD have linked it), and does NOT emit its
+# "declares no prerequisites" outcome. ──
+_rc, _se = _run_deps(113)
+assert_eq("#1695 malformed native-stamp: exit 0", 0, _rc)
+assert_eq("#1695 malformed native-stamp: breadcrumb names the malformed reserved heading", True,
+          "reserved leading dependency section is spelled `### Dependencies`" in _se)
+assert_eq("#1695 malformed native-stamp: breadcrumb is helper-prefixed", True,
+          all(line.startswith("apply-issue-dependencies.py:") for line in _se.strip().splitlines()))
+assert_eq("#1695 malformed native-stamp: performs NO dependency write (no link posted)", True,
+          "linked #113 blocked_by" not in _se and "was already blocked_by" not in _se)
+assert_eq("#1695 malformed native-stamp: does NOT claim it declares no prerequisites", True,
+          "declares no prerequisites" not in _se)
+# A later-nested `### Dependencies` after `## Problem Statement` is absent (not the
+# reserved section), so the existing "declares no prerequisites" outcome still holds (AC4).
+_rc, _se = _run_deps(114)
+assert_eq("#1695 later-nested native-stamp: exit 0", 0, _rc)
+assert_eq("#1695 later-nested native-stamp: retains the no-prerequisites outcome", True,
+          "declares no prerequisites in a `## Dependencies` section" in _se)
+assert_eq("#1695 later-nested native-stamp: not treated as malformed", True,
+          "reserved leading dependency section is spelled" not in _se)
 
 # ── issue #1197 AC6: no persistent blocked_by is registered for an OUTBOUND
 # declaration. Asserted end-to-end on the real helper over a stubbed gh — the derived

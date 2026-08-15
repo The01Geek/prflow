@@ -65,6 +65,9 @@ BLOCKED_EXIT = 2
 UNAVAILABLE_EXIT = 3
 DEPENDENCY_HEADING = re.compile(r"^##\s+Dependencies\s*$", re.IGNORECASE)
 HEADING = re.compile(r"^#{1,6}\s+")
+# Any ATX heading, capturing its `#`-run (level) and text — the reserved-leading
+# malformed-heading detector below reads the level DEPENDENCY_HEADING hardcodes to two.
+_ATX_HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*$")
 ISSUE_REF = re.compile(r"#(\d+)")
 # Each declaration keyword may be followed by a run of additional numbers joined
 # by "and" / "," / ", and" (Oxford) / ";" / "&", so a single declaration can name
@@ -344,6 +347,37 @@ def dependency_numbers(body: str) -> list[str]:
     return _scan_dependencies(body, section_only=False)[0]
 
 
+def malformed_reserved_dependency_heading(body: str) -> str | None:
+    """Return the offending `#`-marker of a reserved-leading dependency heading
+    spelled at a Markdown level other than two, else None (issue #1695).
+
+    The issue template renders the optional `## Dependencies` section FIRST, above
+    `## Problem Statement`. A heading whose normalized text is `Dependencies` in
+    that reserved leading position must be exactly level two; a different level
+    (`# Dependencies`, `### Dependencies`) is an authoring mistake the level-2-only
+    `DEPENDENCY_HEADING` recognizer would otherwise read as an EMPTY prerequisite
+    set — "unknown, not zero". A canonical level-two heading returns None (the
+    reserved section the existing recognizer already handles).
+
+    Positional and bounded, NOT a general Markdown parser: only the reserved
+    leading region — the run of content before the first level-≤2 section heading
+    that is not itself a `Dependencies` heading — is inspected, so a later nested
+    `Dependencies` heading (e.g. `### Dependencies` under `## Problem Statement`)
+    is never promoted into the reserved section. Uses the same case/whitespace
+    normalization as `DEPENDENCY_HEADING` (case-insensitive, whitespace-stripped).
+    """
+    for line in body.splitlines():
+        match = _ATX_HEADING.match(line)
+        if not match:
+            continue
+        level = len(match.group(1))
+        if match.group(2).strip().casefold() == "dependencies":
+            return None if level == 2 else match.group(1)
+        if level <= 2:
+            return None
+    return None
+
+
 def _gh_issue_view(number: object, field: str) -> str:
     """Run `gh issue view <number> --json <field> -q .<field>` and return stdout.
 
@@ -423,6 +457,20 @@ def dependencies(args: argparse.Namespace) -> int:
             print(f"preflight.py: {exc}", file=sys.stderr)
             print("UNAVAILABLE issue", flush=True)
             return UNAVAILABLE_EXIT
+
+    malformed = malformed_reserved_dependency_heading(body)
+    if malformed is not None:
+        # Fail closed BEFORE resolving any number: a malformed reserved heading is
+        # unknown, not an empty prerequisite set, so it must not read as PROCEED.
+        print(
+            f"preflight.py: the reserved leading dependency section is spelled "
+            f"`{malformed} Dependencies`, not the canonical `## Dependencies` "
+            f"(Markdown level two); its prerequisites are unread — restate it as "
+            f"`## Dependencies` and re-run",
+            file=sys.stderr,
+        )
+        print("UNAVAILABLE malformed-dependency-heading")
+        return UNAVAILABLE_EXIT
 
     numbers = dependency_numbers(body)
     if not numbers:
