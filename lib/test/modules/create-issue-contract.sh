@@ -1539,30 +1539,42 @@ assert_eq "#1693 AC4: routing cases cover core-only, positive+negative per group
   "$(_ci1693_routing)"
 unset -f _ci1693_routing
 
-# #1692 AC8 — the compatibility group's fixed scenario set is pinned by id, so the six named
-# scenarios (irrelevant, support-floor, existing persisted state, mixed independently shipped
-# versions, staged rollback, uncertain applicability) cannot silently erode to the ≥1-positive
-# floor _ci1693_routing enforces. Keyed on the fixture `id` strings (a machine-consumed contract),
-# not prose: dropping the mixed-versions or staged-rollback case fails closed here.
+# #1692 AC8 — the compatibility group's fixed scenario set is pinned by id AND by routing shape, so
+# the six named scenarios (irrelevant, support-floor, existing persisted state, mixed independently
+# shipped versions, staged rollback, uncertain applicability) cannot silently erode to the
+# ≥1-positive floor _ci1693_routing enforces, nor be reclassified so a required positive scenario
+# stops triggering the group. Keyed on the fixture `id`/`kind`/`expected_loaded` (a machine-consumed
+# contract), not prose: dropping OR reclassifying the mixed-versions or staged-rollback case (or the
+# irrelevant negative gaining a load) fails closed here.
 _ci1692_scenarios() {
   python3 - "$CI_ROOT" <<'PY1692'
 import json, pathlib, sys
 root = pathlib.Path(sys.argv[1])
 spec = json.loads((root / 'lib/test/create-issue-quality-routing-cases.json').read_text(encoding='utf-8'))
-ids = {c['id'] for c in spec['cases']}
-required = {
-    'compatibility-negative-irrelevant',
-    'compatibility-positive-support-floor',
-    'compatibility-positive-persisted-state',
-    'compatibility-positive-mixed-versions',
-    'compatibility-positive-staged-rollback',
-    'compatibility-uncertain',
+by_id = {c['id']: c for c in spec['cases']}
+G = 'quality-group-compatibility'
+# Each required scenario id, with the routing shape AC8 requires it to keep.
+expected = {
+    'compatibility-negative-irrelevant':       ('negative', False),
+    'compatibility-positive-support-floor':     ('positive', True),
+    'compatibility-positive-persisted-state':   ('positive', True),
+    'compatibility-positive-mixed-versions':    ('positive', True),
+    'compatibility-positive-staged-rollback':   ('positive', True),
+    'compatibility-uncertain':                  ('uncertain', True),
 }
-missing = sorted(required - ids)
-print('OK' if not missing else 'MISSING:' + ','.join(missing))
+problems = []
+for cid, (kind, loads) in expected.items():
+    c = by_id.get(cid)
+    if c is None:
+        problems.append('missing:' + cid); continue
+    if c.get('kind') != kind:
+        problems.append('kind:' + cid)
+    if (G in c.get('expected_loaded', [])) != loads:
+        problems.append('loaded:' + cid)
+print('OK' if not problems else 'PROBLEMS:' + ','.join(sorted(problems)))
 PY1692
 }
-assert_eq "#1692 AC8: the compatibility group's six fixed scenario cases are all present by id" "OK" \
+assert_eq "#1692 AC8: the compatibility group's six fixed scenario cases are present with the required routing shape" "OK" \
   "$(_ci1692_scenarios)"
 unset -f _ci1692_scenarios
 
