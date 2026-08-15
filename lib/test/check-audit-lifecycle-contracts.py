@@ -70,11 +70,8 @@ IAS = REPO / "scripts" / "issue-audit-state.py"
 STEP36_MANIFEST = REPO / "lib" / "test" / "create-issue-step-3-6-members.json"
 STEP4 = REPO / "skills" / "create-issue" / "references" / "step-4-present-create.md"
 
-# Test-injection seam: when a caller rebinds `STEP36` to a single crafted document, the
-# Step 3.6 set is exactly `[STEP36]` and the sequence/fenced arms grade that one file plus
-# `STEP4` — byte-identical to the pre-#1702 single-file contract, so every crafted-document
-# test drives the checker unchanged. In a real run it stays `None` and the set is read from
-# the declared manifest.
+# Test-injection seam, rebound with `STEP4` as a pair. Keep the `None` default: a real path
+# here would make every run grade one file instead of the declared manifest set.
 STEP36 = None
 
 

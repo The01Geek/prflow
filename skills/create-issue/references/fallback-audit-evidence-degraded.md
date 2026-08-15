@@ -2,7 +2,7 @@
 
 ## Degraded arms of an audit round
 
-Each arm below is a terminal degraded state of one audit round. The round's own observable answer selects the arm; `references/step-3-6-audit.md` names which. Every arm here is a disclosure, never a stop.
+Each arm below is a terminal degraded state of one audit round. The round's own observable answer selects the arm; `references/step-3-6-audit-dispatch.md` names which. Every arm here is a disclosure, never a stop.
 
 **Carriage evidence absent or mismatched.** A `record-return` classified `no-parseable-verdict` because the carriage evidence was **absent** or **mismatched** writes a named breadcrumb to **stderr** — `carriage-absent` when the auditor quoted no object ID, `carriage-mismatch` when it quoted one that disagrees with the recorded dispatch digest — while its stdout `classification=…` line and its exit code are unchanged. The remedy the breadcrumb names is to **re-run `record-return` supplying `--carriage-object-id` with the object id of the draft the auditor actually audited** (`git hash-object --no-filters <draft>`), so read the stderr breadcrumb before treating the round as genuinely unreadable.
 

@@ -1,5 +1,6 @@
 {
   "comment": "Declared Step 3.6 audit reference set (issue #1702). The single source of the entry + ordered procedure members that lib/test/lint-reference-size.py (per-member 55,000-byte limit + aggregate source-byte budget), lib/test/check-audit-lifecycle-contracts.py (call-sequence + fenced-completeness across the set), and lib/test/modules/create-issue-contract.sh (#614 routing/marker reconciliation + omitted-member positive control) all resolve against. Paths are repo-relative. The members are listed in load order and carry a `<!-- prflow:create-issue-set step=3.6 part=k of=N -->` second-line marker.",
+  "schema_version": 1,
   "entry": "skills/create-issue/references/step-3-6-audit.md",
   "members": [
     "skills/create-issue/references/step-3-6-audit-shared.md",

@@ -2,7 +2,7 @@
 
 ## The Step 3.6 → Step 4 boundary offer
 
-`references/step-3-6-audit.md` loads this file when its unconditional `query-boundary` call reports a trigger component at `hold`, or when it found an `unledgered_revise` round. Read that answer back rather than re-calling it.
+`references/step-3-6-audit-adjudication.md` loads this file when its unconditional `query-boundary` call reports a trigger component at `hold`, or when it found an `unledgered_revise` round. Read that answer back rather than re-calling it.
 
 Its trigger component answers `t1=hold|not-hold t2=hold|not-hold coverage=hold|not-hold calibration=hold|not-hold reason=…`.
 
