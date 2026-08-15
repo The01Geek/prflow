@@ -1047,7 +1047,12 @@ because the second regenerates over the first's output:
   unnamed pre-marker content the regenerator happened to re-emit. `skills/pr-description/SKILL.md`
   now carries an explicit rule naming the provenance line, so it is **preserved deliberately across
   Phase 4.2 regeneration** rather than by luck — the line is present in the PR body after the
-  regeneration.
+  regeneration. That rule is a **relocation**, not a preserve-in-place: the draft body Phase 3.1
+  writes carries no `<!-- PR_BODY_START -->`/`<!-- PR_BODY_END -->` markers, so the regenerator's
+  no-markers rule treated the whole draft — provenance line included — as pre-marker content and
+  hoisted the line to the **top** of the regenerated body (PR #1704). The regenerator now emits the
+  line as the **last line of the whole output**, below `<!-- PR_BODY_END -->`, wherever it found it,
+  so it reads as the body's signature.
 
 ## Phase 3.1.1 assigns the draft PR to the triggering user (issue #1165)
 
