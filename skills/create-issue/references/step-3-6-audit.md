@@ -4,7 +4,7 @@
 
 After Step 3.5 passes and before Step 4 presents anything, dispatch **one fresh-context audit subagent** whose value is that it did not draft the issue — Step 3.5, running inline in the drafting context, is structurally weak at seeing what the draft *misses*.
 
-**Step 3.5-record entry gate (blocks the audit dispatch only).** Before anything below runs, confirm this run's latest `## Steelman record` `### pass <n>` entry in `.prflow/tmp/issue-derivation-<slug>.md` per the entry-confirmation contract (item 9) of `references/step-3-5-steelman.md`. **Report the gate's outcome as an in-chat breadcrumb distinguishing confirmed, missing, and stale before routing on it** — the named observable sink item 9 owns — so a skipped Step 3.5 is transcript-distinguishable from a compliant one. A missing or stale entry is a skipped Step 3.5 and blocks only this dispatch, not issue creation.
+**Step 3.5-record entry gate (blocks the audit dispatch only).** Before anything below runs, confirm this run's latest `## Steelman record` `### pass <n>` entry in `.prflow/tmp/issue-derivation-<slug>.md` per the entry-confirmation contract (item 9) of `references/step-3-5-steelman.md`. A missing or stale entry is a skipped Step 3.5 and blocks only this dispatch, not issue creation.
 #### The ordered procedure set
 
 This step is delivered as an ordered set — this entry plus three procedure members, loaded in order:

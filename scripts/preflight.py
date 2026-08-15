@@ -65,8 +65,8 @@ BLOCKED_EXIT = 2
 UNAVAILABLE_EXIT = 3
 DEPENDENCY_HEADING = re.compile(r"^##\s+Dependencies\s*$", re.IGNORECASE)
 HEADING = re.compile(r"^#{1,6}\s+")
-# Any ATX heading, capturing its `#`-run (level) and text — the reserved-leading
-# malformed-heading detector below reads the level DEPENDENCY_HEADING hardcodes to two.
+# ATX heading with its `#`-run (level) and text captured separately, so the
+# reserved-leading malformed-heading detector below can read the level.
 _ATX_HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*$")
 ISSUE_REF = re.compile(r"#(\d+)")
 # Each declaration keyword may be followed by a run of additional numbers joined
