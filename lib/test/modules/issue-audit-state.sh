@@ -1200,8 +1200,11 @@ if [ -d "$SR_SB" ]; then
     "1" "$(grep -c 'classification=no-parseable-verdict' "$SR_SB/.sr-bad" 2>/dev/null)"
   assert_eq "#546 shadow_round_rows: the tool-generated sentinel pair round-trips to an accepted FILE close" \
     "1" "$(grep -c 'outcome=FILE' "$SR_SB/.sr-good" 2>/dev/null)"
-  assert_eq "#546/#709 shadow_round_rows: ... closed with no FINDINGS trigger; the only trigger is the embed arm's by-construction steering state" \
-    "1" "$(grep -c 't1=not-hold t2=hold coverage=not-hold calibration=not-hold reason=steering-unestablished' "$SR_SB/.sr-trig" 2>/dev/null)"
+  # issue #1694: this embed-arm round closes FILE with no per-dimension coverage recorded,
+  # so the coverage ground now co-holds beside T2's steering hold (both feed the single
+  # boundary offer). T1/calibration stay not-hold; the reason field still names steering.
+  assert_eq "#546/#709/#1694 shadow_round_rows: ... closed with no FINDINGS trigger; T2's embed-arm steering state fires, with the coverage ground co-holding on the unrecorded coverage" \
+    "1" "$(grep -c 't1=not-hold t2=hold coverage=hold calibration=not-hold reason=steering-unestablished' "$SR_SB/.sr-trig" 2>/dev/null)"
   assert_eq "#546 shadow_round_rows: a CLI-recorded override grounds eligibility (producer/consumer agree)" \
     "1" "$(grep -c 'eligible=yes ground=override' "$SR_SB/.sr-ov-elig" 2>/dev/null)"
   assert_eq "#546 shadow_round_rows: a later revision stales the CLI-recorded override" \
