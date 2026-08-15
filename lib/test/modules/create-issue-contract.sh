@@ -1539,6 +1539,33 @@ assert_eq "#1693 AC4: routing cases cover core-only, positive+negative per group
   "$(_ci1693_routing)"
 unset -f _ci1693_routing
 
+# #1692 AC8 — the compatibility group's fixed scenario set is pinned by id, so the six named
+# scenarios (irrelevant, support-floor, existing persisted state, mixed independently shipped
+# versions, staged rollback, uncertain applicability) cannot silently erode to the ≥1-positive
+# floor _ci1693_routing enforces. Keyed on the fixture `id` strings (a machine-consumed contract),
+# not prose: dropping the mixed-versions or staged-rollback case fails closed here.
+_ci1692_scenarios() {
+  python3 - "$CI_ROOT" <<'PY1692'
+import json, pathlib, sys
+root = pathlib.Path(sys.argv[1])
+spec = json.loads((root / 'lib/test/create-issue-quality-routing-cases.json').read_text(encoding='utf-8'))
+ids = {c['id'] for c in spec['cases']}
+required = {
+    'compatibility-negative-irrelevant',
+    'compatibility-positive-support-floor',
+    'compatibility-positive-persisted-state',
+    'compatibility-positive-mixed-versions',
+    'compatibility-positive-staged-rollback',
+    'compatibility-uncertain',
+}
+missing = sorted(required - ids)
+print('OK' if not missing else 'MISSING:' + ','.join(missing))
+PY1692
+}
+assert_eq "#1692 AC8: the compatibility group's six fixed scenario cases are all present by id" "OK" \
+  "$(_ci1692_scenarios)"
+unset -f _ci1692_scenarios
+
 # #1693 AC5 — the pre-change checklist maps completely to the core checklist and the five groups the
 # #1693 relocation targeted (the #1692 compatibility group carries new obligations and is not mapped);
 # every protection retains its strength and appears once. For each mapped obligation: a core-owned
