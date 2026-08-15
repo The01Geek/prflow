@@ -8689,14 +8689,18 @@ def build_parser():
                         'tuple, and its recorded basis digest is cross-checked against the '
                         'bytes this dispatch audits (scope-basis-mismatch). Refused on a '
                         'discovery round, which carries no scoped payload.')
-    s.add_argument('--write-path', help='Optional on the file arm (issue #569): the '
+    s.add_argument('--write-path', help='Optional at THIS CLI boundary (issue #569): the '
                    'absolute canonical-draft file path the skill observed its write land '
                    'at. When the run has a recorded draft-root binding and this is '
                    'passed, it is cross-checked against the bound canonical file '
                    '(write-path-mismatch on divergence). Omitted, or on an unbound run, '
                    'the dispatch proceeds unchanged; an empty value is refused '
                    '(write-path-empty) rather than read as an opt-out. Ignored on the '
-                   'embed and inline arms.')
+                   'embed and inline arms. Two layers, deliberately distinct (issue '
+                   '#1695): optional here for compatibility, but the live create-issue '
+                   'file-arm caller is required to forward the bound canonical path — '
+                   'omission bypasses only the reported-path cross-check, it is not a '
+                   'sanctioned opt-out for that workflow.')
     s.add_argument('--draft-file', help='Required on the file arm; bytes on stdin '
                                         'otherwise.')
     s.add_argument('--instructions-file', help='File arm only (issue #709): the absolute '

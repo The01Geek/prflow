@@ -45,6 +45,8 @@ CI_REF_REVDELTA="$CI_ROOT/skills/create-issue/references/revision-delta.md"
 # shellcheck disable=SC2034  # pin-retarget seam (see the block comment above)
 CI_REF_STEP36="$CI_ROOT/skills/create-issue/references/step-3-6-audit-dispatch.md"
 # shellcheck disable=SC2034  # pin-retarget seam (see the block comment above)
+CI_REF_STEP36AUDIT="$CI_ROOT/skills/create-issue/references/step-3-6-audit.md"  # #1695 Step 3.5-record entry gate
+# shellcheck disable=SC2034  # pin-retarget seam (see the block comment above)
 CI_REF_STEP4="$CI_ROOT/skills/create-issue/references/step-4-present-create.md"
 CI_REF_FB_NOTASK="$CI_ROOT/skills/create-issue/references/fallback-no-task-tool.md"
 CI_REF_FB_READONLY="$CI_ROOT/skills/create-issue/references/fallback-read-only-sandbox.md"
@@ -866,6 +868,29 @@ devflow_module_pin_unique "#611 AC2: the recovery never sanctions a bare re-reco
 # restating the rule — one specification of record, per AC2.
 assert_eq "#611 AC2: the sequencing rule is not restated at the Step 4 override sites" \
   "1" "$(devflow_module_pin_count 'completes **before** a digest-bound override is recorded' "$CI_BUNDLE")"
+
+# issue #1695: three contract clarifications, each pinned to the reference that must
+# carry it so removal makes the suite RED (AC9). File-specific greps under raw-guard-ok,
+# the same idiom the #614 T4 routing pins above use — the sinks are agent-executed prose,
+# and these presence checks are the observable regression coverage the issue mandates.
+# AC5 — the live create-issue file-arm caller contract states BOTH --write-path layers.
+assert_eq "#1695 AC5: step-3-6-audit-dispatch names the CLI-optional --write-path layer" "yes" \
+  "$(grep -qF 'merely bypasses the reported-path cross-check and proceeds' "$CI_REF_STEP36" && echo yes || echo no)"  # raw-guard-ok: routing-dispatch-contract: the CLI-boundary optionality layer of the two-layer --write-path contract
+assert_eq "#1695 AC5: step-3-6-audit-dispatch names the required-live-caller --write-path layer" "yes" \
+  "$(grep -qF 'is **required** to forward the bound canonical path above' "$CI_REF_STEP36" && echo yes || echo no)"  # raw-guard-ok: routing-dispatch-contract: the bound-live-caller requirement layer of the two-layer --write-path contract
+# AC8 — the Verified-premise unavailable arm names the in-chat sink in BOTH the declaring
+# reference (step-3-5-steelman) and the executing reference (step-3-6-audit-dispatch).
+assert_eq "#1695 AC8: step-3-5-steelman (declaring) names the Verified-premise in-chat sink" "yes" \
+  "$(grep -qF 'reports its failure kind as an in-chat breadcrumb' "$CI_REF_STEP35" && echo yes || echo no)"  # raw-guard-ok: routing-dispatch-contract: the declaring site names the observable in-chat sink for the Verified-premise unavailable arm
+assert_eq "#1695 AC8: step-3-6-audit-dispatch (executing) names the Verified-premise in-chat sink" "yes" \
+  "$(grep -qF 'reports its failure kind as an in-chat breadcrumb at this execution site' "$CI_REF_STEP36" && echo yes || echo no)"  # raw-guard-ok: routing-dispatch-contract: the executing site names the observable in-chat sink for the Verified-premise unavailable arm
+# AC7 — the Step 3.5-record entry gate reports confirmed/missing/stale as an in-chat
+# breadcrumb in BOTH the declaring gate (step-3-6-audit) and the executing contract (item 9
+# of step-3-5-steelman).
+assert_eq "#1695 AC7: step-3-6-audit (gate) names the confirmed/missing/stale in-chat breadcrumb" "yes" \
+  "$(grep -qF 'in-chat breadcrumb distinguishing confirmed, missing, and stale' "$CI_REF_STEP36AUDIT" && echo yes || echo no)"  # raw-guard-ok: routing-dispatch-contract: the Step 3.5-record entry gate's observable outcome sink
+assert_eq "#1695 AC7: step-3-5-steelman item 9 (executing) emits the three-outcome in-chat breadcrumb" "yes" \
+  "$(grep -qF 'in-chat breadcrumb distinguishing the three outcomes' "$CI_REF_STEP35" && echo yes || echo no)"  # raw-guard-ok: routing-dispatch-contract: the entry-confirmation contract's observable outcome sink
 
 # AC6 — the Step 2 sentence stays the specification of record, now carrying the
 # terminator precision and naming its single implementation. The '## '-plus-space
