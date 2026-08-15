@@ -1430,9 +1430,11 @@ unset -f ci614_purity
 
 # #1693 AC8/AC9 — byte budget. Measured with Python Path.read_bytes() against the source-recorded
 # baseline (lib/test/create-issue-quality-routing-baseline.json — pre-change ALWAYS-LOADED bytes at
-# the recorded commit). AC8: the post-change core-only-loaded population is strictly smaller than the
-# baseline. AC9: the combined reference surface this routing ships (template + every quality group)
-# does not exceed the baseline. The baseline byte total is re-derived from the recorded commit when
+# the recorded commit). AC8: the post-change core-only-loaded population (SKILL.md + issue-template.md)
+# is strictly smaller than the baseline. AC9: every byte this routing is responsible for across every
+# touched surface — the reference surface (template + every quality group, whole) plus the SKILL.md
+# router delta (not SKILL's untouched pre-existing body) — does not exceed the baseline. The baseline
+# byte total is re-derived from the recorded commit when
 # it is present in the checkout (fail-closed on a mismatch); a shallow clone that lacks the commit
 # reports baseline-verify=absent and the check falls back to the recorded literal (never silently green).
 _ci1693_budget() {
@@ -1465,10 +1467,16 @@ else:
 def measure(key):
     return sum(len((root / rel).read_bytes()) for rel in spec[key])
 core = measure('core_only_loaded_files')
+# AC9 counts every byte this routing is responsible for across every touched surface: the reference
+# surface (template + groups, whole) PLUS the SKILL.md router delta — the bytes the one-bullet router
+# added to the host file — never SKILL's untouched pre-existing body (which the routing did not author,
+# only pointed into). A negative delta (SKILL shrank) contributes 0.
 refs = measure('reference_surface_files')
+router_delta = max(0, len((root / spec['router_host_file']).read_bytes()) - spec['router_host_baseline_bytes'])
+touched = refs + router_delta
 print(f"baseline-verify={verify}")
 print(f"ac8={'PASS' if core < baseline else 'FAIL'} core={core} baseline={baseline}")
-print(f"ac9={'PASS' if refs <= baseline else 'FAIL'} refs={refs} baseline={baseline}")
+print(f"ac9={'PASS' if touched <= baseline else 'FAIL'} touched={touched} refs={refs} router_delta={router_delta} baseline={baseline}")
 PY1693
 }
 _ci1693_out="$(_ci1693_budget)"
@@ -1481,7 +1489,7 @@ assert_eq "#1693 AC8/AC9: recorded baseline re-derives cleanly from its commit, 
   "$(printf '%s\n' "$_ci1693_out" | grep -cE '^baseline-verify=(ok|absent)$')"
 assert_eq "#1693 AC8: core-only-loaded population is strictly smaller than the pre-change baseline" "1" \
   "$(printf '%s\n' "$_ci1693_out" | grep -c 'ac8=PASS')"
-assert_eq "#1693 AC9: combined reference surface does not exceed the pre-change baseline" "1" \
+assert_eq "#1693 AC9: combined touched surface (reference surface + SKILL router delta) does not exceed the pre-change baseline" "1" \
   "$(printf '%s\n' "$_ci1693_out" | grep -c 'ac9=PASS')"
 unset -f _ci1693_budget
 unset -v _ci1693_out

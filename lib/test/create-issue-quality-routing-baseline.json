@@ -1,11 +1,13 @@
 {
-  "_comment": "issue #1693 — source-recorded byte baseline for the create-issue quality-guidance routing split. A past-time snapshot (an enforcement constant, legitimately checked-in per CLAUDE.md's exact-literal exception): the pre-change ALWAYS-LOADED Step-3 quality surface at the baseline commit. lib/test/modules/create-issue-contract.sh measures the current tree against it via Python Path.read_bytes(). AC8: the post-change core-only-loaded population is smaller than this baseline. AC9: the combined reference surface this routing ships (the template plus every quality group) does not exceed this baseline. SKILL.md's whole body is counted in the always-loaded/core-only population (AC8), not double-counted in the reference-surface total (AC9).",
+  "_comment": "issue #1693 — source-recorded byte baseline for the create-issue quality-guidance routing split. A past-time snapshot (an enforcement constant, legitimately checked-in per CLAUDE.md's exact-literal exception): the pre-change ALWAYS-LOADED Step-3 quality surface at the baseline commit. lib/test/modules/create-issue-contract.sh measures the current tree against it via Python Path.read_bytes(). AC8: the post-change core-only-loaded population (SKILL.md + issue-template.md) is smaller than this baseline. AC9: every byte this routing is responsible for across every touched surface — the reference surface (issue-template.md + the five quality groups, whole) PLUS the SKILL.md router delta (current SKILL bytes minus router_host_baseline_bytes; SKILL's untouched pre-existing body, into which the routing only added a one-bullet pointer, is not double-counted) — does not exceed this baseline.",
   "baseline_commit": "ad8257b5bdfa697fed580d0d77b543f34433a38f",
   "always_loaded_baseline_files": [
     "skills/create-issue/SKILL.md",
     "skills/create-issue/references/issue-template.md"
   ],
   "always_loaded_baseline_bytes": 82217,
+  "router_host_file": "skills/create-issue/SKILL.md",
+  "router_host_baseline_bytes": 25294,
   "core_only_loaded_files": [
     "skills/create-issue/SKILL.md",
     "skills/create-issue/references/issue-template.md"
