@@ -19985,11 +19985,8 @@ assert_eq("#709 move3-5/10: ... so the clean ground is reachable",
           'eligible=yes ground=file-identity', ' '.join(_ok709['elig'].split()[:2]))
 assert_eq("#709 move3-5/10: ... the summary reports the established state",
           True, 'steering=established steering_reason=canonical-match' in _ok709['summary'])
-# issue #1694: this harness dispatches and returns a clean FILE round but never calls
-# record-coverage, so the run sits in the `no-coverage-recorded` arm — which now JOINS the
-# coverage offer (a mandated-but-missing coverage record another round can recover). T1, T2,
-# steering and calibration all stay not-hold on a clean established round; only the coverage
-# ground fires, and it never blocks filing.
+# Do not re-tighten this to `coverage=not-hold`: the harness never calls record-coverage, so
+# the run is the #1694 `no-coverage-recorded` arm and the coverage ground fires.
 assert_eq("#709 move3-5/10/#1694: a clean established round fires only the coverage offer "
           "(no per-dimension coverage was recorded)",
           't1=not-hold t2=not-hold coverage=hold calibration=not-hold reason=', _ok709['trig'])
@@ -20670,11 +20667,9 @@ def _cov_read_boundary(r):
     out = r('query-summary', r.slug, nonce=True).stdout
     assert_eq("#708-12: a corrupt coverage outcome collapses state to unestablished",
               'unestablished', out.split('state=', 1)[1].split()[0])
-    # issue #1694 precision control: the widened coverage trigger keys on the
-    # `no-coverage-recorded` reason ALONE. A corrupt/unreadable state derives the DISTINCT
-    # `state-unestablished` reason, so it must stay disclosure-only — pinned here directly at
-    # the trigger level (the summary assertion above is at the state level), completing the
-    # "degraded / no-clean-round / foreign / unestablished stay not-hold" precision set.
+    # Do not widen the #1694 disjunct to any `unestablished` backing: a corrupt state derives
+    # the DISTINCT `state-unestablished` reason and must stay disclosure-only. Pinned at the
+    # trigger level, since the assertion above only reaches the state level.
     trig = r('query-triggers', r.slug, nonce=True).stdout
     assert_eq("#708-12/#1694: a corrupt (state-unestablished) read fires no coverage offer",
               'not-hold', trig.split('coverage=', 1)[1].split()[0])
@@ -20779,15 +20774,9 @@ def _cov_expected_keys_preconditions(r):
 _with_run603(_cov_expected_keys_preconditions)
 
 
-# A clean FILE round that recorded NO coverage at all: the worst BACKING failure mode
-# would be `all([]) == True` reporting `backed`. Unknown is never collapsed onto backed,
-# and the answering line NAMES which unestablished arm this is — the backing tokens are
-# unchanged. What DID change (issue #1694): this named `no-coverage-recorded` arm now
-# JOINS the coverage offer, because the Step 3.6 procedure mandates `record-coverage` after
-# an accepted round, so a clean round that lost it is recoverable by another audit round —
-# unlike the `no-clean-round` and foreign/corrupt-state reads below, which stay not-hold.
-# The offer routing widened; the backing/render/reason tokens
-# did NOT (the gotcha the issue calls out: absent coverage is never relabelled full-render).
+# Do not let `all([]) == True` report `backed` here, and do not relabel this arm's
+# backing/render tokens when widening the #1694 offer routing: the answering line must keep
+# naming `no-coverage-recorded`, which is what separates it from the not-hold arms below.
 def _cov_clean_round_no_coverage(r):
     r.open_round(1, 'FILE', 0)
     r.adjudicate(1, 'FILE', 0, '0')
@@ -20805,12 +20794,9 @@ def _cov_clean_round_no_coverage(r):
 _with_run603(_cov_clean_round_no_coverage)
 
 
-# issue #1694: the no-coverage-recorded arm joins the SINGLE boundary offer. This block
-# pins the routing controls the widening owes beyond #708-16's bare `coverage=hold`:
-# query-boundary byte-identity, the shared user-round cap, final-byte precedence
-# co-occurrence, and the foreign-nonce disclosure-only control. The already-green controls
-# no-clean-round (#708-7), not-backed+degraded (#708-8), and backed (#708-1/case5) prove
-# the widening is precise and are not re-pinned here.
+# Do not route the #1694 arm through a second offer surface or a private cap: these rows pin
+# that it reaches the SAME query-boundary line, record-offer, and shared user-round cap the
+# not-backed+full arm already uses.
 def _cov_1694_no_coverage_offer_controls(r):
     r.open_round(1, 'FILE', 0)
     r.adjudicate(1, 'FILE', 0, '0')
@@ -21082,8 +21068,9 @@ _with_run603(_cov_legacy_keyset_still_readable)
 # (`(cov['backing'] == 'not-backed' and cov['render'] == 'full') or
 # cov['reason'] == 'no-coverage-recorded'` since issue #1694) and reads NO offer history.
 # The at-most-once/yields behavior lives only in orchestrator prose
-# (skills/create-issue/references/step-3-6-audit-adjudication.md: "coverage=hold joins the
-# single boundary offer"). We therefore do NOT
+# (references/step-4-present-create.md sub-step 3a and
+# references/fallback-audit-boundary-offer.md, NOT the step-3-6 reference, whose
+# "coverage=hold joins the single boundary offer" states neither property). We therefore do NOT
 # assert an at-most-once property the code does not implement; we pin the real guarantee —
 # the trigger is stateless w.r.t. offer history, so `coverage=hold` persists across a
 # recorded offer AND at the user-round cap. A future change that (mis)placed at-most-once in
