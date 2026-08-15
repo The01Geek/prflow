@@ -801,6 +801,16 @@ def _median(values):
     return total // 2 if total % 2 == 0 else total / 2
 
 
+def _is_numeric(value):
+    """True for a real number. Both context guards read this one predicate.
+
+    A separate re-derivation in either caller drifts from the other, which is how one
+    arithmetic site ends up guarded and its sibling raises `TypeError` instead of reporting
+    `unestablished`. `isinstance(True, int)` is True, so booleans are excluded here.
+    """
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
 def _median_or_unestablished(values):
     """The median of a non-empty list, else the UNESTABLISHED sentinel.
 
@@ -2061,9 +2071,6 @@ def _manifest_comparison(run_records):
         "total_attributed_auditor_cost",
         "total_peak_context",
         "mean_peak_context_per_run",
-        # issue #1702 (AC10): the MEDIAN runtime main-thread context (token) cost per run,
-        # after-minus-before. A median, not a sum, so it carries no population confound and a
-        # non-positive value means the revised corpus's median did not exceed the baseline's.
         "median_main_thread_context",
         "total_round_count",
         "finding_count",
@@ -2173,8 +2180,7 @@ def _manifest_comparison(run_records):
     # run's main-thread context could not be measured — never a number collapsed onto unknown.
     before_peaks = [run["peak_context"] for run in before_runs]
     after_peaks = [run["peak_context"] for run in after_runs]
-    _all_numeric = all(
-        isinstance(value, (int, float)) for value in before_peaks + after_peaks)
+    _all_numeric = all(_is_numeric(value) for value in before_peaks + after_peaks)
     median_before = _median(before_peaks) if _all_numeric else UNESTABLISHED
     median_after = _median(after_peaks) if _all_numeric else UNESTABLISHED
     within_baseline = (
@@ -2311,10 +2317,21 @@ def _paired_delta(before, after):
         # `_degraded` already guarantees a non-empty run list here.
         return _sum(report, "peak_context") / len(report["runs"])
 
+    # Every `peak_context` delta below does arithmetic on the field, so one non-numeric value
+    # would RAISE where this module's contract is to report `unestablished`. Route all three
+    # through `_context_delta`, never `_delta` — guarding one and not its siblings is the
+    # asymmetry that leaves a latent TypeError beside a guarded call.
+    peaks_numeric = all(
+        _is_numeric(run["peak_context"])
+        for report in (before, after) for run in report["runs"])
+
+    def _context_delta(fn):
+        return _delta(fn) if peaks_numeric else UNESTABLISHED
+
     return {
         "total_attributed_auditor_cost": _delta(
             lambda rep: _sum(rep, "attributed_auditor_cost")),
-        "total_peak_context": _delta(lambda rep: _sum(rep, "peak_context")),
+        "total_peak_context": _context_delta(lambda rep: _sum(rep, "peak_context")),
         # AC7 names *per-run* context as a paired-delta axis, and the corpus-wide sum
         # above does not discharge it: a 3-run before corpus against a 1-run after
         # corpus yields a large negative `total_peak_context` that is pure population
@@ -2322,11 +2339,8 @@ def _paired_delta(before, after):
         # confound cannot enter. It is a float by construction (a mean, not a token
         # count) — a non-integer delta (as the median below can also be), named as an
         # average so a reader is not invited to read it as a measured total.
-        "mean_peak_context_per_run": _delta(_mean_peak_context),
-        # issue #1702 (AC10): the median runtime main-thread context per run. `_degraded`
-        # guarantees a non-empty run list on the established path, so `_median` never sees
-        # an empty list here.
-        "median_main_thread_context": _delta(
+        "mean_peak_context_per_run": _context_delta(_mean_peak_context),
+        "median_main_thread_context": _context_delta(
             lambda rep: _median([r["peak_context"] for r in rep["runs"]])),
         "total_round_count": _delta(_rounds),
         "finding_count": _findings_delta(),

@@ -154,10 +154,8 @@ NEAR_FULL_HEADROOM = READER_CAP_BYTES - MAX_BYTES
 EXEMPTIONS_DEFAULT = "lib/test/reference-size-exemptions.json"
 
 #: The declared Step 3.6 audit reference set (issue #1702), relative to the resolved root.
-#: The single source of the entry reference plus every ordered procedure member that this
-#: lint's per-member and aggregate source-byte checks resolve against — the same manifest
-#: `lib/test/check-audit-lifecycle-contracts.py` and `lib/test/modules/create-issue-contract.sh`
-#: read. Both checks below measure with `Path.read_bytes()`.
+#: Read through `lib/test/step36_manifest.py`, the shared validated reader — never re-parsed
+#: here, or this lint's accepted record shape drifts from its sibling readers'.
 STEP36_MANIFEST_DEFAULT = "lib/test/create-issue-step-3-6-members.json"
 
 #: Schema versions this reader understands. An unrecognized version is refused rather
@@ -216,6 +214,26 @@ def _load_population_reader() -> object:
 
 
 _pop = _load_population_reader()
+
+
+def _load_step36_reader() -> object:
+    """Import the shared Step 3.6 manifest reader by the idiom this directory already uses."""
+    path = Path(__file__).resolve().parent / "step36_manifest.py"
+    spec = importlib.util.spec_from_file_location("step36_manifest", path)
+    if spec is None or spec.loader is None:
+        raise SystemExit(f"{_TOOL}: could not load the shared Step 3.6 manifest reader at {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    for attribute in ("Step36Manifest", "Step36ManifestError", "load"):
+        if not hasattr(module, attribute):
+            raise SystemExit(
+                f"{_TOOL}: the shared Step 3.6 manifest reader has no {attribute} — refusing "
+                "to audit against a reader whose contract has drifted"
+            )
+    return module
+
+
+_s36 = _load_step36_reader()
 
 
 class RecordError(Exception):
@@ -349,50 +367,13 @@ def load_record(path: Path) -> tuple[dict[str, int], dict[str, str]]:
     return recorded, exemptions
 
 
-class Step36Error(Exception):
-    """The Step 3.6 member manifest could not be read as a well-formed record."""
+#: The shared reader's error, re-exported under this lint's own name so the `except` sites
+#: below and the suite's assertions name one class whichever module raised it.
+Step36Error = _s36.Step36ManifestError
 
-
-def load_step36_manifest(path: Path) -> tuple[str, list[str], int, int, str]:
-    """Return `(entry, members, per_member_limit, baseline_bytes, baseline_commit)`.
-
-    Fails CLOSED on any malformed shape (never an empty population that would read as a
-    stricter check passing over nothing), exactly like `load_record`.
-    """
-    try:
-        raw = path.read_text(encoding="utf-8")
-    except OSError as exc:
-        raise Step36Error(f"the Step 3.6 manifest could not be read ({path}): {exc}") from exc
-    try:
-        data = json.loads(raw)
-    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-        raise Step36Error(f"the Step 3.6 manifest is not valid JSON ({path}): {exc}") from exc
-    if not isinstance(data, dict):
-        raise Step36Error("the Step 3.6 manifest's top-level value must be an object")
-    entry = data.get("entry")
-    if not isinstance(entry, str) or not entry.strip():
-        raise Step36Error("the Step 3.6 manifest's `entry` must be a non-empty string")
-    members = data.get("members")
-    if not isinstance(members, list) or not members or not all(
-        isinstance(m, str) and m.strip() for m in members
-    ):
-        raise Step36Error("the Step 3.6 manifest's `members` must be a non-empty list of "
-                          "non-empty strings")
-    if len(set(members)) != len(members) or entry in members:
-        raise Step36Error("the Step 3.6 manifest names a duplicate or entry-as-member path")
-    limit = data.get("per_member_limit_bytes")
-    if not isinstance(limit, int) or isinstance(limit, bool) or limit <= 0:
-        raise Step36Error("the Step 3.6 manifest's `per_member_limit_bytes` must be a "
-                          "positive integer")
-    baseline = data.get("aggregate_baseline_bytes")
-    if not isinstance(baseline, int) or isinstance(baseline, bool) or baseline <= 0:
-        raise Step36Error("the Step 3.6 manifest's `aggregate_baseline_bytes` must be a "
-                          "positive integer")
-    commit = data.get("aggregate_baseline_commit")
-    if not isinstance(commit, str) or not commit.strip():
-        raise Step36Error("the Step 3.6 manifest's `aggregate_baseline_commit` must be a "
-                          "non-empty string")
-    return entry, members, limit, baseline, commit
+#: The shared validated reader. Kept as this module's own name so every call site here reads
+#: the same record shape the sibling readers do.
+load_step36_manifest = _s36.load
 
 
 def _resolve_step36_manifest(args, root: Path) -> Path:
@@ -408,8 +389,11 @@ def check_step36_set(root: Path, manifest_path: Path) -> tuple[list[str], list[s
     baseline. Every measurement is `Path.read_bytes()`, and the emitted report names the
     measured population and the baseline commit (issue #1702, AC2/AC3).
     """
-    entry, members, limit, baseline, commit = load_step36_manifest(manifest_path)
-    population = [entry, *members]
+    manifest = load_step36_manifest(manifest_path)
+    limit = manifest.per_member_limit_bytes
+    baseline = manifest.aggregate_baseline_bytes
+    commit = manifest.aggregate_baseline_commit
+    population = [manifest.entry, *manifest.members]
     findings: list[str] = []
     report: list[str] = []
     total = 0

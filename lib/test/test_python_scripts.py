@@ -33227,6 +33227,162 @@ assert_eq("#1702 AC4: an on-disk member absent from the manifest is refused (omi
               [("m1.md", 1, 2), ("m2.md", 2, 2)], ["m1.md", "m2.md"],
               extra_ondisk=[("m3.md", 3, 2)]) or ""))
 
+assert_eq("#1702 AC4: a manifest whose load order disagrees with the members' part markers is "
+          "refused (contiguity alone is order-independent)",
+          True, "load order disagrees" in (_alc_step36_case(
+              [("m1.md", 2, 2), ("m2.md", 1, 2)], ["m1.md", "m2.md"]) or ""))
+
+# #1702 — the unmeasurable-member boundary state (`check_step36_set`'s OSError arm). Its
+# fail-closed `continue` had no negative control, so a regression turning it into a silent drop
+# would have stayed green. The rejection is ATTRIBUTED to this arm's own finding text, and the
+# same fixture carries a positive control proving it is otherwise clean.
+def _rsz1702_missing_member(create_member):
+    """Manifest names three files; `create_member` decides whether the third exists on disk."""
+    import json as _j1702d
+    tmp = tempfile.mkdtemp()
+    root = _rsz1702.Path(tmp)
+    (root / "e.md").write_bytes(b"x" * 100)
+    (root / "m1.md").write_bytes(b"x" * 100)
+    if create_member:
+        (root / "m2.md").write_bytes(b"x" * 100)
+    manifest = root / "manifest.json"
+    manifest.write_text(_j1702d.dumps({
+        "entry": "e.md", "members": ["m1.md", "m2.md"],
+        "per_member_limit_bytes": 55000, "aggregate_baseline_bytes": 100000,
+        "aggregate_baseline_commit": "testsha",
+    }), encoding="utf-8")
+    try:
+        return _rsz1702.check_step36_set(root, manifest)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+_f1702_absent, _r1702_absent = _rsz1702_missing_member(create_member=False)
+assert_eq("#1702: a manifest member absent from disk fails CLOSED, attributed to the "
+          "unmeasurable-member arm",
+          True, any("m2.md could not be measured" in f
+                    and "the declared member set could not be established" in f
+                    for f in _f1702_absent))
+assert_eq("#1702: the unmeasurable member is not silently counted as zero bytes (no measurement "
+          "line for it)",
+          False, any("m2.md" in ln and "bytes (per-member limit" in ln for ln in _r1702_absent))
+assert_eq("#1702 positive control: the SAME fixture with every member present is clean (so the "
+          "row above cannot be a rejection from an unrelated precondition)",
+          [], _rsz1702_missing_member(create_member=True)[0])
+
+# #1702 — the `--check-step36-set` CLI branch's own exit codes. The whole_tree and focused
+# paths were covered only by the live-tree happy path, so an inverted `return 1 if findings`
+# would have stayed green.
+def _rsz1702_cli(baseline):
+    """Run lint-reference-size.py --check-step36-set over a fixture root; return (rc, stdout)."""
+    import json as _j1702e
+    tmp = tempfile.mkdtemp()
+    try:
+        root = _rsz1702.Path(tmp)
+        (root / "e.md").write_bytes(b"x" * 100)
+        (root / "m1.md").write_bytes(b"x" * 100)
+        manifest = root / "manifest.json"
+        manifest.write_text(_j1702e.dumps({
+            "entry": "e.md", "members": ["m1.md"],
+            "per_member_limit_bytes": 55000, "aggregate_baseline_bytes": baseline,
+            "aggregate_baseline_commit": "testsha",
+        }), encoding="utf-8")
+        proc = _subprocess.run(
+            [sys.executable, str(SCRIPTS.parent / "lib" / "test" / "lint-reference-size.py"),
+             "--check-step36-set", "--root", str(root), "--step36-manifest", str(manifest)],
+            capture_output=True, text=True)
+        return proc.returncode, proc.stdout
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+_rc1702_ok, _out1702_ok = _rsz1702_cli(baseline=100000)
+assert_eq("#1702 AC2/AC3: --check-step36-set exits 0 and reports the aggregate on a clean set",
+          (0, True), (_rc1702_ok, "aggregate 200 bytes over 2 files" in _out1702_ok))
+_rc1702_bad, _out1702_bad = _rsz1702_cli(baseline=150)
+assert_eq("#1702 AC3: --check-step36-set exits NON-ZERO and names the baseline when the "
+          "aggregate is over budget",
+          (1, True),
+          (_rc1702_bad, "over the source-recorded pre-refactor baseline of 150" in _out1702_bad))
+
+# #1702 — the two independent readers resolve the manifest through ONE shared validated
+# loader, so a shape either refuses is refused by both. Before the shared loader the lifecycle
+# checker validated only entry/members, so a manifest RED under the size lint was silently
+# accepted there.
+_s36_1702_spec = importlib.util.spec_from_file_location(
+    "_s36_1702", os.path.join(str(SCRIPTS.parent), "lib", "test", "step36_manifest.py"))
+_s36_1702 = importlib.util.module_from_spec(_s36_1702_spec)
+_s36_1702_spec.loader.exec_module(_s36_1702)
+
+
+def _s36_1702_both_readers(shape):
+    """Refuse-or-accept verdicts of BOTH manifest readers over one crafted manifest.
+
+    Returns `(size_lint_refused, lifecycle_refused)`. Asserting agreement here is what pins
+    the shared loader: the two readers are separately `exec`'d module objects, so class
+    identity proves nothing about the shapes each accepts.
+    """
+    import json as _j1702g
+    tmp = tempfile.mkdtemp()
+    saved = _alc795.STEP36_MANIFEST
+    try:
+        path = _alc795.Path(tmp) / "m.json"
+        path.write_text(_j1702g.dumps(shape), encoding="utf-8")
+        try:
+            _rsz1702.load_step36_manifest(path)
+            size_refused = False
+        except _rsz1702.Step36Error:
+            size_refused = True
+        _alc795.STEP36_MANIFEST = path
+        try:
+            _alc795._read_step36_manifest()
+            lifecycle_refused = False
+        except _alc795.Refusal:
+            lifecycle_refused = True
+        return size_refused, lifecycle_refused
+    finally:
+        _alc795.STEP36_MANIFEST = saved
+        shutil.rmtree(tmp, ignore_errors=True)
+
+# The lifecycle checker validated only `entry`/`members` before the shared loader, so each of
+# these was RED under the size lint and silently ACCEPTED there.
+for _label1702, _shape1702 in (
+    ("duplicate member", {"entry": "e.md", "members": ["m.md", "m.md"],
+                          "per_member_limit_bytes": 1, "aggregate_baseline_bytes": 1,
+                          "aggregate_baseline_commit": "s"}),
+    ("entry listed as a member", {"entry": "e.md", "members": ["e.md"],
+                                  "per_member_limit_bytes": 1, "aggregate_baseline_bytes": 1,
+                                  "aggregate_baseline_commit": "s"}),
+    ("non-positive per-member limit", {"entry": "e.md", "members": ["m.md"],
+                                       "per_member_limit_bytes": 0,
+                                       "aggregate_baseline_bytes": 1,
+                                       "aggregate_baseline_commit": "s"}),
+    ("absent baseline commit", {"entry": "e.md", "members": ["m.md"],
+                                "per_member_limit_bytes": 1, "aggregate_baseline_bytes": 1}),
+):
+    assert_eq(f"#1702: BOTH manifest readers refuse a {_label1702} (one shared validated loader)",
+              (True, True), _s36_1702_both_readers(_shape1702))
+
+assert_eq("#1702 positive control: both readers ACCEPT a well-formed manifest (so the rows "
+          "above are not both refusing every input)",
+          (False, False), _s36_1702_both_readers({
+              "entry": "e.md", "members": ["m.md"], "per_member_limit_bytes": 1,
+              "aggregate_baseline_bytes": 1, "aggregate_baseline_commit": "s"}))
+
+# Read by FIELD NAME: two adjacent same-typed byte counts unpacked positionally would compare
+# file sizes against the wrong number and still type-check.
+_s36_1702_real = _s36_1702.load(
+    SCRIPTS.parent / "lib" / "test" / "create-issue-step-3-6-members.json")
+assert_eq("#1702: the manifest record exposes named fields, not a positional tuple",
+          (55000, 72458),
+          (_s36_1702_real.per_member_limit_bytes, _s36_1702_real.aggregate_baseline_bytes))
+
+
+# A JSON boolean is an `int` in Python, so a bare int check would accept `true` as a byte count
+# and compare every file size against 1.
+assert_eq("#1702: the shared loader refuses a BOOLEAN byte count (isinstance(True, int) is True)",
+          (True, True), _s36_1702_both_readers({
+              "entry": "e.md", "members": ["m.md"], "per_member_limit_bytes": True,
+              "aggregate_baseline_bytes": 1, "aggregate_baseline_commit": "s"}))
+
 # The REAL declared set on the live tree stays within both limits (guards the shipped split).
 _f1702_real, _r1702_real = _rsz1702.check_step36_set(
     SCRIPTS.parent,

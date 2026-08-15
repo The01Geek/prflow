@@ -58,17 +58,15 @@ import contextlib
 import importlib.util
 import inspect
 import io
-import json
 import re
 import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 IAS = REPO / "scripts" / "issue-audit-state.py"
-# The Step 3.6 audit procedure is a declared ordered reference set (issue #1702): the entry
-# plus its ordered procedure members. The manifest is the single source both the sequence and
-# fenced-completeness arms read across, and the same file `lint-reference-size.py` and
-# `create-issue-contract.sh` resolve the set against.
+# The declared Step 3.6 ordered reference set (issue #1702). Read through
+# `lib/test/step36_manifest.py`, the shared validated reader — never re-parsed here, or this
+# checker's accepted record shape drifts from its sibling readers'.
 STEP36_MANIFEST = REPO / "lib" / "test" / "create-issue-step-3-6-members.json"
 STEP4 = REPO / "skills" / "create-issue" / "references" / "step-4-present-create.md"
 
@@ -78,6 +76,26 @@ STEP4 = REPO / "skills" / "create-issue" / "references" / "step-4-present-create
 # test drives the checker unchanged. In a real run it stays `None` and the set is read from
 # the declared manifest.
 STEP36 = None
+
+
+def _load_step36_reader() -> object:
+    """Import the shared Step 3.6 manifest reader by the idiom `lib/test/` already uses."""
+    path = REPO / "lib" / "test" / "step36_manifest.py"
+    spec = importlib.util.spec_from_file_location("step36_manifest", path)
+    if spec is None or spec.loader is None:
+        raise SystemExit(f"could not load the shared Step 3.6 manifest reader at {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    for attribute in ("Step36Manifest", "Step36ManifestError", "load"):
+        if not hasattr(module, attribute):
+            raise SystemExit(
+                f"the shared Step 3.6 manifest reader has no {attribute} — refusing to check "
+                "against a reader whose contract has drifted"
+            )
+    return module
+
+
+_s36 = _load_step36_reader()
 
 # The paragraph that opens the ordered call sequence. A closed anchor, not a fuzzy match:
 # exactly one line must carry it, so a duplicated or renamed heading is RED rather than
@@ -175,22 +193,19 @@ def _read(path: Path) -> str:
 
 
 def _read_step36_manifest() -> tuple[str, list[str]]:
-    """The validated `(entry, members)` of the Step 3.6 manifest, or a Refusal. One reader
-    for both `_step36_member_paths` and `check_step36_manifest`, so they cannot drift in how
-    they parse or validate the same file. Fails closed on a manifest that cannot be read or
-    is malformed — an unestablished set is never an empty one silently reported clean."""
+    """The validated `(entry, members)` of the Step 3.6 manifest, or a Refusal.
+
+    Delegates to the shared `step36_manifest.load`, so this checker and
+    `lint-reference-size.py` accept exactly the same record shape — a manifest one refuses is
+    never silently read by the other. Fails closed: an unestablished set is never an empty one
+    silently reported clean.
+    """
     try:
-        data = json.loads(STEP36_MANIFEST.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
-        raise Refusal(f"could not read the Step 3.6 manifest "
-                      f"{_display_path(STEP36_MANIFEST)}: {exc}") from exc
-    entry = data.get("entry") if isinstance(data, dict) else None
-    members = data.get("members") if isinstance(data, dict) else None
-    if not isinstance(entry, str) or not entry.strip() or not isinstance(members, list) \
-            or not members or not all(isinstance(m, str) and m.strip() for m in members):
-        raise Refusal(f"the Step 3.6 manifest {_display_path(STEP36_MANIFEST)} has no usable "
-                      "`entry`/`members` — refusing rather than scanning an empty set")
-    return entry, members
+        record = _s36.load(STEP36_MANIFEST)
+    except _s36.Step36ManifestError as exc:
+        raise Refusal(f"the Step 3.6 manifest {_display_path(STEP36_MANIFEST)} is unusable: "
+                      f"{exc} — refusing rather than scanning an empty set") from exc
+    return record.entry, list(record.members)
 
 
 def _step36_member_paths() -> list[Path]:
@@ -210,9 +225,10 @@ def check_step36_manifest(report):
     """Reconcile the declared Step 3.6 manifest against the on-disk set markers (issue #1702).
 
     The positive-control target for the omitted-member case: a member present on disk with a
-    `create-issue-set part=k of=N` marker but absent from the manifest — or a part gap, or an
-    `of=N` that disagrees with the manifest's member count — is RED, so the manifest cannot
-    silently under-declare the set. Skipped under the single-file test seam (`STEP36` set),
+    `create-issue-set part=k of=N` marker but absent from the manifest — or a part gap, an
+    `of=N` that disagrees with the manifest's member count, or a member whose `part=` disagrees
+    with its declared load position — is RED, so the manifest cannot silently under-declare or
+    misorder the set. Skipped under the single-file test seam (`STEP36` set),
     which has no manifest set to reconcile.
     """
     if STEP36 is not None:
@@ -234,6 +250,18 @@ def check_step36_manifest(report):
     if sorted(parts) != list(range(1, n + 1)):
         raise Refusal(f"step36-manifest: the members' part numbers are {sorted(parts)}, "
                       f"not the contiguous 1..{n} the ordered set requires")
+    # Contiguity alone is order-INDEPENDENT: a manifest listing the members in a different
+    # order than their `part=` markers declares passes it. The manifest is the LOAD order, so
+    # position i must carry part i+1 or the set loads out of sequence.
+    misordered = [(rel, part, index + 1)
+                  for index, (rel, part) in enumerate(zip(members, parts))
+                  if part != index + 1]
+    if misordered:
+        raise Refusal(
+            "step36-manifest: the manifest's load order disagrees with the members' `part=` "
+            "markers — " + "; ".join(
+                f"{rel} is declared at position {expected} but marks part={part}"
+                for rel, part, expected in misordered))
     refs_dir = REPO / "skills" / "create-issue" / "references"
     ondisk = sorted(
         str(p.relative_to(REPO)) for p in refs_dir.glob("*.md")
