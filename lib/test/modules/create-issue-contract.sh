@@ -56,14 +56,10 @@ CI_REF_FB_WRITEREC="$CI_ROOT/skills/create-issue/references/fallback-draft-write
 CI_REF_FB_TIERREAD="$CI_ROOT/skills/create-issue/references/fallback-implement-offer-tier-read.md"
 CI_REF_FB_VISUAL="$CI_ROOT/skills/create-issue/references/fallback-visual-specification.md"
 CI_REF_FB_EVIDENCE="$CI_ROOT/skills/create-issue/references/fallback-audit-evidence-degraded.md"
-# #1693: the five conditionally-loaded quality-guidance group references (Step 3 router).
-CI_REF_QG_VISUAL="$CI_ROOT/skills/create-issue/references/quality-group-visual.md"
-CI_REF_QG_CONTRACTS="$CI_ROOT/skills/create-issue/references/quality-group-contracts.md"
-CI_REF_QG_PREMISES="$CI_ROOT/skills/create-issue/references/quality-group-premises.md"
-# shellcheck disable=SC2034  # referenced by name in the #1693 routing/purity pins below
-CI_REF_QG_SEMANTIC="$CI_ROOT/skills/create-issue/references/quality-group-semantic.md"
-# shellcheck disable=SC2034  # referenced by name in the #1693 routing/purity pins below
-CI_REF_QG_REGRESSION="$CI_ROOT/skills/create-issue/references/quality-group-regression.md"
+# #1693: the five conditionally-loaded quality-guidance group references are enumerated by the
+# CI614_QUALITY_REFS roster below (folded into CI614_REFS), which drives the T1/T2/T6 routing/marker
+# checks, the ci614_marker_id `quality-group-*` arm, and the AC4/AC5 fixture-completeness checks —
+# no per-group path variable is needed here.
 # T1/T2/T6 read their routing rows from this file (their retargeted operand).
 CI_REF_ROUTING="$CI_ROOT/skills/create-issue/references/degradation-routing.md"
 CI_EXT="$CI_ROOT/.prflow/prompt-extensions/create-issue.md"
@@ -1535,6 +1531,7 @@ root = pathlib.Path(sys.argv[1])
 groups = set(sys.argv[2].split())
 spec = json.loads((root / 'lib/test/create-issue-quality-checklist-map.json').read_text(encoding='utf-8'))
 entries = spec['entries']
+baseline_commit = json.loads((root / 'lib/test/create-issue-quality-routing-baseline.json').read_text(encoding='utf-8'))['baseline_commit']
 skill = (root / 'skills/create-issue/SKILL.md').read_text(encoding='utf-8')
 tmpl = (root / 'skills/create-issue/references/issue-template.md').read_text(encoding='utf-8')
 always_loaded = skill + '\n' + tmpl
@@ -1556,7 +1553,7 @@ for e in entries:
 # the number of mapped obligations, so a dropped or unmapped row fails closed here.
 try:
     base = subprocess.run(
-        ['git', 'show', f"{json.loads((root/'lib/test/create-issue-quality-routing-baseline.json').read_text(encoding='utf-8'))['baseline_commit']}:skills/create-issue/references/issue-template.md"],
+        ['git', 'show', f"{baseline_commit}:skills/create-issue/references/issue-template.md"],
         cwd=root, capture_output=True)
     if base.returncode == 0:
         text = base.stdout.decode('utf-8')
