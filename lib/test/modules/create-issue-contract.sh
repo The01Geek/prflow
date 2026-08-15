@@ -1555,6 +1555,62 @@ assert_eq "#1693 AC4: routing cases cover core-only, positive+negative per group
   "$(_ci1693_routing)"
 unset -f _ci1693_routing
 
+# #1693 AC5 — the pre-change checklist maps completely to the core checklist and the five groups;
+# every protection retains its strength and appears once. For each mapped obligation: its phrase is
+# present in its owner; a group-owned phrase is ABSENT from the always-loaded set (SKILL.md +
+# issue-template.md), proving it left the always-loaded path and appears once behind the router; a
+# core-owned phrase is present in issue-template.md. Completeness is asserted against the recorded
+# pre-change checklist row count read from the baseline commit, so a dropped obligation fails closed.
+_ci1693_map() {
+  python3 - "$CI_ROOT" "$CI614_QUALITY_REFS" <<'PY1693M'
+import json, pathlib, subprocess, sys
+root = pathlib.Path(sys.argv[1])
+groups = set(sys.argv[2].split())
+spec = json.loads((root / 'lib/test/create-issue-quality-checklist-map.json').read_text(encoding='utf-8'))
+entries = spec['entries']
+skill = (root / 'skills/create-issue/SKILL.md').read_text(encoding='utf-8')
+tmpl = (root / 'skills/create-issue/references/issue-template.md').read_text(encoding='utf-8')
+always_loaded = skill + '\n' + tmpl
+problems = []
+for e in entries:
+    owner, phrase = e['owner'], e['phrase']
+    if owner == 'core':
+        if phrase not in tmpl:
+            problems.append('core-missing:' + phrase[:40])
+    elif owner in groups:
+        gtext = (root / f'skills/create-issue/references/{owner}.md').read_text(encoding='utf-8')
+        if phrase not in gtext:
+            problems.append('group-missing:' + owner + ':' + phrase[:40])
+        if phrase in always_loaded:
+            problems.append('leaked-to-always-loaded:' + phrase[:40])
+    else:
+        problems.append('unknown-owner:' + owner)
+# Completeness: the pre-change quality checklist's row count (from the baseline commit) must equal
+# the number of mapped obligations, so a dropped or unmapped row fails closed here.
+try:
+    base = subprocess.run(
+        ['git', 'show', f"{json.loads((root/'lib/test/create-issue-quality-routing-baseline.json').read_text(encoding='utf-8'))['baseline_commit']}:skills/create-issue/references/issue-template.md"],
+        cwd=root, capture_output=True)
+    if base.returncode == 0:
+        text = base.stdout.decode('utf-8')
+        seg = text.split('## Quality checklist', 1)[1]
+        seg = seg.split('## GitHub autolink hygiene', 1)[0]
+        rows = sum(1 for l in seg.splitlines() if l.lstrip().startswith('- [ ]'))
+        if rows != len(entries):
+            problems.append(f'count:{rows}!=mapped:{len(entries)}')
+    else:
+        problems.append('baseline-commit-absent')
+except Exception as ex:
+    problems.append('count-error:' + str(ex)[:30])
+print('OK' if not problems else 'PROBLEMS:' + '|'.join(problems))
+PY1693M
+}
+_ci1693_map_out="$(_ci1693_map)"
+assert_eq "#1693 AC5: pre-change checklist maps completely to core+groups; group obligations left the always-loaded path" "OK" \
+  "$_ci1693_map_out"
+unset -f _ci1693_map
+unset -v _ci1693_map_out
+
 # Step-reference purity (shadow finding): T4 proves fallback prose left the default path, but
 # nothing proved a STEP reference's prose did not ALSO remain in the root — a duplicated
 # procedure would load twice and drift into two disagreeing copies, this repo's dominant
