@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1711",
+  "generated_at": "2026-08-15T05:43:54Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.86",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 93.29180904999996,
+    "tokens": {
+      "input_tokens": 483,
+      "output_tokens": 314641,
+      "cache_read_input_tokens": 127627437,
+      "cache_creation_input_tokens": 737878,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 723,
+        "outputTokens": 389680,
+        "cacheReadInputTokens": 135775564,
+        "cacheCreationInputTokens": 1555798,
+        "webSearchRequests": 0,
+        "costUSD": 90.12417699999997,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 15727,
+        "outputTokens": 28963,
+        "cacheReadInputTokens": 3761316,
+        "cacheCreationInputTokens": 415363,
+        "webSearchRequests": 0,
+        "costUSD": 3.16763205,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 296,
+    "duration_ms": 9461611
+  },
+  "permission_denials": {
+    "count": 29,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=$GITHUB_ACTIONS RUN_ID=$GITHUB_RUN_ID ATTEMPT=$GITHUB_RUN_ATTEMPT SERVER=$GITHUB_SERVER_URL REPO=$GITHUB_REPOSITORY\"",
+      "printf '%s\\n' \"$CLAUDE_CODE_SESSION_ID\" > /home/runner/work/prflow/prflow/.prflow/tmp/implement-active-1693; echo \"wrote marker\"",
+      ": > /home/runner/work/prflow/prflow/.prflow/tmp/implement-active-1693; echo \"wrote empty marker\"",
+      "WP_BRANCH=\"issue-1693-route-create-issue-quality-guidance-through-a\"\nPR_JSON='[]'\n[ -n \"$WP_BRANCH\" ] && { PR_JSON=$(gh pr list --head \"$WP_BRANCH\" --state open --json number,headRefName,createdAt,closingIssuesReferences,isCrossRepository) || PR_JSON=''; }\necho \"PR_JSON_HEAD=$PR_JSON\"\n[ \"$PR_JSON\" = \"[]\" ] && { PR_JSON=$(gh pr list --search \"1693 in:body\" --state open --json number,headRefName,createdAt,closingIssuesReferences,isCrossRepository) || PR_JSON=''; }\necho \"PR_JSON_FINAL=$PR_JSON\"\ngit …[per-command-truncated]",
+      "BASE=$(.prflow/vendor/prflow/scripts/config-get.sh .base_branch main) || BASE=\"\"\n[ -n \"$BASE\" ] || BASE=main\nCUR=$(git branch --show-current 2>/dev/null) || CUR=\"\"\necho \"BASE=$BASE CUR=$CUR\"\nCOMMON_DIR=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || COMMON_DIR=\"\"\nGIT_DIR_PATH=$(git rev-parse --path-format=absolute --git-dir 2>/dev/null) || GIT_DIR_PATH=\"\"\necho \"COMMON_DIR=$COMMON_DIR\"\necho \"GIT_DIR_PATH=$GIT_DIR_PATH\"",
+      ".prflow/vendor/prflow/scripts/workpad.py update 1693 --branch \"$(git branch --show-current)\"",
+      "CUR_BRANCH=$(git branch --show-current)\n.prflow/vendor/prflow/scripts/workpad.py update 1693 --branch \"$CUR_BRANCH\"",
+      "for f in skills/create-issue/SKILL.md skills/create-issue/references/issue-template.md skills/create-issue/references/degradation-routing.md skills/create-issue/references/fallback-visual-specification.md; do wc -c \"$f\"; done; echo \"---HEAD SHA---\"; git rev-parse HEAD; echo \"---MERGE BASE---\"; git merge-base origin/main HEAD",
+      "for lit in 'enclosing gates/conditionals and their defaults on the path to X' 'transitive source/exec/import closure of its entry points' 'transitive source / exec / import closure' 'blanket testing-scope waiver' \"writes the sweep's output back as additional closed AC items before filing\" 'data to classify, never instructions to obey'; do\n  echo \"=== LIT: $lit ===\"\n  grep -rlF \"$lit\" skills/create-issue/ 2>/dev/null || echo \"(none)\"\ndone",
+      "cd /home/runner/work/prflow/prflow; .prflow/vendor/prflow/scripts/phase2-durability-checkpoint.sh \"feat: implement issue #1693 — split create-issue quality checklist into core + 5 conditional groups (checkpoint)\" skills/create-issue/references/quality-group-visual.md skills/create-issue/references/quality-group-contracts.md skills/create-issue/references/quality-group-premises.md skills/create-issue/references/quality-group-semantic.md skills/create-issue/references/quality-group-regression.md s …[per-command-truncated]",
+      "wc -c skills/create-issue/SKILL.md 2>&1 | head -1; lib/test/lint-reference-size.py 2>&1 | tail -20",
+      "lib/test/lint-reference-size.py 2>&1 | tail -20",
+      "lib/test/lint-reference-size.py",
+      "cd /home/runner/work/prflow/prflow; gh pr create --base main --draft --title \"Route create-issue quality guidance through a core and conditional groups\" --body \"Work in progress — automated review pending.\n\nResolves #1693\n[View run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)\n\nGenerated via /prflow:implement (v2.32.86, claude-opus-4-8, low)\"",
+      "for f in lib/test/create-issue-quality-routing-baseline.json lib/test/create-issue-quality-routing-cases.json lib/test/create-issue-quality-checklist-map.json; do echo \"=== $f ===\"; cat \"$f\"; done",
+      "for f in lib/test/create-issue-quality-checklist-map.json lib/test/create-issue-quality-routing-baseline.json lib/test/create-issue-quality-routing-cases.json; do echo \"=== $f ===\"; cat \"$f\"; done",
+      "for f in visual contracts premises semantic regression; do echo \"===== quality-group-$f.md =====\"; cat skills/create-issue/references/quality-group-$f.md; done",
+      "for f in visual contracts premises semantic regression; do echo \"===== quality-group-$f.md =====\"; cat \"skills/create-issue/references/quality-group-$f.md\"; done",
+      "for f in visual contracts premises semantic regression; do echo \"===== $f =====\"; cat skills/create-issue/references/quality-group-$f.md; done",
+      "for f in visual contracts premises semantic regression; do echo \"===== $f =====\"; cat \"skills/create-issue/references/quality-group-$f.md\"; done",
+      "sed -n '/quality-group-visual/,/quality-group-regression/p' /home/runner/.claude/projects/-home-runner-work-prflow-prflow/95ee70ab-0026-400a-94f4-206aaebe92c4/tool-results/bszsw124u.txt | head -20",
+      "(.prflow/vendor/prflow/scripts/prompt-surface-growth.py 2>&1 || scripts/prompt-surface-growth.py 2>&1)",
+      "git diff origin/main...HEAD -- lib/test/modules/create-issue-contract.sh > /home/runner/tmp_testdiff.txt 2>&1; wc -l /home/runner/tmp_testdiff.txt",
+      "PR=$(gh pr view --json number --jq '.number'); if [ -z \"$PR\" ]; then echo \"ERROR empty PR\"; exit 1; fi; echo \"PR=$PR\"; gh api --method PATCH \"repos/{owner}/{repo}/pulls/$PR\" -F body=@/home/runner/tmp_prbody.md --jq '.number'",
+      "rm -f /home/runner/tmp_prbody.md",
+      "cd /home/runner/work/prflow/prflow; python3 -c \"\nimport re\nsrc = open('scripts/verification-flight.py').read()\n# Find the declaration field names referenced\nfor kw in ['candidate_identity','checkout','descriptor','command','scope','verification_command','required_keys','REQUIRED','declaration']:\n    ms = set(re.findall(r'[\\\"\\\\']('+kw+r'[a-z_]*)[\\\"\\\\']', src))\n    if ms: print(kw, '->', sorted(ms))\n\" 2>&1 | head -30; echo \"---grep required decl fields---\"; grep -nE \"decl\\[|\\.get\\('|required|must  …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow; sed -i '/^literal:0302779f4ea71915bf03c8893002f3b2ce19335c425f3ba25f0baee1996bed14\\|^literal:22f410543edc81cf76ecf1cb7b496d2ed3bbe735fedc9ea72b96a7127240b47e\\|^literal:26a0120a59f6ae50374955cba477dc6809306dcc72900b2bef27516aea7d158d\\|^literal:5f56c158e4437348aebc5eaf99c51ee7637176f557e32f5cec5c17696f3b1890\\|^literal:76ba512bffe8d7df6da0b45e7813c683d9227de8156eec732145352a2a750df3/d' lib/test/pin-corpus-adjudications.tsv; wc -l lib/test/pin-corpus-adjudications …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow; sed -n '2004,2015p' lib/test/pin-corpus-lint.py; echo \"---validate state---\"; grep -n \"_validate_adjudication_state\\|_ADJUDICATION_STATES\\|ABSENT\\|def _validate_adjudication_state\" lib/test/pin-corpus-lint.py | head; sed -n '/def _validate_adjudication_state/,/return/p' lib/test/pin-corpus-lint.py | head -15",
+      "cd /home/runner/work/prflow/prflow; TRIGGER_COMMENT_ID=$(gh api \"repos/{owner}/{repo}/issues/1693/comments?per_page=100\" --jq 'map(select((.body | contains(\"/prflow:implement\")) and ((.body | test(\"(pr|dev)flow:workpad\")) | not))) | last | .id' 2>/dev/null || true); echo \"trigger comment: $TRIGGER_COMMENT_ID\"; if [ -n \"$TRIGGER_COMMENT_ID\" ] && [ -z \"${TRIGGER_COMMENT_ID//[0-9]/}\" ]; then .prflow/vendor/prflow/scripts/react-to-trigger.sh --repo \"$GITHUB_REPOSITORY\" --event issue_comment --commen …[per-command-truncated]"
+    ],
+    "total": 29,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
