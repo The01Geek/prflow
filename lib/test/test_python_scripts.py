@@ -20873,6 +20873,32 @@ def _cov_1694_no_coverage_offer_controls(r):
 _with_run603(_cov_1694_no_coverage_offer_controls)
 
 
+# Precedence pin: an EMPTY coverage list wins over a recorded render, so a clean FILE round
+# carrying a stray `coverage_render` but no coverage stays the firing no-coverage-recorded
+# arm. Reading the render first would report `degraded` and silently un-fire the #1694 offer.
+def _cov_1694_empty_coverage_precedes_render(r):
+    import glob as _glob
+    import json as _json
+
+    r.open_round(1, 'FILE', 0)
+    r.adjudicate(1, 'FILE', 0, '0')
+    statefile = _glob.glob(str(Path(r.tmp, '.prflow', 'tmp',  # tree-walk-ok: this row's own temp state dir, never the repository tree
+                                    'issue-audit-state-*.json')))[0]
+    doc = _json.loads(Path(statefile).read_text())
+    doc['rounds'][0]['coverage_render'] = 'degraded'
+    Path(statefile).write_text(_json.dumps(doc))
+    assert_eq("#1694: a stray degraded render with NO coverage still reads as the "
+              "no-coverage-recorded arm (empty coverage is tested first)",
+              'coverage_backing=unestablished coverage_render=none reason=no-coverage-recorded',
+              r('query-coverage', r.slug, nonce=True).stdout.splitlines()[0])
+    assert_eq("#1694: ... and the coverage offer still FIRES on it",
+              'hold',
+              _field704(r('query-triggers', r.slug, nonce=True).stdout, 'coverage='))
+
+
+_with_run603(_cov_1694_empty_coverage_precedes_render)
+
+
 # The three unestablished arms must be separable on the ANSWERING line: a corrupt state
 # file reading byte-identically to "no clean round yet" is the silent failure this closes.
 def _cov_reason_discriminators(r):
