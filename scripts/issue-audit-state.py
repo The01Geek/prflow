@@ -3028,17 +3028,28 @@ def evaluate_coverage(state):
 
 
 def evaluate_coverage_trigger(state):
-    """Whether the unbacked-coverage offer trigger holds (issue #708).
+    """Whether the coverage offer trigger holds (issues #708, #1694).
 
     A sibling of T1/T2, routed through the existing offer machinery and the existing
-    user-round cap. It fires ONLY on a genuinely-unbacked FULL-render clean audit — a
-    `skipped`/empty/generic-adjudicated anchor on a dimension the auditor DID render. A
-    legitimately narrowed (`degraded`) render discloses but never fires, so a consumer whose
-    auditor takes a fallback rung is not offered-at every run; a non-clean or no-coverage run
-    (backing `unestablished`) never fires either — filing is never blocked by this trigger.
+    user-round cap. It fires on two grounds, both a clean `FILE` round whose mandated
+    per-dimension coverage did not survive as evidence, recoverable by another audit round:
+
+      - a genuinely-unbacked FULL-render clean audit — a `skipped`/empty/generic-adjudicated
+        anchor on a dimension the auditor DID render (`not-backed` + `full`); and
+      - a clean `FILE` round that recorded NO coverage at all (issue #1694), which
+        `evaluate_coverage` reports as `unestablished`/`none`/`no-coverage-recorded`.
+
+    Everything else stays disclosure-only: a legitimately narrowed (`degraded`) render
+    CARRYING RECORDED COVERAGE discloses but never fires, so a consumer whose auditor takes
+    a fallback rung is not offered-at every run — an EMPTY coverage list is the
+    `no-coverage-recorded` arm whatever render token sits beside it, because
+    `evaluate_coverage` tests emptiness before it reads the render. The OTHER
+    `unestablished` reasons — no clean round (`no-clean-round`) and unreadable/corrupt/
+    foreign state — never fire either. Filing is never blocked by this trigger.
     """
     cov = evaluate_coverage(state)
-    return cov['backing'] == 'not-backed' and cov['render'] == 'full'
+    return (cov['backing'] == 'not-backed' and cov['render'] == 'full') \
+        or cov['reason'] == 'no-coverage-recorded'
 
 
 def _final_byte_round(state):
