@@ -1,0 +1,94 @@
+{
+  "iter": 2,
+  "fix_commit_sha": "abdca6b339d24d5c258be34e11999d676ebad591",
+  "fix_files": [
+    "scripts/preflight.py",
+    "lib/test/test_python_scripts.py",
+    "lib/test/modules/create-issue-contract.sh"
+  ],
+  "loop_role": "promoted",
+  "promotion_provenance": "shadow",
+  "current_step": "3",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "documented falsehood in case-113 test comment; non-discriminating 'no write' assertion mislabeled",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "_ATX_HEADING comment 'normalized text' imprecise",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "create-issue-contract block comment exceeds 3-line cap",
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "S-case113-comment",
+      "decision": "applied",
+      "commit": "abdca6b339d24d5c258be34e11999d676ebad591"
+    },
+    {
+      "finding_id": "S-atx-comment",
+      "decision": "applied",
+      "commit": "abdca6b339d24d5c258be34e11999d676ebad591"
+    },
+    {
+      "finding_id": "S-block-comment",
+      "decision": "applied",
+      "commit": "abdca6b339d24d5c258be34e11999d676ebad591"
+    }
+  ],
+  "shadow": {
+    "ran_at": "iter-1-convergence",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer"
+    ],
+    "checklist_skipped": null,
+    "comparison": {
+      "shadow_total": 3,
+      "new": 3,
+      "new_critical": 0,
+      "new_important": 1
+    },
+    "promoted_to_iter_next": true
+  },
+  "convergence_inputs": {
+    "fixes_applied": 3,
+    "fix_diff_lines": 20,
+    "new_corroborated_critical_count": 0
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

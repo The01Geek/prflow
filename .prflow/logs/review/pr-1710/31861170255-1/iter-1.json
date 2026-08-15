@@ -1,0 +1,100 @@
+{
+  "iter": 1,
+  "fix_commit_sha": "3ab4ce1468127f2cc5c72986ee3106a9d311a356",
+  "fix_files": [
+    "scripts/preflight.py",
+    "lib/test/test_python_scripts.py"
+  ],
+  "loop_role": "fix",
+  "current_step": "3",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "region-close/preamble/level-5-6/7-hash coverage gaps",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "missing flush=True on UNAVAILABLE malformed print",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "_ATX_HEADING comment mirror-fact tension",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "F1: create-issue-contract raw-guard chat-sink pins are wording-only over agent prose",
+      "fix_decision": "pushed_back",
+      "skip_category": "claim-quality",
+      "evidence": "AC9 mandates structural presence checks on the chat sinks; the breadcrumb has no executable surface; sanctioned raw-guard-ok: routing-dispatch-contract marker matches the existing line-1578 precedent; two reviewers concluded issue-authorized and not a violation"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "F5: CLI canonical-with-content needs gh; unit coverage suffices",
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-coverage",
+      "decision": "applied",
+      "commit": "3ab4ce1468127f2cc5c72986ee3106a9d311a356"
+    },
+    {
+      "finding_id": "F-flush",
+      "decision": "applied",
+      "commit": "3ab4ce1468127f2cc5c72986ee3106a9d311a356"
+    },
+    {
+      "finding_id": "F-comment",
+      "decision": "applied",
+      "commit": "3ab4ce1468127f2cc5c72986ee3106a9d311a356"
+    },
+    {
+      "finding_id": "F1",
+      "decision": "pushed_back",
+      "source_file": "lib/test/modules/create-issue-contract.sh",
+      "skip_category": "claim-quality",
+      "evidence": "AC9-mandated presence checks; no executable surface; sanctioned raw-guard-ok marker with existing precedent"
+    },
+    {
+      "finding_id": "F5",
+      "decision": "advisory",
+      "source_file": "lib/test/test_python_scripts.py",
+      "skip_category": "advisory-parked",
+      "evidence": "CLI canonical needs gh; unit coverage suffices"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 3,
+    "fix_diff_lines": 30,
+    "new_corroborated_critical_count": 0
+  },
+  "shadow": {
+    "shadow_synthesized": true,
+    "promoted_to_iter_next": true
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
