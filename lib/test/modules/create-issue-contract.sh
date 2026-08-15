@@ -56,7 +56,7 @@ CI_REF_FB_WRITEREC="$CI_ROOT/skills/create-issue/references/fallback-draft-write
 CI_REF_FB_TIERREAD="$CI_ROOT/skills/create-issue/references/fallback-implement-offer-tier-read.md"
 CI_REF_FB_VISUAL="$CI_ROOT/skills/create-issue/references/fallback-visual-specification.md"
 CI_REF_FB_EVIDENCE="$CI_ROOT/skills/create-issue/references/fallback-audit-evidence-degraded.md"
-# #1693: the five conditionally-loaded quality-guidance group references are enumerated by the
+# #1693/#1692: the six conditionally-loaded quality-guidance group references are enumerated by the
 # CI614_QUALITY_REFS roster below (folded into CI614_REFS), which drives the T1/T2/T6 routing/marker
 # checks, the ci614_marker_id `quality-group-*` arm, and the AC4/AC5 fixture-completeness checks —
 # no per-group path variable is needed here.
@@ -1250,12 +1250,14 @@ CI614_TEMPLATE_REFS="issue-template"
 # into CI614_STEP_REFS or give it a ci614_step_unique call, and do not T4 purity-sweep it: it is
 # no default-path surface, and the pin gate refuses a fallback-prose absence pin over a skill file.
 CI614_ROUTING_REFS="degradation-routing"
-# #1693: the five conditionally-loaded quality-guidance groups. They are routed (T1/T2/T6, over
+# #1693/#1692: the six conditionally-loaded quality-guidance groups. They are routed (T1/T2/T6, over
 # CI614_REFS below); their default-path purity is proven not by the T4 grep sweep (which covers the
 # fallback references only) but by the executable #1693 AC5 checklist-mapping test below, which
 # asserts each relocated obligation appears exactly once across the whole shipped surface and that
-# once is in its owner group — proving no full-list copy remains behind the router.
-CI614_QUALITY_REFS="quality-group-visual quality-group-contracts quality-group-premises quality-group-semantic quality-group-regression"
+# once is in its owner group — proving no full-list copy remains behind the router. The #1692
+# compatibility group carries new (non-relocated) obligations, so it is NOT in the AC5 map; its
+# default-path purity rests on the same routing/marker checks plus the AC8 core-byte budget.
+CI614_QUALITY_REFS="quality-group-visual quality-group-contracts quality-group-premises quality-group-semantic quality-group-regression quality-group-compatibility"
 CI614_REFS="$CI614_STEP_REFS $CI614_FALLBACK_REFS $CI614_TEMPLATE_REFS $CI614_ROUTING_REFS $CI614_QUALITY_REFS"
 
 # #1702 AC8: reconcile this shell roster's Step 3.6 members against the DECLARED manifest, so a
@@ -1537,7 +1539,8 @@ assert_eq "#1693 AC4: routing cases cover core-only, positive+negative per group
   "$(_ci1693_routing)"
 unset -f _ci1693_routing
 
-# #1693 AC5 — the pre-change checklist maps completely to the core checklist and the five groups;
+# #1693 AC5 — the pre-change checklist maps completely to the core checklist and the five groups the
+# #1693 relocation targeted (the #1692 compatibility group carries new obligations and is not mapped);
 # every protection retains its strength and appears once. For each mapped obligation: a core-owned
 # phrase is present in issue-template.md; a group-owned phrase appears EXACTLY ONCE across the whole
 # shipped create-issue surface (the skill root plus every loaded reference) and that once is in its
