@@ -33467,6 +33467,57 @@ assert_eq("#1702: the shared loader refuses a BOOLEAN byte count (isinstance(Tru
               "entry": "e.md", "members": ["m.md"], "per_member_limit_bytes": True,
               "aggregate_baseline_bytes": 1, "aggregate_baseline_commit": "s"}))
 
+# An unrecognized `schema_version` is refused rather than read under guessed semantics; an
+# ABSENT one reads as the pre-field shape, version 1, so the record predating the field loads.
+assert_eq("#1702 follow-up: both readers refuse an unrecognized schema_version",
+          (True, True), _s36_1702_both_readers({
+              "schema_version": 2, "entry": "e.md", "members": ["m.md"],
+              "per_member_limit_bytes": 1, "aggregate_baseline_bytes": 1,
+              "aggregate_baseline_commit": "s"}))
+assert_eq("#1702 follow-up: a non-integer schema_version is refused, not coerced",
+          (True, True), _s36_1702_both_readers({
+              "schema_version": "1", "entry": "e.md", "members": ["m.md"],
+              "per_member_limit_bytes": 1, "aggregate_baseline_bytes": 1,
+              "aggregate_baseline_commit": "s"}))
+assert_eq("#1702 follow-up positive control: an ABSENT schema_version reads as version 1",
+          (False, False), _s36_1702_both_readers({
+              "entry": "e.md", "members": ["m.md"], "per_member_limit_bytes": 1,
+              "aggregate_baseline_bytes": 1, "aggregate_baseline_commit": "s"}))
+assert_eq("#1702 follow-up: an explicit schema_version 1 is accepted",
+          (False, False), _s36_1702_both_readers({
+              "schema_version": 1, "entry": "e.md", "members": ["m.md"],
+              "per_member_limit_bytes": 1, "aggregate_baseline_bytes": 1,
+              "aggregate_baseline_commit": "s"}))
+
+# Path comparison is normalized, so `./a.md` and `a.md` are one member — the duplicate the
+# string-exact comparison admitted, which would have measured one file twice in the aggregate.
+assert_eq("#1702 follow-up: a duplicate member differing only by path spelling is refused",
+          (True, True), _s36_1702_both_readers({
+              "entry": "e.md", "members": ["m.md", "./m.md"],
+              "per_member_limit_bytes": 1, "aggregate_baseline_bytes": 1,
+              "aggregate_baseline_commit": "s"}))
+assert_eq("#1702 follow-up: an entry re-spelled as a member path is refused",
+          (True, True), _s36_1702_both_readers({
+              "entry": "./e.md", "members": ["e.md", "m.md"],
+              "per_member_limit_bytes": 1, "aggregate_baseline_bytes": 1,
+              "aggregate_baseline_commit": "s"}))
+
+# The record validates on CONSTRUCTION, not only through `load()`: a caller reaching for the
+# type directly cannot mint one that every consumer then trusts.
+_s36_1702_direct = False
+try:
+    _s36_1702.Step36Manifest(entry="e.md", members=(), per_member_limit_bytes=1,
+                             aggregate_baseline_bytes=1, aggregate_baseline_commit="s")
+except _s36_1702.Step36ManifestError:
+    _s36_1702_direct = True
+assert_eq("#1702 follow-up: the type itself refuses an invalid record (not only load())",
+          True, _s36_1702_direct)
+assert_eq("#1702 follow-up positive control: a valid direct construction succeeds",
+          "e.md",
+          _s36_1702.Step36Manifest(entry="e.md", members=("m.md",), per_member_limit_bytes=1,
+                                   aggregate_baseline_bytes=1,
+                                   aggregate_baseline_commit="s").entry)
+
 # The REAL declared set on the live tree stays within both limits (guards the shipped split).
 _f1702_real, _r1702_real = _rsz1702.check_step36_set(
     SCRIPTS.parent,

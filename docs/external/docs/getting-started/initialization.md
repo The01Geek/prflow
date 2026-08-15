@@ -36,6 +36,7 @@ Initialization also:
 
 - Runs a preflight for Git, a runnable GitHub CLI, `jq`, Python 3.11 or newer and PyYAML. Authentication is a separate `gh auth status` check.
 - Creates the reserved `PRFlow` GitHub label on a best-effort basis.
+- Checks the documentation tree. It reads the internal and external documentation locations from configuration and, when internal documentation is missing or empty, explains what internal and external documentation are and offers to create the internal documentation for you by running `/prflow:docs-bootstrap-internal`. On your explicit consent it dispatches a single agent that writes only under the internal documentation location and runs no version-control command; otherwise it just prints the command to run yourself. It never runs the external bootstrap and commits nothing — review and commit whatever it writes.
 - Checks for shared project-memory files such as `CLAUDE.md` and reports suggestions without editing them.
 - On supported third-party Claude Code providers, offers to make `auto` permission mode selectable by editing the user-global `~/.claude/settings.json`. This write requires explicit consent and is not a repository file.
 
