@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1709",
+  "generated_at": "2026-08-15T05:06:47Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.87",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 20.86025660000001,
+    "tokens": {
+      "input_tokens": 601,
+      "output_tokens": 51702,
+      "cache_read_input_tokens": 11234897,
+      "cache_creation_input_tokens": 269596,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 740,
+        "outputTokens": 85371,
+        "cacheReadInputTokens": 13793729,
+        "cacheCreationInputTokens": 674907,
+        "webSearchRequests": 0,
+        "costUSD": 14.263993249999995,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 288,
+        "outputTokens": 46175,
+        "cacheReadInputTokens": 6913502,
+        "cacheCreationInputTokens": 1020993,
+        "webSearchRequests": 0,
+        "costUSD": 6.596263349999997,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 85,
+    "duration_ms": 1038663
+  },
+  "permission_denials": {
+    "count": 18,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"run=${GITHUB_RUN_ID:-none} attempt=${GITHUB_RUN_ATTEMPT:-1}\"",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve \"1694\" --pr \"1709\" 2>.prflow/tmp/review/pr-1709/31865328858-1/acs.err ; echo \"acs-rc=$?\"",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1709/31865328858-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1709/31865328858-1/verdicts/iter-1/VC-1-n1a7x.json << 'EOF'\n{\"id\":\"VC-1\",\"verdict\":\"PASS\",\"evidence\":\"Diff at scripts/issue-audit-state.py adds `or cov['reason'] == 'no-coverage-recorded'` to evaluate_coverage_trigger (post-patch line ~267), alongside the existing `cov['backing'] == 'not-backed' and cov['render'] == 'full'` arm. evaluate_co …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1709/31865328858-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1709/31865328858-1/verdicts/iter-1/VC-7-n7g3d.json << 'EOF'\n{\n  \"id\": \"VC-7\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"decided() is defined at lib/test/test_python_scripts.py:167; _field704() is defined at lib/test/test_python_scripts.py:19125; scripts/issue-audit-state.py defines the query-final-byte subcommand parser at line 9147 with a --draf …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1709/31865328858-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1709/31865328858-1/verdicts/iter-1/VC-8-n8h4e.json << 'EOF'\n{\n  \"id\": \"VC-8\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"The diff adds a \\\"1694\\\": {\\\"note\\\": \\\"\\\", \\\"owner\\\": \\\"issue-audit-state\\\"} entry to lib/test/modules/coverage-map.json. scripts/workflow-flight-recorder-registry.json:94-98 registers 'issue-audit-state' as a module id, mapping …[per-command-truncated]",
+      "mkdir -p .prflow/tmp/review/pr-1709/31865328858-1/verdicts/iter-1\ncat > .prflow/tmp/review/pr-1709/31865328858-1/verdicts/iter-1/VC-10-n10ka.json << 'EOF'\n{\n  \"id\": \"VC-10\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"scripts/issue-audit-state.py:3016-3020 evaluate_coverage returns {'backing': 'unestablished', 'render': 'none', 'round': rnd, 'reason': 'no-coverage-recorded'} for a clean round with no coverage list. Rendering at scripts/issue-audit-state.py:6725-6726 (cmd_query_coverage-style helper) emi …[per-command-truncated]",
+      "mkdir -p .prflow/tmp/review/pr-1709/31865328858-1/verdicts/iter-1\ncat > .prflow/tmp/review/pr-1709/31865328858-1/verdicts/iter-1/VC-4-n4d0a.json << 'EOF'\n{\n  \"id\": \"VC-4\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"Diff at lines 130-137 of the patch flips the #708-16 assertion in _cov_clean_round_no_coverage from `assert_eq(\\\"...fires no coverage offer\\\", 'not-hold', ...)` to `assert_eq(\\\"#708-16/#1694: ...now FIRES the coverage offer\\\", 'hold', ...)`. This is the intended implementation of issue #1694 …[per-command-truncated]",
+      "mkdir -p .prflow/tmp/review/pr-1709/31865328858-1/verdicts/iter-1\ncat > .prflow/tmp/review/pr-1709/31865328858-1/verdicts/iter-1/VC-11-n11lb.json << 'EOF'\n{\n  \"id\": \"VC-11\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"scripts/issue-audit-state.py: evaluate_coverage_trigger (lines 3030-3042 in working tree, per diff) now returns `(cov['backing']=='not-backed' and cov['render']=='full') or cov['reason']=='no-coverage-recorded'`, so the no-coverage-recorded arm fires the coverage offer, matching the new te …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1709/31865328858-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1709/31865328858-1/verdicts/iter-1/VC-13-n13nd.json << 'EOF'\n{\n  \"id\": \"VC-13\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"skills/create-issue/references/step-4-present-create.md is unedited by this diff (only lib/scripts/lib/test files change, per diff.patch). The pre-existing Step 4 precedence prose already covers this AC: line 7 states each of  …[per-command-truncated]",
+      "cat /home/runner/work/prflow/prflow/.prflow/tmp/displaced-paths.txt 2>/dev/null; echo \"---\"; git -C /home/runner/work/prflow/prflow status --short | head; git -C /home/runner/work/prflow/prflow log --oneline -3",
+      "git -C /home/runner/work/prflow/prflow log --oneline -5; echo ---; git -C /home/runner/work/prflow/prflow status --short | head -20",
+      "git -C /home/runner/work/prflow/prflow log --oneline -5",
+      "git -C /home/runner/work/prflow/prflow log -5 --oneline 2>&1",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1709/31865328858-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1709/31865328858-1/verdicts/iter-1/VC-17-n17rh.json << 'EOF'\n{\n  \"id\": \"VC-17\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"The full diff hunk for scripts/issue-audit-state.py (diff.patch lines 231-267) touches only evaluate_coverage_trigger: its docstring is expanded to describe the new second firing ground, and the return expression widens from ` …[per-command-truncated]",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review 2>/dev/null | head -50; echo \"---EXIT:${PIPESTATUS[0]}---\"",
+      "git apply --check .prflow/tmp/review/pr-1709/31865328858-1/diff.patch && echo \"APPLIES CLEAN\"",
+      "git apply .prflow/tmp/review/pr-1709/31865328858-1/diff.patch"
+    ],
+    "total": 18,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
