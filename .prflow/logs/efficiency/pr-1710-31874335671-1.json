@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1710",
+  "generated_at": "2026-08-15T08:32:25Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.89",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 7.481490250000002,
+    "tokens": {
+      "input_tokens": 55,
+      "output_tokens": 24265,
+      "cache_read_input_tokens": 4010188,
+      "cache_creation_input_tokens": 179542,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 87,
+        "outputTokens": 50889,
+        "cacheReadInputTokens": 4803708,
+        "cacheCreationInputTokens": 501391,
+        "webSearchRequests": 0,
+        "costUSD": 7.481490250000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 34,
+    "duration_ms": 475097
+  },
+  "permission_denials": {
+    "count": 2,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---RUNENV---\"; echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-<empty>}\"; echo \"GITHUB_RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT:-<empty>}\"; echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-<empty>}\"",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve 1695 --pr 1710 2>.prflow/tmp/review/pr-1710/31874335671-1/acs.err; echo \"acs-rc=$?\""
+    ],
+    "total": 2,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
