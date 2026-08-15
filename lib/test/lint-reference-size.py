@@ -216,8 +216,20 @@ def _load_population_reader() -> object:
 _pop = _load_population_reader()
 
 
+#: Cache for the lazily-imported shared reader, so the two call sites do not re-exec it.
+_S36_READER = None
+
+
 def _load_step36_reader() -> object:
-    """Import the shared Step 3.6 manifest reader by the idiom this directory already uses."""
+    """Import the shared Step 3.6 manifest reader by the idiom this directory already uses.
+
+    Called LAZILY, from the two Step 3.6 call sites only — never at module scope. The `#1595`
+    self-check runs from a copy of this one file under a temp root, so an import at module
+    scope aborts every invocation there, including the ones that never read the manifest.
+    """
+    global _S36_READER
+    if _S36_READER is not None:
+        return _S36_READER
     path = Path(__file__).resolve().parent / "step36_manifest.py"
     spec = importlib.util.spec_from_file_location("step36_manifest", path)
     if spec is None or spec.loader is None:
@@ -230,10 +242,8 @@ def _load_step36_reader() -> object:
                 f"{_TOOL}: the shared Step 3.6 manifest reader has no {attribute} — refusing "
                 "to audit against a reader whose contract has drifted"
             )
+    _S36_READER = module
     return module
-
-
-_s36 = _load_step36_reader()
 
 
 class RecordError(Exception):
@@ -367,13 +377,21 @@ def load_record(path: Path) -> tuple[dict[str, int], dict[str, str]]:
     return recorded, exemptions
 
 
-#: The shared reader's error, re-exported under this lint's own name so the `except` sites
-#: below and the suite's assertions name one class whichever module raised it.
-Step36Error = _s36.Step36ManifestError
+class Step36Error(Exception):
+    """The Step 3.6 member manifest could not be read as a well-formed record."""
 
-#: The shared validated reader. Kept as this module's own name so every call site here reads
-#: the same record shape the sibling readers do.
-load_step36_manifest = _s36.load
+
+def load_step36_manifest(path: Path):
+    """The validated `Step36Manifest`, via the shared reader, or `Step36Error`.
+
+    Every shape decision belongs to `step36_manifest.load` — re-deriving one here is what let
+    this lint and `check-audit-lifecycle-contracts.py` accept different manifests.
+    """
+    reader = _load_step36_reader()
+    try:
+        return reader.load(path)
+    except reader.Step36ManifestError as exc:
+        raise Step36Error(str(exc)) from exc
 
 
 def _resolve_step36_manifest(args, root: Path) -> Path:
