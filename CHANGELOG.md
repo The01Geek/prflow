@@ -4,6 +4,12 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.86] — 2026-08-15
+
+### Changed
+`/prflow:create-issue` Step 2 now requires every clarification question to offer the simplest thing that could possibly work as one of its options, so the user is not left to invent the KISS fork themselves. Step 4 folds a foreseeable file-anyway election into the 3a offer options — worded as the election itself — instead of putting the same decision to the user again as a separate 3b pause.
+`/prflow:pr-description` now emits the `Generated via /prflow:implement (...)` provenance line as the last line of the PR body, below `<!-- PR_BODY_END -->`, instead of preserving it wherever it was found. The Phase 3.1 draft body carries no body markers, so the regenerator's no-markers rule had been hoisting the line to the top of the regenerated description.
+
 ## [2.32.85] — 2026-08-15
 
 ### Changed
