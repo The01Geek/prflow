@@ -801,6 +801,16 @@ def _median(values):
     return total // 2 if total % 2 == 0 else total / 2
 
 
+def _is_numeric(value):
+    """True for a real number. Both context guards read this one predicate.
+
+    A separate re-derivation in either caller drifts from the other, which is how one
+    arithmetic site ends up guarded and its sibling raises `TypeError` instead of reporting
+    `unestablished`. `isinstance(True, int)` is True, so booleans are excluded here.
+    """
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
 def _median_or_unestablished(values):
     """The median of a non-empty list, else the UNESTABLISHED sentinel.
 
@@ -2061,6 +2071,7 @@ def _manifest_comparison(run_records):
         "total_attributed_auditor_cost",
         "total_peak_context",
         "mean_peak_context_per_run",
+        "median_main_thread_context",
         "total_round_count",
         "finding_count",
     )
@@ -2079,6 +2090,25 @@ def _manifest_comparison(run_records):
     )
     if len(configurations) != 2:
         return unestablished("no_pairable_configurations")
+
+    # issue #1702 (AC10): verify equal case identities and counts on both sides BEFORE any
+    # comparison, failing closed when a case is missing, duplicated, or split by resume. The
+    # case identity is (scenario_id, repetition); a resume that split one run into two records
+    # surfaces as that identity appearing more than once within a single configuration.
+    per_config_cases = {configuration: [] for configuration in configurations}
+    for run in run_records:
+        per_config_cases[run["configuration"]].append(
+            (run["scenario_id"], run["repetition"]))
+    for cases in per_config_cases.values():
+        if len(cases) != len(set(cases)):
+            return unestablished("case_split_by_resume")
+    baseline_cases = sorted(set(per_config_cases[configurations[0]]))
+    revised_cases = sorted(set(per_config_cases[configurations[1]]))
+    if len(baseline_cases) != len(revised_cases):
+        return unestablished("case_count_mismatch")
+    if baseline_cases != revised_cases:
+        return unestablished("case_identity_mismatch")
+
     grouped = {}
     for run in run_records:
         key = (run["scenario_id"], run["repetition"])
@@ -2145,11 +2175,40 @@ def _manifest_comparison(run_records):
             "finding_count": finding_count,
         }
 
+    # issue #1702 (AC10): emit the median runtime main-thread token cost per side and the
+    # non-regression verdict, after the identity gate above has passed. UNESTABLISHED when any
+    # run's main-thread context could not be measured — never a number collapsed onto unknown.
+    before_peaks = [run["peak_context"] for run in before_runs]
+    after_peaks = [run["peak_context"] for run in after_runs]
+    _all_numeric = all(_is_numeric(value) for value in before_peaks + after_peaks)
+    median_before = _median(before_peaks) if _all_numeric else UNESTABLISHED
+    median_after = _median(after_peaks) if _all_numeric else UNESTABLISHED
+    within_baseline = (
+        (median_after <= median_before) if _all_numeric else UNESTABLISHED)
+
     return {
         "status": "established",
         "diagnostic": None,
         "delta": _paired_delta(report_for(before_runs), report_for(after_runs)),
         "pairs": pairs,
+        "case_identity": {
+            "baseline_configuration": configurations[0],
+            "revised_configuration": configurations[1],
+            "case_count": len(baseline_cases),
+            "cases": [
+                {"scenario_id": scenario_id, "repetition": repetition}
+                for scenario_id, repetition in baseline_cases
+            ],
+        },
+        "median_main_thread_context": {
+            "baseline": median_before,
+            "revised": median_after,
+            "corpus_size": {
+                configurations[0]: len(before_runs),
+                configurations[1]: len(after_runs),
+            },
+        },
+        "revised_median_within_baseline": within_baseline,
     }
 
 
@@ -2258,18 +2317,31 @@ def _paired_delta(before, after):
         # `_degraded` already guarantees a non-empty run list here.
         return _sum(report, "peak_context") / len(report["runs"])
 
+    # Every `peak_context` delta below does arithmetic on the field, so one non-numeric value
+    # would RAISE where this module's contract is to report `unestablished`. Route all three
+    # through `_context_delta`, never `_delta` — guarding one and not its siblings is the
+    # asymmetry that leaves a latent TypeError beside a guarded call.
+    peaks_numeric = all(
+        _is_numeric(run["peak_context"])
+        for report in (before, after) for run in report["runs"])
+
+    def _context_delta(fn):
+        return _delta(fn) if peaks_numeric else UNESTABLISHED
+
     return {
         "total_attributed_auditor_cost": _delta(
             lambda rep: _sum(rep, "attributed_auditor_cost")),
-        "total_peak_context": _delta(lambda rep: _sum(rep, "peak_context")),
+        "total_peak_context": _context_delta(lambda rep: _sum(rep, "peak_context")),
         # AC7 names *per-run* context as a paired-delta axis, and the corpus-wide sum
         # above does not discharge it: a 3-run before corpus against a 1-run after
         # corpus yields a large negative `total_peak_context` that is pure population
         # difference. This key divides each side by its OWN `run_count` first, so the
         # confound cannot enter. It is a float by construction (a mean, not a token
-        # count) — the one non-integer delta, named as an average so a reader is not
-        # invited to read it as a measured total.
-        "mean_peak_context_per_run": _delta(_mean_peak_context),
+        # count) — a non-integer delta (as the median below can also be), named as an
+        # average so a reader is not invited to read it as a measured total.
+        "mean_peak_context_per_run": _context_delta(_mean_peak_context),
+        "median_main_thread_context": _context_delta(
+            lambda rep: _median([r["peak_context"] for r in rep["runs"]])),
         "total_round_count": _delta(_rounds),
         "finding_count": _findings_delta(),
     }

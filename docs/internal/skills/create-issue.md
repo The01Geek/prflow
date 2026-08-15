@@ -38,6 +38,28 @@ Agents plan better when they begin with the repository's current behavior rather
 
 Surfaces that can continue after a failed template read carry a compact semantic fallback: the body holds no unresolved implementation decision outside the rule's permitted locations, and every acceptance criterion is one concrete unconditional assertion. This fallback preserves the normative rule without the template's worked vocabulary, and the channels that can disclose the reduction do so — the interactive pipeline reports in chat that the template was unavailable, and the deferral drafter records it in its plan `notes` field. The retrospective-audit subagent applies the same fallback silently: it emits no degradation signal, because a new field or extra text would break its closed single-object JSON response contract, an accepted residual.
 
+## The Step 3.6 audit as an ordered reference set
+
+The fresh-context audit (Step 3.6) is delivered as an explicitly ordered set of cohesive references rather than one monolithic file (issue #1702). `skills/create-issue/references/step-3-6-audit.md` is now a thin **entry** reference: it declares the ordered set and the loading/boundary contract, and performs no audit action until the full set has passed the existing first-line/last-line boundary-marker contract. The three ordered procedure members are:
+
+- `step-3-6-audit-shared.md` — ledger maintenance and the staged canonical-draft write.
+- `step-3-6-audit-dispatch.md` — bootstrap → dispatch → write/gates → bind → round-kind → dispatch-arm → info-diet → carriage → instruction generation/rendering.
+- `step-3-6-audit-adjudication.md` — audit report → record-return/adjudicate → evidence → reconciliation → boundary read → coverage/calibration → call sequence → fallbacks.
+
+Each member carries a `<!-- prflow:create-issue-set step=3.6 part=k of=3 -->` marker as its second line. Audit semantics, state-owner sequencing, user elections, and degraded behavior are unchanged by the decomposition: the ordered-set gate rejects a bad boundary state with the existing attributable outcome for each state (denied, empty, missing, truncated, duplicate, reversed, noncanonical, misrouted, set-incomplete), and a required-member load failure enters the existing degraded path exactly once before audit work begins, so issue creation stays non-terminating on that path.
+
+### The member manifest is the single source
+
+`lib/test/create-issue-step-3-6-members.json` single-sources the declared set — the entry reference, the ordered members, the `per_member_limit_bytes` (55,000), and the `aggregate_baseline_bytes` (72,458, captured at commit e712655b6). Every guard reconciles against that manifest rather than an inline roster:
+
+- `lib/test/lint-reference-size.py` enforces the 55,000-byte per-member limit **and** the aggregate source-byte budget (measured total ≤ 72,458) with Python `Path.read_bytes()`.
+- `lib/test/check-audit-lifecycle-contracts.py` reconciles the manifest against the on-disk `part=k of=3` markers and runs the sequence and fenced-completeness checks across the member set.
+- `lib/test/modules/create-issue-contract.sh` reconciles the routing roster against the manifest.
+
+### The exemption is retired
+
+The obsolete `step-3-6-audit.md` size exemption was removed from `lib/test/reference-size-exemptions.json` — from both `recorded_set` and `exemptions` — because the entry and every member now sit under the ordinary size ceiling. The ordinary size lint therefore passes without an exemption for any member of the set.
+
 ## Boundaries and failure paths
 
 - A docs-verify peer must finish and return its structured findings before clarification begins.
@@ -51,7 +73,8 @@ Surfaces that can continue after a failed template read carry a compact semantic
 - `skills/docs-verify/SKILL.md` — documentation-first code exploration and report-only contract.
 - `skills/create-issue/references/step-2-clarify.md` — clarification, solution-space expansion, and the Definition-of-Ready rows (including the reproduction-facts row).
 - `skills/create-issue/references/issue-template.md` — the issue body template; canonical owner of the no-options rule (vocabulary, categories, carve-out set, unconditional-criterion rule), and its `### Current Behavior` guidance owns the reproduction contract that the Testing Strategy entry points at.
-- `skills/create-issue/references/step-3-5-steelman.md` and `skills/create-issue/references/step-3-6-audit.md` — code-grounding passes.
+- `skills/create-issue/references/step-3-5-steelman.md` and `skills/create-issue/references/step-3-6-audit.md` — code-grounding passes; `step-3-6-audit.md` is the thin entry of an ordered set whose members are `step-3-6-audit-shared.md`, `step-3-6-audit-dispatch.md`, and `step-3-6-audit-adjudication.md`.
+- `lib/test/create-issue-step-3-6-members.json` — single source of the declared Step 3.6 entry + member roster, per-member byte limit, and aggregate source-byte baseline.
 - `skills/create-issue/references/degradation-routing.md` — which reference loads on which trigger, and the degraded behavior each failed load falls back on.
 - `skills/create-issue/references/fallback-no-task-tool.md` — the inline checklist fallback and its state-file mirror.
 - `scripts/check-verified-premises.py` and `scripts/parse-acs.py` — verified-premise and acceptance-criteria handling.

@@ -153,6 +153,11 @@ NEAR_FULL_HEADROOM = READER_CAP_BYTES - MAX_BYTES
 #: The exemption record, relative to the resolved root.
 EXEMPTIONS_DEFAULT = "lib/test/reference-size-exemptions.json"
 
+#: The declared Step 3.6 audit reference set (issue #1702), relative to the resolved root.
+#: Read through `lib/test/step36_manifest.py`, the shared validated reader — never re-parsed
+#: here, or this lint's accepted record shape drifts from its sibling readers'.
+STEP36_MANIFEST_DEFAULT = "lib/test/create-issue-step-3-6-members.json"
+
 #: Schema versions this reader understands. An unrecognized version is refused rather
 #: than read under guessed semantics.
 KNOWN_SCHEMA_VERSIONS = (1,)
@@ -209,6 +214,36 @@ def _load_population_reader() -> object:
 
 
 _pop = _load_population_reader()
+
+
+#: Cache for the lazily-imported shared reader, so the two call sites do not re-exec it.
+_S36_READER = None
+
+
+def _load_step36_reader() -> object:
+    """Import the shared Step 3.6 manifest reader by the idiom this directory already uses.
+
+    Called LAZILY, from the two Step 3.6 call sites only — never at module scope. The `#1595`
+    self-check runs from a copy of this one file under a temp root, so an import at module
+    scope aborts every invocation there, including the ones that never read the manifest.
+    """
+    global _S36_READER
+    if _S36_READER is not None:
+        return _S36_READER
+    path = Path(__file__).resolve().parent / "step36_manifest.py"
+    spec = importlib.util.spec_from_file_location("step36_manifest", path)
+    if spec is None or spec.loader is None:
+        raise SystemExit(f"{_TOOL}: could not load the shared Step 3.6 manifest reader at {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    for attribute in ("Step36Manifest", "Step36ManifestError", "load"):
+        if not hasattr(module, attribute):
+            raise SystemExit(
+                f"{_TOOL}: the shared Step 3.6 manifest reader has no {attribute} — refusing "
+                "to audit against a reader whose contract has drifted"
+            )
+    _S36_READER = module
+    return module
 
 
 class RecordError(Exception):
@@ -342,6 +377,72 @@ def load_record(path: Path) -> tuple[dict[str, int], dict[str, str]]:
     return recorded, exemptions
 
 
+class Step36Error(Exception):
+    """The Step 3.6 member manifest could not be read as a well-formed record."""
+
+
+def load_step36_manifest(path: Path):
+    """The validated `Step36Manifest`, via the shared reader, or `Step36Error`.
+
+    Every shape decision belongs to `step36_manifest.load` — re-deriving one here is what let
+    this lint and `check-audit-lifecycle-contracts.py` accept different manifests.
+    """
+    reader = _load_step36_reader()
+    try:
+        return reader.load(path)
+    except reader.Step36ManifestError as exc:
+        raise Step36Error(str(exc)) from exc
+
+
+def _resolve_step36_manifest(args, root: Path) -> Path:
+    """The Step 3.6 manifest path: the `--step36-manifest` override, else the default under root."""
+    return Path(args.step36_manifest) if args.step36_manifest else root / STEP36_MANIFEST_DEFAULT
+
+
+def check_step36_set(root: Path, manifest_path: Path) -> tuple[list[str], list[str]]:
+    """Enforce the Step 3.6 set's per-member ceiling and aggregate source-byte budget.
+
+    Returns `(findings, report_lines)`. `findings` is non-empty when any member exceeds the
+    per-member limit or the population's total exceeds the source-recorded pre-refactor
+    baseline. Every measurement is `Path.read_bytes()`, and the emitted report names the
+    measured population and the baseline commit (issue #1702, AC2/AC3).
+    """
+    manifest = load_step36_manifest(manifest_path)
+    limit = manifest.per_member_limit_bytes
+    baseline = manifest.aggregate_baseline_bytes
+    commit = manifest.aggregate_baseline_commit
+    population = [manifest.entry, *manifest.members]
+    findings: list[str] = []
+    report: list[str] = []
+    total = 0
+    for relative in population:
+        target = root / relative
+        try:
+            size = len(target.read_bytes())
+        except OSError as exc:
+            # An unmeasurable member is unknown, never zero — refuse rather than under-count
+            # the aggregate and pass a population it never read.
+            findings.append(
+                f"step-3-6-set: {relative} could not be measured ({exc.__class__.__name__}: "
+                f"{exc}) — the declared member set could not be established")
+            continue
+        total += size
+        report.append(f"step-3-6-set: {relative} {size} bytes (per-member limit {limit})")
+        if size > limit:
+            findings.append(
+                f"step-3-6-set: {relative} is {size} bytes, over the {limit}-byte per-member "
+                "authoring limit — split or trim this member")
+    report.append(
+        f"step-3-6-set: aggregate {total} bytes over {len(population)} files "
+        f"(baseline {baseline} bytes @ {commit})")
+    if total > baseline:
+        findings.append(
+            f"step-3-6-set: the population totals {total} bytes, over the source-recorded "
+            f"pre-refactor baseline of {baseline} bytes (@ {commit}) — the decomposition must "
+            "stay within the pre-refactor total; trim a member")
+    return findings, report
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
@@ -353,6 +454,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--exemptions", default=None,
         help=f"the exemption record to read (default: <root>/{EXEMPTIONS_DEFAULT})",
+    )
+    parser.add_argument(
+        "--step36-manifest", default=None,
+        help=f"the Step 3.6 member manifest (default: <root>/{STEP36_MANIFEST_DEFAULT})",
+    )
+    parser.add_argument(
+        "--check-step36-set", action="store_true",
+        help=("enforce ONLY the Step 3.6 set's per-member ceiling and aggregate source-byte "
+              "budget (issue #1702), then exit"),
     )
     parser.add_argument(
         "--print-population", action="store_true",
@@ -374,6 +484,20 @@ def main(argv: list[str] | None = None) -> int:
         help="prove the density floor does not exceed the recorded measurements' minimum, and exit",
     )
     args = parser.parse_args(argv)
+
+    if args.check_step36_set:
+        root = _pop.resolve_root(args.root, tool=_TOOL)
+        manifest = _resolve_step36_manifest(args, root)
+        try:
+            s36_findings, s36_report = check_step36_set(root, manifest)
+        except Step36Error as exc:
+            print(f"{_TOOL}: {exc}", file=sys.stderr)
+            return 1
+        for line in s36_report:
+            print(line)
+        for finding in s36_findings:
+            print(finding)
+        return 1 if s36_findings else 0
 
     if args.self_check:
         # Without this the floor is a transcribed number, and a reader who re-derives it
@@ -543,6 +667,17 @@ def main(argv: list[str] | None = None) -> int:
                     f"row from {exemption_path} too; a row left standing re-authorizes a "
                     "future exemption for this file with no visible roster edit"
                 )
+
+    if whole_tree:
+        manifest = _resolve_step36_manifest(args, root)
+        try:
+            s36_findings, s36_report = check_step36_set(root, manifest)
+        except Step36Error as exc:
+            findings.append(f"{_TOOL}: {exc}")
+        else:
+            for line in s36_report:
+                print(line)
+            findings.extend(s36_findings)
 
     for relative in sorted(covered):
         _kind, _detail, size = covered[relative]

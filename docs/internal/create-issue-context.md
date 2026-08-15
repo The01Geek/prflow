@@ -38,8 +38,10 @@ what a long create-issue run actually pays:
   retired by issue #766; this document does **not** revive it and adds **no** new
   static word-count or prompt-length gate of its own. **The two file populations in that
   count reach a session by different loaders** — the `references/*.md` by the `Read` tool,
-  whose observed **25,000-token per-read cap truncates legibly** and which
-  `references/step-3-6-audit.md` already exceeds; `SKILL.md` by the Skill tool or
+  whose observed **25,000-token per-read cap truncates legibly** — the cap that
+  drove issue #1702 to decompose the Step 3.6 audit into an entry plus three
+  members, each under the ceiling, after `references/step-3-6-audit.md` had grown
+  past it; `SKILL.md` by the Skill tool or
   slash-command expansion, for which **no initial-load ceiling was found** at or below
   83,427 file bytes (2026-08-11, one tier). So any figure summing the two — such as the
   302,500 B → 288,788 B delta recorded under issue #1372 below — is a single static-size
@@ -49,8 +51,12 @@ what a long create-issue run actually pays:
   **Static shipped size IS gated, but by a reader-capability ceiling rather than an
   authoring budget (issue #1595).** `lib/test/lint-reference-size.py` fails the suite when a
   boundary-gated reference or a skill root exceeds 61,750 bytes and holds no live exemption —
-  and this skill's `references/*.md` are in that population, with
-  `references/step-3-6-audit.md` carried as an exemption. Do not read it as issue #766's
+  and this skill's `references/*.md` are in that population. The Step 3.6 audit was
+  once carried as an exemption; issue #1702 decomposed it into an entry plus three
+  members (each under the ceiling), **retired that exemption** from
+  `lib/test/reference-size-exemptions.json`, and added a per-member 55,000-byte limit
+  plus an aggregate source-byte budget over the manifest's population
+  (`lib/test/create-issue-step-3-6-members.json`). Do not read it as issue #766's
   budget returning: an authoring budget asks how long prose *ought* to be, while this is a
   property of what the reader can return in one call. The distinction is recorded at length
   in [`implement-context.md`](implement-context.md).
@@ -96,6 +102,10 @@ A schema-1 manifest contains `schema_version`, a `benchmark_id`, a declared `roo
 `checkpoints` names an initial draft, an ordered `revisions` list, and a final draft. Every transcript, state, checkpoint, and rubric path is realpath-resolved beneath the declared root; lexical and symlink escapes fail with `path_escape`. Provenance requires `repo_sha`, `skill_fingerprint`, `prompt_fingerprint`, `model`, `effort`, `output_style`, and `provider`. A pair compares only when repository, prompt, model, effort, output style, and provider match across its two runs, and each configuration keeps one repository SHA and skill fingerprint across its population. Unknown non-identity metadata is retained for forward compatibility.
 
 Manifest reports add `schema_version`, `benchmark_id`, `manifest_provenance`, and `comparison` around the run, summary, and skip records. Each run receives checkpoint metrics, owner-validated audit outcomes, and a schema-1 grade when a rubric is declared. The deterministic rubric tests required and forbidden concept alternatives, required and forbidden Markdown headings, the expected `Blocked` heading state, and the expected bug-reproduction contract state. Every assertion has exactly `text`, `passed`, and `evidence`. The shipped issue template records the reproduction facts as prose inside `Current Behavior` and ships no reproduction-named heading, so the reproduction axis is not a heading probe: the rubric declares the evidence in `bug_reproduction_any_of`, and the grade searches for it inside `Current Behavior` first, then a reproduction-named section. A rubric that expects the contract while declaring no alternative is refused rather than graded as universally missing. The paired quality gate passes only when the candidate preserves or improves the baseline pass rate, introduces no new forbidden-concept failure, and introduces no new forbidden-section failure; issue length and finding count are measurements, not grade operands.
+
+### Paired case-identity gate and the median-within-baseline verdict (issue #1702)
+
+Because the Step 3.6 decomposition adds bounded file reads at audit entry, a paired fixed-corpus evaluation must prove those reads do not increase runtime main-thread token cost — and it must compare like against like. `scripts/create_issue_eval.py` (the implementation behind `scripts/create-issue-context-eval.py`) gained an **AC10 case-identity gate**: before it compares a baseline population against a revised one, it verifies that both sides carry **equal case identities and equal counts**, and it **fails closed** when a case is missing on one side, duplicated, or split by a resume — so a comparison can only proceed over an identical case/run population on both sides. Once that identity check passes, the paired comparison emits the **median runtime main-thread token cost** for the post-baseline and revised runs and a **revised-median-within-baseline verdict** (the revised median must not exceed the baseline). This is the runtime half of the #1702 fix, kept separate from the per-file and aggregate *static* byte guards described above.
 
 The legacy corpus invocation above — not the run-addressable manifest example — is the measurement command for **every** figure this document reports.
 Running it with no corpus present exits non-zero with a diagnostic naming the missing

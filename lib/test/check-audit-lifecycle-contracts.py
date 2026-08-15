@@ -64,8 +64,38 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 IAS = REPO / "scripts" / "issue-audit-state.py"
-STEP36 = REPO / "skills" / "create-issue" / "references" / "step-3-6-audit.md"
+# The declared Step 3.6 ordered reference set (issue #1702). Read through
+# `lib/test/step36_manifest.py`, the shared validated reader — never re-parsed here, or this
+# checker's accepted record shape drifts from its sibling readers'.
+STEP36_MANIFEST = REPO / "lib" / "test" / "create-issue-step-3-6-members.json"
 STEP4 = REPO / "skills" / "create-issue" / "references" / "step-4-present-create.md"
+
+# Test-injection seam: when a caller rebinds `STEP36` to a single crafted document, the
+# Step 3.6 set is exactly `[STEP36]` and the sequence/fenced arms grade that one file plus
+# `STEP4` — byte-identical to the pre-#1702 single-file contract, so every crafted-document
+# test drives the checker unchanged. In a real run it stays `None` and the set is read from
+# the declared manifest.
+STEP36 = None
+
+
+def _load_step36_reader() -> object:
+    """Import the shared Step 3.6 manifest reader by the idiom `lib/test/` already uses."""
+    path = REPO / "lib" / "test" / "step36_manifest.py"
+    spec = importlib.util.spec_from_file_location("step36_manifest", path)
+    if spec is None or spec.loader is None:
+        raise SystemExit(f"could not load the shared Step 3.6 manifest reader at {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    for attribute in ("Step36Manifest", "Step36ManifestError", "load"):
+        if not hasattr(module, attribute):
+            raise SystemExit(
+                f"the shared Step 3.6 manifest reader has no {attribute} — refusing to check "
+                "against a reader whose contract has drifted"
+            )
+    return module
+
+
+_s36 = _load_step36_reader()
 
 # The paragraph that opens the ordered call sequence. A closed anchor, not a fuzzy match:
 # exactly one line must carry it, so a duplicated or renamed heading is RED rather than
@@ -160,6 +190,93 @@ def _read(path: Path) -> str:
         return path.read_text(encoding="utf-8")
     except OSError as exc:
         raise Refusal(f"could not read {_display_path(path)}: {exc}") from exc
+
+
+def _read_step36_manifest() -> tuple[str, list[str]]:
+    """The validated `(entry, members)` of the Step 3.6 manifest, or a Refusal.
+
+    Delegates to the shared `step36_manifest.load`, so this checker and
+    `lint-reference-size.py` accept exactly the same record shape — a manifest one refuses is
+    never silently read by the other. Fails closed: an unestablished set is never an empty one
+    silently reported clean.
+    """
+    try:
+        record = _s36.load(STEP36_MANIFEST)
+    except _s36.Step36ManifestError as exc:
+        raise Refusal(f"the Step 3.6 manifest {_display_path(STEP36_MANIFEST)} is unusable: "
+                      f"{exc} — refusing rather than scanning an empty set") from exc
+    return record.entry, list(record.members)
+
+
+def _step36_member_paths() -> list[Path]:
+    """The entry plus ordered procedure members of the Step 3.6 set, from the declared
+    manifest (or the single-file test seam when `STEP36` is set)."""
+    if STEP36 is not None:
+        return [STEP36]
+    entry, members = _read_step36_manifest()
+    return [REPO / entry] + [REPO / m for m in members]
+
+
+_STEP36_SET_MARKER = re.compile(
+    r"<!--\s*prflow:create-issue-set\s+step=3\.6\s+part=(\d+)\s+of=(\d+)\s*-->")
+
+
+def check_step36_manifest(report):
+    """Reconcile the declared Step 3.6 manifest against the on-disk set markers (issue #1702).
+
+    The positive-control target for the omitted-member case: a member present on disk with a
+    `create-issue-set part=k of=N` marker but absent from the manifest — or a part gap, an
+    `of=N` that disagrees with the manifest's member count, or a member whose `part=` disagrees
+    with its declared load position — is RED, so the manifest cannot silently under-declare or
+    misorder the set. Skipped under the single-file test seam (`STEP36` set),
+    which has no manifest set to reconcile.
+    """
+    if STEP36 is not None:
+        return
+    entry, members = _read_step36_manifest()
+    n = len(members)
+    parts = []
+    for rel in members:
+        text = _read(REPO / rel)
+        hit = _STEP36_SET_MARKER.search(text)
+        if hit is None:
+            raise Refusal(f"step36-manifest: manifest member {rel} carries no "
+                          "`prflow:create-issue-set` part marker")
+        k, of = int(hit.group(1)), int(hit.group(2))
+        if of != n:
+            raise Refusal(f"step36-manifest: member {rel} declares of={of}, but the manifest "
+                          f"lists {n} members — a member was added or omitted on one side")
+        parts.append(k)
+    if sorted(parts) != list(range(1, n + 1)):
+        raise Refusal(f"step36-manifest: the members' part numbers are {sorted(parts)}, "
+                      f"not the contiguous 1..{n} the ordered set requires")
+    # Contiguity alone is order-INDEPENDENT: a manifest listing the members in a different
+    # order than their `part=` markers declares passes it. The manifest is the LOAD order, so
+    # position i must carry part i+1 or the set loads out of sequence.
+    misordered = [(rel, part, index + 1)
+                  for index, (rel, part) in enumerate(zip(members, parts))
+                  if part != index + 1]
+    if misordered:
+        raise Refusal(
+            "step36-manifest: the manifest's load order disagrees with the members' `part=` "
+            "markers — " + "; ".join(
+                f"{rel} is declared at position {expected} but marks part={part}"
+                for rel, part, expected in misordered))
+    refs_dir = REPO / "skills" / "create-issue" / "references"
+    ondisk = sorted(
+        str(p.relative_to(REPO)) for p in refs_dir.glob("*.md")
+        if _STEP36_SET_MARKER.search(_read(p)))
+    # Check the entry FIRST: an entry carrying a member marker is also "on disk not in members",
+    # so the missing-member check below would otherwise fire on it with the wrong diagnosis.
+    if entry in ondisk:
+        raise Refusal(f"step36-manifest: the entry {entry} carries a member part marker; the "
+                      "entry declares the set and must not be a member")
+    missing = sorted(set(ondisk) - set(members))
+    if missing:
+        raise Refusal(f"step36-manifest: {missing} carry a Step 3.6 set marker on disk but are "
+                      "absent from the manifest — an omitted member the manifest under-declares")
+    report.append(f"step36-manifest: {n} declared members reconciled against on-disk "
+                  f"`create-issue-set` part markers 1..{n}, with no omitted member")
 
 
 def _sole_paragraph(text: str, anchor: str, where: str) -> str:
@@ -674,7 +791,11 @@ def check_sequence(registered, report):
     invocation list itself — with multiplicity, in document order — so its length is the
     unconditional joint count and `check_fenced_completeness` can grade the same parse
     rather than repeating it."""
-    seq_text = _read(STEP36)
+    members = _step36_member_paths()
+    # Concatenate the Step 3.6 set (entry + ordered members): the call-sequence anchor lives
+    # in exactly one member, so `_sole_paragraph`'s exactly-one-hit contract holds over the
+    # whole set and a duplicated/rewrapped anchor across members is still RED.
+    seq_text = "\n".join(_read(p) for p in members)
     paragraph = _sole_paragraph(seq_text, _SEQUENCE_ANCHOR, "sequence")
     # `_invocations` REFUSES on a subcommand-shaped token that is not registered, so the
     # "the prose can never name a call the tool would not accept" guarantee is genuinely
@@ -696,8 +817,9 @@ def check_sequence(registered, report):
     if "query-draft-binding" not in step4:
         raise Refusal("sequence: step-4-present-create.md no longer mandates the "
                       "query-draft-binding re-detect the sequence's joint scope counts")
-    report.append(f"sequence: {len(named)} unconditional invocations jointly mandated, "
-                  "every one a registered subcommand")
+    report.append(f"sequence: {len(named)} unconditional invocations jointly mandated across "
+                  f"{len(members)} Step 3.6 member(s) + step-4-present-create.md, every one a "
+                  "registered subcommand")
     return named
 
 
@@ -829,7 +951,7 @@ def check_fenced_completeness(registered, report, named):
     read from `STEP36`/`STEP4`, the same module-level source `check_sequence` reads, so a
     crafted document drives this arm by rebinding those and grades under identical rules.
     """
-    seq_text = _read(STEP36)
+    members = _step36_member_paths()
     step4 = _read(STEP4)
     named = frozenset(named)
 
@@ -852,8 +974,9 @@ def check_fenced_completeness(registered, report, named):
     empty: list[str] = []
     orphans: list[str] = []
     all_calls: set[str] = set()
-    for label, text in (("step-3-6-audit.md", seq_text),
-                        ("step-4-present-create.md", step4)):
+    scan_targets = [(p.name, _read(p)) for p in members]
+    scan_targets.append(("step-4-present-create.md", step4))
+    for label, text in scan_targets:
         calls = _fenced_state_owner_calls(extractor, text, registered)
         if not calls:
             empty.append(label)
@@ -893,8 +1016,9 @@ def check_fenced_completeness(registered, report, named):
             "```bash fence of either reference file — a stale exemption pre-accounts a call "
             "the sequence may now be omitting; retire the entry, or restore the fence")
     report.append(f"fenced-completeness: all {scanned} fenced state-owner invocations across "
-                  "both reference files are named in the call sequence, the declared "
-                  "exemption set, or the conditional set")
+                  f"each declared Step 3.6 member ({len(members)}) and step-4-present-create.md "
+                  "are named in the call sequence, the declared exemption set, or the "
+                  "conditional set")
 
 
 def main():
@@ -908,6 +1032,7 @@ def main():
         check_round_defaulted(module, registered, report)
         check_next_action_routing_totality(module, report)
         check_flag_vocabulary(module, module.build_parser(), registered, report)
+        check_step36_manifest(report)
         sequence = check_sequence(registered, report)
         unconditional = len(sequence)
         check_fenced_completeness(registered, report, sequence)

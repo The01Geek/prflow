@@ -35,15 +35,15 @@ CI_TMPL_AUDIT="$CI_ROOT/skills/create-issue/references/audit-prompt-template.md"
 CI_REF_STEP35="$CI_ROOT/skills/create-issue/references/step-3-5-steelman.md"
 # shellcheck disable=SC2034  # pin-retarget seam (see the block comment above)
 CI_REF_REVDELTA="$CI_ROOT/skills/create-issue/references/revision-delta.md"
-# #793: step-3-6-audit.md and fallback-audit-dispatch-arms.md (CI_REF_FB_DISPATCH below)
-# are the two references whose out-of-bounds enumerations are LOCATION-sensitive — each
-# list must live in its own arm's file, since a file-arm list surviving only in the
-# embed-arm file would leave the file arm undeclared. Their pins therefore keep a
-# specific-file target rather than the concatenated bundle, per the per-pin routing rule
-# above. These two seams are the binding sites; do not reintroduce separately-named
-# aliases for the same paths, which is what shellcheck flagged as unused.
+# #793: the file-arm out-of-bounds enumeration and fallback-audit-dispatch-arms.md
+# (CI_REF_FB_DISPATCH below) are the LOCATION-sensitive lists — each must live in its own
+# arm's file, since a file-arm list surviving only in the embed-arm file would leave the
+# file arm undeclared. Their pins therefore keep a specific-file target rather than the
+# concatenated bundle. #1702: the Step 3.6 procedure is now an ordered reference set, and
+# the file-arm out-of-bounds list plus the #1675 handle=path remedy live in the DISPATCH
+# member — so this seam targets that member.
 # shellcheck disable=SC2034  # pin-retarget seam (see the block comment above)
-CI_REF_STEP36="$CI_ROOT/skills/create-issue/references/step-3-6-audit.md"
+CI_REF_STEP36="$CI_ROOT/skills/create-issue/references/step-3-6-audit-dispatch.md"
 # shellcheck disable=SC2034  # pin-retarget seam (see the block comment above)
 CI_REF_STEP4="$CI_ROOT/skills/create-issue/references/step-4-present-create.md"
 CI_REF_FB_NOTASK="$CI_ROOT/skills/create-issue/references/fallback-no-task-tool.md"
@@ -1232,7 +1232,12 @@ echo "#614 create-issue split: routing, markers, purity"
 
 # The reference roster is stated ONCE here and drives every loop below, so a reference
 # can never be registered in one assertion's list and silently dropped from another.
-CI614_STEP_REFS="step-2-clarify step-3-5-steelman revision-delta step-3-6-audit step-4-present-create"
+# #1702: the Step 3.6 procedure is a declared ordered reference set — the entry
+# (step-3-6-audit) plus its ordered procedure members, enumerated in
+# lib/test/create-issue-step-3-6-members.json. Every member is a routed step reference with
+# its own marker id, routing row, and unique representative literal, enforced by the
+# T1/T2/T4 loops below over this roster.
+CI614_STEP_REFS="step-2-clarify step-3-5-steelman revision-delta step-3-6-audit step-3-6-audit-shared step-3-6-audit-dispatch step-3-6-audit-adjudication step-4-present-create"
 CI614_FALLBACK_REFS="fallback-no-task-tool fallback-read-only-sandbox fallback-audit-dispatch-arms fallback-state-owner-unavailable fallback-audit-round-reconciliation fallback-audit-boundary-offer fallback-draft-write-recovery fallback-implement-offer-tier-read fallback-visual-specification fallback-audit-evidence-degraded"
 # issue-template is a routed reference (gated, T1/T2), but NOT a step reference: it is kept in
 # its own roster group so the T4 default-path purity sweep (which loops CI614_STEP_REFS) does
@@ -1244,6 +1249,24 @@ CI614_TEMPLATE_REFS="issue-template"
 CI614_ROUTING_REFS="degradation-routing"
 CI614_REFS="$CI614_STEP_REFS $CI614_FALLBACK_REFS $CI614_TEMPLATE_REFS $CI614_ROUTING_REFS"
 
+# #1702 AC8: reconcile this shell roster's Step 3.6 members against the DECLARED manifest, so a
+# member added to lib/test/create-issue-step-3-6-members.json (and passing the Python
+# manifest<->on-disk reconciliation) but omitted from CI614_STEP_REFS goes RED here instead of
+# being silently uncovered by the #614 routing/marker/purity sweeps. The roster is the single
+# source only when it stays in lockstep with the manifest the other consumers read.
+assert_eq "#1702 AC8: CI614_STEP_REFS's Step 3.6 members match the declared manifest" "match" \
+  "$(python3 - "$CI_ROOT/lib/test/create-issue-step-3-6-members.json" "$CI614_STEP_REFS" <<'PY1702'
+import json, sys
+try:
+    doc = json.load(open(sys.argv[1], encoding='utf-8'))
+    manifest = sorted(m.rsplit('/', 1)[-1][:-3] for m in doc['members'])
+except Exception as exc:  # noqa: BLE001 - a manifest fault is a RED reconciliation, not a traceback
+    print(f"manifest-unreadable: {exc}"); sys.exit(0)
+roster = sorted(s for s in sys.argv[2].split() if s.startswith('step-3-6-audit-'))
+print('match' if manifest == roster else f'drift manifest={manifest} roster={roster}')
+PY1702
+)"
+
 # Marker ids per AC2's decided id space: the step number for step references, the literal
 # `revision-delta`, `fallback-<name>` for the fallback files, the literal `issue-template`, and
 # (#1644) the literal `degradation-routing` for the relocated routing table.
@@ -1253,6 +1276,9 @@ ci614_marker_id() {
     step-3-5-steelman)      printf '3.5' ;;
     revision-delta)         printf 'revision-delta' ;;
     step-3-6-audit)         printf '3.6' ;;
+    step-3-6-audit-shared)  printf '3.6-shared' ;;
+    step-3-6-audit-dispatch) printf '3.6-dispatch' ;;
+    step-3-6-audit-adjudication) printf '3.6-adjudication' ;;
     step-4-present-create)  printf '4' ;;
     fallback-*)             printf '%s' "$1" ;;
     issue-template)         printf 'issue-template' ;;
@@ -1397,6 +1423,9 @@ ci614_step_unique step-2-clarify 'Clarification is the default, not the exceptio
 ci614_step_unique step-3-5-steelman 'This is a **code-grounded verification loop, not a re-read**'
 ci614_step_unique revision-delta '**Bind and walk the delta per edit-batch.**'
 ci614_step_unique step-3-6-audit '**Obey the state owner (the contract governing this whole step).**'
+ci614_step_unique step-3-6-audit-shared 'Staged canonical-draft write (shared procedure — referenced by every canonical-draft write site)'
+ci614_step_unique step-3-6-audit-dispatch 'Information diet (the whole mechanism — do not widen it).'
+ci614_step_unique step-3-6-audit-adjudication 'Wholesale misadjudication has no amend path, by design.'
 ci614_step_unique step-4-present-create '**Show the complete rendered issue in chat.**'
 unset -f ci614_step_unique
 
