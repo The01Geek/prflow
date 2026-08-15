@@ -1647,6 +1647,102 @@ class PairedDeltaDegradedChannelsTest(unittest.TestCase):
         self.assertEqual(set(skipped), set(self._CHANNELS))
 
 
+class NonNumericPeakContextTest(unittest.TestCase):
+    """A non-numeric `peak_context` reports `unestablished`, never raising (issue #1702).
+
+    Every `peak_context` axis does arithmetic on the field — a sum, a mean, a median — so an
+    unmeasured value that reached them would raise `TypeError` out of a module whose contract
+    is to publish the `unestablished` sentinel. Both guarded sites are driven here: the
+    `_paired_delta` context keys and `_manifest_comparison`'s median pair.
+    """
+
+    _CHANNELS = ("non_json_line", "not_object", "no_type", "unreadable_file",
+                 "escaped_path", "walk_error", "malformed_record",
+                 "sidechain_only_file")
+    _CONTEXT_KEYS = ("total_peak_context", "mean_peak_context_per_run",
+                     "median_main_thread_context")
+
+    def _report(self, peak_context):
+        return {"runs": [{"attributed_auditor_cost": 10, "peak_context": peak_context,
+                          "dispatch_rounds": [1]}],
+                "skipped": {k: 0 for k in self._CHANNELS},
+                "finding_count": 3}
+
+    def test_paired_delta_context_keys_go_unestablished_not_raising(self):
+        # Positive control FIRST: numeric peaks yield real numbers on the same fixture, so
+        # each `unestablished` below is attributable to the non-numeric value alone.
+        clean = CICE._paired_delta(self._report(10), self._report(10))
+        for key in self._CONTEXT_KEYS:
+            self.assertNotEqual(clean[key], CICE.UNESTABLISHED, key)
+        # A non-numeric peak on EITHER side degrades all three, and the non-context keys
+        # stay measured — the guard is scoped to the axis that reads the field.
+        for label, (before, after) in (
+            ("before", (self._report(CICE.UNESTABLISHED), self._report(10))),
+            ("after", (self._report(10), self._report(CICE.UNESTABLISHED))),
+            ("both", (self._report(None), self._report(None))),
+        ):
+            delta = CICE._paired_delta(before, after)
+            for key in self._CONTEXT_KEYS:
+                self.assertEqual(delta[key], CICE.UNESTABLISHED,
+                                 "{} stayed measured with a non-numeric peak ({})"
+                                 .format(key, label))
+            self.assertEqual(delta["total_attributed_auditor_cost"], 0, label)
+            self.assertEqual(delta["total_round_count"], 0, label)
+
+    def test_a_boolean_peak_is_not_a_number(self):
+        """`isinstance(True, int)` is True, so a bare int check would admit it and publish a
+        median derived from booleans as a measured token cost."""
+        delta = CICE._paired_delta(self._report(True), self._report(10))
+        for key in self._CONTEXT_KEYS:
+            self.assertEqual(delta[key], CICE.UNESTABLISHED, key)
+
+    def _manifest_run(self, configuration, peak_context):
+        return {
+            "configuration": configuration,
+            "scenario_id": "s1",
+            "repetition": 1,
+            "run_id": "run-" + configuration,
+            "peak_context": peak_context,
+            "attributed_auditor_cost": 10,
+            "dispatch_rounds": [1],
+            "finding_count": 2,
+            "state_established": True,
+            "grade": None,
+            "occurrence": {"boundary_confidence": "exact"},
+            "provenance": {"repo_sha": "abc", "prompt_fingerprint": "p", "model": "m",
+                           "effort": "high", "output_style": "o", "provider": "v",
+                           "skill_fingerprint": "s"},
+        }
+
+    def test_manifest_comparison_median_pair_goes_unestablished(self):
+        # Positive control on the same pair shape: numeric peaks establish both medians and
+        # the verdict, so the sentinels below cannot come from an unrelated earlier gate.
+        clean = CICE._manifest_comparison([self._manifest_run("baseline", 100),
+                                           self._manifest_run("revised", 90)])
+        self.assertEqual(clean["status"], "established", clean.get("diagnostic"))
+        self.assertEqual(clean["median_main_thread_context"]["baseline"], 100)
+        self.assertEqual(clean["median_main_thread_context"]["revised"], 90)
+        self.assertIs(clean["revised_median_within_baseline"], True)
+        # One unmeasured peak makes BOTH medians and the verdict the sentinel — never a
+        # number on the measurable side beside an unknown on the other, which would read as
+        # a comparison against a value that was never measured.
+        for label, (before_peak, after_peak) in (
+            ("baseline unmeasured", (CICE.UNESTABLISHED, 90)),
+            ("revised unmeasured", (100, CICE.UNESTABLISHED)),
+        ):
+            report = CICE._manifest_comparison([
+                self._manifest_run("baseline", before_peak),
+                self._manifest_run("revised", after_peak)])
+            self.assertEqual(report["status"], "established", label)
+            median = report["median_main_thread_context"]
+            self.assertEqual(median["baseline"], CICE.UNESTABLISHED, label)
+            self.assertEqual(median["revised"], CICE.UNESTABLISHED, label)
+            self.assertEqual(report["revised_median_within_baseline"],
+                             CICE.UNESTABLISHED, label)
+            self.assertEqual(report["delta"]["median_main_thread_context"],
+                             CICE.UNESTABLISHED, label)
+
+
 class ManifestIngestionTest(unittest.TestCase):
     def setUp(self):
         self.manifest_path = os.path.join(_MANIFEST_FIX, "two-occurrences.json")
