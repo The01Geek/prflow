@@ -19985,8 +19985,14 @@ assert_eq("#709 move3-5/10: ... so the clean ground is reachable",
           'eligible=yes ground=file-identity', ' '.join(_ok709['elig'].split()[:2]))
 assert_eq("#709 move3-5/10: ... the summary reports the established state",
           True, 'steering=established steering_reason=canonical-match' in _ok709['summary'])
-assert_eq("#709 move3-5/10: ... and no re-audit offer fires on a clean established round",
-          't1=not-hold t2=not-hold coverage=not-hold calibration=not-hold reason=', _ok709['trig'])
+# issue #1694: this harness dispatches and returns a clean FILE round but never calls
+# record-coverage, so the run sits in the `no-coverage-recorded` arm — which now JOINS the
+# coverage offer (a mandated-but-missing coverage record another round can recover). T1, T2,
+# steering and calibration all stay not-hold on a clean established round; only the coverage
+# ground fires, and it never blocks filing.
+assert_eq("#709 move3-5/10/#1694: a clean established round fires only the coverage offer "
+          "(no per-dimension coverage was recorded)",
+          't1=not-hold t2=not-hold coverage=hold calibration=not-hold reason=', _ok709['trig'])
 # The steering tokens render BEFORE the trailing attestation token (the #546 EOL anchor).
 assert_eq("#709: the summary line's trailing field is still attestation",
           True, _ok709['summary'].split()[-1].startswith('attestation='))
@@ -20047,9 +20053,12 @@ for _lbl, _res in (('6a', _absent709), ('6b', _wrong709), ('6c', _noinp709),
 # Move 3 item 7 — the Quiet-Killer control. This round returned VERDICT: FILE with ZERO
 # findings and NO revision, so T1 does not hold and neither pre-#709 T2 arm fires. Without
 # the new arm the withheld grounding would be silent — no offer, nothing for the user to
-# act on. The offer is what makes the state actionable; it never blocks filing.
-assert_eq("#709 move3-7: a zero-finding clean round with unestablished steering still fires the offer",
-          't1=not-hold t2=hold coverage=not-hold calibration=not-hold reason=steering-unestablished', _extra709['trig'])
+# act on. The offer is what makes the state actionable; it never blocks filing. issue #1694:
+# the round also recorded no per-dimension coverage, so `coverage=hold` co-fires beside T2's
+# steering hold — both feed the single boundary offer, whose precedence the orchestrator owns.
+assert_eq("#709 move3-7/#1694: a zero-finding clean round with unestablished steering fires the "
+          "offer (T2 steering) with the coverage ground co-holding",
+          't1=not-hold t2=hold coverage=hold calibration=not-hold reason=steering-unestablished', _extra709['trig'])
 assert_eq("#709 move3-7: ... and the summary names the state for the audit-summary line",
           True,
           'steering=not-established steering_reason=extra-dispatch-content'
@@ -20762,9 +20771,15 @@ def _cov_expected_keys_preconditions(r):
 _with_run603(_cov_expected_keys_preconditions)
 
 
-# A clean FILE round that recorded NO coverage at all: the worst failure mode would be
-# `all([]) == True` reporting `backed`. Unknown is never collapsed onto backed, and the
-# answering line NAMES which unestablished arm this is.
+# A clean FILE round that recorded NO coverage at all: the worst BACKING failure mode
+# would be `all([]) == True` reporting `backed`. Unknown is never collapsed onto backed,
+# and the answering line NAMES which unestablished arm this is — the backing tokens are
+# unchanged. What DID change (issue #1694): this named `no-coverage-recorded` arm now
+# JOINS the coverage offer, because the Step 3.6 procedure mandates `record-coverage` after
+# an accepted round, so a clean round that lost it is recoverable by another audit round —
+# unlike the `no-clean-round` and foreign/corrupt-state reads below, which stay not-hold.
+# The offer routing widened; the backing/render/reason tokens
+# did NOT (the gotcha the issue calls out: absent coverage is never relabelled full-render).
 def _cov_clean_round_no_coverage(r):
     r.open_round(1, 'FILE', 0)
     r.adjudicate(1, 'FILE', 0, '0')
@@ -20775,11 +20790,79 @@ def _cov_clean_round_no_coverage(r):
               'coverage_backing=unestablished coverage_render=none '
               'reason=no-coverage-recorded', out)
     trig = r('query-triggers', r.slug, nonce=True).stdout
-    assert_eq("#708-16: ... and fires no coverage offer",
-              'not-hold', trig.split('coverage=', 1)[1].split()[0])
+    assert_eq("#708-16/#1694: ... and the no-coverage-recorded arm now FIRES the coverage offer",
+              'hold', trig.split('coverage=', 1)[1].split()[0])
 
 
 _with_run603(_cov_clean_round_no_coverage)
+
+
+# issue #1694: the no-coverage-recorded arm joins the SINGLE boundary offer. This block
+# pins the routing controls the widening owes beyond #708-16's bare `coverage=hold`:
+# query-boundary byte-identity, the shared user-round cap, final-byte precedence
+# co-occurrence, and the foreign-nonce disclosure-only control. The already-green controls
+# no-clean-round (#708-7), not-backed+degraded (#708-8), and backed (#708-1/case5) prove
+# the widening is precise and are not re-pinned here.
+def _cov_1694_no_coverage_offer_controls(r):
+    r.open_round(1, 'FILE', 0)
+    r.adjudicate(1, 'FILE', 0, '0')
+
+    trig = r('query-triggers', r.slug, nonce=True).stdout
+    cov_line = r('query-coverage', r.slug, nonce=True).stdout.splitlines()[0]
+    boundary = r('query-boundary', r.slug, nonce=True).stdout.strip().split('\n')
+    # AC2: query-boundary carries the SAME decided trigger and coverage lines as the
+    # individual queries, byte-identically, so the composite read can never disagree with
+    # the individual reads about this arm. Component order is triggers, convergence,
+    # coverage, calibration (the #795 boundary shape), so the trigger line is boundary[0]
+    # and the coverage line boundary[2].
+    assert_eq("#1694 AC2: query-boundary's trigger line is byte-identical to query-triggers'",
+              decided(trig), boundary[0])
+    assert_eq("#1694 AC2: query-boundary's coverage line is byte-identical to query-coverage's",
+              cov_line, boundary[2])
+    assert_eq("#1694 AC2: ... and that shared trigger line carries coverage=hold",
+              'hold', _field704(boundary[0], 'coverage='))
+    assert_eq("#1694 AC1: ... while the coverage line's backing/render/reason tokens are "
+              "unchanged (absent coverage is never relabelled full-render)",
+              'coverage_backing=unestablished coverage_render=none reason=no-coverage-recorded',
+              cov_line)
+
+    # AC4: when final-byte ALSO holds, Step 4's precedence offers final-byte and discloses
+    # the coverage ground beside it. Both grounds co-occur on this exact state — the clean
+    # FILE round's steering was never established, so the bytes that would be filed read
+    # `uncovered` and the final-byte trigger holds alongside coverage=hold. The precedence
+    # ORDER is orchestrator prose (step-4-present-create.md); this pins the co-occurrence it
+    # resolves.
+    fb = r('query-final-byte', r.slug, '--draft-file', 'd.md', nonce=True).stdout
+    assert_eq("#1694 AC4: the final-byte trigger co-occurs with coverage=hold on this state",
+              ('hold', 'hold'),
+              (_field704(fb, 'final_byte_trigger='), _field704(trig, 'coverage=')))
+
+    # AC5: the trigger is stateless w.r.t. offer history (like #728-3): coverage=hold
+    # persists across a recorded offer AND at the shared user-round cap, so the offer
+    # machinery — not the trigger — owns the at-most-one-question-per-run bound. record-offer
+    # is the SHARED cap the not-backed+full arm already uses.
+    def _cov_trig():
+        return _field704(r('query-triggers', r.slug, nonce=True).stdout, 'coverage=')
+    assert_eq("#1694 AC5: record-offer --accepted succeeds on the no-coverage arm",
+              0, r('record-offer', r.slug, '--accepted', nonce=True).returncode)
+    assert_eq("#1694 AC5: the trigger is UNCHANGED by a recorded offer", 'hold', _cov_trig())
+    r('record-offer', r.slug, '--accepted', nonce=True)
+    r('record-offer', r.slug, '--accepted', nonce=True)
+    capped = r('record-offer', r.slug, '--accepted', nonce=True)
+    assert_eq("#1694 AC5: an accepted offer past the shared user-round cap is refused",
+              True, capped.returncode != 0)
+    assert_eq("#1694 AC5: the trigger STILL holds at the cap — it never self-yields",
+              'hold', _cov_trig())
+
+    # AC6 control: a foreign-nonce read stays not-hold — the widening does not reach it,
+    # matching the disclosure-only reads pinned by #708-7/#708-8/#708-1.
+    foreign = r('query-triggers', r.slug, '--nonce', 'NOT-THE-NONCE').stdout
+    assert_eq("#1694 AC6: a foreign-nonce read fires no coverage offer (reason=foreign-nonce)",
+              ('not-hold', 'foreign-nonce'),
+              (_field704(foreign, 'coverage='), _field704(foreign, 'reason=')))
+
+
+_with_run603(_cov_1694_no_coverage_offer_controls)
 
 
 # The three unestablished arms must be separable on the ANSWERING line: a corrupt state
@@ -20961,11 +21044,12 @@ _with_run603(_cov_legacy_keyset_still_readable)
 
 # Characterization of what `evaluate_coverage_trigger` ACTUALLY guarantees (issue #728
 # Important 3). The "coverage offer fires at most once per run / yields to T1/T2" property
-# is NOT enforced in this function — it is a pure function of coverage backing+render
-# (`cov['backing'] == 'not-backed' and cov['render'] == 'full'`) and reads NO offer history.
+# is NOT enforced in this function — it is a pure function of the coverage derivation
+# (`(cov['backing'] == 'not-backed' and cov['render'] == 'full') or
+# cov['reason'] == 'no-coverage-recorded'` since issue #1694) and reads NO offer history.
 # The at-most-once/yields behavior lives only in orchestrator prose
-# (skills/create-issue/references/step-3-6-audit.md: "coverage=hold joins the single
-# boundary offer, firing at most once per run and yielding to T1/T2"). We therefore do NOT
+# (skills/create-issue/references/step-3-6-audit-adjudication.md: "coverage=hold joins the
+# single boundary offer"). We therefore do NOT
 # assert an at-most-once property the code does not implement; we pin the real guarantee —
 # the trigger is stateless w.r.t. offer history, so `coverage=hold` persists across a
 # recorded offer AND at the user-round cap. A future change that (mis)placed at-most-once in
