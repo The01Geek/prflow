@@ -3049,8 +3049,7 @@ assert_eq "#620: both extension loads sit in the entry preamble, own load first"
 
 # ── #312 remaining-item prose pins (the sharpenings this issue lands; each fails if its
 #    rule is reworded away). File vars: $IMPL_SKILL_BUNDLE (implement orchestrator+phase bundle,
-#    includes phase-2 and phase-3), $CI312_SKILL (create-issue bundle) + $CI312_TMPL (template).
-CI312_TMPL="$LIB/../skills/create-issue/references/issue-template.md"
+#    includes phase-2 and phase-3), $CI312_SKILL (create-issue bundle).
 CI312_SKILL="$CREATE_ISSUE_BUNDLE"   # #614: content-survival target — the split bundle, not the root alone
 # item 2 (broadened by #446) — the premise class widened from "an AC's mechanism" to every
 # relied-on third-party behavior, with the WebFetch → WebSearch → ask-the-user ladder, in BOTH
