@@ -65,8 +65,8 @@ BLOCKED_EXIT = 2
 UNAVAILABLE_EXIT = 3
 DEPENDENCY_HEADING = re.compile(r"^##\s+Dependencies\s*$", re.IGNORECASE)
 HEADING = re.compile(r"^#{1,6}\s+")
-# ATX heading with its `#`-run (level) and text captured separately, so the
-# reserved-leading malformed-heading detector below can read the level.
+# Group 1 is the heading level (the `#`-run), read by the reserved-leading
+# malformed-heading detector below; group 2 is its normalized text.
 _ATX_HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*$")
 ISSUE_REF = re.compile(r"#(\d+)")
 # Each declaration keyword may be followed by a run of additional numbers joined
@@ -469,7 +469,7 @@ def dependencies(args: argparse.Namespace) -> int:
             f"`## Dependencies` and re-run",
             file=sys.stderr,
         )
-        print("UNAVAILABLE malformed-dependency-heading")
+        print("UNAVAILABLE malformed-dependency-heading", flush=True)
         return UNAVAILABLE_EXIT
 
     numbers = dependency_numbers(body)

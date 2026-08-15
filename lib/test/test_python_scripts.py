@@ -30193,6 +30193,26 @@ assert_eq("#1695 later-nested: `### Dependencies` after `## Problem Statement` i
 assert_eq("#1695 boundary: a `## Dependencies` that is not leading (after another ## section) is not the reserved one",
           None,
           _mrdh("## Problem Statement\nbody\n## Dependencies\n- #201\n"))
+# Region-close by a LEADING level-1 non-Dependencies heading: `# Title` closes the reserved
+# region, so a `### Dependencies` after it is NOT flagged (the `if level <= 2: return None` arm).
+assert_eq("#1695 boundary: a leading `# Title` closes the region, so a following `### Dependencies` is not flagged",
+          None,
+          _mrdh("# Title\n### Dependencies\n- #201\n## Problem Statement\nbody\n"))
+# Preamble/blank lines before the malformed heading: the non-heading skip path still reaches it.
+assert_eq("#1695 preamble: blank and prose lines before a `### Dependencies` still flag it malformed",
+          "###",
+          _mrdh("\nsome intro prose\n\n### Dependencies\n- #201\n## Problem Statement\nbody\n"))
+# The full ATX level range: level 5 and 6 headings are malformed; a 7-hash run is NOT an ATX
+# heading (outside `{1,6}`), so it neither flags nor closes the region.
+assert_eq("#1695 malformed: a leading `##### Dependencies` (level 5) is malformed",
+          "#####",
+          _mrdh("##### Dependencies\n- #7\n## Problem Statement\nbody\n"))
+assert_eq("#1695 malformed: a leading `###### Dependencies` (level 6) is malformed",
+          "######",
+          _mrdh("###### Dependencies\n- #7\n## Problem Statement\nbody\n"))
+assert_eq("#1695 boundary: a 7-hash `####### Dependencies` is not an ATX heading — not flagged, does not close the region",
+          "###",
+          _mrdh("####### Dependencies\n### Dependencies\n- #7\n## Problem Statement\nbody\n"))
 
 # ── issue #1695: the reversible implement preflight (`dependencies` CLI) fails
 # closed with UNAVAILABLE on a malformed reserved heading, naming `## Dependencies`,
