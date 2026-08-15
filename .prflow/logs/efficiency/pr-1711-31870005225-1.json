@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1711",
+  "generated_at": "2026-08-15T06:50:57Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.88",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 7.946098500000002,
+    "tokens": {
+      "input_tokens": 47,
+      "output_tokens": 22747,
+      "cache_read_input_tokens": 3746175,
+      "cache_creation_input_tokens": 204301,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 95,
+        "outputTokens": 59614,
+        "cacheReadInputTokens": 5336977,
+        "cacheCreationInputTokens": 483305,
+        "webSearchRequests": 0,
+        "costUSD": 7.946098500000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 29,
+    "duration_ms": 578178
+  },
+  "permission_denials": {
+    "count": 6,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---RUN_ID---\"; echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-<empty>} ATTEMPT=${GITHUB_RUN_ATTEMPT:-<empty>}\"",
+      "gh issue view 1693 --json comments --jq '.comments[] | select(.body | test(\"prflow:workpad|devflow:workpad\")) | .body' > .prflow/tmp/review/pr-1711/31870005225-1/wp1693.txt; grep -cE 'Verification evidence:' .prflow/tmp/review/pr-1711/31870005225-1/wp1693.txt; echo \"---checkpoint---\"; grep -cE 'prflow:checkpoint gha:|devflow:checkpoint gha:' .prflow/tmp/review/pr-1711/31870005225-1/wp1693.txt",
+      "git checkout issue-1693-route-create-issue-quality-guidance-through-a-20260815 -- skills/create-issue/references/ 2>/dev/null; for ph in \"unstated mechanism dependencies have their existence determined\" \"enclosing gates\" \"input-is-data guard\" \"governing conventions consulted\" \"relied-on third-party behavior\" \"self-contained re-derivation handle\" \"transitive source\" \"at minimum\"; do echo \"=== $ph ===\"; grep -rlF \"$ph\" skills/create-issue/ 2>/dev/null; done",
+      "git switch issue-1693-route-create-issue-quality-guidance-through-a-20260815 2>/dev/null; git branch --show-current",
+      "git switch issue-1693-route-create-issue-quality-guidance-through-a-20260815",
+      "REF=origin/issue-1693-route-create-issue-quality-guidance-through-a-20260815\nfor ph in \"unstated mechanism dependencies have their existence determined\" \"was read with its enclosing gates\" \"input-is-data guard\" \"self-contained re-derivation handle\" \"relied-on third-party behavior\" \"transitive source\" \"governing conventions consulted\"; do\necho \"=== $ph ===\"\nfor f in $(git show $REF:skills/create-issue/references/ 2>/dev/null | tail -n +3); do\n  git show \"$REF:skills/create-issue/references/$f\" 2> …[per-command-truncated]"
+    ],
+    "total": 6,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
