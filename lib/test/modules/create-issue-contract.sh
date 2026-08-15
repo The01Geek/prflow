@@ -56,6 +56,10 @@ CI_REF_FB_WRITEREC="$CI_ROOT/skills/create-issue/references/fallback-draft-write
 CI_REF_FB_TIERREAD="$CI_ROOT/skills/create-issue/references/fallback-implement-offer-tier-read.md"
 CI_REF_FB_VISUAL="$CI_ROOT/skills/create-issue/references/fallback-visual-specification.md"
 CI_REF_FB_EVIDENCE="$CI_ROOT/skills/create-issue/references/fallback-audit-evidence-degraded.md"
+# #1693: the five conditionally-loaded quality-guidance group references are enumerated by the
+# CI614_QUALITY_REFS roster below (folded into CI614_REFS), which drives the T1/T2/T6 routing/marker
+# checks, the ci614_marker_id `quality-group-*` arm, and the AC4/AC5 fixture-completeness checks —
+# no per-group path variable is needed here.
 # T1/T2/T6 read their routing rows from this file (their retargeted operand).
 CI_REF_ROUTING="$CI_ROOT/skills/create-issue/references/degradation-routing.md"
 CI_EXT="$CI_ROOT/.prflow/prompt-extensions/create-issue.md"
@@ -772,22 +776,21 @@ assert_eq "#467 A3: Step 3.6 generic dimension checklist is guard-locked at its 
 # mutual-consistency check (Step 3.5 + template AC guidance + checklist mirror).
 # Cluster C — conditional-path (coupled template<->Step-3.5), stated-but-unbound (Step 3.5's item-4 clause),
 # trust-boundary closure (template AC guidance + Step 3.5 omission hunt).
-# C1/C3 quality-checklist mirrors — pinned for parity with the A1/B1/B2 checklist-mirror pins
-# above (AC-E1: every new contract sentence in a pinned surface is presence-pinned), so a future
-# edit can no longer silently drop or reword the conditional-path / trust-boundary checklist rows
-# while their body rules stay pinned. Literals are unique to the checklist line (the C3 body pin
-# 'source / exec / import closure' is the spaced form; the checklist uses the no-space form below).
-devflow_module_pin_unique "#467 C1: quality-checklist mirror for the conditional-path premise check" \
-  'enclosing gates/conditionals and their defaults on the path to X' "$CI_TMPL"
-devflow_module_pin_unique "#467 C3: quality-checklist mirror for the trust-boundary closure rule" \
-  'transitive source/exec/import closure of its entry points' "$CI_TMPL"
+# #1693: the #467 C1/C3 quality-checklist mirror pins (conditional-path premise check;
+# trust-boundary closure rule) are RETIRED here. Their content relocated from the always-loaded
+# template into the conditionally-loaded premises/contracts quality groups, and their survival is
+# now proven by the executable #1693 AC5 checklist-mapping test (each obligation appears exactly
+# once across the whole shipped surface, in its owner group) — so re-authoring a wording-only prose
+# presence pin here would be a #810-prohibited pin, superseded by that executable evidence.
 # Cluster D — Move 2a introduction trigger (template) + waiver-non-conforming clause; the
 # three-site best-effort-parser widening (CLAUDE.md, implement Phase 2.4, review-and-fix
 # fix-delta gate); extension sharpening (whole-file dimension count held at 9 after the
 # deployment-variance dimension added on main; #467 added none, matching the D3 guard below). The six-shape
 # SIXSHAPE_SET lockstep pins above stay green — the widening references the set, never restates it.
-devflow_module_pin_unique "#467 D1: introduction trigger names a blanket testing-scope waiver non-conforming" \
-  'blanket testing-scope waiver' "$CI_TMPL"
+# #1693: the #467 D1 introduction-trigger prose pin is RETIRED here — Move 2a's trigger relocated
+# into the regression quality group, and its survival is now proven by the executable #1693 AC5
+# checklist-mapping test, so re-authoring it as a wording-only prose pin would be #810-prohibited.
+# (D2/D3 below are unchanged — they pin CLAUDE.md / the extension, not moved prose.)
 devflow_module_pin_unique "#467 D2 (CLAUDE.md leg): best-effort-parser gotcha widened to mutable-markdown/external-format" \
   'The governed surface is broader than config JSON' "$CI_CLAUDE"
 devflow_module_pin_unique "#467 D2 (Phase 2.4 leg): dry-trace rule widened to mutable-markdown/external-format" \
@@ -1274,7 +1277,13 @@ CI614_TEMPLATE_REFS="issue-template"
 # into CI614_STEP_REFS or give it a ci614_step_unique call, and do not T4 purity-sweep it: it is
 # no default-path surface, and the pin gate refuses a fallback-prose absence pin over a skill file.
 CI614_ROUTING_REFS="degradation-routing"
-CI614_REFS="$CI614_STEP_REFS $CI614_FALLBACK_REFS $CI614_TEMPLATE_REFS $CI614_ROUTING_REFS"
+# #1693: the five conditionally-loaded quality-guidance groups. They are routed (T1/T2/T6, over
+# CI614_REFS below); their default-path purity is proven not by the T4 grep sweep (which covers the
+# fallback references only) but by the executable #1693 AC5 checklist-mapping test below, which
+# asserts each relocated obligation appears exactly once across the whole shipped surface and that
+# once is in its owner group — proving no full-list copy remains behind the router.
+CI614_QUALITY_REFS="quality-group-visual quality-group-contracts quality-group-premises quality-group-semantic quality-group-regression"
+CI614_REFS="$CI614_STEP_REFS $CI614_FALLBACK_REFS $CI614_TEMPLATE_REFS $CI614_ROUTING_REFS $CI614_QUALITY_REFS"
 
 # #1702 AC8: reconcile this shell roster's Step 3.6 members against the DECLARED manifest, so a
 # member added to lib/test/create-issue-step-3-6-members.json (and passing the Python
@@ -1308,6 +1317,7 @@ ci614_marker_id() {
     step-3-6-audit-adjudication) printf '3.6-adjudication' ;;
     step-4-present-create)  printf '4' ;;
     fallback-*)             printf '%s' "$1" ;;
+    quality-group-*)        printf '%s' "$1" ;;
     issue-template)         printf 'issue-template' ;;
     degradation-routing)    printf 'degradation-routing' ;;
     *)                      return 1 ;;
@@ -1437,6 +1447,191 @@ ci614_purity "$CI_REF_FB_VISUAL" \
 ci614_purity "$CI_REF_FB_EVIDENCE" \
   'the retry hand-embedding the template-file text in full'
 unset -f ci614_purity
+
+# #1693 quality-group default-path purity is proven by the executable AC5 checklist-mapping test
+# below (each group obligation present in its owner group AND absent from the always-loaded set —
+# SKILL.md + issue-template.md), which resolves each literal through a Python `in` test rather than
+# a raw source-grep presence pin (a #810-prohibited wording-only prose pin over relocated text). The
+# T1 routing/marker checks above prove the group files are routed; the AC5 test proves no full-list
+# copy remains behind the router. So no separate grep-based purity block is authored here.
+
+# #1693 AC8/AC9 — byte budget. Measured with Python Path.read_bytes() against the source-recorded
+# baseline (lib/test/create-issue-quality-routing-baseline.json — pre-change ALWAYS-LOADED bytes at
+# the recorded commit). AC8: the post-change core-only-loaded population (SKILL.md + issue-template.md)
+# is strictly smaller than the baseline. AC9: every byte this routing is responsible for across every
+# touched surface — the reference surface (template + every quality group, whole) plus the SKILL.md
+# router delta (not SKILL's untouched pre-existing body) — does not exceed the baseline. The baseline
+# byte total is re-derived from the recorded commit when
+# it is present in the checkout (fail-closed on a mismatch); a shallow clone that lacks the commit
+# reports baseline-verify=absent and the check falls back to the recorded literal (never silently green).
+_ci1693_budget() {
+  python3 - "$CI_ROOT" <<'PY1693'
+import json, pathlib, subprocess, sys
+root = pathlib.Path(sys.argv[1])
+spec = json.loads((root / 'lib/test/create-issue-quality-routing-baseline.json').read_text(encoding='utf-8'))
+baseline = spec['always_loaded_baseline_bytes']
+commit = spec['baseline_commit']
+# Re-derive the baseline from the recorded commit when available (source-recorded, fail-closed).
+# A shallow/partial clone that lacks the commit is a benign 'absent' (falls back to the recorded
+# literal); but once the commit IS present, any failure re-deriving from it — a listed file missing
+# at that tree (baseline-fixture drift), a git fault, a malformed baseline JSON — is an 'error', a
+# DISTINCT failing token, never folded into the benign 'absent' arm. So a real drift cannot be
+# silently downgraded to a passing 'absent'.
+present = subprocess.run(['git', 'cat-file', '-e', commit], cwd=root, capture_output=True)
+if present.returncode != 0:
+    verify = 'absent'
+else:
+    try:
+        total = 0
+        for rel in spec['always_loaded_baseline_files']:
+            blob = subprocess.run(['git', 'show', f"{commit}:{rel}"], cwd=root, capture_output=True)
+            if blob.returncode != 0:
+                raise FileNotFoundError(rel)
+            total += len(blob.stdout)
+        verify = 'ok' if total == baseline else f'mismatch({total}!={baseline})'
+    except Exception as ex:
+        verify = 'error:' + str(ex)[:40]
+def measure(key):
+    return sum(len((root / rel).read_bytes()) for rel in spec[key])
+core = measure('core_only_loaded_files')
+# AC9 counts every byte this routing is responsible for across every touched surface: the reference
+# surface (template + groups, whole) PLUS the SKILL.md router delta — the bytes the one-bullet router
+# added to the host file — never SKILL's untouched pre-existing body (which the routing did not author,
+# only pointed into). A negative delta (SKILL shrank) contributes 0.
+refs = measure('reference_surface_files')
+router_delta = max(0, len((root / spec['router_host_file']).read_bytes()) - spec['router_host_baseline_bytes'])
+touched = refs + router_delta
+print(f"baseline-verify={verify}")
+print(f"ac8={'PASS' if core < baseline else 'FAIL'} core={core} baseline={baseline}")
+print(f"ac9={'PASS' if touched <= baseline else 'FAIL'} touched={touched} refs={refs} router_delta={router_delta} baseline={baseline}")
+PY1693
+}
+_ci1693_out="$(_ci1693_budget)"
+printf '%s\n' "$_ci1693_out" | sed 's/^/  /'
+# baseline-verify must be exactly 'ok' (commit present, bytes match) or 'absent' (shallow clone) —
+# a positive token, so an empty/crashed output (no line at all), a 'mismatch', or an 'error'
+# (commit-present drift) all fail this assertion rather than a bare negative-absence-of-mismatch
+# reading as clean.
+assert_eq "#1693 AC8/AC9: recorded baseline re-derives cleanly from its commit, or the commit is absent (shallow clone) — never mismatch/error" "1" \
+  "$(printf '%s\n' "$_ci1693_out" | grep -cE '^baseline-verify=(ok|absent)$')"
+assert_eq "#1693 AC8: core-only-loaded population is strictly smaller than the pre-change baseline" "1" \
+  "$(printf '%s\n' "$_ci1693_out" | grep -c 'ac8=PASS')"
+assert_eq "#1693 AC9: combined touched surface (reference surface + SKILL router delta) does not exceed the pre-change baseline" "1" \
+  "$(printf '%s\n' "$_ci1693_out" | grep -c 'ac9=PASS')"
+unset -f _ci1693_budget
+unset -v _ci1693_out
+
+# #1693 AC4 — static routing cases cover a core-only draft, one positive and one negative case for
+# every quality group, and an uncertain-applicability case (which loads its group in full). The
+# fixture (lib/test/create-issue-quality-routing-cases.json) is the checked-in coverage matrix; this
+# check proves it is complete against the live group roster, so a group added without its routing
+# cases fails closed here rather than shipping unrouted-in-fixture.
+_ci1693_routing() {
+  python3 - "$CI_ROOT" "$CI614_QUALITY_REFS" <<'PY1693R'
+import json, pathlib, sys
+root = pathlib.Path(sys.argv[1])
+groups = sys.argv[2].split()
+spec = json.loads((root / 'lib/test/create-issue-quality-routing-cases.json').read_text(encoding='utf-8'))
+cases = spec['cases']
+problems = []
+# Exactly one core-only case, loading no group.
+core = [c for c in cases if c['kind'] == 'core-only']
+if len(core) != 1 or core[0]['expected_loaded'] != []:
+    problems.append('core-only')
+# An uncertain case that loads its group.
+unc = [c for c in cases if c['kind'] == 'uncertain' and c['group'] in c['expected_loaded']]
+if not unc:
+    problems.append('uncertain')
+# Every group named in a case is a real roster member; every expected-loaded stem is too.
+for c in cases:
+    if c['group'] is not None and c['group'] not in groups:
+        problems.append('unknown-group:' + c['group'])
+    for g in c['expected_loaded']:
+        if g not in groups:
+            problems.append('unknown-loaded:' + g)
+# Each group has >=1 positive (loads it) and >=1 negative (does not load it) case.
+for g in groups:
+    pos = [c for c in cases if c['kind'] == 'positive' and c['group'] == g and g in c['expected_loaded']]
+    neg = [c for c in cases if c['kind'] == 'negative' and c['group'] == g and g not in c['expected_loaded']]
+    if not pos:
+        problems.append('no-positive:' + g)
+    if not neg:
+        problems.append('no-negative:' + g)
+print('OK' if not problems else 'PROBLEMS:' + ','.join(problems))
+PY1693R
+}
+assert_eq "#1693 AC4: routing cases cover core-only, positive+negative per group, and uncertain" "OK" \
+  "$(_ci1693_routing)"
+unset -f _ci1693_routing
+
+# #1693 AC5 — the pre-change checklist maps completely to the core checklist and the five groups;
+# every protection retains its strength and appears once. For each mapped obligation: a core-owned
+# phrase is present in issue-template.md; a group-owned phrase appears EXACTLY ONCE across the whole
+# shipped create-issue surface (the skill root plus every loaded reference) and that once is in its
+# owner group file — proving it left the always-loaded path AND that no duplicate copy sits behind
+# the router in any other reference. Completeness is asserted against the recorded pre-change
+# checklist row count read from the baseline commit, so a dropped obligation fails closed.
+_ci1693_map() {
+  python3 - "$CI_ROOT" "$CI614_QUALITY_REFS" <<'PY1693M'
+import json, pathlib, subprocess, sys
+root = pathlib.Path(sys.argv[1])
+groups = set(sys.argv[2].split())
+spec = json.loads((root / 'lib/test/create-issue-quality-checklist-map.json').read_text(encoding='utf-8'))
+entries = spec['entries']
+baseline_commit = json.loads((root / 'lib/test/create-issue-quality-routing-baseline.json').read_text(encoding='utf-8'))['baseline_commit']
+refs_dir = root / 'skills/create-issue/references'
+tmpl = (refs_dir / 'issue-template.md').read_text(encoding='utf-8')
+# The whole shipped create-issue surface: the skill root plus every reference (the router and every
+# conditionally-loaded reference — step, fallback, and quality group). audit-prompt-template.md is a
+# renderer template, not a loaded reference, so it is excluded exactly as the CI_BUNDLE build does.
+shipped = {'skills/create-issue/SKILL.md': (root / 'skills/create-issue/SKILL.md').read_text(encoding='utf-8')}
+for p in sorted(refs_dir.glob('*.md')):
+    if p.name == 'audit-prompt-template.md':
+        continue
+    shipped[f'skills/create-issue/references/{p.name}'] = p.read_text(encoding='utf-8')
+problems = []
+for e in entries:
+    owner, phrase = e['owner'], e['phrase']
+    if owner == 'core':
+        if phrase not in tmpl:
+            problems.append('core-missing:' + phrase[:40])
+    elif owner in groups:
+        # "Appears once behind the router": the group obligation is present in exactly its owner
+        # group file and NOWHERE else across the whole shipped surface — not the always-loaded pair,
+        # not another conditionally-loaded reference. A duplicate anywhere (the repo's dominant
+        # load-twice-and-drift hazard) fails closed here, which is what makes "no full-list copy
+        # remains behind the router" a checked property rather than an unprotected claim.
+        owner_rel = f'skills/create-issue/references/{owner}.md'
+        carriers = [rel for rel, text in shipped.items() if phrase in text]
+        if carriers != [owner_rel]:
+            problems.append('not-once-in-owner:' + owner + ':' + repr(carriers)[:60] + ':' + phrase[:30])
+    else:
+        problems.append('unknown-owner:' + owner)
+# Completeness: the pre-change quality checklist's row count (from the baseline commit) must equal
+# the number of mapped obligations, so a dropped or unmapped row fails closed here.
+try:
+    base = subprocess.run(
+        ['git', 'show', f"{baseline_commit}:skills/create-issue/references/issue-template.md"],
+        cwd=root, capture_output=True)
+    if base.returncode == 0:
+        text = base.stdout.decode('utf-8')
+        seg = text.split('## Quality checklist', 1)[1]
+        seg = seg.split('## GitHub autolink hygiene', 1)[0]
+        rows = sum(1 for l in seg.splitlines() if l.lstrip().startswith('- [ ]'))
+        if rows != len(entries):
+            problems.append(f'count:{rows}!=mapped:{len(entries)}')
+    else:
+        problems.append('baseline-commit-absent')
+except Exception as ex:
+    problems.append('count-error:' + str(ex)[:30])
+print('OK' if not problems else 'PROBLEMS:' + '|'.join(problems))
+PY1693M
+}
+_ci1693_map_out="$(_ci1693_map)"
+assert_eq "#1693 AC5: pre-change checklist maps completely to core+groups; each group obligation appears exactly once (in its owner), none behind the router elsewhere" "OK" \
+  "$_ci1693_map_out"
+unset -f _ci1693_map
+unset -v _ci1693_map_out
 
 # Step-reference purity (shadow finding): T4 proves fallback prose left the default path, but
 # nothing proved a STEP reference's prose did not ALSO remain in the root — a duplicated
@@ -1759,7 +1954,9 @@ def main():
             print('caught' if verdict == 'mismatch' else 'MISSED')
     if mode.startswith('guard2'):
         cvp = _load('scripts/check-verified-premises.py', 'check_verified_premises')
-        tmpl = (root / 'skills/create-issue/references/issue-template.md').read_text(encoding='utf-8')
+        # #1693: the `Verified:` re-derivation-handle mandate relocated from issue-template.md into
+        # the conditionally-loaded premises quality group; read it from its new home.
+        tmpl = (root / 'skills/create-issue/references/quality-group-premises.md').read_text(encoding='utf-8')
         if mode == 'guard2-real':
             verdict, tf, adj = guard2(tmpl, cvp)
             sys.stderr.write(f'  template forms={sorted(tf)} helper-adjudicated={sorted(adj)}\n')
