@@ -1268,7 +1268,7 @@ echo "#614 create-issue split: routing, markers, purity"
 # its own marker id, routing row, and unique representative literal, enforced by the
 # T1/T2/T4 loops below over this roster.
 CI614_STEP_REFS="step-2-clarify step-3-5-steelman revision-delta step-3-6-audit step-3-6-audit-shared step-3-6-audit-dispatch step-3-6-audit-adjudication step-4-present-create"
-CI614_FALLBACK_REFS="fallback-no-task-tool fallback-read-only-sandbox fallback-audit-dispatch-arms fallback-state-owner-unavailable fallback-audit-round-reconciliation fallback-audit-boundary-offer fallback-draft-write-recovery fallback-implement-offer-tier-read fallback-visual-specification fallback-audit-evidence-degraded tracker-ladder"
+CI614_FALLBACK_REFS="fallback-no-task-tool fallback-read-only-sandbox fallback-audit-dispatch-arms fallback-state-owner-unavailable fallback-audit-round-reconciliation fallback-audit-boundary-offer fallback-draft-write-recovery fallback-implement-offer-tier-read fallback-visual-specification fallback-audit-evidence-degraded"
 # issue-template is a routed reference (gated, T1/T2), but NOT a step reference: it is kept in
 # its own roster group so the T4 default-path purity sweep (which loops CI614_STEP_REFS) does
 # not search it and it takes no ci614_step_unique call.
@@ -1322,7 +1322,6 @@ ci614_marker_id() {
     quality-group-*)        printf '%s' "$1" ;;
     issue-template)         printf 'issue-template' ;;
     degradation-routing)    printf 'degradation-routing' ;;
-    tracker-ladder)         printf 'tracker-ladder' ;;
     *)                      return 1 ;;
   esac
 }

@@ -7,11 +7,15 @@ argument-hint: <user-story>
 
 Before any of the pipeline's steps below, establish this seven-slot tracker.
 
-**Establish it with `TodoWrite`**, and count it established only once you have confirmed the
-tracker exists — through the tool's own read-back where it exposes one, or its rendered result
-otherwise. Where `TodoWrite` is not exposed, or the call leaves the tracker unconfirmed under that
-test, load `references/tracker-ladder.md` per the *Reference routing* rules below and work its
-rungs.
+**Establish it by working down these rungs, moving on whenever one is unavailable:** `TodoWrite`,
+`TaskCreate`/`TaskUpdate`, `update_plan`, any candidate named in a runner-supplied listing of tools
+it has not yet exposed, then a runner-advertised discovery mechanism — used to search for those
+candidates, never as one itself. A candidate is **unavailable** when it is not exposed, when the
+call returns a failure, or when it returns without a failure but confirms no tracker, through the
+tool's own read-back where it exposes one or its rendered result otherwise. **No rung ends the
+run:** hold a breadcrumb naming any failure and carry on to the next rung. Once every candidate is
+exhausted, use the inline fallback in `references/fallback-no-task-tool.md`, loaded per the
+*Reference routing* rules below — the route this skill takes when the runner exposes no task-tracking tool or the exposed one is disabled or unusable.
 
 The seven slots:
 
