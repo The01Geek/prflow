@@ -157,9 +157,6 @@ Later sites lacking the slug read that pointer; a pointer that is absent, unread
 whitespace-only, or not that single-slug shape is recorded unestablished and routes to the
 title-derived fallback `references/step-4-present-create.md` retains — never a slug composed from a
 partial read.
-Disclosed residual: the pointer carries no run-identity token, so a concurrent run in the same
-checkout overwrites it and its only reader — having lost turn-one context — holds no comparand that
-would detect the swap.
 
 Two arms, selected before any dispatch by a pre-pass operand: the duty-floor duties you judge the
 topic to engage. Derive it — and any value deciding which leg ran — with python3 or bash builtins,
@@ -267,16 +264,12 @@ Load `references/step-4-present-create.md` per the *Reference routing* rules abo
 
 ## Runner setup
 
-The rules below resolve the bundled-helper path at the point a helper is invoked; they stay here,
-below the Steps, because they matter only when a helper path must be resolved.
-
 The portable helper anchor is a single-statement rule. This skill invokes helpers bundled beside it
 — `load-prompt-extension.sh`, `issue-audit-state.py` (the audit-lifecycle state owner),
 `resolve-main-root.sh`, `ensure-label.sh`, `apply-labels.sh`.
 Resolve the skill directory inline, in the same statement that uses it, as
-`${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}`: the `:-`
-form uses `$CLAUDE_SKILL_DIR` only when it is set and non-empty, because the observed
-non-Claude-Code failure is an empty variable, not an unset one.
+`${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}`, whose `:-`
+form uses `$CLAUDE_SKILL_DIR` only when it is set and non-empty.
 Otherwise substitute the base directory this runner reports in context — e.g. a `Base directory for
 this skill:` line. Never capture the anchor into a shell variable that a later statement reads:
 some runners' inline-bash marshaling drops a variable assigned in an earlier statement of the same command.
