@@ -1,6 +1,6 @@
 <!-- prflow:create-issue-ref step=fallback-read-only-sandbox file=skills/create-issue/references/fallback-read-only-sandbox.md start -->
 
-Each arm below states the disposition of the artifacts it covers; some arms cover an artifact another arm owns, and the working-file-listing arm spans the whole set Step 4 lists, routing each to its own arm above. There is no generic arm for one to inherit. Filing is never blocked on any of them. Everything else is per-arm and stated where it applies: the failed delete is itself the signal you are in the read-only case only on the arms whose artifact has a delete-first step — the canonical-draft and dispatch-instruction writes have none, and the derivation-gate, presentation-gate and working-file-listing arms write and delete nothing of their own — and only the arms that say so report the reduced durability.
+Each arm below states the disposition of the artifacts it covers, and the working-file-listing arm routes every artifact Step 4 lists to its own arm above rather than supplying a default any arm can inherit. Filing is never blocked on any of them. Everything else is per-arm and stated where it applies: the failed delete is itself the signal you are in the read-only case only on the arms whose artifact has a delete-first step — the canonical-draft and dispatch-instruction writes have none, and the derivation-gate, presentation-gate and working-file-listing arms write and delete nothing of their own — and only the arms that say so report the reduced durability.
 
 ## Step 1 — the evidence artifact and the run-slug pointer
 
@@ -36,7 +36,7 @@ The `issue-audit-dispatch-<slug>.md` write fails exactly as the draft write does
 
 ## Step 4 — the working-file listing
 
-The failed or refused write or delete at or under `.prflow/` that put this run on this arm leaves the paths Step 4's listing names either missing or holding a prior run's bytes, so that listing can succeed and still show nothing this run wrote. **Do not trust an on-disk copy of any artifact it names**, each on the terms its own per-artifact arm above states, and re-enter no producing step on the strength of those entries. Where an arm above has already posted its artifact as a **visible inline-in-chat block** this run, that block is that artifact's stand-in and is re-posted in the current turn; for an artifact with no such block, report that artifact **unestablished**. Filing is never blocked.
+The failed or refused write or delete that put this run on this arm leaves the paths Step 4's listing names either missing or holding a prior run's bytes, so the listing can succeed while showing nothing this run wrote. **Do not trust an on-disk copy of any artifact it names** — each stands or falls on its own arm above — and re-enter no producing step on the strength of its rows. Where an arm above has already posted its artifact as a **visible inline-in-chat block** this run, that block is that artifact's stand-in and is re-posted in the current turn; an artifact with no such block is reported **unestablished**.
 
 ## Step 4 — the investigation-record artifact
 
