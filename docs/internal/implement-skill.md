@@ -1679,7 +1679,9 @@ contract §4.0 and §4.0.5 apply to their own references.
 - **Degraded load (resident):** when the reference read fails — absent, empty, harness-refused, or
   boundary-marker mismatched — the orchestrator records a `dropped-failed` reflection naming the
   reference path and stating the repair was not attempted, then continues to the terminal below. A
-  failed load never halts Phase 4 on its own.
+  failed load is never a separate stop — it routes through that terminal, which does stop the run.
+  This is deliberately **not** the non-halting degraded arm §4.0 and §4.0.5 carry for their own
+  references: those continue past the failure, where an undeliverable documentation path may not.
 - **Blocked (resident):** if the correct content cannot be derived from the prose (the note is
   insufficient), the reference could not be loaded, or the self-heal did not land per the re-check,
   the orchestrator does *not* tick `Documentation`. It routes to `--status Blocked

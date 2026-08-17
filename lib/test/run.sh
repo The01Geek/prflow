@@ -36330,15 +36330,10 @@ assert_pin_unique "#1557 the reference's start marker occurs exactly once" \
 assert_pin_unique "#1557 the reference's end marker occurs exactly once" \
   '<!-- prflow:implement-ref step=4.1 file=skills/implement/references/doc-deliverable-self-heal.md end -->' \
   "$I1557_REF"  # structural-pin-ok: routing-dispatch-contract -- the closing half of the same duplication guard
-# A COUNT, not a uniqueness pin: dropping either occurrence leaves the stub naming the reference
-# on only one of the two paths a reader reaches it by. pin_count, not `grep -cF` — both
-# occurrences sit on one line, so a line count reads 1 and a dropped one would be invisible.
-assert_eq "#1557 the stub names the reference through the <skill-dir> anchor on both paths" "2" \
-  "$(pin_count '<skill-dir>/references/doc-deliverable-self-heal.md' "$P4_FILE")"  # structural-pin-ok: routing-dispatch-contract -- the anchored path the stub's absent-path arm resolves the gated load from
 # The zero-count below is satisfied by RENAMING the literal in both files, so pair it with this
-# positive half. Keep this half OUTSIDE the scratch guard: inside, a scratch failure drops the
-# check that makes the pair non-vacuous. (Rationale for the pairing, the section scoping and the
-# expected 2 is in the cutover record under docs/internal/cutovers/.)
+# positive half; keep this half OUTSIDE the scratch guard, or a scratch failure drops it.
+# Expected 2 = the vendored rung + the anchor rung, each carrying the note; dropping the fallback
+# arm moves this count, and that regression is the anchor lint's to name.
 assert_eq "#1557 the self-heal repair step landed in the gated reference" "2" \
   "$(pin_count 'performed update from Documentation Needed prose' "$I1557_REF")"  # structural-pin-ok: cross-file-phase-contract -- the literal the zero-count below measures the absence of; without this row a rename in both files reads as a completed move
 I1557_S2="$(probe_tmp '#1557 phase-file Stage 2 slice')"
@@ -36348,13 +36343,20 @@ if [ "$I1557_S2" != "/dev/null" ]; then
     "$([ -s "$I1557_S2" ] && echo yes || echo no)"
   assert_eq "#1557 Stage 2 no longer carries the self-heal repair step" "0" \
     "$(grep -cF 'performed update from Documentation Needed prose' "$I1557_S2" || true)"
+  # Scoped to the SAME slice as the zero-count above. A whole-file count would stay 2 with the
+  # gated load moved out of Stage 2 entirely, leaving the repair unreachable from the arm that
+  # owes it while every other row here still passed.
+  assert_eq "#1557 the stub names the reference through the <skill-dir> anchor on both paths" "2" \
+    "$(pin_count '<skill-dir>/references/doc-deliverable-self-heal.md' "$I1557_S2")"  # structural-pin-ok: routing-dispatch-contract -- the anchored path the stub's absent-path arm resolves the gated load from, counted inside Stage 2 so the count attributes what it measures
 else
   # Scratch allocation failed, so the slice cannot be cut. One skip per dropped assertion, each
-  # named byte-identically to the assert_eq it stands in for, or the tally counts one loss where
-  # two occurred and neither skip reconciles to a check.
+  # named byte-identically to the assert_eq it stands in for, or the tally counts fewer losses
+  # than occurred and no skip reconciles to a check.
   skip "#1557 the Stage-2 slice is non-empty (the count below is not vacuous)" blocking-gate \
     "could not allocate a scratch file for the Stage-2 slice"
   skip "#1557 Stage 2 no longer carries the self-heal repair step" blocking-gate \
+    "could not allocate a scratch file for the Stage-2 slice"
+  skip "#1557 the stub names the reference through the <skill-dir> anchor on both paths" blocking-gate \
     "could not allocate a scratch file for the Stage-2 slice"
 fi
 # A deleted or re-pointed terminator silently widens the sed range to end-of-file, restoring the
@@ -36383,7 +36385,7 @@ assert_eq "#1557 the worktree-fence-shape lint enrolls the gated reference" "yes
 # The anchor lint's inventory rows are (path, invocation-suffix) PAIRS, so match the pair: the
 # path alone would pass for a row enrolling some other helper at this file.
 assert_eq "#1557 the anchor-fallback lint enrolls the relocated workpad.py call site" "yes" \
-  "$(python3 "$LIB/test/lint-anchor-fallback-arm.py" --print-inventory 2>/dev/null | grep -qxF "$(printf 'skills/implement/references/doc-deliverable-self-heal.md\tworkpad.py')" && echo yes || echo no)"  # structural-pin-ok: routing-dispatch-contract -- the relocated call site is cloud-reachable, so its vendored-literal-first ladder is what keeps it from being refused on the implement tier
+  "$(python3 "$LIB/test/lint-anchor-fallback-arm.py" --print-inventory 2>/dev/null | grep -qxF "$(printf 'skills/implement/references/doc-deliverable-self-heal.md\tworkpad.py update $ISSUE_NUMBER --note')" && echo yes || echo no)"  # structural-pin-ok: routing-dispatch-contract -- the enrolled row carries the helper's literal argument, as every sibling row does, so the ladder is checked per CALL SITE rather than per file
 
 # The masker's paren-depth arithmetic inside a code frame had no nested fixture.
 { printf '%s\n' '```bash' "gh issue create --body \"\$(cat <<'EOF'" 'prose $(echo nested) more' 'EOF' ')"' 'for n in 1 2; do .prflow/vendor/prflow/scripts/apply-labels.sh "$n" DevFlow; done' '```'; } > "$E363/i-nested-subst.md"

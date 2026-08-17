@@ -87,7 +87,8 @@ ENROLLED: tuple[tuple[str, str], ...] = (
     # moved out of the phase file into this gated reference. It runs on the cloud implement
     # tier whenever a named documentation deliverable is absent, so an anchor-only spelling
     # would be refused there and the repair would go unrecorded.
-    ("skills/implement/references/doc-deliverable-self-heal.md", "workpad.py"),
+    ("skills/implement/references/doc-deliverable-self-heal.md",
+     "workpad.py update $ISSUE_NUMBER --note"),
     # Enrolled at issue #1432. These four extension loads are reached on the cloud
     # implement tier — pr-description via the /prflow:implement Phase 4.2 PR-description
     # subagent, and the three docs children via the Phase 4.1 docs subagent — yet
