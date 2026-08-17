@@ -30,4 +30,4 @@ type: Changed
   shell expansions a worktree-isolated session refuses, and two suite assertions no longer
   fail on BSD `wc`'s padded output.
 - **`prflow_review.agent_overrides.<agent>.model` accepts the Agent tool's model aliases**, and
-  implement review progress is kept on a single surface.
+  implement review progress is kept on a single surface. (#1720)

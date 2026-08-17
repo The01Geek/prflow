@@ -7,7 +7,7 @@ type: Added
   pipeline, and a rewritten `/prflow:create-issue`.** This entry announces the work that
   shipped as tags `v2.32.1` through `v2.32.96` between 2026-08-10 and 2026-08-17; each
   underlying change keeps its own PR-cited entry below, and nothing here is new code. Patch
-  bumps are tagged but not announced, so this is the release note for that whole series.
+  bumps are tagged but not announced, so this is the release note for that whole series. (#1720)
 - **Oversized prompt files now fail closed instead of executing a truncated read.** Every
   `/prflow:implement` phase reference, the `/prflow:review` engine's phase files and the
   `/prflow:create-issue` references carry a self-naming boundary marker as their literal
