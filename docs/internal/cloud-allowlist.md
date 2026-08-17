@@ -1023,6 +1023,25 @@ the remedy this change applies does not reach them:
   (implement-tier row 10), a different and already-known class from the workspace-target rows this
   section supersedes.
 
+### Post-change confirmation status of the three measured shapes (issue #1721 AC5)
+
+**None of the three is confirmed by a post-change cloud run, and that is the recorded residual.**
+No cloud run was made against this branch: the probe workflow is the only channel that measures a
+shape on a cloud tier, `gh workflow run` is granted on no profile, and an implement run cannot
+discharge that evidence gate without explicit human direction. So each row below states what the
+remedy rests on, not a confirmation it does not have.
+
+| Refused shape | Remedy shipped | Status |
+|---|---|---|
+| the Phase 0 staging chain (compound multi-head) | staged `tee` pipelines, one head chain per statement | **unconfirmed** — rests on `tee` being permitted across every recorded measurement |
+| `2>…/acs.err` (redirect construct) | redirect removed; stderr read from the tool result | **unconfirmed** — the construct is simply no longer emitted, so nothing remains to refuse |
+| `printf … > <scratch-dir>/…` (`Contains simple_expansion`) | Write tool authors the marker; no shell expansion | **unconfirmed** — rests on the `Write(.prflow/tmp/**)` grant, PERMITTED on both tiers |
+
+The second row is the strongest of the three: it removes the refused construct rather than
+substituting another shape, so it cannot be refused for the recorded cause. The other two substitute
+shapes whose permitted-ness is measured but version-scoped. Re-probe after the next
+`claude-code-action` upgrade before treating any row as confirmed.
+
 Two population corrections, so a later audit is driven by the per-occurrence reading rather
 than by a raw grep:
 
