@@ -4,6 +4,65 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.33.0] — 2026-08-17
+
+### Added
+- **Feature release 2.33.0 — the boundary-marker read contract, a fresh-context implement
+  pipeline, and a rewritten `/prflow:create-issue`.** This entry announces the work that
+  shipped as tags `v2.32.1` through `v2.32.96` between 2026-08-10 and 2026-08-17; each
+  underlying change keeps its own PR-cited entry below, and nothing here is new code. Patch
+  bumps are tagged but not announced, so this is the release note for that whole series. (#1720)
+- **Oversized prompt files now fail closed instead of executing a truncated read.** Every
+  `/prflow:implement` phase reference, the `/prflow:review` engine's phase files and the
+  `/prflow:create-issue` references carry a self-naming boundary marker as their literal
+  first and last line, and each read site clears an accept-or-reject taxonomy with named stop
+  labels. A partial or mis-routed read halts the phase rather than being run as if correct.
+  `lib/test/lint-reference-size.py` additionally turns the suite red when a gated reference or
+  skill root grows past the single-read ceiling, so the failure is caught at the desk.
+- **A CI-derived completion-evidence record is accepted at the terminal `Complete` gate.** A
+  run that established a green required check for the commit it pushed can record that reading
+  through `workpad.py --record-completion-evidence-ci` instead of an in-environment suite pass,
+  validated offline against a clean tree at the recorded head.
+- **`/prflow:init` offers to bootstrap internal documentation.** A consent-gated step reads the
+  configured docs locations, classifies each, and — when internal docs are missing — dispatches
+  one scoped `/prflow:docs-bootstrap-internal` subagent. It never runs the external bootstrap
+  and commits nothing.
+- **`/prflow:create-issue` gained a Step 3.5 unrequested-guarantee sweep with a durable record
+  that Step 3.6 gates on**, applicability-gated compatibility and rollout sections, and a
+  provider-neutral A/B benchmark harness for measuring drafting changes.
+- **Every review run's injected grounding block now states the sole-publisher rule**, so a run
+  cannot mistake an unmarked review for one the engine posted.
+
+### Changed
+- **`/prflow:implement` now runs its judgment-heavy phases in fresh contexts.** Phase 1.6's
+  issue-claim audit, Phase 3.4's acceptance-criteria gate (two independent verifiers — one for
+  the literal claim, one for the evidence), Phase 4.0's deferral drafting, Phase 4.2's PR
+  description and branch setup each dispatch a subagent rather than resolving inline, so a
+  long orchestrator context can no longer colour those decisions.
+- **Consumer prompt extensions reload at each surface's re-entry boundary**, not only at run
+  start — a context compaction mid-run no longer silently drops the consumer's policy from the
+  rest of the run.
+- **`/prflow:create-issue`'s always-read surface was rewritten for instruction adherence and
+  cost.** The routing table moved off the skill root, the Step 3.6 audit reference was
+  decomposed below the single-read ceiling, the authoring checklist split into a core list plus
+  five conditionally-loaded groups, and the shared writing standard now leads with plain
+  language and models the prose it asks drafters to write.
+- **A prevention-only comment standard governs added and changed comments.** A comment survives
+  inline only when it names a specific wrong change it prevents; derivation, provenance and
+  design narrative move to internal documentation. The same pass trimmed the implement
+  orchestrator root, the retrospective skill and the checklist-trio agent bodies under the
+  instruction-plus-consequence prose rule.
+- **Verification got stricter in three places.** Phase 2 §2.3 sweeps grade the whole branch
+  delta rather than the uncommitted remainder; a run no longer publishes a PR or records
+  `Complete` while its local branch tip is absent from the remote; and `ruff` is gated inside
+  the test suite, so a Python lint regression can no longer ship green.
+- **Windows and BSD portability fixes.** Local text-file inputs decode explicitly as UTF-8,
+  workpad ticks are protected from MSYS path conversion, implement-bundle fences avoid the
+  shell expansions a worktree-isolated session refuses, and two suite assertions no longer
+  fail on BSD `wc`'s padded output.
+- **`prflow_review.agent_overrides.<agent>.model` accepts the Agent tool's model aliases**, and
+  implement review progress is kept on a single surface. (#1720)
+
 ## [2.32.96] — 2026-08-17
 
 ### Fixed
