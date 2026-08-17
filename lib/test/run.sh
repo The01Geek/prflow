@@ -36339,20 +36339,22 @@ assert_eq "#1557 the self-heal repair step landed in the gated reference" "2" \
 I1557_S2="$(probe_tmp '#1557 phase-file Stage 2 slice')"
 if [ "$I1557_S2" != "/dev/null" ]; then
   sed -n '/^\*\*Stage 2 —/,/config-get\.sh \.docs\.labels Documented/p' "$P4_FILE" > "$I1557_S2"
-  assert_eq "#1557 the Stage-2 slice is non-empty (the count below is not vacuous)" "yes" \
+  assert_eq "#1557 the Stage-2 slice is non-empty (the counts below are not vacuous)" "yes" \
     "$([ -s "$I1557_S2" ] && echo yes || echo no)"
   assert_eq "#1557 Stage 2 no longer carries the self-heal repair step" "0" \
     "$(grep -cF 'performed update from Documentation Needed prose' "$I1557_S2" || true)"
   # Scoped to the SAME slice as the zero-count above. A whole-file count would stay 2 with the
   # gated load moved out of Stage 2 entirely, leaving the repair unreachable from the arm that
   # owes it while every other row here still passed.
+  # pin_count, not `grep -cF`: grep counts LINES and both occurrences sit on one line, so a line
+  # count reads 1 and a dropped occurrence would be invisible.
   assert_eq "#1557 the stub names the reference through the <skill-dir> anchor on both paths" "2" \
     "$(pin_count '<skill-dir>/references/doc-deliverable-self-heal.md' "$I1557_S2")"  # structural-pin-ok: routing-dispatch-contract -- the anchored path the stub's absent-path arm resolves the gated load from, counted inside Stage 2 so the count attributes what it measures
 else
   # Scratch allocation failed, so the slice cannot be cut. One skip per dropped assertion, each
   # named byte-identically to the assert_eq it stands in for, or the tally counts fewer losses
   # than occurred and no skip reconciles to a check.
-  skip "#1557 the Stage-2 slice is non-empty (the count below is not vacuous)" blocking-gate \
+  skip "#1557 the Stage-2 slice is non-empty (the counts below are not vacuous)" blocking-gate \
     "could not allocate a scratch file for the Stage-2 slice"
   skip "#1557 Stage 2 no longer carries the self-heal repair step" blocking-gate \
     "could not allocate a scratch file for the Stage-2 slice"

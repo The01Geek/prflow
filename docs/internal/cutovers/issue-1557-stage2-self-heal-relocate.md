@@ -16,20 +16,22 @@ agent's own report of a `Read`.
 
 ## Measured delta — a 62-byte reduction, not the reduction the precedents bought
 
-Counted with `wc -c` at merge base `3e43e7b32`, captured 2026-08-17.
+Counted with `wc -c`; the Before column is merge base `3e43e7b32` and the After column is `4bfc8d65f`,
+captured 2026-08-17.
 
 | File | Before | After | Delta |
 | --- | --- | --- | --- |
 | `skills/implement/phases/phase-4-documentation.md` | 59,113 | 59,051 | **−62** |
-| `skills/implement/references/doc-deliverable-self-heal.md` | — | 3,725 | +3,725 |
+| `skills/implement/references/doc-deliverable-self-heal.md` | — | 4,148 | +4,148 |
 
 **Read that number before assuming this move resembles its precedents.** Issues #815 and #1374 each cut
 their always-read surface by tens of thousands of bytes. This one cuts 62 — about a tenth of one
-percent — which over the two mandated Phase 4 reads is 124 bytes of context per run, against +3,725
-loaded on the repair path when a deliverable is actually absent. On any run that owes a repair the
-change is net additive by roughly thirty to one; only a run that owes none comes out ahead, and then
-barely. The reference grew from 2,534 to 3,725 bytes **within this pull request**, as the review pass's
-findings were fixed, so the figures above are the merged-head measurement rather than the first draft's.
+percent — which over the two mandated Phase 4 reads is 124 bytes of context per run, against the whole
+reference loaded on the repair path when a deliverable is actually absent. On any run that owes a repair
+the change is net additive by well over an order of magnitude; only a run that owes none comes out
+ahead, and then barely. **The reference's figure is the volatile one and it moved three times inside
+this pull request** — 2,534 at the first draft, then 3,725 and 4,148 as successive review iterations
+fixed it — so read the row as measured at the SHA named above, not as a stable property of the design.
 
 The arithmetic is structural rather than an authoring failure. A **split** leaves the `Blocked` terminal
 resident where a **wholesale move** takes it along, and adds a gated-load instruction and a degraded arm
