@@ -4,6 +4,16 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.33.4] — 2026-08-17
+
+### Changed
+`/prflow:implement` Phase 4.1 Stage 2 now reaches its documentation-deliverable self-heal repair
+through a gated reference, `skills/implement/references/doc-deliverable-self-heal.md`, read only when
+a named deliverable is absent from the run's cumulative diff. The enforcement decision — satisfied
+versus absent, and the undeliverable-path `Blocked` terminal — stays resident in the phase file, so a
+failed reference load costs the run its repair and never its gate: every named path is still evaluated
+and `Documentation` is still not ticked for one that cannot be delivered.
+
 ## [2.33.3] — 2026-08-17
 
 ### Changed

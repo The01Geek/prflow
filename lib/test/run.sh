@@ -16064,7 +16064,7 @@ for PA_FILE in "$LIB"/../skills/review/phases/*.md "$LIB"/../skills/review-and-f
     "$(if grep -qF 'CLAUDE_SKILL_DIR' "$PA_FILE"; then grep -qF "$PORTABLE_ANCHOR_LITERAL" "$PA_FILE" && echo yes || echo no; else echo yes; fi)"  # raw-guard-ok: loop body: conditional presence pin over the enumerated $PA_FILE loop variable
 done
 assert_eq "#275 pin (R0): portable-anchor coverage spans every review phase + fix-loop + create-issue + implement reference file (enumeration reconciled)" \
-  "46" "$PA_REF_COUNT"
+  "47" "$PA_REF_COUNT"
 # Mutation proof (PASS->FAIL, self-contained): the absence EREs must actually MATCH the
 # two fragile forms they exist to reject — an ERE typo would leave P1/P2 green forever
 # (vacuous absence pins). Inject each fragile form into a temp copy of a migrated file
@@ -36316,6 +36316,104 @@ assert_pin_unique "#1374 the §4.0.5 stub retains the portable anchor as the pre
 # prompt-extension trigger-glob lists) deliberately carry NO presence pin:
 # a documentation-presence assertion is exactly the wording-only class the #810 authoring
 # policy prohibits, and the #434 stale-prose self-scan is what covers doc drift.
+
+# ── #1557 Phase 4.1 Stage 2's SELF-HEAL REPAIR is a gated reference; the gate stays resident ──
+# This move is a SPLIT, not a #815/#1374-style whole-procedure relocation, so the assertions pin
+# both halves: the reference's load contract, and that the enforcement stayed in the phase file.
+echo "#1557 documentation-deliverable self-heal reference gating"
+I1557_REF="$IMPL_REFS_DIR/doc-deliverable-self-heal.md"
+assert_eq "#1557 the gated reference exists and is non-empty" "yes" \
+  "$([ -s "$I1557_REF" ] && echo yes || echo no)"  # structural-pin-ok: routing-dispatch-contract -- the stub's absent-path arm reads this exact path; an absent or empty file routes every repair to the degraded arm
+assert_eq "#1557 the reference's first line is its own start boundary marker" \
+  '<!-- prflow:implement-ref step=4.1 file=skills/implement/references/doc-deliverable-self-heal.md start -->' \
+  "$(head -1 "$I1557_REF")"  # structural-pin-ok: routing-dispatch-contract -- the marker the stub literal-matches to accept the load
+assert_eq "#1557 the reference's last line is the matching end boundary marker" \
+  '<!-- prflow:implement-ref step=4.1 file=skills/implement/references/doc-deliverable-self-heal.md end -->' \
+  "$(tail -1 "$I1557_REF")"  # structural-pin-ok: routing-dispatch-contract -- the closing half of the same accept-the-load contract
+# A first-line and last-line check alone accepts a file carrying a DUPLICATE marker mid-file,
+# which would let a reader clear the boundary contract over a truncated or spliced body. Count
+# each marker separately so a one-sided duplication is attributable.
+assert_pin_unique "#1557 the reference's start marker occurs exactly once" \
+  '<!-- prflow:implement-ref step=4.1 file=skills/implement/references/doc-deliverable-self-heal.md start -->' \
+  "$I1557_REF"  # structural-pin-ok: routing-dispatch-contract -- a mid-file duplicate would pass a first-line check while the body it opens is not the body the gate accepted
+assert_pin_unique "#1557 the reference's end marker occurs exactly once" \
+  '<!-- prflow:implement-ref step=4.1 file=skills/implement/references/doc-deliverable-self-heal.md end -->' \
+  "$I1557_REF"  # structural-pin-ok: routing-dispatch-contract -- the closing half of the same duplication guard
+# The zero-count below is satisfied by RENAMING the literal in both files, so pair it with this
+# positive half; keep this half OUTSIDE the scratch guard, or a scratch failure drops it.
+# Expected 2 = the vendored rung + the anchor rung, each carrying the note; dropping the fallback
+# arm moves this count, and that regression is the anchor lint's to name.
+assert_eq "#1557 the self-heal repair step landed in the gated reference" "2" \
+  "$(pin_count 'performed update from Documentation Needed prose' "$I1557_REF")"  # structural-pin-ok: cross-file-phase-contract -- the literal the zero-count below measures the absence of; without this row a rename in both files reads as a completed move
+I1557_S2="$(probe_tmp '#1557 phase-file Stage 2 slice')"
+if [ "$I1557_S2" != "/dev/null" ]; then
+  sed -n '/^\*\*Stage 2 —/,/config-get\.sh \.docs\.labels Documented/p' "$P4_FILE" > "$I1557_S2"
+  assert_eq "#1557 the Stage-2 slice is non-empty (the counts below are not vacuous)" "yes" \
+    "$([ -s "$I1557_S2" ] && echo yes || echo no)"
+  assert_eq "#1557 Stage 2 no longer carries the self-heal repair step" "0" \
+    "$(grep -cF 'performed update from Documentation Needed prose' "$I1557_S2" || true)"
+  # The terminal's residency is pinned below, outside this guard, but the DECISION it fires on was not: the
+  # satisfied-versus-absent rule reads this sentinel, and the reference tells the agent to borrow
+  # that rule. Dragged into the reference, every other row here stays green while the gate follows
+  # the repair out of Stage 2.
+  assert_eq "#1557 the satisfied-versus-absent decision stayed resident in Stage 2" "1" \
+    "$(pin_count 'docgate-path' "$I1557_S2")"  # structural-pin-ok: machine-sentinel-provenance -- the deliverables helper's own printed sentinel, which the resident decision reads; without this row the gate can leave Stage 2 unobserved
+  # Scoped to the SAME slice as the zero-count above. A whole-file count would stay non-zero with
+  # the gated load moved out of Stage 2 entirely, leaving the repair unreachable from the arm that
+  # owes it while every other row here still passed.
+  # Exactly 1: the anchor belongs to the `Read` instruction only — the degraded arm's reflection
+  # text names the plain repo-relative path, since <skill-dir> resolves against nothing in a
+  # durable workpad record.
+  # pin_count, not `grep -cF`: grep counts LINES, so a second occurrence added to the same line
+  # would be invisible.
+  assert_eq "#1557 the stub resolves the gated load through the <skill-dir> anchor" "1" \
+    "$(pin_count '<skill-dir>/references/doc-deliverable-self-heal.md' "$I1557_S2")"  # structural-pin-ok: routing-dispatch-contract -- the anchored path the stub's absent-path arm resolves the gated load from, counted inside Stage 2 so the count attributes what it measures
+else
+  # Scratch allocation failed, so the slice cannot be cut. One skip per dropped assertion, each
+  # named byte-identically to the assert_eq it stands in for, or the tally counts fewer losses
+  # than occurred and no skip reconciles to a check.
+  skip "#1557 the Stage-2 slice is non-empty (the counts below are not vacuous)" blocking-gate \
+    "could not allocate a scratch file for the Stage-2 slice"
+  skip "#1557 Stage 2 no longer carries the self-heal repair step" blocking-gate \
+    "could not allocate a scratch file for the Stage-2 slice"
+  skip "#1557 the satisfied-versus-absent decision stayed resident in Stage 2" blocking-gate \
+    "could not allocate a scratch file for the Stage-2 slice"
+  skip "#1557 the stub resolves the gated load through the <skill-dir> anchor" blocking-gate \
+    "could not allocate a scratch file for the Stage-2 slice"
+fi
+# A deleted or re-pointed terminator silently widens the sed range to end-of-file, restoring the
+# vacuity the section scoping closes. Pin its retention so that widening turns the suite RED.
+assert_pin_unique "#1557 the phase file retains the Stage-2 slice terminator (the sed range ends on it)" \
+  'config-get.sh .docs.labels Documented' "$P4_FILE"  # structural-pin-ok: cross-file-phase-contract -- the sed range above terminates on this literal; without it the slice runs to EOF and its zero count no longer attributes what it measures to Stage 2
+# Pin the terminal PHASE-FILE-scoped: the #185 Blocked-arm pin targets the implement BUNDLE, which
+# spans references/*.md by glob, so it stays green if the terminal is dragged into the reference —
+# the one regression this change forbids.
+assert_pin_unique "#1557 the undeliverable-path Blocked terminal stayed resident in the phase file" \
+  'Documentation Needed file content cannot be determined' "$P4_FILE"  # structural-pin-ok: routing-dispatch-contract -- the resident terminal a failed reference load must still reach; the bundle-scoped #185 pin cannot see it move
+# Zero-count `--status` in ANY spelling and the reaction that pairs with it, not just the Blocked
+# arm: the reference forbids itself every one of Stage 2's terminal arms, and a --status Complete
+# or a stray 👎 dragged in here ends the run mid-loop exactly as wrongly.
+assert_eq "#1557 the gated reference writes no run status of its own" "0" \
+  "$(pin_count '--status' "$I1557_REF")"  # structural-pin-ok: lifecycle-state-transition -- the reference reports outcomes to its caller; a status write there would duplicate the terminal the phase file owns
+assert_eq "#1557 the gated reference emits no outcome reaction of its own" "0" \
+  "$(pin_count '👎' "$I1557_REF")"  # structural-pin-ok: lifecycle-state-transition -- the reaction is emitted with the terminal the phase file owns; one here would abandon the caller's remaining absent paths
+assert_eq "#1557 the phases/ directory reconciliation is untouched (the reference is NOT a phase stem)" "yes" \
+  "$([ ! -e "$IMPL_PHASES_DIR/doc-deliverable-self-heal.md" ] && \
+     [ "$IMPL_PHASE_STEMS" = "phase-1-setup phase-2-implement phase-2-sweeps-contract phase-2-sweeps-quality phase-3-review phase-3-fix-loop phase-3-ac-gate phase-4-documentation" ] \
+     && echo yes || echo no)"
+assert_eq "#1557 the implement shape-lint population reaches the third gated reference" "yes" \
+  "$(printf '%s\n' "${IMPL_SHAPE_FILES[@]}" | grep -qxF "$I1557_REF" && echo yes || echo no)"
+assert_eq "#1557 the cloud-writer manifest classifies the third gated reference as a reachable asset" "yes" \
+  "$(grep -qF 'skills/implement/references/doc-deliverable-self-heal.md' "$LIB/../lib/test/cloud_writer_contract.py" && echo yes || echo no)"  # structural-pin-ok: generated-artifact-identity -- an unlisted reachable asset is an AC1 closure violation the required check reports
+# Read each lint's OWN --print-inventory, never a grep of its source: a source grep is satisfied by
+# the path in a comment, a docstring, or a commented-out entry, none of which enrolls anything.
+assert_eq "#1557 the worktree-fence-shape lint enrolls the gated reference" "yes" \
+  "$(python3 "$LIB/test/lint-worktree-fence-shapes.py" --print-inventory 2>/dev/null | grep -qxF 'skills/implement/references/doc-deliverable-self-heal.md' && echo yes || echo no)"  # structural-pin-ok: cross-file-phase-contract -- the lint's own published inventory is the enrollment; an unenrolled file's fences are audited by nothing
+# The anchor lint's inventory rows are (path, invocation-suffix) PAIRS, so match the pair: the
+# path alone would pass for a row enrolling some other helper at this file.
+assert_eq "#1557 the anchor-fallback lint enrolls the relocated workpad.py call site" "yes" \
+  "$(python3 "$LIB/test/lint-anchor-fallback-arm.py" --print-inventory 2>/dev/null | grep -qxF "$(printf 'skills/implement/references/doc-deliverable-self-heal.md\tworkpad.py update $ISSUE_NUMBER --note')" && echo yes || echo no)"  # structural-pin-ok: routing-dispatch-contract -- the enrolled row carries the helper's literal argument, as every sibling row does, so the ladder is checked per CALL SITE rather than per file
+
 # The masker's paren-depth arithmetic inside a code frame had no nested fixture.
 { printf '%s\n' '```bash' "gh issue create --body \"\$(cat <<'EOF'" 'prose $(echo nested) more' 'EOF' ')"' 'for n in 1 2; do .prflow/vendor/prflow/scripts/apply-labels.sh "$n" DevFlow; done' '```'; } > "$E363/i-nested-subst.md"
 assert_eq "#480 a NESTED substitution inside the heredoc body does not unbalance the masker (the loop after it still flags IR1)" "yes" \
