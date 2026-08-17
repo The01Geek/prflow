@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.95] — 2026-08-17
+
+### Fixed
+- **Repair a macOS-only suite failure and three unresolvable references in `/prflow:create-issue`.** The two `#1675` post-issue-comment assertions in `lib/test/run.sh` compared a `wc -l` result without stripping padding, so BSD `wc`'s leading spaces made them read `0:       1` against an expected `0:1` — both failed on every macOS checkout while CI stayed green, quietly degrading the local suite signal contributors rely on before pushing; they now use the `tr -d ' '` idiom three sibling call sites in the same file already use. Four degraded arms — the skill root's routing-unavailable arm and the `step-2-clarify.md`, `issue-template.md` and `degradation-routing.md` rows — told a run to fall back on "the Definition-of-Ready summary and section list in the completion checklist", neither of which the checklist has ever contained, so a failed reference load routed the run to an empty source; they now name the user story and the Step 1 findings. `references/step-3-5-steelman.md` pointed at `references/issue-template.md` for the obligation-arm execution-tier constraint, which lives in `references/quality-group-contracts.md`, and at the skill root for the reduced-steelman record obligation, which lives in `references/degradation-routing.md`'s Step 3.5 row; both now resolve, and the first says to load the conditionally-loaded quality group when an obligation arm fires.
+
 ## [2.32.94] — 2026-08-17
 
 ### Changed
