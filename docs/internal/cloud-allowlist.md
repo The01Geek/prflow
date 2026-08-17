@@ -1001,7 +1001,7 @@ population rather than pinning a number to it.
 |---|---|---|---|
 | `skills/review/SKILL.md` | 4 × `2>` | cloud | rewritten — stderr read from the tool result |
 | `skills/review/phases/phase-0-setup.md` | staging chain, plus 2 × `2>` | cloud | rewritten — staged `tee` pipelines with per-stage section counts; `acs.err` removed |
-| `skills/review/phases/phase-1-checklist.md` | 1 × `>` | cloud | rewritten — Write tool |
+| `skills/review/phases/phase-1-checklist.md` | 1 × `>` | cloud | rewritten — `tee` pipeline with a section count |
 | `skills/review/phases/phase-4-verdict.md` | 1 × `>`, 1 × `2>` | cloud | rewritten — Write tool; stderr from the tool result |
 | `skills/review-and-fix/references/loop-control.md` | 1 × `2>` | cloud (`/prflow:review-and-fix`) | rewritten |
 | `skills/review-and-fix/references/loop-exit.md` | 2 × `2>` | cloud (`/prflow:review-and-fix`) | rewritten |

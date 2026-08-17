@@ -39145,8 +39145,12 @@ rm -f "$SP503_FENCE_CACHE/diff.raw-candidate"
 SP503_UNRESOLVED_RC=$?
 assert_eq "#1721 unresolved local-base placeholder fails nonzero rather than diffing an empty range" "yes" \
   "$(test "$SP503_UNRESOLVED_RC" -ne 0 && echo yes || echo no)"
-assert_eq "#1721 unresolved local-base placeholder stages no raw candidate content" "yes" \
-  "$(test ! -s "$SP503_FENCE_CACHE/diff.raw-candidate" && echo yes || echo no)"
+# The producer is a status probe: it must stay pipeline-free and redirect-free, or its exit
+# status stops being git's own and the staging guard loses its only producer reading.
+assert_eq "#1721 the producer probe stays a bare status check (no pipe, no staging target)" "yes" \
+  "$(grep -qE '\||tee |diff\.raw-candidate' "$SP503_FENCE_DIR/producer-unresolved.sh" && echo no || echo yes)"
+assert_eq "#1721 the producer probe uses --quiet so its status is the reading" "yes" \
+  "$(grep -qF -- '--quiet' "$SP503_FENCE_DIR/producer-unresolved.sh" && echo yes || echo no)"
 rm -rf "$SP503_FENCE_DIR"
 
 # Execute the skill's exact base-resolution fence as well. The observer appended

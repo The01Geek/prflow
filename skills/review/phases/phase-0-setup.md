@@ -108,7 +108,7 @@ fi
 
 The deleted-base fallback is **leak-equivalent to the pre-fix binding** when the base advanced (base content newer than `baseRefOid` re-enters the diff); accepted only because base deletion is rare and matches `gh pr diff`'s retained-SHA semantics. `--push-each-iteration` on a PR whose base differs from `$BASE` carries the separately reported residual leak.
 
-**Fail-closed at the producer (before the cache write).** Both local-diff paths — head override and current branch — stage a raw candidate, filter it, and publish `diff.patch` only after each step's own result has been observed. A producer, filter, staging, publication, or read-back failure removes the candidate and any prior `diff.patch`, and stops — an empty or stale cache must never reach the Phase 1–3 agents as "nothing to flag" and yield `APPROVE`. If the runner is terminated mid-command no downstream phase runs; a retry re-enters Phase 0.2, removes any prior cache before production, and republishes before Phase 1 reads. The wrapping `/prflow:implement` run records an observed stop as **Blocked**; a standalone run stops and reports it. (Phase 0.6's degraded note does **not** gate the agents' verdict, so the guard must sit here, before publication.)
+**Fail-closed at the producer (before the cache write).** Both local-diff paths — head override and current branch — stage a raw candidate, filter it, and check each step's own reading. **Publication precedes validation**: the filter `tee`s `diff.patch` as it streams, and the equation validating it is evaluated afterwards, so a failure removes the candidate **and `diff.patch` itself**, published this run or prior, and stops — an empty or stale cache must never reach the Phase 1–3 agents as "nothing to flag" and yield `APPROVE`. If the runner is terminated mid-command no downstream phase runs; a retry re-enters Phase 0.2, removes any prior cache before production, and republishes before Phase 1 reads. The wrapping `/prflow:implement` run records an observed stop as **Blocked**; a standalone run stops and reports it. (Phase 0.6's degraded note does **not** gate the agents' verdict, so the guard must sit here, before publication.)
 
 **Caller run-id (run-scoped scratch).** This run's scratch under `.prflow/tmp/review/<slug>/` nests one level deeper under a per-run `<run-id>` so concurrent or repeated reviews of the same PR never clobber each other. Resolve `<run-id>` **once** at the start of Phase 0.2 and hold the literal for the whole run:
 
@@ -146,7 +146,7 @@ gh pr diff $PR_NUMBER | awk '/^diff --git/{in_logs=/ [ab]\/\.prflow\/logs\//} !i
 # git diff "origin/$BASE...HEAD" | awk '/^diff --git/{in_logs=/ [ab]\/\.prflow\/logs\//} !in_logs' | tee .prflow/tmp/review/<slug>/<run-id>/diff.patch
 ```
 
-**In either local-diff mode — PR head override or current branch — replace that one-liner with the four ordered steps below.** Render `<resolved-local-diff-base>` as the selected `$HEAD_OVERRIDE_BASE` (PR head override) or `origin/$BASE` (current branch). Each step is one statement whose stages all pipe — no redirect, and the diff's bytes never transit this orchestrator, because a long tool result is truncated and a transcribed cache would publish a thinned diff the Phase 1–3 agents read as a smaller change.
+**In either local-diff mode — PR head override or current branch — replace that one-liner with the ordered steps below.** Render `<resolved-local-diff-base>` as the selected `$HEAD_OVERRIDE_BASE` (PR head override) or `origin/$BASE` (current branch). Each step is one statement whose stages all pipe — no redirect, and the diff's bytes never transit this orchestrator, because a long tool result is truncated and a transcribed cache would publish a thinned diff the Phase 1–3 agents read as a smaller change.
 
 **Step 1 — clear stale authority.**
 
@@ -154,29 +154,37 @@ gh pr diff $PR_NUMBER | awk '/^diff --git/{in_logs=/ [ab]\/\.prflow\/logs\//} !i
 rm -f .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate .prflow/tmp/review/<slug>/<run-id>/diff.patch
 ```
 
-**Step 2 — establish the producer's OWN status before publishing anything.** A pipeline reports its last stage's status, so the publishing command in step 3 cannot tell a failed producer from an empty diff — both print `0` and exit non-zero. This probe separates them and is the only thing that does:
+**Step 2 — establish that the base resolves at all.** A pipeline reports its last stage's status, so the staging command in step 4 cannot tell a failed producer from an empty diff — both print `0` and exit non-zero. This probe separates them **for the base-resolution failure class**; step 3 establishes the publishing producer's own status.
 
 ```bash
 # BEGIN LOCAL_DIFF_PRODUCER
-git diff --quiet "<resolved-local-diff-base>...HEAD"
+git diff --quiet "<resolved-local-diff-base>...HEAD" ; echo "probe-rc=$?"
 # END LOCAL_DIFF_PRODUCER
 ```
 
-Read the exit status from the tool result: **0** = the diff is genuinely empty (take the upstream "No changes to review" stop); **1** = changes exist, continue; **anything else** = the producer failed (a bad or unresolved base, a shallow checkout, an ungranted `git`) — `rm -f` the candidates and stop, quoting the stderr this probe showed.
+Read the emitted `probe-rc` token: **0** = the diff is genuinely empty (take the upstream "No changes to review" stop); **1** = changes exist, continue; **anything else** = the producer failed (a bad or unresolved base, a shallow checkout) — `rm -f` the candidates and stop, quoting the stderr this probe showed. **A missing `probe-rc=` token is a refusal, never the rc-0 empty reading** — the probe prints nothing on its own, so without the token a refused statement and a genuinely-empty diff are the same silence, and the empty arm ends the review having read no diff at all.
 
-**Step 3 — stage the raw candidate and count its sections.** Read the printed count from the tool result.
+**Step 3 — establish the publishing producer's own status and the expected section count.** This statement carries no pipeline, so its exit status *is* `git`'s, and its printed path count is the independent comparand step 4's count is checked against. Step 2 cannot serve here: `--quiet` short-circuits at the first difference, so it never streams the later sections whose failure classes this catches.
+
+```bash
+git diff --name-only "<resolved-local-diff-base>...HEAD"
+```
+
+Read both the exit status and the number of paths printed. A non-zero status, or a path count of `0` after `probe-rc=1` said changes exist, is a contradiction — `rm -f` the candidates and stop; never publish.
+
+**Step 4 — stage the raw candidate and count its sections.** Read the printed count from the tool result.
 
 ```bash
 git diff "<resolved-local-diff-base>...HEAD" | tee .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate | grep -c '^diff --git'
 ```
 
-**Step 4 — count the telemetry-log sections the filter is expected to strip.** Read the printed count; this is the operand that makes step 5's check an equation rather than a bare non-emptiness test. **Its pattern must anchor on ` [ab]/` exactly as the step-5 filter does** — an `a/`-only pattern counts a different set, so a section renamed *into* `.prflow/logs/` would be stripped by the filter but uncounted here, breaking the equation on a healthy filter and stopping a valid diff.
+**Step 5 — count the telemetry-log sections the filter is expected to strip.** Read the printed count; this is the operand that makes step 5's check an equation rather than a bare non-emptiness test. **Its pattern must anchor on ` [ab]/` exactly as the step-5 filter does** — an `a/`-only pattern counts a different set, so a section renamed *into* `.prflow/logs/` would be stripped by the filter but uncounted here, breaking the equation on a healthy filter and stopping a valid diff.
 
 ```bash
 grep -c '^diff --git.* [ab]/\.prflow/logs/' .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate
 ```
 
-**Step 5 — filter into the published cache, and count again.** Read the printed count from the tool result.
+**Step 6 — filter into the published cache, and count again.** Read the printed count from the tool result.
 
 ```bash
 # BEGIN LOCAL_DIFF_AWK_FILTER
@@ -184,7 +192,7 @@ awk '/^diff --git/{in_logs=/ [ab]\/\.prflow\/logs\//} !in_logs' .prflow/tmp/revi
 # END LOCAL_DIFF_AWK_FILTER
 ```
 
-**Step 6 — confirm publication, then drop the raw candidate.** Read the exit status from the tool result. This tests **existence, not non-emptiness**: a logs-only diff filters to an empty `diff.patch`, which publishes correctly and is reviewed as nothing to flag, so a non-emptiness test would abort exactly that benign case.
+**Step 7 — confirm publication, then drop the raw candidate.** Read the exit status from the tool result. This tests **existence, not non-emptiness**: a logs-only diff filters to an empty `diff.patch`, which publishes correctly and is reviewed as nothing to flag, so a non-emptiness test would abort exactly that benign case.
 
 ```bash
 test -e .prflow/tmp/review/<slug>/<run-id>/diff.patch
@@ -194,11 +202,9 @@ test -e .prflow/tmp/review/<slug>/<run-id>/diff.patch
 rm -f .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate
 ```
 
-**Failure routing — one rule covering all six steps.** The guard is step 2's producer status plus an **equation**, not a bare count: step 5's published count must equal step 3's raw count **minus** step 4's logs count. A count alone cannot guard this, because a failed `awk` and a legitimately logs-only diff both print `0` — `tee` creates its target before its producer runs, so the file exists either way, and the pipeline reports `grep`'s status rather than the producer's. Stop the run — `rm -f` the raw candidate and any prior `diff.patch`, reporting which step failed and quoting the stderr that step's own tool result showed — on any of: step 2 exiting anything but `0` or `1`; an unobservable result at any step; or step 5's count not equalling step 3's minus step 4's. **Only step 2 may declare the diff empty**, and only with exit `0`; a `0` count anywhere else is an operand in the equation, never on its own a benign reading.
+**Failure routing — one rule covering every step.** The guard is three independent readings, not a bare count: step 2's `probe-rc`, step 3's own exit status and path count, and an **equation** — step 6's published count must equal step 4's raw count **minus** step 5's logs count. A count alone cannot guard this, because a failed filter and a legitimately logs-only diff both print `0`; `tee` creates its target before its producer runs, so the file exists either way, and a pipeline reports `grep`'s status rather than the producer's — which is why step 3 carries no pipeline. Stop the run — `rm -f` the raw candidate **and `diff.patch` itself, whether published this run or prior** — reporting which step failed and quoting the stderr that step's own tool result showed, on any of: a missing `probe-rc` token; `probe-rc` reading anything but `0` or `1`; step 3 exiting non-zero, or printing zero paths after `probe-rc=1`; step 4's raw count not equalling step 3's path count; an unobservable result at any step; or step 6's count not equalling step 4's minus step 5's. **Only step 2 may declare the diff empty**, and only with `probe-rc=0`; a `0` count anywhere else is an operand, never on its own a benign reading. A stale, empty **or thinned** cache must never reach the Phase 1–3 agents as "nothing to flag" and yield `APPROVE`. The wrapping `/prflow:implement` run records an observed stop as **Blocked**; a standalone run stops and reports it.
 
-**Read the counting steps by their printed count, not their exit status.** `grep -c` exits **1** whenever it counts zero — printing `0` and exiting 1 is its no-match reading, not a failure — so steps 3, 4 and 5 are judged by the number they print and by the equation it feeds. Their exit status is consulted only when **no** count was printed at all, which is the unobservable-result arm above. Step 2 is the opposite and the only step whose status is the reading, because it prints nothing. A stale, empty **or thinned** cache must never reach the Phase 1–3 agents as "nothing to flag" and yield `APPROVE`. The wrapping `/prflow:implement` run records an observed stop as **Blocked**; a standalone run stops and reports it.
-
-**Named residual.** The counts are header-granular, so a stream truncated *within* a section — after its `diff --git` header, before its body — satisfies the equation with a thinned final section, and a `tee` write failure is invisible to a count taken from the stream. Both remain uncaught here, as they were under the superseded chain.
+**Named residual.** The counts are header-granular, so a stream truncated *within* a section — after its `diff --git` header, before its body — satisfies the equation with a thinned final section, and a `tee` write failure is invisible to a count taken from the stream. Both remain uncaught. The superseded chain read the producer's own exit status directly through its redirect; step 3 is what substitutes for that here, so a truncation *between* sections is caught by the step-3-vs-step-4 count comparison rather than by a status the publishing pipeline cannot report.
 
 **The `awk` filter.** The `awk` program sets `in_logs` on each `diff --git` header (true when the path **starts with** `.prflow/logs/` — anchored to the `a/`/`b/` diff-prefix boundary (` [ab]/.prflow/logs/`) so it matches only paths *rooted* there, never one containing the substring) and suppresses every line while `in_logs` holds; the next non-logs header resets it visible. It strips those `.prflow/logs/` hunks once, at the single cache-write point downstream phases read. A logs-only diff filters `diff.patch` to empty — the upstream "No changes to review" stop tests the *raw* fetched diff (before this filter) so it does **not** fire here; every downstream phase reads the empty `diff.patch` (Phase 0.3 an empty file list, Phase 3 agents an empty diff), so a telemetry-only PR is correctly reviewed as nothing to flag. Standalone review uses the read-only profile's granted `gh pr diff`/`git diff`, `awk`, `tee`, `grep`, `test`, `rm` and `echo` heads. The wrapper-only local head-override path additionally needs git fetch and git ls-remote; only the writable implement/manual profiles reach it and grant those.
 

@@ -62,7 +62,7 @@ Use the **same identifier string** in `phase3_dispatched` that you write to each
 # this invocation's own tool result showed, or the literal stderr=empty when it showed none;
 # it is a template slot, never text to emit literally.
 if ! MAX_ITERS=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .prflow_review_and_fix.max_iterations 5); then
-  echo "::warning::devflow review-and-fix max_iterations read failed (config-get.sh rc≠0): <stderr-quote> — using default 5"
+  echo "::warning::devflow review-and-fix max_iterations read failed (config-get.sh rc≠0) — using default 5; cause follows"
 fi
 # Fallback to the default 5 on a resolver failure (empty stdout from the failed read above)
 # or a non-integer/empty value; clamp a configured value below 1 up to 1 so the loop always
