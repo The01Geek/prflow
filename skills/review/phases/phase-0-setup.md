@@ -214,7 +214,7 @@ rm -f .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate
 
 **Read the counting steps by their printed count, not their exit status.** `grep -c` exits **1** whenever it counts zero — printing `0` and exiting 1 is its no-match reading, not a failure, and step 4 prints `0` on every PR that touches no `.prflow/logs/` file. Steps 3 to 6 are therefore judged by the number they print and by the equations it feeds; their exit status is consulted only when **no** count was printed at all, which is the unobservable-result arm above. Step 2 is the opposite — the one step whose status is itself a reading, because that status is `git`'s.
 
-**Pin the base before rendering.** `<resolved-local-diff-base>` is a render-time substitution, and both operands it is selected from — `origin/$BASE` and `$HEAD_OVERRIDE_BASE` — may name a moving ref. Resolve the selected operand to an immutable 40-hex commit id **once**, before emitting any step, and render that same id into steps 2 and 3 — the only steps carrying a base operand:
+**Pin the base before rendering.** `<resolved-local-diff-base>` is a render-time substitution, and both operands it is selected from — `origin/$BASE` and `$HEAD_OVERRIDE_BASE` — may name a moving ref. Resolve the selected operand to an immutable 40-hex commit id **once**, before emitting any step, and render that same id into steps 2, 2a, 2b and 3 — the steps carrying a base operand:
 
 ```bash
 git rev-parse "<selected-base-operand>^{commit}"

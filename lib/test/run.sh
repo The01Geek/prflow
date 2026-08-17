@@ -35504,6 +35504,12 @@ printf '%s\n' '```bash' \
   '```' > "$E363/s-ir6-stderr.md"
 assert_eq "#1721 shape-lint flags a NON-gh stderr redirect to .prflow/tmp (the rewritten shape)" "yes" \
   "$(python3 "$ECS" --profile implement "$E363/s-ir6-stderr.md" | grep -q '  IR6  ' && echo yes || echo no)"
+# `&>` writes fd 2 as much as `2>` does; dropping the `&`-clause from the stderr arm would
+# ship green without this row.
+printf '%s\n' '```bash' 'scripts/workpad.py acs-resolve 1 &>.prflow/tmp/review/s/r/acs.err' \
+  '```' > "$E363/s-ir6-ampersand.md"
+assert_eq "#1721 shape-lint flags a NON-gh \`&>\` redirect to .prflow/tmp" "yes" \
+  "$(python3 "$ECS" --profile implement "$E363/s-ir6-ampersand.md" | grep -q '  IR6  ' && echo yes || echo no)"
 # Discrimination: the stdout arm stays gh-scoped (row 11's non-gh `>` is measured PERMITTED,
 # asserted above), and an fd-2 DUPLICATION (`2>&1`) is not a file target at all.
 printf '%s\n' '```bash' 'printf hi 2>&1 | tee .prflow/tmp/x' '```' > "$E363/s-ir6-dup.md"
@@ -39244,11 +39250,9 @@ assert_eq "#1721 the filter keeps a path merely CONTAINING .prflow/logs/ (anchor
 assert_eq "#1721 the filter's printed section count equals the published section total" "2" \
   "$(printf '%s' "$SP503_FILTERED" | tail -1)"
 
-# (#1721) The step-4 logs count must anchor on ` [ab]/` like the filter: an `a/`-only pattern
-# misses a section renamed INTO .prflow/logs/, breaking the published == raw - logs equation on a
-# healthy filter and stopping a valid diff. Both operands are EXTRACTED from the skill, so an
-# `a/`-only drift in the shipped step 4 turns this red; hand copies here would assert only that
-# run.sh agrees with itself.
+# (#1721) Do not hand-copy the step-4 pattern or the filter here: both operands are EXTRACTED from
+# the skill, so only that turns red when the shipped step 4 drifts to an `a/`-only anchor, which
+# misses a section renamed INTO .prflow/logs/ and breaks the equation on a healthy filter.
 awk '/^# BEGIN LOCAL_DIFF_LOGS_COUNT/{capture=1; next} capture && /^# END LOCAL_DIFF_LOGS_COUNT/{exit} capture' \
   "$SP_REVIEW" > "$SP503_FENCE_DIR/logs-count.sh"
 assert_eq "#1721 the LOCAL_DIFF_LOGS_COUNT marker pair extracts a non-empty command" "yes" \
@@ -39318,10 +39322,9 @@ assert_eq "#1721 the producer's rows + T-rows equal the section count across a t
 assert_eq "#1721 the typechange fixture really produces two sections from one path" "2" \
   "$SP503_TC_SECTIONS"
 
-# ── Contract 3: step 6 counts the PUBLISHED FILE. `tee` keeps copying to stdout when its
-# write fails, so a step-6 that re-counted the stream (or counted the raw candidate) would
-# satisfy the published == step-5 equation against a diff.patch that landed truncated. The
-# command is EXTRACTED, so a shipped edit to either operand turns this red.
+# ── Contract 3: do not let step 6 re-count the stream or the raw candidate — `tee` keeps
+# copying to stdout when its write fails, so either would satisfy the published == step-5
+# equation against a diff.patch that landed truncated.
 awk '/^# BEGIN LOCAL_DIFF_PUBLISHED_COUNT/{capture=1; next} capture && /^# END LOCAL_DIFF_PUBLISHED_COUNT/{exit} capture' \
   "$SP_REVIEW" > "$SP503_FENCE_DIR/published-count.sh"
 assert_eq "#1721 the LOCAL_DIFF_PUBLISHED_COUNT marker pair extracts a non-empty command" "yes" \

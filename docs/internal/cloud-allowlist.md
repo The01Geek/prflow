@@ -945,12 +945,15 @@ is the canonical home for that reading.
 
 ---
 
-## The redirect-into-`.prflow/tmp/**` rows are CONTRADICTED by field evidence (issue #1721)
+## The redirect-into-`.prflow/tmp/**` rows are QUALIFIED by field evidence (issue #1721)
 
 **Probe rows in this file record a `>` redirect into `.prflow/tmp/**` as PERMITTED** — among them
 command-tier shape 3 (run `30956039324`, 2026-08-04, `claude-code-action@v1` with Claude Code
 2.1.221) and implement-tier row 11 (run `29623046995`, 2026-07-18). **Field evidence from a later
-consumer run contradicts them**, so no such row may be read as a current guarantee.
+consumer run refuses a redirect construct into that same tree**, so no such row may be read as a
+current guarantee. Note what the field evidence does *not* say: none of the three refusals below is
+a stdout `>` into `.prflow/tmp/**`, so the permit for that exact shape is un-refuted — it is
+advisory rather than denied, which is why the shipped lint keeps stdout `>` permitted.
 
 **This section supersedes those rows in time; it does not contradict them.** Each recorded what a
 real run measured at the version it names, and stays valid as history. What changed is that a later
@@ -974,10 +977,10 @@ names as allowed.** The guard is on the construct, not the destination, so "writ
 
 **Reconciliation.** The probe rows are not retracted — they record what a real run measured
 at the versions named, and a verdict is never rewritten from inference. They are **superseded
-as a forward guarantee**: the shape is version-fragile, and the two shapes that are permitted
-across every measurement — `Write(.prflow/tmp/**)` (PERMITTED on both tiers, and for a
-dispatched subagent as well) and `| tee` — are what shipped fences prescribe as of issue
-#1721. Re-probe before restoring any redirect-shaped recipe; **`| tee` is not a substitute
+as a forward guarantee**: the shape is version-fragile, and the two shapes shipped fences prescribe
+as of issue #1721 are `Write(.prflow/tmp/**)` (PERMITTED on both tiers, and for a dispatched
+subagent as well) and `| tee` — the former permitted across every measurement, the latter carrying
+no per-row verdict transcribed here and refused in no measurement either. Re-probe before restoring any redirect-shaped recipe; **`| tee` is not a substitute
 where a producer's exit status must be observed**, because in `producer | tee f | wc -l` the
 pipeline reports the last stage's status and the producer's failure becomes invisible.
 
