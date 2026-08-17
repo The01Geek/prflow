@@ -237,7 +237,7 @@ Each is combinable with the `--record-classification` / `--reconcile-reproductio
 
 **Write the run marker (both arms — fresh create and resume).** Immediately after the workpad exists (created above, or detected on the resume arm), write the run-marker file so a local-tier Stop-hook guard knows an implement run is in flight for this issue. It lives under the gitignored `.prflow/tmp/`, anchored to the repo (or worktree) root, and is removed at every terminal `Status` transition by the *Outcome reaction* block in the orchestrator.
 
-**The marker's first line records this run's owner.** Claude Code exports `CLAUDE_CODE_SESSION_ID`, the same value the Stop-hook payload carries as `session_id`, which lets the guard tell *this* run's marker apart from another concurrent session's in the same checkout.
+**The marker's first line records this run's owner** — the value the Stop-hook payload also carries, which is how the guard tells this run's marker from a concurrent session's in the same checkout.
 
 Ensure the scratch leaf exists — its own single statement:
 
@@ -245,7 +245,13 @@ Ensure the scratch leaf exists — its own single statement:
 mkdir -p <scratch-dir>
 ```
 
-Then author the marker at the substituted absolute path `<scratch-dir>/implement-active-$ISSUE_NUMBER` with the **Write tool**, never a shell fence — the cloud tier refuses both the redirect and the variable expansion a shell write needs. Pick the content from whether the runner exported a session id (`CLAUDE_CODE_SESSION_ID`, which Claude Code sets and other runners leave empty): when it did, the file's one line is that id's **value** as you hold it, never the literal `$CLAUDE_CODE_SESSION_ID`; when it did not, the file is empty.
+First read the session id, so the marker's owner line has a source; the local tier — the only tier whose Stop-hook guard reads this file — permits this bare read:
+
+```bash
+printf '%s\n' "$CLAUDE_CODE_SESSION_ID"
+```
+
+Then author the marker at the substituted absolute path `<scratch-dir>/implement-active-$ISSUE_NUMBER` with the **Write tool**, never a shell fence — the cloud tier refuses both the redirect and the variable expansion a shell write needs. When that read printed a non-empty value, the file's one line is that printed value, never the literal `$CLAUDE_CODE_SESSION_ID`; when it printed empty or was refused, the file is empty. **An empty marker forfeits owner identity**, which the guard treats as owned-by-this-session and blocks on, so a concurrent session sharing the checkout is blocked too — record that in a `--note` rather than leaving the loss silent.
 
 This is best-effort: if the write fails, note it and continue — a missing marker only means the Stop-hook backstop stays silent for this run.
 

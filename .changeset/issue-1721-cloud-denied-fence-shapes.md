@@ -11,10 +11,11 @@ to a `.err` file. A refused fence produced no output at all and burned a request
 recovered by improvising — for the Phase 0 diff-staging path that improvisation dropped the
 fail-closed staging entirely.
 
-The Phase 0 local-diff staging path keeps its guard structure as five ordered steps (produce,
-stage, filter, publish, confirm), each with an observable exit status and a single failure rule
-that clears the cache and stops. Its redundant promotion command is gone: the Write that authors
-`diff.patch` is the promotion.
+The Phase 0 local-diff staging path keeps its guard structure as ordered, separately-checked
+stages that stream through `tee` rather than passing the diff through the agent, so a truncated
+tool result cannot publish a thinned cache. Each stage reports its own section count, and a single
+failure rule clears the cache and stops; a count that legitimately falls to zero (a logs-only
+diff) publishes and is reviewed as nothing to flag.
 
 One error-handling arm is corrected rather than rewritten. The acceptance-criteria resolver's
 failure arm told the run to read a `.err` file that only the refused redirect could have created,

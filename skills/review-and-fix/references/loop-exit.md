@@ -192,9 +192,11 @@ All derivation lives in `lib/efficiency-trace.jq` (a mechanical jq filter, no LL
    # fail check inert). On a resolver failure, warn and force ENABLED=false so the read
    # fails CLOSED (skips the trace) rather than masquerading as a deliberate flag-off.
    # Do NOT redirect stderr to a file: a cloud harness refuses the redirect construct outright,
-   # so the fence returns no output at all. Quote the stderr from this call's own tool result.
+   # so the fence returns no output at all. Render <stderr-quote> as the first line of the stderr
+   # this invocation's own tool result showed, or the literal stderr=empty when it showed none;
+   # it is a template slot, never text to emit literally.
    if ! ENABLED=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .prflow_review_and_fix.efficiency_telemetry_enabled true); then
-     echo "::warning::devflow efficiency-trace gate read failed (config-get.sh rc≠0) — skipping trace"
+     echo "::warning::devflow efficiency-trace gate read failed (config-get.sh rc≠0): <stderr-quote> — skipping trace"
      ENABLED=false
    fi
    ```
@@ -212,10 +214,11 @@ All derivation lives in `lib/efficiency-trace.jq` (a mechanical jq filter, no LL
    # `if !` reads the helper's OWN exit status — never a captured rc read in a later
    # statement (a cross-statement-variable-stripping inline-bash runner would leave it empty).
    # Do NOT redirect stderr to a file: a cloud harness refuses the redirect construct outright,
-   # so the fence returns no output at all. Quote the stderr from this call's own tool result
-   # in whichever ::warning:: arm fires.
+   # so the fence returns no output at all. Render <stderr-quote> in whichever ::warning:: arm
+   # fires as the first line of the stderr this invocation's own tool result showed, or the
+   # literal stderr=empty when it showed none; it is a slot, never text to emit literally.
    if ! TRACE="$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/efficiency-trace.sh --workpad-dir "$WORKPAD_DIR" --slug "<slug>" --mode trace)"; then
-     echo "::warning::devflow efficiency-trace unavailable (rc≠0)"
+     echo "::warning::devflow efficiency-trace unavailable (rc≠0): <stderr-quote>"
    elif [ -z "$TRACE" ]; then
      echo "::warning::devflow efficiency-trace produced no output (all workpads unreadable/malformed?)"
    else

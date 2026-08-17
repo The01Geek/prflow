@@ -4593,8 +4593,8 @@ assert_pin_unique "#362: Skill rule forbids the mid-phase Skill-tool invocation 
 #     removed by the always-resident Outcome-reaction block, which already binds every
 #     terminal Status transition. Coupled to lib/implement-stop-guard.sh, which globs
 #     exactly this path — change one site and this pin names the other.
-# The marker path is present TWICE (the has-session-id and empty-marker fences), so do
-# not convert this to assert_pin_unique: it would fail on the correct tree.
+# Keep this a presence check, not assert_pin_unique: the path's occurrence count is prose-driven
+# and has already changed once (#1721 collapsed two marker fences into one instruction).
 assert_eq "#362: Phase 1.3 writes the run marker the Stop-hook guard globs" "yes" \
   "$(grep -qF '<scratch-dir>/implement-active-$ISSUE_NUMBER' "$P362_P1" && echo yes || echo no)"  # structural-pin-ok: routing-dispatch-contract -- the run-marker path the Stop-hook guard globs, in the issue-#1633 anchored spelling (<scratch-dir> resolves to the same .prflow/tmp the guard globs); coupled to lib/implement-stop-guard.sh
 assert_pin_unique "#362: the Outcome-reaction block removes the run marker at every terminal transition" \
@@ -35256,8 +35256,8 @@ assert_eq "#363 the review-skill head set matches the reviewed count (34 distinc
 s=importlib.util.spec_from_file_location("e",sys.argv[1]);m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
 h=m.extract_heads(open(sys.argv[2],encoding="utf-8").read());print(len({m.name_of(x) for x in h}))' "$ECH" "$REVIEW_BUNDLE")"
 
-# #426 no-skew property: Phase 1.1's awk batch-slice fence and its rc gate reuse
-# heads (awk, test, echo) already granted in BOTH cloud
+# #426 no-skew property: Phase 1.1's awk batch-slice fence and its confirm reuse
+# heads (awk, tee, grep, test, echo) already granted in BOTH cloud
 # TOOLS='…' lines; tee remains granted+used by Phase 0.2's cache-write. So the change
 # adds NO allowlist entry and cannot create the #363 consumer-workflow-version-skew
 # class. Pin EVERY head the fence depends on — `echo` included: it is the fence's
@@ -35269,7 +35269,7 @@ h=m.extract_heads(open(sys.argv[2],encoding="utf-8").read());print(len({m.name_o
 # exactly where the fence is newest.
 REV_TOOLS_RUNNER="$LIB/../.github/workflows/devflow-runner.yml"
 REV_TOOLS_CMD="$LIB/../.github/workflows/devflow.yml"
-for _rev_head in 'Bash(awk:*)' 'Bash(tee:*)' 'Bash(test:*)' 'Bash(echo:*)'; do
+for _rev_head in 'Bash(awk:*)' 'Bash(tee:*)' 'Bash(grep:*)' 'Bash(test:*)' 'Bash(echo:*)'; do
   assert_eq "#426 no-skew: review-runner TOOLS grants ${_rev_head} (Phase 1.1 slice fence adds no new head)" "yes" \
     "$(grep -qF "$_rev_head" "$REV_TOOLS_RUNNER" && echo yes || echo no)"
   assert_eq "#426 no-skew: devflow.yml TOOLS grants ${_rev_head} (Phase 1.1 slice fence adds no new head)" "yes" \
@@ -39086,11 +39086,13 @@ assert_eq "#503 wrapper-only fetch is not granted in the read-only review workfl
 assert_eq "#503 wrapper-only remote probe is not granted in the read-only review workflow" \
   "0" "$(grep -cF 'Bash(git ls-remote:*)' "$LIB/../.github/workflows/devflow-runner.yml")"
 
-# (#1721) Do NOT re-pin the staging path's 4-stage orchestration: it is now agent-executed
+# (#1721) Do NOT re-pin the staging path's step orchestration: it is now agent-executed
 # prose, and a prose literal resolves in pin-corpus-lint's prose-resolution arm (rc 3) before
 # any `# structural-pin-ok:` declaration is consulted. Only the two still-executable contracts
 # below are covered.
 SP503_FENCE_DIR="$(mktemp -d)"
+SP503_FENCE_CACHE="$SP503_FENCE_DIR/cache"
+mkdir -p "$SP503_FENCE_CACHE"
 
 # ── Contract 1: the awk telemetry-log filter (the one piece of real logic in the recipe).
 awk '/^# BEGIN LOCAL_DIFF_AWK_FILTER/{capture=1; next} capture && /^# END LOCAL_DIFF_AWK_FILTER/{exit} capture' \
@@ -39103,25 +39105,36 @@ printf '%s\n' \
   'diff --git a/.prflow/logs/telemetry.tsv b/.prflow/logs/telemetry.tsv' '+telemetry noise' \
   'diff --git a/docs/.prflow/logs/notes.md b/docs/.prflow/logs/notes.md' '+not rooted' \
   > "$SP503_FENCE_DIR/fixture.patch"
-SP503_FILTERED="$(sed "s#\.prflow/tmp/review/<slug>/<run-id>/diff\.raw-candidate#$SP503_FENCE_DIR/fixture.patch#g" \
+SP503_FILTERED="$(sed -e "s#\.prflow/tmp/review/<slug>/<run-id>/diff\.raw-candidate#$SP503_FENCE_DIR/fixture.patch#g" \
+  -e "s#\.prflow/tmp/review/<slug>/<run-id>#$SP503_FENCE_CACHE#g" \
   "$SP503_FENCE_DIR/filter.sh" | bash 2>&1)"
+# The filter tees into diff.patch, so the published file is what the generator would read.
+SP503_PUBLISHED="$(cat "$SP503_FENCE_CACHE/diff.patch" 2>/dev/null)"
 assert_eq "#1721 the filter keeps a non-logs hunk" "yes" \
-  "$(printf '%s' "$SP503_FILTERED" | grep -qF '+review payload' && echo yes || echo no)"
+  "$(printf '%s' "$SP503_PUBLISHED" | grep -qF '+review payload' && echo yes || echo no)"
 assert_eq "#1721 the filter strips a hunk rooted at .prflow/logs/" "yes" \
-  "$(printf '%s' "$SP503_FILTERED" | grep -qF '+telemetry noise' && echo no || echo yes)"
+  "$(printf '%s' "$SP503_PUBLISHED" | grep -qF '+telemetry noise' && echo no || echo yes)"
 assert_eq "#1721 the filter keeps a path merely CONTAINING .prflow/logs/ (anchored match)" "yes" \
-  "$(printf '%s' "$SP503_FILTERED" | grep -qF '+not rooted' && echo yes || echo no)"
+  "$(printf '%s' "$SP503_PUBLISHED" | grep -qF '+not rooted' && echo yes || echo no)"
+assert_eq "#1721 the filter's printed section count equals the published section total" "2" \
+  "$(printf '%s' "$SP503_FILTERED" | tail -1)"
 
 # ── Contract 2: a dropped <resolved-local-diff-base> substitution fails CLOSED. Real git here:
-# the literal placeholder is an invalid ref, so the producer can publish nothing.
+# the literal placeholder is an invalid ref, so the producer exits non-zero and step 2's failure
+# reading fires before any cache is staged.
 awk '/^# BEGIN LOCAL_DIFF_PRODUCER/{capture=1; next} capture && /^# END LOCAL_DIFF_PRODUCER/{exit} capture' \
   "$SP_REVIEW" > "$SP503_FENCE_DIR/producer-unresolved.sh"
 assert_eq "#1721 the LOCAL_DIFF_PRODUCER marker pair extracts a non-empty command" "yes" \
   "$(test -s "$SP503_FENCE_DIR/producer-unresolved.sh" && echo yes || echo no)"
-( cd "$SP503" && bash "$SP503_FENCE_DIR/producer-unresolved.sh" ) >/dev/null 2>&1
+sed "s#\.prflow/tmp/review/<slug>/<run-id>#$SP503_FENCE_CACHE#g" \
+  "$SP503_FENCE_DIR/producer-unresolved.sh" > "$SP503_FENCE_DIR/producer-resolved-paths.sh"
+rm -f "$SP503_FENCE_CACHE/diff.raw-candidate"
+( cd "$SP503" && bash "$SP503_FENCE_DIR/producer-resolved-paths.sh" ) >/dev/null 2>&1
 SP503_UNRESOLVED_RC=$?
 assert_eq "#1721 unresolved local-base placeholder fails nonzero rather than diffing an empty range" "yes" \
   "$(test "$SP503_UNRESOLVED_RC" -ne 0 && echo yes || echo no)"
+assert_eq "#1721 unresolved local-base placeholder stages no raw candidate content" "yes" \
+  "$(test ! -s "$SP503_FENCE_CACHE/diff.raw-candidate" && echo yes || echo no)"
 rm -rf "$SP503_FENCE_DIR"
 
 # Execute the skill's exact base-resolution fence as well. The observer appended

@@ -985,23 +985,30 @@ Cloud-reachability is decided by which tier executes the fence's phase, so `skil
 counts as cloud-reachable four times over — the two review tiers, `/prflow:review-and-fix`,
 and `/prflow:implement`'s inline Phase 3.3 fix loop all execute that bundle.
 
-**The enumerating search must allow a quoted target.** `grep -rnE '>\s*\.prflow/tmp' skills/`
-misses `> ".prflow/tmp/…"` entirely — eight occurrences in `phase-3-agents.md` were found only
-after widening it to `[0-9]?>>?[[:space:]]*"?\.prflow/tmp`. Use the widened form; the narrow one
-is what produced the incomplete first pass recorded below.
+**The enumerating search must allow a quoted target, and even the widened form is not complete.**
+`grep -rnE '>\s*\.prflow/tmp' skills/` misses `> ".prflow/tmp/…"` entirely — the `phase-3-agents.md`
+occurrences were found only after widening it to `[0-9]?>>?[[:space:]]*"?\.prflow/tmp`. That widened
+form is the minimum; the narrow one is what produced the incomplete first pass recorded below.
+
+**A third class evades both: a redirect whose target is a VARIABLE.** `> "${AGG}.tmp"` in
+`deferred-review-findings.md` and `> "${GIT_SNAP_BEFORE:-…}"` in `phase-3-agents.md` are
+cloud-reachable redirects into `.prflow/tmp/…` that no literal-path pattern matches. Enumerate
+those by reading each fence's variable definitions, not by grep alone — a count taken from the
+pattern alone under-reports this class by construction, which is why the rows above describe the
+population rather than pinning a number to it.
 
 | File | Sites | Reachability | Disposition |
 |---|---|---|---|
 | `skills/review/SKILL.md` | 4 × `2>` | cloud | rewritten — stderr read from the tool result |
-| `skills/review/phases/phase-0-setup.md` | 4 × `>` staging, 2 × `2>` | cloud | rewritten — five-step Write-tool staging; `acs.err` removed |
+| `skills/review/phases/phase-0-setup.md` | staging chain, plus 2 × `2>` | cloud | rewritten — staged `tee` pipelines with per-stage section counts; `acs.err` removed |
 | `skills/review/phases/phase-1-checklist.md` | 1 × `>` | cloud | rewritten — Write tool |
 | `skills/review/phases/phase-4-verdict.md` | 1 × `>`, 1 × `2>` | cloud | rewritten — Write tool; stderr from the tool result |
 | `skills/review-and-fix/references/loop-control.md` | 1 × `2>` | cloud (`/prflow:review-and-fix`) | rewritten |
 | `skills/review-and-fix/references/loop-exit.md` | 2 × `2>` | cloud (`/prflow:review-and-fix`) | rewritten |
 | `skills/implement/references/deferred-review-findings.md` | 2 × `2>` | cloud (`/prflow:implement`) | rewritten — exit-code routing replaces the stderr-content greps |
 | `skills/implement/phases/phase-1-setup.md` | 4 × `>` | cloud (`/prflow:implement`) | rewritten — Write tool |
-| `skills/retrospective-weekly/SKILL.md` | 11 mixed | **local only** — no workflow dispatches this command | **left unchanged** |
-| `skills/review/phases/phase-3-agents.md` | 8 redirect writes and appends, quoted target | cloud | **DEFERRED — not rewritten**, see below |
+| `skills/retrospective-weekly/SKILL.md` | mixed `>`/`>>`/`2>` | **local only** — no workflow dispatches this command | **left unchanged** |
+| `skills/review/phases/phase-3-agents.md` | redirect writes and appends, quoted and variable targets | cloud | **DEFERRED — not rewritten**, see below |
 | `skills/implement/phases/phase-3-fix-loop.md` | 2 × `2>` to a `mktemp` target | cloud (`/prflow:implement`) | **DEFERRED — not rewritten**, see below |
 
 **Two cloud-reachable populations are adjudicated here but deliberately NOT rewritten**, because

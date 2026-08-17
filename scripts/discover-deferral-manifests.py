@@ -121,11 +121,12 @@ REASON_UNREADABLE_DIRECTORY = "unreadable-directory"
 REASON_UNREADABLE_AGGREGATE = "unreadable-aggregate"
 REASON_INTERNAL_ERROR = "internal-error"
 
-# Aggregate discrimination markers the §4.0.5 fence greps. At most one is emitted
+# Aggregate discrimination markers. The §4.0.5 fence now routes on this helper's EXIT
+# CODE, not on these strings; they remain the human-readable cause. At most one is emitted
 # per run (the partial/all-failed arms are exclusive branches), and the per-root
 # failed breadcrumb below is deliberately worded so its own fixed text contains
-# NEITHER contiguous substring — the fence's `grep -q 'devflow: discovery partial:'`
-# discrimination is only sound under that exclusivity. NOTE the residual: the
+# NEITHER contiguous substring, so a reader classifying the cause from stderr is not
+# misled by a per-root line; exit-code routing is unaffected either way. NOTE the residual: the
 # per-root breadcrumb interpolates the root path and the OSError text, so a CALLER
 # that passes a root path literally containing a marker substring can defeat the
 # exclusivity. The §4.0.5 fence cannot: both its roots are path-safe components
@@ -570,8 +571,8 @@ def main(argv=None):
 
     # Roots-echo: name every root's ABSOLUTE path (os.path.abspath — normalized,
     # NOT symlink-resolved) and classification on every run that reaches here, so
-    # an `absent`-classified root is observable in the fence's tool result (the
-    # fence surfaces this line unconditionally) rather than silent. The zero-arg
+    # an `absent`-classified root is observable in the fence's own tool result, which the
+    # caller reads directly, rather than silent. The zero-arg
     # usage error returns above, before any root exists to echo.
     echo = " ".join(
         "%s=%s" % (os.path.abspath(root), status) for root, status in results
