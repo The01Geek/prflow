@@ -41,11 +41,6 @@ SEARCH_DIRS="$SLUG_DIR"
 # DISCOVERY_STATE is initialized empty BEFORE the statement (sentinel-operand rule); a matcher
 # refusal of the capture (treat NO OUTPUT AT ALL as a possible denial, never an empty value)
 # leaves it empty, printed as discovery=[] and routed fail-closed.
-# Ensure the scratch root the ${AGG}.tmp merge write below lives beneath exists; rc-checked (never
-# `|| true` — a DENIED .prflow/tmp predicts that write is denied too, mirroring lib/telemetry-branch.sh).
-if ! mkdir -p .prflow/tmp; then
-  echo "devflow: could not create .prflow/tmp for Phase 4.0.5 scratch" >&2
-fi
 DISCOVERY_STATE=""
 DISCOVERY_RC=0
 MANIFESTS=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/discover-deferral-manifests.py $SEARCH_DIRS) || DISCOVERY_RC=$?

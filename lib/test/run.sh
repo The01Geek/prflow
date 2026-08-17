@@ -39086,17 +39086,11 @@ assert_eq "#503 wrapper-only fetch is not granted in the read-only review workfl
 assert_eq "#503 wrapper-only remote probe is not granted in the read-only review workflow" \
   "0" "$(grep -cF 'Bash(git ls-remote:*)' "$LIB/../.github/workflows/devflow-runner.yml")"
 
-# (#1721) The local-diff staging path is no longer ONE executable script: its produce and
-# filter steps are bare commands, but staging and publication are Write-tool calls and the
-# failure routing is agent-executed. So this module no longer extracts-and-runs the whole
-# chain. It covers the two contracts that are still executable, and the 4-stage orchestration
-# (each failure clearing the cache and both candidates) is now agent-executed prose whose
-# compensating control is the review pass — deliberately NOT re-pinned as prose presence.
-# Extraction is marker-anchored and fails closed: an empty extraction is asserted non-empty
-# below, so a renamed marker turns this RED instead of vacuously passing.
+# (#1721) Do NOT re-pin the staging path's 4-stage orchestration: it is now agent-executed
+# prose, and a prose literal resolves in pin-corpus-lint's prose-resolution arm (rc 3) before
+# any `# structural-pin-ok:` declaration is consulted. Only the two still-executable contracts
+# below are covered.
 SP503_FENCE_DIR="$(mktemp -d)"
-SP503_FENCE_CACHE="$SP503_FENCE_DIR/cache"
-mkdir -p "$SP503_FENCE_CACHE"
 
 # ── Contract 1: the awk telemetry-log filter (the one piece of real logic in the recipe).
 awk '/^# BEGIN LOCAL_DIFF_AWK_FILTER/{capture=1; next} capture && /^# END LOCAL_DIFF_AWK_FILTER/{exit} capture' \
@@ -39104,8 +39098,6 @@ awk '/^# BEGIN LOCAL_DIFF_AWK_FILTER/{capture=1; next} capture && /^# END LOCAL_
 assert_eq "#1721 the LOCAL_DIFF_AWK_FILTER marker pair extracts a non-empty program" "yes" \
   "$(test -s "$SP503_FENCE_DIR/filter.sh" && echo yes || echo no)"
 
-# Fixture: a normal hunk, a hunk ROOTED at .prflow/logs/ (must be stripped), and a hunk whose
-# path merely CONTAINS that substring (must survive — the anchoring is the bug this catches).
 printf '%s\n' \
   'diff --git a/feature b/feature' '+review payload' \
   'diff --git a/.prflow/logs/telemetry.tsv b/.prflow/logs/telemetry.tsv' '+telemetry noise' \
@@ -39130,8 +39122,6 @@ assert_eq "#1721 the LOCAL_DIFF_PRODUCER marker pair extracts a non-empty comman
 SP503_UNRESOLVED_RC=$?
 assert_eq "#1721 unresolved local-base placeholder fails nonzero rather than diffing an empty range" "yes" \
   "$(test "$SP503_UNRESOLVED_RC" -ne 0 && echo yes || echo no)"
-assert_eq "#1721 unresolved local-base placeholder publishes no authoritative cache" \
-  "0" "$(test ! -e "$SP503_FENCE_CACHE/diff.patch"; echo $?)"
 rm -rf "$SP503_FENCE_DIR"
 
 # Execute the skill's exact base-resolution fence as well. The observer appended

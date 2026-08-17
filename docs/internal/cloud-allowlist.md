@@ -975,10 +975,15 @@ pipeline reports the last stage's status and the producer's failure becomes invi
 
 ### Per-occurrence adjudication of the shipped redirect population (issue #1721 AC1)
 
-Scope: every redirect into a scratch path under `skills/`. Cloud-reachability is decided by
-which tier executes the fence's phase, so `skills/review/**` counts as cloud-reachable four
-times over — the two review tiers, `/prflow:review-and-fix`, and `/prflow:implement`'s
-inline Phase 3.3 fix loop all execute that bundle.
+Scope: redirects into a scratch path under `skills/`, as enumerated by the search below.
+Cloud-reachability is decided by which tier executes the fence's phase, so `skills/review/**`
+counts as cloud-reachable four times over — the two review tiers, `/prflow:review-and-fix`,
+and `/prflow:implement`'s inline Phase 3.3 fix loop all execute that bundle.
+
+**The enumerating search must allow a quoted target.** `grep -rnE '>\s*\.prflow/tmp' skills/`
+misses `> ".prflow/tmp/…"` entirely — eight occurrences in `phase-3-agents.md` were found only
+after widening it to `[0-9]?>>?[[:space:]]*"?\.prflow/tmp`. Use the widened form; the narrow one
+is what produced the incomplete first pass recorded below.
 
 | File | Sites | Reachability | Disposition |
 |---|---|---|---|
@@ -991,6 +996,20 @@ inline Phase 3.3 fix loop all execute that bundle.
 | `skills/implement/references/deferred-review-findings.md` | 2 × `2>` | cloud (`/prflow:implement`) | rewritten — exit-code routing replaces the stderr-content greps |
 | `skills/implement/phases/phase-1-setup.md` | 4 × `>` | cloud (`/prflow:implement`) | rewritten — Write tool |
 | `skills/retrospective-weekly/SKILL.md` | 11 mixed | **local only** — no workflow dispatches this command | **left unchanged** |
+| `skills/review/phases/phase-3-agents.md` | 8 × `>`/`>>` (quoted target) | cloud | **DEFERRED — not rewritten**, see below |
+| `skills/implement/phases/phase-3-fix-loop.md` | 2 × `2>` to a `mktemp` target | cloud (`/prflow:implement`) | **DEFERRED — not rewritten**, see below |
+
+**Two cloud-reachable populations are adjudicated here but deliberately NOT rewritten**, because
+the remedy this change applies does not reach them:
+
+- `phase-3-agents.md` appends inside a `while read` loop (`printf '%s\0' "$rec" >> …`) to build
+  NUL-delimited path lists. The Write tool cannot participate in shell iteration, so the
+  Write-tool remedy is structurally unavailable and these need a different design — collect in a
+  shell variable and author once, or keep the redirect. Its dirty-tree snapshot is what authorises
+  the Phase 3.2 restore, so redesigning it is not a mechanical edit.
+- `phase-3-fix-loop.md` redirects to `$(mktemp)`, i.e. a `/tmp` target — the **probe-denied** arm
+  (implement-tier row 10), a different and already-known class from the workspace-target rows this
+  section supersedes.
 
 Two population corrections, so a later audit is driven by the per-occurrence reading rather
 than by a raw grep:

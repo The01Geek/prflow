@@ -148,10 +148,9 @@ gh pr diff $PR_NUMBER | awk '/^diff --git/{in_logs=/ [ab]\/\.prflow\/logs\//} !i
 
 **In either local-diff mode — PR head override or current branch — replace that one-liner with the five ordered steps below.** Render `<resolved-local-diff-base>` as the selected `$HEAD_OVERRIDE_BASE` (PR head override) or `origin/$BASE` (current branch). Every step is a standalone statement with no redirect and no compound list, because the runner refuses a redirect or a multi-head compound statement silently and an improvised substitute publishes an unfiltered or absent cache.
 
-**Step 1 — create the scratch directory, clear stale authority, then produce the raw diff.** Emit each line below as its own statement, the `git diff` bare; read its rc and stdout from the tool result.
+**Step 1 — clear stale authority, then produce the raw diff.** Emit each line below as its own statement; read the `git diff`'s rc and stdout from the tool result.
 
 ```bash
-mkdir -p .prflow/tmp/review/<slug>/<run-id>
 rm -f .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate .prflow/tmp/review/<slug>/<run-id>/diff.patch
 ```
 
@@ -161,7 +160,7 @@ git diff "<resolved-local-diff-base>...HEAD"
 # END LOCAL_DIFF_PRODUCER
 ```
 
-**Step 2 — stage the raw candidate.** With the **Write tool**, write step 1's observed stdout verbatim to `.prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate` (`Write(.prflow/tmp/**)` is granted on the review tier, as at 0.1.5).
+**Step 2 — stage the raw candidate.** With the **Write tool**, write step 1's observed stdout verbatim to `.prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate`.
 
 **Step 3 — filter the telemetry-log hunks.** Emit this fence bare; read its rc and stdout from the tool result.
 
@@ -171,11 +170,19 @@ awk '/^diff --git/{in_logs=/ [ab]\/\.prflow\/logs\//} !in_logs' .prflow/tmp/revi
 # END LOCAL_DIFF_AWK_FILTER
 ```
 
-**Step 4 — publish.** With the **Write tool**, write step 3's observed stdout to `.prflow/tmp/review/<slug>/<run-id>/diff.patch`. This Write **is** the promotion; a failed Write is already a hard error, so no separate promotion command exists.
+**Step 4 — publish.** With the **Write tool**, write step 3's observed stdout to `.prflow/tmp/review/<slug>/<run-id>/diff.patch`. This Write **is** the promotion.
 
-**Step 5 — confirm publication.** Read `.prflow/tmp/review/<slug>/<run-id>/diff.patch` back with the file-read tool, then `rm -f .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate`.
+**Step 5 — confirm publication, then drop the raw candidate.** Emit each line as its own statement; a `published` token confirms a non-empty cache without re-reading the whole diff into context.
 
-**Failure routing — one rule covering all five steps.** On a non-zero rc, an unobservable result, a failed Write, or a failed read-back: `rm -f` the raw candidate and any prior `diff.patch`, stop the run, and report which step failed, quoting the stderr observed in that step's own tool result. An empty or stale cache must never reach the Phase 1–3 agents as "nothing to flag" and yield `APPROVE`. The wrapping `/prflow:implement` run records an observed stop as **Blocked**; a standalone run stops and reports it.
+```bash
+test -s .prflow/tmp/review/<slug>/<run-id>/diff.patch && echo published
+```
+
+```bash
+rm -f .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate
+```
+
+**Failure routing — one rule covering all five steps.** On a non-zero rc, an unobservable result, a failed Write, or a step 5 that printed no `published` token: `rm -f` the raw candidate and any prior `diff.patch`, stop the run, and report which step failed, quoting the stderr observed in that step's own tool result. An empty or stale cache must never reach the Phase 1–3 agents as "nothing to flag" and yield `APPROVE`. The wrapping `/prflow:implement` run records an observed stop as **Blocked**; a standalone run stops and reports it.
 
 **The `awk` filter.** The `awk` program sets `in_logs` on each `diff --git` header (true when the path **starts with** `.prflow/logs/` — anchored to the `a/`/`b/` diff-prefix boundary (` [ab]/.prflow/logs/`) so it matches only paths *rooted* there, never one containing the substring) and suppresses every line while `in_logs` holds; the next non-logs header resets it visible. It strips those `.prflow/logs/` hunks once, at the single cache-write point downstream phases read. A logs-only diff filters `diff.patch` to empty — the upstream "No changes to review" stop tests the *raw* fetched diff (before this filter) so it does **not** fire here; every downstream phase reads the empty `diff.patch` (Phase 0.3 an empty file list, Phase 3 agents an empty diff), so a telemetry-only PR is correctly reviewed as nothing to flag. Standalone review uses the read-only profile's granted `gh pr diff`/`git diff`, `awk`, `tee`, and `rm` heads, plus the granted `Write(.prflow/tmp/**)`. The wrapper-only local head-override path additionally needs git fetch and git ls-remote; only the writable implement/manual profiles reach it and grant those.
 
