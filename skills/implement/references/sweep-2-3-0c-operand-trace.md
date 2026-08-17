@@ -5,7 +5,7 @@
 2.3.0a/2.3.0b catch a rule or an enumerated value replicated across too few sites; 2.3.4 verifies a boundary the diff *reads* but explicitly carves out the diff's *own* code. This sweep closes the gap between them, and it has **two authoritative triggers** — run it when either fires:
 
 - **(a) Code trigger — the diff adds a guard, predicate, validator, or coverage invariant.** A guard whose comparand comes from the diff's own code is covered by no other sweep: 2.3.4 carves out in-diff code, and 2.3.0a/2.3.0b watch peer sites and enumerated sets, not the operand a single guard reads.
-- **(b) Prose-policy trigger — the diff's deliverable is a policy-stating command block.** When the deliverable is a `SKILL.md` or `phases/*.md` command block that states a policy the agent must execute, the policy's operand is a value the *agent* has to observe at run time — and a policy stated against an operand no step produces is inert.
+- **(b) Prose-policy trigger — the diff's deliverable is a policy-stating command block.** When the deliverable is a `SKILL.md`, `phases/*.md`, or `references/*.md` command block that states a policy the agent must execute, the policy's operand is a value the *agent* has to observe at run time — and a policy stated against an operand no step produces is inert.
 
 Both triggers are the same defect at bottom: a check written against an operand nobody traced back to what actually produces it, so the check passes — or is inert — exactly on the inputs it was added to catch.
 

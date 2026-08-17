@@ -7,13 +7,13 @@
 
 **Predicate.** Fires whenever the change **deletes code** — a call site, a UI block, a branch, or a whole function.
 
-**Procedure:** `<skill-dir>/references/sweep-2-3-1-orphaned-setup.md`, read under the gated-procedure protocol in the §2.3 preamble in phase-2-sweeps-contract.md.
+**Procedure:** `<skill-dir>/references/sweep-2-3-1-orphaned-setup.md`, read under the **Gated sweep procedures** block in phase-2-sweeps-contract.md.
 
 #### 2.3.2 Stranded-dependents sweep (mandatory whenever the change deletes a method, file, route, or page)
 
 **Predicate.** Fires whenever the change **deletes a public method, class, file, page, route, endpoint, asset, or template**. Where 2.3.1 prunes dead lines inside the functions you touched, this sweep handles the inverse blast radius — the callerless surfaces, dead arguments, and surviving inbound links outside your diff that the deletion stranded.
 
-**Procedure:** `<skill-dir>/references/sweep-2-3-2-stranded-dependents.md`, read under the gated-procedure protocol in the §2.3 preamble in phase-2-sweeps-contract.md.
+**Procedure:** `<skill-dir>/references/sweep-2-3-2-stranded-dependents.md`, read under the **Gated sweep procedures** block in phase-2-sweeps-contract.md.
 
 #### 2.3.3 Convention-compliance sweep on touched code (mandatory)
 
@@ -188,7 +188,7 @@ Scope and discipline mirror the other 2.3.x sweeps: only touch error-handling si
 
 **Predicate.** Fires whenever the change **adds a collection output whose value depends on cardinality** — a sorted list, a deduped set, a grouped or counted tally, a tie-broken ranking. A pass-through collection that neither sorts, dedups, nor aggregates is out of scope.
 
-**Procedure:** `<skill-dir>/references/sweep-2-3-7-collection-cardinality.md`, read under the gated-procedure protocol in the §2.3 preamble in phase-2-sweeps-contract.md.
+**Procedure:** `<skill-dir>/references/sweep-2-3-7-collection-cardinality.md`, read under the **Gated sweep procedures** block in phase-2-sweeps-contract.md.
 
 ### 2.4 Test
 

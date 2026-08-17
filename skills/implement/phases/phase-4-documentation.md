@@ -47,7 +47,7 @@ Read the **exit code and printed state line from the tool result**, never a capt
 
 **Marker contract.** Accept the load only when the file's **first line is its `start` boundary marker and its last line the matching `end` marker**, each naming that file's own path.
 
-**Degraded arm — degrade, never halt.** When the predicate holds and the reference read fails — absent, empty, harness-refused, or mismatched boundary markers — record `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "…"` naming the reference path `skills/implement/references/deferred-review-findings.md` and stating that deferred review findings were **not** filed, then **continue to §4.1 without halting Phase 4**. `dropped-failed` is reserved for this arm; the unestablished arm uses `note`.
+**Degraded arm — degrade, never halt.** When the predicate holds and the reference read fails — absent, empty, harness-refused, or mismatched boundary markers — record `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "…"` naming the reference path `skills/implement/references/deferred-review-findings.md` and stating that deferred review findings were **not** filed, then **continue to §4.1 without halting Phase 4**. This arm uses `dropped-failed`; the unestablished arm uses `note`.
 
 ### 4.1 Update Documentation
 
