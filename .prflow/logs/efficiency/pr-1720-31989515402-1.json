@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1720",
+  "generated_at": "2026-08-17T03:02:17Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.96",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 5.554751,
+    "tokens": {
+      "input_tokens": 34,
+      "output_tokens": 13061,
+      "cache_read_input_tokens": 2536504,
+      "cache_creation_input_tokens": 171637,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 85,
+        "outputTokens": 23026,
+        "cacheReadInputTokens": 3827812,
+        "cacheCreationInputTokens": 387381,
+        "webSearchRequests": 0,
+        "costUSD": 5.554751,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 23,
+    "duration_ms": 264796
+  },
+  "permission_denials": {
+    "count": 7,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      ".prflow/vendor/prflow/scripts/resolve-review-overrides.py \"prflow:code-reviewer\" \"prflow:silent-failure-hunter\" \"prflow:comment-analyzer\" \"prflow:requesting-code-review\" 2>.prflow/tmp/review/pr-1720/local-run/rv-ovr.phase3.err; echo \"rc=$?\"; echo \"---stderr---\"; cat .prflow/tmp/review/pr-1720/local-run/rv-ovr.phase3.err",
+      "mkdir -p .prflow/tmp/cs-test/.changeset && git apply --directory=. --include='.changeset/*' /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1720/local-run/diff.patch 2>&1 && python3 scripts/consolidate-changesets.py --emit-bump-to /dev/stdout 2>&1 | tail -3; echo \"=== cleanup ===\"; rm -f .changeset/release-2-33-0-added.md .changeset/release-2-33-0-changed.md; git status --porcelain .changeset/",
+      "git apply --include='.changeset/*' .prflow/tmp/review/pr-1720/local-run/diff.patch && python3 scripts/consolidate-changesets.py --emit-bump-to /dev/stdout >/tmp/bump.txt 2>/tmp/err.txt; echo \"bump=$(cat /tmp/bump.txt)\"; cat /tmp/err.txt; rm -f .changeset/release-2-33-0-added.md .changeset/release-2-33-0-changed.md",
+      "git apply --include='.changeset/*' .prflow/tmp/review/pr-1720/local-run/diff.patch",
+      "python3 scripts/consolidate-changesets.py --emit-bump-to /dev/stdout --date 2026-08-17 --emit-entry-to /tmp/entry.txt 2>/tmp/err.txt; echo \"---err---\"; cat /tmp/err.txt; echo \"---entry---\"; cat /tmp/entry.txt",
+      "python3 scripts/consolidate-changesets.py --emit-bump-to /tmp/bump.txt --date 2026-08-17 --emit-entry-to /tmp/entry.txt 2>/tmp/err.txt; echo \"rc=$?\"; echo \"bump:\"; cat /tmp/bump.txt; echo; echo \"err:\"; cat /tmp/err.txt; echo \"entryhead:\"; head -3 /tmp/entry.txt",
+      "python3 scripts/consolidate-changesets.py --emit-bump-to /tmp/bump.txt --date 2026-08-17 --emit-entry-to /tmp/entry.txt 2>/tmp/err.txt; echo \"rc=$?\""
+    ],
+    "total": 7,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
