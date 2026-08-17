@@ -726,6 +726,13 @@
       "evidence": "ls -l emits 'ls: <listed path>: Permission denied' at exit 1 - a path-naming diagnostic that the pre-fix rule classified as an absent file. With 2>/dev/null only the successful listing row reached stdout, confirming the absent-file diagnostic rides on stderr."
     }
   ],
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "promoted",
+      "reason": null
+    }
+  },
   "telemetry": {
     "phase_0": {
       "calls": 0,
