@@ -2852,9 +2852,9 @@ assert_pin_unique "loop_role: field + value set pinned at iter-N json schema sou
   '"loop_role": "fix | promoted"' "$MAXI_SKILL"
 assert_pin_unique "loop_role: Step 3 item 7 record-shape rule persists it every iteration (Write anchored at item 6)" \
   'the iteration role from the schema: fix for a normal fix iteration, promoted for a Decide-outcome-2 shadow-promoted iter' "$MAXI_SKILL"
-# The "legibility-only" absence pin is retired (this PR): no program reads the phrase — the
-# consumer search over pin-corpus-lint.py's own machine-consumer surface found nothing — so it
-# is agent-executed prose under the #843/#876 recorded decision.
+# Do not re-add a `legibility-only` absence pin: nothing reads the phrase (checked via
+# pin-corpus-lint.py's machine_consumer_evidence), so it would test agent-executed prose,
+# which #843/#876 places outside automated coverage.
 
 # Drift guard: issue #159's Step 3.5 fix-delta verification gate is the in-iteration
 # delta-regression catch — after each iteration's fix commit a blinded subagent re-reviews
@@ -28214,13 +28214,9 @@ unset _T789_BAD _T789_N _t789_meta _t789_mode _t789_path _t789_first
 # is the review pass that reads the prose.
 # G13 (#719): implement.md states a final full-suite obligation whose scope covers the cloud tier,
 # so the tier-agnostic guarantee is legible on the extension itself, not only via CLAUDE.md tier 2.
-# Finding 2's five undefined-`or path`-disjunct absence pins are retired here on the same basis
-# the marker-literal pins above were (issue #1007): each asserted a deleted phrase stays deleted
-# on a prompt-extension, overview or CONTRIBUTING surface, and a consumer search over the lint's
-# own machine-consumer surface (`scripts/`, `lib/`, `.github/` less `lib/test/`, via
-# `pin-corpus-lint.py`'s `machine_consumer_evidence`) found no program reading `module or path`
-# or `focused path`. They are agent-executed prose, so under the #843/#876 recorded decision the
-# retirement owes no replacement coverage; the compensating control is the review pass.
+# Do not re-add an absence pin for `module or path` / `focused path`: nothing reads them
+# (checked via pin-corpus-lint.py's machine_consumer_evidence), so a pin here would test
+# agent-executed prose, which #843/#876 places outside automated coverage.
 
 # (a) implement.md routing-rule operative sentence.
 assert_pin_unique "#506 implement.md carries the prompt-surface routing operative sentence" \

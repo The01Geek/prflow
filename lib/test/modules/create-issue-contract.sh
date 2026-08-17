@@ -234,11 +234,9 @@ devflow_module_pin_present "#443: Step 3.6 names the VERDICT: REVISE legal value
 devflow_module_pin_unique "#443: live create-issue extension carries the exact ## Audit dimensions heading" \
   '## Audit dimensions' "$CI_EXT"
 # Generic dimension checklist is consumer-agnostic (maps to the dimension-checklist AC).
-# The #443 stale-literal absence pin is retired (this PR), and its non-vacuity proof goes with
-# it — that proof only demonstrated the retired guard was not passing vacuously, so it asserts
-# nothing about the shipped tree on its own. No program reads 'no-subagent, all-inline model':
-# the consumer search over pin-corpus-lint.py's own machine-consumer surface found none, so the
-# target is agent-executed prose under the #843/#876 recorded decision.
+# Do not re-add an absence pin for 'no-subagent, all-inline model' (nor its non-vacuity proof):
+# nothing reads the literal (checked via pin-corpus-lint.py's machine_consumer_evidence), so it
+# would test agent-executed prose, which #843/#876 places outside automated coverage.
 # Anti-deadlock guarantee (maps to the VERDICT: REVISE / re-audit AC): removing it re-opens an
 # unbounded re-audit loop that could block issue filing.
 # Mandatory never-silent audit summary line (maps to the audit-summary AC): the feature's
@@ -427,10 +425,9 @@ done
 # generated-instructions one and the renderer invocation itself lives in the generated
 # instructions, not in this prose — its pin moved with it, below.
 # Guard the current closed enumeration against silently adding a sixth consumption category.
-# The #600 sixth-member absence pin is retired (this PR): no program reads the enumeration, the
-# consumer search found none, and `(vi)` is a two-character literal whose absence is as easily
-# satisfied by a rewording as by the enumeration staying closed. Agent-executed prose per
-# #843/#876; the compensating control is the review pass.
+# Do not re-add a `(vi)` sixth-member absence pin: nothing reads the enumeration (checked via
+# pin-corpus-lint.py's machine_consumer_evidence), and a rewording satisfies that absence as
+# readily as a closed enumeration does, so it would test agent-executed prose (#843/#876).
 # issue #709 relocated this invocation out of the skill prose and into the canonical
 # dispatch-instruction blocks the generator emits, so the pin follows the content to the
 # template. The guarded regression is unchanged: the auditor is still told to run the
@@ -934,10 +931,9 @@ assert_eq "#611/#600 AC6: the surviving no-op sentence states the absent heading
 # string passes under any reworded restatement, so it polices nothing.
 # (#600 cutover) retired here: the "terminator precision is stated exactly once"
 # pin — superseded for the same reason; regression covered by R4's extraction matrix.
-# AC7's budget-clause absence pin is retired (this PR): the real enforcement is
-# `evaluate_convergence`'s own behaviour, which `scripts/issue-audit-state.py`'s tests cover,
-# and no program reads the prose phrase — the consumer search found none. Agent-executed prose
-# per #843/#876.
+# Do not re-add a 'within the existing automatic audit budget' absence pin: budget legality is
+# enforced by evaluate_convergence in scripts/issue-audit-state.py, which keeps its own tests,
+# and nothing reads the prose phrase, so a pin here would test prose (#843/#876).
 
 # ── issue #603: the per-finding ledger, the post-close channels, and the reconciliation
 #    discipline. Surface-presence contract pins over agent-executed prose. Where a pinned
@@ -1190,10 +1186,9 @@ rm -f "$CI559_BND"
 
 # ── issue #613: shift-left evidence disciplines in the live create-issue extension —
 #    the surviving behavioral guards cover the stale ordinal and negative repo-wide sweep.
-# AC7's rotted-ordinal absence pin is retired (this PR): no program reads the phrase — a consumer
-# search over pin-corpus-lint.py's own machine-consumer surface found none — so the target is
-# agent-executed prose under the #843/#876 recorded decision and its retirement owes no
-# replacement coverage.
+# Do not re-add a 'not a fourth defect class' absence pin: nothing reads the phrase (checked via
+# pin-corpus-lint.py's machine_consumer_evidence), so it would test agent-executed prose, which
+# #843/#876 places outside automated coverage.
 # AC10 — the overview's stale axis enumeration is retired repo-wide. The module itself
 # necessarily carries the phrase as this grep's own needle, so the sweep excludes this
 # file by pathspec; an unexcluded sweep could never reach zero. Any OTHER tracked hit is
