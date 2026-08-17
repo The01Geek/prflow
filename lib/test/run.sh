@@ -36336,8 +36336,10 @@ assert_pin_unique "#1557 the reference's end marker occurs exactly once" \
 # Named twice by design (the load instruction and the degraded arm), so this is a COUNT, not a
 # uniqueness pin: dropping either occurrence leaves the stub naming the reference on only one of
 # the two paths a reader reaches it by.
+# pin_count, not `grep -cF`: grep counts LINES, and both occurrences sit on one line, so a
+# line count reads 1 and a dropped occurrence would be invisible.
 assert_eq "#1557 the stub names the reference through the <skill-dir> anchor on both paths" "2" \
-  "$(grep -cF '<skill-dir>/references/doc-deliverable-self-heal.md' "$P4_FILE" || true)"  # structural-pin-ok: routing-dispatch-contract -- the anchored path the stub's absent-path arm resolves the gated load from
+  "$(pin_count '<skill-dir>/references/doc-deliverable-self-heal.md' "$P4_FILE")"  # structural-pin-ok: routing-dispatch-contract -- the anchored path the stub's absent-path arm resolves the gated load from
 # The move is what buys the reduction, so assert the repair actually LEFT the phase file rather
 # than being duplicated into the reference. SECTION-scoped, as #815's is: the phase file's §4.3
 # carries its own landing check, so a whole-file count would measure something other than Stage 2.

@@ -1655,19 +1655,35 @@ any same-named file, is the deliverable.) Paths containing a `/` must appear as 
 the helper reported `no-deliverables`, this cross-check is a no-op and the orchestrator proceeds
 directly to applying the post-docs labels and ticking `Documentation`.
 
-**For each absent path the orchestrator either self-heals or blocks:**
+**For each absent path the orchestrator either self-heals or blocks — and the two halves live in
+different files (issue #1557).** The *repair* is a predicate-gated reference,
+`skills/implement/references/doc-deliverable-self-heal.md`, read only on the arm where a named path
+is absent and a repair is therefore owed; the *enforcement decision* — satisfied-versus-absent, and
+the undeliverable-path `Blocked` terminal — stays resident in
+`skills/implement/phases/phase-4-documentation.md`. That split is the point of the move rather than
+an implementation detail: a failed reference load costs the run its repair, never its gate, so the
+orchestrator still evaluates every named path and still refuses to tick `Documentation` for one it
+cannot deliver, from resident prose alone. The reference is accepted only when its first line is its
+own `start` boundary marker and its last line the matching `end` marker.
 
-- **Self-heal:** if the correct update can be derived from the issue body's `**Documentation Needed**`
-  prose, the orchestrator performs the missing update itself, records a workpad note (`Phase 4.1
-  self-heal: <path> absent from diff; performed update from Documentation Needed prose`), commits with
-  a `docs:` prefix, and pushes. It then **re-verifies the self-heal landed and reached the remote** —
-  re-running the per-path diff check and confirming the commit and push both succeeded *and* that the
-  local branch is in sync with its upstream (`git rev-parse HEAD` equals `@{u}`), so a no-op edit, a
-  failed commit, or a no-op/rejected push (which leaves a still-local commit) falls through to *Blocked*
-  rather than ticking `Documentation` over a deliverable that never reached the PR.
-- **Blocked:** if the correct content cannot be derived from the prose (the note is insufficient), or
-  the self-heal did not land per the re-check, the orchestrator does *not* tick `Documentation`. It
-  routes to `--status Blocked --reflection-kind blocked` with a reflection naming the missing path
+- **Self-heal (in the gated reference):** if the correct update can be derived from the issue body's
+  `**Documentation Needed**` prose, the orchestrator performs the missing update itself, records a
+  workpad note (`Phase 4.1 self-heal: <path> absent from diff; performed update from Documentation
+  Needed prose`), commits with a `docs:` prefix, and pushes. It then **re-verifies the self-heal
+  landed and reached the remote** — re-running the per-path diff check and confirming the commit and
+  push both succeeded *and* that the local branch is in sync with its upstream (`git rev-parse HEAD`
+  equals `@{u}`), so a no-op edit, a failed commit, or a no-op/rejected push (which leaves a
+  still-local commit) falls through to *Blocked* rather than ticking `Documentation` over a
+  deliverable that never reached the PR. The reference writes no run status; it reports the per-path
+  outcome back to the caller, which routes it.
+- **Degraded load (resident):** when the reference read fails — absent, empty, harness-refused, or
+  boundary-marker mismatched — the orchestrator records a `dropped-failed` reflection naming the
+  reference path and stating the repair was not attempted, then continues to the terminal below. A
+  failed load never halts Phase 4 on its own.
+- **Blocked (resident):** if the correct content cannot be derived from the prose (the note is
+  insufficient), the reference could not be loaded, or the self-heal did not land per the re-check,
+  the orchestrator does *not* tick `Documentation`. It routes to `--status Blocked
+  --reflection-kind blocked` with a reflection naming the missing path
   (`Phase 4.1: Documentation Needed file content cannot be determined for <path> — the docs subagent
   did not update this file and the correct content cannot be derived from the issue body; update
   manually and re-run Phase 4.1`) and emits the 👎 outcome reaction.
