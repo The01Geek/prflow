@@ -69,8 +69,10 @@ Stayed resident in `skills/implement/phases/phase-4-documentation.md`:
 - the cumulative-diff computation, its `$BASE` re-derivation with the non-empty fallback, and its
   fail-closed arm on a broken command;
 - the satisfied-versus-absent rule;
-- the undeliverable-path `Blocked` terminal — its routing verbatim, its condition clause widened by
-  `the reference could not be loaded`, which is the mechanism that makes the split fail closed.
+- the undeliverable-path `Blocked` terminal — its `workpad.py` invocation, reflection text and 👎
+  reaction verbatim. Its condition clause is not verbatim: it gained `the reference could not be
+  loaded`, the mechanism that makes the split fail closed, and its first limb was reworded from
+  `the correct update cannot be derived from context` to `the repair could not be derived`.
 
 The reference writes no run status at all — it carries no `--status Blocked` call — which is what keeps
 the terminal a single resident decision rather than a duplicated one.
@@ -134,8 +136,10 @@ and it carries its own retention pin, because a vanished terminator would silent
 end-of-file and restore the vacuity the scoping exists to close. The paired positive count — the same
 literal present twice in the reference — sits **outside** the scratch guard, because it reads only the
 reference and would otherwise vanish on a scratch failure, taking with it the half that makes the pair
-non-vacuous. Scratch-allocation failure routes the two slice-dependent assertions to the `skip` helper,
-named individually and classified `blocking-gate`, since they are real gates that could not run here.
+non-vacuous. Scratch-allocation failure emits one `skip` per slice-dependent assertion, each named
+byte-identically to the `assert_eq` it stands in for and classified `blocking-gate`, since they are
+real gates that could not run here — a single composite skip would report one loss where two occurred
+and would reconcile to neither check.
 
 Not asserted: the stub's prose contract — the marker contract it applies, and the route it takes on an
 empty read. Those sentences are agent-executed prompt prose, whose only reader is the runtime agent, so

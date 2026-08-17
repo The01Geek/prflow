@@ -36344,7 +36344,9 @@ assert_eq "#1557 the stub names the reference through the <skill-dir> anchor on 
 # The zero-count alone is satisfied by RENAMING the literal in both files, which would prove
 # nothing moved. Pair it with the positive half so the two together pin a relocation. This half
 # reads only the reference, so it sits OUTSIDE the scratch guard — inside it, a scratch failure
-# would drop the check that makes the pair non-vacuous.
+# would drop the check that makes the pair non-vacuous. The expected 2 is the invocation LADDER's
+# shape (vendored rung + anchor rung, each carrying the note), so deleting the fallback arm moves
+# this count too — that regression is lint-anchor-fallback-arm.py's to name, not this row's.
 assert_eq "#1557 the self-heal repair step landed in the gated reference" "2" \
   "$(pin_count 'performed update from Documentation Needed prose' "$I1557_REF")"  # structural-pin-ok: cross-file-phase-contract -- the literal the zero-count below measures the absence of; without this row a rename in both files reads as a completed move
 I1557_S2="$(probe_tmp '#1557 phase-file Stage 2 slice')"
@@ -36355,10 +36357,12 @@ if [ "$I1557_S2" != "/dev/null" ]; then
   assert_eq "#1557 Stage 2 no longer carries the self-heal repair step" "0" \
     "$(grep -cF 'performed update from Documentation Needed prose' "$I1557_S2" || true)"
 else
-  # Scratch allocation failed, so the slice cannot be cut. These are real gates that should have
-  # run here — blocking-gate, never host-capability, which means the host cannot EXPRESS the
-  # condition. Both dropped assertions are named, or the skip under-reports what was lost.
-  skip "#1557 Stage-2 slice non-vacuity, and the repair absent from Stage 2" blocking-gate \
+  # Scratch allocation failed, so the slice cannot be cut. One skip per dropped assertion, each
+  # named byte-identically to the assert_eq it stands in for, or the tally counts one loss where
+  # two occurred and neither skip reconciles to a check.
+  skip "#1557 the Stage-2 slice is non-empty (the count below is not vacuous)" blocking-gate \
+    "could not allocate a scratch file for the Stage-2 slice"
+  skip "#1557 Stage 2 no longer carries the self-heal repair step" blocking-gate \
     "could not allocate a scratch file for the Stage-2 slice"
 fi
 # The slice's terminator is a machine-consumed helper invocation rather than a prose sentence, so
@@ -36375,7 +36379,7 @@ assert_pin_unique "#1557 the phase file retains the Stage-2 slice terminator (th
 assert_pin_unique "#1557 the undeliverable-path Blocked terminal stayed resident in the phase file" \
   'Documentation Needed file content cannot be determined' "$P4_FILE"  # structural-pin-ok: routing-dispatch-contract -- the resident terminal a failed reference load must still reach; the bundle-scoped #185 pin cannot see it move
 assert_eq "#1557 the gated reference writes no run status of its own" "0" \
-  "$(pin_count -- '--status Blocked' "$I1557_REF")"  # structural-pin-ok: lifecycle-state-transition -- the reference reports outcomes to its caller; a status write there would duplicate the terminal the phase file owns
+  "$(pin_count '--status Blocked' "$I1557_REF")"  # structural-pin-ok: lifecycle-state-transition -- the reference reports outcomes to its caller; a status write there would duplicate the terminal the phase file owns
 assert_eq "#1557 the phases/ directory reconciliation is untouched (the reference is NOT a phase stem)" "yes" \
   "$([ ! -e "$IMPL_PHASES_DIR/doc-deliverable-self-heal.md" ] && \
      [ "$IMPL_PHASE_STEMS" = "phase-1-setup phase-2-implement phase-2-sweeps-contract phase-2-sweeps-quality phase-3-review phase-3-fix-loop phase-3-ac-gate phase-4-documentation" ] \
