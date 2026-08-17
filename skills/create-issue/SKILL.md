@@ -279,13 +279,13 @@ Classify from that one invocation, reading its diagnostic lines as well as its l
 run no second probe. A row listing a path is that file present; a diagnostic naming a path as not
 found is that file absent. Every other outcome — no output at all, a missing command binary and a
 refused command alike, and a path-naming diagnostic that is not not-found, a permission failure
-among them — leaves the listing unestablished, is reported naming which was observed, and re-enters
-no producing step. A producing step that cannot run gets an in-chat breadcrumb naming the file and
+among them — leaves the whole listing unestablished however many rows it also returned, is reported
+naming which was observed, and re-enters no producing step. A producing step that cannot run gets an in-chat breadcrumb naming the file and
 the failure kind; this listing never prevents the issue from being created.
 
-An earlier write or delete under `.prflow/tmp/` in this run that failed or was refused because the
-filesystem is read-only puts it on the read-only arm, whose visible in-chat blocks then discharge
-the listing. The read-only arm is selected by run state, never by the
+An earlier write or delete under `.prflow/tmp/` in this run that failed or was refused puts it on
+the read-only arm, whose visible in-chat blocks discharge this listing for each artifact one was
+posted for. The read-only arm is selected by run state, never by the
 listing's output: a listing that succeeds is no evidence against it, and a run that cannot
 establish that condition reports the listing unestablished. Take that discharge before the
 comparison below.
@@ -293,9 +293,9 @@ comparison below.
 Where that listing is established and named the four paths, compare each path's timestamp against
 the run-slug pointer's own timestamp in it before re-entering any producing step; a file older than
 the pointer is not this run's. `ls -l` prints minute granularity, so equal timestamps are not
-older, and an entry showing a past year in place of a time is older. With the pointer itself absent
-from that listing there is no comparand: report in the message that renders the draft that
-freshness could not be established for the listed paths.
+older. With the pointer itself absent from that listing there is no comparand: report in the
+message that renders the draft that freshness could not be established for the artifacts it did
+list.
 
 On that same established four-path listing, run the producing step for every path shown absent or
 older than the pointer, then resume at the draft rendering. A Step 1 re-entry reuses the slug already bound and binds no new one. A missing
