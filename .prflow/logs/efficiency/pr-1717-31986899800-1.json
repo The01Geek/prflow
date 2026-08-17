@@ -123,5 +123,68 @@
       "iter": 5,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.94",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 13.365881100000001,
+    "tokens": {
+      "input_tokens": 90,
+      "output_tokens": 42396,
+      "cache_read_input_tokens": 8458715,
+      "cache_creation_input_tokens": 237149,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 157,
+        "outputTokens": 65528,
+        "cacheReadInputTokens": 10055551,
+        "cacheCreationInputTokens": 576069,
+        "webSearchRequests": 0,
+        "costUSD": 11.156500500000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 96,
+        "outputTokens": 13069,
+        "cacheReadInputTokens": 2152992,
+        "cacheCreationInputTokens": 364576,
+        "webSearchRequests": 0,
+        "costUSD": 2.2093806000000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 62,
+    "duration_ms": 726851
+  },
+  "permission_denials": {
+    "count": 3,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-none} ATTEMPT=${GITHUB_RUN_ATTEMPT:-none} ACTIONS=${GITHUB_ACTIONS:-none}\"; git status --porcelain",
+      ".prflow/vendor/prflow/scripts/workpad.py patch 5310986686 .prflow/tmp/review/pr-1717/31986899800-1/review-wp.md 2>.prflow/tmp/review/pr-1717/31986899800-1/rv-patch.err ; echo \"patch-rc=$?\"",
+      "wc -c skills/create-issue/references/step-3-5-steelman.md skills/create-issue/references/degradation-routing.md skills/create-issue/SKILL.md\necho \"=== boundary markers on these ref files (first/last non-blank) ===\"\nfor f in step-3-5-steelman.md degradation-routing.md; do echo \"-- $f\"; head -1 skills/create-issue/references/$f; tail -1 skills/create-issue/references/$f; done\necho \"=== reference-size exemptions mentioning these ===\"\ngrep -n \"step-3-5-steelman\\|degradation-routing\\|create-issue/SKI …[per-command-truncated]"
+    ],
+    "total": 3,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
