@@ -28279,6 +28279,21 @@ assert_eq "#506 Writing-skills evidence marker is present in the contract and bo
 # clause too. The marker-literal presence pin this block used to carry is retired (issue #1007):
 # the advisory is agent-executed prompt prose no tool reads, so under the #843/#876 recorded
 # decision its compensating control is the review pass that reads the prose, not a pin.
+# ── the four-surface "Two questions" coupled mirror ──────────────────────────
+# The block is deliberately repeated against the usual no-duplication rule, and
+# CLAUDE.md's placement rule admits that only for "a coupled mirror a test pins
+# identical" — so without this assertion the block claims an exception it does not
+# satisfy and the copies drift silently on the next edit. Extract is the `## ` heading
+# through the end of its bullet list, so trailing sections in any carrier are excluded.
+TWOQ_EXTRACT() { sed -n '/^## Two questions to ask before you finish/,/^- \*\*Is every word/p' "$1"; }
+TWOQ_CLAUDE="$(TWOQ_EXTRACT "$FDROOT/CLAUDE.md")"
+assert_eq "two-questions block is present in CLAUDE.md (anchors the byte-identity below)" \
+  "yes" "$([ -n "$TWOQ_CLAUDE" ] && echo yes || echo no)"
+for TWOQ_F in create-issue implement review; do
+  assert_eq "two-questions block is byte-identical in $TWOQ_F.md and CLAUDE.md" \
+    "$TWOQ_CLAUDE" "$(TWOQ_EXTRACT "$FDROOT/.prflow/prompt-extensions/$TWOQ_F.md")"
+done
+
 # (3b) Property-based vendoring invariant (the skills-tree twin of the #139 agents/*.md loop):
 # EVERY file under the two vendored skill dirs must NOT carry the first-party `2026 Daniel Radman`
 # SPDX header (the license-preservation half) — proved mechanically over EVERY vendored file incl.

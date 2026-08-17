@@ -4,9 +4,9 @@ type: Fixed
 ---
 
 - **Repaired cross-references in the shipped prompt surface that could not resolve in a consumer
-  repo.** Eight shipped skill files cited a `guard-class 2` label — three of them as "CLAUDE.md
-  guard-class 2" — but that label was defined in neither `CLAUDE.md` nor any shipped file, so the
-  citation resolved nowhere for a consumer or a maintainer. Each site already stated the rule
+  repo.** Eight citations across six shipped skill files named a `guard-class 2` label — three of
+  them as "CLAUDE.md guard-class 2" — but that label was defined in neither `CLAUDE.md` nor any
+  shipped file, so the citation resolved nowhere for a consumer or a maintainer. Each site already stated the rule
   inline, so the dangling label is removed and no guidance is lost. The `/prflow:review-and-fix`
   loop's supersession paragraph likewise pointed at a repo-local prompt extension consumers never
   receive, and its plain reading implied that an amended issue body could override a review
