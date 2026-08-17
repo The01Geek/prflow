@@ -77,8 +77,9 @@ the terminal a single resident decision rather than a duplicated one.
 ## The predicate is the existing read, not a new helper
 
 §4.0 and §4.0.5 each paired their relocation with an executable helper that became the sole owner of the
-load decision. This change adds none: the branch's `--name-status` delta against the merge base adds
-exactly one file, the reference itself, and nothing under `scripts/`. Stage 2 already re-runs
+load decision. This change adds none: the branch's `--name-status` delta against the merge base carries
+no `A` entry under `scripts/`, and its two `scripts/` entries are both modifications — the manifest key
+and the durability helper's header comment. Stage 2 already re-runs
 `scripts/read-doc-needed-deliverables.sh` and already decides satisfied-versus-absent from its printed
 `docgate-path:` values against the cumulative diff; the reference is read on the arm where that decision
 came out *absent*. So the predicate that gates the load is the decision the phase file was already
