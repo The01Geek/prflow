@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1719",
+  "generated_at": "2026-08-17T02:24:45Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.94",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 6.109984250000001,
+    "tokens": {
+      "input_tokens": 4117,
+      "output_tokens": 30730,
+      "cache_read_input_tokens": 3265576,
+      "cache_creation_input_tokens": 173986,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 4149,
+        "outputTokens": 51503,
+        "cacheReadInputTokens": 4025596,
+        "cacheCreationInputTokens": 341827,
+        "webSearchRequests": 0,
+        "costUSD": 6.109984250000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 28,
+    "duration_ms": 613405
+  },
+  "permission_denials": {
+    "count": 2,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "RUN_ID=\"local-$(date -u +%Y%m%dT%H%M%SZ)-1\"; echo \"RUN_ID=$RUN_ID\"; mkdir -p \".prflow/tmp/review/pr-1719/$RUN_ID\"; gh pr diff 1719 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee \".prflow/tmp/review/pr-1719/$RUN_ID/diff.patch\" | head -5; echo \"---DIFFSTAT---\"; wc -l \".prflow/tmp/review/pr-1719/$RUN_ID/diff.patch\"; echo \"$RUN_ID\" > .prflow/tmp/review/pr-1719/current-run-id.txt",
+      "echo \"=== 1. Consumer search for retired literals across machine-consumer surface (scripts/, lib/ excl lib/test, .github/) ===\"\nfor needle in 'no-subagent, all-inline model' '(vi)' 'within the existing automatic audit budget' 'not a fourth defect class' 'legibility-only' 'module or path' 'focused path'; do\n  echo \"--- needle: [$needle] ---\"\n  grep -rIl -- \"$needle\" scripts/ lib/ .github/ 2>/dev/null | grep -v '^lib/test/' || echo \"  (no machine-consumer hits)\"\ndone"
+    ],
+    "total": 2,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
