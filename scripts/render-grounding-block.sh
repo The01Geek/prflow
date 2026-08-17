@@ -146,7 +146,7 @@ PATHS_EOF
   # Backtick containment for the SHA does NOT rest on this substitution (it does
   # not strip backticks) — it rests on the top-of-file HEAD_SHA backtick strip.
   _DISP_PROSE=$(cat <<'__DISP_PROSE_EOF__'
-> **7. Trusted-source displacement (issues #458, #874).** The working-tree files
+> **__N_DISP__. Trusted-source displacement (issues #458, #874).** The working-tree files
 > listed below were deliberately displaced before this session started by one of
 > two trusted-source producers — the Stop-hook trusted-source floor, which
 > replaces them with trusted base-ref copies or fail-closed stubs (issue #458),
@@ -217,7 +217,7 @@ fi
 PUBLISHER_SECTION=''
 if [ "$REVIEWED_COMMIT" = yes ]; then
   PUBLISHER_SECTION=$(cat <<'__PUBLISHER_EOF__'
-> **6. A verdict reaches this pull request through Phase 4.4's emitter alone.**
+> **__N_PUB__. A verdict reaches this pull request through Phase 4.4's emitter alone.**
 > The merge-gate consumers that decide this review's outcome scan for a
 > producer-stamped verdict marker, and only Phase 4.4's verdict emitter writes one.
 > A verdict comment you compose and post yourself carries no such marker, so it
@@ -231,20 +231,25 @@ __PUBLISHER_EOF__
 "
 fi
 
-# Section numbers depend on the tier. A block with no reviewed commit omits the CI
-# section and the trusted-source-displacement section, so its survivors renumber
-# 1/2/3/4; the review block keeps 2/3/4/5 (the review-only sole-publisher (6) and
-# displacement (7) sections are appended after them). Never write N_BATCH as a literal
-# in both branches below: the batching section is tier-agnostic, and a hand-written pair
-# drifts, renumbering one tier and not the other.
-# The block is assembled from three `cat` heredocs (header, the review-only CI section,
-# then the shared permitted-commands/shapes/headless/batching tail) rather than one.
+# Section numbers depend on the tier: a block with no reviewed commit omits the CI and
+# trusted-source-displacement sections, so its survivors renumber 1/2/3/4 while the review
+# block keeps 2/3/4/5 and appends the two review-only sections after them.
+# Never add a section ordinal as a per-branch literal: only the branch-dependent head of
+# the sequence is written twice, and every ordinal after it is derived, so a hand-written
+# later one renumbers on one tier and silently not the other.
 if [ "$REVIEWED_COMMIT" = yes ]; then
   N_TOOLS=2; N_SHAPES=3; N_HEADLESS=4
 else
   N_TOOLS=1; N_SHAPES=2; N_HEADLESS=3
 fi
 N_BATCH=$((N_HEADLESS + 1))
+N_PUB=$((N_BATCH + 1))
+N_DISP=$((N_PUB + 1))
+# Never write these two ordinals as ${N_PUB}/${N_DISP} inside their own section bodies:
+# both are quoted heredocs so their apostrophes and backticks stay literal, and an
+# expansion written there would render verbatim instead of a digit.
+PUBLISHER_SECTION="${PUBLISHER_SECTION//__N_PUB__/$N_PUB}"
+DISPLACED_SECTION="${DISPLACED_SECTION//__N_DISP__/$N_DISP}"
 
 cat <<EOF
 > [!IMPORTANT]
@@ -346,30 +351,22 @@ ${ALLOWED_TOOLS}
 > that is the lever YOU control, rather than assuming the workflow-level foreground
 > setting is in force.${IMPLEMENT_SCOPE_CLAUSE}
 >
-> **${N_BATCH}. Issue mutually independent tool calls in one message.** Every request you
-> make re-sends the whole conversation so far, so its cost is set by how much context
-> it carries, not by how much work it asks for. Calls made one per message therefore
-> cost a full request each for work that could have shared one. When two or more calls
-> do not depend on each other's results — reads of different files, edits to different
-> files, independent probes, dispatches whose prompts are already fixed — emit them
-> together in a single message.
+> **${N_BATCH}. Issue mutually independent tool calls in one message.** Each request
+> re-sends the whole conversation, so one call per message pays a full request for work
+> that could have shared one. When two or more calls do not depend on each other's
+> results — reads of different files, edits to different files, independent probes,
+> dispatches whose prompts are already fixed — emit them together.
 >
 > **Independence is the whole test, and it fails closed.** If you would have to see one
-> call's result before choosing, composing, or deciding whether to make another, those
-> calls are dependent and go in separate messages. Treat a pair as dependent whenever
-> you cannot establish that it is not — the saving is small and the wrong merge is not.
+> call's result before choosing, composing, or deciding whether to make another, they
+> are dependent and go in separate messages; treat a pair you cannot establish as
+> independent as dependent. This is not a rule about writing fewer, larger edits — two
+> edits to the same region are not independent, because one's target text can sit inside
+> the other's replacement.
 >
-> This never licenses merging DEPENDENT calls, which stay separate however adjacent
-> they look. It is also not a rule about writing fewer, larger edits: two edits to the
-> same region are not independent (one's target text can sit inside the other's
-> replacement), and how many hunks a single edit carries is a different question this
-> says nothing about.
->
-> It widens nothing. A command, tool, or path that is denied on its own is denied just
-> the same inside a batch, and this grants no head, shape, or path the sections above
-> do not already grant. A dispatch that can write to the shared checkout still owes the
-> commit-before-dispatch obligation stated where that dispatch is defined; batching
-> read-only dispatches leaves that obligation exactly as it was.
+> Batching widens nothing: a call denied on its own is denied in a batch, and a dispatch
+> that can write to the shared checkout still owes the commit-before-dispatch obligation
+> stated where that dispatch is defined.
 ${PUBLISHER_SECTION}${DISPLACED_SECTION}
 ---
 EOF

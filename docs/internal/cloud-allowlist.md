@@ -54,7 +54,7 @@ against a list it already has rather than a guess.
 string** (section 2 of the review-tier block) plus the command-shape rules (section 3)
 and the headless-run discipline (section 4). Those three section numbers are the
 review-tier numbering; the implement tier omits two sections and renumbers the survivors
-1/2/3, as the `MODE=implement` bullet below records. It is rendered **once**, by that one
+1/2/3/4, as the `MODE=implement` bullet below records. It is rendered **once**, by that one
 helper, and prepended to the prompt on **every** tier:
 
 - **`/prflow:review`, `/prflow:review-and-fix`, `/prflow:pr-description`** —
@@ -70,7 +70,9 @@ helper, and prepended to the prompt on **every** tier:
 - **`/prflow:implement`** — `devflow-implement.yml`'s `Compose implement grounding
   block` step, in `MODE=implement`, which renders the tier-agnostic sections only
   (the review-only CI-results, sole-publisher, and trusted-source-displacement
-  sections are omitted, and the survivors renumber 1/2/3/4).
+  sections are omitted, and the survivors renumber 1/2/3/4 — the permitted commands,
+  the command shapes, the headless-run discipline, and the independent-tool-call
+  batching disposition).
 
 **A missing or empty renderer fails the job — it no longer degrades (issue #1520).**
 Two independent controls enforce this on every tier. First, a dedicated guard step

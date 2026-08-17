@@ -37235,6 +37235,21 @@ assert_eq "#1629 review mode numbers sole-publisher 6 before displacement 7" "ye
 _GB363_REV_NOHP="$(HEAD_SHA=deadbeef CI_SUMMARY='ci: success' ALLOWED_TOOLS='Read' MODE=review bash "$RGB_SH")"
 assert_eq "#1629 review mode with no HARDENED_PATHS still emits the sole-publisher section, numbered 6, and no displacement section" "yes-yes-no" \
   "$(case "$_GB363_REV_NOHP" in *"verdict reaches this pull request through Phase 4.4"*) echo yes ;; *) echo no ;; esac)-$(case "$_GB363_REV_NOHP" in *'> **6. A verdict reaches'*) echo yes ;; *) echo no ;; esac)-$(case "$_GB363_REV_NOHP" in *'Trusted-source displacement'*) echo yes ;; *) echo no ;; esac)"
+# #1723: the independent-tool-call batching section is tier-agnostic (it renders in all
+# three modes) and its ordinal is derived from N_HEADLESS. Never renumber a section by
+# editing one branch's literal: an insertion that shifts one mode and not the other would
+# otherwise ship green. Assert the RENDERED heading digit and position, not source prose.
+assert_eq "#1723 the batching section renders in every mode, numbered 4 with no reviewed commit and 5 with one" "yes-yes-yes" \
+  "$(case "$_GB363_GEN" in *'> **4. Issue mutually independent tool calls in one message.**'*) echo yes ;; *) echo no ;; esac)-$(case "$_GB363_IMPL" in *'> **4. Issue mutually independent tool calls in one message.**'*) echo yes ;; *) echo no ;; esac)-$(case "$_GB363_REV" in *'> **5. Issue mutually independent tool calls in one message.**'*) echo yes ;; *) echo no ;; esac)"
+# #1723: the two review-only ordinals are substituted into quoted heredocs from N_PUB and
+# N_DISP. Never drop that substitution: the section body would render the placeholder token
+# in place of a digit, which reads as a numbered heading to no reader.
+assert_eq "#1723 no section-ordinal placeholder survives into the rendered review block" "no" \
+  "$(case "$_GB363_REV" in *__N_PUB__*|*__N_DISP__*) echo yes ;; *) echo no ;; esac)"
+# #1723: review mode orders the batching section (5) before sole-publisher (6) — the
+# adjacent #1629 row asserts 6 before 7 and would pass with these two transposed.
+assert_eq "#1723 review mode numbers the batching section 5 before sole-publisher 6" "yes" \
+  "$(printf '%s\n' "$_GB363_REV" | awk '/^> \*\*5\. Issue mutually independent/{b=NR} /^> \*\*6\. A verdict reaches/{p=NR} END{print (b>0 && p>0 && b<p) ? "yes" : "no"}')"
 unset _GB363_GEN _GB363_REV _GB363_IMPL _GB363_REV_NOHP
 
 assert_pin_unique "#363 devflow.yml falls back to the bare command when no block is composed" \
