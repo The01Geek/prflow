@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1715",
+  "generated_at": "2026-08-17T01:24:14Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.92",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 4.52939625,
+    "tokens": {
+      "input_tokens": 38,
+      "output_tokens": 15491,
+      "cache_read_input_tokens": 2755393,
+      "cache_creation_input_tokens": 156000,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 58,
+        "outputTokens": 28243,
+        "cacheReadInputTokens": 3412000,
+        "cacheCreationInputTokens": 245125,
+        "webSearchRequests": 0,
+        "costUSD": 4.52939625,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 22,
+    "duration_ms": 404893
+  },
+  "permission_denials": {
+    "count": 6,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "RUN_ID=\"local-$(date -u +%Y%m%dT%H%M%SZ)-1\"; echo \"RUN_ID=$RUN_ID\"; mkdir -p \".prflow/tmp/review/pr-1715/$RUN_ID\"; gh pr diff 1715 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee \".prflow/tmp/review/pr-1715/$RUN_ID/diff.patch\" | tail -5; echo \"---STAT---\"; gh pr diff 1715 --patch | grep -c '^diff --git'",
+      "git show f903ad49:skills/implement/SKILL.md > /tmp/new.md; git show 42b072d6:skills/implement/SKILL.md > /tmp/old.md; wc -l /tmp/new.md /tmp/old.md",
+      "git show f903ad49:skills/implement/SKILL.md > /tmp/new.md",
+      "git show 42b072d6:skills/implement/SKILL.md > /tmp/old.md",
+      "git show f903ad49:skills/implement/SKILL.md > .prflow/tmp/new.md; git show 42b072d6:skills/implement/SKILL.md > .prflow/tmp/old.md; wc -l .prflow/tmp/new.md .prflow/tmp/old.md; wc -w .prflow/tmp/new.md .prflow/tmp/old.md",
+      "git show f903ad49:skills/implement/SKILL.md > .prflow/tmp/new.md"
+    ],
+    "total": 6,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
