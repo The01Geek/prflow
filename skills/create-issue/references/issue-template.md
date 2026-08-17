@@ -164,7 +164,7 @@ This is the **core** checklist — the obligations every issue carries. Speciali
 - [ ] Criterion apparatus is sorted by the consequence test and the grounding block opens the section — *Acceptance Criteria*, grounding-block bullet
 - [ ] No AC forbids a surface (a path, a file class, a tier) that another AC's discharge must touch — the ACs are mutually consistent
 - [ ] Implementation notes describe a single chosen approach (the `Relevant files` block excepted — a floor-declared map, hedges permitted)
-- [ ] Testing Strategy is a residual-risk supplement, not a restated criterion list: it runs Moves 1–2 and records only cases that add information beyond the criteria (each naming the risk it covers and the contract it protects) — or, when none exists, one concise statement that the acceptance criteria fully express the verification contract; every surviving no-automated-boundary case names a reason and a reproducible stand-in verification
+- [ ] Testing Strategy is a residual-risk supplement, not a restated criterion list: it runs Moves 1–2 and records only cases that add information beyond the criteria (each naming the risk it covers and the contract it protects) — or, when none exists, one concise statement that the acceptance criteria fully express the verification contract
 - [ ] **No-options gate passed**: no choice/hedge/deferral language outside the carve-out set named in *The no-options rule (read first)*
 - [ ] Any unresolved decision is in `## 🚫 Blocked`, phrased as a question — nowhere else
 - [ ] Edge cases and error handling are considered
