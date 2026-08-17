@@ -32437,7 +32437,7 @@ chmod +x "$POST_T1675/gh"
 POST_RC1675_VALID="$(POST_CALLS1675="$POST_CALLS1675" DEVFLOW_GH="$POST_T1675/gh" \
   bash "$POST_SH266" 5 "$POST_BODY1675" >/dev/null 2>&1; echo $?)"
 assert_eq "#1675 post-issue-comment: a valid call reaches the API stub once" \
-  "0:1" "$POST_RC1675_VALID:$([ -f "$POST_CALLS1675" ] && wc -l < "$POST_CALLS1675" || echo 0)"
+  "0:1" "$POST_RC1675_VALID:$([ -f "$POST_CALLS1675" ] && wc -l < "$POST_CALLS1675" | tr -d ' ' || echo 0)"
 : > "$POST_CALLS1675"
 POST_ERR1675_NUMBER="$(POST_CALLS1675="$POST_CALLS1675" DEVFLOW_GH="$POST_T1675/gh" \
   bash "$POST_SH266" 2>&1 >/dev/null)"; POST_RC1675_NUMBER=$?
@@ -32452,7 +32452,7 @@ assert_eq "#1675 post-issue-comment: missing body-file argument exits 0 (best-ef
 assert_eq "#1675 post-issue-comment: missing body-file identifies a caller argument slip" \
   "yes" "$(printf '%s' "$POST_ERR1675_BODY" | grep -qF 'caller argument slip' && echo yes || echo no)"
 assert_eq "#1675 post-issue-comment: missing arguments make zero API requests" \
-  "0" "$([ -f "$POST_CALLS1675" ] && wc -l < "$POST_CALLS1675" || echo 0)"
+  "0" "$([ -f "$POST_CALLS1675" ] && wc -l < "$POST_CALLS1675" | tr -d ' ' || echo 0)"
 rm -rf "$POST_T1675"
 
 # Config keys are a coupled peer set (2.3.0a): example template ↔ schema must
