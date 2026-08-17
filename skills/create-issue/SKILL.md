@@ -151,8 +151,9 @@ If `$ARGUMENTS` is empty, ask the user to describe their user story, bug report,
 Dispatch `/prflow:docs-verify --report-only` peers on the topic extracted from the user story.
 
 Bind the slug, then clear state — before any dispatch. Bind this run's kebab-case slug here; no
-later step binds one. Run `mkdir -p .prflow/tmp` first; a write under `.prflow/tmp/` that then
-fails or is refused routes this run onto `references/fallback-read-only-sandbox.md`'s arms.
+later step binds one. Run `mkdir -p .prflow/tmp` first; a write or delete at or under
+`.prflow/tmp/` that fails or is refused routes this evidence artifact and this pointer onto
+`references/fallback-read-only-sandbox.md`'s Step 1 arm.
 Delete any `.prflow/tmp/issue-step1-<slug>.md`, and delete-and-rewrite the
 fixed slug-independent pointer `.prflow/tmp/issue-run-slug` holding this slug.
 Both deletes run on every path including the degraded one; a failed delete leaves a possibly-stale
@@ -266,41 +267,35 @@ Load `references/step-3-6-audit.md` per the *Reference routing* rules above and 
 
 ### Step 4: Review with the user, then create
 
-Before this run's first rendered draft, and not on a later revision round, run one `ls -l` over
-`.prflow/tmp/issue-run-slug`, `.prflow/tmp/issue-step1-<slug>.md`,
+Before the first rendered draft, and not again when you iterate on feedback, run one `ls -l … 2>&1`
+over `.prflow/tmp/issue-run-slug`, `.prflow/tmp/issue-step1-<slug>.md`,
 `.prflow/tmp/issue-derivation-<slug>.md` and `.prflow/tmp/issue-audit-<slug>.md` — exactly those
-four, each named individually — and show that invocation's raw output, error lines included, in the
-message that renders the draft, then continue. With the slug unestablished, list the `.prflow/tmp`
-directory itself instead and state that no entry there is attributable to this run; that branch
-names no path to compare, so it re-enters no producing step, there being no slug to attribute one
-to.
+four, each named individually — and show its raw output, error lines included, in the message that
+renders the draft, then continue. With the slug unestablished, list `.prflow/tmp` itself instead,
+state that nothing there is attributable to this run, and re-enter nothing.
 
-Classify from that one invocation, reading its diagnostic lines as well as its listing rows, and
-run no second probe. A row listing a path is that file present; a diagnostic naming a path as not
-found is that file absent. Every other outcome — no output at all, a missing command binary and a
-refused command alike, and a path-naming diagnostic that is not not-found, a permission failure
-among them — leaves the whole listing unestablished however many rows it also returned, is reported
-naming which was observed, and re-enters no producing step. A producing step that cannot run gets an in-chat breadcrumb naming the file and
-the failure kind; this listing never prevents the issue from being created.
+Classify every path it named, running no second probe, reporting each by name: a row is present; a
+not-found diagnostic is absent; named but in neither is unestablished. No output at all, a missing
+command binary, a refused command alike, or a path-naming diagnostic other than not-found leaves
+the whole listing unestablished — name which was observed. Only present and absent support a
+re-entry. A producing step that cannot run gets an in-chat breadcrumb naming the file and the
+failure kind; this listing never prevents the issue from being created.
 
-An earlier write or delete under `.prflow/tmp/` in this run that failed or was refused puts it on
-the read-only arm, whose visible in-chat blocks discharge this listing for each artifact one was
-posted for. The read-only arm is selected by run state, never by the
-listing's output: a listing that succeeds is no evidence against it, and a run that cannot
-establish that condition reports the listing unestablished. Take that discharge before the
-comparison below.
+An earlier write or delete at or under `.prflow/tmp/` in this run that failed or was refused puts it
+on the read-only arm, whose visible in-chat blocks discharge the re-entry per artifact posted. That arm
+is selected by run state, never by the listing's output; a run that cannot establish it reports the
+listing unestablished.
 
 Where that listing is established and named the four paths, compare each path's timestamp against
-the run-slug pointer's own timestamp in it before re-entering any producing step; a file older than
-the pointer is not this run's. `ls -l` prints minute granularity, so equal timestamps are not
-older. With the pointer itself absent from that listing there is no comparand: report in the
-message that renders the draft that freshness could not be established for the artifacts it did
-list.
+the run-slug pointer's own in it before any re-entry: older than the pointer is not this run's, and stamps are coarse — minutes, or a year
+when older — so equal stamps are not older. With the pointer absent there is no comparand; report
+in the draft message that freshness for the listed artifacts could not be established.
 
-On that same established four-path listing, run the producing step for every path shown absent or
-older than the pointer, then resume at the draft rendering. A Step 1 re-entry reuses the slug already bound and binds no new one. A missing
-derivation file re-runs Step 2's independent-derivation pass rather than Step 2 whole, and any
-genuine clarification deficit that pass finds is reported in the same message as the draft.
+On that same listing, run the producing step for every path absent or older than the pointer, then
+resume at the draft rendering. A Step 1 re-entry reuses the slug already bound and binds no new one; a missing
+derivation file re-runs Step 2's independent-derivation pass, not Step 2 whole, reporting any
+genuine clarification deficit in the draft message. Where any step was re-entered, that message says
+the listing predates it and names the steps re-run.
 
 Load `references/step-4-present-create.md` per the *Reference routing* rules above and follow it exactly, on every entry into this step.
 
