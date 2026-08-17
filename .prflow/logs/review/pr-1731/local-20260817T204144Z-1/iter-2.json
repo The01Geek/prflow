@@ -1,0 +1,172 @@
+{
+  "iter": 2,
+  "started_at": "2026-08-17T22:10:00Z",
+  "loop_role": "promoted",
+  "promotion_provenance": "shadow",
+  "fix_commit_sha": "bc8d2dc21",
+  "fix_files": [
+    "scripts/render-grounding-block.sh",
+    "lib/test/run.sh",
+    "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+    ".changeset/issue-1723-parallel-dispatch-disposition.md"
+  ],
+  "current_step": "3.5",
+  "current_substep": "fix_delta_gate_dispatched",
+  "note": "Step 0.9 short-circuit: Phase 1 and Phase 2 skipped, findings staged from iter-1's shadow block with promotion_provenance 'shadow'. No fresh checklist generated; the promoted set IS this iteration's finding set.",
+  "checklist": [],
+  "phase3_dispatched": [],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [],
+  "fix_decisions": [
+    {
+      "finding_id": "S-1",
+      "decision": "applied",
+      "commit": "bc8d2dc21",
+      "source_file": "scripts/render-grounding-block.sh",
+      "claim_text": "fail-open grammar puts unestablished isolation in the exception list",
+      "evidence": "restated so the unestablished case is a dependency: 'Where either is merely unestablished, treat them as dependent'; corroborated 3x across independent shadow reviewers"
+    },
+    {
+      "finding_id": "S-2",
+      "decision": "applied",
+      "commit": "bc8d2dc21",
+      "source_file": "scripts/render-grounding-block.sh",
+      "claim_text": "no disjoint-target exception, so the rule forbids the two shipped mandates it generalises",
+      "evidence": "the write-target dependency now turns on where writes land, not on capability to write; names the per-item result-file shape as satisfying it, which is exactly phase-3-ac-gate.md's two-verifier turn and phase-2-verification.md's verifier batch"
+    },
+    {
+      "finding_id": "S-3",
+      "decision": "applied",
+      "commit": "bc8d2dc21",
+      "source_file": "scripts/render-grounding-block.sh",
+      "claim_text": "two-edits test names the wrong overlap direction",
+      "evidence": "now names the region a replacement destroys plus the second-occurrence case"
+    },
+    {
+      "finding_id": "S-4",
+      "decision": "applied",
+      "commit": "bc8d2dc21",
+      "source_file": "scripts/render-grounding-block.sh",
+      "claim_text": "MODE comment's 'byte-for-byte as before' falsified by the inserted section",
+      "evidence": "replaced with 'renders every section'"
+    },
+    {
+      "finding_id": "S-5",
+      "decision": "applied",
+      "commit": "bc8d2dc21",
+      "source_file": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+      "claim_text": "'site-specific applications' claim was a documented falsehood under the rule as written",
+      "evidence": "the disjointness fix makes the mandates true applications; the overview and changeset now state the where-the-writes-land test explicitly rather than asserting the applications claim unsupported"
+    },
+    {
+      "finding_id": "T-1",
+      "decision": "applied",
+      "commit": "bc8d2dc21",
+      "source_file": "lib/test/run.sh",
+      "claim_text": "cross-file ordinal pin fails open on a second same-line citation via greedy anchored sed",
+      "evidence": "replaced with a global grep -o extraction; mutation-verified on a COPY: a mutant carrying '(section 7) and ... (section 6)' on 0.1.5's single line yields '6,7' under the repair (mismatch -> RED) versus '6' alone under the old form"
+    },
+    {
+      "finding_id": "S-6",
+      "decision": "applied",
+      "commit": "bc8d2dc21",
+      "source_file": "lib/test/run.sh",
+      "claim_text": "#363 generic-mode assertion label still read 'renumbered 1/2/3'",
+      "evidence": "label now reads 'its first three sections'"
+    },
+    {
+      "finding_id": "S-7",
+      "decision": "applied",
+      "commit": "bc8d2dc21",
+      "source_file": "scripts/render-grounding-block.sh",
+      "claim_text": "sole-publisher comment hardcodes the ordinals this change made derived",
+      "evidence": "comment now states the digit is the derived N_PUB and renumbers with no edit"
+    },
+    {
+      "finding_id": "S-8",
+      "decision": "applied",
+      "commit": "bc8d2dc21",
+      "source_file": "lib/test/run.sh",
+      "claim_text": "added comment exceeded the three-line prevention-only cap",
+      "evidence": "trimmed from four physical lines to three"
+    },
+    {
+      "finding_id": "T-2",
+      "decision": "deferred",
+      "source_file": "lib/test/run.sh",
+      "claim_text": "the ordinal coupling is keyed to one literal phrase, so a future phase file citing another section by ordinal gets no coupling",
+      "skip_category": "out-of-scope",
+      "evidence": "generalising the coupling to every ordinal citation across all phase files is a distinct mechanism beyond this issue's acceptance criteria",
+      "parking_evidence": {
+        "basis": "no phase file today cites the batching or sole-publisher section by ordinal, so the gap is latent rather than live",
+        "failing_input": "a future phase file citing a section ordinal not covered by the single pinned phrase",
+        "source": "grep over skills/review/phases for 'section [0-9]' citations",
+        "finding_ref": {
+          "iter": 1,
+          "index": 11
+        }
+      }
+    },
+    {
+      "finding_id": "T-3",
+      "decision": "deferred",
+      "source_file": "docs/internal/cloud-allowlist.md",
+      "claim_text": "three internal docs hand-transcribe ordinals; naming sections would remove three sweep targets",
+      "skip_category": "out-of-scope",
+      "evidence": "a documentation-wide rewrite of ordinal citations is beyond this issue's scope; the ordinals in question were swept and are correct as of this commit",
+      "parking_evidence": {
+        "basis": "each cited ordinal was reconciled in this PR and is currently accurate",
+        "failing_input": "a future section insertion ahead of the cited ones",
+        "source": "docs/internal/cloud-allowlist.md, claude-md-relocated-rationale.md, DEVFLOW_SYSTEM_OVERVIEW.md",
+        "finding_ref": {
+          "iter": 1,
+          "index": 12
+        }
+      }
+    }
+  ],
+  "over_grade_calibration": {
+    "ran": true,
+    "note": "Run over the promote-path Critical/Important set before staging. One recalibration: the comment-analyzer's Critical on the false 'byte-for-byte as before' MODE comment is behavior-inert prose in a source comment no tool reads, which the review engine's Phase 4.1.5 limbs cap at Suggestion. Recorded as severity-calibrated rather than auto-demoted, and fixed regardless, because a documented falsehood is fixed on the truthfulness contract independently of its verdict weight. Every other promote-path finding was re-affirmed at its reported severity: each names an observable wrong outcome (a licensed write race, a forbidden shipped batch, a guard that passes on the input it was added to catch).",
+    "recalibrated": [
+      {
+        "finding_id": "S-4",
+        "original_severity": "Critical",
+        "calibrated_severity": "Suggestion",
+        "basis": "behavior-inert source comment; sole observable impact is the prose itself"
+      }
+    ]
+  },
+  "convergence_inputs": {
+    "fixes_applied": 9,
+    "fix_diff_lines": 46,
+    "new_corroborated_critical_count": 0
+  },
+  "verification_evidence": {
+    "command": "lib/test/run-shard.sh monolith",
+    "result": "pass",
+    "passed": 9476,
+    "failed": 0,
+    "skipped": 1,
+    "skipped_checks": [
+      {
+        "name": "#434 stale-prose self-scan",
+        "kind": "blocking-gate",
+        "reason": "working tree dirty (this check grades committed HEAD)"
+      }
+    ],
+    "note": "Mid-iteration shard run, not a completion gate. The single skip is the expected dirty-tree blocking-gate skip; the tree was committed immediately after."
+  },
+  "shadow": {
+    "ran_at": null,
+    "reason": "convergence-time shadow evaluated at Step 4.5"
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

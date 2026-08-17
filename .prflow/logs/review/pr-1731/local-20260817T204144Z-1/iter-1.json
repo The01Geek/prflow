@@ -836,25 +836,247 @@
     }
   },
   "shadow": {
-    "ran_at": null,
-    "reviewed_sha": null,
-    "verdict": null,
-    "coverage": null,
-    "prompt_addenda": null,
-    "reviewers_dispatched": [],
-    "expected_reviewers": [],
+    "ran_at": "2026-08-17T22:05:00Z",
+    "reviewed_sha": "ab656801b",
+    "verdict": "REJECT",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
     "reason": null,
     "checklist_skipped": null,
-    "phase3_findings": [],
+    "trigger": "early (engine_self_modifying, after iteration 1)",
+    "phase3_findings": [
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Important",
+        "description": "The write-capable-dispatch rule is written over the CAPABILITY to write with no disjoint-target exception, so it classifies as dependent exactly the single-message dispatches two shipped mandates require: phase-3-ac-gate.md's two fresh-context verifiers in the same turn, and phase-2-verification.md's up-to-8 verifier batch, each writing only its own nonce-keyed verdict path. The run resolves the contradiction silently in either direction.",
+        "defect_signature": {
+          "file": "scripts/render-grounding-block.sh",
+          "line_range": [
+            362,
+            371
+          ],
+          "kind": "logic_error"
+        },
+        "corroboration_count": 1,
+        "step25_classification": "codebase",
+        "fix_decision": "applied"
+      },
+      {
+        "agent": "prflow:code-reviewer",
+        "severity": "Important",
+        "description": "'dependent unless A, or where B is unestablished' places the unestablished case in the EXCEPTION list, so unknown isolation reads as independent — fails open, inverting the section's own fail-closed rule, the overview, the changeset and CLAUDE.md's #1254.",
+        "defect_signature": {
+          "file": "scripts/render-grounding-block.sh",
+          "line_range": [
+            364,
+            367
+          ],
+          "kind": "logic_error"
+        },
+        "corroboration_count": 3,
+        "step25_classification": "codebase",
+        "fix_decision": "applied"
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "severity": "Important",
+        "description": "Same fail-open parse, independently raised: at best ambiguous, and ambiguity in a fail-closed rule is itself the defect.",
+        "defect_signature": {
+          "file": "scripts/render-grounding-block.sh",
+          "line_range": [
+            364,
+            367
+          ],
+          "kind": "logic_error"
+        },
+        "corroboration_count": 3,
+        "step25_classification": "codebase",
+        "fix_decision": "applied"
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Important",
+        "description": "Same fail-open parse, third independent raise; held at MEDIUM only because the general rule two paragraphs above is a backstop, but a local exception normally reads as overriding the general rule.",
+        "defect_signature": {
+          "file": "scripts/render-grounding-block.sh",
+          "line_range": [
+            365,
+            367
+          ],
+          "kind": "logic_error"
+        },
+        "corroboration_count": 3,
+        "step25_classification": "codebase",
+        "fix_decision": "applied"
+      },
+      {
+        "agent": "prflow:code-reviewer",
+        "severity": "Important",
+        "description": "The two-edits test names the wrong overlap direction: 'neither's match text falls inside the other's replacement' misses the dominant failure, where edit A's replacement destroys edit B's match region (A: alpha->beta; B matches 'alpha gamma'), and the second-occurrence case.",
+        "defect_signature": {
+          "file": "scripts/render-grounding-block.sh",
+          "line_range": [
+            362,
+            364
+          ],
+          "kind": "logic_error"
+        },
+        "corroboration_count": 1,
+        "step25_classification": "codebase",
+        "fix_decision": "applied"
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "severity": "Critical",
+        "description": "The MODE comment block this diff modified still says review 'renders the full block byte-for-byte as before', which the inserted section 5 makes false; the diff deleted the sibling byte-identity claim but left this one.",
+        "defect_signature": {
+          "file": "scripts/render-grounding-block.sh",
+          "line_range": [
+            79,
+            85
+          ],
+          "kind": "documented_falsehood"
+        },
+        "corroboration_count": 1,
+        "step25_classification": "codebase",
+        "fix_decision": "applied"
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Important",
+        "description": "The overview and changeset call the site-local mandates 'applications' of the new rule, but two of them are counter-examples under the rule as written (write-capable, shared checkout, no per-dispatch working copy).",
+        "defect_signature": {
+          "file": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+          "line_range": [
+            511,
+            511
+          ],
+          "kind": "documented_falsehood"
+        },
+        "corroboration_count": 1,
+        "step25_classification": "codebase",
+        "fix_decision": "applied"
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Important",
+        "description": "The new cross-file ordinal pin fails OPEN on a second citation sharing the same line: the sed's leading .* is greedy so only the LAST citation is captured, and phase-0-setup 0.1.5 is a single 817-character line, so a second mention lands on the same line by construction. The pin's own comment claims sort -u keeps a differing second citation visible, which holds only across lines.",
+        "defect_signature": {
+          "file": "lib/test/run.sh",
+          "line_range": [
+            37253,
+            37258
+          ],
+          "kind": "test_gap"
+        },
+        "corroboration_count": 1,
+        "step25_classification": "codebase",
+        "fix_decision": "applied"
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "severity": "Suggestion",
+        "description": "lib/test/run.sh's #363 generic-mode assertion LABEL still reads 'renumbered 1/2/3'; generic now renders four tier-agnostic sections.",
+        "defect_signature": {
+          "file": "lib/test/run.sh",
+          "line_range": [
+            37202,
+            37203
+          ],
+          "kind": "comment_drift"
+        },
+        "corroboration_count": 1,
+        "step25_classification": "codebase",
+        "fix_decision": "applied"
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "severity": "Suggestion",
+        "description": "The sole-publisher comment hardcodes the three ordinals the same change made derived — the rot class the new comment two blocks down forbids.",
+        "defect_signature": {
+          "file": "scripts/render-grounding-block.sh",
+          "line_range": [
+            212,
+            213
+          ],
+          "kind": "comment_drift"
+        },
+        "corroboration_count": 1,
+        "step25_classification": "codebase",
+        "fix_decision": "applied"
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "severity": "Suggestion",
+        "description": "The added cross-file-pin comment is four physical source lines, over the three-line prevention-only cap for the test-file population.",
+        "defect_signature": {
+          "file": "lib/test/run.sh",
+          "line_range": [
+            37256,
+            37259
+          ],
+          "kind": "style"
+        },
+        "corroboration_count": 1,
+        "step25_classification": "codebase",
+        "fix_decision": "applied"
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Suggestion",
+        "description": "The ordinal coupling is keyed to one literal phrase, so a future phase file citing the batching or sole-publisher section by ordinal gets no coupling.",
+        "defect_signature": {
+          "file": "lib/test/run.sh",
+          "line_range": [
+            37253,
+            37258
+          ],
+          "kind": "test_gap"
+        },
+        "corroboration_count": 1,
+        "step25_classification": "codebase",
+        "fix_decision": "deferred"
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Suggestion",
+        "description": "Three internal docs hand-transcribe the ordinals; naming sections rather than numbering them would remove three sweep targets on the next insertion.",
+        "defect_signature": {
+          "file": "docs/internal/cloud-allowlist.md",
+          "line_range": [
+            54,
+            58
+          ],
+          "kind": "comment_drift"
+        },
+        "corroboration_count": 1,
+        "step25_classification": "codebase",
+        "fix_decision": "deferred"
+      }
+    ],
     "phase2_fails": [],
     "comparison": {
-      "shadow_total": 0,
+      "shadow_total": 13,
       "overlap_with_iter_N": 0,
-      "new": 0,
-      "new_critical": 0,
-      "new_important": 0
+      "new": 13,
+      "new_critical": 1,
+      "new_important": 7
     },
-    "promoted_to_iter_next": false
+    "promoted_to_iter_next": true
   },
   "synthesized": false
 }
