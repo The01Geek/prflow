@@ -115,30 +115,30 @@ For the search-based sweeps (**2.3.0**, **2.3.0a**, **2.3.0b**, **2.3.0d**, **2.
 
 **Predicate.** Fires when the change modifies a signature, renames or moves a symbol, tightens a validator, or alters a predicate that classifies input — and equally when it **relocates a prose literal, heading, section, or file path** while a citation of the old location survives, which arms this sweep exactly as a moved code symbol does. Re-run it after any merge or rebase of the base branch.
 
-**Procedure:** `skills/implement/references/sweep-2-3-0-changed-contract.md`, read under the gated-procedure protocol above.
+**Procedure:** `<skill-dir>/references/sweep-2-3-0-changed-contract.md`, read under the gated-procedure protocol above.
 
 #### 2.3.0a Peer-checkpoint completeness sweep (mandatory whenever the change adds a rule/clause/guard/invariant that has co-equal peer sites, or peer paths through one unit of code)
 
 **Predicate.** Fires when the change **adds** a rule — a guard, a validator clause, a read-only precondition, a classification tripwire, a fallback — that has co-equal peer sites, or that must hold on every path through one unit of code. A **peer set** is two or more sites that must each enforce the same rule independently, or the paths through one unit of code that must each carry it. A **changed** contract's dependent call sites are §2.3.0's, never this sweep's.
 
-**Procedure:** `skills/implement/references/sweep-2-3-0a-peer-checkpoint.md`, read under the gated-procedure protocol above.
+**Procedure:** `<skill-dir>/references/sweep-2-3-0a-peer-checkpoint.md`, read under the gated-procedure protocol above.
 
 #### 2.3.0b Enum-enumeration reconciliation sweep (mandatory whenever the change adds a value to an enumerated value set — a code enum/string-union *or* a doc-enumerated configuration set)
 
-**Predicate.** Fires when the change **adds** a value to an enumerated value set. The set is not only code-shaped: a **doc-enumerated configuration set** counts too — a workflow's `on:` trigger list, a config-key set, a permissions list — so adding a member pulls the doc-mirror reconciliation into Phase 2. A **rename** is an addition and a removal at once and is assigned to this sweep alone, not additionally to §2.3.0d.
+**Predicate.** Fires when the change **adds** a value to an enumerated value set. The set is not only code-shaped: a set enumerated in documentation — a workflow's `on:` trigger list, a config-key set, a permissions list — is in scope as well, so adding a member pulls the doc-mirror reconciliation into Phase 2. A **rename** is an addition and a removal at once and is assigned to this sweep alone, not additionally to §2.3.0d.
 
-**Procedure:** `skills/implement/references/sweep-2-3-0b-enum-enumeration.md`, read under the gated-procedure protocol above.
+**Procedure:** `<skill-dir>/references/sweep-2-3-0b-enum-enumeration.md`, read under the gated-procedure protocol above.
 
 #### 2.3.0c Operand-trace sweep (mandatory whenever the diff adds a guard, predicate, validator, or coverage invariant in code, or ships agent-executed imperative prose stating a policy)
 
 **Predicate.** Two authoritative triggers — run it when either fires. **(a) Code trigger:** the diff adds a guard, predicate, validator, or coverage invariant. **(b) Prose-policy trigger:** the diff's deliverable is a `SKILL.md` or `phases/*.md` command block stating a policy the agent must execute. Both are the same defect — a check written against an operand nobody traced back to what produces it.
 
-**Procedure:** `skills/implement/references/sweep-2-3-0c-operand-trace.md`, read under the gated-procedure protocol above.
+**Procedure:** `<skill-dir>/references/sweep-2-3-0c-operand-trace.md`, read under the gated-procedure protocol above.
 
 #### 2.3.0d Describing-prose reconciliation sweep (mandatory whenever the change removes a member from an enumerated value set, or weakens a universal it previously asserted)
 
 **Predicate.** Two authoritative triggers — run it when either fires. **(a) Membership removal:** the change removes a member from an enumerated value set, doc-enumerated configuration sets included. **(b) Weakened universal:** the change softens an "always"/"every"/"never" to "usually"/"most"/"rarely", scopes an unqualified claim with a narrowing qualifier, or removes the claim outright. Both are the same defect — the change made a claim false without editing the claim. A membership **addition** is §2.3.0b's, and a rename is §2.3.0b's alone.
 
-**Procedure:** `skills/implement/references/sweep-2-3-0d-describing-prose.md`, read under the gated-procedure protocol above.
+**Procedure:** `<skill-dir>/references/sweep-2-3-0d-describing-prose.md`, read under the gated-procedure protocol above.
 
 <!-- prflow:implement-ref phase=2 file=skills/implement/phases/phase-2-sweeps-contract.md end -->

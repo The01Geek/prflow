@@ -10672,7 +10672,11 @@ p478_sweep_bodies() {
   # Dropping them makes every marker that moved there read as absent, which turns that
   # marker's routing-table row into drift nothing detects. Glob-derived, so a later sweep
   # reference joins with no second edit.
-  cat "$LIB"/../skills/implement/references/sweep-*.md 2>/dev/null || true
+  # No 2>/dev/null and no `|| true`: an unmatched glob or an unreadable reference must leave
+  # cat's own path-naming breadcrumb on stderr. Suppressing it would silently shorten the
+  # corpus, and the caller reads a short corpus as "the marker is absent" — a RED with the
+  # wrong diagnosis instead of the missing file's name.
+  cat "$LIB"/../skills/implement/references/sweep-*.md
 }
 # p478_maptable is FAIL-CLOSED on its END anchor (#478 Phase-3 review): it buffers the BEGIN..END
 # region and emits it ONLY once the matching END anchor is seen. A renamed/removed END anchor yields
