@@ -34,6 +34,10 @@ The `issue-audit-dispatch-<slug>.md` write fails exactly as the draft write does
 
 **In a read-only sandbox, rely solely on the visible inline-in-chat audit block re-posted this turn and do not trust any on-disk `issue-audit-<slug>.md`** (it can only be a stale leftover).
 
+## Step 4 — the working-file listing
+
+When the listing command is refused, or its binary is missing, this run's working files cannot be enumerated: report the listing **unestablished** and re-enter no producing step on the strength of it. The **visible inline-in-chat blocks** this run posted for the Step 1 evidence, the derivation and the audit report stand in for the listing, and are re-posted in the current turn. **Do not trust any on-disk `issue-run-slug`, `issue-step1-<slug>.md`, `issue-derivation-<slug>.md` or `issue-audit-<slug>.md`** (each can only be a stale leftover on this arm). Filing is never blocked.
+
 ## Step 4 — the investigation-record artifact
 
 When the filesystem refuses the `.prflow/tmp/issue-record-<slug>.md` write, **present the record inline in chat** — the actual routed-out content as a visible block — **report the reduced durability**, and **never block filing**. Publication is **withheld** on this arm rather than attempted: `scripts/post-issue-comment.sh` requires its body input from a file, so with no record file there is nothing to post. A missing issue-number or body-file argument is a caller slip; the helper reports it, returns on its best-effort path, and makes no API request. The inline block is the whole delivery, and the reduced-durability report **names the record as unpublished**. **Do not trust any on-disk `issue-record-<slug>.md`**; the visible inline block is the sole stand-in.

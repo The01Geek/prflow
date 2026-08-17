@@ -151,7 +151,9 @@ If `$ARGUMENTS` is empty, ask the user to describe their user story, bug report,
 Dispatch `/prflow:docs-verify --report-only` peers on the topic extracted from the user story.
 
 Bind the slug, then clear state — before any dispatch. Bind this run's kebab-case slug here; no
-later step binds one. Delete any `.prflow/tmp/issue-step1-<slug>.md`, and delete-and-rewrite the
+later step binds one. Run `mkdir -p .prflow/tmp` first; a write into a missing directory fails and
+routes an otherwise healthy run onto the read-only arm.
+Delete any `.prflow/tmp/issue-step1-<slug>.md`, and delete-and-rewrite the
 fixed slug-independent pointer `.prflow/tmp/issue-run-slug` holding this slug.
 Both deletes run on every path including the degraded one; a failed delete leaves a possibly-stale
 leftover and routes to `references/fallback-read-only-sandbox.md`'s distrust-the-on-disk-copy row.
@@ -263,6 +265,27 @@ Load `references/step-3-5-steelman.md` per the *Reference routing* rules above a
 Load `references/step-3-6-audit.md` per the *Reference routing* rules above and follow it exactly, on every entry into this step.
 
 ### Step 4: Review with the user, then create
+
+Run `ls -l` on `.prflow/tmp/issue-run-slug`, `.prflow/tmp/issue-step1-<slug>.md`,
+`.prflow/tmp/issue-derivation-<slug>.md` and `.prflow/tmp/issue-audit-<slug>.md` — exactly those
+four, each named individually — and show the raw output, error lines
+included, in the message that renders the draft, then continue. With the slug unestablished, list
+the `.prflow/tmp` directory itself instead and state that no entry there is attributable to this run.
+
+Before any re-entry, compare each listed timestamp against the run-slug pointer's own timestamp in
+the same listing; a file older than the pointer is not this run's. For a path absent or older than
+the pointer, run its producing step — a Step 1 re-entry reuses the slug already bound and binds no
+new one, and a missing derivation file re-runs Step 2's independent-derivation pass rather than
+Step 2 whole, reporting any genuine clarification deficit that pass finds in the same message as
+the draft.
+
+A diagnostic naming a listed path with a non-zero status is an absent file; every other outcome — a
+missing command binary and a refused command alike — is reported unestablished and re-enters no
+producing step. A producing step that cannot run gets an in-chat breadcrumb naming the file and the
+failure kind, then you continue; this listing never prevents the issue from being created. The
+read-only arm is selected by run state — an earlier refused `.prflow/tmp` write in this run, whose
+visible in-chat blocks then discharge the listing — never by the listing's output, and a run that
+cannot establish that condition reports the listing unestablished.
 
 Load `references/step-4-present-create.md` per the *Reference routing* rules above and follow it exactly, on every entry into this step.
 
