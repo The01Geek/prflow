@@ -351,8 +351,8 @@ ${ALLOWED_TOOLS}
 > **${N_BATCH}. Issue mutually independent tool calls in one message.** Each request
 > re-sends the whole conversation, so one call per message pays a full request for work
 > that could have shared one. When two or more calls do not depend on each other's
-> results — reads of different files, independent probes, read-only dispatches — emit
-> them together.
+> results — reads of different files, edits to different files, independent probes,
+> read-only dispatches — emit them together.
 >
 > **Independence is the whole test, and it fails closed.** If you would have to see one
 > call's result before choosing, composing, or deciding whether to make another, they

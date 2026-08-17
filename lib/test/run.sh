@@ -37246,17 +37246,17 @@ assert_eq "#1723 the batching section renders in every mode, numbered 4 with no 
 assert_eq "#1723 no section-ordinal placeholder survives into any rendered mode" "no-no-no-no" \
   "$(case "$_GB363_REV" in *__N_*) echo yes ;; *) echo no ;; esac)-$(case "$_GB363_REV_NOHP" in *__N_*) echo yes ;; *) echo no ;; esac)-$(case "$_GB363_IMPL" in *__N_*) echo yes ;; *) echo no ;; esac)-$(case "$_GB363_GEN" in *__N_*) echo yes ;; *) echo no ;; esac)"
 # #1723: the rendered heading digits form a contiguous run from 1 with no gap or repeat, in
-# every mode. Never express the ordinal chain as per-mode digit rows alone: those need a
-# hand edit per inserted section, and this invariant is what the derivation chain maintains.
+# every mode. Never fold the no-heading case into the same token as a broken run: `none`
+# says the anchor vanished, `bad` says the ordinals really are non-contiguous.
 assert_eq "#1723 rendered section ordinals are contiguous from 1 in every mode" "ok-ok-ok-ok" \
-  "$(for _v in "$_GB363_REV" "$_GB363_REV_NOHP" "$_GB363_IMPL" "$_GB363_GEN"; do printf '%s\n' "$_v" | awk '/^> \*\*[0-9]+\. /{n=$0; sub(/^> \*\*/,"",n); sub(/\..*$/,"",n); c++; if (n+0 != c) bad=1} END{print (c>0 && !bad) ? "ok" : "bad"}'; done | tr '\n' '-' | sed 's/-$//')"
-# #1723: Phase 0.1.5 locates the displaced-paths section by ORDINAL, and that ordinal is the
-# only locator it gives, so a renumber that misses it silently routes the reviewer to the
-# wrong section and yields an empty displaced-paths list (a fail-open on head-vs-worktree
-# reads). Never renumber the block without re-running this equality.
+  "$(for _v in "$_GB363_REV" "$_GB363_REV_NOHP" "$_GB363_IMPL" "$_GB363_GEN"; do printf '%s\n' "$_v" | awk '/^> \*\*[0-9]+\. /{n=$0; sub(/^> \*\*/,"",n); sub(/\..*$/,"",n); c++; if (n+0 != c) bad=1} END{print (c==0) ? "none" : ((bad) ? "bad" : "ok")}'; done | tr '\n' '-' | sed 's/-$//')"
+# #1723: Phase 0.1.5's ONLY locator for the displaced-paths section is its ordinal, so a
+# renumber that misses that file silently routes the reviewer to the wrong section and
+# yields an empty displaced-paths list. Never compare only the first citation: `sort -u`
+# collapses agreeing duplicates, so a second citation carrying a DIFFERENT digit stays visible.
 assert_eq "#1723 phase-0-setup 0.1.5's cited displaced-paths ordinal equals the rendered heading digit" "yes" \
-  "$(_p015=$(sed -n 's/.*displaced-paths section (section \([0-9]\{1,\}\)).*/\1/p' "$LIB/../skills/review/phases/phase-0-setup.md" | head -1); _rend=$(printf '%s\n' "$_GB363_REV" | sed -n 's/^> \*\*\([0-9]\{1,\}\)\. Trusted-source displacement.*/\1/p' | head -1); if [ -n "$_p015" ] && [ "$_p015" = "$_rend" ]; then echo yes; else echo "no(cited=$_p015,rendered=$_rend)"; fi)"  # structural-pin-ok: cross-file-phase-contract -- Phase 0.1.5's only locator for the displaced-paths section is its ordinal; this equality is what makes a missed renumber RED instead of a silent empty displaced-paths list
-unset _GB363_GEN _GB363_REV _GB363_IMPL _GB363_REV_NOHP _v
+  "$(_p015=$(sed -n 's/.*displaced-paths section (section \([0-9]\{1,\}\)).*/\1/p' "$LIB/../skills/review/phases/phase-0-setup.md" | sort -u | tr '\n' ',' | sed 's/,$//'); _rend=$(printf '%s\n' "$_GB363_REV" | sed -n 's/^> \*\*\([0-9]\{1,\}\)\. Trusted-source displacement.*/\1/p' | sort -u | tr '\n' ',' | sed 's/,$//'); if [ -n "$_p015" ] && [ "$_p015" = "$_rend" ]; then echo yes; else echo "no(cited=$_p015,rendered=$_rend)"; fi)"  # structural-pin-ok: cross-file-phase-contract -- Phase 0.1.5's only locator for the displaced-paths section is its ordinal; this equality is what makes a missed renumber RED instead of a silent empty displaced-paths list
+unset _GB363_GEN _GB363_REV _GB363_IMPL _GB363_REV_NOHP
 
 assert_pin_unique "#363 devflow.yml falls back to the bare command when no block is composed" \
   'prompt: ${{ steps.reviewcompose.outputs.prompt || needs.gate.outputs.command }}' "$DEVFLOW_YML"
