@@ -189,10 +189,8 @@ SKILL_ASSETS = {
         # issue #1374: Phase 4.0.5's deferred-review-finding filing procedure is
         # reached the same way, through its own presence predicate.
         "skills/implement/references/deferred-review-findings.md",
-        # issue #1581: the eight conditional Phase 2.3 sweeps keep their predicate
-        # resident and carry their procedure here, each reached only when its own
-        # predicate fires. Do not drop one on the grounds that most runs never load
-        # it: an unlisted reachable asset is an AC1 closure violation.
+        # issue #1581: do not drop a gated sweep reference on the grounds that most
+        # runs never load it — an unlisted reachable asset is an AC1 closure violation.
         "skills/implement/references/sweep-2-3-0-changed-contract.md",
         "skills/implement/references/sweep-2-3-0a-peer-checkpoint.md",
         "skills/implement/references/sweep-2-3-0b-enum-enumeration.md",

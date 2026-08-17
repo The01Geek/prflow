@@ -10668,11 +10668,9 @@ p478_sweep_bodies() {
   # make the caller's empty-corpus RED arm vacuous.
   [ -n "$_p478_span" ] || return 0
   printf '%s\n' "$_p478_span"
-  # issue #1581: the eight conditional sweeps' procedures moved to per-sweep gated references,
-  # so the corpus must span them too or every marker that moved reads as absent.
   # Never add 2>/dev/null or `|| true` here, and never drop the `|| return 1`: a short corpus
-  # would otherwise leave the lint checking fewer markers and still echoing GREEN, which is the
-  # fail-open the caller's empty-corpus guard cannot see.
+  # leaves the lint checking fewer markers while still echoing GREEN — the fail-open the
+  # caller's empty-corpus guard cannot see.
   cat "$LIB"/../skills/implement/references/sweep-*.md || return 1
 }
 # p478_maptable is FAIL-CLOSED on its END anchor (#478 Phase-3 review): it buffers the BEGIN..END
@@ -10719,22 +10717,40 @@ for _mk in "${P478_MARKERS[@]}"; do
   assert_eq "#478 AC5 lint precondition: marker present in the §2.3 sweep bodies: $_mk" "yes" \
     "$(printf '%s\n' "$P478_BODIES" | grep -qF -- "$_mk" && echo yes || echo no)"
 done
-# #1581: the corpus spans the gated references as well as the phase-file span, and the marker
-# preconditions above cannot tell the two halves apart — every marker still resolves inside the
-# phase files, so a corpus that silently lost its reference half stays green. Pin a literal that
-# exists ONLY in a reference, so a dropped, renamed, or unreadable reference half goes RED here
-# rather than at whichever marker happens to move into a reference next.
-assert_eq "#1581: the §2.3 sweep-body corpus spans the gated per-sweep references (not the phase-file span alone)" "yes" \
-  "$(printf '%s\n' "$P478_BODIES" | grep -qF -- 'Traced-arm evidence' && echo yes || echo no)"  # structural-pin-ok: routing-dispatch-contract -- a reference-only literal is the only operand that discriminates the corpus's reference half from its phase-file span
-# #1581: reconcile the gated-sweep routing BOTH ways round — every reference the phase files'
-# `**Procedure:**` pointers name must exist on disk, and every on-disk sweep reference must be
-# named by a pointer. A pointer naming a file that does not exist makes the gated Read fail and
-# silently drops a mandatory sweep; a reference no pointer names is unreachable prose that the
-# corpus glob still admits.
-P1581_DECLARED="$(grep -h '^\*\*Procedure:\*\*' "$IMPL_PHASES_DIR/phase-2-sweeps-contract.md" "$IMPL_PHASES_DIR/phase-2-sweeps-quality.md" | sed 's|.*<skill-dir>/references/||; s|`.*||' | sort -u)"
-P1581_ONDISK="$(cd "$LIB/../skills/implement/references" && ls sweep-*.md 2>/dev/null | sort -u)"
+# #1581: the on-disk sweep-reference set, derived from the tracked index rather than a working-tree
+# glob — an untracked scratch file under references/ must not join the dispatch table and flip the
+# reconciliation below for a reason unrelated to the change under test.
+P1581_ONDISK="$(git -C "$LIB/.." ls-files 'skills/implement/references/sweep-*.md' | sed 's|.*/||' | sort -u)"
+# #1581: the gated-sweep dispatch table as the phase files declare it. Constrained to `sweep-`
+# basenames: a later non-sweep `**Procedure:**` pointer in either phase file would otherwise make
+# the reconciliation RED with a message asserting a broken sweep table that is not broken.
+P1581_DECLARED="$(grep -h '^\*\*Procedure:\*\*' "$IMPL_PHASES_DIR/phase-2-sweeps-contract.md" "$IMPL_PHASES_DIR/phase-2-sweeps-quality.md" | sed 's|.*<skill-dir>/references/||; s|`.*||' | grep '^sweep-' | sort -u)"
+# Assert each limb PRODUCED before comparing them: a two-sided disappearance (the references
+# directory and the phase files renamed in one change — the relocation class this guard exists for)
+# would otherwise compare "" to "" and report GREEN having reconciled nothing.
+assert_eq "#1581: the on-disk gated-sweep reference set is non-empty (the reconciliation below is not vacuous)" "yes" \
+  "$([ -n "$P1581_ONDISK" ] && echo yes || echo no)"
+assert_eq "#1581: the phase files' gated-sweep **Procedure:** pointer set is non-empty (the reconciliation below is not vacuous)" "yes" \
+  "$([ -n "$P1581_DECLARED" ] && echo yes || echo no)"
+# #1581: a pointer naming a file that does not exist makes the gated Read fail and silently drops
+# a mandatory sweep, so reconcile the routing both ways round.
 assert_eq "#1581: every gated-sweep **Procedure:** pointer resolves to an on-disk reference, and every sweep reference is pointed at" \
   "$P1581_ONDISK" "$P1581_DECLARED"  # structural-pin-ok: routing-dispatch-contract -- the phase files' pointer set IS the dispatch table for the gated sweeps; a one-sided rename drops a mandatory sweep with the suite green
+# #1581: never narrow this to the phase-file span — every marker still resolves inside the phase
+# files, so a corpus that lost its reference half would stay green. Derive the operand from the set
+# above, not a literal list, or a ninth sweep ships uncovered.
+for _p1581_ref in $P1581_ONDISK; do
+  assert_eq "#1581: the §2.3 sweep-body corpus carries $_p1581_ref's own boundary marker (the corpus spans its reference half)" "yes" \
+    "$(printf '%s\n' "$P478_BODIES" | grep -qF -- "file=skills/implement/references/$_p1581_ref start" && echo yes || echo no)"  # raw-guard-ok: loop body: presence pin over the enumerated $P1581_ONDISK loop variable, not a static pin
+done
+# #1581: a `file=` value that drifts from its own filename makes the implement run's gated Read
+# treat the reference as truncated and drop a mandatory sweep, with every other check here green.
+for _p1581_ref in $P1581_ONDISK; do
+  assert_eq "#1581: $_p1581_ref's first line is its own self-naming start marker" "yes" \
+    "$(head -1 "$IMPL_REFS_DIR/$_p1581_ref" | grep -qF -- "file=skills/implement/references/$_p1581_ref start -->" && echo yes || echo no)"  # raw-guard-ok: loop body: boundary-contract pin over the enumerated $P1581_ONDISK loop variable
+  assert_eq "#1581: $_p1581_ref's last line is its own self-naming end marker" "yes" \
+    "$(tail -1 "$IMPL_REFS_DIR/$_p1581_ref" | grep -qF -- "file=skills/implement/references/$_p1581_ref end -->" && echo yes || echo no)"  # raw-guard-ok: loop body: boundary-contract pin over the enumerated $P1581_ONDISK loop variable
+done
 # Empty-corpus RED arm: a corpus the extractor could not build skips every marker check, so
 # the lint must refuse rather than echo GREEN having verified nothing. Driven with an operand
 # whose span never opens, which is what a reordered or truncated file set produces.
