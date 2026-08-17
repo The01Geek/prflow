@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1728",
+  "generated_at": "2026-08-17T22:23:41Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.3",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 13.029505250000003,
+    "tokens": {
+      "input_tokens": 48,
+      "output_tokens": 23861,
+      "cache_read_input_tokens": 3271213,
+      "cache_creation_input_tokens": 190780,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 166,
+        "outputTokens": 88689,
+        "cacheReadInputTokens": 9339538,
+        "cacheCreationInputTokens": 868201,
+        "webSearchRequests": 0,
+        "costUSD": 13.029505250000003,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 36,
+    "duration_ms": 663964
+  },
+  "permission_denials": {
+    "count": 8,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain | head; echo \"---RUNENV---\"; echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-<empty>}\"; echo \"GITHUB_RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT:-<empty>}\"; echo \"branch=$(git branch --show-current)\"",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve 1721 --pr 1728 2>.prflow/tmp/review/pr-1728/32074813890-1/acs.err ; echo \"acs-rc=$?\"",
+      "rm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null; git status --porcelain -z > .prflow/tmp/review-dirty-tree-before; git hash-object .prflow/tmp/review-dirty-tree-before",
+      "git apply --check .prflow/tmp/review/pr-1728/32074813890-1/diff.patch 2>&1 && echo \"APPLIES CLEAN\" || echo \"does not apply cleanly\"",
+      "git stash list >/dev/null 2>&1; git apply .prflow/tmp/review/pr-1728/32074813890-1/diff.patch && echo APPLIED",
+      "git apply .prflow/tmp/review/pr-1728/32074813890-1/diff.patch",
+      "python3 -c \"\nimport json\nd=json.load(open('lib/capability-profiles.json'))\ngroups=d['groups']\nprof=d['profiles']['review']\n# resolve: profile may reference groups\ndef flatten(x):\n    out=[]\n    if isinstance(x,list):\n        for i in x: out+=flatten(i)\n    elif isinstance(x,dict):\n        for v in x.values(): out+=flatten(v)\n    elif isinstance(x,str): out.append(x)\n    return out\n# expand group refs\ntoks=flatten(prof)\nexpanded=set(toks)\nfor t in list(toks):\n    if t in groups: expanded|=set(fla …[per-command-truncated]",
+      "python3 << 'PYEOF'\nimport json\nd=json.load(open('lib/capability-profiles.json'))\ngroups=d['groups']\nprof=d['profiles']['review']\ndef flatten(x):\n    out=[]\n    if isinstance(x,list):\n        for i in x: out+=flatten(i)\n    elif isinstance(x,dict):\n        for v in x.values(): out+=flatten(v)\n    elif isinstance(x,str): out.append(x)\n    return out\ntoks=flatten(prof)\nexpanded=set(toks)\nfor t in list(toks):\n    if t in groups: expanded|=set(flatten(groups[t]))\nfor h in ['grep','tee','awk','test',' …[per-command-truncated]"
+    ],
+    "total": 8,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
