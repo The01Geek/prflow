@@ -151,7 +151,10 @@ If `$ARGUMENTS` is empty, ask the user to describe their user story, bug report,
 Dispatch `/prflow:docs-verify --report-only` peers on the topic extracted from the user story.
 
 Bind the slug, then clear state — before any dispatch. Bind this run's kebab-case slug here; no
-later step binds one. Delete any `.prflow/tmp/issue-step1-<slug>.md`, and delete-and-rewrite the
+later step binds one. Run `mkdir -p .prflow/tmp` first, treating any stderr from it as its failure
+signal; a write or delete at or under `.prflow/` that fails or is refused routes this evidence
+artifact and this pointer onto `references/fallback-read-only-sandbox.md`'s Step 1 arm.
+Delete any `.prflow/tmp/issue-step1-<slug>.md`, and delete-and-rewrite the
 fixed slug-independent pointer `.prflow/tmp/issue-run-slug` holding this slug.
 Both deletes run on every path including the degraded one; a failed delete leaves a possibly-stale
 leftover and routes to `references/fallback-read-only-sandbox.md`'s distrust-the-on-disk-copy row.
@@ -263,6 +266,30 @@ Load `references/step-3-5-steelman.md` per the *Reference routing* rules above a
 Load `references/step-3-6-audit.md` per the *Reference routing* rules above and follow it exactly, on every entry into this step.
 
 ### Step 4: Review with the user, then create
+
+Before the first rendered draft, and not again while iterating on feedback, run one `ls -l … 2>&1`
+over `.prflow/tmp/issue-run-slug`, `.prflow/tmp/issue-step1-<slug>.md`,
+`.prflow/tmp/issue-derivation-<slug>.md` and `.prflow/tmp/issue-audit-<slug>.md` — exactly those
+four, each named individually — and show its raw output, error lines included, in the message that
+renders the draft. With the slug unestablished, list `.prflow/tmp` itself instead, state that
+nothing there is attributable to this run, and re-enter nothing.
+
+Classify each path from that one invocation, running no second probe: a listing row is present, a
+not-found diagnostic is absent, anything else — no output, a missing or refused command, another
+diagnostic — is unestablished. Name each path and its class in the draft message. Only absent
+supports a re-entry: every producing step deletes its own same-slug leftover before writing, so a
+present path is this run's, and a run whose earlier `.prflow/` write or delete failed or was refused
+is on `references/fallback-read-only-sandbox.md`'s arms, where no on-disk copy is trusted and
+nothing is re-entered.
+
+Re-run the producing step for every absent path, then resume at the draft rendering. A Step 1
+re-entry reuses the slug already bound and binds no new one; a missing derivation file re-runs
+Step 2's independent-derivation pass, not Step 2 whole, reporting any genuine clarification deficit
+in the draft message; the audit artifact re-enters Step 3.6 only as `issue-audit-state.py
+query-next-action` directs, and where it allows no round, report that artifact unestablished and
+re-enter nothing. Where any step was re-entered, that message names the steps re-run and any finding
+of theirs the draft does not already reflect. A producing step that cannot run gets an in-chat
+breadcrumb naming the file and the failure kind; this listing never blocks issue creation.
 
 Load `references/step-4-present-create.md` per the *Reference routing* rules above and follow it exactly, on every entry into this step.
 
