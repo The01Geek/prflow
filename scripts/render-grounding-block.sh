@@ -367,10 +367,10 @@ ${ALLOWED_TOOLS}
 > can both write one checkout are dependent unless you have established one of two things:
 > that their writes cannot reach the same path — each writing only where its own identity
 > determines, as a batch of verifiers writing per-item result files does — or that the
-> runner gives each its own working copy. Establishing neither leaves them dependent;
-> otherwise they race and silently overwrite each other. Every write-capable dispatch
+> runner gives each its own working copy. Establishing neither leaves them dependent —
+> batched anyway, they race and silently overwrite each other. Every write-capable dispatch
 > still owes the commit-before-dispatch obligation stated where that dispatch is defined,
-> whichever of those holds; a working copy of its own is a stronger way to meet that
+> established limbs or not; a working copy of its own is a stronger way to meet that
 > obligation, never a replacement for it. None of this is a rule about writing fewer,
 > larger edits: how many hunks a single edit carries is a separate question this says
 > nothing about.
