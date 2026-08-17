@@ -234,17 +234,9 @@ devflow_module_pin_present "#443: Step 3.6 names the VERDICT: REVISE legal value
 devflow_module_pin_unique "#443: live create-issue extension carries the exact ## Audit dimensions heading" \
   '## Audit dimensions' "$CI_EXT"
 # Generic dimension checklist is consumer-agnostic (maps to the dimension-checklist AC).
-# Reconciliation absence pin (maps to the reconciliation AC): the stale literal must be GONE from
-# the skill (it legitimately remains in CHANGELOG.md's historical entry, so this pin is FILE-scoped).
-assert_eq "#443: SKILL no longer carries the stale 'no-subagent, all-inline model' literal" \
-  "0" "$(devflow_module_pin_count 'no-subagent, all-inline model' "$CI_BUNDLE")"
-# Non-vacuity proof: re-introducing the stale literal makes the absence guard's count non-zero,
-# so the guard actually catches the regression rather than passing vacuously.
-CI443_MUT="$_ci_tmp_root/ci443-mut"
-sed -E '1s/^/REINTRODUCED no-subagent, all-inline model\n/' "$CI_BUNDLE" > "$CI443_MUT"
-assert_eq "#443: absence guard catches a re-introduction of the stale literal (non-vacuous)" \
-  "1" "$(devflow_module_pin_count 'no-subagent, all-inline model' "$CI443_MUT")"
-rm -f "$CI443_MUT"
+# Do not re-add an absence pin for 'no-subagent, all-inline model' (nor its non-vacuity proof):
+# nothing reads the literal (checked via pin-corpus-lint.py's machine_consumer_evidence), so it
+# would test agent-executed prose, which #843/#876 places outside automated coverage.
 # Anti-deadlock guarantee (maps to the VERDICT: REVISE / re-audit AC): removing it re-opens an
 # unbounded re-audit loop that could block issue filing.
 # Mandatory never-silent audit summary line (maps to the audit-summary AC): the feature's
@@ -433,8 +425,9 @@ done
 # generated-instructions one and the renderer invocation itself lives in the generated
 # instructions, not in this prose — its pin moved with it, below.
 # Guard the current closed enumeration against silently adding a sixth consumption category.
-assert_eq "#600: the consumption-categories enumeration has no sixth member (complete-by-construction claim stays true)" \
-  "0" "$(devflow_module_pin_count '(vi)' "$CI_BUNDLE")"
+# Do not re-add a `(vi)` sixth-member absence pin: nothing reads the enumeration (checked via
+# pin-corpus-lint.py's machine_consumer_evidence), and a rewording satisfies that absence as
+# readily as a closed enumeration does, so it would test agent-executed prose (#843/#876).
 # issue #709 relocated this invocation out of the skill prose and into the canonical
 # dispatch-instruction blocks the generator emits, so the pin follows the content to the
 # template. The guarded regression is unchanged: the auditor is still told to run the
@@ -938,10 +931,9 @@ assert_eq "#611/#600 AC6: the surviving no-op sentence states the absent heading
 # string passes under any reworded restatement, so it polices nothing.
 # (#600 cutover) retired here: the "terminator precision is stated exactly once"
 # pin — superseded for the same reason; regression covered by R4's extraction matrix.
-# AC7: the definition no longer claims a budget clause evaluate_convergence never computed;
-# round funding is named as where budget legality is actually enforced.
-assert_eq "#603: the convergence definition no longer claims a budget clause" \
-  "0" "$(devflow_module_pin_count 'within the existing automatic audit budget' "$CI_BUNDLE")"
+# Do not re-add a 'within the existing automatic audit budget' absence pin: budget legality is
+# enforced by evaluate_convergence in scripts/issue-audit-state.py, which keeps its own tests,
+# and nothing reads the prose phrase, so a pin here would test prose (#843/#876).
 
 # ── issue #603: the per-finding ledger, the post-close channels, and the reconciliation
 #    discipline. Surface-presence contract pins over agent-executed prose. Where a pinned
@@ -1194,9 +1186,9 @@ rm -f "$CI559_BND"
 
 # ── issue #613: shift-left evidence disciplines in the live create-issue extension —
 #    the surviving behavioral guards cover the stale ordinal and negative repo-wide sweep.
-# AC7 — the self-referential count must remain free of the retired ordinal.
-assert_eq "#613 AC7: the rotted 'fourth defect class' ordinal is gone from the extension" "0" \
-  "$(devflow_module_pin_count 'not a fourth defect class' "$CI_EXT")"
+# Do not re-add a 'not a fourth defect class' absence pin: nothing reads the phrase (checked via
+# pin-corpus-lint.py's machine_consumer_evidence), so it would test agent-executed prose, which
+# #843/#876 places outside automated coverage.
 # AC10 — the overview's stale axis enumeration is retired repo-wide. The module itself
 # necessarily carries the phrase as this grep's own needle, so the sweep excludes this
 # file by pathspec; an unexcluded sweep could never reach zero. Any OTHER tracked hit is

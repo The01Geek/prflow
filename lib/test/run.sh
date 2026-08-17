@@ -2854,9 +2854,9 @@ assert_pin_unique "loop_role: field + value set pinned at iter-N json schema sou
   '"loop_role": "fix | promoted"' "$MAXI_SKILL"
 assert_pin_unique "loop_role: Step 3 item 7 record-shape rule persists it every iteration (Write anchored at item 6)" \
   'the iteration role from the schema: fix for a normal fix iteration, promoted for a Decide-outcome-2 shadow-promoted iter' "$MAXI_SKILL"
-# The retired "legibility-only" phrasing remains absent.
-assert_eq "loop_role #170: SKILL.md no longer claims 'legibility-only' (note + Step 3 item 7 corrected)" "0" \
-  "$(pin_count 'legibility-only' "$MAXI_SKILL")"
+# Do not re-add a `legibility-only` absence pin: nothing reads the phrase (checked via
+# pin-corpus-lint.py's machine_consumer_evidence), so it would test agent-executed prose,
+# which #843/#876 places outside automated coverage.
 
 # Drift guard: issue #159's Step 3.5 fix-delta verification gate is the in-iteration
 # delta-regression catch — after each iteration's fix commit a blinded subagent re-reviews
@@ -28216,20 +28216,9 @@ unset _T789_BAD _T789_N _t789_meta _t789_mode _t789_path _t789_first
 # is the review pass that reads the prose.
 # G13 (#719): implement.md states a final full-suite obligation whose scope covers the cloud tier,
 # so the tier-agnostic guarantee is legible on the extension itself, not only via CLAUDE.md tier 2.
-# Finding 2 (undefined `or path` disjunct): the full-suite trigger carries exactly one defined
-# disjunct on every operative policy surface. Each surface carried the disjunct on a single line
-# (matchable-when-present, so this absence sweep is not the #719 wrapped-literal trap), in the
-# exact form named per surface; a reintroduction turns the suite RED.
-assert_eq "#719 implement.md carries no undefined path disjunct in the full-suite trigger" "0" \
-  "$(pin_count 'module or path' "$WSR_IMPL")"
-assert_eq "#719 review-and-fix.md carries no undefined path disjunct in the full-suite trigger" "0" \
-  "$(pin_count 'module or path' "$WSR_RAF")"
-assert_eq "#719 receiving-code-review.md carries no undefined path disjunct in the full-suite trigger" "0" \
-  "$(pin_count 'module or path' "$FDROOT/.prflow/prompt-extensions/receiving-code-review.md")"
-assert_eq "#719 overview mirror carries no undefined path disjunct in the full-suite trigger" "0" \
-  "$(pin_count 'module or path' "$FDROOT/docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md")"
-assert_eq "#719 CONTRIBUTING.md carries no undefined path disjunct in the full-suite trigger" "0" \
-  "$(pin_count 'focused path' "$FDROOT/CONTRIBUTING.md")"
+# Do not re-add an absence pin for `module or path` / `focused path`: nothing reads them
+# (checked via pin-corpus-lint.py's machine_consumer_evidence), so a pin here would test
+# agent-executed prose, which #843/#876 places outside automated coverage.
 
 # (a) implement.md routing-rule operative sentence.
 assert_pin_unique "#506 implement.md carries the prompt-surface routing operative sentence" \
@@ -47150,7 +47139,7 @@ fi
 # The registry and this full-suite call share the same lower-bound contract;
 # test_module_runner.py parses this operand and rejects any coupling drift.
 if ! devflow_run_full_suite_module "$LIB/test/modules/create-issue-contract.sh" \
-  "create-issue-contract" 400; then
+  "create-issue-contract" 395; then
   printf 'ERROR: create-issue-contract boundary could not record its result\n'
   exit 1
 fi
