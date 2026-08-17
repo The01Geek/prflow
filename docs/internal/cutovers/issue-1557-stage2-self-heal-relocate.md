@@ -21,13 +21,15 @@ Counted with `wc -c` at merge base `3e43e7b32`, captured 2026-08-17.
 | File | Before | After | Delta |
 | --- | --- | --- | --- |
 | `skills/implement/phases/phase-4-documentation.md` | 59,113 | 59,051 | **−62** |
-| `skills/implement/references/doc-deliverable-self-heal.md` | — | 2,534 | +2,534 |
+| `skills/implement/references/doc-deliverable-self-heal.md` | — | 3,725 | +3,725 |
 
 **Read that number before assuming this move resembles its precedents.** Issues #815 and #1374 each cut
 their always-read surface by tens of thousands of bytes. This one cuts 62 — about a tenth of one
-percent — which over the two mandated Phase 4 reads is 124 bytes of context per run, against +2,534
+percent — which over the two mandated Phase 4 reads is 124 bytes of context per run, against +3,725
 loaded on the repair path when a deliverable is actually absent. On any run that owes a repair the
-change is net additive; only a run that owes none comes out ahead, and then barely.
+change is net additive by roughly thirty to one; only a run that owes none comes out ahead, and then
+barely. The reference grew from 2,534 to 3,725 bytes **within this pull request**, as the review pass's
+findings were fixed, so the figures above are the merged-head measurement rather than the first draft's.
 
 The arithmetic is structural rather than an authoring failure. A **split** leaves the `Blocked` terminal
 resident where a **wholesale move** takes it along, and adds a gated-load instruction and a degraded arm

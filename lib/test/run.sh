@@ -36330,23 +36330,15 @@ assert_pin_unique "#1557 the reference's start marker occurs exactly once" \
 assert_pin_unique "#1557 the reference's end marker occurs exactly once" \
   '<!-- prflow:implement-ref step=4.1 file=skills/implement/references/doc-deliverable-self-heal.md end -->' \
   "$I1557_REF"  # structural-pin-ok: routing-dispatch-contract -- the closing half of the same duplication guard
-# Named twice by design (the load instruction and the degraded arm), so this is a COUNT, not a
-# uniqueness pin: dropping either occurrence leaves the stub naming the reference on only one of
-# the two paths a reader reaches it by.
-# pin_count, not `grep -cF`: grep counts LINES, and both occurrences sit on one line, so a
-# line count reads 1 and a dropped occurrence would be invisible.
+# A COUNT, not a uniqueness pin: dropping either occurrence leaves the stub naming the reference
+# on only one of the two paths a reader reaches it by. pin_count, not `grep -cF` — both
+# occurrences sit on one line, so a line count reads 1 and a dropped one would be invisible.
 assert_eq "#1557 the stub names the reference through the <skill-dir> anchor on both paths" "2" \
   "$(pin_count '<skill-dir>/references/doc-deliverable-self-heal.md' "$P4_FILE")"  # structural-pin-ok: routing-dispatch-contract -- the anchored path the stub's absent-path arm resolves the gated load from
-# Assert the repair actually LEFT the phase file rather than being duplicated into the reference
-# (this pins the RELOCATION, never a byte reduction — the cutover record measures that separately).
-# SECTION-scoped, as #815's is, so the zero count stays attributable to Stage 2 if this literal
-# ever reappears elsewhere in the file; a whole-file count would not say where it came back.
-# The zero-count alone is satisfied by RENAMING the literal in both files, which would prove
-# nothing moved. Pair it with the positive half so the two together pin a relocation. This half
-# reads only the reference, so it sits OUTSIDE the scratch guard — inside it, a scratch failure
-# would drop the check that makes the pair non-vacuous. The expected 2 is the invocation LADDER's
-# shape (vendored rung + anchor rung, each carrying the note), so deleting the fallback arm moves
-# this count too — that regression is lint-anchor-fallback-arm.py's to name, not this row's.
+# The zero-count below is satisfied by RENAMING the literal in both files, so pair it with this
+# positive half. Keep this half OUTSIDE the scratch guard: inside, a scratch failure drops the
+# check that makes the pair non-vacuous. (Rationale for the pairing, the section scoping and the
+# expected 2 is in the cutover record under docs/internal/cutovers/.)
 assert_eq "#1557 the self-heal repair step landed in the gated reference" "2" \
   "$(pin_count 'performed update from Documentation Needed prose' "$I1557_REF")"  # structural-pin-ok: cross-file-phase-contract -- the literal the zero-count below measures the absence of; without this row a rename in both files reads as a completed move
 I1557_S2="$(probe_tmp '#1557 phase-file Stage 2 slice')"
@@ -36365,17 +36357,13 @@ else
   skip "#1557 Stage 2 no longer carries the self-heal repair step" blocking-gate \
     "could not allocate a scratch file for the Stage-2 slice"
 fi
-# The slice's terminator is a machine-consumed helper invocation rather than a prose sentence, so
-# it cannot be reworded by an ordinary prose edit — but it CAN be deleted or re-pointed, and a
-# vanished terminator silently widens the sed range to end-of-file, restoring the vacuity the
-# section scoping exists to close. Pin its retention so that widening turns the suite RED.
+# A deleted or re-pointed terminator silently widens the sed range to end-of-file, restoring the
+# vacuity the section scoping closes. Pin its retention so that widening turns the suite RED.
 assert_pin_unique "#1557 the phase file retains the Stage-2 slice terminator (the sed range ends on it)" \
   'config-get.sh .docs.labels Documented' "$P4_FILE"  # structural-pin-ok: cross-file-phase-contract -- the sed range above terminates on this literal; without it the slice runs to EOF and its zero count no longer attributes what it measures to Stage 2
-# The split's central invariant: the ENFORCEMENT stayed behind. The #185 Blocked-arm pin
-# targets the implement BUNDLE, which spans references/*.md by glob, so it stays green if the
-# terminal is later dragged into the gated reference — the one regression this change forbids.
-# Pin the terminal PHASE-FILE-scoped, and pin the reference writing no run status at all, so a
-# failed load can never silently stop the gate while the run still reports Complete.
+# Pin the terminal PHASE-FILE-scoped: the #185 Blocked-arm pin targets the implement BUNDLE, which
+# spans references/*.md by glob, so it stays green if the terminal is dragged into the reference —
+# the one regression this change forbids.
 assert_pin_unique "#1557 the undeliverable-path Blocked terminal stayed resident in the phase file" \
   'Documentation Needed file content cannot be determined' "$P4_FILE"  # structural-pin-ok: routing-dispatch-contract -- the resident terminal a failed reference load must still reach; the bundle-scoped #185 pin cannot see it move
 assert_eq "#1557 the gated reference writes no run status of its own" "0" \
@@ -36388,11 +36376,8 @@ assert_eq "#1557 the implement shape-lint population reaches the third gated ref
   "$(printf '%s\n' "${IMPL_SHAPE_FILES[@]}" | grep -qxF "$I1557_REF" && echo yes || echo no)"
 assert_eq "#1557 the cloud-writer manifest classifies the third gated reference as a reachable asset" "yes" \
   "$(grep -qF 'skills/implement/references/doc-deliverable-self-heal.md' "$LIB/../lib/test/cloud_writer_contract.py" && echo yes || echo no)"  # structural-pin-ok: generated-artifact-identity -- an unlisted reachable asset is an AC1 closure violation the required check reports
-# The reference states its steps as bash fences where the phase file stated them as prose, so it
-# introduces fenced call sites both hand-maintained enrollments would otherwise never audit. Read
-# each lint's OWN --print-inventory rather than grepping its source: a source grep is satisfied by
-# the path appearing in a comment, a docstring, or a commented-out entry, none of which enrolls
-# anything.
+# Read each lint's OWN --print-inventory, never a grep of its source: a source grep is satisfied by
+# the path in a comment, a docstring, or a commented-out entry, none of which enrolls anything.
 assert_eq "#1557 the worktree-fence-shape lint enrolls the gated reference" "yes" \
   "$(python3 "$LIB/test/lint-worktree-fence-shapes.py" --print-inventory 2>/dev/null | grep -qxF 'skills/implement/references/doc-deliverable-self-heal.md' && echo yes || echo no)"  # structural-pin-ok: cross-file-phase-contract -- the lint's own published inventory is the enrollment; an unenrolled file's fences are audited by nothing
 # The anchor lint's inventory rows are (path, invocation-suffix) PAIRS, so match the pair: the
