@@ -10,7 +10,7 @@ type: Changed
   be verified by a manual checklist a headless implementing run cannot perform are all gone.
   The two rules buried in the deleted block survive in homes that suit them: the
   multi-state-contract rule moves into the acceptance-criteria guidance, and the quality-group
-  routing clause folds into the surviving Testing Strategy bullet. Every sentence elsewhere in
-  the repository that pointed into the deleted text now names a rule that still exists. Trims
+  routing clause folds into the surviving Testing Strategy bullet. Sentences elsewhere that
+  pointed into the deleted text are rewritten to name a rule that still exists. Trims
   about 3.7KB of always-loaded template prose per drafting run, with the acceptance criteria
   left as the single merge-gated definition of done.
