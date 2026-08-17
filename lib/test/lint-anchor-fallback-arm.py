@@ -83,10 +83,9 @@ ENROLLED: tuple[tuple[str, str], ...] = (
     # the unestablished arm, and read the reference the gate exists to skip.
     ("skills/implement/phases/phase-4-documentation.md",
      "discover-deferral-manifests.py --presence-for-pr <this-run's-PR-number>"),
-    # The Phase 4.1 Stage 2 self-heal repair records its own workpad note, and that call site
-    # moved out of the phase file into this gated reference. It runs on the cloud implement
-    # tier whenever a named documentation deliverable is absent, so an anchor-only spelling
-    # would be refused there and the repair would go unrecorded.
+    # Enrolled at issue #1557. Reached on the cloud implement tier whenever a named
+    # documentation deliverable is absent, so an anchor-only spelling would be refused
+    # there and the repair would go unrecorded.
     ("skills/implement/references/doc-deliverable-self-heal.md",
      "workpad.py update $ISSUE_NUMBER --note"),
     # Enrolled at issue #1432. These four extension loads are reached on the cloud

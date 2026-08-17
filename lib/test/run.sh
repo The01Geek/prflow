@@ -36343,6 +36343,12 @@ if [ "$I1557_S2" != "/dev/null" ]; then
     "$([ -s "$I1557_S2" ] && echo yes || echo no)"
   assert_eq "#1557 Stage 2 no longer carries the self-heal repair step" "0" \
     "$(grep -cF 'performed update from Documentation Needed prose' "$I1557_S2" || true)"
+  # The terminal's residency is pinned above, but the DECISION it fires on was not: the
+  # satisfied-versus-absent rule reads this sentinel, and the reference tells the agent to borrow
+  # that rule. Dragged into the reference, every other row here stays green while the gate follows
+  # the repair out of Stage 2.
+  assert_eq "#1557 the satisfied-versus-absent decision stayed resident in Stage 2" "1" \
+    "$(pin_count 'docgate-path' "$I1557_S2")"  # structural-pin-ok: machine-sentinel-provenance -- the deliverables helper's own printed sentinel, which the resident decision reads; without this row the gate can leave Stage 2 unobserved
   # Scoped to the SAME slice as the zero-count above. A whole-file count would stay 2 with the
   # gated load moved out of Stage 2 entirely, leaving the repair unreachable from the arm that
   # owes it while every other row here still passed.
@@ -36370,8 +36376,13 @@ assert_pin_unique "#1557 the phase file retains the Stage-2 slice terminator (th
 # the one regression this change forbids.
 assert_pin_unique "#1557 the undeliverable-path Blocked terminal stayed resident in the phase file" \
   'Documentation Needed file content cannot be determined' "$P4_FILE"  # structural-pin-ok: routing-dispatch-contract -- the resident terminal a failed reference load must still reach; the bundle-scoped #185 pin cannot see it move
+# Zero-count `--status` in ANY spelling and the reaction that pairs with it, not just the Blocked
+# arm: the reference forbids itself every one of Stage 2's terminal arms, and a --status Complete
+# or a stray 👎 dragged in here ends the run mid-loop exactly as wrongly.
 assert_eq "#1557 the gated reference writes no run status of its own" "0" \
-  "$(pin_count '--status Blocked' "$I1557_REF")"  # structural-pin-ok: lifecycle-state-transition -- the reference reports outcomes to its caller; a status write there would duplicate the terminal the phase file owns
+  "$(pin_count '--status' "$I1557_REF")"  # structural-pin-ok: lifecycle-state-transition -- the reference reports outcomes to its caller; a status write there would duplicate the terminal the phase file owns
+assert_eq "#1557 the gated reference emits no outcome reaction of its own" "0" \
+  "$(pin_count '👎' "$I1557_REF")"  # structural-pin-ok: lifecycle-state-transition -- the reaction is emitted with the terminal the phase file owns; one here would abandon the caller's remaining absent paths
 assert_eq "#1557 the phases/ directory reconciliation is untouched (the reference is NOT a phase stem)" "yes" \
   "$([ ! -e "$IMPL_PHASES_DIR/doc-deliverable-self-heal.md" ] && \
      [ "$IMPL_PHASE_STEMS" = "phase-1-setup phase-2-implement phase-2-sweeps-contract phase-2-sweeps-quality phase-3-review phase-3-fix-loop phase-3-ac-gate phase-4-documentation" ] \

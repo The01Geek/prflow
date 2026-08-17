@@ -29,17 +29,22 @@ their always-read surface by tens of thousands of bytes. This one cuts 62 — ab
 percent — which over the two mandated Phase 4 reads is 124 bytes of context per run, against the whole
 reference loaded on the repair path when a deliverable is actually absent. On any run that owes a repair
 the change is net additive by well over an order of magnitude; only a run that owes none comes out
-ahead, and then barely. **The reference's figure is the volatile one and it moved four times inside this
-pull request** — 2,534 at the first draft, then 3,725 and 4,148 as successive review iterations fixed
-it, then back to 3,682 when the last iteration reverted a relaxation and deleted a routing claim the
-caller could not honour. Read the row as this record's own measurement, not a property of the design.
+ahead, and then barely. **The reference's figure is the volatile one and it moved five times inside this
+pull request**: 2,707 at the first draft, 2,534 after the `/simplify` trim, then 3,463, 3,725 and 4,148
+as successive review iterations fixed it, then back to 3,682 when the last iteration reverted a
+relaxation and deleted a routing claim the caller could not honour. Read the row as this record's own
+measurement, not a property of the design.
 
 The arithmetic is structural rather than an authoring failure. A **split** leaves the `Blocked` terminal
 resident where a **wholesale move** takes it along, and adds a gated-load instruction and a degraded arm
 on top of it, so the gating apparatus costs nearly as much as the repair it gates. The first draft of
-this change was in fact 85 bytes *larger* than the pre-change file; it reaches −62 only because the
-`/simplify` pass noticed the stub was restating the boundary-marker contract a **third** time in one
-file (§4.0 and §4.0.5 already state it identically) and replaced that restatement with a pointer.
+this change (`709cf0172`) was in fact **347 bytes larger** than the pre-change file — 59,460 against
+59,113 — and it reaches −62 only because the `/simplify` pass (`dddeda1b8`) cut 409 bytes back off,
+having noticed the stub was restating the boundary-marker contract a **third** time in one file (§4.0
+and §4.0.5 already state it identically); that restatement was replaced with a pointer. Both figures
+are `wc -c` readings of the two commits named, taken 2026-08-17 — the `+85` this paragraph carried
+through three review iterations was inherited from `dddeda1b8`'s own commit message and never
+re-derived from the tree.
 
 Two consequences, neither hedged:
 
@@ -75,12 +80,19 @@ Stayed resident in `skills/implement/phases/phase-4-documentation.md`:
   fail-closed arm on a broken command;
 - the satisfied-versus-absent rule;
 - the undeliverable-path `Blocked` terminal — its `workpad.py` invocation, reflection text and 👎
-  reaction verbatim. Its condition clause is not verbatim: it gained `the reference could not be
-  loaded`, the mechanism that makes the split fail closed, and its first limb was reworded from
-  `the correct update cannot be derived from context` to `the repair could not be derived`.
+  reaction verbatim. Its **condition clause is not**, in three ways: it gained a new middle limb,
+  `the reference could not be loaded`, the mechanism that makes the split fail closed; its first
+  limb was reworded from `the correct update cannot be derived from context` to `the repair could
+  not be derived`; and its last from `the self-heal did not land per the re-check` to `the repair
+  did not land per its re-check`. The two rewordings are cosmetic — they follow the step's rename
+  from "self-heal or block" to "repair… then block" and select the same runs — but the clause is
+  not quotable as unchanged.
 
-The reference writes no run status at all — it carries no `--status Blocked` call — which is what keeps
-the terminal a single resident decision rather than a duplicated one.
+The reference writes no run status at all and emits no outcome reaction — it carries no `--status`
+call in any spelling and no 👎 — which is what keeps the terminal a single resident decision rather
+than a duplicated one. The suite pins both prohibitions at that width rather than at `--status
+Blocked` alone: a `--status Complete` or a stray reaction dragged into the reference would end the
+run mid-loop exactly as wrongly, and a pin quoting only the Blocked spelling would not see it.
 
 ## The predicate is the existing read, not a new helper
 
@@ -111,10 +123,16 @@ decision never leaves the phase file.
   before this change `phase-4-documentation.md` occurred once in that file, as the §4.0.5
   `discover-deferral-manifests.py --presence-for-pr` predicate's row, whose call site does not move and
   which is left untouched.
-- `docs/internal/implement-skill.md`'s Stage 2 section, `docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md`'s
-  durability-checkpoint bullet, and `scripts/phase2-durability-checkpoint.sh`'s header each named the
-  landing-verification rule as "`phase-4-documentation.md` step 3" and now name the reference, which is
-  where that rule went.
+- `docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md`'s durability-checkpoint bullet and
+  `scripts/phase2-durability-checkpoint.sh`'s header each named the landing-verification rule as
+  "`phase-4-documentation.md` step 3" and now name the reference, which is where that rule went. Both
+  spell the phrase with the filename in backticks, so a sweep searching the unquoted string finds
+  neither — the residual `skills/implement/phases/phase-2-implement.md` pointer was missed twice on
+  exactly that error before a widened search caught it.
+- `docs/internal/implement-skill.md`'s Stage 2 section is **not** one of those repointings: it never
+  carried the "step 3" phrase. It described the self-heal and `Blocked` arms as one undivided
+  procedure, and is rewritten here to describe them as the split this change makes — repair gated,
+  decision resident, with the degraded-load arm named.
 
 The bundle-scoped pins needed no re-pointing: `lib/test/run.sh` builds the implement bundle from
 `skills/implement/references/*.md` by glob, so a literal that moved from the phase file into the
@@ -136,7 +154,13 @@ anchor-fallback lint the inventory row is a *pair* whose helper operand a bare p
 The move itself is asserted by a **Stage-2-scoped slice**: a `sed` range from the `**Stage 2 —` opening
 literal to the `config-get.sh .docs.labels Documented` invocation, proved non-empty before anything is
 counted, then a zero count for `performed update from Documentation Needed prose` — a literal unique to
-the moved repair. The terminator is a machine-consumed helper invocation rather than a prose sentence,
+the moved repair. **The gate's own residency is asserted from both ends**, because the terminal's
+presence does not establish that the decision firing it stayed put: alongside the resident-terminal
+pin, the slice carries a positive count for `docgate-path`, the helper-printed sentinel the
+satisfied-versus-absent rule reads. Without that row, a later change that dragged the decision into
+the reference — which the reference invites, since it tells the agent to re-run the same check — would
+leave the slice non-empty, the zero count 0, the anchor count 2, the terminator unique and the terminal
+unique: every `#1557` row green while the gate had followed the repair out of Stage 2. The terminator is a machine-consumed helper invocation rather than a prose sentence,
 and it carries its own retention pin, because a vanished terminator would silently widen the range to
 end-of-file and restore the vacuity the scoping exists to close. The paired positive count — the same
 literal present twice in the reference — sits **outside** the scratch guard, because it reads only the
