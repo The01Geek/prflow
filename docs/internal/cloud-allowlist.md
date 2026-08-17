@@ -1006,7 +1006,7 @@ population rather than pinning a number to it.
 | `skills/review-and-fix/references/loop-control.md` | 1 × `2>` | cloud (`/prflow:review-and-fix`) | rewritten |
 | `skills/review-and-fix/references/loop-exit.md` | 2 × `2>` | cloud (`/prflow:review-and-fix`) | rewritten |
 | `skills/implement/references/deferred-review-findings.md` | 2 × `2>` | cloud (`/prflow:implement`) | rewritten — each invocation guarded on its own inline exit status, with the residual ambiguity read from that call's own stderr in the tool result rather than a captured `.err` file |
-| `skills/implement/references/deferred-review-findings.md` | 1 × `>` to the variable target `"${AGG}.tmp"` (the jq merge) | cloud (`/prflow:implement`) | **DEFERRED — not rewritten**, see below |
+| `skills/implement/references/deferred-review-findings.md` | 1 × stdout redirect to the variable target `"${AGG}.tmp"` (the jq merge) | cloud (`/prflow:implement`) | **DEFERRED — not rewritten**, see below |
 | `skills/implement/phases/phase-1-setup.md` | 4 × `>` | cloud (`/prflow:implement`) | rewritten — Write tool |
 | `skills/retrospective-weekly/SKILL.md` | mixed stdout, append and stderr redirects | **local only** — no workflow dispatches this command | **left unchanged** |
 | `skills/review/phases/phase-3-agents.md` | redirect writes and appends, quoted and variable targets | cloud | **DEFERRED — not rewritten**, see below |
