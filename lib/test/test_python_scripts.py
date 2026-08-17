@@ -11503,7 +11503,7 @@ _MM_BODY = _CP_BODY.replace(
     + workpad._review_progress_rows_block("Review"))
 # Do not drop `Blocked`: it is what keeps the Complete-only gate unreached, and that gate
 # WOULD refuse this incomplete coverage record.
-_mm_code, _mm_out, _mm_err, _mm_patched = _drive_cmd_update(
+_mm_code, _, _, _mm_patched = _drive_cmd_update(
     _MM_BODY,
     record_review_coverage=["not-verified", "never", "short", "skipped"],
     status="Blocked",
@@ -11525,14 +11525,15 @@ assert_eq("#1722: ...and writing exactly one review-coverage record",
 # The shape phase-1-setup.md §1.3 actually ships — classification, both reconcilers, the
 # extension tick and the resume-kind note in ONE call. Reorder reconcile after the ticks and
 # the tick assertion goes RED, which is the ordering the shipped fold rests on.
+_mm_p13_ticks = []
 _mm_p13 = apply_mut(_CP_BODY, make_args(
     record_classification=["non-bug", "prose-only change; no malfunction described"],
     reconcile_reproduction="non-bug",
     reconcile_extension_rows=True,
     tick_progress=[_MM_EXT[2]],
-    note=["resume-kind: fresh"]))
+    note=["resume-kind: fresh"]), _mm_p13_ticks)
 assert_eq("#1722: the shipped Phase 1.3 five-flag fold ticks the row it just repaired",
-          True, f"- [x] {_MM_EXT[1]}" in _mm_p13)
+          (True, []), (f"- [x] {_MM_EXT[1]}" in _mm_p13, _mm_p13_ticks))
 assert_eq("#1722: ...carrying the rationale-bearing classification and the resume-kind note",
           (True, True),
           ("classification: non-bug — prose-only change; no malfunction described" in _mm_p13,
