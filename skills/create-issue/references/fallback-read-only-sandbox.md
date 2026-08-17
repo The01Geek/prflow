@@ -1,6 +1,6 @@
 <!-- prflow:create-issue-ref step=fallback-read-only-sandbox file=skills/create-issue/references/fallback-read-only-sandbox.md start -->
 
-Each arm below disposes of one artifact in this file's closed set, save the working-file-listing arm, which spans the artifacts Step 4 lists and routes each of them to its own arm above; there is no generic arm for one to inherit. Filing is never blocked on any of them. Everything else is per-arm and stated where it applies: the failed delete is itself the signal you are in the read-only case only on the arms whose artifact has a delete-first step — the canonical-draft and dispatch-instruction writes have none, and the derivation-gate, presentation-gate and working-file-listing arms write and delete nothing of their own — and only the arms that say so report the reduced durability.
+Each arm below disposes of the artifacts named in its heading; the working-file-listing arm alone spans artifacts other arms own, routing each of them to its own arm above. There is no generic arm for one to inherit. Filing is never blocked on any of them. Everything else is per-arm and stated where it applies: the failed delete is itself the signal you are in the read-only case only on the arms whose artifact has a delete-first step — the canonical-draft and dispatch-instruction writes have none, and the derivation-gate, presentation-gate and working-file-listing arms write and delete nothing of their own — and only the arms that say so report the reduced durability.
 
 ## Step 1 — the evidence artifact and the run-slug pointer
 

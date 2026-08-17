@@ -276,7 +276,7 @@ state that nothing there is attributable to this run, and re-enter nothing.
 
 Classify every path it named, running no second probe, reporting each by name: a row is present; a
 not-found diagnostic is absent; named but in neither is unestablished. No output at all, a missing
-command binary, a refused command alike, or a path-naming diagnostic other than not-found leaves
+command binary, a refused command, or a path-naming diagnostic other than not-found leaves
 the whole listing unestablished — name which was observed. Only present and absent support a
 re-entry. A producing step that cannot run gets an in-chat breadcrumb naming the file and the
 failure kind; this listing never prevents the issue from being created.
@@ -287,8 +287,8 @@ is selected by run state, never by the listing's output; a run that cannot estab
 listing unestablished.
 
 Where that listing is established and named the four paths, compare each path's timestamp against
-the run-slug pointer's own in it before any re-entry: older than the pointer is not this run's, and stamps are coarse — minutes, or a year
-when older — so equal stamps are not older. With the pointer absent there is no comparand; report
+the run-slug pointer's own in it before any re-entry: older than the pointer is not this run's, and stamps are coarse — minutes, or a
+day-and-year form when older — so equal stamps are not older. With the pointer absent there is no comparand; report
 in the draft message that freshness for the listed artifacts could not be established.
 
 On that same listing, run the producing step for every path absent or older than the pointer, then
