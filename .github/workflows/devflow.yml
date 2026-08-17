@@ -1090,7 +1090,8 @@ jobs:
       # Ground EVERY command this tier dispatches in the same facts the automated
       # path gets from devflow-runner.yml's `Compose review prompt`: the commands the
       # run may execute, the shapes its harness accepts, the headless-run discipline,
-      # and — where a reviewed commit exists — the CI already observed for it.
+      # the independent-tool-call batching disposition, and — where a reviewed commit
+      # exists — the CI already observed for it.
       #
       # UNCONDITIONAL. The gate dispatches exactly three commands
       # (scripts/resolve-command-trigger.sh's allowlist: `/prflow:review`,
@@ -1113,8 +1114,9 @@ jobs:
       # would contradict the run's own verification contract. It is equally wrong for
       # `/prflow:pr-description`, which reviews no commit at all. Both therefore render
       # in `generic`: the tier-agnostic sections only — the permitted commands, the
-      # command shapes, the headless-run discipline — with no claim about a reviewed
-      # commit and none of the implement tier's Phase 3 scope clause.
+      # command shapes, the headless-run discipline and the independent-tool-call
+      # batching disposition — with no claim about a reviewed commit and none of the
+      # implement tier's Phase 3 scope clause.
       #
       # `generic` is the ELSE operand, so the selection fails SAFE: a command the
       # resolver's allowlist gains later cannot silently inherit a CI section asserting
