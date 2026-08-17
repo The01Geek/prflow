@@ -50,7 +50,7 @@
 #     correct prior calls.
 #   - Landing verification (AC7). After pushing, the helper treats the push as
 #     landed ONLY when `git rev-parse HEAD` equals `git rev-parse @{u}`, mirroring
-#     skills/implement/phases/phase-4-documentation.md step 3. A rejected
+#     skills/implement/references/doc-deliverable-self-heal.md. A rejected
 #     non-fast-forward leaves the two unequal and is reported as a failure to land
 #     (exit 3). Push output such as `Everything up-to-date` is not itself decisive:
 #     it takes exit 3 only when the comparison still shows that the checkpoint commit
