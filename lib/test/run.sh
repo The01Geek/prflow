@@ -37235,22 +37235,28 @@ assert_eq "#1629 review mode numbers sole-publisher 6 before displacement 7" "ye
 _GB363_REV_NOHP="$(HEAD_SHA=deadbeef CI_SUMMARY='ci: success' ALLOWED_TOOLS='Read' MODE=review bash "$RGB_SH")"
 assert_eq "#1629 review mode with no HARDENED_PATHS still emits the sole-publisher section, numbered 6, and no displacement section" "yes-yes-no" \
   "$(case "$_GB363_REV_NOHP" in *"verdict reaches this pull request through Phase 4.4"*) echo yes ;; *) echo no ;; esac)-$(case "$_GB363_REV_NOHP" in *'> **6. A verdict reaches'*) echo yes ;; *) echo no ;; esac)-$(case "$_GB363_REV_NOHP" in *'Trusted-source displacement'*) echo yes ;; *) echo no ;; esac)"
-# #1723: the independent-tool-call batching section is tier-agnostic (it renders in all
-# three modes) and its ordinal is derived from N_HEADLESS. Never renumber a section by
-# editing one branch's literal: an insertion that shifts one mode and not the other would
-# otherwise ship green. Assert the RENDERED heading digit and position, not source prose.
+# #1723: never renumber a rendered section by editing one branch's ordinal literal — an
+# insertion that shifts one mode and not the other would otherwise ship green. Assert the
+# RENDERED heading digit and position, never source prose.
 assert_eq "#1723 the batching section renders in every mode, numbered 4 with no reviewed commit and 5 with one" "yes-yes-yes" \
   "$(case "$_GB363_GEN" in *'> **4. Issue mutually independent tool calls in one message.**'*) echo yes ;; *) echo no ;; esac)-$(case "$_GB363_IMPL" in *'> **4. Issue mutually independent tool calls in one message.**'*) echo yes ;; *) echo no ;; esac)-$(case "$_GB363_REV" in *'> **5. Issue mutually independent tool calls in one message.**'*) echo yes ;; *) echo no ;; esac)"
-# #1723: the two review-only ordinals are substituted into quoted heredocs from N_PUB and
-# N_DISP. Never drop that substitution: the section body would render the placeholder token
-# in place of a digit, which reads as a numbered heading to no reader.
-assert_eq "#1723 no section-ordinal placeholder survives into the rendered review block" "no" \
-  "$(case "$_GB363_REV" in *__N_PUB__*|*__N_DISP__*) echo yes ;; *) echo no ;; esac)"
-# #1723: review mode orders the batching section (5) before sole-publisher (6) — the
-# adjacent #1629 row asserts 6 before 7 and would pass with these two transposed.
-assert_eq "#1723 review mode numbers the batching section 5 before sole-publisher 6" "yes" \
-  "$(printf '%s\n' "$_GB363_REV" | awk '/^> \*\*5\. Issue mutually independent/{b=NR} /^> \*\*6\. A verdict reaches/{p=NR} END{print (b>0 && p>0 && b<p) ? "yes" : "no"}')"
-unset _GB363_GEN _GB363_REV _GB363_IMPL _GB363_REV_NOHP
+# #1723: match the whole `__N_` placeholder FAMILY, never today's two token spellings — a
+# later section's unsubstituted placeholder would otherwise render verbatim as its heading
+# digit and still pass.
+assert_eq "#1723 no section-ordinal placeholder survives into any rendered mode" "no-no-no-no" \
+  "$(case "$_GB363_REV" in *__N_*) echo yes ;; *) echo no ;; esac)-$(case "$_GB363_REV_NOHP" in *__N_*) echo yes ;; *) echo no ;; esac)-$(case "$_GB363_IMPL" in *__N_*) echo yes ;; *) echo no ;; esac)-$(case "$_GB363_GEN" in *__N_*) echo yes ;; *) echo no ;; esac)"
+# #1723: the rendered heading digits form a contiguous run from 1 with no gap or repeat, in
+# every mode. Never express the ordinal chain as per-mode digit rows alone: those need a
+# hand edit per inserted section, and this invariant is what the derivation chain maintains.
+assert_eq "#1723 rendered section ordinals are contiguous from 1 in every mode" "ok-ok-ok-ok" \
+  "$(for _v in "$_GB363_REV" "$_GB363_REV_NOHP" "$_GB363_IMPL" "$_GB363_GEN"; do printf '%s\n' "$_v" | awk '/^> \*\*[0-9]+\. /{n=$0; sub(/^> \*\*/,"",n); sub(/\..*$/,"",n); c++; if (n+0 != c) bad=1} END{print (c>0 && !bad) ? "ok" : "bad"}'; done | tr '\n' '-' | sed 's/-$//')"
+# #1723: Phase 0.1.5 locates the displaced-paths section by ORDINAL, and that ordinal is the
+# only locator it gives, so a renumber that misses it silently routes the reviewer to the
+# wrong section and yields an empty displaced-paths list (a fail-open on head-vs-worktree
+# reads). Never renumber the block without re-running this equality.
+assert_eq "#1723 phase-0-setup 0.1.5's cited displaced-paths ordinal equals the rendered heading digit" "yes" \
+  "$(_p015=$(sed -n 's/.*displaced-paths section (section \([0-9]\{1,\}\)).*/\1/p' "$LIB/../skills/review/phases/phase-0-setup.md" | head -1); _rend=$(printf '%s\n' "$_GB363_REV" | sed -n 's/^> \*\*\([0-9]\{1,\}\)\. Trusted-source displacement.*/\1/p' | head -1); if [ -n "$_p015" ] && [ "$_p015" = "$_rend" ]; then echo yes; else echo "no(cited=$_p015,rendered=$_rend)"; fi)"  # structural-pin-ok: cross-file-phase-contract -- Phase 0.1.5's only locator for the displaced-paths section is its ordinal; this equality is what makes a missed renumber RED instead of a silent empty displaced-paths list
+unset _GB363_GEN _GB363_REV _GB363_IMPL _GB363_REV_NOHP _v
 
 assert_pin_unique "#363 devflow.yml falls back to the bare command when no block is composed" \
   'prompt: ${{ steps.reviewcompose.outputs.prompt || needs.gate.outputs.command }}' "$DEVFLOW_YML"
@@ -37439,9 +37445,9 @@ unset _cip_rc_noout
 
 # ── Renderer behavior (unit-tested once, rather than twice through YAML).
 _rgb() { HEAD_SHA="${1-}" CI_SUMMARY="${2-}" ALLOWED_TOOLS="${3-}" bash "$RGB_SH"; }
-# MODE=implement renders the allowed-tools + shapes + headless sections only —
-# omitting the review-only CI and trusted-source-displacement sections — and
-# renumbers the survivors 1/2/3 (issue #1170).
+# MODE=implement renders the tier-agnostic sections only — omitting the three
+# review-only ones (CI, sole-publisher, trusted-source displacement) — and renumbers
+# the survivors from 1 (issue #1170).
 _rgbm() { MODE="${1-}" HEAD_SHA="${2-}" CI_SUMMARY="${3-}" ALLOWED_TOOLS="${4-}" HARDENED_PATHS="${5-}" bash "$RGB_SH"; }
 assert_eq "#1170 implement mode rc 0 (always-exit-0)" "0" \
   "$(_rgbm implement '' '' 'Read, Write' >/dev/null 2>&1; echo $?)"

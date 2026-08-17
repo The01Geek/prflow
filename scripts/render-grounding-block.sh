@@ -231,12 +231,9 @@ __PUBLISHER_EOF__
 "
 fi
 
-# Section numbers depend on the tier: a block with no reviewed commit omits the CI and
-# trusted-source-displacement sections, so its survivors renumber 1/2/3/4 while the review
-# block keeps 2/3/4/5 and appends the two review-only sections after them.
-# Never add a section ordinal as a per-branch literal: only the branch-dependent head of
-# the sequence is written twice, and every ordinal after it is derived, so a hand-written
-# later one renumbers on one tier and silently not the other.
+# Never add a section ordinal as a per-branch literal beyond the three below: every
+# ordinal after N_HEADLESS is derived from it, and a hand-written later one would
+# renumber on one tier and silently not the other.
 if [ "$REVIEWED_COMMIT" = yes ]; then
   N_TOOLS=2; N_SHAPES=3; N_HEADLESS=4
 else
@@ -354,19 +351,26 @@ ${ALLOWED_TOOLS}
 > **${N_BATCH}. Issue mutually independent tool calls in one message.** Each request
 > re-sends the whole conversation, so one call per message pays a full request for work
 > that could have shared one. When two or more calls do not depend on each other's
-> results — reads of different files, edits to different files, independent probes,
-> dispatches whose prompts are already fixed — emit them together.
+> results — reads of different files, independent probes, read-only dispatches — emit
+> them together.
 >
 > **Independence is the whole test, and it fails closed.** If you would have to see one
 > call's result before choosing, composing, or deciding whether to make another, they
 > are dependent and go in separate messages; treat a pair you cannot establish as
-> independent as dependent. This is not a rule about writing fewer, larger edits — two
-> edits to the same region are not independent, because one's target text can sit inside
-> the other's replacement.
+> independent as dependent.
 >
-> Batching widens nothing: a call denied on its own is denied in a batch, and a dispatch
-> that can write to the shared checkout still owes the commit-before-dispatch obligation
-> stated where that dispatch is defined.
+> **Writing the same target is a dependency too, even when neither call needs the
+> other's result.** Two edits to one file are dependent unless you can establish that
+> neither's match text falls inside the other's replacement. Two dispatches that can
+> both write the shared checkout are dependent unless the runner gives each its own
+> working copy — otherwise they race and silently overwrite each other — and each still
+> owes the commit-before-dispatch obligation stated where that dispatch is defined.
+> None of this is a rule about writing fewer, larger edits: how many hunks a single
+> edit carries is a separate question this says nothing about.
+>
+> Batching adds no permission: this section grants no head, shape, or path the sections
+> above do not, and travelling with other calls never makes a call permissible that
+> would be refused on its own.
 ${PUBLISHER_SECTION}${DISPLACED_SECTION}
 ---
 EOF
