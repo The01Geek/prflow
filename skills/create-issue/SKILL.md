@@ -273,8 +273,10 @@ over `.prflow/tmp/issue-run-slug`, `.prflow/tmp/issue-step1-<slug>.md`,
 four, each named individually — and show its raw output, error lines included, in the message that
 renders the draft. `-L` resolves each link before reporting, so a path that is a link to a gone
 target draws a not-found message rather than a stale row. With the slug unestablished, list
-`.prflow/tmp` itself instead on plain `ls -l` — never `-L`, which drops a broken link from that
-listing with no message — state that nothing there is attributable to this run, and re-enter nothing.
+`.prflow/tmp` itself instead on plain `ls -l` — never `-L`, which resolves each link and so
+stops a broken one listing cleanly — some `ls` drop its entry outright, hiding the very leftover this
+arm exists to show, and others blank its fields beside an error line — so plain `ls -l` is what keeps
+that leftover legible — state that nothing there is attributable to this run, and re-enter nothing.
 
 Classify each path from that one invocation, running no second probe, from what the shell shows
 rather than what you infer. A not-found message naming one of the four paths is absent, and decides
