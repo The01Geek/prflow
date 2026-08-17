@@ -106,7 +106,7 @@ It prints `round=`, `arm=`, `digest=`, `body_digest=`, `instructions_digest=` (w
 - `.prflow/tmp/issue-record-<slug>.md` — the investigation record.
 - `.prflow/tmp/issue-audit-scope-<slug>.*.md` — any dispatch-scope artifact. It **must persist**, its digest being recompared at `record-return`. The glob is **total**, covering a round's own scope file too.
 
-The generated instruction file `.prflow/tmp/issue-audit-dispatch-<slug>.md` is deliberately **not** on this list — it is the artifact the auditor is directed to read and hash; the embed arm names it, per `references/fallback-audit-dispatch-arms.md`. `issue-draft-<slug>.md` is **not** on the file-arm list either — it is the artifact under audit. (The **embed arm** re-adds it, where the embedded body is the sole draft source and the on-disk draft file is untrusted.)
+The generated instruction file `.prflow/tmp/issue-audit-dispatch-<slug>.md` and `issue-draft-<slug>.md` are **not** on this list; the embed arm names both, per `references/fallback-audit-dispatch-arms.md`.
 
 #### Carriage / identity check (file arm)
 
@@ -146,7 +146,7 @@ The generated file carries the whole authorized set — the draft title (read by
 
 **Forward the auditor's two new return lines to `record-return`** alongside the carriage object ID: `--instructions-object-id <the ID the auditor quoted for the instruction file>` and `--extra-dispatch-content <yes|no>` from its `extra-dispatch-content:` line. **Omit either flag when the return carried no such line** — an absent value is evidence the tool needs; never invent one. Do not compare anything yourself: the tool re-runs the generator over the round's recorded closed inputs and owns the comparison. It prints `steering=<established|not-established|unestablished>` and `steering_reason=<token|none>` — the third value and `none` are what a refused completion (no parseable verdict, failed carriage) renders, so parse all three and carry them to Step 4.
 
-A `steering=established` round proves the *instruction content* the auditor read was the canonically-generated set (its `git hash-object` matched a fresh regeneration). It does **not** prove the Agent-tool prompt *string* was clean: that string is not hashable, and its only guard is the auditor's own `extra-dispatch-content` self-report, which instruction-shaped steering can suppress. **Never describe a clean audit as provably steering-free.**
+A `steering=established` round proves the *instruction content* the auditor read was the canonically-generated set (its `git hash-object` matched a fresh regeneration), and nothing about the Agent-tool prompt string, which is not hashable. **Never describe a clean audit as provably steering-free.**
 
 **Withhold-then-disclose (the whole contract on a non-established round).** The coverage-backed clean grounding is withheld — `query-eligibility --mode approve` answers `eligible=no reason=steering-unestablished` — and **nothing else changes**: the full rendered draft is still presented, the re-audit offer fires (the T2 arm holds with `reason=steering-unestablished`), and on explicit user approval the run files through the Step 4 override election. **Filing is never blocked on any arm.**
 

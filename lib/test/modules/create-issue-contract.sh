@@ -296,7 +296,7 @@ devflow_module_pin_unique "#443: audit summary renders the word degraded wheneve
 #
 # (0) OBEY THE TOOL — the headline pin of the #546 cutover, and the one guarantee the tool
 #     provably cannot enforce on itself: `query-eligibility` can only answer the runs that call
-#     it (the skill's own "Honest scope of this gate" paragraph concedes this). The operative
+#     it. The operative
 #     sentence is the one that binds PRESENTATION to the tool's answer; excising it alone
 #     re-introduces prose-decided eligibility — an orchestrator that is "certain the draft is
 #     clean" presenting on its own judgment, which is exactly issue #546's motivating
