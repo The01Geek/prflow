@@ -944,10 +944,15 @@ is the canonical home for that reading.
 
 ## The redirect-into-`.prflow/tmp/**` rows are CONTRADICTED by field evidence (issue #1721)
 
-**Two probe rows record a `>` redirect into `.prflow/tmp/**` as PERMITTED** — command-tier
-shape 3 (run `30956039324`, 2026-08-04, `claude-code-action@v1` with Claude Code 2.1.221)
-and implement-tier row 11 (run `29623046995`, 2026-07-18). **Field evidence from a real
-consumer run contradicts both**, so neither may be read as a current guarantee.
+**Probe rows in this file record a `>` redirect into `.prflow/tmp/**` as PERMITTED** — among them
+command-tier shape 3 (run `30956039324`, 2026-08-04, `claude-code-action@v1` with Claude Code
+2.1.221) and implement-tier row 11 (run `29623046995`, 2026-07-18). **Field evidence from a later
+consumer run contradicts them**, so no such row may be read as a current guarantee.
+
+**This section supersedes those rows in time; it does not contradict them.** Each recorded what a
+real run measured at the version it names, and stays valid as history. What changed is that a later
+measurement refuses the same shape — so where this file says PERMITTED of a redirect and says
+denied of one, read the denial as the current rule and the permit as the older measurement.
 
 On a cloud `/prflow:implement` run in an adopter repository (GH run `31989737682`,
 2026-08-17) three prescribed fences were each refused, and the three refusals have **three
@@ -996,7 +1001,7 @@ is what produced the incomplete first pass recorded below.
 | `skills/implement/references/deferred-review-findings.md` | 2 × `2>` | cloud (`/prflow:implement`) | rewritten — exit-code routing replaces the stderr-content greps |
 | `skills/implement/phases/phase-1-setup.md` | 4 × `>` | cloud (`/prflow:implement`) | rewritten — Write tool |
 | `skills/retrospective-weekly/SKILL.md` | 11 mixed | **local only** — no workflow dispatches this command | **left unchanged** |
-| `skills/review/phases/phase-3-agents.md` | 8 × `>`/`>>` (quoted target) | cloud | **DEFERRED — not rewritten**, see below |
+| `skills/review/phases/phase-3-agents.md` | 8 redirect writes and appends, quoted target | cloud | **DEFERRED — not rewritten**, see below |
 | `skills/implement/phases/phase-3-fix-loop.md` | 2 × `2>` to a `mktemp` target | cloud (`/prflow:implement`) | **DEFERRED — not rewritten**, see below |
 
 **Two cloud-reachable populations are adjudicated here but deliberately NOT rewritten**, because

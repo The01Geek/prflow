@@ -13291,10 +13291,11 @@ _STEM_HOMES = {
     # documentation-gate captures into scripts/read-doc-needed-deliverables.sh, which owns
     # that scratch file now — so phase-4-documentation.md names no stem of its own and takes
     # no row here. The negative half above still binds it.
-    "skills/implement/references/deferred-review-findings.md":
-        ("devflow-dm.err", "devflow-fd.err"),
-    "skills/review-and-fix/references/loop-control.md": ("devflow-maxiter.err",),
-    "skills/review-and-fix/references/loop-exit.md": ("devflow-et-flag.err", "devflow-et.err"),
+    # issue #1721 removed the stderr-capture writes from deferred-review-findings.md,
+    # loop-control.md and loop-exit.md — the harness refuses the redirect that authored them,
+    # so those fences now read stderr from the invocation's own tool result and write no
+    # scratch file. Each names no stem and takes no row, exactly as phase-4-documentation.md
+    # does above; the negative half still binds all three.
 }
 # `<scratch-dir>/` is the SAME home written in its anchored spelling: issue #1633 made the
 # Phase 1 scratch writes substitute the absolute `…/.prflow/tmp` the precondition resolved,

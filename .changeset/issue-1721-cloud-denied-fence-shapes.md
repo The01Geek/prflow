@@ -27,5 +27,10 @@ which fully discriminates for deferral discovery. Where an exit code is genuinel
 that call's stderr to tell them apart, and records an unrecognised shape as a failure rather
 than guessing.
 
-The local-only retrospective path is unchanged: those redirects execute normally on the
-interactive tier and were not degraded to satisfy a cloud constraint.
+One file is deliberately unchanged: the weekly retrospective skill, which no workflow dispatches
+and which therefore runs only on the interactive tier, where these redirects execute normally. It
+was not degraded to satisfy a cloud constraint.
+
+Two cloud-reachable populations are adjudicated but not rewritten, because the Write-tool remedy
+cannot reach them: appends made inside a shell read-loop, and captures targeting a `mktemp` path.
+Both are recorded with their reason and carried to a follow-up.
