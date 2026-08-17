@@ -22,20 +22,20 @@ positive report, because the split introduced a path — an unclassified failure
 that produced no report and satisfied none of the enumerated causes. Both defects were *created* by the
 split and neither was visible from the design.
 
-## Measured delta — a 472-byte **increase** in the always-read surface
+## Measured delta — a 687-byte **increase** in the always-read surface
 
 Counted with `wc -c`; the Before column is merge base `3e43e7b32` and the After column is the head this
 record ships on, captured 2026-08-17.
 
 | File | Before | After | Delta |
 | --- | --- | --- | --- |
-| `skills/implement/phases/phase-4-documentation.md` | 59,113 | 59,585 | **+472** |
+| `skills/implement/phases/phase-4-documentation.md` | 59,113 | 59,800 | **+687** |
 | `skills/implement/references/doc-deliverable-self-heal.md` | — | 4,296 | +4,296 |
 
 **This change does not reduce the always-read surface. It grows it, and the honest reading is that the
 size argument for the move failed outright.** Issues #815 and #1374 each cut their always-read surface
-by tens of thousands of bytes. This one adds 472 to the file it was meant to shrink — paid on both
-mandated Phase 4 reads, so 944 bytes of context per run — and adds a 4,296-byte reference on top,
+by tens of thousands of bytes. This one adds 687 to the file it was meant to shrink — paid on both
+mandated Phase 4 reads, so 1,374 bytes of context per run — and adds a 4,296-byte reference on top,
 loaded whenever a deliverable is actually absent. There is no run that comes out ahead on bytes.
 
 The increase is not drift: it was bought deliberately, in the final review pass, to close a defect the
@@ -46,7 +46,17 @@ mid-run edit to the issue body could therefore have driven the repair path into 
 was entered to satisfy, over a deliverable that never shipped. Fixing it meant stating the borrowing as
 a positive contract instead of an exclusion list, retriggering the terminal on the **absence of a
 repaired-and-verified report** rather than on an enumeration of causes, and labelling the failed-load
-arm as halting where its two neighbours in the same file degrade. Those three are the bytes.
+arm as halting where its two neighbours in the same file degrade.
+
+A fourth change came from the acceptance-criteria gate rather than from review, and is worth recording
+because of *how* it surfaced. The gate runs two independent verifiers over the same text, and they
+reached **opposite** conclusions about this terminal: one read it as halting the run at the first
+undeliverable path, the other as not halting the loop over the remaining paths. Both readings were
+available because the terminal said to take itself "for every absent path" and then to "stop", which
+cannot both happen. Two fresh readers disagreeing is a stronger ambiguity signal than either verdict,
+so the paragraph was rewritten rather than adjudicated: it now collects every undeliverable path and
+stops once, which also means a single run surfaces every missing deliverable instead of only the first.
+Those four changes are the bytes.
 
 **The reference's own figure moved eight times inside this pull request**: 2,707 at the first draft,
 2,534 after the `/simplify` trim, then 3,463, 3,725 and 4,148 as successive review iterations fixed it,
@@ -59,7 +69,7 @@ property of the design.
 The arithmetic is structural rather than an authoring failure. A **split** leaves the `Blocked` terminal
 resident where a **wholesale move** takes it along, and adds a gated-load instruction and a failed-load
 arm on top of it. The file-level figure is the one to quote — Stage 2's step 3 grew rather than shrank,
-which is what the **+472** in the table above measures — because a split pays for the apparatus twice
+which is what the **+687** in the table above measures — because a split pays for the apparatus twice
 over: the resident half keeps the terminal and gains the load instruction and the failure arm, while
 the reference re-states the context the moved procedure needs. A wholesale move pays neither. The
 first draft
@@ -67,7 +77,7 @@ first draft
 the branch spent three commits pulling that back below zero (`48cde1a30` cut 262 by merging the
 failed-load paragraph into step 3; the `/simplify` pass `dddeda1b8` cut a further 147 by replacing a
 third restatement of the boundary-marker contract with a pointer) only for the correctness fixes above
-to put it back at +472. Every figure here is a `wc -c` reading of the commit named, taken 2026-08-17 —
+to put it back at +687. Every figure here is a `wc -c` reading of the commit named, taken 2026-08-17 —
 the `+85` this paragraph carried through three review iterations was inherited from `dddeda1b8`'s own
 commit message and never re-derived from the tree.
 
