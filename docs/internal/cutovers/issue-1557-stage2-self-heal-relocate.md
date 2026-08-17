@@ -14,24 +14,24 @@ the run still reported `Complete`; failing closed would have rested a run-ending
 with no machine producer, since nothing emits "the reference loaded" — the only comparand is the
 agent's own report of a `Read`.
 
-## Measured delta — a 62-byte reduction, not the reduction the precedents bought
+## Measured delta — a 57-byte reduction, not the reduction the precedents bought
 
 Counted with `wc -c`; the Before column is merge base `3e43e7b32` and the After column is the head this
 record ships on, captured 2026-08-17.
 
 | File | Before | After | Delta |
 | --- | --- | --- | --- |
-| `skills/implement/phases/phase-4-documentation.md` | 59,113 | 59,051 | **−62** |
+| `skills/implement/phases/phase-4-documentation.md` | 59,113 | 59,056 | **−57** |
 | `skills/implement/references/doc-deliverable-self-heal.md` | — | 3,899 | +3,899 |
 
 **Read that number before assuming this move resembles its precedents.** Issues #815 and #1374 each cut
-their always-read surface by tens of thousands of bytes. This one cuts 62 — about a tenth of one
-percent — which over the two mandated Phase 4 reads is 124 bytes of context per run, against the whole
+their always-read surface by tens of thousands of bytes. This one cuts 57 — under a tenth of one
+percent — which over the two mandated Phase 4 reads is 114 bytes of context per run, against the whole
 reference loaded on the repair path when a deliverable is actually absent. On any run that owes a repair
 the change is net additive by well over an order of magnitude; only a run that owes none comes out
-ahead, and then barely. **The reference's figure is the volatile one and it moved five times inside this
-pull request**: 2,707 at the first draft, 2,534 after the `/simplify` trim, then 3,463, 3,725 and 4,148
-as successive review iterations fixed it, then 3,682 when an iteration reverted a relaxation and
+ahead, and then barely. **The reference's figure is the volatile one, and it took six transitions inside
+this pull request**: 2,707 at the first draft, 2,534 after the `/simplify` trim, then 3,463, 3,725 and
+4,148 as successive review iterations fixed it, then 3,682 when an iteration reverted a relaxation and
 deleted a routing claim the caller could not honour, and finally 3,899 when the last iteration scoped
 step 1's stop to the path and disclosed step 4's remote-tracking-ref blind spot. Read the row as this
 record's own measurement, not a property of the design.
@@ -40,11 +40,12 @@ The arithmetic is structural rather than an authoring failure. A **split** leave
 resident where a **wholesale move** takes it along, and adds a gated-load instruction and a degraded arm
 on top of it, so the gating apparatus costs nearly as much as the repair it gates. The first draft of
 this change (`709cf0172`) was in fact **347 bytes larger** than the pre-change file — 59,460 against
-59,113 — and it reaches −62 only because the `/simplify` pass (`dddeda1b8`) cut 409 bytes back off,
-having noticed the stub was restating the boundary-marker contract a **third** time in one file (§4.0
-and §4.0.5 already state it identically); that restatement was replaced with a pointer. Both figures
-are `wc -c` readings of the two commits named, taken 2026-08-17 — the `+85` this paragraph carried
-through three review iterations was inherited from `dddeda1b8`'s own commit message and never
+59,113 — and it reaches −57 across three later commits, of which two matter: `48cde1a30` cut 262 by
+merging the separate degraded-arm paragraph into step 3, and the `/simplify` pass (`dddeda1b8`) cut a
+further 147, having noticed the stub was restating the boundary-marker contract a **third** time in one
+file (§4.0 and §4.0.5 already state it identically); that restatement was replaced with a pointer.
+Every figure here is a `wc -c` reading of the commit named, taken 2026-08-17 — the `+85` this paragraph
+carried through three review iterations was inherited from `dddeda1b8`'s own commit message and never
 re-derived from the tree.
 
 Two consequences, neither hedged:
@@ -58,9 +59,14 @@ Two consequences, neither hedged:
   issue's own Problem Statement anticipated: "the recovered residency is a fraction of that 719 and the
   change is not justified on size."
 
-These figures are a **past-time snapshot**, not a live measurement, so a later change to either file
-does not retroactively falsify the record. The reference sits far under the 61,750-byte reader-capability
-ceiling `lib/test/lint-reference-size.py` enforces over every boundary-gated reference and skill root.
+These figures are a **past-time snapshot**, not a live measurement, so a change made after this branch
+merges does not retroactively falsify the record. **That exemption does not extend to this branch's own
+later commits**, because the After column is defined above as the head this record ships on: while the
+branch is still moving, every commit that touches either file owes a re-measurement here. Read as
+covering branch-side edits too, the sentence licensed exactly the error that had to be corrected four
+times in review — each time by a revision that copied the previous figure forward instead of re-running
+`wc -c`. The reference sits far under the 61,750-byte reader-capability ceiling
+`lib/test/lint-reference-size.py` enforces over every boundary-gated reference and skill root.
 
 ## What moved, and what deliberately did not
 
@@ -144,8 +150,9 @@ bundle, the module-runner fixture and the flight-recorder registry all enrol by 
 
 Asserted: the reference exists and is non-empty; its first line is its `start` marker and its last line
 the matching `end` marker; **each marker occurs exactly once**, so a mid-file duplicate cannot pass a
-first-line-and-last-line check; the stub names the reference through the `<skill-dir>` anchor twice (an
-*occurrence* count via `pin_count`, because both sit on one line and a line count would read 1); the
+first-line-and-last-line check; the stub resolves the gated load through the `<skill-dir>` anchor
+exactly once (an *occurrence* count via `pin_count` rather than `grep -cF`, so a second occurrence
+added to the same line could not hide behind a line count); the
 reference is a member of the implement shape-lint population and of the cloud-writer manifest; it is not
 a `phases/` member and the phase-stem reconciliation is unchanged; and both hand-maintained lint
 enrolments carry it — read from each lint's own `--print-inventory`, never grepped out of its source,
@@ -160,19 +167,28 @@ presence does not establish that the decision firing it stayed put: alongside th
 pin, the slice carries a positive count for `docgate-path`, the helper-printed sentinel the
 satisfied-versus-absent rule reads. Without that row, a later change that dragged the decision into
 the reference — which the reference invites, since it tells the agent to re-run the same check — would
-leave the slice non-empty, the zero count 0, the anchor count 2, the terminator unique and the terminal
-unique: every `#1557` row green while the gate had followed the repair out of Stage 2. The terminator is a machine-consumed helper invocation rather than a prose sentence,
+leave the slice non-empty, the zero count 0, the anchor count 1, the terminator unique and the terminal
+unique: every `#1557` row green while the gate had followed the repair out of Stage 2. The terminator is
+a machine-consumed helper invocation rather than a prose sentence,
 and it carries its own retention pin, because a vanished terminator would silently widen the range to
 end-of-file and restore the vacuity the scoping exists to close. The paired positive count — the same
 literal present twice in the reference — sits **outside** the scratch guard, because it reads only the
 reference and would otherwise vanish on a scratch failure, taking with it the half that makes the pair
 non-vacuous. Scratch-allocation failure emits one `skip` per slice-dependent assertion, each named
 byte-identically to the `assert_eq` it stands in for and classified `blocking-gate`, since they are
-real gates that could not run here — a single composite skip would report one loss where two occurred
-and would reconcile to neither check.
+real gates that could not run here — there are four such assertions and four skips, and a single
+composite skip would report one loss where four occurred and would reconcile to none of them.
 
 Not asserted: the stub's prose contract — the marker contract it applies, and the route it takes on an
 empty read. Those sentences are agent-executed prompt prose, whose only reader is the runtime agent, so
 pinning them would be the wording-only class `CLAUDE.md`'s authoring boundary prohibits, wearing a
 mutation costume. Per the recorded decision that such prose carries no automated regression coverage by
 design, the review pass is their control, and this page states the gap rather than implying coverage.
+
+Also not asserted, and a coverage loss taken knowingly: the degraded arm's **reflection text**. While
+that arm spelled the reference with the `<skill-dir>` anchor, the occurrence count of 2 incidentally
+covered it; naming the plain repo-relative path there — correct, because `<skill-dir>` resolves against
+nothing in a durable workpad record — drops the count to 1 and leaves the reflection's path unpinned. A
+pin would be worth less than it looks: the arm is agent-executed prose, so it falls under the same
+recorded decision as the paragraph above, and the coverage it lost was a side effect of a spelling
+rather than a property anyone chose to assert.

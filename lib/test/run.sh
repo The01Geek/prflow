@@ -36343,7 +36343,7 @@ if [ "$I1557_S2" != "/dev/null" ]; then
     "$([ -s "$I1557_S2" ] && echo yes || echo no)"
   assert_eq "#1557 Stage 2 no longer carries the self-heal repair step" "0" \
     "$(grep -cF 'performed update from Documentation Needed prose' "$I1557_S2" || true)"
-  # The terminal's residency is pinned above, but the DECISION it fires on was not: the
+  # The terminal's residency is pinned below, outside this guard, but the DECISION it fires on was not: the
   # satisfied-versus-absent rule reads this sentinel, and the reference tells the agent to borrow
   # that rule. Dragged into the reference, every other row here stays green while the gate follows
   # the repair out of Stage 2.
