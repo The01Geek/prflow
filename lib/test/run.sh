@@ -10663,19 +10663,14 @@ p478_sweep_bodies() {
     f { buf = buf $0 "\n" }
     END { if (starts == 1 && ends == 1) printf "%s", buf }
   ' "$@")"
-  # Emit nothing when the span never opened/closed: the caller's empty-corpus RED arm is the
-  # fail-closed guard, and appending the references unconditionally would make it vacuous.
+  # Return before the references on an unopened span: appending them unconditionally would
+  # make the caller's empty-corpus RED arm vacuous.
   [ -n "$_p478_span" ] || return 0
   printf '%s\n' "$_p478_span"
-  # issue #1581: the eight conditional sweeps' procedures live in per-sweep gated references,
-  # so they are part of the sweep bodies even though they sit outside the phase-file span.
-  # Dropping them makes every marker that moved there read as absent, which turns that
-  # marker's routing-table row into drift nothing detects. Glob-derived, so a later sweep
-  # reference joins with no second edit.
-  # No 2>/dev/null and no `|| true`: an unmatched glob or an unreadable reference must leave
-  # cat's own path-naming breadcrumb on stderr. Suppressing it would silently shorten the
-  # corpus, and the caller reads a short corpus as "the marker is absent" — a RED with the
-  # wrong diagnosis instead of the missing file's name.
+  # issue #1581: the eight conditional sweeps' procedures moved to per-sweep gated references,
+  # so the corpus must span them too or every marker that moved reads as absent.
+  # Never add 2>/dev/null or `|| true` here: cat's path-naming breadcrumb is what tells a
+  # short corpus from a missing marker.
   cat "$LIB"/../skills/implement/references/sweep-*.md
 }
 # p478_maptable is FAIL-CLOSED on its END anchor (#478 Phase-3 review): it buffers the BEGIN..END
