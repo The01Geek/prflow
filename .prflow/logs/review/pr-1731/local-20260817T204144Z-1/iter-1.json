@@ -1,0 +1,852 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-17T20:41:44Z",
+  "fix_commit_sha": "ceacf83abc482dccd9c584797f0e2d821cea36ef",
+  "fix_files": [
+    ".changeset/issue-1723-parallel-dispatch-disposition.md",
+    ".github/workflows/devflow.yml",
+    "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+    "docs/internal/claude-md-relocated-rationale.md",
+    "docs/internal/cloud-allowlist.md",
+    "lib/test/run.sh",
+    "scripts/render-grounding-block.sh"
+  ],
+  "loop_role": "fix",
+  "current_step": "3",
+  "current_substep": null,
+  "pending_dispatch": null,
+  "sweep_defs_read": [
+    {
+      "path": "../implement/phases/phase-2-implement.md",
+      "read": "whole",
+      "sweeps": [
+        "2.0",
+        "2.2.4",
+        "2.2.5",
+        "2.2.6",
+        "2.2.7"
+      ]
+    },
+    {
+      "path": "../implement/phases/phase-2-sweeps-contract.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3",
+        "2.3.0",
+        "2.3.0a",
+        "2.3.0b",
+        "2.3.0c",
+        "2.3.0d"
+      ]
+    },
+    {
+      "path": "../implement/phases/phase-2-sweeps-quality.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.1",
+        "2.3.2",
+        "2.3.3",
+        "2.3.4",
+        "2.3.4a",
+        "2.3.4b",
+        "2.3.5",
+        "2.3.6",
+        "2.3.7",
+        "2.4",
+        "2.5"
+      ]
+    }
+  ],
+  "sweep_evidence": {
+    "status": "run",
+    "classified": "fix delta changes a contract (renumbered rendered heading ordinals cited across files), adds a value to a doc-enumerated set (the block's section list), and edits policy-stating agent-executed prose",
+    "ran": [
+      "2.3.0",
+      "2.3.0b",
+      "2.3.0c",
+      "2.3.3",
+      "2.3.4",
+      "2.3.4a",
+      "2.3.4b",
+      "2.3.5",
+      "2.3.6"
+    ],
+    "not_armed": [
+      "2.3.1",
+      "2.3.2",
+      "2.3.0a",
+      "2.3.0d",
+      "2.3.7"
+    ],
+    "notes": "2.3.0 relocation enumeration over the whole repo found and fixed four further stale citation sites the original diff missed: .github/workflows/devflow.yml (two closed-list enumerations), docs/internal/claude-md-relocated-rationale.md, lib/test/run.sh's _rgbm header comment, and cloud-allowlist.md's antecedent plus both omits-two clauses. 2.3.4b re-run at post-fix HEAD produced no STALE row; the pre-fix third UNRESOLVABLE row is gone because its false comment was rewritten."
+  },
+  "checklist": [
+    {
+      "id": "VC-1",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:render-grounding-block.sh:ac1-single-repo-agnostic-statement",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-2",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:DEVFLOW_SYSTEM_OVERVIEW.md:ac2-site-local-mandates-reconciled",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-3",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:render-grounding-block.sh:ac3-no-dependent-merge-no-edit-conflation",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-4",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:render-grounding-block.sh:ac4-no-grant-widening",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-5",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:render-grounding-block.sh:ac5-commit-before-dispatch-preserved",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-6",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "dependency_interaction:render-grounding-block.sh:section-ordinal-references-renumbered",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-7",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "data_format_assumption:render-grounding-block.sh:ordinal-placeholder-substitution-order",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-8",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "test_mock_alignment:run.sh:batching-section-assertions-match-renderer",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-9",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "test_mock_alignment:run.sh:1629-renumbered-rows-not-vacuous",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-10",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "data_format_assumption:coverage-map.json:issue-1723-entry-shape",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-11",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "data_format_assumption:issue-1723-parallel-dispatch-disposition.md:changeset-frontmatter-vocabulary",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-12",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "absolute_claim:issue-1723-parallel-dispatch-disposition.md:renders-in-all-three-modes",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-13",
+      "verification_mode": "agent",
+      "verdict": "INCONCLUSIVE",
+      "claim_signature": "absolute_claim:render-grounding-block.sh:batching-widens-nothing",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-14",
+      "verification_mode": "agent",
+      "verdict": "FAIL",
+      "claim_signature": "absolute_claim:render-grounding-block.sh:every-later-ordinal-derived",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-15",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "absolute_claim:DEVFLOW_SYSTEM_OVERVIEW.md:site-local-mandate-enumeration-complete",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-16",
+      "verification_mode": "agent",
+      "verdict": "FAIL",
+      "claim_signature": "api_contract:DEVFLOW_SYSTEM_OVERVIEW.md:five-ground-truth-things-count",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-17",
+      "verification_mode": "agent",
+      "verdict": "FAIL",
+      "claim_signature": "api_contract:cloud-allowlist.md:implement-renumber-1-2-3-4",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-18",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "absolute_claim:DEVFLOW_SYSTEM_OVERVIEW.md:local-run-never-receives-block",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-19",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "dependency_interaction:render-grounding-block.sh:comment-ordinals-restate-derived-values",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-20",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "data_format_assumption:render-grounding-block.sh:blockquote-tail-join-wellformed",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-21",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "dependency_interaction:phase-0-setup.md:displaced-section-ordinal-seven",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-22",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "api_contract:phase-0-setup.md:reference-size-ceiling",
+      "reused_from_iter_prev": false
+    }
+  ],
+  "dispatched_effort": [
+    {
+      "agent": "prflow:checklist-generator",
+      "phase": "1",
+      "requested": "low",
+      "resolved": "low",
+      "application_point": "session-fallback",
+      "effective": null,
+      "fallback_reason": "per-agent effort resolved but not applied: no in-session per-agent effort seam"
+    },
+    {
+      "agent": "prflow:checklist-verifier",
+      "phase": "2",
+      "requested": "low",
+      "resolved": "low",
+      "application_point": "session-fallback",
+      "effective": null,
+      "fallback_reason": "per-agent effort resolved but not applied: no in-session per-agent effort seam"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "phase": "3",
+      "requested": "low",
+      "resolved": "low",
+      "application_point": "session-fallback",
+      "effective": null,
+      "fallback_reason": "model override opus applied; per-agent effort not applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "phase": "3",
+      "requested": "low",
+      "resolved": "low",
+      "application_point": "session-fallback",
+      "effective": null,
+      "fallback_reason": "per-agent effort resolved but not applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "phase": "3",
+      "requested": "low",
+      "resolved": "low",
+      "application_point": "session-fallback",
+      "effective": null,
+      "fallback_reason": "per-agent effort resolved but not applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "phase": "3",
+      "requested": "low",
+      "resolved": "low",
+      "application_point": "session-fallback",
+      "effective": null,
+      "fallback_reason": "per-agent effort resolved but not applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "phase": "3",
+      "requested": "low",
+      "resolved": "low",
+      "application_point": "session-fallback",
+      "effective": null,
+      "fallback_reason": "per-agent effort resolved but not applied"
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "The batching section licenses concurrent write-capable subagent dispatch; the result-independence test cannot observe a shared-checkout write conflict, and commit-before-dispatch protects the orchestrator's work, not two concurrent writers from each other.",
+      "defect_signature": {
+        "file": "scripts/render-grounding-block.sh",
+        "line_range": [
+          354,
+          369
+        ],
+        "kind": "race"
+      },
+      "corroboration_count": 4,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "Same defect as above, filed as logic_error: two write-capable dispatches with fixed prompts pass the stated independence test and race in one checkout.",
+      "defect_signature": {
+        "file": "scripts/render-grounding-block.sh",
+        "line_range": [
+          354,
+          369
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 4,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "Same defect, third independent raise: read-only site-local mandates were safe by construction; this is the first statement generalizing the license across dispatch kinds without a write-capability carve-out.",
+      "defect_signature": {
+        "file": "scripts/render-grounding-block.sh",
+        "line_range": [
+          354,
+          369
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 4,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Important",
+      "description": "Same defect, fourth raise: the block's only collision carve-out is scoped to Edit hunks, not dispatches, while the adjacent clause lists fixed-prompt dispatches as a batching example.",
+      "defect_signature": {
+        "file": "scripts/render-grounding-block.sh",
+        "line_range": [
+          354,
+          369
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 4,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Critical",
+      "description": "Diff-added renderer comment asserted only the branch-dependent head is written twice and every later ordinal derived; three ordinals are per-branch literals. Corroborated by checklist VC-14 (FAIL, source_authored_text).",
+      "defect_signature": {
+        "file": "scripts/render-grounding-block.sh",
+        "line_range": [
+          237,
+          239
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Important",
+      "description": "cloud-allowlist.md's renumber sentence: three enumerated sections cannot renumber to four ordinals, and 'omits two sections' undercounts the three review-only omissions (also at the MODE=generic bullet). Corroborated by silent-failure-hunter, pr-test-analyzer, requesting-code-review and checklist VC-17.",
+      "defect_signature": {
+        "file": "docs/internal/cloud-allowlist.md",
+        "line_range": [
+          53,
+          57
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 4,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Important",
+      "description": "Secondary-instance sweep gap: .github/workflows/devflow.yml states the tier-agnostic sections as a closed list of three, omitting the batching section generic renders; same class at the mode-selection preamble.",
+      "defect_signature": {
+        "file": ".github/workflows/devflow.yml",
+        "line_range": [
+          1115,
+          1116
+        ],
+        "kind": "comment_drift"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Important",
+      "description": "docs/internal/claude-md-relocated-rationale.md's mode enumeration says review keeps five sections and implement emits three; both halves are now false.",
+      "defect_signature": {
+        "file": "docs/internal/claude-md-relocated-rationale.md",
+        "line_range": [
+          98,
+          100
+        ],
+        "kind": "comment_drift"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "lib/test/run.sh's _rgbm header comment was falsified by this diff: implement mode now renders a fourth section and renumbers survivors 1/2/3/4.",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          37442,
+          37444
+        ],
+        "kind": "comment_drift"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "DEVFLOW_SYSTEM_OVERVIEW's enumeration ran its parenthetical section numbers backwards (items 3/4/5 mapping to sections 7/6/5), and its count claim omitted two sections the renderer emits. Corroborated by checklist VC-16 (FAIL).",
+      "defect_signature": {
+        "file": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+        "line_range": [
+          505,
+          511
+        ],
+        "kind": "comment_drift"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "The ordinal-placeholder guard was literal-scoped to today's two tokens, so a future placeholder would render verbatim and stay green.",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          37247,
+          37248
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "phase-0-setup 0.1.5 locates the displaced-paths section by ordinal alone with no reconciling assertion; the locator has drifted once per renderer-touching issue and fails open to an empty displaced list.",
+      "defect_signature": {
+        "file": "skills/review/phases/phase-0-setup.md",
+        "line_range": [
+          19,
+          19
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "Ordinal coverage was per-shape literal-digit rows with no insertion-robust invariant; a contiguity assertion expresses what the derivation chain maintains.",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          37238,
+          37252
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Same-file/different-region edit batching was unstated between the different-files and same-region clauses.",
+      "defect_signature": {
+        "file": "scripts/render-grounding-block.sh",
+        "line_range": [
+          360,
+          365
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "Two added comment blocks exceeded the prevention-only three-line budget with derivation.",
+      "defect_signature": {
+        "file": "scripts/render-grounding-block.sh",
+        "line_range": [
+          234,
+          239
+        ],
+        "kind": "style"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "The changeset's 'in one place' phrasing reads as though the rule exists in only one location while site-local mandates remain; 'single-sourced' is the intended meaning.",
+      "defect_signature": {
+        "file": ".changeset/issue-1723-parallel-dispatch-disposition.md",
+        "line_range": [
+          12,
+          12
+        ],
+        "kind": "style"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "No blank blockquote separator between the batching section and the following numbered heading.",
+      "defect_signature": {
+        "file": "scripts/render-grounding-block.sh",
+        "line_range": [
+          369,
+          370
+        ],
+        "kind": "style"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "pushed_back"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "The chosen surface is cloud-only, so the local/interactive tier keeps the site-local wording as its only statement of the disposition.",
+      "defect_signature": {
+        "file": "scripts/render-grounding-block.sh",
+        "line_range": [
+          354,
+          369
+        ],
+        "kind": "other"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "deferred"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "ceacf83abc482dccd9c584797f0e2d821cea36ef"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "ceacf83abc482dccd9c584797f0e2d821cea36ef"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "ceacf83abc482dccd9c584797f0e2d821cea36ef"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "ceacf83abc482dccd9c584797f0e2d821cea36ef"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "applied",
+      "commit": "ceacf83abc482dccd9c584797f0e2d821cea36ef"
+    },
+    {
+      "finding_id": "F-6",
+      "decision": "applied",
+      "commit": "ceacf83abc482dccd9c584797f0e2d821cea36ef"
+    },
+    {
+      "finding_id": "F-7",
+      "decision": "applied",
+      "commit": "ceacf83abc482dccd9c584797f0e2d821cea36ef"
+    },
+    {
+      "finding_id": "F-8",
+      "decision": "applied",
+      "commit": "ceacf83abc482dccd9c584797f0e2d821cea36ef"
+    },
+    {
+      "finding_id": "F-9",
+      "decision": "applied",
+      "commit": "ceacf83abc482dccd9c584797f0e2d821cea36ef"
+    },
+    {
+      "finding_id": "F-10",
+      "decision": "applied",
+      "commit": "ceacf83abc482dccd9c584797f0e2d821cea36ef"
+    },
+    {
+      "finding_id": "F-11",
+      "decision": "applied",
+      "commit": "ceacf83abc482dccd9c584797f0e2d821cea36ef"
+    },
+    {
+      "finding_id": "F-12",
+      "decision": "applied",
+      "commit": "ceacf83abc482dccd9c584797f0e2d821cea36ef"
+    },
+    {
+      "finding_id": "F-13",
+      "decision": "pushed_back",
+      "source_file": "scripts/render-grounding-block.sh",
+      "claim_text": "No blank blockquote separator between the batching section's last paragraph and the following numbered heading",
+      "skip_category": "out-of-scope",
+      "evidence": "the join shape is pre-existing tail behavior — section 6 followed section 4 the same way before this PR, confirmed by rendering origin/main's copy of the renderer with identical inputs; changing it would rewrite bytes of pre-existing sections for cosmetics",
+      "parking_evidence": {
+        "basis": "the flagged join is pre-existing behavior this PR's diff does not introduce",
+        "failing_input": "review-mode render where a numbered heading follows a paragraph with no blank blockquote line",
+        "source": "rendered output of git show origin/main:scripts/render-grounding-block.sh under identical env shows the same no-blank-line join at that boundary",
+        "finding_ref": {
+          "iter": 1,
+          "index": 16
+        }
+      }
+    },
+    {
+      "finding_id": "F-14",
+      "decision": "deferred",
+      "source_file": "scripts/render-grounding-block.sh",
+      "claim_text": "The grounding block is cloud-only, so the local/interactive tier never receives the general disposition and keeps only the site-local wording",
+      "skip_category": "already-tracked",
+      "evidence": "issue #1723's own Technical Context designates the grounding block as the single home by name, and AC2 forbids introducing a third wording at the site-local mandates, so a block-absent fallback clause at those sites is outside this issue's scope; the residual is now stated explicitly in the overview and recorded as a Devflow Reflection improvement for a follow-up",
+      "parking_evidence": {
+        "basis": "the surface choice is the driving issue's own stated scope decision, and the alternative remedy is what AC2 forbids",
+        "failing_input": "a local/interactive run, which renders no grounding block at all",
+        "source": "issue #1723 Technical Context (Relevant files / Placement) and AC2",
+        "finding_ref": {
+          "iter": 1,
+          "index": 17
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 12,
+    "fix_diff_lines": 108,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "parked_class_sweep": null,
+  "test_first_gate": [
+    {
+      "decision": "test-first (executable): the fix delta's only automated-testable behavior is the rendered ordinal chain and the placeholder substitution",
+      "command": "copy-based mutation of scripts/render-grounding-block.sh under .prflow/tmp/, then the assertion comparands re-evaluated against the mutant",
+      "result": "RED then GREEN",
+      "evidence": "contiguity guard: N_BATCH=$((N_HEADLESS + 2)) on the copy makes the awk contiguity check print 'bad' where the real tree prints 'ok'. Cross-file ordinal guard: rewriting the copy's phase-0-setup citation to (section 6) makes the cited digit 6 against a rendered 7, so the equality fails. Placeholder-family guard: dropping the __N_PUB__ substitution on the copy leaves the token in the render, which the __N_ family pattern matches. All copies discarded; working tree confirmed clean."
+    },
+    {
+      "decision": "model-context prose (the batching section itself): Phase 2.4 subagent RED/GREEN micro-test with a no-guidance control",
+      "command": "three concurrent subagents on one identical four-independent-probe task, differing only in guidance prefix (none / pre-change block / block with the section)",
+      "result": "unrunnable",
+      "evidence": "all three arms batched all four calls in a single message, so NO RED baseline was established and the micro-test does not demonstrate the added text changes behaviour. Recorded honestly rather than claimed as GREEN. The failure this issue measured occurred in a long headless orchestrator run of 266 requests under context pressure, a regime four trivial probes in a fresh subagent does not reproduce. Per this repository's issue-843/876 decision the compensating control for agent-executed prompt prose is the review pass, which is what surfaced the write-capable-dispatch race this iteration fixed."
+    }
+  ],
+  "verification_evidence": {
+    "command": "lib/test/run-shard.sh monolith",
+    "result": "pass",
+    "duration_s": null,
+    "skipped_checks": [
+      {
+        "check": "#434 stale-prose self-scan",
+        "kind": "blocking-gate",
+        "reason": "working tree dirty (this check grades committed HEAD)"
+      }
+    ],
+    "focused_selection": {
+      "surfaces": [
+        {
+          "surface": "scripts/render-grounding-block.sh",
+          "coverage_map_entry": "owner=unmodularized, no focused_test",
+          "exemption_ground": "unmodularized entry with no focused_test; assertions are run.sh-resident, so the monolith shard was the instrument"
+        },
+        {
+          "surface": "lib/test/run.sh",
+          "coverage_map_entry": "run.sh-resident",
+          "target_selected": "lib/test/run-shard.sh monolith"
+        },
+        {
+          "surface": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+          "exemption_ground": "no coverage-map entry (map covers lib/ and scripts/ only)"
+        },
+        {
+          "surface": "docs/internal/cloud-allowlist.md",
+          "exemption_ground": "no coverage-map entry"
+        },
+        {
+          "surface": "docs/internal/claude-md-relocated-rationale.md",
+          "exemption_ground": "no coverage-map entry"
+        },
+        {
+          "surface": ".github/workflows/devflow.yml",
+          "exemption_ground": "no coverage-map entry"
+        },
+        {
+          "surface": ".changeset/issue-1723-parallel-dispatch-disposition.md",
+          "exemption_ground": "no coverage-map entry"
+        }
+      ],
+      "single_flight_consulted": false
+    }
+  },
+  "base_checkpoint": {
+    "token": "UP_TO_DATE",
+    "behind_by": null
+  },
+  "stale_prose_check": {
+    "rows": [
+      "UNRESOLVABLE\tCU\tdocs/internal/DEVFLOW_SYSTEM_OVERVIEW.md\t505\tcoverage-universal: recognition-only (**every** cloud path)",
+      "UNRESOLVABLE\tCU\tdocs/internal/DEVFLOW_SYSTEM_OVERVIEW.md\t517\tcoverage-universal: recognition-only (both the sole-publisher rule)"
+    ],
+    "stale_count": 0,
+    "note": "no STALE row at the post-fix HEAD; both UNRESOLVABLE rows are informational and were already grounded by executed enumeration. The pre-fix third UNRESOLVABLE row disappeared because this iteration rewrote the false comment that produced it."
+  },
+  "telemetry": {
+    "phase_0": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 30
+    },
+    "phase_0_5": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 5
+    },
+    "phase_0_6": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 3
+    },
+    "phase_1": {
+      "calls": 1,
+      "tokens": 81747,
+      "wall_clock_s": 136
+    },
+    "phase_2": {
+      "calls": 22,
+      "tokens": 1487000,
+      "wall_clock_s": 900
+    },
+    "phase_3": {
+      "calls": 5,
+      "tokens": 580124,
+      "wall_clock_s": 364
+    },
+    "step_2_5": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 2,
+      "webfetches": 0
+    },
+    "phase_4_x": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 5
+    }
+  },
+  "shadow": {
+    "ran_at": null,
+    "reviewed_sha": null,
+    "verdict": null,
+    "coverage": null,
+    "prompt_addenda": null,
+    "reviewers_dispatched": [],
+    "expected_reviewers": [],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false
+}
