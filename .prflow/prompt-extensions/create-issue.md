@@ -266,3 +266,10 @@ Record a bundle entry for each of these, in addition to the generic axes:
   a code-reading obligation citing the producer, a command already granted on the consuming tier, or a
   post-merge follow-up.
 - **Measurement-command naming.** The authoritative quantitative-criterion contract and its motivating GNU/BSD `wc -w` portability fact live in the Acceptance Criteria section of `skills/create-issue/references/issue-template.md`; apply that shipped rule here without maintaining a second copy.
+
+## Two questions to ask before you finish
+
+**Deliberately repeated across four surfaces** — `CLAUDE.md` and the `create-issue`, `implement`, and `review` prompt extensions carry this block byte-identically, against the usual no-duplication rule, because both questions are cheap to skip and expensive to miss. Edit all four together.
+
+- **Are there any gotchas for the consumer repos we have not considered?**
+- **Is every word added to the skill prose as optimized as possible for maximum token cost efficiency and effectiveness?**

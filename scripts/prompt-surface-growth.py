@@ -249,12 +249,23 @@ def changed_rows(base_surface, head_surface):
         base_sha, base_bytes = base_surface.get(path, (None, 0))
         head_sha, head_bytes = head_surface.get(path, (None, 0))
         if base_sha != head_sha:
-            rows.append((path, head_bytes - base_bytes, head_bytes))
+            rows.append((path, base_bytes, head_bytes - base_bytes, head_bytes))
     return rows
 
 
 def _signed(n):
     return f"{n:+,}"
+
+
+def _pct(delta, base_bytes):
+    """Signed percentage of the before-size, or `n/a` when there is no before-size.
+
+    A file added on this branch has a zero denominator, so any percentage would be
+    a division by zero or a fabricated 100%; render the absence instead.
+    """
+    if base_bytes == 0:
+        return "n/a"
+    return f"{delta / base_bytes * 100:+,.1f}%"
 
 
 def render(head_sha, base_sha, ref, rows, surface_delta, surface_total):
@@ -266,14 +277,19 @@ def render(head_sha, base_sha, ref, rows, surface_delta, surface_total):
         "Covered: tracked `*.md` under `skills/`, `agents/`, "
         "`.prflow/prompt-extensions/`.",
         "",
-        "| Path | Δ bytes | Bytes at HEAD |",
-        "| --- | ---: | ---: |",
+        "| Path | Before | After | Δ bytes | Δ % |",
+        "| --- | ---: | ---: | ---: | ---: |",
     ]
-    for path, delta, head_bytes in rows:
-        lines.append(f"| `{path}` | {_signed(delta)} | {head_bytes:,} |")
+    for path, base_bytes, delta, head_bytes in rows:
+        lines.append(
+            f"| `{path}` | {base_bytes:,} | {head_bytes:,} "
+            f"| {_signed(delta)} | {_pct(delta, base_bytes)} |"
+        )
+    surface_before = surface_total - surface_delta
     lines.append(
-        f"| **Whole covered surface** | **{_signed(surface_delta)}** "
-        f"| **{surface_total:,}** |"
+        f"| **Whole covered surface** | **{surface_before:,}** "
+        f"| **{surface_total:,}** | **{_signed(surface_delta)}** "
+        f"| **{_pct(surface_delta, surface_before)}** |"
     )
     return lines
 
@@ -364,7 +380,7 @@ def main():
     # TOTAL is deliberately the whole covered surface at HEAD, not the changed rows'
     # subtotal: the running total of the surface is what keeps a repeated delta
     # meaningful, which is this table's entire reason for existing.
-    surface_delta = sum(delta for _, delta, _ in rows)
+    surface_delta = sum(delta for _, _, delta, _ in rows)
     surface_total = sum(size for _, size in head_surface.values())
     return _emit(
         render(head_sha, base_sha, ref, rows, surface_delta, surface_total)

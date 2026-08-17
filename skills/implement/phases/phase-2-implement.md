@@ -27,7 +27,7 @@ A stalled cloud run that `prflow_implement.stall_backstop` auto-resumes re-enter
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py body <comment-id>
 ```
 
-`workpad.py body`/`id` are `python3` (a preflight-guaranteed tool); read the printed body yourself and decide the two conjuncts from it — **never** derive the decisive value through a non-preflight PATH tool (`tr`/`sed`/`grep`/`wc`), which fails open to an empty value and mis-selects (CLAUDE.md guard-class 2).
+`workpad.py body`/`id` are `python3` (a preflight-guaranteed tool); read the printed body yourself and decide the two conjuncts from it — **never** derive the decisive value through a non-preflight PATH tool (`tr`/`sed`/`grep`/`wc`), which fails open to an empty value and mis-selects.
 
 **The read fails closed, and an unestablished measurement is distinguishable from a decided no-fire.** The identity read's outcome is judged **from the `id` tool result** — a refused or no-output invocation, a non-zero exit, or an empty printed comment ID is an **unestablished** measurement, never a decided answer: route it to the gate-does-not-fire path so full §2.1/§2.2 discovery runs, and never substitute an empty or absent comment ID into the `body` call. Likewise treat **any** unusable body read — a failed or empty `body`, a body carrying no `## Plan` section, or a duplicated `## Plan` — as **the gate does not fire**: full §2.1/§2.2 discovery runs, which costs a redundant pass rather than a wrong skip. Judge each body conjunct from the printed body itself. Record a `--note` naming the failed read, so an operator can tell an *unreadable workpad* from a *decided* no-fire:
 

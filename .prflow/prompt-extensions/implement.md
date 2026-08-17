@@ -45,23 +45,18 @@ one; a tool *added* to the preflight set is reconciled into this run's sweep by 
 enumeration-reconciliation sweep. This concrete instantiation is what the base skill's generic
 wording means — the base skill stays repo-agnostic and names no tools.
 
-## Behavioral regressions — executable evidence, not attestation
+## Behavioral regressions — this repo's additions
 
-When a test protects a **named behavioral regression**, exercise the rendered interface or
-machine-observable contract with an ordinary executable test: break the behavior on a scratch copy
-or fixture, observe that test go RED, then restore the correct behavior. Do not encode the
-regression as source-text presence — the former mutation-taking helpers and wrappers are retired.
+The base skill's Phase 2 sweeps contract already states the rule: a guard protecting a named
+behavioral regression tests the behavior directly, proves the test goes RED when that behavior
+breaks, records the RED/GREEN evidence in the workpad note, and adds no wording-only,
+prose-presence, or comment-presence pin. That governs this run unchanged and is not restated here.
 
-Then record **evidence, not an attestation**: the workpad `--note` records the behavior you broke
-and the executable test you observed go RED. A note that merely testifies a guard is relevant
-proves nothing a reviewer can re-run.
-
-**Wording-only pins are prohibited**, per `CLAUDE.md`'s executable-evidence policy and its closed
-`# structural-pin-ok:` category set. An operative prompt regression is behavioral: exercise the
-rendered or consumed prompt with an ordinary executable test, break the behavior in a scratch
-fixture, and demonstrate that test going RED. The diff-scoped `mutation-routing` gate applies the
-same policy to helper-based and raw presence assertions, and unchanged legacy sites need no
-backfill.
+This repository adds two answers to it. The closed category set a `# structural-pin-ok:`
+declaration must name is the one `CLAUDE.md`'s executable-evidence policy enumerates. The
+diff-scoped `mutation-routing` gate applies the same policy to helper-based and raw presence
+assertions, and unchanged legacy sites need no backfill — the former mutation-taking helpers and
+wrappers are retired.
 
 ## Focused test modules are the iteration default
 
@@ -337,3 +332,10 @@ On a run that maintains a workpad, record one discharge line before each full-su
 
 **This batched pass is no longer the sole detector of a drifted generated artifact (issue #1244).** The parallel full-suite coordinator runs a read-only, sub-second preflight over the same registry's preflight-eligible rows *before it launches any shard*, and **refuses to launch when one of them reports drift**, printing that row's own governing policy — so a stale artifact that this compliance-dependent step skips is caught mechanically instead of only by a ~13-minute suite run. That preflight is READ-ONLY and reconciles nothing: this batched pass remains the post-edit obligation and the **only** writer, so running it after your edits is still what keeps the coordinator from refusing your own suite launch. The coordinator hardcodes no artifact path and no command — it reads the same registry this helper enumerates — so, as above, this section still lists no artifact inventory of its own.
 
+
+## Two questions to ask before you finish
+
+**Deliberately repeated across four surfaces** — `CLAUDE.md` and the `create-issue`, `implement`, and `review` prompt extensions carry this block byte-identically, against the usual no-duplication rule, because both questions are cheap to skip and expensive to miss. Edit all four together.
+
+- **Are there any gotchas for the consumer repos we have not considered?**
+- **Is every word added to the skill prose as optimized as possible for maximum token cost efficiency and effectiveness?**

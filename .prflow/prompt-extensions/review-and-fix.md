@@ -70,21 +70,6 @@ waits on, polls, re-checks, or cites CI for its own progress.
 
 A nonempty skip tally is not clean.
 
-## Guard-class shape 1 — existence-vs-sourceability (verify the outcome, not the precondition)
-
-A guard that tests a file's **existence** and then treats a later **consumption** of that file as
-guaranteed is fail-open: the file can exist yet be unreadable, corrupt, or fail to parse/source, so
-the precondition passes while the outcome it stands in for never happens.
-
-- **Flag:** any `[ -f <file> ] && . <file>` (or `[ -f x ] && source x`, `[ -e x ]` gating a
-  later read/parse) where the guard's *intent* is "the thing the file provides is now
-  available." `[ -f ]` proves the path exists — it proves nothing about whether sourcing
-  succeeded or the symbol/function it defines is now callable.
-- **Fix (verify the outcome):** assert the *consumed result* directly. For a sourced helper,
-  check the function is defined after sourcing — `. <file> 2>/dev/null; type <fn> >/dev/null 2>&1 || { breadcrumb; fail-closed; }` — not that the file exists. For a parsed value, check the
-  parse produced a usable value. Fail **closed** with a specific breadcrumb when the outcome
-  check fails, never silently continue as if the sibling loaded.
-
 ## Guard-class shape 2 — tr-dependence (an external PATH tool whose absence silently changes output)
 
 A value (a slug, a branch name, a path segment, a normalized identifier) derived by piping through
@@ -120,24 +105,6 @@ stays green even against a mutant that disables the very guard the test exists t
   would succeed but for the one property under test, so an unrelated precondition rejecting the fixture
   cannot masquerade as the rejection under test.
 - **PR #340 cost this would have eliminated:** two vacuous tests and their follow-up findings.
-
-## Guard-class shape 4 — re-derived consumer contract (write the guard as the operation it protects)
-
-A guard written as a *separate predicate approximating* a downstream consumer's contract — instead
-of using that consumer's own operation as the guard — accepts a **superset** of what the consumer
-accepts, so inputs the guard waves through still break the consumer. The tell is a guard that
-inspects a *proxy* for the protected value rather than the value the consumer actually operates on.
-
-- **Flag:** a new guard/predicate over a string or shape that hand-derives what a nearby parser,
-  splitter, or narrowing op already decides — a regex/`in`-check/type-check standing in for a
-  `strptime`, a `splitlines()`, a `_find_checkbox_row`, a JSON decode — especially when the correct
-  idiom already exists elsewhere in the same file. Naming the protected operation *after* the predicate
-  is written is itself the smell.
-- **Fix (write the guard as the operation):** name the downstream operation the guard protects, in the
-  code, before writing the predicate; then write the guard **as** that operation (share its contract by
-  construction, so the accepted sets are identical and cannot drift). Before writing any new predicate
-  over a string or shape, grep the file for an existing idiom doing the same job and reuse it.
-- **PR #340 cost this would have eliminated:** the original guard defect and an extra review iteration.
 
 ## Probe rule — run interpreter- and environment-dependent probes under the real interpreter
 

@@ -2037,9 +2037,11 @@ assert_eq "#379(AC3): receiving-code-review body mentions 'mutation' at least on
   "$([ "$(grep -ci mutation "$RCV379")" -ge 1 ] && echo yes || echo no)"
 # The requesting-code-review prose pin was retired; AC8 below keeps only its generic file guard.
 # AC6 — extension gains shapes 3 (R3) and 4 (R4); preamble count/attribution updated in the same edit
-# AC11 — each new shape/rule names the PR #340 cost it would have eliminated (3 in the extension)
-assert_eq "#379(AC11): extension records the PR #340 cost eliminated for each of shape 3, shape 4, and the probe rule" \
-  "3" "$(pin_count 'this would have eliminated' "$RAF379")"
+# AC11 — each retained shape/rule names the PR #340 cost it would have eliminated.
+# Shape 4 was cut with its cost line (zero corpus recurrence, no citations), leaving
+# shape 3 and the probe rule; re-adding a shape without its cost line must go RED here.
+assert_eq "#379(AC11): extension records the PR #340 cost eliminated for each of shape 3 and the probe rule" \
+  "2" "$(pin_count 'this would have eliminated' "$RAF379")"
 
 # ── issue #550: completion-evidence gate in receiving-code-review + loop wiring ──
 CCE550_RCV="$LIB/../skills/receiving-code-review/SKILL.md"
@@ -28277,6 +28279,21 @@ assert_eq "#506 Writing-skills evidence marker is present in the contract and bo
 # clause too. The marker-literal presence pin this block used to carry is retired (issue #1007):
 # the advisory is agent-executed prompt prose no tool reads, so under the #843/#876 recorded
 # decision its compensating control is the review pass that reads the prose, not a pin.
+# ── the four-surface "Two questions" coupled mirror ──────────────────────────
+# The block is deliberately repeated against the usual no-duplication rule, and
+# CLAUDE.md's placement rule admits that only for "a coupled mirror a test pins
+# identical" — so without this assertion the block claims an exception it does not
+# satisfy and the copies drift silently on the next edit. Extract is the `## ` heading
+# through the end of its bullet list, so trailing sections in any carrier are excluded.
+TWOQ_EXTRACT() { sed -n '/^## Two questions to ask before you finish/,/^- \*\*Is every word/p' "$1"; }
+TWOQ_CLAUDE="$(TWOQ_EXTRACT "$FDROOT/CLAUDE.md")"
+assert_eq "two-questions block is present in CLAUDE.md (anchors the byte-identity below)" \
+  "yes" "$([ -n "$TWOQ_CLAUDE" ] && echo yes || echo no)"
+for TWOQ_F in create-issue implement review; do
+  assert_eq "two-questions block is byte-identical in $TWOQ_F.md and CLAUDE.md" \
+    "$TWOQ_CLAUDE" "$(TWOQ_EXTRACT "$FDROOT/.prflow/prompt-extensions/$TWOQ_F.md")"
+done
+
 # (3b) Property-based vendoring invariant (the skills-tree twin of the #139 agents/*.md loop):
 # EVERY file under the two vendored skill dirs must NOT carry the first-party `2026 Daniel Radman`
 # SPDX header (the license-preservation half) — proved mechanically over EVERY vendored file incl.
