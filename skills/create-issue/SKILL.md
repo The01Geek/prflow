@@ -290,8 +290,8 @@ listing unestablished.
 Where that listing is established and named the four paths, compare each path's timestamp against
 the run-slug pointer's own in it before any re-entry: older than the pointer is not this run's.
 Stamps are coarse and come in two shapes — month, day and time within roughly six months, month,
-day and year outside it — so equal stamps are not older, while a year-form stamp, or a year-less
-one whose month falls after the pointer's own month, is older. With the pointer absent or
+day and year outside it — so equal stamps are not older, while against this run's year-less pointer
+a year-form stamp, or a year-less one whose month falls after the pointer's own month, is older. With the pointer absent or
 unestablished there is no comparand; report in the draft message that freshness for the listed
 artifacts could not be established.
 

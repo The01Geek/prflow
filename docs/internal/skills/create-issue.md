@@ -81,7 +81,7 @@ The obsolete `step-3-6-audit.md` size exemption was removed from `lib/test/refer
 - A documentation claim that cannot be confirmed against code remains unconfirmed in the findings and cannot be promoted into the issue as fact.
 - Step 4's working-file listing never prevents an issue from being created; every one of its failure arms reports and continues.
 - That listing classifies the paths its own invocation named, not the entries its output happens to show, so a path returning neither a listing row nor a diagnostic is reported unestablished rather than passing as present. Only present and absent support re-entering a producing step.
-- The read-only fallback arm is selected by this run's own failed or refused write under `.prflow/tmp/`, never by the listing's output — a listing that succeeds is not evidence the run is off that arm.
+- The read-only fallback arm is selected by this run's own failed or refused write or delete at or under `.prflow/`, never by the listing's output — a listing that succeeds is not evidence the run is off that arm.
 
 ## Source of truth
 
