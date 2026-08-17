@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1728",
+  "generated_at": "2026-08-17T23:25:23Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.4",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 30.284683750000003,
+    "tokens": {
+      "input_tokens": 122,
+      "output_tokens": 81784,
+      "cache_read_input_tokens": 11500397,
+      "cache_creation_input_tokens": 498477,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 244,
+        "outputTokens": 155234,
+        "cacheReadInputTokens": 16694763,
+        "cacheCreationInputTokens": 1318329,
+        "webSearchRequests": 0,
+        "costUSD": 22.33829650000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 324,
+        "outputTokens": 48981,
+        "cacheReadInputTokens": 7098905,
+        "cacheCreationInputTokens": 1354941,
+        "webSearchRequests": 0,
+        "costUSD": 7.946387250000003,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 102,
+    "duration_ms": 1561336
+  },
+  "permission_denials": {
+    "count": 20,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---RUNENV---\"; echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-}\"; echo \"GITHUB_RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT:-}\"",
+      "echo \"run_id=$GITHUB_RUN_ID attempt=$GITHUB_RUN_ATTEMPT\"",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve 1721 --pr 1728 2>.prflow/tmp/review/pr-1728/32078377740-1/acs.err ; echo \"acs-rc=$?\"",
+      "for f in SKILL.md phases/phase-0-setup.md phases/phase-1-checklist.md phases/phase-2-verification.md phases/phase-3-agents.md phases/phase-4-verdict.md; do printf '%s ' \"$f\"; git rev-parse \"dfee685251a5b9c4956614a58935162ae8794992:skills/review/$f\"; done",
+      "awk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1728/32078377740-1/diff.patch > .prflow/tmp/review/pr-1728/32078377740-1/batch-1.patch && test -s .prflow/tmp/review/pr-1728/32078377740-1/batch-1.patch && echo \"slice-ok: batch-1\" || echo \"slice-failed: batch-1\"",
+      "awk -v s=11 -v e=20 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1728/32078377740-1/diff.patch > .prflow/tmp/review/pr-1728/32078377740-1/batch-2.patch && test -s .prflow/tmp/review/pr-1728/32078377740-1/batch-2.patch && echo \"slice-ok: batch-2\" || echo \"slice-failed: batch-2\"",
+      "for h in 0820852b021c0045882e0e43a2babacc4a6d2026472159b564b8f20e5a9bd9ac 2aa7a94860b0ac22d32ca4663980dbb2c4a32d34f9c32b3ae5ea1542c65186b0 709382affd7e3540e6afff8268d582be2a33cf05816c3c4408e4c51fd54f8dac 437624c5586419712b2c9f13a0e2e36d4b795cfede301264e0eb6412bea8215d 55c253ae16c90ba7e06f3079f142c1c555f32477c86efec1ae4d2e316e1c88e0; do\n  echo \"== $h ==\"\n  grep -c \"literal:$h\" lib/test/pin-corpus-adjudications.tsv\ndone",
+      "cat /home/runner/work/prflow/prflow/scripts/discover-deferral-manifests.py 2>/dev/null || find / -name discover-deferral-manifests.py 2>/dev/null",
+      "cd /tmp && rm -rf rtest && mkdir rtest && cd rtest && git init -q && git config user.email a@a.com && git config user.name a && printf 'line1\\nline2\\nline3\\n' > file.txt && git add file.txt && git commit -qm init\n# rename with modification\ngit mv file.txt file2.txt\necho \"extra line\" >> file2.txt\ngit add -A\ngit commit -qm rename\ngit diff --name-status HEAD~1 HEAD\necho \"---diff---\"\ngit diff HEAD~1 HEAD | grep -c '^diff --git'\ngit diff HEAD~1 HEAD",
+      "set -e\nD=/tmp/rtest\nrm -rf \"$D\"; mkdir -p \"$D\"\ngit -C \"$D\" init -q\ngit -C \"$D\" config user.email a@a.com\ngit -C \"$D\" config user.name a\nprintf 'line1\\nline2\\nline3\\n' > \"$D/file.txt\"\ngit -C \"$D\" add file.txt\ngit -C \"$D\" commit -qm init\ngit -C \"$D\" mv file.txt file2.txt\necho \"extra line\" >> \"$D/file2.txt\"\ngit -C \"$D\" add -A\ngit -C \"$D\" commit -qm rename\ngit -C \"$D\" diff --name-status HEAD~1 HEAD\necho \"---diff---\"\ngit -C \"$D\" diff HEAD~1 HEAD | grep -c '^diff --git'\ngit -C \"$D\" diff HEAD~1 HEAD",
+      "bash -c '\nset -e\nD=/tmp/rtest\nrm -rf \"$D\"; mkdir -p \"$D\"\ngit -C \"$D\" init -q\ngit -C \"$D\" config user.email a@a.com\ngit -C \"$D\" config user.name a\nprintf \"line1\\nline2\\nline3\\n\" > \"$D/file.txt\"\ngit -C \"$D\" add file.txt\ngit -C \"$D\" commit -qm init\ngit -C \"$D\" mv file.txt file2.txt\necho \"extra line\" >> \"$D/file2.txt\"\ngit -C \"$D\" add -A\ngit -C \"$D\" commit -qm rename\ngit -C \"$D\" diff --name-status HEAD~1 HEAD\necho \"---diff---\"\ngit -C \"$D\" diff HEAD~1 HEAD | grep -c \"^diff --git\"\ngit -C \"$D\" diff HEAD …[per-command-truncated]",
+      "bash /tmp/nonexistent_test.sh 2>&1 || true; echo done",
+      "bash /tmp/rtest.sh",
+      "sh /tmp/rtest.sh",
+      "git --version",
+      "mkdir -p /tmp/rtest2",
+      "bash /home/runner/work/prflow/prflow/.prflow/tmp/rtest/rtest.sh",
+      "chmod +x /home/runner/work/prflow/prflow/.prflow/tmp/rtest/rtest.sh\n/home/runner/work/prflow/prflow/.prflow/tmp/rtest/rtest.sh",
+      "chmod +x /home/runner/work/prflow/prflow/.prflow/tmp/rtest/rtest.sh",
+      "git init -q /home/runner/work/prflow/prflow/.prflow/tmp/rtest/repo"
+    ],
+    "total": 20,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
