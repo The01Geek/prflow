@@ -221,7 +221,8 @@ blanket. A rule that is a **control-flow property** — an invariant quantified 
 code rather than over textually similar sites, such as "every terminating path writes an outcome line" — has a
 peer set no shared marker can reach, because a path terminating inside a helper the unit calls is spelled
 nowhere in that unit's own text; the sweep establishes it by **tracing the unit's call edges**, and a rule the
-run cannot classify takes both arms, with that trace bounded to direct call edges — an undecided
+run cannot classify takes both arms, with that trace bounded to one hop on every edge kind the trace
+arm names — an undecided
 classification leaves the co-locatable case live, so the trace alone would discharge it vacuously. The
 traced arm records the unit and the
 technique's *reach* instead of a match count, so a search result on a control-flow rule can no longer read as a
