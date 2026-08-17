@@ -2037,9 +2037,11 @@ assert_eq "#379(AC3): receiving-code-review body mentions 'mutation' at least on
   "$([ "$(grep -ci mutation "$RCV379")" -ge 1 ] && echo yes || echo no)"
 # The requesting-code-review prose pin was retired; AC8 below keeps only its generic file guard.
 # AC6 — extension gains shapes 3 (R3) and 4 (R4); preamble count/attribution updated in the same edit
-# AC11 — each new shape/rule names the PR #340 cost it would have eliminated (3 in the extension)
-assert_eq "#379(AC11): extension records the PR #340 cost eliminated for each of shape 3, shape 4, and the probe rule" \
-  "3" "$(pin_count 'this would have eliminated' "$RAF379")"
+# AC11 — each retained shape/rule names the PR #340 cost it would have eliminated.
+# Shape 4 was cut with its cost line (zero corpus recurrence, no citations), leaving
+# shape 3 and the probe rule; re-adding a shape without its cost line must go RED here.
+assert_eq "#379(AC11): extension records the PR #340 cost eliminated for each of shape 3 and the probe rule" \
+  "2" "$(pin_count 'this would have eliminated' "$RAF379")"
 
 # ── issue #550: completion-evidence gate in receiving-code-review + loop wiring ──
 CCE550_RCV="$LIB/../skills/receiving-code-review/SKILL.md"
