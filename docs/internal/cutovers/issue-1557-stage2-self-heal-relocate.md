@@ -14,50 +14,65 @@ the run still reported `Complete`; failing closed would have rested a run-ending
 with no machine producer, since nothing emits "the reference loaded" — the only comparand is the
 agent's own report of a `Read`.
 
-## Measured delta — a 57-byte reduction, not the reduction the precedents bought
+## Measured delta — a 378-byte **increase** in the always-read surface
 
 Counted with `wc -c`; the Before column is merge base `3e43e7b32` and the After column is the head this
 record ships on, captured 2026-08-17.
 
 | File | Before | After | Delta |
 | --- | --- | --- | --- |
-| `skills/implement/phases/phase-4-documentation.md` | 59,113 | 59,056 | **−57** |
-| `skills/implement/references/doc-deliverable-self-heal.md` | — | 3,899 | +3,899 |
+| `skills/implement/phases/phase-4-documentation.md` | 59,113 | 59,491 | **+378** |
+| `skills/implement/references/doc-deliverable-self-heal.md` | — | 4,383 | +4,383 |
 
-**Read that number before assuming this move resembles its precedents.** Issues #815 and #1374 each cut
-their always-read surface by tens of thousands of bytes. This one cuts 57 — under a tenth of one
-percent — which over the two mandated Phase 4 reads is 114 bytes of context per run, against the whole
-reference loaded on the repair path when a deliverable is actually absent. On any run that owes a repair
-the change is net additive by well over an order of magnitude; only a run that owes none comes out
-ahead, and then barely. **The reference's figure is the volatile one, and it took six transitions inside
-this pull request**: 2,707 at the first draft, 2,534 after the `/simplify` trim, then 3,463, 3,725 and
-4,148 as successive review iterations fixed it, then 3,682 when an iteration reverted a relaxation and
-deleted a routing claim the caller could not honour, and finally 3,899 when the last iteration scoped
-step 1's stop to the path and disclosed step 4's remote-tracking-ref blind spot. Read the row as this
-record's own measurement, not a property of the design.
+**This change does not reduce the always-read surface. It grows it, and the honest reading is that the
+size argument for the move failed outright.** Issues #815 and #1374 each cut their always-read surface
+by tens of thousands of bytes. This one adds 378 to the file it was meant to shrink — paid on both
+mandated Phase 4 reads, so 756 bytes of context per run — and adds a 4,383-byte reference on top,
+loaded whenever a deliverable is actually absent. There is no run that comes out ahead on bytes.
+
+The increase is not drift: it was bought deliberately, in the final review pass, to close a defect the
+split itself introduced. The relocated repair told the agent to borrow Stage 2's rules and named which
+of Stage 2's *terminal* arms it must not take — but Stage 2's `no-deliverables` **no-op** arm is not a
+terminal, so it passed that filter, and that arm is a literal instruction to tick `Documentation`. A
+mid-run edit to the issue body could therefore have driven the repair path into ticking the very gate it
+was entered to satisfy, over a deliverable that never shipped. Fixing it meant stating the borrowing as
+a positive contract instead of an exclusion list, retriggering the terminal on the **absence of a
+repaired-and-verified report** rather than on an enumeration of causes, and labelling the failed-load
+arm as halting where its two neighbours in the same file degrade. Those three are the bytes.
+
+**The reference's own figure moved seven times inside this pull request**: 2,707 at the first draft,
+2,534 after the `/simplify` trim, then 3,463, 3,725 and 4,148 as successive review iterations fixed it,
+3,682 when an iteration reverted a relaxation and deleted a routing claim the caller could not honour,
+3,899 when the next scoped step 1's stop to the path and disclosed step 4's remote-tracking-ref blind
+spot, and finally 4,383 with the borrowing fix above. Read the row as this record's own measurement,
+not a property of the design.
 
 The arithmetic is structural rather than an authoring failure. A **split** leaves the `Blocked` terminal
-resident where a **wholesale move** takes it along, and adds a gated-load instruction and a degraded arm
-on top of it, so the gating apparatus costs nearly as much as the repair it gates. The first draft of
-this change (`709cf0172`) was in fact **347 bytes larger** than the pre-change file — 59,460 against
-59,113 — and it reaches −57 across three later commits, of which two matter: `48cde1a30` cut 262 by
-merging the separate degraded-arm paragraph into step 3, and the `/simplify` pass (`dddeda1b8`) cut a
-further 147, having noticed the stub was restating the boundary-marker contract a **third** time in one
-file (§4.0 and §4.0.5 already state it identically); that restatement was replaced with a pointer.
-Every figure here is a `wc -c` reading of the commit named, taken 2026-08-17 — the `+85` this paragraph
-carried through three review iterations was inherited from `dddeda1b8`'s own commit message and never
-re-derived from the tree.
+resident where a **wholesale move** takes it along, and adds a gated-load instruction and a failed-load
+arm on top of it, so the gating apparatus costs more than the repair it gates. The first draft
+(`709cf0172`) was already **347 bytes larger** than the pre-change file — 59,460 against 59,113 — and
+the branch spent three commits pulling that back below zero (`48cde1a30` cut 262 by merging the
+failed-load paragraph into step 3; the `/simplify` pass `dddeda1b8` cut a further 147 by replacing a
+third restatement of the boundary-marker contract with a pointer) only for the correctness fixes above
+to put it back at +378. Every figure here is a `wc -c` reading of the commit named, taken 2026-08-17 —
+the `+85` this paragraph carried through three review iterations was inherited from `dddeda1b8`'s own
+commit message and never re-derived from the tree.
 
-Two consequences, neither hedged:
+Three consequences, none hedged:
 
 - The issue's **User Impact** claim — that such a run "stops carrying the enforcement steps twice for a
-  gate it will never enter" — is **true in direction and badly wrong in magnitude**. The enforcement
-  steps do not stop being carried: the read, the diff computation, the satisfied-versus-absent rule and
-  the `Blocked` terminal all stay resident by design, and what left is the repair alone. Read as written
-  the sentence promises a reduction this scope cannot deliver.
-- The change's justification is therefore the **failure-posture split** described above, which the
-  issue's own Problem Statement anticipated: "the recovered residency is a fraction of that 719 and the
-  change is not justified on size."
+  gate it will never enter" — is **false as written**. The enforcement steps do not stop being carried:
+  the read, the diff computation, the satisfied-versus-absent rule and the `Blocked` terminal all stay
+  resident by design, and what left is the repair alone. The run now carries *more* on that path, not
+  less.
+- The change's justification is therefore **entirely** the failure-posture split described above, which
+  the issue's own Problem Statement anticipated: "the recovered residency is a fraction of that 719 and
+  the change is not justified on size." On size it is now negative, so nothing rests on it.
+- **A reviewer weighing whether this was worth doing should weigh the split, and should know the size
+  argument inverted.** The defensible reading is that the split is worth its bytes because it makes a
+  gate failure impossible to confuse with a repair failure, and because the review pass it forced
+  surfaced a live path to ticking `Documentation` over a missing file. The indefensible reading would be
+  to keep quoting a byte reduction this branch no longer delivers.
 
 These figures are a **past-time snapshot**, not a live measurement, so a change made after this branch
 merges does not retroactively falsify the record. **That exemption does not extend to this branch's own
@@ -75,8 +90,18 @@ Moved into `skills/implement/references/doc-deliverable-self-heal.md`:
 - deriving the missing update from the issue body's `**Documentation Needed**` prose;
 - performing it, recording the workpad note, committing with a `docs:` prefix and pushing;
 - the remote-anchored re-check (`git rev-parse HEAD` equals `git rev-parse @{u}`) and the per-path
-  re-run of the helper-driven diff check;
-- reporting the per-path outcome back to the caller.
+  re-computation of the cumulative diff;
+- reporting the per-path outcome back to the caller, naming the resolved repository path the repair
+  landed at — which matters for a bare-filename deliverable, since Stage 2's satisfied rule accepts any
+  basename match and would otherwise read a file written to the wrong directory as delivered.
+
+**What the reference deliberately does *not* re-decide** is whether the path is owed at all. It borrows
+Stage 2's diff mechanics and nothing else: a re-read of the deliverables helper reporting
+`no-deliverables`, or reporting a set that omits the path under repair, means *not repaired* — never
+that the obligation lapsed. Naming this positively is load-bearing. The first draft named the excluded
+arms instead, and Stage 2's `no-deliverables` arm — a no-op that proceeds directly to ticking
+`Documentation` — is not a terminal, so it slipped through the exclusion list and gave the repair path
+a route to ticking the gate over a file that never shipped.
 
 Stayed resident in `skills/implement/phases/phase-4-documentation.md`:
 
@@ -87,13 +112,15 @@ Stayed resident in `skills/implement/phases/phase-4-documentation.md`:
   fail-closed arm on a broken command;
 - the satisfied-versus-absent rule;
 - the undeliverable-path `Blocked` terminal — its `workpad.py` invocation, reflection text and 👎
-  reaction verbatim. Its **condition clause is not**, in three ways: it gained a new middle limb,
-  `the reference could not be loaded`, the mechanism that makes the split fail closed; its first
-  limb was reworded from `the correct update cannot be derived from context` to `the repair could
-  not be derived`; and its last from `the self-heal did not land per the re-check` to `the repair
-  did not land per its re-check`. The two rewordings are cosmetic — they follow the step's rename
-  from "self-heal or block" to "repair… then block" and select the same runs — but the clause is
-  not quotable as unchanged.
+  reaction verbatim. **Its trigger is not merely reworded but re-founded.** Before the move it fired
+  on an enumeration of causes; it now fires on the *absence of an explicit repaired-and-verified
+  outcome* for an absent path, with the causes demoted to examples. The reason is that the split
+  introduced a way for a path to have no outcome at all: the reference's commit-and-push step has no
+  failure arm, so an unclassified failure there — or a procedure interrupted mid-way — produced no
+  report and satisfied none of the enumerated causes, leaving the terminal unfired and the run free to
+  tick `Documentation`. A positive trigger has no such gap, because "no report" is itself the
+  condition. The enumeration also gained `the reference could not be loaded`, the limb that makes a
+  failed load fail closed.
 
 The reference writes no run status at all and emits no outcome reaction — it carries no `--status`
 call in any spelling and no 👎 — which is what keeps the terminal a single resident decision rather
@@ -132,10 +159,13 @@ decision never leaves the phase file.
   which is left untouched.
 - `docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md`'s durability-checkpoint bullet and
   `scripts/phase2-durability-checkpoint.sh`'s header each named the landing-verification rule as
-  "`phase-4-documentation.md` step 3" and now name the reference, which is where that rule went. Both
-  spell the phrase with the filename in backticks, so a sweep searching the unquoted string finds
-  neither — the residual `skills/implement/phases/phase-2-implement.md` pointer was missed twice on
-  exactly that error before a widened search caught it.
+  "`phase-4-documentation.md` step 3" and now name the reference, which is where that rule went. A
+  fourth site, `skills/implement/phases/phase-2-implement.md`, carried the same pointer and is
+  repointed too. All four spell the phrase with the filename in backticks, so a sweep searching the
+  unquoted string finds none of them — that error hid the fourth site through two sweeps, and after a
+  widened search surfaced it, it survived a further two review iterations because it had been
+  *identified* without being *fixed*. It is the only one of the four in a shipped skill body, so a
+  reader of a consumer's checkout was the one this dangling pointer would have stranded.
 - `docs/internal/implement-skill.md`'s Stage 2 section is **not** one of those repointings: it never
   carried the "step 3" phrase. It described the self-heal and `Blocked` arms as one undivided
   procedure, and is rewritten here to describe them as the split this change makes — repair gated,

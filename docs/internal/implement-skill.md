@@ -1676,15 +1676,20 @@ contract §4.0 and §4.0.5 apply to their own references.
   still-local commit) falls through to *Blocked* rather than ticking `Documentation` over a
   deliverable that never reached the PR. The reference writes no run status; it reports the per-path
   outcome back to the caller, which routes it.
-- **Degraded load (resident):** when the reference read fails — absent, empty, harness-refused, or
-  boundary-marker mismatched — the orchestrator records a `dropped-failed` reflection naming the
-  reference path and stating the repair was not attempted, then continues to the terminal below. A
-  failed load is never a separate stop — it routes through that terminal, which does stop the run.
-  This is deliberately **not** the non-halting degraded arm §4.0 and §4.0.5 carry for their own
-  references: those continue past the failure, where an undeliverable documentation path may not.
-- **Blocked (resident):** if the correct content cannot be derived from the prose (the note is
-  insufficient), the reference could not be loaded, or the self-heal did not land per the re-check,
-  the orchestrator does *not* tick `Documentation`. It routes to `--status Blocked
+- **Failed-load arm (resident, and it halts):** when the reference read fails — absent, empty,
+  harness-refused, or boundary-marker mismatched — the orchestrator records a `dropped-failed`
+  reflection naming the reference path and stating the repair was not attempted, then takes the
+  terminal below without ticking `Documentation` or proceeding to the labels step. The arm carries a
+  heading that contrasts it with the §4.0 and §4.0.5 degraded arms *by name*, because those two sit
+  earlier in the same file, are structurally identical, and are each headed "degrade, never halt" — an
+  orchestrator that generalized from them would continue past an absent deliverable.
+- **Blocked (resident):** the terminal fires on the **absence of an explicit repaired-and-verified
+  outcome** for an absent path — including a path the reference reported nothing about, since an
+  absent report is not a delivered file. A repair that could not be derived, a reference that could
+  not be loaded, a repair that did not land per the re-check and a procedure interrupted before it
+  reported are examples of that condition, not the test; the trigger is stated positively so that an
+  unclassified mid-procedure failure, which satisfies none of the named causes, still routes here. The
+  orchestrator does *not* tick `Documentation`. It routes to `--status Blocked
   --reflection-kind blocked` with a reflection naming the missing path
   (`Phase 4.1: Documentation Needed file content cannot be determined for <path> — the docs subagent
   did not update this file and the correct content cannot be derived from the issue body; update
