@@ -283,8 +283,9 @@ among them — leaves the listing unestablished, is reported naming which was ob
 no producing step. A producing step that cannot run gets an in-chat breadcrumb naming the file and
 the failure kind; this listing never prevents the issue from being created.
 
-An earlier refused `.prflow/tmp` write in this run puts it on the read-only arm, whose visible
-in-chat blocks then discharge the listing. The read-only arm is selected by run state, never by the
+An earlier write or delete under `.prflow/tmp/` in this run that failed or was refused because the
+filesystem is read-only puts it on the read-only arm, whose visible in-chat blocks then discharge
+the listing. The read-only arm is selected by run state, never by the
 listing's output: a listing that succeeds is no evidence against it, and a run that cannot
 establish that condition reports the listing unestablished. Take that discharge before the
 comparison below.
@@ -292,13 +293,12 @@ comparison below.
 Where that listing is established and named the four paths, compare each path's timestamp against
 the run-slug pointer's own timestamp in it before re-entering any producing step; a file older than
 the pointer is not this run's. `ls -l` prints minute granularity, so equal timestamps are not
-older, and an entry old enough to print a year in place of a time is older by construction. With
-the pointer itself absent from that listing there is no comparand, and freshness is unestablished
-for every path.
+older, and an entry showing a past year in place of a time is older. With the pointer itself absent
+from that listing there is no comparand: report in the message that renders the draft that
+freshness could not be established for the listed paths.
 
 On that same established four-path listing, run the producing step for every path shown absent or
-older than the pointer, and for every path whose freshness is unestablished, then resume at the
-draft rendering. A Step 1 re-entry reuses the slug already bound and binds no new one. A missing
+older than the pointer, then resume at the draft rendering. A Step 1 re-entry reuses the slug already bound and binds no new one. A missing
 derivation file re-runs Step 2's independent-derivation pass rather than Step 2 whole, and any
 genuine clarification deficit that pass finds is reported in the same message as the draft.
 
