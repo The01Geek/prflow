@@ -11493,15 +11493,16 @@ assert_eq("#1453: the canonical trailing-marker bullet IS read (positive control
 
 # ── issue #1722: one moment, one call — the combined-mutation call is not rejected ──
 
-# Do not drop a member of this call: `Blocked` is what keeps the Complete-only gate
-# unreached, and it WOULD refuse this incomplete coverage record.
-# Derive the two boundary rows from the constant, never transcribed: a renamed row must
-# fail here as a real mismatch, not silently stop exercising the batch.
+# Derive every row operand from its constant, never transcribed: a renamed row must fail
+# here as a real mismatch rather than silently stop exercising the batch.
 _MM_ROW_A, _MM_ROW_B = workpad._REVIEW_PROGRESS_ROWS[0], workpad._REVIEW_PROGRESS_ROWS[3]
+_MM_EXT = next(r for r in workpad._EXTENSION_ROWS if r[2] == "extension resolved: implement")
 _MM_BODY = _CP_BODY.replace(
     "- [ ] **Implement**",
     "- [ ] **Implement**\n- [ ] **Review**\n"
     + workpad._review_progress_rows_block("Review"))
+# Do not drop `Blocked`: it is what keeps the Complete-only gate unreached, and that gate
+# WOULD refuse this incomplete coverage record.
 _mm_code, _mm_out, _mm_err, _mm_patched = _drive_cmd_update(
     _MM_BODY,
     record_review_coverage=["not-verified", "never", "short", "skipped"],
@@ -11520,19 +11521,21 @@ assert_eq("#1722: ...ticking BOTH requested review-boundary rows in the one call
 assert_eq("#1722: ...and writing exactly one review-coverage record",
           ["not-verified:never:short:skipped"],
           workpad._review_coverage_payloads(_mm_patched))
-assert_eq("#1722: ...with no tick reported as a volatile miss",
-          False, "did not resolve" in _mm_err)
 
-# The folds in phase-1-setup.md §1.3 rest on reconcile-row repairs being applied BEFORE the
-# ticks within one call: the combined call repairs the extension rows and ticks one of them.
-# Reorder those two steps and this goes RED, where the fold would silently stop ticking.
-_MM_LEGACY = _CP_BODY.replace(
-    "  - 02:00:00 — /devflow:implement run started\n", "")
-_mm_reconcile = apply_mut(_MM_LEGACY, make_args(
+# The shape phase-1-setup.md §1.3 actually ships — classification, both reconcilers, the
+# extension tick and the resume-kind note in ONE call. Reorder reconcile after the ticks and
+# the tick assertion goes RED, which is the ordering the shipped fold rests on.
+_mm_p13 = apply_mut(_CP_BODY, make_args(
+    record_classification=["non-bug", "prose-only change; no malfunction described"],
+    reconcile_reproduction="non-bug",
     reconcile_extension_rows=True,
-    tick_progress=["extension resolved: implement"]))
-assert_eq("#1722: reconcile repairs the extension row and the SAME call ticks it",
-          True, "- [x] prompt extension resolved: implement" in _mm_reconcile)
+    tick_progress=[_MM_EXT[2]],
+    note=["resume-kind: fresh"]))
+assert_eq("#1722: the shipped Phase 1.3 five-flag fold ticks the row it just repaired",
+          True, f"- [x] {_MM_EXT[1]}" in _mm_p13)
+assert_eq("#1722: ...and the classification and resume-kind notes both land in that call",
+          (True, True),
+          ("classification: non-bug" in _mm_p13, "resume-kind: fresh" in _mm_p13))
 
 # ---------------------------------------------------------------------------
 # issue #1501: guard the remaining fixed-arity argument unpacks. Every flag with a
