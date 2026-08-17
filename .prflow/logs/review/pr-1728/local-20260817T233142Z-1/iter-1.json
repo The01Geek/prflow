@@ -1,0 +1,29 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-17T23:31:42Z",
+  "loop_role": "fix",
+  "current_step": "loop-control",
+  "current_substep": "step_1_run_engine",
+  "pending_dispatch": null,
+  "config": {
+    "max_iterations": 5,
+    "fix_severity_threshold": "suggestion",
+    "verdict_severity_threshold": "critical",
+    "push_each_iteration": true,
+    "pr_number": 1728,
+    "run_id": "local-20260817T233142Z-1",
+    "slug": "pr-1728"
+  },
+  "extensions_loaded": [
+    "review-and-fix",
+    "receiving-code-review"
+  ],
+  "step_0_5": {
+    "checkout_rc": 0,
+    "head_ref": "worktree-issue-1721",
+    "head_commit": "95ed1212f876f3166246cbe4adc7d33418ed425a",
+    "assertion": "passed"
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
