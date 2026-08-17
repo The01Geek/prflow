@@ -4867,8 +4867,8 @@ fi
 # guard while the shipped prose carries no count. The region is the routing list between the
 # exits header and the label-apply prose.
 _P4_ROUTING_BULLETS="$(awk '/exits before any label is applied/,/^If the printed/' "$P405_REF" | grep -c '^- \*\*')"
-assert_eq "#555 the §4.0.5 reader-routing list still carries exactly 8 routing bullets (6 exits + 2 qualifiers) — pinned mechanically, not against any shipped header numeral (#1415)" \
-  "8" "$_P4_ROUTING_BULLETS"
+assert_eq "#555 the §4.0.5 reader-routing list still carries exactly 7 routing bullets (5 exits + 2 qualifiers) — pinned mechanically, not against any shipped header numeral (#1415)" \
+  "7" "$_P4_ROUTING_BULLETS"
 
 # Issue #1188: the docs-rationale/overview MIRROR presence pins that used to sit here
 # (sweep 2.3.6 / 2.3.0a / 2.3.0b keeps-the-rationale-row, and the 2.3.0b overview
