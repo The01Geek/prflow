@@ -11492,17 +11492,10 @@ assert_eq("#1453: the canonical trailing-marker bullet IS read (positive control
           workpad._review_coverage_payloads("  - 03:00:00 — recorded " + _MK_RC))
 
 # ── issue #1722: one moment, one call — the combined-mutation call is not rejected ──
-# The shipped prose now directs a run to issue the mutations of one moment as ONE
-# `update` call. This exercises the one combination issue #1722 named — a review-coverage
-# record (a validate-before-mutate recorder), a terminal `--status Blocked`, and two
-# repeated `--tick-progress` operands, in a single invocation driven through the real
-# `cmd_update` path — rather than assuming it. It establishes that THIS combination is
-# accepted; it enumerates no other, and is not a claim about combinations at large.
-#
-# The combination is load-bearing per member: the coverage recorder validates before
-# any body mutation, `Blocked` is the terminal status whose glyph is NOT 🎉 (so the
-# Complete-only gate, which WOULD refuse this incomplete record, must stay unreached),
-# and the ticks are the volatile-miss family that must still resolve alongside both.
+
+# Do not drop a member of this call: `Blocked` is what keeps the Complete-only gate
+# unreached, and it WOULD refuse this incomplete coverage record. The scope is this one
+# combination — nothing here enumerates any other, or claims combining is safe at large.
 _MM_BODY = _CP_BODY.replace(
     "- [ ] **Implement**",
     "- [ ] **Implement**\n- [ ] **Review**\n"
