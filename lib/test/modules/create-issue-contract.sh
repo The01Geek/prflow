@@ -2234,14 +2234,22 @@ assert_eq "#1733 AC6: a working link to a directory classifies unestablished" "u
 assert_eq "#1733 AC8: a path that does not exist classifies absent" "absent" \
   "$(_ci1733_classify "$_ci1733_dir/ghost" "$_ci1733_combined")"
 
-# AC2: a not-found message is decisive even beside a stale row (the BSD shape).
-# Synthesized (GNU prints the message alone): a hand-built message + `-` size-5 row —
-# which alone would classify present — pins the message-first precedence.
+# AC2: a not-found message overrides a co-printed present-classifying row (the BSD
+# shape; GNU emits the message alone), pinning message-first precedence.
 _ci1733_synth="$_ci1733_dir/synth.out"
 printf "ls: cannot access '%s': No such file or directory\n-rw-r--r-- 1 u g 5 Aug 17 22:58 %s\n" \
   "$_ci1733_dir/dangling" "$_ci1733_dir/dangling" > "$_ci1733_synth"
 assert_eq "#1733 AC2: a not-found message is decisive even beside a long-format row" "absent" \
   "$(_ci1733_classify "$_ci1733_dir/dangling" "$_ci1733_synth")"
+
+# Message-match is path-delimited: a not-found message naming a superstring sibling
+# (realdir) must NOT classify the shorter path (real) absent — pins the delimiters so a
+# bare `grep -qF "$path"` regression is caught.
+_ci1733_super="$_ci1733_dir/super.out"
+printf "ls: cannot access '%s': No such file or directory\n-rw-r--r-- 1 u g 1 Aug 17 22:58 %s\n" \
+  "$_ci1733_dir/realdir" "$_ci1733_dir/real" > "$_ci1733_super"
+assert_eq "#1733 superstring: a message naming a sibling superstring path leaves the shorter path present" "present" \
+  "$(_ci1733_classify "$_ci1733_dir/real" "$_ci1733_super")"
 
 # AC9: the host's own `ls -lL` draws a not-found message naming the dangling link.
 _ci1733_hostmsg="$_ci1733_dir/hostmsg.out"
@@ -2264,8 +2272,7 @@ assert_eq "#1733 AC11: the slug-unknown arm (plain ls -l on the dir) shows the d
   "$(grep -qE '(^| )dangling( ->|$)' "$_ci1733_dirlist" && echo shown || echo hidden)"
 
 # AC10: a second `ls`, when present, must reach the same class; -L must never reach the
-# slug-unknown arm (a BSD-shaped impl drops the dangling dir entry under -L). The no-second-
-# impl skip clause is agent-prose, uncovered by design (#843/#876); a module cannot skip().
+# slug-unknown arm (a BSD-shaped impl drops the dangling dir entry under -L).
 _ci1733_second=""
 if command -v busybox >/dev/null 2>&1; then _ci1733_second="busybox"
 elif command -v gls >/dev/null 2>&1; then _ci1733_second="gls"; fi
