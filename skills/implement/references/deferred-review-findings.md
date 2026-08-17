@@ -18,7 +18,7 @@ AGG="${SLUG_DIR}/deferrals.json"   # slug-level aggregate the consumers read; di
 # branch name ONCE (reused for slug + breadcrumb) so the two reads can't disagree if HEAD moves.
 CUR_BRANCH=$(git branch --show-current)
 BRANCH_SLUG=$(printf '%s' "$CUR_BRANCH" | tr '/' '-' | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9._-')
-# tr-dependence guard (guard-class 2): BRANCH_SLUG keys a search dir and is derived through
+# tr-dependence guard: BRANCH_SLUG keys a search dir and is derived through
 # `tr`. A non-empty branch yielding an EMPTY slug (either `tr` missing/degraded, or a working
 # `tr` dropped every char as all-non-`[a-z0-9._-]`) falls back to pr-<N>-only search; the
 # breadcrumb names both candidate causes so an operator isn't misdirected. An EMPTY branch name
@@ -152,7 +152,7 @@ fi
 # `pr=` carries the PR_NUMBER capture's outcome, so a `gh pr view` returning nothing is observable
 # rather than masquerading as the clean no-op state on a run that had deferrals to file.
 # The `\n`→space fold is a BASH BUILTIN, not `tr`: this emitted field is one the reader ROUTES on,
-# which guard-class 2 forbids deriving through a non-preflight PATH tool.
+# so it must not be derived through a non-preflight PATH tool.
 MANIFEST_STATE=""; [ -n "${AGG:-}" ] && [ -s "${AGG:-}" ] && MANIFEST_STATE=hydrated
 echo "phase 4.0.5 filing fence ran; pr=[${PR_NUMBER:-}] discovery=[${DISCOVERY_STATE:-}] manifest=[${MANIFEST_STATE}] filing=[${FILED_STATE:-}] filed deferred-finding issues=[${FILED_NUMBERS//$'\n'/ }]"
 ```
@@ -181,7 +181,7 @@ fi
 # the whole pipeline refused and the capture silently empty (see Phase 4.0's note).
 CLEAN_DEFERRED_LABELS=$(echo "$DEFERRED_LABELS" | tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -v '^$' | tr '\n' ',' | sed 's/,$//')
 # Print BOTH, for the same reason Phase 4.0 does: an emptied normalizer must not be
-# indistinguishable from an empty config (CLAUDE.md guard-class 2).
+# indistinguishable from an empty config.
 echo "deferred.labels raw: [$DEFERRED_LABELS]"
 echo "deferred labels to apply: [$CLEAN_DEFERRED_LABELS]"
 ```

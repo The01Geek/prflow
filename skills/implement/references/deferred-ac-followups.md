@@ -72,8 +72,8 @@ fi
 CLEAN_DEFERRED_LABELS=$(echo "$DEFERRED_LABELS" | tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -v '^$' | tr '\n' ',' | sed 's/,$//')
 # Print BOTH: the RAW config value and the normalized list. Printing only the normalized
 # one makes an emptied normalizer indistinguishable from an empty config — and the
-# normalizer runs on PATH tools the preflight does not guarantee (CLAUDE.md guard-class 2:
-# a missing tool yields an empty value and the wrong thing is silently selected).
+# normalizer runs on PATH tools the preflight does not guarantee: a missing tool
+# yields an empty value and the wrong thing is silently selected.
 echo "deferred.labels raw: [$DEFERRED_LABELS]"
 echo "deferred labels to apply: [$CLEAN_DEFERRED_LABELS]"
 ```
