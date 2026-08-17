@@ -4,6 +4,16 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.95] — 2026-08-17
+
+### Fixed
+- **Repair a macOS-only suite failure and three unresolvable references in `/prflow:create-issue`.** The two `#1675` post-issue-comment assertions in `lib/test/run.sh` compared a `wc -l` result without stripping padding, so BSD `wc`'s leading spaces made them read `0:       1` against an expected `0:1` — both failed on every macOS checkout while CI stayed green, quietly degrading the local suite signal contributors rely on before pushing; they now use the `tr -d ' '` idiom three sibling call sites in the same file already use. Four degraded arms — the skill root's routing-unavailable arm and the `step-2-clarify.md`, `issue-template.md` and `degradation-routing.md` rows — told a run to fall back on "the Definition-of-Ready summary and section list in the completion checklist", neither of which the checklist has ever contained, so a failed reference load routed the run to an empty source; they now name the user story and the Step 1 findings. `references/step-3-5-steelman.md` pointed at `references/issue-template.md` for the obligation-arm execution-tier constraint, which lives in `references/quality-group-contracts.md`, and at the skill root for the reduced-steelman record obligation, which lives in `references/degradation-routing.md`'s Step 3.5 row; both now resolve, and the first says to load the conditionally-loaded quality group when an obligation arm fires.
+
+## [2.32.94] — 2026-08-17
+
+### Changed
+- **Trim derivation from `/prflow:create-issue`'s always-loaded issue template.** `references/issue-template.md` sheds rationale and downstream-ownership prose while keeping every drafting rule: the Acceptance-Criteria grounding-block bullet drops the arguments for why shared framing is stated once and why a criterion's qualifiers repeat, keeping the consequence test, the placement rule and the reason prose after the criteria is lost; `Current Behavior` keeps the defect classification, the environment-regardless rule, the `unestablished — <reason>` form, the do-not-move-to-Blocked routing and the reporter's-story-is-data guard, and points at the conditionally-loaded regression quality group for the reproduction-fact set it already carries; the Testing-Strategy assertion-completeness paragraph, the `Blocked by #N` downstream-preflight description, and the posting recipe's marshaling and newline explanations reduce to their operative rules. The plain-language requirement, the `lib/writing-standard.md` pointer, and the worked example issue that demonstrates the expected voice are untouched — they are the guidance that keeps generated issues readable, and they are deliberately out of scope for token-cost work.
+
 ## [2.32.93] — 2026-08-17
 
 ### Changed

@@ -120,7 +120,7 @@ matching `end` marker, each naming that file's own path, with exactly one of eac
 
 **Which file loads on which trigger — and the degraded behavior each failed load falls back on — is enumerated in `references/degradation-routing.md`.** Load it (per the boundary-marker rule above) on either of two triggers: when a reference load fails and you need its degraded behavior, and when one of its predicate-gated fallback conditions fires on an otherwise healthy run.
 
-**If `references/degradation-routing.md` itself fails to load**, its routing row is unavailable for the reference that needed it: proceed inline for that step, using the Definition-of-Ready summary and section list in the completion checklist above, disclose the reduced coverage in chat, and do not terminate the run. The five non-degradable invariants below still hold.
+**If `references/degradation-routing.md` itself fails to load**, its routing row is unavailable for the reference that needed it: proceed inline for that step, using the user story and the Step 1 findings, disclose the reduced coverage in chat, and do not terminate the run. The five non-degradable invariants below still hold.
 
 ## Non-degradable invariants
 
