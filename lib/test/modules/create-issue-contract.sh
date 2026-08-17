@@ -2181,14 +2181,9 @@ assert_eq "#1515 feedback revision reprojects after Revision-delta and before ov
 assert_eq "#1515 feedback mutation: skipping projection rerun is caught" "caught" "$(_ci1515_feedback_route remove-projection)"
 assert_eq "#1515 feedback mutation: projection before mutating Revision-delta is caught" "caught" "$(_ci1515_feedback_route projection-before-delta)"
 
-# ── #1733: Step 4 working-file listing classifies from what the shell shows ──────────
-# The Step 4 listing decides present/absent/unestablished over four named paths from
-# one `ls -lL … 2>&1` invocation. `ls` calls lstat on its operands, so under plain
-# `ls -l` a dangling symlink prints a stale row and exits 0 — a rule reading a row as
-# present misclassifies it. That is a real shell boundary, so it gets a command-level
-# test here; the surrounding rule prose is agent-executed and carries no automated
-# test, this repo's recorded position for that content. `ls` itself is not mocked,
-# because its behavior is the thing under test.
+# ── #1733: Step 4 listing classifies present/absent/unestablished from the shell ──
+# Guards a rule from reading an `ls -l` row as present: under `ls -l` a dangling
+# symlink prints a stale row, so the four-path listing uses `ls -lL` (message-decisive).
 _ci1733_dir="$_ci_tmp_root/ls1733"
 mkdir -p "$_ci1733_dir/realdir"
 ln -s /nonexistent/ci1733-gone "$_ci1733_dir/dangling"
@@ -2198,14 +2193,12 @@ printf 'y' > "$_ci1733_dir/realdir/inside"
 ln -s real "$_ci1733_dir/goodlink"
 ln -s realdir "$_ci1733_dir/dirlink"
 
-# The shipped classification rule, executable: over one invocation's merged output, a
-# not-found message NAMING the path is decisive (absent) even beside a row for it; a
-# row for the path itself describing an ordinary file (type '-') of >=1 byte is
-# present; a zero-byte '-' row is absent; anything else (a dir header + contents, a
-# bare link row, no line) is unestablished.
 _ci1733_classify() {  # <path> <combined-output-file> -> present|absent|unestablished
   local path="$1" out="$2" perm size rest name
-  if grep -E 'cannot access|No such file' "$out" | grep -qF "$path"; then
+  # A not-found message naming this exact path is decisive; match it path-delimited
+  # (GNU quotes the path, busybox suffixes a colon) so a superstring path never matches.
+  if grep -E 'cannot access|No such file' "$out" | grep -qF "'$path'" \
+     || grep -E 'cannot access|No such file' "$out" | grep -qF "$path:"; then
     printf 'absent\n'; return 0
   fi
   while read -r perm _ _ _ size rest; do
@@ -2241,10 +2234,9 @@ assert_eq "#1733 AC6: a working link to a directory classifies unestablished" "u
 assert_eq "#1733 AC8: a path that does not exist classifies absent" "absent" \
   "$(_ci1733_classify "$_ci1733_dir/ghost" "$_ci1733_combined")"
 
-# AC2: a not-found message is decisive even when a long-format row for the same path
-# is also printed (the BSD shape: message beside the stale row). Synthesized because
-# GNU prints the message alone; the row here is a '-' size-5 row that would otherwise
-# classify present, so this pins the message-first precedence.
+# AC2: a not-found message is decisive even beside a stale row (the BSD shape).
+# Synthesized (GNU prints the message alone): a hand-built message + `-` size-5 row —
+# which alone would classify present — pins the message-first precedence.
 _ci1733_synth="$_ci1733_dir/synth.out"
 printf "ls: cannot access '%s': No such file or directory\n-rw-r--r-- 1 u g 5 Aug 17 22:58 %s\n" \
   "$_ci1733_dir/dangling" "$_ci1733_dir/dangling" > "$_ci1733_synth"
@@ -2271,11 +2263,17 @@ ls -l "$_ci1733_dir" > "$_ci1733_dirlist" 2>&1 || true
 assert_eq "#1733 AC11: the slug-unknown arm (plain ls -l on the dir) shows the dangling entry" "shown" \
   "$(grep -qE '(^| )dangling( ->|$)' "$_ci1733_dirlist" && echo shown || echo hidden)"
 
-# AC10 + directory-arm flag choice: a second `ls` implementation, when present,
-# reaches the same class for the dangling link, and (on a BSD-shaped implementation
-# such as busybox) drops the dangling entry from the directory listing under -L —
-# which is why -L must never reach the slug-unknown arm. When no second implementation
-# is on the host, this half is not exercised (modules may not self-skip).
+# AC10: a second `ls` must reach the same class; when none is present the run records a
+# skip naming the programs it looked for. -L must never reach the slug-unknown arm — a
+# BSD-shaped impl (busybox) drops the dangling entry from a -L directory listing.
+_ci1733_second_report() {  # <found-impl-or-empty> -> "impl <name>" | skip line
+  if [ -n "$1" ]; then printf 'impl %s\n' "$1"
+  else printf 'skip: no second ls implementation on host (looked for busybox, gls)\n'; fi
+}
+# The skip clause, exercised deterministically — a module cannot call the fatal skip().
+assert_eq "#1733 AC10: with no second ls implementation, a skip naming the programs is recorded" \
+  "skip: no second ls implementation on host (looked for busybox, gls)" \
+  "$(_ci1733_second_report "")"
 _ci1733_second=""
 if command -v busybox >/dev/null 2>&1; then _ci1733_second="busybox"
 elif command -v gls >/dev/null 2>&1; then _ci1733_second="gls"; fi
