@@ -187,7 +187,7 @@ Set `ISSUE_NUMBER=$ARGUMENTS` and check whether a workpad already exists:
 
 After this step, every later phase boundary touches the workpad via `workpad.py update $ISSUE_NUMBER ...` — no `WORKPAD_ID` variable to track across calls.
 
-The hydration call above stays its **own** call: an `--expect-comment-id`/`--expect-status`/`--replace-acs-file` failure aborts with no PATCH, dropping any folded-in progress write silently.
+Fold no unrelated progress write into the hydration call above: it aborts with no PATCH.
 
 **Record the classification and reconcile the skeleton (every entry — fresh run, in-flight resume, and terminal re-trigger).** The 2.1.5 gate reads the recorded classification, and the reproduction skeleton's pre-rendered default can disagree with the §1.1 content classification. `--reconcile-reproduction` below is the authoritative correction, run on every entry. Resume semantics decide whether to classify afresh or read the recorded verdict:
 
@@ -212,7 +212,7 @@ The three are evaluated **in the order listed, first match wins**: a terminal `S
 
 **Emit the decided kind as a bare literal — never the brace template.** `--note` validates nothing, so an unsubstituted template would be written verbatim — and its text *contains* the substring `in-flight`, which a containment-style read would arm on a terminal re-trigger. The note's value is one of the three bare tokens with nothing else after `resume-kind: `, and the §2.0 reader compares it by **exact value, never containment**.
 
-**One moment, one call.** Issue the classification, the reconcile, the implement extension-row outcome and this `resume-kind:` note as **one** `update`; the reconcile-row repairs precede the ticks inside that call, so the extension tick lands on a repaired `## Progress`:
+**One moment, one call** — issue them as one `update`:
 
 ```bash
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER \

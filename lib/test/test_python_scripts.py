@@ -11494,8 +11494,10 @@ assert_eq("#1453: the canonical trailing-marker bullet IS read (positive control
 # ── issue #1722: one moment, one call — the combined-mutation call is not rejected ──
 
 # Do not drop a member of this call: `Blocked` is what keeps the Complete-only gate
-# unreached, and it WOULD refuse this incomplete coverage record. The scope is this one
-# combination — nothing here enumerates any other, or claims combining is safe at large.
+# unreached, and it WOULD refuse this incomplete coverage record.
+# Derive the two boundary rows from the constant, never transcribed: a renamed row must
+# fail here as a real mismatch, not silently stop exercising the batch.
+_MM_ROW_A, _MM_ROW_B = workpad._REVIEW_PROGRESS_ROWS[0], workpad._REVIEW_PROGRESS_ROWS[3]
 _MM_BODY = _CP_BODY.replace(
     "- [ ] **Implement**",
     "- [ ] **Implement**\n- [ ] **Review**\n"
@@ -11504,22 +11506,33 @@ _mm_code, _mm_out, _mm_err, _mm_patched = _drive_cmd_update(
     _MM_BODY,
     record_review_coverage=["not-verified", "never", "short", "skipped"],
     status="Blocked",
-    tick_progress=["Classify diff", "Review agents"])
+    tick_progress=[_MM_ROW_A[1], _MM_ROW_B[1]])
 assert_eq("#1722: the combined coverage+Blocked+two-tick call takes the clean exit",
           None, _mm_code)
-assert_eq("#1722: ...and its single PATCH landed",
+assert_eq("#1722: ...and the PATCH landed",
           True, _mm_patched is not None)
 assert_eq("#1722: ...applying the Blocked status",
           True, workpad._status_glyph("Blocked") in _statusline(_mm_patched))
 assert_eq("#1722: ...ticking BOTH requested review-boundary rows in the one call",
           (True, True),
-          ("- [x] Classify diff (Phase 0.5)" in _mm_patched,
-           "- [x] Review agents (Phase 3)" in _mm_patched))
+          (f"- [x] {_MM_ROW_A[0]}" in _mm_patched,
+           f"- [x] {_MM_ROW_B[0]}" in _mm_patched))
 assert_eq("#1722: ...and writing exactly one review-coverage record",
           ["not-verified:never:short:skipped"],
           workpad._review_coverage_payloads(_mm_patched))
 assert_eq("#1722: ...with no tick reported as a volatile miss",
           False, "did not resolve" in _mm_err)
+
+# The folds in phase-1-setup.md §1.3 rest on reconcile-row repairs being applied BEFORE the
+# ticks within one call: the combined call repairs the extension rows and ticks one of them.
+# Reorder those two steps and this goes RED, where the fold would silently stop ticking.
+_MM_LEGACY = _CP_BODY.replace(
+    "  - 02:00:00 — /devflow:implement run started\n", "")
+_mm_reconcile = apply_mut(_MM_LEGACY, make_args(
+    reconcile_extension_rows=True,
+    tick_progress=["extension resolved: implement"]))
+assert_eq("#1722: reconcile repairs the extension row and the SAME call ticks it",
+          True, "- [x] prompt extension resolved: implement" in _mm_reconcile)
 
 # ---------------------------------------------------------------------------
 # issue #1501: guard the remaining fixed-arity argument unpacks. Every flag with a
