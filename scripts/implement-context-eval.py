@@ -184,17 +184,28 @@ def _attribution_ids():
 
 ATTRIBUTION = _attribution_ids()
 
-# The four phase files whose per-run read count issue #1209 measures. The mapping is
-# basename -> the short label the report keys the count on. A phase file renamed on disk
-# must be mirrored here in the same change (there is no import from the skill; the eval
-# is a standalone instrument). PHASE_READ_LABELS is the report's canonical, sorted key
-# order for the per-phase axis — every run reports all four, 0 when a phase was never
-# entered.
+# The phase-bundle files whose per-run read count issue #1209 measures. The mapping is
+# basename -> the short label the report keys the count on. A phase file or gated reference
+# renamed on disk must be mirrored here in the same change (there is no import from the skill;
+# the eval is a standalone instrument). Omitting a gated reference an implement run actually
+# reads makes the report overstate the context saving by every read it cannot see.
+# PHASE_READ_LABELS is the report's canonical, sorted key order for the per-phase axis — every
+# run reports all four, 0 when a phase was never entered.
 PHASE_FILES = {
     "phase-1-setup.md": "phase1",
     "phase-2-implement.md": "phase2",
     "phase-2-sweeps-contract.md": "phase2",
     "phase-2-sweeps-quality.md": "phase2",
+    # issue #1581: the eight conditional §2.3 sweeps' procedures are read from these gated
+    # references during Phase 2, so they are part of the phase2 read count.
+    "sweep-2-3-0-changed-contract.md": "phase2",
+    "sweep-2-3-0a-peer-checkpoint.md": "phase2",
+    "sweep-2-3-0b-enum-enumeration.md": "phase2",
+    "sweep-2-3-0c-operand-trace.md": "phase2",
+    "sweep-2-3-0d-describing-prose.md": "phase2",
+    "sweep-2-3-1-orphaned-setup.md": "phase2",
+    "sweep-2-3-2-stranded-dependents.md": "phase2",
+    "sweep-2-3-7-collection-cardinality.md": "phase2",
     "phase-3-review.md": "phase3",
     "phase-3-fix-loop.md": "phase3",
     "phase-3-ac-gate.md": "phase3",
