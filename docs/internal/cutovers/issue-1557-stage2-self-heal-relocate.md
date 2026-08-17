@@ -69,7 +69,8 @@ Stayed resident in `skills/implement/phases/phase-4-documentation.md`:
 - the cumulative-diff computation, its `$BASE` re-derivation with the non-empty fallback, and its
   fail-closed arm on a broken command;
 - the satisfied-versus-absent rule;
-- the undeliverable-path `Blocked` terminal, verbatim.
+- the undeliverable-path `Blocked` terminal — its routing verbatim, its condition clause widened by
+  `the reference could not be loaded`, which is the mechanism that makes the split fail closed.
 
 The reference writes no run status at all — it carries no `--status Blocked` call — which is what keeps
 the terminal a single resident decision rather than a duplicated one.
@@ -94,8 +95,9 @@ decision never leaves the phase file.
   writer of digests, so the branch adds the new entry by hand rather than regenerating — regeneration
   would also refresh the digests of the assets this branch edited, which
   `lib/test/cloud-writer-retention-check.py` refuses.
-- `lib/test/lint-worktree-fence-shapes.py`'s `ENROLLED` gains the reference, because the relocated
-  fences travel with it and that tuple is hand-maintained and blind to a new file.
+- `lib/test/lint-worktree-fence-shapes.py`'s `ENROLLED` gains the reference. The relocated procedure
+  states its steps as bash fences where the phase file stated them as prose, so this change
+  introduces fenced call sites that hand-maintained, new-file-blind tuple would never audit.
 - `lib/test/lint-anchor-fallback-arm.py`'s `ENROLLED` gains a `workpad.py` row for the reference. This
   is an **addition, not a re-pointing**: the issue's Call-site migration paragraph states that a
   `phase-4-documentation.md` row already enrolled this call site. Reading the tuple refutes that —
@@ -129,8 +131,11 @@ literal to the `config-get.sh .docs.labels Documented` invocation, proved non-em
 counted, then a zero count for `performed update from Documentation Needed prose` — a literal unique to
 the moved repair. The terminator is a machine-consumed helper invocation rather than a prose sentence,
 and it carries its own retention pin, because a vanished terminator would silently widen the range to
-end-of-file and restore the vacuity the scoping exists to close. Scratch-allocation failure routes to
-the `skip` helper rather than letting that assertion disappear.
+end-of-file and restore the vacuity the scoping exists to close. The paired positive count — the same
+literal present twice in the reference — sits **outside** the scratch guard, because it reads only the
+reference and would otherwise vanish on a scratch failure, taking with it the half that makes the pair
+non-vacuous. Scratch-allocation failure routes the two slice-dependent assertions to the `skip` helper,
+named individually and classified `blocking-gate`, since they are real gates that could not run here.
 
 Not asserted: the stub's prose contract — the marker contract it applies, and the route it takes on an
 empty read. Those sentences are agent-executed prompt prose, whose only reader is the runtime agent, so
