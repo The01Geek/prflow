@@ -711,6 +711,14 @@
     "by_category": {}
   },
   "parked_class_sweep": null,
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "refixed",
+      "reason": null
+    }
+  },
+  "engine_verdict_note": "DEVIATION, recorded rather than hidden: this iteration routed to Step 2.5/Step 3 directly from the Phase 1-3 finding set without first computing the engine's Phase 4.2 verdict, so no iter-1 engine verdict was produced. The routing was nonetheless correct at any threshold — three checklist FAILs (VC-14, VC-16, VC-17, two of them source_authored_text documented falsehoods) plus four-agent-corroborated Important findings are REJECT drivers, and the resolved FIX_THRESHOLD of suggestion admits every severity to the fixer. Iteration 2 runs the engine's Phase 4 verdict computation as specified.",
   "test_first_gate": [
     {
       "decision": "test-first (executable): the fix delta's only automated-testable behavior is the rendered ordinal chain and the placeholder substitution",
