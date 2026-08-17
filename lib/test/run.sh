@@ -35496,6 +35496,19 @@ assert_eq "#1514 shape-lint flags an unmeasured production-head redirect to .prf
 printf '%s\n' '```bash' 'echo iprobe11workspace > .prflow/tmp/iprobe11workspace' '```' > "$E363/s-ir6-control.md"
 assert_eq "#1514 shape-lint keeps the exact row-11 echo control permitted" "" \
   "$(python3 "$ECS" --profile implement "$E363/s-ir6-control.md")"
+# (#1721) IR6's STDERR arm is head-independent: the shipped fences this issue rewrote were
+# non-gh `2>.prflow/tmp/…/*.err` captures, measured DENIED on a cloud run. A gh-only rule
+# would let that exact shape back into a shipped fence with the suite green.
+printf '%s\n' '```bash' \
+  'scripts/workpad.py acs-resolve "$ISSUE_NUM" 2>.prflow/tmp/review/s/r/acs.err ; echo "acs-rc=$?"' \
+  '```' > "$E363/s-ir6-stderr.md"
+assert_eq "#1721 shape-lint flags a NON-gh stderr redirect to .prflow/tmp (the rewritten shape)" "yes" \
+  "$(python3 "$ECS" --profile implement "$E363/s-ir6-stderr.md" | grep -q '  IR6  ' && echo yes || echo no)"
+# Discrimination: the stdout arm stays gh-scoped (row 11's non-gh `>` is measured PERMITTED,
+# asserted above), and an fd-2 DUPLICATION (`2>&1`) is not a file target at all.
+printf '%s\n' '```bash' 'printf hi 2>&1 | tee .prflow/tmp/x' '```' > "$E363/s-ir6-dup.md"
+assert_eq "#1721 shape-lint does not flag a 2>&1 duplication piped into tee" "" \
+  "$(python3 "$ECS" --profile implement "$E363/s-ir6-dup.md")"
 # ── (R5 retired, issue #869): the `if`/`elif` `VAR=$(…)` command-substitution CONDITION
 # ── shape the retired R5 rule flagged (#857) is now cloud-PERMITTED — this is exactly the
 # ── `$( )` spelling matcher-probe Shape 18 measured (`if HP=$(config-get.sh …)`, run
@@ -39186,6 +39199,34 @@ assert_eq "#1721 the producer's rows + T-rows equal the section count across a t
   "$([ "$((SP503_TC_ROWS + SP503_TC_T))" -eq "$SP503_TC_SECTIONS" ] && echo yes || echo no)"
 assert_eq "#1721 the typechange fixture really produces two sections from one path" "2" \
   "$SP503_TC_SECTIONS"
+
+# ── Contract 3: step 6 counts the PUBLISHED FILE. `tee` keeps copying to stdout when its
+# write fails, so a step-6 that re-counted the stream (or counted the raw candidate) would
+# satisfy the published == step-5 equation against a diff.patch that landed truncated. The
+# command is EXTRACTED, so a shipped edit to either operand turns this red.
+awk '/^# BEGIN LOCAL_DIFF_PUBLISHED_COUNT/{capture=1; next} capture && /^# END LOCAL_DIFF_PUBLISHED_COUNT/{exit} capture' \
+  "$SP_REVIEW" > "$SP503_FENCE_DIR/published-count.sh"
+assert_eq "#1721 the LOCAL_DIFF_PUBLISHED_COUNT marker pair extracts a non-empty command" "yes" \
+  "$(test -s "$SP503_FENCE_DIR/published-count.sh" && echo yes || echo no)"
+sed "s#\.prflow/tmp/review/<slug>/<run-id>#$SP503_FENCE_CACHE#g" \
+  "$SP503_FENCE_DIR/published-count.sh" > "$SP503_FENCE_DIR/published-count-resolved.sh"
+# The two files disagree on purpose: a step-6 reading the raw candidate would print 3.
+printf '%s\n' 'diff --git a/one b/one' '+a' 'diff --git a/two b/two' '+b' \
+  > "$SP503_FENCE_CACHE/diff.patch"
+printf '%s\n' 'diff --git a/one b/one' '+a' 'diff --git a/two b/two' '+b' \
+  'diff --git a/three b/three' '+c' > "$SP503_FENCE_CACHE/diff.raw-candidate"
+assert_eq "#1721 step 6 counts the published diff.patch, not the raw candidate" "2" \
+  "$(bash "$SP503_FENCE_DIR/published-count-resolved.sh")"
+# A truncated write is the case the step-5-vs-step-6 equation exists to catch: step 5's
+# stream count would still read 2, so step 6 must report the file's own smaller number.
+printf '%s\n' 'diff --git a/one b/one' '+a' > "$SP503_FENCE_CACHE/diff.patch"
+assert_eq "#1721 step 6 reports the truncated published file's own count" "1" \
+  "$(bash "$SP503_FENCE_DIR/published-count-resolved.sh")"
+# A legitimately logs-only diff filters to empty and publishes: `grep -c` prints 0 and exits
+# 1, which the routing reads as an operand, so the count must still be observable.
+: > "$SP503_FENCE_CACHE/diff.patch"
+assert_eq "#1721 step 6 prints 0 for a legitimately empty published cache" "0" \
+  "$(bash "$SP503_FENCE_DIR/published-count-resolved.sh" || true)"
 rm -rf "$SP503_FENCE_DIR"
 
 # Execute the skill's exact base-resolution fence as well. The observer appended

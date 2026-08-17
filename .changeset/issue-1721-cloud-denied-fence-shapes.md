@@ -25,8 +25,10 @@ now quotes the stderr the invocation itself returned.
 Two fences that routed on `grep`-ing a captured stderr file now guard on each invocation's own
 exit status, read inline rather than captured into a variable a later statement reads — a shape
 that leaves the status empty on a runner that strips variables between statements, routing every
-healthy run to the unrecognised arm. Deferral discovery separates a partial search from a failed
-one by whether the call returned any paths, which its helper prints on the partial arm alone.
+healthy run to the unrecognised arm. Deferral discovery collapses every non-zero status into a
+single degraded state and tells a partial search from a failed one after the fence, from the
+marker its helper writes to stderr — never by testing whether the call returned any paths, which
+a partial search over roots holding no manifest would route to the failed arm.
 Where the status is genuinely ambiguous — `file-deferrals.py` shares one code between "no
 deferrals", "already filed" and three input errors — the run reads that call's stderr to tell
 them apart, and records an unrecognised shape as a failure rather than guessing.
