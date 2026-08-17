@@ -5,7 +5,7 @@
 
 #### 2.3.1 Orphaned-setup sweep (mandatory whenever the change deletes code)
 
-**Predicate.** Fires whenever the change **deletes code** — a call site, a UI block, a branch, or a whole function — which almost always strands the setup lines whose only consumer was the deleted code. Those survive `git diff` review because nothing is syntactically broken.
+**Predicate.** Fires whenever the change **deletes code** — a call site, a UI block, a branch, or a whole function.
 
 **Procedure:** `<skill-dir>/references/sweep-2-3-1-orphaned-setup.md`, read under the gated-procedure protocol in the §2.3 preamble in phase-2-sweeps-contract.md.
 
@@ -186,7 +186,7 @@ Scope and discipline mirror the other 2.3.x sweeps: only touch error-handling si
 
 #### 2.3.7 Collection-cardinality sweep (mandatory whenever the change adds a collection output with ordering, dedup, or aggregation logic)
 
-**Predicate.** Fires whenever the change **adds a collection output whose value depends on cardinality** — a sorted list, a deduped set, a grouped or counted tally, a tie-broken ranking. A pass-through collection that neither sorts, dedups, nor aggregates is out of scope. Such logic is invisible to a single-element test, so the bug ships clean.
+**Predicate.** Fires whenever the change **adds a collection output whose value depends on cardinality** — a sorted list, a deduped set, a grouped or counted tally, a tie-broken ranking. A pass-through collection that neither sorts, dedups, nor aggregates is out of scope.
 
 **Procedure:** `<skill-dir>/references/sweep-2-3-7-collection-cardinality.md`, read under the gated-procedure protocol in the §2.3 preamble in phase-2-sweeps-contract.md.
 
