@@ -4694,11 +4694,11 @@ assert_pin_unique "#254: Phase 4.0.5 keeps the aggregate at the pr-<N> slug path
 # reader routing gains fail-closed arms. Pin the discovery statement, the sentinel field,
 # the extended filing guard, roots-echo surfacing, and the two routing arms.
 assert_pin_unique "#555: Phase 4.0.5 discovers manifests through the fail-closed helper" \
-  'discover-deferral-manifests.py $SEARCH_DIRS) || DISCOVERY_RC=$?' "$P405_REF"  # structural-pin-ok: helper-contract -- the discovery invocation plus its inline status read is a typed executable boundary between the fence and discover-deferral-manifests.py; the #1721 move off the harness-refused 2> capture changed the literal's text but not the contract it protects, exactly as the #915 move off cloud-denied /tmp did.
+  'if MANIFESTS=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/discover-deferral-manifests.py $SEARCH_DIRS); then' "$P405_REF"  # structural-pin-ok: helper-contract -- the discovery invocation guarded on its OWN inline exit status is a typed executable boundary between the fence and discover-deferral-manifests.py; the #1721 move off the harness-refused 2> capture changed the literal's text but not the contract it protects, exactly as the #915 move off cloud-denied /tmp did.
 assert_pin_unique "#555: Phase 4.0.5 initializes DISCOVERY_STATE empty before the discovery statement (the #480 sentinel-operand rule)" \
   'DISCOVERY_STATE=""' "$P405_REF"  # structural-pin-ok: lifecycle-state-transition -- the pre-statement initialization that makes a refused discovery observable as discovery=[] rather than aborting the sentinel
 assert_pin_unique "#555: Phase 4.0.5 discriminates the partial discovery from the helper's own exit status" \
-  '3) DISCOVERY_STATE=partial ;;' "$P405_REF"  # structural-pin-ok: helper-contract -- rc 3 is discover-deferral-manifests.py's documented partial status and this arm is the typed executable boundary that reads it; the #1721 move off the harness-refused 2> capture replaced a stderr-content grep with the exit code that already discriminated, changing the literal's text but not the contract it protects.
+  'elif [ -n "$MANIFESTS" ]; then' "$P405_REF"  # structural-pin-ok: helper-contract -- discover-deferral-manifests.py prints the clean roots' paths on its partial arm and nothing on its total-failure arms, so this is the typed executable boundary that reads partial-vs-failed without hopping the status across statements; the #1721 move off the harness-refused 2> capture changed the literal's text but not the contract it protects.
 assert_pin_unique "#555: the failed/refused arm blanks MANIFESTS so the merge guard is unambiguously false" \
   'DISCOVERY_STATE=failed' "$P405_REF"  # structural-pin-ok: lifecycle-state-transition -- the failed/refused arm's state assignment, which the filing guard below reads to refuse filing
 assert_pin_unique "#555: the sentinel carries the discovery= field, guarded with :- like filing=" \
@@ -39132,8 +39132,8 @@ assert_eq "#1721 the staging equation holds when a section is renamed INTO .prfl
   "$([ "$SP503_PUB_N" -eq "$((SP503_RAW_N - SP503_LOGS_N))" ] && echo yes || echo no)"
 
 # ── Contract 2: a dropped <resolved-local-diff-base> substitution fails CLOSED. Real git here:
-# the literal placeholder is an invalid ref, so the producer exits non-zero and step 2's failure
-# reading fires before any cache is staged.
+# the literal placeholder is an invalid ref, so the producer's OWN exit status is non-zero and
+# step 2's failure reading fires before any cache is staged.
 awk '/^# BEGIN LOCAL_DIFF_PRODUCER/{capture=1; next} capture && /^# END LOCAL_DIFF_PRODUCER/{exit} capture' \
   "$SP_REVIEW" > "$SP503_FENCE_DIR/producer-unresolved.sh"
 assert_eq "#1721 the LOCAL_DIFF_PRODUCER marker pair extracts a non-empty command" "yes" \
@@ -39145,12 +39145,35 @@ rm -f "$SP503_FENCE_CACHE/diff.raw-candidate"
 SP503_UNRESOLVED_RC=$?
 assert_eq "#1721 unresolved local-base placeholder fails nonzero rather than diffing an empty range" "yes" \
   "$(test "$SP503_UNRESOLVED_RC" -ne 0 && echo yes || echo no)"
-# The producer is a status probe: it must stay pipeline-free and redirect-free, or its exit
-# status stops being git's own and the staging guard loses its only producer reading.
-assert_eq "#1721 the producer probe stays a bare status check (no pipe, no staging target)" "yes" \
-  "$(grep -qE '\||tee |diff\.raw-candidate' "$SP503_FENCE_DIR/producer-unresolved.sh" && echo no || echo yes)"
-assert_eq "#1721 the producer probe uses --quiet so its status is the reading" "yes" \
-  "$(grep -qF -- '--quiet' "$SP503_FENCE_DIR/producer-unresolved.sh" && echo yes || echo no)"
+# The producer must stay pipeline-free, redirect-free and free of `$?`, or its exit status stops
+# being git's own; `$?` additionally makes the whole fence refused on a worktree-isolated session.
+assert_eq "#1721 the producer stays a bare command (no pipe, no staging target, no rc read)" "yes" \
+  "$(grep -qE '\||tee |diff\.raw-candidate|[$][?]' "$SP503_FENCE_DIR/producer-unresolved.sh" && echo no || echo yes)"
+# A typechange is ONE producer row but TWO `diff --git` sections, so the staging equation reads
+# rows + T-rows. A producer that stops reporting per-path status makes the T term unobservable and
+# the equation rejects a healthy diff — execute the real fence over a real typechange to catch it.
+SP503_TC="$SP503_FENCE_DIR/typechange"
+mkdir -p "$SP503_TC"
+git -C "$SP503_TC" init -q .
+git -C "$SP503_TC" config user.email devflow@example.invalid
+git -C "$SP503_TC" config user.name devflow
+printf 'x\n' > "$SP503_TC/f"
+git -C "$SP503_TC" add f
+git -C "$SP503_TC" commit -qm one
+rm -f "$SP503_TC/f"
+ln -s /tmp "$SP503_TC/f"
+git -C "$SP503_TC" add f
+git -C "$SP503_TC" commit -qm two
+sed 's#<resolved-local-diff-base>#HEAD~1#' \
+  "$SP503_FENCE_DIR/producer-unresolved.sh" > "$SP503_FENCE_DIR/producer-typechange.sh"
+SP503_TC_OUT="$( cd "$SP503_TC" && bash "$SP503_FENCE_DIR/producer-typechange.sh" 2>/dev/null )"
+SP503_TC_ROWS="$(printf '%s\n' "$SP503_TC_OUT" | grep -c .)"
+SP503_TC_T="$(printf '%s\n' "$SP503_TC_OUT" | grep -c '^T')"
+SP503_TC_SECTIONS="$( cd "$SP503_TC" && git diff 'HEAD~1...HEAD' | grep -c '^diff --git' )"
+assert_eq "#1721 the producer's rows + T-rows equal the section count across a typechange" "yes" \
+  "$([ "$((SP503_TC_ROWS + SP503_TC_T))" -eq "$SP503_TC_SECTIONS" ] && echo yes || echo no)"
+assert_eq "#1721 the typechange fixture really produces two sections from one path" "2" \
+  "$SP503_TC_SECTIONS"
 rm -rf "$SP503_FENCE_DIR"
 
 # Execute the skill's exact base-resolution fence as well. The observer appended

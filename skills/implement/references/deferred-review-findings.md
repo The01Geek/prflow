@@ -32,24 +32,24 @@ SEARCH_DIRS="$SLUG_DIR"
 # Discovery is delegated to a stdlib-only Python helper that searches EACH root independently
 # and preserves discovery status through its EXIT CODE, so a failed search is observable instead
 # of masked as a clean no-match (which would strand acknowledged deferrals). Route on that status
-# alone: 0 = paths printed, every root ok/absent; 3 = PARTIAL (at least one root failed, at least
-# one did not — the clean roots' paths are still printed); 4 = every root failed; 2 = invoked with
-# zero roots. Every other code — 2 and an uncaught exception included — is `failed`, so an
-# unrecognised status fails closed. `|| DISCOVERY_RC=$?` reads the status inline and is exempt
-# from set -e. Do NOT add a `2>file` stderr capture: the harness refuses an output redirection and
-# returns NO OUTPUT AT ALL, losing the whole fence.
+# alone: 0 = paths printed, every root ok/absent; a non-zero status is degraded, and the helper
+# prints the clean roots' paths only on the PARTIAL arm — so a non-empty capture under a non-zero
+# status is `partial` and an empty one is `failed`. Do NOT capture the status into a variable a
+# later statement reads: a runner that strips cross-statement variables leaves it empty and every
+# healthy discovery routes to the unrecognised arm. Do NOT add a `2>file` stderr capture either —
+# the harness refuses an output redirection and returns NO OUTPUT AT ALL, losing the whole fence.
 # DISCOVERY_STATE is initialized empty BEFORE the statement (sentinel-operand rule); a matcher
 # refusal of the capture (treat NO OUTPUT AT ALL as a possible denial, never an empty value)
-# leaves it empty, printed as discovery=[] and routed fail-closed.
+# leaves MANIFESTS empty and routes fail-closed to `failed`.
 DISCOVERY_STATE=""
-DISCOVERY_RC=0
-MANIFESTS=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/discover-deferral-manifests.py $SEARCH_DIRS) || DISCOVERY_RC=$?
-case "$DISCOVERY_RC" in
-    0) DISCOVERY_STATE=ok ;;
-    3) DISCOVERY_STATE=partial ;;
+if MANIFESTS=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/discover-deferral-manifests.py $SEARCH_DIRS); then
+    DISCOVERY_STATE=ok
+elif [ -n "$MANIFESTS" ]; then
+    DISCOVERY_STATE=partial
+else
     # Blank MANIFESTS so the merge guard below is unambiguously false.
-    *) DISCOVERY_STATE=failed; MANIFESTS="" ;;
-esac
+    DISCOVERY_STATE=failed; MANIFESTS=""
+fi
 # The helper writes its `devflow: discovery roots: …` echo and any partial/failure detail to stderr
 # on every discovery run, so read both from THIS fence's own tool result — nothing writes them to a
 # file. A `partial` or `failed` discovery is recorded on the workpad after the fence, quoting that
@@ -85,37 +85,31 @@ fi
 FILED_STATE=""
 FILED_NUMBERS=""
 if { [ "$DISCOVERY_STATE" = ok ] || [ "$DISCOVERY_STATE" = partial ]; } && [ -n "$AGG" ] && [ -s "$AGG" ]; then
-    # Route on file-deferrals.py's OWN status (`|| FILING_RC=$?` reads it inline, exempt from
-    # set -e; never a `2>file` capture, which the harness refuses — the fence would return no
-    # output at all): rc 0 = at least one group filed, `--dry-run`, or every survivor
-    # settled-by-disclosure; rc 1 = nothing filed (nothing survived, or every fileable group
-    # failed); rc 2 = every unusable-input state, benign and genuine alike — no deferrals, already
-    # filed, manifest not found, invalid JSON, unsupported schema_version. Invalid input is rc 2,
-    # never rc 1. FILED_STATE names WHICH arm ran and defaults to `failed`; without it every
-    # non-filing state (idempotent, no-deferrals, genuine failure — none set FILED_NUMBERS) prints
-    # `filed …=[]` like the one real capture gap, so the reader's "hydrated + no numbers ⇒ gap" rule
-    # fires on all of them and fabricates a reflection claiming issues were filed and lost.
+    # Guard on file-deferrals.py's OWN status inline — never capture that status into a variable a
+    # later statement reads, which a runner that strips cross-statement variables leaves empty so
+    # every outcome routes to one arm; and never a `2>file` capture, which the harness refuses,
+    # returning no output at all. rc 0 = at least one group filed, `--dry-run`, or every survivor
+    # settled-by-disclosure. Every non-zero status is `unclassified`: rc 2 alone is SHARED by five
+    # conditions — two benign (no deferrals, already filed) and three genuine input errors — whose
+    # only distinguisher is the message text, so no arm inside this fence can tell them apart, and
+    # rc 1 (nothing filed) needs the same text to say why. The classification happens after the
+    # fence from the observed stderr, and anything unrecognised stays a failure, so a genuine input
+    # error can never be read as one of the benign cases. FILED_STATE names WHICH arm ran and
+    # defaults to `failed`; without it every non-filing state prints `filed …=[]` like the one real
+    # capture gap, so the reader's "hydrated + no numbers ⇒ gap" rule fires on all of them and
+    # fabricates a reflection claiming issues were filed and lost.
     FILED_STATE=failed
     FILED_NUMBERS=""
-    FILING_RC=0
-    FILED_OUT=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/file-deferrals.py \
+    if FILED_OUT=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/file-deferrals.py \
         --source-issue $ARGUMENTS \
         --pr "$PR_NUMBER" \
-        --manifest "$AGG") || FILING_RC=$?
-    case "$FILING_RC" in
-        0)
-            FILED_NUMBERS="$FILED_OUT"
-            FILED_STATE=filed
-            ;;
-        2)
-            # rc 2 is SHARED by five conditions — two benign (no deferrals, already filed) and
-            # three genuine input errors — whose only distinguisher is the message text, so it is
-            # classified after the fence from the observed stderr; anything unrecognised stays a
-            # failure, so a genuine input error can never be read as one of the benign two.
-            FILED_STATE=unclassified-rc2
-            echo "devflow: file-deferrals.py exited 2 — classify this fence's stderr per the rc-2 routing in Phase 4.0.5" >&2
-            ;;
-    esac
+        --manifest "$AGG"); then
+        FILED_NUMBERS="$FILED_OUT"
+        FILED_STATE=filed
+    else
+        FILED_STATE=unclassified
+        echo "devflow: file-deferrals.py exited non-zero — classify this fence's stderr per the filing routing in Phase 4.0.5" >&2
+    fi
     # Record the filed numbers AND print them IN THIS FENCE — the only place FILED_NUMBERS
     # exists. A shell variable does not survive into a later separate command on the cloud runner,
     # so reading it in a LATER fence sees it empty, prints `[]`, and labels NOTHING. Printing here
@@ -154,13 +148,13 @@ echo "phase 4.0.5 filing fence ran; pr=[${PR_NUMBER:-}] discovery=[${DISCOVERY_S
 
   `<skill-dir>/../../scripts/workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "file-deferrals.py filed partially (rc=0): <observed filing stderr>; dropped groups will NOT appear in the PR's Scope-Acknowledged Findings block."`
 
-- **`filing=[unclassified-rc2]`** (the state the fence sets on rc 2) — classify by the message text and record exactly one; never silently pick one of the two when the shape is unrecognised:
+- **`filing=[unclassified]`** (the state the fence sets on any non-zero status) — classify by the message text and record exactly one; never silently pick one of the benign two when the shape is unrecognised:
   - `already has follow_up` → the **idempotent** state: `<skill-dir>/../../scripts/workpad.py update $ISSUE_NUMBER --note "Deferrals already filed on a prior run (idempotent re-run) — nothing new to file; the hydrated aggregate stands."`
   - `no deferrals` → the **none** (nothing-to-file) state: `<skill-dir>/../../scripts/workpad.py update $ISSUE_NUMBER --note "Aggregate held no deferrals to file — nothing to do."`
-  - any other rc-2 stderr → an unrecognised shape, recorded as a failure: `<skill-dir>/../../scripts/workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "file-deferrals.py exited 2 with an unrecognised message: <observed filing stderr>; no follow-up issues filed this run."`
-  - The `idempotent` and `none` records supersede the sentinel's `filing=[unclassified-rc2]`, which is what the fence prints before the classification exists.
+  - any other stderr → an unrecognised shape, recorded as a failure: `<skill-dir>/../../scripts/workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "file-deferrals.py exited non-zero with an unrecognised message: <observed filing stderr>; no follow-up issues filed this run."`
+  - The `idempotent` and `none` records supersede the sentinel's `filing=[unclassified]`, which is what the fence prints before the classification exists.
 
-- **`filing=[failed]` without that rc-2 line** — a genuine failure: `<skill-dir>/../../scripts/workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "file-deferrals.py failed (rc≠0): <observed filing stderr>; no follow-up issues filed this run."`
+- **`filing=[failed]`** — the initial value, still standing because the fence's filing statement never ran or was refused: `<skill-dir>/../../scripts/workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "file-deferrals.py did not run to a classified outcome: <observed filing stderr>; no follow-up issues filed this run."`
 
 The helper groups manifest entries by `file` (one issue per source file), files each issue with a repo-agnostic title/body template (`<area>: deferred review findings in <file> (carried from #<source_issue>)` and a body containing the verbatim findings plus the `PR #<pr_number>` substring that the verdict matcher's mutual-cross-link guard validates against), then rewrites the manifest in place with `id: dfr-<6-hex>` (deterministic hash of `file + symbol + kind + summary`) and `follow_up: {issue, url, filed_at, filed_by}` populated per entry. Filed issue numbers are printed to stdout, one per line.
 
@@ -202,7 +196,7 @@ The exits before any label is applied are the same fail-closed set Phase 4.0 car
 - **Sentinel present with `discovery=[ok]`, `pr=[<n>]` and `manifest=[]`** — no hydrated aggregate (either there were no deferrals this run, or the merge produced nothing), so nothing was filed and there is nothing to label: apply nothing. This is the clean no-op (the `discovery=[ok]` requirement is what distinguishes this genuine clean no-op from a failed/partial discovery that also printed `manifest=[]`). (A jq-merge *failure* is recorded per *Recording discovery and filing outcomes* below, so it is not silently swallowed here.)
 - **Cwd-drift suspicion (known limitation) — a heuristic qualifying the clean-no-op arm above, not an exit:** when Phase 3.3's run reported emitting a deferrals manifest but every root classifies `absent` in the surfaced `devflow: discovery roots:` line, treat the run as suspect and compare the roots-echo's absolute paths against where Phase 3.3 executed, rather than accepting the clean no-op.
 - **Sentinel present with `manifest=[hydrated]` and `filing=[filed]`, but `filed deferred-finding issues=[]`** — the aggregate held deferrals, the filing arm *ran and succeeded*, yet you can read no filed issue numbers. That is a real capture gap, not a benign no-op: record it durably and apply nothing — `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 4.0.5 filed deferred review-finding issues but could not read their numbers — the configured deferred labels were applied to NONE of them; the filed issues carry none of the configured deferred labels."`
-  **Read `filing=` before concluding a capture gap.** Two other sentinel values also print an empty number list, and neither is a capture gap — asserting one would fabricate a durable reflection claiming issues were filed on a run that filed none: `filing=[unclassified-rc2]` (the rc-2 state; classify its stderr per *Recording discovery and filing outcomes* below — the benign idempotent and no-deferrals cases both land here, and neither filed anything this run) and `filing=[failed]` (a genuine failure). `idempotent` and `none` are outcomes RECORDED after that classification, never sentinel readings — the fence assigns only `filed`, `failed`, `unclassified-rc2`, or the empty initial value. Only `filing=[filed]` with an empty list is the gap.
+  **Read `filing=` before concluding a capture gap.** Two other sentinel values also print an empty number list, and neither is a capture gap — asserting one would fabricate a durable reflection claiming issues were filed on a run that filed none: `filing=[unclassified]` (the non-zero state; classify its stderr per *Recording discovery and filing outcomes* below — the benign idempotent and no-deferrals cases both land here, and neither filed anything this run) and `filing=[failed]` (the filing statement never ran to a classified outcome). `idempotent` and `none` are outcomes RECORDED after that classification, never sentinel readings — the fence assigns only `filed`, `failed`, `unclassified`, or the empty initial value. Only `filing=[filed]` with an empty list is the gap.
 - **The config read produced no output at all** — you received no `deferred labels to apply: [...]` line whatsoever. The command was refused, not answered: do **not** read that as "no labels configured" (the capture shape is unproven on this tier — see the discipline note above). Record it and apply nothing — `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 4.0.5 could not resolve deferred.labels — the config-get command produced no output at all (likely a harness denial, not an empty config); deferred review-finding issues were filed WITHOUT labels."`
 
 If the printed `CLEAN_DEFERRED_LABELS` is present but empty (config resolved to no labels), apply nothing. Otherwise, read it and apply the labels with **single granted-literal leading-token calls, iterating at the agent level** (the label helpers must never be wrapped in a shell loop or an output capture):

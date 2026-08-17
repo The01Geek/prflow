@@ -154,37 +154,29 @@ gh pr diff $PR_NUMBER | awk '/^diff --git/{in_logs=/ [ab]\/\.prflow\/logs\//} !i
 rm -f .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate .prflow/tmp/review/<slug>/<run-id>/diff.patch
 ```
 
-**Step 2 — establish that the base resolves at all.** A pipeline reports its last stage's status, so the staging command in step 4 cannot tell a failed producer from an empty diff — both print `0` and exit non-zero. This probe separates them **for the base-resolution failure class**; step 3 establishes the publishing producer's own status.
+**Step 2 — establish the producer's own status, whether the diff is empty, and the expected section count, in one statement.** This carries no pipeline and no `$?`, so its exit status *is* `git`'s: a shipped fence must not use `$?`, because a worktree-isolated local session refuses the whole command and the missing-token arm would then stop every review on that tier.
 
 ```bash
 # BEGIN LOCAL_DIFF_PRODUCER
-git diff --quiet "<resolved-local-diff-base>...HEAD" ; echo "probe-rc=$?"
+git diff --name-status "<resolved-local-diff-base>...HEAD"
 # END LOCAL_DIFF_PRODUCER
 ```
 
-Read the emitted `probe-rc` token: **0** = the diff is genuinely empty (take the upstream "No changes to review" stop); **1** = changes exist, continue; **anything else** = the producer failed (a bad or unresolved base, a shallow checkout) — `rm -f` the candidates and stop, quoting the stderr this probe showed. **A missing `probe-rc=` token is a refusal, never the rc-0 empty reading** — the probe prints nothing on its own, so without the token a refused statement and a genuinely-empty diff are the same silence, and the empty arm ends the review having read no diff at all.
+Read three things from the tool result: the **exit status** (non-zero = the producer failed — a bad or unresolved base, a shallow checkout — so `rm -f` the candidates and stop, quoting the stderr shown); the **row count**, where zero rows means the diff is genuinely empty (take the upstream "No changes to review" stop); and the count of rows whose status letter is **`T`**. The expected section total is **rows + T-rows**: a typechange prints one row but emits two `diff --git` sections, so a row count alone would disagree with step 3 on a healthy diff and stop a valid review.
 
-**Step 3 — establish the publishing producer's own status and the expected section count.** This statement carries no pipeline, so its exit status *is* `git`'s, and its printed path count is the independent comparand step 4's count is checked against. Step 2 cannot serve here: `--quiet` short-circuits at the first difference, so it never streams the later sections whose failure classes this catches.
-
-```bash
-git diff --name-only "<resolved-local-diff-base>...HEAD"
-```
-
-Read both the exit status and the number of paths printed. A non-zero status, or a path count of `0` after `probe-rc=1` said changes exist, is a contradiction — `rm -f` the candidates and stop; never publish.
-
-**Step 4 — stage the raw candidate and count its sections.** Read the printed count from the tool result.
+**Step 3 — stage the raw candidate and count its sections.** Read the printed count from the tool result.
 
 ```bash
 git diff "<resolved-local-diff-base>...HEAD" | tee .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate | grep -c '^diff --git'
 ```
 
-**Step 5 — count the telemetry-log sections the filter is expected to strip.** Read the printed count; this is the operand that makes step 5's check an equation rather than a bare non-emptiness test. **Its pattern must anchor on ` [ab]/` exactly as the step-5 filter does** — an `a/`-only pattern counts a different set, so a section renamed *into* `.prflow/logs/` would be stripped by the filter but uncounted here, breaking the equation on a healthy filter and stopping a valid diff.
+**Step 4 — count the telemetry-log sections the filter is expected to strip.** Read the printed count; this is the operand that makes step 5's check an equation rather than a bare non-emptiness test. **Its pattern must anchor on ` [ab]/` exactly as the step-5 filter does** — an `a/`-only pattern counts a different set, so a section renamed *into* `.prflow/logs/` would be stripped by the filter but uncounted here, breaking the equation on a healthy filter and stopping a valid diff.
 
 ```bash
 grep -c '^diff --git.* [ab]/\.prflow/logs/' .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate
 ```
 
-**Step 6 — filter into the published cache, and count again.** Read the printed count from the tool result.
+**Step 5 — filter into the published cache, and count again.** Read the printed count from the tool result.
 
 ```bash
 # BEGIN LOCAL_DIFF_AWK_FILTER
@@ -192,7 +184,7 @@ awk '/^diff --git/{in_logs=/ [ab]\/\.prflow\/logs\//} !in_logs' .prflow/tmp/revi
 # END LOCAL_DIFF_AWK_FILTER
 ```
 
-**Step 7 — confirm publication, then drop the raw candidate.** Read the exit status from the tool result. This tests **existence, not non-emptiness**: a logs-only diff filters to an empty `diff.patch`, which publishes correctly and is reviewed as nothing to flag, so a non-emptiness test would abort exactly that benign case.
+**Step 6 — confirm publication, then drop the raw candidate.** Read the exit status from the tool result. This tests **existence, not non-emptiness**: a logs-only diff filters to an empty `diff.patch`, which publishes correctly and is reviewed as nothing to flag, so a non-emptiness test would abort exactly that benign case.
 
 ```bash
 test -e .prflow/tmp/review/<slug>/<run-id>/diff.patch
@@ -202,7 +194,11 @@ test -e .prflow/tmp/review/<slug>/<run-id>/diff.patch
 rm -f .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate
 ```
 
-**Failure routing — one rule covering every step.** The guard is three independent readings, not a bare count: step 2's `probe-rc`, step 3's own exit status and path count, and an **equation** — step 6's published count must equal step 4's raw count **minus** step 5's logs count. A count alone cannot guard this, because a failed filter and a legitimately logs-only diff both print `0`; `tee` creates its target before its producer runs, so the file exists either way, and a pipeline reports `grep`'s status rather than the producer's — which is why step 3 carries no pipeline. Stop the run — `rm -f` the raw candidate **and `diff.patch` itself, whether published this run or prior** — reporting which step failed and quoting the stderr that step's own tool result showed, on any of: a missing `probe-rc` token; `probe-rc` reading anything but `0` or `1`; step 3 exiting non-zero, or printing zero paths after `probe-rc=1`; step 4's raw count not equalling step 3's path count; an unobservable result at any step; or step 6's count not equalling step 4's minus step 5's. **Only step 2 may declare the diff empty**, and only with `probe-rc=0`; a `0` count anywhere else is an operand, never on its own a benign reading. A stale, empty **or thinned** cache must never reach the Phase 1–3 agents as "nothing to flag" and yield `APPROVE`. The wrapping `/prflow:implement` run records an observed stop as **Blocked**; a standalone run stops and reports it.
+**Failure routing — one rule covering every step.** The guard is step 2's own status plus two **equations**: step 3's raw count must equal step 2's rows + T-rows, and step 5's published count must equal step 3's raw count **minus** step 4's logs count. A count alone cannot guard this, because a failed filter and a legitimately logs-only diff both print `0`; `tee` creates its target before its producer runs, so the file exists either way, and a pipeline reports `grep`'s status rather than the producer's — which is why step 2 carries no pipeline. Stop the run — `rm -f` the raw candidate **and `diff.patch` itself, whether published this run or prior** — reporting which step failed and quoting the stderr that step's own tool result showed, on any of: step 2 exiting non-zero; either equation failing; or an unobservable result at any step. **Only step 2 may declare the diff empty**, and only by printing zero rows; a `0` count anywhere else is an operand, never on its own a benign reading. A stale, empty **or thinned** cache must never reach the Phase 1–3 agents as "nothing to flag" and yield `APPROVE`. The wrapping `/prflow:implement` run records an observed stop as **Blocked**; a standalone run stops and reports it.
+
+**Read the counting steps by their printed count, not their exit status.** `grep -c` exits **1** whenever it counts zero — printing `0` and exiting 1 is its no-match reading, not a failure, and step 4 prints `0` on every PR that touches no `.prflow/logs/` file. Steps 3, 4 and 5 are therefore judged by the number they print and by the equations it feeds; their exit status is consulted only when **no** count was printed at all, which is the unobservable-result arm above. Step 2 is the opposite and the only step whose status is a reading, because its own status is `git`'s.
+
+**Pin the base before rendering.** `<resolved-local-diff-base>` is a render-time substitution, so resolve it to an immutable 40-hex commit id **once** and render that same id into steps 2, 3 and 5. Rendering a moving ref instead lets a concurrent fetch advance the base between invocations, and the equations would then disagree on a healthy tree and stop the run naming the guard rather than the moved ref.
 
 **Named residual.** The counts are header-granular, so a stream truncated *within* a section — after its `diff --git` header, before its body — satisfies the equation with a thinned final section, and a `tee` write failure is invisible to a count taken from the stream. Both remain uncaught. The superseded chain read the producer's own exit status directly through its redirect; step 3 is what substitutes for that here, so a truncation *between* sections is caught by the step-3-vs-step-4 count comparison rather than by a status the publishing pipeline cannot report.
 
