@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1731",
+  "generated_at": "2026-08-17T23:12:08Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.4",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 10.6254665,
+    "tokens": {
+      "input_tokens": 54,
+      "output_tokens": 36281,
+      "cache_read_input_tokens": 4543911,
+      "cache_creation_input_tokens": 239112,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 136,
+        "outputTokens": 77113,
+        "cacheReadInputTokens": 7160008,
+        "cacheCreationInputTokens": 675246,
+        "webSearchRequests": 0,
+        "costUSD": 10.6254665,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 42,
+    "duration_ms": 661264
+  },
+  "permission_denials": {
+    "count": 11,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---RUNENV---\"; echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-}\"; echo \"GITHUB_RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT:-}\"",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve 1723 --pr 1731 2>.prflow/tmp/review/pr-1731/32078479295-1/acs.err ; echo \"acs-rc=$?\"",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >/tmp/ext.out 2>/tmp/ext.err; echo \"rc=$?\"; echo \"---STDOUT bytes:\"; wc -c </tmp/ext.out; echo \"---STDOUT:\"; cat /tmp/ext.out; echo \"---STDERR:\"; cat /tmp/ext.err",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >/tmp/ext.out 2>/tmp/ext.err; echo \"rc=$?\"; wc -c </tmp/ext.out",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >.prflow/tmp/ext.out 2>.prflow/tmp/ext.err; echo \"rc=$?\"; echo \"stdoutbytes=$(wc -c <.prflow/tmp/ext.out)\"",
+      "for f in docs/internal/cloud-allowlist.md docs/internal/claude-md-relocated-rationale.md skills/review/SKILL.md skills/review/phases/phase-4-4-github-post.md; do echo \"=== $f ===\"; git show 8eabf94f39a4c828ec5d573e947b7c0bdd5801ae:$f 2>/dev/null | grep -niE 'section [4-7]|numbered [4-7]|displacement|sole-publisher' || true; done",
+      "RGB=scripts/render-grounding-block.sh\necho \"=== REVIEW (HARDENED) ===\"; HEAD_SHA=deadbeef CI_SUMMARY='ci: success' ALLOWED_TOOLS='Read' MODE=review HARDENED_PATHS='foo.md' bash \"$RGB\" | grep -nE '^> \\*\\*[0-9]+\\.'\necho \"=== REVIEW (no hardened) ===\"; HEAD_SHA=deadbeef CI_SUMMARY='ci: success' ALLOWED_TOOLS='Read' MODE=review bash \"$RGB\" | grep -nE '^> \\*\\*[0-9]+\\.'\necho \"=== IMPLEMENT ===\"; MODE=implement ALLOWED_TOOLS='Read' bash \"$RGB\" | grep -nE '^> \\*\\*[0-9]+\\.'\necho \"=== GENERIC ===\"; MODE=g …[per-command-truncated]",
+      "HEAD_SHA=deadbeef CI_SUMMARY='ci: success' ALLOWED_TOOLS='Read' MODE=review HARDENED_PATHS='foo.md' bash scripts/render-grounding-block.sh | grep -nE '^> \\*\\*[0-9]+\\.'",
+      "MODE=implement ALLOWED_TOOLS='Read' bash scripts/render-grounding-block.sh | grep -nE '^> \\*\\*[0-9]+\\.'",
+      "MODE=generic ALLOWED_TOOLS='Read' bash scripts/render-grounding-block.sh | grep -nE '^> \\*\\*[0-9]+\\.'; echo \"leak:\"; MODE=review HEAD_SHA=x CI_SUMMARY=y ALLOWED_TOOLS=z HARDENED_PATHS='p.md' bash scripts/render-grounding-block.sh | grep -c '__N_'",
+      "git show 8eabf94f39a4c828ec5d573e947b7c0bdd5801ae:scripts/render-grounding-block.sh > .prflow/tmp/rgb-head.sh 2>&1 || git show 8eabf94f39a4c828ec5d573e947b7c0bdd5801ae:scripts/render-grounding-block.sh"
+    ],
+    "total": 11,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
