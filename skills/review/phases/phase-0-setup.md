@@ -70,7 +70,7 @@ if git fetch origin "+refs/heads/$PR_BASE_BRANCH:refs/remotes/origin/$PR_BASE_BR
       :
     else
       MERGE_BASE_RC=$?
-      rm -f .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate .prflow/tmp/review/<slug>/<run-id>/diff.candidate .prflow/tmp/review/<slug>/<run-id>/diff.patch
+      rm -f .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate .prflow/tmp/review/<slug>/<run-id>/diff.patch
       echo "::error::devflow review: base remains unreachable after unshallow retry (rc=$MERGE_BASE_RC); no review cache was published" >&2
       exit "$MERGE_BASE_RC"
     fi
@@ -78,13 +78,13 @@ if git fetch origin "+refs/heads/$PR_BASE_BRANCH:refs/remotes/origin/$PR_BASE_BR
 else
   FETCH_RC=$?
   if git ls-remote --exit-code --heads origin "refs/heads/$PR_BASE_BRANCH" >/dev/null; then
-    rm -f .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate .prflow/tmp/review/<slug>/<run-id>/diff.candidate .prflow/tmp/review/<slug>/<run-id>/diff.patch
+    rm -f .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate .prflow/tmp/review/<slug>/<run-id>/diff.patch
     echo "::error::devflow review: PR base ref '$PR_BASE_BRANCH' still exists but its explicit-refspec fetch failed (rc=$FETCH_RC); refusing the stale retained-SHA fallback" >&2
     exit "$FETCH_RC"
   else
     REF_PROBE_RC=$?
     if [ "$REF_PROBE_RC" -ne 2 ]; then
-      rm -f .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate .prflow/tmp/review/<slug>/<run-id>/diff.candidate .prflow/tmp/review/<slug>/<run-id>/diff.patch
+      rm -f .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate .prflow/tmp/review/<slug>/<run-id>/diff.patch
       echo "::error::devflow review: could not confirm whether PR base ref '$PR_BASE_BRANCH' was deleted (git ls-remote rc=$REF_PROBE_RC; fetch rc=$FETCH_RC); refusing the stale retained-SHA fallback" >&2
       exit "$FETCH_RC"
     fi
@@ -94,7 +94,7 @@ else
       :
     else
       MERGE_BASE_RC=$?
-      rm -f .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate .prflow/tmp/review/<slug>/<run-id>/diff.candidate .prflow/tmp/review/<slug>/<run-id>/diff.patch
+      rm -f .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate .prflow/tmp/review/<slug>/<run-id>/diff.patch
       echo "::error::devflow review: retained base SHA is unreachable (rc=$MERGE_BASE_RC); no review cache was published" >&2
       exit "$MERGE_BASE_RC"
     fi
@@ -108,7 +108,7 @@ fi
 
 The deleted-base fallback is **leak-equivalent to the pre-fix binding** when the base advanced (base content newer than `baseRefOid` re-enters the diff); accepted only because base deletion is rare and matches `gh pr diff`'s retained-SHA semantics. `--push-each-iteration` on a PR whose base differs from `$BASE` carries the separately reported residual leak.
 
-**Fail-closed at the producer (before the cache write).** Both local-diff paths — head override and current branch — stage raw and filtered candidates, then check a separate promotion write to `diff.patch` before checking the published cache can also be emitted to stdout. A producer, filter, promotion (including a partial write then nonzero), or stdout failure records its rc, removes every candidate and any prior `diff.patch`, and stops — an empty or stale cache must never reach the Phase 1–3 agents as "nothing to flag" and yield `APPROVE`. If the runner is terminated mid-command no downstream phase runs; a retry re-enters Phase 0.2, removes any prior cache before production, and republishes before Phase 1 reads. The wrapping `/prflow:implement` run records an observed stop as **Blocked**; a standalone run stops and reports it. (Phase 0.6's degraded note does **not** gate the agents' verdict, so the guard must sit here, before publication.)
+**Fail-closed at the producer (before the cache write).** Both local-diff paths — head override and current branch — stage a raw candidate, filter it, and publish `diff.patch` only after each step's own result has been observed. A producer, filter, staging, publication, or read-back failure removes the candidate and any prior `diff.patch`, and stops — an empty or stale cache must never reach the Phase 1–3 agents as "nothing to flag" and yield `APPROVE`. If the runner is terminated mid-command no downstream phase runs; a retry re-enters Phase 0.2, removes any prior cache before production, and republishes before Phase 1 reads. The wrapping `/prflow:implement` run records an observed stop as **Blocked**; a standalone run stops and reports it. (Phase 0.6's degraded note does **not** gate the agents' verdict, so the guard must sit here, before publication.)
 
 **Caller run-id (run-scoped scratch).** This run's scratch under `.prflow/tmp/review/<slug>/` nests one level deeper under a per-run `<run-id>` so concurrent or repeated reviews of the same PR never clobber each other. Resolve `<run-id>` **once** at the start of Phase 0.2 and hold the literal for the whole run:
 
@@ -144,42 +144,40 @@ mkdir -p .prflow/tmp/review/<slug>/<run-id>
 gh pr diff $PR_NUMBER | awk '/^diff --git/{in_logs=/ [ab]\/\.prflow\/logs\//} !in_logs' | tee .prflow/tmp/review/<slug>/<run-id>/diff.patch
 # or, in current-branch mode ($BASE from the guarded config-get capture above):
 # git diff "origin/$BASE...HEAD" | awk '/^diff --git/{in_logs=/ [ab]\/\.prflow\/logs\//} !in_logs' | tee .prflow/tmp/review/<slug>/<run-id>/diff.patch
-# In either local-diff mode, use this checked candidate/promote form.
-# Render <resolved-local-diff-base> as the selected HEAD_OVERRIDE_BASE
-# (PR head override) or origin/$BASE (current branch). Remove stale authority first.
-rm -f .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate .prflow/tmp/review/<slug>/<run-id>/diff.candidate .prflow/tmp/review/<slug>/<run-id>/diff.patch
-if git diff "<resolved-local-diff-base>...HEAD" > .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate; then
-  if awk '/^diff --git/{in_logs=/ [ab]\/\.prflow\/logs\//} !in_logs' .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate > .prflow/tmp/review/<slug>/<run-id>/diff.candidate; then
-    if sed -n 'p' .prflow/tmp/review/<slug>/<run-id>/diff.candidate > .prflow/tmp/review/<slug>/<run-id>/diff.patch; then
-      if cat .prflow/tmp/review/<slug>/<run-id>/diff.patch; then
-        rm -f .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate .prflow/tmp/review/<slug>/<run-id>/diff.candidate
-      else
-        CAT_RC=$?
-        rm -f .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate .prflow/tmp/review/<slug>/<run-id>/diff.candidate .prflow/tmp/review/<slug>/<run-id>/diff.patch
-        echo "::error::devflow review: published diff could not be emitted (rc=$CAT_RC); review cache removed" >&2
-        exit "$CAT_RC"
-      fi
-    else
-      PROMOTE_RC=$?
-      rm -f .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate .prflow/tmp/review/<slug>/<run-id>/diff.candidate .prflow/tmp/review/<slug>/<run-id>/diff.patch
-      echo "::error::devflow review: diff cache promotion failed (rc=$PROMOTE_RC); no review cache was published" >&2
-      exit "$PROMOTE_RC"
-    fi
-  else
-    AWK_RC=$?
-    rm -f .prflow/tmp/review/<slug>/<run-id>/diff.candidate .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate .prflow/tmp/review/<slug>/<run-id>/diff.patch
-    echo "::error::devflow review: head-override diff filter failed (rc=$AWK_RC); no review cache was published" >&2
-    exit "$AWK_RC"
-  fi
-else
-  DIFF_RC=$?
-  rm -f .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate .prflow/tmp/review/<slug>/<run-id>/diff.candidate .prflow/tmp/review/<slug>/<run-id>/diff.patch
-  echo "::error::devflow review: head-override diff producer failed (rc=$DIFF_RC); no review cache was published" >&2
-  exit "$DIFF_RC"
-fi
 ```
 
-**The `awk` filter.** The `awk` program sets `in_logs` on each `diff --git` header (true when the path **starts with** `.prflow/logs/` — anchored to the `a/`/`b/` diff-prefix boundary (` [ab]/.prflow/logs/`) so it matches only paths *rooted* there, never one containing the substring) and suppresses every line while `in_logs` holds; the next non-logs header resets it visible. It strips those `.prflow/logs/` hunks once, at the single cache-write point downstream phases read. A logs-only diff filters `diff.patch` to empty — the upstream "No changes to review" stop tests the *raw* fetched diff (before this filter) so it does **not** fire here; every downstream phase reads the empty `diff.patch` (Phase 0.3 an empty file list, Phase 3 agents an empty diff), so a telemetry-only PR is correctly reviewed as nothing to flag. Standalone review uses the read-only profile's granted `gh pr diff`/`git diff`, `awk`, `tee`, `cat`, and `rm` heads. The wrapper-only local head-override path additionally needs git fetch and git ls-remote; only the writable implement/manual profiles reach it and grant those.
+**In either local-diff mode — PR head override or current branch — replace that one-liner with the five ordered steps below.** Render `<resolved-local-diff-base>` as the selected `$HEAD_OVERRIDE_BASE` (PR head override) or `origin/$BASE` (current branch). Every step is a standalone statement with no redirect and no compound list, because the runner refuses a redirect or a multi-head compound statement silently and an improvised substitute publishes an unfiltered or absent cache.
+
+**Step 1 — create the scratch directory, clear stale authority, then produce the raw diff.** Emit each line below as its own statement, the `git diff` bare; read its rc and stdout from the tool result.
+
+```bash
+mkdir -p .prflow/tmp/review/<slug>/<run-id>
+rm -f .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate .prflow/tmp/review/<slug>/<run-id>/diff.patch
+```
+
+```bash
+# BEGIN LOCAL_DIFF_PRODUCER
+git diff "<resolved-local-diff-base>...HEAD"
+# END LOCAL_DIFF_PRODUCER
+```
+
+**Step 2 — stage the raw candidate.** With the **Write tool**, write step 1's observed stdout verbatim to `.prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate` (`Write(.prflow/tmp/**)` is granted on the review tier, as at 0.1.5).
+
+**Step 3 — filter the telemetry-log hunks.** Emit this fence bare; read its rc and stdout from the tool result.
+
+```bash
+# BEGIN LOCAL_DIFF_AWK_FILTER
+awk '/^diff --git/{in_logs=/ [ab]\/\.prflow\/logs\//} !in_logs' .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate
+# END LOCAL_DIFF_AWK_FILTER
+```
+
+**Step 4 — publish.** With the **Write tool**, write step 3's observed stdout to `.prflow/tmp/review/<slug>/<run-id>/diff.patch`. This Write **is** the promotion; a failed Write is already a hard error, so no separate promotion command exists.
+
+**Step 5 — confirm publication.** Read `.prflow/tmp/review/<slug>/<run-id>/diff.patch` back with the file-read tool, then `rm -f .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate`.
+
+**Failure routing — one rule covering all five steps.** On a non-zero rc, an unobservable result, a failed Write, or a failed read-back: `rm -f` the raw candidate and any prior `diff.patch`, stop the run, and report which step failed, quoting the stderr observed in that step's own tool result. An empty or stale cache must never reach the Phase 1–3 agents as "nothing to flag" and yield `APPROVE`. The wrapping `/prflow:implement` run records an observed stop as **Blocked**; a standalone run stops and reports it.
+
+**The `awk` filter.** The `awk` program sets `in_logs` on each `diff --git` header (true when the path **starts with** `.prflow/logs/` — anchored to the `a/`/`b/` diff-prefix boundary (` [ab]/.prflow/logs/`) so it matches only paths *rooted* there, never one containing the substring) and suppresses every line while `in_logs` holds; the next non-logs header resets it visible. It strips those `.prflow/logs/` hunks once, at the single cache-write point downstream phases read. A logs-only diff filters `diff.patch` to empty — the upstream "No changes to review" stop tests the *raw* fetched diff (before this filter) so it does **not** fire here; every downstream phase reads the empty `diff.patch` (Phase 0.3 an empty file list, Phase 3 agents an empty diff), so a telemetry-only PR is correctly reviewed as nothing to flag. Standalone review uses the read-only profile's granted `gh pr diff`/`git diff`, `awk`, `tee`, and `rm` heads, plus the granted `Write(.prflow/tmp/**)`. The wrapper-only local head-override path additionally needs git fetch and git ls-remote; only the writable implement/manual profiles reach it and grant those.
 
 This replaces the bare `gh pr diff` / `git diff` invocation at the top of Phase 0.2 — use the `tee` form instead. Store `<slug>`, `<run-id>`, and the resolved diff path (e.g. `.prflow/tmp/review/pr-863/<run-id>/diff.patch`) so Phase 3 can substitute it into its agent prompts via `{DIFF_PATH}`. Directory creation is harmless if it already exists; the file is overwritten every run *within the same run-id*, never across runs.
 
@@ -252,23 +250,23 @@ When `$ISSUE_NUM` resolved, call it:
 
 The numeric guard now lives INSIDE `cmd_acs_resolve`: a non-numeric `$ISSUE_NUM` is a routed `resolver-unavailable` outcome with exit 0. The workpad-read routing is internal — an *unreadable* workpad comment is `workpad-read-failed`, while an *absent* one falls through to `issue-body`. So the invocation is a single bare statement whose leading token is the helper path, with no `case` and no `if` compound the cloud matcher would refuse. Resolve the skill-dir anchor INLINE at each call site (never captured into a shell variable a later statement reads).
 
-**Two things are load-bearing about the shape below, and both are why it is NOT a capture.** First, the helper's stdout is the payload you must read: assigning it to `ACS_OUT=$(…)` would swallow all three blocks into a shell variable that does not survive the command boundary, leaving you with nothing to consume on the *successful* path — the sibling of the `$WP` defect the live-comment fallback in `skills/review/SKILL.md` fixes by echoing. Running the helper bare puts `criteria:` / `source:` / `divergence:` straight on stdout where you read them. Second, this is the **narrowest** shape available, not a measured-permitted one: the bare leading-token invocation with a trailing `; echo "acs-rc=$?"` is chosen because it adds only a granted `echo` to a granted leading token and avoids the `&&`/`||` list, not because it is proven. This is the primary and only path here, so read its permitted-ness as **unconfirmed** and rely on the `acs-rc` token below to make a refusal observable.
+**Two things are load-bearing about the shape below, and both are why it is NOT a capture.** First, the helper's stdout is the payload you must read: assigning it to `ACS_OUT=$(…)` would swallow all three blocks into a shell variable that does not survive the command boundary, leaving you with nothing to consume on the *successful* path — the sibling of the `$WP` defect the live-comment fallback in `skills/review/SKILL.md` fixes by echoing. Running the helper bare puts `criteria:` / `source:` / `divergence:` straight on stdout where you read them. Second, this is the **narrowest** shape available, not a measured-permitted one: it carries no redirect, and adds only a granted `echo` to a granted leading token, avoiding the `&&`/`||` list. This is the primary and only path here, so read its permitted-ness as **unconfirmed** and rely on the `acs-rc` token below to make a refusal observable.
 
 **The two modes are two separate fences, and you emit exactly one of them** — the fence you do not select is not emitted at all. Emitting both would run the resolver twice and leave you reading the second run's payload.
 
 **PR mode** (a `$PR_NUMBER` resolved) — emit this fence and no other:
 
 ```bash
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py acs-resolve "$ISSUE_NUM" --pr "$PR_NUMBER" 2>.prflow/tmp/review/<slug>/<run-id>/acs.err ; echo "acs-rc=$?"
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py acs-resolve "$ISSUE_NUM" --pr "$PR_NUMBER" ; echo "acs-rc=$?"
 ```
 
 **Current-branch mode** (no PR to bind to) — emit this fence and no other. It OMITS `--pr` entirely rather than passing an empty value (`--pr` is `type=int`, so an empty value is an argparse exit 2):
 
 ```bash
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py acs-resolve "$ISSUE_NUM" 2>.prflow/tmp/review/<slug>/<run-id>/acs.err ; echo "acs-rc=$?"
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py acs-resolve "$ISSUE_NUM" ; echo "acs-rc=$?"
 ```
 
-**Read the emitted `acs-rc` token — it is the only mechanism that makes a refusal observable.** The invocation's own exit status is what distinguishes "the helper ran and routed an outcome" from "the helper never ran": without it, empty stdout from a denied or non-executable invocation is indistinguishable from a thin-but-successful resolution, and the unestablished state would be collapsed onto the real value `none` — the exact collapse this section forbids. So: on `acs-rc=0`, consume the three blocks the helper printed above the token. On **any** non-zero `acs-rc` — including the 126/127 not-executable-or-not-found codes and the helper's own rc 3 — set `acceptance_criteria_source` to `resolver-unavailable` and read `.prflow/tmp/review/<slug>/<run-id>/acs.err` to quote the cause in the note. A **missing** `acs-rc` token is itself a refusal of the whole statement — likewise `resolver-unavailable`, never a success.
+**Read the emitted `acs-rc` token — it is the only mechanism that makes a refusal observable.** The invocation's own exit status is what distinguishes "the helper ran and routed an outcome" from "the helper never ran": without it, empty stdout from a denied or non-executable invocation is indistinguishable from a thin-but-successful resolution, and the unestablished state would be collapsed onto the real value `none` — the exact collapse this section forbids. So: on `acs-rc=0`, consume the three blocks the helper printed above the token. On **any** non-zero `acs-rc` — including the 126/127 not-executable-or-not-found codes and the helper's own rc 3 — set `acceptance_criteria_source` to `resolver-unavailable` and quote, in the note, the stderr observed in that same invocation's own tool result — the invocation writes no stderr file, so nothing else records the cause. A **missing** `acs-rc` token is itself a refusal of the whole statement — likewise `resolver-unavailable`, never a success.
 
 `acs-resolve` itself exits 0 on every resolvable state, including an absent or unreadable workpad, which it routes as an outcome carrying its own source token rather than as a run-ending error; a non-numeric `$ISSUE_NUM` is likewise routed (as `resolver-unavailable`, exit 0) by `cmd_acs_resolve`'s own guard rather than by a pre-call `case`. This mirrors how `skills/review/SKILL.md` seeds its live progress comment: the S1 numeric guard, the S2 `workpad.py` readability precheck, and the S3 rc-2 silent-exit discriminator (screens S1–S3) now live inside the bundled helper `scripts/seed-review-progress.sh`, which owns those screens as executable shell, rather than in a prompt fence.
 

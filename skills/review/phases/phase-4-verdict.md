@@ -218,7 +218,7 @@ This step is gated by `prflow_review_and_fix.efficiency_telemetry_enabled` (read
 
 When enabled, assemble a **single workpad-shaped object** for this run from state the engine already produced and write it to `.prflow/tmp/review/<slug>/<run-id>/iter-1.json` (run-scoped, the same `<run-id>` Phase 0.2 resolved). The `telemetry` key is mandatory: when no phase figures were established, emit the literal JSON string `"unavailable"`, never a missing key or `null`. This scratch write is what `efficiency-trace.sh --mode trace` reads back; landing in gitignored `.prflow/tmp/` (like Phase 0.2's `diff.patch`), it is **not** a tree write and is permitted under the read-only cloud `review` profile — only the durable `--persist` write to the telemetry branch is gated to writable runs.
 
-**Author it with an allow-listed command** — the read-only cloud `review` profile grants the execution-verified jq wrapper `Bash(.prflow/vendor/prflow/scripts/run-jq.sh:*)` (invoke it as the leading token by path so a shim-shadowed Windows/WSL host resolves a runnable jq; bare `Bash(jq:*)` is also granted but skips that resolution), plus `Bash(printf:*)` and `Bash(tee:*)`. Build the object with `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/run-jq.sh -n` (or `printf '%s'`, or the `tee <file> <<'EOF'` heredoc Phase 0.3.5 sanctions — never a `cat`-headed heredoc, which the *Cloud command-shape discipline* classifies as denied) and `>`-redirect it, e.g. `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/run-jq.sh -n --argjson findings '…' '{iter:1, source:"review", …}' > .prflow/tmp/review/<slug>/<run-id>/iter-1.json`. This exact recipe remains fixture-pinned; its evidence is recipe-specific, so a granted head alone does not license an arbitrary redirect. An ungranted head is silently denied and the trace has no input.
+**Author it with an allow-listed command** — the read-only cloud `review` profile grants the execution-verified jq wrapper `Bash(.prflow/vendor/prflow/scripts/run-jq.sh:*)` (invoke it as the leading token by path so a shim-shadowed Windows/WSL host resolves a runnable jq; bare `Bash(jq:*)` is also granted but skips that resolution), plus `Bash(printf:*)` and `Bash(tee:*)`. Build the object by running the builder **bare** and reading its stdout from that invocation's own tool result, e.g. `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/run-jq.sh -n --argjson findings '…' '{iter:1, source:"review", …}'` — a `>` redirect is refused by the cloud harness, which returns no output at all and burns the request. Then author `.prflow/tmp/review/<slug>/<run-id>/iter-1.json` with the **Write tool**, its content exactly that observed stdout; the `tee <file> <<'EOF'` heredoc Phase 0.3.5 sanctions is the accepted alternative — never a `cat`-headed heredoc, which the *Cloud command-shape discipline* classifies as denied. This exact recipe remains fixture-pinned; its evidence is recipe-specific. An ungranted head is silently denied and the trace has no input.
 
 ```json
 {
@@ -243,9 +243,11 @@ WORKPAD_DIR=$(printf '%s' ".prflow/tmp/review/<slug>/<run-id>")   # run-scoped: 
 # exit status — never a captured rc read in a later statement (a cross-statement-variable-
 # stripping inline-bash runner would leave it empty): rc≠0 is a failure; rc=0-but-empty
 # stdout (e.g. telemetry flag off, or zero readable workpads) is a benign no-trace —
-# surface it but append nothing, never a blank trace section:
-if ! TELEM="$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/efficiency-trace.sh --workpad-dir "$WORKPAD_DIR" --slug "<slug>" --mode trace 2>.prflow/tmp/review/<slug>/<run-id>/rv-et.err)"; then
-  echo "::warning::review effectiveness trace unavailable (rc≠0): $(cat .prflow/tmp/review/<slug>/<run-id>/rv-et.err 2>/dev/null)"; TELEM=""
+# surface it but append nothing, never a blank trace section. Capture no stderr file: a
+# `2>` redirect is refused by the cloud harness, so quote the stderr this invocation's
+# own tool result showed in place of <stderr observed in the tool result>:
+if ! TELEM="$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/efficiency-trace.sh --workpad-dir "$WORKPAD_DIR" --slug "<slug>" --mode trace)"; then
+  echo "::warning::review effectiveness trace unavailable (rc≠0): <stderr observed in the tool result>"; TELEM=""
 elif [ -z "$TELEM" ]; then
   echo "::warning::review effectiveness trace rendered empty (rc=0, no output — telemetry disabled or no readable workpads); omitting the trace section"
 fi

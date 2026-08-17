@@ -31,44 +31,34 @@ SEARCH_DIRS="$SLUG_DIR"
 # $SEARCH_DIRS is path-safe, so its unquoted word-split into the helper's argv is safe.
 # Discovery is delegated to a stdlib-only Python helper that searches EACH root independently
 # and preserves discovery status through its EXIT CODE, so a failed search is observable instead
-# of masked as a clean no-match (which would strand acknowledged deferrals). Discriminate its
-# exit with the same if/elif stderr-marker idiom the file-deferrals.py call below uses.
+# of masked as a clean no-match (which would strand acknowledged deferrals). Route on that status
+# alone: 0 = paths printed, every root ok/absent; 3 = PARTIAL (at least one root failed, at least
+# one did not — the clean roots' paths are still printed); 4 = every root failed; 2 = invoked with
+# zero roots. Every other code — 2 and an uncaught exception included — is `failed`, so an
+# unrecognised status fails closed. `|| DISCOVERY_RC=$?` reads the status inline and is exempt
+# from set -e. Do NOT add a `2>file` stderr capture: the harness refuses an output redirection and
+# returns NO OUTPUT AT ALL, losing the whole fence.
 # DISCOVERY_STATE is initialized empty BEFORE the statement (sentinel-operand rule); a matcher
 # refusal of the capture (treat NO OUTPUT AT ALL as a possible denial, never an empty value)
-# leaves it empty, printed as discovery=[] and routed fail-closed. exit 0 = paths printed, every
-# root ok/absent; partial marker = at least one root failed but clean-root paths are usable;
-# else = failed-or-refused.
-# Remove any prior run's marker file FIRST, as its own statement: an unwritten (refused) file
-# must be unambiguously ABSENT rather than inheriting a prior 'discovery partial:' marker, else
-# `grep -q` below routes a discovery that never ran to the PARTIAL arm from a stale aggregate.
-# Ensure the scratch leaf exists before any capture write; rc-checked (never `|| true` — a
-# DENIED .prflow/tmp mkdir must fail loudly, mirroring lib/telemetry-branch.sh).
+# leaves it empty, printed as discovery=[] and routed fail-closed.
+# Ensure the scratch root the ${AGG}.tmp merge write below lives beneath exists; rc-checked (never
+# `|| true` — a DENIED .prflow/tmp predicts that write is denied too, mirroring lib/telemetry-branch.sh).
 if ! mkdir -p .prflow/tmp; then
-  echo "devflow: could not create .prflow/tmp for Phase 4.0.5 discovery scratch" >&2
+  echo "devflow: could not create .prflow/tmp for Phase 4.0.5 scratch" >&2
 fi
-rm -f .prflow/tmp/devflow-dm.err
 DISCOVERY_STATE=""
-if MANIFESTS=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/discover-deferral-manifests.py $SEARCH_DIRS 2>.prflow/tmp/devflow-dm.err); then
-    DISCOVERY_STATE=ok
-elif grep -q 'devflow: discovery partial:' .prflow/tmp/devflow-dm.err; then
-    # PARTIAL: at least one root failed, at least one did not. Keep the captured paths and file
-    # from the clean roots, but record the failed root: once this run's filing hydrates the
-    # aggregate, the failed root's deferrals can't be auto-filed by a later re-run
-    # (file-deferrals.py refuses a mixed hydrated/raw manifest) — recover them by filing manually.
-    DISCOVERY_STATE=partial
-    "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 4.0.5 deferral discovery was PARTIAL — at least one candidate root failed traversal: $(cat .prflow/tmp/devflow-dm.err); filing proceeds from the roots that did not fail (\`ok\`/\`absent\`; an \`absent\` root contributes nothing). The failed root's deferrals are NOT filed this run, and once this run hydrates ${AGG} they cannot be auto-filed by a later re-run (file-deferrals.py refuses a mixed hydrated/raw manifest) — recover them by filing from that root's run-scoped manifest manually."
-else
-    # FAILED or REFUSED: every root failed, OR the capture produced NO OUTPUT AT ALL (a likely
-    # matcher denial). Blank MANIFESTS so the merge guard is unambiguously false, and record the
-    # failure naming the PERSISTED aggregate path so an operator can re-trigger Phase 4.0.5.
-    DISCOVERY_STATE=failed
-    MANIFESTS=""
-    "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 4.0.5 deferral discovery FAILED (every candidate root failed traversal, or the discovery command produced no output at all — a likely harness denial): $(cat .prflow/tmp/devflow-dm.err 2>/dev/null). No deferrals were filed this run; any persisted aggregate at ${AGG} was left intact — re-trigger Phase 4.0.5 deliberately to recover its deferrals."
-fi
-# Surface the helper's roots-echo line into the tool result on every path, so an absent-classified
-# root is observable. (A non-empty $SEARCH_DIRS is assumed; the zero-arg usage error exits before
-# any roots-echo.) Best-effort — a missing line never blocks the fence.
-grep 'devflow: discovery roots:' .prflow/tmp/devflow-dm.err || true
+DISCOVERY_RC=0
+MANIFESTS=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/discover-deferral-manifests.py $SEARCH_DIRS) || DISCOVERY_RC=$?
+case "$DISCOVERY_RC" in
+    0) DISCOVERY_STATE=ok ;;
+    3) DISCOVERY_STATE=partial ;;
+    # Blank MANIFESTS so the merge guard below is unambiguously false.
+    *) DISCOVERY_STATE=failed; MANIFESTS="" ;;
+esac
+# The helper writes its `devflow: discovery roots: …` echo and any partial/failure detail to stderr
+# on every discovery run, so read both from THIS fence's own tool result — nothing writes them to a
+# file. A `partial` or `failed` discovery is recorded on the workpad after the fence, quoting that
+# observed stderr (see *Recording discovery and filing outcomes* below).
 if [ -n "$MANIFESTS" ]; then
     # Merge the deferrals[] arrays across runs. The dedup key mirrors file-deferrals.py's
     # _compute_id payload — (file|symbol|kind|summary.strip()), each field defaulted to "" — so a
@@ -100,39 +90,33 @@ fi
 FILED_STATE=""
 FILED_NUMBERS=""
 if { [ "$DISCOVERY_STATE" = ok ] || [ "$DISCOVERY_STATE" = partial ]; } && [ -n "$AGG" ] && [ -s "$AGG" ]; then
-    # Discriminate file-deferrals.py's exit codes via the helper's OWN status inline (rc 0 =
-    # filed), telling non-zero cases apart by grepping its stderr markers — "already has
-    # follow_up" (benign idempotent-re-run) vs. a genuine failure — never a captured rc a
-    # stripping inline-bash runner would empty. FILED_STATE names WHICH of the four arms ran;
-    # without it three benign arms (idempotent, no-deferrals, failure — none set FILED_NUMBERS)
-    # print `filed …=[]` like the one real capture gap, so the reader's "hydrated + no numbers ⇒
-    # gap" rule fires on all four and fabricates a reflection claiming issues were filed and lost.
+    # Route on file-deferrals.py's OWN status (`|| FILING_RC=$?` reads it inline, exempt from
+    # set -e; never a `2>file` capture, which the harness refuses — the fence would return no
+    # output at all): rc 0 = at least one group filed, `--dry-run`, or every survivor
+    # settled-by-disclosure; rc 1 = nothing filed or invalid input; rc 2 = bad arguments or an
+    # unusable manifest. FILED_STATE names WHICH arm ran and defaults to `failed`; without it every
+    # non-filing state (idempotent, no-deferrals, genuine failure — none set FILED_NUMBERS) prints
+    # `filed …=[]` like the one real capture gap, so the reader's "hydrated + no numbers ⇒ gap" rule
+    # fires on all of them and fabricates a reflection claiming issues were filed and lost.
     FILED_STATE=failed
     FILED_NUMBERS=""
-    # Delete any stale capture so a resumed run cannot read a prior attempt's stderr
-    # (the .prflow/tmp leaf was already created at the top of this fence).
-    rm -f .prflow/tmp/devflow-fd.err
-    if FILED_OUT=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/file-deferrals.py \
+    FILING_RC=0
+    FILED_OUT=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/file-deferrals.py \
         --source-issue $ARGUMENTS \
         --pr "$PR_NUMBER" \
-        --manifest "$AGG" 2>.prflow/tmp/devflow-fd.err); then
-        FILED_NUMBERS="$FILED_OUT"
-        FILED_STATE=filed
-        # file-deferrals.py exits 0 even on PARTIAL success: a per-file group whose
-        # `gh issue create` failed is dropped from the manifest, yet the helper still
-        # exits 0. Surface that so the dropped findings (which won't reach the PR's
-        # Scope-Acknowledged block) leave a breadcrumb instead of vanishing silently.
-        grep -q 'were dropped from manifest' .prflow/tmp/devflow-fd.err && \
-            "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "file-deferrals.py filed partially (rc=0): $(cat .prflow/tmp/devflow-fd.err); dropped groups will NOT appear in the PR's Scope-Acknowledged Findings block."
-    elif grep -q 'already has follow_up' .prflow/tmp/devflow-fd.err; then
-        FILED_STATE=idempotent
-        "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --note "Deferrals already filed on a prior run (idempotent re-run) — nothing new to file; the hydrated aggregate stands."
-    elif grep -q 'no deferrals' .prflow/tmp/devflow-fd.err; then
-        FILED_STATE=none
-        "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --note "Aggregate held no deferrals to file — nothing to do."
-    else
-        "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "file-deferrals.py failed (rc≠0): $(cat .prflow/tmp/devflow-fd.err); no follow-up issues filed this run."
-    fi
+        --manifest "$AGG") || FILING_RC=$?
+    case "$FILING_RC" in
+        0)
+            FILED_NUMBERS="$FILED_OUT"
+            FILED_STATE=filed
+            ;;
+        2)
+            # rc 2 is SHARED by two conditions whose only distinguisher is the message text, so it
+            # is classified after the fence from the observed stderr; this line puts the signal to
+            # classify in the fence's own tool result rather than leaving rc 2 read as a failure.
+            echo "devflow: file-deferrals.py exited 2 — classify this fence's stderr per the rc-2 routing in Phase 4.0.5" >&2
+            ;;
+    esac
     # Record the filed numbers AND print them IN THIS FENCE — the only place FILED_NUMBERS
     # exists. A shell variable does not survive into a later separate command on the cloud runner,
     # so reading it in a LATER fence sees it empty, prints `[]`, and labels NOTHING. Printing here
@@ -156,6 +140,28 @@ fi
 MANIFEST_STATE=""; [ -n "${AGG:-}" ] && [ -s "${AGG:-}" ] && MANIFEST_STATE=hydrated
 echo "phase 4.0.5 filing fence ran; pr=[${PR_NUMBER:-}] discovery=[${DISCOVERY_STATE:-}] manifest=[${MANIFEST_STATE}] filing=[${FILED_STATE:-}] filed deferred-finding issues=[${FILED_NUMBERS//$'\n'/ }]"
 ```
+
+**Recording discovery and filing outcomes.** The fence captures no stderr to a file (the harness refuses an output redirection and returns no output at all), so read the helpers' stderr in the fence's own tool result and make the matching record below — an unrecorded partial discovery or unrecognised filing failure strands acknowledged deferrals with no durable trace. Substitute the stderr you observed for each `<observed …>` placeholder, verbatim.
+
+- **`discovery=[partial]`** — at least one root failed and at least one did not; the clean roots' paths were still filed from:
+
+  `<skill-dir>/../../scripts/workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 4.0.5 deferral discovery was PARTIAL — at least one candidate root failed traversal: <observed discovery stderr>; filing proceeds from the roots that did not fail (\`ok\`/\`absent\`; an \`absent\` root contributes nothing). The failed root's deferrals are NOT filed this run, and once this run hydrates the aggregate they cannot be auto-filed by a later re-run (file-deferrals.py refuses a mixed hydrated/raw manifest) — recover them by filing from that root's run-scoped manifest manually."`
+
+- **`discovery=[failed]`** — every root failed, or the capture produced no output at all (a likely harness denial). Name the persisted aggregate path so an operator can re-trigger Phase 4.0.5:
+
+  `<skill-dir>/../../scripts/workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 4.0.5 deferral discovery FAILED (every candidate root failed traversal, or the discovery command produced no output at all — a likely harness denial): <observed discovery stderr>. No deferrals were filed this run; any persisted aggregate at .prflow/tmp/review/pr-<N>/deferrals.json was left intact — re-trigger Phase 4.0.5 deliberately to recover its deferrals."`
+
+- **`filing=[filed]` whose stderr contains `were dropped from manifest`** — `file-deferrals.py` exits 0 even on partial success, so record the drop or those findings vanish without reaching the PR's Scope-Acknowledged block:
+
+  `<skill-dir>/../../scripts/workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "file-deferrals.py filed partially (rc=0): <observed filing stderr>; dropped groups will NOT appear in the PR's Scope-Acknowledged Findings block."`
+
+- **`filing=[failed]` with `file-deferrals.py exited 2` in the tool result** — classify by the message text and record exactly one; never silently pick one of the two when the shape is unrecognised:
+  - `already has follow_up` → the **idempotent** state: `<skill-dir>/../../scripts/workpad.py update $ISSUE_NUMBER --note "Deferrals already filed on a prior run (idempotent re-run) — nothing new to file; the hydrated aggregate stands."`
+  - `no deferrals` → the **none** (nothing-to-file) state: `<skill-dir>/../../scripts/workpad.py update $ISSUE_NUMBER --note "Aggregate held no deferrals to file — nothing to do."`
+  - any other rc-2 stderr → an unrecognised shape, recorded as a failure: `<skill-dir>/../../scripts/workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "file-deferrals.py exited 2 with an unrecognised message: <observed filing stderr>; no follow-up issues filed this run."`
+  - The `idempotent` and `none` records supersede the sentinel's `filing=[failed]`, which is the fail-closed default the fence prints before the classification exists.
+
+- **`filing=[failed]` without that rc-2 line** — a genuine failure: `<skill-dir>/../../scripts/workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "file-deferrals.py failed (rc≠0): <observed filing stderr>; no follow-up issues filed this run."`
 
 The helper groups manifest entries by `file` (one issue per source file), files each issue with a repo-agnostic title/body template (`<area>: deferred review findings in <file> (carried from #<source_issue>)` and a body containing the verbatim findings plus the `PR #<pr_number>` substring that the verdict matcher's mutual-cross-link guard validates against), then rewrites the manifest in place with `id: dfr-<6-hex>` (deterministic hash of `file + symbol + kind + summary`) and `follow_up: {issue, url, filed_at, filed_by}` populated per entry. Filed issue numbers are printed to stdout, one per line.
 

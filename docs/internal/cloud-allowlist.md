@@ -942,6 +942,69 @@ is the canonical home for that reading.
 
 ---
 
+## The redirect-into-`.prflow/tmp/**` rows are CONTRADICTED by field evidence (issue #1721)
+
+**Two probe rows record a `>` redirect into `.prflow/tmp/**` as PERMITTED** — command-tier
+shape 3 (run `30956039324`, 2026-08-04, `claude-code-action@v1` with Claude Code 2.1.221)
+and implement-tier row 11 (run `29623046995`, 2026-07-18). **Field evidence from a real
+consumer run contradicts both**, so neither may be read as a current guarantee.
+
+On a cloud `/prflow:implement` run in an adopter repository (GH run `31989737682`,
+2026-08-17) three prescribed fences were each refused, and the three refusals have **three
+different causes** — a distinction that matters, because a single "the redirect is denied"
+reading prescribes the wrong remedy for two of them:
+
+| Refused fence | Harness response | Cause |
+|---|---|---|
+| the Phase 0 local-diff staging chain | `The following parts require approval: git diff …, awk …, sed -n 'p' …` | a **compound multi-head** refusal; the redirect is incidental |
+| `workpad.py acs-resolve … 2>…/acs.err` | `Output redirection to '…/acs.err' was blocked. For security, Claude Code may only write to files in the allowed working directories: '<workspace root>'` | the **redirect construct** itself |
+| `printf '%s\n' "$CLAUDE_CODE_SESSION_ID" > …` | `Contains simple_expansion` | a **variable-expansion** refusal, which survives removing the redirect |
+
+**Read the second row carefully: the refused path was INSIDE the workspace root the message
+names as allowed.** The guard is on the construct, not the destination, so "write it under
+`.prflow/tmp/`" is not a remedy on its own.
+
+**Reconciliation.** The probe rows are not retracted — they record what a real run measured
+at the versions named, and a verdict is never rewritten from inference. They are **superseded
+as a forward guarantee**: the shape is version-fragile, and the two shapes that are permitted
+across every measurement — `Write(.prflow/tmp/**)` (PERMITTED on both tiers, and for a
+dispatched subagent as well) and `| tee` — are what shipped fences prescribe as of issue
+#1721. Re-probe before restoring any redirect-shaped recipe; **`| tee` is not a substitute
+where a producer's exit status must be observed**, because in `producer | tee f | wc -l` the
+pipeline reports the last stage's status and the producer's failure becomes invisible.
+
+### Per-occurrence adjudication of the shipped redirect population (issue #1721 AC1)
+
+Scope: every redirect into a scratch path under `skills/`. Cloud-reachability is decided by
+which tier executes the fence's phase, so `skills/review/**` counts as cloud-reachable four
+times over — the two review tiers, `/prflow:review-and-fix`, and `/prflow:implement`'s
+inline Phase 3.3 fix loop all execute that bundle.
+
+| File | Sites | Reachability | Disposition |
+|---|---|---|---|
+| `skills/review/SKILL.md` | 4 × `2>` | cloud | rewritten — stderr read from the tool result |
+| `skills/review/phases/phase-0-setup.md` | 4 × `>` staging, 2 × `2>` | cloud | rewritten — five-step Write-tool staging; `acs.err` removed |
+| `skills/review/phases/phase-1-checklist.md` | 1 × `>` | cloud | rewritten — Write tool |
+| `skills/review/phases/phase-4-verdict.md` | 1 × `>`, 1 × `2>` | cloud | rewritten — Write tool; stderr from the tool result |
+| `skills/review-and-fix/references/loop-control.md` | 1 × `2>` | cloud (`/prflow:review-and-fix`) | rewritten |
+| `skills/review-and-fix/references/loop-exit.md` | 2 × `2>` | cloud (`/prflow:review-and-fix`) | rewritten |
+| `skills/implement/references/deferred-review-findings.md` | 2 × `2>` | cloud (`/prflow:implement`) | rewritten — exit-code routing replaces the stderr-content greps |
+| `skills/implement/phases/phase-1-setup.md` | 4 × `>` | cloud (`/prflow:implement`) | rewritten — Write tool |
+| `skills/retrospective-weekly/SKILL.md` | 11 mixed | **local only** — no workflow dispatches this command | **left unchanged** |
+
+Two population corrections, so a later audit is driven by the per-occurrence reading rather
+than by a raw grep:
+
+- **A `grep -E '>\s*\.prflow/tmp'` count over `skills/` includes at least one non-redirect.**
+  In `skills/review/SKILL.md` the `<marker-slot>` placeholder ends in `>` immediately before
+  a space and a path; it is rendered to `""` or a quoted literal before execution, so the
+  executed command carries no redirect there.
+- **That same pattern MISSES four genuine cloud-reachable redirects**, because
+  `skills/implement/phases/phase-1-setup.md` targets the runtime-resolved absolute
+  `<scratch-dir>` rather than the literal `.prflow/tmp`.
+
+---
+
 ## Grants are per-HEAD across the whole pipeline (the `paste` war-story)
 
 A repo rule from #363/#401 (**not** an implement-probe row): **grants are

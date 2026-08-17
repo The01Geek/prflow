@@ -1795,11 +1795,11 @@ assert_eq "#857/#1054 the SKILL.md seed fence passes PR_NUMBER, marker slot, BOD
 # on its own never did and still cannot) — and, since #925 removed the count-helper
 # short-circuit, which a pin_count spelling no longer skips either.
 assert_eq "#871 the SKILL.md fallback arm's id call passes the PR number positionally and the marker behind --marker" "1" \
-  "$(pin_count 'workpad.py id "$PR_NUMBER" --marker "$MARKER" 2>.prflow/tmp/review/<slug>/<run-id>/rv-id.err' "$ST_REV")"
+  "$(pin_count 'workpad.py id "$PR_NUMBER" --marker "$MARKER")' "$ST_REV")"
 assert_eq "#871 the SKILL.md fallback arm's create call passes the PR number then the body-file path" "1" \
-  "$(pin_count 'workpad.py create "$PR_NUMBER" .prflow/tmp/review/<slug>/<run-id>/review-wp.md 2>.prflow/tmp/review/<slug>/<run-id>/rv-create.err' "$ST_REV")"
+  "$(pin_count 'workpad.py create "$PR_NUMBER" .prflow/tmp/review/<slug>/<run-id>/review-wp.md)' "$ST_REV")"
 # (#871) The rc TRAILERS (`seed-rc`, `create-rc`, `id-rc`) are deliberately NOT pinned. A review
-# pass proposed pinning them — the pins above stop at the redirect, so deleting a trailer or
+# pass proposed pinning them — the pins above stop at the capture, so deleting a trailer or
 # transposing one behind `echo "wp=$WP"` leaves their counts unchanged — and pins were briefly
 # added. They are removed: the thing such a pin protects is the trailers' token ORDER, and no
 # tool reads that. `extract-command-heads.py` and `extract-command-shapes.py` parse the fence for
@@ -4694,19 +4694,21 @@ assert_pin_unique "#254: Phase 4.0.5 keeps the aggregate at the pr-<N> slug path
 # reader routing gains fail-closed arms. Pin the discovery statement, the sentinel field,
 # the extended filing guard, roots-echo surfacing, and the two routing arms.
 assert_pin_unique "#555: Phase 4.0.5 discovers manifests through the fail-closed helper" \
-  'discover-deferral-manifests.py $SEARCH_DIRS 2>.prflow/tmp/devflow-dm.err' "$P405_REF"  # structural-pin-ok: helper-contract -- the discovery helper's stderr capture path is a typed executable boundary between the fence and discover-deferral-manifests.py; the #915 move off cloud-denied /tmp changed the literal's text but not the contract it protects.
+  'discover-deferral-manifests.py $SEARCH_DIRS) || DISCOVERY_RC=$?' "$P405_REF"  # structural-pin-ok: helper-contract -- the discovery invocation plus its inline status read is a typed executable boundary between the fence and discover-deferral-manifests.py; the #1721 move off the harness-refused 2> capture changed the literal's text but not the contract it protects, exactly as the #915 move off cloud-denied /tmp did.
 assert_pin_unique "#555: Phase 4.0.5 initializes DISCOVERY_STATE empty before the discovery statement (the #480 sentinel-operand rule)" \
   'DISCOVERY_STATE=""' "$P405_REF"  # structural-pin-ok: lifecycle-state-transition -- the pre-statement initialization that makes a refused discovery observable as discovery=[] rather than aborting the sentinel
-assert_pin_unique "#555: Phase 4.0.5 discriminates the partial marker with the file-deferrals.py grep idiom" \
-  "elif grep -q 'devflow: discovery partial:' .prflow/tmp/devflow-dm.err; then" "$P405_REF"  # structural-pin-ok: helper-contract -- the partial-discovery marker is a typed executable boundary between the fence and discover-deferral-manifests.py's stderr protocol; the #915 move off cloud-denied /tmp changed the literal's text but not the contract it protects.
+assert_pin_unique "#555: Phase 4.0.5 discriminates the partial discovery from the helper's own exit status" \
+  '3) DISCOVERY_STATE=partial ;;' "$P405_REF"  # structural-pin-ok: helper-contract -- rc 3 is discover-deferral-manifests.py's documented partial status and this arm is the typed executable boundary that reads it; the #1721 move off the harness-refused 2> capture replaced a stderr-content grep with the exit code that already discriminated, changing the literal's text but not the contract it protects.
 assert_pin_unique "#555: the failed/refused arm blanks MANIFESTS so the merge guard is unambiguously false" \
   'DISCOVERY_STATE=failed' "$P405_REF"  # structural-pin-ok: lifecycle-state-transition -- the failed/refused arm's state assignment, which the filing guard below reads to refuse filing
 assert_pin_unique "#555: the sentinel carries the discovery= field, guarded with :- like filing=" \
   'discovery=[${DISCOVERY_STATE:-}]' "$P405_REF"  # structural-pin-ok: machine-sentinel-provenance -- the emitted sentinel field the reader's fail-closed routing literal-matches; without it a failed discovery is indistinguishable from a clean no-op
 assert_pin_unique "#555: the filing guard requires a successful discovery (a persisted prior aggregate must not drive filing on a failed/refused discovery)" \
   '{ [ "$DISCOVERY_STATE" = ok ] || [ "$DISCOVERY_STATE" = partial ]; } && [ -n "$AGG" ] && [ -s "$AGG" ]' "$P405_REF"  # structural-pin-ok: routing-dispatch-contract -- the guard that stops a persisted prior aggregate from driving filing on a failed or refused discovery
-assert_pin_unique "#555: the fence surfaces the helper roots-echo into the tool result on every path" \
-  "grep 'devflow: discovery roots:' .prflow/tmp/devflow-dm.err || true" "$P405_REF"  # structural-pin-ok: helper-contract -- the discovery roots-echo grep is a typed executable boundary between the fence and discover-deferral-manifests.py's stderr protocol; the #915 move off cloud-denied /tmp changed the literal's text but not the contract it protects.
+# (#1721) The roots-echo surfacing pin is RETIRED, not repointed. The fence no longer runs a
+# command to surface it — the helper writes it to stderr and the agent reads it from the tool
+# result — so do NOT re-pin it over that prose: a prose literal resolves in pin-corpus-lint's
+# prose-resolution arm (rc 3) before any `# structural-pin-ok:` declaration is consulted.
 # ── issue #555 (review finding): a bundled helper granted as a vendored-literal LEADING
 # TOKEN is exec'd by path — no `python3`/`bash` wrapper is available, because an interpreter
 # head is ungranted on the cloud tiers. Without the exec bit such a call dies rc 126 on every
@@ -35254,8 +35256,8 @@ assert_eq "#363 the review-skill head set matches the reviewed count (34 distinc
 s=importlib.util.spec_from_file_location("e",sys.argv[1]);m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
 h=m.extract_heads(open(sys.argv[2],encoding="utf-8").read());print(len({m.name_of(x) for x in h}))' "$ECH" "$REVIEW_BUNDLE")"
 
-# #426 no-skew property: Phase 1.1's awk >-redirect batch-slice authoring and its
-# &&-chained rc gate reuse heads (awk, test, echo) already granted in BOTH cloud
+# #426 no-skew property: Phase 1.1's awk batch-slice fence and its rc gate reuse
+# heads (awk, test, echo) already granted in BOTH cloud
 # TOOLS='…' lines; tee remains granted+used by Phase 0.2's cache-write. So the change
 # adds NO allowlist entry and cannot create the #363 consumer-workflow-version-skew
 # class. Pin EVERY head the fence depends on — `echo` included: it is the fence's
@@ -39084,79 +39086,51 @@ assert_eq "#503 wrapper-only fetch is not granted in the read-only review workfl
 assert_eq "#503 wrapper-only remote probe is not granted in the read-only review workflow" \
   "0" "$(grep -cF 'Bash(git ls-remote:*)' "$LIB/../.github/workflows/devflow-runner.yml")"
 
-# Execute the exact checked cache fence rendered in the review skill. Command
-# shims let each producer boundary fail independently; every failure must remove
-# a stale prior cache and both candidates, while success publishes exactly once.
+# (#1721) The local-diff staging path is no longer ONE executable script: its produce and
+# filter steps are bare commands, but staging and publication are Write-tool calls and the
+# failure routing is agent-executed. So this module no longer extracts-and-runs the whole
+# chain. It covers the two contracts that are still executable, and the 4-stage orchestration
+# (each failure clearing the cache and both candidates) is now agent-executed prose whose
+# compensating control is the review pass — deliberately NOT re-pinned as prose presence.
+# Extraction is marker-anchored and fails closed: an empty extraction is asserted non-empty
+# below, so a renamed marker turns this RED instead of vacuously passing.
 SP503_FENCE_DIR="$(mktemp -d)"
 SP503_FENCE_CACHE="$SP503_FENCE_DIR/cache"
-SP503_FENCE_BIN="$SP503_FENCE_DIR/bin"
-mkdir -p "$SP503_FENCE_CACHE" "$SP503_FENCE_BIN"
-awk '/^# Render <resolved-local-diff-base>/{capture=1; next} capture && /^```/{exit} capture' "$SP_REVIEW" \
-  | sed "s#\.prflow/tmp/review/<slug>/<run-id>#$SP503_FENCE_CACHE#g" > "$SP503_FENCE_DIR/fence-unresolved.sh"
-sed 's#<resolved-local-diff-base>#origin/main#g' "$SP503_FENCE_DIR/fence-unresolved.sh" > "$SP503_FENCE_DIR/fence.sh"
-tee "$SP503_FENCE_BIN/git" >/dev/null <<'EOF'
-#!/usr/bin/env bash
-if test "${1:-}" = diff; then
-  printf '%s\n' 'diff --git a/feature b/feature' '+review payload'
-  exit "${MOCK_DIFF_RC:-0}"
-fi
-exit 64
-EOF
-tee "$SP503_FENCE_BIN/awk" >/dev/null <<'EOF'
-#!/usr/bin/env bash
-test "${MOCK_AWK_RC:-0}" -eq 0 || exit "$MOCK_AWK_RC"
-exec /usr/bin/awk "$@"
-EOF
-tee "$SP503_FENCE_BIN/sed" >/dev/null <<'EOF'
-#!/usr/bin/env bash
-if test "${MOCK_PROMOTE_RC:-0}" -ne 0; then
-  test "${MOCK_PROMOTE_PARTIAL:-0}" -eq 0 || printf '%s\n' partial-promotion
-  exit "$MOCK_PROMOTE_RC"
-fi
-exec /usr/bin/sed "$@"
-EOF
-tee "$SP503_FENCE_BIN/cat" >/dev/null <<'EOF'
-#!/usr/bin/env bash
-test "${MOCK_CAT_RC:-0}" -eq 0 || exit "$MOCK_CAT_RC"
-exec /bin/cat "$@"
-EOF
-chmod +x "$SP503_FENCE_BIN/git" "$SP503_FENCE_BIN/awk" "$SP503_FENCE_BIN/sed" "$SP503_FENCE_BIN/cat"
+mkdir -p "$SP503_FENCE_CACHE"
 
-SP503_FENCE_OUT="$(PATH="$SP503_FENCE_BIN:$PATH" bash "$SP503_FENCE_DIR/fence.sh" 2>&1)"
-SP503_FENCE_RC=$?
-assert_eq "#503 checked cache fence success exits zero" "0" "$SP503_FENCE_RC"
-assert_eq "#503 checked cache fence success publishes and emits identical bytes" \
-  "$(/bin/cat "$SP503_FENCE_CACHE/diff.patch")" "$SP503_FENCE_OUT"
-assert_eq "#503 checked cache fence success removes raw and filtered candidates" \
-  "0" "$(test ! -e "$SP503_FENCE_CACHE/diff.raw-candidate" && test ! -e "$SP503_FENCE_CACHE/diff.candidate"; echo $?)"
+# ── Contract 1: the awk telemetry-log filter (the one piece of real logic in the recipe).
+awk '/^# BEGIN LOCAL_DIFF_AWK_FILTER/{capture=1; next} capture && /^# END LOCAL_DIFF_AWK_FILTER/{exit} capture' \
+  "$SP_REVIEW" > "$SP503_FENCE_DIR/filter.sh"
+assert_eq "#1721 the LOCAL_DIFF_AWK_FILTER marker pair extracts a non-empty program" "yes" \
+  "$(test -s "$SP503_FENCE_DIR/filter.sh" && echo yes || echo no)"
 
-for SP503_FAIL_STAGE in DIFF AWK PROMOTE CAT; do
-  printf '%s\n' stale-cache > "$SP503_FENCE_CACHE/diff.patch"
-  MOCK_DIFF_RC=0 MOCK_AWK_RC=0 MOCK_PROMOTE_RC=0 MOCK_PROMOTE_PARTIAL=0 MOCK_CAT_RC=0
-  case "$SP503_FAIL_STAGE" in
-    DIFF) MOCK_DIFF_RC=23 ;;
-    AWK) MOCK_AWK_RC=24 ;;
-    PROMOTE) MOCK_PROMOTE_RC=25; MOCK_PROMOTE_PARTIAL=1 ;;
-    CAT) MOCK_CAT_RC=26 ;;
-  esac
-  PATH="$SP503_FENCE_BIN:$PATH" \
-    MOCK_DIFF_RC="$MOCK_DIFF_RC" MOCK_AWK_RC="$MOCK_AWK_RC" \
-    MOCK_PROMOTE_RC="$MOCK_PROMOTE_RC" MOCK_PROMOTE_PARTIAL="$MOCK_PROMOTE_PARTIAL" MOCK_CAT_RC="$MOCK_CAT_RC" \
-    bash "$SP503_FENCE_DIR/fence.sh" >/dev/null 2>&1
-  SP503_FENCE_RC=$?
-  assert_eq "#503 checked cache fence $SP503_FAIL_STAGE failure preserves its observed rc" \
-    "$(case "$SP503_FAIL_STAGE" in DIFF) echo 23;; AWK) echo 24;; PROMOTE) echo 25;; CAT) echo 26;; esac)" "$SP503_FENCE_RC"
-  assert_eq "#503 checked cache fence $SP503_FAIL_STAGE failure removes stale cache and candidates" \
-    "0" "$(test ! -e "$SP503_FENCE_CACHE/diff.patch" && test ! -e "$SP503_FENCE_CACHE/diff.raw-candidate" && test ! -e "$SP503_FENCE_CACHE/diff.candidate"; echo $?)"
-done
+# Fixture: a normal hunk, a hunk ROOTED at .prflow/logs/ (must be stripped), and a hunk whose
+# path merely CONTAINS that substring (must survive — the anchoring is the bug this catches).
+printf '%s\n' \
+  'diff --git a/feature b/feature' '+review payload' \
+  'diff --git a/.prflow/logs/telemetry.tsv b/.prflow/logs/telemetry.tsv' '+telemetry noise' \
+  'diff --git a/docs/.prflow/logs/notes.md b/docs/.prflow/logs/notes.md' '+not rooted' \
+  > "$SP503_FENCE_DIR/fixture.patch"
+SP503_FILTERED="$(sed "s#\.prflow/tmp/review/<slug>/<run-id>/diff\.raw-candidate#$SP503_FENCE_DIR/fixture.patch#g" \
+  "$SP503_FENCE_DIR/filter.sh" | bash 2>&1)"
+assert_eq "#1721 the filter keeps a non-logs hunk" "yes" \
+  "$(printf '%s' "$SP503_FILTERED" | grep -qF '+review payload' && echo yes || echo no)"
+assert_eq "#1721 the filter strips a hunk rooted at .prflow/logs/" "yes" \
+  "$(printf '%s' "$SP503_FILTERED" | grep -qF '+telemetry noise' && echo no || echo yes)"
+assert_eq "#1721 the filter keeps a path merely CONTAINING .prflow/logs/ (anchored match)" "yes" \
+  "$(printf '%s' "$SP503_FILTERED" | grep -qF '+not rooted' && echo yes || echo no)"
 
-# A dropped renderer substitution must itself fail closed. Use real git here:
-# the literal placeholder is an invalid ref, so no authoritative cache can appear.
-printf '%s\n' stale-cache > "$SP503_FENCE_CACHE/diff.patch"
-( cd "$SP503" && bash "$SP503_FENCE_DIR/fence-unresolved.sh" ) >/dev/null 2>&1
+# ── Contract 2: a dropped <resolved-local-diff-base> substitution fails CLOSED. Real git here:
+# the literal placeholder is an invalid ref, so the producer can publish nothing.
+awk '/^# BEGIN LOCAL_DIFF_PRODUCER/{capture=1; next} capture && /^# END LOCAL_DIFF_PRODUCER/{exit} capture' \
+  "$SP_REVIEW" > "$SP503_FENCE_DIR/producer-unresolved.sh"
+assert_eq "#1721 the LOCAL_DIFF_PRODUCER marker pair extracts a non-empty command" "yes" \
+  "$(test -s "$SP503_FENCE_DIR/producer-unresolved.sh" && echo yes || echo no)"
+( cd "$SP503" && bash "$SP503_FENCE_DIR/producer-unresolved.sh" ) >/dev/null 2>&1
 SP503_UNRESOLVED_RC=$?
-assert_eq "#503 unresolved local-base placeholder fails nonzero" "128" "$SP503_UNRESOLVED_RC"
-assert_eq "#503 unresolved local-base placeholder publishes no authoritative cache" \
+assert_eq "#1721 unresolved local-base placeholder fails nonzero rather than diffing an empty range" "yes" \
+  "$(test "$SP503_UNRESOLVED_RC" -ne 0 && echo yes || echo no)"
+assert_eq "#1721 unresolved local-base placeholder publishes no authoritative cache" \
   "0" "$(test ! -e "$SP503_FENCE_CACHE/diff.patch"; echo $?)"
 rm -rf "$SP503_FENCE_DIR"
 
