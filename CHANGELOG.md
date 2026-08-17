@@ -4,6 +4,15 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.33.3] — 2026-08-17
+
+### Changed
+`/prflow:create-issue` now shows its working files before the draft is presented.
+
+Step 4 lists four of the run's working files and shows the raw output — error lines included — in the message that renders the draft, so those files are visible rather than asserted. On an established listing outside the read-only arm, a file shown missing sends the run back to the step that produces it before the draft is rendered. The listing never blocks issue creation, and reports itself unestablished rather than staying silent when it cannot run.
+
+Step 1 now creates its temporary directory before writing into it, so the Step 1 evidence artifact and the run-slug pointer it writes there no longer depend on that directory already existing.
+
 ## [2.33.2] — 2026-08-17
 
 ### Changed
