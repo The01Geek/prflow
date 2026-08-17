@@ -4538,13 +4538,13 @@ assert_pin_unique "#232: SKILL self-check binds every termination path (SFH F1)"
   'This guard binds **every** way the run can end' "$IMPL_ORCH"
 # review iter-2 (shadow pr-test-analyzer): pin the operative re-read instruction directly.
 assert_pin_unique "#232: orchestrator keeps the OPERATIVE always-loaded re-Read directive (SFH F2)" \
-  'the phase file before continuing to §4.2 (resume from §4.2' "$IMPL_ORCH"
+  'for Phase 4, the phase file — then resume at the next sub-step (§4.2 and §4.3 respectively)' "$IMPL_ORCH"
 # AC4 scope constraint is mirrored in the always-loaded orchestrator too; pin that copy so the
 # "not the Phase 2/3 returns" guardrail can't be dropped from the resident mirror unnoticed.
 # Reworded by #362 (see the phase-4 block above) to scope the trigger to SUBAGENT returns,
 # since a Skill-tool return now has its own generalized re-anchor in the same resident body.
 assert_pin_unique "#232/#362: orchestrator mirror scopes the re-anchor to **subagent** returns (SFH F2 mirror)" \
-  'scoped to **subagent** returns, not the Phase 2/3 subagent returns' "$IMPL_ORCH"
+  'scoped to **subagent** returns in Phase 4: the Phase 2/3 subagent returns are covered by' "$IMPL_ORCH"
 
 # ── issue #362: run-continuity guards. Three always-resident cross-phase rules in the
 # orchestrator (generalized mid-phase re-anchor after ANY Skill-tool return; the
@@ -4560,9 +4560,9 @@ P362_P1="$IMPL_PHASES_DIR/phase-1-setup.md"
 # (1) Generalized mid-phase re-anchor — fires after EVERY Skill-tool return, not just the
 #     Phase 4.1 docs subagent.
 assert_pin_unique "#362: orchestrator re-anchors after every Skill-tool return (trigger)" \
-  'after **every** Skill-tool return mid-phase' "$IMPL_ORCH"
+  'After **every** Skill-tool return mid-phase' "$IMPL_ORCH"
 assert_pin_unique "#362: generalized re-anchor carries its operative resume directive" \
-  'resume at the step immediately following the invocation, never re-dispatching the skill that just returned' "$IMPL_ORCH"
+  'resume at the step immediately following the invocation, never re-invoking the skill that just returned' "$IMPL_ORCH"
 
 # (2) Non-interactive self-answer rule — the orchestrator answers a nested skill's
 #     user-facing question itself on the cloud tier, and records the answer.
@@ -4583,7 +4583,7 @@ assert_pin_unique "#362: self-answer rule is confined to a nested skill question
 #     mid-phase. Both halves are operative: the positive dispatch directive AND the
 #     prohibition it replaces (dropping either re-opens the #356 tail-call death).
 assert_pin_unique "#362: Skill rule routes an interactive skill into an Agent-tool subagent" \
-  'dispatch that skill inside a context-isolated **Agent-tool subagent** whose prompt pre-grants the approval' "$IMPL_ORCH"
+  'dispatch that skill inside a context-isolated Agent-tool subagent whose prompt pre-grants the approval' "$IMPL_ORCH"
 assert_pin_unique "#362: Skill rule forbids the mid-phase Skill-tool invocation it replaces" \
   'never invoke it through the Skill tool mid-phase' "$IMPL_ORCH"
 
@@ -4638,12 +4638,12 @@ assert_eq "#362: the vendored requesting-code-review skill is still present and 
 # at the owning file boundary via assert_pin_unique.
 # (a) Skill-completion re-anchor trigger — completion-anchored, never re-invoke, orchestrator-resident.
 assert_pin_unique "#366: SKILL re-anchor is completion-anchored, not tool-return-anchored (operative)" \
-  'anchored on completion of the nested *procedure*, **not** on the' "$IMPL_ORCH"
+  'on completion of the nested *procedure* where that is later than the tool call' "$IMPL_ORCH"
 assert_pin_unique "#366: SKILL re-anchor resumes the step and never re-invokes the nested skill (operative)" \
-  'resume the interrupted step, never re-invoking the nested skill' "$IMPL_ORCH"
+  'never re-invoking the skill that just returned' "$IMPL_ORCH"
 # (b) exclusionary Skill rule.
 assert_pin_unique "#366: SKILL rule forbids the interactive skills mid-run, naming revise-claude-md/brainstorming (operative)" \
-  '`claude-md-management:revise-claude-md` and the `superpowers` `brainstorming` skill are examples that must never be invoked from inside an autonomous phase' "$IMPL_ORCH"
+  '`claude-md-management:revise-claude-md` and the `superpowers` `brainstorming` skill among them — from inside an autonomous phase' "$IMPL_ORCH"
 # (c) carve-out COUPLED PAIR — SKILL.md sentence AND the CLAUDE.md Conventions bullet.
 # Deleting either coupled half makes its exact-one assertion fail.
 assert_pin_unique "#366: SKILL carve-out — required CLAUDE.md edit made directly by the orchestrator (operative)" \
@@ -4661,7 +4661,7 @@ assert_pin_unique "#366: CLAUDE.md carve-out bullet carries the same AC4 widenin
   'whether by a Phase-3 review finding **or by the issue' "$LIB/../CLAUDE.md"
 # (d) Terminal-status self-check: read Status immediately before run-final message + accurate backstop citation.
 assert_pin_unique "#366: SKILL self-check reads Status immediately before any run-final message (operative)" \
-  'read the workpad `Status` line immediately before emitting any run-final message' "$IMPL_ORCH"
+  'Read the workpad `Status` line immediately before emitting any run-final message' "$IMPL_ORCH"
 # The backstop-accuracy clause must track what the backstop actually does. Since #356 it
 # re-dispatches AND, on a fail-loud exit taken after a genuinely interim Status read, flips
 # the workpad to the terminal `Failed` (💥) status — so the old clause ("it never writes a
@@ -4669,7 +4669,7 @@ assert_pin_unique "#366: SKILL self-check reads Status immediately before any ru
 # and is the load-bearing point for the self-check, is that the backstop never drives a run
 # to `Complete`: only the run itself can do that.
 assert_pin_unique "#366/#356: SKILL self-check cites the cloud Stall backstop as re-dispatch + a dead-run Failed flip, never a Complete (operative)" \
-  're-dispatches (bounded auto-resume, honest-red on cap exhaustion) and, on a fail-loud exit, flips the workpad to the terminal `Failed` (💥) status — it never drives a run to `Complete`' "$IMPL_ORCH"
+  're-dispatches an interim `Status` post-run and flips a fail-loud exit to `Failed` (💥), but never drives a run to `Complete`' "$IMPL_ORCH"
 # ── issue #254: Phase 4.0.5 deferrals-manifest discovery must search BOTH the pr-<N>
 # slug dir and the sanitized-current-branch slug dir — a current-branch-mode
 # /devflow:review-and-fix run writes its manifest under the branch slug, so a
@@ -15724,7 +15724,7 @@ assert_eq "#126 pin: docs describe the grouped reflection structure + --reflecti
 # ── issue #476: reflection style contract + interpolation-safe file-based recipe ──
 # Retain the reflection routing and file-based recipe safety boundaries.
 assert_pin_unique "#476: Surfacing-failures routing sentence states clean confirmations are Progress notes, not reflections" \
-  'A **clean confirmation** — an assumption that held with no friction — is **not** a reflection' "$IMPL_SKILL"  # structural-pin-ok: routing-dispatch-contract -- a clean confirmation routes to a Progress note, never to a reflection
+  'A **clean confirmation** — an assumption you checked that held, with no friction — is **never a reflection**' "$IMPL_SKILL"  # structural-pin-ok: routing-dispatch-contract -- a clean confirmation routes to a Progress note, never to a reflection
 assert_pin_unique "#476: file-based recipe mandates deleting the payload file after the helper call succeeds" \
   'delete the payload file after the helper call succeeds' "$IMPL_SKILL"  # structural-pin-ok: lifecycle-state-transition -- the payload file is deleted after the helper call succeeds
 
