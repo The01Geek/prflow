@@ -36,7 +36,7 @@ The `issue-audit-dispatch-<slug>.md` write fails exactly as the draft write does
 
 ## Step 4 — the working-file listing
 
-When the listing command is refused, or its binary is missing, this run's working files cannot be enumerated: report the listing **unestablished** and re-enter no producing step on the strength of it. The **visible inline-in-chat blocks** this run posted for the Step 1 evidence, the derivation and the audit report stand in for the listing, and are re-posted in the current turn. **Do not trust an on-disk copy of any artifact this listing would have named**, each on the terms its own per-artifact arm above states. Filing is never blocked.
+The refused `.prflow/tmp` write that put this run on this arm leaves the paths Step 4's listing names either missing or holding a prior run's bytes, so that listing can succeed and still show nothing this run wrote. **Do not trust an on-disk copy of any artifact it names**, each on the terms its own per-artifact arm above states, and re-enter no producing step on the strength of those entries. Where an arm above has already posted its artifact as a **visible inline-in-chat block** this run, that block is the listing's stand-in and is re-posted in the current turn; where none was posted, report the listing **unestablished**. Filing is never blocked.
 
 ## Step 4 — the investigation-record artifact
 
