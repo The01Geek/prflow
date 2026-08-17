@@ -28,14 +28,14 @@ Reached only from Stage 2's absent-path arm, once per named path that arm found 
    git push
    ```
 
-4. **Re-check against the remote.** Read each result from the tool output, never a captured shell variable. Confirm the commit and the push both reported success, then compare the two readings below: an **unequal** pair means the repair did not reach the remote, while an **unavailable** upstream reading — the push form used here configures no upstream, so the commit can be delivered with none — establishes nothing and is reported as an unestablished reading in step 5, never as a failed repair.
+4. **Re-check against the remote.** Read each result from the tool output, never a captured shell variable. Confirm the commit and the push both reported success, then compare the two readings below: an **unequal or unavailable** pair means the repair did not reach the remote.
    ```bash
    git rev-parse HEAD
    ```
    ```bash
    git rev-parse @{u}
    ```
-   Then re-check this path against the diff, taking **none** of Stage 2's terminal arms from inside this reference — no run-status write, no outcome reaction, no stop — because a terminal taken here abandons the caller's remaining absent paths mid-loop. Borrow only Stage 2's mechanics: re-run the deliverables helper, then the cumulative diff, and apply its satisfied-versus-absent rule; only a path now present in the re-checked diff counts as satisfied. On any reading Stage 2 would route to a terminal — a deliverables token other than `deliverables` or `no-deliverables`, or a diff recompute that still exits non-zero — record the observed token or exit status, treat this path as not repaired, and continue to step 5. The caller routes a helper-token observation through its **Shared read contract** arms and a failed diff recompute through its Stage 2 diff step's fail-closed arm; the content-derivation terminal would instead record a cause the operator cannot act on.
+   Then re-check this path against the diff, taking **none** of Stage 2's terminal arms from inside this reference — no run-status write, no outcome reaction, no stop — because a terminal taken here abandons the caller's remaining absent paths mid-loop. Borrow only Stage 2's mechanics: re-run the deliverables helper, then the cumulative diff, and apply its satisfied-versus-absent rule; only a path now present in the re-checked diff counts as satisfied. On any reading Stage 2 would route to a terminal — a deliverables token other than `deliverables` or `no-deliverables`, or a diff recompute that still exits non-zero — carry the observed token or exit status into the step 5 report, treat this path as not repaired, and continue.
 
 5. **Report the per-path outcome to the caller** — repaired-and-verified, or not repaired naming which of steps 1–4 failed or could not be established, plus any step-2 workpad note that went unrecorded.
 

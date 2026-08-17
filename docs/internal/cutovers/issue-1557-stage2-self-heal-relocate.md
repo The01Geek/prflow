@@ -16,22 +16,23 @@ agent's own report of a `Read`.
 
 ## Measured delta — a 62-byte reduction, not the reduction the precedents bought
 
-Counted with `wc -c`; the Before column is merge base `3e43e7b32` and the After column is `4bfc8d65f`,
-captured 2026-08-17.
+Counted with `wc -c`; the Before column is merge base `3e43e7b32` and the After column is the head this
+record ships on, captured 2026-08-17.
 
 | File | Before | After | Delta |
 | --- | --- | --- | --- |
 | `skills/implement/phases/phase-4-documentation.md` | 59,113 | 59,051 | **−62** |
-| `skills/implement/references/doc-deliverable-self-heal.md` | — | 4,148 | +4,148 |
+| `skills/implement/references/doc-deliverable-self-heal.md` | — | 3,682 | +3,682 |
 
 **Read that number before assuming this move resembles its precedents.** Issues #815 and #1374 each cut
 their always-read surface by tens of thousands of bytes. This one cuts 62 — about a tenth of one
 percent — which over the two mandated Phase 4 reads is 124 bytes of context per run, against the whole
 reference loaded on the repair path when a deliverable is actually absent. On any run that owes a repair
 the change is net additive by well over an order of magnitude; only a run that owes none comes out
-ahead, and then barely. **The reference's figure is the volatile one and it moved three times inside
-this pull request** — 2,534 at the first draft, then 3,725 and 4,148 as successive review iterations
-fixed it — so read the row as measured at the SHA named above, not as a stable property of the design.
+ahead, and then barely. **The reference's figure is the volatile one and it moved four times inside this
+pull request** — 2,534 at the first draft, then 3,725 and 4,148 as successive review iterations fixed
+it, then back to 3,682 when the last iteration reverted a relaxation and deleted a routing claim the
+caller could not honour. Read the row as this record's own measurement, not a property of the design.
 
 The arithmetic is structural rather than an authoring failure. A **split** leaves the `Blocked` terminal
 resident where a **wholesale move** takes it along, and adds a gated-load instruction and a degraded arm
