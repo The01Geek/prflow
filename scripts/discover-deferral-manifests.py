@@ -44,7 +44,12 @@ i.e. whenever at least one root argument was supplied, so an `absent` root is
 observable rather than silent. The zero-argument usage error (exit 2) returns
 before any root is classified and therefore emits only the usage message.
 Failed roots additionally emit a per-root breadcrumb, and a discovery run emits
-at most one aggregate discrimination marker naming the cause.
+at most one aggregate discrimination marker naming the cause. That marker's
+exclusivity holds for a caller passing path-safe roots: the per-root breadcrumb
+interpolates the root path and the OSError text, so a caller passing a root that
+itself contains a marker substring can defeat it. The §4.0.5 fence cannot — both
+its roots are `pr-<N>` and an `[a-z0-9._-]`-sanitized branch slug — but this
+helper does not sanitize argv, so the guarantee rests on that input discipline.
 
 Exit codes (discovery mode):
     0  no root classified `failed` (all ok/absent, including zero total matches)

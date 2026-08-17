@@ -35253,7 +35253,7 @@ s=importlib.util.spec_from_file_location("e",sys.argv[1]);m=importlib.util.modul
 h=m.extract_heads(open(sys.argv[2],encoding="utf-8").read());print(len({m.name_of(x) for x in h}))' "$ECH" "$REVIEW_BUNDLE")"
 
 # #426 no-skew property: Phase 1.1's awk batch-slice fence and its confirm reuse
-# heads (awk, tee, grep, test, echo) already granted in BOTH cloud
+# heads (awk, tee, grep) already granted in BOTH cloud
 # TOOLS='…' lines; tee remains granted+used by Phase 0.2's cache-write. So the change
 # adds NO allowlist entry and cannot create the #363 consumer-workflow-version-skew
 # class. Pin EVERY head the fence depends on — `grep` included: it counts the authored
