@@ -51,7 +51,7 @@ allowed-command list in front of the agent **up front**, so a refused shape is a
 against a list it already has rather than a guess.
 
 `scripts/render-grounding-block.sh` injects the **exact resolved `--allowed-tools`
-string** (section 2 of the review-tier block) plus the command-shape rules (section 3)
+string** (section 2 of the review-tier block) plus the command-shape rules (section 3),
 the headless-run discipline (section 4) and the independent-tool-call batching
 disposition (section 5). Those four section numbers are the review-tier numbering; the
 implement tier omits the three review-only sections and renumbers those four survivors

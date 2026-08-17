@@ -363,8 +363,10 @@ ${ALLOWED_TOOLS}
 > other's result.** Two edits to one file are dependent unless you can establish that
 > neither's match text falls inside the other's replacement. Two dispatches that can
 > both write the shared checkout are dependent unless the runner gives each its own
-> working copy — otherwise they race and silently overwrite each other — and each still
-> owes the commit-before-dispatch obligation stated where that dispatch is defined.
+> working copy, or where whether it does is unestablished — otherwise they race and
+> silently overwrite each other. Either way, every write-capable dispatch still owes the
+> commit-before-dispatch obligation stated where that dispatch is defined; a working copy
+> of its own is a stronger way to meet that obligation, never a replacement for it.
 > None of this is a rule about writing fewer, larger edits: how many hunks a single
 > edit carries is a separate question this says nothing about.
 >
