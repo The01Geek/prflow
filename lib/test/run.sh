@@ -39269,7 +39269,7 @@ assert_eq "#1721 the failing producer stages no candidate (its failure reading p
   "$(test ! -e "$SP503_FENCE_CACHE/diff.raw-candidate" && echo yes || echo no)"
 # The producer must stay pipeline-free and free of `$?`, or its exit status stops being git's own;
 # `$?` additionally makes the whole fence refused on a worktree-isolated session. A reintroduced
-# redirect is caught by the typechange equation below, not here: the placeholder contains a `>`.
+# redirect is caught by the typechange equation below, since the placeholder itself contains one.
 assert_eq "#1721 the producer stays a bare command (no pipe, no staging target, no rc read)" "yes" \
   "$(grep -qE '\||tee |diff\.raw-candidate|[$][?]' "$SP503_FENCE_DIR/producer-unresolved.sh" && echo no || echo yes)"
 # A typechange is ONE producer row but TWO `diff --git` sections, so the staging equation reads
