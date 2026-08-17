@@ -36307,6 +36307,75 @@ assert_pin_unique "#1374 the §4.0.5 stub retains the portable anchor as the pre
 # prompt-extension trigger-glob lists) deliberately carry NO presence pin:
 # a documentation-presence assertion is exactly the wording-only class the #810 authoring
 # policy prohibits, and the #434 stale-prose self-scan is what covers doc drift.
+
+# ── #1557 Phase 4.1 Stage 2's SELF-HEAL REPAIR is a gated reference; the gate stays resident ──
+# Unlike #815/#1374, which moved a whole procedure behind a predicate, this move is a SPLIT: the
+# enforcement decision (satisfied-versus-absent) and the undeliverable-path Blocked terminal stay
+# in the phase file, so a failed reference load costs the run its repair and never its gate. The
+# assertions below therefore pin both halves — the reference's own load contract, and the zero
+# count proving the repair actually LEFT the phase file's Stage 2.
+echo "#1557 documentation-deliverable self-heal reference gating"
+I1557_REF="$IMPL_REFS_DIR/doc-deliverable-self-heal.md"
+assert_eq "#1557 the gated reference exists and is non-empty" "yes" \
+  "$([ -s "$I1557_REF" ] && echo yes || echo no)"  # structural-pin-ok: routing-dispatch-contract -- the stub's absent-path arm reads this exact path; an absent or empty file routes every repair to the degraded arm
+assert_eq "#1557 the reference's first line is its own start boundary marker" \
+  '<!-- prflow:implement-ref step=4.1 file=skills/implement/references/doc-deliverable-self-heal.md start -->' \
+  "$(head -1 "$I1557_REF")"  # structural-pin-ok: routing-dispatch-contract -- the marker the stub literal-matches to accept the load
+assert_eq "#1557 the reference's last line is the matching end boundary marker" \
+  '<!-- prflow:implement-ref step=4.1 file=skills/implement/references/doc-deliverable-self-heal.md end -->' \
+  "$(tail -1 "$I1557_REF")"  # structural-pin-ok: routing-dispatch-contract -- the closing half of the same accept-the-load contract
+# A first-line and last-line check alone accepts a file carrying a DUPLICATE marker mid-file,
+# which would let a reader clear the boundary contract over a truncated or spliced body. Count
+# each marker separately so a one-sided duplication is attributable.
+assert_pin_unique "#1557 the reference's start marker occurs exactly once" \
+  '<!-- prflow:implement-ref step=4.1 file=skills/implement/references/doc-deliverable-self-heal.md start -->' \
+  "$I1557_REF"  # structural-pin-ok: routing-dispatch-contract -- a mid-file duplicate would pass a first-line check while the body it opens is not the body the gate accepted
+assert_pin_unique "#1557 the reference's end marker occurs exactly once" \
+  '<!-- prflow:implement-ref step=4.1 file=skills/implement/references/doc-deliverable-self-heal.md end -->' \
+  "$I1557_REF"  # structural-pin-ok: routing-dispatch-contract -- the closing half of the same duplication guard
+# Named twice by design (the load instruction and the degraded arm), so this is a COUNT, not a
+# uniqueness pin: dropping either occurrence leaves the stub naming the reference on only one of
+# the two paths a reader reaches it by.
+assert_eq "#1557 the stub names the reference through the <skill-dir> anchor on both paths" "2" \
+  "$(grep -cF '<skill-dir>/references/doc-deliverable-self-heal.md' "$P4_FILE" || true)"  # structural-pin-ok: routing-dispatch-contract -- the anchored path the stub's absent-path arm resolves the gated load from
+# The move is what buys the reduction, so assert the repair actually LEFT the phase file rather
+# than being duplicated into the reference. SECTION-scoped, as #815's is: the phase file's §4.3
+# carries its own landing check, so a whole-file count would measure something other than Stage 2.
+I1557_S2="$(probe_tmp '#1557 phase-file Stage 2 slice')"
+if [ "$I1557_S2" != "/dev/null" ]; then
+  sed -n '/^\*\*Stage 2 —/,/config-get\.sh \.docs\.labels Documented/p' "$P4_FILE" > "$I1557_S2"
+  assert_eq "#1557 the Stage-2 slice is non-empty (the count below is not vacuous)" "yes" \
+    "$([ -s "$I1557_S2" ] && echo yes || echo no)"
+  assert_eq "#1557 Stage 2 no longer carries the self-heal repair step" "0" \
+    "$(grep -cF 'performed update from Documentation Needed prose' "$I1557_S2" || true)"
+else
+  # Scratch allocation failed, so the slice cannot be cut. Route through the #456 skip helper
+  # rather than letting the only assertion that the repair LEFT Stage 2 silently vanish.
+  skip "#1557 Stage 2 no longer carries the self-heal repair step" host-capability \
+    "could not allocate a scratch file for the Stage-2 slice"
+fi
+# The slice's terminator is a machine-consumed helper invocation rather than a prose sentence, so
+# it cannot be reworded by an ordinary prose edit — but it CAN be deleted or re-pointed, and a
+# vanished terminator silently widens the sed range to end-of-file, restoring the vacuity the
+# section scoping exists to close. Pin its retention so that widening turns the suite RED.
+assert_pin_unique "#1557 the phase file retains the Stage-2 slice terminator (the sed range ends on it)" \
+  'config-get.sh .docs.labels Documented' "$P4_FILE"  # structural-pin-ok: cross-file-phase-contract -- the sed range above terminates on this literal; without it the slice runs to EOF and its zero count no longer attributes what it measures to Stage 2
+assert_eq "#1557 the phases/ directory reconciliation is untouched (the reference is NOT a phase stem)" "yes" \
+  "$([ ! -e "$IMPL_PHASES_DIR/doc-deliverable-self-heal.md" ] && \
+     [ "$IMPL_PHASE_STEMS" = "phase-1-setup phase-2-implement phase-2-sweeps-contract phase-2-sweeps-quality phase-3-review phase-3-fix-loop phase-3-ac-gate phase-4-documentation" ] \
+     && echo yes || echo no)"
+assert_eq "#1557 the implement shape-lint population reaches the third gated reference" "yes" \
+  "$(printf '%s\n' "${IMPL_SHAPE_FILES[@]}" | grep -qxF "$I1557_REF" && echo yes || echo no)"
+assert_eq "#1557 the cloud-writer manifest classifies the third gated reference as a reachable asset" "yes" \
+  "$(grep -qF 'skills/implement/references/doc-deliverable-self-heal.md' "$LIB/../lib/test/cloud_writer_contract.py" && echo yes || echo no)"  # structural-pin-ok: generated-artifact-identity -- an unlisted reachable asset is an AC1 closure violation the required check reports
+# The relocated fences carry the worktree-refused-expansion audit with them: that lint's
+# enrollment is hand-maintained and blind to a new file, so an unenrolled reference ships its
+# fences unguarded while every assertion above still passes.
+assert_eq "#1557 the worktree-fence-shape lint enrolls the gated reference" "yes" \
+  "$(grep -qF 'skills/implement/references/doc-deliverable-self-heal.md' "$LIB/../lib/test/lint-worktree-fence-shapes.py" && echo yes || echo no)"  # structural-pin-ok: cross-file-phase-contract -- the enrollment tuple is hand-maintained; an unenrolled file's fences are audited by nothing
+assert_eq "#1557 the anchor-fallback lint enrolls the relocated workpad.py call site" "yes" \
+  "$(grep -qF 'skills/implement/references/doc-deliverable-self-heal.md' "$LIB/../lib/test/lint-anchor-fallback-arm.py" && echo yes || echo no)"  # structural-pin-ok: routing-dispatch-contract -- the relocated call site is cloud-reachable, so its vendored-literal-first ladder is what keeps it from being refused on the implement tier
+
 # The masker's paren-depth arithmetic inside a code frame had no nested fixture.
 { printf '%s\n' '```bash' "gh issue create --body \"\$(cat <<'EOF'" 'prose $(echo nested) more' 'EOF' ')"' 'for n in 1 2; do .prflow/vendor/prflow/scripts/apply-labels.sh "$n" DevFlow; done' '```'; } > "$E363/i-nested-subst.md"
 assert_eq "#480 a NESTED substitution inside the heredoc body does not unbalance the masker (the loop after it still flags IR1)" "yes" \

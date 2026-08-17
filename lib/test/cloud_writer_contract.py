@@ -189,6 +189,9 @@ SKILL_ASSETS = {
         # issue #1374: Phase 4.0.5's deferred-review-finding filing procedure is
         # reached the same way, through its own presence predicate.
         "skills/implement/references/deferred-review-findings.md",
+        # Phase 4.1 Stage 2's self-heal repair procedure is reached the same way,
+        # through its own absent-path predicate.
+        "skills/implement/references/doc-deliverable-self-heal.md",
     ],
     "review": [
         "skills/review/SKILL.md",

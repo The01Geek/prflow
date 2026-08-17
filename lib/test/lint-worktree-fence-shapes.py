@@ -116,6 +116,10 @@ ENROLLED: tuple[str, ...] = (
     "skills/implement/phases/phase-2-sweeps-quality.md",
     "skills/implement/phases/phase-3-review.md",
     "skills/implement/phases/phase-4-documentation.md",
+    # The Phase 4.1 Stage 2 self-heal repair moved here from the phase file and brought its
+    # bash fences with it; this tuple is hand-maintained, so an unenrolled reference ships
+    # those fences unaudited.
+    "skills/implement/references/doc-deliverable-self-heal.md",
 )
 
 #: The files the AC requires the inventory to contain at minimum. A built-in (or
