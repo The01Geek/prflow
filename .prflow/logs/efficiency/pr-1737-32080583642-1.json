@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1737",
+  "generated_at": "2026-08-17T23:40:06Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.6",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 5.4634487499999995,
+    "tokens": {
+      "input_tokens": 46,
+      "output_tokens": 32087,
+      "cache_read_input_tokens": 3370659,
+      "cache_creation_input_tokens": 199539,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 60,
+        "outputTokens": 41814,
+        "cacheReadInputTokens": 3788505,
+        "cacheCreationInputTokens": 284044,
+        "webSearchRequests": 0,
+        "costUSD": 5.4634487499999995,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 34,
+    "duration_ms": 592666
+  },
+  "permission_denials": {
+    "count": 6,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-<none>} ATTEMPT=${GITHUB_RUN_ATTEMPT:-<none>}\"; git status --porcelain | head; echo \"---base---\"; .prflow/vendor/prflow/scripts/config-get.sh .base_branch main",
+      "SHA=adfcaebf7f1296b3d5c6102c4b2387b8cfbabc97\necho \"=== Move 2a / Move 3 in shipped skills/ + .prflow ext (HEAD tree) ===\"\nfor f in $(git ls-tree -r --name-only $SHA -- skills/ .prflow/prompt-extensions/ 2>/dev/null); do\n  git show $SHA:\"$f\" 2>/dev/null | grep -Hn --label=\"$f\" 'Move 2a\\|Move 3' \ndone\necho \"=== done skills ===\"",
+      "for f in skills/create-issue/references/issue-template.md skills/create-issue/references/quality-group-regression.md skills/create-issue/references/quality-group-contracts.md skills/create-issue/references/quality-group-semantic.md skills/create-issue/references/step-3-5-steelman.md skills/create-issue/references/degradation-routing.md skills/create-issue/SKILL.md; do\n  echo \"### $f\"\n  git show adfcaebf7f1296b3d5c6102c4b2387b8cfbabc97:\"$f\" 2>/dev/null | grep -n 'Move 2a\\|Move 3\\|three moves\\|Mov …[per-command-truncated]",
+      "for p in issue-template quality-group-semantic quality-group-regression quality-group-contracts quality-group-premises quality-group-compatibility step-3-5-steelman; do\n  echo \"### $p\"\ndone 2>/dev/null\necho \"--- semantic head ---\"; git show adfcaebf7f1296b3d5c6102c4b2387b8cfbabc97:skills/create-issue/references/quality-group-semantic.md | grep -n 'reproducible verification\\|verification checklist'\necho \"--- premises head ---\"; git show adfcaebf7f1296b3d5c6102c4b2387b8cfbabc97:skills/create-issue …[per-command-truncated]",
+      "for f in skills/create-issue/references/issue-template.md skills/create-issue/references/quality-group-semantic.md skills/create-issue/references/quality-group-regression.md; do echo \"=== $f ===\"; git show adfcaebf7f1296b3d5c6102c4b2387b8cfbabc97:$f | grep -n \"reproducible verification\\|manual checklist\\|residual-risk\\|Move 2a\\|Move 3\\|reproducible stand-in\\|stand-in\"; done",
+      "for f in skills/create-issue/references/issue-template.md skills/create-issue/references/quality-group-regression.md skills/create-issue/references/quality-group-semantic.md skills/create-issue/references/quality-group-contracts.md; do echo \"=== $f ===\"; git show adfcaebf7f1296b3d5c6102c4b2387b8cfbabc97:$f | grep -ni 'not be mocked\\|never mock\\|test doubles\\|fixtures it\\|reproducible stand-in\\|reproducible verification\\|numbered manual' ; done"
+    ],
+    "total": 6,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
