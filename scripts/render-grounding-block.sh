@@ -234,9 +234,9 @@ fi
 # Section numbers depend on the tier. A block with no reviewed commit omits the CI
 # section and the trusted-source-displacement section, so its survivors renumber
 # 1/2/3/4; the review block keeps 2/3/4/5 (the review-only sole-publisher (6) and
-# displacement (7) sections are appended after them). N_BATCH is derived from
-# N_HEADLESS rather than written twice: the batching section is tier-agnostic, so a
-# hand-written pair could drift between the two branches and renumber only one tier.
+# displacement (7) sections are appended after them). Never write N_BATCH as a literal
+# in both branches below: the batching section is tier-agnostic, and a hand-written pair
+# drifts, renumbering one tier and not the other.
 # The block is assembled from three `cat` heredocs (header, the review-only CI section,
 # then the shared permitted-commands/shapes/headless/batching tail) rather than one.
 if [ "$REVIEWED_COMMIT" = yes ]; then
