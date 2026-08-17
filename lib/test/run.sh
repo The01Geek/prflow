@@ -4692,22 +4692,19 @@ assert_pin_unique "#254: Phase 4.0.5 keeps the aggregate at the pr-<N> slug path
 # deferrals were stranded with no signal (observed live on issue #533). The helper's exit
 # code carries discovery status, the fence discriminates it into DISCOVERY_STATE, and the
 # reader routing gains fail-closed arms. Pin the discovery statement, the sentinel field,
-# the extended filing guard, roots-echo surfacing, and the two routing arms.
+# the extended filing guard, and the single degraded arm.
 assert_pin_unique "#555: Phase 4.0.5 discovers manifests through the fail-closed helper" \
   'if MANIFESTS=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/discover-deferral-manifests.py $SEARCH_DIRS); then' "$P405_REF"  # structural-pin-ok: helper-contract -- the discovery invocation guarded on its OWN inline exit status is a typed executable boundary between the fence and discover-deferral-manifests.py; the #1721 move off the harness-refused 2> capture changed the literal's text but not the contract it protects, exactly as the #915 move off cloud-denied /tmp did.
 assert_pin_unique "#555: Phase 4.0.5 initializes DISCOVERY_STATE empty before the discovery statement (the #480 sentinel-operand rule)" \
   'DISCOVERY_STATE=""' "$P405_REF"  # structural-pin-ok: lifecycle-state-transition -- the pre-statement initialization that makes a refused discovery observable as discovery=[] rather than aborting the sentinel
-assert_pin_unique "#555: Phase 4.0.5 discriminates the partial discovery from the helper's own exit status" \
-  'elif [ -n "$MANIFESTS" ]; then' "$P405_REF"  # structural-pin-ok: helper-contract -- discover-deferral-manifests.py prints the clean roots' paths on its partial arm and nothing on its total-failure arms, so this is the typed executable boundary that reads partial-vs-failed without hopping the status across statements; the #1721 move off the harness-refused 2> capture changed the literal's text but not the contract it protects.
-assert_pin_unique "#555: the failed/refused arm blanks MANIFESTS so the merge guard is unambiguously false" \
-  'DISCOVERY_STATE=failed' "$P405_REF"  # structural-pin-ok: lifecycle-state-transition -- the failed/refused arm's state assignment, which the filing guard below reads to refuse filing
+assert_pin_unique "#555: Phase 4.0.5 collapses every non-zero discovery status into one after-fence-classified state" \
+  'DISCOVERY_STATE=degraded' "$P405_REF"  # structural-pin-ok: lifecycle-state-transition -- the single non-zero arm's state assignment; splitting it inside the fence on stdout emptiness routes a partial run whose clean roots matched nothing to a refusal, stranding a prior run's unfiled aggregate
 assert_pin_unique "#555: the sentinel carries the discovery= field, guarded with :- like filing=" \
   'discovery=[${DISCOVERY_STATE:-}]' "$P405_REF"  # structural-pin-ok: machine-sentinel-provenance -- the emitted sentinel field the reader's fail-closed routing literal-matches; without it a failed discovery is indistinguishable from a clean no-op
-assert_pin_unique "#555: the filing guard requires a successful discovery (a persisted prior aggregate must not drive filing on a failed/refused discovery)" \
-  '{ [ "$DISCOVERY_STATE" = ok ] || [ "$DISCOVERY_STATE" = partial ]; } && [ -n "$AGG" ] && [ -s "$AGG" ]' "$P405_REF"  # structural-pin-ok: routing-dispatch-contract -- the guard that stops a persisted prior aggregate from driving filing on a failed or refused discovery
-# (#1721) Do NOT re-pin the retired roots-echo surfacing over its replacement prose: a prose
-# literal trips pin-corpus-lint's prose-resolution arm (rc 3) before any `# structural-pin-ok:`
-# declaration is read.
+assert_pin_unique "#555: the filing guard requires a discovery that ran (a persisted prior aggregate must not drive filing on a refused discovery)" \
+  '{ [ "$DISCOVERY_STATE" = ok ] || [ "$DISCOVERY_STATE" = degraded ]; } && [ -n "$AGG" ] && [ -s "$AGG" ]' "$P405_REF"  # structural-pin-ok: routing-dispatch-contract -- the guard that stops a persisted prior aggregate from driving filing on a refused discovery, while still admitting the degraded arm so a partial run can retry a prior run's unfiled aggregate
+# (#1721) Do NOT re-pin the retired roots-echo surfacing over its replacement prose — see the
+# prose-literal note beside the SP503 fence contracts.
 # ── issue #555 (review finding): a bundled helper granted as a vendored-literal LEADING
 # TOKEN is exec'd by path — no `python3`/`bash` wrapper is available, because an interpreter
 # head is ungranted on the cloud tiers. Without the exec bit such a call dies rc 126 on every
@@ -35259,13 +35256,11 @@ h=m.extract_heads(open(sys.argv[2],encoding="utf-8").read());print(len({m.name_o
 # heads (awk, tee, grep, test, echo) already granted in BOTH cloud
 # TOOLS='…' lines; tee remains granted+used by Phase 0.2's cache-write. So the change
 # adds NO allowlist entry and cannot create the #363 consumer-workflow-version-skew
-# class. Pin EVERY head the fence depends on — `echo` included: it is the fence's
-# slice-ok/slice-failed result marker, so a dropped `Bash(echo:*)` grant would silently
-# deny the very command that reports whether the slice is usable, and the rest of the
-# fence would still look granted. (tee too — Phase 0.2 still needs it.) The head-count
-# assertion above names `echo` as this fence's new dependency; this loop is the coupled
-# site that must enumerate it, or the "no head silently loses its grant" pin has a hole
-# exactly where the fence is newest.
+# class. Pin EVERY head the fence depends on — `grep` included: it counts the authored
+# slice, so a dropped `Bash(grep:*)` grant would silently deny the very command that
+# reports whether the slice landed whole, and the rest of the fence would still look
+# granted. This loop is the coupled site that must enumerate each head, or the "no head
+# silently loses its grant" pin has a hole exactly where the fence is newest.
 REV_TOOLS_RUNNER="$LIB/../.github/workflows/devflow-runner.yml"
 REV_TOOLS_CMD="$LIB/../.github/workflows/devflow.yml"
 for _rev_head in 'Bash(awk:*)' 'Bash(tee:*)' 'Bash(grep:*)' 'Bash(test:*)' 'Bash(echo:*)'; do
@@ -39106,7 +39101,8 @@ printf '%s\n' \
 SP503_FILTERED="$(sed -e "s#\.prflow/tmp/review/<slug>/<run-id>/diff\.raw-candidate#$SP503_FENCE_DIR/fixture.patch#g" \
   -e "s#\.prflow/tmp/review/<slug>/<run-id>#$SP503_FENCE_CACHE#g" \
   "$SP503_FENCE_DIR/filter.sh" | bash 2>&1)"
-# The filter tees into diff.patch, so the published file is what the generator would read.
+# Read the tee'd FILE, not $SP503_FILTERED: the fence's last stage is `grep -c`, so the captured
+# stdout holds only the section count and every content assertion below would match nothing.
 SP503_PUBLISHED="$(cat "$SP503_FENCE_CACHE/diff.patch" 2>/dev/null)"
 assert_eq "#1721 the filter keeps a non-logs hunk" "yes" \
   "$(printf '%s' "$SP503_PUBLISHED" | grep -qF '+review payload' && echo yes || echo no)"
@@ -39119,15 +39115,26 @@ assert_eq "#1721 the filter's printed section count equals the published section
 
 # (#1721) The step-4 logs count must anchor on ` [ab]/` like the filter: an `a/`-only pattern
 # misses a section renamed INTO .prflow/logs/, breaking the published == raw - logs equation on a
-# healthy filter and stopping a valid diff.
+# healthy filter and stopping a valid diff. Both operands are EXTRACTED from the skill, so an
+# `a/`-only drift in the shipped step 4 turns this red; hand copies here would assert only that
+# run.sh agrees with itself.
+awk '/^# BEGIN LOCAL_DIFF_LOGS_COUNT/{capture=1; next} capture && /^# END LOCAL_DIFF_LOGS_COUNT/{exit} capture' \
+  "$SP_REVIEW" > "$SP503_FENCE_DIR/logs-count.sh"
+assert_eq "#1721 the LOCAL_DIFF_LOGS_COUNT marker pair extracts a non-empty command" "yes" \
+  "$(test -s "$SP503_FENCE_DIR/logs-count.sh" && echo yes || echo no)"
 printf '%s\n' \
   'diff --git a/feature b/feature' '+payload' \
   'diff --git a/.prflow/logs/t.tsv b/.prflow/logs/t.tsv' '+rooted' \
   'diff --git a/src/old.txt b/.prflow/logs/new.tsv' '+renamed into logs' \
   > "$SP503_FENCE_DIR/rename.patch"
+sed "s#\.prflow/tmp/review/<slug>/<run-id>/diff\.raw-candidate#$SP503_FENCE_DIR/rename.patch#g" \
+  "$SP503_FENCE_DIR/logs-count.sh" > "$SP503_FENCE_DIR/logs-count-resolved.sh"
+sed -e "s#\.prflow/tmp/review/<slug>/<run-id>/diff\.raw-candidate#$SP503_FENCE_DIR/rename.patch#g" \
+  -e "s#\.prflow/tmp/review/<slug>/<run-id>#$SP503_FENCE_CACHE#g" \
+  "$SP503_FENCE_DIR/filter.sh" > "$SP503_FENCE_DIR/filter-rename.sh"
 SP503_RAW_N="$(grep -c '^diff --git' "$SP503_FENCE_DIR/rename.patch")"
-SP503_LOGS_N="$(grep -c '^diff --git.* [ab]/\.prflow/logs/' "$SP503_FENCE_DIR/rename.patch")"
-SP503_PUB_N="$(awk '/^diff --git/{in_logs=/ [ab]\/\.prflow\/logs\//} !in_logs' "$SP503_FENCE_DIR/rename.patch" | grep -c '^diff --git')"
+SP503_LOGS_N="$(bash "$SP503_FENCE_DIR/logs-count-resolved.sh")"
+SP503_PUB_N="$(bash "$SP503_FENCE_DIR/filter-rename.sh" | tail -1)"
 assert_eq "#1721 the staging equation holds when a section is renamed INTO .prflow/logs/" "yes" \
   "$([ "$SP503_PUB_N" -eq "$((SP503_RAW_N - SP503_LOGS_N))" ] && echo yes || echo no)"
 
@@ -39145,8 +39152,13 @@ rm -f "$SP503_FENCE_CACHE/diff.raw-candidate"
 SP503_UNRESOLVED_RC=$?
 assert_eq "#1721 unresolved local-base placeholder fails nonzero rather than diffing an empty range" "yes" \
   "$(test "$SP503_UNRESOLVED_RC" -ne 0 && echo yes || echo no)"
-# The producer must stay pipeline-free, redirect-free and free of `$?`, or its exit status stops
-# being git's own; `$?` additionally makes the whole fence refused on a worktree-isolated session.
+# The `rm -f` above is this row's setup: a producer that staged anything would leave the candidate
+# behind on the failing run, and the failure reading would then fire after a cache already existed.
+assert_eq "#1721 the failing producer stages no candidate (its failure reading precedes any cache)" "yes" \
+  "$(test ! -e "$SP503_FENCE_CACHE/diff.raw-candidate" && echo yes || echo no)"
+# The producer must stay pipeline-free and free of `$?`, or its exit status stops being git's own;
+# `$?` additionally makes the whole fence refused on a worktree-isolated session. A reintroduced
+# redirect is caught by the typechange equation below, not here: the placeholder contains a `>`.
 assert_eq "#1721 the producer stays a bare command (no pipe, no staging target, no rc read)" "yes" \
   "$(grep -qE '\||tee |diff\.raw-candidate|[$][?]' "$SP503_FENCE_DIR/producer-unresolved.sh" && echo no || echo yes)"
 # A typechange is ONE producer row but TWO `diff --git` sections, so the staging equation reads
@@ -39253,7 +39265,7 @@ for SP503_BASE_FAIL_MODE in unreachable retry_fail deleted_unreachable transient
   assert_eq "#503 base fence $SP503_BASE_FAIL_MODE preserves the terminal rc" \
     "$SP503_BASE_EXPECT_RC" "$SP503_BASE_RC"
   assert_eq "#503 base fence $SP503_BASE_FAIL_MODE removes stale and candidate caches" \
-    "0" "$(test ! -e "$SP503_BASE_CACHE/diff.patch" && test ! -e "$SP503_BASE_CACHE/diff.raw-candidate" && test ! -e "$SP503_BASE_CACHE/diff.candidate"; echo $?)"
+    "0" "$(test ! -e "$SP503_BASE_CACHE/diff.patch" && test ! -e "$SP503_BASE_CACHE/diff.raw-candidate"; echo $?)"
 done
 rm -rf "$SP503_BASE_DIR"
 

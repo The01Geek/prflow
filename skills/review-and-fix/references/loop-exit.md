@@ -196,7 +196,7 @@ All derivation lives in `lib/efficiency-trace.jq` (a mechanical jq filter, no LL
    # this invocation's own tool result showed, or the literal stderr=empty when it showed none;
    # it is a template slot, never text to emit literally.
    if ! ENABLED=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .prflow_review_and_fix.efficiency_telemetry_enabled true); then
-     echo "::warning::devflow efficiency-trace gate read failed (config-get.sh rc≠0) — skipping trace; cause follows"
+     echo "::warning::devflow efficiency-trace gate read failed (config-get.sh rc≠0): <stderr-quote> — skipping trace"
      ENABLED=false
    fi
    ```
@@ -218,9 +218,9 @@ All derivation lives in `lib/efficiency-trace.jq` (a mechanical jq filter, no LL
    # fires as the first line of the stderr this invocation's own tool result showed, or the
    # literal stderr=empty when it showed none; it is a slot, never text to emit literally.
    if ! TRACE="$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/efficiency-trace.sh --workpad-dir "$WORKPAD_DIR" --slug "<slug>" --mode trace)"; then
-     echo "::warning::devflow efficiency-trace unavailable (rc≠0); cause follows"
+     echo "::warning::devflow efficiency-trace unavailable (rc≠0): <stderr-quote>"
    elif [ -z "$TRACE" ]; then
-     echo "::warning::devflow efficiency-trace produced no output (all workpads unreadable/malformed?)"
+     echo "::warning::devflow efficiency-trace produced no output (all workpads unreadable/malformed?): <stderr-quote>"
    else
      printf '%s\n' "$TRACE"
    fi

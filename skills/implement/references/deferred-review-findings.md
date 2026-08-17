@@ -31,24 +31,23 @@ SEARCH_DIRS="$SLUG_DIR"
 # $SEARCH_DIRS is path-safe, so its unquoted word-split into the helper's argv is safe.
 # Discovery is delegated to a stdlib-only Python helper that searches EACH root independently
 # and preserves discovery status through its EXIT CODE, so a failed search is observable instead
-# of masked as a clean no-match (which would strand acknowledged deferrals). Route on that status
-# alone: 0 = paths printed, every root ok/absent; a non-zero status is degraded, and the helper
-# prints the clean roots' paths only on the PARTIAL arm — so a non-empty capture under a non-zero
-# status is `partial` and an empty one is `failed`. Do NOT capture the status into a variable a
-# later statement reads: a runner that strips cross-statement variables leaves it empty and every
-# healthy discovery routes to the unrecognised arm. Do NOT add a `2>file` stderr capture either —
-# the harness refuses an output redirection and returns NO OUTPUT AT ALL, losing the whole fence.
+# of masked as a clean no-match (which would strand acknowledged deferrals). Do NOT derive
+# partial-from-failed inside the fence by testing whether the capture is non-empty: a PARTIAL run
+# whose surviving roots hold no manifest prints nothing, so that reading routes it to `failed`,
+# the filing guard below refuses it, and a prior run's unfiled aggregate is never retried. Every
+# non-zero status is `degraded`, classified after the fence from the helper's own markers, which
+# reach this fence's tool result unchanged. Do NOT capture the status into a variable a later
+# statement reads either: a runner that strips cross-statement variables leaves it empty and every
+# healthy discovery routes to the degraded arm. Do NOT add a `2>file` stderr capture — the harness
+# refuses an output redirection and returns NO OUTPUT AT ALL, losing the whole fence.
 # DISCOVERY_STATE is initialized empty BEFORE the statement (sentinel-operand rule); a matcher
 # refusal of the capture (treat NO OUTPUT AT ALL as a possible denial, never an empty value)
-# leaves MANIFESTS empty and routes fail-closed to `failed`.
+# leaves it empty, printed as discovery=[] and routed fail-closed.
 DISCOVERY_STATE=""
 if MANIFESTS=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/discover-deferral-manifests.py $SEARCH_DIRS); then
     DISCOVERY_STATE=ok
-elif [ -n "$MANIFESTS" ]; then
-    DISCOVERY_STATE=partial
 else
-    # Blank MANIFESTS so the merge guard below is unambiguously false.
-    DISCOVERY_STATE=failed; MANIFESTS=""
+    DISCOVERY_STATE=degraded
 fi
 # The helper writes its `devflow: discovery roots: …` echo and any partial/failure detail to stderr
 # on every discovery run, so read both from THIS fence's own tool result — nothing writes them to a
@@ -84,7 +83,7 @@ fi
 # reader fabricates a harness-denial reflection on a clean run. Init here makes the sentinel unconditional.
 FILED_STATE=""
 FILED_NUMBERS=""
-if { [ "$DISCOVERY_STATE" = ok ] || [ "$DISCOVERY_STATE" = partial ]; } && [ -n "$AGG" ] && [ -s "$AGG" ]; then
+if { [ "$DISCOVERY_STATE" = ok ] || [ "$DISCOVERY_STATE" = degraded ]; } && [ -n "$AGG" ] && [ -s "$AGG" ]; then
     # Guard on file-deferrals.py's OWN status inline — never capture that status into a variable a
     # later statement reads, which a runner that strips cross-statement variables leaves empty so
     # every outcome routes to one arm; and never a `2>file` capture, which the harness refuses,
@@ -134,15 +133,17 @@ MANIFEST_STATE=""; [ -n "${AGG:-}" ] && [ -s "${AGG:-}" ] && MANIFEST_STATE=hydr
 echo "phase 4.0.5 filing fence ran; pr=[${PR_NUMBER:-}] discovery=[${DISCOVERY_STATE:-}] manifest=[${MANIFEST_STATE}] filing=[${FILED_STATE:-}] filed deferred-finding issues=[${FILED_NUMBERS//$'\n'/ }]"
 ```
 
-**Recording discovery and filing outcomes.** The fence captures no stderr to a file (the harness refuses an output redirection and returns no output at all), so read the helpers' stderr in the fence's own tool result and make the matching record below — an unrecorded partial discovery or unrecognised filing failure strands acknowledged deferrals with no durable trace. Substitute the stderr you observed for each `<observed …>` placeholder, verbatim.
+**Recording discovery and filing outcomes.** The fence captures no stderr to a file (the harness refuses an output redirection and returns no output at all), so read the helpers' stderr in the fence's own tool result and make the matching record below — an unrecorded partial discovery or unrecognised filing failure strands acknowledged deferrals with no durable trace. Substitute the stderr you observed for each `<observed …>` placeholder, verbatim, or the literal `stderr=empty` when the invocation showed none: a harness refusal produces no stderr at all, and a fabricated quote there would misattribute the cause.
 
-- **`discovery=[partial]`** — at least one root failed and at least one did not; the clean roots' paths were still filed from:
+- **`discovery=[degraded]`** — the discovery statement exited non-zero. The fence does not tell the two shapes apart, so classify by the marker in this fence's observed stderr and record exactly one; an unrecognised shape takes the failed arm, so a genuine failure can never be recorded as the milder one:
 
-  `<skill-dir>/../../scripts/workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 4.0.5 deferral discovery was PARTIAL — at least one candidate root failed traversal: <observed discovery stderr>; filing proceeds from the roots that did not fail (\`ok\`/\`absent\`; an \`absent\` root contributes nothing). The failed root's deferrals are NOT filed this run, and once this run hydrates the aggregate they cannot be auto-filed by a later re-run (file-deferrals.py refuses a mixed hydrated/raw manifest) — recover them by filing from that root's run-scoped manifest manually."`
+  - `devflow: discovery partial:` → at least one root failed and at least one did not; the clean roots' paths are still filed from:
 
-- **`discovery=[failed]`** — every root failed, or the capture produced no output at all (a likely harness denial). Name the persisted aggregate path so an operator can re-trigger Phase 4.0.5:
+    `<skill-dir>/../../scripts/workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 4.0.5 deferral discovery was PARTIAL — at least one candidate root failed traversal: <observed discovery stderr>; filing proceeds from the roots that did not fail (\`ok\`/\`absent\`; an \`absent\` root contributes nothing). The failed root's deferrals are NOT filed this run, and once this run hydrates the aggregate they cannot be auto-filed by a later re-run (file-deferrals.py refuses a mixed hydrated/raw manifest) — recover them by filing from that root's run-scoped manifest manually."`
 
-  `<skill-dir>/../../scripts/workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 4.0.5 deferral discovery FAILED (every candidate root failed traversal, or the discovery command produced no output at all — a likely harness denial): <observed discovery stderr>. No deferrals were filed this run; any persisted aggregate at .prflow/tmp/review/pr-<N>/deferrals.json was left intact — re-trigger Phase 4.0.5 deliberately to recover its deferrals."`
+  - any other stderr, including none at all → every root failed, the invocation was refused, or the shape is unrecognised. Name the persisted aggregate path so an operator can re-trigger Phase 4.0.5:
+
+    `<skill-dir>/../../scripts/workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 4.0.5 deferral discovery FAILED (every candidate root failed traversal, the discovery command produced no output at all — a likely harness denial — or its stderr carried no recognised discovery marker): <observed discovery stderr>. No deferrals were filed this run; any persisted aggregate at .prflow/tmp/review/pr-<N>/deferrals.json was left intact — re-trigger Phase 4.0.5 deliberately to recover its deferrals."`
 
 - **`filing=[filed]` whose stderr contains `were dropped from manifest`** — `file-deferrals.py` exits 0 even on partial success, so record the drop or those findings vanish without reaching the PR's Scope-Acknowledged block:
 
@@ -191,12 +192,11 @@ The exits before any label is applied are the same fail-closed set Phase 4.0 car
 
 - **No `phase 4.0.5 filing fence ran` sentinel at all, OR the sentinel present with `discovery=[]`.** The fence was refused, not answered — do **not** read it as "nothing was filed". A refusal or non-execution of the discovery statement lands as `discovery=[]` on the sentinel or as no sentinel at all — and it does not matter which; both take this exit. Record it and apply nothing: `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 4.0.5's filing fence produced no sentinel at all, or a sentinel carrying discovery=[] (the discovery statement was refused or never ran) — likely a harness denial, not an empty aggregate; no deferred review-finding issues were filed or labelled this run."`
 - **Sentinel present, `pr=[]`** — the `gh pr view` read ran and yielded no number, so every path built on it (`SLUG_DIR`, the manifest discovery, `AGG`) resolved against a truncated slug and found nothing. **Do not read the `manifest=[]` that follows it as the clean no-op**: no manifest was even looked for at the right path, so this run's deferrals (if any) were neither filed nor labelled. Record it and apply nothing: `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 4.0.5 could not resolve the PR number — the gh pr view read yielded no value; no deferrals manifest could be located, so no deferred review-finding issues were filed or labelled this run."` (A matcher *denial* of that capture lands in this state or in the no-sentinel exit above — and it does not matter which: both record `dropped-failed` and apply nothing, so this routing does not depend on a denial granularity no probe row establishes.)
-- **Sentinel present with `discovery=[failed]`** — every candidate root failed traversal, or the discovery command produced no output at all (the fence's else arm). The fence already blanked `MANIFESTS`, so `manifest=[]` and nothing was filed. Do **not** read that `manifest=[]` as the clean no-op: no manifest could be discovered. Record the discovery failure per *Recording discovery and filing outcomes* below — the fence itself writes no reflection — and apply no labels this run.
-- **Sentinel present with `discovery=[partial]` — a qualifier on the arms below, not an exit:** at least one candidate root failed traversal and the failed root is recorded per *Recording discovery and filing outcomes* below, not by the fence. Whether any deferrals were filed is read off `manifest=` and `filing=` per the arms below — a partial run with `manifest=[]` or an empty `filing=` filed nothing; partial does not by itself imply any manifest was found. Apply labels only if `filing=[filed]` with a non-empty filed list, per the arms below.
-- **Sentinel present with `discovery=[ok]`, `pr=[<n>]` and `manifest=[]`** — no hydrated aggregate (either there were no deferrals this run, or the merge produced nothing), so nothing was filed and there is nothing to label: apply nothing. This is the clean no-op (the `discovery=[ok]` requirement is what distinguishes this genuine clean no-op from a failed/partial discovery that also printed `manifest=[]`). (A jq-merge *failure* is recorded per *Recording discovery and filing outcomes* below, so it is not silently swallowed here.)
+- **Sentinel present with `discovery=[degraded]` — a qualifier on the arms below, not an exit:** the discovery statement exited non-zero. Classify and record it per *Recording discovery and filing outcomes* above — the fence itself writes no reflection. Whether any deferrals were filed is read off `manifest=` and `filing=` per the arms below: a degraded run with `manifest=[]` or an empty `filing=` filed nothing, and a degraded discovery does not by itself imply any manifest was found. Apply labels only if `filing=[filed]` with a non-empty filed list, per the arms below.
+- **Sentinel present with `discovery=[ok]`, `pr=[<n>]` and `manifest=[]`** — no hydrated aggregate (either there were no deferrals this run, or the merge produced nothing), so nothing was filed and there is nothing to label: apply nothing. This is the clean no-op (the `discovery=[ok]` requirement is what distinguishes this genuine clean no-op from a degraded discovery that also printed `manifest=[]`). (A jq-merge *failure* is recorded by the fence itself, which writes its own `dropped-failed` reflection before blanking `AGG`, so it is not silently swallowed here.)
 - **Cwd-drift suspicion (known limitation) — a heuristic qualifying the clean-no-op arm above, not an exit:** when Phase 3.3's run reported emitting a deferrals manifest but every root classifies `absent` in the surfaced `devflow: discovery roots:` line, treat the run as suspect and compare the roots-echo's absolute paths against where Phase 3.3 executed, rather than accepting the clean no-op.
 - **Sentinel present with `manifest=[hydrated]` and `filing=[filed]`, but `filed deferred-finding issues=[]`** — the aggregate held deferrals, the filing arm *ran and succeeded*, yet you can read no filed issue numbers. That is a real capture gap, not a benign no-op: record it durably and apply nothing — `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 4.0.5 filed deferred review-finding issues but could not read their numbers — the configured deferred labels were applied to NONE of them; the filed issues carry none of the configured deferred labels."`
-  **Read `filing=` before concluding a capture gap.** Two other sentinel values also print an empty number list, and neither is a capture gap — asserting one would fabricate a durable reflection claiming issues were filed on a run that filed none: `filing=[unclassified]` (the non-zero state; classify its stderr per *Recording discovery and filing outcomes* below — the benign idempotent and no-deferrals cases both land here, and neither filed anything this run) and `filing=[failed]` (the filing statement never ran to a classified outcome). `idempotent` and `none` are outcomes RECORDED after that classification, never sentinel readings — the fence assigns only `filed`, `failed`, `unclassified`, or the empty initial value. Only `filing=[filed]` with an empty list is the gap.
+  **Read `filing=` before concluding a capture gap.** Two other sentinel values also print an empty number list, and neither is a capture gap — asserting one would fabricate a durable reflection claiming issues were filed on a run that filed none: `filing=[unclassified]` (the non-zero state; classify its stderr per *Recording discovery and filing outcomes* above — the benign idempotent and no-deferrals cases both land here, and neither filed anything this run) and `filing=[failed]` (the filing statement never ran to a classified outcome). `idempotent` and `none` are outcomes RECORDED after that classification, never sentinel readings — the fence assigns only `filed`, `failed`, `unclassified`, or the empty initial value. Only `filing=[filed]` with an empty list is the gap.
 - **The config read produced no output at all** — you received no `deferred labels to apply: [...]` line whatsoever. The command was refused, not answered: do **not** read that as "no labels configured" (the capture shape is unproven on this tier — see the discipline note above). Record it and apply nothing — `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 4.0.5 could not resolve deferred.labels — the config-get command produced no output at all (likely a harness denial, not an empty config); deferred review-finding issues were filed WITHOUT labels."`
 
 If the printed `CLEAN_DEFERRED_LABELS` is present but empty (config resolved to no labels), apply nothing. Otherwise, read it and apply the labels with **single granted-literal leading-token calls, iterating at the agent level** (the label helpers must never be wrapped in a shell loop or an output capture):

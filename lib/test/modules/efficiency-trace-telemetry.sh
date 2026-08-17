@@ -3284,15 +3284,9 @@ rm -rf "$SHF_REPO"
 # and Phase 1.2's slice-path prompt line.
 devflow_module_pin_unique "#426 T1: Phase 1.1 authors the batch slice by awk-extracting ^diff --git sections from the cached diff" \
   "awk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e'" "$ST_REV"  # structural-pin-ok: cross-file-phase-contract -- the literal is the review engine's own Phase 1.1 command fence, re-parsed a few lines below by this module's AWK_PROG extraction and run against a real diff, so it is a machine-consumed contract between the phase file and this driver rather than prose about one
-# T2 → fail-closed fallback: preserve the rule that a failed or empty slice cannot
-# proceed as a thinned review surface.
-# T2b → the slice guard must key on the SECTION COUNT, not on an output-shape proxy. Since
-# issue #1721 the fence is a `tee` pipeline whose status is grep's, not awk's, so the count is
-# the discriminator: `test -s` alone answers "is the file non-empty?", a strictly WIDER accepted
-# set than "did the whole slice land?" — a truncated stream leaves a NON-EMPTY but THINNED slice
-# `test -s` waves through, and the batch reviews a surface with files silently unrepresented.
-# The count closes the header-boundary case; a within-section truncation and a tee write failure
-# remain the named residual.
+# T2/T2b → the slice guard keys on the SECTION COUNT, never on a non-emptiness proxy: the fence
+# is a `tee` pipeline whose status is grep's, and a non-emptiness test waves through a thinned
+# slice, so the batch would review a surface with files silently unrepresented.
 # The awk range expression is the one piece of genuinely-executable new logic in Phase 1.1,
 # and a presence-only prose pin cannot catch an off-by-one in `n>=s && n<=e` (or in the
 # s=(k-1)*10+1 / e=k*10 batch arithmetic). Execute the SKILL's own expression against a

@@ -245,13 +245,13 @@ Ensure the scratch leaf exists — its own single statement:
 mkdir -p <scratch-dir>
 ```
 
-First read the session id, so the marker's owner line has a source; the local tier — the only tier whose Stop-hook guard reads this file — permits this bare read:
+**On the local tier only**, read the session id first, so the marker's owner line has a source. That tier owns the Stop-hook guard this file's only reader is; the cloud tier refuses a variable expansion and has no guard to serve, so emit nothing there:
 
 ```bash
 printf '%s\n' "$CLAUDE_CODE_SESSION_ID"
 ```
 
-Then author the marker at the substituted absolute path `<scratch-dir>/implement-active-$ISSUE_NUMBER` with the **Write tool**, never a shell fence — the cloud tier refuses both the redirect and the variable expansion a shell write needs. When that read printed a non-empty value, the file's one line is that printed value, never the literal `$CLAUDE_CODE_SESSION_ID`; when it printed empty or was refused, the file is empty. **An empty marker forfeits owner identity**, which the guard treats as owned-by-this-session and blocks on, so a concurrent session sharing the checkout is blocked too — record that in a `--note` rather than leaving the loss silent.
+Then author the marker at the substituted absolute path `<scratch-dir>/implement-active-$ISSUE_NUMBER` with the **Write tool**, never a shell fence — the cloud tier refuses both the redirect and the variable expansion a shell write needs. When that read printed a non-empty value, the file's one line is that value, never the literal `$CLAUDE_CODE_SESSION_ID`; when it printed empty, was refused, or was skipped, the file is empty. **An empty marker forfeits owner identity**, which the guard treats as owned-by-this-session and blocks on, so a concurrent session sharing the checkout is blocked too — on the local tier record that in a `--note` rather than leaving the loss silent.
 
 This is best-effort: if the write fails, note it and continue — a missing marker only means the Stop-hook backstop stays silent for this run.
 
