@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1725",
+  "generated_at": "2026-08-17T20:58:50Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.1",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 10.723014500000001,
+    "tokens": {
+      "input_tokens": 59,
+      "output_tokens": 45566,
+      "cache_read_input_tokens": 5824470,
+      "cache_creation_input_tokens": 280413,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 105,
+        "outputTokens": 79122,
+        "cacheReadInputTokens": 7162019,
+        "cacheCreationInputTokens": 657901,
+        "webSearchRequests": 0,
+        "costUSD": 10.723014500000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 45,
+    "duration_ms": 861273
+  },
+  "permission_denials": {
+    "count": 6,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---ENV---\"; echo \"RUN_ID=${GITHUB_RUN_ID:-}\"; echo \"ATTEMPT=${GITHUB_RUN_ATTEMPT:-}\"; echo \"ACTIONS=${GITHUB_ACTIONS:-}\"",
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-EMPTY}\"; echo \"ACTIONS=${GITHUB_ACTIONS:-EMPTY}\"",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve \"1656\" --pr \"1725\" 2>.prflow/tmp/review/pr-1725/32067269780-1/acs.err ; echo \"acs-rc=$?\"",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve \"1656\" --pr \"1725\" 2>.prflow/tmp/review/pr-1725/32067269780-1/acs.err ; echo \"acs-rc=$?\"; echo \"---ERR---\"; cat .prflow/tmp/review/pr-1725/32067269780-1/acs.err",
+      "cd /home/runner/work/prflow/prflow\nfor f in skills/implement/phases/phase-2-sweeps-contract.md; do\n  echo \"== $f ==\"; wc -c \"$f\"\n  echo \"first non-blank:\"; grep -m1 . \"$f\"\n  echo \"last non-blank:\"; tac \"$f\" | grep -m1 .\ndone\necho \"--- exemptions ---\"\ngrep -n \"phase-2-sweeps-contract\" lib/test/reference-size-exemptions.json 2>/dev/null || echo \"no exemption row\"\necho \"--- ceiling ---\"\npython3 lib/test/lint-reference-size.py 2>&1 | tail -20 || true",
+      "echo \"=== is .prflow/vendor tracked? ===\"; git ls-files .prflow/vendor | head -1 || true; git check-ignore .prflow/vendor/prflow/skills/implement/phases/phase-2-sweeps-contract.md && echo \"VENDOR_IGNORED\" || echo \"VENDOR_TRACKED?\"\necho; echo \"=== run.sh 2.3.0a context ===\"; grep -nE '2\\.3\\.0a' lib/test/run.sh | head\necho; echo \"=== review-stall-backstop.sh 2.3.0a ===\"; grep -nE '2\\.3\\.0a' lib/test/modules/review-stall-backstop.sh | head\necho; echo \"=== review-and-fix/SKILL.md 2.3.0a ===\"; grep - …[per-command-truncated]"
+    ],
+    "total": 6,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
