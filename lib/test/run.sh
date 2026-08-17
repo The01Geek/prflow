@@ -10656,12 +10656,23 @@ P478_DESTINATIONS=( "The loop's own evidence sink" "The loop's own evidence sink
 # carry no ordering constraint, so a reordered list would otherwise satisfy starts==1 && ends==1
 # while emitting a buffer that is not the sweep bodies at all.
 p478_sweep_bodies() {
-  awk '
+  local _p478_span
+  _p478_span="$(awk '
     /^\*\*Sweep selection \(run first\)\.\*\*/ { starts++; f=1; next }
     $0 == "### 2.4 Test" { if (f) ends++; f=0; next }
     f { buf = buf $0 "\n" }
     END { if (starts == 1 && ends == 1) printf "%s", buf }
-  ' "$@"
+  ' "$@")"
+  # Emit nothing when the span never opened/closed: the caller's empty-corpus RED arm is the
+  # fail-closed guard, and appending the references unconditionally would make it vacuous.
+  [ -n "$_p478_span" ] || return 0
+  printf '%s\n' "$_p478_span"
+  # issue #1581: the eight conditional sweeps' procedures live in per-sweep gated references,
+  # so they are part of the sweep bodies even though they sit outside the phase-file span.
+  # Dropping them makes every marker that moved there read as absent, which turns that
+  # marker's routing-table row into drift nothing detects. Glob-derived, so a later sweep
+  # reference joins with no second edit.
+  cat "$LIB"/../skills/implement/references/sweep-*.md 2>/dev/null || true
 }
 # p478_maptable is FAIL-CLOSED on its END anchor (#478 Phase-3 review): it buffers the BEGIN..END
 # region and emits it ONLY once the matching END anchor is seen. A renamed/removed END anchor yields
@@ -16066,7 +16077,7 @@ for PA_FILE in "$LIB"/../skills/review/phases/*.md "$LIB"/../skills/review-and-f
     "$(if grep -qF 'CLAUDE_SKILL_DIR' "$PA_FILE"; then grep -qF "$PORTABLE_ANCHOR_LITERAL" "$PA_FILE" && echo yes || echo no; else echo yes; fi)"  # raw-guard-ok: loop body: conditional presence pin over the enumerated $PA_FILE loop variable
 done
 assert_eq "#275 pin (R0): portable-anchor coverage spans every review phase + fix-loop + create-issue + implement reference file (enumeration reconciled)" \
-  "46" "$PA_REF_COUNT"
+  "54" "$PA_REF_COUNT"
 # Mutation proof (PASS->FAIL, self-contained): the absence EREs must actually MATCH the
 # two fragile forms they exist to reject — an ERE typo would leave P1/P2 green forever
 # (vacuous absence pins). Inject each fragile form into a temp copy of a migrated file
