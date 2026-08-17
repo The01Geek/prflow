@@ -11493,11 +11493,11 @@ assert_eq("#1453: the canonical trailing-marker bullet IS read (positive control
 
 # ── issue #1722: one moment, one call — the combined-mutation call is not rejected ──
 # The shipped prose now directs a run to issue the mutations of one moment as ONE
-# `update` call. That only holds if no validation path refuses such a call, so the
-# hardest combination the prose can produce is exercised end-to-end here rather than
-# assumed: a review-coverage record (a validate-before-mutate recorder), a terminal
-# `--status Blocked`, and two repeated `--tick-progress` operands, in a single
-# invocation driven through the real `cmd_update` path.
+# `update` call. This exercises the one combination issue #1722 named — a review-coverage
+# record (a validate-before-mutate recorder), a terminal `--status Blocked`, and two
+# repeated `--tick-progress` operands, in a single invocation driven through the real
+# `cmd_update` path — rather than assuming it. It establishes that THIS combination is
+# accepted; it enumerates no other, and is not a claim about combinations at large.
 #
 # The combination is load-bearing per member: the coverage recorder validates before
 # any body mutation, `Blocked` is the terminal status whose glyph is NOT 🎉 (so the
