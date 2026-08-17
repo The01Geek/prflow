@@ -4,6 +4,15 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.33.1] — 2026-08-17
+
+### Changed
+- **Trimmed non-operative prose from the `/prflow:review` engine.** The review engine's root
+  and phase references carried maintainer notes, provenance, design rationale, and repeated
+  statements of the same rule, all of which cost tokens on every review run and ship verbatim
+  into consumer repositories. Removed roughly 12KB — about 12% of the engine root — with no
+  change to any rule a run acts on.
+
 ## [2.33.0] — 2026-08-17
 
 ### Added
