@@ -13307,6 +13307,10 @@ _MIGRATED_FILES = (
     "skills/implement/phases/phase-2-sweeps-quality.md",
     "skills/implement/phases/phase-4-documentation.md",
     "skills/implement/references/deferred-review-findings.md",
+    # issue #1557 split §4.1 Stage 2's self-heal repair into this reference, a fenced surface
+    # that runs git and workpad.py — bind it to the same no-bare-/tmp guard. It names no stem
+    # of its own, so it takes no _STEM_HOMES row; the negative half above still binds it.
+    "skills/implement/references/doc-deliverable-self-heal.md",
     "skills/review-and-fix/references/loop-control.md",
     "skills/review-and-fix/references/loop-exit.md",
     # issue #1582 moved §1.4's branch-setup procedure (its title-file scratch write among it)

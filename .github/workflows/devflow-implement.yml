@@ -1324,7 +1324,8 @@ jobs:
       # guessing. Rendered through the SAME shared helper the review tiers use
       # (scripts/render-grounding-block.sh), in MODE=implement — so there is no second
       # copy of the allowed-tools text (the coupled-mirror hazard the block avoids). The
-      # implement mode omits the review-only CI and trusted-source-displacement sections.
+      # implement mode omits the three review-only sections (CI-results, sole-publisher,
+      # trusted-source displacement).
       # Verify the OUTCOME (a non-empty block), not the file's existence: a truncated
       # vendored copy that exits 0 printing nothing FAILS THE JOB rather than shipping an
       # empty block or a bare prompt. The block is the single home of the cloud

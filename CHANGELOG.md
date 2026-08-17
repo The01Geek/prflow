@@ -4,6 +4,54 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.33.6] — 2026-08-17
+
+### Changed
+Fire `/prflow:create-issue`'s Testing Strategy Move 2 coverage sweep on every enumerated
+test/case/example list inside an acceptance criterion, not only floor-marked ones.
+
+`skills/create-issue/references/issue-template.md` and
+`skills/create-issue/references/quality-group-contracts.md` previously scoped the state /
+case-variant / multiplicity / absence sweep to a list carrying the `at minimum` floor marker, so a
+list declared a closed set (`exactly these N — complete by construction`) skipped the sweep. The
+precondition is removed: the sweep obligation now reads over every such list regardless of which
+closure marker it carries. Both closure declarations survive unchanged, and a list carrying neither
+is still non-conforming. The `docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md` §11 `#464` entry is updated
+to match. This is a deletion; no rule, checklist row, gate, or check is added. (#1730, PR #1735)
+
+## [2.33.5] — 2026-08-17
+
+### Added
+- **The engine-ground-truth block now states, as a single-sourced disposition, that mutually independent tool calls are issued in a single message.** Every request an agent makes re-sends the whole conversation, so calls made one per message pay a full request each for work that could have shared one. The new section renders in all three of the block's modes (`review`, `implement`, `generic`). Independence is the whole test and it fails closed: calls whose independence cannot be established are treated as dependent and stay in separate messages. Writing the same target is a dependency in its own right — two edits to one file, and two dispatches that could write one checkout — so the test cannot license a concurrent write race; that dependency turns on where the writes land, so a batch whose writes provably cannot reach the same path stays a permitted batch, and an unestablished one does not. It licenses no merge of dependent calls, is not a rule about writing fewer and larger edit hunks, adds no permission, and preserves the commit-before-dispatch obligation for write-capable subagent dispatches. The existing site-local batching mandates are unchanged, as the site-specific applications of it. (#1723)
+
+## [2.33.4] — 2026-08-17
+
+### Changed
+`/prflow:implement` Phase 4.1 Stage 2 now reaches its documentation-deliverable self-heal repair
+through a gated reference, `skills/implement/references/doc-deliverable-self-heal.md`, read only when
+a named deliverable is absent from the run's cumulative diff. The enforcement decision — satisfied
+versus absent, and the undeliverable-path `Blocked` terminal — stays resident in the phase file, so a
+failed reference load costs the run its repair and never its gate: every named path is still evaluated
+and `Documentation` is still not ticked for one that cannot be delivered.
+
+## [2.33.3] — 2026-08-17
+
+### Changed
+`/prflow:create-issue` now shows its working files before the draft is presented.
+
+Step 4 lists four of the run's working files and shows the raw output — error lines included — in the message that renders the draft, so those files are visible rather than asserted. On an established listing outside the read-only arm, a file shown missing sends the run back to the step that produces it before the draft is rendered. The listing never blocks issue creation, and reports itself unestablished rather than staying silent when it cannot run.
+
+Step 1 now creates its temporary directory before writing into it, so the Step 1 evidence artifact and the run-slug pointer it writes there no longer depend on that directory already existing.
+
+## [2.33.2] — 2026-08-17
+
+### Changed
+Phase 2.3.0a (peer-checkpoint completeness) now classifies the rule a change adds before enumerating its peer set, and enumerates a peer set defined by control flow by tracing the swept unit's call edges instead of searching for a shared marker.
+
+A rule quantified over the paths through a unit of code — "every terminating path writes an outcome line" — has peers a shared-marker search structurally cannot reach, because a path terminating inside a helper the unit calls is spelled nowhere in that unit's own text. Enumerating by search alone and closing on a match count therefore produced positive evidence that no missing sites existed.
+
+A step-0 classification now routes a control-flow property to the trace, a textually co-locatable peer set to the unchanged search, and a rule that is either both or unclassifiable to both arms — the unclassifiable case with its trace bounded to one hop, since an undecided classification leaves the co-locatable case live and the trace alone would discharge it vacuously. The trace states its own bound, so a cycle and a mutually recursive pair terminate. An unresolvable call edge whose kind is a declared reach class is disclosed in the traced note; one that can be neither resolved nor placed in such a class takes the existing unrunnable arm, which withholds only the claim that the peer set is closed. The traced arm records the unit it ranged over plus the edge kinds reading the source cannot enumerate — so a traced note stays distinguishable from a searched one and neither reads as a closed set it has not established.
+
 ## [2.33.1] — 2026-08-17
 
 ### Changed
