@@ -115,3 +115,10 @@ repaired by `--checkpoint` itself — leaving the residual only for a **duplicat
 an empty body. Since the clause acts on both classifications, that mislabels the tier named in the
 finding without changing whether the advisory fires, and the finding is non-blocking, so this is
 accepted rather than guarded.
+
+## Two questions to ask before you finish
+
+**Deliberately repeated across four surfaces** — `CLAUDE.md` and the `create-issue`, `implement`, and `review` prompt extensions carry this block byte-identically, against the usual no-duplication rule, because both questions are cheap to skip and expensive to miss. Edit all four together.
+
+- **Are there any gotchas for the consumer repos we have not considered?**
+- **Is every word added to the skill prose as optimized as possible for maximum token cost efficiency and effectiveness?**

@@ -332,3 +332,10 @@ On a run that maintains a workpad, record one discharge line before each full-su
 
 **This batched pass is no longer the sole detector of a drifted generated artifact (issue #1244).** The parallel full-suite coordinator runs a read-only, sub-second preflight over the same registry's preflight-eligible rows *before it launches any shard*, and **refuses to launch when one of them reports drift**, printing that row's own governing policy — so a stale artifact that this compliance-dependent step skips is caught mechanically instead of only by a ~13-minute suite run. That preflight is READ-ONLY and reconciles nothing: this batched pass remains the post-edit obligation and the **only** writer, so running it after your edits is still what keeps the coordinator from refusing your own suite launch. The coordinator hardcodes no artifact path and no command — it reads the same registry this helper enumerates — so, as above, this section still lists no artifact inventory of its own.
 
+
+## Two questions to ask before you finish
+
+**Deliberately repeated across four surfaces** — `CLAUDE.md` and the `create-issue`, `implement`, and `review` prompt extensions carry this block byte-identically, against the usual no-duplication rule, because both questions are cheap to skip and expensive to miss. Edit all four together.
+
+- **Are there any gotchas for the consumer repos we have not considered?**
+- **Is every word added to the skill prose as optimized as possible for maximum token cost efficiency and effectiveness?**
