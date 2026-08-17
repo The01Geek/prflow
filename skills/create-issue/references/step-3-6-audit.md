@@ -31,6 +31,4 @@ python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports 
 
 When eligibility refuses with `draft-undigestible` — the draft file could not be read or hashed (stderr `query: could not hash draft file …`) — re-establish it by re-running the canonical-write step (re-stage, apply, confirm landed); if git or file reads are broken so the re-write cannot help, route to the `state-owner unavailable` fallback below (an environmental signal of that fallback's environmental class 2). When it refuses with `no-digest-supplied` — a file-arm clean epoch queried with no `--draft-file` — re-issue **with** the canonical draft file path: a caller omission, not a revision or environmental failure.
 
-**Honest scope of this gate.** The eligibility gate **narrows** the prose-compliance gap and makes a skipped step transcript-detectable — it does **not** make a skipped audit impossible.
-
 <!-- prflow:create-issue-ref step=3.6 file=skills/create-issue/references/step-3-6-audit.md end -->

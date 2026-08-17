@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.32.92] — 2026-08-17
+
+### Changed
+- **Trim redundant prose from `/prflow:create-issue`'s every-run prompt surface.** The completion checklist in the skill root sheds three paragraphs of pipeline self-description and restatement — the pipeline's own outcome restated ahead of the slot list that states it, the "treat this candidate as unavailable" rule stated four times, and a description of the inline fallback's status markers that the fallback reference already defines — and the task-tracker candidate ladder is compressed in place, keeping every rung, the unavailability test, the breadcrumb-and-continue rule and the inline-fallback route. `references/step-4-present-create.md` drops restatements it already deferred to by name: the `bound=none`/`foreign-nonce` write-root branch it introduces with "as sub-step 2 does", and the posting recipe, `<assignee-args>` substitution and investigation-record bucket contents that `references/issue-template.md` owns. Across `references/issue-template.md`, `references/step-3-5-steelman.md` and the Step 3.6 set, derivation, provenance and maintainer-directed notes give way to the instruction plus its one consequence sentence. No reference file is added or removed, no routing row changes, and no rule, gate or degraded arm is removed — the approval gate, the audit summary line's markers, the Iron Law and its rationalization table, and every failure arm are unchanged.
+
 ## [2.32.91] — 2026-08-15
 
 ### Added
