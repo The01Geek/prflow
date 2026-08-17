@@ -12,3 +12,8 @@ type: Fixed
   receive, and its plain reading implied that an amended issue body could override a review
   finding; it now states the shipped default — a linked issue's body is triage data, not a spec
   amendment — and defers to an extension only where one actually grants that authority. (#1716)
+- **`prompt-surface-growth.py` now reports a before-size and a percentage delta.** The table
+  printed only `Δ bytes` and `Bytes at HEAD`, so a reader could not judge whether a delta was
+  large without the before-size the helper had already computed and discarded. It now renders
+  `Path | Before | After | Δ bytes | Δ %`, with `n/a` as the percentage for a file added on the
+  branch, where a zero denominator would otherwise fabricate one. (#1716)

@@ -31583,10 +31583,11 @@ with tempfile.TemporaryDirectory(prefix='psg1350-') as _R1350:
     assert_eq("#1350 a covered file gaining bytes exits 0", 0, _rc1350a)
     assert_eq("#1350 the growth table renders its own section heading",
               True, _out1350a.startswith('### Prompt-surface size'))
-    assert_eq("#1350 the changed covered file's row carries BOTH the delta and the "
-              "byte total at HEAD (a delta-only row does not satisfy AC1)",
-              ['| `skills/alpha/SKILL.md` | +5 | 11 |',
-               '| **Whole covered surface** | **+5** | **22** |'],
+    assert_eq("#1350 the changed covered file's row carries the before-size, the size at "
+              "HEAD, the delta and the delta as a percentage of the before-size — a "
+              "reader cannot judge a delta's size from the delta alone",
+              ['| `skills/alpha/SKILL.md` | 6 | 11 | +5 | +83.3% |',
+               '| **Whole covered surface** | **17** | **22** | **+5** | **+29.4%** |'],
               _psg_rows1350(_out1350a))
     _head1350a = _psg_git1350(_R1350, 'rev-parse', 'HEAD').stdout.strip()
     assert_eq("#1350 the output carries the HEAD sha it was derived at, so a later "
@@ -31601,8 +31602,8 @@ with tempfile.TemporaryDirectory(prefix='psg1350-') as _R1350:
     assert_eq("#1350 a deleted covered file exits 0", 0, _rc1350b)
     assert_eq("#1350 a covered file the branch deletes renders a row with total 0 and a "
               "negative delta (enumeration is from the committed tree at EITHER endpoint)",
-              ['| `agents/beta.md` | -5 | 0 |',
-               '| **Whole covered surface** | **-5** | **12** |'],
+              ['| `agents/beta.md` | 5 | 0 | -5 | -100.0% |',
+               '| **Whole covered surface** | **17** | **12** | **-5** | **-29.4%** |'],
               _psg_rows1350(_out1350b))
 
     # ── AC1 / T1: a NEW covered file the branch adds ─────────────────────────────────
@@ -31611,9 +31612,11 @@ with tempfile.TemporaryDirectory(prefix='psg1350-') as _R1350:
 
     _rc1350c, _out1350c = _psg_branch1350(_R1350, 'birth', _psg_mut_new1350)
     assert_eq("#1350 a newly added covered file exits 0", 0, _rc1350c)
-    assert_eq("#1350 a newly added covered file renders its full size as the delta",
-              ['| `skills/omega/SKILL.md` | +3 | 3 |',
-               '| **Whole covered surface** | **+3** | **20** |'],
+    assert_eq("#1350 a newly added covered file renders its full size as the delta, and "
+              "`n/a` as the percentage — a zero before-size has no percentage, and "
+              "rendering 100% would fabricate one",
+              ['| `skills/omega/SKILL.md` | 0 | 3 | +3 | n/a |',
+               '| **Whole covered surface** | **17** | **20** | **+3** | **+17.6%** |'],
               _psg_rows1350(_out1350c))
 
     # ── AC1a(ii) / T2 / AC2: a branch touching only paths OUTSIDE the population ──────
@@ -31639,8 +31642,8 @@ with tempfile.TemporaryDirectory(prefix='psg1350-') as _R1350:
     _rc1350g, _out1350g = _psg_branch1350(_R1350, 'agentsonly', _psg_mut_agents1350)
     assert_eq("#1350 an agents/*.md-only change produces a row (agents/** is inside the "
               "covered population, not beside it)",
-              (0, ['| `agents/beta.md` | +2 | 7 |',
-                   '| **Whole covered surface** | **+2** | **19** |']),
+              (0, ['| `agents/beta.md` | 5 | 7 | +2 | +40.0% |',
+                   '| **Whole covered surface** | **17** | **19** | **+2** | **+11.8%** |']),
               (_rc1350g, _psg_rows1350(_out1350g)))
 
     # ── A same-LENGTH edit still earns a row ────────────────────────────────────────
@@ -31655,8 +31658,8 @@ with tempfile.TemporaryDirectory(prefix='psg1350-') as _R1350:
     _rc1350i, _out1350i = _psg_branch1350(_R1350, 'samelen', _psg_mut_samelen1350)
     assert_eq("#1350 a same-LENGTH edit to a covered file still renders a row, with a "
               "delta of 0 — change is blob identity, never byte count",
-              (0, ['| `skills/alpha/SKILL.md` | +0 | 6 |',
-                   '| **Whole covered surface** | **+0** | **17** |']),
+              (0, ['| `skills/alpha/SKILL.md` | 6 | 6 | +0 | +0.0% |',
+                   '| **Whole covered surface** | **17** | **17** | **+0** | **+0.0%** |']),
               (_rc1350i, _psg_rows1350(_out1350i)))
 
     # ── The thousands-separated render form is the only one production shows ────────
@@ -31669,8 +31672,9 @@ with tempfile.TemporaryDirectory(prefix='psg1350-') as _R1350:
     _rc1350j, _out1350j = _psg_branch1350(_R1350, 'big', _psg_mut_big1350)
     assert_eq("#1350 rendered figures carry thousands separators (the only form a "
               "real prompt surface ever produces)",
-              (0, ['| `skills/alpha/SKILL.md` | +12,339 | 12,345 |',
-                   '| **Whole covered surface** | **+12,339** | **12,356** |']),
+              (0, ['| `skills/alpha/SKILL.md` | 6 | 12,345 | +12,339 | +205,650.0% |',
+                   '| **Whole covered surface** | **17** | **12,356** | **+12,339** '
+                   '| **+72,582.4%** |']),
               (_rc1350j, _psg_rows1350(_out1350j)))
 
     # ── Repo-root anchoring: a subdirectory invocation reports the same thing ───────
@@ -31701,9 +31705,9 @@ with tempfile.TemporaryDirectory(prefix='psg1350-') as _R1350:
     # that keeps a repeated delta meaningful.
     assert_eq("#1350 the aggregate row sums the per-file deltas and carries the WHOLE "
               "covered surface's total at HEAD, not the changed rows' subtotal",
-              ['| `.prflow/prompt-extensions/gamma.md` | +3 | 9 |',
-               '| `skills/alpha/SKILL.md` | +5 | 11 |',
-               '| **Whole covered surface** | **+8** | **25** |'],
+              ['| `.prflow/prompt-extensions/gamma.md` | 6 | 9 | +3 | +50.0% |',
+               '| `skills/alpha/SKILL.md` | 6 | 11 | +5 | +83.3% |',
+               '| **Whole covered surface** | **17** | **25** | **+8** | **+47.1%** |'],
               _rows1350h)
 
 # ── AC5 / T3: an unresolvable merge-base is a breadcrumb, never a silent empty table ───
@@ -31757,8 +31761,9 @@ with tempfile.TemporaryDirectory(prefix='psg1350o-') as _R1350o:
     _rc1350o, _out1350o = _psg_run1350(_WK1350)
     assert_eq("#1350 the merge-base resolves through origin/HEAD, so a repo whose "
               "default branch is not `main` is measured against ITS default",
-              (0, True, ['| `skills/alpha/SKILL.md` | +5 | 11 |',
-                         '| **Whole covered surface** | **+5** | **11** |']),
+              (0, True, ['| `skills/alpha/SKILL.md` | 6 | 11 | +5 | +83.3% |',
+                         '| **Whole covered surface** | **6** | **11** | **+5** '
+                         '| **+83.3%** |']),
               (_rc1350o, '(`origin/develop`)' in _out1350o,
                _psg_rows1350(_out1350o)))
 
@@ -31824,7 +31829,7 @@ with tempfile.TemporaryDirectory(prefix='psg1350s-') as _R1350s:
                   "only on stderr",
                   (0, True, True),
                   (_rc1350s,
-                   '| `skills/alpha/SKILL.md` | +5 | 11 |' in _out1350s,
+                   '| `skills/alpha/SKILL.md` | 6 | 11 | +5 | +83.3% |' in _out1350s,
                    'not readable blobs' in _out1350s))
         # The endpoint is named, so a reader knows WHICH column the omission distorts:
         # a merge-base skip inflates a delta, a HEAD skip understates the totals. A
