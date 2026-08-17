@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1728",
+  "generated_at": "2026-08-17T22:48:56Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.3",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 14.249181749999998,
+    "tokens": {
+      "input_tokens": 96,
+      "output_tokens": 37501,
+      "cache_read_input_tokens": 8926377,
+      "cache_creation_input_tokens": 241261,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 172,
+        "outputTokens": 94982,
+        "cacheReadInputTokens": 12316961,
+        "cacheCreationInputTokens": 769690,
+        "webSearchRequests": 0,
+        "costUSD": 14.249181749999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 52,
+    "duration_ms": 936782
+  },
+  "permission_denials": {
+    "count": 5,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"run_id=${GITHUB_RUN_ID:-none} attempt=${GITHUB_RUN_ATTEMPT:-none} actions=${GITHUB_ACTIONS:-none}\"; git status --porcelain",
+      "gh pr diff 1728 > .prflow/tmp/review/pr-1728/32076410852-1/diff.raw; wc -l .prflow/tmp/review/pr-1728/32076410852-1/diff.raw; echo \"=== git diff headers ===\"; grep -n '^diff --git' .prflow/tmp/review/pr-1728/32076410852-1/diff.raw",
+      "for f in skills/review/SKILL.md skills/review/phases/*.md; do python3 lib/test/extract-command-heads.py heads \"$f\" 2>/dev/null; done | sort -u | grep -iE 'rev-parse|^grep|^git ' ",
+      "cd /home/runner/work/prflow/prflow\n# reconstruct REVIEW_BUNDLE at PR head and count distinct heads exactly as run.sh #363 does\nECH=lib/test/extract-command-heads.py\n# assemble bundle files from PR head into temp\nTMP=$(mktemp -d)\nfor f in skills/review/SKILL.md skills/review/phases/phase-0-setup.md skills/review/phases/phase-0-3-6-blocker-recheck.md skills/review/phases/phase-0-6-stale-prose-lint.md skills/review/phases/phase-1-checklist.md skills/review/phases/phase-2-verification.md skills/revi …[per-command-truncated]",
+      "B=.prflow/tmp/review/pr-1728/32076410852-1/prhead-bundle.md\nrm -f \"$B\"\nfor f in skills/review/SKILL.md skills/review/phases/phase-0-setup.md skills/review/phases/phase-1-checklist.md skills/review/phases/phase-2-verification.md skills/review/phases/phase-3-agents.md skills/review/phases/phase-4-verdict.md skills/review/phases/phase-4-4-github-post.md skills/review/phases/phase-0-3-6-blocker-recheck.md skills/review/phases/phase-0-6-stale-prose-lint.md skills/review/phases/phase-4-1-7-stale-adjud …[per-command-truncated]"
+    ],
+    "total": 5,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
