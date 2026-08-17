@@ -4,6 +4,34 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.33.4] — 2026-08-17
+
+### Changed
+`/prflow:implement` Phase 4.1 Stage 2 now reaches its documentation-deliverable self-heal repair
+through a gated reference, `skills/implement/references/doc-deliverable-self-heal.md`, read only when
+a named deliverable is absent from the run's cumulative diff. The enforcement decision — satisfied
+versus absent, and the undeliverable-path `Blocked` terminal — stays resident in the phase file, so a
+failed reference load costs the run its repair and never its gate: every named path is still evaluated
+and `Documentation` is still not ticked for one that cannot be delivered.
+
+## [2.33.3] — 2026-08-17
+
+### Changed
+`/prflow:create-issue` now shows its working files before the draft is presented.
+
+Step 4 lists four of the run's working files and shows the raw output — error lines included — in the message that renders the draft, so those files are visible rather than asserted. On an established listing outside the read-only arm, a file shown missing sends the run back to the step that produces it before the draft is rendered. The listing never blocks issue creation, and reports itself unestablished rather than staying silent when it cannot run.
+
+Step 1 now creates its temporary directory before writing into it, so the Step 1 evidence artifact and the run-slug pointer it writes there no longer depend on that directory already existing.
+
+## [2.33.2] — 2026-08-17
+
+### Changed
+Phase 2.3.0a (peer-checkpoint completeness) now classifies the rule a change adds before enumerating its peer set, and enumerates a peer set defined by control flow by tracing the swept unit's call edges instead of searching for a shared marker.
+
+A rule quantified over the paths through a unit of code — "every terminating path writes an outcome line" — has peers a shared-marker search structurally cannot reach, because a path terminating inside a helper the unit calls is spelled nowhere in that unit's own text. Enumerating by search alone and closing on a match count therefore produced positive evidence that no missing sites existed.
+
+A step-0 classification now routes a control-flow property to the trace, a textually co-locatable peer set to the unchanged search, and a rule that is either both or unclassifiable to both arms — the unclassifiable case with its trace bounded to one hop, since an undecided classification leaves the co-locatable case live and the trace alone would discharge it vacuously. The trace states its own bound, so a cycle and a mutually recursive pair terminate. An unresolvable call edge whose kind is a declared reach class is disclosed in the traced note; one that can be neither resolved nor placed in such a class takes the existing unrunnable arm, which withholds only the claim that the peer set is closed. The traced arm records the unit it ranged over plus the edge kinds reading the source cannot enumerate — so a traced note stays distinguishable from a searched one and neither reads as a closed set it has not established.
+
 ## [2.33.1] — 2026-08-17
 
 ### Changed

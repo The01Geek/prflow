@@ -116,6 +116,10 @@ ENROLLED: tuple[str, ...] = (
     "skills/implement/phases/phase-2-sweeps-quality.md",
     "skills/implement/phases/phase-3-review.md",
     "skills/implement/phases/phase-4-documentation.md",
+    # The relocated Phase 4.1 self-heal repair states its steps as bash fences where the phase
+    # file stated them as prose, so this file introduces fenced call sites this tuple would
+    # otherwise never audit — it is hand-maintained and blind to a new file.
+    "skills/implement/references/doc-deliverable-self-heal.md",
 )
 
 #: The files the AC requires the inventory to contain at minimum. A built-in (or
