@@ -36349,12 +36349,15 @@ if [ "$I1557_S2" != "/dev/null" ]; then
   # the repair out of Stage 2.
   assert_eq "#1557 the satisfied-versus-absent decision stayed resident in Stage 2" "1" \
     "$(pin_count 'docgate-path' "$I1557_S2")"  # structural-pin-ok: machine-sentinel-provenance -- the deliverables helper's own printed sentinel, which the resident decision reads; without this row the gate can leave Stage 2 unobserved
-  # Scoped to the SAME slice as the zero-count above. A whole-file count would stay 2 with the
-  # gated load moved out of Stage 2 entirely, leaving the repair unreachable from the arm that
+  # Scoped to the SAME slice as the zero-count above. A whole-file count would stay non-zero with
+  # the gated load moved out of Stage 2 entirely, leaving the repair unreachable from the arm that
   # owes it while every other row here still passed.
-  # pin_count, not `grep -cF`: grep counts LINES and both occurrences sit on one line, so a line
-  # count reads 1 and a dropped occurrence would be invisible.
-  assert_eq "#1557 the stub names the reference through the <skill-dir> anchor on both paths" "2" \
+  # Exactly 1: the anchor belongs to the `Read` instruction only — the degraded arm's reflection
+  # text names the plain repo-relative path, since <skill-dir> resolves against nothing in a
+  # durable workpad record.
+  # pin_count, not `grep -cF`: grep counts LINES, so a second occurrence added to the same line
+  # would be invisible.
+  assert_eq "#1557 the stub resolves the gated load through the <skill-dir> anchor" "1" \
     "$(pin_count '<skill-dir>/references/doc-deliverable-self-heal.md' "$I1557_S2")"  # structural-pin-ok: routing-dispatch-contract -- the anchored path the stub's absent-path arm resolves the gated load from, counted inside Stage 2 so the count attributes what it measures
 else
   # Scratch allocation failed, so the slice cannot be cut. One skip per dropped assertion, each
@@ -36364,7 +36367,9 @@ else
     "could not allocate a scratch file for the Stage-2 slice"
   skip "#1557 Stage 2 no longer carries the self-heal repair step" blocking-gate \
     "could not allocate a scratch file for the Stage-2 slice"
-  skip "#1557 the stub names the reference through the <skill-dir> anchor on both paths" blocking-gate \
+  skip "#1557 the satisfied-versus-absent decision stayed resident in Stage 2" blocking-gate \
+    "could not allocate a scratch file for the Stage-2 slice"
+  skip "#1557 the stub resolves the gated load through the <skill-dir> anchor" blocking-gate \
     "could not allocate a scratch file for the Stage-2 slice"
 fi
 # A deleted or re-pointed terminator silently widens the sed range to end-of-file, restoring the

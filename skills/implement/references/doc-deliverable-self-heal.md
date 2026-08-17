@@ -4,7 +4,7 @@
 
 Reached only from Stage 2's absent-path arm, once per named path that arm found absent from the diff; the caller keeps the enforcement decision and owns the `Blocked` terminal, so nothing here writes a run status.
 
-1. **Derive the missing update from the issue body's `**Documentation Needed**` prose.** If the correct content for this path cannot be derived from it, report that back to the caller and stop.
+1. **Derive the missing update from the issue body's `**Documentation Needed**` prose.** If the correct content for this path cannot be derived from it, skip steps 2–4 for **this path only** and report it as not repaired at step 5.
 
 2. **Perform the update**, then record it on the workpad. Emit the granted vendored literal as the leading token first, substituting the path as a literal:
    ```bash
@@ -28,7 +28,7 @@ Reached only from Stage 2's absent-path arm, once per named path that arm found 
    git push
    ```
 
-4. **Re-check against the remote.** Read each result from the tool output, never a captured shell variable. Confirm the commit and the push both reported success, then compare the two readings below: an **unequal or unavailable** pair means the repair did not reach the remote.
+4. **Re-check against the remote.** Read each result from the tool output, never a captured shell variable. Confirm the commit and the push both reported success, then compare the two readings below: an **unequal or unavailable** pair means the repair did not reach the remote — a comparison against the local remote-tracking ref, which this procedure does not fetch, so a remote branch deleted or rewound after a successful push still reads as landed.
    ```bash
    git rev-parse HEAD
    ```
