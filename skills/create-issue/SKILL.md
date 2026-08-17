@@ -151,9 +151,9 @@ If `$ARGUMENTS` is empty, ask the user to describe their user story, bug report,
 Dispatch `/prflow:docs-verify --report-only` peers on the topic extracted from the user story.
 
 Bind the slug, then clear state — before any dispatch. Bind this run's kebab-case slug here; no
-later step binds one. Run `mkdir -p .prflow/tmp` first; a write or delete at or under
-`.prflow/tmp/` that fails or is refused routes this evidence artifact and this pointer onto
-`references/fallback-read-only-sandbox.md`'s Step 1 arm.
+later step binds one. Run `mkdir -p .prflow/tmp` first, treating any stderr from it as its failure
+signal; a write or delete at or under `.prflow/` that fails or is refused routes this evidence
+artifact and this pointer onto `references/fallback-read-only-sandbox.md`'s Step 1 arm.
 Delete any `.prflow/tmp/issue-step1-<slug>.md`, and delete-and-rewrite the
 fixed slug-independent pointer `.prflow/tmp/issue-run-slug` holding this slug.
 Both deletes run on every path including the degraded one; a failed delete leaves a possibly-stale
@@ -274,28 +274,35 @@ four, each named individually — and show its raw output, error lines included,
 renders the draft, then continue. With the slug unestablished, list `.prflow/tmp` itself instead,
 state that nothing there is attributable to this run, and re-enter nothing.
 
-Classify every path it named, running no second probe, reporting each by name: a row is present; a
-not-found diagnostic is absent; named but in neither is unestablished. No output at all, a missing
-command binary, a refused command, or a path-naming diagnostic other than not-found leaves
-the whole listing unestablished — name which was observed. Only present and absent support a
+Classify every path it named, running no second probe, reporting each by name: a row is present, a
+`path:` header not being a row; a not-found diagnostic is absent; named but in neither is
+unestablished. No output at all, a missing command binary, a refused command, or a path-naming
+diagnostic other than not-found leaves the whole listing unestablished — name which was observed in
+the draft message. Only present and absent support a
 re-entry. A producing step that cannot run gets an in-chat breadcrumb naming the file and the
 failure kind; this listing never prevents the issue from being created.
 
-An earlier write or delete at or under `.prflow/tmp/` in this run that failed or was refused puts it
+An earlier write or delete at or under `.prflow/` in this run that failed or was refused puts it
 on the read-only arm, whose visible in-chat blocks discharge the re-entry per artifact posted. That arm
 is selected by run state, never by the listing's output; a run that cannot establish it reports the
 listing unestablished.
 
 Where that listing is established and named the four paths, compare each path's timestamp against
-the run-slug pointer's own in it before any re-entry: older than the pointer is not this run's, and stamps are coarse — minutes, or a
-month-day-year form when older — so equal stamps are not older. With the pointer absent there is no comparand; report
-in the draft message that freshness for the listed artifacts could not be established.
+the run-slug pointer's own in it before any re-entry: older than the pointer is not this run's.
+Stamps are coarse and come in two shapes — month, day and time within roughly six months, month,
+day and year outside it — so equal stamps are not older, while a year-form stamp, or a year-less
+one whose month falls after the pointer's own month, is older. With the pointer absent or
+unestablished there is no comparand; report in the draft message that freshness for the listed
+artifacts could not be established.
 
 On that same listing, run the producing step for every path absent or older than the pointer, then
-resume at the draft rendering. A Step 1 re-entry reuses the slug already bound and binds no new one; a missing
-derivation file re-runs Step 2's independent-derivation pass, not Step 2 whole, reporting any
-genuine clarification deficit in the draft message. Where any step was re-entered, that message says
-the listing predates it and names the steps re-run.
+resume at the draft rendering. A Step 1 re-entry reuses the slug already bound and binds no new one;
+a missing derivation file re-runs Step 2's independent-derivation pass, not Step 2 whole, reporting
+any genuine clarification deficit in the draft message; the audit artifact re-enters Step 3.6 only
+as `issue-audit-state.py query-next-action` directs, and where it allows no round, report that
+artifact unestablished in the draft message and re-enter nothing. Where any step was re-entered,
+that message says the listing predates it, names the steps re-run, and reports any finding of theirs
+the draft does not already reflect.
 
 Load `references/step-4-present-create.md` per the *Reference routing* rules above and follow it exactly, on every entry into this step.
 
