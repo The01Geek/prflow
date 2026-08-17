@@ -13,4 +13,4 @@ type: Changed
   routing clause folds into the surviving Testing Strategy bullet. Pointers in the shipped skill
   surface that named the deleted moves are rewritten to name a rule that still exists. Trims
   about 3.7KB of always-loaded template prose per drafting run, with the acceptance criteria
-  left as the single merge-gated definition of done.
+  left as the single merge-gated definition of done. (#1737)
