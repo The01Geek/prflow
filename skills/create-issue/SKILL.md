@@ -288,7 +288,7 @@ listing unestablished.
 
 Where that listing is established and named the four paths, compare each path's timestamp against
 the run-slug pointer's own in it before any re-entry: older than the pointer is not this run's, and stamps are coarse — minutes, or a
-day-and-year form when older — so equal stamps are not older. With the pointer absent there is no comparand; report
+month-day-year form when older — so equal stamps are not older. With the pointer absent there is no comparand; report
 in the draft message that freshness for the listed artifacts could not be established.
 
 On that same listing, run the producing step for every path absent or older than the pointer, then
