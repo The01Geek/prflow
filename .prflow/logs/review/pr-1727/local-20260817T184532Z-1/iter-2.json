@@ -1,0 +1,293 @@
+{
+  "iter": 2,
+  "started_at": "2026-08-17T19:40:00Z",
+  "fix_commit_sha": "4694b67140b52ec528f7ddec2509e0007e3c58ef",
+  "fix_files": [
+    "skills/create-issue/SKILL.md",
+    "skills/create-issue/references/fallback-read-only-sandbox.md",
+    ".changeset/issue-1713-create-issue-working-file-listing.md"
+  ],
+  "loop_role": "fix",
+  "current_step": "3.5",
+  "current_substep": "blinded_fix_delta_gate",
+  "pending_dispatch": {
+    "kind": "fix_delta_gate",
+    "roster": [
+      "prflow:code-reviewer"
+    ],
+    "dispatched_at": "2026-08-17T20:36:00Z"
+  },
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "'ls -l prints minute granularity' is a false universal: entries older than roughly six months print a year form with no time field, which is precisely the stale-leftover case the comparison exists to catch.",
+      "defect_signature": {
+        "file": "skills/create-issue/SKILL.md",
+        "line_range": [
+          296,
+          296
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 3,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Important",
+      "description": "Step 1's routing sentence promises the read-only fallback for any write under .prflow/tmp/, but that file declares a closed per-artifact set with no generic arm; several .prflow/tmp writes have no arm and one routes to a different file. A refused mkdir also fell outside the 'write under' predicate.",
+      "defect_signature": {
+        "file": "skills/create-issue/SKILL.md",
+        "line_range": [
+          154,
+          155
+        ],
+        "kind": "over_claim"
+      },
+      "corroboration_count": 3,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "A path appearing in neither a listing row nor a diagnostic fell through every classification arm, which is the ordinary result when a runner surfaces stdout and drops stderr. 'Present' and 'never observed' collapsed onto the same behaviour, so nothing re-entered and nothing reported.",
+      "defect_signature": {
+        "file": "skills/create-issue/SKILL.md",
+        "line_range": [
+          277,
+          282
+        ],
+        "kind": "fail_open"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Important",
+      "description": "The fallback reference's opening paragraph declares every arm per-artifact and enumerates by name the arms that write and delete nothing of their own; the arm this change adds is cross-artifact and absent from that enumeration, falsifying its own file's header.",
+      "defect_signature": {
+        "file": "skills/create-issue/references/fallback-read-only-sandbox.md",
+        "line_range": [
+          3,
+          39
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Important",
+      "description": "The listing shown in the draft-rendering message is taken before the producing-step re-entry, so on exactly the runs where the feature fires the user sees a superseded not-found line with no instruction to disclose that the listing predates the re-entry.",
+      "defect_signature": {
+        "file": "skills/create-issue/SKILL.md",
+        "line_range": [
+          278,
+          303
+        ],
+        "kind": "incomplete_specification"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "The invocation obliged the run to display error lines but nothing made diagnostics part of what it classified on; 2>&1 closes that at the source. Safe here because create-issue is local-tier only and no cloud workflow dispatches it.",
+      "defect_signature": {
+        "file": "skills/create-issue/SKILL.md",
+        "line_range": [
+          270,
+          270
+        ],
+        "kind": "unobservable_channel"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "The changeset's third sentence stated re-entry unconditionally while three arms in the same change re-enter nothing.",
+      "defect_signature": {
+        "file": ".changeset/issue-1713-create-issue-working-file-listing.md",
+        "line_range": [
+          7,
+          7
+        ],
+        "kind": "over_claim"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "'discharge this listing' named the wrong object: paragraph 1 orders the listing unconditionally, so the read-only arm discharges the re-entry, not the listing. 'revision round' was also vocabulary the skill defines nowhere.",
+      "defect_signature": {
+        "file": "skills/create-issue/SKILL.md",
+        "line_range": [
+          269,
+          291
+        ],
+        "kind": "ambiguous_specification"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "Prose weight on an always-loaded skill root, with several clauses pre-empting a reviewer misreading rather than instructing the agent. Measurement established the block at 498 words against a roughly 150-word target; compressed to 364, with the declined cuts each tied to a criterion or a previously closed Critical.",
+      "defect_signature": {
+        "file": "skills/create-issue/SKILL.md",
+        "line_range": [
+          269,
+          303
+        ],
+        "kind": "convention_violation"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "A Step 3.6 re-entry ordered by this block bypasses the audit lifecycle owner and can spend an audit round the presentation gate, which owns the same artifact under a different predicate, would not have spent.",
+      "defect_signature": {
+        "file": "skills/create-issue/SKILL.md",
+        "line_range": [
+          300,
+          303
+        ],
+        "kind": "redundant_conflicting_gate"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "deferred"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-2-1",
+      "decision": "applied",
+      "commit": "4694b67140b52ec528f7ddec2509e0007e3c58ef"
+    },
+    {
+      "finding_id": "F-2-2",
+      "decision": "applied",
+      "commit": "4694b67140b52ec528f7ddec2509e0007e3c58ef"
+    },
+    {
+      "finding_id": "F-2-3",
+      "decision": "applied",
+      "commit": "4694b67140b52ec528f7ddec2509e0007e3c58ef"
+    },
+    {
+      "finding_id": "F-2-4",
+      "decision": "applied",
+      "commit": "4694b67140b52ec528f7ddec2509e0007e3c58ef"
+    },
+    {
+      "finding_id": "F-2-5",
+      "decision": "applied",
+      "commit": "4694b67140b52ec528f7ddec2509e0007e3c58ef"
+    },
+    {
+      "finding_id": "F-2-6",
+      "decision": "applied",
+      "commit": "4694b67140b52ec528f7ddec2509e0007e3c58ef"
+    },
+    {
+      "finding_id": "F-2-7",
+      "decision": "applied",
+      "commit": "4694b67140b52ec528f7ddec2509e0007e3c58ef"
+    },
+    {
+      "finding_id": "F-2-8",
+      "decision": "applied",
+      "commit": "4694b67140b52ec528f7ddec2509e0007e3c58ef"
+    },
+    {
+      "finding_id": "F-2-9",
+      "decision": "applied",
+      "commit": "4694b67140b52ec528f7ddec2509e0007e3c58ef"
+    },
+    {
+      "finding_id": "F-2-10",
+      "decision": "deferred",
+      "source_file": "skills/create-issue/SKILL.md",
+      "claim_text": "a Step 3.6 re-entry can spend an audit round the presentation gate would not have",
+      "skip_category": "out-of-scope",
+      "evidence": "the issue's own scope forbids stating the Presentation-gate relation in the shipped file, so closing this here would contradict the specification the run is implementing",
+      "parking_evidence": {
+        "basis": "the finding is real but its remedy is barred by the issue's stated scope; it belongs in a follow-up that can revise that scope",
+        "failing_input": "a run whose audit artifact is absent or older than the run-slug pointer while the presentation gate would have accepted an inline stand-in",
+        "source": "skills/create-issue/references/step-4-present-create.md and scripts/issue-audit-state.py",
+        "finding_ref": {
+          "iter": 2,
+          "index": 9
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 9,
+    "fix_diff_lines": 71,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "verification": {
+    "module": "create-issue-contract",
+    "result": "395 passed, 0 failed",
+    "lints_rc0": [
+      "lib/test/lint-reference-size.py",
+      "lib/test/lint-shipped-pruned-path.py",
+      "lib/test/lint-skills-glob-guard.py"
+    ],
+    "pipe_rows_added": 0,
+    "no_options_gate_count": 4,
+    "step4_block_words": {
+      "first_landed": 248,
+      "pre_compression": 498,
+      "final": 364
+    },
+    "measurement_command": "sed -n '269,299p' skills/create-issue/SKILL.md | wc -w",
+    "ci_run_id": "32066607195",
+    "ci_status_at_record_time": "in_progress"
+  },
+  "notes": [
+    "The word-count figures reported in iterations 1 and 2 before this record (311, 302) were estimates presented as measurements; the subagent flagged its own error and the corrected trajectory was re-measured with the command recorded above.",
+    "Ten of the eleven acceptance criteria were re-read out of the rewritten block; AC11 was confirmed structurally, the block occupying lines 269-299 and the reference-load line 300."
+  ],
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
