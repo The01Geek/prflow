@@ -10,8 +10,37 @@
     "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
     ".changeset/issue-1723-parallel-dispatch-disposition.md"
   ],
-  "current_step": "3.5",
-  "current_substep": "fix_delta_gate_dispatched",
+  "current_step": "4.5",
+  "current_substep": "post_shadow_edit_gate_dispatched",
+  "fix_delta_gate": {
+    "ran": true,
+    "delta_reviewed": "bc8d2dc21",
+    "findings": [
+      {
+        "severity": "Important",
+        "file": "scripts/render-grounding-block.sh",
+        "kind": "prose_ambiguity",
+        "description": "'Where either is merely unestablished, treat them as dependent' reads as 'where at least one of the two is unestablished', converting the disjunctive exception into a conjunction so a batch would need BOTH limbs established — re-forbidding the shipped mandates the same commit restored, since a verifier batch establishes the disjoint-path limb while runner-provided working copies are explicitly unestablished. Fails over-strict rather than open, but the shipped text did not support the changeset's claim.",
+        "fix_decision": "applied",
+        "fix_commit": "24f1eb566"
+      },
+      {
+        "severity": "Suggestion",
+        "file": "scripts/render-grounding-block.sh",
+        "kind": "inaccurate_comment",
+        "description": "'renders every section' is untrue of the ordinary review shape: the displacement section is additionally gated on a non-empty HARDENED_PATHS, the shape run.sh exercises as _GB363_REV_NOHP.",
+        "fix_decision": "applied",
+        "fix_commit": "24f1eb566"
+      }
+    ],
+    "verified_clean": [
+      "the repaired ordinal pin fails closed on two differing citations on one line (5,7), on different lines (12,7), on zero citations (empty, caught by the -n guard), and matches multi-digit ordinals on both sides",
+      "the disjoint-path em-dash clause is a gloss, not an alternative satisfier — a batch of source-editing subagents cannot satisfy it",
+      "the commit-before-dispatch obligation is a universal; 'whichever of those holds' is concessive and adds no exception arm",
+      "the two-edits overlap test also closes the whole-file Write case, whose replaced region is the entire file",
+      "no stale mirrors of the superseded phrasings remain; shellcheck clean on the renderer"
+    ]
+  },
   "note": "Step 0.9 short-circuit: Phase 1 and Phase 2 skipped, findings staged from iter-1's shadow block with promotion_provenance 'shadow'. No fresh checklist generated; the promoted set IS this iteration's finding set.",
   "checklist": [],
   "phase3_dispatched": [],
