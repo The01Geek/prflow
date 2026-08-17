@@ -36,7 +36,7 @@ The `issue-audit-dispatch-<slug>.md` write fails exactly as the draft write does
 
 ## Step 4 — the working-file listing
 
-When the listing command is refused, or its binary is missing, this run's working files cannot be enumerated: report the listing **unestablished** and re-enter no producing step on the strength of it. The **visible inline-in-chat blocks** this run posted for the Step 1 evidence, the derivation and the audit report stand in for the listing, and are re-posted in the current turn. **Do not trust any on-disk `issue-run-slug`, `issue-step1-<slug>.md`, `issue-derivation-<slug>.md` or `issue-audit-<slug>.md`** (each can only be a stale leftover on this arm). Filing is never blocked.
+When the listing command is refused, or its binary is missing, this run's working files cannot be enumerated: report the listing **unestablished** and re-enter no producing step on the strength of it. The **visible inline-in-chat blocks** this run posted for the Step 1 evidence, the derivation and the audit report stand in for the listing, and are re-posted in the current turn. **Do not trust an on-disk copy of any artifact this listing would have named**, each on the terms its own per-artifact arm above states. Filing is never blocked.
 
 ## Step 4 — the investigation-record artifact
 
