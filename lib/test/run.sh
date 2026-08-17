@@ -10637,7 +10637,8 @@ assert_pin_unique "#541 reference_reads: the field is conditional — absence on
 # (while keeping the attribution) goes RED.
 
 # AC5 — routing-marker drift lint, driven from here with BOTH arms. Each closed-vocab marker present
-# in the §2.3 sweep bodies (phase-2-implement.md, "Sweep selection" preamble through "### 2.4 Test")
+# in the §2.3 sweep bodies (the phase-2 sweep files' "Sweep selection" preamble through
+# "### 2.4 Test", PLUS the gated per-sweep skills/implement/references/sweep-*.md procedures)
 # must have a mapping-table row in item 3b (skills/review-and-fix/references/fixing.md, read via the
 # $MAXI_SKILL bundle, between the BEGIN/END
 # fix-loop mapping table anchors). The lint echoes GREEN when every present marker is mapped, RED
@@ -10669,9 +10670,10 @@ p478_sweep_bodies() {
   printf '%s\n' "$_p478_span"
   # issue #1581: the eight conditional sweeps' procedures moved to per-sweep gated references,
   # so the corpus must span them too or every marker that moved reads as absent.
-  # Never add 2>/dev/null or `|| true` here: cat's path-naming breadcrumb is what tells a
-  # short corpus from a missing marker.
-  cat "$LIB"/../skills/implement/references/sweep-*.md
+  # Never add 2>/dev/null or `|| true` here, and never drop the `|| return 1`: a short corpus
+  # would otherwise leave the lint checking fewer markers and still echoing GREEN, which is the
+  # fail-open the caller's empty-corpus guard cannot see.
+  cat "$LIB"/../skills/implement/references/sweep-*.md || return 1
 }
 # p478_maptable is FAIL-CLOSED on its END anchor (#478 Phase-3 review): it buffers the BEGIN..END
 # region and emits it ONLY once the matching END anchor is seen. A renamed/removed END anchor yields
@@ -10689,7 +10691,10 @@ p478_maptable() {
 p478_routing_lint() {  # skill_file phase2_file... -> echoes GREEN or RED
   local bodies table mk dest idx rows skill
   skill="$1"; shift
-  bodies="$(p478_sweep_bodies "$@")"
+  # Route a non-zero extractor status to RED as well as an empty corpus: a partial corpus
+  # (the reference concatenation failed) is populated but short, so the emptiness test alone
+  # would let the lint pass having checked fewer markers than it reports.
+  bodies="$(p478_sweep_bodies "$@")" || { echo RED; return; }
   # An empty corpus skips every marker check below, so the lint would echo GREEN having
   # verified nothing. Structural, not left to whichever marker happens to be absent.
   [ -n "$bodies" ] || { echo RED; return; }
@@ -10714,6 +10719,22 @@ for _mk in "${P478_MARKERS[@]}"; do
   assert_eq "#478 AC5 lint precondition: marker present in the §2.3 sweep bodies: $_mk" "yes" \
     "$(printf '%s\n' "$P478_BODIES" | grep -qF -- "$_mk" && echo yes || echo no)"
 done
+# #1581: the corpus spans the gated references as well as the phase-file span, and the marker
+# preconditions above cannot tell the two halves apart — every marker still resolves inside the
+# phase files, so a corpus that silently lost its reference half stays green. Pin a literal that
+# exists ONLY in a reference, so a dropped, renamed, or unreadable reference half goes RED here
+# rather than at whichever marker happens to move into a reference next.
+assert_eq "#1581: the §2.3 sweep-body corpus spans the gated per-sweep references (not the phase-file span alone)" "yes" \
+  "$(printf '%s\n' "$P478_BODIES" | grep -qF -- 'Traced-arm evidence' && echo yes || echo no)"  # structural-pin-ok: routing-dispatch-contract -- a reference-only literal is the only operand that discriminates the corpus's reference half from its phase-file span
+# #1581: reconcile the gated-sweep routing BOTH ways round — every reference the phase files'
+# `**Procedure:**` pointers name must exist on disk, and every on-disk sweep reference must be
+# named by a pointer. A pointer naming a file that does not exist makes the gated Read fail and
+# silently drops a mandatory sweep; a reference no pointer names is unreachable prose that the
+# corpus glob still admits.
+P1581_DECLARED="$(grep -h '^\*\*Procedure:\*\*' "$IMPL_PHASES_DIR/phase-2-sweeps-contract.md" "$IMPL_PHASES_DIR/phase-2-sweeps-quality.md" | sed 's|.*<skill-dir>/references/||; s|`.*||' | sort -u)"
+P1581_ONDISK="$(cd "$LIB/../skills/implement/references" && ls sweep-*.md 2>/dev/null | sort -u)"
+assert_eq "#1581: every gated-sweep **Procedure:** pointer resolves to an on-disk reference, and every sweep reference is pointed at" \
+  "$P1581_ONDISK" "$P1581_DECLARED"  # structural-pin-ok: routing-dispatch-contract -- the phase files' pointer set IS the dispatch table for the gated sweeps; a one-sided rename drops a mandatory sweep with the suite green
 # Empty-corpus RED arm: a corpus the extractor could not build skips every marker check, so
 # the lint must refuse rather than echo GREEN having verified nothing. Driven with an operand
 # whose span never opens, which is what a reordered or truncated file set produces.
