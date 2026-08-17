@@ -1,0 +1,442 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-17T18:51:18Z",
+  "fix_commit_sha": "6ea0e62db",
+  "fix_files": [
+    ".changeset/issue-1721-cloud-denied-fence-shapes.md",
+    "docs/internal/cloud-allowlist.md",
+    "lib/test/run.sh",
+    "lib/test/test_python_scripts.py",
+    "scripts/discover-deferral-manifests.py",
+    "skills/implement/phases/phase-1-setup.md",
+    "skills/implement/references/deferred-review-findings.md",
+    "skills/review-and-fix/references/loop-control.md",
+    "skills/review-and-fix/references/loop-exit.md",
+    "skills/review/SKILL.md",
+    "skills/review/phases/phase-0-setup.md",
+    "skills/review/phases/phase-1-checklist.md"
+  ],
+  "loop_role": "fix",
+  "current_step": "loop-control",
+  "current_substep": null,
+  "pending_dispatch": null,
+  "checklist": [
+    {
+      "id": "VC-22",
+      "claim": "the read-only review profile grants Write(.prflow/tmp/**)",
+      "file": "skills/review/phases/phase-0-setup.md",
+      "verification_mode": "lite",
+      "claim_signature": "api_contract:phase-0-setup.md:review-profile-grants-write-prflow-tmp",
+      "verdict": "PASS",
+      "evidence": "lib/review-profile.tokens line 89 carries Write(.prflow/tmp/**)",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-6",
+      "claim": "discover-deferral-manifests.py exit codes 0/2/3/4",
+      "file": "skills/implement/references/deferred-review-findings.md",
+      "verification_mode": "lite",
+      "claim_signature": "dependency_interaction:deferred-review-findings.md:discovery-exit-code-map",
+      "verdict": "PASS",
+      "evidence": "helper docstring enumerates 0/2/3/4 with 3=partial, 4=all-failed",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-8",
+      "claim": "file-deferrals.py exit-code map as documented in the fence",
+      "file": "skills/implement/references/deferred-review-findings.md",
+      "verification_mode": "lite",
+      "claim_signature": "dependency_interaction:deferred-review-findings.md:file-deferrals-exit-code-map",
+      "verdict": "FAIL",
+      "evidence": "5 code=2 sites and 2 default-rc-1 sites; invalid input is rc 2, not rc 1 as the fence stated",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-20",
+      "claim": "no surviving pin in lib/test/ references the removed .err literals",
+      "file": "lib/test/run.sh",
+      "verification_mode": "lite",
+      "claim_signature": "dependency_interaction:run.sh:removed-err-capture-pins-residual",
+      "verdict": "FAIL",
+      "evidence": "test_python_scripts.py _STEM_HOMES asserted five removed stems as PRESENT",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-25",
+      "claim": "the Write-tool authored run marker satisfies the Stop-hook guard",
+      "file": "skills/implement/phases/phase-1-setup.md",
+      "verification_mode": "lite",
+      "claim_signature": "dependency_interaction:phase-1-setup.md:run-marker-format-vs-stop-hook",
+      "verdict": "PASS",
+      "evidence": "guard derives the issue from the filename; ownership reads line 1, both arms preserved",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-54",
+      "claim": "slice content must never transit the orchestrator's context",
+      "file": "skills/review/phases/phase-1-checklist.md",
+      "verification_mode": "lite",
+      "claim_signature": "data_format_assumption:phase-1-checklist.md:stdout-transits-orchestrator-context",
+      "verdict": "FAIL",
+      "evidence": "the Write-tool recipe required exactly the transit the section forbids",
+      "reused_from_iter_prev": false
+    }
+  ],
+  "dispatched_effort": [
+    {
+      "agent": "prflow:checklist-generator",
+      "phase": "1",
+      "requested": "low",
+      "resolved": "low",
+      "application_point": "session-fallback",
+      "effective": null,
+      "fallback_reason": "per-agent effort resolved but not applied: no in-session per-agent effort seam"
+    },
+    {
+      "agent": "prflow:checklist-deduper",
+      "phase": "1.5",
+      "requested": "low",
+      "resolved": "low",
+      "application_point": "session-fallback",
+      "effective": null,
+      "fallback_reason": "per-agent effort resolved but not applied: no in-session per-agent effort seam"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "phase": "3",
+      "requested": "low",
+      "resolved": "low",
+      "application_point": "session-fallback",
+      "effective": null,
+      "fallback_reason": "per-agent effort resolved but not applied; model override opus WAS applied"
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "Phase 0.2 Write-tool staging can publish a truncated review cache (fail-open APPROVE)",
+      "defect_signature": {
+        "file": "skills/review/phases/phase-0-setup.md",
+        "line_range": [
+          163,
+          190
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 3,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "run-marker owner line unobtainable; empty marker re-arms the #1222 non-owner block",
+      "defect_signature": {
+        "file": "skills/implement/phases/phase-1-setup.md",
+        "line_range": [
+          240,
+          250
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 2,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "#426 comment's head enumeration not resynced with the new fence (grep/tee)",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          35259,
+          35277
+        ],
+        "kind": "comment_drift"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "adjudication enumeration misses variable-target redirects; two counts false",
+      "defect_signature": {
+        "file": "docs/internal/cloud-allowlist.md",
+        "line_range": [
+          988,
+          1025
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 3,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "denied-list bans a shape the same bundle still prescribes in phase-3-agents.md",
+      "defect_signature": {
+        "file": "skills/review/SKILL.md",
+        "line_range": [
+          50,
+          52
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 2,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Critical",
+      "description": "test -s turns a legitimately empty filtered diff into a producer failure, contradicting the same file",
+      "defect_signature": {
+        "file": "skills/review/phases/phase-0-setup.md",
+        "line_range": [
+          175,
+          187
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 2,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "four consumer arms assert an in-fence dropped-failed record the fence no longer writes",
+      "defect_signature": {
+        "file": "skills/implement/references/deferred-review-findings.md",
+        "line_range": [
+          196,
+          216
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "filing= sentinel domain collapsed; idempotent/none reader arms unreachable",
+      "defect_signature": {
+        "file": "skills/implement/references/deferred-review-findings.md",
+        "line_range": [
+          96,
+          136
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "three warnings instruct quoting stderr with no template slot to quote into",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/loop-exit.md",
+        "line_range": [
+          195,
+          222
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 2,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Critical",
+      "description": "line 149's no-compound-list claim contradicted by its own step 5 fence",
+      "defect_signature": {
+        "file": "skills/review/phases/phase-0-setup.md",
+        "line_range": [
+          149,
+          180
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Critical",
+      "description": "adjudication table site counts do not match the tree under the doc's own mandated search",
+      "defect_signature": {
+        "file": "docs/internal/cloud-allowlist.md",
+        "line_range": [
+          989,
+          1004
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 3,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "granted-head enumeration under-reports test/echo introduced by step 5",
+      "defect_signature": {
+        "file": "skills/review/phases/phase-0-setup.md",
+        "line_range": [
+          187,
+          187
+        ],
+        "kind": "comment_drift"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "self-referential 4-stage ordinal drifted inside its own change",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          39089,
+          39092
+        ],
+        "kind": "comment_drift"
+      },
+      "corroboration_count": 2,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "byte-fidelity invariant lost and unnamed; substitute count check available",
+      "defect_signature": {
+        "file": "skills/review/phases/phase-0-setup.md",
+        "line_range": [
+          163,
+          190
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 3,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "four coupled comment sites still describe the deleted fences",
+      "defect_signature": {
+        "file": "scripts/discover-deferral-manifests.py",
+        "line_range": [
+          124,
+          136
+        ],
+        "kind": "comment_drift"
+      },
+      "corroboration_count": 2,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Important",
+      "description": "AC2 deferral carries no filed follow-up issue and no deferral record",
+      "defect_signature": {
+        "file": "docs/internal/cloud-allowlist.md",
+        "line_range": [
+          1004,
+          1013
+        ],
+        "kind": "other"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "deferred"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Important",
+      "description": "AC5 not discharged: no post-change cloud confirmation and no recorded residual",
+      "defect_signature": {
+        "file": "docs/internal/cloud-allowlist.md",
+        "line_range": [
+          1015,
+          1024
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "deferred"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-16",
+      "decision": "deferred",
+      "source_file": "docs/internal/cloud-allowlist.md",
+      "claim_text": "AC2 deferral carries no filed follow-up issue",
+      "skip_category": "uncategorized",
+      "evidence": "Phase 4.0 of the implement run owns follow-up filing; discharged there, not in the review loop"
+    },
+    {
+      "finding_id": "F-17",
+      "decision": "deferred",
+      "source_file": "docs/internal/cloud-allowlist.md",
+      "claim_text": "AC5 not discharged",
+      "skip_category": "uncategorized",
+      "evidence": "AC5's residual arm is discharged at the Phase 3.4 AC gate, which runs after this loop"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 15,
+    "fix_diff_lines": 210,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "refixed",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "ran_at": null,
+    "reviewed_sha": null,
+    "verdict": null,
+    "coverage": null,
+    "prompt_addenda": null,
+    "reviewers_dispatched": [],
+    "expected_reviewers": [],
+    "reason": "iteration 1 verdict was REJECT; REJECT verdicts never reach the shadow pass",
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "telemetry": "unavailable",
+  "synthesized": false
+}
