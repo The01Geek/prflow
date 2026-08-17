@@ -37222,19 +37222,19 @@ assert_eq "#1629 implement mode emits no sole-publisher section (review-only, no
 assert_eq "#1629 review mode emits the sole-publisher section (its positive control)" "yes" \
   "$(case "$_GB363_REV" in *"verdict reaches this pull request through Phase 4.4"*) echo yes ;; *) echo no ;; esac)"
 # #1629: in review mode (HARDENED_PATHS set → displacement present) the sole-publisher
-# section is numbered 5 and precedes the renumbered displacement section (6). Guards the
-# tail interpolation order and the 5→6 renumber: a missed bump renders two "5"s, a swapped
-# order renders 6 before 5. Assert on the RENDERED structure (heading line positions), not
+# section is numbered 6 and precedes the renumbered displacement section (7). Guards the
+# tail interpolation order and the 6→7 renumber: a missed bump renders two "6"s, a swapped
+# order renders 7 before 6. Assert on the RENDERED structure (heading line positions), not
 # source prose.
-assert_eq "#1629 review mode numbers sole-publisher 5 before displacement 6" "yes" \
-  "$(printf '%s\n' "$_GB363_REV" | awk '/^> \*\*5\. A verdict reaches/{p=NR} /^> \*\*6\. Trusted-source/{d=NR} END{print (p>0 && d>0 && p<d) ? "yes" : "no"}')"
+assert_eq "#1629 review mode numbers sole-publisher 6 before displacement 7" "yes" \
+  "$(printf '%s\n' "$_GB363_REV" | awk '/^> \*\*6\. A verdict reaches/{p=NR} /^> \*\*7\. Trusted-source/{d=NR} END{print (p>0 && d>0 && p<d) ? "yes" : "no"}')"
 # #1629: the ORDINARY review shape — no HARDENED_PATHS, so no displacement section.
 # Every assertion above renders review mode WITH HARDENED_PATHS set, so without this
-# one a regression coupling PUBLISHER_SECTION's emission (or its "5") to a non-empty
+# one a regression coupling PUBLISHER_SECTION's emission (or its "6") to a non-empty
 # HARDENED_PATHS would go uncaught on the shape most review runs actually take.
 _GB363_REV_NOHP="$(HEAD_SHA=deadbeef CI_SUMMARY='ci: success' ALLOWED_TOOLS='Read' MODE=review bash "$RGB_SH")"
-assert_eq "#1629 review mode with no HARDENED_PATHS still emits the sole-publisher section, numbered 5, and no displacement section" "yes-yes-no" \
-  "$(case "$_GB363_REV_NOHP" in *"verdict reaches this pull request through Phase 4.4"*) echo yes ;; *) echo no ;; esac)-$(case "$_GB363_REV_NOHP" in *'> **5. A verdict reaches'*) echo yes ;; *) echo no ;; esac)-$(case "$_GB363_REV_NOHP" in *'Trusted-source displacement'*) echo yes ;; *) echo no ;; esac)"
+assert_eq "#1629 review mode with no HARDENED_PATHS still emits the sole-publisher section, numbered 6, and no displacement section" "yes-yes-no" \
+  "$(case "$_GB363_REV_NOHP" in *"verdict reaches this pull request through Phase 4.4"*) echo yes ;; *) echo no ;; esac)-$(case "$_GB363_REV_NOHP" in *'> **6. A verdict reaches'*) echo yes ;; *) echo no ;; esac)-$(case "$_GB363_REV_NOHP" in *'Trusted-source displacement'*) echo yes ;; *) echo no ;; esac)"
 unset _GB363_GEN _GB363_REV _GB363_IMPL _GB363_REV_NOHP
 
 assert_pin_unique "#363 devflow.yml falls back to the bare command when no block is composed" \
