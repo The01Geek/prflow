@@ -69,7 +69,7 @@ Three carve-outs are absolute, complete by construction. A comment a tool, a lic
 
 - **Deletes** code (a call site, branch, method, file, route, page, or asset) → run **2.3.1**, and **2.3.2** if it deletes a method/file/route/page.
 - **Changes a contract** (a signature, a renamed/moved symbol, a tightened validator, a routing/branch predicate, **or a relocated prose literal, heading, section, or file path**) → run **2.3.0**.
-- **Adds a rule that has peers** (a clause, guard, validator, or invariant that must hold at two or more co-equal sites for the rule to actually hold) → run **2.3.0a**.
+- **Adds a rule that has peers** (a clause, guard, validator, or invariant that must hold at two or more co-equal sites — **or at every path through one unit of code** — for the rule to actually hold) → run **2.3.0a**.
 - **Adds a value to an enumerated set** (a new enum/string-union member, status, kind, or verdict value — *or a member of a doc-enumerated configuration set: a workflow trigger list (the `on:` event set), a config-key set, a permissions list*) → run **2.3.0b**.
 - **Removes a value from an enumerated set** (an enum/string-union member, status, kind, or verdict value — *or a member of a doc-enumerated configuration set: a workflow trigger list, a config-key set, a permissions list*) → run **2.3.0d** (describing-prose reconciliation sweep). **A rename is not this arm** — it is an addition and a removal at once, and §2.3.0d's precedence assigns it to **2.3.0b alone**.
 - **Weakens a universal it previously asserted** — softens it ("always"/"every"/"never" becomes "usually"/"most"/"rarely"), scopes it (an unqualified claim gains a qualifier), or removes it outright → run **2.3.0d**.
@@ -123,7 +123,7 @@ A modify / rename / reroute is not done until grepping for the old symbol, predi
 
 **Re-run this sweep after any merge or rebase of the base branch** (the configured `base_branch`, not a hard-coded `main`)**.** A clean *textual* merge is not a clean *semantic* merge: the base branch may have added a fixture, call site, or assertion that your new contract now rejects, and git merges it cleanly without ever surfacing the conflict. After any `git merge` / `git pull --rebase` of the base branch the run performs (including the Error Handling conflict-recovery path), re-run steps 1–3 against the newly-arrived sites and treat any new site that violates the change's contract as a defect in *this* PR.
 
-#### 2.3.0a Peer-checkpoint completeness sweep (mandatory whenever the change adds a rule/clause/guard/invariant that has co-equal peer sites)
+#### 2.3.0a Peer-checkpoint completeness sweep (mandatory whenever the change adds a rule/clause/guard/invariant that has co-equal peer sites, or peer paths through one unit of code)
 
 This sweep catches 2.3.0's additive twin: you **add** a rule — a guard, a validator clause, a read-only precondition, a classification tripwire, a fallback — and state it at only *some* of the co-equal sites that must all carry it for the rule to actually hold. Each site reads correct in `git diff` and the happy path works, so the asymmetry ships clean. A **peer set** is two or more sites that must each enforce the *same* rule independently (the gate checkpoints of a skill step, the object/scalar/array branches of a config-leaf handler, the selection predicate *and* the parallel derivation that must agree on the same fallback), **or the paths through one unit of code that must each carry the rule**. After adding any such rule, before running tests:
 
