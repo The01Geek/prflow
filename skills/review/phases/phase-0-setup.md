@@ -170,10 +170,10 @@ Read the exit status from the tool result: **0** = the diff is genuinely empty (
 git diff "<resolved-local-diff-base>...HEAD" | tee .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate | grep -c '^diff --git'
 ```
 
-**Step 4 — count the telemetry-log sections the filter is expected to strip.** Read the printed count; this is the operand that makes step 5's check an equation rather than a bare non-emptiness test.
+**Step 4 — count the telemetry-log sections the filter is expected to strip.** Read the printed count; this is the operand that makes step 5's check an equation rather than a bare non-emptiness test. **Its pattern must anchor on ` [ab]/` exactly as the step-5 filter does** — an `a/`-only pattern counts a different set, so a section renamed *into* `.prflow/logs/` would be stripped by the filter but uncounted here, breaking the equation on a healthy filter and stopping a valid diff.
 
 ```bash
-grep -c '^diff --git a/\.prflow/logs/' .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate
+grep -c '^diff --git.* [ab]/\.prflow/logs/' .prflow/tmp/review/<slug>/<run-id>/diff.raw-candidate
 ```
 
 **Step 5 — filter into the published cache, and count again.** Read the printed count from the tool result.

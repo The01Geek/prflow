@@ -39117,6 +39117,20 @@ assert_eq "#1721 the filter keeps a path merely CONTAINING .prflow/logs/ (anchor
 assert_eq "#1721 the filter's printed section count equals the published section total" "2" \
   "$(printf '%s' "$SP503_FILTERED" | tail -1)"
 
+# (#1721) The step-4 logs count must anchor on ` [ab]/` like the filter: an `a/`-only pattern
+# misses a section renamed INTO .prflow/logs/, breaking the published == raw - logs equation on a
+# healthy filter and stopping a valid diff.
+printf '%s\n' \
+  'diff --git a/feature b/feature' '+payload' \
+  'diff --git a/.prflow/logs/t.tsv b/.prflow/logs/t.tsv' '+rooted' \
+  'diff --git a/src/old.txt b/.prflow/logs/new.tsv' '+renamed into logs' \
+  > "$SP503_FENCE_DIR/rename.patch"
+SP503_RAW_N="$(grep -c '^diff --git' "$SP503_FENCE_DIR/rename.patch")"
+SP503_LOGS_N="$(grep -c '^diff --git.* [ab]/\.prflow/logs/' "$SP503_FENCE_DIR/rename.patch")"
+SP503_PUB_N="$(awk '/^diff --git/{in_logs=/ [ab]\/\.prflow\/logs\//} !in_logs' "$SP503_FENCE_DIR/rename.patch" | grep -c '^diff --git')"
+assert_eq "#1721 the staging equation holds when a section is renamed INTO .prflow/logs/" "yes" \
+  "$([ "$SP503_PUB_N" -eq "$((SP503_RAW_N - SP503_LOGS_N))" ] && echo yes || echo no)"
+
 # ── Contract 2: a dropped <resolved-local-diff-base> substitution fails CLOSED. Real git here:
 # the literal placeholder is an invalid ref, so the producer exits non-zero and step 2's failure
 # reading fires before any cache is staged.
