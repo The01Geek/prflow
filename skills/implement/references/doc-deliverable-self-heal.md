@@ -17,9 +17,9 @@ Reached only from Stage 2's absent-path arm, once per named path that arm found 
 
    If neither invocation runs, continue to step 3 and name the unrecorded note in the step 5 report — the note is an audit record, not the repair.
 
-3. **Commit and push**, each its own single statement. Stage the resolved repository path(s) you actually edited — for a bare-filename deliverable that is the path the edit landed at, not the bare token, and it includes any coupled file the repair touched — never `git add -A` or `git add .`; a pathspec matching no file stages nothing, so the commit reports nothing to commit and the step-4 re-check fails:
+3. **Commit and push**, each its own single statement. Stage the resolved repository path(s) you actually edited — for a bare-filename deliverable that is the path the edit landed at, not the bare token, and it includes any coupled file the repair touched — never `git add -A` or `git add .`; an unsubstituted placeholder or a pathspec matching no file makes `git add` exit non-zero and stage nothing at all, so the commit reports nothing to commit and the step-4 re-check fails:
    ```bash
-   git add "<edited-repository-path-1>" "<edited-repository-path-2>"
+   git add "<edited-repository-path>" # repeat this quoted operand once per edited path
    ```
    ```bash
    git commit -m "docs: self-heal Documentation Needed deliverable for issue #$ISSUE_NUMBER"
@@ -35,7 +35,7 @@ Reached only from Stage 2's absent-path arm, once per named path that arm found 
    ```bash
    git rev-parse @{u}
    ```
-   Then re-run the helper-driven diff check for this path exactly as Stage 2 does — the deliverables helper, then the cumulative diff — and apply Stage 2's satisfied-versus-absent rule. Only a path now present in the re-checked diff counts as satisfied. When that re-check cannot be established — the deliverables helper returns a token other than `deliverables` or `no-deliverables`, or the diff recompute exits non-zero — write no run status here: treat this path as not repaired and report it that way, so the caller's own terminal decides.
+   Then re-run the helper-driven diff check for this path exactly as Stage 2 does — the deliverables helper, then the cumulative diff — and apply Stage 2's satisfied-versus-absent rule. Only a path now present in the re-checked diff counts as satisfied. When that re-check cannot be established — the deliverables helper returns a token other than `deliverables` or `no-deliverables`, or the diff recompute exits non-zero — write no run status here: treat this path as not repaired and report the observed token or exit status to the caller, whose **Shared read contract** arms route that outcome naming what was observed — the content-derivation terminal would instead record a cause the operator cannot act on.
 
 5. **Report the per-path outcome to the caller** — repaired-and-verified, or not repaired naming which of steps 1–4 failed or could not be established, plus any step-2 workpad note that went unrecorded.
 
