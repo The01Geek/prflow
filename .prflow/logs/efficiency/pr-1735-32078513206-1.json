@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1735",
+  "generated_at": "2026-08-17T23:08:53Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.4",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 6.851559249999999,
+    "tokens": {
+      "input_tokens": 50,
+      "output_tokens": 26366,
+      "cache_read_input_tokens": 3590970,
+      "cache_creation_input_tokens": 198443,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 100,
+        "outputTokens": 39461,
+        "cacheReadInputTokens": 4854771,
+        "cacheCreationInputTokens": 430878,
+        "webSearchRequests": 0,
+        "costUSD": 6.851559249999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 29,
+    "duration_ms": 451356
+  },
+  "permission_denials": {
+    "count": 6,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-unset} ATTEMPT=${GITHUB_RUN_ATTEMPT:-unset}\"; mkdir -p .prflow/tmp/review/pr-1735/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}; echo \"dir=.prflow/tmp/review/pr-1735/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}\"",
+      "mkdir -p .prflow/tmp/review/pr-1735/32078513206-1; gh pr diff 1735 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1735/32078513206-1/diff.patch | tail -5; echo \"---rc=${PIPESTATUS[0]}---\"",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve 1730 --pr 1735 2>.prflow/tmp/review/pr-1735/32078513206-1/acs.err ; echo \"acs-rc=$?\"",
+      "for f in skills/create-issue/references/issue-template.md skills/create-issue/references/quality-group-contracts.md docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md; do echo \"== $f ==\"; git show e14daf91447678d3b9df9ca0b1f9b313d1cf64c8:$f | grep -n \"floor-marked\\|floor marker\\|at minimum\" ; done",
+      "cd /home/runner/work/prflow/prflow\necho \"=== floor-marked refs in head tree ===\";\nfor f in $(git show e14daf91447678d3b9df9ca0b1f9b313d1cf64c8:skills/create-issue/references/ 2>/dev/null | tail -n +2); do :; done\ngit grep -n 'floor-marked' e14daf91447678d3b9df9ca0b1f9b313d1cf64c8 -- skills/create-issue/references/ docs/internal/ || echo \"NO floor-marked matches\"\necho \"=== byte sizes issue-template.md ===\";\necho -n \"head: \"; git show e14daf91447678d3b9df9ca0b1f9b313d1cf64c8:skills/create-issue/re …[per-command-truncated]",
+      "for f in skills/create-issue/references/issue-template.md skills/create-issue/references/quality-group-contracts.md docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md; do echo \"== $f ==\"; git show e14daf91447678d3b9df9ca0b1f9b313d1cf64c8:$f | grep -n 'floor-marked' || echo \"(none)\"; done\necho \"== all references dir floor-marked (head via ls-tree) ==\"\ngit ls-tree -r --name-only e14daf91447678d3b9df9ca0b1f9b313d1cf64c8 skills/create-issue/references/ docs/internal/ | while read p; do git show e14daf91447678 …[per-command-truncated]"
+    ],
+    "total": 6,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
