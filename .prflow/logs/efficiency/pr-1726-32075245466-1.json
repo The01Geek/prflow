@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1726",
+  "generated_at": "2026-08-17T22:36:25Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.3",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 14.9655145,
+    "tokens": {
+      "input_tokens": 90,
+      "output_tokens": 50877,
+      "cache_read_input_tokens": 8970306,
+      "cache_creation_input_tokens": 283423,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 178,
+        "outputTokens": 103352,
+        "cacheReadInputTokens": 11838943,
+        "cacheCreationInputTokens": 823831,
+        "webSearchRequests": 0,
+        "costUSD": 14.715941499999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 1,
+        "outputTokens": 5250,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 45552,
+        "webSearchRequests": 0,
+        "costUSD": 0.249573,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 68,
+    "duration_ms": 1100771
+  },
+  "permission_denials": {
+    "count": 10,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-none} ATTEMPT=${GITHUB_RUN_ATTEMPT:-none} ACTIONS=${GITHUB_ACTIONS:-none}\"; echo \"PR_NUMBER=1726\"",
+      "gh pr diff 1726 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1726/32075245466-1/diff.patch | wc -l; echo \"cached-rc=${PIPESTATUS[0]}\"",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve \"1557\" --pr \"1726\" 2>.prflow/tmp/review/pr-1726/32075245466-1/acs.err ; echo \"acs-rc=$?\"",
+      "cd /home/runner/work/prflow/prflow 2>/dev/null; awk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1726/32075245466-1/diff.patch > .prflow/tmp/review/pr-1726/32075245466-1/batch-1.patch && test -s .prflow/tmp/review/pr-1726/32075245466-1/batch-1.patch && echo \"slice-ok: batch-1\" || echo \"slice-failed: batch-1\"\nawk -v s=11 -v e=17 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1726/32075245466-1/diff.patch > .prflow/tmp/review/pr-1726/32075245466-1/batch-2.patch & …[per-command-truncated]",
+      "awk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1726/32075245466-1/diff.patch > .prflow/tmp/review/pr-1726/32075245466-1/batch-1.patch && test -s .prflow/tmp/review/pr-1726/32075245466-1/batch-1.patch && echo \"slice-ok: batch-1\" || echo \"slice-failed: batch-1\"",
+      "awk -v s=11 -v e=17 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1726/32075245466-1/diff.patch > .prflow/tmp/review/pr-1726/32075245466-1/batch-2.patch && test -s .prflow/tmp/review/pr-1726/32075245466-1/batch-2.patch && echo \"slice-ok: batch-2\" || echo \"slice-failed: batch-2\"",
+      "git status --porcelain -z > .prflow/tmp/review-dirty-tree-before 2>/dev/null && git hash-object .prflow/tmp/review-dirty-tree-before && echo \"snap-ok\" || echo \"snap-failed\"",
+      "ls -la /home/runner/work/_temp/devflow-trusted-prompt-ext/ 2>&1; echo \"===\"; wc -c /home/runner/work/_temp/devflow-trusted-prompt-ext/requesting-code-review.md 2>&1",
+      "wc -c /home/runner/work/_temp/devflow-trusted-prompt-ext/requesting-code-review.md 2>&1; ls /home/runner/work/_temp/devflow-trusted-prompt-ext/ 2>&1",
+      "wc -c /home/runner/work/_temp/devflow-trusted-prompt-ext/requesting-code-review.md 2>&1"
+    ],
+    "total": 10,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
