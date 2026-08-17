@@ -77,8 +77,9 @@ HARDENED_PATHS="${HARDENED_PATHS//\`/}"
 HEAD_SHA="${HEAD_SHA//\`/}"
 
 # MODE selects the tier the block is rendered for. `review` (the default, and the
-# value any unrecognized MODE falls back to) renders every section. `implement` and
-# `generic` render the tier-agnostic sections only — the
+# value any unrecognized MODE falls back to) selects every section — the displacement
+# section additionally requires a non-empty HARDENED_PATHS. `implement` and
+# `generic` select the tier-agnostic sections only — the
 # permitted commands, the command shapes, the headless-run discipline, and the
 # independent-tool-call batching disposition — omitting
 # every section gated on a reviewed commit (the CI section, the sole-publisher section,
@@ -363,10 +364,10 @@ ${ALLOWED_TOOLS}
 > other's result.** Two edits to one file are dependent unless you can establish that
 > neither edit's match text overlaps the region the other replaces, and that neither
 > replacement creates a second occurrence of the other's match text. Two dispatches that
-> can both write one checkout are dependent unless you have established that their writes
-> cannot reach the same path — each writing only where its own identity determines, as a
-> batch of verifiers writing per-item result files does — or that the runner gives each
-> its own working copy. Where either is merely unestablished, treat them as dependent:
+> can both write one checkout are dependent unless you have established one of two things:
+> that their writes cannot reach the same path — each writing only where its own identity
+> determines, as a batch of verifiers writing per-item result files does — or that the
+> runner gives each its own working copy. Establishing neither leaves them dependent;
 > otherwise they race and silently overwrite each other. Every write-capable dispatch
 > still owes the commit-before-dispatch obligation stated where that dispatch is defined,
 > whichever of those holds; a working copy of its own is a stronger way to meet that
