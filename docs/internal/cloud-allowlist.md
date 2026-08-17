@@ -1014,11 +1014,12 @@ population rather than pinning a number to it.
 **Two cloud-reachable populations are adjudicated here but deliberately NOT rewritten**, because
 the remedy this change applies does not reach them:
 
-- `phase-3-agents.md` appends inside a `while read` loop (`printf '%s\0' "$rec" >> …`) to build
-  NUL-delimited path lists. The Write tool cannot participate in shell iteration, so the
-  Write-tool remedy is structurally unavailable and these need a different design — collect in a
-  shell variable and author once, or keep the redirect. Its dirty-tree snapshot is what authorises
-  the Phase 3.2 restore, so redesigning it is not a mechanical edit.
+- `phase-3-agents.md` carries two kinds the Write tool cannot reach, and the distinction matters
+  for whoever takes the follow-up: appends made inside a `while read` loop (`printf '%s\0' "$rec"
+  >> …`), which the Write tool cannot participate in at all; and captures of a command's output
+  (`git status --porcelain -z > …`), which it cannot source. Both need a different design — collect
+  in a shell variable and author once, or a helper that owns the loop. Its dirty-tree snapshot is
+  what authorises the Phase 3.2 restore, so redesigning it is not a mechanical edit.
 - `phase-3-fix-loop.md` redirects to `$(mktemp)`, i.e. a `/tmp` target — the **probe-denied** arm
   (implement-tier row 10), a different and already-known class from the workspace-target rows this
   section supersedes.

@@ -4705,10 +4705,9 @@ assert_pin_unique "#555: the sentinel carries the discovery= field, guarded with
   'discovery=[${DISCOVERY_STATE:-}]' "$P405_REF"  # structural-pin-ok: machine-sentinel-provenance -- the emitted sentinel field the reader's fail-closed routing literal-matches; without it a failed discovery is indistinguishable from a clean no-op
 assert_pin_unique "#555: the filing guard requires a successful discovery (a persisted prior aggregate must not drive filing on a failed/refused discovery)" \
   '{ [ "$DISCOVERY_STATE" = ok ] || [ "$DISCOVERY_STATE" = partial ]; } && [ -n "$AGG" ] && [ -s "$AGG" ]' "$P405_REF"  # structural-pin-ok: routing-dispatch-contract -- the guard that stops a persisted prior aggregate from driving filing on a failed or refused discovery
-# (#1721) The roots-echo surfacing pin is RETIRED, not repointed. The fence no longer runs a
-# command to surface it — the helper writes it to stderr and the agent reads it from the tool
-# result — so do NOT re-pin it over that prose: a prose literal resolves in pin-corpus-lint's
-# prose-resolution arm (rc 3) before any `# structural-pin-ok:` declaration is consulted.
+# (#1721) Do NOT re-pin the retired roots-echo surfacing over its replacement prose: a prose
+# literal trips pin-corpus-lint's prose-resolution arm (rc 3) before any `# structural-pin-ok:`
+# declaration is read.
 # ── issue #555 (review finding): a bundled helper granted as a vendored-literal LEADING
 # TOKEN is exec'd by path — no `python3`/`bash` wrapper is available, because an interpreter
 # head is ungranted on the cloud tiers. Without the exec bit such a call dies rc 126 on every
@@ -39086,10 +39085,9 @@ assert_eq "#503 wrapper-only fetch is not granted in the read-only review workfl
 assert_eq "#503 wrapper-only remote probe is not granted in the read-only review workflow" \
   "0" "$(grep -cF 'Bash(git ls-remote:*)' "$LIB/../.github/workflows/devflow-runner.yml")"
 
-# (#1721) Do NOT re-pin the staging path's step orchestration: it is now agent-executed
-# prose, and a prose literal resolves in pin-corpus-lint's prose-resolution arm (rc 3) before
-# any `# structural-pin-ok:` declaration is consulted. Only the two still-executable contracts
-# below are covered.
+# (#1721) Do NOT re-pin the staging path's step orchestration: it is agent-executed prose, and
+# a prose literal trips pin-corpus-lint's prose-resolution arm (rc 3) before any
+# `# structural-pin-ok:` declaration is read.
 SP503_FENCE_DIR="$(mktemp -d)"
 SP503_FENCE_CACHE="$SP503_FENCE_DIR/cache"
 mkdir -p "$SP503_FENCE_CACHE"
