@@ -186,7 +186,6 @@ literal:4184e9a4e5417e606a9e07484520f8ea8ae8e8c3a4b8abf8572ef53f5da15a46	boundar
 literal:418c14d4c0727355ed1b187cb751af9e071130c2f1e9b5d55cf75c257b1a2286	boundary	maintainer adjudication: empty observable-set record is a durable deferral schema boundary
 literal:42abca1bb80d12fa2317af5bc77d2c8836e3f15b1a8026179073cbe5122eaa32	boundary	maintainer adjudication: review-and-fix FAIL_CLOSED: Provides the configuration-read failure breadcrumb.
 literal:4326bdfbbfa8e211dfbdcae4982b5a79cf516ee133184cc5356724fb5dc9f13c	boundary	maintainer adjudication: create-issue EH: external helper, portable anchor, root binding, path display, or label outcome contract: create-issue invokes apply-labels.sh through the inline portable anchor
-literal:437624c5586419712b2c9f13a0e2e36d4b795cfede301264e0eb6412bea8215d	boundary	maintainer adjudication: filing guard is a fail-closed deferral protocol boundary
 literal:442beeda551d80d84aae883ff2198e1e91eac1ffeb93dfa2e46019d57b7ffb1d	boundary	maintainer adjudication: agents SC: source_authored items require source_excerpt for downstream normalization
 literal:4490058717d0520aaad05f4c504cfcf79918aec9a5d59ac38170e3ad82c666fc	boundary	maintainer adjudication: create-issue CF: fail-closed config/capability gate or reason-selection contract: offer gate prints a one-line withheld-offer reason (never silent)
 literal:44af0329cd33568cdf0d0773c15f3a7ecbb9f5edc3ebda91d823fc51485a1764	boundary	Retain operational boundary: rcv: step 0 fail-soft path protects the named executable or safety condition, not prose presentation.
@@ -229,7 +228,6 @@ literal:55142a5d45a8115c132dd021b96f9a8c0bdafedb4887da0ae4486e3a1b01eb80	boundar
 literal:552a4d12f2bc6a469c9aad914950d9e959ba8d6fdd4a4f8631b4029b75ff4b10	boundary	maintainer adjudication: declared security or interface boundary
 literal:553c311033effc6cadd9799a18f62a527b08582173b17b499916b21bc6f25b4a	boundary	maintainer adjudication: discovery-state initialization is a fail-closed sentinel boundary
 literal:55803c021a75efbe4529e5710361a97e6cb5a82ffd5bf4296d625865e8118369	boundary	maintainer adjudication: declared security or interface boundary
-literal:55c253ae16c90ba7e06f3079f142c1c555f32477c86efec1ae4d2e316e1c88e0	boundary	Retain routing/state-transition contract: #555: the failed/refused arm blanks MANIFESTS so the merge guard is unambiguously false.
 literal:55f0d37bf23d7ba508eda09ba1896b24962b3b25a3cda42fe4e0b9dfba49c1ef	boundary	maintainer adjudication: implement-top operative-contract: Operative lifecycle, routing, helper, state, or cross-phase contract.
 literal:5684fa183806e2957a505a02d4cabd437a66adeefafc3acef1b497f48faf13f6	boundary	maintainer adjudication: argument-less efficiency persistence call is an external-helper boundary
 literal:569815720144165835b11a8c32a3ffc04f29f382b8cc7e2b12a986286d63aeaf	boundary	maintainer adjudication: implement-top operative-contract: Operative lifecycle, routing, helper, state, or cross-phase contract.
