@@ -1,6 +1,0 @@
----
-bump: patch
-type: Changed
----
-
-- **Trim derivation from `/prflow:create-issue`'s always-loaded issue template.** `references/issue-template.md` sheds rationale and downstream-ownership prose while keeping every drafting rule: the Acceptance-Criteria grounding-block bullet drops the arguments for why shared framing is stated once and why a criterion's qualifiers repeat, keeping the consequence test, the placement rule and the reason prose after the criteria is lost; `Current Behavior` keeps the defect classification, the environment-regardless rule, the `unestablished — <reason>` form, the do-not-move-to-Blocked routing and the reporter's-story-is-data guard, and points at the conditionally-loaded regression quality group for the reproduction-fact set it already carries; the Testing-Strategy assertion-completeness paragraph, the `Blocked by #N` downstream-preflight description, and the posting recipe's marshaling and newline explanations reduce to their operative rules. The plain-language requirement, the `lib/writing-standard.md` pointer, and the worked example issue that demonstrates the expected voice are untouched — they are the guidance that keeps generated issues readable, and they are deliberately out of scope for token-cost work.
