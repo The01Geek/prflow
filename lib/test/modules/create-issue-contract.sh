@@ -775,15 +775,11 @@ assert_eq "#467 A3: Step 3.6 generic dimension checklist is guard-locked at its 
 # now proven by the executable #1693 AC5 checklist-mapping test (each obligation appears exactly
 # once across the whole shipped surface, in its owner group) — so re-authoring a wording-only prose
 # presence pin here would be a #810-prohibited pin, superseded by that executable evidence.
-# Cluster D — Move 2a introduction trigger (template) + waiver-non-conforming clause; the
-# three-site best-effort-parser widening (CLAUDE.md, implement Phase 2.4, review-and-fix
-# fix-delta gate); extension sharpening (whole-file dimension count held at 9 after the
-# deployment-variance dimension added on main; #467 added none, matching the D3 guard below). The six-shape
-# SIXSHAPE_SET lockstep pins above stay green — the widening references the set, never restates it.
-# #1693: the #467 D1 introduction-trigger prose pin is RETIRED here — Move 2a's trigger relocated
-# into the regression quality group, and its survival is now proven by the executable #1693 AC5
-# checklist-mapping test, so re-authoring it as a wording-only prose pin would be #810-prohibited.
-# (D2/D3 below are unchanged — they pin CLAUDE.md / the extension, not moved prose.)
+# Cluster D — the three-site best-effort-parser widening (CLAUDE.md, implement Phase 2.4,
+# review-and-fix fix-delta gate); extension sharpening (whole-file dimension count held at 9
+# after the deployment-variance dimension added on main; #467 added none, matching the D3 guard
+# below). The six-shape SIXSHAPE_SET lockstep pins above stay green — the widening references the
+# set, never restates it. D2/D3 pin CLAUDE.md / the extension, not moved prose.
 devflow_module_pin_unique "#467 D2 (CLAUDE.md leg): best-effort-parser gotcha widened to mutable-markdown/external-format" \
   'The governed surface is broader than config JSON' "$CI_CLAUDE"
 devflow_module_pin_unique "#467 D2 (Phase 2.4 leg): dry-trace rule widened to mutable-markdown/external-format" \
