@@ -1,10 +1,778 @@
 {
   "iter": 1,
   "started_at": "2026-08-17T18:45:32Z",
+  "fix_commit_sha": "9dd623a6280d56d1d0f8b93888211ae1d0a90238",
+  "fix_files": [
+    ".changeset/issue-1713-create-issue-working-file-listing.md",
+    "skills/create-issue/SKILL.md",
+    "skills/create-issue/references/fallback-read-only-sandbox.md"
+  ],
   "loop_role": "fix",
-  "current_step": "loop-control",
-  "current_substep": "step_1_run_engine",
+  "current_step": "3.5",
+  "current_substep": "fix_delta_gate",
   "pending_dispatch": null,
-  "synthesized": false,
-  "telemetry": "unavailable"
+  "sweep_defs_read": [
+    {
+      "path": "../implement/phases/phase-2-implement.md",
+      "read": "whole",
+      "sweeps": [
+        "2.2.4",
+        "2.2.7",
+        "2.3-operand"
+      ]
+    },
+    {
+      "path": "../implement/phases/phase-2-sweeps-contract.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0",
+        "2.3.0a",
+        "2.3.0b",
+        "2.3.0c",
+        "2.3.0d"
+      ]
+    },
+    {
+      "path": "../implement/phases/phase-2-sweeps-quality.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.1",
+        "2.3.2",
+        "2.3.3",
+        "2.3.4",
+        "2.3.4a",
+        "2.3.4b",
+        "2.3.5",
+        "2.3.6",
+        "2.3.7"
+      ]
+    }
+  ],
+  "sweep_evidence": {
+    "status": "run",
+    "classified": "prose-only fix delta to two shipped skill-bundle files plus a changeset; add-and-modify, no deletions, no enumerated-set membership change, no new code guard",
+    "ran": [
+      "2.3.3",
+      "2.3.4",
+      "2.3.4a",
+      "2.3.4b",
+      "2.3.5",
+      "2.3.6",
+      "2.3.0c"
+    ],
+    "not_armed": [
+      "2.3.0",
+      "2.3.0a",
+      "2.3.0b",
+      "2.3.0d",
+      "2.3.1",
+      "2.3.2",
+      "2.3.7"
+    ],
+    "2.3.4b": "branch-delta leg: helper exit 0, producer emitted hunks, 7 CU rows produced (arm 1) - each grounded by SCOPING to the arm it governs; zero STALE. No new-file leg this iteration (no file authored).",
+    "2.3.4": "external-output reproduction obligation discharged with observed bytes: ls -l emits 'ls: <path>: Permission denied' at exit 1 (a path-naming diagnostic), and with stderr suppressed only the successful listing row reaches stdout.",
+    "2.3.0c": "trigger (b) prose-policy: each stated policy now names its observable operand (the invocation's OUTPUT SHAPE, not an exit status the harness refuses), the step that produces it, and a route for every outcome including the no-output refusal."
+  },
+  "checklist": [
+    {
+      "id": "VC-1",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:SKILL.md:step1-creates-tmp-dir",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-2",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:SKILL.md:step4-ls-precedes-reference-load",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-3",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:SKILL.md:four-paths-named-individually",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-4",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:SKILL.md:unestablished-slug-lists-dir",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-5",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:SKILL.md:timestamp-compare-before-reentry",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-6",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:SKILL.md:producing-step-reentry-rules",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-7",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:SKILL.md:three-listing-outcomes",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-8",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:SKILL.md:breadcrumb-and-never-blocks",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-9",
+      "verification_mode": "agent",
+      "verdict": "FAIL",
+      "claim_signature": "issue_acceptance:SKILL.md:read-only-arm-selected-by-run-state",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-10",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:fallback-read-only-sandbox.md:listing-arm-consistent",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-11",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:create-issue-contract.sh:module-green-floors-unchanged",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-12",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "dependency_interaction:SKILL.md:1693-byte-budget-router-delta",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-13",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "dependency_interaction:SKILL.md:reference-size-ceiling",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-14",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "dependency_interaction:SKILL.md:ls-mkdir-not-preflight-guaranteed",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-15",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "data_format_assumption:SKILL.md:mkdir-relative-cwd-anchor",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-16",
+      "verification_mode": "agent",
+      "verdict": "FAIL",
+      "claim_signature": "absolute_claim:SKILL.md:single-invocation-carries-every-outcome",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-17",
+      "verification_mode": "agent",
+      "verdict": "FAIL",
+      "claim_signature": "absolute_claim:SKILL.md:older-than-pointer-not-this-run",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-18",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "absolute_claim:SKILL.md:listing-never-blocks-creation",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-19",
+      "verification_mode": "agent",
+      "verdict": "FAIL",
+      "claim_signature": "absolute_claim:SKILL.md:exactly-four-complete-by-construction",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-20",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "api_contract:SKILL.md:pin-uniqueness-collision",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-21",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "api_contract:fallback-read-only-sandbox.md:degradation-routing-row-needed",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-22",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "api_contract:SKILL.md:listing-vs-step4-substep-numbering",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-23",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "data_format_assumption:issue-1713-changeset:frontmatter-form",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-24",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "dependency_interaction:SKILL.md:mkdir-channel-vs-write-channel",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-25",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "api_contract:fallback-read-only-sandbox.md:standin-list-covers-four-paths",
+      "reused_from_iter_prev": false
+    }
+  ],
+  "dispatched_effort": [
+    {
+      "agent": "prflow:checklist-generator",
+      "phase": "1",
+      "requested": "low",
+      "resolved": "low",
+      "application_point": "session-fallback",
+      "effective": null,
+      "fallback_reason": "per-agent effort resolved but not applied: no in-session per-agent effort seam"
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "The new read-only-sandbox arm is triggered by the listing's own refusal, which the same diff's SKILL.md says never selects that arm; the arm is unreachable on its stated condition and misses the read-only case it was specified for.",
+      "defect_signature": {
+        "file": "skills/create-issue/references/fallback-read-only-sandbox.md",
+        "line_range": [
+          37,
+          39
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 4,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Important",
+      "description": "The arm asserts inline stand-in blocks that a run reaching it on its stated trigger never posted, while forbidding the on-disk copies - leaving the run with neither channel.",
+      "defect_signature": {
+        "file": "skills/create-issue/references/fallback-read-only-sandbox.md",
+        "line_range": [
+          39,
+          39
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Important",
+      "description": "The universal 'That single invocation's own output carries every outcome' is contradicted by the refusal case its own next clause routes.",
+      "defect_signature": {
+        "file": "skills/create-issue/SKILL.md",
+        "line_range": [
+          283,
+          286
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 3,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "The absent-file discriminator keys on an exit status the prose never says how to observe, and which a worktree-isolated harness refuses outright (issue #1633) - policy without mechanism, failing badly in both directions.",
+      "defect_signature": {
+        "file": "skills/create-issue/SKILL.md",
+        "line_range": [
+          283,
+          286
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "The freshness comparand (the run-slug pointer) is itself one of the four listed paths and is the file the read-only arm removes; with it absent the comparison is vacuous and unrouted, so a same-slug prior-run leftover reads as this run's.",
+      "defect_signature": {
+        "file": "skills/create-issue/SKILL.md",
+        "line_range": [
+          276,
+          278
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "The read-only discharge is ordered after the re-entry instruction it is meant to suppress, so a read-only run re-enters Step 3.6 before reaching it.",
+      "defect_signature": {
+        "file": "skills/create-issue/SKILL.md",
+        "line_range": [
+          276,
+          290
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "'A diagnostic naming a listed path with a non-zero status is an absent file' is over-broad: ls -l also emits a path-naming diagnostic on a permission failure, so an existing file is re-produced via the expensive Step 3.6.",
+      "defect_signature": {
+        "file": "skills/create-issue/SKILL.md",
+        "line_range": [
+          279,
+          280
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Important",
+      "description": "The mandated ls -l timestamp comparison cannot decide the same-minute case and fails open; a portable finer-granularity form is unavailable (GNU-only / BSD-only flags are barred).",
+      "defect_signature": {
+        "file": "skills/create-issue/SKILL.md",
+        "line_range": [
+          276,
+          278
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 4,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "The slug-unestablished branch has no arm for .prflow/tmp itself being absent; a directory has no producing step to re-enter.",
+      "defect_signature": {
+        "file": "skills/create-issue/SKILL.md",
+        "line_range": [
+          273,
+          274
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "A missing binary and a refusal collapse onto one indistinguishable report though their remedies are opposite.",
+      "defect_signature": {
+        "file": "skills/create-issue/SKILL.md",
+        "line_range": [
+          283,
+          286
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "The new mkdir has no failure arm, and a refused mkdir is arguably not the 'refused write' the read-only selector names.",
+      "defect_signature": {
+        "file": "skills/create-issue/SKILL.md",
+        "line_range": [
+          154,
+          155
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "'Before any re-entry' can be read as a per-re-entry obligation to re-list.",
+      "defect_signature": {
+        "file": "skills/create-issue/SKILL.md",
+        "line_range": [
+          275,
+          278
+        ],
+        "kind": "comment_drift"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "The changeset over-claims 'which pipeline steps left artifacts behind' relative to the four paths enumerated.",
+      "defect_signature": {
+        "file": ".changeset/issue-1713-create-issue-working-file-listing.md",
+        "line_range": [
+          7,
+          7
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "The audit-artifact limb restates, with a weaker criterion, what step-4-present-create.md's presentation gate already owns.",
+      "defect_signature": {
+        "file": "skills/create-issue/SKILL.md",
+        "line_range": [
+          283,
+          290
+        ],
+        "kind": "other"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "pushed_back"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "A producing-step re-entry resumes at draft rendering without reconciling the draft it may have invalidated.",
+      "defect_signature": {
+        "file": "skills/create-issue/SKILL.md",
+        "line_range": [
+          276,
+          281
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "pushed_back"
+    },
+    {
+      "agent": "completeness-critic",
+      "severity": "Suggestion",
+      "description": "Step 3.5's steelman has no dedicated covered artifact - it appends into the derivation file - so a skipped steelman leaves the listing unchanged.",
+      "defect_signature": {
+        "file": "skills/create-issue/SKILL.md",
+        "line_range": [
+          269,
+          272
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "pushed_back"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "9dd623a6280d56d1d0f8b93888211ae1d0a90238"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "9dd623a6280d56d1d0f8b93888211ae1d0a90238"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "9dd623a6280d56d1d0f8b93888211ae1d0a90238"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "9dd623a6280d56d1d0f8b93888211ae1d0a90238"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "applied",
+      "commit": "9dd623a6280d56d1d0f8b93888211ae1d0a90238"
+    },
+    {
+      "finding_id": "F-6",
+      "decision": "applied",
+      "commit": "9dd623a6280d56d1d0f8b93888211ae1d0a90238"
+    },
+    {
+      "finding_id": "F-7",
+      "decision": "applied",
+      "commit": "9dd623a6280d56d1d0f8b93888211ae1d0a90238"
+    },
+    {
+      "finding_id": "F-8",
+      "decision": "applied",
+      "commit": "9dd623a6280d56d1d0f8b93888211ae1d0a90238"
+    },
+    {
+      "finding_id": "F-9",
+      "decision": "applied",
+      "commit": "9dd623a6280d56d1d0f8b93888211ae1d0a90238"
+    },
+    {
+      "finding_id": "F-10",
+      "decision": "applied",
+      "commit": "9dd623a6280d56d1d0f8b93888211ae1d0a90238"
+    },
+    {
+      "finding_id": "F-11",
+      "decision": "applied",
+      "commit": "9dd623a6280d56d1d0f8b93888211ae1d0a90238"
+    },
+    {
+      "finding_id": "F-12",
+      "decision": "applied",
+      "commit": "9dd623a6280d56d1d0f8b93888211ae1d0a90238"
+    },
+    {
+      "finding_id": "F-13",
+      "decision": "applied",
+      "commit": "9dd623a6280d56d1d0f8b93888211ae1d0a90238"
+    },
+    {
+      "finding_id": "F-14",
+      "decision": "pushed_back",
+      "source_file": "skills/create-issue/SKILL.md",
+      "claim_text": "The audit-artifact limb restates, with a weaker criterion, what step-4-present-create.md's presentation gate already owns; point the limb at that gate instead.",
+      "skip_category": "out-of-scope",
+      "evidence": "The driving issue's Implementation Notes forbid this prose in the shipped file verbatim: 'do not state in the shipped file how this listing relates to the Presentation gate; placement conveys the ordering, and the gate's artifact set and stop-and-run-it-now behavior are unchanged by this work.'",
+      "parking_evidence": {
+        "basis": "the prescribed fix is explicitly prohibited by the driving issue's own Implementation Notes, so applying it would violate the specification this PR is judged against",
+        "failing_input": "a reader following the shipped Step 4 block who wants to know how it relates to the Presentation gate",
+        "source": "issue #1713 Implementation Notes, Compression target paragraph",
+        "finding_ref": {
+          "iter": 1,
+          "index": 13
+        }
+      }
+    },
+    {
+      "finding_id": "F-15",
+      "decision": "pushed_back",
+      "source_file": "skills/create-issue/SKILL.md",
+      "claim_text": "A producing-step re-entry resumes at draft rendering without reconciling the draft it may have invalidated.",
+      "skip_category": "out-of-scope",
+      "evidence": "The issue's Desired Behavior specifies exactly this sequence - perform the producing step, then render - and adds no reconciliation obligation; adding one would exceed the specification and the compression rule the issue sets for this block.",
+      "parking_evidence": {
+        "basis": "the behaviour the finding asks for is outside the issue's stated Desired Behavior, which prescribes re-entry followed by rendering with only a clarification-deficit report",
+        "failing_input": "a run whose Step 2 re-entry derives a Definition of Ready the already-composed draft does not satisfy",
+        "source": "issue #1713 Desired Behavior, re-entry paragraph",
+        "finding_ref": {
+          "iter": 1,
+          "index": 14
+        }
+      }
+    },
+    {
+      "finding_id": "F-16",
+      "decision": "pushed_back",
+      "source_file": "skills/create-issue/SKILL.md",
+      "claim_text": "Step 3.5's steelman has no dedicated covered artifact, so a skipped steelman leaves the listing unchanged.",
+      "skip_category": "out-of-scope",
+      "evidence": "The issue enumerates the four paths as a closed set and justifies each exclusion individually in its Potential Gotchas; widening the listing is a specification change, not a defect fix.",
+      "parking_evidence": {
+        "basis": "the four-path set is the issue's own scope decision with each exclusion separately justified, so widening it exceeds this PR's specification",
+        "failing_input": "a run that skips Step 3.5 entirely; its listing is byte-identical to a run that performed it",
+        "source": "issue #1713 Potential Gotchas, excluded-working-files paragraph",
+        "finding_ref": {
+          "iter": 1,
+          "index": 15
+        }
+      }
+    },
+    {
+      "finding_id": "VC-19",
+      "decision": "pushed_back",
+      "source_file": "skills/create-issue/SKILL.md",
+      "claim_text": "The skill text asserts the four listed paths are 'exactly those four ... complete by construction'.",
+      "skip_category": "claim-quality",
+      "evidence": "The verifier's own report scoped the inaccuracy to inaccuracy_scope: generated_claim_text and stated the phrase 'complete by construction' appears nowhere near the passage - it is the acceptance criterion's framing, not the shipped file's. The shipped wording 'exactly those four, each named individually' is accurate as a description of the ls -l argument list.",
+      "parking_evidence": {
+        "basis": "the checklist claim misattributes to the shipped text a phrase the shipped text does not contain; the verifier itself located the inaccuracy in the generated claim wording",
+        "failing_input": "the checklist item's own claim string, not any shipped line",
+        "source": "skills/create-issue/SKILL.md:269-272 versus the VC-19 verdict's inaccuracy_scope field",
+        "finding_ref": {
+          "iter": 1,
+          "index": 18
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 13,
+    "fix_diff_lines": 33,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "base_checkpoint": {
+    "token": "UP_TO_DATE",
+    "behind_by": null
+  },
+  "stale_prose_check": {
+    "invocation": "git diff origin/main...HEAD piped to stale-prose-lint.py --rev HEAD",
+    "exit": 0,
+    "stale_rows": 0,
+    "unresolvable_rows": 7,
+    "note": "seven recognition-only coverage-universal rows, each grounded by scoping to the arm it governs; two of them are the acceptance criterion's own required wording"
+  },
+  "verification_evidence": {
+    "command": "lib/test/run-module.sh create-issue-contract",
+    "result": "pass",
+    "duration_s": null,
+    "skipped_checks": [],
+    "focused_selection": {
+      "surfaces": [
+        {
+          "surface": "skills/create-issue/SKILL.md",
+          "coverage_map_entry": "create-issue-contract",
+          "target_selected": "lib/test/run-module.sh create-issue-contract"
+        },
+        {
+          "surface": "skills/create-issue/references/fallback-read-only-sandbox.md",
+          "coverage_map_entry": "create-issue-contract",
+          "target_selected": "lib/test/run-module.sh create-issue-contract"
+        },
+        {
+          "surface": ".changeset/issue-1713-create-issue-working-file-listing.md",
+          "exemption": "no coverage-map entry - the map covers lib/ and scripts/ only"
+        }
+      ],
+      "single_flight_consulted": false
+    }
+  },
+  "test_first_gate": [
+    {
+      "decision": "no-automated-test: the fix delta is agent-executed instruction prose that enters a model's context as instruction, so the Phase 2.4 model-context route applies and a dry-trace does not discharge it",
+      "command": "subagent RED/GREEN micro-test with a no-guidance control, 12 runs over three scenarios",
+      "result": "pass",
+      "evidence": "Q1 refusal-with-no-output, Q2 permission-denied, Q3 read-only-arm-with-successful-listing. No-guidance control 3/3, 0/3, 3/3. RED (pre-fix text) 1/3, 0/3, 0/3 - reproducing both shipped defects verbatim, one rep stating 'non-zero status makes silence read as absent' and another 'permission-denied diagnostic naming the path is treated as absent per the rule'. GREEN (first fix) regressed Q3 to 1/3, BELOW the unaided control, because the negation 'never by the listing's output' was not binding; restructuring to lead with the observable predicate as its own sentence produced GREEN3 at 3/3 with converged reasoning. An intermediate variant that only appended a clause scored 1/3 and was discarded. Q1/Q2 label field stayed noisy in GREEN while the stated reasoning was correct 3/3, attributed to the three-token rubric not mapping onto a two-hop rule."
+    },
+    {
+      "decision": "external-tool claims verified empirically rather than by documentation",
+      "command": "ls -l over a permission-denied path, and ls -l with stderr suppressed, in a scratch directory outside the repository",
+      "result": "pass",
+      "evidence": "ls -l emits 'ls: <listed path>: Permission denied' at exit 1 - a path-naming diagnostic that the pre-fix rule classified as an absent file. With 2>/dev/null only the successful listing row reached stdout, confirming the absent-file diagnostic rides on stderr."
+    }
+  ],
+  "telemetry": {
+    "phase_0": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 95
+    },
+    "phase_0_5": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 20
+    },
+    "phase_1": {
+      "calls": 1,
+      "tokens": 77045,
+      "wall_clock_s": 159
+    },
+    "phase_1_5": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 0
+    },
+    "phase_2": {
+      "calls": 25,
+      "tokens": 1580000,
+      "wall_clock_s": 900
+    },
+    "phase_3": {
+      "calls": 4,
+      "tokens": 366668,
+      "wall_clock_s": 290
+    },
+    "step_2_5": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 60,
+      "webfetches": 0
+    },
+    "step_2_6": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 0
+    },
+    "phase_4_x": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 30
+    }
+  },
+  "synthesized": false
 }
