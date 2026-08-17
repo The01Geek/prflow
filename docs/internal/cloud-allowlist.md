@@ -1006,6 +1006,7 @@ population rather than pinning a number to it.
 | `skills/review-and-fix/references/loop-control.md` | 1 × `2>` | cloud (`/prflow:review-and-fix`) | rewritten |
 | `skills/review-and-fix/references/loop-exit.md` | 2 × `2>` | cloud (`/prflow:review-and-fix`) | rewritten |
 | `skills/implement/references/deferred-review-findings.md` | 2 × `2>` | cloud (`/prflow:implement`) | rewritten — each invocation guarded on its own inline exit status, with the residual ambiguity read from that call's own stderr in the tool result rather than a captured `.err` file |
+| `skills/implement/references/deferred-review-findings.md` | 1 × `>` to the variable target `"${AGG}.tmp"` (the jq merge) | cloud (`/prflow:implement`) | **DEFERRED — not rewritten**, see below |
 | `skills/implement/phases/phase-1-setup.md` | 4 × `>` | cloud (`/prflow:implement`) | rewritten — Write tool |
 | `skills/retrospective-weekly/SKILL.md` | mixed stdout, append and stderr redirects | **local only** — no workflow dispatches this command | **left unchanged** |
 | `skills/review/phases/phase-3-agents.md` | redirect writes and appends, quoted and variable targets | cloud | **DEFERRED — not rewritten**, see below |
@@ -1023,6 +1024,13 @@ the remedy this change applies does not reach them:
 - `phase-3-fix-loop.md` redirects to `$(mktemp)`, i.e. a `/tmp` target — the **probe-denied** arm
   (implement-tier row 10), a different and already-known class from the workspace-target rows this
   section supersedes.
+- `deferred-review-findings.md`'s jq merge captures a command's stdout into `"${AGG}.tmp"` and then
+  `mv`s it over the aggregate — the write-via-temp is what makes reading `$AGG` safe. It is the same
+  captures-command-output kind as `phase-3-agents.md`'s: the Write tool cannot source a command's
+  stdout, and routing the merged JSON through the agent's context to author it would reintroduce
+  exactly the transcription hazard the engine avoids for `diff.patch`. The `2>` captures in the same
+  file **were** rewritten; only this one is deferred, and it is a variable target, so the widened
+  literal-path search does not surface it — it was found by reading the fence's variable definitions.
 
 ### Post-change confirmation status of the three measured shapes (issue #1721 AC5)
 
