@@ -11522,9 +11522,8 @@ assert_eq("#1722: ...and writing exactly one review-coverage record",
           ["not-verified:never:short:skipped"],
           workpad._review_coverage_payloads(_mm_patched))
 
-# The shape phase-1-setup.md §1.3 actually ships — classification, both reconcilers, the
-# extension tick and the resume-kind note in ONE call. Reorder reconcile after the ticks and
-# the tick assertion goes RED, which is the ordering the shipped fold rests on.
+# Reorder reconcile after the ticks and the tick assertion goes RED, which is the ordering
+# the shipped Phase 1.3 fold rests on.
 _mm_p13_ticks = []
 _mm_p13 = apply_mut(_CP_BODY, make_args(
     record_classification=["non-bug", "prose-only change; no malfunction described"],
