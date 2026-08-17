@@ -2212,8 +2212,8 @@ _ci1733_classify() {  # <path> <combined-output-file> -> present|absent|unestabl
   printf 'unestablished\n'
 }
 
-# One `ls -lL` invocation over the four-path-shaped operand set as the block runs it
-# (merged stdout+stderr), plus a never-existed operand for the missing-path case.
+# One `ls -lL` over the fixture set (merged stdout+stderr, as the block runs it) plus a
+# never-existed operand for the missing-path case; classification is then per-path.
 _ci1733_combined="$_ci1733_dir/combined.out"
 ls -lL "$_ci1733_dir/real" "$_ci1733_dir/empty" "$_ci1733_dir/dangling" \
        "$_ci1733_dir/goodlink" "$_ci1733_dir/dirlink" "$_ci1733_dir/realdir" \
@@ -2263,17 +2263,9 @@ ls -l "$_ci1733_dir" > "$_ci1733_dirlist" 2>&1 || true
 assert_eq "#1733 AC11: the slug-unknown arm (plain ls -l on the dir) shows the dangling entry" "shown" \
   "$(grep -qE '(^| )dangling( ->|$)' "$_ci1733_dirlist" && echo shown || echo hidden)"
 
-# AC10: a second `ls` must reach the same class; when none is present the run records a
-# skip naming the programs it looked for. -L must never reach the slug-unknown arm — a
-# BSD-shaped impl (busybox) drops the dangling entry from a -L directory listing.
-_ci1733_second_report() {  # <found-impl-or-empty> -> "impl <name>" | skip line
-  if [ -n "$1" ]; then printf 'impl %s\n' "$1"
-  else printf 'skip: no second ls implementation on host (looked for busybox, gls)\n'; fi
-}
-# The skip clause, exercised deterministically — a module cannot call the fatal skip().
-assert_eq "#1733 AC10: with no second ls implementation, a skip naming the programs is recorded" \
-  "skip: no second ls implementation on host (looked for busybox, gls)" \
-  "$(_ci1733_second_report "")"
+# AC10: a second `ls`, when present, must reach the same class; -L must never reach the
+# slug-unknown arm (a BSD-shaped impl drops the dangling dir entry under -L). The no-second-
+# impl skip clause is agent-prose, uncovered by design (#843/#876); a module cannot skip().
 _ci1733_second=""
 if command -v busybox >/dev/null 2>&1; then _ci1733_second="busybox"
 elif command -v gls >/dev/null 2>&1; then _ci1733_second="gls"; fi
