@@ -26,6 +26,18 @@ repository's declaration-marker family — the set `CLAUDE.md` enumerates — as
 member is parsed by a lint under `lib/test/` to decide whether that check passes. The engine
 states the governing property generically, and this extension is where this repository answers it.
 
+## Shipped-prose cost audit
+
+When the reviewed diff adds or grows prose under `skills/**` or `agents/**`, audit every added word
+for whether it earns its place, and report the audit in the review: each run of that command in this
+repository and in every consumer repository pays for those tokens again. For each added block, name
+the instruction it carries, and flag as a **Suggestion** — or **Important** where the wording is also
+wrong or unreachable — any word that is not that instruction or the one sentence naming what breaks
+without it: a rule restated where another surface already binds it, mechanics an agent already knows
+or can derive, narration of the file's own structure, and procedure sitting in an always-loaded root
+that the step's own gated reference should carry. Prefer deleting a rule whose guarantee an existing
+structural invariant already provides over repairing its wording.
+
 ## `$PR_BASE_BRANCH` naming (this repository's reason)
 
 Phase 0.2 tells the engine to keep the exact `$PR_BASE_BRANCH` name because "a project's own

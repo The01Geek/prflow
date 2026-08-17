@@ -1233,6 +1233,10 @@
       "note": "",
       "owner": "unmodularized"
     },
+    "1557": {
+      "note": "Phase 4.1 Stage 2's self-heal repair relocated to a gated reference with the enforcement decision resident; assertions are run.sh-resident (marker contract, Stage-2 slice scoping, lint/manifest enrolment) with no covering module",
+      "owner": "unmodularized"
+    },
     "1566": {
       "note": "",
       "owner": "unmodularized"
@@ -1356,6 +1360,10 @@
     "1702": {
       "note": "",
       "owner": "create-issue-contract"
+    },
+    "1723": {
+      "note": "",
+      "owner": "unmodularized"
     },
     "177": {
       "note": "",

@@ -95,10 +95,11 @@ The anchor-denial-in-argument-position finding is run `30695072336`.
 
 ## The grounding block — what each mode emits
 
-The `review` mode (the default) keeps all five sections. The `implement` mode emits only the
-tier-agnostic ones — the permitted commands, the command shapes, and the headless-run discipline —
-and omits the review-only CI-results and trusted-source-displacement sections. Issue #1064 covers
-post-hoc denial forensics, which the grounding block does not provide.
+The `review` mode (the default) keeps every section. The `implement` mode emits only the
+tier-agnostic ones — the permitted commands, the command shapes, the headless-run discipline and
+the independent-tool-call batching disposition — and omits the three review-only sections
+(CI-results, sole-publisher, trusted-source displacement). Issue #1064 covers post-hoc denial
+forensics, which the grounding block does not provide.
 
 ## The reviewer deny-list floor — the PR-#404 REJECT
 
