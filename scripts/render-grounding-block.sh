@@ -77,9 +77,11 @@ HARDENED_PATHS="${HARDENED_PATHS//\`/}"
 HEAD_SHA="${HEAD_SHA//\`/}"
 
 # MODE selects the tier the block is rendered for. `review` (the default, and the
-# value any unrecognized MODE falls back to) renders the full block byte-for-byte
-# as before. `implement` and `generic` render the tier-agnostic sections only — the
-# permitted commands, the command shapes, and the headless-run discipline — omitting
+# value any unrecognized MODE falls back to) selects every section — the displacement
+# section additionally requires a non-empty HARDENED_PATHS. `implement` and
+# `generic` select the tier-agnostic sections only — the
+# permitted commands, the command shapes, the headless-run discipline, and the
+# independent-tool-call batching disposition — omitting
 # every section gated on a reviewed commit (the CI section, the sole-publisher section,
 # and the trusted-source-displacement section), and renumbering the survivors. `implement` additionally adds the one implement-only clause built below
 # as IMPLEMENT_SCOPE_CLAUSE; `generic` adds no tier-specific clause at all, which is
@@ -145,7 +147,7 @@ PATHS_EOF
   # Backtick containment for the SHA does NOT rest on this substitution (it does
   # not strip backticks) — it rests on the top-of-file HEAD_SHA backtick strip.
   _DISP_PROSE=$(cat <<'__DISP_PROSE_EOF__'
-> **6. Trusted-source displacement (issues #458, #874).** The working-tree files
+> **__N_DISP__. Trusted-source displacement (issues #458, #874).** The working-tree files
 > listed below were deliberately displaced before this session started by one of
 > two trusted-source producers — the Stop-hook trusted-source floor, which
 > replaces them with trusted base-ref copies or fail-closed stubs (issue #458),
@@ -208,15 +210,15 @@ fi
 # MODE test, so /prflow:review-and-fix and /prflow:pr-description (MODE=generic, no
 # Phase 4.4) never receive it. It names Phase 4.4's emitter as the sole publisher
 # without restating its argument shape or outcome vocabulary — phase-4-4-github-post.md
-# stays the sole owner of the procedure. Numbered 5, always present in review mode after
-# the headless section (4); the conditional displacement section renumbers to 6 below.
+# stays the sole owner of the procedure. Its heading digit is the derived N_PUB, never a
+# hand-written ordinal: an inserted earlier section renumbers it with no edit here.
 # Same mechanism as DISPLACED_SECTION — a variable interpolated into the shared tail —
 # so review mode's N_TOOLS/N_SHAPES/N_HEADLESS digits are untouched. Quoted heredoc:
 # the apostrophes stay literal.
 PUBLISHER_SECTION=''
 if [ "$REVIEWED_COMMIT" = yes ]; then
   PUBLISHER_SECTION=$(cat <<'__PUBLISHER_EOF__'
-> **5. A verdict reaches this pull request through Phase 4.4's emitter alone.**
+> **__N_PUB__. A verdict reaches this pull request through Phase 4.4's emitter alone.**
 > The merge-gate consumers that decide this review's outcome scan for a
 > producer-stamped verdict marker, and only Phase 4.4's verdict emitter writes one.
 > A verdict comment you compose and post yourself carries no such marker, so it
@@ -230,19 +232,22 @@ __PUBLISHER_EOF__
 "
 fi
 
-# Section numbers depend on the tier. A block with no reviewed commit omits the CI
-# section and the trusted-source-displacement section, so its survivors renumber
-# 1/2/3; the review block keeps 2/3/4, so those placeholder digits are unchanged (the
-# placeholders below resolve to the same digits they always emitted; the review-only
-# sole-publisher (5) and displacement (6) sections are appended after them). The block is
-# assembled from three `cat` heredocs (header, the review-only CI section, then the
-# shared permitted-commands/shapes/headless tail) rather than one — their concatenated
-# stdout is byte-identical to the former single heredoc for the review tier.
+# Never add a section ordinal as a per-branch literal beyond the three below: every
+# ordinal after N_HEADLESS is derived from it, and a hand-written later one would
+# renumber on one tier and silently not the other.
 if [ "$REVIEWED_COMMIT" = yes ]; then
   N_TOOLS=2; N_SHAPES=3; N_HEADLESS=4
 else
   N_TOOLS=1; N_SHAPES=2; N_HEADLESS=3
 fi
+N_BATCH=$((N_HEADLESS + 1))
+N_PUB=$((N_BATCH + 1))
+N_DISP=$((N_PUB + 1))
+# Never write these two ordinals as ${N_PUB}/${N_DISP} inside their own section bodies:
+# both are quoted heredocs so their apostrophes and backticks stay literal, and an
+# expansion written there would render verbatim instead of a digit.
+PUBLISHER_SECTION="${PUBLISHER_SECTION//__N_PUB__/$N_PUB}"
+DISPLACED_SECTION="${DISPLACED_SECTION//__N_DISP__/$N_DISP}"
 
 cat <<EOF
 > [!IMPORTANT]
@@ -343,6 +348,36 @@ ${ALLOWED_TOOLS}
 > every one of them is collected within it. Pass run_in_background: false on a dispatch —
 > that is the lever YOU control, rather than assuming the workflow-level foreground
 > setting is in force.${IMPLEMENT_SCOPE_CLAUSE}
+>
+> **${N_BATCH}. Issue mutually independent tool calls in one message.** Each request
+> re-sends the whole conversation, so one call per message pays a full request for work
+> that could have shared one. When two or more calls do not depend on each other's
+> results — reads of different files, edits to different files, independent probes,
+> read-only dispatches — emit them together.
+>
+> **Independence is the whole test, and it fails closed.** If you would have to see one
+> call's result before choosing, composing, or deciding whether to make another, they
+> are dependent and go in separate messages; treat a pair you cannot establish as
+> independent as dependent.
+>
+> **Writing the same target is a dependency too, even when neither call needs the
+> other's result.** Two edits to one file are dependent unless you can establish that
+> neither edit's match text overlaps the region the other replaces, and that neither
+> replacement creates a second occurrence of the other's match text. Two dispatches that
+> can both write one checkout are dependent unless you have established one of two things:
+> that their writes cannot reach the same path — each writing only where its own identity
+> determines, as a batch of verifiers writing per-item result files does — or that the
+> runner gives each its own working copy. Establishing neither leaves them dependent —
+> batched anyway, they race and silently overwrite each other. Every write-capable dispatch
+> still owes the commit-before-dispatch obligation stated where that dispatch is defined,
+> established limbs or not; a working copy of its own is a stronger way to meet that
+> obligation, never a replacement for it. None of this is a rule about writing fewer,
+> larger edits: how many hunks a single edit carries is a separate question this says
+> nothing about.
+>
+> Batching adds no permission: this section grants no head, shape, or path the sections
+> above do not, and travelling with other calls never makes a call permissible that
+> would be refused on its own.
 ${PUBLISHER_SECTION}${DISPLACED_SECTION}
 ---
 EOF

@@ -51,17 +51,18 @@ allowed-command list in front of the agent **up front**, so a refused shape is a
 against a list it already has rather than a guess.
 
 `scripts/render-grounding-block.sh` injects the **exact resolved `--allowed-tools`
-string** (section 2 of the review-tier block) plus the command-shape rules (section 3)
-and the headless-run discipline (section 4). Those three section numbers are the
-review-tier numbering; the implement tier omits two sections and renumbers the survivors
-1/2/3, as the `MODE=implement` bullet below records. It is rendered **once**, by that one
+string** (section 2 of the review-tier block) plus the command-shape rules (section 3),
+the headless-run discipline (section 4) and the independent-tool-call batching
+disposition (section 5). Those four section numbers are the review-tier numbering; the
+implement tier omits the three review-only sections and renumbers those four survivors
+1/2/3/4, as the `MODE=implement` bullet below records. It is rendered **once**, by that one
 helper, and prepended to the prompt on **every** tier:
 
 - **`/prflow:review`, `/prflow:review-and-fix`, `/prflow:pr-description`** —
   `devflow.yml`'s `Compose engine grounding block` step, which is unconditional and so
   composes for **every** command that tier dispatches. `/prflow:review` renders in the
   default `review` mode. The other two render in `MODE=generic`, which omits the same
-  two sections `MODE=implement` does and adds none of that tier's Phase 3 scope clause:
+  three sections `MODE=implement` does and adds none of that tier's Phase 3 scope clause:
   `/prflow:pr-description` reviews no commit, and `/prflow:review-and-fix` edits and
   pushes, so the CI section's "cite these conclusions, do not re-derive them by running
   tests" instruction would contradict the in-environment whole-suite gate its own prompt
@@ -70,7 +71,9 @@ helper, and prepended to the prompt on **every** tier:
 - **`/prflow:implement`** — `devflow-implement.yml`'s `Compose implement grounding
   block` step, in `MODE=implement`, which renders the tier-agnostic sections only
   (the review-only CI-results, sole-publisher, and trusted-source-displacement
-  sections are omitted, and the survivors renumber 1/2/3).
+  sections are omitted, and the survivors renumber 1/2/3/4 — the permitted commands,
+  the command shapes, the headless-run discipline, and the independent-tool-call
+  batching disposition).
 
 **A missing or empty renderer fails the job — it no longer degrades (issue #1520).**
 Two independent controls enforce this on every tier. First, a dedicated guard step
