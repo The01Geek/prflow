@@ -951,9 +951,9 @@ is the canonical home for that reading.
 command-tier shape 3 (run `30956039324`, 2026-08-04, `claude-code-action@v1` with Claude Code
 2.1.221) and implement-tier row 11 (run `29623046995`, 2026-07-18). **Field evidence from a later
 consumer run refuses a redirect construct into that same tree**, so no such row may be read as a
-current guarantee. Note what the field evidence does *not* say: none of the three refusals below is
-a stdout `>` into `.prflow/tmp/**`, so the permit for that exact shape is un-refuted — it is
-advisory rather than denied, which is why the shipped lint keeps stdout `>` permitted.
+current guarantee. Note what the field evidence does *not* say: none of the three refusals below
+involves a stdout redirect into `.prflow/tmp/**`, so the permit for that exact shape stands
+un-refuted — which is why the shipped lint still treats that one shape as advisory.
 
 **This section supersedes those rows in time; it does not contradict them.** Each recorded what a
 real run measured at the version it names, and stays valid as history. What changed is that a later
