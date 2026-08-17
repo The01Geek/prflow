@@ -1000,14 +1000,14 @@ population rather than pinning a number to it.
 | File | Sites | Reachability | Disposition |
 |---|---|---|---|
 | `skills/review/SKILL.md` | 4 × `2>` | cloud | rewritten — stderr read from the tool result |
-| `skills/review/phases/phase-0-setup.md` | staging chain, plus 2 × `2>` | cloud | rewritten — staged `tee` pipelines with per-stage section counts; `acs.err` removed |
+| `skills/review/phases/phase-0-setup.md` | staging chain, plus 2 × `2>` | cloud | rewritten — a bare `git diff --name-status` producer ahead of staged `tee` pipelines with per-stage section counts; `acs.err` removed |
 | `skills/review/phases/phase-1-checklist.md` | 1 × `>` | cloud | rewritten — `tee` pipeline with a section count |
 | `skills/review/phases/phase-4-verdict.md` | 1 × `>`, 1 × `2>` | cloud | rewritten — Write tool; stderr from the tool result |
 | `skills/review-and-fix/references/loop-control.md` | 1 × `2>` | cloud (`/prflow:review-and-fix`) | rewritten |
 | `skills/review-and-fix/references/loop-exit.md` | 2 × `2>` | cloud (`/prflow:review-and-fix`) | rewritten |
-| `skills/implement/references/deferred-review-findings.md` | 2 × `2>` | cloud (`/prflow:implement`) | rewritten — exit-code routing replaces the stderr-content greps |
+| `skills/implement/references/deferred-review-findings.md` | 2 × `2>` | cloud (`/prflow:implement`) | rewritten — each invocation guarded on its own inline exit status, with the residual ambiguity read from that call's own stderr in the tool result rather than a captured `.err` file |
 | `skills/implement/phases/phase-1-setup.md` | 4 × `>` | cloud (`/prflow:implement`) | rewritten — Write tool |
-| `skills/retrospective-weekly/SKILL.md` | mixed `>`/`>>`/`2>` | **local only** — no workflow dispatches this command | **left unchanged** |
+| `skills/retrospective-weekly/SKILL.md` | mixed stdout, append and stderr redirects | **local only** — no workflow dispatches this command | **left unchanged** |
 | `skills/review/phases/phase-3-agents.md` | redirect writes and appends, quoted and variable targets | cloud | **DEFERRED — not rewritten**, see below |
 | `skills/implement/phases/phase-3-fix-loop.md` | 2 × `2>` to a `mktemp` target | cloud (`/prflow:implement`) | **DEFERRED — not rewritten**, see below |
 

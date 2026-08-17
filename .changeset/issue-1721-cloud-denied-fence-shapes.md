@@ -22,11 +22,14 @@ failure arm told the run to read a `.err` file that only the refused redirect co
 so on any tier that refuses the redirect the diagnostic channel could never produce a cause; it
 now quotes the stderr the invocation itself returned.
 
-Two fences that routed on `grep`-ing a captured stderr file now route on the helper's exit code,
-which fully discriminates for deferral discovery. Where an exit code is genuinely ambiguous —
-`file-deferrals.py` shares one code between "no deferrals" and "already filed" — the run reads
-that call's stderr to tell them apart, and records an unrecognised shape as a failure rather
-than guessing.
+Two fences that routed on `grep`-ing a captured stderr file now guard on each invocation's own
+exit status, read inline rather than captured into a variable a later statement reads — a shape
+that leaves the status empty on a runner that strips variables between statements, routing every
+healthy run to the unrecognised arm. Deferral discovery separates a partial search from a failed
+one by whether the call returned any paths, which its helper prints on the partial arm alone.
+Where the status is genuinely ambiguous — `file-deferrals.py` shares one code between "no
+deferrals", "already filed" and three input errors — the run reads that call's stderr to tell
+them apart, and records an unrecognised shape as a failure rather than guessing.
 
 One file is deliberately unchanged: the weekly retrospective skill, which no workflow dispatches
 and which therefore runs only on the interactive tier, where these redirects execute normally. It
