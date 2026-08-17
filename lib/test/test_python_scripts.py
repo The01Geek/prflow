@@ -11533,9 +11533,10 @@ _mm_p13 = apply_mut(_CP_BODY, make_args(
     note=["resume-kind: fresh"]))
 assert_eq("#1722: the shipped Phase 1.3 five-flag fold ticks the row it just repaired",
           True, f"- [x] {_MM_EXT[1]}" in _mm_p13)
-assert_eq("#1722: ...and the classification and resume-kind notes both land in that call",
+assert_eq("#1722: ...carrying the rationale-bearing classification and the resume-kind note",
           (True, True),
-          ("classification: non-bug" in _mm_p13, "resume-kind: fresh" in _mm_p13))
+          ("classification: non-bug — prose-only change; no malfunction described" in _mm_p13,
+           "resume-kind: fresh" in _mm_p13))
 
 # ---------------------------------------------------------------------------
 # issue #1501: guard the remaining fixed-arity argument unpacks. Every flag with a
