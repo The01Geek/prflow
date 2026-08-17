@@ -151,9 +151,8 @@ If `$ARGUMENTS` is empty, ask the user to describe their user story, bug report,
 Dispatch `/prflow:docs-verify --report-only` peers on the topic extracted from the user story.
 
 Bind the slug, then clear state — before any dispatch. Bind this run's kebab-case slug here; no
-later step binds one. Run `mkdir -p .prflow/tmp` first, treating a `mkdir` that fails or is refused
-as this run's read-only signal; a write into a missing directory fails and routes an otherwise
-healthy run onto the read-only arm.
+later step binds one. Run `mkdir -p .prflow/tmp` first; the deletes and writes below target that
+directory and fail if it does not exist.
 Delete any `.prflow/tmp/issue-step1-<slug>.md`, and delete-and-rewrite the
 fixed slug-independent pointer `.prflow/tmp/issue-run-slug` holding this slug.
 Both deletes run on every path including the degraded one; a failed delete leaves a possibly-stale
@@ -274,7 +273,7 @@ four, each named individually — and show that invocation's raw output, error l
 message that renders the draft, then continue. With the slug unestablished, list the `.prflow/tmp`
 directory itself instead and state that no entry there is attributable to this run; a diagnostic
 that the directory itself is not found means this run has no artifacts, and no producing step
-re-runs.
+re-runs, there being no slug to attribute a re-run to.
 
 An earlier refused `.prflow/tmp` write in this run puts it on the read-only arm, whose visible
 in-chat blocks then discharge the listing. The read-only arm is selected by run state, never by the
@@ -289,16 +288,16 @@ nothing finer than that minute. With the pointer itself absent from the listing 
 comparand: freshness is unestablished for every path, and no path is accepted as this run's on
 timestamp grounds.
 
-Run the producing step for every path absent or older than the pointer, then resume at the draft
-rendering. A Step 1 re-entry reuses the slug already bound and binds no new one. A missing
+Run the producing step for every path absent or older than the pointer, and for every path whose
+freshness the paragraph above left unestablished, then resume at the draft rendering. A Step 1 re-entry reuses the slug already bound and binds no new one. A missing
 derivation file re-runs Step 2's independent-derivation pass rather than Step 2 whole, and any
 genuine clarification deficit that pass finds is reported in the same message as the draft.
 
-Classify from that one invocation's output and run no second probe: a diagnostic line naming a
-listed path as not found is an absent file, and no output at all is a refusal. Every other outcome
-— a missing command binary and a refused command alike, and a path-naming diagnostic that is not
-not-found, a permission failure among them — is reported unestablished, naming which was observed,
-and re-enters no producing step. A producing step that cannot run gets an in-chat breadcrumb naming
+Classify from that one invocation's output and run no second probe. A diagnostic line naming a
+listed path as not found is an absent file. Every other outcome is reported unestablished, naming
+which was observed, and re-enters no producing step — no output at all, a missing command binary
+and a refused command alike, and a path-naming diagnostic that is not not-found, a permission
+failure among them. A producing step that cannot run gets an in-chat breadcrumb naming
 the file and the failure kind; this listing never prevents the issue from being created.
 
 Load `references/step-4-present-create.md` per the *Reference routing* rules above and follow it exactly, on every entry into this step.
