@@ -1194,9 +1194,10 @@ rm -f "$CI559_BND"
 
 # ── issue #613: shift-left evidence disciplines in the live create-issue extension —
 #    the surviving behavioral guards cover the stale ordinal and negative repo-wide sweep.
-# AC7 — the self-referential count must remain free of the retired ordinal.
-assert_eq "#613 AC7: the rotted 'fourth defect class' ordinal is gone from the extension" "0" \
-  "$(devflow_module_pin_count 'not a fourth defect class' "$CI_EXT")"
+# AC7's rotted-ordinal absence pin is retired (this PR): no program reads the phrase — a consumer
+# search over pin-corpus-lint.py's own machine-consumer surface found none — so the target is
+# agent-executed prose under the #843/#876 recorded decision and its retirement owes no
+# replacement coverage.
 # AC10 — the overview's stale axis enumeration is retired repo-wide. The module itself
 # necessarily carries the phrase as this grep's own needle, so the sweep excludes this
 # file by pathspec; an unexcluded sweep could never reach zero. Any OTHER tracked hit is
