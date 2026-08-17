@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1718",
+  "generated_at": "2026-08-17T01:47:28Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.32.93",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 4.84005875,
+    "tokens": {
+      "input_tokens": 40,
+      "output_tokens": 20512,
+      "cache_read_input_tokens": 2871692,
+      "cache_creation_input_tokens": 165696,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 56,
+        "outputTokens": 32839,
+        "cacheReadInputTokens": 3186600,
+        "cacheCreationInputTokens": 288663,
+        "webSearchRequests": 0,
+        "costUSD": 4.84005875,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 24,
+    "duration_ms": 383164
+  },
+  "permission_denials": {
+    "count": 1,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "mkdir -p .prflow/tmp/review/pr-1718/local-20260817T014134Z-1\ngh pr diff 1718 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1718/local-20260817T014134Z-1/diff.patch | head -5\necho \"===RC=${PIPESTATUS[0]}===\"\necho \"---FILES---\"\ngrep '^diff --git' .prflow/tmp/review/pr-1718/local-20260817T014134Z-1/diff.patch"
+    ],
+    "total": 1,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
