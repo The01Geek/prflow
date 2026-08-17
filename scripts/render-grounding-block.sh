@@ -77,8 +77,8 @@ HARDENED_PATHS="${HARDENED_PATHS//\`/}"
 HEAD_SHA="${HEAD_SHA//\`/}"
 
 # MODE selects the tier the block is rendered for. `review` (the default, and the
-# value any unrecognized MODE falls back to) renders the full block byte-for-byte
-# as before. `implement` and `generic` render the tier-agnostic sections only — the
+# value any unrecognized MODE falls back to) renders every section. `implement` and
+# `generic` render the tier-agnostic sections only — the
 # permitted commands, the command shapes, the headless-run discipline, and the
 # independent-tool-call batching disposition — omitting
 # every section gated on a reviewed commit (the CI section, the sole-publisher section,
@@ -209,8 +209,8 @@ fi
 # MODE test, so /prflow:review-and-fix and /prflow:pr-description (MODE=generic, no
 # Phase 4.4) never receive it. It names Phase 4.4's emitter as the sole publisher
 # without restating its argument shape or outcome vocabulary — phase-4-4-github-post.md
-# stays the sole owner of the procedure. Numbered 6, always present in review mode after
-# the batching section (5); the conditional displacement section renumbers to 7 below.
+# stays the sole owner of the procedure. Its heading digit is the derived N_PUB, never a
+# hand-written ordinal: an inserted earlier section renumbers it with no edit here.
 # Same mechanism as DISPLACED_SECTION — a variable interpolated into the shared tail —
 # so review mode's N_TOOLS/N_SHAPES/N_HEADLESS digits are untouched. Quoted heredoc:
 # the apostrophes stay literal.
@@ -361,14 +361,18 @@ ${ALLOWED_TOOLS}
 >
 > **Writing the same target is a dependency too, even when neither call needs the
 > other's result.** Two edits to one file are dependent unless you can establish that
-> neither's match text falls inside the other's replacement. Two dispatches that can
-> both write the shared checkout are dependent unless the runner gives each its own
-> working copy, or where whether it does is unestablished — otherwise they race and
-> silently overwrite each other. Either way, every write-capable dispatch still owes the
-> commit-before-dispatch obligation stated where that dispatch is defined; a working copy
-> of its own is a stronger way to meet that obligation, never a replacement for it.
-> None of this is a rule about writing fewer, larger edits: how many hunks a single
-> edit carries is a separate question this says nothing about.
+> neither edit's match text overlaps the region the other replaces, and that neither
+> replacement creates a second occurrence of the other's match text. Two dispatches that
+> can both write one checkout are dependent unless you have established that their writes
+> cannot reach the same path — each writing only where its own identity determines, as a
+> batch of verifiers writing per-item result files does — or that the runner gives each
+> its own working copy. Where either is merely unestablished, treat them as dependent:
+> otherwise they race and silently overwrite each other. Every write-capable dispatch
+> still owes the commit-before-dispatch obligation stated where that dispatch is defined,
+> whichever of those holds; a working copy of its own is a stronger way to meet that
+> obligation, never a replacement for it. None of this is a rule about writing fewer,
+> larger edits: how many hunks a single edit carries is a separate question this says
+> nothing about.
 >
 > Batching adds no permission: this section grants no head, shape, or path the sections
 > above do not, and travelling with other calls never makes a call permissible that

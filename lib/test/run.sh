@@ -37199,7 +37199,7 @@ assert_eq "#363 generic mode emits no trusted-source-displacement section (a rev
   "$(_gb363_gen_has 'Trusted-source displacement')"
 assert_eq "#363 generic mode carries none of the implement tier's Phase 3 scope clause" "no" \
   "$(_gb363_gen_has "including Phase 3's inline")"
-assert_eq "#363 generic mode still states the permitted commands, the shapes, and the headless-run discipline (renumbered 1/2/3)" "yes-yes-yes" \
+assert_eq "#363 generic mode still states the permitted commands, the shapes, and the headless-run discipline (its first three sections)" "yes-yes-yes" \
   "$(_gb363_gen_has '**1. The exact commands this run is permitted to execute.**')-$(_gb363_gen_has "**2. Command shapes this run's harness accepts.**")-$(_gb363_gen_has '**3. This is a headless run: ending your turn ends the process.**')"
 # Positive control for the two absence rows above: the SAME literals resolve in review
 # mode, so an empty/garbled render cannot pass them vacuously.
@@ -37250,12 +37250,11 @@ assert_eq "#1723 no section-ordinal placeholder survives into any rendered mode"
 # says the anchor vanished, `bad` says the ordinals really are non-contiguous.
 assert_eq "#1723 rendered section ordinals are contiguous from 1 in every mode" "ok-ok-ok-ok" \
   "$(for _v in "$_GB363_REV" "$_GB363_REV_NOHP" "$_GB363_IMPL" "$_GB363_GEN"; do printf '%s\n' "$_v" | awk '/^> \*\*[0-9]+\. /{n=$0; sub(/^> \*\*/,"",n); sub(/\..*$/,"",n); c++; if (n+0 != c) bad=1} END{print (c==0) ? "none" : ((bad) ? "bad" : "ok")}'; done | tr '\n' '-' | sed 's/-$//')"
-# #1723: Phase 0.1.5's ONLY locator for the displaced-paths section is its ordinal, so a
-# renumber that misses that file silently routes the reviewer to the wrong section and
-# yields an empty displaced-paths list. Never compare only the first citation: `sort -u`
-# collapses agreeing duplicates, so a second citation carrying a DIFFERENT digit stays visible.
+# #1723: Phase 0.1.5's ONLY locator for the displaced-paths section is its ordinal. Extract
+# every citation with `grep -o`, never a `sed` line filter: 0.1.5 is one long line, so an
+# anchored-`.*` capture is greedy and would see only the last citation on it.
 assert_eq "#1723 phase-0-setup 0.1.5's cited displaced-paths ordinal equals the rendered heading digit" "yes" \
-  "$(_p015=$(sed -n 's/.*displaced-paths section (section \([0-9]\{1,\}\)).*/\1/p' "$LIB/../skills/review/phases/phase-0-setup.md" | sort -u | tr '\n' ',' | sed 's/,$//'); _rend=$(printf '%s\n' "$_GB363_REV" | sed -n 's/^> \*\*\([0-9]\{1,\}\)\. Trusted-source displacement.*/\1/p' | sort -u | tr '\n' ',' | sed 's/,$//'); if [ -n "$_p015" ] && [ "$_p015" = "$_rend" ]; then echo yes; else echo "no(cited=$_p015,rendered=$_rend)"; fi)"  # structural-pin-ok: cross-file-phase-contract -- Phase 0.1.5's only locator for the displaced-paths section is its ordinal; this equality is what makes a missed renumber RED instead of a silent empty displaced-paths list
+  "$(_p015=$(grep -o 'displaced-paths section (section [0-9]\{1,\})' "$LIB/../skills/review/phases/phase-0-setup.md" | sed 's/.*(section \([0-9]\{1,\}\))/\1/' | sort -u | tr '\n' ',' | sed 's/,$//'); _rend=$(printf '%s\n' "$_GB363_REV" | sed -n 's/^> \*\*\([0-9]\{1,\}\)\. Trusted-source displacement.*/\1/p' | sort -u | tr '\n' ',' | sed 's/,$//'); if [ -n "$_p015" ] && [ "$_p015" = "$_rend" ]; then echo yes; else echo "no(cited=$_p015,rendered=$_rend)"; fi)"  # structural-pin-ok: cross-file-phase-contract -- Phase 0.1.5's only locator for the displaced-paths section is its ordinal; this equality is what makes a missed renumber RED instead of a silent empty displaced-paths list
 unset _GB363_GEN _GB363_REV _GB363_IMPL _GB363_REV_NOHP
 
 assert_pin_unique "#363 devflow.yml falls back to the bare command when no block is composed" \
