@@ -11491,6 +11491,43 @@ assert_eq("#1453: the canonical trailing-marker bullet IS read (positive control
           ["full:attempted:complete:complete"],
           workpad._review_coverage_payloads("  - 03:00:00 — recorded " + _MK_RC))
 
+# ── issue #1722: one moment, one call — the combined-mutation call is not rejected ──
+# The shipped prose now directs a run to issue the mutations of one moment as ONE
+# `update` call. That only holds if no validation path refuses such a call, so the
+# hardest combination the prose can produce is exercised end-to-end here rather than
+# assumed: a review-coverage record (a validate-before-mutate recorder), a terminal
+# `--status Blocked`, and two repeated `--tick-progress` operands, in a single
+# invocation driven through the real `cmd_update` path.
+#
+# The combination is load-bearing per member: the coverage recorder validates before
+# any body mutation, `Blocked` is the terminal status whose glyph is NOT 🎉 (so the
+# Complete-only gate, which WOULD refuse this incomplete record, must stay unreached),
+# and the ticks are the volatile-miss family that must still resolve alongside both.
+_MM_BODY = _CP_BODY.replace(
+    "- [ ] **Implement**",
+    "- [ ] **Implement**\n- [ ] **Review**\n"
+    + workpad._review_progress_rows_block("Review"))
+_mm_code, _mm_out, _mm_err, _mm_patched = _drive_cmd_update(
+    _MM_BODY,
+    record_review_coverage=["not-verified", "never", "short", "skipped"],
+    status="Blocked",
+    tick_progress=["Classify diff", "Review agents"])
+assert_eq("#1722: the combined coverage+Blocked+two-tick call takes the clean exit",
+          None, _mm_code)
+assert_eq("#1722: ...and its single PATCH landed",
+          True, _mm_patched is not None)
+assert_eq("#1722: ...applying the Blocked status",
+          True, workpad._status_glyph("Blocked") in _statusline(_mm_patched))
+assert_eq("#1722: ...ticking BOTH requested review-boundary rows in the one call",
+          (True, True),
+          ("- [x] Classify diff (Phase 0.5)" in _mm_patched,
+           "- [x] Review agents (Phase 3)" in _mm_patched))
+assert_eq("#1722: ...and writing exactly one review-coverage record",
+          ["not-verified:never:short:skipped"],
+          workpad._review_coverage_payloads(_mm_patched))
+assert_eq("#1722: ...with no tick reported as a volatile miss",
+          False, "did not resolve" in _mm_err)
+
 # ---------------------------------------------------------------------------
 # issue #1501: guard the remaining fixed-arity argument unpacks. Every flag with a
 # fixed nargs and a positional unpack validates its arity BEFORE that unpack, raising
