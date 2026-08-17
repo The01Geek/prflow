@@ -4,7 +4,7 @@
 
 Reached only from Stage 2's absent-path arm, once per named path that arm found absent from the diff; the caller keeps the enforcement decision and owns the `Blocked` terminal, so nothing here writes a run status.
 
-1. **Derive the missing update from the issue body's `**Documentation Needed**` prose.** If the correct content for this path cannot be derived from it, report that back to the caller and stop — the caller routes the underivable case to its own terminal.
+1. **Derive the missing update from the issue body's `**Documentation Needed**` prose.** If the correct content for this path cannot be derived from it, report that back to the caller and stop.
 
 2. **Perform the update**, then record it on the workpad. Emit the granted vendored literal as the leading token first, substituting the path as a literal:
    ```bash
@@ -35,6 +35,6 @@ Reached only from Stage 2's absent-path arm, once per named path that arm found 
    ```
    Then re-run the helper-driven diff check for this path exactly as Stage 2 does — the deliverables helper, then the cumulative diff — and apply Stage 2's satisfied-versus-absent rule. Only a path now present in the re-checked diff counts as satisfied.
 
-5. **Report the per-path outcome to the caller** — repaired-and-verified, or not repaired with what failed (underivable, a failed commit or push, an out-of-sync upstream, or still absent from the re-checked diff). The caller routes it.
+5. **Report the per-path outcome to the caller** — repaired-and-verified, or not repaired naming which of steps 1–4 failed.
 
 <!-- prflow:implement-ref step=4.1 file=skills/implement/references/doc-deliverable-self-heal.md end -->

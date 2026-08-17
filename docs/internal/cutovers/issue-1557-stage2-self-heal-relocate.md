@@ -14,32 +14,38 @@ the run still reported `Complete`; failing closed would have rested a run-ending
 with no machine producer, since nothing emits "the reference loaded" — the only comparand is the
 agent's own report of a `Read`.
 
-## Measured delta — this move did NOT reduce the always-read surface
+## Measured delta — a 62-byte reduction, not the reduction the precedents bought
 
 Counted with `wc -c` at merge base `3e43e7b32`, captured 2026-08-17.
 
 | File | Before | After | Delta |
 | --- | --- | --- | --- |
-| `skills/implement/phases/phase-4-documentation.md` | 59,113 | 59,198 | **+85** |
-| `skills/implement/references/doc-deliverable-self-heal.md` | — | 2,707 | +2,707 |
+| `skills/implement/phases/phase-4-documentation.md` | 59,113 | 59,051 | **−62** |
+| `skills/implement/references/doc-deliverable-self-heal.md` | — | 2,534 | +2,534 |
 
-**The phase file grew.** Recording that plainly is the point of this section: the two precedents this
-change follows each cut their always-read surface by tens of thousands of bytes, and a reader who
-assumed the same here would be wrong. The arithmetic is structural, not an authoring failure — the
-gating apparatus a split requires (the `Read` instruction, the boundary-marker contract, the degraded
-arm, and the `Blocked` terminal restated at its new position) costs about as much as the repair steps
-it gates, because a split leaves the terminal resident where a wholesale move takes it along.
+**Read that number before assuming this move resembles its precedents.** Issues #815 and #1374 each cut
+their always-read surface by tens of thousands of bytes. This one cuts 62 — about a tenth of one
+percent — which over the two mandated Phase 4 reads is 124 bytes of context per run, against +2,534
+loaded on the repair path when a deliverable is actually absent. On any run that owes a repair the
+change is net additive; only a run that owes none comes out ahead, and then barely.
 
-Two consequences follow, and neither is hedged:
+The arithmetic is structural rather than an authoring failure. A **split** leaves the `Blocked` terminal
+resident where a **wholesale move** takes it along, and adds a gated-load instruction and a degraded arm
+on top of it, so the gating apparatus costs nearly as much as the repair it gates. The first draft of
+this change was in fact 85 bytes *larger* than the pre-change file; it reaches −62 only because the
+`/simplify` pass noticed the stub was restating the boundary-marker contract a **third** time in one
+file (§4.0 and §4.0.5 already state it identically) and replaced that restatement with a pointer.
 
-- The issue's **User Impact** claim — that a run naming no documentation deliverable "stops carrying
-  the enforcement steps twice for a gate it will never enter" — **is false as shipped**. Such a run
-  carries 85 bytes more per mandated read, not fewer. The claim was written against the wholesale-move
-  shape of the two precedents and does not survive the narrower scope the issue itself then chose.
-- The change's justification is therefore entirely the **failure-posture split** described above, which
-  the issue's own Problem Statement anticipated when it recorded that "the recovered residency is a
-  fraction of that 719 and the change is not justified on size." That sentence is correct; it simply
-  understates the direction.
+Two consequences, neither hedged:
+
+- The issue's **User Impact** claim — that such a run "stops carrying the enforcement steps twice for a
+  gate it will never enter" — is **true in direction and badly wrong in magnitude**. The enforcement
+  steps do not stop being carried: the read, the diff computation, the satisfied-versus-absent rule and
+  the `Blocked` terminal all stay resident by design, and what left is the repair alone. Read as written
+  the sentence promises a reduction this scope cannot deliver.
+- The change's justification is therefore the **failure-posture split** described above, which the
+  issue's own Problem Statement anticipated: "the recovered residency is a fraction of that 719 and the
+  change is not justified on size."
 
 These figures are a **past-time snapshot**, not a live measurement, so a later change to either file
 does not retroactively falsify the record. The reference sits far under the 61,750-byte reader-capability
@@ -113,7 +119,9 @@ first-line-and-last-line check; the stub names the reference through the `<skill
 *occurrence* count via `pin_count`, because both sit on one line and a line count would read 1); the
 reference is a member of the implement shape-lint population and of the cloud-writer manifest; it is not
 a `phases/` member and the phase-stem reconciliation is unchanged; and both hand-maintained lint
-enrolments name it.
+enrolments carry it — read from each lint's own `--print-inventory`, never grepped out of its source,
+because a source grep is satisfied by a path in a comment or a commented-out entry, and for the
+anchor-fallback lint the inventory row is a *pair* whose helper operand a bare path match would miss.
 
 The move itself is asserted by a **Stage-2-scoped slice**: a `sed` range from the `**Stage 2 —` opening
 literal to the `config-get.sh .docs.labels Documented` invocation, proved non-empty before anything is

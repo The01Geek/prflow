@@ -1663,8 +1663,8 @@ the undeliverable-path `Blocked` terminal — stays resident in
 `skills/implement/phases/phase-4-documentation.md`. That split is the point of the move rather than
 an implementation detail: a failed reference load costs the run its repair, never its gate, so the
 orchestrator still evaluates every named path and still refuses to tick `Documentation` for one it
-cannot deliver, from resident prose alone. The reference is accepted only when its first line is its
-own `start` boundary marker and its last line the matching `end` marker.
+cannot deliver, from resident prose alone. The load is accepted under the same boundary-marker
+contract §4.0 and §4.0.5 apply to their own references.
 
 - **Self-heal (in the gated reference):** if the correct update can be derived from the issue body's
   `**Documentation Needed**` prose, the orchestrator performs the missing update itself, records a

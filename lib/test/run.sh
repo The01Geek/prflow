@@ -36340,9 +36340,10 @@ assert_pin_unique "#1557 the reference's end marker occurs exactly once" \
 # line count reads 1 and a dropped occurrence would be invisible.
 assert_eq "#1557 the stub names the reference through the <skill-dir> anchor on both paths" "2" \
   "$(pin_count '<skill-dir>/references/doc-deliverable-self-heal.md' "$P4_FILE")"  # structural-pin-ok: routing-dispatch-contract -- the anchored path the stub's absent-path arm resolves the gated load from
-# The move is what buys the reduction, so assert the repair actually LEFT the phase file rather
-# than being duplicated into the reference. SECTION-scoped, as #815's is: the phase file's §4.3
-# carries its own landing check, so a whole-file count would measure something other than Stage 2.
+# Assert the repair actually LEFT the phase file rather than being duplicated into the reference
+# (this pins the RELOCATION, never a byte reduction — the cutover record measures that separately).
+# SECTION-scoped, as #815's is: the phase file's §4.3 carries its own landing check, so a
+# whole-file count would measure something other than Stage 2.
 I1557_S2="$(probe_tmp '#1557 phase-file Stage 2 slice')"
 if [ "$I1557_S2" != "/dev/null" ]; then
   sed -n '/^\*\*Stage 2 —/,/config-get\.sh \.docs\.labels Documented/p' "$P4_FILE" > "$I1557_S2"
@@ -36350,6 +36351,10 @@ if [ "$I1557_S2" != "/dev/null" ]; then
     "$([ -s "$I1557_S2" ] && echo yes || echo no)"
   assert_eq "#1557 Stage 2 no longer carries the self-heal repair step" "0" \
     "$(grep -cF 'performed update from Documentation Needed prose' "$I1557_S2" || true)"
+  # The zero-count alone is satisfied by RENAMING the literal in both files, which would prove
+  # nothing moved. Pair it with the positive half so the two together pin a relocation.
+  assert_eq "#1557 the self-heal repair step landed in the gated reference" "2" \
+    "$(pin_count 'performed update from Documentation Needed prose' "$I1557_REF")"  # structural-pin-ok: cross-file-phase-contract -- the literal the zero-count above measures the absence of; without this row a rename in both files reads as a completed move
 else
   # Scratch allocation failed, so the slice cannot be cut. Route through the #456 skip helper
   # rather than letting the only assertion that the repair LEFT Stage 2 silently vanish.
@@ -36370,13 +36375,17 @@ assert_eq "#1557 the implement shape-lint population reaches the third gated ref
   "$(printf '%s\n' "${IMPL_SHAPE_FILES[@]}" | grep -qxF "$I1557_REF" && echo yes || echo no)"
 assert_eq "#1557 the cloud-writer manifest classifies the third gated reference as a reachable asset" "yes" \
   "$(grep -qF 'skills/implement/references/doc-deliverable-self-heal.md' "$LIB/../lib/test/cloud_writer_contract.py" && echo yes || echo no)"  # structural-pin-ok: generated-artifact-identity -- an unlisted reachable asset is an AC1 closure violation the required check reports
-# The relocated fences carry the worktree-refused-expansion audit with them: that lint's
-# enrollment is hand-maintained and blind to a new file, so an unenrolled reference ships its
-# fences unguarded while every assertion above still passes.
+# The relocated fences carry the worktree-refused-expansion audit with them, and the relocated
+# workpad.py call site carries the anchor-fallback audit. Both enrollments are hand-maintained
+# and blind to a new file, so read each lint's OWN --print-inventory rather than grepping its
+# source: a source grep is satisfied by the path appearing in a comment, a docstring, or a
+# commented-out entry, none of which enrolls anything.
 assert_eq "#1557 the worktree-fence-shape lint enrolls the gated reference" "yes" \
-  "$(grep -qF 'skills/implement/references/doc-deliverable-self-heal.md' "$LIB/../lib/test/lint-worktree-fence-shapes.py" && echo yes || echo no)"  # structural-pin-ok: cross-file-phase-contract -- the enrollment tuple is hand-maintained; an unenrolled file's fences are audited by nothing
+  "$(python3 "$LIB/test/lint-worktree-fence-shapes.py" --print-inventory 2>/dev/null | grep -qxF 'skills/implement/references/doc-deliverable-self-heal.md' && echo yes || echo no)"  # structural-pin-ok: cross-file-phase-contract -- the lint's own published inventory is the enrollment; an unenrolled file's fences are audited by nothing
+# The anchor lint's inventory rows are (path, invocation-suffix) PAIRS, so match the pair: the
+# path alone would pass for a row enrolling some other helper at this file.
 assert_eq "#1557 the anchor-fallback lint enrolls the relocated workpad.py call site" "yes" \
-  "$(grep -qF 'skills/implement/references/doc-deliverable-self-heal.md' "$LIB/../lib/test/lint-anchor-fallback-arm.py" && echo yes || echo no)"  # structural-pin-ok: routing-dispatch-contract -- the relocated call site is cloud-reachable, so its vendored-literal-first ladder is what keeps it from being refused on the implement tier
+  "$(python3 "$LIB/test/lint-anchor-fallback-arm.py" --print-inventory 2>/dev/null | grep -qxF "$(printf 'skills/implement/references/doc-deliverable-self-heal.md\tworkpad.py')" && echo yes || echo no)"  # structural-pin-ok: routing-dispatch-contract -- the relocated call site is cloud-reachable, so its vendored-literal-first ladder is what keeps it from being refused on the implement tier
 
 # The masker's paren-depth arithmetic inside a code frame had no nested fixture.
 { printf '%s\n' '```bash' "gh issue create --body \"\$(cat <<'EOF'" 'prose $(echo nested) more' 'EOF' ')"' 'for n in 1 2; do .prflow/vendor/prflow/scripts/apply-labels.sh "$n" DevFlow; done' '```'; } > "$E363/i-nested-subst.md"
