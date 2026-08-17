@@ -314,6 +314,8 @@ After the `Read`: **quote the body's literal first and last lines**, and let `S`
 
 **On any identity or boundary row: stop that phase**, report the label with the phase id and reference path, and do **not** act on the body, improvise the phase from its orientation text, or repair the file. A body can read as complete and correct and still fail these checks: a defective boundary or identity means what you hold is not the bundle this engine was built against, so its plausibility is worth nothing.
 
+**Required copy.** Rows 1–7 are mirrored in `skills/implement/SKILL.md`'s *Phase-reference boundary contract*; edit both in the same change, or the two engines fail closed on different shapes.
+
 ### Phase routing
 
 **Entry-gate (mandatory, on every phase entry — and every shadow entry**, as `/prflow:review-and-fix` Step 2.6 re-enters this engine**).** Before any action in a phase: re-invoke the run-start review prompt-extension ladder (the `load-prompt-extension.sh review` invocation defined under *Consumer prompt extension (load first)* above), re-derive **root identity**, `Read` its reference, and clear the **boundary contract** — all in that order, never from an earlier read or a remembered summary — then follow the reference exactly. Re-invoking the ladder **refreshes** the already-loaded consumer policy for this run rather than issuing a fresh directive, and a refused or non-zero re-load is surfaced here, at this boundary, rather than deferred to a later phase.
