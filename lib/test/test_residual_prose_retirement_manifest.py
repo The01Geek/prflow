@@ -40,6 +40,11 @@ IDENTITY_REFRESHES = HERE / "pin-identity-refreshes.tsv"
 ADJUDICATIONS = REPO_ROOT / "lib/test/pin-corpus-adjudications.tsv"
 CLASSIFIER = HERE / "pin-corpus-classifier.py"
 LINT = HERE / "pin-corpus-lint.py"
+# A literal scripts/render-grounding-block.sh carries verbatim, so the consumer search
+# must find it.  Re-point this if that file stops carrying the sentence.
+_CONSUMER_SEARCH_POSITIVE_CONTROL = (
+    "> is not a verdict — it reads like an approval to a human while counting as"
+)
 
 IDENTITY_COLUMNS = (
     "source_file",
@@ -1085,17 +1090,21 @@ class ResidualProseRetirementManifestTests(unittest.TestCase):
         )
         classifier = load_classifier()
         table = classifier.parse_adjudications(ADJUDICATIONS.read_text(encoding="utf-8"))
-        # One-sided screen, not a re-verification: a hit proves the bucket WRONG, a miss
-        # proves nothing.  machine_consumer_evidence returns None for "no consumer was
-        # FOUND", and it can only find one for a literal carrying an identifier-shaped
-        # distinctive token or occurring verbatim -- which most prose literals do not, so
-        # this catches the identifier-bearing mistake and is silent on the rest.  Never
+        # One-sided screen: a hit proves the bucket WRONG, a miss proves nothing.  Never
         # read a green here as evidence the prose population is clean.
         lint = load_lint()
         corpus = build_consumer_corpus(lint)
-        # An emptied corpus makes every search return None, so the screen would report
-        # green while examining nothing.  Floor it before trusting any miss.
-        self.assertGreater(len(corpus), 100, "machine-consumer corpus is implausibly small")
+        # Every miss below is indistinguishable from a degraded search, so establish the
+        # search still works before trusting one.
+        self.assertEqual(
+            {path.split("/")[0] for path, _ in corpus},
+            {"scripts", "lib", ".github"},
+            "machine-consumer corpus lost a path prefix",
+        )
+        self.assertIsNotNone(
+            lint.machine_consumer_evidence(_CONSUMER_SEARCH_POSITIVE_CONTROL, corpus),
+            "machine-consumer search found a known-present literal nowhere",
+        )
         for row in rows:
             bucket = row["bucket_final"]
             if bucket not in PROSE_BUCKETS:

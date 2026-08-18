@@ -368,9 +368,9 @@ decides it, arm 0's *retain* included**. Its disposition is the separate rule un
    it exactly as it is to a `git grep`. That blind spot under-counts in the one
    direction that wrongly authorizes removal, so an unconfirmed literal retains.
 3. **`counted_occurrences < 2` and any other `bucket_final`** — including `boundary`,
-   the value a row carries outside the window between a re-adjudication pass and the
-   sweep it authorizes, so this is the arm that catches a single-home pin outside that
-   window. A tool or
+   which is what every row not moved into a prose bucket by a re-adjudication pass
+   carries, in the window and out of it, so this arm is live for those rows whether or
+   not a sweep is pending. A tool or
    consumer reads the target (a
    marker a tool parses, a routing-table row a module reconciles, a
    generated-artifact identity, a typed executable boundary), so **retain** the pin
