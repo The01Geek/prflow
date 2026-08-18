@@ -40,10 +40,15 @@ IDENTITY_REFRESHES = HERE / "pin-identity-refreshes.tsv"
 ADJUDICATIONS = REPO_ROOT / "lib/test/pin-corpus-adjudications.tsv"
 CLASSIFIER = HERE / "pin-corpus-classifier.py"
 LINT = HERE / "pin-corpus-lint.py"
-# A literal scripts/render-grounding-block.sh carries verbatim, so the consumer search
-# must find it.  Re-point this if that file stops carrying the sentence.
-_CONSUMER_SEARCH_POSITIVE_CONTROL = (
+# Two controls, one per arm of machine_consumer_evidence: a whole-literal match and a
+# distinctive-token match.  Exercising one arm leaves the other free to regress to
+# matching nothing while the screen below still reports green.  Re-point a control if
+# the file named beside it stops carrying it.
+_CONTROL_VERBATIM = (  # scripts/render-grounding-block.sh, verbatim
     "> is not a verdict — it reads like an approval to a human while counting as"
+)
+_CONTROL_TOKEN = (  # absent verbatim; lib/scan.sh carries the distinctive token
+    "the PROVENANCE_LABEL_SUPERSEDED selector spelling is accepted here"
 )
 
 IDENTITY_COLUMNS = (
@@ -1095,16 +1100,20 @@ class ResidualProseRetirementManifestTests(unittest.TestCase):
         lint = load_lint()
         corpus = build_consumer_corpus(lint)
         # Every miss below is indistinguishable from a degraded search, so establish the
-        # search still works before trusting one.
+        # search still works before trusting one.  These are complementary, not
+        # substitutes: the floor catches a collapse the prefix set survives, and the
+        # prefix set catches a whole tree vanishing while the count stays plausible.
+        self.assertGreater(len(corpus), 100, "machine-consumer corpus is implausibly small")
         self.assertEqual(
             {path.split("/")[0] for path, _ in corpus},
-            {"scripts", "lib", ".github"},
-            "machine-consumer corpus lost a path prefix",
+            {prefix.rstrip("/") for prefix in lint.MACHINE_CONSUMER_PATH_PREFIXES},
+            "a declared machine-consumer prefix contributed no files",
         )
-        self.assertIsNotNone(
-            lint.machine_consumer_evidence(_CONSUMER_SEARCH_POSITIVE_CONTROL, corpus),
-            "machine-consumer search found a known-present literal nowhere",
-        )
+        for control, arm in ((_CONTROL_VERBATIM, "whole-literal"), (_CONTROL_TOKEN, "distinctive-token")):
+            self.assertIsNotNone(
+                lint.machine_consumer_evidence(control, corpus),
+                f"machine-consumer search found its {arm} control nowhere",
+            )
         for row in rows:
             bucket = row["bucket_final"]
             if bucket not in PROSE_BUCKETS:
