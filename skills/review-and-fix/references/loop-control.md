@@ -57,13 +57,11 @@ Use the **same identifier string** in `phase3_dispatched` that you write to each
 # inert). On failure warn (surfacing a missing `python3` / malformed config.json in the
 # Actions UI) and leave MAX_ITERS empty; the integer-check fallback below then supplies the
 # default 5. That fallback is also what makes a stripped-empty value fail-safe.
-# Ensure the scratch leaf exists (rc-checked, never `|| true`) and drop any stale capture.
-if ! mkdir -p .prflow/tmp; then
-  echo "::warning::devflow review-and-fix: could not create .prflow/tmp for the max_iterations read"
-fi
-rm -f .prflow/tmp/devflow-maxiter.err
-if ! MAX_ITERS=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .prflow_review_and_fix.max_iterations 5 2>.prflow/tmp/devflow-maxiter.err); then
-  echo "::warning::devflow review-and-fix max_iterations read failed (config-get.sh rc≠0): $(cat .prflow/tmp/devflow-maxiter.err 2>/dev/null) — using default 5"
+# Do NOT redirect stderr to a file: a cloud harness refuses the redirect construct outright,
+# so the fence returns no output at all. The warning below therefore carries no cause — the
+# stderr does not exist until this same statement runs, so no slot in it can be rendered.
+if ! MAX_ITERS=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .prflow_review_and_fix.max_iterations 5); then
+  echo "::warning::devflow review-and-fix max_iterations read failed (config-get.sh rc≠0) — using default 5; cause follows"
 fi
 # Fallback to the default 5 on a resolver failure (empty stdout from the failed read above)
 # or a non-integer/empty value; clamp a configured value below 1 up to 1 so the loop always
@@ -74,6 +72,8 @@ elif [ "$MAX_ITERS" -lt 1 ]; then
   MAX_ITERS=1
 fi
 ```
+
+**When that warning fired, emit the cause as a separate second warning.** Read this fence's own tool result and emit `::warning::devflow review-and-fix max_iterations cause: <the first line of the stderr it showed, or the literal stderr=empty>`. The in-fence warning cannot carry the cause — the stderr does not exist until that same statement runs — so skipping this step loses the cause from the Actions UI entirely.
 
 **Resolve the fix-severity threshold once, at loop start** (right after the cap above). Read `prflow_review_and_fix.fix_severity_threshold` (default `important`) via the same portable skill-dir-anchored, no-`bash`-prefix `config-get.sh` invocation the cap read uses (so the read is cwd-independent and matches the resolved-path allow-list entry). `config-get.sh` reads the value but does **not** validate the enum — it coerces any JSON value to a string (a number → `5`, an object → `[object Object]`, an array is comma-joined) — so validate the enum **inline** and fall back to the default on a resolver failure (rc≠0, e.g. malformed `config.json`) or any value outside the enum, with a **specific breadcrumb naming the key and the fallback value** (never aborting the loop):
 

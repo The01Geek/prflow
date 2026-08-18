@@ -154,15 +154,15 @@ Set `ISSUE_NUMBER=$ARGUMENTS` and check whether a workpad already exists:
 
 - **`id` exit 2 — no workpad (fresh issue; a local-tier run with no `gate` job)** → Build the lean skeleton with the helper and create it, then mirror the issue's Acceptance Criteria into it. **Compose the run link inline** from the ambient `$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID` values the orchestrator substitutes; on a **local run** `$GITHUB_RUN_ID` is empty, so **omit `--run-link` entirely** (never pass `[View run]()`). **Add `--no-reproduction`** to the `new-body` call when the §1.1 classification is **non-bug** (so the bug-only "reproduction captured" sub-item isn't rendered); omit it when bug-report. Decide from the **classification** (1.1), not the label.
 
-  Render the skeleton to a repo-relative scratch file — on the cloud tier, with the run link:
+  Render the skeleton **bare**, so its stdout is observable in the tool result — on the cloud tier, with the run link:
   ```bash
-  "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py new-body $ISSUE_NUMBER --run-link "[View run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)" > <scratch-dir>/workpad-body-$ISSUE_NUMBER.md
+  "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py new-body $ISSUE_NUMBER --run-link "[View run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)"
   ```
   On a local run (empty `$GITHUB_RUN_ID`), omit the flag:
   ```bash
-  "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py new-body $ISSUE_NUMBER > <scratch-dir>/workpad-body-$ISSUE_NUMBER.md
+  "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py new-body $ISSUE_NUMBER
   ```
-  Create the workpad from that scratch body, then populate the Acceptance Criteria:
+  Then author `<scratch-dir>/workpad-body-$ISSUE_NUMBER.md` with the **Write tool**, carrying that exact observed stdout — a shell redirect into the scratch directory is refused on the cloud tier. Create the workpad from that file, then populate the Acceptance Criteria:
   ```bash
   "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py create $ISSUE_NUMBER <scratch-dir>/workpad-body-$ISSUE_NUMBER.md
   ```
@@ -187,27 +187,20 @@ Set `ISSUE_NUMBER=$ARGUMENTS` and check whether a workpad already exists:
 
 After this step, every later phase boundary touches the workpad via `workpad.py update $ISSUE_NUMBER ...` — no `WORKPAD_ID` variable to track across calls.
 
+Fold no unrelated progress write into the hydration call above: it aborts with no PATCH.
+
 **Record the classification and reconcile the skeleton (every entry — fresh run, in-flight resume, and terminal re-trigger).** The 2.1.5 gate reads the recorded classification, and the reproduction skeleton's pre-rendered default can disagree with the §1.1 content classification. `--reconcile-reproduction` below is the authoritative correction, run on every entry. Resume semantics decide whether to classify afresh or read the recorded verdict:
 
-- **Fresh run** (the `id` read exited 2), **or a resume that finds no `classification: ` note**, **or a re-trigger after a *terminal* workpad `Status`** (🎉/👎/💥/🛑) → **classify now** (per 1.1, from the issue's *current* content and labels) and **record** it, which also supersedes any stale note from a prior verdict:
-  ```bash
-  "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --record-classification {bug-report|non-bug} "{one-line rationale}"
-  ```
+- **Fresh run** (the `id` read exited 2), **or a resume that finds no `classification: ` note**, **or a re-trigger after a *terminal* workpad `Status`** (🎉/👎/💥/🛑) → **classify now** (per 1.1, from the issue's *current* content and labels) and **record** it, which also supersedes any stale note from a prior verdict — carried as `--record-classification {bug-report|non-bug} "{one-line rationale}"` on the single call below.
 - **In-flight resume** (a non-terminal `Status`, and a `classification: ` note is already present) → **do NOT re-classify**; read the recorded `classification: ` note from the body (fetched above) and use its verdict as-is.
 
-Then, in **both** cases, reconcile the skeleton to the (recorded or read) classification — idempotent, so it is safe on every entry and a no-op when the skeleton already matches:
-```bash
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --reconcile-reproduction {bug-report|non-bug} --reconcile-extension-rows
-```
+Then, in **both** cases, reconcile the skeleton to the (recorded or read) classification — idempotent, so it is safe on every entry and a no-op when the skeleton already matches — carried as `--reconcile-reproduction {bug-report|non-bug} --reconcile-extension-rows` on that same call.
+
 `--reconcile-extension-rows` repairs the nested `prompt extension resolved: …` rows into a workpad created before they existed; include it on **both** arms exactly like `--reconcile-reproduction`, or every extension tick below misses its row and exits non-zero.
 
 **Extension-row tick rule (stated once here; Phase 3 and Phase 4 reference it).** Tick a `prompt extension resolved: …` row only on **observed content**: the `load-prompt-extension.sh` ladder's **full output** reached you and carried the extension's contents, **or** that full output reached you and was empty, establishing that the repository has no extension file for that skill. Run the ladder so its whole output is observable — no `>/dev/null`, no `| head -<n>`, no truncation of any kind — because an exit status alone cannot tell an absent extension from one whose text was discarded. *No observable command result at all*, and any result you saw only in part, are `state not established`, never the no-extension arm: leave the row unticked and say so in a `--note`. Never tick from recall. **A tick that matches no unticked row is the expected idempotent no-op** — treat the row as recorded and proceed, never routing it to re-resolution or Blocked. Only a genuine no-match, where `## Progress` carries no such row at all, calls for re-running `--reconcile-extension-rows`.
 
-**Tick the implement extension row (every arm, immediately after the workpad exists).** Apply the rule above to the implement extension's own load and record the outcome now:
-```bash
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --tick-progress "extension resolved: implement"
-```
-That load happens before the workpad exists, so this run carries its outcome across the boundary and the row can be ticked at no later site. When the ladder did not establish the state, leave the row unticked and say so: `workpad.py update $ISSUE_NUMBER --note "extension resolved: implement — state not established (the loader ladder did not resolve it)"`.
+**Tick the implement extension row (every arm).** Apply the rule above to the implement extension's own load and carry that outcome on the call below: `--tick-progress "extension resolved: implement"` where the state was established, else — the row left unticked — `--note "extension resolved: implement — state not established (the loader ladder did not resolve it)"` in its place — that tick and that note are exclusive of each other, never both. `--note` is repeatable, so the `resume-kind:` note recorded below rides on the same call alongside either; dropping it would disarm the Phase 2 §2.0 resume gate. That load happens before the workpad exists, so this run carries its outcome across the boundary and the row can be ticked at no later site.
 
 **Record the durable `resume-kind:` marker (every entry — the reader is the Phase 2 §2.0 resume gate).** Alongside the classification, record a durable `## Progress` note stating which of three run kinds this triage decided, so the Phase 2 resume gate (`phase-2-implement.md` §2.0) has a compaction-surviving signal to read back. The marker is a plain durable `--note`, and the gate reads the **most recent** `resume-kind:` note fail-closed. The kind follows from the resume semantics decided above:
 
@@ -217,27 +210,25 @@ That load happens before the workpad exists, so this run carries its outcome acr
 
 The three are evaluated **in the order listed, first match wins**: a terminal `Status` selects `terminal-re-trigger` even when no `classification: ` note is present.
 
-**Emit the decided kind as a bare literal — never the brace template.** `--note` validates nothing, so an unsubstituted template would be written verbatim — and its text *contains* the substring `in-flight`, which a containment-style read would arm on a terminal re-trigger. The note's value is one of the three bare tokens with nothing else after `resume-kind: `, and the §2.0 reader compares it by **exact value, never containment**. Emit exactly one of:
+**Emit the decided kind as a bare literal — never the brace template.** `--note` validates nothing, so an unsubstituted template would be written verbatim — and its text *contains* the substring `in-flight`, which a containment-style read would arm on a terminal re-trigger. The note's value is one of the three bare tokens with nothing else after `resume-kind: `, and the §2.0 reader compares it by **exact value, never containment**.
+
+**One moment, one call** — issue them as one `update`:
 
 ```bash
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --note "resume-kind: in-flight"
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER \
+    --record-classification {bug-report|non-bug} "{one-line rationale}" \
+    --reconcile-reproduction {bug-report|non-bug} --reconcile-extension-rows \
+    --tick-progress "extension resolved: implement" \
+    --note "resume-kind: fresh"
 ```
 
-```bash
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --note "resume-kind: terminal-re-trigger"
-```
-
-```bash
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py update $ISSUE_NUMBER --note "resume-kind: fresh"
-```
-
-Each is combinable with the `--record-classification` / `--reconcile-reproduction` call above (all three mutate `## Progress`). Only `resume-kind: in-flight` — as the newest such note — arms conjunct (a) of the Phase 2 §2.0 gate.
+Fresh-run arm shown; the terminal re-trigger arm's note reads `resume-kind: terminal-re-trigger`, and the in-flight arm drops `--record-classification` with the note `resume-kind: in-flight`. Only `resume-kind: in-flight` — as the newest such note — arms conjunct (a) of the Phase 2 §2.0 gate.
 
 **The marker classifies the WORKPAD, not the repository — and it decides no branch.** It does **not** decide which branch this run works on: §1.4's resume pre-check, reading observable repository state, governs branch adoption, and **no value of this marker waives it**.
 
 **Write the run marker (both arms — fresh create and resume).** Immediately after the workpad exists (created above, or detected on the resume arm), write the run-marker file so a local-tier Stop-hook guard knows an implement run is in flight for this issue. It lives under the gitignored `.prflow/tmp/`, anchored to the repo (or worktree) root, and is removed at every terminal `Status` transition by the *Outcome reaction* block in the orchestrator.
 
-**Record this run's owner as the marker's first line.** When the runner exports a session id — Claude Code sets `CLAUDE_CODE_SESSION_ID`, the same value the Stop-hook payload carries as `session_id` — write it as the marker's first line; when the runner supplies none, write an empty marker. This lets the guard tell *this* run's marker apart from another concurrent session's in the same checkout.
+**The marker's first line records this run's owner** — the value the Stop-hook payload also carries, which is how the guard tells this run's marker from a concurrent session's in the same checkout.
 
 Ensure the scratch leaf exists — its own single statement:
 
@@ -245,17 +236,13 @@ Ensure the scratch leaf exists — its own single statement:
 mkdir -p <scratch-dir>
 ```
 
-Then **pick the arm from whether the runner exported a session id** (`$CLAUDE_CODE_SESSION_ID`, which Claude Code sets and other runners leave empty), writing to the substituted absolute marker path. When the runner exported one, write it as the marker's first line so the guard can tell this run's marker apart from another concurrent session's:
+**On the local tier only**, read the session id first, so the marker's owner line has a source. That tier owns the Stop-hook guard this file's only reader is; the cloud tier refuses a variable expansion and has no guard to serve, so emit nothing there:
 
 ```bash
-printf '%s\n' "$CLAUDE_CODE_SESSION_ID" > <scratch-dir>/implement-active-$ISSUE_NUMBER
+printf '%s\n' "$CLAUDE_CODE_SESSION_ID"
 ```
 
-When the runner supplies none, write an empty marker:
-
-```bash
-: > <scratch-dir>/implement-active-$ISSUE_NUMBER
-```
+Then author the marker at the substituted absolute path `<scratch-dir>/implement-active-$ISSUE_NUMBER` with the **Write tool**, never a shell fence — the cloud tier refuses both the redirect and the variable expansion a shell write needs. When that read printed a non-empty value, the file's one line is that value, never the literal `$CLAUDE_CODE_SESSION_ID`; when it printed empty, was refused, or was skipped, the file is empty. **An empty marker forfeits owner identity**, which the guard treats as owned-by-this-session and blocks on, so a concurrent session sharing the checkout is blocked too — on the local tier record that in a `--note` rather than leaving the loss silent.
 
 This is best-effort: if the write fails, note it and continue — a missing marker only means the Stop-hook backstop stays silent for this run.
 

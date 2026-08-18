@@ -4,6 +4,84 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.33.9] — 2026-08-18
+
+### Changed
+Shipped fences no longer prescribe command shapes the cloud harness refuses.
+
+Every cloud-reachable fence that redirected into a scratch path under `.prflow/tmp/` has been
+rewritten to a shape the harness accepts: whole-file artifacts are authored with the Write tool,
+and a command's stderr is read from that invocation's own tool result instead of being captured
+to a `.err` file. A refused fence produced no output at all and burned a request, so the run
+recovered by improvising — for the Phase 0 diff-staging path that improvisation dropped the
+fail-closed staging entirely.
+
+The Phase 0 local-diff staging path keeps its guard structure as ordered, separately-checked
+stages that stream through `tee` rather than passing the diff through the agent, so a truncated
+tool result cannot publish a thinned cache. Each stage reports its own section count, and a single
+failure rule clears the cache and stops; a count that legitimately falls to zero (a logs-only
+diff) publishes and is reviewed as nothing to flag.
+
+One error-handling arm is corrected rather than rewritten. The acceptance-criteria resolver's
+failure arm told the run to read a `.err` file that only the refused redirect could have created,
+so on any tier that refuses the redirect the diagnostic channel could never produce a cause; it
+now quotes the stderr the invocation itself returned.
+
+Two fences that routed on `grep`-ing a captured stderr file now guard on each invocation's own
+exit status, read inline rather than captured into a variable a later statement reads — a shape
+that leaves the status empty on a runner that strips variables between statements, routing every
+healthy run to the unrecognised arm. Deferral discovery collapses every non-zero status into a
+single degraded state and tells a partial search from a failed one after the fence, from the
+marker its helper writes to stderr — never by testing whether the call returned any paths, which
+a partial search over roots holding no manifest would route to the failed arm.
+Where the status is genuinely ambiguous — `file-deferrals.py` shares one code between "no
+deferrals", "already filed" and three input errors — the run reads that call's stderr to tell
+them apart, and records an unrecognised shape as a failure rather than guessing.
+
+One file is deliberately unchanged: the weekly retrospective skill, which no workflow dispatches
+and which therefore runs only on the interactive tier, where these redirects execute normally. It
+was not degraded to satisfy a cloud constraint.
+
+Two cloud-reachable populations are adjudicated but not rewritten, because the Write-tool remedy
+cannot reach them: appends made inside a shell read-loop, and captures targeting a `mktemp` path.
+Both are recorded with their reason and carried to a follow-up.
+
+## [2.33.8] — 2026-08-18
+
+### Changed
+- **Removed the Testing Strategy output apparatus from the create-issue issue template.**
+  `skills/create-issue/references/issue-template.md`'s Testing Strategy is now two drafting
+  moves — classify the boundary, walk the coverage dimensions — instead of three. The Move 2a
+  router pointer, the Move 3 residual-risk selection step, and the sentence that let a criterion
+  be verified by a manual checklist a headless implementing run cannot perform are all gone.
+  The rules buried in the deleted block survive in homes that suit them: the
+  multi-state-contract rule moves into the acceptance-criteria guidance, and the quality-group
+  routing clause folds into the surviving Testing Strategy bullet. Pointers in the shipped skill
+  surface that named the deleted moves are rewritten to name a rule that still exists. Trims
+  about 3.7KB of always-loaded template prose per drafting run, with the acceptance criteria
+  left as the single merge-gated definition of done. (#1737)
+
+## [2.33.7] — 2026-08-18
+
+### Changed
+- **Workpad mutations belonging to one moment are now issued as one `workpad.py update`
+  call.** The CLI already accepted repeated and combined mutations in a single atomic PATCH,
+  but the shipped prose had runs issue them one per sub-step, so a run spent a full
+  round-trip of resident context on each extra bookkeeping call. `skills/implement/SKILL.md`
+  now carries the rule, naming the sequential/atomic mechanism — one invocation, one PATCH —
+  and the cases that stay their own call: mutations *unrelated* to what a structural-abort
+  flag writes, whose abort PATCHes nothing and drops them — what one re-send restores may
+  still ride along — a second `--reflection-kind`, anything across a durability checkpoint,
+  and a staged decision point. Phase 1.3 and the Phase 3 fix-loop exit are folded accordingly. No
+  change to `scripts/workpad.py`'s flag surface. (#1732)
+- **The review engine's progress-tick rule now forbids only what it needs to.**
+  `skills/review/SKILL.md`'s update protocol previously banned batching boundary ticks
+  outright; it now forbids ticking a boundary that has not completed, and permits batching
+  the ticks of boundaries that have all completed into one sequential call. A call reporting
+  a non-`none` remedy is reported as not having recorded those rows rather than read as a
+  landed tick; the file's existing best-effort rule still governs the failure direction.
+  (#1732)
+
 ## [2.33.6] — 2026-08-17
 
 ### Changed

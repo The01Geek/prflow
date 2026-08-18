@@ -11491,6 +11491,53 @@ assert_eq("#1453: the canonical trailing-marker bullet IS read (positive control
           ["full:attempted:complete:complete"],
           workpad._review_coverage_payloads("  - 03:00:00 — recorded " + _MK_RC))
 
+# ── issue #1722: one moment, one call — the combined-mutation call is not rejected ──
+
+# Derive every row operand from its constant, never transcribed: a renamed row must fail
+# here as a real mismatch rather than silently stop exercising the batch.
+_MM_ROW_A, _MM_ROW_B = workpad._REVIEW_PROGRESS_ROWS[0], workpad._REVIEW_PROGRESS_ROWS[3]
+_MM_EXT = next(r for r in workpad._EXTENSION_ROWS if r[2] == "extension resolved: implement")
+_MM_BODY = _CP_BODY.replace(
+    "- [ ] **Implement**",
+    "- [ ] **Implement**\n- [ ] **Review**\n"
+    + workpad._review_progress_rows_block("Review"))
+# Do not drop `Blocked`: it is what keeps the Complete-only gate unreached, and that gate
+# WOULD refuse this incomplete coverage record.
+_mm_code, _, _, _mm_patched = _drive_cmd_update(
+    _MM_BODY,
+    record_review_coverage=["not-verified", "never", "short", "skipped"],
+    status="Blocked",
+    tick_progress=[_MM_ROW_A[1], _MM_ROW_B[1]])
+assert_eq("#1722: the combined coverage+Blocked+two-tick call takes the clean exit",
+          None, _mm_code)
+assert_eq("#1722: ...and the PATCH landed",
+          True, _mm_patched is not None)
+assert_eq("#1722: ...applying the Blocked status",
+          True, workpad._status_glyph("Blocked") in _statusline(_mm_patched))
+assert_eq("#1722: ...ticking BOTH requested review-boundary rows in the one call",
+          (True, True),
+          (f"- [x] {_MM_ROW_A[0]}" in _mm_patched,
+           f"- [x] {_MM_ROW_B[0]}" in _mm_patched))
+assert_eq("#1722: ...and writing exactly one review-coverage record",
+          ["not-verified:never:short:skipped"],
+          workpad._review_coverage_payloads(_mm_patched))
+
+# Reorder reconcile after the ticks and the tick assertion goes RED, which is the ordering
+# the shipped Phase 1.3 fold rests on.
+_mm_p13_ticks = []
+_mm_p13 = apply_mut(_CP_BODY, make_args(
+    record_classification=["non-bug", "prose-only change; no malfunction described"],
+    reconcile_reproduction="non-bug",
+    reconcile_extension_rows=True,
+    tick_progress=[_MM_EXT[2]],
+    note=["resume-kind: fresh"]), _mm_p13_ticks)
+assert_eq("#1722: the shipped Phase 1.3 five-flag fold ticks the row it just repaired",
+          (True, []), (f"- [x] {_MM_EXT[1]}" in _mm_p13, _mm_p13_ticks))
+assert_eq("#1722: ...carrying the rationale-bearing classification and the resume-kind note",
+          (True, True),
+          ("classification: non-bug — prose-only change; no malfunction described" in _mm_p13,
+           "resume-kind: fresh" in _mm_p13))
+
 # ---------------------------------------------------------------------------
 # issue #1501: guard the remaining fixed-arity argument unpacks. Every flag with a
 # fixed nargs and a positional unpack validates its arity BEFORE that unpack, raising
@@ -13295,10 +13342,9 @@ _STEM_HOMES = {
     # documentation-gate captures into scripts/read-doc-needed-deliverables.sh, which owns
     # that scratch file now — so phase-4-documentation.md names no stem of its own and takes
     # no row here. The negative half above still binds it.
-    "skills/implement/references/deferred-review-findings.md":
-        ("devflow-dm.err", "devflow-fd.err"),
-    "skills/review-and-fix/references/loop-control.md": ("devflow-maxiter.err",),
-    "skills/review-and-fix/references/loop-exit.md": ("devflow-et-flag.err", "devflow-et.err"),
+    # issue #1721 removed the STDERR-CAPTURE writes from deferred-review-findings.md,
+    # loop-control.md and loop-exit.md, so none of the three still names a capture stem to home.
+    # Their other .prflow/tmp writes are variable-target paths this positive half never covered.
 }
 # `<scratch-dir>/` is the SAME home written in its anchored spelling: issue #1633 made the
 # Phase 1 scratch writes substitute the absolute `…/.prflow/tmp` the precondition resolved,
@@ -16669,13 +16715,9 @@ with tempfile.TemporaryDirectory() as _dm_mt:
     assert_eq("#555 mid-traversal: after restore the same root classifies 'ok'",
               'ok', _status2)
 
-# Marker-exclusivity is what makes the fence's `grep -q 'devflow: discovery partial:'`
-# discrimination sound, and the PER-ROOT breadcrumb is the one line that could break it:
-# it is emitted on BOTH the partial and the all-failed path, so a reword that let it carry
-# either aggregate marker substring would route an all-failed run into the fence's partial
-# arm — a fail-open reroute the source comment asserts but nothing mechanically enforced.
-# Pin it: a single failed root emits the per-root breadcrumb, and stripping the aggregate
-# marker line from that stderr must leave no marker substring behind.
+# The §4.0.5 fence classifies partial-vs-failed from the aggregate marker, and the PER-ROOT
+# breadcrumb is emitted on BOTH paths: a reword letting it carry either marker substring would
+# classify an all-failed run as partial, which files from a stale aggregate instead of refusing.
 with tempfile.TemporaryDirectory() as _dm_excl:
     _dm_notdir = os.path.join(_dm_excl, 'regular-file-root')
     with open(_dm_notdir, 'w', encoding='utf-8') as _fh:
@@ -16690,11 +16732,9 @@ with tempfile.TemporaryDirectory() as _dm_excl:
               (discover_deferrals.MARKER_PARTIAL in _dm_perroot[0],
                discover_deferrals.MARKER_FAILED in _dm_perroot[0]))
 
-# The fixture above reaches only the NON-DIRECTORY arm. The OSError arm is a second,
-# independently-worded per-root breadcrumb — and it is the higher-risk one, because it
-# interpolates the OSError text. Rewording it to carry a marker substring would reroute an
-# all-failed run into the fence's partial arm while the fixture above stayed green, so pin
-# both arms rather than one. Driven through the onerror channel, like the mid-traversal test.
+# The fixture above reaches only the NON-DIRECTORY arm. Pin the OSError arm too: it is a second,
+# independently-worded breadcrumb interpolating the OSError text, so a reword carrying a marker
+# substring would misclassify an all-failed run while the fixture above stayed green.
 with tempfile.TemporaryDirectory() as _dm_excl2:
     _dm_manifest(_dm_excl2, 'run-y', '{"deferrals": [{"file": "y.py"}]}')
     _saved_walk2 = discover_deferrals.os.walk
