@@ -1,0 +1,107 @@
+{
+  "iter": 1,
+  "source": "review",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "detect_all_audit": false
+  },
+  "checklist": [
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "lite",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    }
+  ],
+  "phase3_dispatched": [
+    "code-reviewer",
+    "silent-failure-hunter",
+    "comment-analyzer",
+    "pr-test-analyzer",
+    "requesting-code-review"
+  ],
+  "phase3_findings": [],
+  "telemetry": "unavailable",
+  "synthesized": false
+}
