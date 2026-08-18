@@ -601,8 +601,8 @@ mechanical and final bucket plus its retirement entanglements, is
 existence-only pin may be retired (issue #876). A row whose `bucket_final` is one of the
 two prose buckets and whose `counted_occurrences` is below two identifies a pin over
 agent-executed prose no tool reads, which may be removed on its own; every other bucket
-— including `boundary`, the value a shipped row carries outside the window between a
-re-adjudication pass and the sweep it authorizes — keeps the pin under the
+— including `boundary`, which is what every row not moved into a prose bucket by a
+re-adjudication pass carries, in the window and out of it — keeps the pin under the
 `# structural-pin-ok:` rule above. The ordered, first-match-wins arms, the
 `counted_occurrences`-not-`homes` operand rule, the wrapped-home confirmation step, and
 the fail-closed handling of a pin with no census row are stated once in `CONTRIBUTING.md`

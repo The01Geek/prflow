@@ -40,10 +40,8 @@ IDENTITY_REFRESHES = HERE / "pin-identity-refreshes.tsv"
 ADJUDICATIONS = REPO_ROOT / "lib/test/pin-corpus-adjudications.tsv"
 CLASSIFIER = HERE / "pin-corpus-classifier.py"
 LINT = HERE / "pin-corpus-lint.py"
-# Two controls, one per arm of machine_consumer_evidence: a whole-literal match and a
-# distinctive-token match.  Exercising one arm leaves the other free to regress to
-# matching nothing while the screen below still reports green.  Re-point a control if
-# the file named beside it stops carrying it.
+# Two controls, one per arm of machine_consumer_evidence.  Exercising one arm leaves the
+# other free to regress to matching nothing while the screen below still reports green.
 _CONTROL_VERBATIM = (  # scripts/render-grounding-block.sh, verbatim
     "> is not a verdict — it reads like an approval to a human while counting as"
 )
@@ -1100,20 +1098,27 @@ class ResidualProseRetirementManifestTests(unittest.TestCase):
         lint = load_lint()
         corpus = build_consumer_corpus(lint)
         # Every miss below is indistinguishable from a degraded search, so establish the
-        # search still works before trusting one.  These are complementary, not
-        # substitutes: the floor catches a collapse the prefix set survives, and the
-        # prefix set catches a whole tree vanishing while the count stays plausible.
-        self.assertGreater(len(corpus), 100, "machine-consumer corpus is implausibly small")
+        # search still works before trusting one.  Never drop one of these four as
+        # redundant: each catches a degradation the other three pass.
+        # Floored near the live population, not at a token value: load_machine_consumer_sources
+        # drops an unreadable file to a stderr breadcrumb nothing asserts on, so a slack
+        # floor tolerates a majority collapse.
+        self.assertGreater(len(corpus), 200, "machine-consumer corpus is implausibly small")
         self.assertEqual(
             {path.split("/")[0] for path, _ in corpus},
             {prefix.rstrip("/") for prefix in lint.MACHINE_CONSUMER_PATH_PREFIXES},
             "a declared machine-consumer prefix contributed no files",
         )
-        for control, arm in ((_CONTROL_VERBATIM, "whole-literal"), (_CONTROL_TOKEN, "distinctive-token")):
-            self.assertIsNotNone(
-                lint.machine_consumer_evidence(control, corpus),
-                f"machine-consumer search found its {arm} control nowhere",
-            )
+        # Assert WHICH arm answered: machine_consumer_evidence tries the whole literal
+        # first, so a token control that ever appears verbatim would pass while silently
+        # testing the other arm.
+        for control, phrase in (
+            (_CONTROL_VERBATIM, "contains the pinned literal"),
+            (_CONTROL_TOKEN, "contains the distinctive token"),
+        ):
+            evidence = lint.machine_consumer_evidence(control, corpus)
+            self.assertIsNotNone(evidence, f"machine-consumer search lost its {phrase!r} control")
+            self.assertIn(phrase, evidence)
         for row in rows:
             bucket = row["bucket_final"]
             if bucket not in PROSE_BUCKETS:
