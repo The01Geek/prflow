@@ -109,6 +109,7 @@ states above and no row report accompanies it.
 """
 
 import argparse
+import collections
 import importlib.util
 import os
 import signal
@@ -684,18 +685,11 @@ def _restore_default_signals():
             signal.signal(_sig, signal.SIG_DFL)
 
 
-class _BoundedResult:
-    """A subprocess.run-shaped result plus timeout/elapsed, so run_row's downstream
-    classification reads `.returncode`/`.stdout`/`.stderr` exactly as before (issue #1457)."""
-
-    __slots__ = ("returncode", "stdout", "stderr", "timed_out", "elapsed")
-
-    def __init__(self, returncode, stdout, stderr, timed_out, elapsed):
-        self.returncode = returncode
-        self.stdout = stdout
-        self.stderr = stderr
-        self.timed_out = timed_out
-        self.elapsed = elapsed
+# A subprocess.run-shaped result plus timeout/elapsed, so run_row's downstream
+# classification reads `.returncode`/`.stdout`/`.stderr` exactly as before (issue #1457).
+_BoundedResult = collections.namedtuple(
+    "_BoundedResult", "returncode stdout stderr timed_out elapsed"
+)
 
 
 def _terminate_tree(proc):
