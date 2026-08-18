@@ -10635,7 +10635,8 @@ assert_pin_unique "#541 reference_reads: the field is conditional — absence on
 # (while keeping the attribution) goes RED.
 
 # AC5 — routing-marker drift lint, driven from here with BOTH arms. Each closed-vocab marker present
-# in the §2.3 sweep bodies (phase-2-implement.md, "Sweep selection" preamble through "### 2.4 Test")
+# in the §2.3 sweep bodies (the phase-2 sweep files' "Sweep selection" preamble through
+# "### 2.4 Test", PLUS the gated per-sweep skills/implement/references/sweep-*.md procedures)
 # must have a mapping-table row in item 3b (skills/review-and-fix/references/fixing.md, read via the
 # $MAXI_SKILL bundle, between the BEGIN/END
 # fix-loop mapping table anchors). The lint echoes GREEN when every present marker is mapped, RED
@@ -10654,12 +10655,21 @@ P478_DESTINATIONS=( "The loop's own evidence sink" "The loop's own evidence sink
 # carry no ordering constraint, so a reordered list would otherwise satisfy starts==1 && ends==1
 # while emitting a buffer that is not the sweep bodies at all.
 p478_sweep_bodies() {
-  awk '
+  local _p478_span
+  _p478_span="$(awk '
     /^\*\*Sweep selection \(run first\)\.\*\*/ { starts++; f=1; next }
     $0 == "### 2.4 Test" { if (f) ends++; f=0; next }
     f { buf = buf $0 "\n" }
     END { if (starts == 1 && ends == 1) printf "%s", buf }
-  ' "$@"
+  ' "$@")"
+  # Return before the references on an unopened span: appending them unconditionally would
+  # make the caller's empty-corpus RED arm vacuous.
+  [ -n "$_p478_span" ] || return 0
+  printf '%s\n' "$_p478_span"
+  # Never add 2>/dev/null or `|| true` here, and never drop the `|| return 1`: a short corpus
+  # leaves the lint checking fewer markers while still echoing GREEN — the fail-open the
+  # caller's empty-corpus guard cannot see.
+  cat "$LIB"/../skills/implement/references/sweep-*.md || return 1
 }
 # p478_maptable is FAIL-CLOSED on its END anchor (#478 Phase-3 review): it buffers the BEGIN..END
 # region and emits it ONLY once the matching END anchor is seen. A renamed/removed END anchor yields
@@ -10677,7 +10687,10 @@ p478_maptable() {
 p478_routing_lint() {  # skill_file phase2_file... -> echoes GREEN or RED
   local bodies table mk dest idx rows skill
   skill="$1"; shift
-  bodies="$(p478_sweep_bodies "$@")"
+  # Route a non-zero extractor status to RED as well as an empty corpus: a partial corpus
+  # (the reference concatenation failed) is populated but short, so the emptiness test alone
+  # would let the lint pass having checked fewer markers than it reports.
+  bodies="$(p478_sweep_bodies "$@")" || { echo RED; return; }
   # An empty corpus skips every marker check below, so the lint would echo GREEN having
   # verified nothing. Structural, not left to whichever marker happens to be absent.
   [ -n "$bodies" ] || { echo RED; return; }
@@ -10701,6 +10714,40 @@ P478_BODIES="$(p478_sweep_bodies "${IMPL_PHASE2_FILES[@]}")"
 for _mk in "${P478_MARKERS[@]}"; do
   assert_eq "#478 AC5 lint precondition: marker present in the §2.3 sweep bodies: $_mk" "yes" \
     "$(printf '%s\n' "$P478_BODIES" | grep -qF -- "$_mk" && echo yes || echo no)"
+done
+# #1581: the on-disk sweep-reference set, derived from the tracked index rather than a working-tree
+# glob — an untracked scratch file under references/ must not join the dispatch table and flip the
+# reconciliation below for a reason unrelated to the change under test.
+P1581_ONDISK="$(git -C "$LIB/.." ls-files 'skills/implement/references/sweep-*.md' | sed 's|.*/||' | sort -u)"
+# #1581: the gated-sweep dispatch table as the phase files declare it. Constrained to `sweep-`
+# basenames: a later non-sweep `**Procedure:**` pointer in either phase file would otherwise make
+# the reconciliation RED with a message asserting a broken sweep table that is not broken.
+P1581_DECLARED="$(grep -h '^\*\*Procedure:\*\*' "$IMPL_PHASES_DIR/phase-2-sweeps-contract.md" "$IMPL_PHASES_DIR/phase-2-sweeps-quality.md" | sed 's|.*<skill-dir>/references/||; s|`.*||' | grep '^sweep-' | sort -u)"
+# Assert each limb PRODUCED before comparing them: a two-sided disappearance (the references
+# directory and the phase files renamed in one change — the relocation class this guard exists for)
+# would otherwise compare "" to "" and report GREEN having reconciled nothing.
+assert_eq "#1581: the on-disk gated-sweep reference set is non-empty (the reconciliation below is not vacuous)" "yes" \
+  "$([ -n "$P1581_ONDISK" ] && echo yes || echo no)"
+assert_eq "#1581: the phase files' gated-sweep **Procedure:** pointer set is non-empty (the reconciliation below is not vacuous)" "yes" \
+  "$([ -n "$P1581_DECLARED" ] && echo yes || echo no)"
+# #1581: a pointer naming a file that does not exist makes the gated Read fail and silently drops
+# a mandatory sweep, so reconcile the routing both ways round.
+assert_eq "#1581: every gated-sweep **Procedure:** pointer resolves to an on-disk reference, and every sweep reference is pointed at" \
+  "$P1581_ONDISK" "$P1581_DECLARED"  # structural-pin-ok: routing-dispatch-contract -- the phase files' pointer set IS the dispatch table for the gated sweeps; a one-sided rename drops a mandatory sweep with the suite green
+# #1581: never narrow this to the phase-file span — every marker still resolves inside the phase
+# files, so a corpus that lost its reference half would stay green. Derive the operand from the set
+# above, not a literal list, or a ninth sweep ships uncovered.
+for _p1581_ref in $P1581_ONDISK; do
+  assert_eq "#1581: the §2.3 sweep-body corpus carries $_p1581_ref's own boundary marker (the corpus spans its reference half)" "yes" \
+    "$(printf '%s\n' "$P478_BODIES" | grep -qF -- "file=skills/implement/references/$_p1581_ref start" && echo yes || echo no)"  # raw-guard-ok: loop body: presence pin over the enumerated $P1581_ONDISK loop variable, not a static pin
+done
+# #1581: a `file=` value that drifts from its own filename makes the implement run's gated Read
+# treat the reference as truncated and drop a mandatory sweep, with every other check here green.
+for _p1581_ref in $P1581_ONDISK; do
+  assert_eq "#1581: $_p1581_ref's first line is its own self-naming start marker" "yes" \
+    "$(head -1 "$IMPL_REFS_DIR/$_p1581_ref" | grep -qF -- "file=skills/implement/references/$_p1581_ref start -->" && echo yes || echo no)"  # raw-guard-ok: loop body: boundary-contract pin over the enumerated $P1581_ONDISK loop variable
+  assert_eq "#1581: $_p1581_ref's last line is its own self-naming end marker" "yes" \
+    "$(tail -1 "$IMPL_REFS_DIR/$_p1581_ref" | grep -qF -- "file=skills/implement/references/$_p1581_ref end -->" && echo yes || echo no)"  # raw-guard-ok: loop body: boundary-contract pin over the enumerated $P1581_ONDISK loop variable
 done
 # Empty-corpus RED arm: a corpus the extractor could not build skips every marker check, so
 # the lint must refuse rather than echo GREEN having verified nothing. Driven with an operand
@@ -10737,6 +10784,20 @@ grep -vF -- 'fix-loop-mapping-table-end' "$MAXI_SKILL" > "$P478_MUT_END"
 assert_eq "#478 maptable END-anchor fail-closed: removing the END anchor flips the routing lint RED (no silent widen to EOF)" \
   "RED" "$(p478_routing_lint "$P478_MUT_END" "${IMPL_PHASE2_FILES[@]}")"
 rm -f "$P478_MUT_END"
+# Partial-corpus RED arm (#1581): the §2.3 span opens but the gated-reference concatenation
+# fails, so p478_sweep_bodies returns 1 with a populated-but-SHORT buffer. Redirecting $LIB at an
+# empty scratch root is the route-(a) mutation — the real references are never touched. Without
+# the caller's `bodies=... || { echo RED; }` the non-empty buffer satisfies the emptiness test and
+# the lint echoes GREEN having checked fewer markers than it reports; the GREEN arm above is the
+# positive control on the identical skill + phase files, differing only in $LIB.
+P478_NOREF="$(git_sandbox '#478 AC5 routing lint partial-corpus RED-arm setup')"
+# Attribution: prove the rejection below is the concatenation failure and not an unopened span —
+# an empty span would trip the DIFFERENT guard one line later and read as a passing negative test.
+assert_eq "#478 AC5 partial-corpus attribution: the §2.3 span still opens under the redirected reference root" \
+  "yes" "$(LIB="$P478_NOREF" p478_sweep_bodies "${IMPL_PHASE2_FILES[@]}" | grep -qF -- '## Devflow Reflection' && echo yes || echo no)"
+assert_eq "#478 AC5 routing lint RED: a non-zero sweep-bodies status (gated-reference concatenation failed) flips the lint RED despite an opened span" \
+  "RED" "$(LIB="$P478_NOREF" p478_routing_lint "$MAXI_SKILL" "${IMPL_PHASE2_FILES[@]}")"
+rm -rf "$P478_NOREF"
 
 # ── issue #185 Addendum: deterministic extraction helper (fixture matrix) ────
 # The helper is the deterministic boundary the Addendum mandates; test its
@@ -16064,7 +16125,7 @@ for PA_FILE in "$LIB"/../skills/review/phases/*.md "$LIB"/../skills/review-and-f
     "$(if grep -qF 'CLAUDE_SKILL_DIR' "$PA_FILE"; then grep -qF "$PORTABLE_ANCHOR_LITERAL" "$PA_FILE" && echo yes || echo no; else echo yes; fi)"  # raw-guard-ok: loop body: conditional presence pin over the enumerated $PA_FILE loop variable
 done
 assert_eq "#275 pin (R0): portable-anchor coverage spans every review phase + fix-loop + create-issue + implement reference file (enumeration reconciled)" \
-  "47" "$PA_REF_COUNT"
+  "55" "$PA_REF_COUNT"
 # Mutation proof (PASS->FAIL, self-contained): the absence EREs must actually MATCH the
 # two fragile forms they exist to reject — an ERE typo would leave P1/P2 green forever
 # (vacuous absence pins). Inject each fragile form into a temp copy of a migrated file
