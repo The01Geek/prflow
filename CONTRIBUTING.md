@@ -368,8 +368,9 @@ decides it, arm 0's *retain* included**. Its disposition is the separate rule un
    it exactly as it is to a `git grep`. That blind spot under-counts in the one
    direction that wrongly authorizes removal, so an unconfirmed literal retains.
 3. **`counted_occurrences < 2` and any other `bucket_final`** — including `boundary`,
-   the value every row carries between one re-adjudication pass and the next, so this
-   is the arm that catches every single-home pin outside such a pass. A tool or
+   the value a row carries outside the window between a re-adjudication pass and the
+   sweep it authorizes, so this is the arm that catches a single-home pin outside that
+   window. A tool or
    consumer reads the target (a
    marker a tool parses, a routing-table row a module reconciles, a
    generated-artifact identity, a typed executable boundary), so **retain** the pin
@@ -439,8 +440,7 @@ to boundary-only. #946 then refilled and drained it again: step 1 brought
 step 2's re-adjudication moved the 28 sites nothing reads into `prose-sole-copy`, and
 step 3's sweep retired exactly those 28 pins with their rows. #1753 refilled it again,
 for the create-issue-associated pins, and the sweep those rows authorize has not yet
-landed. Read the
-authorization record for any pass in history — the census as of the re-adjudication
+landed. Read the authorization record for any pass in history — the census as of the re-adjudication
 commit, plus the `pin-corpus-adjudication-changes` bundles, which name every key that
 moved and every key that went. Expect the same shape every time: a prose-bucketed
 population exists only between a re-adjudication and the sweep it authorizes.

@@ -39,6 +39,7 @@ MANIFEST = REPO_ROOT / ".prflow/logs/residual-prose-retirement-manifest.tsv"
 IDENTITY_REFRESHES = HERE / "pin-identity-refreshes.tsv"
 ADJUDICATIONS = REPO_ROOT / "lib/test/pin-corpus-adjudications.tsv"
 CLASSIFIER = HERE / "pin-corpus-classifier.py"
+LINT = HERE / "pin-corpus-lint.py"
 
 IDENTITY_COLUMNS = (
     "source_file",
@@ -336,6 +337,40 @@ def load_classifier():
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def load_lint():
+    spec = importlib.util.spec_from_file_location("pin_corpus_lint", LINT)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def build_consumer_corpus(lint):
+    """Return the step-1 machine-consumer corpus over the tracked tree.
+
+    Enumerate from the index (`git ls-files`), never a root-anchored walk: a walk
+    descends into sibling worktrees under `.claude/worktrees/` and counts their
+    copies (issue #711).
+    """
+    listing = subprocess.run(
+        ["git", "ls-files", "-z"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    sources = {}
+    for path in listing.split("\0"):
+        if not path or not lint.is_machine_consumer_path(path):
+            continue
+        try:
+            sources[path] = (REPO_ROOT / path).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+    return lint.build_machine_consumer_corpus(sources)
 
 
 _HISTORICAL_INVENTORY_CACHE: dict[str, str] = {}
@@ -1063,6 +1098,14 @@ class ResidualProseRetirementManifestTests(unittest.TestCase):
         )
         classifier = load_classifier()
         table = classifier.parse_adjudications(ADJUDICATIONS.read_text(encoding="utf-8"))
+        # A prose bucket asserts that no tool reads the literal, and that assertion is
+        # what authorizes a later pin-only retirement.  The delta manifest proves the
+        # move was DECLARED, never that it was RIGHT, and the issue-948 routing ladder
+        # consults machine_consumer_evidence only over CHANGED pin source lines -- so a
+        # re-adjudication branch, which changes none, never reaches it.  Re-run that same
+        # search here over the whole prose population.
+        lint = load_lint()
+        corpus = build_consumer_corpus(lint)
         for row in rows:
             bucket = row["bucket_final"]
             if bucket not in PROSE_BUCKETS:
@@ -1075,10 +1118,10 @@ class ResidualProseRetirementManifestTests(unittest.TestCase):
                 self.assertGreaterEqual(counted, 2, where)
             rationale = decode_cell(row["adjudication_rationale"])
             self.assertFalse(rationale.startswith("mechanical:"), where)
-            digest = hashlib.sha256(
-                decode_cell(row["literal"]).encode("utf-8")
-            ).hexdigest()
+            literal = decode_cell(row["literal"])
+            digest = hashlib.sha256(literal.encode("utf-8")).hexdigest()
             self.assertIn(f"literal:{digest}", table, where)
+            self.assertIsNone(lint.machine_consumer_evidence(literal, corpus), where)
         # The census is frozen at a revision that predates the .devflow/ ->
         # .prflow/ state-directory rename (issue #1002), so its homes carry the
         # superseded spelling.  Project each home before the membership test,
