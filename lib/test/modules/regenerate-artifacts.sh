@@ -2377,9 +2377,12 @@ _ra_has_file "#1457 AC4 the timeout report states the exceeded bound" "$RA_1457_
   "exceeded its declared bound of 5s"
 _ra_has_file "#1457 AC4 the timeout is announced on the STDERR progress stream" "$RA_1457_TO/.ra.err" \
   "regenerate-artifacts: row env-freeze-advisory-region: TIMED OUT after 5s"
-_ra_ok "#1457 AC4 no other row is blamed for the timeout" \
-  "$([ "$(devflow_module_pin_count '] INFRASTRUCTURE' "$RA_1457_TO/.ra.out")" = 1 ] && [ "$(devflow_module_pin_count 'TIMED OUT' "$RA_1457_TO/.ra.err")" = 1 ] && printf yes || printf no)" \
-  "a row other than the sleeper was blamed"
+_ra_ok "#1457 AC4 exactly one INFRASTRUCTURE line (no other row blamed on stdout)" \
+  "$([ "$(devflow_module_pin_count '] INFRASTRUCTURE' "$RA_1457_TO/.ra.out")" = 1 ] && printf yes || printf no)" \
+  "a row other than the sleeper was blamed on stdout"
+_ra_ok "#1457 AC4 exactly one TIMED OUT line (no other row blamed on stderr)" \
+  "$([ "$(devflow_module_pin_count 'TIMED OUT' "$RA_1457_TO/.ra.err")" = 1 ] && printf yes || printf no)" \
+  "a row other than the sleeper was blamed on stderr"
 # AC6 — the whole process tree died: the sleeper's recorded child PID (never pgrep -f) is
 # gone after the bounded process-group kill. Give the SIGKILL a moment to reap.
 sleep 1
