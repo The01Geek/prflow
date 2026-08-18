@@ -1400,7 +1400,7 @@ workpad.py update: outcome=<token> remedy=<token>
 | `outcome=` | Meaning | `remedy=` |
 |---|---|---|
 | `landed` | PATCH applied; every requested mutation landed | `none` |
-| `replay` | checkpoint-only no-op, no PATCH needed | `none` |
+| `replay` | pure no-op, no PATCH needed — a keyed checkpoint replay, or a call whose only operands are exact `_REVIEW_PROGRESS_ROWS` tick substrings whose rows already read `[x]` | `none` |
 | `landed-partial-ticks` | PATCH applied; one or more tick rows unresolved | `retick-named-rows` |
 | `landed-status-unverified` | PATCH applied; the `--status` read-back was empty, carried no Status line, or disagreed | `reset-status` |
 | `landed-partial-ticks-status-unverified` | both of the above | `retick-and-reset-status` |
