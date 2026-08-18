@@ -40,14 +40,16 @@ IDENTITY_REFRESHES = HERE / "pin-identity-refreshes.tsv"
 ADJUDICATIONS = REPO_ROOT / "lib/test/pin-corpus-adjudications.tsv"
 CLASSIFIER = HERE / "pin-corpus-classifier.py"
 LINT = HERE / "pin-corpus-lint.py"
-# Two controls, one per arm of machine_consumer_evidence.  Exercising one arm leaves the
-# other free to regress to matching nothing while the screen below still reports green.
-_CONTROL_VERBATIM = (  # scripts/render-grounding-block.sh, verbatim
+# Controls spanning both arms of machine_consumer_evidence and each comment-stripped
+# language: an arm or a language with no control can regress to matching nothing while
+# the screen below still reports green.
+_CONTROL_VERBATIM = (  # .sh, whole-literal arm: scripts/render-grounding-block.sh
     "> is not a verdict — it reads like an approval to a human while counting as"
 )
-_CONTROL_TOKEN = (  # absent verbatim; lib/scan.sh carries the distinctive token
+_CONTROL_TOKEN = (  # absent verbatim; token arm via lib/scan.sh
     "the PROVENANCE_LABEL_SUPERSEDED selector spelling is accepted here"
 )
+_CONTROL_PY = "could not read audit-prompt template at"  # scripts/render-audit-prompt.py
 
 IDENTITY_COLUMNS = (
     "source_file",
@@ -1115,9 +1117,10 @@ class ResidualProseRetirementManifestTests(unittest.TestCase):
         for control, phrase in (
             (_CONTROL_VERBATIM, "contains the pinned literal"),
             (_CONTROL_TOKEN, "contains the distinctive token"),
+            (_CONTROL_PY, "contains the pinned literal"),
         ):
             evidence = lint.machine_consumer_evidence(control, corpus)
-            self.assertIsNotNone(evidence, f"machine-consumer search lost its {phrase!r} control")
+            self.assertIsNotNone(evidence, f"machine-consumer search lost a control: {control!r}")
             self.assertIn(phrase, evidence)
         for row in rows:
             bucket = row["bucket_final"]
