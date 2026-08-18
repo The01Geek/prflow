@@ -2355,10 +2355,10 @@ _ra_bind_fails_closed "a bool timeout_seconds (an int subclass) is rejected" \
   "exact-module-floors" "not an int"
 
 # AC4/AC5/AC6 — a bounded-out row. Build a fixture whose fast judgment rows are
-# trivial exit-0 stubs (so the shared override bound cannot flake them) and whose
-# env-freeze-advisory-region generator is a sleeper that spawns a child and records both
-# PIDs. Run the DEFAULT pass (exact-module-floors stays opt-in/skipped) with the shipped
-# override bounding the row loop to 1s: the stubs finish instantly, the sleeper trips.
+# trivial exit-0 stubs and whose env-freeze-advisory-region generator is a sleeper that
+# spawns a child and records both PIDs. Run the DEFAULT pass (exact-module-floors stays
+# opt-in/skipped) with the override bounding the row loop to 5s — comfortably above the
+# stubs' Python cold-start even under parallel-suite contention, while the 120s sleeper trips.
 RA_1457_TO="$_ra_tmp_root/i1457-timeout"; _ra_fixture "$RA_1457_TO"
 for _stub in lib/generate-capability-profiles.py lib/generate-plugin-identity.py lib/test/coverage_map_guard.py; do
   printf '%s\n' 'import sys' 'sys.exit(0)' > "$RA_1457_TO/$_stub"
@@ -2369,16 +2369,16 @@ printf '%s\n' \
   'child = subprocess.Popen(["sleep", "120"])' \
   'open(os.path.join(os.getcwd(), ".ra_slow_pids"), "w").write("%d\n%d\n" % (os.getpid(), child.pid))' \
   'time.sleep(120)' > "$RA_1457_TO/lib/generate-env-freeze-advisory.py"
-DEVFLOW_ARTIFACT_ROW_TIMEOUT_SECONDS=1 python3 "$RA_HELPER" --repo-root "$RA_1457_TO" \
+DEVFLOW_ARTIFACT_ROW_TIMEOUT_SECONDS=5 python3 "$RA_HELPER" --repo-root "$RA_1457_TO" \
   >"$RA_1457_TO/.ra.out" 2>"$RA_1457_TO/.ra.err"
 printf '%s\n' "$?" >"$RA_1457_TO/.ra.rc"
 assert_eq "#1457 AC4 a timed-out row routes to INFRASTRUCTURE exit 2" "2" "$(_ra_rc "$RA_1457_TO")"
 _ra_has_file "#1457 AC4 the timeout report is attributed to the slow row" "$RA_1457_TO/.ra.out" \
   "[env-freeze-advisory-region] INFRASTRUCTURE"
 _ra_has_file "#1457 AC4 the timeout report states the exceeded bound" "$RA_1457_TO/.ra.out" \
-  "exceeded its declared bound of 1s"
+  "exceeded its declared bound of 5s"
 _ra_has_file "#1457 AC4 the timeout is announced on the STDERR progress stream" "$RA_1457_TO/.ra.err" \
-  "regenerate-artifacts: row env-freeze-advisory-region: TIMED OUT after 1s"
+  "regenerate-artifacts: row env-freeze-advisory-region: TIMED OUT after 5s"
 _ra_ok "#1457 AC4 no other row is blamed for the timeout" \
   "$([ "$(devflow_module_pin_count '] INFRASTRUCTURE' "$RA_1457_TO/.ra.out")" = 1 ] && [ "$(devflow_module_pin_count 'TIMED OUT' "$RA_1457_TO/.ra.err")" = 1 ] && printf yes || printf no)" \
   "a row other than the sleeper was blamed"
@@ -2407,3 +2407,22 @@ printf '%s\n' "$?" >"$RA_1457_TO/.ra.mal.rc"
 assert_eq "#1457 AC5 a malformed override is refused loudly (exit 2)" "2" "$(cat "$RA_1457_TO/.ra.mal.rc")"
 _ra_has_file "#1457 AC5 the refusal names the override var and the bad value" "$RA_1457_TO/.ra.mal.err" \
   "DEVFLOW_ARTIFACT_ROW_TIMEOUT_SECONDS='x' is not an integer"
+
+# AC5 — a parseable but non-positive value (the second refusal arm) is refused loudly too,
+# named as not a POSITIVE integer, so a `0`/`-5` operator slip cannot silently disable bounding.
+env DEVFLOW_ARTIFACT_ROW_TIMEOUT_SECONDS=0 python3 "$RA_HELPER" --repo-root "$RA_1457_TO" \
+  >"$RA_1457_TO/.ra.zero.out" 2>"$RA_1457_TO/.ra.zero.err"
+printf '%s\n' "$?" >"$RA_1457_TO/.ra.zero.rc"
+assert_eq "#1457 AC5 a non-positive override is refused loudly (exit 2)" "2" "$(cat "$RA_1457_TO/.ra.zero.rc")"
+_ra_has_file "#1457 AC5 the non-positive refusal names the var and the bad value" "$RA_1457_TO/.ra.zero.err" \
+  "DEVFLOW_ARTIFACT_ROW_TIMEOUT_SECONDS='0' is not a positive integer"
+
+# AC5 — an EMPTY override behaves as unset (this repo's DEVFLOW_* rule): the clean fixture
+# runs its declared bounds, exits 0, and no row is bounded out.
+env DEVFLOW_ARTIFACT_ROW_TIMEOUT_SECONDS= python3 "$RA_HELPER" --repo-root "$RA_1457_A1" \
+  >"$RA_1457_A1/.ra.empty.out" 2>"$RA_1457_A1/.ra.empty.err"
+printf '%s\n' "$?" >"$RA_1457_A1/.ra.empty.rc"
+assert_eq "#1457 AC5 an empty override behaves as unset (clean pass exits 0)" "0" "$(cat "$RA_1457_A1/.ra.empty.rc")"
+_ra_ok "#1457 AC5 an empty override does not bound any row out" \
+  "$([ "$(devflow_module_pin_count 'TIMED OUT' "$RA_1457_A1/.ra.empty.err")" = 0 ] && printf yes || printf no)" \
+  "an empty override was not treated as unset"

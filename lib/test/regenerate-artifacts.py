@@ -155,17 +155,14 @@ CONFLICT_CLASSES = ("regenerate", "reconcile-source", "by-hand")
 # established.
 ROW_KINDS = ("mechanical", "monotonic", "judgment")
 
-# Per-row wall-clock bound (issue #1457). `timeout_seconds` is DECLARED DATA a registry row
-# must carry, validated at import exactly as `preflight_eligible` is, so an absent or non-int
-# value is a registry defect rather than a silent global default. The global override below
-# replaces the declared bound for testing and slow hosts; empty behaves as unset (this repo's
-# `DEVFLOW_*` rule), and a malformed value is refused loudly rather than silently ignored.
+# Per-row wall-clock bound (issue #1457): `timeout_seconds` is DECLARED DATA every registry row
+# must carry, validated at import like `preflight_eligible` (absent/non-int is a registry defect,
+# not a silent default). The override env below replaces it; empty=unset, malformed refused loudly.
 ROW_TIMEOUT_OVERRIDE_ENV = "DEVFLOW_ARTIFACT_ROW_TIMEOUT_SECONDS"
 
-# POSIX-only process-group termination (issue #1457 AC6/AC8): a bare subprocess timeout kills
-# only the direct child and orphans the rest, so the bounded launch puts the child in its own
-# session and signals the whole group. `os.killpg`/`os.getpgid` and `start_new_session` are
-# absent on a non-POSIX host, so every use of them is guarded on this flag.
+# POSIX-only process-group termination (issue #1457 AC6/AC8): a bare subprocess timeout orphans
+# grandchildren, so the bounded launch sessions the child and signals the group. These APIs are
+# absent off POSIX, so every use is guarded on this flag.
 _POSIX = os.name == "posix"
 
 # Ordered registry. `argv` is resolved under the target root and run with that root as
@@ -744,6 +741,13 @@ def _run_bounded(argv, root, timeout_seconds):
         try:
             stdout, stderr = proc.communicate(timeout=10)
         except subprocess.TimeoutExpired:
+            # The group did not die within 10s of SIGKILL (a descendant wedged in
+            # uninterruptible I/O, or the non-POSIX child-only fallback left orphans). Surface
+            # it — a leaked process with no breadcrumb is exactly the silent failure to avoid.
+            _emit_progress(
+                f"regenerate-artifacts: process {proc.pid} survived SIGKILL; "
+                "reap abandoned after 10s (a descendant may be leaked)"
+            )
             stdout, stderr = "", ""
         return _BoundedResult(
             proc.returncode, stdout, stderr, True, time.monotonic() - start
