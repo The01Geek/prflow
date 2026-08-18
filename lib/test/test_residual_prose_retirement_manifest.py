@@ -349,28 +349,15 @@ def load_lint():
 
 
 def build_consumer_corpus(lint):
-    """Return the step-1 machine-consumer corpus over the tracked tree.
+    """Return the step-1 machine-consumer corpus, via the lint's own loader.
 
-    Enumerate from the index (`git ls-files`), never a root-anchored walk: a walk
-    descends into sibling worktrees under `.claude/worktrees/` and counts their
-    copies (issue #711).
+    Never re-derive the enumeration here: a second copy of the corpus rules
+    drifts silently from the ladder that actually gates a pin, leaving this
+    assertion measuring a corpus production never uses.
     """
-    listing = subprocess.run(
-        ["git", "ls-files", "-z"],
-        cwd=REPO_ROOT,
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout
-    sources = {}
-    for path in listing.split("\0"):
-        if not path or not lint.is_machine_consumer_path(path):
-            continue
-        try:
-            sources[path] = (REPO_ROOT / path).read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            continue
-    return lint.build_machine_consumer_corpus(sources)
+    return lint.build_machine_consumer_corpus(
+        lint.load_machine_consumer_sources(REPO_ROOT)
+    )
 
 
 _HISTORICAL_INVENTORY_CACHE: dict[str, str] = {}
@@ -1106,6 +1093,10 @@ class ResidualProseRetirementManifestTests(unittest.TestCase):
         # search here over the whole prose population.
         lint = load_lint()
         corpus = build_consumer_corpus(lint)
+        # A shrunken corpus makes machine_consumer_evidence return None for every
+        # literal, so the assertIsNone below would pass vacuously on a read failure
+        # that emptied it.  Floor the corpus before trusting a None.
+        self.assertGreater(len(corpus), 100, "machine-consumer corpus is implausibly small")
         for row in rows:
             bucket = row["bucket_final"]
             if bucket not in PROSE_BUCKETS:
@@ -1121,7 +1112,8 @@ class ResidualProseRetirementManifestTests(unittest.TestCase):
             literal = decode_cell(row["literal"])
             digest = hashlib.sha256(literal.encode("utf-8")).hexdigest()
             self.assertIn(f"literal:{digest}", table, where)
-            self.assertIsNone(lint.machine_consumer_evidence(literal, corpus), where)
+            evidence = lint.machine_consumer_evidence(literal, corpus)
+            self.assertIsNone(evidence, f"{where}: {evidence}")
         # The census is frozen at a revision that predates the .devflow/ ->
         # .prflow/ state-directory rename (issue #1002), so its homes carry the
         # superseded spelling.  Project each home before the membership test,
