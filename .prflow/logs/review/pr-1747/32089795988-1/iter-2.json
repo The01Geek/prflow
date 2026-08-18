@@ -1,0 +1,116 @@
+{
+  "iter": 2,
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "per-row AC2a provenance comments carry measurement derivation",
+      "defect_signature": {
+        "file": "lib/test/regenerate-artifacts.py",
+        "line_range": [
+          183,
+          240
+        ],
+        "kind": "style"
+      },
+      "fix_decision": "pushed_back"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "fixture rationale comment restates cold-start derivation",
+      "defect_signature": {
+        "file": "lib/test/modules/regenerate-artifacts.sh",
+        "line_range": [
+          2357,
+          2361
+        ],
+        "kind": "style"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "exact-module-floors 4x multiple is the tightest slack (opt-in only, documented AC2a design choice)",
+      "defect_signature": {
+        "file": "lib/test/regenerate-artifacts.py",
+        "line_range": [
+          347,
+          350
+        ],
+        "kind": "style"
+      },
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-8",
+      "decision": "pushed_back",
+      "skip_category": "out-of-scope",
+      "evidence": "AC2a mandates each row document its measurement x multiple in an inline comment; the comment standard's policy-required-comment carve-out exempts them. Trimming would break AC2a verifiability."
+    },
+    {
+      "finding_id": "F-9",
+      "decision": "applied",
+      "note": "trimmed fixture comment to 3 lines"
+    },
+    {
+      "finding_id": "F-10",
+      "decision": "advisory",
+      "skip_category": "advisory-parked",
+      "evidence": "4x on the minutes-scale row is the author's stated AC2a multiple; opt-in (--with-floors) only, so it never fires on the default pass. Final-pass called it not merge-blocking."
+    }
+  ],
+  "shadow": {
+    "ran_at": "iter-2",
+    "reviewed_sha": "b2c41925b",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "checklist_skipped": null,
+    "comparison": {
+      "shadow_total": 3,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "convergence_inputs": {
+    "fixes_applied": 1,
+    "new_corroborated_critical_count": 0
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

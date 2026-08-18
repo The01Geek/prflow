@@ -1,0 +1,259 @@
+{
+  "iter": 1,
+  "loop_role": "fix",
+  "current_step": "3",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "checklist": [
+    {
+      "id": "VC-1",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-2",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-3",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-4",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-5",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-6",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-7",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-8",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-9",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-10",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-11",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-12",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-13",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-14",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-15",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-16",
+      "verdict": "PASS"
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "post-SIGKILL reap failure discards output and leaks process with no breadcrumb",
+      "defect_signature": {
+        "file": "lib/test/regenerate-artifacts.py",
+        "line_range": [
+          744,
+          747
+        ],
+        "kind": "leak"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "ROW_TIMEOUT_OVERRIDE_ENV comment block > 3 lines with derivation",
+      "defect_signature": {
+        "file": "lib/test/regenerate-artifacts.py",
+        "line_range": [
+          158,
+          162
+        ],
+        "kind": "style"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "_POSIX comment block > 3 lines with derivation",
+      "defect_signature": {
+        "file": "lib/test/regenerate-artifacts.py",
+        "line_range": [
+          165,
+          168
+        ],
+        "kind": "style"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "AC4/AC6 fixture 1s override could flake stub rows under contention (slack budget)",
+      "defect_signature": {
+        "file": "lib/test/modules/regenerate-artifacts.sh",
+        "line_range": [
+          2357,
+          2372
+        ],
+        "kind": "race"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "AC5 non-positive (<=0) refusal arm untested",
+      "defect_signature": {
+        "file": "lib/test/modules/regenerate-artifacts.sh",
+        "line_range": [
+          2402,
+          2409
+        ],
+        "kind": "test_gap"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "AC5 empty=unset arm untested",
+      "defect_signature": {
+        "file": "lib/test/modules/regenerate-artifacts.sh",
+        "line_range": [
+          2402,
+          2409
+        ],
+        "kind": "test_gap"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "AC7 lacks a byte-for-byte golden stdout comparison",
+      "defect_signature": {
+        "file": "lib/test/modules/regenerate-artifacts.sh",
+        "line_range": [
+          56,
+          60
+        ],
+        "kind": "test_gap"
+      },
+      "fix_decision": "deferred"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "AC8 non-POSIX killpg->proc.kill fallback limb untested (documented residual, hard on POSIX)",
+      "defect_signature": {
+        "file": "lib/test/regenerate-artifacts.py",
+        "line_range": [
+          701,
+          719
+        ],
+        "kind": "test_gap"
+      },
+      "fix_decision": "deferred"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "declared per-row bound never observed timing out, only the override (documented residual, would need >22s)",
+      "defect_signature": {
+        "file": "lib/test/regenerate-artifacts.py",
+        "line_range": [
+          753,
+          826
+        ],
+        "kind": "test_gap"
+      },
+      "fix_decision": "deferred"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "note": "leak breadcrumb"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "note": "comment trim x2"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "note": "slack budget 1s->5s"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "note": "AC5 <=0 and empty=unset arms"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "deferred",
+      "skip_category": "uncategorized",
+      "evidence": "AC7 golden: AC7 (files-on-disk byte-unchanged) is guarded by #619 A3 write-scope arms which stay green; AC1 already asserts no stdout progress leak + clean report line survives. A full golden stdout comparison is a strengthening, not a defect."
+    },
+    {
+      "finding_id": "F-6",
+      "decision": "deferred",
+      "skip_category": "out-of-scope",
+      "evidence": "AC8 non-POSIX fallback: agent itself called it inherently hard to test on a POSIX runner; documented residual."
+    },
+    {
+      "finding_id": "F-7",
+      "decision": "deferred",
+      "skip_category": "out-of-scope",
+      "evidence": "declared-bound timeout: agent called it impractical (would need a >22s row) and a documented residual, not an actionable gap."
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 4,
+    "new_corroborated_critical_count": 0
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
