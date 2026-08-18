@@ -141,8 +141,8 @@ Output the description as plain text (not inside a code block) so it appears dir
 ## Changes
 [Group changes by module or concern. Use bold for the area name, colon, then a brief description.]
 
-[Area name]: [What changed]
-[Area name]: [What changed]
+**[Area name]**: [What changed]
+**[Area name]**: [What changed]
 
 ## Resolves
 Resolves #[issue number, or omit this section if no issue number was provided]
