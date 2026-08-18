@@ -33713,6 +33713,52 @@ _f1702_real, _r1702_real = _rsz1702.check_step36_set(
 assert_eq("#1702: the shipped Step 3.6 set is within the per-member limit and aggregate baseline",
           [], _f1702_real)
 
+# ── #1560: the phase-4 §4.3 claim-declaration template is a VALID hermetic declaration ──
+# skills/implement/phases/phase-4-documentation.md §4.3 carries a fenced `json` claim
+# declaration template a run substitutes and feeds to scripts/verification-flight.py. It
+# must be a valid declaration the real `claim` accepts, not merely a field list: a template
+# naming every required field with an unacceptable value would pass a membership check yet be
+# refused by the first `claim`, which is the defect this template exists to remove. Extract
+# the shipped template, substitute only its <…> placeholders, and assert the real helper's
+# `descriptor` (the same validation `claim` runs) accepts it — then prove RED-on-drift with
+# the two planted defects the helper refuses: external_services off the only accepted "none",
+# and an object-id field off the 40/64-hex shape _validate_checkout requires.
+import subprocess as _sp1560  # noqa: E402
+_PHASE4_1560 = SCRIPTS.parent / "skills" / "implement" / "phases" / "phase-4-documentation.md"
+_VFLIGHT_1560 = SCRIPTS / "verification-flight.py"
+
+
+def _extract_json_template_1560(text):
+    # Fail closed on the fence count: the file must carry EXACTLY ONE ```json fence, so a
+    # second json fence added later cannot silently change what is validated.
+    blocks = re.findall(r"```json\n(.*?)\n```", text, re.S)
+    assert len(blocks) == 1, f"expected exactly one ```json fence in phase-4-documentation.md, found {len(blocks)}"
+    return blocks[0]
+
+
+def _descriptor_rc_1560(decl_text):
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as _f1560:
+        _f1560.write(decl_text)
+        _p1560 = _f1560.name
+    try:
+        return _sp1560.run(
+            [sys.executable, str(_VFLIGHT_1560), "descriptor", "--input-file", _p1560],
+            capture_output=True, text=True).returncode
+    finally:
+        os.unlink(_p1560)
+
+
+# Substitute ONLY the <…> placeholders (each sits inside a JSON string), leaving the literals
+# (schema_version 1, external_services "none", the four object-id hex) intact.
+_tpl1560 = _extract_json_template_1560(_PHASE4_1560.read_text(encoding="utf-8"))
+_decl1560 = re.sub(r"<[^>]*>", "x", _tpl1560)
+assert_eq("#1560: the shipped phase-4 claim template is accepted by verification-flight descriptor",
+          0, _descriptor_rc_1560(_decl1560))
+assert_eq("#1560: the template with external_services != \"none\" is refused (non-hermetic)",
+          True, _descriptor_rc_1560(_decl1560.replace('"none"', '"github"')) != 0)
+assert_eq("#1560: the template with an object-id field off the 40/64-hex shape is refused",
+          True, _descriptor_rc_1560(_decl1560.replace("1111111111111111111111111111111111111111", "nothex")) != 0)
+
 print()
 print(f"{PASS} passed, {FAIL} failed")
 sys.exit(0 if FAIL == 0 else 1)

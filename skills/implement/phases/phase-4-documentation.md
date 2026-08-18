@@ -267,9 +267,35 @@ The discriminator for "the helper did not report a token" is observable, not "no
 
 An invocation whose refusal the tier REPORTS is a distinct case, and it publishes. The checkpoint never ran, so there is no token to grade — record it through the keyed-checkpoint carrier under its own key: `workpad.py update $ISSUE_NUMBER --checkpoint base-update-checkpoint-4-tier-refused "checkpoint 4: the update-branch-checkpoint invocation was refused by this tier (<denial/rc 127>) — base reconciliation at pre-ready is unverified this run; publishing per §1.4.1's degraded posture"`. A `--checkpoint` call that itself exits non-zero here fails this step closed. Then proceed to the publish decision, matching §1.4.1's degraded posture. It does **not** route to `Blocked`.
 
-Establish final-tree completion evidence — after checkpoint 4, before the publish decision. The terminal `--status Complete` write below is gated by `scripts/workpad.py` on a *current, passing* verification-flight record for the run's final in-env verification command; Phase 3's flight is stale here because Phase 4 mutated the candidate. The parallelization of this final verification defers to the consumer prompt extension's final-verification rule; that deferral relaxes no suite run still serialized before its commit. Establish evidence for the final tree now:
+Establish final-tree completion evidence — after checkpoint 4, before the publish decision. Phase 3's flight is stale here (Phase 4 mutated the candidate), so `scripts/workpad.py` gates the `--status Complete` write on a current, passing flight for the final in-env verification command. Run it as the run's single whole-suite obligation at the scope this repository's implement prompt extension sets, or the full whole-suite command when it sets none; parallelize it only as that command does — never relaxing a conflict resolution's suite run staying serialized before its commit.
 
-1. Launch one verification flight for the final tree through the existing non-executing `scripts/verification-flight.py` protocol (`claim` → `mark-running` → run the project's already-allowlisted verification command unchanged → `finish --result passed|failed …`). Scope is not decided here: run it at the scope the repository's implement prompt extension's `Verification-flight scope` statement sets. Set the flight's `candidate_identity` to the final-tree identity: obtain it from the reception preflight — the granted `reception-record.py` prints a stdout JSON object carrying `candidate_identity` — read the value from the tool output and put it in the `claim` declaration's `candidate_identity` field (agent-level substitution into the declaration file, not a shell capture) — a record with a null `candidate_identity` fails the gate. The `finish` summary file carries `command` (a nonempty string) and `exit_status` (the integer `0` on a pass), with an empty `skipped_checks` list — the implement-completion policy admits no skip population. Produce both the declaration's `checkout` fingerprint and the re-anchor `--current-checkout-file` with `scripts/checkout-fingerprint.py` (cloud vendored leading-token form `.prflow/vendor/prflow/scripts/checkout-fingerprint.py`): set its JSON output as the `claim` declaration's `checkout` field, and pass a freshly-produced fingerprint to every `status`/`wait` re-anchor as `--current-checkout-file` — without it the read reports non-pass.
+1. Launch one verification flight for the final tree via the fence below, running the allowlisted verification command unchanged as its own leading token between `mark-running` and `finish`. Author the `claim` declaration and `finish --summary-file` with the Write tool under `.prflow/tmp/` (no redirect/heredoc); each operand (`<key>`, `<tok>`, paths) is an agent-level literal, not a shell capture. Set `candidate_identity` from `reception-record.py`'s stdout (null fails the gate). `checkout-fingerprint.py`'s JSON is the `checkout` field, and a freshly-produced one is each `status`/`wait` re-anchor's `--current-checkout-file`. The summary's nonempty `command` and empty `skipped_checks` are enforced by `scripts/check-completion-evidence.py`, not `verification-flight.py`. For subcommand behavior read the module header and `--help`: `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/verification-flight.py`.
+
+```bash
+.prflow/vendor/prflow/scripts/checkout-fingerprint.py
+.prflow/vendor/prflow/scripts/verification-flight.py claim --input-file .prflow/tmp/c.json
+.prflow/vendor/prflow/scripts/verification-flight.py mark-running --flight <key> --token <tok>
+.prflow/vendor/prflow/scripts/verification-flight.py finish --flight <key> --token <tok> --result passed --summary-file .prflow/tmp/s.json
+.prflow/vendor/prflow/scripts/verification-flight.py status --flight <key> --current-checkout-file .prflow/tmp/f.json
+```
+
+On any reading a vendored path did not run — `command not found`, `No such file`, `Permission denied`, rc 126, rc 127 — re-invoke through the anchor; every other vendored line takes the same `.prflow/vendor/prflow/` prefix removal:
+
+```bash
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/checkout-fingerprint.py
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/verification-flight.py
+```
+
+Author the declaration from this template — substitute only the `<…>` placeholders; `schema_version` stays `1`, `external_services` `"none"`, the four `checkout` object-id fields keep example hex replaced from `checkout-fingerprint.py`:
+
+```json
+{"schema_version": 1, "candidate_identity": "<candidate_identity>",
+ "profile": {"profile_version": "<ver>", "argv": ["<cmd+args>"], "cwd": "<cwd>",
+   "environment": {}, "toolchain": {}, "dependencies": {}, "output_roots": [], "external_services": "none"},
+ "checkout": {"checkout_id": "<checkout_id>",
+   "head": "1111111111111111111111111111111111111111", "index_digest": "2222222222222222222222222222222222222222",
+   "tracked_digest": "3333333333333333333333333333333333333333", "untracked_digest": "4444444444444444444444444444444444444444"}}
+```
 2. Record the validated flight key on the workpad: `workpad.py update $ISSUE_NUMBER --record-completion-evidence <flight-key>` (the `<flight-key>` is the `flight_key` value `claim`/`finish` printed). This validates the record under the implement-completion policy and, only on a pass, writes the hidden `completion-verification:<flight-key>` marker (replacing any prior one). A non-pass record aborts this call before any PATCH — do not proceed to Complete; take the Blocked path below.
 3. On a non-pass or unrunnable suite → Blocked, never Complete. A failed suite, a non-empty skip population, or a verification command that is not locally re-runnable on this tier means there is no in-env pass for the final candidate, so the run cannot honestly finalize: `workpad.py update $ISSUE_NUMBER --status Blocked --reflection-kind blocked --reflection "Phase 4.3: final-tree verification did not establish a clean in-env pass (<token/cause>) — cannot record completion evidence; not publishing/completing"`, emit the 👎 reaction, and stop. This step is the sole owner of the unrunnable-verification case: a tier-refused verification routes to Blocked here rather than publishing-and-completing.
 

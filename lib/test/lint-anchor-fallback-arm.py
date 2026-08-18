@@ -83,6 +83,14 @@ ENROLLED: tuple[tuple[str, str], ...] = (
     # the unestablished arm, and read the reference the gate exists to skip.
     ("skills/implement/phases/phase-4-documentation.md",
      "discover-deferral-manifests.py --presence-for-pr <this-run's-PR-number>"),
+    # Enrolled at issue #1560, which added the Phase 4.3 fenced verification-flight call
+    # site. Both helpers are invoked on the cloud implement tier, so an anchor-only spelling
+    # would be refused there; the fence carries the vendored-literal leading token with the
+    # portable anchor as its fallback arm. Each suffix is the bare helper basename (not a
+    # basename-plus-argument, as the neighbouring rows use) because the fence carries several
+    # subcommand lines and the enrollment is about the helper, not one call.
+    ("skills/implement/phases/phase-4-documentation.md", "verification-flight.py"),
+    ("skills/implement/phases/phase-4-documentation.md", "checkout-fingerprint.py"),
     # Enrolled at issue #1557. Reached on the cloud implement tier whenever a named
     # documentation deliverable is absent, so an anchor-only spelling would be refused
     # there and the repair would go unrecorded.
