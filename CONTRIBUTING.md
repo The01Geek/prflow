@@ -452,15 +452,21 @@ cannot drift ahead of an authorization.
 `test_final_inventory_realizes_only_authorized_buckets` in
 `lib/test/test_residual_prose_retirement_manifest.py` is arm 2's coupled site: it holds
 the shipped census to the legal bucket set, and holds every prose-bucketed row to arm
-2's own precondition — a `counted_occurrences` matching its bucket, and an explicit
-maintainer rationale rather than the classifier's mechanical fallback. That per-row half
+2's own precondition — a `counted_occurrences` matching its bucket, an explicit
+maintainer rationale rather than the classifier's mechanical fallback, and (since
+#1753) no hit when the row's literal is put through `pin-corpus-lint.py`'s own
+`machine_consumer_evidence` search, so a row bucketed as prose while a tool still reads
+it turns the suite RED. That search is **one-sided** — a hit disproves the bucket, a
+miss proves nothing — so it is backed by anti-vacuity controls (a corpus-size floor, a
+per-prefix contribution check, and one control literal per matching arm) that fail
+rather than let a degraded search read as a clean population. That per-row half
 ranges over whatever sits in a prose bucket at the time, so it is live between a
 re-adjudication and the sweep it authorizes and empty otherwise; the bucket-set half
 stays live over every row either way.
 
 One limit on that population is worth knowing before you read a missing row as
-permission. A site adjudicated `boundary` in the #885 or #946 pass was adjudicated **on
-recorded evidence** — a consumer, a cross-file phase contract, or a wrapped second
+permission. A site adjudicated `boundary` in the #885, #946 or #1753 pass was
+adjudicated **on recorded evidence** — a consumer, a cross-file phase contract, or a wrapped second
 home — so re-litigating one needs an evidence argument, not a fresh opinion. The
 census's other former blind spot is closed: pins routed through the module-private
 wrapper `lib/test/modules/review-and-fix-contract.sh`'s `_raf_pin_unique` used to sit
