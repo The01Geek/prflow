@@ -208,5 +208,74 @@
       "iter": 2,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.9",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 55.32496174999999,
+    "tokens": {
+      "input_tokens": 282,
+      "output_tokens": 169954,
+      "cache_read_input_tokens": 56956020,
+      "cache_creation_input_tokens": 559674,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 452,
+        "outputTokens": 255449,
+        "cacheReadInputTokens": 61640378,
+        "cacheCreationInputTokens": 1660141,
+        "webSearchRequests": 0,
+        "costUSD": 49.683332750000005,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 212,
+        "outputTokens": 32849,
+        "cacheReadInputTokens": 5213135,
+        "cacheCreationInputTokens": 955818,
+        "webSearchRequests": 0,
+        "costUSD": 5.641629,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 200,
+    "duration_ms": 5610967
+  },
+  "permission_denials": {
+    "count": 9,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git merge-base HEAD origin/main; echo \"---files---\"; git diff --stat $(git merge-base HEAD origin/main)..HEAD",
+      "git diff e401476a224e8acb93b070fa0d1403ff473e7fbc..HEAD > .prflow/tmp/simplify-diff-1457.patch 2>&1; wc -l .prflow/tmp/simplify-diff-1457.patch",
+      "echo \"RUN_ID_BASE=${GITHUB_RUN_ID:-none}-${GITHUB_RUN_ATTEMPT:-1}\"; echo \"cur_branch:\"; git branch --show-current; echo \"local_head:\"; git rev-parse HEAD; echo \"pr_head_ref:\"; gh pr view 1747 --json headRefName --jq '.headRefName'; echo \"pr_head_oid:\"; gh pr view 1747 --json headRefOid --jq '.headRefOid'",
+      "echo \"run_id=$GITHUB_RUN_ID attempt=$GITHUB_RUN_ATTEMPT\"; git branch --show-current; git rev-parse HEAD",
+      "mkdir -p .prflow/tmp/verifier-1747\ncat > .prflow/tmp/verifier-1747/input.json <<'EOF'\n{\n  \"candidate_identity\": \"lib/test/run-module.sh regenerate-artifacts\",\n  \"checkout_fingerprint\": {\"checkout_id\": \"/home/runner/work/prflow/prflow/.git\", \"head\": \"cdfdb30afda7e38d4ca4005f8a02a3d809bacbb2\", \"index_digest\": \"dcd4d40de7995342a44d776d68b4f2ace88cd519\", \"tracked_digest\": \"dcd4d40de7995342a44d776d68b4f2ace88cd519\", \"untracked_digest\": \"4b825dc642cb6eb9a060e54bf8d69288fbee4904\"}\n}\nEOF\npython3 .prflow …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\necho \"=== ISSUE ===\"\ngh issue view 1457 --json title,body,labels 2>&1 | head -60\necho \"=== SIZE HELPER ===\"\nscripts/prompt-surface-growth.py 2>&1\necho \"---rc $?---\"\necho \"=== DEFERRALS ===\"\nls -la .prflow/tmp/review/pr-1747/ 2>&1 | head\ncat .prflow/tmp/review/pr-1747/deferrals.json 2>&1 | head\necho \"=== WORKPAD ===\"\nWID=$(scripts/workpad.py id 1457 2>/dev/null || true); echo \"id=$WID\"",
+      "cd /home/runner/work/prflow/prflow\nfor r in matcher-probe-extras wsr-swept-relpaths rename-map-readers rename-map-state-dir-mirror; do\n  echo \"=== $r ===\"\n  awk \"/\\\"name\\\": \\\"$r\\\"/{f=1} f{print} f&&/^    },/{exit}\" lib/test/regenerate-artifacts.py | grep -E '\"(name|timeout_seconds|kind)\"'\ndone",
+      "cd /home/runner/work/prflow/prflow\nPR_NUMBER=$(gh pr view --json number --jq '.number' 2>/dev/null)\nif [ -z \"$PR_NUMBER\" ]; then echo \"ERROR: empty PR number\"; exit 1; fi\necho \"PR=$PR_NUMBER\"\ngh api --method PATCH \"repos/{owner}/{repo}/pulls/$PR_NUMBER\" -F body=@.prflow/tmp/pr-1747-body.md --jq '.number' 2>&1\nrm -f .prflow/tmp/pr-1747-body.md",
+      "cd /home/runner/work/prflow/prflow\nrm -f .prflow/tmp/pr-1747-body.md\nif gh pr view --json body --jq '.body' | grep -q \"Work in progress — automated review pending\"; then\n  echo \"STILL-PLACEHOLDER\"\nelse\n  echo \"UPDATED\"\nfi\necho \"=== head still matches? ===\"\ngh pr view 1747 --json headRefOid --jq '.headRefOid'"
+    ],
+    "total": 9,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
