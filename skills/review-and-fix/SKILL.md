@@ -78,7 +78,7 @@ This skill **skips** /prflow:review's Phase 4.4 entirely — no formal review an
   "current_step": "2.6",
   "current_substep": "run_shadow_fanout",
   "pending_dispatch": {"kind": "shadow_reviewer_fanout", "roster": ["prflow:code-reviewer", "prflow:silent-failure-hunter"], "dispatched_at": "2026-05-16T20:46:00Z"},
-  "sweep_defs_read": [{"path": "phase-2-implement.md", "read": "whole", "sweeps": ["2.3.0"]}, {"path": "phase-2-sweeps-contract.md", "read": "whole", "sweeps": ["2.3.0a"]}, {"path": "phase-2-sweeps-quality.md", "read": "whole", "sweeps": ["2.3.1"]}],
+  "sweep_defs_read": [{"path": "phase-2-implement.md", "read": "whole", "sweeps": ["2.3.0"]}, {"path": "phase-2-sweeps-contract.md", "read": "whole", "sweeps": ["2.3.0a"]}, {"path": "phase-2-sweeps-quality.md", "read": "whole", "sweeps": ["2.3.1"]}, {"path": "references/sweep-2-3-1-orphaned-setup.md", "read": "whole", "sweeps": ["2.3.1"]}],
   "sweep_evidence": {"status": "run"},
   "checklist": [
     {

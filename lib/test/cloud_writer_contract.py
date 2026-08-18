@@ -192,6 +192,16 @@ SKILL_ASSETS = {
         # issue #1557: Phase 4.1 Stage 2's self-heal repair procedure is reached the
         # same way, through its own absent-path predicate.
         "skills/implement/references/doc-deliverable-self-heal.md",
+        # issue #1581: do not drop a gated sweep reference on the grounds that most
+        # runs never load it — an unlisted reachable asset is an AC1 closure violation.
+        "skills/implement/references/sweep-2-3-0-changed-contract.md",
+        "skills/implement/references/sweep-2-3-0a-peer-checkpoint.md",
+        "skills/implement/references/sweep-2-3-0b-enum-enumeration.md",
+        "skills/implement/references/sweep-2-3-0c-operand-trace.md",
+        "skills/implement/references/sweep-2-3-0d-describing-prose.md",
+        "skills/implement/references/sweep-2-3-1-orphaned-setup.md",
+        "skills/implement/references/sweep-2-3-2-stranded-dependents.md",
+        "skills/implement/references/sweep-2-3-7-collection-cardinality.md",
     ],
     "review": [
         "skills/review/SKILL.md",

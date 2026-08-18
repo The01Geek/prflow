@@ -12,6 +12,7 @@ The records remain in this directory because their issue-oriented names and link
 - [Issue #1053 — focused-first precondition growth](issue-1053-focused-first-precondition-growth.md)
 - [Issue #1374 — deferred review findings relocation](issue-1374-deferred-review-findings-relocate.md)
 - [Issue #1557 — Stage 2 self-heal relocation](issue-1557-stage2-self-heal-relocate.md)
+- [Issue #1581 — gated conditional Phase 2.3 sweeps](issue-1581-gated-conditional-sweeps.md)
 - [Issue #1604 — deferral-drafter pin exposure](issue-1604-deferral-drafter-pin-exposure.md)
 - [Issue #541 — reference-reads evidence schema](issue-541-reference-reads-evidence-schema.md)
 - [Issue #551 — prompt-mass growth](issue-551-prompt-mass-growth.md)
