@@ -113,5 +113,77 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.7",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 30.743199750000016,
+    "tokens": {
+      "input_tokens": 98,
+      "output_tokens": 84376,
+      "cache_read_input_tokens": 10064521,
+      "cache_creation_input_tokens": 318553,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 252,
+        "outputTokens": 162960,
+        "cacheReadInputTokens": 17833742,
+        "cacheCreationInputTokens": 1176041,
+        "webSearchRequests": 0,
+        "costUSD": 21.536960999999994,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 355,
+        "outputTokens": 63934,
+        "cacheReadInputTokens": 7901725,
+        "cacheCreationInputTokens": 1566839,
+        "webSearchRequests": 0,
+        "costUSD": 9.206238750000006,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 102,
+    "duration_ms": 1541853
+  },
+  "permission_denials": {
+    "count": 12,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---BASE---\"; .prflow/vendor/prflow/scripts/config-get.sh .base_branch main; echo \"---RUNENV---\"; echo \"run_id=${GITHUB_RUN_ID:-EMPTY} attempt=${GITHUB_RUN_ATTEMPT:-EMPTY} actions=${GITHUB_ACTIONS:-EMPTY}\"",
+      "mkdir -p .prflow/tmp/review/pr-1728/32085159032-1\ngh pr diff 1728 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1728/32085159032-1/diff.patch | tail -1\necho \"---rc=${PIPESTATUS[0]}---\"\necho \"=== changed files ===\"\ngrep '^diff --git' .prflow/tmp/review/pr-1728/32085159032-1/diff.patch | sed -E 's#^diff --git a/(.*) b/.*#\\1#'\necho \"=== line count ===\"\nwc -l .prflow/tmp/review/pr-1728/32085159032-1/diff.patch",
+      "D=.prflow/tmp/review/pr-1728/32085159032-1\nawk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' $D/diff.patch | tee $D/batch-1.patch | grep -c '^diff --git'\nawk -v s=11 -v e=20 '/^diff --git/{n++} n>=s && n<=e' $D/diff.patch | tee $D/batch-2.patch | grep -c '^diff --git'\necho \"--- verify files ---\"\ngrep -c '^diff --git' $D/batch-1.patch\ngrep -c '^diff --git' $D/batch-2.patch",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1728/32085159032-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1728/32085159032-1/verdicts/iter-1/VC-17-n17.json << 'EOF'\n{\n  \"id\": \"VC-17\",\n  \"verdict\": \"FAIL\",\n  \"evidence\": \"docs/internal/cloud-allowlist.md's own adjudication table (lines ~1033-1054, issue #1721 AC1) documents a THIRD category the claim's binary framing omits: cloud-reachable redirects into .prflow/tmp that were deliberately left un …[per-command-truncated]",
+      "for h in \"git rev-parse\" \"git diff\" \"gh pr diff\" \"grep\" \"tee\" \"awk\" \"rm\" \"echo\"; do printf '%-16s ' \"$h\"; grep -c \"Bash($h:\" lib/capability-profiles.json; done",
+      "echo \"=== diff.candidate in skills ===\"; grep -rn \"diff\\.candidate\" skills/ lib/test/ docs/internal/ 2>/dev/null\necho \"=== devflow-dm.err / devflow-fd.err / maxiter.err etc in skills ===\"; grep -rn \"devflow-dm.err\\|devflow-fd.err\\|devflow-maxiter\\|devflow-et\\|acs.err\\|rv-id.err\\|rv-create.err\\|rv-patch.err\\|rv-ovr\" skills/ 2>/dev/null\necho \"=== discovery=[partial] or DISCOVERY_STATE=partial remnants ===\"; grep -rn \"discovery=\\[partial\\]\\|DISCOVERY_STATE=partial\\|=failed\\b\" skills/ docs/internal/ …[per-command-truncated]",
+      "for h in 'git rev-parse' 'git diff' 'grep' 'tee' 'awk' 'rm' 'echo' 'gh pr diff'; do printf '%-16s ' \"$h\"; python3 -c \"\nimport json,sys\nm=json.load(open('lib/capability-profiles.json'))\nprof=m.get('profiles',m)\ndef toks(p):\n    import json\n    return json.dumps(p)\nh='$h'\nfor name in prof:\n    ent=prof[name]\n    s=json.dumps(ent)\n    print(name+('+' if ('Bash('+h) in s else '-'),end=' ')\nprint()\n\"; done",
+      "python3 - <<'PY'\nimport json\nm=json.load(open('lib/capability-profiles.json'))\ngroups=m['groups']\ndef expand(lst,seen=None):\n    if seen is None: seen=set()\n    out=[]\n    for t in lst:\n        if isinstance(t,str) and t.startswith('@'):\n            g=t[1:]\n            if g in seen: continue\n            seen.add(g)\n            out+=expand(groups[g],seen)\n        else:\n            out.append(t)\n    return out\nfor pname in ['review','implement','command']:\n    toks=expand(m['profiles'][pname])\n    …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\necho \"=== all redirects into .prflow/tmp under skills (widened) ===\"\ngrep -rnE '[0-9]?>>?[[:space:]]*\"?[^ ]*\\.prflow/tmp' skills/ | grep -vE 'retrospective' | sed 's/:.*#.*$//' | head -60\necho \"=== restore tree ===\"\ngit checkout main -- skills 2>/dev/null; git status --porcelain | head",
+      "git -C /home/runner/work/prflow/prflow status --porcelain | head; echo \"HEAD=$(git -C /home/runner/work/prflow/prflow rev-parse HEAD)\"",
+      "git -C /home/runner/work/prflow/prflow status --porcelain",
+      "git -C /home/runner/work/prflow/prflow checkout main -- skills"
+    ],
+    "total": 12,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
