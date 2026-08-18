@@ -3,7 +3,7 @@
 
 Reference for drafting and posting a well-structured GitHub issue. The calling skill (`/prflow:create-issue`) has already gathered documentation findings and resolved every in-scope decision with the user. Draft the issue from that context, doing only targeted verification reads where a specific claim needs confirming. Do not re-explore the whole codebase; the findings are your map.
 
-Write the issue in plain language. Read the writing standard at `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/writing-standard.md` and follow it: everyday words, one claim per sentence, and a plain-language opening. Read it even if you reach this template on its own, because a surface that loads the template alone gets the structure rules and none of the prose rules.
+Write the issue in plain language. Read the writing standard at `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/writing-standard.md` and follow it: everyday words, one claim per sentence, and a plain-language opening. Read it even if you reach this template on its own.
 
 ## The no-options rule (read first)
 
@@ -192,7 +192,7 @@ On a file-arm epoch, the body comes from the gated canonical file, via the state
 #   python3 .../issue-audit-state.py emit-body "<slug>" ... | gh issue create --body-file -
 ```
 
-Instead emit to a temp file, guard it non-empty, and only then post — so a refusal stops creation rather than filing an empty issue. Do it in one single statement, and go through a file rather than a `"$(…)"` capture, which changes the posted bytes against the recorded body-only digest. Substitute `<main-root>` with the main working-tree root Step 4 sub-step 2 resolved via `resolve-main-root.sh` — a cwd-relative `.prflow/tmp/` may not exist inside a linked worktree. Hand the guarded file to `gh` via `--body-file <path>`, never re-piped through `cat`; this temp file IS the gated `emit-body` output, so the never-`--body-file` rule does not apply here:
+Instead emit to a temp file, guard it non-empty, and only then post. Do it in one single statement, and go through a file rather than a `"$(…)"` capture, which changes the posted bytes against the recorded body-only digest. Substitute `<main-root>` with the main working-tree root Step 4 sub-step 2 resolved via `resolve-main-root.sh` — a cwd-relative `.prflow/tmp/` may not exist inside a linked worktree. Hand the guarded file to `gh` via `--body-file <path>`, never re-piped through `cat`; this temp file IS the gated `emit-body` output, so the never-`--body-file` rule does not apply here:
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/issue-audit-state.py emit-body "<slug>" --nonce "<nonce>" --draft-file "<absolute issue-draft-<slug>.md path>" > "<main-root>/.prflow/tmp/issue-body-<slug>.md" && test -s "<main-root>/.prflow/tmp/issue-body-<slug>.md" && gh issue create --title "Action-oriented title here" --body-file "<main-root>/.prflow/tmp/issue-body-<slug>.md" <assignee-args>
