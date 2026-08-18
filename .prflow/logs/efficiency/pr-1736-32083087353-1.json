@@ -113,5 +113,78 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.6",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 20.051992349999985,
+    "tokens": {
+      "input_tokens": 130,
+      "output_tokens": 73845,
+      "cache_read_input_tokens": 13435435,
+      "cache_creation_input_tokens": 301739,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 249,
+        "outputTokens": 141130,
+        "cacheReadInputTokens": 18109505,
+        "cacheCreationInputTokens": 964432,
+        "webSearchRequests": 0,
+        "costUSD": 19.743468749999984,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 1,
+        "outputTokens": 9186,
+        "cacheReadInputTokens": 3652,
+        "cacheCreationInputTokens": 45236,
+        "webSearchRequests": 0,
+        "costUSD": 0.3085236,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 86,
+    "duration_ms": 1465216
+  },
+  "permission_denials": {
+    "count": 13,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-none} ATTEMPT=${GITHUB_RUN_ATTEMPT:-none}\"; git status --porcelain; echo \"---PRVIEW---\"; gh pr view 1736 --json headRefName,baseRefName,baseRefOid,headRefOid --jq '.'",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve \"1581\" --pr \"1736\" 2>.prflow/tmp/review/pr-1736/32083087353-1/acs.err ; echo \"acs-rc=$?\"",
+      "D=.prflow/tmp/review/pr-1736/32083087353-1\nawk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' $D/diff.patch | tee $D/batch-1.patch >/dev/null && test -s $D/batch-1.patch && echo \"slice-ok: batch-1\" || echo \"slice-failed: batch-1\"\nawk -v s=11 -v e=20 '/^diff --git/{n++} n>=s && n<=e' $D/diff.patch | tee $D/batch-2.patch >/dev/null && test -s $D/batch-2.patch && echo \"slice-ok: batch-2\" || echo \"slice-failed: batch-2\"\nawk -v s=21 -v e=30 '/^diff --git/{n++} n>=s && n<=e' $D/diff.patch | tee $D/b …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow 2>/dev/null; echo \"=== boundary markers (head-1 / tail-1) ===\"\nfor f in sweep-2-3-0-changed-contract sweep-2-3-0a-peer-checkpoint sweep-2-3-0b-enum-enumeration sweep-2-3-0c-operand-trace sweep-2-3-0d-describing-prose sweep-2-3-1-orphaned-setup sweep-2-3-2-stranded-dependents sweep-2-3-7-collection-cardinality; do\n  echo \"--- $f ---\"; head -1 skills/implement/references/$f.md; tail -1 skills/implement/references/$f.md\ndone",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >/tmp/ext-stdout.txt 2>/tmp/ext-stderr.txt; echo \"EXIT=$?\"; echo \"--- STDOUT BYTES ---\"; wc -c /tmp/ext-stdout.txt; echo \"--- STDERR ---\"; cat /tmp/ext-stderr.txt; echo \"--- STDOUT HEAD ---\"; head -30 /tmp/ext-stdout.txt",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review 1>/tmp/ext-stdout.txt 2>/tmp/ext-stderr.txt; echo \"EXIT=$?\"",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review 1>.prflow/tmp/ext-stdout.txt 2>.prflow/tmp/ext-stderr.txt; echo \"EXIT=$?\"",
+      "ls -la /home/runner/work/_temp/devflow-trusted-prompt-ext/ 2>&1; echo \"---\"; ls -la /home/runner/work/_temp/devflow-trusted-prompt-ext/requesting-code-review.md 2>&1",
+      "ls -la /home/runner/work/_temp/devflow-trusted-prompt-ext/",
+      "for f in /home/runner/work/prflow/prflow/skills/implement/references/sweep-*.md; do echo \"== $f\"; head -1 \"$f\"; tail -1 \"$f\"; done",
+      "cd /home/runner/work/prflow/prflow/skills/implement/references && for f in sweep-*.md; do printf '== %s\\n' \"$f\"; head -1 \"$f\"; tail -1 \"$f\"; done",
+      "for s in \\\n  \"or a relocated prose literal, heading, section, or file path\" \\\n  \"the same condition Pass 5 keys on\" \\\n  \"revert every file coupled to it in the same step\"; do\n  echo \"=== [$s] ===\"\n  grep -rl -- \"$s\" skills/implement/phases/phase-2-sweeps-contract.md skills/implement/phases/phase-2-sweeps-quality.md skills/implement/references/sweep-*.md 2>/dev/null || echo \"NOT FOUND in sweep files\"\ndone",
+      "echo \"=== tracked? ===\"; git ls-files --error-unmatch .prflow/vendor/prflow/skills/implement/phases/phase-2-sweeps-contract.md 2>&1 | head -1; echo \"=== is .prflow/vendor gitignored ===\"; git check-ignore .prflow/vendor/prflow/skills/implement/phases/phase-2-sweeps-contract.md 2>&1 || echo \"(not ignored)\"; echo \"=== count tracked under vendor ===\"; git ls-files '.prflow/vendor/*' | wc -l"
+    ],
+    "total": 13,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
