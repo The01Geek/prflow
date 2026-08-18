@@ -1,15 +1,15 @@
 {
   "iter": 1,
   "started_at": "2026-08-18T21:44:46Z",
-  "fix_commit_sha": "49d4cd93f09543f6c7aebd708d396202c4d28b8e",
+  "fix_commit_sha": "11ceb61062a383d121efefe8fae00dc98b0ff7cb",
   "fix_files": [
     "CONTRIBUTING.md",
     "docs/internal/implement-skill.md",
     "lib/test/test_residual_prose_retirement_manifest.py"
   ],
   "loop_role": "fix",
-  "current_step": "3.5",
-  "current_substep": "fix_delta_gate",
+  "current_step": "2.6",
+  "current_substep": "run_shadow_fanout",
   "pending_dispatch": null,
   "checklist": [
     {
@@ -329,8 +329,8 @@
     }
   ],
   "convergence_inputs": {
-    "fixes_applied": 3,
-    "fix_diff_lines": 62,
+    "fixes_applied": 6,
+    "fix_diff_lines": 96,
     "new_corroborated_critical_count": 0
   },
   "cap_drops": {
@@ -339,9 +339,9 @@
   },
   "reference_reads": {
     "fix_delta": {
-      "status": "not_verified",
-      "outcome": null,
-      "reason": "pending Step 3.5"
+      "status": "verified",
+      "outcome": "refixed",
+      "reason": null
     }
   },
   "shadow": {
