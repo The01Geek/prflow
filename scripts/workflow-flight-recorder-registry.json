@@ -34,7 +34,7 @@
     },
     "create-issue-contract": {
       "path": "lib/test/modules/create-issue-contract.sh",
-      "minimum_assertions": 412,
+      "minimum_assertions": 418,
       "assertion_floor_policy": "exact",
       "description": "Focused create-issue Step 3.6 audit, state-owner cutover, authoring-discipline, and revision-delta contracts"
     },
