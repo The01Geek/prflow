@@ -208,9 +208,13 @@ PHASE_READ_LABELS = tuple(sorted(PHASE_FILES.values()))
 SWEEP_REFERENCE_PREFIX = "sweep-"
 SWEEP_REFERENCE_SUFFIX = ".md"
 SWEEP_REFERENCE_PHASE = "phase2"
-# SWEEP_REFERENCE_PHASE must stay a PHASE_READ_LABELS member: RunAccumulator seeds
-# phase_reads only from PHASE_READ_LABELS, so a value outside it KeyErrors on increment.
-assert SWEEP_REFERENCE_PHASE in PHASE_READ_LABELS
+# SWEEP_REFERENCE_PHASE must stay a PHASE_READ_LABELS member; a non-member's KeyError on
+# increment is swallowed by eval_corpus's defensive except as a mis-blamed malformed_record,
+# so enforce it loudly at import (a plain assert is stripped under -O).
+if SWEEP_REFERENCE_PHASE not in PHASE_READ_LABELS:
+    raise AssertionError(
+        "SWEEP_REFERENCE_PHASE {!r} must be a PHASE_READ_LABELS member".format(
+            SWEEP_REFERENCE_PHASE))
 
 
 def _phase_label_for_read(file_path):
