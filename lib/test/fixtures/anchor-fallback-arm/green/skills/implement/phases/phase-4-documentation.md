@@ -8,7 +8,7 @@
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/discover-deferral-manifests.py --presence-for-pr <this-run's-PR-number>
 ```
 
-Issue #1560: the Phase 4.3 verification-flight call site carries both forms for each helper.
+Issue #1560: the Phase 4.3 call site carries both forms for checkout-fingerprint.py and verification-flight.py.
 
 ```bash
 .prflow/vendor/prflow/scripts/checkout-fingerprint.py
