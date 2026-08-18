@@ -2,27 +2,209 @@
   "iter": 1,
   "started_at": "2026-08-17T23:31:42Z",
   "loop_role": "fix",
-  "current_step": "loop-control",
-  "current_substep": "step_1_run_engine",
-  "pending_dispatch": null,
-  "config": {
-    "max_iterations": 5,
-    "fix_severity_threshold": "suggestion",
-    "verdict_severity_threshold": "critical",
-    "push_each_iteration": true,
-    "pr_number": 1728,
-    "run_id": "local-20260817T233142Z-1",
-    "slug": "pr-1728"
-  },
-  "extensions_loaded": [
-    "review-and-fix",
-    "receiving-code-review"
+  "fix_commit_sha": "861bdd5d98f3cce188b3ab2ab4d21ea0d636d808",
+  "fix_files": [
+    "docs/internal/cloud-allowlist.md",
+    "lib/test/extract-command-shapes.py",
+    "lib/test/run.sh",
+    "scripts/discover-deferral-manifests.py",
+    "skills/review-and-fix/references/loop-control.md",
+    "skills/review-and-fix/references/loop-exit.md",
+    "skills/review/SKILL.md",
+    "skills/review/phases/phase-1-checklist.md",
+    "skills/review/phases/phase-4-verdict.md"
   ],
-  "step_0_5": {
-    "checkout_rc": 0,
-    "head_ref": "worktree-issue-1721",
-    "head_commit": "95ed1212f876f3166246cbe4adc7d33418ed425a",
-    "assertion": "passed"
+  "current_step": "3",
+  "current_substep": "loop_exit_awaiting_ci",
+  "pending_dispatch": null,
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "detect_all_audit": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "checklist_summary": {
+    "total": 52,
+    "passed": 49,
+    "failed": 3,
+    "inconclusive": 0,
+    "lite": 1,
+    "agent": 51,
+    "normalized_wording_only": 1,
+    "field_defect_fail_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "stale_prose_lint": {
+    "stale": 0,
+    "unresolvable": 28,
+    "exit": 0
+  },
+  "completeness_critic": {
+    "ran": true,
+    "population": "every redirect-into-.prflow/tmp occurrence under skills/ (the AC1 adjudication table's claimed coverage)",
+    "independent_signal": "tokenized every fenced block in every tracked skills/**/*.md with extract-command-heads._tokenize plus extract-command-shapes._REDIR, resolving each redirect token's attached or space-separated target — structurally different from the audit's line-oriented grep -rnE '>\\s*\\.prflow/tmp'",
+    "uncovered_members": [
+      "skills/create-issue/references/issue-template.md:213 — target '\"<main-root>/.prflow/tmp/issue-body-<slug>.md\"' is placeholder-prefixed, so no pattern anchored at .prflow/tmp matches it"
+    ],
+    "disposition": "row added to the table; the placeholder-target class documented alongside the existing variable-target caveat"
+  },
+  "fix_decisions": [
+    {
+      "finding_id": "VC-21",
+      "decision": "applied",
+      "commit": "c95e7b4ee"
+    },
+    {
+      "finding_id": "VC-22",
+      "decision": "applied",
+      "commit": "c95e7b4ee"
+    },
+    {
+      "finding_id": "CR-2-later-probe-run",
+      "decision": "applied",
+      "commit": "c95e7b4ee"
+    },
+    {
+      "finding_id": "CA-1-probe-row-19",
+      "decision": "applied",
+      "commit": "c95e7b4ee"
+    },
+    {
+      "finding_id": "stderr-quote-unrenderable",
+      "decision": "applied",
+      "commit": "c95e7b4ee",
+      "corroboration_count": 3
+    },
+    {
+      "finding_id": "CA-2-run.sh-discovery-failed",
+      "decision": "applied",
+      "commit": "c95e7b4ee"
+    },
+    {
+      "finding_id": "CA-3-helper-docstring-else-arm",
+      "decision": "applied",
+      "commit": "c95e7b4ee"
+    },
+    {
+      "finding_id": "CC-1-ac1-table-omission",
+      "decision": "applied",
+      "commit": "c95e7b4ee"
+    },
+    {
+      "finding_id": "PTA-1-ir6-not-scanned-on-review-bundle",
+      "decision": "applied",
+      "commit": "c95e7b4ee"
+    },
+    {
+      "finding_id": "FP-3-mktemp-redirect-count",
+      "decision": "pushed_back",
+      "source_file": "docs/internal/cloud-allowlist.md",
+      "claim_text": "the adjudication table's `2 x 2>` count for phase-3-fix-loop.md is false against HEAD; there is only one",
+      "skip_category": "claim-quality",
+      "evidence": "phase-3-fix-loop.md:113 carries `--persist 2>\"$PERSIST_ERR\"` and :116 carries `--persist 2>>\"$PERSIST_ERR\"` — two fd-2 redirects to the mktemp target, exactly as the row states",
+      "parking_evidence": {
+        "basis": "the reviewer counted one and missed the append form; the recorded count is correct",
+        "failing_input": "the claim that only one redirect targets $PERSIST_ERR",
+        "source": "skills/implement/phases/phase-3-fix-loop.md:113,116",
+        "finding_ref": {
+          "iter": 1,
+          "index": 10
+        }
+      }
+    },
+    {
+      "finding_id": "SFH-5-filing-guard-widened",
+      "decision": "deferred",
+      "source_file": "skills/implement/references/deferred-review-findings.md",
+      "claim_text": "collapsing partial/failed into degraded makes the filing guard fail-open on a totally failed discovery",
+      "skip_category": "out-of-scope",
+      "evidence": "the widening is a deliberate, documented change this PR shipped and its reader routing addresses; reverting a design decision mid-fix-loop is not this loop's call, and file-deferrals.py's already-filed refusal bounds the blast radius. Raised for maintainer confirmation.",
+      "parking_evidence": {
+        "basis": "deliberate design change, disclosed in the shipped prose and verified non-double-filing",
+        "failing_input": "a run where every discovery root fails traversal over a persisted prior aggregate",
+        "source": "scripts/file-deferrals.py:329-331 (already-filed refusal)",
+        "finding_ref": {
+          "iter": 1,
+          "index": 11
+        }
+      }
+    },
+    {
+      "finding_id": "SFH-1-publish-before-validate",
+      "decision": "deferred",
+      "source_file": "skills/review/phases/phase-0-setup.md",
+      "claim_text": "step 5 tees into diff.patch before the equations validate it, so the removal-on-failure is prose rather than shell",
+      "skip_category": "out-of-scope",
+      "evidence": "the shipped prose states 'Publication precedes validation' explicitly and explains why — the tee shape is what the cloud tier accepts, which is this issue's whole premise. Changing it to stage-then-promote is a design change beyond this PR.",
+      "parking_evidence": {
+        "basis": "disclosed tradeoff central to the issue's premise, not an oversight",
+        "failing_input": "a run terminated between step 5 and the equation reading",
+        "source": "skills/review/phases/phase-0-setup.md:111",
+        "finding_ref": {
+          "iter": 1,
+          "index": 12
+        }
+      }
+    },
+    {
+      "finding_id": "PTA-2-3-4-fixture-gaps",
+      "decision": "deferred",
+      "source_file": "lib/test/run.sh",
+      "claim_text": "steps 2a/2b/3 carry no extraction marker; the 2>&1 row is vacuous; no fixture covers a space-separated or quoted stderr target",
+      "skip_category": "uncategorized",
+      "evidence": "real test-quality gaps, each additive rather than corrective; batching them here would widen an already-large diff",
+      "parking_evidence": {
+        "basis": "additive coverage, no shipped behaviour is wrong",
+        "failing_input": "a drift in shipped step 2b that no row would catch",
+        "source": "lib/test/run.sh (#1721 block)",
+        "finding_ref": {
+          "iter": 1,
+          "index": 13
+        }
+      }
+    },
+    {
+      "finding_id": "SFH-4-ir6-target-residuals",
+      "decision": "applied-partially",
+      "source_file": "lib/test/extract-command-shapes.py",
+      "claim_text": "the stderr arm misses <scratch-dir>/ and variable targets and multi-digit fds",
+      "evidence": "the residuals are now disclosed in the predicate's own docstring; widening the target test is deferred as a behaviour change with its own fixture obligations"
+    },
+    {
+      "finding_id": "CLOUD-REVIEW-tee-wording + field-evidence",
+      "decision": "applied",
+      "commit": "861bdd5d9",
+      "evidence": "the concurrent cloud review (run 32081921050, APPROVE with notes at 6be63947c) reported a tee measurement-status inconsistency and observed a stdout redirect into .prflow/tmp/** refused on the current action version; both recorded"
+    }
+  ],
+  "verification_evidence": {
+    "desk_lints": [
+      "lib/test/regenerate-artifacts.py: all artifacts reconciled — exit 0",
+      "lib/test/lint-reference-size.py: exit 0 (skills/review/SKILL.md trimmed to 61706 of 61750 bytes)",
+      "shellcheck (helpers + run.sh): exit 0",
+      "ruff check over tracked *.py: all checks passed",
+      "stale-prose self-scan over origin/main...HEAD: 0 STALE, exit 0"
+    ],
+    "whole_suite": "CI reading for 861bdd5d98f3cce188b3ab2ab4d21ea0d636d808 (local-tier rung-1 gate)",
+    "skipped_checks": []
+  },
+  "concurrent_cloud_review": {
+    "run": "32081921050",
+    "reviewed_head": "6be63947cd68d545892bc306b3f5d2fe96c81b74",
+    "verdict": "APPROVE with notes",
+    "note": "independently reached the same cloud-allowlist.md causal-wording conclusion this loop had already fixed"
   },
   "synthesized": false,
   "telemetry": "unavailable"
