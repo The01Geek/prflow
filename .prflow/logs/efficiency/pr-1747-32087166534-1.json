@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1747",
+  "generated_at": "2026-08-18T01:50:58Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.9",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 28.7081328,
+    "tokens": {
+      "input_tokens": 240,
+      "output_tokens": 119901,
+      "cache_read_input_tokens": 35108636,
+      "cache_creation_input_tokens": 416626,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 272,
+        "outputTokens": 131858,
+        "cacheReadInputTokens": 35879500,
+        "cacheCreationInputTokens": 656254,
+        "webSearchRequests": 0,
+        "costUSD": 26.901495000000004,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 64,
+        "outputTokens": 15001,
+        "cacheReadInputTokens": 1974961,
+        "cacheCreationInputTokens": 263718,
+        "webSearchRequests": 0,
+        "costUSD": 1.8066378,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 141,
+    "duration_ms": 2428598
+  },
+  "permission_denials": {
+    "count": 9,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      ".prflow/vendor/prflow/scripts/workpad.py handoff-state \".prflow/tmp/implement-handoff-1457-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT.json\" --issue 1457 --run-id \"$GITHUB_RUN_ID\" --run-attempt \"$GITHUB_RUN_ATTEMPT\"; echo \"EXIT=$?\"",
+      "BASE=$(.prflow/vendor/prflow/scripts/config-get.sh .base_branch main) || BASE=\"\"\n[ -n \"$BASE\" ] || BASE=main\nCUR=$(git branch --show-current 2>/dev/null) || CUR=\"\"\necho \"BASE=$BASE CUR=$CUR\"\nCOMMON_DIR=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || COMMON_DIR=\"\"\nGIT_DIR_PATH=$(git rev-parse --path-format=absolute --git-dir 2>/dev/null) || GIT_DIR_PATH=\"\"\necho \"COMMON_DIR=$COMMON_DIR\"\necho \"GIT_DIR_PATH=$GIT_DIR_PATH\"",
+      ".prflow/vendor/prflow/scripts/workpad.py update 1457 --branch \"$(git branch --show-current)\"",
+      ".prflow/vendor/prflow/scripts/run-jq.sh -e -f \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/.prflow/vendor/prflow/skills/implement}/../../lib/projection-gate.jq\" .prflow/tmp/issue-claim-projection-1457.json; echo \"EXIT=$?\"",
+      "for r in \"capability-profile-literals|lib/generate-capability-profiles.py --check\" \"plugin-identity-regions|lib/generate-plugin-identity.py --check\" \"coverage-map-ratchet|lib/test/coverage_map_guard.py .\" \"env-freeze-advisory-region|lib/generate-env-freeze-advisory.py --check\"; do\n  name=\"${r%%|*}\"; cmd=\"${r#*|}\";\n  t0=$(date +%s.%N);\n  python3 $cmd >/dev/null 2>&1; rc=$?;\n  t1=$(date +%s.%N);\n  awk -v a=\"$t0\" -v b=\"$t1\" -v n=\"$name\" -v c=\"$rc\" 'BEGIN{printf \"%-30s rc=%s  %.3fs\\n\", n, c, b-a}';\n …[per-command-truncated]",
+      "ruff check lib/test/regenerate-artifacts.py 2>&1 | tail -5; echo \"=== default run: STDOUT ===\"; python3 lib/test/regenerate-artifacts.py 2>/tmp/ra_err.txt; echo \"rc=$?\"; echo \"=== STDERR (progress) ===\"; cat /tmp/ra_err.txt; echo \"=== malformed override ===\"; env DEVFLOW_ARTIFACT_ROW_TIMEOUT_SECONDS=x python3 lib/test/regenerate-artifacts.py; echo \"rc=$?\"",
+      "python3 lib/test/regenerate-artifacts.py >.prflow/tmp/ra_out.txt 2>.prflow/tmp/ra_err.txt; echo \"rc=$?\"; echo \"=== STDOUT (report) ===\"; cat .prflow/tmp/ra_out.txt; echo \"=== STDERR (progress) ===\"; cat .prflow/tmp/ra_err.txt",
+      "lib/test/regenerate-artifacts.py 2>&1 | tail -8; echo \"batched-rc=${PIPESTATUS[0]}\"",
+      "git push origin HEAD:refs/heads/issue-1457-add-per-row-progress-output-and-a-per-row 2>&1 | tail -2; echo \"push-rc=${PIPESTATUS[0]}\""
+    ],
+    "total": 9,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
