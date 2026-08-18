@@ -1,7 +1,7 @@
 <!-- prflow:create-issue-ref step=quality-group-contracts file=skills/create-issue/references/quality-group-contracts.md start -->
 ## Quality group — quantitative and closed-set contracts
 
-**Trigger (observable before this reference loads):** the assembled draft's Acceptance Criteria or Testing Strategy contains any of — a **number** (a word/byte/line ceiling, a count, a coverage threshold, a percentage tolerance); a **value comparison** of a produced value against a literal; a **universal quantifier** ("never"/"always"/"each"/"every"/"all"/"cannot") asserted about the system under change; an **enumerated test/case/example list** inside a criterion; or an AC establishing a **trust or integrity boundary** over executable artifacts. A draft with none of these does not load this group; uncertain applicability loads it.
+Trigger (observable before this reference loads): the assembled draft's Acceptance Criteria or Testing Strategy contains any of — a number (a word/byte/line ceiling, a count, a coverage threshold, a percentage tolerance); a value comparison of a produced value against a literal; a universal quantifier ("never"/"always"/"each"/"every"/"all"/"cannot") asserted about the system under change; an enumerated test/case/example list inside a criterion; or an AC establishing a trust or integrity boundary over executable artifacts. A draft with none of these does not load this group; uncertain applicability loads it.
 
 Each obligation appears once, as its checklist row plus the rule text it carries.
 

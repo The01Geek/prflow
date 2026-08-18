@@ -1,7 +1,7 @@
 <!-- prflow:create-issue-ref step=quality-group-visual file=skills/create-issue/references/quality-group-visual.md start -->
 ## Quality group — visual presentation
 
-**Trigger (observable before this reference loads):** the issue involves a **user-visible UI change** (Step 2's visual-specification inference). A clearly non-UI issue — a script, a config key, an internal doc, a CLI-only change — does not load this group; uncertain applicability loads it.
+Trigger (observable before this reference loads): the issue involves a user-visible UI change (Step 2's visual-specification inference). A clearly non-UI issue — a script, a config key, an internal doc, a CLI-only change — does not load this group; uncertain applicability loads it.
 
 Each obligation appears once, as its checklist row plus the rule text it carries.
 

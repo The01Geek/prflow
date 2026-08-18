@@ -7,7 +7,7 @@ argument-hint: <user-story>
 
 Before any of the pipeline's steps below, establish this seven-slot tracker.
 
-**Establish it by working down these rungs, moving on whenever one is unavailable:** `TodoWrite`,
+Establish it by working down these rungs, moving on whenever one is unavailable: `TodoWrite`,
 `TaskCreate`/`TaskUpdate`, `update_plan`, any candidate named in a runner-supplied listing of tools
 it has not yet exposed, then a runner-advertised discovery mechanism — used to search for those
 candidates, never as one itself. A candidate is **unavailable** when it is not exposed, when the
@@ -46,7 +46,7 @@ the first line of output rather than inferable from its later absence.
 
 ## Iron Law
 
-**Every run executes the full seven-step pipeline to a created-or-paused issue; no run abbreviates, skips, or downgrades a step.**
+Every run executes the full seven-step pipeline to a created-or-paused issue; no run abbreviates, skips, or downgrades a step.
 
 No exceptions:
 
@@ -116,11 +116,11 @@ rules in `## Runner setup` below and read it with the runner's file-read tool �
 accepted only when the file's first line is its `start` boundary marker and its last line is the
 matching `end` marker, each naming that file's own path, with exactly one of each.
 
-**Every load failure degrades, and no failure arm terminates the run.** On an unreadable or absent file, an empty file, a missing / duplicated / foreign-path marker, or a truncated read, emit an in-chat breadcrumb naming the file and the failure kind, then continue on that file's degraded behavior. The five non-degradable invariants stated below hold on every degraded arm.
+Every load failure degrades, and no failure arm terminates the run. On an unreadable or absent file, an empty file, a missing / duplicated / foreign-path marker, or a truncated read, emit an in-chat breadcrumb naming the file and the failure kind, then continue on that file's degraded behavior. The five non-degradable invariants stated below hold on every degraded arm.
 
-**Which file loads on which trigger — and the degraded behavior each failed load falls back on — is enumerated in `references/degradation-routing.md`.** Load it (per the boundary-marker rule above) on either of two triggers: when a reference load fails and you need its degraded behavior, and when one of its predicate-gated fallback conditions fires on an otherwise healthy run.
+Which file loads on which trigger — and the degraded behavior each failed load falls back on — is enumerated in `references/degradation-routing.md`. Load it (per the boundary-marker rule above) on either of two triggers: when a reference load fails and you need its degraded behavior, and when one of its predicate-gated fallback conditions fires on an otherwise healthy run.
 
-**If `references/degradation-routing.md` itself fails to load**, its routing row is unavailable for the reference that needed it: proceed inline for that step, using the user story and the Step 1 findings, disclose the reduced coverage in chat, and do not terminate the run. The five non-degradable invariants below still hold.
+If `references/degradation-routing.md` itself fails to load, its routing row is unavailable for the reference that needed it: proceed inline for that step, using the user story and the Step 1 findings, disclose the reduced coverage in chat, and do not terminate the run. The five non-degradable invariants below still hold.
 
 ## Non-degradable invariants
 
@@ -129,8 +129,8 @@ These five hold on every path, including every degraded arm above, and are load-
 1. **The issue is created only after the user explicitly approves the full rendered draft in chat.** The full title and body are rendered verbatim in your message first; an earlier "just create it", a complete Step 2, or a paused pipeline is never a substitute for approval of *this* draft.
 2. **The no-options gate** (stated under Step 3 below) passes on the body that is shown and on every revision of it.
 3. **The audit summary line is mandatory and always renders** — even on a clean `VERDICT: FILE` with zero findings. A skipped or degraded audit is never silent; the summary line is the evidence the audit ran and which arm it took.
-4. **The reserved `PRFlow` provenance label is applied best-effort after creation, and any degradation is reported explicitly** — a label hiccup never blocks creation, and a `PRFlow` label that could not be applied is named in the final outcome rather than passed over.
-5. **The self-assignment election is resolved before creation, on every path including every degraded arm.** It is asked in the same pause as the approval question, so the user answers both at once rather than in two consecutive pauses; an explicit yes adds `--assignee "@me"`, an explicit no creates it unassigned, and silence or any non-yes/non-no reply pauses and re-asks — no issue-creation command runs until the answer is an explicit yes or no, whatever the approval answer was. This election belongs to the interactive create path only; a draft-only request never reaches it.
+4. The reserved `PRFlow` provenance label is applied best-effort after creation, and any degradation is reported explicitly — a label hiccup never blocks creation, and a `PRFlow` label that could not be applied is named in the final outcome rather than passed over.
+5. The self-assignment election is resolved before creation, on every path including every degraded arm. It is asked in the same pause as the approval question, so the user answers both at once rather than in two consecutive pauses; an explicit yes adds `--assignee "@me"`, an explicit no creates it unassigned, and silence or any non-yes/non-no reply pauses and re-asks — no issue-creation command runs until the answer is an explicit yes or no, whatever the approval answer was. This election belongs to the interactive create path only; a draft-only request never reaches it.
 
 ## Subagent dispatch is user-requested here (injection-condition clause)
 
@@ -249,7 +249,7 @@ election — are authoritative and exempt.)
 Before composing the draft prose, read the shared writing standard `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/writing-standard.md` and follow it (an issue is change-describing prose).
 Per this skill's degrade-never-terminate contract, a failed load emits a breadcrumb naming the file and the failure kind and you draft without it.
 
-Load `references/issue-template.md` per the *Reference routing* rules above and follow it for the required section structure, the **no-options rule**, the quality checklist, and autolink hygiene, on every entry into this step. Key rules:
+Load `references/issue-template.md` per the *Reference routing* rules above and follow it for the required section structure, the no-options rule, the quality checklist, and autolink hygiene, on every entry into this step. Key rules:
 
 - No-options gate (run before showing the draft): re-read the rendered body against the no-options rule. On a healthy run its worked vocabulary, category structure, and full carve-out set live in `references/issue-template.md` (loaded above) — apply them. When that template could not be read, apply the compact semantic fallback — the body carries no unresolved implementation decision outside the rule's permitted locations, and every acceptance criterion is one concrete unconditional assertion — and report in chat that the worked no-options vocabulary was unavailable. If you find an unresolved decision, either ask the user now, or move it verbatim to the Blocked section. Do not proceed to Step 4 until the body is clean.
 - Advanced quality-guidance routing: `references/issue-template.md` now carries only the CORE checklist, so after loading it evaluate each of the six advanced quality groups' observable triggers against facts already in hand (the request, the Step 2 evidence bundle, the assembled draft) and load a group's reference only when its trigger fires or applicability is uncertain, skipping a clearly non-applicable group — a silently unloaded applicable group leaves that quality dimension unchecked. The triggers: `references/quality-group-visual.md` — the issue is a user-visible UI change; `references/quality-group-contracts.md` — an AC expresses a number, a value comparison against a literal, a universal quantifier about the system under change, an enumerated test/case/example list, or a trust/integrity boundary over executable artifacts; `references/quality-group-premises.md` — the draft relies on external/third-party behavior, carries a `Verified:` bullet, or asserts "the code does X" about a possibly-gated path; `references/quality-group-semantic.md` — the draft designs a new LLM/semantic judgment over third-party text; `references/quality-group-regression.md` — the story reports a defect, or the Testing Strategy enumerates a case/input-shape matrix, or the change introduces a reader of input the repo does not itself produce; `references/quality-group-compatibility.md` — the grounded change moves a supported-version boundary (across runtimes, tools, APIs, schemas, configurations, or plugin releases), changes a contract already used by existing data, configuration, or consumers, spans independently upgraded components that can run at mixed versions, or introduces rollout behavior such as staged activation, rollback, or old/new coexistence (merely touching a shipped path does not trigger it; uncertain applicability loads it). Load each applicable group per the same *Reference routing* rules and boundary-marker contract as every other reference; a failed required advanced-reference load takes the attributable degradation route per `references/degradation-routing.md`, never a silent skip.

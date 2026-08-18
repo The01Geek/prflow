@@ -17,10 +17,10 @@ touch git. Do **not** write any file. Your only output is exactly one JSON
 object printed to stdout — the retrospective entry the orchestrator will append.
 Nothing else on stdout.
 
-**Configuration (handed to you by value — resolve nothing).** Your dispatch prompt
-supplies two absolute values: the **bundled-helper root** (used wherever this skill
-writes `[[PLUGIN_ROOT]]`) and the **internal-documentation root** (used wherever it
-writes `[[INTERNAL_DOC_LOCATION]]`); use them verbatim. Do **not** invoke a helper to
+Configuration (handed to you by value — resolve nothing). Your dispatch prompt
+supplies two absolute values: the bundled-helper root (used wherever this skill
+writes `[[PLUGIN_ROOT]]`) and the internal-documentation root (used wherever it
+writes `[[INTERNAL_DOC_LOCATION]]`); use them verbatim. Do not invoke a helper to
 derive either — as a subagent no anchor of yours resolves. If your dispatch prompt
 carries no bundled-helper root, fall back to `jq` on `PATH` for the one construction in
 *§ Output schema*, reporting any failure of it as the `{"error": "<reason>"}` object of
@@ -37,16 +37,16 @@ BUNDLE="$(cat "$BUNDLE_PATH")"
 
 ---
 
-**Scope of the anchor rule in this brief.** The paragraph that follows is the
+Scope of the anchor rule in this brief. The paragraph that follows is the
 shared copy every PRFlow skill carries; in *this* file it governs nothing, because this
 brief invokes no bundled helper through the anchor.
 
-**Portable helper anchor (single-statement).** The bundled-helper commands in this skill resolve the skill directory inline at each call site via `${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}`. When `$CLAUDE_SKILL_DIR` is set and non-empty (Claude Code), run each command exactly as written. On a runner where it is unset or empty, replace the placeholder with the skill base directory the runner reports in context (e.g. a `Base directory for this skill:` line); if that reported path is Windows-form (`C:\...`), first convert it to this shell's POSIX form with one standalone `wslpath -u '<path>'` (WSL) or `cygpath -u '<path>'` (Git Bash/MSYS2) command and substitute the printed result **only if the command succeeds and prints a non-empty path — otherwise fall through to the drive-letter rules exactly as if the tool were absent** (lowercase the drive letter, map `C:\` to `/mnt/c` on WSL or `/c` on MSYS2, and turn backslashes into `/`; if the environment is neither WSL nor MSYS2, use the path unchanged and report that it could not be normalized). Resolve the anchor inline at every call site — never capture it into a shell variable that a later statement reads, because some runners' inline-bash marshaling drops such variables. If neither `$CLAUDE_SKILL_DIR` nor a runner-reported base directory is available, stop and report that the helper anchor could not be resolved rather than running a command with a broken path.
+**Portable helper anchor (single-statement).** The bundled-helper commands in this skill resolve the skill directory inline at each call site via `${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}`. When `$CLAUDE_SKILL_DIR` is set and non-empty (Claude Code), run each command exactly as written. On a runner where it is unset or empty, replace the placeholder with the skill base directory the runner reports in context (e.g. a `Base directory for this skill:` line); if that reported path is Windows-form (`C:\...`), first convert it to this shell's POSIX form with one standalone `wslpath -u '<path>'` (WSL) or `cygpath -u '<path>'` (Git Bash/MSYS2) command and substitute the printed result only if the command succeeds and prints a non-empty path — otherwise fall through to the drive-letter rules exactly as if the tool were absent (lowercase the drive letter, map `C:\` to `/mnt/c` on WSL or `/c` on MSYS2, and turn backslashes into `/`; if the environment is neither WSL nor MSYS2, use the path unchanged and report that it could not be normalized). Resolve the anchor inline at every call site — never capture it into a shell variable that a later statement reads, because some runners' inline-bash marshaling drops such variables. If neither `$CLAUDE_SKILL_DIR` nor a runner-reported base directory is available, stop and report that the helper anchor could not be resolved rather than running a command with a broken path.
 
-**Consumer prompt extension (handed to you by path).** **Before doing this skill's work**,
+Consumer prompt extension (handed to you by path). Before doing this skill's work,
 read the consumer-supplied prompt extension for this skill and honor it — your dispatch
 prompt names that file at an absolute `.prflow/prompt-extensions/retrospective.md` path.
-Read it with your **file-read tool** — never a shell invocation, and never
+Read it with your file-read tool — never a shell invocation, and never
 `load-prompt-extension.sh`, whose anchor you cannot resolve. Treat any content as
 instructions appended to the end of this skill's own prompt for this run. An absent or
 empty file is a silent no-op; a present-but-unreadable file is reported through the
@@ -102,7 +102,7 @@ Schema of `.prflow/tmp/pr-<n>.context.json` produced by `fetch-pr-context.sh`:
 | `ttm_hours` | number | Time from PR creation to merge, in decimal hours |
 | `review_reject_outstanding` | boolean | True when the chronologically-last review verdict (from either conversation comments or durable PR reviews) is REJECT |
 
-**Source priority.** The **issue workpad** is your highest-signal primary source,
+Source priority. The issue workpad is your highest-signal primary source,
 and you treat each of its facets as primary analysis input:
 - `reflections` — the bot's own `## Devflow Reflection` bullets. **Read every reflection bullet
   and let it drive the verdict, categories, and descriptors** — if this run
@@ -130,31 +130,31 @@ had to fix), then `commits` (message trail), then `issue` (original intent).
 One of `imperfect` or `blocked`. (`clean` never reaches you — the orchestrator
 handled those mechanically.)
 
-- **`imperfect`** — the PR shipped but then needed substantive human commits
+- `imperfect` — the PR shipped but then needed substantive human commits
   after the bot's last commit (`signals.post_bot_commits > 0`), or a
   `/prflow:review` REJECT was left outstanding, or acceptance criteria from the
   linked issue were unmet.
-- **`blocked`** — `signals.workpad_final_status == "Blocked"` or the workpad /
+- `blocked` — `signals.workpad_final_status == "Blocked"` or the workpad /
   PR thread shows work was abandoned mid-task with no shipped fix.
 
-**Interim workpad states** (`Setup`, `Discovering`, `Reproducing`, `Planning`,
+Interim workpad states (`Setup`, `Discovering`, `Reproducing`, `Planning`,
 `Implementing`, `Reviewing`, `Documenting`) mean the run never reached Phase 4
 — it is an incomplete run, not a quality issue. If `workpad_final_status` is one
 of those, print `{"skip": "incomplete run — workpad_final_status is <status>; skipping"}` and stop.
 
-A **`Cancelled`** final status takes a defined skip, not a `blocked` verdict: print
+A `Cancelled` final status takes a defined skip, not a `blocked` verdict: print
 `{"skip": "operator-cancelled run — workpad_final_status is Cancelled; a deliberate stop, not a quality signal; skipping"}`
 and stop.
 
-**Defined-skip vs. genuine-failure key.** Both defined skips —
+Defined-skip vs. genuine-failure key. Both defined skips —
 the interim-state skip and the `Cancelled` skip — emit a dedicated top-level
-`"skip"` key carrying the reason. A **genuine failure** (you could not analyze the
+`"skip"` key carrying the reason. A genuine failure (you could not analyze the
 bundle at all — a malformed bundle, a crash) still prints `{"error": "<reason>"}`.
 The orchestrator recognizes a defined skip **by the presence of the `"skip"` key
 only**, never by matching substrings of error text — so the two keys must stay
 distinct and a skip must never be emitted under `"error"`.
 
-**Workpad-absent analysis rule.** The absent-workpad sentinels
+Workpad-absent analysis rule. The absent-workpad sentinels
 `"Absent"` (the linked issue resolved but carried no workpad comment) and
 `"NoIssue"` (no linked issue resolved at all) are analyzed, never skipped. When
 `workpad_final_status` is `"Absent"` or `"NoIssue"`:
@@ -163,7 +163,7 @@ distinct and a skip must never be emitted under `"error"`.
   evidence — the PR diff and commits, the reviews, and the issue thread when one
   resolved — and record the missing workpad (and, for `"NoIssue"`, the broken linkage)
   as friction in the entry's `descriptors`. Follow the existing `imperfect` / `blocked`
-  verdict definitions; when neither strictly fits, **default to `imperfect`** with a
+  verdict definitions; when neither strictly fits, default to `imperfect` with a
   descriptor naming the absent workpad.
 - A sentinel bundle *without* provenance is analyzed under the same rule, minus the
   lost-audit-trail framing.
@@ -171,8 +171,8 @@ distinct and a skip must never be emitted under `"error"`.
 ### categories
 
 The single most important field — pattern detection groups occurrences by
-`categories`. You **must** pick from this fixed vocabulary — every category that
-genuinely applies, one or more. Do **not** coin new slugs: a unique slug forms
+`categories`. You must pick from this fixed vocabulary — every category that
+genuinely applies, one or more. Do not coin new slugs: a unique slug forms
 no pattern and the loop never acts on it. If nothing fits, use `other` and
 explain why in `descriptors`.
 
@@ -228,19 +228,19 @@ reasoning. Each object:
 `change_type` ∈ `rule-strengthen | rule-add | doc-update | skill-update |
 code-change | template-update | other`. `confidence` ∈ `low | medium | high`.
 
-**Plugin self-audit first.** Before picking a surface, ask whether this pattern
+Plugin self-audit first. Before picking a surface, ask whether this pattern
 reveals a flaw in the devflow plugin itself
 (the engine's own files — `skills/**`, `agents/**`, `lib/**`, `scripts/**`) — if so, set `categories` to
 include `tooling-gap` and point `suggested_interventions` at the plugin file:
 
-- **Workpad blind spot?** Did `workpad_body` contain clear root-cause evidence
+- Workpad blind spot? Did `workpad_body` contain clear root-cause evidence
   that your classification missed? → `change_type: "skill-update"`,
   `candidate_targets: ["skills/retrospective/SKILL.md"]`.
-- **Clean-gate false negative?** Did the PR nearly qualify as clean but the
+- Clean-gate false negative? Did the PR nearly qualify as clean but the
   workpad shows a major abandoned design? → points at `lib/cheap-gate.jq`.
-- **Mis-categorized?** Was the failure forced into `other` or into a category
+- Mis-categorized? Was the failure forced into `other` or into a category
   that doesn't really fit? → points at this skill's `categories` vocabulary.
-- **Cache miss?** Was a primary source absent from the bundle that would have
+- Cache miss? Was a primary source absent from the bundle that would have
   changed your verdict? → points at `fetch-pr-context.sh`.
 
 If yes to any of the above, your intervention MUST target the plugin file
@@ -274,10 +274,10 @@ newlines that break naive serialization).
 }
 ```
 
-**Optional `extension_unreadable` key (consumer prompt-extension handoff).**
-When the consumer prompt-extension file is **present but you cannot read it**, add
-**one** optional string key `extension_unreadable` to the object above, naming the path
-and the read failure; the return stays **exactly one JSON object** with nothing else on
+Optional `extension_unreadable` key (consumer prompt-extension handoff).
+When the consumer prompt-extension file is present but you cannot read it, add
+one optional string key `extension_unreadable` to the object above, naming the path
+and the read failure; the return stays exactly one JSON object with nothing else on
 stdout. Omit the key entirely in every other case.
 
 `categories` must be drawn from the fixed vocabulary above; `descriptors` is

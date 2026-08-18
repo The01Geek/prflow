@@ -1,7 +1,7 @@
 <!-- prflow:create-issue-ref step=quality-group-semantic file=skills/create-issue/references/quality-group-semantic.md start -->
 ## Quality group — semantic judgment over third-party input
 
-**Trigger (observable before this reference loads):** the issue **designs a new LLM or semantic judgment over text the change does not author** (issue bodies, PR comments, commit messages, external API responses) whose output drives an automated selection or action. A draft that designs no such new judgment surface — or reuses an existing, already-guarded judgment path and cites it — does not load this group; uncertain applicability loads it.
+Trigger (observable before this reference loads): the issue designs a new LLM or semantic judgment over text the change does not author (issue bodies, PR comments, commit messages, external API responses) whose output drives an automated selection or action. A draft that designs no such new judgment surface — or reuses an existing, already-guarded judgment path and cites it — does not load this group; uncertain applicability loads it.
 
 Each obligation appears once, as its checklist row plus the rule text it carries.
 
