@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1728",
+  "generated_at": "2026-08-18T00:14:12Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.6",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 21.917288549999995,
+    "tokens": {
+      "input_tokens": 92,
+      "output_tokens": 73155,
+      "cache_read_input_tokens": 8594639,
+      "cache_creation_input_tokens": 307014,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 222,
+        "outputTokens": 156889,
+        "cacheReadInputTokens": 14208863,
+        "cacheCreationInputTokens": 1133869,
+        "webSearchRequests": 0,
+        "costUSD": 19.265750249999996,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 73,
+        "outputTokens": 22695,
+        "cacheReadInputTokens": 1419606,
+        "cacheCreationInputTokens": 502670,
+        "webSearchRequests": 0,
+        "costUSD": 2.651538300000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 73,
+    "duration_ms": 1494005
+  },
+  "permission_denials": {
+    "count": 19,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---RUNID---\"; echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-<empty>} ATTEMPT=${GITHUB_RUN_ATTEMPT:-<empty>}\"",
+      "printf 'RUNID=%s ATTEMPT=%s\\n' \"${GITHUB_RUN_ID:-EMPTY}\" \"${GITHUB_RUN_ATTEMPT:-EMPTY}\"",
+      "D=.prflow/tmp/review/pr-1728/32081921050-1\nawk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' \"$D/diff.patch\" > \"$D/batch-1.patch\" && test -s \"$D/batch-1.patch\" && echo \"slice-ok: batch-1\" || echo \"slice-failed: batch-1\"\nawk -v s=11 -v e=20 '/^diff --git/{n++} n>=s && n<=e' \"$D/diff.patch\" > \"$D/batch-2.patch\" && test -s \"$D/batch-2.patch\" && echo \"slice-ok: batch-2\" || echo \"slice-failed: batch-2\"\ngrep -c '^diff --git' \"$D/batch-1.patch\" \"$D/batch-2.patch\"",
+      ".prflow/vendor/prflow/scripts/resolve-review-overrides.py \"prflow:checklist-generator\" 2>.prflow/tmp/review/pr-1728/32081921050-1/rv-ovr.phase1.err; echo \"ovr-rc=$?\"; cat .prflow/tmp/review/pr-1728/32081921050-1/rv-ovr.phase1.err",
+      "awk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1728/32081921050-1/diff.patch > .prflow/tmp/review/pr-1728/32081921050-1/batch-1.patch\necho \"b1-rc=$?\"\nawk -v s=11 -v e=20 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1728/32081921050-1/diff.patch > .prflow/tmp/review/pr-1728/32081921050-1/batch-2.patch\necho \"b2-rc=$?\"\ngrep -c '^diff --git' .prflow/tmp/review/pr-1728/32081921050-1/batch-1.patch .prflow/tmp/review/pr-1728/32081921050-1/batch-2.patch",
+      "awk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1728/32081921050-1/diff.patch > .prflow/tmp/review/pr-1728/32081921050-1/batch-1.patch; echo \"b1-rc=$? lines=$(wc -l < .prflow/tmp/review/pr-1728/32081921050-1/batch-1.patch)\"",
+      "for f in skills/retrospective-weekly/SKILL.md skills/review/phases/phase-3-agents.md skills/implement/phases/phase-3-fix-loop.md skills/implement/references/deferred-review-findings.md; do\necho \"=== $f ===\"\ngit show 6be63947cd68d545892bc306b3f5d2fe96c81b74:$f | grep -nE '[0-9]?>>?[[:space:]]*\"?\\.prflow/tmp|AGG\\}\\.tmp|GIT_SNAP_BEFORE|mktemp' \ndone",
+      "git show 6be63947cd68d545892bc306b3f5d2fe96c81b74:skills/retrospective-weekly/SKILL.md > /tmp/f1.md\ngit show 6be63947cd68d545892bc306b3f5d2fe96c81b74:skills/review/phases/phase-3-agents.md > /tmp/f2.md\ngit show 6be63947cd68d545892bc306b3f5d2fe96c81b74:skills/implement/phases/phase-3-fix-loop.md > /tmp/f3.md\ngit show 6be63947cd68d545892bc306b3f5d2fe96c81b74:skills/implement/references/deferred-review-findings.md > /tmp/f4.md\ngrep -nE '[0-9]?>>?[[:space:]]*\"?\\.prflow/tmp' /tmp/f1.md /tmp/f2.md /tm …[per-command-truncated]",
+      "git show 6be63947cd68d545892bc306b3f5d2fe96c81b74:skills/retrospective-weekly/SKILL.md > /tmp/f1.md",
+      "git show 6be63947cd68d545892bc306b3f5d2fe96c81b74:skills/review/phases/phase-3-agents.md > /tmp/f2.md",
+      "git show 6be63947cd68d545892bc306b3f5d2fe96c81b74:skills/implement/phases/phase-3-fix-loop.md > /tmp/f3.md",
+      "git show 6be63947cd68d545892bc306b3f5d2fe96c81b74:skills/implement/references/deferred-review-findings.md > /tmp/f4.md",
+      "git -C /home/runner/work/prflow/prflow show 6be63947cd68d545892bc306b3f5d2fe96c81b74:skills/retrospective-weekly/SKILL.md | md5sum\ngit -C /home/runner/work/prflow/prflow show main:skills/retrospective-weekly/SKILL.md | md5sum 2>/dev/null || git -C /home/runner/work/prflow/prflow log --oneline -1 -- skills/retrospective-weekly/SKILL.md",
+      "git -C /home/runner/work/prflow/prflow diff main 6be63947cd68d545892bc306b3f5d2fe96c81b74 -- skills/retrospective-weekly/SKILL.md",
+      "H=6be63947cd68d545892bc306b3f5d2fe96c81b74\necho \"=== VC-10 marker constants (discover-deferral-manifests.py) ===\"\ngit show $H:scripts/discover-deferral-manifests.py | grep -nE 'MARKER_(PARTIAL|FAILED|ROOTS)\\s*=' | head\necho \"=== VC-24 implement-active occurrences at head (phase-1-setup.md) ===\"\ngit show $H:skills/implement/phases/phase-1-setup.md | grep -cF 'implement-active'\necho \"=== VC-11 removed err stems should be ABSENT in the three skill files ===\"\nfor f in skills/implement/references/def …[per-command-truncated]",
+      "for f in skills/implement/references/deferred-review-findings.md skills/review-and-fix/references/loop-control.md skills/review-and-fix/references/loop-exit.md skills/review/SKILL.md skills/review/phases/phase-4-verdict.md; do echo \"=== $f ===\"; git show 6be63947cd68d545892bc306b3f5d2fe96c81b74:$f | grep -nE '2>|&>|\\.err|> \\.prflow|>\\.prflow' || echo \"(no stderr/scratch redirects)\"; done",
+      "for f in skills/review-and-fix/references/loop-control.md skills/review-and-fix/references/loop-exit.md skills/review/SKILL.md skills/review/phases/phase-4-verdict.md skills/review/phases/phase-1-checklist.md; do echo \"=== $f ===\"; git show 6be63947cd68d545892bc306b3f5d2fe96c81b74:$f | grep -nE '[0-9]>[^&]|[&]>|[.]err|tee ' | grep -iE 'prflow/tmp|[.]err|tee' || echo NONE; done",
+      "for f in skills/review-and-fix/references/loop-control.md skills/review-and-fix/references/loop-exit.md skills/review/SKILL.md skills/review/phases/phase-4-verdict.md skills/review/phases/phase-1-checklist.md; do echo \"=== $f ===\"; git show 6be63947cd68d545892bc306b3f5d2fe96c81b74:\"$f\" | grep -nE 'devflow-maxiter|devflow-et|acs[.]err|rv-id|rv-create|[.]err' || echo NONE; done",
+      "for f in skills/review/SKILL.md skills/review/phases/phase-0-setup.md skills/review/phases/phase-1-checklist.md skills/review/phases/phase-4-verdict.md skills/review-and-fix/references/loop-control.md skills/review-and-fix/references/loop-exit.md skills/implement/references/deferred-review-findings.md skills/implement/phases/phase-1-setup.md; do echo \"== $f ==\"; git show 6be63947cd68d545892bc306b3f5d2fe96c81b74:$f | grep -nE '[0-9&]?>>?[[:space:]]*\"?\\.prflow/tmp' | grep -vE '2>/dev/null|&>/dev/n …[per-command-truncated]"
+    ],
+    "total": 19,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
