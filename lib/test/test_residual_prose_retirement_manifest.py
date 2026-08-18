@@ -40,9 +40,9 @@ IDENTITY_REFRESHES = HERE / "pin-identity-refreshes.tsv"
 ADJUDICATIONS = REPO_ROOT / "lib/test/pin-corpus-adjudications.tsv"
 CLASSIFIER = HERE / "pin-corpus-classifier.py"
 LINT = HERE / "pin-corpus-lint.py"
-# Controls spanning both arms of machine_consumer_evidence and each comment-stripped
-# language: an arm or a language with no control can regress to matching nothing while
-# the screen below still reports green.
+# Controls over both arms of machine_consumer_evidence, in .sh and .py only: an arm or a
+# comment-stripped language with no control can regress to matching nothing while the
+# screen below still reports green.  .yml/.yaml and .jq carry no control.
 _CONTROL_VERBATIM = (  # .sh, whole-literal arm: scripts/render-grounding-block.sh
     "> is not a verdict — it reads like an approval to a human while counting as"
 )
@@ -1100,8 +1100,8 @@ class ResidualProseRetirementManifestTests(unittest.TestCase):
         lint = load_lint()
         corpus = build_consumer_corpus(lint)
         # Every miss below is indistinguishable from a degraded search, so establish the
-        # search still works before trusting one.  Never drop one of these four as
-        # redundant: each catches a degradation the other three pass.
+        # search still works before trusting one.  Never drop one of these as redundant:
+        # each catches a degradation the others pass.
         # Floored near the live population, not at a token value: load_machine_consumer_sources
         # drops an unreadable file to a stderr breadcrumb nothing asserts on, so a slack
         # floor tolerates a majority collapse.
