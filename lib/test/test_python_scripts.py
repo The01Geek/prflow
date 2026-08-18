@@ -11491,6 +11491,53 @@ assert_eq("#1453: the canonical trailing-marker bullet IS read (positive control
           ["full:attempted:complete:complete"],
           workpad._review_coverage_payloads("  - 03:00:00 — recorded " + _MK_RC))
 
+# ── issue #1722: one moment, one call — the combined-mutation call is not rejected ──
+
+# Derive every row operand from its constant, never transcribed: a renamed row must fail
+# here as a real mismatch rather than silently stop exercising the batch.
+_MM_ROW_A, _MM_ROW_B = workpad._REVIEW_PROGRESS_ROWS[0], workpad._REVIEW_PROGRESS_ROWS[3]
+_MM_EXT = next(r for r in workpad._EXTENSION_ROWS if r[2] == "extension resolved: implement")
+_MM_BODY = _CP_BODY.replace(
+    "- [ ] **Implement**",
+    "- [ ] **Implement**\n- [ ] **Review**\n"
+    + workpad._review_progress_rows_block("Review"))
+# Do not drop `Blocked`: it is what keeps the Complete-only gate unreached, and that gate
+# WOULD refuse this incomplete coverage record.
+_mm_code, _, _, _mm_patched = _drive_cmd_update(
+    _MM_BODY,
+    record_review_coverage=["not-verified", "never", "short", "skipped"],
+    status="Blocked",
+    tick_progress=[_MM_ROW_A[1], _MM_ROW_B[1]])
+assert_eq("#1722: the combined coverage+Blocked+two-tick call takes the clean exit",
+          None, _mm_code)
+assert_eq("#1722: ...and the PATCH landed",
+          True, _mm_patched is not None)
+assert_eq("#1722: ...applying the Blocked status",
+          True, workpad._status_glyph("Blocked") in _statusline(_mm_patched))
+assert_eq("#1722: ...ticking BOTH requested review-boundary rows in the one call",
+          (True, True),
+          (f"- [x] {_MM_ROW_A[0]}" in _mm_patched,
+           f"- [x] {_MM_ROW_B[0]}" in _mm_patched))
+assert_eq("#1722: ...and writing exactly one review-coverage record",
+          ["not-verified:never:short:skipped"],
+          workpad._review_coverage_payloads(_mm_patched))
+
+# Reorder reconcile after the ticks and the tick assertion goes RED, which is the ordering
+# the shipped Phase 1.3 fold rests on.
+_mm_p13_ticks = []
+_mm_p13 = apply_mut(_CP_BODY, make_args(
+    record_classification=["non-bug", "prose-only change; no malfunction described"],
+    reconcile_reproduction="non-bug",
+    reconcile_extension_rows=True,
+    tick_progress=[_MM_EXT[2]],
+    note=["resume-kind: fresh"]), _mm_p13_ticks)
+assert_eq("#1722: the shipped Phase 1.3 five-flag fold ticks the row it just repaired",
+          (True, []), (f"- [x] {_MM_EXT[1]}" in _mm_p13, _mm_p13_ticks))
+assert_eq("#1722: ...carrying the rationale-bearing classification and the resume-kind note",
+          (True, True),
+          ("classification: non-bug — prose-only change; no malfunction described" in _mm_p13,
+           "resume-kind: fresh" in _mm_p13))
+
 # ---------------------------------------------------------------------------
 # issue #1501: guard the remaining fixed-arity argument unpacks. Every flag with a
 # fixed nargs and a positional unpack validates its arity BEFORE that unpack, raising
