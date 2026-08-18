@@ -202,6 +202,38 @@ PHASE_FILES = {
 }
 PHASE_READ_LABELS = tuple(sorted(PHASE_FILES.values()))
 
+# Gated Phase 2.3 sweep references (issue #1739): a sweep-*.md reference read on the
+# orchestrator main thread counts toward phase2. Kept OUT of PHASE_FILES, which a test
+# pins as the exact skills/implement/phases/*.md mirror — widening it here breaks that pin.
+SWEEP_REFERENCE_PREFIX = "sweep-"
+SWEEP_REFERENCE_SUFFIX = ".md"
+SWEEP_REFERENCE_PHASE = "phase2"
+# SWEEP_REFERENCE_PHASE must stay a PHASE_READ_LABELS member; a non-member's KeyError on
+# increment is swallowed by eval_corpus's defensive except as a mis-blamed malformed_record,
+# so enforce it loudly at import (a plain assert is stripped under -O).
+if SWEEP_REFERENCE_PHASE not in PHASE_READ_LABELS:
+    raise AssertionError(
+        "SWEEP_REFERENCE_PHASE {!r} must be a PHASE_READ_LABELS member".format(
+            SWEEP_REFERENCE_PHASE))
+
+
+def _phase_label_for_read(file_path):
+    """The phase-read label a Read's `file_path` counts under, or None.
+
+    A phase file matches PHASE_FILES by basename; a gated Phase 2.3 sweep reference
+    (skills/implement/references/sweep-*.md) counts toward phase2 by basename shape. Both
+    match on the basename because the same file resolves at a repo-relative path locally
+    and a vendored path on the cloud tier.
+    """
+    basename = os.path.basename(file_path)
+    label = PHASE_FILES.get(basename)
+    if label is not None:
+        return label
+    if (basename.startswith(SWEEP_REFERENCE_PREFIX)
+            and basename.endswith(SWEEP_REFERENCE_SUFFIX)):
+        return SWEEP_REFERENCE_PHASE
+    return None
+
 # Tool name -> the category bucket its calls are counted under (issue #1209 AC10). The
 # five categories the AC names at minimum are file reads, file edits/writes, shell
 # commands, subagent dispatches and skill invocations; OTHER_TOOL_CATEGORY is the
@@ -486,7 +518,7 @@ class RunAccumulator:
                     # non-count and is deliberately NOT tallied here.
                     self.skipped["unresolvable_read_path"] += 1
                     continue
-                label = PHASE_FILES.get(os.path.basename(file_path))
+                label = _phase_label_for_read(file_path)
                 if label is not None:
                     self.phase_reads[label] += 1
         if not saw_tool_call:
