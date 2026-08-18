@@ -775,15 +775,11 @@ assert_eq "#467 A3: Step 3.6 generic dimension checklist is guard-locked at its 
 # now proven by the executable #1693 AC5 checklist-mapping test (each obligation appears exactly
 # once across the whole shipped surface, in its owner group) — so re-authoring a wording-only prose
 # presence pin here would be a #810-prohibited pin, superseded by that executable evidence.
-# Cluster D — Move 2a introduction trigger (template) + waiver-non-conforming clause; the
-# three-site best-effort-parser widening (CLAUDE.md, implement Phase 2.4, review-and-fix
-# fix-delta gate); extension sharpening (whole-file dimension count held at 9 after the
-# deployment-variance dimension added on main; #467 added none, matching the D3 guard below). The six-shape
-# SIXSHAPE_SET lockstep pins above stay green — the widening references the set, never restates it.
-# #1693: the #467 D1 introduction-trigger prose pin is RETIRED here — Move 2a's trigger relocated
-# into the regression quality group, and its survival is now proven by the executable #1693 AC5
-# checklist-mapping test, so re-authoring it as a wording-only prose pin would be #810-prohibited.
-# (D2/D3 below are unchanged — they pin CLAUDE.md / the extension, not moved prose.)
+# Cluster D — the three-site best-effort-parser widening (CLAUDE.md, implement Phase 2.4,
+# review-and-fix fix-delta gate); extension sharpening (whole-file dimension count held at 9
+# after the deployment-variance dimension added on main; #467 added none, matching the D3 guard
+# below). The six-shape SIXSHAPE_SET lockstep pins above stay green — the widening references the
+# set, never restates it. D2/D3 pin CLAUDE.md / the extension, not moved prose.
 devflow_module_pin_unique "#467 D2 (CLAUDE.md leg): best-effort-parser gotcha widened to mutable-markdown/external-format" \
   'The governed surface is broader than config JSON' "$CI_CLAUDE"
 devflow_module_pin_unique "#467 D2 (Phase 2.4 leg): dry-trace rule widened to mutable-markdown/external-format" \
@@ -2180,6 +2176,156 @@ PY
 assert_eq "#1515 feedback revision reprojects after Revision-delta and before overwrite/approval" "projection-rerun" "$(_ci1515_feedback_route live)"
 assert_eq "#1515 feedback mutation: skipping projection rerun is caught" "caught" "$(_ci1515_feedback_route remove-projection)"
 assert_eq "#1515 feedback mutation: projection before mutating Revision-delta is caught" "caught" "$(_ci1515_feedback_route projection-before-delta)"
+
+# ── #1733: Step 4 listing classifies present/absent/unestablished from the shell ──
+# Guards a rule from reading an `ls -l` row as present: under `ls -l` a dangling
+# symlink prints a stale row, so the four-path listing uses `ls -lL` (message-decisive).
+_ci1733_dir="$_ci_tmp_root/ls1733"
+mkdir -p "$_ci1733_dir/realdir"
+ln -s /nonexistent/ci1733-gone "$_ci1733_dir/dangling"
+printf 'x' > "$_ci1733_dir/real"
+: > "$_ci1733_dir/empty"
+printf 'y' > "$_ci1733_dir/realdir/inside"
+ln -s real "$_ci1733_dir/goodlink"
+ln -s realdir "$_ci1733_dir/dirlink"
+
+# Do not widen the row parser's fixed column offsets for an `ls` variant: an offset shift
+# lands a non-numeric size, which the guard below classifies unestablished — fail-closed.
+_ci1733_classify() {  # <path> <combined-output-file> -> present|absent|unestablished
+  local path="$1" out="$2" perm size rest name msg
+  # Do not undelimit this match or drop the final-segment arm: undelimited, a superstring
+  # sibling matches; whole-path-only, BSD's basename-naming message reads absent as
+  # unestablished and the producing step never re-runs.
+  local base="${path##*/}"
+  msg="$(grep -E 'cannot access|No such file' "$out")"
+  case "$msg" in
+    *"'$path'"*|*"$path:"*|*"'$base'"*|*" $base:"*) printf 'absent\n'; return 0 ;;
+  esac
+  while read -r perm _ _ _ size rest; do
+    case "$perm" in -*) ;; *) continue ;; esac
+    name="${rest##* }"
+    [ "$name" = "$path" ] || continue
+    case "$size" in ''|*[!0-9]*) printf 'unestablished\n'; return 0 ;; esac
+    if [ "$size" -ge 1 ]; then printf 'present\n'; else printf 'absent\n'; fi
+    return 0
+  done < "$out"
+  printf 'unestablished\n'
+}
+
+# One `ls -lL` over the fixture set (merged stdout+stderr, as the block runs it) plus a
+# never-existed operand for the missing-path case; classification is then per-path.
+_ci1733_combined="$_ci1733_dir/combined.out"
+ls -lL "$_ci1733_dir/real" "$_ci1733_dir/empty" "$_ci1733_dir/dangling" \
+       "$_ci1733_dir/goodlink" "$_ci1733_dir/dirlink" "$_ci1733_dir/realdir" \
+       "$_ci1733_dir/ghost" > "$_ci1733_combined" 2>&1 || true
+
+assert_eq "#1733 AC1: a dangling link classifies absent (ls -lL)" "absent" \
+  "$(_ci1733_classify "$_ci1733_dir/dangling" "$_ci1733_combined")"
+assert_eq "#1733 AC3: a zero-byte file classifies absent" "absent" \
+  "$(_ci1733_classify "$_ci1733_dir/empty" "$_ci1733_combined")"
+assert_eq "#1733 AC7: a non-empty regular file classifies present" "present" \
+  "$(_ci1733_classify "$_ci1733_dir/real" "$_ci1733_combined")"
+assert_eq "#1733 AC5: a working link to a non-empty file classifies present" "present" \
+  "$(_ci1733_classify "$_ci1733_dir/goodlink" "$_ci1733_combined")"
+assert_eq "#1733 AC4/AC12: a directory (header+contents, no own row) classifies unestablished" "unestablished" \
+  "$(_ci1733_classify "$_ci1733_dir/realdir" "$_ci1733_combined")"
+assert_eq "#1733 AC6: a working link to a directory classifies unestablished" "unestablished" \
+  "$(_ci1733_classify "$_ci1733_dir/dirlink" "$_ci1733_combined")"
+assert_eq "#1733 AC8: a path that does not exist classifies absent" "absent" \
+  "$(_ci1733_classify "$_ci1733_dir/ghost" "$_ci1733_combined")"
+
+# AC2: a not-found message overrides a co-printed present-classifying row (the BSD
+# shape; GNU emits the message alone), pinning message-first precedence.
+_ci1733_synth="$_ci1733_dir/synth.out"
+printf "ls: cannot access '%s': No such file or directory\n-rw-r--r-- 1 u g 5 Aug 17 22:58 %s\n" \
+  "$_ci1733_dir/dangling" "$_ci1733_dir/dangling" > "$_ci1733_synth"
+assert_eq "#1733 AC2: a not-found message is decisive even beside a long-format row" "absent" \
+  "$(_ci1733_classify "$_ci1733_dir/dangling" "$_ci1733_synth")"
+
+# Message-match is path-delimited: a not-found message naming a superstring sibling
+# (realdir) must NOT classify the shorter path (real) absent — pins the delimiters so a
+# bare `grep -qF "$path"` regression is caught.
+_ci1733_super="$_ci1733_dir/super.out"
+printf "ls: cannot access '%s': No such file or directory\n-rw-r--r-- 1 u g 1 Aug 17 22:58 %s\n" \
+  "$_ci1733_dir/realdir" "$_ci1733_dir/real" > "$_ci1733_super"
+assert_eq "#1733 superstring: a message naming a sibling superstring path leaves the shorter path present" "present" \
+  "$(_ci1733_classify "$_ci1733_dir/real" "$_ci1733_super")"
+
+# The BSD not-found shape — the operand's final segment, colon-suffixed — beside a row for
+# the same path. Asserted on a hand-authored fixture, not the host's `ls`, so the
+# message-first precedence has coverage on a GNU-only host where no BSD-shaped program runs.
+_ci1733_bsdmsg="$_ci1733_dir/bsdmsg.out"
+printf "ls: dangling: No such file or directory\n-rw-r--r-- 1 u g 5 Aug 17 22:58 %s\n" \
+  "$_ci1733_dir/dangling" > "$_ci1733_bsdmsg"
+assert_eq "#1733 AC2 (BSD shape): a colon-suffixed final-segment message is decisive beside a row" "absent" \
+  "$(_ci1733_classify "$_ci1733_dir/dangling" "$_ci1733_bsdmsg")"
+
+# A row whose size column is non-numeric must not classify present. Pins the fail-closed
+# direction the row parser's fixed GNU/BSD column offsets rely on.
+_ci1733_shifted="$_ci1733_dir/shifted.out"
+printf -- "-rw-r--r--@ 1 u g staff 5 Aug 17 22:58 %s\n" "$_ci1733_dir/real" > "$_ci1733_shifted"
+assert_eq "#1733 fail-closed: a row with a non-numeric size column classifies unestablished" "unestablished" \
+  "$(_ci1733_classify "$_ci1733_dir/real" "$_ci1733_shifted")"
+
+# AC9: the host's own `ls -lL` draws a not-found message naming the dangling link.
+_ci1733_hostmsg="$_ci1733_dir/hostmsg.out"
+ls -lL "$_ci1733_dir/dangling" > "$_ci1733_hostmsg" 2>&1 || true
+_ci1733_hostmsgtext="$(grep -E 'cannot access|No such file' "$_ci1733_hostmsg")"
+# The message names the operand on GNU and only its final segment on BSD, so accept
+# either — asserting the whole path here would fail on every BSD host.
+assert_eq "#1733 AC9: host ls -lL draws a not-found message for a dangling link" "msg" \
+  "$(case "$_ci1733_hostmsgtext" in *"$_ci1733_dir/dangling"*|*" dangling:"*) echo msg ;; *) echo none ;; esac)"
+
+# Reproduction (RED): the current `ls -l` shape prints a row for the dangling link and
+# NO message, so a rule reading a row as present misclassifies it — the defect closed.
+_ci1733_oldshape="$_ci1733_dir/oldshape.out"
+ls -l "$_ci1733_dir/dangling" > "$_ci1733_oldshape" 2>&1 || true
+_ci1733_oldrow=other
+case "$(< "$_ci1733_oldshape")" in *"$_ci1733_dir/dangling ->"*) _ci1733_oldrow=hasrow ;; esac
+_ci1733_oldmsg="$(grep -E 'cannot access|No such file' "$_ci1733_oldshape")"
+assert_eq "#1733 repro: current ls -l prints a row and no message for a dangling link" "row-no-msg" \
+  "$([ "$_ci1733_oldrow" = hasrow ] && [ -z "$_ci1733_oldmsg" ] && echo row-no-msg || echo other)"
+
+# AC11: the slug-unknown arm lists the temporary directory on plain `ls -l`, which
+# shows the dangling entry.
+_ci1733_dirlist="$_ci1733_dir/dirlist.out"
+ls -l "$_ci1733_dir" > "$_ci1733_dirlist" 2>&1 || true
+assert_eq "#1733 AC11: the slug-unknown arm (plain ls -l on the dir) shows the dangling entry" "shown" \
+  "$(grep -qE '(^| )dangling( ->|$)' "$_ci1733_dirlist" && echo shown || echo hidden)"
+
+# AC10: a second `ls`, when present, must reach the same class; -L must never reach the
+# slug-unknown arm (a BSD-shaped impl drops the dangling dir entry under -L).
+#
+# Each module_host_capability_skip credit MUST equal the assertion count inside its own
+# arm: the floor is EXACT, so a wrong credit fails the module as a false regression.
+_ci1733_second=""
+if command -v busybox >/dev/null 2>&1; then _ci1733_second="busybox"
+elif command -v gls >/dev/null 2>&1; then _ci1733_second="gls"; fi
+if [ -n "$_ci1733_second" ]; then
+  _ci1733_2msg="$_ci1733_dir/second-msg.out"
+  if [ "$_ci1733_second" = busybox ]; then busybox ls -lL "$_ci1733_dir/dangling" > "$_ci1733_2msg" 2>&1 || true
+  else gls -lL "$_ci1733_dir/dangling" > "$_ci1733_2msg" 2>&1 || true; fi
+  assert_eq "#1733 AC10: a second ls implementation reaches absent for the dangling link" "absent" \
+    "$(_ci1733_classify "$_ci1733_dir/dangling" "$_ci1733_2msg")"
+else
+  module_host_capability_skip "#1733 AC10: a second ls implementation reaches the same class" \
+    "neither busybox nor gls is on this host, so no second ls implementation can be exercised" 1
+fi
+# The dir-arm needs a BSD-shaped implementation specifically (it pins that -L DROPS the
+# dangling entry); gls is GNU-shaped and does not exhibit it, so only busybox qualifies.
+if [ "$_ci1733_second" = busybox ]; then
+  _ci1733_2plain="$_ci1733_dir/second-plain.out"
+  _ci1733_2L="$_ci1733_dir/second-L.out"
+  busybox ls -l "$_ci1733_dir" > "$_ci1733_2plain" 2>&1 || true
+  busybox ls -lL "$_ci1733_dir" > "$_ci1733_2L" 2>&1 || true
+  assert_eq "#1733 dir-arm: a BSD-shaped impl shows the dangling entry under plain -l" "shown" \
+    "$(grep -qE '(^| )dangling( ->|$)' "$_ci1733_2plain" && echo shown || echo hidden)"
+  assert_eq "#1733 dir-arm: -L on a BSD-shaped impl drops the dangling entry (why -L must not reach that arm)" "dropped" \
+    "$(grep -qE '(^| )dangling([ /]|$)' "$_ci1733_2L" && echo shown || echo dropped)"
+else
+  module_host_capability_skip "#1733 dir-arm: a BSD-shaped ls drops the dangling entry under -L" \
+    "busybox is not on this host, so no BSD-shaped ls implementation can be exercised" 2
+fi
 
 # Complete normal cleanup explicitly so a removal or marker failure changes the
 # module status. EXIT remains a fallback for earlier returns and shell errors.

@@ -188,7 +188,12 @@ than each becoming an axis of its own. A phase-file read is a `Read` tool_use wh
 (not a full path) because the skill anchors the read at
 `<skill-dir>/phases/phase-N-<name>.md`, which resolves to a local `skills/implement/…`
 path on the interactive tier and a vendored `.prflow/vendor/prflow/skills/implement/…`
-path on the cloud tier.
+path on the cloud tier. The gated Phase 2.3 sweep references
+(`skills/implement/references/sweep-*.md`, issue #1581) are also read on the main thread
+when a sweep's predicate fires, so a read of one counts toward the `phase2` axis by
+basename shape (`sweep-` prefix, `.md` suffix; issue #1739). That shape match is kept
+separate from `PHASE_FILES`, which stays the exact `skills/implement/phases/*.md` mirror a
+test pins, so widening the measured population never touches that pin.
 
 It also reports two axes about *how the run spent its turns*, because a turn count alone
 mis-attributes the work — one assistant turn can carry several tool calls, so a run that

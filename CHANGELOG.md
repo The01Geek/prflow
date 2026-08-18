@@ -4,6 +4,102 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.33.13] — 2026-08-18
+
+### Changed
+- **Stripped ~87% of bold emphasis from the shipped skill prose.** Bold ran at roughly 27 spans per 1,000 words across `skills/**/*.md` — a density at which the marker no longer distinguishes anything — and now sits at 851. The sweep deletes asterisk pairs only: no word, punctuation, or whitespace changed. It retains every literal the suite asserts verbatim, bold inside fenced blocks, table rows and inline code spans, each gated reference's boundary markers, the output-format demonstrations whose bold the surrounding instruction requires, and one or two genuinely destructive-if-ignored rules per file. (#1748)
+
+## [2.33.12] — 2026-08-18
+
+### Changed
+- **`scripts/implement-context-eval.py` counts gated Phase 2.3 sweep-reference reads toward
+  the `phase2` context axis.** The eval measures how many times an implement run reads each
+  phase file; once the eight conditional Phase 2.3 sweeps move into gated references named
+  `skills/implement/references/sweep-*.md` (PR #1736), a run reads those on top of the phase
+  files. The instrument now recognizes a `sweep-*.md` basename and counts it toward `phase2`
+  through a new `_phase_label_for_read` helper, matched by basename shape (not a transcribed
+  list, so a ninth sweep is counted with no second edit) exactly as `PHASE_FILES` matches —
+  the same file resolves at a repo-relative path locally and a vendored path on the cloud
+  tier. `PHASE_FILES` stays the exact `skills/implement/phases/*.md` mirror its coupling test
+  pins, so the measurement no longer under-reports a run's real per-run context cost. (#1746)
+
+## [2.33.11] — 2026-08-18
+
+### Fixed
+- **`/prflow:create-issue` Step 4 working-file listing now reports presence from what the shell shows.** The listing runs `ls -lL` (not `ls -l`) over its four named paths, so a path that is a symbolic link to a gone target draws a not-found message and is classified `absent` instead of passing as `present` on a stale row; a not-found message naming a path — by the whole path or by its final segment, since one `ls` quotes the operand and another names only the file name — is decisive even beside a printed row, a path is `present` only when its own row describes an ordinary file of at least one byte (a zero-byte file is `absent`), and a directory is `unestablished`. The slug-unknown arm stays on plain `ls -l` so a broken link is still shown. Re-running the derivation step now re-runs the steelman pass with it, the presentation gate is the single owner of the audit file's re-entry, and the listing names the run-state files it does not cover. (#1733)
+
+## [2.33.10] — 2026-08-18
+
+### Changed
+Predicate-gate the eight conditional Phase 2.3 verification sweeps in `/prflow:implement`.
+
+Each of 2.3.0, 2.3.0a, 2.3.0b, 2.3.0c, 2.3.0d, 2.3.1, 2.3.2 and 2.3.7 now keeps its trigger and a
+resident predicate statement in its phase file and carries its procedure in its own reference under
+`skills/implement/references/`, read only when that sweep's own predicate fires. A run that fires one
+or two conditional sweeps no longer holds all eight procedures resident. The six always-firing sweeps
+— 2.3.3, 2.3.4, 2.3.4a, 2.3.4b, 2.3.5 and 2.3.6 — are unchanged and stay resident.
+
+Sweep execution is unchanged: the orchestrator runs every sweep itself, and no sweep is dispatched to
+a subagent. A reference read that fails is recorded and the run continues to the next sweep rather
+than halting Phase 2.
+
+## [2.33.9] — 2026-08-18
+
+### Changed
+Shipped fences no longer prescribe command shapes the cloud harness refuses.
+
+Every cloud-reachable fence that redirected into a scratch path under `.prflow/tmp/` has been
+rewritten to a shape the harness accepts: whole-file artifacts are authored with the Write tool,
+and a command's stderr is read from that invocation's own tool result instead of being captured
+to a `.err` file. A refused fence produced no output at all and burned a request, so the run
+recovered by improvising — for the Phase 0 diff-staging path that improvisation dropped the
+fail-closed staging entirely.
+
+The Phase 0 local-diff staging path keeps its guard structure as ordered, separately-checked
+stages that stream through `tee` rather than passing the diff through the agent, so a truncated
+tool result cannot publish a thinned cache. Each stage reports its own section count, and a single
+failure rule clears the cache and stops; a count that legitimately falls to zero (a logs-only
+diff) publishes and is reviewed as nothing to flag.
+
+One error-handling arm is corrected rather than rewritten. The acceptance-criteria resolver's
+failure arm told the run to read a `.err` file that only the refused redirect could have created,
+so on any tier that refuses the redirect the diagnostic channel could never produce a cause; it
+now quotes the stderr the invocation itself returned.
+
+Two fences that routed on `grep`-ing a captured stderr file now guard on each invocation's own
+exit status, read inline rather than captured into a variable a later statement reads — a shape
+that leaves the status empty on a runner that strips variables between statements, routing every
+healthy run to the unrecognised arm. Deferral discovery collapses every non-zero status into a
+single degraded state and tells a partial search from a failed one after the fence, from the
+marker its helper writes to stderr — never by testing whether the call returned any paths, which
+a partial search over roots holding no manifest would route to the failed arm.
+Where the status is genuinely ambiguous — `file-deferrals.py` shares one code between "no
+deferrals", "already filed" and three input errors — the run reads that call's stderr to tell
+them apart, and records an unrecognised shape as a failure rather than guessing.
+
+One file is deliberately unchanged: the weekly retrospective skill, which no workflow dispatches
+and which therefore runs only on the interactive tier, where these redirects execute normally. It
+was not degraded to satisfy a cloud constraint.
+
+Two cloud-reachable populations are adjudicated but not rewritten, because the Write-tool remedy
+cannot reach them: appends made inside a shell read-loop, and captures targeting a `mktemp` path.
+Both are recorded with their reason and carried to a follow-up.
+
+## [2.33.8] — 2026-08-18
+
+### Changed
+- **Removed the Testing Strategy output apparatus from the create-issue issue template.**
+  `skills/create-issue/references/issue-template.md`'s Testing Strategy is now two drafting
+  moves — classify the boundary, walk the coverage dimensions — instead of three. The Move 2a
+  router pointer, the Move 3 residual-risk selection step, and the sentence that let a criterion
+  be verified by a manual checklist a headless implementing run cannot perform are all gone.
+  The rules buried in the deleted block survive in homes that suit them: the
+  multi-state-contract rule moves into the acceptance-criteria guidance, and the quality-group
+  routing clause folds into the surviving Testing Strategy bullet. Pointers in the shipped skill
+  surface that named the deleted moves are rewritten to name a rule that still exists. Trims
+  about 3.7KB of always-loaded template prose per drafting run, with the acceptance criteria
+  left as the single merge-gated definition of done. (#1737)
+
 ## [2.33.7] — 2026-08-18
 
 ### Changed

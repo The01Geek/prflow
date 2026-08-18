@@ -2,33 +2,33 @@
 name: docs-bootstrap-internal
 description: Use when a codebase has no structured developer documentation yet and needs it built from scratch — "we have no docs at all", "set up internal docs for this repo", "the docs directory is a mess, start over", "create developer documentation for this codebase" — including an empty or disorganized docs directory or a ground-up reorganization. For incremental updates to docs that already exist, use prflow:docs-sync-internal.
 ---
-> **Configuration:** Read the internal documentation path from `.prflow/config.json` using: `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .docs.internal docs/internal/`. The helper falls back to `docs/internal/` when the config file is missing or the key is absent. Use the result as `[[INTERNAL_DOC_LOCATION]]` throughout this skill.
+> Configuration: Read the internal documentation path from `.prflow/config.json` using: `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .docs.internal docs/internal/`. The helper falls back to `docs/internal/` when the config file is missing or the key is absent. Use the result as `[[INTERNAL_DOC_LOCATION]]` throughout this skill.
 
-**Portable helper anchor (single-statement).** The bundled-helper commands in this skill resolve the skill directory inline at each call site via `${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}`. When `$CLAUDE_SKILL_DIR` is set and non-empty (Claude Code), run each command exactly as written. On a runner where it is unset or empty, replace the placeholder with the skill base directory the runner reports in context (e.g. a `Base directory for this skill:` line); if that reported path is Windows-form (`C:\...`), first convert it to this shell's POSIX form with one standalone `wslpath -u '<path>'` (WSL) or `cygpath -u '<path>'` (Git Bash/MSYS2) command and substitute the printed result **only if the command succeeds and prints a non-empty path — otherwise fall through to the drive-letter rules exactly as if the tool were absent** (lowercase the drive letter, map `C:\` to `/mnt/c` on WSL or `/c` on MSYS2, and turn backslashes into `/`; if the environment is neither WSL nor MSYS2, use the path unchanged and report that it could not be normalized). Resolve the anchor inline at every call site — never capture it into a shell variable that a later statement reads, because some runners' inline-bash marshaling drops such variables. If neither `$CLAUDE_SKILL_DIR` nor a runner-reported base directory is available, stop and report that the helper anchor could not be resolved rather than running a command with a broken path.
+**Portable helper anchor (single-statement).** The bundled-helper commands in this skill resolve the skill directory inline at each call site via `${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}`. When `$CLAUDE_SKILL_DIR` is set and non-empty (Claude Code), run each command exactly as written. On a runner where it is unset or empty, replace the placeholder with the skill base directory the runner reports in context (e.g. a `Base directory for this skill:` line); if that reported path is Windows-form (`C:\...`), first convert it to this shell's POSIX form with one standalone `wslpath -u '<path>'` (WSL) or `cygpath -u '<path>'` (Git Bash/MSYS2) command and substitute the printed result only if the command succeeds and prints a non-empty path — otherwise fall through to the drive-letter rules exactly as if the tool were absent (lowercase the drive letter, map `C:\` to `/mnt/c` on WSL or `/c` on MSYS2, and turn backslashes into `/`; if the environment is neither WSL nor MSYS2, use the path unchanged and report that it could not be normalized). Resolve the anchor inline at every call site — never capture it into a shell variable that a later statement reads, because some runners' inline-bash marshaling drops such variables. If neither `$CLAUDE_SKILL_DIR` nor a runner-reported base directory is available, stop and report that the helper anchor could not be resolved rather than running a command with a broken path.
 
-**Consumer prompt extension (load first).** Before doing this skill's work, load any consumer-supplied prompt extension for this skill and honor it. From the repo root, run:
+Consumer prompt extension (load first). Before doing this skill's work, load any consumer-supplied prompt extension for this skill and honor it. From the repo root, run:
 
 ```bash
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/load-prompt-extension.sh docs-bootstrap-internal
 ```
 
-If the invocation fails because the helper path does not exist (`No such file`, exit 127, or the platform equivalent), that is the **anchor-resolution** failure described in the *Portable helper anchor* note above — fix the anchor, don't report a missing extension. Otherwise, if the helper exits non-zero, a consumer extension exists but could not be loaded — surface its stderr message and do not silently proceed as if none existed. If it exits 0 and prints text, treat that text as additional instructions appended to the end of this skill's own prompt for this run — it is upgrade-safe, consumer-owned customization committed under `.prflow/prompt-extensions/`. If it exits 0 and prints nothing, proceed unchanged.
+If the invocation fails because the helper path does not exist (`No such file`, exit 127, or the platform equivalent), that is the anchor-resolution failure described in the *Portable helper anchor* note above — fix the anchor, don't report a missing extension. Otherwise, if the helper exits non-zero, a consumer extension exists but could not be loaded — surface its stderr message and do not silently proceed as if none existed. If it exits 0 and prints text, treat that text as additional instructions appended to the end of this skill's own prompt for this run — it is upgrade-safe, consumer-owned customization committed under `.prflow/prompt-extensions/`. If it exits 0 and prints nothing, proceed unchanged.
 
 # Internal Documentation Bootstrap Agent
 
 ## Objective
 
-You are an **AI Documentation Bootstrap Agent** for code repositories. Your task is to analyze the codebase and create a well-organized internal documentation directory structure with high-quality initial content. The directory structure you create will be used by `/prflow:docs-sync-internal` in future runs to maintain documentation as code changes.
+You are an AI Documentation Bootstrap Agent for code repositories. Your task is to analyze the codebase and create a well-organized internal documentation directory structure with high-quality initial content. The directory structure you create will be used by `/prflow:docs-sync-internal` in future runs to maintain documentation as code changes.
 
-**Primary goal:** Create a **domain-based categorization** through subdirectories — not a mirror of the code's directory structure.
+Primary goal: Create a domain-based categorization through subdirectories — not a mirror of the code's directory structure.
 
 ## Core Principles
 
 ### Domain-First, Not Code-Layer-First
 
-Organize by **business domain and feature area**, not by technical layer.
+Organize by business domain and feature area, not by technical layer.
 
-**Wrong** (mirrors code structure):
+Wrong (mirrors code structure):
 ```
 [[INTERNAL_DOC_LOCATION]]backend/
 [[INTERNAL_DOC_LOCATION]]frontend/
@@ -37,7 +37,7 @@ Organize by **business domain and feature area**, not by technical layer.
 [[INTERNAL_DOC_LOCATION]]plugins/
 ```
 
-**Right** (domain-based):
+Right (domain-based):
 ```
 [[INTERNAL_DOC_LOCATION]]orders/
 [[INTERNAL_DOC_LOCATION]]customers/
@@ -50,16 +50,16 @@ Why: Developers look for docs about the *feature* they're working on ("how do or
 
 ### Flat Directory Structure
 
-Use **one level** of subdirectories under `[[INTERNAL_DOC_LOCATION]]`. No nesting.
+Use one level of subdirectories under `[[INTERNAL_DOC_LOCATION]]`. No nesting.
 
-**Wrong:** `[[INTERNAL_DOC_LOCATION]]integrations/payments/stripe/`
-**Right:** `[[INTERNAL_DOC_LOCATION]]integrations/` (with files like `payment-stripe.md`)
+Wrong: `[[INTERNAL_DOC_LOCATION]]integrations/payments/stripe/`
+Right: `[[INTERNAL_DOC_LOCATION]]integrations/` (with files like `payment-stripe.md`)
 
 Why: Flat structures are easier to navigate, easier for `/prflow:docs-sync-internal` to manage, and prevent category proliferation.
 
 ### Quality Over Quantity
 
-Create the **directory structure** and a few **high-quality seed documents** per category. Do not create 50 stub files with placeholder content. A well-organized empty structure with 5-10 thorough documents is more valuable than 50 files that say "TODO."
+Create the directory structure and a few high-quality seed documents per category. Do not create 50 stub files with placeholder content. A well-organized empty structure with 5-10 thorough documents is more valuable than 50 files that say "TODO."
 
 ---
 
@@ -80,11 +80,11 @@ If documentation already exists, this is a **reorganization** task, not a creati
 
 Survey the codebase to identify feature domains. Use these signals:
 
-1. **Directory names** — top-level directories often hint at domains
-2. **Database tables** — table names reveal business entities (orders, customers, products, invoices)
-3. **Page controllers / routes** — URL paths reveal user-facing features
-4. **CLAUDE.md / README** — project description reveals the application's purpose and key concepts
-5. **Configuration files** — reveal integrations, services, environments
+1. Directory names — top-level directories often hint at domains
+2. Database tables — table names reveal business entities (orders, customers, products, invoices)
+3. Page controllers / routes — URL paths reveal user-facing features
+4. CLAUDE.md / README — project description reveals the application's purpose and key concepts
+5. Configuration files — reveal integrations, services, environments
 
 Run exploratory commands:
 ```bash
@@ -129,11 +129,11 @@ find . -name "*.config.*" -o -name "*.yml" -o -name "*.yaml" | grep -v node_modu
 
 Based on your analysis, create a categorization plan. Categories should be:
 
-- **Mutually exclusive** — a topic should clearly belong to one category
-- **Collectively exhaustive** — every major feature area should have a home
-- **3-15 categories** — fewer than 3 means overly broad; more than 15 means over-fragmented
+- Mutually exclusive — a topic should clearly belong to one category
+- Collectively exhaustive — every major feature area should have a home
+- 3-15 categories — fewer than 3 means overly broad; more than 15 means over-fragmented
 
-**Standard categories that apply to most projects** (use if relevant):
+Standard categories that apply to most projects (use if relevant):
 
 | Category | When to include |
 |----------|-----------------|
@@ -144,7 +144,7 @@ Based on your analysis, create a categorization plan. Categories should be:
 | `authentication/` | If the project has auth/permissions |
 | `integrations/` | If the project connects to external services |
 
-**Domain-specific categories** (derived from your codebase analysis):
+Domain-specific categories (derived from your codebase analysis):
 
 For an e-commerce platform, the categories might be `orders/`, `customers/`, `products/`, `shipping/`. For a CMS, these might be `content/`, `publishing/`, `media/`. Name them after what the *business* calls them, not what the *code* calls them.
 
@@ -160,13 +160,13 @@ Leave the `.gitkeep` files in place, including in directories that later gain do
 
 ### Step 5: Write Seed Documents
 
-For each category, create **1-3 seed documents** that cover the most important topics. Prioritize:
+For each category, create 1-3 seed documents that cover the most important topics. Prioritize:
 
-1. **The overview document** for the most complex categories — explain what this area is, its key concepts, and how its components fit together
-2. **The most non-obvious feature** in each category — the thing a new developer would struggle with most
-3. **Cross-cutting concerns** — things that span multiple categories (e.g., how authentication interacts with the API)
+1. The overview document for the most complex categories — explain what this area is, its key concepts, and how its components fit together
+2. The most non-obvious feature in each category — the thing a new developer would struggle with most
+3. Cross-cutting concerns — things that span multiple categories (e.g., how authentication interacts with the API)
 
-**Seed document quality standards:**
+Seed document quality standards:
 - Must contain real, accurate content derived from reading the actual codebase
 - Must include file paths and class names from the actual code — use bare paths like `src/server.py`, never append line numbers (line numbers change as code evolves)
 - Must be useful to a developer on day one — not placeholder text
@@ -175,7 +175,7 @@ For each category, create **1-3 seed documents** that cover the most important t
 
 ### Step 6: Do Not Commit
 
-Do **not** commit the changes. Leave committing to the caller.
+Do not commit the changes. Leave committing to the caller.
 
 ---
 

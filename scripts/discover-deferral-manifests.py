@@ -44,7 +44,12 @@ i.e. whenever at least one root argument was supplied, so an `absent` root is
 observable rather than silent. The zero-argument usage error (exit 2) returns
 before any root is classified and therefore emits only the usage message.
 Failed roots additionally emit a per-root breadcrumb, and a discovery run emits
-at most one aggregate discrimination marker the fence greps.
+at most one aggregate discrimination marker naming the cause. That marker's
+exclusivity holds for a caller passing path-safe roots: the per-root breadcrumb
+interpolates the root path and the OSError text, so a caller passing a root that
+itself contains a marker substring can defeat it. The §4.0.5 fence cannot — both
+its roots are `pr-<N>` and an `[a-z0-9._-]`-sanitized branch slug — but this
+helper does not sanitize argv, so the guarantee rests on that input discipline.
 
 Exit codes (discovery mode):
     0  no root classified `failed` (all ok/absent, including zero total matches)
@@ -52,8 +57,8 @@ Exit codes (discovery mode):
     3  partial — at least one `failed` AND at least one `ok`/`absent`
        (discovered paths are still printed); stderr carries `devflow: discovery partial:`
     4  every root classified `failed` (empty stdout); stderr carries `devflow: discovery failed:`
-An uncaught exception exits non-zero (interpreter default), which the fence's
-else-arm treats as failed — ambiguous failures fail closed.
+An uncaught exception exits non-zero (interpreter default) with neither marker on
+stderr, which the §4.0.5 reader's unrecognised-shape arm records as a failure.
 
 PRESENCE MODE (issue #1374). `--presence-for-pr N` answers a different question:
 is any deferred review finding present for PR N? Phase 4.0.5's filing procedure now
@@ -121,18 +126,9 @@ REASON_UNREADABLE_DIRECTORY = "unreadable-directory"
 REASON_UNREADABLE_AGGREGATE = "unreadable-aggregate"
 REASON_INTERNAL_ERROR = "internal-error"
 
-# Aggregate discrimination markers the §4.0.5 fence greps. At most one is emitted
-# per run (the partial/all-failed arms are exclusive branches), and the per-root
-# failed breadcrumb below is deliberately worded so its own fixed text contains
-# NEITHER contiguous substring — the fence's `grep -q 'devflow: discovery partial:'`
-# discrimination is only sound under that exclusivity. NOTE the residual: the
-# per-root breadcrumb interpolates the root path and the OSError text, so a CALLER
-# that passes a root path literally containing a marker substring can defeat the
-# exclusivity. The §4.0.5 fence cannot: both its roots are path-safe components
-# (`pr-<N>` and an `[a-z0-9._-]`-sanitized branch slug), which admit neither `:`
-# nor a space. This helper does not sanitize argv, so the guarantee is the fence's
-# input discipline plus the fixed wording — not an unconditional property of the
-# helper for an arbitrary caller.
+# Aggregate discrimination markers. The §4.0.5 fence routes ok-vs-degraded on this helper's exit
+# code and then classifies partial-vs-failed from these strings, so keep the per-root failed
+# breadcrumb's fixed text free of both substrings or a per-root line misclassifies the run.
 MARKER_PARTIAL = "devflow: discovery partial:"
 MARKER_FAILED = "devflow: discovery failed:"
 
@@ -546,16 +542,8 @@ def main(argv=None):
     if args and args[0] == PRESENCE_FLAG:
         return _run_presence(args[1:])
     if not args:
-        # NO discovery marker here — a usage error is not a discovery outcome, so
-        # it must not be mistaken for a PARTIAL one. Emitting neither marker is
-        # what routes it to the fence's else arm (`DISCOVERY_STATE=failed`), the
-        # fail-closed direction: nothing is filed. The fence's else-arm reflection
-        # names the two shapes it expects (all roots failed / a harness denial),
-        # so a usage error — which the fence itself cannot produce, since it always
-        # passes $SEARCH_DIRS — would be recorded under a diagnosis one word wider
-        # than the truth. That is the accepted cost of a single fail-closed arm;
-        # do NOT add a marker here to sharpen it, because any marker this arm
-        # emitted would have to be discriminated from a real discovery outcome.
+        # Emit NO discovery marker here: a usage error is not a discovery outcome, and a marker
+        # would make the fence's after-fence classification read it as a real partial run.
         sys.stderr.write(
             "devflow: discovery: usage: discover-deferral-manifests.py ROOT [ROOT ...]\n"
         )
@@ -570,8 +558,8 @@ def main(argv=None):
 
     # Roots-echo: name every root's ABSOLUTE path (os.path.abspath — normalized,
     # NOT symlink-resolved) and classification on every run that reaches here, so
-    # an `absent`-classified root is observable in the fence's tool result (the
-    # fence surfaces this line unconditionally) rather than silent. The zero-arg
+    # an `absent`-classified root is observable in the fence's own tool result, which the
+    # caller reads directly, rather than silent. The zero-arg
     # usage error returns above, before any root exists to echo.
     echo = " ".join(
         "%s=%s" % (os.path.abspath(root), status) for root, status in results
