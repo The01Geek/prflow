@@ -954,8 +954,17 @@ consumer run refuses a redirect construct into that same tree**, so no such row 
 current guarantee. Note what the field evidence does *not* say: **no refusal below is attributed to a
 stdout redirect into `.prflow/tmp/**`.** Row 1's chain did contain three such redirects, but the
 harness named its multiple heads as the parts requiring approval; rows 2 and 3 have other causes
-entirely. So no measurement refutes that shape on its own, which is why the shipped lint still
+entirely. So none of the three refutes that shape on its own, which is why the shipped lint still
 treats it as advisory.
+
+**A LATER cloud run does refute it, and this supersedes the paragraph above.** The
+`/prflow:review` run `32081921050` (2026-08-17) reported observing a stdout `>` redirect into
+`.prflow/tmp/**` refused — `Output redirection … was blocked` — alongside a variable-expansion
+denial and a multi-head denial. That is one reviewer-reported observation rather than a
+matcher-probe row, so it does not carry a probe verdict's weight; treat the shape as **refused on
+the current action version until a probe row says otherwise**, and re-run
+`.github/workflows/matcher-probe.yml` before restoring any redirect-shaped recipe. The shipped
+lint's stdout arm is unchanged — narrowing it is a separate change with its own fixtures.
 
 **This section supersedes those rows in time; it does not contradict them.** Each recorded what a
 real run measured at the version it names, and stays valid as history. What changed is that a later
@@ -1058,7 +1067,7 @@ remedy rests on, not a confirmation it does not have.
 
 | Refused shape | Remedy shipped | Status |
 |---|---|---|
-| the Phase 0 staging chain (compound multi-head) | staged `tee` pipelines, one head chain per statement | **unconfirmed** — rests on `tee` being permitted across every recorded measurement |
+| the Phase 0 staging chain (compound multi-head) | staged `tee` pipelines, one head chain per statement | **unconfirmed** — rests on `tee` being refused in no recorded measurement, which is weaker than a transcribed permit |
 | `2>…/acs.err` (redirect construct) | redirect removed; stderr read from the tool result | **unconfirmed** — the construct is simply no longer emitted, so nothing remains to refuse |
 | `printf … > <scratch-dir>/…` (`Contains simple_expansion`) | Write tool authors the marker; no shell expansion | **unconfirmed** — rests on the `Write(.prflow/tmp/**)` grant, PERMITTED on both tiers |
 
