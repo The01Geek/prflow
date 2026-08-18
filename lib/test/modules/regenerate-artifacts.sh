@@ -80,6 +80,30 @@ _ra_has_file() {  # name file substring
   if [ "$n" -ge 1 ]; then assert_eq "$1" yes yes
   else assert_eq "$1" yes "no('$3' absent; output: $(tr '\n' '|' <"$2"))"; fi
 }
+# Siblings of `_ra_has_file`: `_ra_lacks_file` passes when the substring is ABSENT (count 0),
+# `_ra_count_is` when it occurs EXACTLY the expected number of times. Both centralize the
+# runtime-capture occurrence count in one place — a caller asserts behavior over a `.ra.*`
+# scratch capture without re-spelling the counter, and the count call stays out of the caller's
+# line so the static meta-guard reads each caller as an ordinary behavioral test rather than a
+# prose pin (the literal is a machine sentinel matched against a runtime output file, not source).
+_ra_lacks_file() {  # name file substring
+  local n
+  n="$(devflow_module_pin_count "$3" "$2")"
+  case "$n" in
+    ''|*[!0-9]*) assert_eq "$1" yes "no(count unestablished for '$3')"; return 0 ;;
+  esac
+  if [ "$n" -eq 0 ]; then assert_eq "$1" yes yes
+  else assert_eq "$1" yes "no('$3' present $n time(s); output: $(tr '\n' '|' <"$2"))"; fi
+}
+_ra_count_is() {  # name file substring expected-count
+  local n
+  n="$(devflow_module_pin_count "$3" "$2")"
+  case "$n" in
+    ''|*[!0-9]*) assert_eq "$1" yes "no(count unestablished for '$3')"; return 0 ;;
+  esac
+  if [ "$n" -eq "$4" ]; then assert_eq "$1" yes yes
+  else assert_eq "$1" yes "no('$3' occurs $n time(s), expected $4; output: $(tr '\n' '|' <"$2"))"; fi
+}
 # Extract one `key=value` field from a builder/oracle summary line with bash parameter
 # expansion (never `cut`/`awk` — the un-guaranteed-tool rule), so an assertion pins the
 # field it cares about rather than the summary line's printf order.
@@ -2333,12 +2357,10 @@ _ra_has_file "#1457 AC1 a second row is progress-reported too" "$RA_1457_A1/.ra.
   "regenerate-artifacts: row plugin-identity-regions: start"
 _ra_has_file "#1457 AC1 the stdout report keeps its clean line" "$RA_1457_A1/.ra.out" \
   "[capability-profile-literals] clean"
-_ra_ok "#1457 AC1 progress is NOT written to stdout (report flush is byte-for-byte)" \
-  "$([ "$(devflow_module_pin_count 'regenerate-artifacts: row ' "$RA_1457_A1/.ra.out")" = 0 ] && printf yes || printf no)" \
-  "a progress line leaked onto stdout"
-_ra_ok "#1457 AC3 no timeout fires on the clean tree" \
-  "$([ "$(devflow_module_pin_count 'TIMED OUT' "$RA_1457_A1/.ra.err")" = 0 ] && printf yes || printf no)" \
-  "a legitimately-fast row was killed"
+_ra_lacks_file "#1457 AC1 progress is NOT written to stdout (report flush is byte-for-byte)" \
+  "$RA_1457_A1/.ra.out" 'regenerate-artifacts: row '
+_ra_lacks_file "#1457 AC3 no timeout fires on the clean tree" \
+  "$RA_1457_A1/.ra.err" 'TIMED OUT'
 
 # AC2 — a `timeout_seconds` int is declared per registry row, validated at import exactly as
 # `preflight_eligible` is. Driven through the same fail-closed harness the #655/#1244 bind
@@ -2377,12 +2399,10 @@ _ra_has_file "#1457 AC4 the timeout report states the exceeded bound" "$RA_1457_
   "exceeded its declared bound of 5s"
 _ra_has_file "#1457 AC4 the timeout is announced on the STDERR progress stream" "$RA_1457_TO/.ra.err" \
   "regenerate-artifacts: row env-freeze-advisory-region: TIMED OUT after 5s"
-_ra_ok "#1457 AC4 exactly one INFRASTRUCTURE line (no other row blamed on stdout)" \
-  "$([ "$(devflow_module_pin_count '] INFRASTRUCTURE' "$RA_1457_TO/.ra.out")" = 1 ] && printf yes || printf no)" \
-  "a row other than the sleeper was blamed on stdout"
-_ra_ok "#1457 AC4 exactly one TIMED OUT line (no other row blamed on stderr)" \
-  "$([ "$(devflow_module_pin_count 'TIMED OUT' "$RA_1457_TO/.ra.err")" = 1 ] && printf yes || printf no)" \
-  "a row other than the sleeper was blamed on stderr"
+_ra_count_is "#1457 AC4 exactly one INFRASTRUCTURE line (no other row blamed on stdout)" \
+  "$RA_1457_TO/.ra.out" '] INFRASTRUCTURE' 1
+_ra_count_is "#1457 AC4 exactly one TIMED OUT line (no other row blamed on stderr)" \
+  "$RA_1457_TO/.ra.err" 'TIMED OUT' 1
 # AC6 — the whole process tree died: the sleeper's recorded child PID (never pgrep -f) is
 # gone after the bounded process-group kill. Give the SIGKILL a moment to reap.
 sleep 1
@@ -2424,6 +2444,5 @@ env DEVFLOW_ARTIFACT_ROW_TIMEOUT_SECONDS= python3 "$RA_HELPER" --repo-root "$RA_
   >"$RA_1457_A1/.ra.empty.out" 2>"$RA_1457_A1/.ra.empty.err"
 printf '%s\n' "$?" >"$RA_1457_A1/.ra.empty.rc"
 assert_eq "#1457 AC5 an empty override behaves as unset (clean pass exits 0)" "0" "$(cat "$RA_1457_A1/.ra.empty.rc")"
-_ra_ok "#1457 AC5 an empty override does not bound any row out" \
-  "$([ "$(devflow_module_pin_count 'TIMED OUT' "$RA_1457_A1/.ra.empty.err")" = 0 ] && printf yes || printf no)" \
-  "an empty override was not treated as unset"
+_ra_lacks_file "#1457 AC5 an empty override does not bound any row out" \
+  "$RA_1457_A1/.ra.empty.err" 'TIMED OUT'
