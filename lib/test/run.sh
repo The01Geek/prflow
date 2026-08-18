@@ -10784,6 +10784,20 @@ grep -vF -- 'fix-loop-mapping-table-end' "$MAXI_SKILL" > "$P478_MUT_END"
 assert_eq "#478 maptable END-anchor fail-closed: removing the END anchor flips the routing lint RED (no silent widen to EOF)" \
   "RED" "$(p478_routing_lint "$P478_MUT_END" "${IMPL_PHASE2_FILES[@]}")"
 rm -f "$P478_MUT_END"
+# Partial-corpus RED arm (#1581): the §2.3 span opens but the gated-reference concatenation
+# fails, so p478_sweep_bodies returns 1 with a populated-but-SHORT buffer. Redirecting $LIB at an
+# empty scratch root is the route-(a) mutation — the real references are never touched. Without
+# the caller's `bodies=... || { echo RED; }` the non-empty buffer satisfies the emptiness test and
+# the lint echoes GREEN having checked fewer markers than it reports; the GREEN arm above is the
+# positive control on the identical skill + phase files, differing only in $LIB.
+P478_NOREF="$(git_sandbox '#478 AC5 routing lint partial-corpus RED-arm setup')"
+# Attribution: prove the rejection below is the concatenation failure and not an unopened span —
+# an empty span would trip the DIFFERENT guard one line later and read as a passing negative test.
+assert_eq "#478 AC5 partial-corpus attribution: the §2.3 span still opens under the redirected reference root" \
+  "yes" "$(LIB="$P478_NOREF" p478_sweep_bodies "${IMPL_PHASE2_FILES[@]}" | grep -qF -- '## Devflow Reflection' && echo yes || echo no)"
+assert_eq "#478 AC5 routing lint RED: a non-zero sweep-bodies status (gated-reference concatenation failed) flips the lint RED despite an opened span" \
+  "RED" "$(LIB="$P478_NOREF" p478_routing_lint "$MAXI_SKILL" "${IMPL_PHASE2_FILES[@]}")"
+rm -rf "$P478_NOREF"
 
 # ── issue #185 Addendum: deterministic extraction helper (fixture matrix) ────
 # The helper is the deterministic boundary the Addendum mandates; test its

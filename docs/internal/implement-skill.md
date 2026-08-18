@@ -1,6 +1,6 @@
 # `/prflow:implement` skill — Phase 2.3 sweep discipline and Phase 4.3 finalize
 
-**Skill:** `skills/implement/phases/phase-2-sweeps-contract.md` (Phase 2.3, *Implement*) — read at phase entry by the thin `skills/implement/SKILL.md` orchestrator. It carries the §2.3 preamble, the always-firing sweeps' procedures in full, and each conditional sweep's trigger heading and predicate; since issue #1581 the eight conditional sweeps' *procedures* live in per-sweep gated references (see **Gated conditional-sweep procedures** below).
+**Skill:** `skills/implement/phases/phase-2-sweeps-contract.md` (Phase 2.3, *Implement*) — read at phase entry by the thin `skills/implement/SKILL.md` orchestrator. It carries the §2.3 preamble and the trigger heading and predicate of the 2.3.0-family conditional sweeps; its sibling `skills/implement/phases/phase-2-sweeps-quality.md` carries the six always-firing sweeps' procedures in full plus the trigger heading and predicate of the remaining conditional sweeps (2.3.1, 2.3.2, 2.3.7). Since issue #1581 the eight conditional sweeps' *procedures* live in per-sweep gated references (see **Gated conditional-sweep procedures** below).
 
 ## Early Phase 1 dependency preflight
 
