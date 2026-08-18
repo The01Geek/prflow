@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1736",
+  "generated_at": "2026-08-18T02:08:47Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.9",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 9.312966749999998,
+    "tokens": {
+      "input_tokens": 40,
+      "output_tokens": 19941,
+      "cache_read_input_tokens": 2920038,
+      "cache_creation_input_tokens": 202723,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 110,
+        "outputTokens": 69749,
+        "cacheReadInputTokens": 5753511,
+        "cacheCreationInputTokens": 629076,
+        "webSearchRequests": 0,
+        "costUSD": 9.312966749999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 25,
+    "duration_ms": 517360
+  },
+  "permission_denials": {
+    "count": 5,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "RUNID=\"${GITHUB_RUN_ID:-local-$(date -u +%Y%m%dT%H%M%SZ)}-${GITHUB_RUN_ATTEMPT:-1}\"; echo \"run-id=$RUNID\"; mkdir -p \".prflow/tmp/review/pr-1736/$RUNID\"; gh pr diff 1736 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee \".prflow/tmp/review/pr-1736/$RUNID/diff.patch\" | grep -c '^diff --git'",
+      "echo \"GITHUB_RUN_ID=$GITHUB_RUN_ID GITHUB_RUN_ATTEMPT=$GITHUB_RUN_ATTEMPT\"",
+      "cd /home/runner/work/prflow/prflow; H=00ff94629d67ea3048224fbcf856816ab5b8bfba\necho \"=== references dir at HEAD ===\"; git ls-tree --name-only $H skills/implement/references/ | grep sweep\necho \"=== Procedure pointers in phase files at HEAD ===\"; git show $H:skills/implement/phases/phase-2-sweeps-contract.md | grep -n '^\\*\\*Procedure:\\*\\*'\ngit show $H:skills/implement/phases/phase-2-sweeps-quality.md | grep -n '^\\*\\*Procedure:\\*\\*'",
+      "H=00ff94629d67ea3048224fbcf856816ab5b8bfba; export H\ngit ls-tree --name-only \"$H\" skills/implement/references/ | grep sweep\necho \"=== contract procedure pointers ===\"\ngit show \"$H\":skills/implement/phases/phase-2-sweeps-contract.md | grep -n 'Procedure:'\necho \"=== quality procedure pointers ===\"\ngit show \"$H\":skills/implement/phases/phase-2-sweeps-quality.md | grep -n 'Procedure:'",
+      "git ls-tree --name-only 00ff94629d67ea3048224fbcf856816ab5b8bfba skills/implement/references/"
+    ],
+    "total": 5,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
