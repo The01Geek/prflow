@@ -427,8 +427,8 @@ are read by nobody but the agent. The third (`291(AC4)`, the
 1** instead — same retention, different reason and a coupled copy-removal
 requirement. Do not generalize one `#291` pin's arm to the others.
 
-**Current state — arm 2 is proven reachable and its population is empty (issue #946
-step 3).** Arm 2 selected nothing until #885, because every census row was
+**Current state — arm 2 is populated, awaiting the sweep it authorizes (issue #1753).**
+Arm 2 selected nothing until #885, because every census row was
 adjudicated `boundary`. #885's re-adjudication pass walked every mechanically
 prose-bucketed site, confirmed per site whether any tool or consumer reads the pinned
 literal, and moved the ones nothing reads into `prose-sole-copy` — and the sweep that
@@ -437,10 +437,10 @@ immediately followed retired exactly those pins. **A retired site's row goes wit
 to boundary-only. #946 then refilled and drained it again: step 1 brought
 `lib/test/modules/review-and-fix-contract.sh`'s wrapper-routed pins into the corpus,
 step 2's re-adjudication moved the 28 sites nothing reads into `prose-sole-copy`, and
-step 3's sweep retired exactly those 28 pins with their rows. So arm 2 selects nothing
-*today*, and a fresh selection needs a fresh re-adjudication pass — not because the arm
-is unreachable, but because nothing currently sits in a prose bucket. Read the
-authorization record for either pass in history — the census as of the re-adjudication
+step 3's sweep retired exactly those 28 pins with their rows. #1753 refilled it again,
+for the create-issue-associated pins, and the sweep those rows authorize has not yet
+landed. Read the
+authorization record for any pass in history — the census as of the re-adjudication
 commit, plus the `pin-corpus-adjudication-changes` bundles, which name every key that
 moved and every key that went. Expect the same shape every time: a prose-bucketed
 population exists only between a re-adjudication and the sweep it authorizes.
@@ -453,9 +453,10 @@ cannot drift ahead of an authorization.
 `lib/test/test_residual_prose_retirement_manifest.py` is arm 2's coupled site: it holds
 the shipped census to the legal bucket set, and holds every prose-bucketed row to arm
 2's own precondition — a `counted_occurrences` matching its bucket, and an explicit
-maintainer rationale rather than the classifier's mechanical fallback. With #946 step 3's
-sweep having drained the population, that per-row half again ranges over an empty set and
-constrains only the *next* re-adjudication; the bucket-set half stays live over every row.
+maintainer rationale rather than the classifier's mechanical fallback. That per-row half
+ranges over whatever sits in a prose bucket at the time, so it is live between a
+re-adjudication and the sweep it authorizes and empty otherwise; the bucket-set half
+stays live over every row either way.
 
 One limit on that population is worth knowing before you read a missing row as
 permission. A site adjudicated `boundary` in the #885 or #946 pass was adjudicated **on
