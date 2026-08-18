@@ -2194,13 +2194,13 @@ ln -s real "$_ci1733_dir/goodlink"
 ln -s realdir "$_ci1733_dir/dirlink"
 
 _ci1733_classify() {  # <path> <combined-output-file> -> present|absent|unestablished
-  local path="$1" out="$2" perm size rest name
+  local path="$1" out="$2" perm size rest name msg
   # A not-found message naming this exact path is decisive; match it path-delimited
   # (GNU quotes the path, busybox suffixes a colon) so a superstring path never matches.
-  if grep -E 'cannot access|No such file' "$out" | grep -qF "'$path'" \
-     || grep -E 'cannot access|No such file' "$out" | grep -qF "$path:"; then
-    printf 'absent\n'; return 0
-  fi
+  msg="$(grep -E 'cannot access|No such file' "$out")"
+  case "$msg" in
+    *"'$path'"*|*"$path:"*) printf 'absent\n'; return 0 ;;
+  esac
   while read -r perm _ _ _ size rest; do
     case "$perm" in -*) ;; *) continue ;; esac
     name="${rest##* }"
@@ -2254,15 +2254,19 @@ assert_eq "#1733 superstring: a message naming a sibling superstring path leaves
 # AC9: the host's own `ls -lL` draws a not-found message naming the dangling link.
 _ci1733_hostmsg="$_ci1733_dir/hostmsg.out"
 ls -lL "$_ci1733_dir/dangling" > "$_ci1733_hostmsg" 2>&1 || true
+_ci1733_hostmsgtext="$(grep -E 'cannot access|No such file' "$_ci1733_hostmsg")"
 assert_eq "#1733 AC9: host ls -lL draws a not-found message for a dangling link" "msg" \
-  "$(grep -qE 'cannot access|No such file' "$_ci1733_hostmsg" && grep -qF "$_ci1733_dir/dangling" "$_ci1733_hostmsg" && echo msg || echo none)"
+  "$(case "$_ci1733_hostmsgtext" in *"$_ci1733_dir/dangling"*) echo msg ;; *) echo none ;; esac)"
 
 # Reproduction (RED): the current `ls -l` shape prints a row for the dangling link and
 # NO message, so a rule reading a row as present misclassifies it — the defect closed.
 _ci1733_oldshape="$_ci1733_dir/oldshape.out"
 ls -l "$_ci1733_dir/dangling" > "$_ci1733_oldshape" 2>&1 || true
+_ci1733_oldrow=other
+case "$(< "$_ci1733_oldshape")" in *"$_ci1733_dir/dangling ->"*) _ci1733_oldrow=hasrow ;; esac
+_ci1733_oldmsg="$(grep -E 'cannot access|No such file' "$_ci1733_oldshape")"
 assert_eq "#1733 repro: current ls -l prints a row and no message for a dangling link" "row-no-msg" \
-  "$(grep -qF "$_ci1733_dir/dangling ->" "$_ci1733_oldshape" && ! grep -qE 'cannot access|No such file' "$_ci1733_oldshape" && echo row-no-msg || echo other)"
+  "$([ "$_ci1733_oldrow" = hasrow ] && [ -z "$_ci1733_oldmsg" ] && echo row-no-msg || echo other)"
 
 # AC11: the slug-unknown arm lists the temporary directory on plain `ls -l`, which
 # shows the dangling entry.
