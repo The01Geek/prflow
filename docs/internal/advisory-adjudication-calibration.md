@@ -50,10 +50,13 @@ reconciled by the Phase 2.3.0 relocation sweep, not by this doc going stale sile
   entries; advisory/invalid records are a durable **recording** floor, not a second
   reconciliation surface (this issue deliberately does not widen the reconciliation arms — see
   §3, mode "inconsistent re-grading").
-- **Triggers** — `evaluate_triggers` / `cmd_query_triggers`: "Call `query-triggers`; it answers
-  `t1=hold|not-hold t2=hold|not-hold coverage=hold|not-hold calibration=hold|not-hold
-  reason=…`." The `calibration=` field (issue #743) is a never-blocking sibling of T1/T2 and
-  coverage, produced by the same one evaluation.
+- **Triggers** — `evaluate_triggers` / `cmd_query_triggers`, whose answer shape is
+  `t1=hold|not-hold t2=hold|not-hold coverage=hold|not-hold calibration=hold|not-hold reason=…`.
+  Since issue #795 the skill no longer calls `query-triggers` standalone at the boundary: the four
+  back-to-back boundary reads collapsed to one composite `query-boundary` call, which folds this
+  answer in (`query-triggers` survives as a tool surface answering exactly as before — the collapse
+  is at the call site, not in the tool's surface). The `calibration=` field (issue #743) is a
+  never-blocking sibling of T1/T2 and coverage, produced by the same one evaluation.
 - **Convergence** — `evaluate_convergence`: "A converged run is one with ZERO effective
   unresolved must-revise axis-attributable findings … Advisory and invalid/unverified findings
   do not block convergence." The calibration layer does **not** change this: it never redefines
