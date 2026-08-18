@@ -267,29 +267,51 @@ Load `references/step-3-6-audit.md` per the *Reference routing* rules above and 
 
 ### Step 4: Review with the user, then create
 
-Before the first rendered draft, and not again while iterating on feedback, run one `ls -l … 2>&1`
+Before the first rendered draft, and not again while iterating on feedback, run one `ls -lL … 2>&1`
 over `.prflow/tmp/issue-run-slug`, `.prflow/tmp/issue-step1-<slug>.md`,
 `.prflow/tmp/issue-derivation-<slug>.md` and `.prflow/tmp/issue-audit-<slug>.md` — exactly those
 four, each named individually — and show its raw output, error lines included, in the message that
-renders the draft. With the slug unestablished, list `.prflow/tmp` itself instead, state that
-nothing there is attributable to this run, and re-enter nothing.
+renders the draft. `-L` resolves each link before reporting, so a path that is a link to a gone
+target draws a not-found message rather than a stale row. With the slug unestablished, list
+`.prflow/tmp` itself instead on plain `ls -l` — never `-L`, which resolves each entry's link and so
+drops or blanks a broken one, the very leftover this arm exists to show — state that nothing there is
+attributable to this run, and re-enter nothing.
 
-Classify each path from that one invocation, running no second probe: a listing row is present, a
-not-found diagnostic is absent, anything else — no output, a missing or refused command, another
-diagnostic — is unestablished. Name each path and its class in the draft message. Only absent
-supports a re-entry: every producing step deletes its own same-slug leftover before writing, so a
-present path is this run's, and a run whose earlier `.prflow/` write or delete failed or was refused
-is on `references/fallback-read-only-sandbox.md`'s arms, where no on-disk copy is trusted and
-nothing is re-entered.
+Classify each path from that one invocation, running no second probe, from what the shell shows
+rather than what you infer. A not-found message naming one of the four paths — by the whole path or
+by its final segment alone, since one `ls` quotes the operand and another names only the file name —
+is absent, and decides that path even when the same invocation also printed a row for it; reading
+only the whole-path form leaves a broken leftover unestablished, so its producing step never re-runs.
+A path is present only when the invocation prints a row for that path itself describing an ordinary
+file of at least one byte — its name field the path, its type character `-`, its size column
+non-zero; a row whose size is zero is absent, not present. Anything else — no output, a missing or
+refused command, another diagnostic, or a header-and-contents listing rather than a row for the path
+itself, which is what a directory produces — is unestablished. Name each path and its class in the
+draft message, asserting of none that it is this run's own completed output.
+
+Only absent supports a re-entry: the shell's report of an absent or empty path is what authorizes
+re-running the producing step to replace a missing or half-written leftover. Every producing step
+deletes its own same-slug leftover before writing, and a run whose earlier `.prflow/` write or delete
+failed or was refused is on `references/fallback-read-only-sandbox.md`'s arms, where no on-disk copy
+is trusted and nothing is re-entered. An unestablished path — a directory, say — gets a breadcrumb
+rather than a re-entry, since re-running a producing step cannot write a file over it.
 
 Re-run the producing step for every absent path, then resume at the draft rendering. A Step 1
-re-entry reuses the slug already bound and binds no new one; a missing derivation file re-runs
-Step 2's independent-derivation pass, not Step 2 whole, reporting any genuine clarification deficit
-in the draft message; the audit artifact re-enters Step 3.6 only as `issue-audit-state.py
-query-next-action` directs, and where it allows no round, report that artifact unestablished and
-re-enter nothing. Where any step was re-entered, that message names the steps re-run and any finding
-of theirs the draft does not already reflect. A producing step that cannot run gets an in-chat
-breadcrumb naming the file and the failure kind; this listing never blocks issue creation.
+re-entry reuses the slug already bound and binds no new one; a zero-byte `.prflow/tmp/issue-run-slug`
+is not a re-run of Step 1 but the slug-unestablished arm above, since the pointer that would bind the
+run's name holds nothing. A missing derivation file re-runs Step 2's independent-derivation pass, not
+Step 2 whole, reporting any genuine clarification deficit in the draft message — and, because that
+pass rewrites the derivation file from scratch and drops its `## Steelman record` with it, re-runs
+Step 3.5's steelman pass afterwards so the file regains the record a later re-audit reads. The audit
+artifact's re-entry belongs to the Step 4 presentation gate alone (`references/step-4-present-create.md`),
+which stops and runs Step 3.6 when neither this run's artifact nor its inline stand-in is present;
+this listing reports that path's class and re-enters no step for it. Where any step was re-entered,
+that message names the steps re-run and any finding of theirs the draft does not already reflect. A
+producing step that cannot run gets an in-chat breadcrumb naming the file and the failure kind; this
+listing never blocks issue creation. These four paths are the run-state files this listing covers; it
+leaves out the user-facing draft `issue-draft-<slug>.md`, written under the main repo root rather than
+these cwd-anchored paths, and the `steelman-projection-<slug>.json` gate operand — both owned by the
+presentation gate, which reads them for itself.
 
 Load `references/step-4-present-create.md` per the *Reference routing* rules above and follow it exactly, on every entry into this step.
 
