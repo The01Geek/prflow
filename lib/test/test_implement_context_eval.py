@@ -103,7 +103,15 @@ def _expected_from_fixture(session_paths, corpus_root):
                         block.get("name"), ICE.OTHER_TOOL_CATEGORY)] += 1
                     if block.get("name") == "Read":
                         fp = block.get("input", {}).get("file_path", "")
-                        label = ICE.PHASE_FILES.get(os.path.basename(fp))
+                        base = os.path.basename(fp)
+                        label = ICE.PHASE_FILES.get(base)
+                        # Independently mirror the gated-sweep-reference rule (issue #1739):
+                        # a sweep-*.md basename counts toward phase2 (shared constants, own
+                        # logic — not a call into _phase_label_for_read).
+                        if (label is None
+                                and base.startswith(ICE.SWEEP_REFERENCE_PREFIX)
+                                and base.endswith(ICE.SWEEP_REFERENCE_SUFFIX)):
+                            label = ICE.SWEEP_REFERENCE_PHASE
                         if label is not None:
                             phase[label] += 1
                 if saw_tool and rec.get("timestamp"):
@@ -480,6 +488,70 @@ class ToolCallAndGapBoundaryTest(_SingleSessionMixin, unittest.TestCase):
         ])
         self.assertEqual(runs[0]["tool_calls"]["shell_commands"], 2)
         self.assertEqual(runs[0]["tool_call_gaps"]["max_seconds"], 10.0)
+
+
+class GatedSweepReferenceTest(_SingleSessionMixin, unittest.TestCase):
+    """AC1/AC3/AC4 (issue #1739): a read of a gated Phase 2.3 sweep reference
+    (skills/implement/references/sweep-*.md) counts toward the phase2 read axis, matched
+    by basename. test_gated_sweep_reference_read_counts_toward_phase2 is the
+    removal-sensitive assertion: deleting the sweep-recognizer arm turns it RED.
+    """
+
+    def test_gated_sweep_reference_read_counts_toward_phase2(self):
+        runs, _ = self._run_one([
+            '{"type":"assistant","attributionSkill":"prflow:implement",'
+            '"message":{"usage":{"input_tokens":1},"content":['
+            '{"type":"tool_use","id":"s1","name":"Read","input":{"file_path":'
+            '"skills/implement/references/sweep-2-3-0-changed-contract.md"}}]}}',
+        ])
+        self.assertEqual(runs[0]["phase_reads"]["phase2"], 1)
+        self.assertEqual(runs[0]["total_phase_reads"], 1)
+
+    def test_vendored_sweep_reference_basename_also_counts(self):
+        # The same file resolves at a vendored path on the cloud tier; the basename match
+        # is what makes both spellings count (the instrument's deliberate design).
+        runs, _ = self._run_one([
+            '{"type":"assistant","attributionSkill":"prflow:implement",'
+            '"message":{"usage":{"input_tokens":1},"content":['
+            '{"type":"tool_use","id":"v1","name":"Read","input":{"file_path":'
+            '".prflow/vendor/prflow/skills/implement/references/'
+            'sweep-2-3-7-collection-cardinality.md"}}]}}',
+        ])
+        self.assertEqual(runs[0]["phase_reads"]["phase2"], 1)
+
+    def test_a_ninth_gated_sweep_is_counted_with_no_second_edit(self):
+        # AC3: the population is derived by basename shape, not a transcribed list, so a
+        # sweep-reference name that exists nowhere on disk today still counts.
+        runs, _ = self._run_one([
+            '{"type":"assistant","attributionSkill":"prflow:implement",'
+            '"message":{"usage":{"input_tokens":1},"content":['
+            '{"type":"tool_use","id":"n9","name":"Read","input":{"file_path":'
+            '"skills/implement/references/sweep-9-9-9-hypothetical-ninth.md"}}]}}',
+        ])
+        self.assertEqual(runs[0]["phase_reads"]["phase2"], 1)
+
+    def test_non_sweep_reference_read_not_counted(self):
+        # A non-sweep reference under references/ is not a gated Phase 2.3 sweep and must
+        # not count toward the phase2 axis.
+        runs, _ = self._run_one([
+            '{"type":"assistant","attributionSkill":"prflow:implement",'
+            '"message":{"usage":{"input_tokens":1},"content":['
+            '{"type":"tool_use","id":"r1","name":"Read","input":{"file_path":'
+            '"skills/implement/references/deferred-ac-followups.md"}}]}}',
+        ])
+        self.assertEqual(runs[0]["total_phase_reads"], 0)
+
+    def test_non_md_suffix_sweep_name_not_counted(self):
+        # The suffix guard is load-bearing: a sweep-prefixed name that is not a .md file
+        # (an editor backup, say) must not count — the negative control above only covers
+        # a non-sweep prefix, so a loosened suffix check would otherwise pass unnoticed.
+        runs, _ = self._run_one([
+            '{"type":"assistant","attributionSkill":"prflow:implement",'
+            '"message":{"usage":{"input_tokens":1},"content":['
+            '{"type":"tool_use","id":"b1","name":"Read","input":{"file_path":'
+            '"skills/implement/references/sweep-2-3-0-changed-contract.md.bak"}}]}}',
+        ])
+        self.assertEqual(runs[0]["total_phase_reads"], 0)
 
 
 class ToolCategoryTableTest(unittest.TestCase):

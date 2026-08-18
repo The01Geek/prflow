@@ -109,9 +109,13 @@ states above and no row report accompanies it.
 """
 
 import argparse
+import collections
 import importlib.util
+import os
+import signal
 import subprocess
 import sys
+import time
 import traceback
 from pathlib import Path
 
@@ -151,6 +155,16 @@ CONFLICT_CLASSES = ("regenerate", "reconcile-source", "by-hand")
 # established.
 ROW_KINDS = ("mechanical", "monotonic", "judgment")
 
+# Per-row wall-clock bound (issue #1457): `timeout_seconds` is DECLARED DATA every registry row
+# must carry, validated at import like `preflight_eligible` (absent/non-int is a registry defect,
+# not a silent default). The override env below replaces it; empty=unset, malformed refused loudly.
+ROW_TIMEOUT_OVERRIDE_ENV = "DEVFLOW_ARTIFACT_ROW_TIMEOUT_SECONDS"
+
+# POSIX-only process-group termination (issue #1457 AC6/AC8): a bare subprocess timeout orphans
+# grandchildren, so the bounded launch sessions the child and signals the group. These APIs are
+# absent off POSIX, so every use is guarded on this flag.
+_POSIX = os.name == "posix"
+
 # Ordered registry. `argv` is resolved under the target root and run with that root as
 # the working directory, so a fixture root exercises the fixture's own generators.
 # `exits` is the row's declared exit-code set and `clean` its positive arm; an exit
@@ -163,6 +177,9 @@ ROWS = (
     # lib/test/cloud-writer-retention-check.py RED.
     {
         "name": "capability-profile-literals",
+        # Bound = measured 0.064s x500 (issue #1457 AC2a); the ms-scale rows carry a large
+        # multiple because their cold-start/contention variance dwarfs their mean.
+        "timeout_seconds": 32,
         "kind": "judgment",
         "argv": ("python3", "lib/generate-capability-profiles.py", "--check"),
         "clean": (0,),
@@ -208,6 +225,8 @@ ROWS = (
     },
     {
         "name": "plugin-identity-regions",
+        # Bound = measured 0.044s x500 (issue #1457 AC2a).
+        "timeout_seconds": 22,
         "kind": "judgment",
         "argv": ("python3", "lib/generate-plugin-identity.py", "--check"),
         "clean": (0,),
@@ -275,6 +294,8 @@ ROWS = (
     },
     {
         "name": "coverage-map-ratchet",
+        # Bound = measured 0.623s x50 (issue #1457 AC2a).
+        "timeout_seconds": 31,
         "kind": "judgment",
         "argv": ("python3", "lib/test/coverage_map_guard.py", "."),
         "clean": (0,),
@@ -320,6 +341,10 @@ ROWS = (
     },
     {
         "name": "exact-module-floors",
+        # Bound = measured 137.44s x4 (issue #1457 AC2a); the minutes-scale row uses a small
+        # multiple. Its measurement is under the landed `--heavy-units smoke` bounding of the
+        # slowest module, not the superseded ~466 s figure the removed comment cited.
+        "timeout_seconds": 550,
         "kind": "monotonic",
         "argv": ("python3", "lib/test/reconcile-module-floors.py"),
         "clean": (0,),
@@ -360,14 +385,17 @@ ROWS = (
         "opt_in": True,
         # Preflight (issue #1244): INELIGIBLE. Two independent disqualifiers: this row
         # WRITES its declared outputs, so it can never run in a write-nothing preflight;
-        # and its check runs the real focused module runners, measured at 465.9 s (7.8 min)
-        # on issue #1244's host — three orders of magnitude above the eligible rows and far
+        # and its check runs the real focused module runners, measured at ~137 s on issue
+        # #1457's host under the landed `--heavy-units smoke` bounding — three-plus orders of
+        # magnitude above the eligible rows and far
         # past any pre-suite budget. The preflight skips it and the coordinator still
         # launches; the full suite remains its only detector.
         "preflight_eligible": False,
     },
     {
         "name": "env-freeze-advisory-region",
+        # Bound = measured 0.044s x500 (issue #1457 AC2a).
+        "timeout_seconds": 22,
         "kind": "judgment",
         "argv": ("python3", "lib/generate-env-freeze-advisory.py", "--check"),
         "clean": (0,),
@@ -631,7 +659,102 @@ def _marker_hit(markers, output):
     )
 
 
-def run_row(row, root, report):
+def _emit_progress(message):
+    """Emit one attributed progress line to STDERR (issue #1457 AC1).
+
+    Progress is a separate stream from the accumulated `report`, which keeps its existing
+    stdout `finally` flush byte-for-byte, so the report text's existing consumers are
+    unchanged. `flush=True` so a live caller sees a row's start before that row finishes.
+    """
+    print(message, file=sys.stderr, flush=True)
+
+
+def _restore_default_signals():
+    """Restore the suite signals to their default disposition in a forked child (POSIX).
+
+    The profile-suite.py pattern (issue #1457): used as a `preexec_fn` so a backgrounded
+    launch's child can still be signalled/terminated. Runs only on POSIX, where `preexec_fn`
+    is supported.
+    """
+    for _name in ("SIGHUP", "SIGINT", "SIGQUIT", "SIGTERM"):
+        _sig = getattr(signal, _name, None)
+        if _sig is not None:
+            signal.signal(_sig, signal.SIG_DFL)
+
+
+# A subprocess.run-shaped result plus timeout/elapsed, so run_row's downstream
+# classification reads `.returncode`/`.stdout`/`.stderr` exactly as before (issue #1457).
+_BoundedResult = collections.namedtuple(
+    "_BoundedResult", "returncode stdout stderr timed_out elapsed"
+)
+
+
+def _terminate_tree(proc):
+    """Kill the child and, on POSIX, its whole process group (issue #1457 AC6).
+
+    A bare `subprocess.run(timeout=)` kills only the direct child and orphans grandchildren
+    (exact-module-floors spawns python3 -> bash run-module.sh -> …). The child leads its own
+    session (`start_new_session`), so signalling its process group reaches the whole tree.
+    """
+    if _POSIX:
+        try:
+            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+            return
+        except (ProcessLookupError, PermissionError, OSError):
+            # Group already gone or unavailable — fall back to the direct child rather than
+            # leaving the row un-terminated.
+            pass
+    try:
+        proc.kill()
+    except ProcessLookupError:
+        pass
+
+
+def _run_bounded(argv, root, timeout_seconds):
+    """Run `argv` under a wall-clock bound, terminating the whole process tree on timeout.
+
+    Returns a `_BoundedResult`. Raises OSError if the command cannot launch, exactly as
+    subprocess.run does, so run_row's existing launch-failure arm still catches it. On POSIX
+    the child leads its own session so a timeout signals the entire group (AC6); the guards on
+    `_POSIX` keep the helper runnable on a non-POSIX host (AC8).
+    """
+    popen_kwargs = {}
+    if _POSIX:
+        popen_kwargs["start_new_session"] = True
+        popen_kwargs["preexec_fn"] = _restore_default_signals
+    proc = subprocess.Popen(
+        argv,
+        cwd=str(root),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        **popen_kwargs,
+    )
+    start = time.monotonic()
+    try:
+        stdout, stderr = proc.communicate(timeout=timeout_seconds)
+        return _BoundedResult(
+            proc.returncode, stdout, stderr, False, time.monotonic() - start
+        )
+    except subprocess.TimeoutExpired:
+        _terminate_tree(proc)
+        try:
+            stdout, stderr = proc.communicate(timeout=10)
+        except subprocess.TimeoutExpired:
+            # The group did not die within 10s of SIGKILL (a descendant wedged in
+            # uninterruptible I/O, or the non-POSIX child-only fallback left orphans). Surface
+            # it — a leaked process with no breadcrumb is exactly the silent failure to avoid.
+            _emit_progress(
+                f"regenerate-artifacts: process {proc.pid} survived SIGKILL; "
+                "reap abandoned after 10s (a descendant may be leaked)"
+            )
+            stdout, stderr = "", ""
+        return _BoundedResult(
+            proc.returncode, stdout, stderr, True, time.monotonic() - start
+        )
+
+
+def run_row(row, root, report, timeout_override=None):
     """Execute one command-backed row. Returns (forces_exit_1, infrastructure)."""
     name = row["name"]
     # The script is the first non-flag argv element after the interpreter — NOT slot 1
@@ -672,16 +795,39 @@ def run_row(row, root, report):
             f"({error}) — nothing was compared and nothing was verified."
         )
         return False, True
+    # The declared per-row bound, replaced wholesale by the global override when set (AC5).
+    timeout_seconds = (
+        timeout_override if timeout_override is not None else row["timeout_seconds"]
+    )
+    _emit_progress(
+        f"regenerate-artifacts: row {name}: start (bound {timeout_seconds}s)"
+    )
     try:
-        proc = subprocess.run(
-            row["argv"], cwd=str(root), capture_output=True, text=True, check=False
-        )
+        proc = _run_bounded(row["argv"], root, timeout_seconds)
     except OSError as error:
+        _emit_progress(f"regenerate-artifacts: row {name}: launch failed")
         report.append(
             f"[{name}] INFRASTRUCTURE the command failed to launch: "
             f"{' '.join(row['argv'])} ({error})"
         )
         return False, True
+    # A bounded-out row established nothing, so it routes to the infrastructure state (exit 2),
+    # never the exit-1 "action required" state (AC4). The report line names the row and its
+    # bound and does not blame a different row.
+    if proc.timed_out:
+        _emit_progress(
+            f"regenerate-artifacts: row {name}: TIMED OUT after {timeout_seconds}s"
+        )
+        report.append(
+            f"[{name}] INFRASTRUCTURE `{' '.join(row['argv'])}` exceeded its declared "
+            f"bound of {timeout_seconds}s and was terminated with its whole process group "
+            "— nothing was compared and nothing was verified."
+        )
+        return False, True
+    _emit_progress(
+        f"regenerate-artifacts: row {name}: done "
+        f"(exit {proc.returncode}, {proc.elapsed:.1f}s)"
+    )
     output = (proc.stdout + proc.stderr).strip()
 
     # An absent script is reported by the interpreter as exit 2 with a "can't open
@@ -1069,6 +1215,16 @@ def _validate_registry():
                 f"registry row {row['name']!r} declares preflight_eligible "
                 f"{row.get('preflight_eligible')!r}, which is not a bool"
             )
+        # The per-row wall-clock bound is DECLARED DATA (issue #1457), so a row must state
+        # an int — an absent or non-int value is a registry defect, never a silent default that
+        # could leave a hung row unbounded. `bool` is a subclass of `int`, so exclude it: a
+        # `True` bound is a mis-typed field, not a 1-second timeout.
+        bound = row.get("timeout_seconds")
+        if not isinstance(bound, int) or isinstance(bound, bool):
+            raise ValueError(
+                f"registry row {row['name']!r} declares timeout_seconds "
+                f"{bound!r}, which is not an int"
+            )
         # Enforce the "preflight writes nothing" invariant in DATA, not prose (issue #1244).
         # The coordinator's fail-closed refusal rests on the preflight being read-only, so a
         # row that is eligible AND declares `writes` (its own `argv` mutates that output) must
@@ -1313,6 +1469,32 @@ def emit_list(root):
     return 0
 
 
+def _row_timeout_override():
+    """Resolve the global row-bound override (issue #1457 AC5).
+
+    Returns None when unset or empty (empty behaves as unset, this repo's `DEVFLOW_*` rule),
+    a positive int when set to one, and raises ValueError on a malformed value so main()
+    refuses it loudly rather than silently ignoring it and running unbounded.
+    """
+    raw = os.environ.get(ROW_TIMEOUT_OVERRIDE_ENV)
+    if raw is None or raw.strip() == "":
+        return None
+    text = raw.strip()
+    try:
+        value = int(text)
+    except ValueError:
+        raise ValueError(
+            f"{ROW_TIMEOUT_OVERRIDE_ENV}={raw!r} is not an integer; unset it or set a "
+            "positive whole number of seconds"
+        ) from None
+    if value <= 0:
+        raise ValueError(
+            f"{ROW_TIMEOUT_OVERRIDE_ENV}={raw!r} is not a positive integer; unset it or set "
+            "a positive whole number of seconds"
+        )
+    return value
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description=(
@@ -1362,6 +1544,15 @@ def main(argv=None):
     if args.preflight:
         return run_preflight(root)
 
+    # Resolve the global override once, before the row loop, so a malformed value is refused
+    # loudly here rather than silently ignored (issue #1457 AC5). Exit 2 (infrastructure):
+    # nothing was checked.
+    try:
+        timeout_override = _row_timeout_override()
+    except ValueError as error:
+        print(f"regenerate-artifacts: INFRASTRUCTURE {error} — exit 2", file=sys.stderr)
+        return 2
+
     report = []
     forces_one = False
     infrastructure = False
@@ -1394,7 +1585,7 @@ def main(argv=None):
                     "starts; resolve the items above and rerun with --with-floors."
                 )
                 continue
-            forced, infra = run_row(row, root, report)
+            forced, infra = run_row(row, root, report, timeout_override)
             forces_one = forced or forces_one
             infrastructure = infra or infrastructure
     finally:
