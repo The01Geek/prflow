@@ -20,7 +20,7 @@ Derived comparands enumerate their malformed/empty arms. When a comparand is *de
 
 Trigger (b) — the stated-policy contract. For every policy the prose states, name (a) the observable operand the agent keys the policy on, (b) the step that produces it, and (c) an explicit route for every outcome of that operand, **including the failure outcome** (the operand absent, the producing step failing, the value unresolvable). A stated policy whose operand no step produces is an inert guard and a defect in this PR — the promised routing can never fire, so the policy silently no-ops on exactly the input it was written to gate.
 
-A stated policy places its obligation at the execution point it gates, carrying at most a cross-reference from any thematic section that also discusses it; prose that describes the hazard only in a thematic section, leaving the execution point it gates with no obligation, does not discharge this trigger — the agent reaches the enforcement point and finds nothing there to execute.
+A stated policy places its obligation at the execution point it gates, carrying at most a cross-reference from any thematic section that also discusses it; prose that describes the hazard only in a thematic section, leaving the execution point it gates with no obligation, does not discharge this trigger.
 
 The sweep is not done until every comparand has a completed four-column row — with a derived comparand's malformed/empty arms enumerated and each arm's decided behavior stated (trigger a) — and every stated policy names its observable operand, the step that produces it, a route for each outcome including failure, and places that obligation at the execution point it gates (trigger b).
 
