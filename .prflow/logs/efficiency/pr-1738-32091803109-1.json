@@ -113,5 +113,67 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.10",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 11.193351750000001,
+    "tokens": {
+      "input_tokens": 70,
+      "output_tokens": 42673,
+      "cache_read_input_tokens": 6786948,
+      "cache_creation_input_tokens": 263857,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 129,
+        "outputTokens": 80783,
+        "cacheReadInputTokens": 8490736,
+        "cacheCreationInputTokens": 630128,
+        "webSearchRequests": 0,
+        "costUSD": 11.193351750000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 55,
+    "duration_ms": 914162
+  },
+  "permission_denials": {
+    "count": 14,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-<none>} ATTEMPT=${GITHUB_RUN_ATTEMPT:-<none>} ACTIONS=${GITHUB_ACTIONS:-<none>}\"; echo \"PR=1738\"",
+      "/home/runner/work/prflow/prflow/skills/review/../../scripts/seed-review-progress.sh \"1738\" \"\" .prflow/tmp/review/pr-1738/32091803109-1/review-wp.md ; echo \"seed-rc=$?\"",
+      "mkdir -p .prflow/tmp\nif rm -f \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\" &&\n   [ -f \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\" ] &&\n   [ ! -L \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\" ] &&\n   git hash-object \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\"; then\n  :\nelse\n  echo \"::warning::snap …[per-command-truncated]",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before",
+      "git apply --check .prflow/tmp/review/pr-1738/32091803109-1/diff.patch 2>&1 && echo \"APPLIES CLEAN\" && git apply .prflow/tmp/review/pr-1738/32091803109-1/diff.patch && echo \"APPLIED\"",
+      "git apply .prflow/tmp/review/pr-1738/32091803109-1/diff.patch && echo APPLIED",
+      "git apply .prflow/tmp/review/pr-1738/32091803109-1/diff.patch",
+      "bash /home/runner/work/prflow/prflow/.prflow/tmp/ci1733-verify.sh",
+      "sh .prflow/tmp/ci1733-verify.sh",
+      "chmod +x .prflow/tmp/ci1733-verify.sh; .prflow/tmp/ci1733-verify.sh",
+      "chmod +x .prflow/tmp/ci1733-verify.sh",
+      "t=$(mktemp -d); ln -s /nope/gone \"$t/dangling\"; printf x > \"$t/real\"; ln -s real \"$t/goodlink\"; mkdir \"$t/realdir\"; printf y > \"$t/realdir/inside\"; ls -lL \"$t/real\" \"$t/dangling\" \"$t/goodlink\" \"$t/realdir\" \"$t/ghost\" 2>&1; echo \"===dir plain===\"; ls -l \"$t\"; rm -rf \"$t\"",
+      "cd /tmp && rm -rf ci1733t && mkdir ci1733t && cd ci1733t && ln -s /nope/gone dangling && printf x > real && ln -s real goodlink && mkdir realdir && printf y > realdir/inside && echo \"===ls -lL===\" && ls -lL real dangling goodlink realdir ghost 2>&1; echo \"===plain ls -l dir===\" && ls -l .",
+      "rm -rf /tmp/ci1733t && mkdir /tmp/ci1733t && ln -s /nope/gone /tmp/ci1733t/dangling && printf x > /tmp/ci1733t/real && ln -s real /tmp/ci1733t/goodlink && mkdir /tmp/ci1733t/realdir && printf y > /tmp/ci1733t/realdir/inside && echo \"===ls -lL===\" && ls -lL /tmp/ci1733t/real /tmp/ci1733t/dangling /tmp/ci1733t/goodlink /tmp/ci1733t/realdir /tmp/ci1733t/ghost 2>&1; echo \"===plain===\"; ls -l /tmp/ci1733t"
+    ],
+    "total": 14,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
