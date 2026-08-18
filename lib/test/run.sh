@@ -39140,15 +39140,15 @@ assert_eq "#423 T9 schema: stale_prose is an object" "object" "$(jq -r "$SP_PROP
 assert_eq "#423 T9 schema: enabled default true" "true" "$(jq -r "$SP_PROP.properties.enabled.default" "$SP_SCHEMA")"
 assert_eq "#423 T9 schema: severity default important" "important" "$(jq -r "$SP_PROP.properties.severity.default" "$SP_SCHEMA")"
 assert_eq "#423 T9 schema: severity enum is exactly the three values" '["critical","important","suggestion"]' "$(jq -c "$SP_PROP.properties.severity.enum" "$SP_SCHEMA")"
-assert_eq "#423 T9 example: enabled matches schema default" "true" "$(jq -r '.prflow_review.stale_prose.enabled' "$SP_EXAMPLE")"
+assert_eq "#423 T9 example: enabled scaffolds false (consumer default off)" "false" "$(jq -r '.prflow_review.stale_prose.enabled' "$SP_EXAMPLE")"
 assert_eq "#423 T9 example: severity matches schema default" "important" "$(jq -r '.prflow_review.stale_prose.severity' "$SP_EXAMPLE")"
 assert_eq "#423 T9 tracked config carries stale_prose.enabled explicitly" "true" "$(jq -r '.prflow_review.stale_prose.enabled' "$SP_CONFIG")"
-assert_eq "#423 T9 tracked config carries stale_prose.severity explicitly" "important" "$(jq -r '.prflow_review.stale_prose.severity' "$SP_CONFIG")"
+assert_eq "#423 T9 tracked config carries stale_prose.severity explicitly" "suggestion" "$(jq -r '.prflow_review.stale_prose.severity' "$SP_CONFIG")"
 # scaffold-config.sh scaffolds config.json FROM config.example.json (cp + deep-merge
 # backfill), so the block flows into the scaffolder's output — proven end-to-end.
 SP_SCAFFOLD_DEST="$(mktemp -d)"
 bash "$LIB/../scripts/scaffold-config.sh" "$SP_SCAFFOLD_DEST" >/dev/null 2>&1
-assert_eq "#423 T9 scaffold-config.sh output carries stale_prose.enabled" "true" "$(jq -r '.prflow_review.stale_prose.enabled' "$SP_SCAFFOLD_DEST/.prflow/config.json" 2>/dev/null)"
+assert_eq "#423 T9 scaffold-config.sh output carries stale_prose.enabled" "false" "$(jq -r '.prflow_review.stale_prose.enabled' "$SP_SCAFFOLD_DEST/.prflow/config.json" 2>/dev/null)"
 assert_eq "#423 T9 scaffold-config.sh output carries stale_prose.severity" "important" "$(jq -r '.prflow_review.stale_prose.severity' "$SP_SCAFFOLD_DEST/.prflow/config.json" 2>/dev/null)"
 rm -rf "$SP_SCAFFOLD_DEST"
 

@@ -11,7 +11,7 @@ Tune the shared review engine and the local review-and-fix loop to match your re
 | --- | --- | --- | --- | --- |
 | `prflow_review.verdict_severity_threshold` | `critical`, `important` or `suggestion` | `critical` | Standalone review and review-and-fix review pass. Lowering the threshold makes more findings reject. | `"verdict_severity_threshold": "critical"` |
 | `prflow_review.live_progress_comment_enabled` | Boolean | `true` | Pull-request review. When true, each run maintains its own progress comment. Comment writes are best effort. | `"live_progress_comment_enabled": true` |
-| `prflow_review.stale_prose.enabled` | Boolean | `true`; anything except explicit false enables | Shared review engine. Disabling removes the automatic check for prose that contains stale numeric claims. | `"enabled": true` |
+| `prflow_review.stale_prose.enabled` | Boolean | Fallback `true`; scaffold: `false`. Anything except explicit false enables | Shared review engine. Fresh installs scaffold this off, because the check is tuned to prose idioms that are common in the PRFlow repository itself and its false-positive suppression channel only works for bot-authored review comments. Set it to true to enable the automatic check for prose that contains stale numeric claims. | `"enabled": false` |
 | `prflow_review.stale_prose.severity` | `critical`, `important` or `suggestion` | `important` | Shared review engine. The chosen severity participates in verdict computation. | `"severity": "important"` |
 
 ## Review and Fix
