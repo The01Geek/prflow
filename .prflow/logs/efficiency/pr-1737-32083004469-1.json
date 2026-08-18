@@ -113,5 +113,92 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.6",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 21.379333750000008,
+    "tokens": {
+      "input_tokens": 108,
+      "output_tokens": 65882,
+      "cache_read_input_tokens": 11260935,
+      "cache_creation_input_tokens": 306786,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 198,
+        "outputTokens": 96738,
+        "cacheReadInputTokens": 14115908,
+        "cacheCreationInputTokens": 895650,
+        "webSearchRequests": 0,
+        "costUSD": 16.225654,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 205,
+        "outputTokens": 33780,
+        "cacheReadInputTokens": 4417220,
+        "cacheCreationInputTokens": 885653,
+        "webSearchRequests": 0,
+        "costUSD": 5.15367975,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 98,
+    "duration_ms": 1516374
+  },
+  "permission_denials": {
+    "count": 27,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---ENV---\"; echo \"RUN_ID=${GITHUB_RUN_ID:-UNSET} ATTEMPT=${GITHUB_RUN_ATTEMPT:-UNSET} GHA=${GITHUB_ACTIONS:-UNSET}\"",
+      ".prflow/vendor/prflow/scripts/workpad.py acs-resolve \"1729\" --pr \"1737\" 2>.prflow/tmp/review/pr-1737/32083004469-1/acs.err ; echo \"acs-rc=$?\"",
+      "awk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1737/32083004469-1/diff.patch > .prflow/tmp/review/pr-1737/32083004469-1/batch-1.patch && test -s .prflow/tmp/review/pr-1737/32083004469-1/batch-1.patch && echo \"slice-ok: batch-1\" || echo \"slice-failed: batch-1\"\nawk -v s=11 -v e=20 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1737/32083004469-1/diff.patch > .prflow/tmp/review/pr-1737/32083004469-1/batch-2.patch && test -s .prflow/tmp/review/pr-1737/32083004469 …[per-command-truncated]",
+      "awk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' .prflow/tmp/review/pr-1737/32083004469-1/diff.patch > .prflow/tmp/review/pr-1737/32083004469-1/batch-1.patch && test -s .prflow/tmp/review/pr-1737/32083004469-1/batch-1.patch && echo \"slice-ok: batch-1\" || echo \"slice-failed: batch-1\"",
+      "mkdir -p .prflow/tmp/review/pr-1737/32083004469-1/verdicts/iter-1\ncat > .prflow/tmp/review/pr-1737/32083004469-1/verdicts/iter-1/VC-1-n8a3f1.json << 'EOF'\n{\"id\":\"VC-1\",\"verdict\":\"PASS\",\"evidence\":\"grep -c '^\\\\*\\\\*Move 2a —' skills/create-issue/references/issue-template.md = 0; grep -c '^\\\\*\\\\*Move 3 —' = 0; grep -c '^\\\\*\\\\*If no automated test applies\\\\*\\\\*' = 0. All three match claim.\",\"file_checked\":\"skills/create-issue/references/issue-template.md\",\"property_proven\":true,\"inaccuracy_scope\":\"n …[per-command-truncated]",
+      "git show e48d5824d3fb193025d887d7a4957f4f088d867:skills/create-issue/references/issue-template.md > /tmp/base.md 2>&1 || git show e48d5824d3fb193025d887d7a4957f4f088d8673:skills/create-issue/references/issue-template.md > /tmp/base.md\nwc -c /tmp/base.md skills/create-issue/references/issue-template.md",
+      "git show e48d5824d3fb193025d887d7a4957f4f088d8673:skills/create-issue/references/issue-template.md > /tmp/base.md; wc -c /tmp/base.md skills/create-issue/references/issue-template.md",
+      "git show e48d5824d3fb193025d887d7a4957f4f088d8673:skills/create-issue/references/issue-template.md > /tmp/base.md",
+      "for f in skills/create-issue/references/issue-template.md skills/create-issue/references/quality-group-regression.md skills/create-issue/references/quality-group-semantic.md skills/create-issue/references/quality-group-contracts.md; do echo \"== $f ==\"; grep -c \"Move 2a\" \"$f\"; grep -c \"Move 3\" \"$f\"; done",
+      "for f in quality-group-regression.md quality-group-semantic.md quality-group-contracts.md; do\necho \"=== $f ===\"\ndiff <(git show e48d5824d3fb193025d887d7a4957f4f088d8673:skills/create-issue/references/$f | grep -n '^\\s*- \\[ \\]') <(grep -n '^\\s*- \\[ \\]' skills/create-issue/references/$f)\ndone",
+      "cd /home/runner/work/prflow/prflow\nfor f in quality-group-regression.md quality-group-semantic.md quality-group-contracts.md; do\n  echo \"=== $f ===\"\n  git show e48d5824d3fb193025d887d7a4957f4f088d8673:skills/create-issue/references/$f > /tmp/base_$f\n  grep -n '^[[:space:]]*- \\[ \\]' /tmp/base_$f > /tmp/base_boxes_$f\n  grep -n '^[[:space:]]*- \\[ \\]' skills/create-issue/references/$f > /tmp/cur_boxes_$f\n  diff /tmp/base_boxes_$f /tmp/cur_boxes_$f\ndone",
+      "git show e48d5824d3fb193025d887d7a4957f4f088d8673:skills/create-issue/references/quality-group-regression.md > /tmp/base_reg.md",
+      "git show e48d5824d3fb193025d887d7a4957f4f088d8673:skills/create-issue/references/quality-group-semantic.md > /tmp/base_sem.md",
+      "git show e48d5824d3fb193025d887d7a4957f4f088d8673:skills/create-issue/references/quality-group-contracts.md > /tmp/base_con.md",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/vc11\ngit show e48d5824d3fb193025d887d7a4957f4f088d8673:skills/create-issue/references/quality-group-regression.md > /home/runner/work/prflow/prflow/.prflow/tmp/vc11/base_reg.md\ngit show e48d5824d3fb193025d887d7a4957f4f088d8673:skills/create-issue/references/quality-group-semantic.md > /home/runner/work/prflow/prflow/.prflow/tmp/vc11/base_sem.md\ngit show e48d5824d3fb193025d887d7a4957f4f088d8673:skills/create-issue/references/quality-group-contr …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/vc11\ngit show e48d5824d3fb193025d887d7a4957f4f088d8673:skills/create-issue/references/quality-group-regression.md > /home/runner/work/prflow/prflow/.prflow/tmp/vc11/base_reg.md\ngit show e48d5824d3fb193025d887d7a4957f4f088d8673:skills/create-issue/references/quality-group-semantic.md > /home/runner/work/prflow/prflow/.prflow/tmp/vc11/base_sem.md\ngit show e48d5824d3fb193025d887d7a4957f4f088d8673:skills/create-issue/references/quality-group-contr …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1737/32083004469-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1737/32083004469-1/verdicts/iter-1/VC-13-c9f4h6.json << 'EOF'\n{\"id\":\"VC-13\",\"verdict\":\"PASS\",\"evidence\":\"The diff.patch hunks touching skills/create-issue/references/issue-template.md are at old-file line ranges 107-118, 118-125, 130-152, and 179-186 (four @@ hunks before the file switches to a different path). These fall entirely within th …[per-command-truncated]",
+      "git show e48d5824d3fb193025d887d7a4957f4f088d8673:skills/create-issue/references/quality-group-regression.md > /home/runner/work/prflow/prflow/.prflow/tmp/vc11/base_reg.md",
+      "git status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before && echo \"snap-ok\"",
+      "cd /home/runner/work/prflow/prflow\necho \"=== Move 2a/Move3 in quality-group files ===\"\ngrep -rn \"Move 2a\\|Move 3\" skills/create-issue/references/quality-group-regression.md skills/create-issue/references/quality-group-semantic.md skills/create-issue/references/quality-group-contracts.md\necho \"=== writes the sweep count ===\"\ngrep -c \"writes the sweep's output back as additional closed AC items before filing\" skills/create-issue/references/issue-template.md skills/create-issue/references/quality-g …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\necho \"DEVFLOW_PROMPT_EXTENSION_ROOT=$DEVFLOW_PROMPT_EXTENSION_ROOT\"\necho \"=== does diff touch loader or scaffold-pe/295/275/874 modules? ===\"\ngrep -ln \"load-prompt-extension\\|scaffold-pe\\|#295\\|#874\" .prflow/tmp/review/pr-1737/32083004469-1/diff.patch || echo \"no loader/module refs in diff\"\necho \"=== rerun those failing checks with env unset ===\"\nenv -u DEVFLOW_PROMPT_EXTENSION_ROOT lib/test/run-shard.sh monolith 2>&1 | tail -4",
+      "cd /home/runner/work/prflow/prflow\nprintf 'ROOT is set: '; [ -n \"${DEVFLOW_PROMPT_EXTENSION_ROOT:-}\" ] && echo yes || echo no\ngrep -c \"load-prompt-extension\\|scaffold-pe\" .prflow/tmp/review/pr-1737/32083004469-1/diff.patch\necho \"--- rerun with env unset ---\"\nenv -u DEVFLOW_PROMPT_EXTENSION_ROOT lib/test/run-shard.sh monolith 2>&1 | tail -4",
+      "unset DEVFLOW_PROMPT_EXTENSION_ROOT && lib/test/run-shard.sh monolith 2>&1 | tail -4",
+      "env --unset=DEVFLOW_PROMPT_EXTENSION_ROOT lib/test/run-shard.sh monolith 2>&1 | tail -4",
+      "bash /tmp/runmono.sh",
+      "chmod +x /tmp/runmono.sh; /tmp/runmono.sh",
+      "/tmp/runmono.sh"
+    ],
+    "total": 27,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
