@@ -2541,6 +2541,19 @@ if [ -d "$ZD_SB" ]; then
     printf '# Draft title\n\nREVISED body.\n' > revised.md
     python3 "$IAS" record-revision zdr --nonce "$NR" --after-round 0 > /dev/null 2>&1
     python3 "$IAS" query-eligibility zdr --nonce "$NR" --mode approve --draft-file revised.md > .zd-elig-post 2>&1
+    # Isolate the ORDINAL invalidation mechanism (not the digest): query the ORIGINAL bound
+    # bytes after the revision — the decline's digest still matches draft.md, so only the
+    # bumped revision ordinal (recorded_at_ordinal != now) can drop the decline. eligible=no.
+    python3 "$IAS" query-eligibility zdr --nonce "$NR" --mode approve --draft-file draft.md > .zd-elig-post-orig 2>&1
+
+    # AC10 negative guard: a decline-bound creation epoch with NO --draft-file refuses (it
+    # cannot recompute the body-only digest, and must never inherit the override's whole-file
+    # digest). A fresh run, since zdd's epoch is already attestation-frozen above.
+    NN="$(python3 "$IAS" init zdn | sed -n '1s/nonce=//p')"
+    python3 "$IAS" record-override zdn --nonce "$NN" --kind user-decline --surface step4-offer \
+      --draft-file draft.md > /dev/null 2>&1
+    python3 "$IAS" record-creation-epoch zdn --nonce "$NN" --round 0 \
+      > /dev/null 2> .zd-epoch-nodraft; printf '%s' "$?" > .zd-epoch-nodraft-rc
 
     # AC10 (sandbox unbound): a decline recorded where NO canonical file exists is accepted
     # unbound and still reaches eligible=yes when queried with no digest.
@@ -2566,8 +2579,12 @@ if [ -d "$ZD_SB" ]; then
     "1" "$(grep -c 'user_declined=yes' "$ZD_SB/.zd-summary" 2>/dev/null)"
   assert_eq "#1751 zero_round_decline_rows: a bound zero-round decline grounds eligibility before a revision" \
     "1" "$(grep -c 'eligible=yes' "$ZD_SB/.zd-elig-pre" 2>/dev/null)"
-  assert_eq "#1751 zero_round_decline_rows: a recorded revision stops the bound decline grounding eligibility" \
-    "0" "$(grep -c 'eligible=yes' "$ZD_SB/.zd-elig-post" 2>/dev/null)"
+  assert_eq "#1751 zero_round_decline_rows: a recorded revision stops the bound decline grounding eligibility (positive eligible=no control, not a vacuous absence)" \
+    "1" "$(grep -c 'eligible=no' "$ZD_SB/.zd-elig-post" 2>/dev/null)"
+  assert_eq "#1751 zero_round_decline_rows: ... and the ORDINAL bump alone drops it — querying the original bound bytes after the revision still answers eligible=no" \
+    "1" "$(grep -c 'eligible=no' "$ZD_SB/.zd-elig-post-orig" 2>/dev/null)"
+  assert_eq "#1751 zero_round_decline_rows: a decline-bound creation epoch with no --draft-file refuses (cannot recompute the body-only digest)" \
+    "1:1" "$(cat "$ZD_SB/.zd-epoch-nodraft-rc" 2>/dev/null):$(grep -c 'must recompute the body-only digest' "$ZD_SB/.zd-epoch-nodraft" 2>/dev/null)"
   assert_eq "#1751 zero_round_decline_rows: an unbound sandbox decline reaches eligible=yes with no digest supplied" \
     "1" "$(grep -c 'eligible=yes' "$ZD_SB/.zd-elig-sandbox" 2>/dev/null)"
   rm -rf "$ZD_SB"

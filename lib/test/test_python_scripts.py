@@ -8400,6 +8400,16 @@ _malformed('a non-integer user_rounds_used counter', dict(_GOOD, user_rounds_use
 _malformed('a creation record that is not an object', dict(_GOOD, creation='yes'))
 _malformed('a creation record missing its body_only_digest',
            dict(_GOOD, creation={'epoch_round': 1}))
+# issue #1751: epoch_round was widened to Optional[int] for the decline-bound epoch. The
+# widening must NOT fail open on garbage — a non-integer, non-None epoch_round is still
+# rejected — and a decline-bound epoch_round=None is the new legal shape.
+_malformed('#1751: a creation record with a non-integer, non-None epoch_round',
+           dict(_GOOD, creation={'body_only_digest': 'B', 'epoch_round': 'one',
+                                 'epoch_arm': 'file', 'attestation': None}))
+assert_eq("#1751 (valid-falsy control): a decline-bound epoch_round=None is a legal live state",
+          's', issue_audit_state._validate(
+              dict(_GOOD, creation={'body_only_digest': 'B', 'epoch_round': None,
+                                    'epoch_arm': 'file', 'attestation': None}), 's')['slug'])
 assert_eq("#546 review-round (valid-falsy control): creation=None is a legal live state",
           's', issue_audit_state._validate(dict(_GOOD, creation=None), 's')['slug'])
 
