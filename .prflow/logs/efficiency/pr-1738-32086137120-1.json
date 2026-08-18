@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1738",
+  "generated_at": "2026-08-18T01:06:14Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.7",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 8.81188,
+    "tokens": {
+      "input_tokens": 50,
+      "output_tokens": 35660,
+      "cache_read_input_tokens": 3738654,
+      "cache_creation_input_tokens": 215828,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 124,
+        "outputTokens": 72798,
+        "cacheReadInputTokens": 5821785,
+        "cacheCreationInputTokens": 523370,
+        "webSearchRequests": 0,
+        "costUSD": 8.81188,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 41,
+    "duration_ms": 735715
+  },
+  "permission_denials": {
+    "count": 16,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"CLAUDE_SKILL_DIR=${CLAUDE_SKILL_DIR:-<unset>}\"; echo \"PR=1738\"; git rev-parse --show-toplevel; echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-<unset>}\"; echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-<unset>}\"",
+      "git rev-parse --show-toplevel; echo \"---\"; printf 'RUN_ID=%s\\n' \"$GITHUB_RUN_ID\"; printf 'ACTIONS=%s\\n' \"$GITHUB_ACTIONS\"; printf 'SKILLDIR=%s\\n' \"$CLAUDE_SKILL_DIR\"",
+      ".prflow/vendor/prflow/scripts/compose-run-url.sh; echo \"---ACS---\"; .prflow/vendor/prflow/scripts/workpad.py acs-resolve 1733 --pr 1738 2>.prflow/tmp/review/pr-1738/32086137120-1/acs.err ; echo \"acs-rc=$?\"",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before\necho \"---OVERRIDES---\"\n.prflow/vendor/prflow/scripts/resolve-review-overrides.py \"prflow:code-reviewer\" \"prflow:silent-failure-hunter\" \"prflow:comment-analyzer\" \"prflow:pr-test-analyzer\" \"prflow:requesting-code-review\" ; echo \"ovr-rc=$?\"",
+      "command -v busybox; command -v gls; echo \"---\"; grep -c \"assert_eq\\|assert_\" lib/test/modules/create-issue-contract.sh | head",
+      "command -v busybox || echo NO_BUSYBOX; command -v gls || echo NO_GLS",
+      "command -v busybox",
+      "command -v gls",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >/tmp/ext.out 2>/tmp/ext.err; echo \"EXIT=$?\"; echo \"--- STDOUT bytes:\"; wc -c </tmp/ext.out; echo \"--- STDOUT:\"; cat /tmp/ext.out; echo \"--- STDERR:\"; cat /tmp/ext.err",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >/tmp/ext.out 2>/tmp/ext.err; echo \"EXIT=$?\"; wc -c </tmp/ext.out",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >.prflow/tmp/ext.out 2>.prflow/tmp/ext.err; echo \"EXIT=$?\"; wc -c <.prflow/tmp/ext.out",
+      "command -v busybox >/dev/null 2>&1 && echo \"busybox: yes\" || echo \"busybox: no\"; command -v gls >/dev/null 2>&1 && echo \"gls: yes\" || echo \"gls: no\"",
+      "command -v busybox gls 2>&1; echo \"rc=$?\"",
+      "echo \"=== busybox present on this host? ===\"; command -v busybox && echo \"busybox=YES\" || echo \"busybox=NO\"; command -v gls && echo \"gls=YES\" || echo \"gls=NO\"; echo \"=== exact-floor test ===\"; grep -rn 'exact' lib/test/*.py lib/test/test_module_runner.py 2>/dev/null | grep -i 'floor\\|exact' | head -20",
+      "which busybox; echo \"busybox-rc=$?\"; which gls; echo \"gls-rc=$?\"; ls -la /usr/bin/busybox 2>&1 | head -1",
+      "command -v busybox || echo \"NO-busybox\"; command -v gls || echo \"NO-gls\""
+    ],
+    "total": 16,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
