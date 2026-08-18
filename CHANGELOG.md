@@ -4,6 +4,15 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.33.14] — 2026-08-18
+
+### Changed
+- **`/prflow:implement` Phase 4.3 now carries a complete, copy-pasteable fenced call site for
+  the final-tree verification flight**, including the `claim` declaration template, which the
+  shipped prompt surface did not previously document. The span no longer restates what
+  `scripts/verification-flight.py` documents about itself, and its two dangling
+  scope/parallelization pointers now state their own rules. (#1560)
+
 ## [2.33.13] — 2026-08-18
 
 ### Changed
