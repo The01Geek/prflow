@@ -2354,11 +2354,9 @@ _ra_bind_fails_closed "a bool timeout_seconds (an int subclass) is rejected" \
   's/"timeout_seconds": 550,/"timeout_seconds": True,/' \
   "exact-module-floors" "not an int"
 
-# AC4/AC5/AC6 — a bounded-out row. Build a fixture whose fast judgment rows are
-# trivial exit-0 stubs and whose env-freeze-advisory-region generator is a sleeper that
-# spawns a child and records both PIDs. Run the DEFAULT pass (exact-module-floors stays
-# opt-in/skipped) with the override bounding the row loop to 5s — comfortably above the
-# stubs' Python cold-start even under parallel-suite contention, while the 120s sleeper trips.
+# AC4/AC5/AC6 — a bounded-out row: fast judgment rows are trivial exit-0 stubs; the
+# env-freeze-advisory-region generator is a sleeper spawning a child and recording both PIDs.
+# The DEFAULT pass runs with a 5s override — above the stubs' cold-start, below the 120s sleeper.
 RA_1457_TO="$_ra_tmp_root/i1457-timeout"; _ra_fixture "$RA_1457_TO"
 for _stub in lib/generate-capability-profiles.py lib/generate-plugin-identity.py lib/test/coverage_map_guard.py; do
   printf '%s\n' 'import sys' 'sys.exit(0)' > "$RA_1457_TO/$_stub"
