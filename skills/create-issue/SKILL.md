@@ -279,9 +279,12 @@ arm exists to show, and others blank its fields beside an error line — so plai
 that leftover legible — state that nothing there is attributable to this run, and re-enter nothing.
 
 Classify each path from that one invocation, running no second probe, from what the shell shows
-rather than what you infer. A not-found message naming one of the four paths is absent, and decides
-that path even when the same invocation also printed a row for it — one `ls` prints the message
-alone, another beside the stale row, so the message is decisive on both. A path is present only when
+rather than what you infer. A not-found message naming one of the four paths — by the whole path or
+by its final segment alone, since one `ls` quotes the operand and another names only the file name —
+is absent, and decides that path even when the same invocation also printed a row for it: one `ls`
+prints the message alone, another beside the stale row, so the message is decisive on both. Reading
+only the whole-path form leaves a broken leftover classified unestablished, and only absent re-runs
+the producing step. A path is present only when
 the invocation prints a row for that path itself describing an ordinary file of at least one byte —
 its name field the path, its type character `-`, its size column non-zero; a row whose size is zero
 is absent, not present. Anything else — no output, a missing or refused command, another diagnostic,

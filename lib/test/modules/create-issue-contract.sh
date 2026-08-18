@@ -2189,13 +2189,22 @@ printf 'y' > "$_ci1733_dir/realdir/inside"
 ln -s real "$_ci1733_dir/goodlink"
 ln -s realdir "$_ci1733_dir/dirlink"
 
+# Deferred (review of PR #1738, Suggestion 2): the row parser fixes the GNU/BSD column
+# offsets between permissions and size. Not hardened, because an offset change yields a
+# non-numeric `size` and the guard below returns `unestablished` — fail-closed, never a
+# wrong class. Revisit only if an `ls` variant is found whose shifted field lands a
+# DIGIT in the size slot.
 _ci1733_classify() {  # <path> <combined-output-file> -> present|absent|unestablished
   local path="$1" out="$2" perm size rest name msg
-  # A not-found message naming this exact path is decisive; match it path-delimited
-  # (GNU quotes the path, busybox suffixes a colon) so a superstring path never matches.
+  # A not-found message naming this path is decisive. Match it delimited (GNU quotes the
+  # operand, BSD/busybox suffix a colon) so a superstring path never matches, and accept
+  # the FINAL SEGMENT as well as the whole path: BSD ls names only the basename in this
+  # message even for an absolute operand, so a whole-path-only match reads absent as
+  # unestablished on macOS and the caller then never re-runs the producing step.
+  local base="${path##*/}"
   msg="$(grep -E 'cannot access|No such file' "$out")"
   case "$msg" in
-    *"'$path'"*|*"$path:"*) printf 'absent\n'; return 0 ;;
+    *"'$path'"*|*"$path:"*|*"'$base'"*|*" $base:"*) printf 'absent\n'; return 0 ;;
   esac
   while read -r perm _ _ _ size rest; do
     case "$perm" in -*) ;; *) continue ;; esac
@@ -2251,8 +2260,10 @@ assert_eq "#1733 superstring: a message naming a sibling superstring path leaves
 _ci1733_hostmsg="$_ci1733_dir/hostmsg.out"
 ls -lL "$_ci1733_dir/dangling" > "$_ci1733_hostmsg" 2>&1 || true
 _ci1733_hostmsgtext="$(grep -E 'cannot access|No such file' "$_ci1733_hostmsg")"
+# The message names the operand on GNU and only its final segment on BSD, so accept
+# either — asserting the whole path here would fail on every BSD host.
 assert_eq "#1733 AC9: host ls -lL draws a not-found message for a dangling link" "msg" \
-  "$(case "$_ci1733_hostmsgtext" in *"$_ci1733_dir/dangling"*) echo msg ;; *) echo none ;; esac)"
+  "$(case "$_ci1733_hostmsgtext" in *"$_ci1733_dir/dangling"*|*" dangling:"*) echo msg ;; *) echo none ;; esac)"
 
 # Reproduction (RED): the current `ls -l` shape prints a row for the dangling link and
 # NO message, so a rule reading a row as present misclassifies it — the defect closed.
@@ -2273,6 +2284,11 @@ assert_eq "#1733 AC11: the slug-unknown arm (plain ls -l on the dir) shows the d
 
 # AC10: a second `ls`, when present, must reach the same class; -L must never reach the
 # slug-unknown arm (a BSD-shaped impl drops the dangling dir entry under -L).
+#
+# Both arms are host-conditional, and their assertions are credited through
+# module_host_capability_skip so the module's EXACT floor is host-invariant: a host
+# without the program runs fewer assertions and would otherwise trip the floor as a
+# false regression. Each credit MUST equal the assertion count inside its own arm.
 _ci1733_second=""
 if command -v busybox >/dev/null 2>&1; then _ci1733_second="busybox"
 elif command -v gls >/dev/null 2>&1; then _ci1733_second="gls"; fi
@@ -2282,16 +2298,24 @@ if [ -n "$_ci1733_second" ]; then
   else gls -lL "$_ci1733_dir/dangling" > "$_ci1733_2msg" 2>&1 || true; fi
   assert_eq "#1733 AC10: a second ls implementation reaches absent for the dangling link" "absent" \
     "$(_ci1733_classify "$_ci1733_dir/dangling" "$_ci1733_2msg")"
-  if [ "$_ci1733_second" = busybox ]; then
-    _ci1733_2plain="$_ci1733_dir/second-plain.out"
-    _ci1733_2L="$_ci1733_dir/second-L.out"
-    busybox ls -l "$_ci1733_dir" > "$_ci1733_2plain" 2>&1 || true
-    busybox ls -lL "$_ci1733_dir" > "$_ci1733_2L" 2>&1 || true
-    assert_eq "#1733 dir-arm: a BSD-shaped impl shows the dangling entry under plain -l" "shown" \
-      "$(grep -qE '(^| )dangling( ->|$)' "$_ci1733_2plain" && echo shown || echo hidden)"
-    assert_eq "#1733 dir-arm: -L on a BSD-shaped impl drops the dangling entry (why -L must not reach that arm)" "dropped" \
-      "$(grep -qE '(^| )dangling([ /]|$)' "$_ci1733_2L" && echo shown || echo dropped)"
-  fi
+else
+  module_host_capability_skip "#1733 AC10: a second ls implementation reaches the same class" \
+    "neither busybox nor gls is on this host, so no second ls implementation can be exercised" 1
+fi
+# The dir-arm needs a BSD-shaped implementation specifically (it pins that -L DROPS the
+# dangling entry); gls is GNU-shaped and does not exhibit it, so only busybox qualifies.
+if [ "$_ci1733_second" = busybox ]; then
+  _ci1733_2plain="$_ci1733_dir/second-plain.out"
+  _ci1733_2L="$_ci1733_dir/second-L.out"
+  busybox ls -l "$_ci1733_dir" > "$_ci1733_2plain" 2>&1 || true
+  busybox ls -lL "$_ci1733_dir" > "$_ci1733_2L" 2>&1 || true
+  assert_eq "#1733 dir-arm: a BSD-shaped impl shows the dangling entry under plain -l" "shown" \
+    "$(grep -qE '(^| )dangling( ->|$)' "$_ci1733_2plain" && echo shown || echo hidden)"
+  assert_eq "#1733 dir-arm: -L on a BSD-shaped impl drops the dangling entry (why -L must not reach that arm)" "dropped" \
+    "$(grep -qE '(^| )dangling([ /]|$)' "$_ci1733_2L" && echo shown || echo dropped)"
+else
+  module_host_capability_skip "#1733 dir-arm: a BSD-shaped ls drops the dangling entry under -L" \
+    "busybox is not on this host, so no BSD-shaped ls implementation can be exercised" 2
 fi
 
 # Complete normal cleanup explicitly so a removal or marker failure changes the
