@@ -1042,9 +1042,8 @@ the start of the target.
 Issue #1734 re-opened the three `DEFERRED — not rewritten` rows above with the mandate that **every
 occurrence be enumerated by reading each fence's variable definitions — including the input-redirect
 sites a literal-path search misses — and each either rewritten or recorded with the reason it cannot
-be.** The adjudication below is that record. **All fourteen enumerated occurrences (population A: 11
-— 2 stdout captures, 4 loop appends, 2 defaulted input redirects, 3 literal input redirects;
-population B: 2; population C: 1) resolve to recorded-not-rewritten**,
+be.** The adjudication below is that record. **All fourteen enumerated occurrences (population A: 11,
+population B: 2, population C: 1 — itemised per population below) resolve to recorded-not-rewritten**,
 because under this issue's four binding constraints — no new allowlist grant; no degradation of the
 local/interactive tier (which here includes the extracted-fence test harness); no confirming cloud
 measurement is in reach; and `| tee` is not a substitute where a producer's exit status must be
