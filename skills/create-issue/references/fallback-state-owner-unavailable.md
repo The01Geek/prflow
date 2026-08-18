@@ -19,7 +19,7 @@ Two other non-zero mutation exits route elsewhere, never here, so every breadcru
 
 ## What the fallback does
 
-On the `state-owner unavailable` fallback (the two classes above), run exactly one audit round (a fresh-context dispatch where a subagent tool exists; the inline template where none does), keep the findings and verdict in-chat, offer exactly one continue/decline choice, and proceed to presentation only on the user's explicit election — which on this path is inherently the recorded-in-chat override. The audit summary line carries the distinct marker **`state-owner unavailable`**.
+On the `state-owner unavailable` fallback (the two classes above), offer exactly one audit round before running it, and only on the user's explicit acceptance run that one round (a fresh-context dispatch where a subagent tool exists; the inline template where none does) and keep its findings and verdict in-chat; on a decline run no round. Proceed to presentation on the user's explicit election either way — which on this path is inherently the recorded-in-chat override. The audit summary line carries the distinct marker **`state-owner unavailable`**.
 
 Steering-absence is unestablished on this path too, and the line says so — the state owner is what regenerates the canonical instructions and owns the comparison, so with it unavailable no round can establish the property. Render the `audit independence unestablished` marker beside the `state-owner unavailable` one rather than omitting it, and never let this path's in-chat election read as a coverage-backed clean audit.
 

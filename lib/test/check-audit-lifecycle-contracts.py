@@ -109,8 +109,15 @@ _DOCSTRING_ANCHOR = "TWO-CLASS CLI CONTRACT"
 # when the round graded no advisory or invalid finding, and `resolve_calibration` answers
 # `render=none` with no trigger for exactly that shape. Listing it in the unconditional
 # ordered sequence therefore prescribed a call that cannot succeed on the clean path.
+# issue #1751: the whole round-conducting set is now conditional on a user ELECTION — the
+# normal clean run elects nothing and never dispatches an auditor, so `query-round-kind`,
+# `query-arm`, `record-return`, `record-adjudication` and `query-next-action` join this set
+# (each is named in the Step 3.6 "Elected discovery round" variant, so it is still marked
+# conditional). `record-override` moved the other way — a declined run always records the
+# user-decline, so it is in the unconditional sequence now.
 _CONDITIONAL = ("record-offer", "query-adjudication-records",
-                "record-adjudication-render")
+                "record-adjudication-render", "query-round-kind", "query-arm",
+                "record-return", "record-adjudication", "query-next-action")
 
 # Fenced state-owner invocations the reference files gate on a run-shape condition, so
 # the clean single-round run never makes them and the unconditional sequence must not name
