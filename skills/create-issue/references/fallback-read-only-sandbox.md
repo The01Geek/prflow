@@ -8,7 +8,7 @@ Step 1's on-entry deletes and its writes of `.prflow/tmp/issue-step1-<slug>.md` 
 
 ## Step 2 — the derivation artifact
 
-If the write genuinely fails, say so in chat and record the derivation inline in your message as a visible block — the actual derived list, not a bare claim that you derived it; never silently skip writing it down. When the filesystem is read-only, do not trust any on-disk `issue-derivation-<slug>.md`; rely solely on the visible inline block as the gate's stand-in.
+If the write genuinely fails, say so in chat and record the derivation inline in your message as a visible block — the actual derived list, not a bare claim that you derived it; never silently skip writing it down. When the filesystem is read-only, do not trust any on-disk `issue-derivation-<slug>.md` (the failed delete may have left a stale leftover from a prior run); rely solely on the visible inline block as the gate's stand-in.
 
 ## Step 3.5 — the Steelman record
 

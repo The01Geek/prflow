@@ -13,7 +13,7 @@ Parse the verdict, then let the tool classify it. Record the return and obey the
 python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/issue-audit-state.py record-return "<slug>" --nonce "<nonce>" --round "<round>" --verdict FILE --findings-count 2 --carriage-object-id "<the ID the auditor quoted>"
 ```
 
-**Omit `--verdict` entirely when the return carried no parseable `VERDICT:` line.** Never map an unparseable return onto a verdict token yourself, and never pass a token the auditor did not emit. Add `--consumer-dimensions-appended` when the dispatch carried a consumer `## Audit dimensions` section.
+**Omit `--verdict` entirely when the return carried no parseable `VERDICT:` line**. Never map an unparseable return onto a verdict token yourself, and never pass a token the auditor did not emit. Add `--consumer-dimensions-appended` when the dispatch carried a consumer `## Audit dimensions` section.
 
 On a targeted round, also pass `--claim-verdicts`. The rendered targeted block has the auditor emit one labelled line per claim (claim id, an addressed / not-addressed token, and a quoted draft line). Normalize each to the bare two-token form — claim id, space, token — dropping the leading label and trailing evidence, and pass the whole normalized block, one line per dispatched claim, as the flag's value.
 
