@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1736",
+  "generated_at": "2026-08-18T01:50:56Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.9",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 13.2294785,
+    "tokens": {
+      "input_tokens": 60,
+      "output_tokens": 42050,
+      "cache_read_input_tokens": 4527550,
+      "cache_creation_input_tokens": 216138,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 164,
+        "outputTokens": 96318,
+        "cacheReadInputTokens": 8075365,
+        "cacheCreationInputTokens": 903377,
+        "webSearchRequests": 0,
+        "costUSD": 12.903076250000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 2,
+        "outputTokens": 9779,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 47923,
+        "webSearchRequests": 0,
+        "costUSD": 0.32640225,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 56,
+    "duration_ms": 789662
+  },
+  "permission_denials": {
+    "count": 18,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---ENV---\"; echo \"RUN_ID=${GITHUB_RUN_ID:-}\"; echo \"RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT:-}\"",
+      "cd /home/runner/work/prflow/prflow\necho \"=== merge-base ===\"; MB=$(git merge-base origin/main HEAD); echo \"$MB\"\necho \"=== boundary markers: first/last line of each reference ===\"\nfor f in sweep-2-3-0-changed-contract sweep-2-3-0a-peer-checkpoint sweep-2-3-0b-enum-enumeration sweep-2-3-0c-operand-trace sweep-2-3-0d-describing-prose sweep-2-3-1-orphaned-setup sweep-2-3-2-stranded-dependents sweep-2-3-7-collection-cardinality; do\n  p=\"skills/implement/references/$f.md\"\n  echo \"--- $p (first / last  …[per-command-truncated]",
+      "for f in skills/implement/references/sweep-2-3-0-changed-contract.md skills/implement/references/sweep-2-3-0a-peer-checkpoint.md skills/implement/references/sweep-2-3-0b-enum-enumeration.md skills/implement/references/sweep-2-3-0c-operand-trace.md skills/implement/references/sweep-2-3-0d-describing-prose.md skills/implement/references/sweep-2-3-1-orphaned-setup.md skills/implement/references/sweep-2-3-2-stranded-dependents.md skills/implement/references/sweep-2-3-7-collection-cardinality.md; do  …[per-command-truncated]",
+      "git show 00ff94629d67ea3048224fbcf856816ab5b8bfba:skills/implement/phases/phase-2-sweeps-contract.md > .prflow/tmp/head-contract.md; git show 00ff94629d67ea3048224fbcf856816ab5b8bfba:skills/implement/phases/phase-2-sweeps-quality.md > .prflow/tmp/head-quality.md; echo \"contract predicates:\"; grep -cE '^\\*\\*Predicate' .prflow/tmp/head-contract.md; echo \"contract procedures:\"; grep -cE '^\\*\\*Procedure:\\*\\*' .prflow/tmp/head-contract.md; echo \"quality predicates:\"; grep -cE '^\\*\\*Predicate' .prflow …[per-command-truncated]",
+      "git status --porcelain -z > .prflow/tmp/review-dirty-tree-before; git hash-object .prflow/tmp/review-dirty-tree-before",
+      "for f in sweep-2-3-0-changed-contract sweep-2-3-7-collection-cardinality; do echo \"=== $f ===\"; git show 00ff94629d67ea3048224fbcf856816ab5b8bfba:skills/implement/references/$f.md | head -3; echo \"--- last ---\"; git show 00ff94629d67ea3048224fbcf856816ab5b8bfba:skills/implement/references/$f.md | tail -2; echo \"--- anchor? ---\"; git show 00ff94629d67ea3048224fbcf856816ab5b8bfba:skills/implement/references/$f.md | grep -c CLAUDE_SKILL_DIR; done",
+      "for f in sweep-2-3-0-changed-contract sweep-2-3-7-collection-cardinality; do echo \"== $f ==\"; git show 00ff94629d67ea3048224fbcf856816ab5b8bfba:skills/implement/references/$f.md | head -1; git show 00ff94629d67ea3048224fbcf856816ab5b8bfba:skills/implement/references/$f.md | tail -1; done",
+      "git show 00ff94629d67ea3048224fbcf856816ab5b8bfba:skills/implement/references/sweep-2-3-0-changed-contract.md > /tmp/s0.md; head -1 /tmp/s0.md; tail -1 /tmp/s0.md; echo '---7---'; git show 00ff94629d67ea3048224fbcf856816ab5b8bfba:skills/implement/references/sweep-2-3-7-collection-cardinality.md > /tmp/s7.md; head -1 /tmp/s7.md; tail -1 /tmp/s7.md",
+      "git show 00ff94629d67ea3048224fbcf856816ab5b8bfba:skills/implement/references/sweep-2-3-0-changed-contract.md > /tmp/s0.md 2>&1; sed -n '1p;$p' /tmp/s0.md",
+      "cd /home/runner/work/prflow/prflow\nfor p in skills/implement/phases/phase-2-sweeps-contract.md skills/implement/phases/phase-2-sweeps-quality.md; do\n  base=$(git show e401476a224e8acb93b070fa0d1403ff473e7fbc:$p | wc -c)\n  head=$(git show 00ff94629d67ea3048224fbcf856816ab5b8bfba:$p | wc -c)\n  echo \"$p base=$base head=$head delta=$((base-head))\"\ndone",
+      "for p in skills/implement/phases/phase-2-sweeps-contract.md skills/implement/phases/phase-2-sweeps-quality.md; do base=$(git show e401476a224e8acb93b070fa0d1403ff473e7fbc:\"$p\" | wc -c); head=$(git show 00ff94629d67ea3048224fbcf856816ab5b8bfba:\"$p\" | wc -c); echo \"$p base=$base head=$head\"; done",
+      "cd /home/runner/work/prflow/prflow; for f in $(git ls-files 'skills/implement/references/sweep-*.md'); do n=$(git show 00ff94629d67ea3048224fbcf856816ab5b8bfba:\"$f\" 2>/dev/null | grep -c '```'); echo \"$f fences:$n\"; done",
+      "cd /home/runner/work/prflow/prflow; git ls-files 'skills/implement/references/sweep-*.md' > /tmp/reflist.txt; while IFS= read -r f; do c=$(git show 00ff94629d67ea3048224fbcf856816ab5b8bfba:\"$f\" | grep -cE '^```'); echo \"$c fences  $f\"; done < /tmp/reflist.txt",
+      "cd /home/runner/work/prflow/prflow; git grep -cE '^```' 00ff94629d67ea3048224fbcf856816ab5b8bfba -- 'skills/implement/references/sweep-*.md'",
+      "git show 00ff94629d67ea3048224fbcf856816ab5b8bfba:lib/test/run.sh > /tmp/run_head.sh; grep -nE 'sweeps-contract|sweeps-quality|Relocation is a contract|In-scope subtree|what OTHER inputs|operand-trace|Orphaned-setup|Stranded-dependents|Peer-checkpoint|describing-prose|IMPL_PHASE2_FILES|IMPL_REFS_DIR|IMPL_PHASES_DIR' /tmp/run_head.sh | head -60",
+      "git show 00ff94629d67ea3048224fbcf856816ab5b8bfba:lib/test/run.sh > /tmp/run_head.sh",
+      "git show 00ff94629d67ea3048224fbcf856816ab5b8bfba:lib/test/run.sh > /home/runner/work/prflow/prflow/.prflow/tmp/run_head.sh",
+      "cd /home/runner/work/prflow/prflow; for f in changed-contract 0a-peer-checkpoint 0b-enum-enumeration 0c-operand-trace 0d-describing-prose 1-orphaned-setup 2-stranded-dependents 7-collection-cardinality; do echo -n \"sweep-2-3-$f: fence-lines=\"; git show \"00ff94629d67ea3048224fbcf856816ab5b8bfba:skills/implement/references/sweep-2-3-$f.md\" | grep -cE '^ *```'; done"
+    ],
+    "total": 18,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
