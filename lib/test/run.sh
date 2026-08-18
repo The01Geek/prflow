@@ -47409,7 +47409,7 @@ fi
 # The registry and this full-suite call share the same lower-bound contract;
 # test_module_runner.py parses this operand and rejects any coupling drift.
 if ! devflow_run_full_suite_module "$LIB/test/modules/create-issue-contract.sh" \
-  "create-issue-contract" 412; then
+  "create-issue-contract" 418; then
   printf 'ERROR: create-issue-contract boundary could not record its result\n'
   exit 1
 fi
@@ -48272,7 +48272,7 @@ fi
 # and this full-suite call share the same lower-bound contract; test_module_runner.py
 # parses this operand and rejects any coupling drift.
 if ! devflow_run_full_suite_module "$LIB/test/modules/issue-audit-state.sh" \
-  "issue-audit-state" 244; then
+  "issue-audit-state" 258; then
   printf 'ERROR: issue-audit-state boundary could not record its result\n'
   exit 1
 fi
