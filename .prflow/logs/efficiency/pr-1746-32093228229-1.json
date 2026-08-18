@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1746",
+  "generated_at": "2026-08-18T03:23:49Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.11",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 12.914581349999999,
+    "tokens": {
+      "input_tokens": 144,
+      "output_tokens": 46196,
+      "cache_read_input_tokens": 13904876,
+      "cache_creation_input_tokens": 230426,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 194,
+        "outputTokens": 55538,
+        "cacheReadInputTokens": 15490613,
+        "cacheCreationInputTokens": 375581,
+        "webSearchRequests": 0,
+        "costUSD": 12.34620525,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 28,
+        "outputTokens": 3447,
+        "cacheReadInputTokens": 822057,
+        "cacheCreationInputTokens": 71992,
+        "webSearchRequests": 0,
+        "costUSD": 0.5683760999999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 107,
+    "duration_ms": 1965369
+  },
+  "permission_denials": {
+    "count": 9,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-unset}\"; echo \"GITHUB_REPOSITORY=${GITHUB_REPOSITORY:-unset}\"; git branch --show-current; git status --porcelain | head",
+      "printf 'GITHUB_ACTIONS=%s\\n' \"$GITHUB_ACTIONS\"",
+      "gh api \"repos/The01Geek/prflow/pulls/1746\" --jq '.body' > /tmp/pr1746body.txt 2>/tmp/pr1746err.txt; echo \"rc=$?\"; cat /tmp/pr1746err.txt; grep -c \"\\[View run\\](\" /tmp/pr1746body.txt",
+      "gh api \"repos/The01Geek/prflow/pulls/1746\" --jq '.body' > /tmp/pr1746body.txt",
+      "gh api \"repos/The01Geek/prflow/pulls/1746\" --jq '.body' > .prflow/tmp/pr1746body.txt",
+      "ls -la /home/runner/work/prflow/prflow/.prflow/prompt-extensions/ 2>&1; echo \"---\"; /home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/load-prompt-extension.sh docs 2>&1; echo \"EXIT:$?\"",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/load-prompt-extension.sh docs; echo \"EXIT:$?\"",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/config-get.sh .docs.internal_enabled true",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/config-get.sh .docs.external_enabled true"
+    ],
+    "total": 9,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
