@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1744",
+  "generated_at": "2026-08-18T02:47:20Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.10",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 8.023587,
+    "tokens": {
+      "input_tokens": 40,
+      "output_tokens": 27015,
+      "cache_read_input_tokens": 3172332,
+      "cache_creation_input_tokens": 212956,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 92,
+        "outputTokens": 54465,
+        "cacheReadInputTokens": 4510034,
+        "cacheCreationInputTokens": 577264,
+        "webSearchRequests": 0,
+        "costUSD": 8.023587,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 35,
+    "duration_ms": 507518
+  },
+  "permission_denials": {
+    "count": 2,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "mkdir -p .prflow/tmp/review/pr-1744/$(date -u +%Y%m%dT%H%M%SZ); ls -d .prflow/tmp/review/pr-1744/*",
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-unset} ATTEMPT=${GITHUB_RUN_ATTEMPT:-unset} ACTIONS=${GITHUB_ACTIONS:-unset}\"; git status --porcelain"
+    ],
+    "total": 2,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
