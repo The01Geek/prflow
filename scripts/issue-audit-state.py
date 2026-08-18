@@ -9146,9 +9146,11 @@ def build_parser():
                         'binding wins over it.')
     s.set_defaults(func=cmd_record_final_byte_offer)
 
-    s = sub.add_parser('record-creation-epoch', help='Bind creation to a completed round; '
-                                                     'on the file arm bind the digest of '
-                                                     'the bytes actually being posted.')
+    s = sub.add_parser('record-creation-epoch', help='Bind creation to a completed round, '
+                                                     'or (issue #1751) to a recorded '
+                                                     'zero-round user-decline when no round '
+                                                     'exists; on the file arm bind the digest '
+                                                     'of the bytes actually being posted.')
     s.add_argument('slug')
     s.add_argument('--nonce', required=True)
     s.add_argument('--round', type=int, required=True)  # issue #795 retained: caller-selected-round
