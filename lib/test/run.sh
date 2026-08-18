@@ -4708,8 +4708,8 @@ assert_pin_unique "#555: the filing guard requires a discovery that ran (a persi
 # ── issue #555 (review finding): a bundled helper granted as a vendored-literal LEADING
 # TOKEN is exec'd by path — no `python3`/`bash` wrapper is available, because an interpreter
 # head is ungranted on the cloud tiers. Without the exec bit such a call dies rc 126 on every
-# run, and for a fail-closed fence that lands in the arm that looks like legitimate
-# degradation (discovery=[failed] → "nothing to file"), so the loss is silent in exactly the
+# run, and that rc lands in the arm that looks like legitimate degradation
+# (discovery=[degraded], which the filing guard admits), so the loss is silent in exactly the
 # way this issue exists to stop. discover-deferral-manifests.py shipped 100644 and was caught
 # in review; assert the class, not the instance — every scripts/ helper the implement profile
 # grants by vendored literal must be executable in the index.
@@ -35515,6 +35515,21 @@ assert_eq "#1721 shape-lint flags a NON-gh \`&>\` redirect to .prflow/tmp" "yes"
 printf '%s\n' '```bash' 'printf hi 2>&1 | tee .prflow/tmp/x' '```' > "$E363/s-ir6-dup.md"
 assert_eq "#1721 shape-lint does not flag a 2>&1 duplication piped into tee" "" \
   "$(python3 "$ECS" --profile implement "$E363/s-ir6-dup.md")"
+# IR6 is excluded from the command tier and the review arm table has no workspace-scratch arm,
+# so no profile scans the review bundle for the fd-2 capture this issue removed from it. Assert
+# the shipped surface directly, or re-adding `2>.prflow/tmp/…` there ships with a green suite.
+_IR6_RESIDENT_FD2=""
+for _ir6_f in "$LIB/../skills/review/SKILL.md" "$LIB/../skills/review/phases/"*.md \
+              "$LIB/../skills/review-and-fix/SKILL.md" "$LIB/../skills/review-and-fix/references/"*.md; do
+  grep -qE '(^|[^0-9A-Za-z_])(2|&)>>?[[:space:]]*"?\.prflow/tmp' "$_ir6_f" 2>/dev/null \
+    && _IR6_RESIDENT_FD2="$_IR6_RESIDENT_FD2 ${_ir6_f##*/}"
+done
+assert_eq "#1721 no review/review-and-fix bundle fence captures fd 2 into .prflow/tmp" "" \
+  "$_IR6_RESIDENT_FD2"
+# Non-vacuity: the same scan finds a planted capture, so an empty result above is a real absence.
+printf '%s\n' 'x 2>.prflow/tmp/planted.err' > "$E363/ir6-resident-planted.md"
+assert_eq "#1721 the resident fd-2 scan is non-vacuous (planted capture is found)" "yes" \
+  "$(grep -qE '(^|[^0-9A-Za-z_])(2|&)>>?[[:space:]]*"?\.prflow/tmp' "$E363/ir6-resident-planted.md" && echo yes || echo no)"
 # ── (R5 retired, issue #869): the `if`/`elif` `VAR=$(…)` command-substitution CONDITION
 # ── shape the retired R5 rule flagged (#857) is now cloud-PERMITTED — this is exactly the
 # ── `$( )` spelling matcher-probe Shape 18 measured (`if HP=$(config-get.sh …)`, run

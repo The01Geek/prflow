@@ -951,9 +951,11 @@ is the canonical home for that reading.
 command-tier shape 3 (run `30956039324`, 2026-08-04, `claude-code-action@v1` with Claude Code
 2.1.221) and implement-tier row 11 (run `29623046995`, 2026-07-18). **Field evidence from a later
 consumer run refuses a redirect construct into that same tree**, so no such row may be read as a
-current guarantee. Note what the field evidence does *not* say: none of the three refusals below
-involves a stdout redirect into `.prflow/tmp/**`, so the permit for that exact shape stands
-un-refuted — which is why the shipped lint still treats that one shape as advisory.
+current guarantee. Note what the field evidence does *not* say: **no refusal below is attributed to a
+stdout redirect into `.prflow/tmp/**`.** Row 1's chain did contain three such redirects, but the
+harness named its multiple heads as the parts requiring approval; rows 2 and 3 have other causes
+entirely. So no measurement refutes that shape on its own, which is why the shipped lint still
+treats it as advisory.
 
 **This section supersedes those rows in time; it does not contradict them.** Each recorded what a
 real run measured at the version it names, and stays valid as history. What changed is that a later
@@ -1003,6 +1005,13 @@ those by reading each fence's variable definitions, not by grep alone — a coun
 pattern alone under-reports this class by construction, which is why the rows above describe the
 population rather than pinning a number to it.
 
+**A fourth class evades them too: a target prefixed by a rendered PLACEHOLDER.**
+`> "<main-root>/.prflow/tmp/issue-body-<slug>.md"` in `create-issue/references/issue-template.md`
+is a real redirect into the scratch tree, but no pattern anchored at `.prflow/tmp` sees it, because
+the literal begins with `<main-root>/`. Enumerate this population by resolving each redirect
+token's target and testing for `.prflow/tmp` anywhere within it — never by anchoring the pattern at
+the start of the target.
+
 | File | Sites | Reachability | Disposition |
 |---|---|---|---|
 | `skills/review/SKILL.md` | 4 × `2>` | cloud | rewritten — stderr read from the tool result |
@@ -1017,6 +1026,7 @@ population rather than pinning a number to it.
 | `skills/retrospective-weekly/SKILL.md` | mixed stdout, append and stderr redirects | **local only** — no workflow dispatches this command | **left unchanged** |
 | `skills/review/phases/phase-3-agents.md` | redirect writes and appends, quoted and variable targets | cloud | **DEFERRED — not rewritten**, see below |
 | `skills/implement/phases/phase-3-fix-loop.md` | 2 × `2>` to a `mktemp` target | cloud (`/prflow:implement`) | **DEFERRED — not rewritten**, see below |
+| `skills/create-issue/references/issue-template.md` | 1 × stdout redirect to the placeholder-prefixed target `"<main-root>/.prflow/tmp/issue-body-<slug>.md"` | **local only** — no workflow dispatches `/prflow:create-issue` | **left unchanged** |
 
 **Two cloud-reachable populations are adjudicated here but deliberately NOT rewritten**, because
 the remedy this change applies does not reach them:

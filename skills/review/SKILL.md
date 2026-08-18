@@ -49,7 +49,7 @@ When the block IS present:
 
 - **Permitted:** only shapes with evidence on this profile: authoring a file with the **Write tool** under `.prflow/tmp/**`, the specific recorded `tee` forms, and the specifically recorded command-substitution forms. A granted command head does **not** establish that a statement containing a redirect is permitted; each complete shape needs its own evidence.
 - **Denied — never emit:** a leading `VAR=value` assignment or env-prefix `M=x cmd …` (use the `VAR=$(cmd)` capture instead); a leading `cd`; a redirect targeting `/tmp` (`> /tmp/…`, `>> /tmp/…`) — or any other authoring there; the Write tool outside `.prflow/tmp/**`; a `cat`-headed heredoc write to ANY target; a stderr redirect that AUTHORS a file, measured refused even for a target inside `.prflow/tmp/**` — so read stderr from the invocation's own tool result instead (`2>/dev/null` discards rather than authoring, and is unmeasured either way); an interpreter head `python3`/`python`/`node` (ungranted); the *unexpanded* helper anchor placeholder as a leading token (emit the resolved literal path).
-- **Prefer the Write tool over a stdout `>` redirect into `.prflow/tmp/**`.** That redirect carries older PERMITTED probe rows a later run did not reproduce, so it is advisory rather than denied, and a phase reference still prescribing it is followed as written. The Phase 3 dirty-tree snapshot is one: it appends inside a shell read-loop and captures command output, neither of which the Write tool can source.
+- **Prefer the Write tool over a stdout `>` redirect into `.prflow/tmp/**`.** That redirect's PERMITTED rows are unconfirmed since older versions, so it is advisory rather than denied, and a phase reference still prescribing it is followed as written. The Phase 3 dirty-tree snapshot is one: it appends inside a shell read-loop and captures command output, neither of which the Write tool can source.
 - **Hard rule: after two permission denials of a shape, switch to a permitted alternative from this list — never iterate variants of the denied shape.**
 
 **Working-directory contract.** Every bundled-helper path here is a repo-relative literal that resolves against the repository root.
@@ -161,11 +161,11 @@ On `id-rc=0`, **the resume rule is the same partition of the value domain**: res
 # the harness refuses that, returning no output and losing the rc as well.
 if [ -n "$WP" ]; then
   "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py patch "$WP" .prflow/tmp/review/<slug>/<run-id>/review-wp.md || \
-    echo "::warning::devflow review: live progress-comment update failed (workpad.py patch rc=$?): <stderr-quote>; the comment may be frozen at an earlier phase — the review continues to its verdict" >&2
+    echo "::warning::devflow review: live progress-comment update failed (workpad.py patch rc=$?); the comment may be frozen at an earlier phase — the review continues to its verdict; cause follows" >&2
 fi
 ```
 
-Render `<stderr-quote>` as the first line of the stderr this invocation's own tool result shows, or as the literal `stderr=empty` when it shows none; it is a template slot, never text to emit literally.
+**Emit the cause separately** after reading this fence's tool result: `::warning::devflow review: patch cause: <first stderr line, or stderr=empty>` — the in-fence warning cannot carry it.
 
 The review body uses its **own section template** (the orchestrator authors it; `workpad.py` only carries it). After the helper succeeds or the helper-absent fallback establishes a comment, rebuild the body from your held state (re-author `.prflow/tmp/review/<slug>/<run-id>/review-wp.md` with the **Write tool**: the exact helper-reported or fallback-held `$MARKER` literal as the first line, then the template below from its `# PRFlow Review` H1 down) and `patch` at each phase boundary; a full-body rewrite is simplest. Substitute `{N}` (PR number), `{RUN_URL}` (the run link above; `_(local run)_` when there is no run id), `{SEEDED_HEAD}` (see the producer-key rule below the template), and `{workpad.py now}` (the timestamp) when authoring:
 

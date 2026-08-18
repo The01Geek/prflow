@@ -57,8 +57,8 @@ Exit codes (discovery mode):
     3  partial — at least one `failed` AND at least one `ok`/`absent`
        (discovered paths are still printed); stderr carries `devflow: discovery partial:`
     4  every root classified `failed` (empty stdout); stderr carries `devflow: discovery failed:`
-An uncaught exception exits non-zero (interpreter default), which the fence's
-else-arm treats as failed — ambiguous failures fail closed.
+An uncaught exception exits non-zero (interpreter default) with neither marker on
+stderr, which the §4.0.5 reader's unrecognised-shape arm records as a failure.
 
 PRESENCE MODE (issue #1374). `--presence-for-pr N` answers a different question:
 is any deferred review finding present for PR N? Phase 4.0.5's filing procedure now

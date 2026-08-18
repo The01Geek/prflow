@@ -484,17 +484,21 @@ def _workspace_scratch_redirect(statement: str) -> bool:
 
     Two arms, each scoped to what has actually been measured on the implement tier:
 
-    * STDERR (`2>`/`&>`) — flagged for ANY head. Issue #1721 measured
+    * STDERR (`2>`/`&>`) — no head buys an exemption; every head whose statement carries
+      one is flagged. Issue #1721 measured
       `workpad.py acs-resolve … 2>.prflow/tmp/review/<slug>/<run-id>/acs.err` DENIED on
       a cloud run ("Output redirection … was blocked"), so a non-gh head buys no
       exemption here. Do not re-narrow this arm to the gh family: the shipped fences the
       issue rewrote were non-gh stderr captures, and a gh-only rule lets the exact denied
       shape back in with the suite green.
-    * STDOUT (`>`/`>>`) — flagged for the gh family only. Probe rows 11 and 19 measured a
-      repo-relative stdout redirect PERMITTED (`echo … > .prflow/tmp/…` and
-      `gh issue view … > .prflow/tmp/…`), so a blanket stdout ban would forbid a proven
-      form; issue #1514 keeps the remaining unmeasured gh-family stdout shapes on the
-      Write-default path.
+    * STDOUT (`>`/`>>`) — flagged for the gh family only. Probe row 11 measured a non-gh
+      repo-relative stdout redirect PERMITTED (`echo … > .prflow/tmp/…`), so a blanket
+      stdout ban would forbid a proven form; issue #1514 keeps the unmeasured gh-family
+      stdout shapes on the Write-default path, which is why row 19's own gh form
+      (`gh issue view … > .prflow/tmp/…`) is flagged rather than exempted.
+
+    Residuals this predicate does not reach: a target spelled through the anchored
+    `<scratch-dir>/` form or through a shell variable, and a multi-digit fd word (`02>`).
     """
     head = _heads._head_of(statement)
     if not head:
