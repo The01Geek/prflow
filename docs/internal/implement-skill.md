@@ -726,7 +726,7 @@ visible **before implementation begins**, which is where an uncovered criterion 
 **Ownership split.** This is the completeness half of a deliberate division of labor introduced by
 issue #1674. `/prflow:create-issue`'s Testing Strategy is a **residual-risk supplement**: it no longer
 restates a named assertion for every acceptance criterion, and records only cases that add information
-beyond the criteria (bug reproduction, hostile-input pairing, new mutable-input-reader Move 2a matrices
+beyond the criteria (bug reproduction, hostile-input pairing, new mutable-input-reader specialized-test matrices
 with their `governing conventions consulted:` record, guarantee-class skipped-step paths,
 retry/idempotency) — or a single concise statement that the acceptance criteria fully express the
 verification contract when no residual-risk case exists. The Acceptance Criteria remain the exhaustive,
