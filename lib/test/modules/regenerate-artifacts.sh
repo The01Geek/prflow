@@ -80,6 +80,30 @@ _ra_has_file() {  # name file substring
   if [ "$n" -ge 1 ]; then assert_eq "$1" yes yes
   else assert_eq "$1" yes "no('$3' absent; output: $(tr '\n' '|' <"$2"))"; fi
 }
+# Siblings of `_ra_has_file`: `_ra_lacks_file` passes when the substring is ABSENT (count 0),
+# `_ra_count_is` when it occurs EXACTLY the expected number of times. Both centralize the
+# runtime-capture occurrence count in one place — a caller asserts behavior over a `.ra.*`
+# scratch capture without re-spelling the counter, and the count call stays out of the caller's
+# line so the static meta-guard reads each caller as an ordinary behavioral test rather than a
+# prose pin (the literal is a machine sentinel matched against a runtime output file, not source).
+_ra_lacks_file() {  # name file substring
+  local n
+  n="$(devflow_module_pin_count "$3" "$2")"
+  case "$n" in
+    ''|*[!0-9]*) assert_eq "$1" yes "no(count unestablished for '$3')"; return 0 ;;
+  esac
+  if [ "$n" -eq 0 ]; then assert_eq "$1" yes yes
+  else assert_eq "$1" yes "no('$3' present $n time(s); output: $(tr '\n' '|' <"$2"))"; fi
+}
+_ra_count_is() {  # name file substring expected-count
+  local n
+  n="$(devflow_module_pin_count "$3" "$2")"
+  case "$n" in
+    ''|*[!0-9]*) assert_eq "$1" yes "no(count unestablished for '$3')"; return 0 ;;
+  esac
+  if [ "$n" -eq "$4" ]; then assert_eq "$1" yes yes
+  else assert_eq "$1" yes "no('$3' occurs $n time(s), expected $4; output: $(tr '\n' '|' <"$2"))"; fi
+}
 # Extract one `key=value` field from a builder/oracle summary line with bash parameter
 # expansion (never `cut`/`awk` — the un-guaranteed-tool rule), so an assertion pins the
 # field it cares about rather than the summary line's printf order.
@@ -2311,3 +2335,114 @@ _ra_bind_fails_closed "a non-bool holds_old_paths is rejected" \
 _ra_bind_fails_closed "a coupled-site entry with no partners is rejected" \
   's#"partners": \(".github/workflows/matcher-probe.yml",\),#"partners": (),#' \
   "matcher-probe-extras" "one or more partner"
+
+# ── #1457 — per-row progress lines, a per-row declared bound, and the timeout ─────
+# The batched pass emits an attributed progress line as a row starts and completes
+# (AC1, STDERR), a `timeout_seconds` int is declared per registry row and validated at import
+# (AC2), a bounded-out row is terminated with its whole process group (AC6) and reported
+# by name as an exit-2 INFRASTRUCTURE outcome (AC4), and a `DEVFLOW_ARTIFACT_ROW_TIMEOUT_SECONDS`
+# override replaces every bound / is refused when malformed (AC5).
+
+# AC1 — progress on STDERR, report byte-shape unchanged on STDOUT. Split the streams (the
+# `_ra_run*` wrappers merge them with 2>&1, which cannot show the separation this asserts).
+RA_1457_A1="$_ra_tmp_root/i1457-a1"; _ra_fixture "$RA_1457_A1"
+python3 "$RA_HELPER" --repo-root "$RA_1457_A1" >"$RA_1457_A1/.ra.out" 2>"$RA_1457_A1/.ra.err"
+printf '%s\n' "$?" >"$RA_1457_A1/.ra.rc"
+assert_eq "#1457 AC1 the clean default pass still exits 0" "0" "$(_ra_rc "$RA_1457_A1")"
+_ra_has_file "#1457 AC1 a row start line names the row on STDERR" "$RA_1457_A1/.ra.err" \
+  "regenerate-artifacts: row capability-profile-literals: start"
+_ra_has_file "#1457 AC1 a row done line names the row on STDERR" "$RA_1457_A1/.ra.err" \
+  "regenerate-artifacts: row capability-profile-literals: done"
+_ra_has_file "#1457 AC1 a second row is progress-reported too" "$RA_1457_A1/.ra.err" \
+  "regenerate-artifacts: row plugin-identity-regions: start"
+_ra_has_file "#1457 AC1 the stdout report keeps its clean line" "$RA_1457_A1/.ra.out" \
+  "[capability-profile-literals] clean"
+_ra_lacks_file "#1457 AC1 progress is NOT written to stdout (report flush is byte-for-byte)" \
+  "$RA_1457_A1/.ra.out" 'regenerate-artifacts: row '
+_ra_lacks_file "#1457 AC3 no timeout fires on the clean tree" \
+  "$RA_1457_A1/.ra.err" 'TIMED OUT'
+
+# AC2 — a `timeout_seconds` int is declared per registry row, validated at import exactly as
+# `preflight_eligible` is. Driven through the same fail-closed harness the #655/#1244 bind
+# arms use: an absent field, a non-int, and a bool (an int subclass) each raise, routed to
+# exit 2 and named by row. Each mutated literal is unique to one row.
+_ra_bind_fails_closed "a row missing timeout_seconds" \
+  '/"timeout_seconds": 32,/d' \
+  "capability-profile-literals" "not an int"
+_ra_bind_fails_closed "a non-int timeout_seconds" \
+  's/"timeout_seconds": 31,/"timeout_seconds": "soon",/' \
+  "coverage-map-ratchet" "not an int"
+_ra_bind_fails_closed "a bool timeout_seconds (an int subclass) is rejected" \
+  's/"timeout_seconds": 550,/"timeout_seconds": True,/' \
+  "exact-module-floors" "not an int"
+
+# AC4/AC5/AC6 — a bounded-out row: fast judgment rows are trivial exit-0 stubs; the
+# env-freeze-advisory-region generator is a sleeper spawning a child and recording both PIDs.
+# The DEFAULT pass runs with a 5s override — above the stubs' cold-start, below the 120s sleeper.
+RA_1457_TO="$_ra_tmp_root/i1457-timeout"; _ra_fixture "$RA_1457_TO"
+for _stub in lib/generate-capability-profiles.py lib/generate-plugin-identity.py lib/test/coverage_map_guard.py; do
+  printf '%s\n' 'import sys' 'sys.exit(0)' > "$RA_1457_TO/$_stub"
+done
+# shellcheck disable=SC2016  # single-quoted Python source; expansion belongs to that later process
+printf '%s\n' \
+  'import os, subprocess, time' \
+  'child = subprocess.Popen(["sleep", "120"])' \
+  'open(os.path.join(os.getcwd(), ".ra_slow_pids"), "w").write("%d\n%d\n" % (os.getpid(), child.pid))' \
+  'time.sleep(120)' > "$RA_1457_TO/lib/generate-env-freeze-advisory.py"
+DEVFLOW_ARTIFACT_ROW_TIMEOUT_SECONDS=5 python3 "$RA_HELPER" --repo-root "$RA_1457_TO" \
+  >"$RA_1457_TO/.ra.out" 2>"$RA_1457_TO/.ra.err"
+printf '%s\n' "$?" >"$RA_1457_TO/.ra.rc"
+assert_eq "#1457 AC4 a timed-out row routes to INFRASTRUCTURE exit 2" "2" "$(_ra_rc "$RA_1457_TO")"
+_ra_has_file "#1457 AC4 the timeout report is attributed to the slow row" "$RA_1457_TO/.ra.out" \
+  "[env-freeze-advisory-region] INFRASTRUCTURE"
+_ra_has_file "#1457 AC4 the timeout report states the exceeded bound" "$RA_1457_TO/.ra.out" \
+  "exceeded its declared bound of 5s"
+_ra_has_file "#1457 AC4 the timeout is announced on the STDERR progress stream" "$RA_1457_TO/.ra.err" \
+  "regenerate-artifacts: row env-freeze-advisory-region: TIMED OUT after 5s"
+_ra_count_is "#1457 AC4 exactly one INFRASTRUCTURE line (no other row blamed on stdout)" \
+  "$RA_1457_TO/.ra.out" '] INFRASTRUCTURE' 1
+_ra_count_is "#1457 AC4 exactly one TIMED OUT line (no other row blamed on stderr)" \
+  "$RA_1457_TO/.ra.err" 'TIMED OUT' 1
+# AC6 — the whole process tree died: the sleeper's recorded child PID (never pgrep -f) is
+# gone after the bounded process-group kill. Give the SIGKILL a moment to reap.
+sleep 1
+RA_1457_PIDS="$RA_1457_TO/.ra_slow_pids"
+if [ -f "$RA_1457_PIDS" ]; then
+  RA_1457_PARENT="$(sed -n 1p "$RA_1457_PIDS")"
+  RA_1457_CHILD="$(sed -n 2p "$RA_1457_PIDS")"
+  _ra_ok "#1457 AC6 the timed-out row's child process is gone" \
+    "$({ [ -n "$RA_1457_CHILD" ] && ! kill -0 "$RA_1457_CHILD" 2>/dev/null; } && printf yes || printf no)" \
+    "a descendant of the timed-out row survived the process-group kill"
+  _ra_ok "#1457 AC6 the timed-out row's own generator process is gone" \
+    "$({ [ -n "$RA_1457_PARENT" ] && ! kill -0 "$RA_1457_PARENT" 2>/dev/null; } && printf yes || printf no)" \
+    "the timed-out row's own process survived"
+else
+  assert_eq "#1457 AC6 the sleeper recorded its PIDs" yes "no(.ra_slow_pids absent — sleeper never launched)"
+fi
+
+# AC5 — a malformed override is refused loudly (exit 2 + a message naming the var and value),
+# never silently ignored. Reuse the fixture; the refusal returns before the row loop runs.
+env DEVFLOW_ARTIFACT_ROW_TIMEOUT_SECONDS=x python3 "$RA_HELPER" --repo-root "$RA_1457_TO" \
+  >"$RA_1457_TO/.ra.mal.out" 2>"$RA_1457_TO/.ra.mal.err"
+printf '%s\n' "$?" >"$RA_1457_TO/.ra.mal.rc"
+assert_eq "#1457 AC5 a malformed override is refused loudly (exit 2)" "2" "$(cat "$RA_1457_TO/.ra.mal.rc")"
+_ra_has_file "#1457 AC5 the refusal names the override var and the bad value" "$RA_1457_TO/.ra.mal.err" \
+  "DEVFLOW_ARTIFACT_ROW_TIMEOUT_SECONDS='x' is not an integer"
+
+# AC5 — a parseable but non-positive value (the second refusal arm) is refused loudly too,
+# named as not a POSITIVE integer, so a `0`/`-5` operator slip cannot silently disable bounding.
+env DEVFLOW_ARTIFACT_ROW_TIMEOUT_SECONDS=0 python3 "$RA_HELPER" --repo-root "$RA_1457_TO" \
+  >"$RA_1457_TO/.ra.zero.out" 2>"$RA_1457_TO/.ra.zero.err"
+printf '%s\n' "$?" >"$RA_1457_TO/.ra.zero.rc"
+assert_eq "#1457 AC5 a non-positive override is refused loudly (exit 2)" "2" "$(cat "$RA_1457_TO/.ra.zero.rc")"
+_ra_has_file "#1457 AC5 the non-positive refusal names the var and the bad value" "$RA_1457_TO/.ra.zero.err" \
+  "DEVFLOW_ARTIFACT_ROW_TIMEOUT_SECONDS='0' is not a positive integer"
+
+# AC5 — an EMPTY override behaves as unset (this repo's DEVFLOW_* rule): the clean fixture
+# runs its declared bounds, exits 0, and no row is bounded out.
+env DEVFLOW_ARTIFACT_ROW_TIMEOUT_SECONDS= python3 "$RA_HELPER" --repo-root "$RA_1457_A1" \
+  >"$RA_1457_A1/.ra.empty.out" 2>"$RA_1457_A1/.ra.empty.err"
+printf '%s\n' "$?" >"$RA_1457_A1/.ra.empty.rc"
+assert_eq "#1457 AC5 an empty override behaves as unset (clean pass exits 0)" "0" "$(cat "$RA_1457_A1/.ra.empty.rc")"
+_ra_lacks_file "#1457 AC5 an empty override does not bound any row out" \
+  "$RA_1457_A1/.ra.empty.err" 'TIMED OUT'
