@@ -1253,6 +1253,10 @@
       "note": "",
       "owner": "unmodularized"
     },
+    "1581": {
+      "note": "",
+      "owner": "unmodularized"
+    },
     "1594": {
       "note": "lint-reported-base-dir-arm.py: the reported-base-directory-first arm lint — a value-consuming ${CLAUDE_SKILL_DIR:-…} anchor expansion at an enrolled site with no sentinel ahead of it goes RED (fenced and inline-code shapes), an anchor followed by a helper path passes, and the empty-inventory/absent-file/unreadable-file fail-closed arms; plus the real-tree clean gate and --print-inventory exposure",
       "owner": "unmodularized"
@@ -1364,6 +1368,10 @@
     "1723": {
       "note": "",
       "owner": "unmodularized"
+    },
+    "1733": {
+      "note": "",
+      "owner": "create-issue-contract"
     },
     "177": {
       "note": "",

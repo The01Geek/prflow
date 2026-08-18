@@ -4,6 +4,26 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.33.11] — 2026-08-18
+
+### Fixed
+- **`/prflow:create-issue` Step 4 working-file listing now reports presence from what the shell shows.** The listing runs `ls -lL` (not `ls -l`) over its four named paths, so a path that is a symbolic link to a gone target draws a not-found message and is classified `absent` instead of passing as `present` on a stale row; a not-found message naming a path — by the whole path or by its final segment, since one `ls` quotes the operand and another names only the file name — is decisive even beside a printed row, a path is `present` only when its own row describes an ordinary file of at least one byte (a zero-byte file is `absent`), and a directory is `unestablished`. The slug-unknown arm stays on plain `ls -l` so a broken link is still shown. Re-running the derivation step now re-runs the steelman pass with it, the presentation gate is the single owner of the audit file's re-entry, and the listing names the run-state files it does not cover. (#1733)
+
+## [2.33.10] — 2026-08-18
+
+### Changed
+Predicate-gate the eight conditional Phase 2.3 verification sweeps in `/prflow:implement`.
+
+Each of 2.3.0, 2.3.0a, 2.3.0b, 2.3.0c, 2.3.0d, 2.3.1, 2.3.2 and 2.3.7 now keeps its trigger and a
+resident predicate statement in its phase file and carries its procedure in its own reference under
+`skills/implement/references/`, read only when that sweep's own predicate fires. A run that fires one
+or two conditional sweeps no longer holds all eight procedures resident. The six always-firing sweeps
+— 2.3.3, 2.3.4, 2.3.4a, 2.3.4b, 2.3.5 and 2.3.6 — are unchanged and stay resident.
+
+Sweep execution is unchanged: the orchestrator runs every sweep itself, and no sweep is dispatched to
+a subagent. A reference read that fails is recorded and the run continues to the next sweep rather
+than halting Phase 2.
+
 ## [2.33.9] — 2026-08-18
 
 ### Changed
