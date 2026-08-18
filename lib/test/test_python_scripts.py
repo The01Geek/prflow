@@ -25689,7 +25689,7 @@ assert_eq("#795 checker: over an unmutated tree every arm passes (the rows above
 # --- #1466: the REVERSE-completeness arm, driven against crafted reference documents -----
 # `check_sequence` grades one direction only — every name the sequence prints is a registered
 # subcommand. Nothing required a call the reference documents MANDATE to appear in the
-# sequence, which is how `query-round-kind` and `record-staged-write` went missing from it
+# sequence, which is how `query-boundary` and `record-staged-write` went missing from it
 # while the suite stayed green over a completeness sentence asserting the opposite.
 # `check_fenced_completeness` adds the other direction over the reach a fence scan has, so
 # these rows drive it against crafted documents rather than the shipped ones.
@@ -25766,16 +25766,16 @@ def _alc_fenced(step36=None, step4=None, fence_exempt=True):
 # --- membership: a fenced call the sequence names passes; one it omits refuses ------------
 assert_eq("#1466 reverse check: a fenced subcommand the sequence names passes",
           None,
-          _alc_fenced(step36=_alc_doc(["init", "query-arm"],
-                                      [_alc_call("init"), _alc_call("query-arm")],
+          _alc_fenced(step36=_alc_doc(["init", "query-summary"],
+                                      [_alc_call("init"), _alc_call("query-summary")],
                                       extra=_ALC_COND_MENTIONS)))
 
 _alc_omitted = _alc_fenced(step36=_alc_doc(["init"],
-                                           [_alc_call("init"), _alc_call("query-arm")],
+                                           [_alc_call("init"), _alc_call("query-summary")],
                                            extra=_ALC_COND_MENTIONS))
 assert_eq("#1466 reverse check: a fenced subcommand named in neither the sequence nor the "
           "exemption set refuses, naming that subcommand",
-          True, _alc_omitted is not None and "query-arm" in _alc_omitted)
+          True, _alc_omitted is not None and "query-summary" in _alc_omitted)
 
 # The SECOND reference file is scanned too — the completeness sentence ranges over both, so
 # an omission living there must refuse identically.
@@ -25848,22 +25848,22 @@ assert_eq("#1466 reverse check: a _FENCE_EXEMPT member invoked in no fence is re
 
 # --- defect reproduction: today's document, before the repair ----------------------------
 _alc_today = _alc_fenced(step36=_alc_doc(
-    ["init", "query-draft-binding", "record-draft-binding", "query-arm"],
-    [_alc_call("init"), _alc_call("query-round-kind"), _alc_call("record-staged-write"),
-     _alc_call("query-arm"), _alc_call("record-draft-binding")],
+    ["init", "query-draft-binding", "record-draft-binding", "query-summary"],
+    [_alc_call("init"), _alc_call("query-boundary"), _alc_call("record-staged-write"),
+     _alc_call("query-summary"), _alc_call("record-draft-binding")],
     extra=_ALC_COND_MENTIONS))
-assert_eq("#1466 reverse check: the pre-repair document (query-round-kind and "
+assert_eq("#1466 reverse check: the pre-repair document (query-boundary and "
           "record-staged-write fenced, listed nowhere) refuses naming both",
           True,
           _alc_today is not None
-          and "query-round-kind" in _alc_today and "record-staged-write" in _alc_today)
+          and "query-boundary" in _alc_today and "record-staged-write" in _alc_today)
 
 # The refusal's operand list is ordered and deduped, so it needs a multi-element case with a
 # repeat: a call fenced twice must be named once, and the names must arrive in document order.
 _alc_dedup = _alc_fenced(step36=_alc_doc(
     ["init"],
-    [_alc_call("record-adjudication"), _alc_call("query-arm"),
-     _alc_call("record-adjudication"), _alc_call("init")],
+    [_alc_call("record-coverage"), _alc_call("query-summary"),
+     _alc_call("record-coverage"), _alc_call("init")],
     extra=_ALC_COND_MENTIONS))
 assert_eq("#1466 reverse check: a call fenced twice is reported once, and the orphans arrive "
           "in document order",
@@ -25872,9 +25872,9 @@ assert_eq("#1466 reverse check: a call fenced twice is reported once, and the or
           # unguarded `.count()` would raise AttributeError — aborting the run at this line
           # instead of failing this one row.
           (_alc_dedup is not None,
-           (_alc_dedup or "").count("record-adjudication"),
+           (_alc_dedup or "").count("record-coverage"),
            _alc_dedup is not None
-           and _alc_dedup.index("record-adjudication") < _alc_dedup.index("query-arm")))
+           and _alc_dedup.index("record-coverage") < _alc_dedup.index("query-summary")))
 
 # The attribution's OWN fail-open control. Taking the first *registered* token after the
 # helper (and skipping anything else) would drop a typo'd or renamed subcommand entirely: no
@@ -25920,11 +25920,11 @@ assert_eq("#1466 reverse check: a state-owner fence with NO non-flag operand ref
 # the check would then pass green over exactly the drift it exists to catch. This row is that
 # fail-open's regression control.
 _alc_flagged = _alc_fenced(step36=_alc_doc(
-    ["init"], [_alc_call("init"), _alc_call("query-arm", flags="-X importtime ")],
+    ["init"], [_alc_call("init"), _alc_call("query-summary", flags="-X importtime ")],
     extra=_ALC_COND_MENTIONS))
 assert_eq("#1466 reverse check: a fence placing an interpreter flag ahead of the script path "
           "is still attributed to its subcommand",
-          True, _alc_flagged is not None and "query-arm" in _alc_flagged)
+          True, _alc_flagged is not None and "query-summary" in _alc_flagged)
 
 # --- degenerate inputs: an empty scanned population is a refusal, never a clean pass -------
 # The population comes from the REUSED fence enumeration, which this check reads but does not
@@ -25965,14 +25965,14 @@ assert_eq("#1466 reverse check RESIDUAL: an invocation in a non-`bash` fence is 
           None,
           _alc_fenced(step36=_alc_doc(["init"], [_alc_call("init")],
                                       extra=_ALC_COND_MENTIONS + "\n\n```console\n"
-                                      + _alc_call("query-arm") + "\n```\n")))
+                                      + _alc_call("query-summary") + "\n```\n")))
 
 assert_eq("#1466 reverse check RESIDUAL: an invocation named only in inline prose backticks "
           "is invisible to the check",
           None,
           _alc_fenced(step36=_alc_doc(["init"], [_alc_call("init")],
                                       extra=_ALC_COND_MENTIONS
-                                      + " see `" + _alc_call("query-arm") + "`")))
+                                      + " see `" + _alc_call("query-summary") + "`")))
 
 # The bare-`(…)`-subshell residual, pinned in BOTH directions because the boundary is not
 # where "subshells are invisible" would put it: the trailing `)` attaches to the unit's last
@@ -25983,9 +25983,9 @@ assert_eq("#1466 reverse check RESIDUAL: an invocation named only in inline pros
 assert_eq("#1466 reverse check: an unaccounted invocation nested in a bare `(…)` subshell is "
           "still VISIBLE and refuses — the subshell is not an escape route",
           True,
-          (lambda r: r is not None and "query-arm" in r)(
+          (lambda r: r is not None and "query-summary" in r)(
               _alc_fenced(step36=_alc_doc(
-                  ["init"], [_alc_call("init"), "(" + _alc_call("query-arm") + ")"],
+                  ["init"], [_alc_call("init"), "(" + _alc_call("query-summary") + ")"],
                   extra=_ALC_COND_MENTIONS))))
 
 assert_eq("#1466 reverse check RESIDUAL: the trailing `)` hides a subshell unit only when the "
@@ -26008,10 +26008,10 @@ assert_eq("#1466 reverse check: a duplicated anchor line refuses rather than sel
 assert_eq("#1466 reverse check: a sequence paragraph split by a blank line is read short "
           "and refuses on the calls the truncated paragraph no longer names",
           True,
-          (lambda r: r is not None and "query-arm" in r)(
+          (lambda r: r is not None and "query-summary" in r)(
               _alc_fenced(step36="\n".join([
-                  _ALC_ANCHOR, "", "`init`", "", "`query-arm`", "",
-                  "```bash", _alc_call("query-arm"), "```", "", _ALC_COND_MENTIONS]))))
+                  _ALC_ANCHOR, "", "`init`", "", "`query-summary`", "",
+                  "```bash", _alc_call("query-summary"), "```", "", _ALC_COND_MENTIONS]))))
 
 # --- the reused-API and module-load guards are driven, not merely stated -------------------
 # `_load_extractor`'s name check and `_load_module`'s load guard are this arm's answer to
@@ -26079,7 +26079,7 @@ _alc_saved36b, _alc_saved4b = _alc795.STEP36, _alc795.STEP4
 with tempfile.TemporaryDirectory() as _alc_tmp2:
     _p36b = _alc795.Path(_alc_tmp2) / "a.md"
     _p4b = _alc795.Path(_alc_tmp2) / "b.md"
-    _p36b.write_text(_alc_doc(["init", "query-arm", "init"], [], extra=_ALC_COND_MENTIONS),
+    _p36b.write_text(_alc_doc(["init", "query-summary", "init"], [], extra=_ALC_COND_MENTIONS),
                      encoding="utf-8")
     _p4b.write_text("`query-draft-binding`\n", encoding="utf-8")
     try:

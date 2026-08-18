@@ -3456,6 +3456,31 @@ def issue_token(nonce, ground, key):
     return 'eat_' + hashlib.sha256(material).hexdigest()[:16]
 
 
+def _select_current_override(state, current_digest, *, unbound_ok, kinds=None):
+    """The newest override current at the run's revision ordinal, or None.
+
+    A bound override (a recorded `draft_digest`) is honoured only while that digest still
+    matches `current_digest`; an unbound one only when `unbound_ok` holds. `kinds`, when
+    given, restricts the search to overrides of those kinds. This one selector is shared by
+    both `_valid_override` arms so the epoch-round and zero-round matching rules — which
+    differ only in `kinds` and in when an unbound override is honoured — cannot drift apart.
+    """
+    now = revision_ordinal(state)
+    for ov in reversed(state['overrides']):
+        if kinds is not None and ov.get('kind') not in kinds:
+            continue
+        if ov.get('recorded_at_ordinal') != now:
+            continue
+        want = ov.get('draft_digest')
+        if want is None:
+            if not unbound_ok:
+                continue
+        elif want != current_digest:
+            continue
+        return ov
+    return None
+
+
 def _valid_override(state, current_digest):
     """The newest override still current, or None.
 
@@ -3487,34 +3512,16 @@ def _valid_override(state, current_digest):
     if epoch is None:
         # Zero-round arm (issue #1751): only a current `user-decline` grounds eligibility
         # here, never a `cap-reached`. An unbound decline is honoured only when no
-        # canonical digest was supplied; a bound one only when its digest still matches.
-        now = revision_ordinal(state)
-        for ov in reversed(state['overrides']):
-            if ov.get('kind') != 'user-decline':
-                continue
-            if ov.get('recorded_at_ordinal') != now:
-                continue
-            want = ov.get('draft_digest')
-            if want is None:
-                if current_digest is not None:
-                    continue
-            elif want != current_digest:
-                continue
-            return ov
-        return None
+        # canonical digest was supplied (the read-only sandbox).
+        return _select_current_override(
+            state, current_digest, unbound_ok=current_digest is None,
+            kinds=('user-decline',))
+    # Off the file arm there is no trustworthy canonical file, so an unbound override is
+    # honoured; on a file-arm epoch an unbound override was never byte-compared, so it fails
+    # closed.
     file_arm_epoch = epoch['attempts'][-1]['arm'] == 'file'
-    now = revision_ordinal(state)
-    for ov in reversed(state['overrides']):
-        if ov.get('recorded_at_ordinal') != now:
-            continue
-        want = ov.get('draft_digest')
-        if want is None:
-            if file_arm_epoch:
-                continue
-        elif want != current_digest:
-            continue
-        return ov
-    return None
+    return _select_current_override(
+        state, current_digest, unbound_ok=not file_arm_epoch)
 
 
 _STALE_OVERRIDE_ELECTION = (
@@ -7922,6 +7929,19 @@ def cmd_query_final_byte(args):
           f'final_byte_exhausted={_yn(exhausted)}')
 
 
+def _draft_body_digest(draft_file):
+    """The body-only digest of a canonical draft file, or `_fail` on a read/hash error.
+
+    Shared by both `record-creation-epoch` binding arms so their identical
+    read->split->hash step and its refusal message cannot drift apart.
+    """
+    try:
+        return hash_bytes(split_body(Path(draft_file).read_bytes()))
+    except (OSError, _DigestError) as exc:
+        _fail('record-creation-epoch',
+              f'could not hash the draft file to bind the creation epoch: {exc}')
+
+
 def _current_zero_round_decline(doc):
     """The current `user-decline` override on a zero-round state, or None (issue #1751).
 
@@ -7954,12 +7974,7 @@ def _record_decline_bound_epoch(doc, decline, args):
         _fail('record-creation-epoch',
               'a decline-bound creation epoch must recompute the body-only digest from '
               'the canonical draft: pass --draft-file')
-    try:
-        raw = Path(args.draft_file).read_bytes()
-        body_only_digest = hash_bytes(split_body(raw))
-    except (OSError, _DigestError) as exc:
-        _fail('record-creation-epoch',
-              f'could not hash the draft file to bind the creation epoch: {exc}')
+    body_only_digest = _draft_body_digest(args.draft_file)
     doc['creation'] = {'epoch_round': None, 'epoch_arm': 'file',
                        'body_only_digest': body_only_digest, 'attestation': None}
     try:
@@ -8007,12 +8022,7 @@ def cmd_record_creation_epoch(args):
     # round body digest remains the comparand and the attestation stays their detection surface.
     body_only_digest = attempt['body_digest']
     if args.draft_file and attempt['arm'] == 'file':
-        try:
-            raw = Path(args.draft_file).read_bytes()
-            body_only_digest = hash_bytes(split_body(raw))
-        except (OSError, _DigestError) as exc:
-            _fail('record-creation-epoch',
-                  f'could not hash the draft file to bind the creation epoch: {exc}')
+        body_only_digest = _draft_body_digest(args.draft_file)
     doc['creation'] = {'epoch_round': args.round, 'epoch_arm': attempt['arm'],
                        'body_only_digest': body_only_digest, 'attestation': None}
     try:
