@@ -100,5 +100,66 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.12",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 14.750261500000008,
+    "tokens": {
+      "input_tokens": 100,
+      "output_tokens": 58790,
+      "cache_read_input_tokens": 8973656,
+      "cache_creation_input_tokens": 250003,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 220,
+        "outputTokens": 88278,
+        "cacheReadInputTokens": 11427038,
+        "cacheCreationInputTokens": 942589,
+        "webSearchRequests": 0,
+        "costUSD": 14.750261500000008,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 87,
+    "duration_ms": 934795
+  },
+  "permission_denials": {
+    "count": 13,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---ENV---\"; echo \"RUN_ID=${GITHUB_RUN_ID:-}\"; echo \"RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT:-}\"; echo \"SKILL_DIR=${CLAUDE_SKILL_DIR:-}\"",
+      "printf 'RUN_ID=%s\\n' \"$GITHUB_RUN_ID\"; printf 'RUN_ATTEMPT=%s\\n' \"$GITHUB_RUN_ATTEMPT\"; printf 'SKILL_DIR=%s\\n' \"$CLAUDE_SKILL_DIR\"; git status --porcelain | head -20",
+      "git rev-parse HEAD; echo \"---\"; \nbase=509ede7d1d233faf7b8a0aca5b9a9680aa76a3f4\nhead=e69ae91502f75314b69d1607462048dd310b1131\nmismatch=0\nfor f in $(grep '^diff --git' .prflow/tmp/review/pr-1748/32100466941-1/diff.patch | sed -E 's/^diff --git a\\/(.*) b\\/.*/\\1/'); do\n  [ \"$f\" = \".changeset/skills-bold-sweep.md\" ] && continue\n  a=$(git show \"$base:$f\" 2>/dev/null | tr -d '*')\n  b=$(git show \"$head:$f\" 2>/dev/null | tr -d '*')\n  if [ \"$a\" != \"$b\" ]; then echo \"CONTENT-DIFFERS (beyond asterisks): $f\" …[per-command-truncated]",
+      "d=.prflow/tmp/review/pr-1748/32100466941-1/diff.patch\nawk '/^diff --git/{n++} n>=1 && n<=10' \"$d\" | tee .prflow/tmp/review/pr-1748/32100466941-1/batch-1.patch | grep -c '^diff --git'\nawk '/^diff --git/{n++} n>=11 && n<=20' \"$d\" | tee .prflow/tmp/review/pr-1748/32100466941-1/batch-2.patch | grep -c '^diff --git'\nawk '/^diff --git/{n++} n>=21 && n<=30' \"$d\" | tee .prflow/tmp/review/pr-1748/32100466941-1/batch-3.patch | grep -c '^diff --git'\nawk '/^diff --git/{n++} n>=31 && n<=40' \"$d\" | tee .prflo …[per-command-truncated]",
+      "mkdir -p .prflow/tmp\nif rm -f \".prflow/tmp/review-dirty-tree-before\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \".prflow/tmp/review-dirty-tree-before\" &&\n   [ -f \".prflow/tmp/review-dirty-tree-before\" ] &&\n   [ ! -L \".prflow/tmp/review-dirty-tree-before\" ] &&\n   git hash-object \".prflow/tmp/review-dirty-tree-before\"; then\n  :\nelse\n  echo \"::warning::devflow review: snapshot failed; dirty-tree backstop DISABLED for this dispatch\" >&2\n  rm -f \".prflow/tm …[per-command-truncated]",
+      "git status --porcelain -z > .prflow/tmp/review-dirty-tree-before; git hash-object .prflow/tmp/review-dirty-tree-before",
+      "cd /home/runner/work/prflow/prflow; f=.prflow/tmp/review/pr-1748/32100466941-1/diff.patch; echo \"== lines removing ** that also contain <!-- or marker or PROMPT-EXTENSION or : yes/no ==\"; grep -nE '^-' \"$f\" | grep -E '\\*\\*' | grep -iE 'evidence:|marker|<!--|=yes|=no|verdict|glyph|🎉|💥|🛑|Complete' | head -40",
+      "cd /home/runner/work/prflow/prflow; f=.prflow/tmp/review/pr-1748/32100466941-1/diff.patch; grep -nE '^-' \"$f\" | grep -E '\\*\\*' | grep -iE 'evidence|marker|prflow:|verdict|glyph|Complete|Failed|Cancelled' | head -50",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review 2>/dev/null | head -50; echo \"---EXIT:${PIPESTATUS[0]}---\"",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review 2>/tmp/ext.err 1>/tmp/ext.out; echo \"EXIT:$?\"; echo \"STDOUT-BYTES:\"; wc -c </tmp/ext.out; echo \"STDERR:\"; cat /tmp/ext.err",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review 1>/tmp/ext.out 2>/tmp/ext.err; echo \"EXIT:$?\"",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review 1>.prflow/tmp/ext.out 2>.prflow/tmp/ext.err; echo \"EXIT:$?\"; echo \"STDOUT-BYTES:\"; wc -c <.prflow/tmp/ext.out",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review 2>.prflow/tmp/ext.err | tee .prflow/tmp/ext.out | wc -c"
+    ],
+    "total": 13,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
