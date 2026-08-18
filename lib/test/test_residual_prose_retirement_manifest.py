@@ -1085,17 +1085,16 @@ class ResidualProseRetirementManifestTests(unittest.TestCase):
         )
         classifier = load_classifier()
         table = classifier.parse_adjudications(ADJUDICATIONS.read_text(encoding="utf-8"))
-        # A prose bucket asserts that no tool reads the literal, and that assertion is
-        # what authorizes a later pin-only retirement.  The delta manifest proves the
-        # move was DECLARED, never that it was RIGHT, and the issue-948 routing ladder
-        # consults machine_consumer_evidence only over CHANGED pin source lines -- so a
-        # re-adjudication branch, which changes none, never reaches it.  Re-run that same
-        # search here over the whole prose population.
+        # One-sided screen, not a re-verification: a hit proves the bucket WRONG, a miss
+        # proves nothing.  machine_consumer_evidence returns None for "no consumer was
+        # FOUND", and it can only find one for a literal carrying an identifier-shaped
+        # distinctive token or occurring verbatim -- which most prose literals do not, so
+        # this catches the identifier-bearing mistake and is silent on the rest.  Never
+        # read a green here as evidence the prose population is clean.
         lint = load_lint()
         corpus = build_consumer_corpus(lint)
-        # A shrunken corpus makes machine_consumer_evidence return None for every
-        # literal, so the assertIsNone below would pass vacuously on a read failure
-        # that emptied it.  Floor the corpus before trusting a None.
+        # An emptied corpus makes every search return None, so the screen would report
+        # green while examining nothing.  Floor it before trusting any miss.
         self.assertGreater(len(corpus), 100, "machine-consumer corpus is implausibly small")
         for row in rows:
             bucket = row["bucket_final"]
