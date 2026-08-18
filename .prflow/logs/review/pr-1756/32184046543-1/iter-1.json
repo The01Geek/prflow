@@ -1,0 +1,106 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-18T22:30:00Z",
+  "fix_commit_sha": "reviewfix-iter1",
+  "fix_files": [
+    "skills/create-issue/references/quality-group-premises.md",
+    "lib/test/modules/issue-audit-state.sh",
+    "lib/test/test_python_scripts.py",
+    "scripts/workflow-flight-recorder-registry.json"
+  ],
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:pr-test-analyzer",
+    "prflow:comment-analyzer",
+    "prflow:type-design-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "stale 'pre-dispatch canonical write' terminology in quality-group-premises.md",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "decline-bound epoch --draft-file guard had no negative test",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "non-int non-None epoch_round rejection untested after _validate widening",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "revision-invalidation did not isolate the ordinal mechanism; post-revision eligibility check vacuous-on-crash",
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "applied"
+    }
+  ],
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "refixed",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:pr-test-analyzer",
+      "prflow:comment-analyzer",
+      "prflow:type-design-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:pr-test-analyzer",
+      "prflow:comment-analyzer",
+      "prflow:type-design-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "checklist_skipped": null,
+    "phase3_findings": []
+  },
+  "verification_evidence": {
+    "note": "both focused suites re-run green after fixes: issue-audit-state module 258 passed, test_python_scripts 5349 passed; monolith shard 9606 passed (pre-fix); all artifacts reconciled"
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
