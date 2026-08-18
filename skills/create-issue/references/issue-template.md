@@ -27,11 +27,11 @@ The draft produces two artifacts, and drafting sorts content into their two buck
 - The issue body is the implementer's brief — the *minimum-sufficient implementation contract*. It retains exactly what a competent implementer working in this codebase cannot safely derive: the problem and its impact, the observable desired behavior, non-inferable scope boundaries and decisions, behavior-altitude acceptance criteria, genuine hazards and dependencies, load-bearing premises, and the required machine-read sections. It is the only content channel a `/prflow:implement` run reads, so it carries that contract and nothing else — never the investigation used to reach it.
 - The investigation record holds what the brief does not need. Investigation narrative, confirmatory evidence (evidence for what nobody would have doubted), audit history, lower-severity hazards, repeated prose, implementation play-by-play, mutable censuses, exhaustive path lists, and repository-inferable prose are candidates for it, never automatic removals: each moves only when the vanish test establishes that removing it cannot change the implementation contract and the reserved-surface check establishes that no consumer requires it in the body. Severity, mutability, list shape, and implementation-detail form give no independent removal reason; a load-bearing item stays whatever its category and whatever the resulting body length. The record is posted as the first comment on the created issue — a separate artifact (see `references/step-4-present-create.md`) — never folded into the body.
 
-One test decides the boundary — the vanish test: *if this sentence vanished, would the implementer build the wrong thing?* Yes → the brief. No → the record. Ambiguity goes to the brief, where a misclassification costs length rather than a missing instruction. When still unsure, ask: *would a competent implementer working in this codebase have found this on their own?* If yes, it belongs in the record.
+One test decides the boundary — the vanish test: *if this sentence vanished, would the implementer build the wrong thing?* Yes → the brief. No → the record. Ambiguity goes to the brief. When still unsure, ask: *would a competent implementer working in this codebase have found this on their own?* If yes, it belongs in the record.
 
 No measurement decides the boundary. Body-routing applies no word-count, estimated-size, criterion-count, or proportionality gate; cost does not decide whether content survives. The only questions are whether removing the content risks a wrong implementation and whether a consumer requires it at that location.
 
-These body sections NEVER move to the record — exactly these four, complete by construction, each being body content a named in-repo consumer parses from the created issue (so removing it would silently break that consumer):
+These body sections NEVER move to the record — exactly these four, complete by construction, each being body content a named in-repo consumer parses from the created issue:
 
 1. `## Dependencies` — parsed by `scripts/apply-issue-dependencies.py`, which reads prerequisites only from this section of the created issue's body; a `Blocked by #N` line in a comment registers nothing.
 2. `## Acceptance Criteria` — parsed by `scripts/parse-acs.py` and the implement Phase 3.4 gate.
@@ -51,7 +51,7 @@ Every issue includes these sections, in this order. (A `## Dependencies` section
 ### Title
 Clear, descriptive, action-oriented, and scoped to one feature/fix (e.g., "Add PDF export for survey results"). If you are tempted to write "and" joining two features, the issue should have been split in Step 2 — ask the user to split first.
 
-Exception: if the scope-split decision is itself unresolved because the user disengaged (it is the first item in `## 🚫 Blocked`), a neutral multi-feature title is acceptable. Do not silently pick one feature to satisfy the title rule — that invents a default the skill forbids.
+Exception: if the scope-split decision is itself unresolved because the user disengaged (it is the first item in `## 🚫 Blocked`), a neutral multi-feature title is acceptable. Do not silently pick one feature to satisfy the title rule.
 
 ### Dependencies (include only when a prerequisite is still open at drafting time)
 Rendered as the first body section, above `## Problem Statement` — and included only when at least one prerequisite issue is still open at drafting time. Each entry is one line naming the blocking issue and why it must land first:
@@ -61,9 +61,9 @@ Rendered as the first body section, above `## Problem Statement` — and include
 Blocked by #N — <one-line reason it must land first>
 ```
 
-Both the `## Dependencies` heading and the `Blocked by #N` phrasing are exactly the forms `/prflow:implement`'s early dependency preflight recognizes. Omit the section entirely when no prerequisite is open — exactly as the Visual Specification and Blocked sections are omitted when empty; never write "Dependencies: none".
+Both the `## Dependencies` heading and the `Blocked by #N` phrasing are exactly the forms `/prflow:implement`'s early dependency preflight recognizes. Omit the section entirely when no prerequisite is open; never write "Dependencies: none".
 
-Keep this section distinct from the two other "dependency"-flavored surfaces, or drafters file entries in the wrong one:
+Keep this section distinct from the two other "dependency"-flavored surfaces:
 
 - `## Dependencies` (this section) — cross-issue ordering: another issue/PR that must land before this work starts. This is the only surface the early dependency preflight reads.
 - `## 🚫 Blocked` — unresolved decisions, not ordering (see below).
@@ -174,7 +174,7 @@ This is the core checklist — the obligations every issue carries. Specialized 
 
 ## GitHub autolink hygiene
 
-The body is posted to GitHub, which turns `#`-number into a link. Never put a bare `#` before a number unless it is a real issue or PR reference — GitHub renders `#2` as a link <!-- pruned-path-ok: illustrative autolink-rendering example, not a citation --> to issue/PR 2 and misleads readers. For an ordinal, count, or list position, spell it out ("item 2", "step 3"). Genuine references like `#123` stay as-is. <!-- pruned-path-ok: illustrative autolink example, not a citation -->
+The body is posted to GitHub, which turns `#`-number into a link. Never put a bare `#` before a number unless it is a real issue or PR reference — GitHub renders `#2` as a link <!-- pruned-path-ok: illustrative autolink-rendering example, not a citation --> to issue/PR 2. For an ordinal, count, or list position, spell it out ("item 2", "step 3"). Genuine references like `#123` stay as-is. <!-- pruned-path-ok: illustrative autolink example, not a citation -->
 
 ## Posting the issue
 
@@ -198,7 +198,7 @@ Instead emit to a temp file, guard it non-empty, and only then post — so a ref
 python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/issue-audit-state.py emit-body "<slug>" --nonce "<nonce>" --draft-file "<absolute issue-draft-<slug>.md path>" > "<main-root>/.prflow/tmp/issue-body-<slug>.md" && test -s "<main-root>/.prflow/tmp/issue-body-<slug>.md" && gh issue create --title "Action-oriented title here" --body-file "<main-root>/.prflow/tmp/issue-body-<slug>.md" <assignee-args>
 ```
 
-On an embed- or inline-arm epoch there is no trustworthy canonical file, so the body is re-emitted from context through a quoted heredoc (quoted so backticks and `$` in the markdown are not expanded). This is a disclosed residual, not the preferred path — the re-emission is not byte-identical-by-construction the way `emit-body` is:
+On an embed- or inline-arm epoch there is no trustworthy canonical file, so the body is re-emitted from context through a quoted heredoc (quoted so backticks and `$` in the markdown are not expanded):
 
 The body below is a complete example to imitate. Study its shape and its plain voice, and do not copy its words into a real issue.
 
@@ -238,7 +238,7 @@ Survey owners can share results with people outside the tool and keep an offline
 BODY
 ```
 
-Do NOT add labels — never pass `--label`. Step 4 applies the reserved `PRFlow` provenance label after creation, so passing it on the create call is redundant.
+Do NOT add labels — never pass `--label`. Step 4 applies the reserved `PRFlow` provenance label after creation.
 
 `gh issue create` prints the new issue URL on success. Report that URL back to the caller.
 
