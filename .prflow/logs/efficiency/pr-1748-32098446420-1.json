@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1748",
+  "generated_at": "2026-08-18T04:35:41Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.12",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 19.63900849999998,
+    "tokens": {
+      "input_tokens": 74,
+      "output_tokens": 61361,
+      "cache_read_input_tokens": 6561332,
+      "cache_creation_input_tokens": 280938,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 334,
+        "outputTokens": 167279,
+        "cacheReadInputTokens": 13544567,
+        "cacheCreationInputTokens": 1220730,
+        "webSearchRequests": 0,
+        "costUSD": 19.63900849999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 75,
+    "duration_ms": 1143557
+  },
+  "permission_denials": {
+    "count": 7,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      ".prflow/vendor/prflow/scripts/config-get.sh .base_branch main; echo \"base-rc=$?\"; echo \"run_id=${GITHUB_RUN_ID:-none} attempt=${GITHUB_RUN_ATTEMPT:-1}\"",
+      "echo \"run_id=$GITHUB_RUN_ID attempt=$GITHUB_RUN_ATTEMPT\"",
+      "mkdir -p .prflow/tmp\nif rm -f \".prflow/tmp/review-dirty-tree-before\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \".prflow/tmp/review-dirty-tree-before\" &&\n   [ -f \".prflow/tmp/review-dirty-tree-before\" ] &&\n   [ ! -L \".prflow/tmp/review-dirty-tree-before\" ] &&\n   git hash-object \".prflow/tmp/review-dirty-tree-before\"; then\n  : \nelse\n  echo \"::warning::snapshot failed\" >&2\n  rm -f \".prflow/tmp/review-dirty-tree-before\" 2>/dev/null\n  printf '%s\\n' disable …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\nfor s in \\\n\"An illegal-transition rejection is NOT an unavailability signal\" \\\n\"Filing is never blocked on any arm\" \\\n\"Forward that quoted object ID verbatim\" \\\n\"emits \\*\\*no\" \\\n\"return \\*\\*no findings\\*\\*\" \\\n\"generated pointer\"; do\n  echo \"=== $s ===\"\n  grep -nE \"^[-+].*$s\" .prflow/tmp/review/pr-1748/32098446420-1/diff.patch | grep -vE '^[-+]{3}' | head -4\ndone",
+      "cd /home/runner/work/prflow/prflow\ntmp=$(mktemp -d)\ngit worktree add -q \"$tmp\" 509ede7d1d233faf7b8a0aca5b9a9680aa76a3f4 2>/dev/null\ncd \"$tmp\"\ngit apply /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1748/32098446420-1/diff.patch 2>&1 | head\n# count bold spans across skills/**/*.md\npython3 - <<'PY'\nimport re,glob\ntot=0\nfor f in glob.glob('skills/**/*.md',recursive=True):\n    s=open(f).read()\n    tot+=len(re.findall(r'\\*\\*[^*\\n]+\\*\\*',s))\nprint(\"bold spans remaining:\",tot)\nPY\ncd /home/runne …[per-command-truncated]",
+      "git worktree add -q /tmp/pr1748wt 509ede7d1d233faf7b8a0aca5b9a9680aa76a3f4 2>&1 | head",
+      "git worktree add -q /tmp/pr1748wt 509ede7d1d233faf7b8a0aca5b9a9680aa76a3f4"
+    ],
+    "total": 7,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
