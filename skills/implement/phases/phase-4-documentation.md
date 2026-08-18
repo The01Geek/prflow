@@ -101,7 +101,7 @@ Only when the subagent returned cleanly and unfiltered status confirms it produc
 
 Then decide whether the docs pass succeeded: it succeeded if the docs subagent actually ran — either it produced changes (committed above) or it returned cleanly with no changes needed. If instead the docs subagent failed, returned no useful output, or was unable to run, that is actionable: add a `--reflection-kind dropped-failed --reflection "…"` bullet to the workpad and do not apply the post-docs labels at all (now or later). Post-docs label application is deferred to the end of Stage 2 (the label resolution is shown there).
 
-Stage 2 — Post-hoc diff gate (mandatory when Stage 1 found named paths). After the docs-subagent commit and before ticking `Documentation`, verify that every required-deliverable path has been touched. Re-run the same deterministic helper as Stage 1 — do not rely on remembered Stage 1 output:
+**Stage 2 — Post-hoc diff gate (mandatory when Stage 1 found named paths).** After the docs-subagent commit and before ticking `Documentation`, verify that every required-deliverable path has been touched. Re-run the **same deterministic helper** as Stage 1 — do not rely on remembered Stage 1 output:
 
 ```bash
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/read-doc-needed-deliverables.sh $ISSUE_NUMBER
@@ -242,7 +242,7 @@ If it is non-empty, do not finalize yet. Anything dirty here is this run's own w
 
 Run-transient files are the exception — delete, never commit. A leftover reflection-payload file under `.prflow/tmp/` is run-transient scratch, not a deliverable: if one survives here, delete it rather than committing it (a plugin-only adopter has no `.prflow/.gitignore` scaffold, so it shows up untracked and a blind `git add` would commit it into the PR).
 
-Base-branch update checkpoint 4 (pre-ready) — after the clean-tree backstop, before the publish decision. So the terminal *published* state carries current base, bring the branch up to date one last time:
+**Base-branch update checkpoint 4 (pre-ready) — after the clean-tree backstop, before the publish decision.** So the terminal *published* state carries current base, bring the branch up to date one last time:
 
 ```bash
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/update-branch-checkpoint.sh
@@ -286,7 +286,7 @@ Tip-landed gate (before the publish decision — guards `gh pr ready` and the `C
 - `@{u}` equals `HEAD` (landed): proceed to the publish decision.
 - `@{u}` differs (unpushed): `git push`, then re-read both. Equal now → note it and proceed; still unequal (push rejected, or an `Everything up-to-date` push left them apart) → refuse to run `gh pr ready` and refuse to flip `Status` to `Complete`: `workpad.py update $ISSUE_NUMBER --status Blocked --reflection-kind blocked --reflection "tip-landed gate: local branch tip \`$(git rev-parse HEAD)\` is not on the remote and a push did not land it — refusing to publish or complete a run whose body would cite a commit the remote lacks; land it and re-run"`, emit the 👎 outcome reaction (see *Outcome reaction* in the Workpad Reference), remove the run marker, and stop.
 
-Publish decision — `implement_pr_state`. Resolve it as a single command and read the printed value from the tool result (default `ready_for_review`; a hard read failure — non-zero exit or no output — falls back to `ready_for_review`). Publish only when the value is not the exact literal `draft` — a missing key, empty string, or any unrecognized value publishes.
+**Publish decision — `implement_pr_state`.** Resolve it as a single command and read the printed value from the tool result (default `ready_for_review`; a hard read failure — non-zero exit or no output — falls back to `ready_for_review`). Publish **only** when the value is not the exact literal `draft` — a missing key, empty string, or any unrecognized value publishes.
 
 ```bash
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .prflow_implement.implement_pr_state ready_for_review

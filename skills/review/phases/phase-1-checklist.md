@@ -40,7 +40,7 @@ In-batch sanity dedup still applies before Phase 1.5 hands the array off:
 
 ### 1.1.5 Cap and prioritize
 
-If the merged-and-deduped checklist exceeds 100 items, sort by priority and keep the top 100:
+If the merged-and-deduped checklist exceeds **100** items, sort by priority and keep the top 100:
 1. `issue_acceptance` items — items whose claim cites an issue acceptance criterion (highest yield — these failing means the PR doesn't deliver the feature).
 2. `absolute_claim` items (a diff-added universal the reviewer must *falsify* by constructing the offending input — the highest-value target because reading it confirms nothing; see `agents/checklist-generator.md`).
 3. `dependency_interaction` items (cross-boundary contracts — highest drift risk).

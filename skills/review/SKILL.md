@@ -215,7 +215,7 @@ Read-only cloud is fine. The slim cloud `review` profile is read-only for the tr
 
 Gating & fallbacks.
 
-Any path that reaches no verdict — stamp a terminal `❌` as your final action. Put that signal on the selected progress surface: the held PR progress comment, the issue workpad, or the chat narrative. The routing arms below own the exact write and must never create a different surface as fallback.
+**Any path that reaches no verdict — stamp a terminal `❌` as your final action.** Put that signal on the selected progress surface: the held PR progress comment, the issue workpad, or the chat narrative. The routing arms below own the exact write and must never create a different surface as fallback.
 
 - `prflow_review.live_progress_comment_enabled` = `false` → skip the live comment entirely; behave as today (report produced once at the end). Read it via `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .prflow_review.live_progress_comment_enabled true`.
 - Non-PR / current-branch mode → there is no comment surface; render the same blueprint-and-progress narrative incrementally to chat as you go, and create no comment.
@@ -236,7 +236,7 @@ Operators can tune each review subagent's model and reasoning effort via the `pr
 
 Subagent dispatch is user-requested here (injection-condition clause). Invoking this review engine is the user's request for subagent dispatch at the engine's named points — Phase 1 (`prflow:checklist-generator`), Phase 1.5 (`prflow:checklist-deduper`), Phase 2 (`prflow:checklist-verifier`), Phase 3 (the specialist reviewer roster and the final-pass reviewer), and the Phase 0.3.6 blocker-recheck verifier — thereby satisfying any injected "do not call the AgentTool unless the user requested it" condition at those points and nowhere else. `/prflow:review-and-fix` inherits this through the shared engine bundle and carries no second copy (its own loop-specific dispatch points are authorized in its own SKILL.md).
 
-effort is not a dispatch-time `Agent`/`Task` parameter, and there is no per-dispatch `--agents` injection in an already-running session — so a per-agent model override is delivered via the Agent tool's `model` override parameter, while a per-agent effort override is not deliverable per-agent: the subagent inherits the session effort as a `session-fallback` that `resolve-review-overrides.py` reports with its reason.
+**effort is not a dispatch-time `Agent`/`Task` parameter, and there is no per-dispatch `--agents` injection in an already-running session** — so a per-agent **model** override is delivered via the **Agent tool's `model` override parameter**, while a per-agent **effort** override is **not deliverable per-agent**: the subagent inherits the session effort as a `session-fallback` that `resolve-review-overrides.py` reports with its reason.
 
 Resolve overrides with the bundled helper — do not hand-roll the precedence/validation in prose. Before each dispatch phase, pass the identifiers about to be dispatched to `resolve-review-overrides.py`; it reads each one's `model`/`effort` (and the `default`) via `config-get.sh` (DevFlow's single config reader), applies the rules below, and prints the override map as JSON (`{}` when nothing applies). Like every PRFlow config read, the helper resolves the default `.prflow/config.json` anchored to the git repository root (matching the contract header in `config-get.sh`); pass `--config <path>` to point it elsewhere:
 

@@ -239,9 +239,9 @@ constraints and file-operation rules is worse than not running at all.
 
 Return findings as text — do not write them to a file. Structure:
 
-- Doc reliability: `RELIABLE` | `UNRELIABLE` | `ABSENT`
-- Relevant code files: the files that implement the topic — the map for the issue and the implementer. Mark which are essential (the minimum set someone must read to understand the topic) and cite `file:line` for the specific entry points, guards, and writers you identified.
-- Current behavior: what the code actually does today, grounded in the code you read. Include the failure paths and non-obvious couplings an implementer would otherwise discover the hard way.
+- **Doc reliability:** `RELIABLE` | `UNRELIABLE` | `ABSENT`
+- **Relevant code files:** the files that implement the topic — the map for the issue and the implementer. Mark which are **essential** (the minimum set someone must read to understand the topic) and cite `file:line` for the specific entry points, guards, and writers you identified.
+- **Current behavior:** what the code actually does today, grounded in the code you read. Include the failure paths and non-obvious couplings an implementer would otherwise discover the hard way.
 
 What the doc-reliability signal ranges over (decide it this way, every time). It says whether the
 documents inside `[[INTERNAL_DOC_LOCATION]]`, and nothing else, were a reliable map for this
@@ -261,9 +261,9 @@ decision turns on noise.
 If `[[INTERNAL_DOC_LOCATION]]` itself cannot be read, that is not `ABSENT` — an absence you
 could not establish is not an established absence. Report the *exact operand and population identity*
 duty as `unestablished` and say which read failed.
-- Search space surveyed: the `--search-space` operand this run used, or the default it fell back to
-- Duty statuses: one status per duty on the *Breadth bound* floor — `discharged`, `unestablished`, or `judged-not-engaged` — for **all six** duties, not only the assigned ones
-- Bearing observations: for every duty reported `judged-not-engaged`, the paths opened that bear on it, or `none-observed`
+- **Search space surveyed:** the `--search-space` operand this run used, or the default it fell back to
+- **Duty statuses:** one status per duty on the *Breadth bound* floor — `discharged`, `unestablished`, or `judged-not-engaged` — for **all six** duties, not only the assigned ones
+- **Bearing observations:** for every duty reported `judged-not-engaged`, the paths opened that bear on it, or `none-observed`
 
 Make no Edit, Write, commit, or push in this mode, and dispatch no subagent. The working tree must be unchanged when you finish.
 
