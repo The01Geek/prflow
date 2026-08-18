@@ -1,0 +1,192 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1738",
+  "generated_at": "2026-08-18T01:39:27Z",
+  "config_fingerprint": {
+    "sha256": "37825f0554dda0b00a056097e18f65bb733f55240efc9426efe6885855b08142",
+    "partial": false,
+    "salient": {
+      "verdict_severity_threshold": "critical",
+      "fix_severity_threshold": "suggestion",
+      "max_iterations": 5
+    }
+  },
+  "source": "review-and-fix",
+  "synthesized": true,
+  "cut_candidate_min_dispatch": 3,
+  "iterations": 5,
+  "per_iteration": [
+    {
+      "iter": 1,
+      "loop_role": "fix",
+      "synthesized": true,
+      "phase3_dispatched": [],
+      "phase3_dispatched_count": 0,
+      "phase3_dispatched_present": false,
+      "dispatched_effort_present": false,
+      "agent_effort": [],
+      "diff_profile": null,
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 0,
+      "added_nothing": true,
+      "agent_verdicts": []
+    },
+    {
+      "iter": 2,
+      "loop_role": "fix",
+      "synthesized": true,
+      "phase3_dispatched": [],
+      "phase3_dispatched_count": 0,
+      "phase3_dispatched_present": false,
+      "dispatched_effort_present": false,
+      "agent_effort": [],
+      "diff_profile": null,
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 0,
+      "added_nothing": true,
+      "agent_verdicts": []
+    },
+    {
+      "iter": 3,
+      "loop_role": "fix",
+      "synthesized": true,
+      "phase3_dispatched": [],
+      "phase3_dispatched_count": 0,
+      "phase3_dispatched_present": false,
+      "dispatched_effort_present": false,
+      "agent_effort": [],
+      "diff_profile": null,
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 0,
+      "added_nothing": true,
+      "agent_verdicts": []
+    },
+    {
+      "iter": 4,
+      "loop_role": "fix",
+      "synthesized": true,
+      "phase3_dispatched": [],
+      "phase3_dispatched_count": 0,
+      "phase3_dispatched_present": false,
+      "dispatched_effort_present": false,
+      "agent_effort": [],
+      "diff_profile": null,
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 0,
+      "added_nothing": true,
+      "agent_verdicts": []
+    },
+    {
+      "iter": 5,
+      "loop_role": "fix",
+      "synthesized": true,
+      "phase3_dispatched": [],
+      "phase3_dispatched_count": 0,
+      "phase3_dispatched_present": false,
+      "dispatched_effort_present": false,
+      "agent_effort": [],
+      "diff_profile": null,
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 0,
+      "added_nothing": true,
+      "agent_verdicts": []
+    }
+  ],
+  "telemetry": [
+    {
+      "iter": 1,
+      "phases": "unavailable"
+    },
+    {
+      "iter": 2,
+      "phases": "unavailable"
+    },
+    {
+      "iter": 3,
+      "phases": "unavailable"
+    },
+    {
+      "iter": 4,
+      "phases": "unavailable"
+    },
+    {
+      "iter": 5,
+      "phases": "unavailable"
+    }
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.9",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 16.159374099999997,
+    "tokens": {
+      "input_tokens": 78,
+      "output_tokens": 46722,
+      "cache_read_input_tokens": 6811467,
+      "cache_creation_input_tokens": 254225,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 109,
+        "outputTokens": 85420,
+        "cacheReadInputTokens": 7376975,
+        "cacheCreationInputTokens": 619821,
+        "webSearchRequests": 0,
+        "costUSD": 10.651757499999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 212,
+        "outputTokens": 31493,
+        "cacheReadInputTokens": 4537952,
+        "cacheCreationInputTokens": 979520,
+        "webSearchRequests": 0,
+        "costUSD": 5.5076165999999995,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 73,
+    "duration_ms": 903647
+  },
+  "permission_denials": {
+    "count": 5,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"run-id=${GITHUB_RUN_ID:-none}-${GITHUB_RUN_ATTEMPT:-1}\"; echo \"PR_HEAD=e0c35a30f85d118f709616b5d62e8ef397f9f162\"",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1738/32087997500-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1738/32087997500-1/verdicts/iter-1/VC-14-nx84n.json << 'EOF'\n{\n  \"id\": \"VC-14\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"skills/create-issue/references/step-4-present-create.md:11 states verbatim: 'This presentation gate is the single owner of the audit artifact's re-entry: the Step 4 working-file listing reports that path's class but re-enters  …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1738/32087997500-1/verdicts/iter-1 && ls -lL /tmp | head -3",
+      "timeout 120 bash lib/test/run-module.sh create-issue-contract 2>&1 | tail -30",
+      "mkdir -p .prflow/tmp\nif rm -f \".prflow/tmp/review-dirty-tree-before\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \".prflow/tmp/review-dirty-tree-before\" &&\n   [ -f \".prflow/tmp/review-dirty-tree-before\" ] &&\n   [ ! -L \".prflow/tmp/review-dirty-tree-before\" ] &&\n   git hash-object \".prflow/tmp/review-dirty-tree-before\"; then\n  echo \"snapshot-ok\"\nelse\n  echo \"::warning::snapshot failed\"; printf '%s\\n' disabled > \".prflow/tmp/review-dirty-tree-disabled\"\nfi"
+    ],
+    "total": 5,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
