@@ -1,0 +1,119 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-18T00:00:00Z",
+  "fix_commit_sha": "53630aee35dc153feea36b564836d849815dc489",
+  "fix_files": [
+    "scripts/implement-context-eval.py",
+    "lib/test/test_implement_context_eval.py"
+  ],
+  "loop_role": "fix",
+  "current_step": "2.6",
+  "current_substep": "run_shadow_fanout",
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "SWEEP_REFERENCE_PHASE must stay a PHASE_READ_LABELS member or line 516 KeyErrors; add an assert/note",
+      "defect_signature": {
+        "file": "scripts/implement-context-eval.py",
+        "line_range": [
+          208,
+          210
+        ],
+        "kind": "latent_coupling"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "non-.md-suffix negative control untested (suffix guard unpinned)",
+      "defect_signature": {
+        "file": "lib/test/test_implement_context_eval.py",
+        "line_range": [
+          535,
+          535
+        ],
+        "kind": "test_gap"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "mirror in _expected_from_fixture unexercised by corpus fixture (independent cross-check gap)",
+      "defect_signature": {
+        "file": "lib/test/test_implement_context_eval.py",
+        "line_range": [
+          104,
+          114
+        ],
+        "kind": "test_gap"
+      },
+      "fix_decision": "advisory"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "docstring scopes to references/ while code matches basename in any dir (cosmetic over-specificity)",
+      "defect_signature": {
+        "file": "scripts/implement-context-eval.py",
+        "line_range": [
+          216,
+          217
+        ],
+        "kind": "comment_precision"
+      },
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "53630aee35dc153feea36b564836d849815dc489"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "53630aee35dc153feea36b564836d849815dc489"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "advisory",
+      "source_file": "lib/test/test_implement_context_eval.py",
+      "claim_text": "corpus fixture does not exercise the _expected_from_fixture sweep mirror",
+      "skip_category": "advisory-parked",
+      "evidence": "GatedSweepReferenceTest covers production correctness directly; corpus-mirror cross-check is a resilience nicety, not a behavioral hole"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "advisory",
+      "source_file": "scripts/implement-context-eval.py",
+      "claim_text": "docstring references/ scoping vs basename-any-dir matching",
+      "skip_category": "advisory-parked",
+      "evidence": "accurate in spirit; mirrors PHASE_FILES basename convention; changeset states the basename rationale"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 2,
+    "fix_diff_lines": 15,
+    "new_corroborated_critical_count": 0
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

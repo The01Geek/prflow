@@ -1,0 +1,126 @@
+{
+  "iter": 2,
+  "started_at": "2026-08-18T00:30:00Z",
+  "fix_commit_sha": "925e96189e46f6dc3e9f70e1b12f2011b87b0d8e",
+  "fix_files": [
+    "scripts/implement-context-eval.py"
+  ],
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "current_substep": null,
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:pr-test-analyzer",
+    "prflow:comment-analyzer"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "the iter-1 module-load assert is -O-strippable and its KeyError fallback is swallowed by eval_corpus's defensive except (mis-blamed malformed_record); use an explicit module-load raise",
+      "defect_signature": {
+        "file": "scripts/implement-context-eval.py",
+        "line_range": [
+          208,
+          213
+        ],
+        "kind": "swallowed_error"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "sidechain exclusion of a sweep read not directly tested (near-duplicative of existing sidechain coverage)",
+      "defect_signature": {
+        "file": "lib/test/test_implement_context_eval.py",
+        "line_range": [
+          287,
+          299
+        ],
+        "kind": "test_gap"
+      },
+      "fix_decision": "advisory"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "corpus fixture does not exercise the _expected_from_fixture sweep mirror",
+      "defect_signature": {
+        "file": "lib/test/test_implement_context_eval.py",
+        "line_range": [
+          104,
+          114
+        ],
+        "kind": "test_gap"
+      },
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "S-1",
+      "decision": "applied",
+      "commit": "925e96189e46f6dc3e9f70e1b12f2011b87b0d8e"
+    },
+    {
+      "finding_id": "S-2",
+      "decision": "advisory",
+      "source_file": "lib/test/test_implement_context_eval.py",
+      "claim_text": "sidechain sweep read untested",
+      "skip_category": "advisory-parked",
+      "evidence": "isSidechain guard is shared upstream code already covered by test_sidechain_read_and_context_excluded; a sweep-specific case is near-duplicative"
+    },
+    {
+      "finding_id": "S-3",
+      "decision": "advisory",
+      "source_file": "lib/test/test_implement_context_eval.py",
+      "claim_text": "corpus fixture mirror unexercised",
+      "skip_category": "advisory-parked",
+      "evidence": "GatedSweepReferenceTest covers production correctness directly; corpus-mirror cross-check is a resilience nicety"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 1,
+    "fix_diff_lines": 6,
+    "new_corroborated_critical_count": 0
+  },
+  "shadow": {
+    "ran_at": "2026-08-18T00:20:00Z",
+    "reviewed_sha": "53630aee35dc153feea36b564836d849815dc489",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:pr-test-analyzer",
+      "prflow:comment-analyzer"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:pr-test-analyzer",
+      "prflow:comment-analyzer"
+    ],
+    "checklist_skipped": "intentional",
+    "phase3_findings": [],
+    "comparison": {
+      "shadow_total": 3,
+      "overlap_with_iter_N": 0,
+      "new": 1,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
