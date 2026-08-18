@@ -1030,32 +1030,96 @@ the start of the target.
 | `skills/review-and-fix/references/loop-control.md` | 1 × `2>` | cloud (`/prflow:review-and-fix`) | rewritten |
 | `skills/review-and-fix/references/loop-exit.md` | 2 × `2>` | cloud (`/prflow:review-and-fix`) | rewritten |
 | `skills/implement/references/deferred-review-findings.md` | 2 × `2>` | cloud (`/prflow:implement`) | rewritten — each invocation guarded on its own inline exit status, with the residual ambiguity read from that call's own stderr in the tool result rather than a captured `.err` file |
-| `skills/implement/references/deferred-review-findings.md` | 1 × stdout redirect to the variable target `"${AGG}.tmp"` (the jq merge) | cloud (`/prflow:implement`) | **DEFERRED — not rewritten**, see below |
+| `skills/implement/references/deferred-review-findings.md` | 1 × stdout redirect capturing the deferrals-merge jq's output to the variable target `"${AGG}.tmp"` (then `mv`'d over `$AGG`) | cloud (`/prflow:implement`) | **Recorded — not rewritten (issue #1734).** Cause 1 (`simple_expansion`: the `${AGG}` variable target) **and** the Write tool cannot source a command's stdout; `\| tee` is disqualified because the fence's `else` arm reads jq's exit status. See the per-occurrence adjudication below. |
 | `skills/implement/phases/phase-1-setup.md` | 4 × `>` | cloud (`/prflow:implement`) | rewritten — Write tool |
 | `skills/retrospective-weekly/SKILL.md` | mixed stdout, append and stderr redirects | **local only** — no workflow dispatches this command | **left unchanged** |
-| `skills/review/phases/phase-3-agents.md` | redirect writes and appends, quoted and variable targets | cloud | **DEFERRED — not rewritten**, see below |
-| `skills/implement/phases/phase-3-fix-loop.md` | 2 × `2>` to a `mktemp` target | cloud (`/prflow:implement`) | **DEFERRED — not rewritten**, see below |
+| `skills/review/phases/phase-3-agents.md` | dirty-tree snapshot/restore fences, enumerated by a complete redirect-operator search of the fence: 2 × stdout capture to a defaulted-expansion target (`> "${GIT_SNAP_BEFORE:-…}"` and the `…AFTER…` equivalent), 4 × `printf … >>` append inside a `while read` loop (literal target, expanded `"$rec"`/`"${rec:3}"` in argument position), 2 × input redirect to a defaulted-expansion target (`done < "${GIT_SNAP_BEFORE:-…}"`, `done < "${GIT_SNAP_AFTER:-…}"`), 3 × input redirect to a literal target (2 × `tr '\0' ' ' < ".prflow/tmp/…"`, 1 × `done < ".prflow/tmp/…"`), 4 × literal-target stdout write with no expansion (the `printf '%s\n' disabled > ".prflow/tmp/review-dirty-tree-disabled"` sentinel, and the 3 `printf '%s' '' > ".prflow/tmp/review-dirty-tree-{before,changed,renamed}-paths"` scratch-init writes guarded on exit status) | cloud | **Recorded — not rewritten (issue #1734).** Cause 1 (`simple_expansion`) dominates; the input-redirect sites and the 4 literal-target stdout writes are newly enumerated. See the per-occurrence adjudication below. |
+| `skills/implement/phases/phase-3-fix-loop.md` | 2 × `--persist` stderr capture to a `$(mktemp)` target — `2>"$PERSIST_ERR"` and `2>>"$PERSIST_ERR"` (the second an append) — each statement additionally led by the unexpanded `${CLAUDE_SKILL_DIR:-…}` anchor | cloud (`/prflow:implement`) | **Recorded — not rewritten (issue #1734).** Cause 2 (the `/tmp` target) **and** the denied anchor leading token. See the per-occurrence adjudication below. |
 | `skills/create-issue/references/issue-template.md` | 1 × stdout redirect to the placeholder-prefixed target `"<main-root>/.prflow/tmp/issue-body-<slug>.md"` | **local only** — no workflow dispatches `/prflow:create-issue` | **left unchanged** |
 
-**Two cloud-reachable populations are adjudicated here but deliberately NOT rewritten**, because
-the remedy this change applies does not reach them:
+#### Per-occurrence adjudication of the three deferred populations (issue #1734)
 
-- `phase-3-agents.md` carries two kinds the Write tool cannot reach, and the distinction matters
-  for whoever takes the follow-up: appends made inside a `while read` loop (`printf '%s\0' "$rec"
-  >> …`), which the Write tool cannot participate in at all; and captures of a command's output
-  (`git status --porcelain -z > …`), which it cannot source. Both need a different design — collect
-  in a shell variable and author once, or a helper that owns the loop. Its dirty-tree snapshot is
-  what authorises the Phase 3.2 restore, so redesigning it is not a mechanical edit.
-- `phase-3-fix-loop.md` redirects to `$(mktemp)`, i.e. a `/tmp` target — the **probe-denied** arm
-  (implement-tier row 10), a different and already-known class from the workspace-target rows this
-  section supersedes.
-- `deferred-review-findings.md`'s jq merge captures a command's stdout into `"${AGG}.tmp"` and then
-  `mv`s it over the aggregate — the write-via-temp is what makes reading `$AGG` safe. It is the same
-  captures-command-output kind as `phase-3-agents.md`'s: the Write tool cannot source a command's
-  stdout, and routing the merged JSON through the agent's context to author it would reintroduce
-  exactly the transcription hazard the engine avoids for `diff.patch`. The `2>` captures in the same
-  file **were** rewritten; only this one is deferred, and it is a variable target, so the widened
-  literal-path search does not surface it — it was found by reading the fence's variable definitions.
+Issue #1734 re-opened the three `DEFERRED — not rewritten` rows above with the mandate that **every
+occurrence be enumerated by reading each fence's variable definitions — including the input-redirect
+sites a literal-path search misses — and each either rewritten or recorded with the reason it cannot
+be.** The adjudication below is that record; population A's site set was established by a complete
+redirect-operator search of the fence (not only the variable-definition reading), so it also
+surfaces the literal-target stdout writes a variable-target reading skips. **Every occurrence
+itemised in the population bullets below resolves to recorded-not-rewritten**, because under this issue's four binding constraints — no new allowlist grant; no degradation of the
+local/interactive tier (which here includes the extracted-fence test harness); no confirming cloud
+measurement is in reach; and `| tee` is not a substitute where a producer's exit status must be
+observed — no constraint-satisfying rewrite exists for any of them. Because **no fence byte changed**,
+each fence's fail-closed semantics, its error-handling arms, and its local-tier behaviour are
+preserved verbatim by construction, and `lib/capability-profiles.json` and the five generated
+literals are untouched.
+
+Each disposition names which of the three recorded causes it addresses (1 = `Contains
+simple_expansion`, the variable-expansion refusal that survives removing the redirect; 2 = the `/tmp`
+probe-denied target; 3 = the compound multi-head `while read` refusal). Per this issue's own AC, a
+disposition that left a variable expanded in the executed command is **not** recorded as addressing
+cause 1 — none below is, because none rewrites anything.
+
+- **A. `skills/review/phases/phase-3-agents.md` — the dirty-tree snapshot/restore fences.** Enumerated
+  by a complete redirect-operator search of the fence — a variable-definition reading alone skips the
+  literal-target writes — over `GIT_SNAP_BEFORE`/`GIT_SNAP_AFTER` (default `.prflow/tmp/review-dirty-tree-{before,after}`):
+  the 2 stdout captures (`git status --porcelain -z > "${GIT_SNAP_BEFORE:-…}"` and the AFTER
+  equivalent), the 4 `printf … >>` appends inside the `while read` restore loops (`"$rec"` /
+  `"${rec:3}"`), the 2 defaulted-expansion **input** redirects (`done < "${GIT_SNAP_*:-…}"`), the
+  3 literal-target **input** redirects (2 × `tr '\0' ' ' < ".prflow/tmp/…"`, 1 × `done < ".prflow/tmp/…"`),
+  and the 4 literal-target stdout writes with **no** expansion — the `printf '%s\n' disabled >
+  ".prflow/tmp/review-dirty-tree-disabled"` snapshot-failure sentinel, and the 3 `printf '%s' '' >
+  ".prflow/tmp/review-dirty-tree-{before,changed,renamed}-paths"` scratch-init writes chained in an
+  `if ! … || ! … || ! … ; then` compound that fails closed on any write's non-zero status.
+  The dominant, irreducible cause is **cause 1**. The capture and both defaulted input redirects
+  refuse on the `${GIT_SNAP_*:-…}` expansion; the appends refuse on the `"$rec"`/`"${rec:3}"`
+  expansion inside a `while read` loop (**cause 3**). Neither can be de-expanded to a bare literal:
+  the `${GIT_SNAP_BEFORE:-…}` / `${GIT_SNAP_AFTER:-…}` seam is **load-bearing for the project's own
+  test suite** — `lib/test/run.sh` extracts these fences and runs them with `GIT_SNAP_BEFORE=…` /
+  `GIT_SNAP_AFTER=…` set to per-test temp paths (including the symlink-attack security tests that
+  `rm`/`ln -s` the exact env-named path), so hardcoding the target degrades the local tier, which the
+  constraints forbid. The appends cannot use the Write tool (it cannot participate in a per-record
+  NUL loop) and the literal input redirects read the same files the writes stop producing, so a
+  disposition for the reads is bound to the writes'. A constraint-satisfying rewrite would require a
+  committed helper that owns the whole snapshot/restore loop — and because the snapshot is what
+  authorises the Phase 3.2 restore, that redesign changes what the restore is entitled to undo, out
+  of scope for a mechanical adjudication. The 4 literal-target stdout writes carry **no** cause-1
+  expansion, but a shell `>` that authors a file is refused by the cloud implement tier's sandbox —
+  observed this run, where a `git diff … > .prflow/tmp/…` write was blocked by the sandbox (which
+  refuses shell `>` file authoring) and the same content succeeded only through `| tee`. Of them, the sentinel write is
+  the one site the Write tool could author in isolation (fixed literal content to a fixed path), but
+  it lives inside the §3.1 snapshot fence whose `${GIT_SNAP_BEFORE:-…}` capture and validation
+  statements are already cause-1 denied, so an isolated rewrite of it leaves the fence non-cloud-runnable
+  and it is recorded with the rest of the fence; the 3 scratch-init writes the Write tool cannot reach
+  either, because the `if !` compound reads each write's exit status to fail the restore closed on a
+  scratch-allocation failure — the same exit-status dependency that disqualifies `| tee` for population C.
+  Recorded, not rewritten.
+- **B. `skills/implement/phases/phase-3-fix-loop.md` — the `--persist` stderr captures.** The two
+  sites are `2>"$PERSIST_ERR"` and `2>>"$PERSIST_ERR"` (append), where `PERSIST_ERR=$(mktemp)` —
+  **cause 2** (a `/tmp` target). Crucially, each statement *also* leads with the unexpanded
+  `${CLAUDE_SKILL_DIR:-…}` anchor, which the cloud matcher denies as a leading token independently of
+  the capture, so removing only the `2>` capture leaves the fence just as unexecutable on the cloud
+  tier. Making it cloud-reachable would require *both* re-siting the record-write-failure detector
+  (the fence maintains `PERSIST_ERR_IS_DEVNULL` and `grep -qE 'record not written|…' "$PERSIST_ERR"`
+  — reading `--persist`'s stderr from the tool result instead, as this same file's *other* `2>`
+  captures were already rewritten) *and* enrolling both `efficiency-trace.sh --persist` calls in the
+  conditional vendored-literal-first anchor-fallback form (per `lib/test/lint-anchor-fallback-arm.py`).
+  That is a coupled redesign touching the fence, the `lib/test/run.sh` pins on this exact text, and
+  the anchor-fallback lint's enrolled-site set, with **no cloud measurement in reach to confirm the
+  substituted shapes are permitted** — the trap this section's constraints exist to avoid. This fence
+  is therefore explicitly recorded as left non-cloud-reachable, not rewritten.
+- **C. `skills/implement/references/deferred-review-findings.md` — the jq merge's `> "${AGG}.tmp"`.**
+  **Cause 1** (the `${AGG}` variable target) plus the Write tool cannot source a command's stdout: the
+  merge captures the deferrals-merge jq's output to a temp and `mv`s it over the aggregate, and the
+  write-via-temp+`mv` is exactly what makes a concurrent read of `$AGG` safe. Routing the merged JSON
+  through the agent's context to author it with the Write tool would reintroduce the transcription
+  hazard the engine deliberately avoids for `diff.patch`; and `| tee "$AGG"` is disqualified because
+  the pipeline would report `tee`'s exit status, hiding a jq failure the fence's `else` arm reads and
+  routes to a `dropped-failed` reflection. As in population B, the merge statement additionally leads
+  with the unexpanded `${CLAUDE_SKILL_DIR:-…}` anchor (`if "${CLAUDE_SKILL_DIR:-…}"/../../scripts/run-jq.sh
+  … > "${AGG}.tmp"; then`), the cloud matcher's denied leading token — so the fence is non-cloud-reachable
+  on that ground too, independently of the redirect. The other `2>` captures in this same file **were**
+  rewritten by #1721; only this variable-target, captures-command-output site is recorded here.
+  Recorded, not rewritten.
 
 ### Post-change confirmation status of the three measured shapes (issue #1721 AC5)
 
