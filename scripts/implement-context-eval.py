@@ -208,6 +208,9 @@ PHASE_READ_LABELS = tuple(sorted(PHASE_FILES.values()))
 SWEEP_REFERENCE_PREFIX = "sweep-"
 SWEEP_REFERENCE_SUFFIX = ".md"
 SWEEP_REFERENCE_PHASE = "phase2"
+# SWEEP_REFERENCE_PHASE must stay a PHASE_READ_LABELS member: RunAccumulator seeds
+# phase_reads only from PHASE_READ_LABELS, so a value outside it KeyErrors on increment.
+assert SWEEP_REFERENCE_PHASE in PHASE_READ_LABELS
 
 
 def _phase_label_for_read(file_path):

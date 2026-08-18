@@ -541,6 +541,18 @@ class GatedSweepReferenceTest(_SingleSessionMixin, unittest.TestCase):
         ])
         self.assertEqual(runs[0]["total_phase_reads"], 0)
 
+    def test_non_md_suffix_sweep_name_not_counted(self):
+        # The suffix guard is load-bearing: a sweep-prefixed name that is not a .md file
+        # (an editor backup, say) must not count — the negative control above only covers
+        # a non-sweep prefix, so a loosened suffix check would otherwise pass unnoticed.
+        runs, _ = self._run_one([
+            '{"type":"assistant","attributionSkill":"prflow:implement",'
+            '"message":{"usage":{"input_tokens":1},"content":['
+            '{"type":"tool_use","id":"b1","name":"Read","input":{"file_path":'
+            '"skills/implement/references/sweep-2-3-0-changed-contract.md.bak"}}]}}',
+        ])
+        self.assertEqual(runs[0]["total_phase_reads"], 0)
+
 
 class ToolCategoryTableTest(unittest.TestCase):
     """`TOOL_CATEGORY_BY_NAME` is a standalone mirror of the harness's tool vocabulary
