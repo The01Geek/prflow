@@ -2189,18 +2189,13 @@ printf 'y' > "$_ci1733_dir/realdir/inside"
 ln -s real "$_ci1733_dir/goodlink"
 ln -s realdir "$_ci1733_dir/dirlink"
 
-# Deferred (review of PR #1738, Suggestion 2): the row parser fixes the GNU/BSD column
-# offsets between permissions and size. Not hardened, because an offset change yields a
-# non-numeric `size` and the guard below returns `unestablished` — fail-closed, never a
-# wrong class. Revisit only if an `ls` variant is found whose shifted field lands a
-# DIGIT in the size slot.
+# Do not widen the row parser's fixed column offsets for an `ls` variant: an offset shift
+# lands a non-numeric size, which the guard below classifies unestablished — fail-closed.
 _ci1733_classify() {  # <path> <combined-output-file> -> present|absent|unestablished
   local path="$1" out="$2" perm size rest name msg
-  # A not-found message naming this path is decisive. Match it delimited (GNU quotes the
-  # operand, BSD/busybox suffix a colon) so a superstring path never matches, and accept
-  # the FINAL SEGMENT as well as the whole path: BSD ls names only the basename in this
-  # message even for an absolute operand, so a whole-path-only match reads absent as
-  # unestablished on macOS and the caller then never re-runs the producing step.
+  # Do not undelimit this match or drop the final-segment arm: undelimited, a superstring
+  # sibling matches; whole-path-only, BSD's basename-naming message reads absent as
+  # unestablished and the producing step never re-runs.
   local base="${path##*/}"
   msg="$(grep -E 'cannot access|No such file' "$out")"
   case "$msg" in
@@ -2256,6 +2251,22 @@ printf "ls: cannot access '%s': No such file or directory\n-rw-r--r-- 1 u g 1 Au
 assert_eq "#1733 superstring: a message naming a sibling superstring path leaves the shorter path present" "present" \
   "$(_ci1733_classify "$_ci1733_dir/real" "$_ci1733_super")"
 
+# The BSD not-found shape — the operand's final segment, colon-suffixed — beside a row for
+# the same path. Asserted on a hand-authored fixture, not the host's `ls`, so the
+# message-first precedence has coverage on a GNU-only host where no BSD-shaped program runs.
+_ci1733_bsdmsg="$_ci1733_dir/bsdmsg.out"
+printf "ls: dangling: No such file or directory\n-rw-r--r-- 1 u g 5 Aug 17 22:58 %s\n" \
+  "$_ci1733_dir/dangling" > "$_ci1733_bsdmsg"
+assert_eq "#1733 AC2 (BSD shape): a colon-suffixed final-segment message is decisive beside a row" "absent" \
+  "$(_ci1733_classify "$_ci1733_dir/dangling" "$_ci1733_bsdmsg")"
+
+# A row whose size column is non-numeric must not classify present. Pins the fail-closed
+# direction the row parser's fixed GNU/BSD column offsets rely on.
+_ci1733_shifted="$_ci1733_dir/shifted.out"
+printf -- "-rw-r--r--@ 1 u g staff 5 Aug 17 22:58 %s\n" "$_ci1733_dir/real" > "$_ci1733_shifted"
+assert_eq "#1733 fail-closed: a row with a non-numeric size column classifies unestablished" "unestablished" \
+  "$(_ci1733_classify "$_ci1733_dir/real" "$_ci1733_shifted")"
+
 # AC9: the host's own `ls -lL` draws a not-found message naming the dangling link.
 _ci1733_hostmsg="$_ci1733_dir/hostmsg.out"
 ls -lL "$_ci1733_dir/dangling" > "$_ci1733_hostmsg" 2>&1 || true
@@ -2285,10 +2296,8 @@ assert_eq "#1733 AC11: the slug-unknown arm (plain ls -l on the dir) shows the d
 # AC10: a second `ls`, when present, must reach the same class; -L must never reach the
 # slug-unknown arm (a BSD-shaped impl drops the dangling dir entry under -L).
 #
-# Both arms are host-conditional, and their assertions are credited through
-# module_host_capability_skip so the module's EXACT floor is host-invariant: a host
-# without the program runs fewer assertions and would otherwise trip the floor as a
-# false regression. Each credit MUST equal the assertion count inside its own arm.
+# Each module_host_capability_skip credit MUST equal the assertion count inside its own
+# arm: the floor is EXACT, so a wrong credit fails the module as a false regression.
 _ci1733_second=""
 if command -v busybox >/dev/null 2>&1; then _ci1733_second="busybox"
 elif command -v gls >/dev/null 2>&1; then _ci1733_second="gls"; fi

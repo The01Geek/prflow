@@ -273,32 +273,28 @@ over `.prflow/tmp/issue-run-slug`, `.prflow/tmp/issue-step1-<slug>.md`,
 four, each named individually — and show its raw output, error lines included, in the message that
 renders the draft. `-L` resolves each link before reporting, so a path that is a link to a gone
 target draws a not-found message rather than a stale row. With the slug unestablished, list
-`.prflow/tmp` itself instead on plain `ls -l` — never `-L`, which resolves each link and so
-stops a broken one listing cleanly — some `ls` drop its entry outright, hiding the very leftover this
-arm exists to show, and others blank its fields beside an error line — so plain `ls -l` is what keeps
-that leftover legible — state that nothing there is attributable to this run, and re-enter nothing.
+`.prflow/tmp` itself instead on plain `ls -l` — never `-L`, which resolves each entry's link and so
+drops or blanks a broken one, the very leftover this arm exists to show — state that nothing there is
+attributable to this run, and re-enter nothing.
 
 Classify each path from that one invocation, running no second probe, from what the shell shows
 rather than what you infer. A not-found message naming one of the four paths — by the whole path or
 by its final segment alone, since one `ls` quotes the operand and another names only the file name —
-is absent, and decides that path even when the same invocation also printed a row for it: one `ls`
-prints the message alone, another beside the stale row, so the message is decisive on both. Reading
-only the whole-path form leaves a broken leftover classified unestablished, and only absent re-runs
-the producing step. A path is present only when
-the invocation prints a row for that path itself describing an ordinary file of at least one byte —
-its name field the path, its type character `-`, its size column non-zero; a row whose size is zero
-is absent, not present. Anything else — no output, a missing or refused command, another diagnostic,
-or a header-and-contents listing rather than a row for the path itself, which is what a directory
-produces — is unestablished. Name each path and its class in the draft message, asserting of none
-that it is this run's own completed output.
+is absent, and decides that path even when the same invocation also printed a row for it; reading
+only the whole-path form leaves a broken leftover unestablished, so its producing step never re-runs.
+A path is present only when the invocation prints a row for that path itself describing an ordinary
+file of at least one byte — its name field the path, its type character `-`, its size column
+non-zero; a row whose size is zero is absent, not present. Anything else — no output, a missing or
+refused command, another diagnostic, or a header-and-contents listing rather than a row for the path
+itself, which is what a directory produces — is unestablished. Name each path and its class in the
+draft message, asserting of none that it is this run's own completed output.
 
-Only absent supports a re-entry, and it is the shell's report of an absent or empty path — not a
-timestamp — that authorizes re-running the producing step to replace a missing or half-written
-leftover; every producing step deletes its own same-slug leftover before writing, and a run whose
-earlier `.prflow/` write or delete failed or was refused is on `references/fallback-read-only-sandbox.md`'s
-arms, where no on-disk copy is trusted and nothing is re-entered. An unestablished path — a
-directory, say — gets a breadcrumb rather than a re-entry, since re-running a producing step cannot
-write a file over it.
+Only absent supports a re-entry: the shell's report of an absent or empty path is what authorizes
+re-running the producing step to replace a missing or half-written leftover. Every producing step
+deletes its own same-slug leftover before writing, and a run whose earlier `.prflow/` write or delete
+failed or was refused is on `references/fallback-read-only-sandbox.md`'s arms, where no on-disk copy
+is trusted and nothing is re-entered. An unestablished path — a directory, say — gets a breadcrumb
+rather than a re-entry, since re-running a producing step cannot write a file over it.
 
 Re-run the producing step for every absent path, then resume at the draft rendering. A Step 1
 re-entry reuses the slug already bound and binds no new one; a zero-byte `.prflow/tmp/issue-run-slug`
@@ -314,9 +310,8 @@ that message names the steps re-run and any finding of theirs the draft does not
 producing step that cannot run gets an in-chat breadcrumb naming the file and the failure kind; this
 listing never blocks issue creation. These four paths are the run-state files this listing covers; it
 leaves out the user-facing draft `issue-draft-<slug>.md`, written under the main repo root rather than
-these cwd-anchored paths and owned by the presentation gate, and the `steelman-projection-<slug>.json`
-gate operand, which the presentation gate reads for itself — widening the list to either is not a
-one-line change.
+these cwd-anchored paths, and the `steelman-projection-<slug>.json` gate operand — both owned by the
+presentation gate, which reads them for itself.
 
 Load `references/step-4-present-create.md` per the *Reference routing* rules above and follow it exactly, on every entry into this step.
 
