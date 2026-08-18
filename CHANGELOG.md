@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.33.13] — 2026-08-18
+
+### Changed
+- **Stripped ~87% of bold emphasis from the shipped skill prose.** Bold ran at roughly 27 spans per 1,000 words across `skills/**/*.md` — a density at which the marker no longer distinguishes anything — and now sits at 851. The sweep deletes asterisk pairs only: no word, punctuation, or whitespace changed. It retains every literal the suite asserts verbatim, bold inside fenced blocks, table rows and inline code spans, each gated reference's boundary markers, the output-format demonstrations whose bold the surrounding instruction requires, and one or two genuinely destructive-if-ignored rules per file. (#1748)
+
 ## [2.33.12] — 2026-08-18
 
 ### Changed
