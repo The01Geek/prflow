@@ -154,15 +154,15 @@ Set `ISSUE_NUMBER=$ARGUMENTS` and check whether a workpad already exists:
 
 - **`id` exit 2 — no workpad (fresh issue; a local-tier run with no `gate` job)** → Build the lean skeleton with the helper and create it, then mirror the issue's Acceptance Criteria into it. **Compose the run link inline** from the ambient `$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID` values the orchestrator substitutes; on a **local run** `$GITHUB_RUN_ID` is empty, so **omit `--run-link` entirely** (never pass `[View run]()`). **Add `--no-reproduction`** to the `new-body` call when the §1.1 classification is **non-bug** (so the bug-only "reproduction captured" sub-item isn't rendered); omit it when bug-report. Decide from the **classification** (1.1), not the label.
 
-  Render the skeleton to a repo-relative scratch file — on the cloud tier, with the run link:
+  Render the skeleton **bare**, so its stdout is observable in the tool result — on the cloud tier, with the run link:
   ```bash
-  "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py new-body $ISSUE_NUMBER --run-link "[View run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)" > <scratch-dir>/workpad-body-$ISSUE_NUMBER.md
+  "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py new-body $ISSUE_NUMBER --run-link "[View run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)"
   ```
   On a local run (empty `$GITHUB_RUN_ID`), omit the flag:
   ```bash
-  "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py new-body $ISSUE_NUMBER > <scratch-dir>/workpad-body-$ISSUE_NUMBER.md
+  "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py new-body $ISSUE_NUMBER
   ```
-  Create the workpad from that scratch body, then populate the Acceptance Criteria:
+  Then author `<scratch-dir>/workpad-body-$ISSUE_NUMBER.md` with the **Write tool**, carrying that exact observed stdout — a shell redirect into the scratch directory is refused on the cloud tier. Create the workpad from that file, then populate the Acceptance Criteria:
   ```bash
   "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py create $ISSUE_NUMBER <scratch-dir>/workpad-body-$ISSUE_NUMBER.md
   ```
@@ -228,7 +228,7 @@ Fresh-run arm shown; the terminal re-trigger arm's note reads `resume-kind: term
 
 **Write the run marker (both arms — fresh create and resume).** Immediately after the workpad exists (created above, or detected on the resume arm), write the run-marker file so a local-tier Stop-hook guard knows an implement run is in flight for this issue. It lives under the gitignored `.prflow/tmp/`, anchored to the repo (or worktree) root, and is removed at every terminal `Status` transition by the *Outcome reaction* block in the orchestrator.
 
-**Record this run's owner as the marker's first line.** When the runner exports a session id — Claude Code sets `CLAUDE_CODE_SESSION_ID`, the same value the Stop-hook payload carries as `session_id` — write it as the marker's first line; when the runner supplies none, write an empty marker. This lets the guard tell *this* run's marker apart from another concurrent session's in the same checkout.
+**The marker's first line records this run's owner** — the value the Stop-hook payload also carries, which is how the guard tells this run's marker from a concurrent session's in the same checkout.
 
 Ensure the scratch leaf exists — its own single statement:
 
@@ -236,17 +236,13 @@ Ensure the scratch leaf exists — its own single statement:
 mkdir -p <scratch-dir>
 ```
 
-Then **pick the arm from whether the runner exported a session id** (`$CLAUDE_CODE_SESSION_ID`, which Claude Code sets and other runners leave empty), writing to the substituted absolute marker path. When the runner exported one, write it as the marker's first line so the guard can tell this run's marker apart from another concurrent session's:
+**On the local tier only**, read the session id first, so the marker's owner line has a source. That tier owns the Stop-hook guard this file's only reader is; the cloud tier refuses a variable expansion and has no guard to serve, so emit nothing there:
 
 ```bash
-printf '%s\n' "$CLAUDE_CODE_SESSION_ID" > <scratch-dir>/implement-active-$ISSUE_NUMBER
+printf '%s\n' "$CLAUDE_CODE_SESSION_ID"
 ```
 
-When the runner supplies none, write an empty marker:
-
-```bash
-: > <scratch-dir>/implement-active-$ISSUE_NUMBER
-```
+Then author the marker at the substituted absolute path `<scratch-dir>/implement-active-$ISSUE_NUMBER` with the **Write tool**, never a shell fence — the cloud tier refuses both the redirect and the variable expansion a shell write needs. When that read printed a non-empty value, the file's one line is that value, never the literal `$CLAUDE_CODE_SESSION_ID`; when it printed empty, was refused, or was skipped, the file is empty. **An empty marker forfeits owner identity**, which the guard treats as owned-by-this-session and blocks on, so a concurrent session sharing the checkout is blocked too — on the local tier record that in a `--note` rather than leaving the loss silent.
 
 This is best-effort: if the write fails, note it and continue — a missing marker only means the Stop-hook backstop stays silent for this run.
 

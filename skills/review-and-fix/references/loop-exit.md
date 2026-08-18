@@ -191,41 +191,40 @@ All derivation lives in `lib/efficiency-trace.jq` (a mechanical jq filter, no LL
    # Copilot CLI / Cursor / Codex CLI / Gemini CLI — would leave the rc empty and make the
    # fail check inert). On a resolver failure, warn and force ENABLED=false so the read
    # fails CLOSED (skips the trace) rather than masquerading as a deliberate flag-off.
-   if ! mkdir -p .prflow/tmp; then
-     echo "::warning::devflow review-and-fix: could not create .prflow/tmp for the efficiency-trace gate read"
-   fi
-   rm -f .prflow/tmp/devflow-et-flag.err
-   if ! ENABLED=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .prflow_review_and_fix.efficiency_telemetry_enabled true 2>.prflow/tmp/devflow-et-flag.err); then
-     echo "::warning::devflow efficiency-trace gate read failed (config-get.sh rc≠0): $(cat .prflow/tmp/devflow-et-flag.err 2>/dev/null) — skipping trace"
+   # Do NOT redirect stderr to a file: a cloud harness refuses the redirect construct outright,
+   # so the fence returns no output at all. The warning below therefore carries no cause — the
+   # stderr does not exist until this same statement runs, so no slot in it can be rendered.
+   if ! ENABLED=$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .prflow_review_and_fix.efficiency_telemetry_enabled true); then
+     echo "::warning::devflow efficiency-trace gate read failed (config-get.sh rc≠0) — skipping trace; cause follows"
      ENABLED=false
    fi
    ```
-   If `ENABLED` is not `true`, **skip this entire section** — render no trace and write no file under `.prflow/logs/`. (The wrapper re-checks the flag itself, so this is belt-and-suspenders; the read here is what gates the `mkdir`/render below. The `if !`-branch above forces `ENABLED=false` on a resolver failure — and a stripped-empty `ENABLED` is likewise not `true` — so a genuine failure surfaces its `::warning::` in the Actions UI *and* fails closed rather than masquerading as a deliberate flag-off.)
+   **When that warning fired, emit the cause as a separate second warning** — read this fence's own tool result and emit `::warning::devflow efficiency-trace gate cause: <the first line of the stderr it showed, or the literal stderr=empty>`. Skipping this step loses the cause from the Actions UI entirely.
+   If `ENABLED` is not `true`, **skip this entire section** — render no trace and write no file under `.prflow/logs/`. (The wrapper re-checks the flag itself, so this is belt-and-suspenders; the read here is what gates the render below. The `if !`-branch above forces `ENABLED=false` on a resolver failure — and a stripped-empty `ENABLED` is likewise not `true` — so a genuine failure surfaces its `::warning::` in the Actions UI *and* fails closed rather than masquerading as a deliberate flag-off.)
 
 2. **Resolve the run slug and run-id.** `<slug>` is `pr-<N>` in PR mode or the sanitized current branch name in branch mode; `<run-id>` is the per-run discriminator computed once at loop start (see the Run-scoping rule in `references/loop-control.md`). The run's workpads live in the run-scoped directory `.prflow/tmp/review/<slug>/<run-id>/`. The per-run **record filename is keyed by `<run-id>`** (`<slug>-<run-id>.json`), **not** a fresh `date` timestamp: the agent's Loop-Exit write here and the Layer-3 `lib/efficiency-trace.sh --persist` backstop must resolve the *same* path, or they would each write a duplicate record for one run. The run-id already embeds a timestamp on local runs (`local-<ts>-<attempt>`) and the run number on cloud runs, so it stays unique across runs while being deterministic *within* a run.
 
-3. **Render the trace to chat.** Discriminate the trace's failure via a single-statement `if !` (redirecting its stderr to a temp file for the breadcrumb) so a real failure surfaces a reason rather than degrading silently to an empty skip. The trace is read-only (renders to chat); the **durable per-run record is no longer written into the working tree here** — it is derived and persisted to the telemetry branch by the single `--persist` call in "Persisting observability artifacts" below, which reads these same run-scoped workpads:
+3. **Render the trace to chat.** Discriminate the trace's failure via a single-statement `if !` so a real failure surfaces a reason rather than degrading silently to an empty skip. The trace is read-only (renders to chat); the **durable per-run record is no longer written into the working tree here** — it is derived and persisted to the telemetry branch by the single `--persist` call in "Persisting observability artifacts" below, which reads these same run-scoped workpads:
    ```bash
    WORKPAD_DIR=".prflow/tmp/review/<slug>/<run-id>"   # run-scoped: the trace must read THIS run's iter-*.json, not a sibling run's
-   # Ensure the scratch leaf exists (rc-checked, never `|| true`) and drop any stale capture.
-   if ! mkdir -p .prflow/tmp; then
-     echo "::warning::devflow review-and-fix: could not create .prflow/tmp for the efficiency-trace render"
-   fi
-   rm -f .prflow/tmp/devflow-et.err
    # Render the Markdown trace to chat. Use ::warning:: (not a plain echo) so a
    # failure surfaces in the Actions UI on a headless run; and detect the
    # all-workpads-malformed case, where the helper exits 0 with empty stdout (the
    # `elif [ -z "$TRACE" ]` arm reports it) — print an explicit notice so it isn't a silent no-op.
    # `if !` reads the helper's OWN exit status — never a captured rc read in a later
    # statement (a cross-statement-variable-stripping inline-bash runner would leave it empty).
-   if ! TRACE="$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/efficiency-trace.sh --workpad-dir "$WORKPAD_DIR" --slug "<slug>" --mode trace 2>.prflow/tmp/devflow-et.err)"; then
-     echo "::warning::devflow efficiency-trace unavailable (rc≠0): $(cat .prflow/tmp/devflow-et.err 2>/dev/null)"
+   # Do NOT redirect stderr to a file: a cloud harness refuses the redirect construct outright,
+   # so the fence returns no output at all. Neither warning arm below carries a cause — the
+   # stderr does not exist until this same statement runs, so no slot in it can be rendered.
+   if ! TRACE="$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/efficiency-trace.sh --workpad-dir "$WORKPAD_DIR" --slug "<slug>" --mode trace)"; then
+     echo "::warning::devflow efficiency-trace unavailable (rc≠0); cause follows"
    elif [ -z "$TRACE" ]; then
-     echo "::warning::devflow efficiency-trace produced no output (all workpads unreadable/malformed?): $(cat .prflow/tmp/devflow-et.err 2>/dev/null)"
+     echo "::warning::devflow efficiency-trace produced no output (all workpads unreadable/malformed?); cause follows"
    else
      printf '%s\n' "$TRACE"
    fi
    ```
+   **When either warning arm fired, emit the cause as a separate second warning** — read this fence's own tool result and emit `::warning::devflow efficiency-trace cause: <the first line of the stderr it showed, or the literal stderr=empty>`. Skipping this step loses the cause from the Actions UI entirely.
    Print the rendered Markdown trace (the `--mode trace` output) into the chat report, after the Run telemetry table. The trace assigns each dispatched subagent exactly one verdict — **unique-effective**, **corroborating**, **noise**, or **null** (see `lib/efficiency-trace.jq`'s header for the derivation rules) — shows the per-iteration **diff profile** (the Phase 0.5 flags) and **verification posture** (so a low verifier count reads as a deliberate cheap-path/skip decision, not as "nothing ran"), the Phase-3 dispatch count, and flags any iteration that applied zero fixes as having added nothing. The repo-relative helper paths here resolve against the repository root.
 
 4. **The record is persisted deterministically to the telemetry branch — mandatory on every writable run, never skipped (including when this skill is driven interactively/inline by an orchestrator).** The record and the durable workpad copy are **not** written into the working tree and **not** committed on the current branch; they are derived from this run's tmp workpads and persisted to the durable **telemetry branch** by the single `--persist` call in "Persisting observability artifacts" below. That call runs on every writable run, **local included**, and the push lives inside the helper — so local mode no longer depends on the feature branch ever being pushed, and the default-branch divergence the old current-branch commit caused is structurally impossible. The record carries the existing per-phase/per-iteration cost telemetry forward from the workpads, so that cost data is no longer discarded with `.prflow/tmp/`.
