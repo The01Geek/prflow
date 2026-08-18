@@ -1,7 +1,7 @@
 <!-- prflow:create-issue-ref step=quality-group-premises file=skills/create-issue/references/quality-group-premises.md start -->
 ## Quality group — verified claims and external premises
 
-**Trigger (observable before this reference loads):** the assembled draft **relies on external or third-party behavior** (an external platform, API, or service — webhooks, trigger syntax, token scopes, endpoint behavior, response shapes, rate limits), carries a **`Verified:` bullet**, or asserts **"the code does X"** about a path that may be configuration-gated or default-off. A self-contained internal change stating no external premise and no `Verified:` bullet does not load this group; uncertain applicability loads it. Record verified third-party facts and their source URLs in the draft's `Technical Context` section.
+Trigger (observable before this reference loads): the assembled draft relies on external or third-party behavior (an external platform, API, or service — webhooks, trigger syntax, token scopes, endpoint behavior, response shapes, rate limits), carries a `Verified:` bullet, or asserts "the code does X" about a path that may be configuration-gated or default-off. A self-contained internal change stating no external premise and no `Verified:` bullet does not load this group; uncertain applicability loads it. Record verified third-party facts and their source URLs in the draft's `Technical Context` section.
 
 Each obligation appears once, as its checklist row plus the rule text it carries.
 

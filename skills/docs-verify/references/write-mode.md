@@ -3,24 +3,24 @@
 # Write-mode procedure
 
 This reference carries the whole write-mode half of `/prflow:docs-verify`: the action paths, the file
-operations, the quality bar, the scope constraints, and the completion criteria. It is loaded **only**
+operations, the quality bar, the scope constraints, and the completion criteria. It is loaded only
 on the default (write) path. A `--report-only` run never loads it and never applies it — that run's
 contract is the *Report-Only Output* section of `SKILL.md`.
 
 ## Determine actions needed — choose ONE path
 
-**Path A: Documentation is accurate and complete**
+Path A: Documentation is accurate and complete
 - Provide analysis confirming accuracy
 - No file edits needed
 - Recommend areas for future enhancement
 
-**Path B: Documentation is outdated or inaccurate**
+Path B: Documentation is outdated or inaccurate
 - Identify specific inaccuracies
 - Provide corrected content
 - Edit the documentation file(s) to align with current code
 - Preserve accurate sections while fixing inaccurate ones
 
-**Path C: Documentation is missing**
+Path C: Documentation is missing
 - Analyze the codebase thoroughly
 - Draft comprehensive documentation
 - Create a new `.md` file in appropriate `[[INTERNAL_DOC_LOCATION]]` subdirectory
@@ -42,7 +42,7 @@ contract is the *Report-Only Output* section of `SKILL.md`.
 - Use Markdown formatting with clear structure
 - Include: Overview, Key Components, Code Examples, Configuration, Important Notes
 - Follow existing documentation style and formatting in `[[INTERNAL_DOC_LOCATION]]`
-- Reference source files by bare path only (e.g., `src/app/server.py`) — **never append line numbers** (e.g., do not write `server.py:42`); use function or class names instead, as line numbers change as code evolves
+- Reference source files by bare path only (e.g., `src/app/server.py`) — never append line numbers (e.g., do not write `server.py:42`); use function or class names instead, as line numbers change as code evolves
 
 ### Editing Existing Documentation
 - Update content to match current code
@@ -59,21 +59,21 @@ Use descriptive names matching the topic:
 
 ## Quality Standards
 
-- **Accuracy**: Every statement must reflect current code implementation
-- **Completeness**: All essential information about the topic must be included
-- **Clarity**: Use simple, clear language that developers can understand
-- **Consistency**: Match formatting and style of existing documentation files
-- **Examples**: Include code examples showing actual usage where applicable
-- **Alignment Rule**: After reading the documentation, a developer should understand the current implementation
+- Accuracy: Every statement must reflect current code implementation
+- Completeness: All essential information about the topic must be included
+- Clarity: Use simple, clear language that developers can understand
+- Consistency: Match formatting and style of existing documentation files
+- Examples: Include code examples showing actual usage where applicable
+- Alignment Rule: After reading the documentation, a developer should understand the current implementation
 
 ## Important Constraints
 
-**Scope:**
+Scope:
 - Focus only on the specified topic
 - Search comprehensively for all related code and documentation
 - Stay within `[[INTERNAL_DOC_LOCATION]]` boundaries for edits
 
-**File Operations:**
+File Operations:
 - Create or edit only documentation files inside `[[INTERNAL_DOC_LOCATION]]`
 - Do not modify code files
 - Do not modify files outside `[[INTERNAL_DOC_LOCATION]]`

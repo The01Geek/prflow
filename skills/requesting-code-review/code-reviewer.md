@@ -2,7 +2,7 @@
 
 Use this template when dispatching a code reviewer subagent.
 
-**Purpose:** Review completed work against requirements and code quality standards before it cascades into more work.
+Purpose: Review completed work against requirements and code quality standards before it cascades into more work.
 
 ```
 Subagent (general-purpose):
@@ -116,13 +116,13 @@ Subagent (general-purpose):
     - Avoid giving a clear verdict
 ```
 
-**Placeholders:**
+Placeholders:
 - `[DESCRIPTION]` — brief summary of what was built
 - `[PLAN_OR_REQUIREMENTS]` — what it should do (plan file path, task text, or requirements)
 - `[BASE_SHA]` — starting commit
 - `[HEAD_SHA]` — ending commit
 
-**Reviewer returns:** Issues (Critical / Important / Minor), Assessment
+Reviewer returns: Issues (Critical / Important / Minor), Assessment
 
 ## Example Output
 

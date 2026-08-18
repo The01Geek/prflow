@@ -2,7 +2,7 @@
 
 #### 2.3.7 Collection-cardinality sweep (mandatory whenever the change adds a collection output with ordering, dedup, or aggregation logic)
 
-No other 2.3.x sweep owns a **collection output whose value depends on cardinality**: a sorted list, a deduped set, a grouped or counted tally, a tie-broken ranking. That logic is invisible to a single-element test — one element is already sorted, already unique, already its own tally — so a happy-path test with one input passes while the ordering comparator, the dedup key, and the aggregation step are never exercised. The bug (a wrong or absent sort key, a dedup keyed on the wrong field, an off-by-one tally) ships clean and surfaces only when a review pass's test-coverage analysis, or a real multi-element input, finally hits it.
+No other 2.3.x sweep owns a collection output whose value depends on cardinality: a sorted list, a deduped set, a grouped or counted tally, a tie-broken ranking. That logic is invisible to a single-element test — one element is already sorted, already unique, already its own tally — so a happy-path test with one input passes while the ordering comparator, the dedup key, and the aggregation step are never exercised. The bug (a wrong or absent sort key, a dedup keyed on the wrong field, an off-by-one tally) ships clean and surfaces only when a review pass's test-coverage analysis, or a real multi-element input, finally hits it.
 
 For each collection output the diff adds whose value depends on order, dedup, or aggregation, before running tests:
 

@@ -14,15 +14,15 @@ This skill is the single entry point the maintainer invokes once a week (or
 on demand). It is a *conductor*: it runs deterministic bash/jq scripts from
 `lib/` at every mechanical step and dispatches LLM subagents only at the two
 genuine-judgment points — per-PR retrospective analysis (Stage A) and
-per-pattern issue-spec drafting (Stage B). The loop **proposes, it does not dispose**:
-each actionable pattern is filed as **one GitHub issue** for the normal
+per-pattern issue-spec drafting (Stage B). The loop proposes, it does not dispose:
+each actionable pattern is filed as one GitHub issue for the normal
 implement → review pipeline, not landed as an autonomous PR.
 
-**Subagent dispatch is user-requested here (injection-condition clause).** Invoking `/prflow:retrospective-weekly` **is** the user's request for subagent dispatch at this loop's two judgment points — the Stage A per-PR retrospective subagents (Step 4) and the Stage B per-pattern issue-spec subagents (Step 8b) — thereby satisfying any injected "do not call the AgentTool unless the user requested it" condition there and nowhere else; every other step stays the deterministic scripts the conductor runs directly.
+Subagent dispatch is user-requested here (injection-condition clause). Invoking `/prflow:retrospective-weekly` is the user's request for subagent dispatch at this loop's two judgment points — the Stage A per-PR retrospective subagents (Step 4) and the Stage B per-pattern issue-spec subagents (Step 8b) — thereby satisfying any injected "do not call the AgentTool unless the user requested it" condition there and nowhere else; every other step stays the deterministic scripts the conductor runs directly.
 
-**`$LIB` notation (textual, not a shell variable).** Throughout this skill, `$LIB` in a command denotes the resolved path `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib` — expand it textually (with the anchor already resolved for this runner) when composing each command you actually run. Never rely on a shell variable named `LIB` persisting from one statement or block to another — each Bash call is a fresh shell.
+`$LIB` notation (textual, not a shell variable). Throughout this skill, `$LIB` in a command denotes the resolved path `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib` — expand it textually (with the anchor already resolved for this runner) when composing each command you actually run. Never rely on a shell variable named `LIB` persisting from one statement or block to another — each Bash call is a fresh shell.
 
-**Working-directory contract.** This skill's `lib/`/`scripts/` helper paths are repo-relative literals resolving against the repository root; no fence emits a leading `cd`.
+Working-directory contract. This skill's `lib/`/`scripts/` helper paths are repo-relative literals resolving against the repository root; no fence emits a leading `cd`.
 
 Every `jq` in this skill is invoked through the execution-verified wrapper
 `$LIB/../scripts/run-jq.sh` (`$LIB/../scripts` is the `scripts/` dir beside
@@ -33,21 +33,21 @@ path.
 All scratch files live under `.prflow/tmp/` (gitignored). Learnings files
 (`.prflow/learnings/`) are tracked and committed via the state PR.
 
-**Writing standard (any text you compose that lands on a GitHub surface — issue/PR titles, the state-PR report comment, body content you assemble).** Before composing such text, read the shared writing standard `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/writing-standard.md` and follow it. A failed load emits a breadcrumb naming the file and the failure kind, and you compose without it.
+Writing standard (any text you compose that lands on a GitHub surface — issue/PR titles, the state-PR report comment, body content you assemble). Before composing such text, read the shared writing standard `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../lib/writing-standard.md` and follow it. A failed load emits a breadcrumb naming the file and the failure kind, and you compose without it.
 
-**GitHub autolink hygiene** (any text you compose that lands on a GitHub surface — issue/PR titles, the state-PR report comment, body content you assemble): never put a bare `#` immediately before a number unless it is a real issue or PR reference — GitHub renders `#2` as a link to issue/PR 2, which misleads readers. For an ordinal, count, or list position, spell it out ("item 2", "step 3"), never `#2`. Genuine references like `#123` stay as-is. <!-- pruned-path-ok: illustrative autolink examples, not citations -->
+GitHub autolink hygiene (any text you compose that lands on a GitHub surface — issue/PR titles, the state-PR report comment, body content you assemble): never put a bare `#` immediately before a number unless it is a real issue or PR reference — GitHub renders `#2` as a link to issue/PR 2, which misleads readers. For an ordinal, count, or list position, spell it out ("item 2", "step 3"), never `#2`. Genuine references like `#123` stay as-is. <!-- pruned-path-ok: illustrative autolink examples, not citations -->
 
 ---
 
-**Portable helper anchor (single-statement).** The bundled-helper commands in this skill resolve the skill directory inline at each call site via `${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}`. When `$CLAUDE_SKILL_DIR` is set and non-empty (Claude Code), run each command exactly as written. On a runner where it is unset or empty, replace the placeholder with the skill base directory the runner reports in context (e.g. a `Base directory for this skill:` line); if that reported path is Windows-form (`C:\...`), first convert it to this shell's POSIX form with one standalone `wslpath -u '<path>'` (WSL) or `cygpath -u '<path>'` (Git Bash/MSYS2) command and substitute the printed result **only if the command succeeds and prints a non-empty path — otherwise fall through to the drive-letter rules exactly as if the tool were absent** (lowercase the drive letter, map `C:\` to `/mnt/c` on WSL or `/c` on MSYS2, and turn backslashes into `/`; if the environment is neither WSL nor MSYS2, use the path unchanged and report that it could not be normalized). Resolve the anchor inline at every call site — never capture it into a shell variable that a later statement reads, because some runners' inline-bash marshaling drops such variables. If neither `$CLAUDE_SKILL_DIR` nor a runner-reported base directory is available, stop and report that the helper anchor could not be resolved rather than running a command with a broken path.
+**Portable helper anchor (single-statement).** The bundled-helper commands in this skill resolve the skill directory inline at each call site via `${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}`. When `$CLAUDE_SKILL_DIR` is set and non-empty (Claude Code), run each command exactly as written. On a runner where it is unset or empty, replace the placeholder with the skill base directory the runner reports in context (e.g. a `Base directory for this skill:` line); if that reported path is Windows-form (`C:\...`), first convert it to this shell's POSIX form with one standalone `wslpath -u '<path>'` (WSL) or `cygpath -u '<path>'` (Git Bash/MSYS2) command and substitute the printed result only if the command succeeds and prints a non-empty path — otherwise fall through to the drive-letter rules exactly as if the tool were absent (lowercase the drive letter, map `C:\` to `/mnt/c` on WSL or `/c` on MSYS2, and turn backslashes into `/`; if the environment is neither WSL nor MSYS2, use the path unchanged and report that it could not be normalized). Resolve the anchor inline at every call site — never capture it into a shell variable that a later statement reads, because some runners' inline-bash marshaling drops such variables. If neither `$CLAUDE_SKILL_DIR` nor a runner-reported base directory is available, stop and report that the helper anchor could not be resolved rather than running a command with a broken path.
 
-**Consumer prompt extension (load first).** Before doing this skill's work, load any consumer-supplied prompt extension for this skill and honor it. From the repo root, run:
+Consumer prompt extension (load first). Before doing this skill's work, load any consumer-supplied prompt extension for this skill and honor it. From the repo root, run:
 
 ```bash
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/load-prompt-extension.sh retrospective-weekly
 ```
 
-If the invocation fails because the helper path does not exist (`No such file`, exit 127, or the platform equivalent), that is the **anchor-resolution** failure described in the *Portable helper anchor* note above — fix the anchor, don't report a missing extension. Otherwise, if the helper exits non-zero, a consumer extension exists but could not be loaded — surface its stderr message and do not silently proceed as if none existed. If it exits 0 and prints text, treat that text as additional instructions appended to the end of this skill's own prompt for this run — it is upgrade-safe, consumer-owned customization committed under `.prflow/prompt-extensions/`. If it exits 0 and prints nothing, proceed unchanged.
+If the invocation fails because the helper path does not exist (`No such file`, exit 127, or the platform equivalent), that is the anchor-resolution failure described in the *Portable helper anchor* note above — fix the anchor, don't report a missing extension. Otherwise, if the helper exits non-zero, a consumer extension exists but could not be loaded — surface its stderr message and do not silently proceed as if none existed. If it exits 0 and prints text, treat that text as additional instructions appended to the end of this skill's own prompt for this run — it is upgrade-safe, consumer-owned customization committed under `.prflow/prompt-extensions/`. If it exits 0 and prints nothing, proceed unchanged.
 
 ## Procedure
 
@@ -100,7 +100,7 @@ Fetch the list of unprocessed watched-author PRs merged in the last 7 days:
 bash $LIB/scan.sh > .prflow/tmp/scan.json
 ```
 
-**Ad-hoc / backfill / test runs.** To run the loop against a specific set of
+Ad-hoc / backfill / test runs. To run the loop against a specific set of
 PRs instead of the rolling 7-day window — e.g. backfilling old PRs, re-running
 after a fix, or testing the pipeline — pass `--prs`:
 
@@ -108,9 +108,9 @@ after a fix, or testing the pipeline — pass `--prs`:
 bash $LIB/scan.sh --prs 774,786,772,789 > .prflow/tmp/scan.json
 ```
 
-`--prs` skips the GitHub search **and** the already-processed filter (you named
+`--prs` skips the GitHub search and the already-processed filter (you named
 the PRs, so the loop trusts you), but still drops any number that isn't a merged
-retrospected branch. Everything downstream (Steps 3–10) is identical. Do **not**
+retrospected branch. Everything downstream (Steps 3–10) is identical. Do not
 use `--prs` for the scheduled weekly run.
 
 `scan.sh` writes to stdout and exits non-zero on unrecoverable errors. If
@@ -121,7 +121,7 @@ $LIB/../scripts/run-jq.sh 'length == 0' .prflow/tmp/scan.json
 ```
 
 → `true`: report **"Nothing to process — no unprocessed watched-author PRs
-in the last 7 days."** and **STOP**.
+in the last 7 days."** and STOP.
 
 ---
 
@@ -147,7 +147,7 @@ prs_scanned=$((prs_scanned + 1))
 ```
 
 `fetch-pr-context.sh` writes the bundle to `.prflow/tmp/pr-<n>.context.json`
-and **echoes that file path** to stdout — so `$CTX` is the path, not the
+and echoes that file path to stdout — so `$CTX` is the path, not the
 bundle content.
 
 Run the cheap gate against the bundle content:
@@ -158,7 +158,7 @@ GATE=$($LIB/../scripts/run-jq.sh -c -f $LIB/cheap-gate.jq < "$CTX")
 
 Outputs `{"clean": <bool>, "reason": "<string>"}`.
 
-**If `clean == true`:**
+If `clean == true`:
 
 Emit a clean entry (every retrospected PR is an `implementation` PR):
 
@@ -168,10 +168,10 @@ $LIB/../scripts/run-jq.sh -c -f $LIB/clean-entry.jq < "$CTX" >> .prflow/tmp/new-
 
 Increment `clean_count`.
 
-**If `clean == false`:**
+If `clean == false`:
 
-First run the **mechanical pre-dispatch disposition**. This decides —
-with **no LLM dispatch** — whether the non-clean bundle warrants Stage A analysis
+First run the mechanical pre-dispatch disposition. This decides —
+with no LLM dispatch — whether the non-clean bundle warrants Stage A analysis
 or is a mechanical skip (a foreign, non-DevFlow PR whose only non-clean signal is a
 missing workpad audit trail):
 
@@ -180,15 +180,15 @@ DISP=$($LIB/../scripts/run-jq.sh -c --argjson gate "$GATE" -f $LIB/dispatch-disp
 ```
 
 `DISP` is `{"disposition": "skip"|"dispatch", "reason": "<string>"}`. It returns
-`skip` **exactly** when the gate reason is a workpad reason, the status is a
+`skip` exactly when the gate reason is a workpad reason, the status is a
 sentinel (`Absent`/`NoIssue`), and `pr_devflow_provenance` is `false` — otherwise
-`dispatch`. So a bundle non-clean on **any** non-workpad signal (outstanding
+`dispatch`. So a bundle non-clean on any non-workpad signal (outstanding
 REJECT, an unreadable review-verdict signal, CI failures, post-bot commits,
 review comments) is always dispatched.
 
-**If `disposition == "skip"` (the mechanical no-provenance skip):** this is a
-**permanently-terminal** skip. Append a marker entry to the store and write a
-one-line run-report record — costing **zero** LLM dispatches. Do **not** add it to
+If `disposition == "skip"` (the mechanical no-provenance skip): this is a
+permanently-terminal skip. Append a marker entry to the store and write a
+one-line run-report record — costing zero LLM dispatches. Do not add it to
 `needs_analysis`.
 
 ```bash
@@ -204,7 +204,7 @@ skipped_count=$((skipped_count + 1))
 The marker entry makes the processed-PRs filter treat this PR as handled on
 subsequent runs.
 
-**If `disposition == "dispatch"`:** add the bundle path to the analysis list:
+If `disposition == "dispatch"`: add the bundle path to the analysis list:
 
 ```bash
 needs_analysis+=("$CTX")
@@ -216,7 +216,7 @@ analyzed_count=$((analyzed_count + 1))
 ### Step 4 — Stage A: Retrospective subagents (per non-clean PR)
 
 For each bundle path in `needs_analysis`, dispatch a subagent. Issue up to
-**3–4 subagents concurrently** in a single message (use the Agent tool for
+3–4 subagents concurrently in a single message (use the Agent tool for
 each). Each subagent prompt:
 
 > Read and follow `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../retrospective/SKILL.md`
@@ -238,7 +238,7 @@ each). Each subagent prompt:
 > Internal-documentation root: `<INTERNAL_DOC_ROOT>`. Use that value wherever the
 > retrospective skill writes `[[INTERNAL_DOC_LOCATION]]`.
 >
-> Print exactly one JSON object (the retrospective entry) and **nothing else**
+> Print exactly one JSON object (the retrospective entry) and nothing else
 > on stdout.
 
 **Resolve `<REPO_ROOT>`, `<PLUGIN_ROOT>` and `<INTERNAL_DOC_ROOT>` ONCE, before the
@@ -251,10 +251,10 @@ absolute values into the handoff sentences above:
 - `<PLUGIN_ROOT>` — the resolved value of `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../`, with the trailing slash dropped. Substitute the resolved absolute path; never hand the child the unexpanded anchor, which it cannot expand. Resolve the first handoff sentence's anchor-relative path to the brief at emission too — a child that cannot expand it cannot find the brief.
 - `<INTERNAL_DOC_ROOT>` — `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .docs.internal docs/internal/`. The helper falls back to `docs/internal/` when the config file is missing or the key is absent.
 
-Append all three sentences **unconditionally** — without them the child degrades to its
+Append all three sentences unconditionally — without them the child degrades to its
 own fallbacks. Do not probe for or read the extension file yourself, so its content
 stays out of this orchestrator's context. `<PLUGIN_ROOT>` names a bundled helper the
-child **executes** (`[[PLUGIN_ROOT]]/scripts/run-jq.sh`), so the child's tier must
+child executes (`[[PLUGIN_ROOT]]/scripts/run-jq.sh`), so the child's tier must
 permit that invocation.
 
 (Pass no "existing tags" list — the subagent picks `categories` from the fixed
@@ -262,7 +262,7 @@ vocabulary in that skill.)
 
 Wait for all dispatched subagents to finish before continuing.
 
-**Collecting results:** Each subagent's final message is its JSON object.
+Collecting results: Each subagent's final message is its JSON object.
 Subagent output can contain quotes, backticks, newlines, and `$` — never
 interpolate it inline into a shell command. **Write each subagent's raw result
 to a temp file with the Write tool** (e.g. `.prflow/tmp/result-<n>.json`), then
@@ -272,13 +272,13 @@ operate on the file. For each result:
 2. **A Stage A defined skip is recognized by the presence of a
    top-level `"skip"` key ONLY** — never by matching substrings of any error text
    (agent-authored free text is data, never a discriminator). A `"skip"`-keyed
-   return is **terminal: no retry, no blocker.** Whether it leaves a marker depends
+   return is terminal: no retry, no blocker. Whether it leaves a marker depends
    on the bundle's `workpad_final_status` (a mechanical field, not the skip text):
-   - **`Cancelled`** → a **permanently-terminal** skip → append a marker entry so
+   - `Cancelled` → a permanently-terminal skip → append a marker entry so
      the PR is seen as handled next run:
      `$LIB/../scripts/run-jq.sh -cn --argjson pr <n> --arg reason "<the skip .reason>" '{kind:"skip", pr:$pr, reason:$reason}' >> .prflow/tmp/new-entries.jsonl` # argjson-ok: pr -- scalar PR number
-   - an **interim** state (`Setup`/`Discovering`/…/`Documenting`) → a **transient**
-     skip → append **no** marker, so the PR stays unprocessed and is re-scanned
+   - an interim state (`Setup`/`Discovering`/…/`Documenting`) → a transient
+     skip → append no marker, so the PR stays unprocessed and is re-scanned
      while it remains inside the 7-day merge lookback.
 
    Either way, record the skip explicitly — append the report record AND increment
@@ -289,15 +289,15 @@ operate on the file. For each result:
    skipped_count=$((skipped_count + 1))
    ```
 
-   That record is what Step 9 renders. **Every** skip writes one, so no skip is ever
+   That record is what Step 9 renders. Every skip writes one, so no skip is ever
    silent.
 3. Otherwise, if parsing fails or the object has an `"error"` key (a genuine
-   failure), **retry the subagent once** with the same prompt.
+   failure), retry the subagent once with the same prompt.
 4. If still malformed (or still `"error"`-keyed) after one retry, record a blocker:
    `"PR #<n>: retrospective analysis failed"` and skip that PR.
 5. If valid (a real retrospective entry, no `"skip"`/`"error"` key), append:
    `$LIB/../scripts/run-jq.sh -c . < .prflow/tmp/result-<n>.json >> .prflow/tmp/new-entries.jsonl`
-6. **Relay a child-reported unreadable extension.** If the parsed object carries an
+6. Relay a child-reported unreadable extension. If the parsed object carries an
    `extension_unreadable` key, surface it in the run report by appending a one-line
    record naming the child skill and the reported value —
    `skip_records+=("Stage A PR #<n>: consumer prompt extension for retrospective present but unreadable: $($LIB/../scripts/run-jq.sh -r '.extension_unreadable' < .prflow/tmp/result-<n>.json)")` — so the operator sees the extension could not be honored. This never fails the PR's analysis; the entry is still appended in step 5.
@@ -324,7 +324,7 @@ The script prints `"materialized: appended N, replaced M"` to stdout.
 First reconcile every pattern's lifecycle record against the live state of its
 filed meta-issue: `pattern-state.sh run` migrates the overrides file to schema v3 in
 place (stamping each record's `category` field) and refreshes each
-`filed`/`fixed`/`declined` state. It runs **before** `actionable-patterns.sh`; a
+`filed`/`fixed`/`declined` state. It runs before `actionable-patterns.sh`; a
 wholesale reconcile failure exits non-zero and aborts the derivation, fail-closed.
 
 ```bash
@@ -391,19 +391,19 @@ Record `cooldown_skipped` tags for the final report.
 After Step 5 materialized this week's retrospective entries (and before the Step 7
 state PR commits the learnings files), assemble the unified experiment record —
 joining each merged PR's per-run cost to its review outcome (verdict, Important-finding
-count, denial count, config fingerprint). Anchored **here** so this week's PRs join
+count, denial count, config fingerprint). Anchored here so this week's PRs join
 against this week's freshly-materialized retrospective entries.
 
-This is a **best-effort** step and **never blocks** the retrospective: a non-zero exit is
+This is a best-effort step and never blocks the retrospective: a non-zero exit is
 logged as a breadcrumb and the run continues. Carry that breadcrumb into the Step 9 status
 report as a blocker note so the failure is visible, then proceed.
 
-A non-zero exit means **some** PRs did not make it into the store, not that *nothing*
+A non-zero exit means some PRs did not make it into the store, not that *nothing*
 was written — report it as "N PRs missing from the experiment store," not as "the store
-was not updated." **An unestablished PR does not backfill by itself**, so name the PRs
+was not updated." An unestablished PR does not backfill by itself, so name the PRs
 from the breadcrumb and re-run with `--prs` once the cause is resolved.
 
-Before the reader runs, **fetch the telemetry branch** into its local ref so
+Before the reader runs, fetch the telemetry branch into its local ref so
 `build-experiment-records.py` can union each run's durable record off that branch with any
 legacy tracked `.prflow/logs/`. Best-effort: on a fresh repo the branch does not exist
 and the fetch is a harmless no-op, so a missing telemetry branch never blocks the run.
@@ -432,14 +432,14 @@ python3 $LIB/../scripts/build-experiment-records.py || \
 ```
 
 The assembler is idempotent and incremental, so re-running is safe. It runs on the
-**local/interactive retrospective tier only** — never from a workflow. The record's own
+local/interactive retrospective tier only — never from a workflow. The record's own
 shape is documented in `scripts/build-experiment-records.py`'s module docstring.
 
 ---
 
 ### Step 7 — State PR
 
-**Open the state PR now, before Stage B**, so that the learnings files are
+Open the state PR now, before Stage B, so that the learnings files are
 committed onto their own branch. This captures the unstaged changes Steps 5–6
 wrote to `.prflow/learnings/` before any issue is filed, so this run's
 retrospective data survives even if Stage B or the filing step fails partway.
@@ -452,10 +452,10 @@ git checkout main
 
 The working tree now has the updated
 `.prflow/learnings/retrospectives.jsonl` and, normally, a modified
-`.prflow/learnings/overrides.json`. That overrides diff is **this** run's output, not
+`.prflow/learnings/overrides.json`. That overrides diff is this run's output, not
 carry-over — Step 6's reconcile rewrites the file unconditionally. Review it as fresh
 reconcile output; do not discard it as stale. These changes are in-place on `main`'s
-working tree and have **never been committed to `main`** — `open-state-pr.sh` handles
+working tree and have never been committed to `main` — `open-state-pr.sh` handles
 committing them onto a separate branch.
 
 ```bash
@@ -471,9 +471,9 @@ STATE_PR=$(bash $LIB/open-state-pr.sh)
   and, if present, `.prflow/learnings/overrides.json`).
 - Commits and pushes (force-with-lease if the remote branch exists).
 - Opens or updates the PR against `main`.
-- **Prints the PR number** to stdout.
+- Prints the PR number to stdout.
 
-After it returns, **go back to `main`** so the working tree is clean and
+After it returns, go back to `main` so the working tree is clean and
 Stage B starts from a known-good HEAD:
 
 ```bash
@@ -503,12 +503,12 @@ For each actionable pattern, a Stage B subagent returns a ranked `findings` arra
 (one to three sub-patterns), and the orchestrator files **one GitHub issue per
 selected finding** via `meta-issue.sh` — under an opaque `<category>-<subslug>`
 filing key composed by the composer. Which findings become filings is decided by
-`lib/select-findings.sh`, the owner of that decision **on the findings-array path**;
+`lib/select-findings.sh`, the owner of that decision on the findings-array path;
 the legacy `{title, body}` shape never reaches it and derives its own cap verdict in
 8c. That legacy shape carries no projection disposition, so 8c's projection gate
 blocks it unconditionally and loudly — intended, because the shipped Stage B
 composer returns only the findings-array shape, and a stale composer that still
-returns `{title, body}` has had no projection audit to file on. **No worktrees, no commits, no PRs** — the loop proposes; a human triages each issue and runs it through the normal
+returns `{title, body}` has had no projection audit to file on. No worktrees, no commits, no PRs — the loop proposes; a human triages each issue and runs it through the normal
 `/prflow:implement` → review pipeline. Your main checkout stays on `main` and is
 never edited. The drafting subagents (8b) parallelize; the cheap filing (8c) is done
 serially.
@@ -526,21 +526,21 @@ whole in-memory `$pattern` once as a bounded positional argument.
 **`SLUG` names the file every later step reads, so it is derived — and that file
 written — before any other field is read off the pattern object:**
 
-1. **`SLUG`** — `$LIB/../scripts/run-jq.sh -r .slug <<< "$pattern"`. The **one**
+1. `SLUG` — `$LIB/../scripts/run-jq.sh -r .slug <<< "$pattern"`. The one
    sanctioned herestring over the enriched object; the exception is scoped to this one
    scalar and licenses no second read.
-2. **Write** that pattern's object to `.prflow/tmp/pattern-${SLUG}.json` with the
+2. Write that pattern's object to `.prflow/tmp/pattern-${SLUG}.json` with the
    **Write tool**.
-3. **`TAG`** (`$LIB/../scripts/run-jq.sh -r .tag ".prflow/tmp/pattern-${SLUG}.json"`)
-   and **`CATEGORY`**
+3. `TAG` (`$LIB/../scripts/run-jq.sh -r .tag ".prflow/tmp/pattern-${SLUG}.json"`)
+   and `CATEGORY`
    (`$LIB/../scripts/run-jq.sh -r .category ".prflow/tmp/pattern-${SLUG}.json"` — the
    attribution category the opaque filing key belongs to). Read these **from the
    file**, never as a second and third herestring over the enriched object.
-4. Record also the **absolute path** `.prflow/tmp/pattern-${SLUG}.json` (Step 8b
+4. Record also the absolute path `.prflow/tmp/pattern-${SLUG}.json` (Step 8b
    hands that path to the subagent, matching the bundle-path handoff).
 
 Stage B fetches at most `audit_bundle_cap` occurrence bundles per pattern,
-**most-recent-first**. Resolve and validate the cap **once, before the per-pattern
+most-recent-first. Resolve and validate the cap **once, before the per-pattern
 loop begins**, so no pattern is fetched before an unusable cap is detected. The
 config read stays in this fence (via `config-get.sh`, default `10`); the validation
 and selection live in the sourced `lib/audit-bundle-selection.sh`:
@@ -670,10 +670,10 @@ Each dispatched subagent's prompt:
 >
 > Occurrence-PR context bundle paths (absolute): `<json array of DELIVERED paths>`
 >
-> Your bundle-path array is a **capped, most-recent-first subset** bounded by
+> Your bundle-path array is a capped, most-recent-first subset bounded by
 > `audit_bundle_cap`: it holds `<delivered>` bundle(s) out of the pattern's
 > `<total>` total occurrences. The pattern metadata's `occurrences[]` below remains
-> the **authoritative full list** of occurrence PRs.
+> the authoritative full list of occurrence PRs.
 >
 > Pattern metadata is on disk at the absolute path `<REPO_ROOT>/.prflow/tmp/pattern-<slug>.json` — read it with your file-read tool.
 >
@@ -689,23 +689,23 @@ Each dispatched subagent's prompt:
 > value wherever the retrospective-audit brief writes `[[PLUGIN_ROOT]]` — for example
 > `[[PLUGIN_ROOT]]/scripts/run-jq.sh`. Resolve no skill-directory anchor of your own.
 >
-> Make **no** edits and **no** worktree. Print exactly one JSON object (the
-> `findings`-array return contract from § 5 of that skill) and **nothing else**
+> Make no edits and no worktree. Print exactly one JSON object (the
+> `findings`-array return contract from § 5 of that skill) and nothing else
 > on stdout.
 
-**Resolve `<REPO_ROOT>` and `<PLUGIN_ROOT>` before dispatch (by-value handoff).** As in
+Resolve `<REPO_ROOT>` and `<PLUGIN_ROOT>` before dispatch (by-value handoff). As in
 Step 4, a subagent resolves no anchor of its own, so you (the orchestrator) resolve
 both and substitute them into the handoff sentences above:
 
 - `<REPO_ROOT>` — `git rev-parse --show-toplevel` (the pattern-metadata path and the prompt-extension path).
 - `<PLUGIN_ROOT>` — resolved exactly as in Step 4, with the first handoff sentence's anchor-relative path to the brief resolved at emission too.
 
-Append the sentences **unconditionally**, run **no** probe, and read **no** extension file
+Append the sentences unconditionally, run no probe, and read no extension file
 yourself — no extension content enters this orchestrator's context. `<PLUGIN_ROOT>` names
-a bundled helper the child **executes** (`[[PLUGIN_ROOT]]/scripts/run-jq.sh`), so the
+a bundled helper the child executes (`[[PLUGIN_ROOT]]/scripts/run-jq.sh`), so the
 child's tier must grant that helper.
 
-Wait for **all** subagents to finish. Pair each result JSON with its pattern.
+Wait for all subagents to finish. Pair each result JSON with its pattern.
 
 #### 8c — File one issue per selected finding (serial, under the filing back-pressure caps)
 
@@ -761,14 +761,14 @@ drift. A `meta-issue.sh` recovery-path filing (create succeeded, lifecycle write
 — exit 0 + URL + a loud `::error::`) is missed by that fresh read but still counted by
 `filed_this_run`.
 
-Both count helpers fail **closed** by printing nothing — never `0` — when the
+Both count helpers fail closed by printing nothing — never `0` — when the
 overrides file is missing, unreadable, or malformed. Do not default an empty
 count to `0`: `devflow_filing_cap_verdict` reads the empty operand as
 `invalid-operand` and withholds, whereas a laundered `0` would report an empty
 backlog and file straight past both caps.
 
 The pre-filing overrides snapshot Step 9 reads (`.prflow/tmp/overrides-prefiling.json`)
-is taken in **Step 6**, not here — Step 8 is skipped when nothing is actionable, while
+is taken in Step 6, not here — Step 8 is skipped when nothing is actionable, while
 Step 9 reads it unconditionally.
 
 For each `(pattern, result)` pair, bind `$STATUS` once — the operand both
@@ -784,29 +784,29 @@ case "$STATUS" in
 esac
 ```
 
-**Dispatch on the Stage B result's SHAPE.** Write the subagent's raw
+Dispatch on the Stage B result's SHAPE. Write the subagent's raw
 result to `.prflow/tmp/result-${SLUG}.json` with the **Write tool** first (it can
 contain quotes, backticks, newlines, and `$` — never interpolate it inline into a
 shell command). Then:
 
 - A result carrying a `findings` array → the normal path. `lib/select-findings.sh`
-  is the **owner of the selection on this path**: it composes and legality-checks
+  is the owner of the selection on this path: it composes and legality-checks
   each `<category>-<subslug>` key through the composer, aliases a churned subslug onto
   an existing lifecycle record of the same category (equal token set), ranks by
-  **descending** evidence-PR count and truncates to the top three, and asks
-  `devflow_filing_cap_verdict` for **each finding's** cap decision (passing the
+  descending evidence-PR count and truncates to the top three, and asks
+  `devflow_filing_cap_verdict` for each finding's cap decision (passing the
   running `filed_this_run`). You do
-  **not** re-derive the per-category or open-total comparands here — the helper owns
-  them. An **empty** `findings` array files nothing and records a per-pattern report
+  not re-derive the per-category or open-total comparands here — the helper owns
+  them. An empty `findings` array files nothing and records a per-pattern report
   line, distinct from the malformed blocker.
-- A result carrying a top-level `title` and `body` and **no** `findings` array → the
+- A result carrying a top-level `title` and `body` and no `findings` array → the
   deployed-subagent coexistence path: treat it as one finding with an absent subslug
-  and file under the **bare category key** (`--tag`/`--slug` = `$SLUG`), cap-checked
+  and file under the bare category key (`--tag`/`--slug` = `$SLUG`), cap-checked
   exactly as at HEAD.
-- A result carrying **neither** a `findings` array nor a `title`/`body` pair → the
+- A result carrying neither a `findings` array nor a `title`/`body` pair → the
   existing malformed blocker; file nothing.
 
-You increment `filed_this_run` once per **issue filed** (not per pattern), and append
+You increment `filed_this_run` once per issue filed (not per pattern), and append
 the pattern's coarse tag `$SLUG` — once per pattern that filed anything, never the
 composed key — to `filed_slugs` for Step 9's annotation, which indexes on the coarse
 `.tag // .slug` a composed key can never equal.
@@ -975,15 +975,15 @@ else
 fi
 ```
 
-**Never report a pattern as filed when it was not.** A malformed Stage B result
+Never report a pattern as filed when it was not. A malformed Stage B result
 or a `meta-issue.sh` non-zero exit records a per-pattern blocker and the run
 continues to the next pattern; the pattern is absent from `intervention_issues`.
 
-**Do not** post `/prflow:implement` (or any auto-trigger comment) on a filed
+Do not post `/prflow:implement` (or any auto-trigger comment) on a filed
 issue — filed issues await human triage.
 
 (`meta-issue.sh` mutates `.prflow/learnings/overrides.json` in your `main`
-checkout's working tree. That happens **after** the Step 7 state PR was opened,
+checkout's working tree. That happens after the Step 7 state PR was opened,
 so the new lifecycle record lands in next week's state PR — see § Notes for the optional
 follow-up commit if you want it in this run's PR.)
 
@@ -992,7 +992,7 @@ follow-up commit if you want it in this run's PR.)
 ### Step 9 — Status report
 
 Collect the per-analyzed-PR digest lines (verdict + a one-line summary) and the
-**unfiltered** whole-pattern view produced by `actionable-patterns.sh --full` in
+unfiltered whole-pattern view produced by `actionable-patterns.sh --full` in
 Step 6 (`patterns-full.json`) — every pattern with its lifecycle status
 (`filed`/`fixed`/`declined`/`regressed`/`open`/`dismissed`), including the
 suppressed and below-threshold ones:
@@ -1141,11 +1141,11 @@ Print the rendered report (`cat .prflow/tmp/report.md`) to the console.
 
 Then list each item that needs human action:
 
-- **State PR** (contains the updated retrospectives): `https://github.com/<repo>/pull/<state_pr>`
-- **Filed issues** (one per actionable pattern, awaiting human triage): list
+- State PR (contains the updated retrospectives): `https://github.com/<repo>/pull/<state_pr>`
+- Filed issues (one per actionable pattern, awaiting human triage): list
   each as `<tag>: <url>`
 
-If there are any **blockers**, list them explicitly.
+If there are any blockers, list them explicitly.
 
 Tell the user:
 
@@ -1156,7 +1156,7 @@ Tell the user:
 > `retrospectives.jsonl` on `main`, and a pattern already filed this cycle is
 > not re-filed.
 
-Do **not** run `gh pr merge --auto` on anything, and do **not** auto-start
+Do not run `gh pr merge --auto` on anything, and do not auto-start
 implementation on a filed issue. The maintainer triages and merges manually
 after reviewing.
 
@@ -1164,8 +1164,8 @@ after reviewing.
 
 ## § Notes
 
-- **Overrides after Stage B.** `meta-issue.sh` records each filed pattern's
-  lifecycle entry in `.prflow/learnings/overrides.json` **after** the Step 7 state PR
+- Overrides after Stage B. `meta-issue.sh` records each filed pattern's
+  lifecycle entry in `.prflow/learnings/overrides.json` after the Step 7 state PR
   was opened, so the change lands in next week's state PR. To include it in *this*
   run's PR, after Step 8 push a follow-up commit onto the same
   `devflow/learnings-<date>` branch:
@@ -1181,10 +1181,10 @@ after reviewing.
       git checkout main
   fi
   ```
-- **Never auto-merge, never auto-implement.** The maintainer merges the state PR
+- Never auto-merge, never auto-implement. The maintainer merges the state PR
   manually after CI, and triages each filed issue manually — the loop never
   starts an implement run for you.
-- **`actionable-patterns.sh` signature:** takes two required positional args
+- `actionable-patterns.sh` signature: takes two required positional args
   — `<retrospectives.jsonl>` and `<overrides.json>` — plus an optional third,
   `--full`, which emits the unfiltered whole-pattern view the run report
   renders. Always pass both required args; pass `--full` only for
