@@ -41,8 +41,7 @@ for example: "Running /prflow:create-issue; the seven-slot completion tracker is
 output this skill itself composes after that first line follows it in this order: every held
 failed-candidate breadcrumb, then — on the inline-fallback path — the line naming that fallback and
 the reason you reached it, then the rendered checklist block. On that path the tracker counts as
-established once the run has settled on the fallback. That makes an omitted checklist visible in
-the first line of output rather than inferable from its later absence.
+established once the run has settled on the fallback.
 
 ## Iron Law
 
@@ -128,9 +127,9 @@ These five hold on every path, including every degraded arm above, and are load-
 
 1. **The issue is created only after the user explicitly approves the full rendered draft in chat.** The full title and body are rendered verbatim in your message first; an earlier "just create it", a complete Step 2, or a paused pipeline is never a substitute for approval of *this* draft.
 2. **The no-options gate** (stated under Step 3 below) passes on the body that is shown and on every revision of it.
-3. **The audit summary line is mandatory and always renders** — even on a clean `VERDICT: FILE` with zero findings. A skipped or degraded audit is never silent; the summary line is the evidence the audit ran and which arm it took.
+3. **The audit summary line is mandatory and always renders** — even on a clean `VERDICT: FILE` with zero findings. A skipped or degraded audit is never silent.
 4. The reserved `PRFlow` provenance label is applied best-effort after creation, and any degradation is reported explicitly — a label hiccup never blocks creation, and a `PRFlow` label that could not be applied is named in the final outcome rather than passed over.
-5. The self-assignment election is resolved before creation, on every path including every degraded arm. It is asked in the same pause as the approval question, so the user answers both at once rather than in two consecutive pauses; an explicit yes adds `--assignee "@me"`, an explicit no creates it unassigned, and silence or any non-yes/non-no reply pauses and re-asks — no issue-creation command runs until the answer is an explicit yes or no, whatever the approval answer was. This election belongs to the interactive create path only; a draft-only request never reaches it.
+5. The self-assignment election is resolved before creation, on every path including every degraded arm. It is asked in the same pause as the approval question; an explicit yes adds `--assignee "@me"`, an explicit no creates it unassigned, and silence or any non-yes/non-no reply pauses and re-asks — no issue-creation command runs until the answer is an explicit yes or no, whatever the approval answer was. This election belongs to the interactive create path only; a draft-only request never reaches it.
 
 ## Subagent dispatch is user-requested here (injection-condition clause)
 
@@ -167,12 +166,12 @@ partial read.
 
 Two arms, selected before any dispatch by a pre-pass operand: the duty-floor duties you judge the
 topic to engage. Derive it — and any value deciding which leg ran — with python3 or bash builtins,
-never `tr`, `sed`, `wc`, `cut` or `head`, which preflight does not guarantee and whose absence fails open.
+never `tr`, `sed`, `wc`, `cut` or `head`.
 
 - Shallow — fewer than the full floor, and the arm for a topic engaging no duty: one dispatched peer over the union of the deep legs, enumerated from the git index.
 - Deep — the full floor, entered directly: two parallel dispatched peers over those legs separately.
 
-Both arms dispatch rather than run inline, so survey tool output stays in a peer's context; no git history is read.
+Both arms dispatch rather than run inline; no git history is read.
 
 Legs disjoint by construction: the internal-documentation location, and the tracked tree
 minus that location's subtree — never an assertion they are already disjoint. Resolve that
@@ -215,8 +214,7 @@ Evidence artifact. The orchestrator — never a peer — writes the returned evi
 the deep arm) to `.prflow/tmp/issue-step1-<slug>.md`, anchored to the working directory, on both
 arms before Step 1 returns. Peers write nothing.
 Those findings stay resident in your context and durably held in that artifact, so Step 3 draws on
-them by pointer and does not re-quote the findings block into its own output, which only inflates
-runtime main-thread context. Step 2's evidence bundle and an escalating deep arm read the artifact.
+them by pointer and does not re-quote the findings block into its own output. Step 2's evidence bundle and an escalating deep arm read the artifact.
 
 Degraded arm. A failed, unavailable, or rejected pass — or one whose helper anchor cannot resolve —
 degrades to a bounded inline verification with a breadcrumb naming the failure kind, marks its
@@ -228,8 +226,7 @@ findings report must be complete and captured before the first Step 2 clarificat
 on a run so complete it asks zero clarifying questions, before Step 3 drafting begins.
 When a runner executes `/prflow:docs-verify` as a subagent, that dispatch blocks on the completed
 result, and a launch acknowledgment is never treated as the findings report.
-Never open Step 2 clarification or Step 3 drafting on the strength of "docs-verify is running":
-questions that arrive before the code findings grounding them interrogate the user prematurely.
+Never open Step 2 clarification or Step 3 drafting on the strength of "docs-verify is running".
 
 ### Step 2: Clarify until the Definition of Ready is met
 
@@ -237,10 +234,7 @@ Load `references/step-2-clarify.md` per the *Reference routing* rules above and 
 
 ### Step 3: Draft the issue and pass the no-options gate
 
-Precondition — the Step 2 derivation-artifact gate applies here too, unconditionally. Drafting
-happens on every run but clarification does not, so this is the unconditional backstop for a story
-so fully specified that the Step 2 gate's first-question trigger never fired.
-Before drafting, confirm `.prflow/tmp/issue-derivation-<slug>.md` exists and holds *this run's*
+Precondition — the Step 2 derivation-artifact gate applies here too, unconditionally. Before drafting, confirm `.prflow/tmp/issue-derivation-<slug>.md` exists and holds *this run's*
 derivation — or, in a read-only sandbox, rely solely on the visible inline-in-chat stand-in
 re-posted in this turn and do not trust any on-disk file (it can only be a stale leftover).
 If the artifact is missing or you cannot confirm it is this run's, the independent-derivation pass
@@ -264,7 +258,7 @@ Per this skill's degrade-never-terminate contract, a failed load emits a breadcr
 Load `references/issue-template.md` per the *Reference routing* rules above and follow it for the required section structure, the no-options rule, the quality checklist, and autolink hygiene, on every entry into this step. Key rules:
 
 - No-options gate (run before showing the draft): re-read the rendered body against the no-options rule. On a healthy run its worked vocabulary, category structure, and full carve-out set live in `references/issue-template.md` (loaded above) — apply them. When that template could not be read, apply the compact semantic fallback — the body carries no unresolved implementation decision outside the rule's permitted locations, and every acceptance criterion is one concrete unconditional assertion — and report in chat that the worked no-options vocabulary was unavailable. If you find an unresolved decision, either ask the user now, or move it verbatim to the Blocked section. Do not proceed to Step 4 until the body is clean.
-- Advanced quality-guidance routing: `references/issue-template.md` now carries only the CORE checklist, so after loading it evaluate each of the six advanced quality groups' observable triggers against facts already in hand (the request, the Step 2 evidence bundle, the assembled draft) and load a group's reference only when its trigger fires or applicability is uncertain, skipping a clearly non-applicable group — a silently unloaded applicable group leaves that quality dimension unchecked. The triggers: `references/quality-group-visual.md` — the issue is a user-visible UI change; `references/quality-group-contracts.md` — an AC expresses a number, a value comparison against a literal, a universal quantifier about the system under change, an enumerated test/case/example list, or a trust/integrity boundary over executable artifacts; `references/quality-group-premises.md` — the draft relies on external/third-party behavior, carries a `Verified:` bullet, or asserts "the code does X" about a possibly-gated path; `references/quality-group-semantic.md` — the draft designs a new LLM/semantic judgment over third-party text; `references/quality-group-regression.md` — the story reports a defect, or the Testing Strategy enumerates a case/input-shape matrix, or the change introduces a reader of input the repo does not itself produce; `references/quality-group-compatibility.md` — the grounded change moves a supported-version boundary (across runtimes, tools, APIs, schemas, configurations, or plugin releases), changes a contract already used by existing data, configuration, or consumers, spans independently upgraded components that can run at mixed versions, or introduces rollout behavior such as staged activation, rollback, or old/new coexistence (merely touching a shipped path does not trigger it; uncertain applicability loads it). Load each applicable group per the same *Reference routing* rules and boundary-marker contract as every other reference; a failed required advanced-reference load takes the attributable degradation route per `references/degradation-routing.md`, never a silent skip.
+- Advanced quality-guidance routing: `references/issue-template.md` now carries only the CORE checklist, so after loading it evaluate each of the six advanced quality groups' observable triggers against facts already in hand (the request, the Step 2 evidence bundle, the assembled draft) and load a group's reference only when its trigger fires or applicability is uncertain, skipping a clearly non-applicable group. The triggers: `references/quality-group-visual.md` — the issue is a user-visible UI change; `references/quality-group-contracts.md` — an AC expresses a number, a value comparison against a literal, a universal quantifier about the system under change, an enumerated test/case/example list, or a trust/integrity boundary over executable artifacts; `references/quality-group-premises.md` — the draft relies on external/third-party behavior, carries a `Verified:` bullet, or asserts "the code does X" about a possibly-gated path; `references/quality-group-semantic.md` — the draft designs a new LLM/semantic judgment over third-party text; `references/quality-group-regression.md` — the story reports a defect, or the Testing Strategy enumerates a case/input-shape matrix, or the change introduces a reader of input the repo does not itself produce; `references/quality-group-compatibility.md` — the grounded change moves a supported-version boundary (across runtimes, tools, APIs, schemas, configurations, or plugin releases), changes a contract already used by existing data, configuration, or consumers, spans independently upgraded components that can run at mixed versions, or introduces rollout behavior such as staged activation, rollback, or old/new coexistence (merely touching a shipped path does not trigger it; uncertain applicability loads it). Load each applicable group per the same *Reference routing* rules and boundary-marker contract as every other reference; a failed required advanced-reference load takes the attributable degradation route per `references/degradation-routing.md`, never a silent skip.
 
 Drafting produces a candidate issue in your message only — nothing is posted to GitHub in this step. Posting happens in Step 4, and only after the user confirms — but first the draft must survive Step 3.5.
 
@@ -283,17 +277,13 @@ Before the first rendered draft, and not again while iterating on feedback, run 
 over `.prflow/tmp/issue-run-slug`, `.prflow/tmp/issue-step1-<slug>.md`,
 `.prflow/tmp/issue-derivation-<slug>.md` and `.prflow/tmp/issue-audit-<slug>.md` — exactly those
 four, each named individually — and show its raw output, error lines included, in the message that
-renders the draft. `-L` resolves each link before reporting, so a path that is a link to a gone
-target draws a not-found message rather than a stale row. With the slug unestablished, list
-`.prflow/tmp` itself instead on plain `ls -l` — never `-L`, which resolves each entry's link and so
-drops or blanks a broken one, the very leftover this arm exists to show — state that nothing there is
+renders the draft. With the slug unestablished, list
+`.prflow/tmp` itself instead on plain `ls -l` — never `-L` — state that nothing there is
 attributable to this run, and re-enter nothing.
 
 Classify each path from that one invocation, running no second probe, from what the shell shows
 rather than what you infer. A not-found message naming one of the four paths — by the whole path or
-by its final segment alone, since one `ls` quotes the operand and another names only the file name —
-is absent, and decides that path even when the same invocation also printed a row for it; reading
-only the whole-path form leaves a broken leftover unestablished, so its producing step never re-runs.
+by its final segment alone — is absent, and decides that path even when the same invocation also printed a row for it.
 A path is present only when the invocation prints a row for that path itself describing an ordinary
 file of at least one byte — its name field the path, its type character `-`, its size column
 non-zero; a row whose size is zero is absent, not present. Anything else — no output, a missing or
@@ -306,15 +296,13 @@ re-running the producing step to replace a missing or half-written leftover. Eve
 deletes its own same-slug leftover before writing, and a run whose earlier `.prflow/` write or delete
 failed or was refused is on `references/fallback-read-only-sandbox.md`'s arms, where no on-disk copy
 is trusted and nothing is re-entered. An unestablished path — a directory, say — gets a breadcrumb
-rather than a re-entry, since re-running a producing step cannot write a file over it.
+rather than a re-entry.
 
 Re-run the producing step for every absent path, then resume at the draft rendering. A Step 1
 re-entry reuses the slug already bound and binds no new one; a zero-byte `.prflow/tmp/issue-run-slug`
-is not a re-run of Step 1 but the slug-unestablished arm above, since the pointer that would bind the
-run's name holds nothing. A missing derivation file re-runs Step 2's independent-derivation pass, not
-Step 2 whole, reporting any genuine clarification deficit in the draft message — and, because that
-pass rewrites the derivation file from scratch and drops its `## Steelman record` with it, re-runs
-Step 3.5's steelman pass afterwards so the file regains the record a later re-audit reads. The audit
+is not a re-run of Step 1 but the slug-unestablished arm above. A missing derivation file re-runs Step 2's independent-derivation pass, not
+Step 2 whole, reporting any genuine clarification deficit in the draft message — and re-runs
+Step 3.5's steelman pass afterwards. The audit
 artifact's re-entry belongs to the Step 4 presentation gate alone (`references/step-4-present-create.md`),
 which stops and runs Step 3.6 when neither this run's artifact nor its inline stand-in is present;
 this listing reports that path's class and re-enters no step for it. Where any step was re-entered,
@@ -339,17 +327,14 @@ Otherwise substitute the base directory this runner reports in context — e.g. 
 this skill:` line. Never capture the anchor into a shell variable that a later statement reads:
 some runners' inline-bash marshaling drops a variable assigned in an earlier statement of the same command.
 
-Normalize a Windows-form base directory before substituting it — a POSIX shell cannot use `C:\...`
-as-is. Run one standalone `wslpath -u '<path>'` (WSL) or `cygpath -u '<path>'` (Git Bash/MSYS2) and
+Normalize a Windows-form base directory before substituting it. Run one standalone `wslpath -u '<path>'` (WSL) or `cygpath -u '<path>'` (Git Bash/MSYS2) and
 use its output only if the command succeeds and prints a non-empty path — otherwise fall through to
 the drive-letter rules exactly as if the tool were absent.
 With neither tool: lowercase the drive letter, map `C:\` to `/mnt/c` on WSL or `/c` on MSYS2, and
 turn backslashes into `/`. Neither WSL nor MSYS2: use the path unchanged and report that it could
-not be normalized. These are `lib/normalize-path.sh`'s rules restated as prompt-time prose, because
-the anchor is what locates `lib/`.
+not be normalized. These are `lib/normalize-path.sh`'s rules restated as prompt-time prose.
 
-An unresolvable anchor degrades; it never stops the run — unlike the other skills' fail-closed stop,
-an anchor failure must never block issue creation.
+An unresolvable anchor degrades; it never stops the run — an anchor failure must never block issue creation.
 Proceed and let the underlying "No such file" error surface: a `/prflow:docs-verify` pass whose
 anchor cannot resolve takes Step 1's degraded arm, and an `issue-audit-state.py` call that produces
 no contract output routes to Step 3.6's `state-owner unavailable` fallback.
