@@ -18,6 +18,10 @@ When the filesystem refuses the append of a `### pass <n>` entry to the `## Stee
 
 When the filesystem refuses the append of a revision-delta evidence line to the `## Revision-delta record` section of `.prflow/tmp/issue-derivation-<slug>.md`, post that line — naming its anchor — as a visible inline-in-chat block in the current turn, and do not trust any on-disk `## Revision-delta record`. The reduced durability is reported and filing is never blocked.
 
+## Criterion disposition record
+
+When the filesystem refuses the append of a disposition line to the `## Criterion disposition record` section of `.prflow/tmp/issue-derivation-<slug>.md` (the omit/merge/add grading record `references/issue-template.md` mandates per added criterion), post that line — naming the criterion it dispositions — as a visible inline-in-chat block in the current turn, and do not trust any on-disk `## Criterion disposition record`. Step 4's presentation confirmation reads that inline block as the record's sole stand-in. The reduced durability is reported and filing is never blocked.
+
 ## Step 2 / Step 3 — the derivation gate's stand-in
 
 A visible block you posted in chat this run containing the full derived Definition of Ready — the actual list, not a bare claim of having derived it nor a pointer to earlier prose — stands in for the file. "Present" means it is in *this run's* transcript; re-post that full block in the current turn whenever you reach a check that fires there. A derivation in neither this run's file nor such a visible block means the pass did not run.
