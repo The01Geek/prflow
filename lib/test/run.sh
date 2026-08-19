@@ -36318,8 +36318,8 @@ assert_eq "#815 the flight-recorder registry carries a reference load_class row 
 # GitHub write and dispatches nothing, so the writes and the one-subagent-layer constraint both
 # rest on the orchestrator. RED against a stub agent carrying any write literal or an Agent
 # dispatch. Do not relax the write-literal absence pins below as redundant: their runtime
-# enforcer is the agent's `tools:` frontmatter, pinned further down (no Bash means no gh/label
-# writes; no Task/Agent means no dispatch), and #1604's AC7 mandates the body-text checks too.
+# enforcer is the agent's `tools:` frontmatter, pinned further down, and #1604's AC7
+# mandates the body-text checks too.
 echo "#1604 deferral-drafter composition agent"
 DEFDRAFTER="$LIB/../agents/deferral-drafter.md"
 _issue1515_deferred_projection_route() {
