@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1784",
+  "generated_at": "2026-08-19T10:13:15Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.23",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 7.526164500000001,
+    "tokens": {
+      "input_tokens": 44,
+      "output_tokens": 25924,
+      "cache_read_input_tokens": 2852813,
+      "cache_creation_input_tokens": 176959,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 106,
+        "outputTokens": 56471,
+        "cacheReadInputTokens": 4658564,
+        "cacheCreationInputTokens": 499357,
+        "webSearchRequests": 0,
+        "costUSD": 7.526164500000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 40,
+    "duration_ms": 527216
+  },
+  "permission_denials": {
+    "count": 7,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"run=${GITHUB_RUN_ID:-none}-${GITHUB_RUN_ATTEMPT:-1}\"; echo \"actions=${GITHUB_ACTIONS:-none}\"",
+      "mkdir -p .prflow/tmp\nif rm -f \".prflow/tmp/review-dirty-tree-before\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \".prflow/tmp/review-dirty-tree-before\" &&\n   [ -f \".prflow/tmp/review-dirty-tree-before\" ] &&\n   [ ! -L \".prflow/tmp/review-dirty-tree-before\" ] &&\n   git hash-object \".prflow/tmp/review-dirty-tree-before\"; then\n  :\nelse\n  echo \"::warning::snapshot failed\" >&2\n  rm -f \".prflow/tmp/review-dirty-tree-before\" 2>/dev/null\n  printf '%s\\n' disabled …[per-command-truncated]",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >/tmp/ext_out.txt 2>/tmp/ext_err.txt; echo \"EXIT=$?\"; echo \"---STDOUT---\"; cat /tmp/ext_out.txt; echo \"---STDERR---\"; cat /tmp/ext_err.txt",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >/tmp/ext_out.txt 2>/tmp/ext_err.txt; echo \"EXIT=$?\"",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >.prflow/tmp/ext_out.txt 2>.prflow/tmp/ext_err.txt; echo \"EXIT=$?\"",
+      "out=$(.prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review 2>/dev/null); ec=$?; echo \"EXIT=$ec\"; echo \"STDOUT_BYTES=${#out}\"; echo \"STDOUT_BEGIN>>>$out<<<END\"",
+      "for f in skills/review/SKILL.md skills/implement/SKILL.md skills/review-and-fix/SKILL.md skills/create-issue/SKILL.md skills/docs-verify/SKILL.md skills/implement/phases/phase-2-sweeps-contract.md skills/implement/phases/phase-4-documentation.md; do wc -c \"$f\"; done; echo \"---exemptions---\"; cat lib/test/reference-size-exemptions.json"
+    ],
+    "total": 7,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
