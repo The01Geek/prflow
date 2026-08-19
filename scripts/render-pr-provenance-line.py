@@ -258,6 +258,10 @@ def render_line(*, command: str, explicit_config: str | None = None) -> str | No
     a line with an empty command name."""
     command_clean = _shell_inert("command", command)
     if command_clean is None:
+        if not (command and command.strip()):
+            # _shell_inert breadcrumbs a shell-active value but drops a blank one silently;
+            # name the blank case so a mis-substituted call site reports its own reason.
+            _breadcrumb("command omitted (blank or whitespace-only); no provenance line rendered")
         return None
     version = _shell_inert("version", read_version())
     if model_effort_permitted(explicit_config):

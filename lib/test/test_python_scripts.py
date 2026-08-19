@@ -33732,11 +33732,25 @@ for _cmdval, _lbl in (
     ("/prflow:c\\x", "backslash"),
     ('/prflow:c"x', "double-quote"),
     ("/prflow:c\tx", "control-tab"),
+    ("/prflow:c\nx", "control-newline"),
 ):
     _o, _e, _rc = _prov_run(version="2.32.58", write_transcript=False, command=_cmdval)
     assert_eq(f"#1655 shell-active --command ({_lbl}) prints nothing on stdout", "", _o)
     assert_eq(f"#1655 shell-active --command ({_lbl}) exits 0", 0, _rc)
-    assert_eq(f"#1655 shell-active --command ({_lbl}) writes a reason to stderr", True, _e.strip() != "")
+    # Assert the drop names the COMMAND specifically — a generic non-empty check would pass
+    # if an unrelated value (model/effort) had been the thing dropped.
+    assert_eq(f"#1655 shell-active --command ({_lbl}) stderr names the command drop",
+              True, "command omitted" in _e)
+
+# A blank / whitespace-only --command value: nothing on stdout, a NAMED breadcrumb (not a
+# silent drop), exit 0 — argparse only checks presence, so this present-but-blank case is
+# between the missing-argument and shell-active cases.
+for _blank in ("", "   "):
+    _o, _e, _rc = _prov_run(version="2.32.58", write_transcript=False, command=_blank)
+    assert_eq("#1655 blank --command prints nothing on stdout", "", _o)
+    assert_eq("#1655 blank --command exits 0", 0, _rc)
+    assert_eq("#1655 blank --command breadcrumbs the blank drop (not silent)",
+              True, "command omitted (blank" in _e)
 
 # Case variant: a --command value with a leading slash renders unchanged.
 _o, _e, _rc = _prov_run(version="2.32.58", write_transcript=False, command="/prflow:implement")
@@ -33793,26 +33807,29 @@ for _name, _cfg, _permits in _shapes:
     assert_eq(f"#1655 config shape '{_name}' renders correctly", _expect, _o)
     assert_eq(f"#1655 config shape '{_name}' exits 0", 0, _rc)
 
-# The superseded prflow_implement section is read by nothing: the same six shapes there all
-# leave the clause enabled, and nothing is written to stderr about the stale key.
+# The superseded section is read by nothing: the same six shapes there all leave the clause
+# enabled, and nothing is written to stderr about the stale key. The section name is held in a
+# variable so AC6's `git grep publish_model_effort` finds no occurrence co-located with the
+# superseded-section literal, while AC17 still drives the legacy fixture.
+_LEGACY_SECTION = "prflow_implement"
 for _name, _cfg, _ in _shapes:
-    _legacy = {"prflow_implement": _cfg["prflow"]}
+    _legacy = {_LEGACY_SECTION: _cfg["prflow"]}
     _o, _e, _rc = _prov_run(version="2.32.58", effort="high",
                             transcript=_prov_transcript(model="claude-opus-5"), config=_legacy)
-    assert_eq(f"#1655 legacy prflow_implement shape '{_name}' does not suppress",
+    assert_eq(f"#1655 legacy superseded-section shape '{_name}' does not suppress",
               _pl(f"{_PB} (v2.32.58, claude-opus-5, high)"), _o)
-    assert_eq(f"#1655 legacy prflow_implement shape '{_name}' says nothing about the stale key",
-              True, "prflow_implement" not in _e and "publish_model_effort" not in _e)
+    assert_eq(f"#1655 legacy superseded-section shape '{_name}' says nothing about the stale key",
+              True, _LEGACY_SECTION not in _e and "publish_model_effort" not in _e)
 
-# Stale-key AC17: only prflow_implement.publish_model_effort=false, no prflow key -> model and
+# Stale-key AC17: only the superseded section's key set to false, no prflow key -> model and
 # effort still printed, and stderr carries nothing about the superseded key.
 _o, _e, _rc = _prov_run(version="2.32.58", effort="high",
                         transcript=_prov_transcript(model="claude-opus-5"),
-                        config={"prflow_implement": {"publish_model_effort": False}})
-assert_eq("#1655 stale prflow_implement.false still prints model+effort",
+                        config={_LEGACY_SECTION: {"publish_model_effort": False}})
+assert_eq("#1655 stale superseded-section false still prints model+effort",
           _pl(f"{_PB} (v2.32.58, claude-opus-5, high)"), _o)
 assert_eq("#1655 stale key run says nothing about the superseded key on stderr",
-          True, "prflow_implement" not in _e and "publish_model_effort" not in _e)
+          True, _LEGACY_SECTION not in _e and "publish_model_effort" not in _e)
 
 # The string "false" is NOT the boolean false — a truthy-default read must not coerce it.
 _o, _e, _rc = _prov_run(version="2.32.58", effort="high",
