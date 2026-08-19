@@ -32064,6 +32064,17 @@ print(next(s["run"] for j in d["jobs"].values() for s in j.get("steps",[]) if s.
     ( export DECISION='{"env":{"AWS_REGION":""}}' AUTH=bedrock_api_key BASE_URL="" TIMEOUT_MS="" PROVIDER=bed PROVIDER_API_KEY=awskey SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" ) >/dev/null 2>&1 || R313_RC=$?
     assert_eq "#313/#1770 inject-body: bedrock arm with EMPTY-string AWS_REGION fails loud (valid-falsy → absent, exit 1)" "1" "$R313_RC"
     : > "$R313_GENV"
+    # #1770 wrong-type rows (number, object): a non-string AWS_REGION is filtered out by the
+    # `strings` guard and treated as absent, so the region check fails loud. Pins `strings` — a
+    # mutation dropping it would let a non-string region pass, then the run authenticates and dies.
+    R313_RC=0
+    ( export DECISION='{"env":{"AWS_REGION":123}}' AUTH=bedrock_api_key BASE_URL="" TIMEOUT_MS="" PROVIDER=bed PROVIDER_API_KEY=awskey SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" ) >/dev/null 2>&1 || R313_RC=$?
+    assert_eq "#313/#1770 inject-body: bedrock arm with NUMBER AWS_REGION fails loud (wrong-type → absent via strings, exit 1)" "1" "$R313_RC"
+    : > "$R313_GENV"
+    R313_RC=0
+    ( export DECISION='{"env":{"AWS_REGION":{"x":1}}}' AUTH=bedrock_api_key BASE_URL="" TIMEOUT_MS="" PROVIDER=bed PROVIDER_API_KEY=awskey SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" ) >/dev/null 2>&1 || R313_RC=$?
+    assert_eq "#313/#1770 inject-body: bedrock arm with OBJECT AWS_REGION fails loud (wrong-type → absent via strings, exit 1)" "1" "$R313_RC"
+    : > "$R313_GENV"
     # #1770 AC 8: a bedrock entry that ALSO carries base_url CONTINUES (exit 0), warns naming the
     # section/provider/base_url, and still writes NO ANTHROPIC_BASE_URL. This fixture pins the
     # suppression by supplying the very input whose export the arm drops.
