@@ -22218,12 +22218,18 @@ class _Run792(_Run709):
                   (0, True), (ret.returncode, f'outcome={verdict}' in ret.stdout))
         return ret
 
-    def clean_round(self):
-        """One dispatch/return round that ESTABLISHES steering — the `covered` precondition."""
+    def clean_round(self, verdict='FILE', findings=0):
+        """One dispatch/return round that ESTABLISHES steering — the `covered` precondition.
+
+        `verdict`/`findings` default to the clean FILE round; #1771 reuses this same
+        steering-establishing shape for a REVISE round so a future change to how
+        steering-establishment is recorded cannot silently leave a hand-inlined copy behind.
+        """
         self.generate()
         d = self.dispatch()
         assert d.returncode == 0, f'#792 harness: dispatch failed: {d.stderr!r}'
-        return self.ret(instructions_oid=self.oid(self.instr), extra='no')
+        return self.ret(instructions_oid=self.oid(self.instr), extra='no',
+                        verdict=verdict, findings=findings)
 
     def uncovered_round(self):
         """One round that quotes NO instruction oid — the `uncovered` precondition.
@@ -22318,13 +22324,12 @@ _with_run792(_row792_revise_revokes)
 # reopens the offer and turns the not-hold assertion RED; the pre-resolution control below
 # is what proves the suppression is conditional, not a blanket disabling of the ground.
 def _row1771_resolution_settled_suppresses(r):
-    r.generate()
-    d = r.dispatch()
-    assert d.returncode == 0, f'#1771 harness: dispatch failed: {d.stderr!r}'
-    # A file-arm REVISE round whose steering-absence IS established (it quotes the correct
-    # instruction oid), so the final-byte selector picks it and coverage is
-    # uncovered/latest-verdict-revise — the exact state issue #1771 reports.
-    r.ret(instructions_oid=r.oid(r.instr), extra='no', verdict='REVISE', findings=1)
+    # A file-arm REVISE round whose steering-absence IS established (clean_round quotes the
+    # correct instruction oid), so the final-byte selector picks it and coverage is
+    # uncovered/latest-verdict-revise — the exact state issue #1771 reports. Reuse the
+    # centralized steering-establishing harness so a change to that shape cannot silently make
+    # this row's negative assertions pass against the wrong state.
+    r.clean_round(verdict='REVISE', findings=1)
     _pre = r.fb()
     assert_eq("#1771 control: an as-yet-unresolved REVISE round still fires the final-byte "
               "offer — the run has not converged, so the suppression does not apply",
