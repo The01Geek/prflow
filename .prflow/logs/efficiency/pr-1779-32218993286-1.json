@@ -113,5 +113,73 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.21",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 42.75407015000001,
+    "tokens": {
+      "input_tokens": 290,
+      "output_tokens": 118438,
+      "cache_read_input_tokens": 51139676,
+      "cache_creation_input_tokens": 545571,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 384,
+        "outputTokens": 141711,
+        "cacheReadInputTokens": 53309264,
+        "cacheCreationInputTokens": 1155781,
+        "webSearchRequests": 0,
+        "costUSD": 39.46884950000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 128,
+        "outputTokens": 21221,
+        "cacheReadInputTokens": 2824318,
+        "cacheCreationInputTokens": 565127,
+        "webSearchRequests": 0,
+        "costUSD": 3.2852206499999985,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 215,
+    "duration_ms": 3233473
+  },
+  "permission_denials": {
+    "count": 8,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GHA=${GITHUB_ACTIONS:-unset} RUNID=${GITHUB_RUN_ID:-unset} BASE_ENV=${BASE:-unset}\"; git branch --show-current; git status --porcelain",
+      "printf 'GHA=[%s]\\n' \"$GITHUB_ACTIONS\"; printf 'BRANCH=[%s]\\n' \"$(git branch --show-current)\"",
+      "git diff --no-index -U0 /dev/null .changeset/issue-1620-deferral-drafter-comment.md | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree; echo \"STALE_EXIT=$?\"",
+      "git diff --no-index -U0 /dev/null .changeset/issue-1620-deferral-drafter-comment.md | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree",
+      "mkdir -p .prflow/tmp/review/pr-1779/32218993286-1/verdicts/iter-1\ncat > .prflow/tmp/review/pr-1779/32218993286-1/verdicts/iter-1/VC-3-z6b3w8.json << 'EOF'\n{\"id\":\"VC-3\",\"verdict\":\"PASS\",\"evidence\":\"git diff --merge-base origin/main -- lib/test/run.sh shows exactly one hunk, at line ~36317-36322, and every changed line (+/-) begins with '#' (comment text only, replacing the rationale prose). Filtering the diff for changed non-comment lines (grep -v '^[+-]#') returns zero results, confirming no ass …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow; scripts/prompt-surface-growth.py 2>&1; echo \"RC=$?\"",
+      "scripts/prompt-surface-growth.py 2>&1; echo \"RC=$?\"",
+      "cd /home/runner/work/prflow/prflow; cat > /tmp/pr-body-1620.md <<'EOF'\n<!-- PR_BODY_START -->\n## Summary\n- Corrects a misleading header comment in the `#1604` deferral-drafter pin block of `lib/test/run.sh` that attributed the agent's write-literal and dispatch prohibitions to `lint-shipped-pruned-path.py`, a lint that enforces no such thing.\n- The comment now states the wrong change it prevents (do not relax the write-literal absence pins as redundant) and names the actual runtime enforcer — th …[per-command-truncated]"
+    ],
+    "total": 8,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
