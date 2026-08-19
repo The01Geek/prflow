@@ -713,7 +713,9 @@ class SignalCleanupMatrixTests(unittest.TestCase):
 
         module = modules_dir / "signal-create-issue.sh"
         module_text = CREATE_ISSUE_MODULE.read_text(encoding="utf-8")
-        insertion_point = "# The implement-skill bundle backs the #467 D2 Phase-2.4 leg"
+        # Anchor on the implement-bundle assignment (a stable code line after _ci_tmp_root is
+        # set), not its comment prose — the #1759 sweep reworded the old comment anchor.
+        insertion_point = 'CI_IMPL_BUNDLE="$_ci_tmp_root/implement-skill-bundle.md"'
         signal_pause = (
             "# Test-only signal fixture: exercise a real foreground helper process.\n"
             'trap -p INT > "$DEVFLOW_TEST_MODULE_STATE_FILE.trap"\n'

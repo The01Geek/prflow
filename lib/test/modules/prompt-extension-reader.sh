@@ -160,6 +160,82 @@ assert_eq "lpe: idempotent — identical output on re-run" "$LPE_IDEM1" "$LPE_ID
 assert_eq "lpe: read-only — source file unchanged after run" \
   "$LPE_CKSUM_BEFORE" "$LPE_CKSUM_AFTER"
 
+# ── issue #1299: whole-file mode emits a PROMPT-EXTENSION-STATUS token on STDERR ──
+# so an absent/empty extension is distinguishable from a harness refusal (no output at all).
+# STDOUT stays byte-verbatim (token on STDERR only); --section mode emits no token.
+LPE_TOK_CONTENT_ERR="$LPE_DIR/err-tok-content"
+LPE_TOK_CONTENT_OUT="$(cd "$LPE_DIR" && bash "$LPE" implement 2>"$LPE_TOK_CONTENT_ERR")"
+# content-present: STDOUT is byte-identical to before (verbatim), token is on STDERR.
+assert_eq "lpe token: content-present → stdout stays byte-verbatim (token not on stdout)" \
+  "$(printf 'line one\nline two')" "$LPE_TOK_CONTENT_OUT"
+assert_eq "lpe token: content-present → stderr carries the content-present token" "yes" \
+  "$(case "$(cat "$LPE_TOK_CONTENT_ERR")" in *'PROMPT-EXTENSION-STATUS: content-present'*) echo yes ;; *) echo no ;; esac)"
+# The token line carries the `load-prompt-extension.sh: ` diagnostic prefix, and it is
+# load-bearing: the phase-3 reviewer classifies the merged stdout/stderr by dropping
+# `load-prompt-extension.sh: ` lines, so an unprefixed token would leak into its content
+# classification and misreport an empty extension as loaded-with-content. Pin the prefix.
+assert_eq "lpe token: the status line carries the load-prompt-extension.sh: diagnostic prefix (phase-3 discriminator)" "yes" \
+  "$(case "$(cat "$LPE_TOK_CONTENT_ERR")" in *'load-prompt-extension.sh: PROMPT-EXTENSION-STATUS: content-present'*) echo yes ;; *) echo no ;; esac)"
+# absent extension → present-empty token, empty stdout.
+LPE_TOK_ABS_ERR="$LPE_DIR/err-tok-abs"
+LPE_TOK_ABS_OUT="$(cd "$LPE_DIR" && bash "$LPE" pr-description 2>"$LPE_TOK_ABS_ERR")"
+assert_eq "lpe token: absent extension → empty stdout" "" "$LPE_TOK_ABS_OUT"
+assert_eq "lpe token: absent extension → stderr carries the present-empty token" "yes" \
+  "$(case "$(cat "$LPE_TOK_ABS_ERR")" in *'PROMPT-EXTENSION-STATUS: present-empty'*) echo yes ;; *) echo no ;; esac)"
+# empty extension file → present-empty token, empty stdout.
+LPE_TOK_EMP_ERR="$LPE_DIR/err-tok-emp"
+LPE_TOK_EMP_OUT="$(cd "$LPE_DIR" && bash "$LPE" create-issue 2>"$LPE_TOK_EMP_ERR")"
+assert_eq "lpe token: empty extension file → empty stdout" "" "$LPE_TOK_EMP_OUT"
+assert_eq "lpe token: empty extension file → stderr carries the present-empty token" "yes" \
+  "$(case "$(cat "$LPE_TOK_EMP_ERR")" in *'PROMPT-EXTENSION-STATUS: present-empty'*) echo yes ;; *) echo no ;; esac)"
+# present-empty and content-present are DISTINCT tokens: a reader keyed on 'printed text'
+# alone could not tell an empty extension from a refusal; the token makes them decidable.
+assert_eq "lpe token: present-empty is not content-present (distinct tokens)" "yes" \
+  "$(case "$(cat "$LPE_TOK_ABS_ERR")" in *'content-present'*) echo no ;; *) echo yes ;; esac)"
+# unestablished is NEVER collapsed onto present-empty (AC3): an undeliverable extension
+# (a broken symlink) exits non-zero with its breadcrumb and emits NO present-empty token,
+# so a non-zero exit / silence is distinguishable from a real present-empty. A broken
+# symlink's guard fires regardless of uid, so this row holds under root too.
+ln -s "./this-token-target-missing.md" "$LPE_DIR/.prflow/prompt-extensions/tokbroken.md"
+LPE_TOK_UND_ERR="$LPE_DIR/err-tok-und"
+LPE_TOK_UND_OUT="$(cd "$LPE_DIR" && bash "$LPE" tokbroken 2>"$LPE_TOK_UND_ERR")"; LPE_TOK_UND_RC=$?
+assert_eq "lpe token: undeliverable extension → empty stdout" "" "$LPE_TOK_UND_OUT"
+assert_eq "lpe token: undeliverable extension → exit non-zero (not present-empty)" "yes" \
+  "$([ "$LPE_TOK_UND_RC" -ne 0 ] && echo yes || echo no)"
+assert_eq "lpe token: undeliverable extension → NO PROMPT-EXTENSION-STATUS token at all (unestablished != empty)" "yes" \
+  "$(case "$(cat "$LPE_TOK_UND_ERR")" in *'PROMPT-EXTENSION-STATUS:'*) echo no ;; *) echo yes ;; esac)"
+rm -f "$LPE_DIR/.prflow/prompt-extensions/tokbroken.md"
+# Scope guard: the token is emitted in WHOLE-FILE mode only. A --section extraction
+# (create-issue's use) emits no PROMPT-EXTENSION-STATUS token, so its byte-and-stderr
+# contract is unchanged. implement.md carries no '## ' heading, so this is the
+# absent-heading --section no-op.
+LPE_TOK_SEC_ERR="$LPE_DIR/err-tok-sec"
+LPE_TOK_SEC_OUT="$(cd "$LPE_DIR" && bash "$LPE" implement --section '## Nope' 2>"$LPE_TOK_SEC_ERR")"
+assert_eq "lpe token: --section absent-heading → empty stdout" "" "$LPE_TOK_SEC_OUT"
+assert_eq "lpe token: --section mode emits NO PROMPT-EXTENSION-STATUS token (whole-file scoped)" "yes" \
+  "$(case "$(cat "$LPE_TOK_SEC_ERR")" in *'PROMPT-EXTENSION-STATUS:'*) echo no ;; *) echo yes ;; esac)"
+# A --section that FINDS and extracts a section (the create-issue production shape) also
+# emits no token — pins that the scope guard is section-mode-wide, not absent-heading-only.
+printf '## Sec\nbody\n' > "$LPE_DIR/.prflow/prompt-extensions/secfound.md"
+LPE_TOK_SF_ERR="$LPE_DIR/err-tok-sf"
+LPE_TOK_SF_OUT="$(cd "$LPE_DIR" && bash "$LPE" secfound --section '## Sec' 2>"$LPE_TOK_SF_ERR")"
+assert_eq "lpe token: --section that extracts a section → still no token (create-issue shape)" "yes" \
+  "$(case "$(cat "$LPE_TOK_SF_ERR")" in *'PROMPT-EXTENSION-STATUS:'*) echo no ;; *) echo yes ;; esac)"
+assert_eq "lpe token: --section found-section → extracts the section body" "yes" \
+  "$(case "$LPE_TOK_SF_OUT" in *body*) echo yes ;; *) echo no ;; esac)"
+rm -f "$LPE_DIR/.prflow/prompt-extensions/secfound.md"
+# Documented divergence pin (issue #1299): a whitespace-only file is content-present here (the
+# loader's -s size basis), diverging from render-prompt-extension.sh's stdout-strip basis; pin
+# it so a future "alignment" cannot silently change the -s contract this header documents.
+printf '   \n\n' > "$LPE_DIR/.prflow/prompt-extensions/wsonly.md"
+LPE_TOK_WS_ERR="$LPE_DIR/err-tok-ws"
+LPE_TOK_WS_OUT="$(cd "$LPE_DIR" && bash "$LPE" wsonly 2>"$LPE_TOK_WS_ERR")"
+assert_eq "lpe token: whitespace-only file → content-present (loader's -s basis, issue #1299)" "yes" \
+  "$(case "$(cat "$LPE_TOK_WS_ERR")" in *'PROMPT-EXTENSION-STATUS: content-present'*) echo yes ;; *) echo no ;; esac)"
+assert_eq "lpe token: whitespace-only file → stdout carries its bytes (why -s calls it content)" "yes" \
+  "$([ -n "$LPE_TOK_WS_OUT" ] && echo yes || echo no)"
+rm -f "$LPE_DIR/.prflow/prompt-extensions/wsonly.md"
+
 # ── issue #611: `--section '<heading>'` markdown-section extraction ──────────
 # The heading-extraction rule is SPECIFIED once in skills/create-issue/SKILL.md
 # (Step 2's `## Evidence axes` forwarding paragraph) and IMPLEMENTED once here, in
@@ -595,6 +671,12 @@ assert_eq "lpe env: trusted root → byte-exact copy of the trusted file (cmp)" 
   "$(cmp -s "$LPE_ENV_DIR/trusted/review.md" "$LPE_ENV_DIR/out-e7.bin" && echo yes || echo no)"
 assert_eq "lpe env: trusted root → the repo-root copy is NOT read" "yes" \
   "$(grep -qF 'REPO-HEAD BYTES' "$LPE_ENV_DIR/out-e7.bin" && echo no || echo yes)"
+# issue #1299: the status token fires on the DEVFLOW_PROMPT_EXTENSION_ROOT branch too — the
+# review tier's production consumer — since the emission sits after both resolution branches.
+LPE_ENV_TOK_ERR="$LPE_ENV_DIR/err-tok-trusted"
+( cd "$LPE_ENV_DIR/repo" && DEVFLOW_PROMPT_EXTENSION_ROOT="$LPE_ENV_DIR/trusted" bash "$LPE" review 2>"$LPE_ENV_TOK_ERR" >/dev/null )
+assert_eq "lpe env: trusted root with content → content-present token on stderr (issue #1299)" "yes" \
+  "$(case "$(cat "$LPE_ENV_TOK_ERR")" in *'PROMPT-EXTENSION-STATUS: content-present'*) echo yes ;; *) echo no ;; esac)"
 
 # (8) the SKILL_NAME guard still fires ahead of every read on the override
 # branch, so the trusted root is no more escapable than the repo root. The
@@ -631,6 +713,8 @@ assert_eq "lpe env: empty extension under the breadcrumb → empty stdout (loade
 assert_eq "lpe env: empty extension under the breadcrumb → exit 0" "0" "$LPE_E9_RC"
 assert_eq "lpe env: empty extension → the breadcrumb is on stderr, not stdout" "yes" \
   "$([ -s "$LPE_ENV_DIR/err-e9" ] && echo yes || echo no)"
+assert_eq "lpe env: empty extension under trusted root → present-empty token on stderr (issue #1299)" "yes" \
+  "$(case "$(cat "$LPE_ENV_DIR/err-e9")" in *'PROMPT-EXTENSION-STATUS: present-empty'*) echo yes ;; *) echo no ;; esac)"
 rm -rf "$LPE_ENV_DIR"
 
 # ── scripts/render-prompt-extension.sh — the render-time injection wrapper (#1264) ──
