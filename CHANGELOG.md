@@ -4,6 +4,18 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.33.33] — 2026-08-19
+
+### Fixed
+- **Detect a `deferred` reflection that no channel filed.** A `--reflection-kind deferred`
+  reflection renders as an actionable ("⚠️ Action required") deferral, but files no follow-up
+  itself, so an implement run could report a finding as handled-by-deferral while its work went
+  untracked. A new `scripts/workpad.py deferred-reflection-audit` backstop, wired into implement
+  Phase 4.0.6, surfaces a `deferred` reflection that no scope-decision-deferred record backs,
+  instead of letting the run silently pass completion. The reflection-kind routing rule now
+  reserves `deferred` for a punt already tracked by a scope-decision-deferred record — the one
+  channel a `deferred` reflection pairs with; an untracked punt uses `dropped-failed`. (#1787)
+
 ## [2.33.32] — 2026-08-19
 
 ### Fixed
