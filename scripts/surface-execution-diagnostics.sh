@@ -59,11 +59,8 @@ if [ -z "${DEVFLOW_JQ:-}" ]; then
   DEVFLOW_JQ=jq
 fi
 
-# Guarded source of the shared execution-file readers (issue #1528): reuse
-# devflow_probe_cli_version to publish claude_code_version rather than a second
-# extraction jq. Partial-copy posture like resolve-jq.sh above — a deployment missing
-# this sibling degrades to an `unavailable` version with a breadcrumb, never a set -u
-# abort. The function's own absence is re-checked at the call site.
+# Never make this an unguarded `.` (issue #1528): a deployment missing the sibling would
+# abort under `set -u` instead of holding the always-exit-0 contract.
 # shellcheck source=../lib/probe-observation.sh
 . "$_SED_DIR/../lib/probe-observation.sh" \
   || echo "devflow: surface-execution-diagnostics: probe-observation.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — claude_code_version will publish 'unavailable'" >&2

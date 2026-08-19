@@ -37298,6 +37298,35 @@ assert_eq "#1528 diagnostics degrades to 'unavailable' + exit 0 with a breadcrum
      printf '%s' "$_err" | grep -qF 'devflow_probe_cli_version unavailable' && _c=crumb || _c=nocrumb; \
      rm -rf "$_pd"; echo "${_v}-${_rc}-${_c}")"
 
+# The absent/empty-file guard exits before the version resolver runs, so all three of its
+# arms must still publish the `unavailable` sentinel: an empty or forged value there would
+# tell a consumer the CLI build was observed on a run whose execution file never existed.
+assert_eq "#1528 diagnostics publishes 'unavailable' on every absent/empty-execution-file arm (no arg, missing path, zero-byte)" "unavailable|unavailable|unavailable" \
+  "$(: > "$D363/out"; ( GITHUB_OUTPUT="$D363/out" bash "$SED_SH" >/dev/null 2>&1 ); \
+     _noarg=$(sed -n 's/^claude_code_version=//p' "$D363/out"); \
+     : > "$D363/out"; ( GITHUB_OUTPUT="$D363/out" bash "$SED_SH" "$D363/no-such-exec.json" >/dev/null 2>&1 ); \
+     _gone=$(sed -n 's/^claude_code_version=//p' "$D363/out"); \
+     : > "$D363/out"; : > "$D363/zero.json"; \
+     ( GITHUB_OUTPUT="$D363/out" bash "$SED_SH" "$D363/zero.json" >/dev/null 2>&1 ); \
+     _zero=$(sed -n 's/^claude_code_version=//p' "$D363/out"); rm -f "$D363/zero.json"; \
+     echo "${_noarg}|${_gone}|${_zero}")"
+assert_eq "#1528 diagnostics raises no ::notice:: and still exits 0 when the execution file is absent" "nonotice-0" \
+  "$(: > "$D363/out"; \
+     _o=$( ( GITHUB_OUTPUT="$D363/out" bash "$SED_SH" "$D363/no-such-exec.json" ) 2>&1 ); _rc=$?; \
+     printf '%s' "$_o" | grep -qF '::notice::DevFlow: claude-code CLI version' && _n=notice || _n=nonotice; \
+     echo "${_n}-${_rc}")"
+
+# Standalone/local run: with GITHUB_OUTPUT unset the append is skipped, but the ::notice::
+# read-back must still fire and the skip must stay silent — a breadcrumb on the normal
+# local path would train a maintainer to ignore the real append-failure breadcrumb below.
+assert_eq "#1528 diagnostics emits the ::notice:: with no GITHUB_OUTPUT set and breadcrumbs nothing" "notice-nocrumb-0" \
+  "$(printf '%s' "$_D_INIT" > "$D363/exec.json"; \
+     _out=$( ( unset GITHUB_OUTPUT; bash "$SED_SH" "$D363/exec.json" ) 2>/dev/null ); \
+     _err=$( ( unset GITHUB_OUTPUT; bash "$SED_SH" "$D363/exec.json" 2>&1 >/dev/null ) ); _rc=$?; \
+     printf '%s' "$_out" | grep -qF '::notice::DevFlow: claude-code CLI version 2.1.226' && _n=notice || _n=nonotice; \
+     [ -z "$_err" ] && _c=nocrumb || _c=crumb; \
+     echo "${_n}-${_c}-${_rc}")"
+
 # A GITHUB_OUTPUT write failure (here: the var points at a directory, so the append
 # redirect fails) leaves a stderr breadcrumb and still exits 0 — never a silent stall.
 assert_eq "#1528 diagnostics breadcrumbs + exits 0 when the GITHUB_OUTPUT append fails" "crumb-0" \
