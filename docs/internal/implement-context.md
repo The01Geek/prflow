@@ -39,8 +39,9 @@ long implement run actually pays:
   marker and no `end` marker on a file that is intact on disk — a read each gate now
   recovers by paging the file whole before its checks run (the *paged-read recovery* each
   boundary contract states), so an over-budget-but-intact reference loads instead of being
-  misread as the fail-closed `truncated` shape (or, in `/prflow:create-issue`, a degrade).
-  The ceiling is
+  misread as the fail-closed `truncated` shape (or, in `/prflow:create-issue`, a degrade),
+  wherever the reader offers a continuation to page through; a reader that truncates
+  without offering one still reaches that shape. The ceiling is
   therefore derived from the reader's token cap, not from an opinion about length, and it
   says nothing about whether a shorter phase file would be better written.
 
