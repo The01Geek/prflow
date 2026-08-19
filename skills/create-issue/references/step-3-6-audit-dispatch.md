@@ -1,7 +1,7 @@
 <!-- prflow:create-issue-ref step=3.6-dispatch file=skills/create-issue/references/step-3-6-audit-dispatch.md start -->
 <!-- prflow:create-issue-set step=3.6 part=2 of=3 -->
 
-This member (part 2) and the adjudication member (part 3) carry only audit-round procedure. They load as a held pair only when a round is elected at Step 4's pre-approval pause (`references/step-4-present-create.md` sub-step 3a); the run bootstrap they used to hold — `init` and the nonce, the canonical-draft write with its two Step 3.5 gates, and the draft-root binding — now lives in the always-loaded shared member (`references/step-3-6-audit-shared.md`), which every run reads before Step 4 whether or not it elects a round.
+This member (part 2) and the adjudication member (part 3) carry only audit-round procedure. They load as a held pair only when a round is elected at Step 4's pre-approval pause (`references/step-4-present-create.md` sub-step 3a).
 
 #### Dispatch exactly one auditor, synchronously
 

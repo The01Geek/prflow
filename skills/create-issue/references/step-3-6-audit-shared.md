@@ -3,8 +3,6 @@
 
 ### The run bootstrap (this member loads on every run — elected round or not)
 
-This member carries the run bootstrap because the bootstrap runs on the path to Step 4's pre-approval pause on every run, whether or not any audit round is elected. Step 3.6 loads this member (part 1) unconditionally and runs the bootstrap here; the dispatch and adjudication members (parts 2 and 3) carry only audit-round procedure and load only when a round is elected (`references/step-3-6-audit.md`).
-
 #### Run bootstrap: `init`, the nonce, and recovery
 
 The `init` call, the nonce it mints, the canonical-draft write with its two Step 3.5 gates, and the draft-root binding below are the run's bootstrap — they run on the path to Step 4's pre-approval pause regardless of whether any audit round is elected, because a run that elects none still needs a state document and a nonce to record its decline, bind creation, and emit the body. A dispatched round (offered and accepted at that pause) reuses that already-minted nonce and bound draft; it never re-bootstraps. Open the bootstrap with a cold-start `init` — no `--nonce`, that omission being what selects the delete-leftover-first wipe; a `--nonce` on `init` is only for a same-run re-init and needs `--force` over recorded rounds:
