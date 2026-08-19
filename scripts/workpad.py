@@ -1970,11 +1970,19 @@ def cmd_deferred_reflection_audit(args):
     so those route to *unestablished* — never to a false `unbacked`. Only one
     bounded count line goes to stdout; the body is never printed.
 
-    Do NOT fold the review-and-fix deferrals manifest (Channel 2) into the
-    backing count: the fix loop records `dropped-failed`, never `deferred`, for
-    its punts (phase-3-fix-loop.md), so no `deferred` reflection is backed by
-    Channel 2 today — folding it in without re-establishing that invariant would
-    let a future Channel-2 `deferred` producer escape this audit.
+    Known residual: `backed` is a count floor, not a per-reflection identity
+    match — a reflection carries no join key to a record's criterion, so N
+    reflections beside N records tracking unrelated criteria read as `backed`.
+    The routing rule (a `deferred` reflection is used only for a
+    scope-decision-backed punt) is the compensating control.
+
+    The scope-decision record is the only channel a `deferred` reflection pairs
+    with, so the review-and-fix deferrals manifest (Channel 2) is deliberately
+    NOT folded into the backing count: the fix loop records `dropped-failed`,
+    never `deferred`, for its punts (phase-3-fix-loop.md), and the routing rule
+    does not name the manifest as backing for `deferred` — folding it in without
+    re-establishing those invariants would let a future Channel-2 `deferred`
+    producer escape this audit.
     """
     marker = _workpad_marker(args.marker)
     c = _find_workpad_comment(
