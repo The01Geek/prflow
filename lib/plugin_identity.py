@@ -222,7 +222,19 @@ def agent_namespaces(root: Path | None = None) -> list[str]:
     return load(root)["agent_namespaces"]
 
 
+def _force_utf8_streams():
+    """Force stdout/stderr to UTF-8. Never call this at import: doing so mutates the
+    streams of any process that imports this module for tests. Tolerates a stream that
+    has no usable `reconfigure` (issue #1762)."""
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 def _main(argv=None) -> int:
+    _force_utf8_streams()
     ap = argparse.ArgumentParser(description="Report DevFlow's accepted plugin identifiers.")
     ap.add_argument("--root", default=None, help="plugin root (default: this file's parent's parent)")
     g = ap.add_mutually_exclusive_group(required=True)

@@ -53,6 +53,17 @@ from pathlib import Path
 from typing import NoReturn
 
 
+def _force_utf8_streams():
+    """Force stdout/stderr to UTF-8. Never call this at import: doing so mutates the
+    streams of any process that imports this module for tests. Tolerates a stream that
+    has no usable `reconfigure` (issue #1762)."""
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 GH = os.environ.get("DEVFLOW_GH") or "gh"
 # The §1.3.5 gate reads exactly three exit codes: 0 PROCEED, 2 BLOCKED (named
 # dependencies still open), 3 UNAVAILABLE (an unestablished measurement — bad
@@ -1162,6 +1173,7 @@ class _Parser(argparse.ArgumentParser):
 
 
 def main() -> int:
+    _force_utf8_streams()
     parser = _Parser(description=__doc__)
     # Make the exit-3 (UNAVAILABLE) contract explicit rather than relying on
     # add_subparsers() defaulting parser_class to type(self): the subparser is

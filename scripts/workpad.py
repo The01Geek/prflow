@@ -169,7 +169,7 @@ def _force_utf8_streams():
     for _stream in (sys.stdout, sys.stderr):
         try:
             _stream.reconfigure(encoding="utf-8")
-        except (AttributeError, ValueError):
+        except (AttributeError, ValueError, OSError):
             pass
 
 

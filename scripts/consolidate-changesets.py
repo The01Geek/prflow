@@ -467,7 +467,19 @@ def consolidate(
     return 0
 
 
+def _force_utf8_streams():
+    """Force stdout/stderr to UTF-8. Never call this at import: doing so mutates the
+    streams of any process that imports this module for tests. Tolerates a stream that
+    has no usable `reconfigure` (issue #1762)."""
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 def main(argv: "list[str] | None" = None) -> int:
+    _force_utf8_streams()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--root",

@@ -121,6 +121,17 @@ VERSION_CAVEAT = (
 )
 
 
+def _force_utf8_streams():
+    """Force stdout/stderr to UTF-8. Never call this at import: doing so mutates the
+    streams of any process that imports this module for tests. Tolerates a stream that
+    has no usable `reconfigure` (issue #1762)."""
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 def parse_execution_file(exec_file):
     """Return (parsed, note_top). parsed is a JSON value or None; note_top is a
     non-empty diagnostic when the file was absent/empty/unparseable/partially
@@ -397,6 +408,7 @@ def render(exec_file):
 
 
 def main():
+    _force_utf8_streams()
     exec_file = (sys.argv[1] if len(sys.argv) > 1 else os.environ.get("EXECUTION_FILE", "")) or ""
     table = render(exec_file)
     print(table)

@@ -87,6 +87,7 @@ vector).
 
 import os
 import re
+import sys
 
 src_re = re.compile(r'(?:^|[;&|(!{]|\b(?:then|do|else|elif)\b)\s*(?:\.|source)\s')
 slashsh_re = re.compile(r'/([A-Za-z0-9_.-]+\.sh)\b')
@@ -228,7 +229,19 @@ def refs_in(path):
     return out
 
 
+def _force_utf8_streams():
+    """Force stdout/stderr to UTF-8. Never call this at import: doing so mutates the
+    streams of any process that imports this module for tests. Tolerates a stream that
+    has no usable `reconfigure` (issue #1762)."""
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 def main():
+    _force_utf8_streams()
     root = os.environ["REPO_ROOT"]
     closure = os.environ["CLOSURE"].split()
     closure_base = {os.path.basename(p) for p in closure}
