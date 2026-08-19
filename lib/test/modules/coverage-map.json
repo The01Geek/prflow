@@ -1226,7 +1226,7 @@
       "owner": "unmodularized"
     },
     "1528": {
-      "note": "",
+      "note": "run.sh #1528 block: surface-execution-diagnostics.sh publishes claude_code_version from the execution-file init record (publish/::notice:: read-back, unavailable fallback, builtins-only, redaction posture, no-result-event + partial-deployment + append-failure arms)",
       "owner": "unmodularized"
     },
     "1536": {

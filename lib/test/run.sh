@@ -37284,6 +37284,10 @@ assert_eq "#1528 diagnostics publishes the version on an init-but-no-result-even
   "$(_diag_run "$_D_INITONLY" >/dev/null; grep -qxF 'claude_code_version=2.1.226' "$D363/out" && echo yes || echo no)"
 assert_eq "#1528 diagnostics renders the version into the no-result-event block" "yes" \
   "$(_o=$(_diag_run "$_D_INITONLY"); printf '%s' "$_o" | grep -qxF -e '- claude_code_version: 2.1.226' && echo yes || echo no)"
+# The ::notice:: read-back fires on the incomplete-run path too — the feature's headline use
+# case is a stalled init-but-no-result run, so the consumer read-back must reach it.
+assert_eq "#1528 diagnostics emits the ::notice:: on an init-but-no-result-event run" "yes" \
+  "$(_o=$(_diag_run "$_D_INITONLY"); printf '%s' "$_o" | grep -qF '::notice::DevFlow: claude-code CLI version 2.1.226' && echo yes || echo no)"
 
 # Partial deployment: the sibling lib/probe-observation.sh is absent, so the reused reader
 # is not defined. The type-guard must degrade CCVER to `unavailable` with a breadcrumb and
