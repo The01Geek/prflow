@@ -1,0 +1,247 @@
+{
+  "iter": 1,
+  "source": "review-and-fix",
+  "loop_role": "fix",
+  "fix_commit_sha": "6c53281cecb7997736a042140ac434556dd875f3",
+  "fix_files": [
+    "skills/create-issue/references/step-2-clarify.md"
+  ],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "checklist": [
+    {
+      "id": "VC-1",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:step-2-clarify.md:strength-two-axes",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-2",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:step-2-clarify.md:simplest-reliable-one-rule-three-scopes",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-3",
+      "verification_mode": "lite",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:step-2-clarify.md:old-kiss-sentence-absent",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-4",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:step-2-clarify.md:weakest-class-recommendation-rule",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-5",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:step-2-clarify.md:consumer-extension-override",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-6",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:step-2-clarify.md:approach-question-problem-framing",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-7",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:step-2-clarify.md:considered-and-rejected-trace-line",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-8",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:step-2-clarify.md:pinned-literals-and-template-unchanged",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-9",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:DEVFLOW_SYSTEM_OVERVIEW.md:two-summary-sentences-amended",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-10",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "data_format_assumption:issue-1800-simplest-reliable-mechanism.md:changeset-frontmatter-schema",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-11",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "absolute_claim:step-2-clarify.md:settles-no-user-reserved-fork",
+      "reused_from_iter_prev": false
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "recommendation default had no unestablished-tolerance arm — fails open toward the weaker mechanism when tolerance is unknown",
+      "defect_signature": {
+        "file": "skills/create-issue/references/step-2-clarify.md",
+        "line_range": [
+          65,
+          65
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Considered-and-rejected trace write is ungated — a run can silently drop it by agent omission",
+      "defect_signature": {
+        "file": "skills/create-issue/references/step-2-clarify.md",
+        "line_range": [
+          54,
+          54
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "pushed_back"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "trace-write names no explicit read-only-sandbox fallback clause",
+      "defect_signature": {
+        "file": "skills/create-issue/references/step-2-clarify.md",
+        "line_range": [
+          54,
+          54
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "pushed_back"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "6c53281cecb7997736a042140ac434556dd875f3"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "pushed_back",
+      "source_file": "skills/create-issue/references/step-2-clarify.md",
+      "claim_text": "Considered-and-rejected trace write is ungated — silent agent omission possible",
+      "skip_category": "uncategorized",
+      "evidence": "The proposed fix adds a verification gate/read-back for a best-effort audit line. The issue's Architecture Alignment explicitly excludes any new gate ('no new phase, gate, reference file...'), and this best-effort never-blocking skill gates none of its other best-effort instructions. The verdict-gating case — config-disabled drop — is already fail-loud (named in the final reported outcome). Agent omission of a best-effort audit line is the same class as any best-effort instruction in this skill and is covered by the review pass, not a gate."
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "pushed_back",
+      "source_file": "skills/create-issue/references/step-2-clarify.md",
+      "claim_text": "trace-write names no explicit read-only-sandbox fallback clause",
+      "skip_category": "uncategorized",
+      "evidence": "The read-only-sandbox inline-stand-in fallback for the derivation artifact is a whole-artifact convention already established file-wide (the pass writes 'in a read-only sandbox, to the same visible inline-in-chat block that stands in for it', and the gate/re-check sites restate it). The new sentence's write to 'the derivation artifact' inherits that convention. Repeating the fallback clause on every individual write is the prose redundancy the issue's own simplest-reliable / lean-prose mandate discourages."
+    }
+  ],
+  "test_first_gate": [
+    {
+      "decision": "applied",
+      "command": "subagent RED/GREEN + no-guidance control micro-test (agent-executed prompt-prose fix; model-context instruction)",
+      "result": "pass",
+      "evidence": "GREEN (new rule) recommended class (b) — steps up on unestablished tolerance; RED (old rule, permissive reading) picked weak class (a) confirming the fail-open; control (no guidance) picked class (c). The added fail-closed clause changes behavior for the right reason."
+    }
+  ],
+  "verification_evidence": {
+    "command": "lib/test/run-module.sh create-issue-contract",
+    "result": "pass",
+    "duration_s": null,
+    "skipped_checks": []
+  },
+  "base_checkpoint": {
+    "token": "UP_TO_DATE",
+    "behind_by": null
+  },
+  "stale_prose_check": {
+    "result": "no STALE rows (exit 0); one pre-existing UNRESOLVABLE recognition-only row on line 65, unchanged by the fix"
+  },
+  "sweep_defs_read": [
+    {
+      "path": "../implement/phases/phase-2-implement.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0",
+        "2.3.0a",
+        "2.3.0b"
+      ]
+    },
+    {
+      "path": "../implement/phases/phase-2-sweeps-contract.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0",
+        "2.3.0a",
+        "2.3.0b",
+        "2.3.0c",
+        "2.3.0d"
+      ]
+    },
+    {
+      "path": "../implement/phases/phase-2-sweeps-quality.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.1",
+        "2.3.2",
+        "2.3.3",
+        "2.3.4",
+        "2.3.4a",
+        "2.3.4b",
+        "2.3.5",
+        "2.3.6",
+        "2.3.7"
+      ]
+    }
+  ],
+  "sweep_evidence": {
+    "status": "run",
+    "classified": "add-only prose clause to agent-executed recommendation policy (step-2-clarify.md); ran 2.3.0c operand-trace (operands: the problem statement, the mechanism menu — both reachable), 2.3.4a self-authored-claim (directive, not a false claim), 2.3.4b coverage-claim (stale-prose-lint clean, no new universal), plus always-on 2.3.3/2.3.4/2.3.5/2.3.6 (prose, no code)"
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "convergence_inputs": {
+    "fixes_applied": 1,
+    "fix_diff_lines": 1,
+    "new_corroborated_critical_count": 0
+  },
+  "telemetry": "unavailable",
+  "synthesized": false
+}
