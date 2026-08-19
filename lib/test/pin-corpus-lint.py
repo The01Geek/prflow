@@ -5317,6 +5317,10 @@ def load_machine_consumer_sources(repo_root, git_runner=subprocess.run):
     except to red-flag that state. An untracked consumer file is NOT in the
     corpus, and an unreadable or non-UTF-8 one is skipped with a stderr
     breadcrumb — both route their pins to step 2, never to a pass.
+
+    Returns ``(sources, skipped)``. Never drop the second element at a call
+    site that treats a corpus miss as evidence: a skipped file is a hole in the
+    search, and a miss over that hole is indistinguishable from a real absence.
     """
     listing = _run_git(
         git_runner,
@@ -5341,7 +5345,7 @@ def load_machine_consumer_sources(repo_root, git_runner=subprocess.run):
             + ", ".join(sorted(skipped))
             + "\n"
         )
-    return sources
+    return sources, tuple(skipped)
 
 
 def _read_worktree_source(repo_root, path, expected_mode=None):
@@ -5884,7 +5888,9 @@ def scan_static_pin_changes(
     worktree_target_loader, verify_worktree_targets = _worktree_target_loader(
         repo_root
     )
-    consumer_sources = load_machine_consumer_sources(repo_root, git_runner)
+    consumer_sources, _consumer_sources_skipped = load_machine_consumer_sources(
+        repo_root, git_runner
+    )
     source_findings = scan_changed_sources(
         head_sources,
         base_sources,
