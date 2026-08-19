@@ -4505,19 +4505,15 @@ assert_eq "F1: misregistration guard detects an injected SKILL.md (find non-empt
   "$([ -z "$(find "$_f1_skilldir" -name SKILL.md 2>/dev/null)" ] && echo yes || echo no)"
 rm -rf "$_f1_skilldir"
 # ── end issue #218 structural assertions ──
-# ── issue #232: terminal-status self-check (SKILL.md orchestrator) + Phase 4.1 post-subagent
-# re-anchor (phase-4-documentation.md) — two halves of one guard family against a run that
-# stops before Phase 4 finalization (workpad frozen at an in-progress Status, un-described
-# draft PR). Coupled to the skill clauses: removing either clause turns the suite RED.
-# Presence is checked via assert_pin_unique (exactly once).
+# ── issue #232: the Phase 4.1 post-subagent re-anchor (phase-4-documentation.md), guarding
+# against a run that stops before Phase 4 finalization (workpad frozen at an in-progress
+# Status, un-described draft PR). Coupled to the skill clause: removing it turns the suite
+# RED. Presence is checked via assert_pin_unique (exactly once).
 # (P4_FILE is the shared phase-file path hoisted next to IMPL_PHASES_DIR above.)
-# (1) SKILL.md terminal-status self-check — AC1 (must not end on an in-progress Status) +
-#     AC2 (keyed on workpad Status, explicitly not PR draft state).
-assert_pin_unique "#232: SKILL self-check forbids ending on an in-progress Status (operative)" \
-  'the run is not finished — return to the phase that owns the remaining work' "$IMPL_ORCH"
-assert_pin_unique "#232: SKILL self-check keys on workpad Status, not PR draft state (AC2)" \
-  'keys on the workpad `Status`, not on PR draft state' "$IMPL_ORCH"
-# (2) phase-4-documentation.md Phase 4.1 post-subagent re-anchor scope. Issue #362
+# Issue #1768 retired this family's SKILL.md terminal-status-self-check wording pins under
+# CLAUDE.md's prose-pin policy for issues #843/#876 — that prose is agent-executed and read
+# only by the runtime agent, so the review pass is its control and no pin replaces them.
+# phase-4-documentation.md Phase 4.1 post-subagent re-anchor scope. Issue #362
 #     reworded the scope clause from
 #     "the Phase 4.1 docs subagent return only" to "**subagent** returns", because a
 #     Skill-tool return is now covered by the orchestrator's generalized mid-phase
@@ -4529,15 +4525,9 @@ assert_pin_unique "#232: SKILL self-check keys on workpad Status, not PR draft s
 #     control).
 assert_pin_unique "#232/#362: phase-4 re-anchor scoped to **subagent** returns (AC4, reworded)" \
   'scoped to **subagent** returns' "$P4_FILE"
-# AC1 operative: the normative prohibition sentence (not only its corrective consequence).
-assert_pin_unique "#232: SKILL self-check keeps the run-final-message prohibition (operative)" \
-  'Do not emit your run-final message while the workpad' "$IMPL_ORCH"
-# review iter-1 (silent-failure-hunter F1/F2): the two robustness hardenings — the self-check
-# binds EVERY termination path (not only a deliberate wrap-up), and the Phase 4.1 re-anchor
-# TRIGGER is repeated in the always-loaded orchestrator so a subagent-return eviction cannot
-# remove it. Pin both so a later edit cannot silently drop the hardening.
-assert_pin_unique "#232: SKILL self-check binds every termination path (SFH F1)" \
-  'This guard binds **every** way the run can end' "$IMPL_ORCH"
+# review iter-1 (silent-failure-hunter F2): the Phase 4.1 re-anchor TRIGGER is repeated in
+# the always-loaded orchestrator so a subagent-return eviction cannot remove it. Pin it so a
+# later edit cannot silently drop the hardening.
 # review iter-2 (shadow pr-test-analyzer): pin the operative re-read instruction directly.
 assert_pin_unique "#232: orchestrator keeps the OPERATIVE always-loaded re-Read directive (SFH F2)" \
   'the phase file before continuing to §4.2 (resume from §4.2' "$IMPL_ORCH"
@@ -4661,17 +4651,11 @@ assert_pin_unique "#366: SKILL carve-out is widened to cover the issue's own ACs
   'whether by a Phase-3 review finding **or by the issue' "$IMPL_ORCH"
 assert_pin_unique "#366: CLAUDE.md carve-out bullet carries the same AC4 widening arm (coupled)" \
   'whether by a Phase-3 review finding **or by the issue' "$LIB/../CLAUDE.md"
-# (d) Terminal-status self-check: read Status immediately before run-final message + accurate backstop citation.
-assert_pin_unique "#366: SKILL self-check reads Status immediately before any run-final message (operative)" \
-  'read the workpad `Status` line immediately before emitting any run-final message' "$IMPL_ORCH"
-# The backstop-accuracy clause must track what the backstop actually does. Since #356 it
-# re-dispatches AND, on a fail-loud exit taken after a genuinely interim Status read, flips
-# the workpad to the terminal `Failed` (💥) status — so the old clause ("it never writes a
-# terminal `Status`") is false, and pinning it would enforce the falsehood. What stays true,
-# and is the load-bearing point for the self-check, is that the backstop never drives a run
-# to `Complete`: only the run itself can do that.
-assert_pin_unique "#366/#356: SKILL self-check cites the cloud Stall backstop as re-dispatch + a dead-run Failed flip, never a Complete (operative)" \
-  're-dispatches (bounded auto-resume, honest-red on cap exhaustion) and, on a fail-loud exit, flips the workpad to the terminal `Failed` (💥) status — it never drives a run to `Complete`' "$IMPL_ORCH"
+# (d) The terminal-status self-check's own wording carries no pin. Issue #1768 retired the
+# status-read and stall-backstop-citation pins that stood here, under CLAUDE.md's prose-pin
+# policy for issues #843/#876: the self-check is agent-executed prompt prose whose only
+# reader is the runtime agent, so the review pass is its compensating control. Do not
+# reintroduce a wording pin over it — the criterion that retired these forbids one.
 # ── issue #254: Phase 4.0.5 deferrals-manifest discovery must search BOTH the pr-<N>
 # slug dir and the sanitized-current-branch slug dir — a current-branch-mode
 # /devflow:review-and-fix run writes its manifest under the branch slug, so a

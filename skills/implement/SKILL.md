@@ -286,11 +286,24 @@ Verify each `Status` PATCH actually landed at the time it was issued, per the ou
 - Do not stop after the PR is created or after review approves — the PR stays a draft until Phase 4.3, which then publishes it (or, when `implement_pr_state` is `draft`, deliberately leaves it a draft after still finalizing the workpad and reaction).
 - Do not stop because acceptance criteria are unchecked when the issue itself is multi-PR — apply the 2.2.5 scope-adjustment rule first, then re-run the gate. The "Status: Blocked, stop the run" path in Phase 3.4 is only for genuinely-failing in-scope criteria, never for scope mismatches.
 
-### Terminal-status self-check (before your run-final message)
+### Terminal-status self-check (every turn boundary)
 
-Do not emit your run-final message while the workpad `Status` is an in-progress value. Make it checkable: read the workpad `Status` line immediately before emitting any run-final message — from the live comment, not from memory of where you think the run got to — and conclude the run only when it reads a terminal value, `Complete` (🎉) or `Blocked` (👎). If it reads any in-progress value (`Setup`/`Discovering`/`Reproducing`/`Planning`/`Implementing`/`Reviewing`/`Documenting`, glyph 🚀), the run is not finished — return to the phase that owns the remaining work and drive `Status` to a terminal value before ending. This guard binds **every** way the run can end, including stopping because you believe the work is already complete; the commonest trip is stopping at "documentation done", when Phase 4.2 (`/pr-description`) and Phase 4.3 (finalize → `Status: Complete` 🎉 + outcome reaction) still remain.
+Once the workpad exists, read its live `Status` line — from the live comment, never from memory of where you think the run got to — before you end any turn, not only before your run-final message; skip that read and the run parks itself at an in-progress `Status` with nothing to restart it. Before the workpad exists — the Phase 1 window, up to §1.3 — there is no `Status` to read, and the permitted grounds below alone govern the turn boundary.
 
-The check keys on the workpad `Status`, not on PR draft state — a run that deliberately finishes with a draft PR (`implement_pr_state=draft`) still reaches `Status: Complete`. On the cloud tier the `devflow-implement.yml` Stall backstop detects an interim `Status` post-run and re-dispatches (bounded auto-resume, honest-red on cap exhaustion) and, on a fail-loud exit, flips the workpad to the terminal `Failed` (💥) status — it never drives a run to `Complete`; the local/interactive tier has no such backstop, so nothing but this self-check catches a stall there.
+Where the injected engine-ground-truth block is present in this run's prompt, that block governs the turn boundary. The grounds below govern a run on the local and interactive tier, where no such block is injected; no cloud run may read them as a licence to stop.
+
+A turn may end on exactly these four grounds, and the set is complete by construction:
+
+1. a nested skill's user-facing question routed to the user under the *Non-interactive self-answer rule* above;
+2. a harness refusal you cannot proceed past without an operator decision;
+3. a workpad `Status` that `scripts/workpad.py status` classes terminal — that helper classes four, `complete` (🎉), `blocked` (👎), `failed` (💥) and `cancelled` (🛑), not only two;
+4. the work is driven to completion and this turn carries the run's final message.
+
+Ending a turn on anything else is forbidden — to report progress, to request a confirmation the procedure does not call for, to hand work off, or because you judge the point a natural break. An in-progress `Status` (`Setup`/`Discovering`/`Reproducing`/`Planning`/`Implementing`/`Reviewing`/`Documenting`, glyph 🚀) means the run is unfinished: return to the phase that owns the remaining work and drive `Status` to a terminal value. The commonest trip is stopping at "documentation done", when Phase 4.2 (`/pr-description`) and Phase 4.3 (finalize → `Status: Complete` 🎉 + outcome reaction) still remain.
+
+When the status read is itself refused or cannot be run, retry it through the documented authorized form — the *Workpad-invocation ladder* above; on a second refusal, record the status unestablished and continue, because a refused read is never a ground to end the turn. When a harness refusal does end a turn, report the refusal and the exact command form you attempted, rather than reporting progress.
+
+The check keys on the workpad `Status`, not on PR draft state — a run that deliberately finishes with a draft PR (`implement_pr_state=draft`) still reaches `Status: Complete`. On the cloud tier the `devflow-implement.yml` Stall backstop detects an interim `Status` post-run and re-dispatches (bounded auto-resume, honest-red on cap exhaustion) and, on a fail-loud exit, flips the workpad to the terminal `Failed` (💥) status — it never drives a run to `Complete`; the local/interactive tier has no such backstop.
 
 ---
 
