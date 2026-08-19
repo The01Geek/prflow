@@ -165,18 +165,21 @@ with values `site` (default — a criterion satisfied at a specific location) an
 `universal_surface` sub-value naming the file the verifier must read whole.
 
 **Read-cap constraint — the whole-surface read must fail closed, not silently truncate.**
-"Read the whole surface" is not free: the runner's Read tool caps at ~61,750 bytes (the
-`lint-reference-size.py` ceiling), and the sizes in *Frequency and size* run far past it —
+"Read the whole surface" is not free: the runner's Read tool caps on tokens (~25,000,
+≈ 65,000 bytes; `lint-reference-size.py`'s 61,750-byte ceiling is a conservative marker
+just below that proxy), and the sizes in *Frequency and size* run far past it —
 `lib/test/run.sh` at 3.9 MB, `docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md` at 619 KB. A
 verifier told to "read the whole surface" for one of those receives a *truncated* prefix,
 finds no falsifying unit in the part it saw, and could emit `property_proven: true` / PASS
 for a universal it never fully read — a **fail-open on the merge gate** when the gating key
 resolves on (worse than the normalization hazard below, because it needs no `_aux_state`
 misreport). So the implementation must bound the read: a `universal_surface` larger than the
-verifier can read whole in one pass forces the item to **INCONCLUSIVE** (which Phase 4.2
-rule 2 still surfaces under the advisory channel when gating is off), never a silent partial
-PASS — or the verifier paginates and enumerates the surface in chunks, asserting the
-property over every chunk before it may set `property_proven: true`. This constraint is why
+verifier can read whole in one pass forces the item to **INCONCLUSIVE**, never a silent partial
+PASS — which fails closed on the gating-on path (Phase 4.2 rule 2: INCONCLUSIVE → REJECT)
+and, with gating off, is reported by the Phase 4.1 `## Issue Compliance` advisory line, since
+the advisory channel excludes a `universal` item from rules 1 and 2. Alternatively the
+verifier paginates and enumerates the surface in chunks, asserting the property over every
+chunk before it may set `property_proven: true`. This constraint is why
 the largest candidate surfaces (`lib/test/run.sh`, `docs/internal/*.md`) — which
 `prompt-surface-growth.py` does not even cover — are the ones the recommendation's opt-in
 default most protects.
