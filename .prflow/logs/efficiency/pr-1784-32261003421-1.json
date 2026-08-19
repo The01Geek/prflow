@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1784",
+  "generated_at": "2026-08-19T14:16:52Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.23",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 15.156972399999995,
+    "tokens": {
+      "input_tokens": 78,
+      "output_tokens": 65509,
+      "cache_read_input_tokens": 7656655,
+      "cache_creation_input_tokens": 288756,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 134,
+        "outputTokens": 101778,
+        "cacheReadInputTokens": 8873344,
+        "cacheCreationInputTokens": 740377,
+        "webSearchRequests": 0,
+        "costUSD": 12.69198325,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 98,
+        "outputTokens": 18375,
+        "cacheReadInputTokens": 2150363,
+        "cacheCreationInputTokens": 411723,
+        "webSearchRequests": 0,
+        "costUSD": 2.46498915,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 68,
+    "duration_ms": 1137911
+  },
+  "permission_denials": {
+    "count": 11,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-<none>} ATTEMPT=${GITHUB_RUN_ATTEMPT:-<none>} ACTIONS=${GITHUB_ACTIONS:-<none>}\"; git status --porcelain",
+      "for f in skills/implement/phases/phase-1-setup.md skills/implement/phases/phase-3-fix-loop.md skills/review/phases/phase-1-checklist.md skills/review-and-fix/references/loop-exit.md; do\necho \"===== $f =====\"; grep -niE \"marker contract|partial-view|paged|offset.*limit|page it forward\" \"$f\" | head -20\ndone",
+      "cat /home/runner/work/prflow/prflow/.prflow/tmp/displaced-paths.txt 2>/dev/null; echo \"---\"; git -C /home/runner/work/prflow/prflow log --oneline -3; git -C /home/runner/work/prflow/prflow status --short | head -20",
+      "H=323aaba2731e2ef4d75657599b55f1939b293564\necho \"=== review/SKILL.md: paged recovery + required-copy mirror (VC-1) ===\"\ngit show $H:skills/review/SKILL.md | grep -nE \"Paged-read recovery \\(before|Required copy\\. Rows 1.7 and the paged-read recovery above are mirrored\"\necho \"=== implement/SKILL.md: required-copy claim + row5 + paged para (VC-1,VC-5) ===\"\ngit show $H:skills/implement/SKILL.md | grep -nE \"required copy of .skills/review|duplicated pair still fails row 5|Paged-read recovery \\(before …[per-command-truncated]",
+      "mkdir -p .prflow/tmp\nif rm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null &&\n   git status --porcelain -z > .prflow/tmp/review-dirty-tree-before &&\n   [ -f .prflow/tmp/review-dirty-tree-before ] &&\n   [ ! -L .prflow/tmp/review-dirty-tree-before ] &&\n   git hash-object .prflow/tmp/review-dirty-tree-before; then\n  echo \"snapshot-ok\"\nelse\n  echo \"snapshot-failed\"\n  rm -f .prflow/tmp/review-dirty-tree-before 2>/dev/null\n  printf '%s\\n' disabled > .prflow/t …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\nfor f in skills/review/SKILL.md skills/implement/SKILL.md skills/create-issue/SKILL.md skills/docs-verify/SKILL.md skills/review-and-fix/SKILL.md skills/implement/phases/phase-2-sweeps-contract.md skills/implement/phases/phase-4-documentation.md skills/review-and-fix/references/fixing.md; do\n  b=$(git show 323aaba2731e2ef4d75657599b55f1939b293564:$f | wc -c)\n  echo \"$b  $f\"\ndone",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >/tmp/ext.out 2>/tmp/ext.err; echo \"EXIT=$?\"; echo \"---STDOUT---\"; cat /tmp/ext.out; echo \"---STDERR---\"; cat /tmp/ext.err",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >/tmp/ext.out 2>/tmp/ext.err; echo \"EXIT=$?\"",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >.prflow/tmp/ext.out 2>.prflow/tmp/ext.err; echo \"EXIT=$?\"",
+      "cd /home/runner/work/prflow/prflow\nfor f in skills/review/SKILL.md skills/implement/SKILL.md skills/create-issue/SKILL.md skills/docs-verify/SKILL.md skills/review-and-fix/SKILL.md skills/implement/phases/phase-2-sweeps-contract.md skills/implement/phases/phase-4-documentation.md skills/review-and-fix/references/fixing.md; do\n  n=$(git show \"323aaba2731e2ef4d75657599b55f1939b293564:$f\" | wc -c)\n  echo \"$n  $f\"\ndone",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review 2>/dev/null | cat -A | head -50; echo \"PIPESTATUS=${PIPESTATUS[0]}\""
+    ],
+    "total": 11,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
