@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1793",
+  "generated_at": "2026-08-19T15:03:29Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.25",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 11.10934175,
+    "tokens": {
+      "input_tokens": 54,
+      "output_tokens": 42640,
+      "cache_read_input_tokens": 4358298,
+      "cache_creation_input_tokens": 229440,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 172,
+        "outputTokens": 85418,
+        "cacheReadInputTokens": 8128576,
+        "cacheCreationInputTokens": 647735,
+        "webSearchRequests": 0,
+        "costUSD": 11.10934175,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 40,
+    "duration_ms": 879245
+  },
+  "permission_denials": {
+    "count": 25,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"${CLAUDE_SKILL_DIR:-UNSET}\"",
+      "rm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before\nprintf '%s\\n' \\\n  \".changeset/issue-1299-fix-loop-extension-status.md\" \\\n  \"docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md\" \\\n  \"lib/test/modules/coverage-map.json\" \\\n  \"lib/test/modules/prompt-extension-reader.sh\" \\\n  \"lib/test/run.sh\" \\\n  \"scripts/load-prompt-extension.sh\" \\\n  \"scripts/wo …[per-command-truncated]",
+      "git status --porcelain -z > .prflow/tmp/review-dirty-tree-before; git hash-object .prflow/tmp/review-dirty-tree-before",
+      "scripts/load-prompt-extension.sh requesting-code-review; echo \"---EXIT:$?---\"",
+      "git grep -n 'bash \"\\$LPE\"' lib/test/run.sh | grep -iE '2>&1|stderr|SILENT' | head; echo \"---render compare---\"; git show 388634aaabadc3da40a9365d616d4a376887bf68:scripts/render-prompt-extension.sh | grep -n 'content-present\\|present-empty\\|PROMPT-EXTENSION-STATUS' | head",
+      "cd /tmp && rm -rf lpetest && mkdir -p lpetest/.prflow/prompt-extensions && printf '   \\n\\n' > lpetest/.prflow/prompt-extensions/wsonly.md && cd lpetest && git init -q . 2>/dev/null; echo \"=== loader stderr ===\"; bash /home/runner/work/prflow/prflow/scripts/load-prompt-extension.sh wsonly 2>&1 >/dev/null; echo \"=== render stdout ===\"; bash /home/runner/work/prflow/prflow/scripts/render-prompt-extension.sh wsonly 2>/dev/null | head -1",
+      "rm -rf /tmp/lpetest && mkdir -p /tmp/lpetest/.prflow/prompt-extensions && printf '   \\n\\n' > /tmp/lpetest/.prflow/prompt-extensions/wsonly.md && git -C /tmp/lpetest init -q 2>/dev/null; echo \"=== loader stderr ===\"; ( cd /tmp/lpetest && bash /home/runner/work/prflow/prflow/scripts/load-prompt-extension.sh wsonly 2>&1 >/dev/null ); echo \"=== render stdout first line ===\"; ( cd /tmp/lpetest && bash /home/runner/work/prflow/prflow/scripts/render-prompt-extension.sh wsonly 2>/dev/null | head -1 )",
+      "rm -rf /tmp/lpetest; mkdir -p /tmp/lpetest/.prflow/prompt-extensions; printf '   \\n\\n' > /tmp/lpetest/.prflow/prompt-extensions/wsonly.md; git -C /tmp/lpetest init -q; ( cd /tmp/lpetest && echo LOADER: && bash /home/runner/work/prflow/prflow/scripts/load-prompt-extension.sh wsonly 2>&1 1>/dev/null && echo RENDER: && bash /home/runner/work/prflow/prflow/scripts/render-prompt-extension.sh wsonly 2>/dev/null | head -1 )",
+      "rm -rf /tmp/lpetest; mkdir -p /tmp/lpetest/.prflow/prompt-extensions; printf '   \\n\\n' > /tmp/lpetest/.prflow/prompt-extensions/wsonly.md; git -C /tmp/lpetest init -q; cd /tmp/lpetest; bash /home/runner/work/prflow/prflow/scripts/load-prompt-extension.sh wsonly 1>/dev/null",
+      "rm -rf /tmp/lpetest; mkdir -p /tmp/lpetest/ext; printf '   \\n\\n' > /tmp/lpetest/ext/wsonly.md; DEVFLOW_PROMPT_EXTENSION_ROOT=/tmp/lpetest/ext bash /home/runner/work/prflow/prflow/scripts/load-prompt-extension.sh wsonly 1>/dev/null",
+      "rm -rf /tmp/lpetest && mkdir -p /tmp/lpetest/ext && printf '   \\n\\n' > /tmp/lpetest/ext/wsonly.md",
+      "mkdir -p /tmp/lpetest/ext",
+      "D=$(mktemp -d) && mkdir -p \"$D/ext\" && printf '   \\n\\n' > \"$D/ext/wsonly.md\" && echo \"LOADER stderr:\" && DEVFLOW_PROMPT_EXTENSION_ROOT=\"$D/ext\" bash /home/runner/work/prflow/prflow/scripts/load-prompt-extension.sh wsonly 1>/dev/null; echo \"RENDER first line:\" && DEVFLOW_PROMPT_EXTENSION_ROOT=\"$D/ext\" bash /home/runner/work/prflow/prflow/scripts/render-prompt-extension.sh wsonly 2>/dev/null | head -1",
+      "D=$(mktemp -d); mkdir \"$D/ext\"; printf '   \\n\\n' > \"$D/ext/wsonly.md\"; echo \"LOADER stderr:\"; DEVFLOW_PROMPT_EXTENSION_ROOT=\"$D/ext\" bash /home/runner/work/prflow/prflow/scripts/load-prompt-extension.sh wsonly 2>&1 1>/dev/null; echo \"RENDER first line:\"; DEVFLOW_PROMPT_EXTENSION_ROOT=\"$D/ext\" bash /home/runner/work/prflow/prflow/scripts/render-prompt-extension.sh wsonly 2>/dev/null | head -1",
+      "D=$(mktemp -d); mkdir \"$D/ext\"; printf '   \\n\\n' > \"$D/ext/wsonly.md\"; echo \"LOADER stderr:\"; DEVFLOW_PROMPT_EXTENSION_ROOT=\"$D/ext\" bash /home/runner/work/prflow/prflow/scripts/load-prompt-extension.sh wsonly 2>&1 1>/dev/null; echo \"RENDER first line:\"; DEVFLOW_PROMPT_EXTENSION_ROOT=\"$D/ext\" bash /home/runner/work/prflow/prflow/scripts/render-prompt-extension.sh wsonly 2>/dev/null | head -1",
+      "D=$(mktemp -d); mkdir \"$D/ext\"; printf '   \\n\\n' > \"$D/ext/wsonly.md\"; export DEVFLOW_PROMPT_EXTENSION_ROOT=\"$D/ext\"; printf 'LOADER stderr: '; bash /home/runner/work/prflow/prflow/scripts/load-prompt-extension.sh wsonly 2>/tmp/lerr 1>/tmp/lout; cat /tmp/lerr; printf 'RENDER first line: '; bash /home/runner/work/prflow/prflow/scripts/render-prompt-extension.sh wsonly 2>/dev/null | head -1",
+      "cat > /home/runner/work/prflow/prflow/.prflow/tmp/wstest.sh <<'EOF'\nset -e\nD=$(mktemp -d)\nmkdir \"$D/ext\"\nprintf '   \\n\\n' > \"$D/ext/wsonly.md\"\nexport DEVFLOW_PROMPT_EXTENSION_ROOT=\"$D/ext\"\nprintf 'LOADER stderr: '\nbash /home/runner/work/prflow/prflow/scripts/load-prompt-extension.sh wsonly 2>\"$D/lerr\" 1>\"$D/lout\"\ncat \"$D/lerr\"\nprintf 'RENDER first line: '\nbash /home/runner/work/prflow/prflow/scripts/render-prompt-extension.sh wsonly 2>/dev/null | head -1\nEOF\nbash /home/runner/work/prflow/prflow/ …[per-command-truncated]",
+      "bash /home/runner/work/prflow/prflow/.prflow/tmp/wstest.sh",
+      "printf '%s\\n' 'set -e' 'D=$(mktemp -d)' 'mkdir \"$D/ext\"' \"printf '   \\\\n\\\\n' > \\\"\\$D/ext/wsonly.md\\\"\" 'export DEVFLOW_PROMPT_EXTENSION_ROOT=\"$D/ext\"' \"printf 'LOADER: '\" 'bash /home/runner/work/prflow/prflow/scripts/load-prompt-extension.sh wsonly 2>\"$D/e\" 1>\"$D/o\"; cat \"$D/e\"' \"printf 'RENDER: '\" 'bash /home/runner/work/prflow/prflow/scripts/render-prompt-extension.sh wsonly 2>/dev/null | head -1' > /home/runner/work/prflow/prflow/.prflow/tmp/wstest.sh",
+      "rm -rf /home/runner/work/prflow/prflow/.prflow/tmp/wst; mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/wst/ext; printf '   \\n\\n' > /home/runner/work/prflow/prflow/.prflow/tmp/wst/ext/wsonly.md; export DEVFLOW_PROMPT_EXTENSION_ROOT=/home/runner/work/prflow/prflow/.prflow/tmp/wst/ext; printf 'LOADER: '; bash /home/runner/work/prflow/prflow/scripts/load-prompt-extension.sh wsonly 2>/home/runner/work/prflow/prflow/.prflow/tmp/wst/e 1>/home/runner/work/prflow/prflow/.prflow/tmp/wst/o; cat /home …[per-command-truncated]",
+      "printf '   \\n\\n' > /home/runner/work/prflow/prflow/.prflow/tmp/wst/ext/wsonly.md",
+      "D=$(mktemp -d); echo \"$D\"; mkdir \"$D/ext\"; printf '   \\n\\n' > \"$D/ext/wsonly.md\"; ls -la \"$D/ext\"",
+      "out=$(printf '   \\n\\n'); if [ -z \"$out\" ]; then echo EMPTY; else echo NONEMPTY_len=${#out}; fi",
+      "bash -c 'out=$(printf \"   \\n\\n\"); if [ -z \"$out\" ]; then echo EMPTY; else echo NONEMPTY len=${#out}; fi'",
+      "bash -c 'out=$(printf \"   \\n\\n\"); if [ -z \"$out\" ]; then echo EMPTY; else echo NONEMPTY len=${#out}; fi'"
+    ],
+    "total": 25,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
