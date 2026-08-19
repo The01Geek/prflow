@@ -1,0 +1,79 @@
+{
+  "iter": 2,
+  "fix_commit_sha": "d34e2b8d3ada3ba9602a215491cfcd30828a8adb",
+  "fix_files": [
+    "skills/create-issue/references/step-4-present-create.md"
+  ],
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "checklist_summary": {
+    "reverified": [
+      "VC-10 now PASS"
+    ],
+    "passed": 14,
+    "failed": 0,
+    "inconclusive": 0
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "step-4 'does not show as undischarged' parses ambiguously (label attaches to 'show')",
+      "defect_signature": {
+        "file": "skills/create-issue/references/step-4-present-create.md",
+        "line_range": [
+          63,
+          63
+        ],
+        "kind": "other"
+      },
+      "corroboration_count": 2,
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-6",
+      "decision": "applied",
+      "commit": "d34e2b8d3ada3ba9602a215491cfcd30828a8adb"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 1,
+    "fix_diff_lines": 1,
+    "new_corroborated_critical_count": 0
+  },
+  "shadow": {
+    "ran_at": "iteration-2-full-roster",
+    "reviewed_sha": "3ca5d9fe6661af052b9ea2e8060eb048d94163f7",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer"
+    ],
+    "checklist_skipped": null,
+    "note": "iteration-2 full-roster independent pass over the converged state served as the convergence-time shadow; no Critical/Important surfaced. The sole post-pass edit (d34e2b8) is the reviewers' own requested clarity reorder — behavior-inert prose, no semantic change."
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
