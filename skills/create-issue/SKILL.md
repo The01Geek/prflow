@@ -173,11 +173,17 @@ never `tr`, `sed`, `wc`, `cut` or `head`.
 
 Both arms dispatch rather than run inline; no git history is read.
 
-Legs disjoint by construction: the location resolved from `.docs.internal`, and the tracked tree
-minus that location's subtree — never an assertion they are already disjoint.
-Both enumerate from the index, and each reaches its peer as docs-verify's search-space operand,
-never as dispatch-prompt prose its own contract overrides. The duty floor, not the space's size,
-bounds each peer.
+Legs disjoint by construction: the internal-documentation location, and the tracked tree
+minus that location's subtree — never an assertion they are already disjoint. Resolve that
+location — `.docs.internal` is a config key, not a path — with
+`"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .docs.internal docs/internal/`.
+A resolution that exits non-zero, prints nothing, or prints a non-path records the documentation
+leg unestablished, never an established absence. A resolver that never ran — refused or absent —
+assumes `docs/internal/`, says so in your output, and records the leg unestablished when that
+directory holds no tracked files.
+Both enumerate from the index, and each reaches its peer as its docs-verify invocation's
+`--search-space <pathspec>` operand, never as dispatch-prompt prose its own contract overrides.
+The duty floor, not the space's size, bounds each peer.
 
 The orchestrator reconciles both returns. An empty documentation leg is an established absence only
 when the location itself is absent.
