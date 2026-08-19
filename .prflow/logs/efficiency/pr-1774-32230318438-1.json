@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1774",
+  "generated_at": "2026-08-19T08:10:33Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.23",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 9.069551500000003,
+    "tokens": {
+      "input_tokens": 42,
+      "output_tokens": 30501,
+      "cache_read_input_tokens": 3126351,
+      "cache_creation_input_tokens": 193871,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 138,
+        "outputTokens": 70041,
+        "cacheReadInputTokens": 6586903,
+        "cacheCreationInputTokens": 527579,
+        "webSearchRequests": 0,
+        "costUSD": 9.069551500000003,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 32,
+    "duration_ms": 650975
+  },
+  "permission_denials": {
+    "count": 7,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-unset} ATTEMPT=${GITHUB_RUN_ATTEMPT:-unset}\"",
+      "for h in 03f63bd712e46009b8dcc281ae5db7e6c0132d5a4d1d7c456a0a8a82507cd360 2b695cf16adba232895a8b78c7feeec3d0118581996cf2accb9c19b88c52d148 569815720144165835b11a8c32a3ffc04f29f382b8cc7e2b12a986286d63aeaf a4a108b59a1523bc9b614db29f3983a8149ecdad8c1c684d793bfe4be4ae05d2 d362940becfd73dee313d3847e710b2b35ad03ecbe8f829a7f0bb87250f77160 feec4c36595e251cb0330119baeb79dad69060447552a5bd811a3ed8ca37d764; do echo -n \"$h inv:\"; grep -c \"$h\" .prflow/logs/pin-corpus-inventory.tsv; echo -n \"$h adj:\"; grep -c …[per-command-truncated]",
+      "for h in 03f63bd712e46009b8dcc281ae5db7e6c0132d5a4d1d7c456a0a8a82507cd360 2b695cf16adba232895a8b78c7feeec3d0118581996cf2accb9c19b88c52d148 569815720144165835b11a8c32a3ffc04f29f382b8cc7e2b12a986286d63aeaf a4a108b59a1523bc9b614db29f3983a8149ecdad8c1c684d793bfe4be4ae05d2 d362940becfd73dee313d3847e710b2b35ad03ecbe8f829a7f0bb87250f77160 feec4c36595e251cb0330119baeb79dad69060447552a5bd811a3ed8ca37d764; do printf '%s inv=%s adj=%s\\n' \"$h\" \"$(grep -c \"$h\" .prflow/logs/pin-corpus-inventory.tsv)\" \"$(grep  …[per-command-truncated]",
+      "for h in 03f63bd712e46009b8dcc281ae5db7e6c0132d5a4d1d7c456a0a8a82507cd360 2b695cf16adba232895a8b78c7feeec3d0118581996cf2accb9c19b88c52d148 569815720144165835b11a8c32a3ffc04f29f382b8cc7e2b12a986286d63aeaf a4a108b59a1523bc9b614db29f3983a8149ecdad8c1c684d793bfe4be4ae05d2 d362940becfd73dee313d3847e710b2b35ad03ecbe8f829a7f0bb87250f77160 feec4c36595e251cb0330119baeb79dad69060447552a5bd811a3ed8ca37d764; do echo -n \"$h: \"; grep -l \"$h\" .prflow/logs/pin-corpus-inventory.tsv >/dev/null 2>&1 && echo IN_INV …[per-command-truncated]",
+      "d=$(ls -d .prflow/logs/pin-corpus-adjudication-changes/*/ | tail -1); echo \"DIR: $d\"; ls -la \"$d\"; echo \"---\"; find \"$d\" -type f | head; echo \"=== sample content ===\"; find \"$d\" -type f -name \"*.tsv\" | head -1 | while read f; do echo \"$f:\"; cat \"$f\"; done",
+      "echo \"=== git status ===\"; git status --porcelain .prflow/logs/pin-corpus-adjudication-changes/issue-1768-retire-self-check-pins/; echo \"=== tracked at HEAD? ===\"; git ls-tree -r --name-only HEAD -- .prflow/logs/pin-corpus-adjudication-changes/issue-1768-retire-self-check-pins/; echo \"=== in merge-base? ===\"; git ls-tree -r --name-only origin/main -- .prflow/logs/pin-corpus-adjudication-changes/issue-1768-retire-self-check-pins/ 2>/dev/null || echo \"not in origin/main\"",
+      "git ls-tree -r --name-only HEAD -- .prflow/logs/pin-corpus-adjudication-changes/issue-1768-retire-self-check-pins/"
+    ],
+    "total": 7,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
