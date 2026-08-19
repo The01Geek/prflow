@@ -181,7 +181,7 @@ which prints the default `docs/internal/` when the key is missing:
 `.docs.internal` is that config key path, not a filename — read as a file it is absent, and that
 misreading is exactly the established absence a failed resolution may never report. When the resolver
 yields no usable location — it exits non-zero, or exits zero having printed nothing, or prints a value
-that is not a path — these three outcomes and complete by construction — record the documentation leg
+that is not a path — exactly these three outcomes, complete by construction — record the documentation leg
 unestablished, never an established absence, because you have established nothing about the location.
 Judge that third outcome on the text printed, not on the config shape behind it: a JSON object always
 prints `[object Object]`, while a list or a non-string scalar prints coerced text that may itself be
