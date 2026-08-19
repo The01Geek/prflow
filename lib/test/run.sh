@@ -18875,7 +18875,7 @@ assert_eq "#936/#582: install.sh's workflow copy loop ships exactly devflow + de
 assert_eq "#936/#582: the withheld auto-review tier is absent from install.sh's copy loop" \
   "absent" "$(case " $_582_SHIPPED " in *" devflow-review "*|*" devflow-runner "*|*" telemetry-push "*) echo present ;; *) echo absent ;; esac)"
 _582_RETAINED="devflow-runner telemetry-push"
-_582_INTERNAL="ci matcher-probe version-consolidate agents-seam-probe"
+_582_INTERNAL="ci matcher-probe version-consolidate agents-seam-probe stall-observer"
 # Exhaustive-and-disjoint: compare the on-disk basename set against the three lists
 # concatenated. A duplicate across lists makes the concatenated count exceed the
 # deduplicated count; a missing file makes the sorted sets differ. Both are asserted.

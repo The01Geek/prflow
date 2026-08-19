@@ -23,6 +23,10 @@
     "stall_backstop": {
       "enabled": true,
       "max_resume_attempts": 2
+    },
+    "stall_observer": {
+      "enabled": true,
+      "advisory_threshold_minutes": 90
     }
   },
   "prflow_runner": {

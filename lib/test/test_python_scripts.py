@@ -34015,6 +34015,121 @@ assert_eq("#1560: the template with external_services != \"none\" is refused (no
 assert_eq("#1560: the template with an object-id field off the 40/64-hex shape is refused",
           True, _descriptor_rc_1560(_decl1560.replace("1111111111111111111111111111111111111111", "nothex")) != 0)
 
+# ── issue #1027: out-of-band stall observer (reports, never kills) ───────────
+import json as _json1027  # noqa: E402
+import subprocess as _sp1027  # noqa: E402
+from datetime import datetime as _dt1027, timezone as _tz1027  # noqa: E402
+
+stall_observer = _load('stall_observer', SCRIPTS / 'stall-observer-scan.py')
+
+
+def _wp1027(status="\U0001F680 Setup", updated="2026-08-19 07:28 UTC",
+            checkpoint="gha:1:1:phase1-hydrated", extra=""):
+    cp = f"\n  - 07:28:11 — note <!-- prflow:checkpoint {checkpoint} -->" if checkpoint else ""
+    return (
+        "<!-- prflow:workpad -->\n# PRFlow Workpad — Issue #1027\n\n"
+        f"**Status:** {status}\n**Branch:** x\n**Last updated:** {updated}\n\n"
+        f"## Progress{cp}\n{extra}\n"
+    )
+
+
+_now1027 = _dt1027(2026, 8, 19, 9, 0, tzinfo=_tz1027.utc)  # 92 min after 07:28
+
+# parse_workpad — the happy path.
+_f1027 = stall_observer.parse_workpad(_wp1027())
+assert_eq("#1027 parse: status class interim", "interim", _f1027.status_class)
+assert_eq("#1027 parse: last_updated parsed",
+          _dt1027(2026, 8, 19, 7, 28, tzinfo=_tz1027.utc), _f1027.last_updated)
+assert_eq("#1027 parse: last checkpoint key", "gha:1:1:phase1-hydrated", _f1027.last_checkpoint)
+
+# The report-only invariant: the vocabulary carries NO kill/resume/fail token (AC2/AC3).
+assert_eq("#1027 tokens: decision vocabulary is report-only (no kill/resume/fail)", True,
+          stall_observer.DECISION_TOKENS.isdisjoint(
+              {"kill", "resume", "fail", "fail-exhausted", "fail-blocked",
+               "fail-unreadable", "fail-auth", "flip-cancelled"}))
+
+# decide — threshold honoured both directions (advisory-only, configurable).
+assert_eq("#1027 decide: 92min >= 90 threshold -> stale-advisory",
+          "stale-advisory", stall_observer.decide(_f1027, _now1027, 90, "true").token)
+assert_eq("#1027 decide: silence minutes computed", 92,
+          stall_observer.decide(_f1027, _now1027, 90, "true").minutes)
+assert_eq("#1027 decide: message names the last checkpoint on stale", True,
+          "last checkpoint: gha:1:1:phase1-hydrated"
+          in stall_observer.decide(_f1027, _now1027, 90, "true").message)
+assert_eq("#1027 decide: 92min < 120 threshold -> fresh",
+          "fresh", stall_observer.decide(_f1027, _now1027, 120, "true").token)
+
+# decide — enabled=false disables (only the exact string "false").
+assert_eq("#1027 decide: enabled='false' -> disabled",
+          "disabled", stall_observer.decide(_f1027, _now1027, 90, "false").token)
+assert_eq("#1027 decide: enabled='' -> not disabled (safe default)",
+          "stale-advisory", stall_observer.decide(_f1027, _now1027, 90, "").token)
+
+# decide — a terminal workpad is not an in-flight stall candidate.
+for _glyph, _word, _cls in [("\U0001F389", "Complete", "complete"),
+                            ("\U0001F44E", "Blocked", "blocked"),
+                            ("\U0001F4A5", "Failed", "failed"),
+                            ("\U0001F6D1", "Cancelled", "cancelled")]:
+    _ft = stall_observer.parse_workpad(_wp1027(status=f"{_glyph} {_word}"))
+    assert_eq(f"#1027 decide: terminal {_cls} -> not-candidate",
+              "not-candidate", stall_observer.decide(_ft, _now1027, 90, "true").token)
+
+# Adversarial markdown matrix — every malformed shape degrades, never raises.
+_bad = _wp1027().replace("**Last updated:** 2026-08-19 07:28 UTC\n", "")
+_fb = stall_observer.parse_workpad(_bad)
+assert_eq("#1027 parse: missing Last-updated line -> None", None, _fb.last_updated)
+assert_eq("#1027 decide: interim + no last_updated -> unreadable",
+          "unreadable", stall_observer.decide(_fb, _now1027, 90, "true").token)
+
+_fm = stall_observer.parse_workpad(_wp1027(updated="not a date"))
+assert_eq("#1027 parse: malformed date -> None", None, _fm.last_updated)
+
+_fu = stall_observer.parse_workpad(_wp1027(status="❓ Bogus"))
+assert_eq("#1027 decide: unknown status glyph -> unreadable",
+          "unreadable", stall_observer.decide(_fu, _now1027, 90, "true").token)
+
+_fe = stall_observer.parse_workpad("")
+assert_eq("#1027 parse: empty body -> status unknown", "unknown", _fe.status_class)
+assert_eq("#1027 parse: empty body -> last_updated None", None, _fe.last_updated)
+assert_eq("#1027 decide: empty body -> unreadable",
+          "unreadable", stall_observer.decide(_fe, _now1027, 90, "true").token)
+
+_fn = stall_observer.parse_workpad(_wp1027(checkpoint=""))
+assert_eq("#1027 parse: no checkpoint marker -> None", None, _fn.last_checkpoint)
+
+_fmm = stall_observer.parse_workpad(
+    _wp1027(extra="  - 08:00 — later <!-- prflow:checkpoint gha:1:1:phase2 -->"))
+assert_eq("#1027 parse: most-recent of several checkpoints wins",
+          "gha:1:1:phase2", _fmm.last_checkpoint)
+
+# Clock skew: now before last_updated never reports negative silence.
+_early1027 = _dt1027(2026, 8, 19, 7, 0, tzinfo=_tz1027.utc)
+assert_eq("#1027 decide: clock skew (now < last_updated) -> fresh, floored to 0",
+          "fresh", stall_observer.decide(_f1027, _early1027, 90, "true").token)
+
+
+def _cli1027(body, now, threshold, enabled, fmt=None):
+    with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False) as _fh:
+        _fh.write(body)
+        _p = _fh.name
+    try:
+        _args = [sys.executable, str(SCRIPTS / 'stall-observer-scan.py'), 'decide',
+                 '--body-file', _p, '--now', now, '--threshold', str(threshold), '--enabled', enabled]
+        if fmt:
+            _args += ['--format', fmt]
+        return _sp1027.run(_args, capture_output=True, text=True)
+    finally:
+        os.unlink(_p)
+
+
+_r1027 = _cli1027(_wp1027(), "2026-08-19 09:00 UTC", 90, "true")
+assert_eq("#1027 CLI: exit 0", 0, _r1027.returncode)
+assert_eq("#1027 CLI: stale-advisory token on stdout line 1",
+          "stale-advisory", _r1027.stdout.strip().splitlines()[0])
+_rj1027 = _cli1027(_wp1027(), "2026-08-19 09:00 UTC", 90, "true", fmt="json")
+assert_eq("#1027 CLI --format json: decision field", "stale-advisory",
+          _json1027.loads(_rj1027.stdout)["decision"])
+
 print()
 print(f"{PASS} passed, {FAIL} failed")
 sys.exit(0 if FAIL == 0 else 1)
