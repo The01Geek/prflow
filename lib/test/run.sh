@@ -24667,6 +24667,164 @@ PY_PPV_COUPLED
 rm -rf "$PPV_TMP"
 
 # ────────────────────────────────────────────────────────────────────────────
+echo "#1618 skill-body-load-probe verdict deriver"
+# ────────────────────────────────────────────────────────────────────────────
+# scripts/skill-body-load-probe-verdict.py derives, per engine root, whether the Skill
+# tool delivered that root's SKILL.md body WHOLE — from the Skill tool_result in a
+# claude-code-action execution file, never model text. Its verdict is what a maintainer
+# transcribes into docs/internal/skill-body-load-delivery.md, so every arm is driven here
+# rather than left to a paid probe run. Same treatment as the #1264 sibling above:
+# unmodularized, no focused_test, driven inline from run.sh.
+SBL="$LIB/../scripts/skill-body-load-probe-verdict.py"
+SBL_REVIEW="$LIB/../skills/review/SKILL.md"
+SBL_TMP="$(mktemp -d)"
+sbl_build() {  # $1 scenario -> writes $SBL_TMP/exec.jsonl; rc 0 AND non-empty on success
+  python3 - "$SBL_TMP/exec.jsonl" "$1" "$SBL_REVIEW" <<'PY_SBL'
+import json, sys
+out, scen, path = sys.argv[1], sys.argv[2], sys.argv[3]
+body = open(path, encoding="utf-8").read()
+tail = [ln.strip() for ln in body.splitlines() if ln.strip()][-1]
+def skill_use(name="prflow:review", uid="su1"):
+    return {"type": "tool_use", "name": "Skill", "id": uid, "input": {"skill": name}}
+def result(content, uid="su1", is_error=False):
+    return {"type": "tool_result", "tool_use_id": uid, "content": content, "is_error": is_error}
+# Each scenario maps to a list of records, EXCEPT the fixture-free ones (absent/unparseable),
+# which are handled by the caller. An unrecognised scenario raises, so the build fails rather
+# than leaving an empty fixture the helper would read as unparseable and pass for the wrong reason.
+scenarios = {
+    "whole":       [skill_use(), result(body)],
+    # Body missing its final line: the tail control cannot be found.
+    "short_tail":  [skill_use(), result(body.rsplit("\n", 2)[0])],
+    # Only the tail line survives: tail present, a real interior line absent.
+    "mid_gap":     [skill_use(), result(tail)],
+    # A whole body that ALSO carries a cap notice — the marker arm fires before the tail check.
+    "trunc_marker":[skill_use(), result(body + "\nshowing lines 1-10 of 343 (cap 25000)")],
+    # No Skill tool_use at all — the body was never loaded by this channel.
+    "no_skill":    [{"type": "tool_use", "name": "Bash", "id": "b1", "input": {"command": "true"}}],
+    # A Skill load that returned an error (refused/aborted) — the abort mode, not truncation.
+    "err_result":  [skill_use(), result("permission denied", is_error=True)],
+    # A Skill tool_use recorded with NO paired result — nothing was delivered to measure.
+    "no_result":   [skill_use()],
+    # Parses cleanly but records no tool_use of any kind.
+    "wrong_shape": [{"type": "system", "note": "no tool uses here"}],
+}
+if scen in ("unparseable",):
+    open(out, "w", encoding="utf-8").write("{ not json at all\n")
+elif scen in scenarios:
+    with open(out, "w", encoding="utf-8") as fh:
+        for r in scenarios[scen]:
+            fh.write(json.dumps(r) + "\n")
+else:
+    raise SystemExit("unrecognised scenario: %s" % scen)
+PY_SBL
+  _sbl_rc=$?
+  [ "$_sbl_rc" -eq 0 ] && [ -s "$SBL_TMP/exec.jsonl" ]
+}
+sbl() {  # $1 scenario -> the first per-root VERDICT token (single-root fixtures)
+  if ! sbl_build "$1"; then printf 'FIXTURE_BUILD_FAILED'; return 0; fi
+  local _out
+  _out="$(python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" 2>/dev/null)"
+  # Pure parameter expansion (CLAUDE.md guard-class 2: no tr/sed/cut, which would fail OPEN).
+  # The audit summary line is `AUDIT: …` (not `AUDIT VERDICT:`), so the first `VERDICT: `
+  # match is a per-root verdict, never the summary.
+  case "$_out" in
+    *'VERDICT: '*) local _v="${_out#*'VERDICT: '}"; printf '%s' "${_v%%$'\n'*}" ;;
+    *) printf 'NO_VERDICT' ;;
+  esac
+}
+# NEGATIVE CONTROL — an unrecognised scenario must FAIL the build, or the sweep is vacuous.
+assert_eq "#1618 skill-body: an unrecognised fixture scenario fails the build" "failed" \
+  "$(sbl_build __no_such_scenario__ 2>/dev/null && echo built || echo failed)"
+assert_eq "#1618 skill-body: a recognised fixture scenario still builds" "built" \
+  "$(sbl_build whole 2>/dev/null && echo built || echo failed)"
+
+# The two real measurements: a body delivered whole, and a tail loss.
+assert_eq "#1618 skill-body: whole body (tail+mid present) -> delivered-whole" \
+  "delivered-whole" "$(sbl whole)"
+assert_eq "#1618 skill-body: tail line missing -> short-delivery (tail lost)" \
+  "short-delivery" "$(sbl short_tail)"
+assert_eq "#1618 skill-body: tail present but interior gone -> short-delivery" \
+  "short-delivery" "$(sbl mid_gap)"
+assert_eq "#1618 skill-body: a cap/truncation notice in the body -> short-delivery" \
+  "short-delivery" "$(sbl trunc_marker)"
+
+# Every degraded arm is `unestablished`, never `delivered-whole`: a body that was never
+# loaded, a load that errored, an unpaired call, or a wrong-shape/unreadable file is
+# unknown — not whole. Collapsing any of them onto delivered-whole is the fail-open the
+# arm ordering exists to prevent.
+assert_eq "#1618 skill-body: no Skill tool_use -> unestablished (never loaded)" \
+  "unestablished" "$(sbl no_skill)"
+assert_eq "#1618 skill-body: Skill load returned an error -> unestablished (abort mode)" \
+  "unestablished" "$(sbl err_result)"
+assert_eq "#1618 skill-body: Skill call with no paired result -> unestablished" \
+  "unestablished" "$(sbl no_result)"
+assert_eq "#1618 skill-body: well-formed JSON of the wrong shape -> unestablished" \
+  "unestablished" "$(sbl wrong_shape)"
+assert_eq "#1618 skill-body: unparseable execution file -> unestablished" \
+  "unestablished" "$(sbl unparseable)"
+assert_eq "#1618 skill-body: an absent execution file -> unestablished" \
+  "unestablished" \
+  "$(_o="$(python3 "$SBL" "$SBL_TMP/definitely-not-here.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" 2>/dev/null)"; case "$_o" in *'VERDICT: '*) _v="${_o#*'VERDICT: '}"; printf '%s' "${_v%%$'\n'*}" ;; *) printf 'NO_VERDICT' ;; esac)"
+
+# Empty selection MUST fail rather than report a clean pass — an audit that audited nothing
+# reading as an audit that found nothing is this defect one level up. No --root -> exit !=0,
+# NO-ROOTS, and never a delivered-whole line.
+assert_eq "#1618 skill-body: empty selection (no --root) exits non-zero" "nonzero" \
+  "$(python3 "$SBL" "$SBL_TMP/exec.jsonl" >/dev/null 2>&1 && echo zero || echo nonzero)"
+assert_eq "#1618 skill-body: empty selection prints NO-ROOTS, not a clean pass" "yes" \
+  "$(sbl_build whole >/dev/null 2>&1; python3 "$SBL" "$SBL_TMP/exec.jsonl" 2>/dev/null | grep -q 'AUDIT: NO-ROOTS' && echo yes || echo no)"
+assert_eq "#1618 skill-body: empty selection prints no delivered-whole verdict" "yes" \
+  "$(python3 "$SBL" "$SBL_TMP/exec.jsonl" 2>/dev/null | grep -q 'VERDICT: delivered-whole' && echo no || echo yes)"
+
+# COUPLED SITES: the two workflow jobs and the helper are one contract. Each job must load
+# the prflow plugin, capture the full output, invoke the helper, and audit BOTH engine roots
+# at their real on-disk paths — a job that dropped a --root would silently measure nothing
+# for that root while the suite stayed green.
+assert_eq "#1618 skill-body: matcher-probe jobs and helper are coupled" "coupled" \
+  "$(python3 - "$LIB/../.github/workflows/matcher-probe.yml" "$SBL" <<'PY_SBL_COUPLED'
+import sys, yaml
+wf_path, helper_path = sys.argv[1], sys.argv[2]
+jobs = yaml.safe_load(open(wf_path, encoding="utf-8"))["jobs"] or {}
+roots = {"prflow:review": "skills/review/SKILL.md", "prflow:implement": "skills/implement/SKILL.md"}
+for job_name, tier in (("skill-body-load-review-probe", "review"),
+                       ("skill-body-load-implement-probe", "implement")):
+    job = jobs.get(job_name)
+    if not job:
+        print("matcher-probe.yml has no %s job" % job_name); sys.exit(0)
+    steps = job.get("steps") or []
+    claude = [s for s in steps if isinstance(s.get("with"), dict) and "claude_args" in s["with"]]
+    if not claude:
+        print("%s has no claude-code-action step" % job_name); sys.exit(0)
+    with_ = claude[0]["with"]
+    if with_.get("show_full_output") is not True:
+        print("%s does not set show_full_output: true — the tool_result is not captured" % job_name)
+        sys.exit(0)
+    plugins = str(with_.get("plugins", ""))
+    if "prflow@" not in plugins:
+        print("%s does not load the prflow plugin, so the engine roots never load" % job_name)
+        sys.exit(0)
+    verdict_steps = [s for s in steps if "skill-body-load-probe-verdict.py" in str(s.get("run", ""))]
+    if not verdict_steps:
+        print("%s never invokes the verdict helper" % job_name); sys.exit(0)
+    run = str(verdict_steps[0]["run"])
+    for name, path in roots.items():
+        if ("%s=%s" % (name, path)) not in run:
+            print("%s verdict step does not audit root %s at %s" % (job_name, name, path))
+            sys.exit(0)
+    if ("--tier %s" % tier) not in run and ("--tier=%s" % tier) not in run:
+        print("%s verdict step does not name its tier %s" % (job_name, tier)); sys.exit(0)
+# The audited paths must be real files, or the on-disk control read is vacuous.
+import os
+base = os.path.dirname(os.path.dirname(os.path.dirname(helper_path)))
+for path in roots.values():
+    if not os.path.isfile(os.path.join(base, path)):
+        print("audited root path does not exist on disk: %s" % path); sys.exit(0)
+print("coupled")
+PY_SBL_COUPLED
+)"
+rm -rf "$SBL_TMP"
+
+# ────────────────────────────────────────────────────────────────────────────
 echo "docs per-step toggles (docs.internal_enabled / docs.external_enabled)"
 # ────────────────────────────────────────────────────────────────────────────
 # The /devflow:docs pass gates Step 1 (internal) and Step 2 (external) on these
