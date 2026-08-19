@@ -1589,12 +1589,19 @@ and the `env` map — lives in [`.prflow/config.schema.json`](../../.prflow/conf
 under `providers`, which is the single source for those fields. Two operational
 notes the schema does not carry:
 
-- **The `env` map is exported unfiltered** into the job environment. It is read
+- **The `env` map is name-filtered before export** into the job environment. It is read
   only from maintainer-controlled config (base-ref for the runner, the trusted
-  default-branch checkout for the command workflows), so do not name a
-  runtime-sensitive variable there (`PATH`, `GITHUB_TOKEN`, `ANTHROPIC_API_KEY`,
-  …) — a stray such key would shadow the environment of every later step in the
-  job, not just the action step.
+  default-branch checkout for the command workflows). Beyond the env-var-name *shape*
+  guard, the inject step **refuses the run** (fail loud, `::error::` naming the offending
+  key, before any `$GITHUB_ENV` write) when a key's name is a credential
+  (`ANTHROPIC_API_KEY`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`,
+  `AWS_BEARER_TOKEN_BEDROCK` — set the provider credential via the
+  `DEVFLOW_PROVIDER_API_KEY` secret, never in committed config), a name that would shadow
+  the environment of every later job step (`PATH`, `GITHUB_TOKEN`), or
+  `CLAUDE_CODE_SUBAGENT_MODEL` (it overrides both the per-invocation and per-subagent model
+  and flattens the `agent_overrides` review roster to one model — use
+  `ANTHROPIC_DEFAULT_HAIKU_MODEL` to map only the background model). The match is
+  case-insensitive; any other valid env-var name is still exported verbatim.
 - **The empty-secret guard.** If a section names a provider while
   `DEVFLOW_PROVIDER_API_KEY` is empty at run time, the job fails loud with an
   `::error::` naming the section and provider, before the action runs. (The secret
