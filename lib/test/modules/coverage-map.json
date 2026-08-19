@@ -820,6 +820,7 @@
     "lib/rename-map.json",
     "lib/review-profile.tokens",
     "lib/subagent-dispatch-sites.json",
+    "lib/terminal-result-table.tsv",
     "lib/writing-standard.md",
     "scripts/devflow-cloud-writer-contract.json",
     "scripts/workflow-flight-recorder-registry.json"
