@@ -24776,7 +24776,7 @@ assert_eq "#1618 skill-body: an absent execution file -> unestablished" \
 assert_eq "#1618 skill-body: empty selection (no --root) exits non-zero" "nonzero" \
   "$(python3 "$SBL" "$SBL_TMP/exec.jsonl" >/dev/null 2>&1 && echo zero || echo nonzero)"
 assert_eq "#1618 skill-body: empty selection prints NO-ROOTS, not a clean pass" "yes" \
-  "$(sbl_build whole >/dev/null 2>&1; python3 "$SBL" "$SBL_TMP/exec.jsonl" 2>/dev/null | grep -q 'AUDIT: NO-ROOTS' && echo yes || echo no)"
+  "$(python3 "$SBL" "$SBL_TMP/exec.jsonl" 2>/dev/null | grep -q 'AUDIT: NO-ROOTS' && echo yes || echo no)"
 assert_eq "#1618 skill-body: empty selection prints no delivered-whole verdict" "yes" \
   "$(python3 "$SBL" "$SBL_TMP/exec.jsonl" 2>/dev/null | grep -q 'VERDICT: delivered-whole' && echo no || echo yes)"
 
