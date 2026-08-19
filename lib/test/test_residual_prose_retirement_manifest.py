@@ -1168,7 +1168,11 @@ class ResidualProseRetirementManifestTests(unittest.TestCase):
         # Assert the raw presence first: a token deleted from its home would otherwise
         # satisfy the absence half while proving nothing about subtraction.
         for control, home in _COMMENT_SUBTRACTION_CONTROLS:
-            self.assertIn(control, sources[home], f"control {control!r} left {home}")
+            # assertTrue, not assertIn: assertIn dumps the whole consumer file into
+            # the failure message, burying the one line that names the cause.
+            self.assertTrue(
+                control in sources[home], f"control {control!r} left {home}"
+            )
             self.assertIsNone(
                 lint.machine_consumer_evidence(control, corpus),
                 f"comment subtraction is not live: {control!r} survived from {home}",
