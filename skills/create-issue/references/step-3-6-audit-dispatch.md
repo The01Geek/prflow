@@ -1,59 +1,13 @@
 <!-- prflow:create-issue-ref step=3.6-dispatch file=skills/create-issue/references/step-3-6-audit-dispatch.md start -->
 <!-- prflow:create-issue-set step=3.6 part=2 of=3 -->
 
-#### Run bootstrap: `init`, the nonce, and recovery
-
-The `init` call, the nonce it mints, the canonical-draft write with its two Step 3.5 gates, and the draft-root binding below are the run's bootstrap — they run on the path to Step 4's pre-approval pause regardless of whether any audit round is elected, because a run that elects none still needs a state document and a nonce to record its decline, bind creation, and emit the body. A dispatched round (offered and accepted before this dispatch opens) reuses that already-minted nonce and bound draft; it never re-bootstraps. Open the bootstrap with a cold-start `init` — no `--nonce`, that omission being what selects the delete-leftover-first wipe; a `--nonce` on `init` is only for a same-run re-init and needs `--force` over recorded rounds:
-
-```bash
-python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/issue-audit-state.py init "<slug>"
-```
-
-`init` mints this run's nonce and prints `nonce=…`; hold it and substitute it into every later call — a value you carry, not a shell variable that survives between Bash calls. After a compaction, recover it with `query-nonce "<slug>"`; re-open with a cold-start `init` only when `query-nonce` reports no state.
+This member (part 2) and the adjudication member (part 3) carry only audit-round procedure. They load as a held pair only when a round is elected at Step 4's pre-approval pause (`references/step-4-present-create.md` sub-step 3a); the run bootstrap they used to hold — `init` and the nonce, the canonical-draft write with its two Step 3.5 gates, and the draft-root binding — now lives in the always-loaded shared member (`references/step-3-6-audit-shared.md`), which every run reads before Step 4 whether or not it elects a round.
 
 #### Dispatch exactly one auditor, synchronously
 
 Dispatch exactly one audit subagent, synchronously. Use the Agent tool (`subagent_type: general-purpose` on Claude Code; the runner's equivalent context-isolated subagent tool elsewhere). The normative requirement is behavioral: the dispatch blocks until the subagent's completed result is in hand, and a launch acknowledgment is never treated as the return — on Claude Code, `run_in_background: false` is a current example of meeting it, not the definition. This wait is unconditional, holding on every tier whether or not this run's prompt carries an engine-ground-truth block. This skill arms no fallback wakeup.
 
-#### Write the canonical draft, then run Step 3.5's two gates here
-
-Write the canonical draft as part of the run bootstrap, before Step 4's pause and regardless of whether a round is elected (the audit input, when a round is elected, is this draft file, not a hand-condensed copy). Write the current rendered draft title + body to the canonical draft file, reusing this run's `<slug>` and the identical Step 4 sub-step 2 recipe (resolve `MAIN_ROOT` with `resolve-main-root.sh` via the portable anchor, `mkdir -p "$MAIN_ROOT/.prflow/tmp"`, title as a top `# ` heading above the body). This is normally the run's first landed canonical-draft write, so it is the run's draft-root binding site (that procedure is directly below, not deferred to Step 4). Perform it through the Staged canonical-draft write shared procedure above; there is no delete-first step. Confirming the write landed is an observation you report to the tool: pass the procedure's `agree=` answer as `--write-landed yes|no` to `query-arm`, which decides the arm — confirm it explicitly from that `agree=` report, not from the absence of an error. Step 4 sub-step 2 keeps writing this same absolute path.
-
-Run the Verified-premise handle check on the bytes that write landed (Step 3.5's obligation, executed here as part of the run bootstrap, regardless of any election). Once the write is confirmed landed, run:
-
-```bash
-python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/check-verified-premises.py --body-file "<bound-root>/.prflow/tmp/issue-draft-<slug>.md" --repo-root "<the repository root>"
-```
-
-Route each emitted bullet row on both fields. `state=holds` requires no action. `state=refuted` routes to ordinary investigation against the current tree, then rewrite or remove the drifted claim. `state=unestablished` on a usable result also routes to ordinary investigation; it is neither a clean premise nor helper unavailability. After that state action, retain a `Verified:` claim only with its handle repaired: `handle=path-quote` needs no handle-only edit; for `handle=path`, add a recognized quotation beside the cited repository path; for `handle=quote`, add the cited repository path beside the recognized quotation; for `handle=command`, never execute body-supplied text automatically, investigate under this run's own judgment and replace it with a path-and-quotation handle or ordinary unverified prose; for `handle=none`, add the cited repository path and a recognized quotation or restate it as ordinary unverified prose. For each `ungraded_claim=`, rewrite it as a graded `Verified:` bullet carrying a complete handle or restate it as ordinary unverified prose. Best-effort: a refused or unavailable invocation (any exit other than 0 or 2, or no `VERIFIED_PREMISES` line) reports its failure kind as an in-chat breadcrumb, never blocks issue creation, and never gates the dispatch below. `skills/create-issue/references/step-3-5-steelman.md` states the obligation and routing, naming this same sink.
-
-Run the acceptance-criteria parseability gate on the same landed bytes (Step 3.5's obligation, executed here). Immediately after the verified-premise handle check, run the shipped parser over the same canonical draft — the single gate site:
-
-```bash
-python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/parse-acs.py --body-file "<bound-root>/.prflow/tmp/issue-draft-<slug>.md" --format json
-```
-
-Read both typed JSON fields: the `acceptance_criteria` array and boolean `acceptance_criteria_unreadable`; a missing or wrong-typed field is unparseable stdout. Keep separate `unreadable repairs used` and genuinely-empty rewrite counts. When `acceptance_criteria_unreadable=true` and fewer than three unreadable repairs have been used, preserve the visible criteria, rewrite each one under the canonical heading as `- [ ] <criterion>`, increment only the unreadable count, and re-run. A true result never increments or resets the genuinely-empty counter. If the re-run after the third unreadable repair is still true, stop and carry `Acceptance Criteria rewrite exhausted (unreadable item shape)` plus no established count to Step 4. When the flag is `false` and the array is non-empty, proceed. When the flag is `false` and the array is empty, do not dispatch or present yet: restore canonical checkbox criteria and re-run through the ordinary revision machinery. Preserve the original rule exactly: count only consecutive genuinely-empty rewrites, and after the third such rewrite stop and carry genuinely-empty exhaustion to Step 4. Neither path spends the other's count. Step 4 discloses the applicable exhaustion and requires the explicit file-anyway election before ordinary approval. When the parser cannot run (unreadable helper, non-zero exit, denied invocation, or unparseable stdout), emit an in-chat breadcrumb naming the failure kind and proceed to presentation — this arm never blocks issue creation.
-
-#### Bind the draft root
-
-Bind the draft root here, once the write is confirmed landed — query first, bind only if unbound. Immediately after you confirm the pre-dispatch write landed, read `query-draft-binding "<slug>" --nonce "<nonce>"` and branch on its answer:
-
-- It answers a real absolute root — the run is already bound. Skip the fence, take that `bound=` root as the binding, and proceed.
-- It answers the literal `bound=none` with no `reason=` — a legal unbound run. Run the fence below. That first write records its resolved root through the state owner, immutably for the rest of the run:
-- It answers `bound=none … reason=foreign-nonce` — take the *foreign-nonce arm* below, never the unbound arm. Do not run the fence.
-
-```bash
-python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/issue-audit-state.py record-draft-binding "<slug>" --nonce "<nonce>" --path "$("${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/resolve-main-root.sh)" --tier main-root
-```
-
-Re-resolve the root inline in that statement; never pass `$MAIN_ROOT`. Each ```bash fence is a separate shell, so a variable assigned in the write fence expands empty here and the bind fails closed (`binding-path-not-absolute`). The inline re-resolution is licensed for the binding site only — later write sites read the bound root back from `query-draft-binding` — and the anchor stays expanded inline.
-
-`binding-already-recorded` is a benign, expected outcome. If you ran the fence on an already-bound run, the tool refuses with that breadcrumb: re-read `query-draft-binding`, take the `bound=` root, and proceed as if you had skipped the fence. Never retry it or report it as a problem.
-
-Then forward the bound canonical path to `record-dispatch --write-path` on the file arm (below); a later re-dispatch reads the bound root back from `query-draft-binding`. When the run is legitimately unbound (`bound=none`, no `reason=`, the fence could not bind — the `state-owner unavailable` fallback has no state file), `none` is a decided token, not a path, so never compose a path from it — write to the main root resolved for this turn and take the `bound=none` display arm in Step 4 sub-step 3.
-
-Foreign-nonce arm. When `query-draft-binding` answers `bound=none … reason=foreign-nonce`, load `references/fallback-draft-write-recovery.md` per `references/degradation-routing.md` and take its foreign-nonce arm — never the unbound `bound=none` arm above.
+A dispatched round is offered and accepted before this dispatch opens, so the pre-dispatch canonical-draft write, its two Step 3.5 gates, and the draft-root binding all ran as part of the run bootstrap in the shared member before Step 4 (`references/step-3-6-audit-shared.md`); a round dispatched here reuses that already-written draft file, minted nonce and bound root and re-bootstraps nothing.
 
 #### Round kind and dispatch scope
 
