@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1769",
+  "generated_at": "2026-08-19T06:10:24Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.18",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 102.85970690000009,
+    "tokens": {
+      "input_tokens": 620,
+      "output_tokens": 277769,
+      "cache_read_input_tokens": 134446659,
+      "cache_creation_input_tokens": 710844,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 862,
+        "outputTokens": 390291,
+        "cacheReadInputTokens": 144419028,
+        "cacheCreationInputTokens": 1897824,
+        "webSearchRequests": 0,
+        "costUSD": 96.49816400000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 262,
+        "outputTokens": 67188,
+        "cacheReadInputTokens": 11978073,
+        "cacheCreationInputTokens": 469204,
+        "webSearchRequests": 0,
+        "costUSD": 6.3615429,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 376,
+    "duration_ms": 9503841
+  },
+  "permission_denials": {
+    "count": 29,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-<unset>}\"; echo \"CLAUDE_SKILL_DIR=${CLAUDE_SKILL_DIR:-<unset>}\"; echo \"---git---\"; git status --porcelain; echo \"branch: $(git branch --show-current)\"; echo \"---config base---\"; .prflow/vendor/prflow/scripts/config-get.sh .base_branch 2>/dev/null || echo \"no vendored config-get\"; ls .prflow/vendor/prflow/scripts/config-get.sh 2>/dev/null || echo \"no vendored dir\"",
+      "echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-<unset>}\"; echo \"CLAUDE_SKILL_DIR=${CLAUDE_SKILL_DIR:-<unset>}\"; git status --porcelain; git branch --show-current",
+      "printenv GITHUB_ACTIONS CLAUDE_SKILL_DIR CLAUDE_CODE_SESSION_ID 2>/dev/null; echo \"---\"; ls .prflow/vendor/prflow/scripts/workpad.py 2>&1 | head -1",
+      "printenv GITHUB_ACTIONS CLAUDE_SKILL_DIR; ls .prflow/vendor/prflow/scripts/workpad.py",
+      "printenv GITHUB_ACTIONS",
+      "git push -u origin HEAD 2>&1 | tail -5; echo \"EXIT:${PIPESTATUS[0]}\"",
+      "python3 - <<'PYEOF'\nimport csv\nwith open('.prflow/logs/pin-corpus-inventory.tsv') as f:\n    lines=[l for l in f if not l.startswith('#')]\nreader=csv.DictReader(lines, delimiter='\\t')\nkeys=set()\nfor r in reader:\n    bf=r.get('bucket_final','').strip('\"')\n    if bf in ('prose-sole-copy','prose-multi-copy'):\n        an=r.get('assertion_name','').strip('\"')\n        keys.add(an)\nprint(len(keys))\nPYEOF\ngit ls-files 'lib/test/modules/*.sh' 'lib/test/*.sh' | xargs -I{} grep -c 'devflow_module_pin_' {} 2 …[per-command-truncated]",
+      "awk -F'\\t' 'NR>7 && ($16==\"prose-sole-copy\" || $16==\"prose-multi-copy\") {print NR\": [\"$16\"] cnt=\"$10\" | \"$2\" | homes=\"$9}' .prflow/logs/pin-corpus-inventory.tsv",
+      "awk -F'\\t' 'NR>7 && ($16==\"prose-sole-copy\" || $16==\"prose-multi-copy\"){print $2}' .prflow/logs/pin-corpus-inventory.tsv > .prflow/tmp/prose23-names.txt; wc -l .prflow/tmp/prose23-names.txt; echo \"=== manifest dispositions for these names ===\"; while IFS= read -r n; do grep -F \"$n\" .prflow/logs/residual-prose-retirement-manifest.tsv | awk -F'\\t' '{print $8\"  \"$3}'; done < .prflow/tmp/prose23-names.txt",
+      "git diff --merge-base origin/main -U0 | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree 2>&1 | tail -30; echo \"LINT-EXIT:${PIPESTATUS[1]}\"",
+      "python3 .prflow/tmp/gen_disposition_doc.py; git diff --no-index -U0 /dev/null docs/internal/pin-corpus-issue-1759-sweep.md 2>/dev/null | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree 2>&1 | grep \"pin-corpus-issue-1759\" | tail -30; echo \"done\"",
+      "git diff --no-index -U0 /dev/null docs/internal/pin-corpus-issue-1759-sweep.md 2>/dev/null | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree 2>&1 | grep \"pin-corpus-issue-1759\"; echo \"done-exit\"",
+      "git diff --no-index -U0 /dev/null docs/internal/pin-corpus-issue-1759-sweep.md 2>/dev/null | tee .prflow/tmp/dispo.diff | wc -l",
+      "for h in 11323b53e9f2bdacbe8df7411a70ed87b3f7e8cd1a797fcce7f6ecfb925d975e 02a3196d08334a8618d9231e2f59ec2dd56a8ee75104db751378bffbe32cdecf accfc7d868c6564cf71af9bcb43c8370f9804a3d977638c78a9aac7835fa97f1; do echo \"=== $h ===\"; grep \"$h\" .prflow/logs/pin-corpus-inventory.tsv; done",
+      "awk -F'\\t' 'NR>7 && ($(NF-1)==\"prose-sole-copy\" || $(NF-1)==\"prose-multi-copy\"){print NR\": \"$(NF-1)\" | \"$2}' .prflow/logs/pin-corpus-inventory.tsv; echo \"=== HEAD ===\"; git rev-parse HEAD",
+      "awk -F'\\t' 'NR==243||NR==244||NR==246||NR==247||NR==253||NR==254||NR==255||NR==267||NR==268 {print NR\": \"$1\" | \"$2\" | \"$(NF)}' /home/runner/work/prflow/prflow/.prflow/logs/pin-corpus-inventory.tsv",
+      "for t in test_pin_corpus_classifier test_residual_prose_retirement_manifest test_red_on_removal_retirement_manifest test_mutation_pin_census; do echo \"=== $t ===\"; python3 lib/test/$t.py 2>&1 | tail -4; done",
+      "cd /home/runner/work/prflow/prflow\ngrep -n \"TSV_COLUMNS\" lib/test/pin-corpus-classifier.py | head -5\nsed -n '/TSV_COLUMNS = /,/\\]/p' lib/test/pin-corpus-classifier.py | head -25",
+      "python3 .prflow/vendor/prflow/scripts/checkout-fingerprint.py > .prflow/tmp/ci1759-checkout.json\ncat .prflow/tmp/ci1759-checkout.json\npython3 - <<'PYEOF'\nimport json\ncheckout = json.load(open(\".prflow/tmp/ci1759-checkout.json\"))\ndecl = {\n  \"schema_version\": 1,\n  \"profile\": {\n    \"argv\": [\"lib/test/run-module.sh\", \"create-issue-contract\"],\n    \"cwd\": \"/home/runner/work/prflow/prflow\",\n    \"environment\": {},\n    \"toolchain\": {},\n    \"dependencies\": {},\n    \"output_roots\": []\n  },\n  \"checkout\": che …[per-command-truncated]",
+      "cat > /tmp/build_decl.py << 'PYEOF'\nimport json\ncheckout = json.load(open(\".prflow/tmp/ci1759-checkout.json\"))\ndecl = {\n  \"schema_version\": 1,\n  \"profile\": {\n    \"argv\": [\"lib/test/run-module.sh\", \"create-issue-contract\"],\n    \"cwd\": \"/home/runner/work/prflow/prflow\",\n    \"environment\": {},\n    \"toolchain\": {},\n    \"dependencies\": {},\n    \"output_roots\": []\n  },\n  \"checkout\": checkout,\n  \"candidate_identity\": \"issue-1759-ac-verify\"\n}\njson.dump(decl, open(\".prflow/tmp/ci1759-declaration.json\", \"w …[per-command-truncated]",
+      "python3 .prflow/vendor/prflow/scripts/checkout-fingerprint.py > .prflow/tmp/ci1759-checkout.json\ncat .prflow/tmp/ci1759-checkout.json",
+      "python3 .prflow/vendor/prflow/scripts/checkout-fingerprint.py > /tmp/ci1759-checkout.json\ncat /tmp/ci1759-checkout.json",
+      "python3 .prflow/vendor/prflow/scripts/checkout-fingerprint.py > /tmp/ci1759-checkout.json",
+      "python3 -c \"\nimport json\nsummary = dict(exit_status=0, command='lib/test/run-module.sh create-issue-contract', passed=397, failed=0, note='ac-verifier issue #1759')\njson.dump(summary, open('.prflow/tmp/ci1759-summary.json','w'))\n\"\nFLIGHT=cdecdd0fa51140f2b739997515712e7e93742a670fa2044da2956519ad5041b7\nTOKEN=5cd6306f3e6ebd2e4546a53560f5cf21756cea1d97fdd78139ddb0f4ecac85b4\npython3 .prflow/vendor/prflow/scripts/verification-flight.py finish --flight \"$FLIGHT\" --token \"$TOKEN\" --result passed --summ …[per-command-truncated]",
+      "rm -f .prflow/tmp/ci1759-checkout.json .prflow/tmp/ci1759-declaration.json .prflow/tmp/ci1759-summary.json /tmp/build_decl.py 2>/dev/null; echo done",
+      "for f in docs/internal/claude-md-extension-audit-duplicates.md docs/internal/claude-md-relocated-rationale.md docs/internal/skills/create-issue.md docs/internal/implement-skill.md; do echo \"=== $f ===\"; grep -nE \"1759|1753|prose-bucket|re-adjudication|create-issue.*pin|pin.*create-issue\" \"$f\" 2>/dev/null; done",
+      "shellcheck --severity=warning -e SC1091 lib/test/modules/create-issue-contract.sh 2>&1 | head -20; echo \"EXIT:$?\"; echo \"=====SIZE=====\"; scripts/prompt-surface-growth.py 2>&1 | head -40",
+      "scripts/prompt-surface-growth.py 2>&1 | head -40",
+      "scripts/prompt-surface-growth.py"
+    ],
+    "total": 29,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
