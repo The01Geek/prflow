@@ -5451,9 +5451,8 @@ assert_pin_unique "#493 resume: best-effort warn on PR-body read failure (distin
 # block is a SEPARATE shell, Phase 1.4's $BASE is out of scope at 3.1, so 3.1 must
 # RE-DERIVE it through the config read and fail-closed fallback. The retained assertions
 # cover that derivation boundary without pinning the detailed `gh pr create` prose.
-# #1458 added a SECOND separate-shell re-derivation in §3.2.5's pre-review gate (which
-# needs the base to compute its merge-base touched-file diff), so the count is 2: deleting
-# either derivation drops it to 1 and turns this RED.
+# #1458 added a SECOND separate-shell re-derivation in §3.2.5's pre-review gate, so the count
+# is 2: deleting either derivation drops it to 1 and turns this RED.
 P3_REVIEW="$IMPL_PHASES_DIR/phase-3-review.md"
 assert_eq "#224 Phase 3.1/3.2.5: re-derive BASE via config-get with the main default (2 separate-shell reads)" \
   "2" "$(pin_count 'config-get.sh .base_branch main' "$P3_REVIEW")"
@@ -28330,12 +28329,18 @@ assert_eq "#506 Writing-skills evidence marker is present in the contract and bo
 
 # (f) #1458 coupled site — the implement Phase 3 pre-review gate carries the SAME trigger-glob
 # list and the SAME evidence marker as the routing rule, so a later edit to one is reconciled
-# against the other in the same change (the gate's own AC7).
+# against the other in the same change.
 WSR_PHASE="$FDROOT/skills/implement/phases/phase-3-review.md"
 assert_eq "#1458 trigger-glob list present in the implement Phase 3 pre-review gate (coupled with the routing rule)" \
   "yes" "$(grep_present "$WSR_TGL" "$WSR_PHASE")"  # structural-pin-ok: cross-file-phase-contract -- gate glob set must stay byte-identical to the routing rule's set
 assert_eq "#1458 Writing-skills evidence marker present in the implement Phase 3 pre-review gate (coupled)" \
   "yes" "$(grep_present "$WSR_MARK" "$WSR_PHASE")"  # structural-pin-ok: cross-file-phase-contract -- gate marker literal coupled with the routing evidence contract
+# The gate self-scopes by reading this heading literal out of the routing extension; renaming it on
+# either side silently makes the gate inert, so pin it present in both files (a third coupled site).
+WSR_SCOPE_HEADING='Prompt-surface edit routing'
+assert_eq "#1458 scope-heading literal coupled between the pre-review gate and the routing extension" \
+  "yes|yes" \
+  "$(grep_present "$WSR_SCOPE_HEADING" "$WSR_PHASE")|$(grep_present "$WSR_SCOPE_HEADING" "$WSR_IMPL")"  # structural-pin-ok: cross-file-phase-contract -- gate scope probe reads this heading from the routing extension
 
 # ── #730 Verification-evidence marker tier-scoped advisory (byte-identical twin) ──────
 # The advisory clause is appended to BOTH review extensions as a new `## ` section after the
