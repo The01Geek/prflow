@@ -4,6 +4,73 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.33.31] — 2026-08-19
+
+### Changed
+- **`/prflow:implement`'s acceptance-criteria gate now defines a universal criterion and gates it on a surfaces-examined ledger.** A universal criterion — one whose claim ranges over the units of a named surface rather than naming specific sites — is ticked only after a surfaces-examined ledger is recorded through the workpad `--note` path, stating per surface the units examined and a one-clause retention reason for each left unchanged; where the ledger states a size figure it uses the `prompt-surface-growth.py` byte figure, never a line count or diff stat, and a ledger that cannot be completed takes the gate's Blocked or deferral path instead of a tick. A paragraph in the fix loop's engine-resolution reference is trimmed of design narrative under the same instruction-plus-consequence prose rule, and two dense review-engine reference paragraphs are split into sub-bullets for legibility with their content unchanged. (#1790)
+
+## [2.33.30] — 2026-08-19
+
+### Added
+- **Bounded terminal-result classifier for autonomous workflow actions.** Adds
+  `scripts/terminal-result-class.sh`, a pure classifier that reconciles an autonomous
+  action's outcome into a bounded terminal class: the implement tier maps the workpad
+  status class plus job status to `complete`/`blocked`/`incomplete` (only the canonical
+  `complete`/`blocked` words map through, a cancelled job maps to `incomplete` even over a
+  stale terminal token, and every other token falls closed to `incomplete`); the review tier
+  maps the six exact `POSTED review|comment REQUEST_CHANGES|APPROVE|COMMENT` producer
+  outcomes to `verdict-posted` and everything else — including a `REACHED`-prefixed
+  compatibility wrapper — to `incomplete`; and a conclusion mode maps `complete`/`verdict-posted`
+  to `success` and the rest to `non-success`. A generated total mapping table
+  (`lib/terminal-result-table.tsv`, produced by the independent Python oracle
+  `lib/generate-terminal-result-table.py`) enumerates the closed input cross-product and is
+  cross-checked against the classifier by a focused test module, so a divergence between the two
+  implementations turns the suite red. This is the foundational slice
+  of the terminal-outcome enforcement
+  work; the guard, observer, admission-controller, bootstrap, and workflow wiring are tracked
+  in follow-up issues. (#1792)
+
+## [2.33.29] — 2026-08-19
+
+### Fixed
+- **The review engine's consumer prompt-extension load now reports its status.**
+  `scripts/load-prompt-extension.sh`, in whole-file mode, emits a
+  `load-prompt-extension.sh: PROMPT-EXTENSION-STATUS: content-present|present-empty` line on
+  stderr (reusing `scripts/render-prompt-extension.sh`'s status vocabulary), so an absent or
+  empty consumer extension is distinguishable from a harness refusal — which produces no
+  output at all — instead of being silently indistinguishable from it. The `/prflow:review`
+  and `/prflow:review-and-fix` engine ladders now report that token as the extension's
+  resolved status, and treat a total absence of the token as `unestablished`, never collapsed
+  onto `present-empty`. stdout stays byte-verbatim, so the forwarded extension text is
+  unchanged and the phase-3 reviewer's stdout-based classification is preserved by the
+  diagnostic `load-prompt-extension.sh: ` prefix. (#1793)
+
+## [2.33.28] — 2026-08-19
+
+### Added
+- **Every live run now publishes its `claude_code_version` from the execution file's `system/init` record.** `scripts/surface-execution-diagnostics.sh` reuses `lib/probe-observation.sh`'s `devflow_probe_cli_version` to read the CLI build directly in-job — no 7-day transcript artifact and no `execution_transcript_artifact_enabled` opt-in — rendering it into the diagnostics block (including the incomplete-run branch that carries an init record but no result event), publishing `claude_code_version` to `GITHUB_OUTPUT`, and emitting a `::notice::` naming the resolved version so a live run records the build it actually ran on. An absent or unreadable init record resolves to the literal `unavailable` — never an empty or zero value — and a `GITHUB_OUTPUT` write failure leaves a stderr breadcrumb rather than a silent empty output, mirroring the sibling `permission_denials_count` channel. Among the init fields only this low-sensitivity version scalar is value-published; the others stay type-only behind `scripts/extract-execution-shape.sh`'s redaction boundary, which is unchanged. (#1786)
+
+## [2.33.27] — 2026-08-19
+
+### Changed
+- **A gated reference the reader can only deliver in pages now loads instead of failing the boundary gate.** Each boundary contract gains a paged-read recovery step: it pages a partial-view / `offset`-`limit` delivery forward to the whole document, then runs the marker checks over the assembled result. A read that cannot be completed, a gap in the page sequence, and a genuinely damaged file each still take the gate's existing fail-closed or degrade outcome. (#1784)
+
+## [2.33.26] — 2026-08-19
+
+### Fixed
+- **`/prflow:implement`'s Terminal-status self-check now binds every turn boundary, not only the run's final message.** A local, interactive run could end a turn part-way through the pipeline with a progress note and wait for a human reply, because the rule was written against the run-final message and the skill defined neither term against a turn boundary. The self-check is rewritten to read the live workpad `Status` before ending any turn once the workpad exists, to name the four grounds on which a turn may end, to name their complement as forbidden, to state what governs the pre-workpad window, and to route a refused status read to a retry rather than to a stop. Where the injected engine-ground-truth block is present, its rule that ending a turn ends the process leaves no non-final ground usable, so no cloud run reads the new set as a licence to stop. (#1774)
+- **The two implement-bundle dispatch barriers that bound a dispatch to that injected block now also tell a run whose prompt carries no such block what to do**, matching the arm the Phase 2.1 and Phase 4.1 barriers already carried. (#1774)
+
+## [2.33.25] — 2026-08-19
+
+### Fixed
+- **Corrected a misleading comment in the `#1604` deferral-drafter pin block of `lib/test/run.sh`.** The block's header comment attributed the agent's write-literal and dispatch prohibitions to `lint-shipped-pruned-path.py`, which audits path/citation references in `skills/**`/`agents/**` and enforces no such thing. The comment now states the wrong change it prevents (do not relax the write-literal absence pins as redundant) and names the real runtime enforcer — the agent's `tools:` frontmatter pinned in that same block. Comment prose only; no assertion or pin changed. (#1779)
+
+## [2.33.24] — 2026-08-19
+
+### Changed
+- **Name the search-tool ranking at the codebase-search instructions in the affected skill files.** In `receiving-code-review`, `docs-sync-internal`, and the implement stranded-dependents sweep, each instruction that tells an agent to search the codebase now names the existing Grep-tool-first ranking instead of a bare "grep" (single-named-file and verification probes are left unchanged); `docs-bootstrap-internal`'s three recursive `find` pipelines are replaced with Glob-tool directives that skip dependency and build directories; and `CLAUDE.md`'s coupled-site sweep sentence now lists the three search tools in ranking order. (#1777)
+
 ## [2.33.23] — 2026-08-19
 
 ### Changed

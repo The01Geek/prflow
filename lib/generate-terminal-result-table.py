@@ -1,0 +1,187 @@
+#!/usr/bin/env python3
+# SPDX-FileCopyrightText: 2026 Daniel Radman
+# SPDX-License-Identifier: MIT
+"""Generate the terminal-result total mapping table (issue #1273).
+
+This is the checked-in, human-reviewable proof that the terminal-outcome mapping is
+TOTAL: it enumerates the FULL cross-product of the closed input vocabularies against
+the bounded terminal classes, and it is an INDEPENDENT re-implementation of the same
+closed spec that ``scripts/terminal-result-class.sh`` implements in bash. The suite
+module ``lib/test/modules/terminal-result-class.sh`` asserts the bash classifier's
+live output equals every row of this generated table, so a divergence between the two
+implementations — over the entire input space — turns the suite RED.
+
+Totality is not asserted by inspection: the implement leg emits exactly
+``len(WORKPAD_CLASSES) * len(JOB_STATUSES)`` rows and the review leg exactly
+``len(REVIEW_OUTCOMES)`` rows, and the module asserts the emitted row counts equal
+those fixed expected totals, so an input the vocabulary omits is a missing row that
+fails the count, not a silent gap.
+
+The closed vocabularies below are the shared property of the producers this mapping
+reconciles — change a producer's vocabulary and re-run this generator so its ``--check``
+re-grades the table:
+  * WORKPAD_CLASSES — scripts/workpad.py's status glyph classes, the same set
+    scripts/stall-backstop-decide.sh consumes.
+  * REVIEW_OUTCOMES — the outcome line scripts/post-review-verdict.sh emits, read back
+    by scripts/check-verdict-post-reached.sh (its six POSTED literals plus its
+    SKIP/FAILED forms), plus the reader's own NOT-REACHED / UNESTABLISHED tokens and a
+    REACHED-prefixed compatibility wrapper, all of which must map to ``incomplete``.
+
+Usage:
+    lib/generate-terminal-result-table.py            # rewrite lib/terminal-result-table.tsv
+    lib/generate-terminal-result-table.py --check    # exit 1 (with a diff) on drift; no write
+"""
+from __future__ import annotations
+
+import argparse
+import difflib
+import sys
+from pathlib import Path
+
+# The empty-string input rendered as a visible sentinel so the TSV carries no
+# genuinely-empty field (which `read` would drop); the module maps it back to "".
+EMPTY = "<empty>"
+# The unused second column for a review row.
+NA = "-"
+
+def _force_utf8_streams():
+    """Force stdout/stderr to UTF-8 on the entry path (issue #1762). Never called at
+    import — that would mutate the streams of any process importing this module for
+    tests. Tolerates a stream with no usable `reconfigure`."""
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
+TABLE_PATH = Path(__file__).resolve().parent / "terminal-result-table.tsv"
+
+# The implement-tier closed vocabularies. A placeholder unknown token stands in for
+# "any token outside the closed set" (all such tokens share one arm — incomplete).
+WORKPAD_CLASSES = (
+    "complete",
+    "blocked",
+    "failed",
+    "cancelled",
+    "terminal",
+    "interim",
+    "unreadable",
+    "auth-failure",
+    EMPTY,
+    "zzz-unknown-token",
+)
+JOB_STATUSES = ("success", "failure", "cancelled", EMPTY)
+
+# The review-tier closed vocabulary: the six verdict-posting literals, then every form
+# that must fall to incomplete.
+REVIEW_POSTED = (
+    "POSTED review REQUEST_CHANGES",
+    "POSTED review APPROVE",
+    "POSTED review COMMENT",
+    "POSTED comment REQUEST_CHANGES",
+    "POSTED comment APPROVE",
+    "POSTED comment COMMENT",
+)
+REVIEW_OUTCOMES = REVIEW_POSTED + (
+    "SKIP not-numeric",
+    "SKIP unknown-event",
+    "SKIP head-not-sha",
+    "SKIP body-file-unreadable",
+    "FAILED no-durable-channel",
+    "FAILED no-durable-channel boom: 500",
+    "NOT-REACHED",
+    "UNESTABLISHED receipt-empty",
+    "UNESTABLISHED receipt-unrecognized-outcome",
+    "REACHED POSTED review APPROVE",
+    EMPTY,
+    "zzz-unknown-token",
+)
+
+
+def implement_class(workpad_class: str, job_status: str) -> str:
+    """The implement-tier mapping — the Python oracle mirrored by the bash helper."""
+    if job_status == "cancelled":
+        return "incomplete"
+    if workpad_class == "complete":
+        return "complete"
+    if workpad_class == "blocked":
+        return "blocked"
+    return "incomplete"
+
+
+def review_class(outcome_line: str) -> str:
+    """The review-tier mapping — only the six exact POSTED literals verdict-post."""
+    if outcome_line in REVIEW_POSTED:
+        return "verdict-posted"
+    return "incomplete"
+
+
+def conclusion(terminal_class: str) -> str:
+    """The job-conclusion matrix; unknown classes fail closed to non-success."""
+    if terminal_class in ("complete", "verdict-posted"):
+        return "success"
+    return "non-success"
+
+
+def _decode(cell: str) -> str:
+    """Map the visible empty sentinel back to the real empty string."""
+    return "" if cell == EMPTY else cell
+
+
+def render() -> str:
+    lines = [
+        "# terminal-result total mapping table (issue #1273) — GENERATED by "
+        "lib/generate-terminal-result-table.py; do not hand-edit.",
+        "# columns: tier<TAB>arg1<TAB>arg2<TAB>terminal_class<TAB>conclusion "
+        f"(arg1/arg2 sentinel {EMPTY} = empty string; review arg2 {NA} = n/a).",
+    ]
+    for cls in WORKPAD_CLASSES:
+        for job in JOB_STATUSES:
+            tc = implement_class(_decode(cls), _decode(job))
+            lines.append("\t".join(("implement", cls, job, tc, conclusion(tc))))
+    for line in REVIEW_OUTCOMES:
+        tc = review_class(_decode(line))
+        lines.append("\t".join(("review", line, NA, tc, conclusion(tc))))
+    return "\n".join(lines) + "\n"
+
+
+def main(argv: list[str]) -> int:
+    _force_utf8_streams()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="verify the checked-in table matches (exit 1 + diff on drift); write nothing",
+    )
+    args = parser.parse_args(argv)
+
+    generated = render()
+    if args.check:
+        try:
+            current = TABLE_PATH.read_text(encoding="utf-8")
+        except OSError as exc:
+            print(f"terminal-result-table: cannot read {TABLE_PATH}: {exc}", file=sys.stderr)
+            return 1
+        if current != generated:
+            diff = difflib.unified_diff(
+                current.splitlines(keepends=True),
+                generated.splitlines(keepends=True),
+                fromfile=f"{TABLE_PATH.name} (checked-in)",
+                tofile=f"{TABLE_PATH.name} (regenerated)",
+            )
+            sys.stderr.writelines(diff)
+            print(
+                "terminal-result-table: DRIFT — regenerate with "
+                "`python3 lib/generate-terminal-result-table.py`",
+                file=sys.stderr,
+            )
+            return 1
+        return 0
+
+    TABLE_PATH.write_text(generated, encoding="utf-8")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))
