@@ -1,16 +1,10 @@
 name: PRFlow Stall Observer
 
-# Out-of-band, REPORT-ONLY in-flight stall observer (issue #1027). The in-job stall
-# backstop (devflow-implement.yml's trailing step) runs only AFTER the agent step
-# returns, so it is structurally incapable of observing a run that is still going.
-# This scheduled job is the out-of-band half: it reads each open PRFlow issue's
-# workpad **Last updated:** time against an ADVISORY staleness threshold and surfaces
-# "silent for N minutes; last checkpoint X" as a job annotation + step summary. It
-# NEVER kills a run and NEVER re-dispatches one — so it cannot race the backstop's
-# `resume` arm. The threshold is advisory-only and conservative by default (issue #1027
-# and the changeset carry the data). Plugin-internal: install.sh does not ship this file
-# to consumers, so it runs on this repo's own GitHub-hosted infra with a hardcoded runner
-# (issue #582 group 3).
+# Out-of-band, REPORT-ONLY in-flight stall observer (issue #1027): a scheduled job that reads
+# each open PRFlow issue's workpad staleness and surfaces long-silent in-flight runs as
+# annotations + a step summary. It NEVER kills or re-dispatches a run (so it cannot race the
+# in-job backstop's resume arm) — issue #1027 and the changeset carry the rationale and data.
+# Plugin-internal: install.sh does not ship it, so it runs on hardcoded infra (issue #582 group 3).
 
 on:
   schedule:
@@ -21,6 +15,11 @@ on:
 defaults:
   run:
     shell: bash
+
+# Overlapping ticks would only duplicate advisory annotations, so serialize without cancelling.
+concurrency:
+  group: stall-observer
+  cancel-in-progress: false
 
 # Read-only: it lists issues and reads workpad comments, and reports via annotations
 # + the step summary. It writes nothing to any issue, PR, or branch.
@@ -117,6 +116,11 @@ jobs:
               echo "::warning::PRFlow implement run on issue #${n} may be stalled: ${MSG}"
               echo "- issue #${n} — ${MSG}" >> "$GITHUB_STEP_SUMMARY"
               FLAGGED=$((FLAGGED + 1))
+            elif [ "$TOKEN" = "unreadable" ]; then
+              # An interim workpad the helper cannot read for staleness is itself a possible
+              # stall symptom, so surface it rather than dropping it as "nothing to report".
+              echo "::warning::stall-observer: issue #${n} is in-flight but its workpad could not be read for staleness ($(echo "$DEC" | jq -r '.message'))"
+              SKIPPED=$((SKIPPED + 1))
             fi
           done
           if [ "$FLAGGED" -eq 0 ]; then
