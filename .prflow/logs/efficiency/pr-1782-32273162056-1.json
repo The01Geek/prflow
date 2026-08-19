@@ -113,5 +113,74 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.30",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 36.999530850000006,
+    "tokens": {
+      "input_tokens": 196,
+      "output_tokens": 96149,
+      "cache_read_input_tokens": 33963474,
+      "cache_creation_input_tokens": 525094,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 399,
+        "outputTokens": 155780,
+        "cacheReadInputTokens": 39464902,
+        "cacheCreationInputTokens": 1318112,
+        "webSearchRequests": 0,
+        "costUSD": 33.83624850000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 120,
+        "outputTokens": 18157,
+        "cacheReadInputTokens": 2507037,
+        "cacheCreationInputTokens": 570255,
+        "webSearchRequests": 0,
+        "costUSD": 3.163282349999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 156,
+    "duration_ms": 3099947
+  },
+  "permission_denials": {
+    "count": 9,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=$GITHUB_RUN_ID ATTEMPT=$GITHUB_RUN_ATTEMPT SERVER=$GITHUB_SERVER_URL REPO=$GITHUB_REPOSITORY ACTIONS=$GITHUB_ACTIONS APP_ID=$DEVFLOW_APP_ID\"",
+      "git log --oneline origin/main..HEAD; echo \"===MERGEBASE-BEHIND===\"; git rev-list --count HEAD..origin/main; echo \"===DIFFSTAT vs merge-base===\"; git diff --stat $(git merge-base HEAD origin/main)..HEAD",
+      ".prflow/vendor/prflow/scripts/update-branch-checkpoint.sh 2>&1 | tail -30; echo \"EXIT=${PIPESTATUS[0]}\"",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/load-prompt-extension.sh docs; echo \"---RC:$?---\"; /home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/config-get.sh .docs.internal_enabled true; /home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/config-get.sh .docs.external_enabled true",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/load-prompt-extension.sh docs; echo \"---RC:$?---\"",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/load-prompt-extension.sh docs",
+      "scripts/prompt-surface-growth.py 2>&1 | head -40",
+      "scripts/prompt-surface-growth.py",
+      "WID=$(python3 scripts/workpad.py id 1771 2>/dev/null || true); echo \"WID=$WID\"; PR=1782; ls -la .prflow/tmp/review/pr-$PR/deferrals.json 2>&1 | head"
+    ],
+    "total": 9,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
