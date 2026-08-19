@@ -1646,6 +1646,27 @@ class AbsPathHostAbsoluteWidening(unittest.TestCase):
                 once = rap._abs_path(value, pathmod)
                 self.assertEqual(rap._abs_path(once, pathmod), once)
 
+    def test_is_bound_path_composed_under_injected_module(self):
+        # The runtime gate the Windows fix actually unblocks is issue-audit-state.py's
+        # _is_bound_path (host-absolute AND no embedded newline/CR), not the extracted
+        # _host_abs_path alone. Exercise the composed predicate under an injected module.
+        import ntpath
+        import posixpath
+        _, ias = self._mods()
+        # Accepted: a Windows drive-letter path in either spelling, on ntpath.
+        self.assertTrue(ias._is_bound_path("C:\\Users\\x\\f.md", ntpath))
+        self.assertTrue(ias._is_bound_path("C:/Users/x/f.md", ntpath))
+        # Accepted: a POSIX absolute path on posixpath.
+        self.assertTrue(ias._is_bound_path("/Users/x/f.md", posixpath))
+        # Refused through the wrapper: a drive-absolute path carrying an embedded newline
+        # (the wrapper's own \n/\r guard fires even though _host_abs_path says absolute).
+        self.assertFalse(ias._is_bound_path("C:\\a\nb.md", ntpath))
+        # Refused: rooted-no-drive, drive-relative, empty, and a POSIX-relative drive path.
+        self.assertFalse(ias._is_bound_path("\\Users\\x\\f.md", ntpath))
+        self.assertFalse(ias._is_bound_path("C:foo", ntpath))
+        self.assertFalse(ias._is_bound_path("", ntpath))
+        self.assertFalse(ias._is_bound_path("C:/Users/x/f.md", posixpath))
+
     def test_agrees_with_state_owner_host_absolute_test(self):
         # AC #15: the absolute-path test render applies and the one issue-audit-state
         # applies agree on every input on every supported host (path module).
