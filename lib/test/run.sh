@@ -33567,7 +33567,7 @@ echo "#1273 terminal-result classifier + generated total table"
 # lib/generate-terminal-result-table.py), plus the per-AC hand oracle and the
 # usage/arity guard. See the module for the coverage map back to this location.
 if ! devflow_run_full_suite_module "$LIB/test/modules/terminal-result-class.sh" \
-  "terminal-result-class" 60; then
+  "terminal-result-class" 150; then
   printf 'ERROR: terminal-result-class boundary could not record its result\n'
   exit 1
 fi

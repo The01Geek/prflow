@@ -44,6 +44,17 @@ EMPTY = "<empty>"
 # The unused second column for a review row.
 NA = "-"
 
+def _force_utf8_streams():
+    """Force stdout/stderr to UTF-8 on the entry path (issue #1762). Never called at
+    import — that would mutate the streams of any process importing this module for
+    tests. Tolerates a stream with no usable `reconfigure`."""
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 TABLE_PATH = Path(__file__).resolve().parent / "terminal-result-table.tsv"
 
 # The implement-tier closed vocabularies. A placeholder unknown token stands in for
@@ -136,6 +147,7 @@ def render() -> str:
 
 
 def main(argv: list[str]) -> int:
+    _force_utf8_streams()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--check",
