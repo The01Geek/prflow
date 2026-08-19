@@ -4510,19 +4510,17 @@ rm -rf "$_f1_skilldir"
 # Status, un-described draft PR). Coupled to the skill clause: removing it turns the suite
 # RED. Presence is checked via assert_pin_unique (exactly once).
 # (P4_FILE is the shared phase-file path hoisted next to IMPL_PHASES_DIR above.)
-# Issue #1768 retired this family's SKILL.md terminal-status-self-check wording pins under
-# CLAUDE.md's prose-pin policy for issues #843/#876 — that prose is agent-executed and read
-# only by the runtime agent, so the review pass is its control and no pin replaces them.
-# phase-4-documentation.md Phase 4.1 post-subagent re-anchor scope. Issue #362
-#     reworded the scope clause from
-#     "the Phase 4.1 docs subagent return only" to "**subagent** returns", because a
-#     Skill-tool return is now covered by the orchestrator's generalized mid-phase
-#     re-anchor instead. Issue #1577 added a SECOND subagent-return re-anchor (§4.2's
-#     PR-description subagent, before §4.3); that note is worded "fires on a
-#     **subagent** return only" so this grandfathered, adjudicated literal stays
-#     unique to the §4.1 note (per CLAUDE.md #843/#876 the §4.2 re-anchor is
-#     agent-executed prompt prose that owes no new prose pin — the review pass is its
-#     control).
+# Do not add a wording pin here over the SKILL.md terminal-status self-check: issue #1768
+# retired that family under CLAUDE.md's prose-pin policy (#843/#876), and a replacement
+# would re-freeze the wording that criterion exists to have released.
+# phase-4-documentation.md Phase 4.1 post-subagent re-anchor scope. Issue #362 reworded the
+# scope clause from "the Phase 4.1 docs subagent return only" to "**subagent** returns",
+# because a Skill-tool return is now covered by the orchestrator's generalized mid-phase
+# re-anchor instead. Issue #1577 added a SECOND subagent-return re-anchor (§4.2's
+# PR-description subagent, before §4.3); that note is worded "fires on a **subagent** return
+# only" so this grandfathered, adjudicated literal stays unique to the §4.1 note (per
+# CLAUDE.md #843/#876 the §4.2 re-anchor is agent-executed prompt prose that owes no new
+# prose pin — the review pass is its control).
 assert_pin_unique "#232/#362: phase-4 re-anchor scoped to **subagent** returns (AC4, reworded)" \
   'scoped to **subagent** returns' "$P4_FILE"
 # review iter-1 (silent-failure-hunter F2): the Phase 4.1 re-anchor TRIGGER is repeated in
@@ -4651,11 +4649,9 @@ assert_pin_unique "#366: SKILL carve-out is widened to cover the issue's own ACs
   'whether by a Phase-3 review finding **or by the issue' "$IMPL_ORCH"
 assert_pin_unique "#366: CLAUDE.md carve-out bullet carries the same AC4 widening arm (coupled)" \
   'whether by a Phase-3 review finding **or by the issue' "$LIB/../CLAUDE.md"
-# (d) The terminal-status self-check's own wording carries no pin. Issue #1768 retired the
-# status-read and stall-backstop-citation pins that stood here, under CLAUDE.md's prose-pin
-# policy for issues #843/#876: the self-check is agent-executed prompt prose whose only
-# reader is the runtime agent, so the review pass is its compensating control. Do not
-# reintroduce a wording pin over it — the criterion that retired these forbids one.
+# (d) Do not reintroduce a wording pin over the SKILL.md terminal-status self-check: issue
+# #1768 retired the status-read and stall-backstop-citation pins that stood here, and a
+# replacement re-freezes wording that criterion released (CLAUDE.md prose-pin policy).
 # ── issue #254: Phase 4.0.5 deferrals-manifest discovery must search BOTH the pr-<N>
 # slug dir and the sanitized-current-branch slug dir — a current-branch-mode
 # /devflow:review-and-fix run writes its manifest under the branch slug, so a
