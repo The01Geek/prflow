@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: 2026 Daniel Radman
 # SPDX-License-Identifier: MIT
-"""Render the /prflow:implement draft-PR provenance line on stdout.
+"""Render a PRFlow provenance line on stdout, in Markdown italics.
 
-The line names the plugin build that executed the run, and — when they can be
-established and the consumer has not switched the clause off — the session model
-and reasoning effort:
+The line names the command it was run for (the required ``--command`` argument) and the
+plugin build that executed the run, and — when they can be established and the consumer
+has not switched the clause off — the session model and reasoning effort:
 
-    Generated via /prflow:implement (v2.32.70, claude-opus-5, high)
-    Generated via /prflow:implement (v2.32.70)
+    _Generated via /prflow:implement (v2.32.70, claude-opus-5, high)_
+    _Generated via /prflow:create-issue (v2.32.70)_
 
-Three values, three sources, each read soft:
+The command name is supplied by the caller, so one renderer serves every command; both
+``/prflow:implement`` and ``/prflow:create-issue`` paste the finished italic line verbatim.
+
+Three value-sources besides the command, each read soft:
 
 * **version** — ``.version`` of the plugin manifest resolved *beside this helper*
   (``../.claude-plugin/plugin.json``), mirroring ``lib/efficiency-trace.sh``. It is
@@ -27,8 +30,12 @@ An unestablished value is omitted rather than guessed, and a stderr breadcrumb n
 it and why, so a short line reports its own reason. The line carries no backtick or
 other shell-active construct — the caller substitutes it into a double-quoted ``--body``,
 so every value is dropped (omitted + breadcrumbed) if it carries one, enforcing the
-guarantee by construction rather than trusting the source. The helper always exits 0: an
-unreadable source shortens the line, it never fails the caller's fence.
+guarantee by construction rather than trusting the source — and the ``--command`` value
+flows through that same guard, so a shell-active command drops the whole line (nothing on
+stdout, a breadcrumb on stderr) rather than shipping. The helper exits 0 in every case
+except a missing required ``--command`` argument, which is an argparse usage error (usage
+to stderr, nothing to stdout, a non-zero exit): an unreadable source shortens the line, it
+never fails the caller's fence.
 """
 from __future__ import annotations
 
@@ -43,8 +50,8 @@ from pathlib import Path
 #: The plugin manifest, resolved beside this file (mirroring lib/efficiency-trace.sh).
 _MANIFEST_BESIDE_HELPER = Path(__file__).resolve().parent.parent / ".claude-plugin" / "plugin.json"
 
-#: The prflow_implement config key gating the model+effort clause (raw JSON false suppresses).
-_CONFIG_SECTION = "prflow_implement"
+#: The prflow config key gating the model+effort clause (raw JSON false suppresses).
+_CONFIG_SECTION = "prflow"
 _CONFIG_KEY = "publish_model_effort"
 
 #: Characters that would make a value shell-active once substituted into the caller's
@@ -243,9 +250,15 @@ def model_effort_permitted(explicit_config: str | None) -> bool:
     return True
 
 
-def render_line(*, explicit_config: str | None = None) -> str:
-    """Compose the provenance line. Established values are named in order (version,
-    model, effort); an empty set yields no parenthetical at all — never empty punctuation."""
+def render_line(*, command: str, explicit_config: str | None = None) -> str | None:
+    """Compose the italic provenance line for ``command``. Established values are named in
+    order (version, model, effort); an empty set yields no parenthetical at all — never
+    empty punctuation. Returns None (nothing to print) when the command itself is blank or
+    carries a shell-active/control character, so a dropped command emits no line rather than
+    a line with an empty command name."""
+    command_clean = _shell_inert("command", command)
+    if command_clean is None:
+        return None
     version = _shell_inert("version", read_version())
     if model_effort_permitted(explicit_config):
         model = _shell_inert("model", read_model())
@@ -255,10 +268,9 @@ def render_line(*, explicit_config: str | None = None) -> str:
         model = None
         effort = None
     values = [v for v in (f"v{version}" if version else None, model, effort) if v]
-    base = "Generated via /prflow:implement"
-    if values:
-        return f"{base} ({', '.join(values)})"
-    return base
+    base = f"Generated via {command_clean}"
+    inner = f"{base} ({', '.join(values)})" if values else base
+    return f"_{inner}_"
 
 
 def _force_utf8_streams():
@@ -276,13 +288,23 @@ def main(argv: list[str] | None = None) -> int:
     _force_utf8_streams()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
+        "--command",
+        required=True,
+        help="The command name to name in the line (e.g. /prflow:implement or "
+        "/prflow:create-issue). Required: a missing value is an argparse usage error "
+        "(usage to stderr, nothing to stdout, non-zero exit). A value carrying a "
+        "shell-active or control character drops the whole line (nothing to stdout, exit 0).",
+    )
+    parser.add_argument(
         "--config",
         default=None,
         help="Explicit config file to read the gating key from (default: the working-tree "
         ".prflow/config.json under the repo root). A non-empty value is honored verbatim.",
     )
     args = parser.parse_args(argv)
-    print(render_line(explicit_config=args.config))
+    line = render_line(command=args.command, explicit_config=args.config)
+    if line is not None:
+        print(line)
     return 0
 
 
