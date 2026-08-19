@@ -38,7 +38,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          ENABLED=$(echo "$CONFIG_JSON" | jq -r '.workflows.prflow // false')
+          # Guard the config parse: a failing command-substitution in an assignment does NOT trip
+          # set -e, so a malformed CONFIG_JSON would leave ENABLED empty and misreport as "disabled".
+          if ! ENABLED=$(echo "$CONFIG_JSON" | jq -r '.workflows.prflow // false'); then
+            echo "::warning::stall-observer: could not parse project config (jq failed); this scan did not run"
+            echo "Scan could not run: project config unreadable — NOT a clean 'disabled' result." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           # Bare extraction, never `// true`/`// 90`: jq's `//` treats a real JSON `false`/`0` as
           # null and returns the default, silently coercing enabled=false / threshold=0 to their
           # truthy default (the #312 off-switch trap). null (absent) is defaulted below in shell.

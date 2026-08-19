@@ -34156,9 +34156,9 @@ assert_eq("#1027 parse: un-glyphed status word classifies via _WORD_CLASS", "int
 # Cross-file coupling: the workflow's TOKEN comparison literal must be a real DECISION_TOKENS
 # member, or a rename on either side silently makes the workflow match nothing (fail-open).
 _wf1027 = (SCRIPTS.parent / ".github" / "workflows" / "stall-observer.yml").read_text(encoding="utf-8")
-_wftok1027 = re.search(r'\[ "\$TOKEN" = "([^"]+)" \]', _wf1027)
-assert_eq("#1027 coupling: workflow TOKEN comparison uses a real DECISION_TOKENS member", True,
-          _wftok1027 is not None and _wftok1027.group(1) in stall_observer.DECISION_TOKENS)
+_wftok1027 = re.findall(r'\[ "\$TOKEN" = "([^"]+)" \]', _wf1027)
+assert_eq("#1027 coupling: every workflow TOKEN comparison uses a real DECISION_TOKENS member", True,
+          len(_wftok1027) >= 2 and all(t in stall_observer.DECISION_TOKENS for t in _wftok1027))
 
 # Exact-threshold boundary: minutes == threshold is stale-advisory (decide uses `minutes < threshold`).
 _bnd1027 = _dt1027(2026, 8, 19, 8, 58, tzinfo=_tz1027.utc)  # exactly 90 min after 07:28
