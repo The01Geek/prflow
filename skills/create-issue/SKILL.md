@@ -175,27 +175,18 @@ Both arms dispatch rather than run inline; no git history is read.
 
 Legs disjoint by construction: the internal-documentation location, and the tracked tree
 minus that location's subtree — never an assertion they are already disjoint. Resolve that
-location by reading the `.docs.internal` key of `.prflow/config.json` through the bundled resolver,
-which prints the default `docs/internal/` when the key is missing:
+location — `.docs.internal` is a config key, not a path — with
 `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .docs.internal docs/internal/`.
-`.docs.internal` is that config key path, not a filename — read as a file it is absent, and that
-misreading is exactly the established absence a failed resolution may never report. When the resolver
-yields no usable location — it exits non-zero, or exits zero having printed nothing, or prints a value
-that is not a path — exactly these three outcomes, complete by construction — record the documentation leg
-unestablished, never an established absence, because you have established nothing about the location.
-Judge that third outcome on the text printed, not on the config shape behind it: a JSON object always
-prints `[object Object]`, while a list or a non-string scalar prints coerced text that may itself be
-path-shaped. When the resolver cannot be run at all — nothing executed, the invocation having been
-refused or the helper being absent, as distinct from an invocation that ran and exited non-zero — use
-the default `docs/internal/`, say in your output that the location was assumed rather than resolved,
-and record the leg unestablished when that directory holds no tracked files.
-Both enumerate from the index, and each reaches its peer inside the docs-verify invocation the
-dispatching run composes for that peer — as that invocation's `--search-space <pathspec>` operand,
-never as dispatch-prompt prose its own contract overrides. The duty floor, not the space's size,
-bounds each peer.
+A resolution that exits non-zero, prints nothing, or prints a non-path records the documentation
+leg unestablished, never an established absence. A resolver that never ran — refused or absent —
+assumes `docs/internal/`, says so in your output, and records the leg unestablished when that
+directory holds no tracked files.
+Both enumerate from the index, and each reaches its peer as its docs-verify invocation's
+`--search-space <pathspec>` operand, never as dispatch-prompt prose its own contract overrides.
+The duty floor, not the space's size, bounds each peer.
 
-The orchestrator reconciles both returns. Once a location is in hand the existing rules are unchanged:
-an empty documentation leg is an established absence only when the location itself is absent.
+The orchestrator reconciles both returns. An empty documentation leg is an established absence only
+when the location itself is absent.
 Record unestablished when the location exists and the read fails, and equally when it exists and
 reads cleanly yet holds no git-index entries (an absolute path, a parent escape, a symlink, an
 untracked docs tree — the schema forbids none), so claim no documentation coverage rather than a
