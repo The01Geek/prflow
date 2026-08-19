@@ -101,5 +101,83 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.15",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 63.53291289999997,
+    "tokens": {
+      "input_tokens": 328,
+      "output_tokens": 208311,
+      "cache_read_input_tokens": 71544523,
+      "cache_creation_input_tokens": 725532,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 504,
+        "outputTokens": 268114,
+        "cacheReadInputTokens": 75654257,
+        "cacheCreationInputTokens": 1809878,
+        "webSearchRequests": 0,
+        "costUSD": 58.564980999999975,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 176,
+        "outputTokens": 33051,
+        "cacheReadInputTokens": 3877388,
+        "cacheCreationInputTokens": 882246,
+        "webSearchRequests": 0,
+        "costUSD": 4.967931900000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 264,
+    "duration_ms": 4847313
+  },
+  "permission_denials": {
+    "count": 18,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      ".prflow/vendor/prflow/scripts/workpad.py id 1761; echo \"RUN_ID=$GITHUB_RUN_ID ATTEMPT=$GITHUB_RUN_ATTEMPT SERVER=$GITHUB_SERVER_URL REPO=$GITHUB_REPOSITORY\"",
+      "BASE=$(.prflow/vendor/prflow/scripts/config-get.sh .base_branch main) || BASE=\"\"\n[ -n \"$BASE\" ] || BASE=main\nCUR=$(git branch --show-current 2>/dev/null) || CUR=\"\"\necho \"BASE=$BASE CUR=$CUR\"",
+      "mkdir -p .prflow/tmp\nprintf '%s' \"Name the resolver for .docs.internal in create-issue Step 1, and say what a failed resolution establishes\" > .prflow/tmp/devflow-issue-1761-title.txt\ngit fetch origin \"+refs/heads/main:refs/remotes/origin/main\"\necho \"FETCH_RC=$?\"",
+      "CURBR=$(git branch --show-current)\n.prflow/vendor/prflow/scripts/workpad.py update 1761 --branch \"$CURBR\"",
+      "wc -c skills/create-issue/SKILL.md && lib/test/lint-reference-size.py --print-threshold 2>&1 | tail -5",
+      "lib/test/lint-reference-size.py --print-threshold",
+      "\\\n.prflow/vendor/prflow/scripts/workpad.py update 1761 --note \"issue-claim audit (projection): every Desired Behavior obligation is represented in the resolved acceptance criteria — pass complete\" && \\\n.prflow/vendor/prflow/scripts/workpad.py update 1761 --note \"issue-claim audit (count): claimed 'skills/create-issue/SKILL.md measured 29,202 bytes', verified '29202' at HEAD\" && \\\n.prflow/vendor/prflow/scripts/workpad.py update 1761 --note \"issue-claim audit (negative-scope): issue excluded 'work …[per-command-truncated]",
+      "./scripts/config-get.sh docs.internal 2>&1; echo \"---rc=$?---\"",
+      "for shape in healthy empty missing malformed object list scalar; do\n  out=$(.prflow/vendor/prflow/scripts/config-get.sh .docs.internal docs/internal/ \".prflow/tmp/cfg-$shape.json\" 2>&1); rc=$?\n  printf '%-9s rc=%s out=[%s]\\n' \"$shape\" \"$rc\" \"$out\"\ndone\necho \"--- absent config file ---\"\nout=$(.prflow/vendor/prflow/scripts/config-get.sh .docs.internal docs/internal/ \".prflow/tmp/cfg-DOES-NOT-EXIST.json\" 2>&1); rc=$?\nprintf '%-9s rc=%s out=[%s]\\n' \"absentfile\" \"$rc\" \"$out\"",
+      "python3 -c \"import os; print('size', os.path.getsize('skills/create-issue/SKILL.md'))\"; lib/test/lint-reference-size.py --print-threshold 2>&1 | tail -3",
+      "git diff --no-index -U0 /dev/null .changeset/issue-1761-name-docs-internal-resolver-create-issue-step-1.md | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree; echo \"__done\"",
+      "git diff --no-index -U0 /dev/null .changeset/issue-1761-name-docs-internal-resolver-create-issue-step-1.md | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree",
+      "python3 -c \"import os; print(os.path.getsize('skills/create-issue/SKILL.md'))\"; lib/test/lint-reference-size.py --print-threshold 2>&1 | head -20",
+      "lib/test/lint-reference-size.py --print-threshold",
+      "wc -c /home/runner/work/prflow/prflow/skills/create-issue/SKILL.md; git -C /home/runner/work/prflow/prflow log --oneline -1",
+      "grep -rn \"resolved from \\`.docs.internal\\`\\|location resolved from\\|missing or unreadable internal-doc\" lib/test/ skills/ docs/ 2>/dev/null | head; echo \"===\"; git -C /home/runner/work/prflow/prflow log --oneline -1 2a11f779d91e96911a54dcf5ddcb1d3d0c586afa 2>/dev/null | head",
+      "scripts/prompt-surface-growth.py 2>&1",
+      "rm -f \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.prflow/tmp/implement-active-1761\" || true; rm -f \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.prflow/tmp/issue-body/issue-1761.md\" || true; echo \"markers-removed\""
+    ],
+    "total": 18,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
