@@ -63,7 +63,7 @@
     },
     "prompt-extension-reader": {
       "path": "lib/test/modules/prompt-extension-reader.sh",
-      "minimum_assertions": 158,
+      "minimum_assertions": 177,
       "assertion_floor_policy": "exact",
       "description": "Focused load-prompt-extension.sh consumer prompt-extension reader contract: the present/absent/empty extension arms, skill-name validation and the path-traversal refusal, unreadable/symlinked/locked fixture arms, the --section selector including its interaction with the pre-existing name guards, and the DEVFLOW_PROMPT_EXTENSION_ROOT trusted-root override — its presence-state matrix, its containment under the pre-existing name guards, and the branch-scoped stderr breadcrumb; plus the #1264 render-time injection wrapper scripts/render-prompt-extension.sh — its four input shapes (present-with-content, present-but-empty, absent, present-but-unreadable), the exact three-token status vocabulary, the neutralization of the loader's exit 2 on both its argument-validation and undeliverable families, the absent-trusted-closure arm that must not read as empty, the single-line collapse of the unestablished reason, and the unlocatable-sibling-loader arm — the one unestablished cause no loader exit status can report — with its positive control"
     },
@@ -96,6 +96,11 @@
       "minimum_assertions": 261,
       "assertion_floor_policy": "exact",
       "description": "Focused drivers for scripts/issue-audit-state.py, the create-issue Step 3.6 audit-lifecycle state owner: the restricted-PATH CLI round trip and its #889 quoted-draft-line findings, the #603 digest filter-mode rows and the stale pre-cutover event log, the query exit contract, re-init/force and foreign-nonce rows, the embed-arm emitter, creation binding, override attestation and preconditions, the next-action and user-round budgets, illegal transitions, shadow and convergence rounds, the iteration-3/4/5/6 hardening, variance and seam rows, the retry-arm deadlock matrix, the #562 draft-binding CLI rows and the #569 write-path cross-check"
+    },
+    "terminal-result-class": {
+      "path": "lib/test/modules/terminal-result-class.sh",
+      "minimum_assertions": 150,
+      "description": "Focused #1273 terminal-result classifier: scripts/terminal-result-class.sh driven over every row of the generated total table lib/terminal-result-table.tsv (the independent Python oracle in lib/generate-terminal-result-table.py), asserting the bash classifier's class and the conclusion mapping match each row and re-deriving the totality row counts (10 workpad classes x 4 job statuses; 18-entry review vocabulary) so a shrunk vocabulary is a missing row; plus a per-acceptance-criterion hand oracle (canonical-only complete/blocked, every other workpad token -> incomplete, job-cancellation over a stale complete token -> incomplete, the interim state a green is_error:false run leaves -> incomplete, the six exact POSTED literals -> verdict-posted while every SKIP/FAILED/blank/unknown/NOT-REACHED/UNESTABLISHED/REACHED-prefixed form -> incomplete, and the success/non-success conclusion matrix with its fail-closed default) and the usage/arity guard"
     }
   },
   "workflows": {

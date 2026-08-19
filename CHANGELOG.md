@@ -4,6 +4,42 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.33.30] — 2026-08-19
+
+### Added
+- **Bounded terminal-result classifier for autonomous workflow actions.** Adds
+  `scripts/terminal-result-class.sh`, a pure classifier that reconciles an autonomous
+  action's outcome into a bounded terminal class: the implement tier maps the workpad
+  status class plus job status to `complete`/`blocked`/`incomplete` (only the canonical
+  `complete`/`blocked` words map through, a cancelled job maps to `incomplete` even over a
+  stale terminal token, and every other token falls closed to `incomplete`); the review tier
+  maps the six exact `POSTED review|comment REQUEST_CHANGES|APPROVE|COMMENT` producer
+  outcomes to `verdict-posted` and everything else — including a `REACHED`-prefixed
+  compatibility wrapper — to `incomplete`; and a conclusion mode maps `complete`/`verdict-posted`
+  to `success` and the rest to `non-success`. A generated total mapping table
+  (`lib/terminal-result-table.tsv`, produced by the independent Python oracle
+  `lib/generate-terminal-result-table.py`) enumerates the closed input cross-product and is
+  cross-checked against the classifier by a focused test module, so a divergence between the two
+  implementations turns the suite red. This is the foundational slice
+  of the terminal-outcome enforcement
+  work; the guard, observer, admission-controller, bootstrap, and workflow wiring are tracked
+  in follow-up issues. (#1792)
+
+## [2.33.29] — 2026-08-19
+
+### Fixed
+- **The review engine's consumer prompt-extension load now reports its status.**
+  `scripts/load-prompt-extension.sh`, in whole-file mode, emits a
+  `load-prompt-extension.sh: PROMPT-EXTENSION-STATUS: content-present|present-empty` line on
+  stderr (reusing `scripts/render-prompt-extension.sh`'s status vocabulary), so an absent or
+  empty consumer extension is distinguishable from a harness refusal — which produces no
+  output at all — instead of being silently indistinguishable from it. The `/prflow:review`
+  and `/prflow:review-and-fix` engine ladders now report that token as the extension's
+  resolved status, and treat a total absence of the token as `unestablished`, never collapsed
+  onto `present-empty`. stdout stays byte-verbatim, so the forwarded extension text is
+  unchanged and the phase-3 reviewer's stdout-based classification is preserved by the
+  diagnostic `load-prompt-extension.sh: ` prefix. (#1793)
+
 ## [2.33.28] — 2026-08-19
 
 ### Added
