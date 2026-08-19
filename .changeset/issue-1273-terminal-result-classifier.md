@@ -15,8 +15,8 @@ type: Added
   to `success` and the rest to `non-success`. A generated total mapping table
   (`lib/terminal-result-table.tsv`, produced by the independent Python oracle
   `lib/generate-terminal-result-table.py`) enumerates the closed input cross-product and is
-  cross-checked against the classifier by a focused test module over every generated row, so a
-  divergence between the two implementations turns the suite red. This is the foundational slice
+  cross-checked against the classifier by a focused test module, so a divergence between the two
+  implementations turns the suite red. This is the foundational slice
   of the terminal-outcome enforcement
   work; the guard, observer, admission-controller, bootstrap, and workflow wiring are tracked
   in follow-up issues. (#1792)
