@@ -1,0 +1,104 @@
+{
+  "iter": 1,
+  "fix_commit_sha": "116e7de75ac1e174fad783f3202f683a4b466ead",
+  "fix_files": [
+    "lib/generate-terminal-result-table.py",
+    "lib/test/modules/terminal-result-class.sh"
+  ],
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "detect_all_audit": true,
+    "checklist_skipped": null
+  },
+  "checklist_summary": {
+    "total": 17,
+    "passed": 17,
+    "failed": 0,
+    "inconclusive": 0
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "trailing-CR trim untested",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "generator docstring 're-derives products' overstates",
+      "fix_decision": "applied"
+    }
+  ],
+  "iteration2_verdict": "APPROVE (clean; only below-threshold Suggestion S1 CR-trim-review-only asymmetry, advisory)",
+  "shadow": {
+    "ran_at": "2026-08-19",
+    "reviewed_sha": "116e7de75ac1e174fad783f3202f683a4b466ead",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Suggestion",
+        "description": "job 'failure' asymmetry: only cancelled short-circuits; job failure over a canonical complete workpad word -> complete -> success. SPEC-FAITHFUL: the issue's total mapping special-cases only job cancellation ('Job cancellation maps to incomplete'); workpad complete -> complete is the issue's own row. Not a defect; a header-clarity suggestion.",
+        "kind": "logic_error"
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Suggestion",
+        "description": "conclusion-arity/too-many-operands/suffix-exactness/exit-0/multi-trailing-ws test gaps (below threshold)",
+        "kind": "test_gap"
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "severity": "Suggestion",
+        "description": "producer-vocabulary coupling not pinned by a cross-file test (deferred producer wiring per PR scope)",
+        "kind": "test_gap"
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 8,
+      "overlap_with_iter_N": 7,
+      "new": 1,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "park_calibration": {
+    "evidence_comparisons": [],
+    "sentinel": "park-calibration gate clean: no parked finding matched (all parked Suggestions were re-raised at or below their parked severity; none matched a fail-open-guard / overclaiming-breadcrumb / unhonorable-deferral mis-grade shape)"
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
