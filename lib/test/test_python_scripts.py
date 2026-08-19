@@ -23773,6 +23773,146 @@ assert_eq("#815 --mark-deferred-filed takes a value (it is not a bare flag)",
 assert_eq("#815 deferred-presence is registered as a subcommand",
           True, 'deferred-presence' in _dp_help(['--help']))
 
+# ── #1513 workpad.py `deferred-reflection-audit`: is every deferred reflection backed? ──
+# A `--reflection-kind deferred` bullet renders under `### ⚠️ Action required` and reads
+# as a tracked deferral, but nothing files a reflection — the two channels that file a
+# follow-up issue are the scope-decision-deferred records and the review-and-fix
+# manifest. This backstop makes an UNBACKED deferred reflection detectable at Phase 4.0.6
+# instead of silently passing completion. Every row is a routing decision that fence reads.
+print()
+print("#1513 workpad deferred-reflection-audit backstop")
+
+_DRA_GLYPH, _DRA_LABEL, _DRA_SUB = workpad._REFLECTION_KINDS['deferred']
+
+
+def _dra_refl(text):
+    """One rendered `deferred` reflection bullet, shaped exactly as
+    `_insert_reflection_bullet` writes it (single-sourced from _REFLECTION_KINDS)."""
+    return f"- {_DRA_GLYPH} **{_DRA_LABEL}:** {text}\n"
+
+
+# --- the reader in isolation ---
+assert_eq("#1513 _deferred_reflection_texts extracts each deferred bullet's trailing text",
+          ['advisory one', 'advisory two'],
+          workpad._deferred_reflection_texts(
+              _dp_body(reflection_extra=_dra_refl('advisory one') + _dra_refl('advisory two'))))
+assert_eq("#1513 it ignores non-deferred reflection bullets (blocked/dropped-failed/note)",
+          [],
+          workpad._deferred_reflection_texts(_dp_body(reflection_extra=(
+              "- ⛔ **Blocked:** b\n- ❗ **Dropped/Failed:** f\n- ℹ️ a note\n"))))
+assert_eq("#1513 a present reflection section with no deferred bullet is an empty list, not None",
+          [], workpad._deferred_reflection_texts(_dp_body()))
+assert_eq("#1513 an ABSENT ## Devflow Reflection section reads as None (unestablished)",
+          None,
+          workpad._deferred_reflection_texts(
+              _dp_body().replace('## Devflow Reflection', '## Retro')))
+assert_eq("#1513 a DUPLICATED ## Devflow Reflection section reads as None (unestablished)",
+          None,
+          workpad._deferred_reflection_texts(
+              _dp_body(reflection_extra=_dra_refl('x'))
+              + "\n## Devflow Reflection\n<details>\n</details>\n"))
+
+# --- the un-guaranteed-PATH-tool guard, extended to the audit decision path ---
+_dra_decision_src = '\n'.join(
+    tok for f in (workpad._deferred_reflection_texts,
+                  workpad._bound_deferred_records,
+                  workpad._single_section_content,
+                  workpad._split_sections,
+                  workpad._progress_content_or_none,
+                  workpad._whole_body_deferred_count,
+                  workpad._print_unestablished,
+                  workpad.cmd_deferred_reflection_audit)
+    for tok in _dp_executable_tokens(f))
+assert_eq("#1513 the audit decision path shells out to no un-guaranteed PATH tool",
+          [],
+          [t for t in ('grep', 'tr', 'sed', 'wc', 'cut', 'head')
+           if re.search(r'\b%s\b' % t, _dra_decision_src)])
+
+
+# --- the three-state routing, driven through the subcommand (the exit code Phase 4 reads) ---
+def _dra_run(body, pr=42, comment=True):
+    real_find, real_repo = workpad._find_workpad_comment, workpad._repo_full
+    workpad._repo_full = lambda *a, **k: 'o/r'
+    workpad._find_workpad_comment = (
+        (lambda *a, **k: {'id': 1, 'body': body}) if comment else (lambda *a, **k: None))
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(io.StringIO()):
+            workpad.cmd_deferred_reflection_audit(
+                argparse.Namespace(issue=1513, pr=pr, marker=None))
+        code = 0
+    except SystemExit as e:
+        code = e.code
+    finally:
+        workpad._find_workpad_comment, workpad._repo_full = real_find, real_repo
+    return code, buf.getvalue()
+
+
+# No deferred reflection at all → backed:0, exit 0 (nothing to audit; never a false positive).
+assert_eq("#1513 zero deferred reflections is a decided backed:0 (exit 0)",
+          (0, "backed: 0\n"), _dra_run(_dp_body()))
+# One deferred reflection + one bound scope-decision record → backed (the auditor's
+# capability-blocked-AC case, which MUST NOT false-positive).
+assert_eq("#1513 a deferred reflection backed by a bound scope-decision record exits 0",
+          (0, "backed: 1\n"),
+          _dra_run(_dp_body(
+              reflection_extra=_dra_refl('workflow-resident AC deferred'),
+              progress_extra=_dp_note(_dp_rec(42, 'deferred', DP_CRIT)))))
+# One reflection under two bound records is backed (excess-count safe direction).
+assert_eq("#1513 one reflection under two bound records is backed",
+          (0, "backed: 1\n"),
+          _dra_run(_dp_body(
+              reflection_extra=_dra_refl('one'),
+              progress_extra=_dp_note(_dp_rec(42, 'deferred', DP_CRIT))
+              + _dp_note(_dp_rec(42, 'deferred', DP_CRIT + ' two')))))
+# The #1513 shape: a deferred reflection with NO backing record → unbacked, exit 1.
+assert_eq("#1513 a deferred reflection with no backing record exits 1 and prints its text",
+          (1, "unbacked: 1\ntext: an unfiled advisory\n"),
+          _dra_run(_dp_body(reflection_extra=_dra_refl('an unfiled advisory'))))
+assert_eq("#1513 two unbacked reflections print both texts and the excess count",
+          (1, "unbacked: 2\ntext: one\ntext: two\n"),
+          _dra_run(_dp_body(reflection_extra=_dra_refl('one') + _dra_refl('two'))))
+# Reflections present + an unreliable backing count (unbound record) → unestablished,
+# NEVER a false unbacked.
+assert_eq("#1513 an unbound backing record makes the audit unestablished, not unbacked",
+          (2, "unestablished: reason=unbound-records unbound=1 corrupted=0\n"),
+          _dra_run(_dp_body(
+              reflection_extra=_dra_refl('adv'),
+              progress_extra=_dp_note(_dp_rec('pending', 'deferred', DP_CRIT)))))
+assert_eq("#1513 an unresolvable workpad exits 2 and names the workpad operand",
+          (2, "unestablished: reason=workpad-unresolved unbound=0 corrupted=0\n"),
+          _dra_run(_dp_body(reflection_extra=_dra_refl('adv')), comment=False))
+assert_eq("#1513 an absent ## Devflow Reflection section exits 2 (reflection-section-unreadable)",
+          (2, "unestablished: reason=reflection-section-unreadable unbound=0 corrupted=0\n"),
+          _dra_run(_dp_body().replace('## Devflow Reflection', '## Retro')))
+# With deferred reflections present but ## Progress unreadable, the backing records
+# cannot be read → unestablished, not a confident unbacked.
+assert_eq("#1513 an unreadable ## Progress section with reflections present exits 2",
+          (2, "unestablished: reason=progress-section-unreadable unbound=0 corrupted=0\n"),
+          _dra_run(_dp_body(reflection_extra=_dra_refl('adv')).replace('## Progress\n', '## Steps\n')))
+# The bounded predicate never prints the workpad body.
+assert_eq("#1513 no arm prints the workpad body",
+          [],
+          [c for c, o in (_dra_run(_dp_body(reflection_extra=_dra_refl('adv'))),
+                          _dra_run(_dp_body()))
+           if '## Progress' in o])
+
+
+# --- the argv surface: subcommand name + positional order (issue then pr) ---
+assert_eq("#1513 the CLI drives the unbacked arm through main() as `<issue> <pr>`",
+          (1, "unbacked: 1\ntext: adv\n"),
+          _dp_cli(['deferred-reflection-audit', '1513', '42'],
+                  _dp_body(reflection_extra=_dra_refl('adv'))))
+assert_eq("#1513 the CLI drives the backed arm through main()",
+          (0, "backed: 1\n"),
+          _dp_cli(['deferred-reflection-audit', '1513', '42'],
+                  _dp_body(reflection_extra=_dra_refl('adv'),
+                           progress_extra=_dp_note(_dp_rec(42, 'deferred', DP_CRIT)))))
+assert_eq("#1513 a missing PR operand exits 2 (argparse usage, the fail-closed arm)",
+          2, _dp_cli(['deferred-reflection-audit', '1513'], _dp_body())[0])
+assert_eq("#1513 deferred-reflection-audit is registered as a subcommand",
+          True, 'deferred-reflection-audit' in _dp_help(['--help']))
+
 # ── #815 the --mark-deferred-filed no-match breadcrumb ─────────────────────────
 # The guard exists to catch one documented slip — passing the 2.2.5 note's
 # VERBATIM criterion where the normalized `criterion:` projection is required —
