@@ -1,0 +1,125 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-19T04:00:00Z",
+  "fix_commit_sha": "d0633557",
+  "fix_files": [
+    "lib/test/modules/create-issue-contract.sh",
+    "lib/test/run.sh",
+    "CONTRIBUTING.md",
+    "docs/internal/pin-corpus-issue-1759-sweep.md"
+  ],
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Important",
+      "description": "disposition doc + CONTRIBUTING overclaim (9 residual #1765 prose rows)",
+      "defect_signature": {
+        "file": "docs/internal/pin-corpus-issue-1759-sweep.md",
+        "line_range": [
+          20,
+          22
+        ],
+        "kind": "documented_falsehood"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "orphaned CI_IMPL_BUNDLE build + stale comment",
+      "defect_signature": {
+        "file": "lib/test/modules/create-issue-contract.sh",
+        "line_range": [
+          163,
+          176
+        ],
+        "kind": "orphaned_setup"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "stale --var CI_CLAUDE meta-guard binding",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          34779,
+          34779
+        ],
+        "kind": "coupled_site_drift"
+      },
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "d0633557"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "d0633557"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "d0633557"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 3,
+    "fix_diff_lines": 34,
+    "new_corroborated_critical_count": 0
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "ran_at": "2026-08-19T04:20:00Z",
+    "reviewed_sha": "d0633557",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:comment-analyzer"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:comment-analyzer"
+    ],
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
