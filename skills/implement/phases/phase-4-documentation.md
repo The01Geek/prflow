@@ -49,6 +49,26 @@ Marker contract. Accept the load only when the file's first line is its `start` 
 
 Degraded arm — degrade, never halt. When the predicate holds and the reference read fails — absent, empty, harness-refused, or mismatched boundary markers — record `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "…"` naming the reference path `skills/implement/references/deferred-review-findings.md` and stating that deferred review findings were not filed, then continue to §4.1 without halting Phase 4. This arm uses `dropped-failed`; the unestablished arm uses `note`.
 
+### 4.0.6 Audit Deferred Reflections Are Backed
+
+A `--reflection-kind deferred` reflection renders under "⚠️ Action required" and reads as handled, yet may be backed by no tracked deferral — filed nowhere. Audit each, as a single statement whose leading token is the granted vendored literal, substituting this run's PR number as a decimal literal (as §4.0 does, and for the same reason):
+
+```bash
+.prflow/vendor/prflow/scripts/workpad.py deferred-reflection-audit $ISSUE_NUMBER <this-run's-PR-number>
+```
+
+On any reading that says the vendored path did not *run* — `command not found`, `No such file`, `Permission denied`, rc 126 or rc 127 — re-invoke the same helper through the portable anchor:
+
+```bash
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/workpad.py deferred-reflection-audit $ISSUE_NUMBER <this-run's-PR-number>
+```
+
+Read the exit code and printed line from the tool result, never a captured shell variable. Route on the exit code:
+
+- exit 0 — `backed: <n>`. Every deferred reflection is backed; continue to §4.1, no action.
+- exit 1 — `unbacked: <n>`, followed by one `text:` line each. Record `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 4.0.6: <n> deferred reflection(s) backed by no tracked deferral for this PR — filed nowhere: <the text(s)>"`, then continue to §4.1. This makes the black hole visible; do not silently pass completion.
+- exit 2 — `unestablished: reason=<token> unbound=<u> corrupted=<c>`, or no output. Record `workpad.py update $ISSUE_NUMBER --reflection-kind note --reflection "…"` quoting the reason token (or the no-output condition), then continue. Never read an unestablished audit as "nothing unbacked".
+
 ### 4.1 Update Documentation
 
 The routine doc pass always runs — narrative never suppresses it. A narrative claim that documentation is unnecessary — including an absent, empty, or contradictory `**Documentation Needed**` bullet — never suppresses the routine documentation pass: the documentation subagent that invokes the `prflow:docs` skill still runs and updates the documentation the shipped behavior change warrants. The `**Documentation Needed**` bullet is an additive floor of mandatory deliverables, never a ceiling.
