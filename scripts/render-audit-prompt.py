@@ -1334,7 +1334,7 @@ def _host_abs_path(value: str, _pathmod=os.path) -> bool:
     module absoluteness additionally requires a non-empty drive — which makes the
     verdict version-stable instead of depending on that changed classification.
     Pure: no environment probe and no filesystem access. Mirrored verbatim by
-    ``scripts/issue-audit-state.py``'s ``_host_abs_path`` so the two path checks agree
+    ``scripts/issue-audit-state.py``'s ``_host_abs_path`` so both path checks agree
     on every input on every supported host (issue #1762 — edited together).
     """
     if not _pathmod.isabs(value):
@@ -1421,7 +1421,20 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _force_utf8_streams():
+    """Force stdout/stderr to UTF-8 on the CLI entry path only (not at import, so a
+    unit-test import never mutates the importer's streams). A no-op where the ambient
+    codec is already UTF-8; self-defends against a non-UTF-8 default codec such as
+    Windows cp1252. Tolerates a non-TextIOWrapper stream (issue #1762)."""
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError):
+            pass
+
+
 def main(argv: list[str]) -> int:
+    _force_utf8_streams()
     parser = build_parser()
     args = parser.parse_args(argv)
 

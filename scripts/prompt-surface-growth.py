@@ -42,6 +42,18 @@ import os
 import subprocess
 import sys
 
+def _force_utf8_streams():
+    """Force stdout/stderr to UTF-8 on the CLI entry path only (not at import, so a
+    unit-test import never mutates the importer's streams). A no-op where the ambient
+    codec is already UTF-8; self-defends against a non-UTF-8 default codec such as
+    Windows cp1252. Tolerates a non-TextIOWrapper stream (issue #1762)."""
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError):
+            pass
+
+
 # The three covered prefixes. `skills/**` + `agents/**` mirrors the shipped-prompt
 # population `lib/test/lint-shipped-pruned-path.py` already audits as one set; the
 # prompt extensions are added because they load into the same context budget and
@@ -295,6 +307,7 @@ def render(head_sha, base_sha, ref, rows, surface_delta, surface_total):
 
 
 def main():
+    _force_utf8_streams()
     rc, head_out, head_err = _git(["rev-parse", "HEAD"])
     if rc != 0 or not head_out.strip():
         return _emit([

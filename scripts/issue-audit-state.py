@@ -1044,7 +1044,7 @@ def _host_abs_path(value, _pathmod=os.path):
     module absoluteness additionally requires a non-empty drive — which makes the
     verdict version-stable instead of depending on that changed classification.
     Pure: no environment probe and no filesystem access. Mirrored verbatim by
-    ``scripts/render-audit-prompt.py``'s ``_host_abs_path`` so the two path checks
+    ``scripts/render-audit-prompt.py``'s ``_host_abs_path`` so both path checks
     agree on every input on every supported host (issue #1762 — edited together).
     """
     if not _pathmod.isabs(value):
@@ -9310,7 +9310,20 @@ def _stdin_bytes_or_fail(args, command, phrase):
     return args._stdin_data
 
 
+def _force_utf8_streams():
+    """Force stdout/stderr to UTF-8 on the CLI entry path only (not at import, so a
+    unit-test import never mutates the importer's streams). A no-op where the ambient
+    codec is already UTF-8; self-defends against a non-UTF-8 default codec such as
+    Windows cp1252. Tolerates a non-TextIOWrapper stream (issue #1762)."""
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError):
+            pass
+
+
 def main():
+    _force_utf8_streams()
     args = build_parser().parse_args()
     # Hoist stdin ABOVE the section (issue #1040): read any payload the parsed args select
     # before dispatch, so a mutating handler's stdin read never blocks inside the section.

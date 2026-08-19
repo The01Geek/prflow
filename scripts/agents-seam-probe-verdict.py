@@ -118,6 +118,18 @@ REFUSAL_MARKER = "dispatch refused: unknown subagent_type"
 BASH_TOOL_NAME = "bash"
 
 
+def _force_utf8_streams():
+    """Force stdout/stderr to UTF-8 on the CLI entry path only (not at import, so a
+    unit-test import never mutates the importer's streams). A no-op where the ambient
+    codec is already UTF-8; self-defends against a non-UTF-8 default codec such as
+    Windows cp1252. Tolerates a non-TextIOWrapper stream (issue #1762)."""
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError):
+            pass
+
+
 def parse_execution_file(exec_file):
     """Return (parsed, note_top). parsed is a JSON value or None; note_top is a
     non-empty diagnostic when the file was absent/empty/unparseable/partially
@@ -440,6 +452,7 @@ def _truthy_env(val):
 
 
 def main():
+    _force_utf8_streams()
     exec_file = ""
     adjudicated = _truthy_env(os.environ.get("ADJUDICATED_GOVERNED", ""))
     for arg in sys.argv[1:]:

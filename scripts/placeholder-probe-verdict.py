@@ -69,6 +69,18 @@ import os
 import re
 import sys
 
+def _force_utf8_streams():
+    """Force stdout/stderr to UTF-8 on the CLI entry path only (not at import, so a
+    unit-test import never mutates the importer's streams). A no-op where the ambient
+    codec is already UTF-8; self-defends against a non-UTF-8 default codec such as
+    Windows cp1252. Tolerates a non-TextIOWrapper stream (issue #1762)."""
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError):
+            pass
+
+
 # The sentinel the workflow puts in the step-level env:. Deliberately not a plausible
 # real path — a match cannot be confused with an incidental mention of a real directory.
 SENTINEL = "DEVFLOW_PHPROBE_SENTINEL_1264"
@@ -317,6 +329,7 @@ def compute_verdict(tool_uses, note_top):
 
 
 def main(argv):
+    _force_utf8_streams()
     exec_file = argv[1] if len(argv) > 1 else ""
     parsed, note_top = parse_execution_file(exec_file)
     tool_uses = collect(parsed)

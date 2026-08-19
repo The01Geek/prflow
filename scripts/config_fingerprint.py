@@ -52,6 +52,18 @@ def fingerprint_from_config(cfg):
     return {"sha256": digest, "partial": len(blocks) < 2, "salient": salient}
 
 
+def _force_utf8_streams():
+    """Force stdout/stderr to UTF-8 on the CLI entry path only (not at import, so a
+    unit-test import never mutates the importer's streams). A no-op where the ambient
+    codec is already UTF-8; self-defends against a non-UTF-8 default codec such as
+    Windows cp1252. Tolerates a non-TextIOWrapper stream (issue #1762)."""
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError):
+            pass
+
+
 def _main(argv):
     """CLI: read a config path (argv[1]), print the fingerprint JSON object or the
     literal `null`. Best-effort — a missing/unreadable/non-object config prints
@@ -92,4 +104,5 @@ def _main(argv):
 
 
 if __name__ == "__main__":
+    _force_utf8_streams()
     sys.exit(_main(sys.argv))

@@ -1014,7 +1014,20 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _force_utf8_streams():
+    """Force stdout/stderr to UTF-8 on the CLI entry path only (not at import, so a
+    unit-test import never mutates the importer's streams). A no-op where the ambient
+    codec is already UTF-8; self-defends against a non-UTF-8 default codec such as
+    Windows cp1252. Tolerates a non-TextIOWrapper stream (issue #1762)."""
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError):
+            pass
+
+
 def main(argv: "list[str] | None" = None) -> int:
+    _force_utf8_streams()
     # The verdict line carries a U+2014 em-dash; force a UTF-8-capable stdout so a
     # non-pass verdict emitted from the except-Verdict handler below cannot raise an
     # UnicodeEncodeError under an ASCII/C-locale runner (the LC_ALL=C class this repo

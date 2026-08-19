@@ -119,6 +119,18 @@ if sys.version_info < (3, 11):  # fail fast, before any PEP 604 annotation below
     )
     sys.exit(1)
 
+def _force_utf8_streams():
+    """Force stdout/stderr to UTF-8 on the CLI entry path only (not at import, so a
+    unit-test import never mutates the importer's streams). A no-op where the ambient
+    codec is already UTF-8; self-defends against a non-UTF-8 default codec such as
+    Windows cp1252. Tolerates a non-TextIOWrapper stream (issue #1762)."""
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError):
+            pass
+
+
 VERDICT_ENUM = ("PASS", "FAIL", "INCONCLUSIVE")
 SCOPE_ENUM = ("generated_claim_text", "source_authored_text", "none")
 NORMALIZED_PREFIX = "NORMALIZED (wording-only): "
@@ -539,6 +551,7 @@ def run(pairs_file):
 
 
 def main(argv=None):
+    _force_utf8_streams()
     argv = list(sys.argv[1:] if argv is None else argv)
     if not argv:
         # Emit on stdout as well as stderr, for the same reason as the version guard

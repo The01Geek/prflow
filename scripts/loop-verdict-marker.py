@@ -76,6 +76,18 @@ import argparse
 import re
 import sys
 
+def _force_utf8_streams():
+    """Force stdout/stderr to UTF-8 on the CLI entry path only (not at import, so a
+    unit-test import never mutates the importer's streams). A no-op where the ambient
+    codec is already UTF-8; self-defends against a non-UTF-8 default codec such as
+    Windows cp1252. Tolerates a non-TextIOWrapper stream (issue #1762)."""
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError):
+            pass
+
+
 MARKER_PREFIX = "<!-- prflow:loop-verdict "
 
 # Human result string -> result token. Keys compared after collapsing internal
@@ -214,6 +226,7 @@ def _cmd_read(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    _force_utf8_streams()
     parser = argparse.ArgumentParser(
         prog="loop-verdict-marker.py",
         description="Compose or read the review-and-fix loop-verdict marker (issue #1212).",
