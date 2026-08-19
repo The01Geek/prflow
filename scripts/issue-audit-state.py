@@ -1021,7 +1021,27 @@ def state_path(slug, root=None):
     return Path(base) / '.prflow' / 'tmp' / f'issue-audit-state-{slug}.json'
 
 
-def _is_bound_path(p):
+def _host_abs_path(value, _pathmod=os.path):
+    """True iff ``value`` is absolute per the interpreter's OWN path module.
+
+    A leading ``/`` on POSIX; a drive-letter or UNC root on Windows (``C:\\``,
+    ``C:/``, ``\\\\host\\share``). A rooted path naming no drive (``\\Users\\x``,
+    ``/Users/x`` on Windows) is refused on EVERY supported interpreter: ``ntpath.isabs``
+    classified that True before 3.13 and False from 3.13, so on a Windows-style
+    module absoluteness additionally requires a non-empty drive — which makes the
+    verdict version-stable instead of depending on that changed classification.
+    Pure: no environment probe and no filesystem access. Mirrored verbatim by
+    ``scripts/render-audit-prompt.py``'s ``_host_abs_path`` so both path checks
+    agree on every input on every supported host (issue #1762 — edited together).
+    """
+    if not _pathmod.isabs(value):
+        return False
+    if _pathmod.sep == "\\":  # a Windows-style path module (ntpath)
+        return _pathmod.splitdrive(value)[0] != ""
+    return True
+
+
+def _is_bound_path(p, _pathmod=os.path):
     """True iff `p` is a non-empty absolute path string with no embedded newline or CR.
 
     The binding is recorded and compared as an opaque string (Windows-safe, #275/#295):
@@ -1035,7 +1055,7 @@ def _is_bound_path(p):
     delimited query lines must extract path fields by their `key=` anchor, never by a
     positional whitespace split.
     """
-    return (isinstance(p, str) and bool(p) and os.path.isabs(p)
+    return (isinstance(p, str) and bool(p) and _host_abs_path(p, _pathmod)
             and '\n' not in p and '\r' not in p)
 
 
@@ -9390,7 +9410,19 @@ def _stdin_bytes_or_fail(args, command, phrase):
     return args._stdin_data
 
 
+def _force_utf8_streams():
+    """Force stdout/stderr to UTF-8. Never call this at import: doing so mutates the
+    streams of any process that imports this module for tests. Tolerates a stream that
+    has no usable `reconfigure` (issue #1762)."""
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 def main():
+    _force_utf8_streams()
     args = build_parser().parse_args()
     # Hoist stdin ABOVE the section (issue #1040): read any payload the parsed args select
     # before dispatch, so a mutating handler's stdin read never blocks inside the section.

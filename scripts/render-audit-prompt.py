@@ -39,7 +39,9 @@ Contract (issue #600):
   its inputs, which is in turn what lets ``issue-audit-state.py`` regenerate the
   canonical bytes and compare digests.
 - Closed argument surface: closed-vocabulary mode/arm/hook tokens, a kebab-case
-  slug, single-line absolute paths, and the machine-generated sentinel pair. No
+  slug, single-line host-absolute paths (either POSIX or Windows spelling — a
+  backslash drive-letter path is admitted; a newline and a ``{`` slot token are
+  refused), and the machine-generated sentinel pair. No
   free-text parameter reaches any rendered block: every slot filled
   from an argument (``<slug>``, ``{DRAFT_PATH}``, ``{INSTRUCTIONS_PATH}``, and
   the ``{SENTINEL_OPEN}`` /
@@ -106,6 +108,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import os
 import re
 import subprocess
 import sys
@@ -1321,8 +1324,28 @@ def _sentinel(value: str) -> str:
     return value
 
 
-def _abs_path(value: str) -> str:
-    # Shape check for the path arguments: POSIX-form, absolute, single-line.
+def _host_abs_path(value: str, _pathmod=os.path) -> bool:
+    """True iff ``value`` is absolute per the interpreter's OWN path module.
+
+    A leading ``/`` on POSIX; a drive-letter or UNC root on Windows (``C:\\``,
+    ``C:/``, ``\\\\host\\share``). A rooted path naming no drive (``\\Users\\x``,
+    ``/Users/x`` on Windows) is refused on EVERY supported interpreter: ``ntpath.isabs``
+    classified that True before 3.13 and False from 3.13, so on a Windows-style
+    module absoluteness additionally requires a non-empty drive — which makes the
+    verdict version-stable instead of depending on that changed classification.
+    Pure: no environment probe and no filesystem access. Mirrored verbatim by
+    ``scripts/issue-audit-state.py``'s ``_host_abs_path`` so both path checks agree
+    on every input on every supported host (issue #1762 — edited together).
+    """
+    if not _pathmod.isabs(value):
+        return False
+    if _pathmod.sep == "\\":  # a Windows-style path module (ntpath)
+        return _pathmod.splitdrive(value)[0] != ""
+    return True
+
+
+def _abs_path(value: str, _pathmod=os.path) -> str:
+    # Shape check for the path arguments: host-absolute, single-line, no slot token.
     #
     # Deliberately NOT a closed vocabulary, and the claim it supports is scoped to
     # match: a legitimate checkout path can contain spaces and most punctuation, so
@@ -1335,13 +1358,11 @@ def _abs_path(value: str) -> str:
     # narrow claim (no free-text parameter reaches the rendered block) and not a
     # broad one this check does not implement.
     #
-    # POSIX-form only: a Windows-form path is normalized at prompt time (#275), so
-    # the message names that remedy rather than reading as a contradiction of what
-    # is, on that platform, a genuinely absolute path.
-    # `{` is rejected so a path can never carry a literal slot token
-    # ({CONSUMER_DIMENSIONS}, {SENTINEL_OPEN}, ...). Without it the
-    # substituted-last invariant in render_dispatch would hold only by argument
-    # provenance; with it, it holds unconditionally.
+    # Never normalize or rewrite the accepted value (issue #1762): main() opens exactly
+    # what _host_abs_path admitted, and a rewrite would make the dispatch bytes diverge
+    # from the record issue-audit-state.py regenerates for its digest comparison.
+    # Never drop the `{` test: without it render_dispatch's substituted-last invariant
+    # would hold only by argument provenance rather than unconditionally.
     #
     # Single-line-ness is tested with `splitlines()` itself, not an `"\n"`/`"\r"`
     # membership pair, because `splitlines()` is what every downstream consumer of the
@@ -1351,14 +1372,13 @@ def _abs_path(value: str) -> str:
     # refuse. `value.splitlines() != [value]` is total over that set and also catches a
     # TRAILING separator, which an `in` test on the split result would miss.
     if (
-        not value.startswith("/")
-        or value.splitlines() != [value]
+        value.splitlines() != [value]
         or "{" in value
+        or not _host_abs_path(value, _pathmod)
     ):
         raise argparse.ArgumentTypeError(
-            f"path must be a single-line POSIX-form absolute path with no "
-            f"'{{' slot token (got {value!r}); normalize a Windows-form path "
-            "first (see lib/normalize-path.sh)"
+            f"path must be a single-line host-absolute path with no "
+            f"'{{' slot token (got {value!r})"
         )
     return value
 
@@ -1394,7 +1414,19 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _force_utf8_streams():
+    """Force stdout/stderr to UTF-8. Never call this at import: doing so mutates the
+    streams of any process that imports this module for tests. Tolerates a stream that
+    has no usable `reconfigure` (issue #1762)."""
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 def main(argv: list[str]) -> int:
+    _force_utf8_streams()
     parser = build_parser()
     args = parser.parse_args(argv)
 

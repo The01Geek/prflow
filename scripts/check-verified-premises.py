@@ -829,7 +829,19 @@ class _ArgParser(argparse.ArgumentParser):
                   f'detail={message}\n')
 
 
+def _force_utf8_streams():
+    """Force stdout/stderr to UTF-8. Never call this at import: doing so mutates the
+    streams of any process that imports this module for tests. Tolerates a stream that
+    has no usable `reconfigure` (issue #1762)."""
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 def main(argv=None) -> int:
+    _force_utf8_streams()
     parser = _ArgParser(
         description='Re-check an issue body\'s Verified: premises against the tree.')
     parser.add_argument('--body-file', required=True,
