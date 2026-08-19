@@ -59,6 +59,15 @@ if [ -z "${DEVFLOW_JQ:-}" ]; then
   DEVFLOW_JQ=jq
 fi
 
+# Guarded source of the shared execution-file readers (issue #1528): reuse
+# devflow_probe_cli_version to publish claude_code_version rather than a second
+# extraction jq. Partial-copy posture like resolve-jq.sh above — a deployment missing
+# this sibling degrades to an `unavailable` version with a breadcrumb, never a set -u
+# abort. The function's own absence is re-checked at the call site.
+# shellcheck source=../lib/probe-observation.sh
+. "$_SED_DIR/../lib/probe-observation.sh" \
+  || echo "devflow: surface-execution-diagnostics: probe-observation.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — claude_code_version will publish 'unavailable'" >&2
+
 # Emit BLOCK to stdout, and append it to $GITHUB_STEP_SUMMARY when that variable
 # is set and non-empty (AC2). Kept in one place so every exit path surfaces to
 # both sinks identically.
@@ -127,6 +136,51 @@ _publish_denials() {  # rendered-block
   fi
 }
 
+# Publish the claude-code CLI version and, when it resolved, raise a `::notice::` so a
+# live run records the CLI build it actually ran on directly in the job — the in-job
+# read-back that makes this a measurement something consumes, not another artifact
+# nobody reads (issue #1528).
+#
+# REDACTION POSTURE — do not value-publish the other init fields here. Among the
+# execution-file init record's fields ONLY claude_code_version — a low-sensitivity
+# version scalar — is value-published; tools/agents/skills/plugins/mcp_servers/model/
+# permissionMode/capabilities/slash_commands stay type-only behind
+# scripts/extract-execution-shape.sh's redaction boundary (left unchanged), because a
+# resolved tools list can carry consumer-specific paths from .prflow.allowed_tools and
+# the job log is public.
+#
+# Read back out of the ALREADY-RENDERED block (like _publish_denials) so the human line
+# and the machine output cannot disagree, and parsed with bash builtins ONLY — no
+# sed/head/grep/awk/cut/tr, which are not preflight prerequisites (lib/preflight.sh) and
+# would fail-open to an empty value on a host lacking one. "Unknown" is the literal
+# `unavailable`, never empty or 0, and raises no notice. Additive, always exits 0.
+_publish_claude_code_version() {  # rendered-block
+  _ccver=""
+  _saw_ccver=0
+  while IFS= read -r _line; do
+    case "$_line" in
+      "- claude_code_version: "*)
+        _saw_ccver=1
+        _ccver="${_line#- claude_code_version: }"
+        break
+        ;;
+    esac
+  done <<<"$1"   # here-string like _publish_denials: the loop stays in this shell, so
+                 # `_ccver` survives it.
+  if [ "$_saw_ccver" -eq 0 ] || [ -z "$_ccver" ]; then
+    _ccver=unavailable
+  fi
+  if [ -n "${GITHUB_OUTPUT:-}" ]; then
+    printf 'claude_code_version=%s\n' "$_ccver" >> "$GITHUB_OUTPUT" \
+      || echo "devflow: surface-execution-diagnostics: could not append claude_code_version to GITHUB_OUTPUT ('$GITHUB_OUTPUT') — downstream jobs will read the 'unavailable' default" >&2
+  fi
+  if [ "$_ccver" != unavailable ]; then
+    echo "::notice::DevFlow: claude-code CLI version $_ccver (from the execution-file init record)"
+  else
+    echo "devflow: surface-execution-diagnostics: claude_code_version could not be established from the execution file — publishing 'unavailable'" >&2
+  fi
+}
+
 _HEADER="## DevFlow execution diagnostics"
 _NO_DIAG="$_HEADER
 _No diagnostics available (execution file absent, empty, or unparseable)._"
@@ -138,7 +192,19 @@ if [ -z "$FILE" ] || [ ! -f "$FILE" ] || [ ! -s "$FILE" ]; then
   echo "devflow: surface-execution-diagnostics: execution file absent or empty ('$FILE') — no diagnostics available" >&2
   _emit "$_NO_DIAG"
   _publish_denials "$_NO_DIAG"
+  _publish_claude_code_version "$_NO_DIAG"
   exit 0
+fi
+
+# Resolve the CLI version once (issue #1528), reusing the shared reader rather than a
+# second extraction jq; it is rendered into the block below so the published value and
+# the human line agree. Degrade to `unavailable` with a breadcrumb if the reader is
+# absent (partial deployment) — never a set -u abort.
+if type devflow_probe_cli_version >/dev/null 2>&1; then
+  CCVER=$(devflow_probe_cli_version "$FILE")
+else
+  CCVER=unavailable
+  echo "devflow: surface-execution-diagnostics: devflow_probe_cli_version unavailable (probe-observation.sh not sourced) — claude_code_version will publish 'unavailable'" >&2
 fi
 
 # Build the whole formatted block in one slurp-based jq program. `-s` normalizes
@@ -146,7 +212,7 @@ fi
 # result object at any depth. Denials are gathered from every `permission_denials`
 # array anywhere in the slurped input (they may not live in the result event).
 # tool_input is truncated to keep the surfaced block readable.
-if ! BLOCK=$("$DEVFLOW_JQ" -rs --arg header "$_HEADER" '
+if ! BLOCK=$("$DEVFLOW_JQ" -rs --arg header "$_HEADER" --arg ccver "$CCVER" '
     def trunc($s):
       ($s | tostring) as $t
       | if ($t | length) > 200 then ($t[0:200] + "…(truncated)") else $t end;
@@ -207,6 +273,7 @@ if ! BLOCK=$("$DEVFLOW_JQ" -rs --arg header "$_HEADER" '
           "- duration_ms: \(orna($r.duration_ms))",
           "- total_cost_usd: \(orna($r.total_cost_usd))",
           "- permission_denials_count: \(orna($count))",
+          "- claude_code_version: \($ccver)",
           "",
           "### Permission denials",
           # Gathered detail is surfaced FIRST — before the count==0 / unavailable
@@ -235,9 +302,11 @@ if ! BLOCK=$("$DEVFLOW_JQ" -rs --arg header "$_HEADER" '
   echo "devflow: surface-execution-diagnostics: jq ('$DEVFLOW_JQ') exited non-zero on '$FILE' (parse error or unrunnable jq) — no diagnostics available" >&2
   _emit "$_NO_DIAG"
   _publish_denials "$_NO_DIAG"
+  _publish_claude_code_version "$_NO_DIAG"
   exit 0
 fi
 
 _emit "$BLOCK"
 _publish_denials "$BLOCK"
+_publish_claude_code_version "$BLOCK"
 exit 0
