@@ -633,8 +633,7 @@ def _force_utf8_streams():
 
 
 # The job env var the cloud workflows export from their already-resolved provider
-# decision (issue #1772). It carries the provider capability into the in-session
-# engine, which cannot introspect the routed provider itself.
+# decision (issue #1772) — the coupled producer a reader could not infer here.
 _EFFORT_SUPPORTED_ENV = "PRFLOW_EFFORT_SUPPORTED"
 
 
@@ -645,9 +644,7 @@ def _resolve_effort_supported(cli_value):
     PRFLOW_EFFORT_SUPPORTED env var (issue #1772); else the 'true' default (the
     Anthropic path). Fail OPEN, not closed: an absent var preserves today's
     behavior, and an env value that is neither 'true' nor 'false' falls back to
-    'true' WITH a warning rather than a silent coercion — dropping per-agent
-    effort on every unset/local run would regress the common default path, and
-    the resolved-model Haiku guard still catches a real capability rejection.
+    'true' WITH a warning rather than a silent coercion.
     """
     if cli_value is not None:
         return cli_value == "true", None
@@ -734,9 +731,8 @@ def main(argv=None):
     # dedupes its own, but a malformed `default` makes resolve_overrides emit one
     # (now agent-agnostic) line that would otherwise repeat, and the two sources
     # can also overlap. One actionable line per distinct problem.
-    # Resolve the provider effort capability (CLI flag > PRFLOW_EFFORT_SUPPORTED
-    # env > 'true' default) and fold its unrecognized-value warning into the same
-    # deduped stream, so a fat-fingered env value surfaces one actionable line.
+    # Fold the resolver's unrecognized-value warning into the same deduped stream,
+    # so a fat-fingered env value surfaces one actionable line.
     effort_supported, effort_supported_warning = _resolve_effort_supported(
         args.effort_supported)
     extra_warnings = [effort_supported_warning] if effort_supported_warning else []
@@ -747,8 +743,7 @@ def main(argv=None):
     # in-session no-seam fallback is one informational `::notice::` summary; a
     # capability-restricted one (Haiku model / effort_supported=false) is a
     # `::warning::` naming the model/provider. Never claims an unearned success.
-    # (effort_supported is resolved above, from the CLI flag or the
-    # PRFLOW_EFFORT_SUPPORTED env var — issue #1772.)
+    # effort_supported is resolved above; do not re-derive it from args.effort_supported.
     if args.effort_json:
         # Observability mode (issue #609): stdout is the five-field map, and the
         # #554 report lines are deliberately NOT re-emitted — this is a second

@@ -5602,11 +5602,20 @@ try:
         _base_argv_1772 + ["--effort-supported", "true"], "false")
     assert_eq("main(#1772): explicit --effort-supported true overrides env false",
               True, "::notice::" in _e_o and "::warning::" not in _e_o)
+    # symmetric precedence: explicit --effort-supported false WINS over env true →
+    # provider ::warning::, pinning that the CLI flag governs in both directions.
+    _rc_ff, _o_ff, _e_ff = _run_1772(
+        _base_argv_1772 + ["--effort-supported", "false"], "true")
+    assert_eq("main(#1772): explicit --effort-supported false overrides env true",
+              True, "::warning::" in _e_ff and "effort_supported" in _e_ff)
     # unrecognized env value → fall back to true (benign notice) AND a warning
-    # naming the var, never a silent coercion.
+    # naming the var, never a silent coercion; the provider-capability ::warning::
+    # (which carries the lowercase 'effort_supported') must be ABSENT, making the
+    # "fell back to true" claim explicit rather than implied by the notice alone.
     _rc_u, _o_u, _e_u = _run_1772(_base_argv_1772, "yes")
     assert_eq("main(#1772): unrecognized env value falls back to true with a warning",
-              True, "::notice::" in _e_u and "PRFLOW_EFFORT_SUPPORTED" in _e_u)
+              True, "::notice::" in _e_u and "PRFLOW_EFFORT_SUPPORTED" in _e_u
+              and "effort_supported" not in _e_u)
     # a present-but-empty env value is a defensive input (the provider step normally exports
     # 'true'/'false', but a skipped/output-less provider step would export empty): treated as
     # absent → benign ::notice::, no warning, NOT the unrecognized-value branch.
