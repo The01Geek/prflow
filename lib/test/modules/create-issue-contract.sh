@@ -483,6 +483,34 @@ devflow_module_pin_unique "#1675: exhausted AC rewrites require the disclosed fi
   'An exhausted Acceptance Criteria rewrite requires an explicit file-anyway election before the ordinary approval gate can authorize creation.' \
   "$CI_REF_STEP4"  # structural-pin-ok: lifecycle-state-transition -- exhaustion must transition through disclosure and a user election rather than silently blocking or falling into ordinary approval
 
+# issue #1751 (AC15): every degraded/audit arm that routes a fresh-context audit round must
+# carry an offer-before-round sentence — a run opens no round the user did not elect. One
+# distinctive sentence is pinned per applicable arm file: the Step 3.6 entry and its dispatch
+# and adjudication members, plus the three degraded fallback arms that route a round
+# (dispatch-arms inline, boundary-offer, state-owner-unavailable). The shared member carries
+# no round-routing arm, so it is not applicable. Each is a cross-file-phase contract with a
+# matching boundary row in pin-corpus-adjudications.tsv.
+CI1751_ENTRY="$CI_ROOT/skills/create-issue/references/step-3-6-audit.md"
+CI1751_ADJ="$CI_ROOT/skills/create-issue/references/step-3-6-audit-adjudication.md"
+devflow_module_pin_unique "#1751 AC15: Step 3.6 entry states every audit round is offered before it opens" \
+  'Every audit round is offered to the user before it opens, at Step 4'\''s single pre-approval pause' \
+  "$CI1751_ENTRY"  # structural-pin-ok: cross-file-phase-contract -- the entry carries the offer-before-round contract every round routes through; losing it drops the election that makes a round user-chosen
+devflow_module_pin_unique "#1751 AC15: the dispatch member states a round is offered and accepted before it opens" \
+  'offered and accepted before this dispatch opens' \
+  "$CI_REF_STEP36"  # structural-pin-ok: cross-file-phase-contract -- the dispatch site executes the round only after the Step 4 election; losing this reopens an unelected dispatch
+devflow_module_pin_unique "#1751 AC15: the adjudication member asks every audit-round question before the round opens" \
+  'every audit-round question is asked at one pause: Step 4'\''s pre-approval offer' \
+  "$CI1751_ADJ"  # structural-pin-ok: cross-file-phase-contract -- the boundary read routes every audit-round question to the single pre-approval offer before the round opens
+devflow_module_pin_unique "#1751 AC15: the degraded inline arm offers the round before running it" \
+  'offer the round before running it' \
+  "$CI_REF_FB_DISPATCH"  # structural-pin-ok: cross-file-phase-contract -- the degraded inline arm must offer before running so it never inverts the election the funded path enforces
+devflow_module_pin_unique "#1751 AC15: the boundary-offer arm offers the round before running it" \
+  'Offer one more audit round via the runner'\''s user-question tool, naming which trigger fired' \
+  "$CI_REF_FB_OFFER"  # structural-pin-ok: cross-file-phase-contract -- the boundary-offer arm offers before the round runs and funds it through record-offer
+devflow_module_pin_unique "#1751 AC15: the state-owner-unavailable arm offers one round before running it" \
+  'offer exactly one audit round before running it' \
+  "$CI_REF_FB_STATEOWNER"  # structural-pin-ok: cross-file-phase-contract -- the state-owner-unavailable arm offers before running its single in-chat round
+
 # The investigation-record neutralization command is agent-executed, so extract the
 # shipped bash fence and drive all three grep outcomes instead of wording-pinning its
 # intended semantics. A missing or duplicated fence yields an empty program and fails

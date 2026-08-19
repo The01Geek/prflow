@@ -676,27 +676,14 @@ def _record_splitting_char(text):
 
 # Ported budgets and bounds. These are the prose's numbers, preserved verbatim.
 #
-# `_MAX_AUTOMATIC_REAUDITS` IS DELIBERATELY LEFT ALONE by issue #793, and this is a
-# decision rather than an omission. Its readers are `cmd_record_dispatch`'s spend
-# predicate and `next_action`, which compares against it to choose between running
-# another round now (`revise-and-reaudit`) and asking the user first
-# (`revise-then-evaluate-offer`). Raising it would therefore move one whole audit round out
-# of the user's decision on EVERY run — including every embed-arm, inline-arm and
-# empty-delta run that can never take a `targeted` round and would pay a full cold round
-# for no saving — reversing the documented principle that the user, not the skill, spends
-# the tokens. This was adjudicated on 2026-07-26: issue #827, which proposed raising it
-# from 1 to 2, was closed as not planned in favour of the position stated here. The
-# confirming round #793 introduces is funded from `_MAX_CONFIRMING_ROUNDS` below instead.
-_MAX_AUTOMATIC_REAUDITS = 1
+# Do not raise `_MAX_AUTOMATIC_REAUDITS` above zero: any non-zero value opens an audit
+# round the user did not elect, which issue #1751 abolished. Its readers (`cmd_record_dispatch`'s
+# spend predicate, `next_action`'s REVISE arm) are inert at zero, not dead — leave them.
+_MAX_AUTOMATIC_REAUDITS = 0
 _USER_ROUND_CAP = 3
-# issue #793: the confirming whole-draft round that follows an all-`addressed` `targeted`
-# round draws on its OWN counter, never the shared automatic pool. That separation is
-# forced, not stylistic: the automatic pool is a single shared budget, and walking it with
-# the shipped ceiling of one shows round 2 funded off round 1's `REVISE` and driving the
-# counter to its ceiling — so round 3 is ALREADY refused. A confirming round after a clean
-# scoped round therefore has no automatic funding available at any position, not merely at
-# a second revision cycle. One is enough: the confirming round is whole-draft evidence, so
-# a run needs at most one per scoped round that came back clean.
+# Do not zero `_MAX_CONFIRMING_ROUNDS` alongside `_MAX_AUTOMATIC_REAUDITS`, and do not
+# fund the confirming round from the automatic pool: a clean `targeted` round never grounds
+# the eligibility scan, so at zero a converged run clears approval only by file-anyway.
 _MAX_CONFIRMING_ROUNDS = 1
 # issue #792: the exact-byte final-byte pass draws on its OWN slot, outside
 # `_USER_ROUND_CAP`, so a run that legitimately spent every discovery round still gets
@@ -2363,9 +2350,12 @@ def _validate(doc, slug):
             raise StateError('the creation record body_only_digest is missing or not a '
                              'non-empty string')
         epoch_round = creation.get('epoch_round')
-        if not isinstance(epoch_round, int) or isinstance(epoch_round, bool):
+        # issue #1751: a decline-bound creation epoch has no round, so epoch_round is None
+        # there; a round-bound epoch still records an integer.
+        if epoch_round is not None and (not isinstance(epoch_round, int)
+                                        or isinstance(epoch_round, bool)):
             raise StateError(f'the creation record epoch_round {epoch_round!r} is not an '
-                             f'integer')
+                             f'integer or None')
         epoch_arm = creation.get('epoch_arm')
         if epoch_arm not in _ARMS:
             raise StateError(f'the creation record names an epoch arm outside the '
@@ -3177,8 +3167,14 @@ def evaluate_final_byte_coverage(state, current_digest=None, digest_failed=False
 
 
 def _funded_rounds(doc):
-    """How many rounds the recorded budgets fund: the initial one plus every spend."""
-    return 1 + sum(doc.get(k, 0) for k in _ROUND_BUDGETS)
+    """How many rounds the recorded budgets fund: exactly the recorded spends.
+
+    Issue #1751 removed the free `1 +` term: no round is funded by default, so the
+    first fresh-context round opens only after a recorded election (`record-offer
+    --accepted`, which bumps `user_rounds_used` in `_ROUND_BUDGETS`). A run that
+    elects nothing funds zero rounds and never dispatches an auditor.
+    """
+    return sum(doc.get(k, 0) for k in _ROUND_BUDGETS)
 
 
 def final_byte_passes(state):
@@ -3439,6 +3435,31 @@ def issue_token(nonce, ground, key):
     return 'eat_' + hashlib.sha256(material).hexdigest()[:16]
 
 
+def _select_current_override(state, current_digest, *, unbound_ok, kinds=None):
+    """The newest override current at the run's revision ordinal, or None.
+
+    A bound override (a recorded `draft_digest`) is honoured only while that digest still
+    matches `current_digest`; an unbound one only when `unbound_ok` holds. `kinds`, when
+    given, restricts the search to overrides of those kinds. This one selector is shared by
+    both `_valid_override` arms so the epoch-round and zero-round matching rules — which
+    differ only in `kinds` and in when an unbound override is honoured — cannot drift apart.
+    """
+    now = revision_ordinal(state)
+    for ov in reversed(state['overrides']):
+        if kinds is not None and ov.get('kind') not in kinds:
+            continue
+        if ov.get('recorded_at_ordinal') != now:
+            continue
+        want = ov.get('draft_digest')
+        if want is None:
+            if not unbound_ok:
+                continue
+        elif want != current_digest:
+            continue
+        return ov
+    return None
+
+
 def _valid_override(state, current_digest):
     """The newest override still current, or None.
 
@@ -3452,29 +3473,34 @@ def _valid_override(state, current_digest):
     this is the gate: a hand-edited state file, or a record written by an older
     build, must not smuggle an override past them.
 
-      - No completed round means nothing was ever audited, so there is no audit for
-        an override to override. Without this, `init` -> `record-override` alone
-        answered `eligible`, and `emit-body` emitted a never-audited body at exit 0.
+      - No completed round no longer forbids EVERY override (issue #1751): a
+        `user-decline` recorded on a zero-round run is the user's election to file
+        unaudited and is honoured here, so `emit-body` can emit that run's body. A
+        zero-round `cap-reached` stays incoherent — a ceiling cannot be reached before
+        any round ran — so it is never honoured at zero rounds. The zero-round decline's
+        binding mirrors the file-arm rule below: it is honoured only when its recorded
+        digest still matches the draft, and an unbound (no-digest) decline is honoured
+        only when the query supplies no canonical digest at all (the read-only sandbox);
+        a query that DID supply canonical bytes against an unbound decline fails closed,
+        because those bytes were never bound.
       - On a file-arm epoch an override carrying no digest was never compared against
         any bytes, so honouring it would pass a draft the tool never inspected. An
         absent comparand fails closed rather than skipping the comparison.
     """
     epoch = last_completed(state)
     if epoch is None:
-        return None
+        # Zero-round arm (issue #1751): only a current `user-decline` grounds eligibility
+        # here, never a `cap-reached`. An unbound decline is honoured only when no
+        # canonical digest was supplied (the read-only sandbox).
+        return _select_current_override(
+            state, current_digest, unbound_ok=current_digest is None,
+            kinds=('user-decline',))
+    # Off the file arm there is no trustworthy canonical file, so an unbound override is
+    # honoured; on a file-arm epoch an unbound override was never byte-compared, so it fails
+    # closed.
     file_arm_epoch = epoch['attempts'][-1]['arm'] == 'file'
-    now = revision_ordinal(state)
-    for ov in reversed(state['overrides']):
-        if ov.get('recorded_at_ordinal') != now:
-            continue
-        want = ov.get('draft_digest')
-        if want is None:
-            if file_arm_epoch:
-                continue
-        elif want != current_digest:
-            continue
-        return ov
-    return None
+    return _select_current_override(
+        state, current_digest, unbound_ok=not file_arm_epoch)
 
 
 _STALE_OVERRIDE_ELECTION = (
@@ -7256,39 +7282,45 @@ def _carriage_ok(attempt, args):
 
 def cmd_record_revision(args):
     doc = _load_for_mutation('record-revision', args.slug, args.nonce)
-    if not doc['rounds']:
-        _fail('record-revision', 'no rounds are recorded; there is nothing to revise')
-    # issue #705: the file-arm staged-write guarantee, enforced by the tool rather than
-    # carried by prose a context compaction can evict. When the latest recorded round's
-    # LAST dispatch attempt is on the file arm, the canonical draft file is currently the
-    # audit substrate — so a revision recorded here MUST carry the intended-bytes digest,
-    # or the post-revision write-failure closure (`latest_revision_landed`,
-    # `record-write-failure`) has no durable comparand and cannot tell a landed replace
-    # from a lost one. The predicate is the PER-ROUND shape
-    # `rounds[-1]['attempts'][-1]['arm']`, deliberately NOT the eligibility site's
-    # `file_arm_epoch` (which reads the creation-epoch round, a record that does not exist
-    # at revision time). On the embed/inline arms the auditor was handed the bytes inline,
-    # so there is no canonical file to bind and the bare (no-digest) call stays legal —
-    # including a run whose earlier round dispatched on the file arm but whose latest round
-    # fell back to embed. On the read-only arm no staging artifact can be written, but the
-    # flag reads `sys.stdin.buffer`, never a file, so a run that merely cannot write a file
-    # satisfies this guard by piping the intended bytes from context.
-    if (doc['rounds'][-1]['attempts'][-1]['arm'] == 'file'
-            and not getattr(args, 'stdin_digest', False)):
-        _fail('record-revision',
-              'the latest recorded round dispatched on the file arm, so this revision must '
-              'carry the intended-bytes digest (file-arm-requires-stdin-digest): pipe the '
-              'revised title-and-body bytes to --stdin-digest. Without it the write-failure '
-              'closure has no durable comparand and a lost canonical replace cannot be '
-              'distinguished from a landed one.')
-    # --after-round is the SOLE invalidation evidence on the event-ordering ground
-    # (_revision_postdates keys eligibility and T2 on it), so a caller-supplied value
-    # below the last completed round would fail that guard OPEN — a revised draft would
-    # still answer eligible. Validate the operand against recorded facts: it must name
-    # a round at or above the last completed one and no higher than the last recorded.
-    last_num = doc['rounds'][-1]['round']
-    lc = last_completed(doc)
-    floor = lc['round'] if lc else 0
+    # Do not route a zero-round state into the #705 file-arm guard below: with no round
+    # there is no audit substrate to bind, and refusing here deadlocks the Step 4 iterate
+    # loop so a recorded decline could never be invalidated by later bytes.
+    zero_round = not doc['rounds']
+    if not zero_round:
+        # issue #705: the file-arm staged-write guarantee, enforced by the tool rather than
+        # carried by prose a context compaction can evict. When the latest recorded round's
+        # LAST dispatch attempt is on the file arm, the canonical draft file is currently the
+        # audit substrate — so a revision recorded here MUST carry the intended-bytes digest,
+        # or the post-revision write-failure closure (`latest_revision_landed`,
+        # `record-write-failure`) has no durable comparand and cannot tell a landed replace
+        # from a lost one. The predicate is the PER-ROUND shape
+        # `rounds[-1]['attempts'][-1]['arm']`, deliberately NOT the eligibility site's
+        # `file_arm_epoch` (which reads the creation-epoch round, a record that does not exist
+        # at revision time). On the embed/inline arms the auditor was handed the bytes inline,
+        # so there is no canonical file to bind and the bare (no-digest) call stays legal —
+        # including a run whose earlier round dispatched on the file arm but whose latest round
+        # fell back to embed. On the read-only arm no staging artifact can be written, but the
+        # flag reads `sys.stdin.buffer`, never a file, so a run that merely cannot write a file
+        # satisfies this guard by piping the intended bytes from context.
+        if (doc['rounds'][-1]['attempts'][-1]['arm'] == 'file'
+                and not getattr(args, 'stdin_digest', False)):
+            _fail('record-revision',
+                  'the latest recorded round dispatched on the file arm, so this revision must '
+                  'carry the intended-bytes digest (file-arm-requires-stdin-digest): pipe the '
+                  'revised title-and-body bytes to --stdin-digest. Without it the write-failure '
+                  'closure has no durable comparand and a lost canonical replace cannot be '
+                  'distinguished from a landed one.')
+        # --after-round is the SOLE invalidation evidence on the event-ordering ground
+        # (_revision_postdates keys eligibility and T2 on it), so a caller-supplied value
+        # below the last completed round would fail that guard OPEN — a revised draft would
+        # still answer eligible. Validate the operand against recorded facts: it must name
+        # a round at or above the last completed one and no higher than the last recorded.
+        last_num = doc['rounds'][-1]['round']
+        lc = last_completed(doc)
+        floor = lc['round'] if lc else 0
+    else:
+        last_num = 0
+        floor = 0
     if args.after_round < floor or args.after_round > last_num:
         _fail('record-revision',
               f'--after-round {args.after_round} does not name a plausible round: the '
@@ -7644,15 +7676,21 @@ def cmd_record_override(args):
                                  'recorded at')
     # Validate the override against recorded facts, exactly as record-revision does with
     # --after-round: an override grounds eligibility, so an operand this path accepts
-    # without checking is a gate that fails OPEN. Both kinds presuppose an audit — you
-    # cannot decline further auditing, or reach the round ceiling, before any round ran.
+    # without checking is a gate that fails OPEN. Issue #1751 makes a zero-round
+    # `user-decline` legitimate (the user declined every offer, so there is no audit but
+    # the decline is the recorded election that grounds filing); a zero-round `cap-reached`
+    # stays incoherent — a ceiling cannot be reached before any round ran — so it keeps
+    # failing closed with the existing message.
     epoch = last_completed(doc)
     if epoch is None:
-        _fail('record-override',
-              'no round has completed, so there is no audit for an override to '
-              'override: recording one here would ground eligibility on a draft the '
-              'tool never audited')
-    if epoch['attempts'][-1]['arm'] == 'file' and not digest:
+        if args.kind != 'user-decline':
+            _fail('record-override',
+                  'no round has completed, so there is no audit for an override to '
+                  'override: recording one here would ground eligibility on a draft the '
+                  'tool never audited')
+        # Do not extend the file-arm bind check below to this arm: there is no epoch to
+        # dereference at zero rounds, so it would refuse every declined run.
+    elif epoch['attempts'][-1]['arm'] == 'file' and not digest:
         # --draft-file is optional in the argparse surface because the embed/inline arms
         # have no trustworthy canonical file to bind. On a file-arm epoch one exists, so
         # an unbound override would skip the byte comparison entirely and pass ANY bytes.
@@ -7864,10 +7902,75 @@ def cmd_query_final_byte(args):
           f'final_byte_exhausted={_yn(exhausted)}')
 
 
+def _draft_body_digest(draft_file):
+    """The body-only digest of a canonical draft file, or `_fail` on a read/hash error.
+
+    Shared by both `record-creation-epoch` binding arms so their identical
+    read->split->hash step and its refusal message cannot drift apart.
+    """
+    try:
+        return hash_bytes(split_body(Path(draft_file).read_bytes()))
+    except (OSError, _DigestError) as exc:
+        _fail('record-creation-epoch',
+              f'could not hash the draft file to bind the creation epoch: {exc}')
+
+
+def _current_zero_round_decline(doc):
+    """The current `user-decline` override on a zero-round state, or None (issue #1751).
+
+    Only meaningful when no round has completed: it is what lets a declined run bind
+    creation to its recorded election rather than to a round it never ran.
+    """
+    if last_completed(doc) is not None:
+        return None
+    now = revision_ordinal(doc)
+    for ov in reversed(doc['overrides']):
+        if ov.get('kind') == 'user-decline' and ov.get('recorded_at_ordinal') == now:
+            return ov
+    return None
+
+
+def _record_decline_bound_epoch(doc, decline, args):
+    """Bind creation to a zero-round user-decline (issue #1751).
+
+    The epoch's arm is the decline's own file arm — a decline-bound epoch always supplies
+    a canonical draft — and the body-only digest is recomputed from that draft at record
+    time. It is NEVER inherited from the override's whole-file digest: that is a different
+    split, so inheriting it would compare a whole-file hash against a body-only comparand
+    and report a false `mismatch` on every declined run.
+    """
+    if _attestation_frozen(doc):
+        _fail('record-creation-epoch',
+              'an attestation is already recorded; re-binding the creation epoch would '
+              'silently discard that tamper evidence')
+    # Do not relax this into an unbound epoch when the decline itself is unbound: the
+    # decline/draft digest match is enforced at the eligibility boundary (`_valid_override`),
+    # which an epoch recorded with no comparand would leave with nothing to compare.
+    if not args.draft_file:
+        _fail('record-creation-epoch',
+              'a decline-bound creation epoch must recompute the body-only digest from '
+              'the canonical draft: pass --draft-file')
+    body_only_digest = _draft_body_digest(args.draft_file)
+    doc['creation'] = {'epoch_round': None, 'epoch_arm': 'file',
+                       'body_only_digest': body_only_digest, 'attestation': None}
+    try:
+        save_state(doc, args.slug)
+    except StateError as exc:
+        _fail('record-creation-epoch', str(exc))
+    print(f'epoch_round=none body_digest={body_only_digest}')
+
+
 def cmd_record_creation_epoch(args):
     doc = _load_for_mutation('record-creation-epoch', args.slug, args.nonce)
     rnd = _find_round(doc, args.round)
     if rnd is None:
+        # issue #1751: a declined run has no round to bind, but its recorded user-decline
+        # election grounds creation exactly as a completed round does. Any other no-round
+        # state is the existing refusal.
+        decline = _current_zero_round_decline(doc)
+        if decline is not None:
+            _record_decline_bound_epoch(doc, decline, args)
+            return
         _fail('record-creation-epoch', f'no round {args.round} is recorded to bind '
                                        'creation to')
     if rnd.get('outcome') is None:
@@ -7895,12 +7998,7 @@ def cmd_record_creation_epoch(args):
     # round body digest remains the comparand and the attestation stays their detection surface.
     body_only_digest = attempt['body_digest']
     if args.draft_file and attempt['arm'] == 'file':
-        try:
-            raw = Path(args.draft_file).read_bytes()
-            body_only_digest = hash_bytes(split_body(raw))
-        except (OSError, _DigestError) as exc:
-            _fail('record-creation-epoch',
-                  f'could not hash the draft file to bind the creation epoch: {exc}')
+        body_only_digest = _draft_body_digest(args.draft_file)
     doc['creation'] = {'epoch_round': args.round, 'epoch_arm': attempt['arm'],
                        'body_only_digest': body_only_digest, 'attestation': None}
     try:
@@ -9034,9 +9132,11 @@ def build_parser():
                         'binding wins over it.')
     s.set_defaults(func=cmd_record_final_byte_offer)
 
-    s = sub.add_parser('record-creation-epoch', help='Bind creation to a completed round; '
-                                                     'on the file arm bind the digest of '
-                                                     'the bytes actually being posted.')
+    s = sub.add_parser('record-creation-epoch', help='Bind creation to a completed round, '
+                                                     'or (issue #1751) to a recorded '
+                                                     'zero-round user-decline when no round '
+                                                     'exists; on the file arm bind the digest '
+                                                     'of the bytes actually being posted.')
     s.add_argument('slug')
     s.add_argument('--nonce', required=True)
     s.add_argument('--round', type=int, required=True)  # issue #795 retained: caller-selected-round

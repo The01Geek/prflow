@@ -16355,7 +16355,11 @@ assert_eq "#795: the registered subcommand count was established" "1" \
 # so the printed name can never report a figure the assertion is not enforcing.
 # Issue #1466 raised it from 18 as a CORRECTION rather than a regression; the rationale is in
 # docs/internal/cutovers/issue-795-audit-state-round-trips.md's Measurement section.
-ALC_795_EXPECT=21
+# Issue #1751 lowered it to 13: every fresh-context audit round is now user-elected, so the
+# normal clean run elects nothing and the whole round-conducting set moved to _CONDITIONAL,
+# while record-override (a declined run always records the user-decline) moved into the
+# unconditional sequence.
+ALC_795_EXPECT=13
 assert_eq "#795: the per-round unconditional state-owner call count is $ALC_795_EXPECT" \
   "$ALC_795_EXPECT" "$ALC_795_CALLS"
 printf '  MEASURE  #795 create-issue Step 3.6: unconditional_call_count=%s registered_subcommand_count=%s\n' \
@@ -47405,7 +47409,7 @@ fi
 # The registry and this full-suite call share the same lower-bound contract;
 # test_module_runner.py parses this operand and rejects any coupling drift.
 if ! devflow_run_full_suite_module "$LIB/test/modules/create-issue-contract.sh" \
-  "create-issue-contract" 412; then
+  "create-issue-contract" 418; then
   printf 'ERROR: create-issue-contract boundary could not record its result\n'
   exit 1
 fi
@@ -48268,7 +48272,7 @@ fi
 # and this full-suite call share the same lower-bound contract; test_module_runner.py
 # parses this operand and rejects any coupling drift.
 if ! devflow_run_full_suite_module "$LIB/test/modules/issue-audit-state.sh" \
-  "issue-audit-state" 244; then
+  "issue-audit-state" 261; then
   printf 'ERROR: issue-audit-state boundary could not record its result\n'
   exit 1
 fi
