@@ -1,0 +1,78 @@
+{
+  "iter": 2,
+  "source": "review-and-fix",
+  "loop_role": "fix",
+  "fix_commit_sha": "b53dd6304b8e6d9f743444c91a4fe5892d5e0fe5",
+  "fix_files": [
+    "skills/create-issue/references/step-3-6-audit.md"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "checklist": [
+    {
+      "id": "VC-14",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-15",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [],
+  "fix_decisions": [
+    {
+      "finding_id": "iter1-F1",
+      "decision": "applied",
+      "commit": "b53dd6304b8e6d9f743444c91a4fe5892d5e0fe5",
+      "claim_text": "step-3-6-audit.md line 16 imprecise degradation-routing.md cross-reference (comment_drift, Suggestion)"
+    }
+  ],
+  "shadow": {
+    "reviewed_sha": "b53dd6304b8e6d9f743444c91a4fe5892d5e0fe5",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "telemetry": "unavailable",
+  "synthesized": false
+}

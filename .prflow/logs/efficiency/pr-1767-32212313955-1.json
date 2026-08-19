@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1767",
+  "generated_at": "2026-08-19T04:30:23Z",
+  "config_fingerprint": {
+    "sha256": "041eed3b8a65185548cb1b1544ee25378f9e9c253130671130b6be30a3374ec2",
+    "partial": false,
+    "salient": {
+      "verdict_severity_threshold": "critical",
+      "fix_severity_threshold": "suggestion",
+      "max_iterations": 5
+    }
+  },
+  "source": "review-and-fix",
+  "synthesized": false,
+  "cut_candidate_min_dispatch": 3,
+  "iterations": 1,
+  "per_iteration": [
+    {
+      "iter": 2,
+      "loop_role": "fix",
+      "synthesized": false,
+      "phase3_dispatched": [
+        "prflow:code-reviewer",
+        "prflow:silent-failure-hunter",
+        "prflow:comment-analyzer",
+        "prflow:pr-test-analyzer",
+        "prflow:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 5,
+      "phase3_dispatched_present": true,
+      "dispatched_effort_present": false,
+      "agent_effort": [
+        {
+          "agent": "prflow:code-reviewer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:comment-analyzer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:pr-test-analyzer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:requesting-code-review",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:silent-failure-hunter",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        }
+      ],
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "agent-only",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 2,
+      "fixes_applied": 0,
+      "added_nothing": true,
+      "agent_verdicts": [
+        {
+          "agent": "prflow:code-reviewer",
+          "verdict": null
+        },
+        {
+          "agent": "prflow:comment-analyzer",
+          "verdict": null
+        },
+        {
+          "agent": "prflow:pr-test-analyzer",
+          "verdict": null
+        },
+        {
+          "agent": "prflow:requesting-code-review",
+          "verdict": null
+        },
+        {
+          "agent": "prflow:silent-failure-hunter",
+          "verdict": null
+        }
+      ]
+    }
+  ],
+  "telemetry": [
+    {
+      "iter": 2,
+      "phases": "unavailable"
+    }
+  ]
+}
