@@ -12859,7 +12859,7 @@ echo "load-prompt-extension.sh (consumer prompt-extension reader)"
 # module owns the whole former in-file section; see its .inventory.md for the
 # coverage map back to this location.
 if ! devflow_run_full_suite_module "$LIB/test/modules/prompt-extension-reader.sh" \
-  "prompt-extension-reader" 158; then
+  "prompt-extension-reader" 177; then
   printf 'ERROR: prompt-extension-reader boundary could not record its result\n'
   exit 1
 fi
@@ -12990,9 +12990,11 @@ assert_eq "#295 AC10: config-get git-root-no-.prflow returns the default" "FALLB
   "$(cd "$SIL295/a/b/c" && bash "$CG" .docs.internal FALLBACK 2>/dev/null)"
 assert_eq "#295 AC10: config-get git-root-no-.prflow stays SILENT (empty stderr)" "" \
   "$(cd "$SIL295/a/b/c" && bash "$CG" .docs.internal FALLBACK 2>&1 >/dev/null)"
-# loader: no-op (prints nothing) AND empty stderr.
-assert_eq "#295 AC10: loader git-root-no-.prflow stays SILENT (empty stderr)" "" \
-  "$(cd "$SIL295/a/b/c" && bash "$LPE" implement 2>&1 >/dev/null)"
+# loader: no-op with empty STDOUT. Since issue #1299 the whole-file no-op arm emits a
+# `PROMPT-EXTENSION-STATUS: present-empty` stderr line, so this AC10 guard checks the ABSENCE
+# of the #295 could-not-resolve breadcrumb (the regression it protects) rather than empty stderr.
+assert_eq "#295 AC10: loader git-root-no-.prflow emits no could-not-resolve breadcrumb" "yes" \
+  "$(cd "$SIL295/a/b/c" && bash "$LPE" implement 2>&1 >/dev/null | grep -qF 'could not resolve' && echo no || echo yes)"
 # workpad marker: default marker AND empty stderr (pop the env override so the read
 # reaches the config path).
 assert_eq "#295 AC10: workpad marker git-root-no-.prflow stays SILENT (empty stderr)" "" \
@@ -16452,12 +16454,13 @@ assert_eq "#332 gotcha: Step 2 derivation artifact stays cwd-relative (not main-
 # real skill dir, as on Claude Code) as a command head and assert the resolved helper is
 # actually reached — catching a quoting/expansion defect in the literal (a moved quote, a
 # glob-active placeholder char) that would break all 22 files in lockstep while every
-# static pin stayed GREEN. load-prompt-extension.sh with a bogus skill name exits 0 and
-# prints nothing (the repo tracks only docs.md.example, no live docs.md), so a
-# clean rc-0 no-op IS the observable.
+# static pin stayed GREEN. The repo tracks only docs.md.example (no live docs.md), so the
+# helper takes its whole-file no-op arm; since issue #1299 that arm emits a
+# `PROMPT-EXTENSION-STATUS: present-empty` line, which is the positive reached-the-helper observable.
 PA_BEHAV_CMD="$PORTABLE_ANCHOR_LITERAL"'scripts/load-prompt-extension.sh docs'
 PA_BEHAV_OUT="$(cd "$LIB/.." && CLAUDE_SKILL_DIR="$PWD/skills/docs" bash -c "$PA_BEHAV_CMD" 2>&1)"; PA_BEHAV_RC=$?
-assert_eq "#275 behavioral: the no-extension helper run prints nothing (clean no-op observable)" "" "$PA_BEHAV_OUT"
+assert_eq "#275 behavioral: the no-extension helper run reaches the helper (present-empty token, clean no-op)" "yes" \
+  "$(case "$PA_BEHAV_OUT" in *'PROMPT-EXTENSION-STATUS: present-empty'*) echo yes ;; *) echo no ;; esac)"
 assert_eq "#275 behavioral: the canonical anchor literal executes and reaches the helper (CLAUDE_SKILL_DIR set)" "0" "$PA_BEHAV_RC"
 # And with the var EMPTY the same literal must fail (the placeholder is not a real path) —
 # proving the fallback text is inert as a path, not accidentally resolvable.
