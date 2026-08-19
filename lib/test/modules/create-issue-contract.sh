@@ -63,7 +63,8 @@ CI_REF_FB_EVIDENCE="$CI_ROOT/skills/create-issue/references/fallback-audit-evide
 # T1/T2/T6 read their routing rows from this file (their retargeted operand).
 CI_REF_ROUTING="$CI_ROOT/skills/create-issue/references/degradation-routing.md"
 CI_EXT="$CI_ROOT/.prflow/prompt-extensions/create-issue.md"
-CI_CLAUDE="$CI_ROOT/CLAUDE.md"
+# CI_CLAUDE removed by the #1759 residual-prose sweep: its only readers were the retired
+# #467 D2 (CLAUDE.md leg) and #593 pins, so it became an SC2034 unused-assignment.
 CI_INVENTORY="$CI_ROOT/lib/test/modules/create-issue-contract.inventory.md"
 
 _ci_tmp_root_kind="self"
