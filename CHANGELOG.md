@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.33.36] — 2026-08-19
+
+### Changed
+- **create-issue clarification now selects for the simplest reliable mechanism at every decision point.** The solution-space rule weighs mechanism strength over two axes — the guarantee it enforces and the long-term cost it leaves behind — while still surfacing the strongest viable candidate. A single simplest-reliable rule makes the simplest mechanism that reliably solves the problem a mandatory menu/answer entry and the selection rule for decisions a run may settle without asking, and the implementation-approach recommendation now defaults to the weakest mechanism class whose single-failure consequence the problem tolerates (pricing the strongest passed-over candidate, overridable by a consumer extension's own policy, and not reopened by later steelman/audit passes except on a verified must-revise defect). The approach question opens with the run's problem framing and a passed-over-candidate trace line rides into the investigation record. (#1802)
+
 ## [2.33.35] — 2026-08-19
 
 ### Added
