@@ -23778,7 +23778,7 @@ assert_eq("#815 deferred-presence is registered as a subcommand",
 # as a tracked deferral, but nothing files a reflection — the two channels that file a
 # follow-up issue are the scope-decision-deferred records and the review-and-fix
 # manifest. This backstop makes an UNBACKED deferred reflection detectable at Phase 4.0.6
-# instead of silently passing completion. Every row is a routing decision that fence reads.
+# instead of silently passing completion.
 print()
 print("#1513 workpad deferred-reflection-audit backstop")
 
@@ -23802,6 +23802,14 @@ assert_eq("#1513 it ignores non-deferred reflection bullets (blocked/dropped-fai
               "- ⛔ **Blocked:** b\n- ❗ **Dropped/Failed:** f\n- ℹ️ a note\n"))))
 assert_eq("#1513 a present reflection section with no deferred bullet is an empty list, not None",
           [], workpad._deferred_reflection_texts(_dp_body()))
+# Round-trip against the REAL writer: a bullet _insert_reflection_bullet actually writes
+# for kind='deferred' must read back through the reader — guards against silent drift if
+# the deferred kind's render shape (glyph/label) ever changes.
+assert_eq("#1513 a deferred bullet from the real writer reads back through the reader",
+          ['written advisory'],
+          workpad._deferred_reflection_texts(
+              apply_mut(_dp_body(), make_args(reflection=['written advisory'],
+                                              reflection_kind='deferred'))))
 assert_eq("#1513 an ABSENT ## Devflow Reflection section reads as None (unestablished)",
           None,
           workpad._deferred_reflection_texts(

@@ -1960,9 +1960,13 @@ def cmd_deferred_reflection_audit(args):
                         one renders as an actionable deferral no channel filed.
                         Prints `unbacked: <n>` (the excess) then one `text:` line
                         per deferred reflection. Phase 4.0.6 surfaces it.
-      2  unestablished — the backing count could not be settled: the causes
-                        `deferred-presence` names, plus `reflection-section-unreadable`.
-                        Phase 4 records a note; never read as "nothing unbacked".
+      2  unestablished — the backing count could not be settled: the fail-closed
+                        causes this shares with `deferred-presence` — `workpad-unresolved`,
+                        `progress-section-unreadable`, `reader-divergence`, and an
+                        `unbound`/`corrupted` record — plus `reflection-section-unreadable`
+                        (`ambiguous-criteria` does not apply: a count comparison is
+                        indifferent to two records sharing one normalized text). Phase 4
+                        records a note; never read as "nothing unbacked".
 
     The backing comparand is the count of scope-decision records bound to this
     PR. An unbound/corrupted/reader-divergent record makes that count unreliable,
