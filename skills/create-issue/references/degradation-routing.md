@@ -1,7 +1,7 @@
 <!-- prflow:create-issue-ref step=degradation-routing file=skills/create-issue/references/degradation-routing.md start -->
 ## Reference-routing table
 
-This file is read on two triggers: when a reference load fails (and the run needs the degraded behavior to fall back on), and when a predicate-gated fallback's condition fires (several rows below are reached on an entirely healthy run — their trigger is a property of the issue or of the audit's own progress, not a failure). The root's *Reference routing* section states how a reference is loaded and the boundary-marker contract every load is accepted under; this table only enumerates which file loads on which trigger and the degraded behavior each failed load falls back on.
+This file is read on two triggers: when a reference load fails, and when a predicate-gated fallback's condition fires (several rows below are reached on an entirely healthy run — their trigger is a property of the issue or of the audit's own progress, not a failure). The root's *Reference routing* section states how a reference is loaded and the boundary-marker contract every load is accepted under; this table only enumerates which file loads on which trigger and the degraded behavior each failed load falls back on.
 
 | Load trigger | File | Marker contract | Degraded behavior on a failed load |
 | --- | --- | --- | --- |
