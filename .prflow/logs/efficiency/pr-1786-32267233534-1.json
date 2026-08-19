@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1786",
+  "generated_at": "2026-08-19T15:09:42Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.25",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 8.6798945,
+    "tokens": {
+      "input_tokens": 48,
+      "output_tokens": 35250,
+      "cache_read_input_tokens": 3812961,
+      "cache_creation_input_tokens": 215968,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 100,
+        "outputTokens": 61155,
+        "cacheReadInputTokens": 5106179,
+        "cacheCreationInputTokens": 606008,
+        "webSearchRequests": 0,
+        "costUSD": 8.6798945,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 39,
+    "duration_ms": 581505
+  },
+  "permission_denials": {
+    "count": 4,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"run_id=${GITHUB_RUN_ID:-ABSENT} attempt=${GITHUB_RUN_ATTEMPT:-ABSENT}\"; mkdir -p .prflow/tmp/review/pr-1786/local; echo \"made dir\"",
+      "mkdir -p .prflow/tmp\nif rm -f \".prflow/tmp/review-dirty-tree-before\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \".prflow/tmp/review-dirty-tree-before\" &&\n   [ -f \".prflow/tmp/review-dirty-tree-before\" ] &&\n   [ ! -L \".prflow/tmp/review-dirty-tree-before\" ] &&\n   git hash-object \".prflow/tmp/review-dirty-tree-before\"; then\n  :\nelse\n  echo \"::warning::devflow review: snapshot failed; backstop DISABLED\" >&2\n  rm -f \".prflow/tmp/review-dirty-tree-before\" 2 …[per-command-truncated]",
+      "git status --porcelain -z > .prflow/tmp/review-dirty-tree-before; git hash-object .prflow/tmp/review-dirty-tree-before",
+      "ls -la /home/runner/work/_temp/devflow-trusted-prompt-ext/ 2>&1; echo \"---EXIT---\"; .prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review; echo \"RC=$?\""
+    ],
+    "total": 4,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
