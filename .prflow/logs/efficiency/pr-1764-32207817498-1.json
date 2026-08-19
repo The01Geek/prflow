@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1764",
+  "generated_at": "2026-08-19T02:36:19Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.17",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 18.416097500000003,
+    "tokens": {
+      "input_tokens": 106,
+      "output_tokens": 72399,
+      "cache_read_input_tokens": 10395379,
+      "cache_creation_input_tokens": 299544,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 213,
+        "outputTokens": 142614,
+        "cacheReadInputTokens": 14261960,
+        "cacheCreationInputTokens": 1055266,
+        "webSearchRequests": 0,
+        "costUSD": 18.416097500000003,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 91,
+    "duration_ms": 1254578
+  },
+  "permission_denials": {
+    "count": 18,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---BASE---\"; .prflow/vendor/prflow/scripts/config-get.sh .base_branch main; echo \"---RUNENV---\"; echo \"run_id=${GITHUB_RUN_ID:-EMPTY} attempt=${GITHUB_RUN_ATTEMPT:-EMPTY}\"",
+      "D=.prflow/tmp/review/pr-1764/32207817498-1\nfor k in 1 2 3 4 5 6 7; do\n  s=$(( (k-1)*10 + 1 )); e=$(( k*10 ))\n  awk -v s=\"$s\" -v e=\"$e\" '/^diff --git/{n++} n>=s && n<=e' \"$D/diff.patch\" > \"$D/batch-$k.patch\"\n  echo \"batch-$k: $(grep -c '^diff --git' \"$D/batch-$k.patch\") sections\"\ndone",
+      "D=.prflow/tmp/review/pr-1764/32207817498-1\nawk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' \"$D/diff.patch\" | tee \"$D/batch-1.patch\" | grep -c '^diff --git'",
+      "D=.prflow/tmp/review/pr-1764/32207817498-1\nawk -v s=11 -v e=20 '/^diff --git/{n++} n>=s && n<=e' \"$D/diff.patch\" | tee \"$D/batch-2.patch\" | grep -c '^diff --git'",
+      "D=.prflow/tmp/review/pr-1764/32207817498-1\nawk -v s=21 -v e=30 '/^diff --git/{n++} n>=s && n<=e' \"$D/diff.patch\" | tee \"$D/batch-3.patch\" | grep -c '^diff --git'",
+      "D=.prflow/tmp/review/pr-1764/32207817498-1\nawk -v s=31 -v e=40 '/^diff --git/{n++} n>=s && n<=e' \"$D/diff.patch\" | tee \"$D/batch-4.patch\" | grep -c '^diff --git'",
+      "D=.prflow/tmp/review/pr-1764/32207817498-1\nawk -v s=41 -v e=50 '/^diff --git/{n++} n>=s && n<=e' \"$D/diff.patch\" | tee \"$D/batch-5.patch\" | grep -c '^diff --git'",
+      "D=.prflow/tmp/review/pr-1764/32207817498-1\nawk -v s=51 -v e=60 '/^diff --git/{n++} n>=s && n<=e' \"$D/diff.patch\" | tee \"$D/batch-6.patch\" | grep -c '^diff --git'",
+      "D=.prflow/tmp/review/pr-1764/32207817498-1\nawk -v s=61 -v e=70 '/^diff --git/{n++} n>=s && n<=e' \"$D/diff.patch\" | tee \"$D/batch-7.patch\" | grep -c '^diff --git'",
+      "echo \"=== files missing 'import sys' among hardened files ===\"; for f in scripts/import-workflow-transcript.py scripts/create_issue_benchmark.py scripts/create_issue_eval.py scripts/export-workflow-lifecycle-census.py scripts/implement-context-eval.py scripts/import-review-verdict-handoff.py scripts/focused_selection.py scripts/env-propagation-probe-verdict.py scripts/extract-execution-cost.py; do grep -qE '^import sys' \"$f\" || echo \"MISSING import sys: $f\"; done; echo \"=== done ===\"",
+      "grep -rl '_force_utf8_streams' scripts/ lib/ --include='*.py' | grep -vF '/test/' > /tmp/hardened.txt 2>/dev/null; wc -l /tmp/hardened.txt; echo \"=== of those, lacking import sys ===\"; cat /tmp/hardened.txt | xargs grep -L '^import sys' 2>/dev/null",
+      "echo \"=== ALL tracked *.py with a module-body __main__ block, by top dir ===\"\nfor f in $(git ls-files '*.py'); do\n  if grep -qE '^if __name__ == \"__main__\":' \"$f\"; then echo \"$f\"; fi\ndone | tee .prflow/tmp/allcmds.txt | sed -E 's#/.*##' | sort | uniq -c",
+      "diff <(sed -n '1340,1344p' scripts/render-audit-prompt.py) <(sed -n '1050,1054p' scripts/issue-audit-state.py) && echo \"BODIES IDENTICAL\"",
+      "for f in $(git ls-files -- 'scripts/*.py' 'lib/*.py' | grep -v '^lib/test/'); do\n  if grep -q '__main__' \"$f\"; then\n    if ! grep -q '_force_utf8_streams\\|reconfigure(encoding=\"utf-8\"' \"$f\"; then\n      echo \"MISSING: $f\"\n    fi\n  fi\ndone; echo \"done\"",
+      "git ls-files -- 'scripts/*.py' 'lib/*.py' | grep -v '^lib/test/' > /tmp/pyfiles.txt\nwhile IFS= read -r f; do\n  if grep -q '__main__' \"$f\"; then\n    if ! grep -qE '_force_utf8_streams|reconfigure\\(encoding=\"utf-8\"' \"$f\"; then\n      echo \"MISSING: $f\"\n    fi\n  fi\ndone < /tmp/pyfiles.txt\necho \"done; total commands:\"; grep -lE '__main__' $(cat /tmp/pyfiles.txt) | wc -l",
+      "git stash list; git show 73bdc12fb:lib/test/test_render_audit_prompt.py > /tmp/base_test.py 2>/dev/null && python3 /tmp/base_test.py 2>&1 | grep -E \"^(FAIL|ERROR):|Ran|FAILED|OK\"",
+      "git show 73bdc12fb:lib/test/test_render_audit_prompt.py > .prflow/tmp/base_test.py && python3 .prflow/tmp/base_test.py 2>&1 | grep -E \"^(FAIL|ERROR):|Ran|FAILED|OK\"; rm -f .prflow/tmp/base_test.py",
+      "echo \"ROOT=${DEVFLOW_PROMPT_EXTENSION_ROOT:-unset}\""
+    ],
+    "total": 18,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
