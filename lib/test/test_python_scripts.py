@@ -5607,6 +5607,23 @@ try:
     _rc_u, _o_u, _e_u = _run_1772(_base_argv_1772, "yes")
     assert_eq("main(#1772): unrecognized env value falls back to true with a warning",
               True, "::notice::" in _e_u and "PRFLOW_EFFORT_SUPPORTED" in _e_u)
+    # present-but-empty env is the actual common production input: the workflows write
+    # `PRFLOW_EFFORT_SUPPORTED=%s`, so the Anthropic default path exports an empty value —
+    # treated as absent (benign ::notice::, no warning), NOT the unrecognized branch.
+    _rc_e, _o_e, _e_e = _run_1772(_base_argv_1772, "")
+    assert_eq("main(#1772): empty env value → benign ::notice::, no warning",
+              True, "::notice::" in _e_e and "::warning::" not in _e_e)
+    _rc_ws, _o_ws, _e_ws = _run_1772(_base_argv_1772, "   ")
+    assert_eq("main(#1772): whitespace-only env value → benign ::notice::, no warning",
+              True, "::notice::" in _e_ws and "::warning::" not in _e_ws)
+    # case/whitespace normalization (strip().lower()): ' False ' → false → provider
+    # ::warning:: — a regression dropping .strip()/.lower() would silently fail this open.
+    _rc_c, _o_c, _e_c = _run_1772(_base_argv_1772, " False ")
+    assert_eq("main(#1772): ' False ' normalizes to false → provider ::warning::",
+              True, "::warning::" in _e_c and "effort_supported" in _e_c)
+    _rc_ct, _o_ct, _e_ct = _run_1772(_base_argv_1772, " TRUE ")
+    assert_eq("main(#1772): ' TRUE ' normalizes to true → benign ::notice::",
+              True, "::notice::" in _e_ct and "::warning::" not in _e_ct)
 finally:
     if _prev_env_1772 is None:
         _os.environ.pop("PRFLOW_EFFORT_SUPPORTED", None)

@@ -31817,6 +31817,29 @@ PY
 )"
   assert_eq "#313 single-sourced: Resolve/Inject/export-effort/cargs run: bodies byte-identical across the 3 workflows" "yes,yes,yes,yes" "$R313_BODY_IDENT"
 
+  # #1772: the byte-identity pin above compares only each step's `run:` body, so the
+  # load-bearing env WIRING of the effort-export step — `EFFORT_SUPPORTED:
+  # ${{ steps.provider.outputs.effort_supported }}` — is unasserted: a workflow whose env
+  # block is omitted/mistyped/points at a wrong output keeps the run body identical, passes
+  # green, and exports an empty PRFLOW_EFFORT_SUPPORTED (fail-open to `true`), silently
+  # reproducing the pre-#1772 "provider capability ignored" bug. Assert the env source
+  # explicitly across all three workflows.
+  R1772_EXPORT_ENV="$(python3 - "$IMPL_WF" "$RUNNER_WF" "$LIGHT_WF" <<'PY'
+import sys, yaml
+files = sys.argv[1:]
+want = "${{ steps.provider.outputs.effort_supported }}"
+vals = []
+for f in files:
+    doc = yaml.safe_load(open(f))
+    for job in doc["jobs"].values():
+        for st in job.get("steps", []):
+            if st.get("name") == "Export provider effort capability to job env":
+                vals.append((st.get("env") or {}).get("EFFORT_SUPPORTED"))
+print("yes" if len(vals) == 3 and all(v == want for v in vals) else "no")
+PY
+)"
+  assert_eq "#1772: effort-export step env sources steps.provider.outputs.effort_supported in all 3 workflows" "yes" "$R1772_EXPORT_ENV"
+
   # gh_kv normalizes a $GITHUB_ENV/$GITHUB_OUTPUT file written in GitHub's newline-safe
   # multiline-heredoc form (KEY<<DELIM\nvalue\nDELIM — the form this PR now uses everywhere)
   # back into KEY=VALUE lines for whole-line assertions. All #313 emitted values are
