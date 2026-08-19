@@ -5607,9 +5607,9 @@ try:
     _rc_u, _o_u, _e_u = _run_1772(_base_argv_1772, "yes")
     assert_eq("main(#1772): unrecognized env value falls back to true with a warning",
               True, "::notice::" in _e_u and "PRFLOW_EFFORT_SUPPORTED" in _e_u)
-    # present-but-empty env is the actual common production input: the workflows write
-    # `PRFLOW_EFFORT_SUPPORTED=%s`, so the Anthropic default path exports an empty value —
-    # treated as absent (benign ::notice::, no warning), NOT the unrecognized branch.
+    # a present-but-empty env value is a defensive input (the provider step normally exports
+    # 'true'/'false', but a skipped/output-less provider step would export empty): treated as
+    # absent → benign ::notice::, no warning, NOT the unrecognized-value branch.
     _rc_e, _o_e, _e_e = _run_1772(_base_argv_1772, "")
     assert_eq("main(#1772): empty env value → benign ::notice::, no warning",
               True, "::notice::" in _e_e and "::warning::" not in _e_e)

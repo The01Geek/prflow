@@ -31824,21 +31824,30 @@ PY
   # green, and exports an empty PRFLOW_EFFORT_SUPPORTED (fail-open to `true`), silently
   # reproducing the pre-#1772 "provider capability ignored" bug. Assert the env source
   # explicitly across all three workflows.
-  R1772_EXPORT_ENV="$(python3 - "$IMPL_WF" "$RUNNER_WF" "$LIGHT_WF" <<'PY'
-import sys, yaml
-files = sys.argv[1:]
+  R1772_EXPORT_ENV="$(python3 - "$IMPL_WF" "$RUNNER_WF" "$LIGHT_WF" "$REPO_ROOT/scripts/resolve-review-overrides.py" <<'PY'
+import sys, re, yaml
+files = sys.argv[1:4]
 want = "${{ steps.provider.outputs.effort_supported }}"
-vals = []
+# Derive the exported env-var KEY from the resolver's OWN constant so the workflow writer and
+# the in-session reader stay coupled: a rename on either side that is not mirrored fails RED.
+m = re.search(r'_EFFORT_SUPPORTED_ENV\s*=\s*"([^"]+)"', open(sys.argv[4]).read())
+key = m.group(1) if m else None
+env_ok, run_ok = [], []
 for f in files:
     doc = yaml.safe_load(open(f))
     for job in doc["jobs"].values():
         for st in job.get("steps", []):
             if st.get("name") == "Export provider effort capability to job env":
-                vals.append((st.get("env") or {}).get("EFFORT_SUPPORTED"))
-print("yes" if len(vals) == 3 and all(v == want for v in vals) else "no")
+                # env: the value SOURCE (the provider output); run: the KEY the resolver reads.
+                # Checking both closes the lockstep-wrong-key gap the #313 body-identity pin
+                # leaves open (three run: bodies edited to a wrong key stay identical → green).
+                env_ok.append((st.get("env") or {}).get("EFFORT_SUPPORTED") == want)
+                run_ok.append(key is not None and (key + "=") in (st.get("run") or ""))
+ok = key is not None and len(env_ok) == 3 and all(env_ok) and len(run_ok) == 3 and all(run_ok)
+print("yes" if ok else "no")
 PY
 )"
-  assert_eq "#1772: effort-export step env sources steps.provider.outputs.effort_supported in all 3 workflows" "yes" "$R1772_EXPORT_ENV"
+  assert_eq "#1772: effort-export step sources the provider output AND writes the resolver's PRFLOW_EFFORT_SUPPORTED key in all 3 workflows" "yes" "$R1772_EXPORT_ENV"
 
   # gh_kv normalizes a $GITHUB_ENV/$GITHUB_OUTPUT file written in GitHub's newline-safe
   # multiline-heredoc form (KEY<<DELIM\nvalue\nDELIM — the form this PR now uses everywhere)
