@@ -90,6 +90,8 @@ Phase-reference boundary contract (accept-or-reject on every phase-file read). E
 
 A member of a multi-file phase carries its set membership as its literal second line, `<!-- prflow:implement-set phase=<N> part=<k> of=<n> -->`. An intact marker pair speaks only for its own file, so it is the `part=`/`of=` lines — not the pair — that establish the phase was held whole.
 
+Paged-read recovery (before the counting below). A reader that returns a phase file in pages — a partial-view notice carrying an `offset`/`limit` continuation — has not damaged it: page forward until no continuation is offered or a page adds nothing new, then apply the taxonomy below — `part=`/`of=` lines included — over the **assembled whole document**, and record the file and page count in a `--note` (the Phase 1 entry read precedes the §1.3 workpad creation, so report it in chat there and write the note straight after §1.3). A read you cannot complete, a gap in the page sequence, or a reader message you cannot classify as that notice is row 1 (`denied`).
+
 After every `Read` of a phase reference, quote the body's literal first and last lines, and let `S` and `E` count the lines matching the *expected* `start` and `end` markers — *expected* meaning bearing the phase id and path of the file this gate intended to read. Strip any vendored (`.prflow/vendor/prflow/`) or absolute prefix from the resolved read path before comparing, and compare the marker's self-named `file=` against the plugin-relative form (starting `skills/implement/phases/`) and nothing else — comparing against the resolved path would halt every consumer run on a correct file. Test the rows in order; the first that fires is the attributed shape:
 
 | # | Shape | Fires when | Stop label |
@@ -106,7 +108,7 @@ After every `Read` of a phase reference, quote the body's literal first and last
 
 On any boundary row: stop that phase, report the stop label with the phase id and the reference path, and do not act on the body, improvise the phase from its stub/orientation text, or repair the file. Repair route: a failing marker is repaired out of band, by a human edit or by a command other than this one — a broken marker halts every run of `/prflow:implement`, including one dispatched to repair it.
 
-Rows 1–7 are a required copy of `skills/review/SKILL.md`'s *Reference boundary contract*, which holds the canonical set and is edited in the same change; rows 8–9 are this engine's own, and its identity rows have no counterpart here.
+Rows 1–7 and the paged-read recovery above are a required copy of `skills/review/SKILL.md`'s *Reference boundary contract*, which holds the canonical set and is edited in the same change; rows 8–9 and this contract's `part=`/`of=` set-completeness are this engine's own, and its identity rows have no counterpart here.
 
 ## MANDATORY: All Four Phases Must Execute
 
