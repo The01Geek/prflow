@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1779",
+  "generated_at": "2026-08-19T08:10:05Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.23",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 8.5521905,
+    "tokens": {
+      "input_tokens": 72,
+      "output_tokens": 37679,
+      "cache_read_input_tokens": 5586640,
+      "cache_creation_input_tokens": 220767,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 120,
+        "outputTokens": 52001,
+        "cacheReadInputTokens": 6546491,
+        "cacheCreationInputTokens": 504071,
+        "webSearchRequests": 0,
+        "costUSD": 8.5521905,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 53,
+    "duration_ms": 634248
+  },
+  "permission_denials": {
+    "count": 2,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---RUNENV---\"; echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-}\"; echo \"GITHUB_RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT:-}\"; echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-}\"; echo \"CLAUDE_SKILL_DIR=${CLAUDE_SKILL_DIR:-}\"",
+      "mkdir -p .prflow/tmp\nif rm -f \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\" &&\n   [ -f \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\" ] &&\n   [ ! -L \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\" ] &&\n   git hash-object \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\"; then\n  echo \"SNAP-OK\"\nelse\n  echo \":: …[per-command-truncated]"
+    ],
+    "total": 2,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
