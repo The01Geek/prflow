@@ -14,14 +14,14 @@ Use a Git repository and run the installer from its root. Install `git` before s
 1. Download the installer from the current release tag.
 
    ```bash
-   curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.33.36/install.sh -o devflow-install.sh
+   curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.33.37/install.sh -o devflow-install.sh
    ```
 
 2. Read `devflow-install.sh` before running it.
 3. Run the downloaded file with the same tag in `DEVFLOW_REF`.
 
    ```bash
-   DEVFLOW_REF=v2.33.36 bash devflow-install.sh
+   DEVFLOW_REF=v2.33.37 bash devflow-install.sh
    ```
 
 4. Review the result with `git status` and `git diff`.
@@ -50,7 +50,7 @@ The default is a thin install. The workflows fetch the plugin at runtime into `.
 Set `DEVFLOW_VENDOR=1` to commit the plugin tree instead:
 
 ```bash
-DEVFLOW_VENDOR=1 DEVFLOW_REF=v2.33.36 bash devflow-install.sh
+DEVFLOW_VENDOR=1 DEVFLOW_REF=v2.33.37 bash devflow-install.sh
 ```
 
 Vendored mode avoids a runtime fetch and makes the plugin bytes auditable in the repository. It also creates a much larger install and update diff.
