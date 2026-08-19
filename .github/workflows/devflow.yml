@@ -1380,15 +1380,15 @@ jobs:
               echo "::warning::.prflow/config.json section '$SECTION' provider '$PROVIDER' uses bedrock_api_key auth; its base_url is ignored (Bedrock is reached via AWS_REGION, not base_url). Remove base_url from providers.$PROVIDER."
             fi
             genv AWS_BEARER_TOKEN_BEDROCK "$PROVIDER_API_KEY"
-            if [ -n "$TIMEOUT_MS" ]; then genv API_TIMEOUT_MS "$TIMEOUT_MS"; fi
           else
             genv ANTHROPIC_BASE_URL "$BASE_URL"
-            if [ -n "$TIMEOUT_MS" ]; then genv API_TIMEOUT_MS "$TIMEOUT_MS"; fi
             # Bearer-token gateways read Authorization from ANTHROPIC_AUTH_TOKEN; the
             # same key also rides as the anthropic_api_key action input below (the
             # documented two-slot recipe). auth: api_key passes it via the input only.
             if [ "$AUTH" = "bearer" ]; then genv ANTHROPIC_AUTH_TOKEN "$PROVIDER_API_KEY"; fi
           fi
+          # API_TIMEOUT_MS applies to either arm, so write it once after the branch.
+          if [ -n "$TIMEOUT_MS" ]; then genv API_TIMEOUT_MS "$TIMEOUT_MS"; fi
           # Every key of the provider env map (haiku/subagent model mappings, the
           # beta/attribution toggles, …) verbatim, each as a heredoc block. These are
           # non-secret model/config values (only the API key above is a masked secret).
