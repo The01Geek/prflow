@@ -1909,20 +1909,12 @@ def cmd_deferred_presence(args):
     sys.exit(1)
 
 
-# Issue #1513 — the deferred-REFLECTION backing audit.
-#
-# A `--reflection-kind deferred` bullet renders under `### ⚠️ Action required`
-# ("Deferred"), so it reads as a tracked deferral — but nothing files a
-# reflection. The two channels that DO file a follow-up issue are the
-# scope-decision-deferred records (`deferred-presence` above) and the
-# review-and-fix deferrals manifest. So a `deferred` reflection is honest only
-# when a real tracking record backs it (the issue-claim-auditor's
-# capability-blocked-AC case is backed by a Phase 2.2.5 scope-decision record)
-# and a black hole otherwise (issue #1513: an advisory recorded as a `deferred`
-# reflection with no backing, reported as handled while filed nowhere). This
-# reader and `cmd_deferred_reflection_audit` make the unbacked case detectable at
-# Phase 4 instead of silently passing completion.
-def _deferred_reflection_texts(sections) -> "list[str] | None":
+# Issue #1513 — the deferred-REFLECTION backing audit: a `--reflection-kind
+# deferred` bullet reads as a tracked deferral but files nothing, so this reader
+# and cmd_deferred_reflection_audit make an unbacked one detectable at Phase 4.
+# The backing contract and the two-channel rationale are in the function
+# docstrings below.
+def _deferred_reflection_texts(sections: "list[tuple[str, str]]") -> "list[str] | None":
     """Trailing text of every rendered `deferred` reflection bullet, or None.
 
     Takes the already-split `sections` (from `_split_sections`) rather than the
@@ -1953,7 +1945,10 @@ def cmd_deferred_reflection_audit(args):
     """Audit whether every `deferred`-kind reflection this run recorded is backed
     by a scope-decision-deferred record bound to this run's PR (issue #1513).
 
-    grep(1) exit idiom, mirroring `cmd_deferred_presence`:
+    grep(1)-style three-state exit (0/1/2), the same shape `cmd_deferred_presence`
+    uses — but the polarity is inverted from that sibling: here 0 is the CLEAN
+    state (backed) and 1 the problem state (unbacked), whereas there 0 is the
+    act-now state (outstanding):
 
       0  backed        — the deferred-reflection count does not exceed the count
                         of `kind=deferred` scope-decision records bound to this

@@ -23893,6 +23893,30 @@ assert_eq("#1513 an unbound backing record makes the audit unestablished, not un
           _dra_run(_dp_body(
               reflection_extra=_dra_refl('adv'),
               progress_extra=_dp_note(_dp_rec('pending', 'deferred', DP_CRIT)))))
+# A corrupted (undecodable text=) bound record is equally unreliable → corrupted-records,
+# never a false backed/unbacked. (This command routes corrupted inline, distinctly from
+# cmd_deferred_presence, so the #815 corrupted test does not cover this arm.)
+assert_eq("#1513 a corrupted bound record makes the audit unestablished (corrupted-records)",
+          (2, "unestablished: reason=corrupted-records unbound=0 corrupted=1\n"),
+          _dra_run(_dp_body(
+              reflection_extra=_dra_refl('adv'),
+              progress_extra=_dp_note('<!-- devflow:scope-decision pr=42 kind=deferred text=a -->'))))
+# A kind=deferred record the whole-body reader sees but no isolated ## Progress bullet
+# carries → reader-divergence (the backing count is unreliable), never a confident answer.
+_dra_div = _dp_body(reflection_extra=_dra_refl('adv')).replace(
+    '## Acceptance Criteria\n',
+    '## Notes\n' + _dp_rec(42, 'deferred', DP_CRIT) + '\n\n## Acceptance Criteria\n')
+assert_eq("#1513 a record only the whole-body reader can see exits 2 (reader-divergence)",
+          (2, "unestablished: reason=reader-divergence unbound=0 corrupted=0\n"),
+          _dra_run(_dra_div))
+# Partial backing: two deferred reflections over ONE bound record → unbacked by the EXCESS
+# (1), while every reflection text is printed. This is the one spot where the excess count
+# and the print-all-texts behavior diverge.
+assert_eq("#1513 two reflections over one bound record → unbacked:1, both texts printed",
+          (1, "unbacked: 1\ntext: one\ntext: two\n"),
+          _dra_run(_dp_body(
+              reflection_extra=_dra_refl('one') + _dra_refl('two'),
+              progress_extra=_dp_note(_dp_rec(42, 'deferred', DP_CRIT)))))
 assert_eq("#1513 an unresolvable workpad exits 2 and names the workpad operand",
           (2, "unestablished: reason=workpad-unresolved unbound=0 corrupted=0\n"),
           _dra_run(_dp_body(reflection_extra=_dra_refl('adv')), comment=False))
