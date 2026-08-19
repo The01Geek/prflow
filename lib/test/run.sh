@@ -32006,13 +32006,10 @@ print(next(s["run"] for j in d["jobs"].values() for s in j.get("steps",[]) if s.
     ( export DECISION='{"env":{"K<<X":"x"}}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" ) >/dev/null 2>&1 || R313_RC=$?
     assert_eq "#313 inject-body: an env-map key containing '<<' fails loud (exit 1, key-validation guard)" "1" "$R313_RC"
     : > "$R313_GENV"
-    # env-map KEY-NAME deny list (issue #1773): beyond the SHAPE guard above, a key whose
-    # NAME is harmful is refused (fail loud, exit 1) BEFORE any $GITHUB_ENV write — a
-    # credential name (invites a plaintext secret committed to config), a runtime-sensitive
-    # shadowing name (PATH/GITHUB_TOKEN), or CLAUDE_CODE_SUBAGENT_MODEL (flattens the
-    # agent_overrides review roster to one model). Each denied key: exit 1, an ::error::
-    # naming the offending key, and NO top-level env var written.
-    for R1773_KEY in PATH GITHUB_TOKEN ANTHROPIC_API_KEY AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_BEARER_TOKEN_BEDROCK CLAUDE_CODE_SUBAGENT_MODEL; do
+    # env-map KEY-NAME deny list (issue #1773): a key whose NAME is harmful is refused (exit 1,
+    # ::error:: naming it, no $GITHUB_ENV write) — see the workflow SECURITY comment for which
+    # names and why. Per key: exit 1, the ::error:: names the key, and no top-level env var written.
+    for R1773_KEY in PATH GITHUB_TOKEN ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_BEARER_TOKEN_BEDROCK CLAUDE_CODE_SUBAGENT_MODEL; do
       R313_RC=0
       R313_OUT="$( export DECISION="{\"env\":{\"$R1773_KEY\":\"x\"}}" AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" 2>&1 )" || R313_RC=$?
       assert_eq "#1773 inject-body: forbidden env-map key $R1773_KEY fails loud (exit 1, deny-list guard)" "1" "$R313_RC"
@@ -32030,6 +32027,21 @@ print(next(s["run"] for j in d["jobs"].values() for s in j.get("steps",[]) if s.
     ( export DECISION='{"env":{"github_token":"x"}}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" ) >/dev/null 2>&1 || R313_RC=$?
     assert_eq "#1773 inject-body: a case-variant denied key (github_token) is also refused (exit 1)" "1" "$R313_RC"
     : > "$R313_GENV"
+    # Multiple denied keys in one map: fail loud (exit 1) AND the ::error:: names BOTH — exercises
+    # the guard's [ .env|keys[]|select ]|join(" ") collection, not just a single-element match.
+    R313_RC=0
+    R313_OUT="$( export DECISION='{"env":{"PATH":"x","ANTHROPIC_API_KEY":"y"}}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" 2>&1 )" || R313_RC=$?
+    assert_eq "#1773 inject-body: two denied keys in one map fail loud (exit 1)" "1" "$R313_RC"
+    assert_eq "#1773 inject-body: the ::error:: names BOTH denied keys (join collects all, not just the first)" "yes" \
+      "$(printf '%s' "$R313_OUT" | grep -qF 'PATH' && printf '%s' "$R313_OUT" | grep -qF 'ANTHROPIC_API_KEY' && echo yes || echo no)"
+    : > "$R313_GENV"
+    # Exact-match boundary: a NON-denied key that is a near-miss superstring of a denied name is
+    # still exported (not refused) — pins IN() exact membership against a contains/prefix regression.
+    ( export DECISION='{"env":{"GITHUB_TOKEN_ID":"z"}}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" ) >/dev/null 2>&1
+    gh_kv "$R313_GENV" > "$R313_GENV.kv"
+    assert_eq "#1773 inject-body: a near-miss non-denied key (GITHUB_TOKEN_ID) is still exported (IN() is exact-match)" "yes" \
+      "$(grep -qxF 'GITHUB_TOKEN_ID=z' "$R313_GENV.kv" && echo yes || echo no)"
+    rm -f "$R313_GENV.kv"; : > "$R313_GENV"
     # A well-formed env-map key still passes (no false fire on the documented keys).
     ( export DECISION='{"env":{"ANTHROPIC_DEFAULT_HAIKU_MODEL":"glm-4.7"}}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" ) >/dev/null 2>&1
     gh_kv "$R313_GENV" > "$R313_GENV.kv"
