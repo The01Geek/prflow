@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1763",
+  "generated_at": "2026-08-19T01:46:01Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.17",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 15.623221049999994,
+    "tokens": {
+      "input_tokens": 74,
+      "output_tokens": 59479,
+      "cache_read_input_tokens": 6250395,
+      "cache_creation_input_tokens": 382814,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 118,
+        "outputTokens": 87801,
+        "cacheReadInputTokens": 7246545,
+        "cacheCreationInputTokens": 641383,
+        "webSearchRequests": 0,
+        "costUSD": 11.263083749999996,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 194,
+        "outputTokens": 26793,
+        "cacheReadInputTokens": 4181201,
+        "cacheCreationInputTokens": 720880,
+        "webSearchRequests": 0,
+        "costUSD": 4.360137300000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 70,
+    "duration_ms": 1043386
+  },
+  "permission_denials": {
+    "count": 13,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1763/32199302780-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1763/32199302780-1/verdicts/iter-1/VC-3-9d4f60.json << 'EOF'\n{\n  \"id\": \"VC-3\",\n  \"verdict\": \"FAIL\",\n  \"evidence\": \"skills/create-issue/SKILL.md Step 1 (lines 182-192) discusses the documentation leg's absence/unestablished handling in terms of: (1) location itself absent -> established absence; (2) location exists but read fails -> unestabl …[per-command-truncated]",
+      "scripts/config-get.sh .docs.internal docs/internal/",
+      "mkdir -p /tmp/cgtest/.prflow && cat > /tmp/cgtest/.prflow/config.json <<'EOF'\n{\"docs\": {\"internal\": [\"docs/internal\"]}}\nEOF\ncd /tmp/cgtest && git init -q . 2>/dev/null || true\nbash /home/runner/work/prflow/prflow/scripts/config-get.sh .docs.internal \"\" /tmp/cgtest/.prflow/config.json; echo \"exit=$?\"",
+      "bash /home/runner/work/prflow/prflow/scripts/config-get.sh .docs.internal \"\" /tmp/cgtest2/.prflow/config.json; echo \"exit=$?\"",
+      "bash /home/runner/work/prflow/prflow/scripts/config-get.sh .docs.internal \"\" /tmp/cgtest2/.prflow/config.json\necho \"exit=$?\"",
+      "bash /home/runner/work/prflow/prflow/scripts/config-get.sh .docs.internal \"\" /tmp/cgtest2/.prflow/config.json",
+      "bash scripts/config-get.sh .docs.internal \"\" /tmp/cgtest2/.prflow/config.json",
+      "mkdir -p .prflow/tmp\nif rm -f \".prflow/tmp/review-dirty-tree-before\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \".prflow/tmp/review-dirty-tree-before\" &&\n   [ -f \".prflow/tmp/review-dirty-tree-before\" ] &&\n   [ ! -L \".prflow/tmp/review-dirty-tree-before\" ] &&\n   git hash-object \".prflow/tmp/review-dirty-tree-before\"; then\n  :\nelse\n  echo \"SNAP-FAILED\" >&2\n  printf '%s\\n' disabled > \".prflow/tmp/review-dirty-tree-disabled\"\nfi\n.prflow/vendor/prflow/scrip …[per-command-truncated]",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >/tmp/ext.out 2>/tmp/ext.err; echo \"EXIT=$?\"; echo \"---STDOUT---\"; cat /tmp/ext.out; echo \"---STDERR---\"; cat /tmp/ext.err",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >/tmp/ext.out 2>/tmp/ext.err; echo \"EXIT=$?\"",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >.prflow/tmp/ext.out 2>.prflow/tmp/ext.err; echo \"EXIT=$?\"",
+      "ls -la /home/runner/work/_temp/devflow-trusted-prompt-ext/ 2>&1; echo \"===\"; cat /home/runner/work/_temp/devflow-trusted-prompt-ext/requesting-code-review.md 2>&1 | head -40",
+      "ls -la /home/runner/work/_temp/devflow-trusted-prompt-ext/ 2>&1"
+    ],
+    "total": 13,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
