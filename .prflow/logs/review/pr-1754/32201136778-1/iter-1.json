@@ -1,0 +1,26 @@
+{
+  "iter": 1,
+  "fix_commit_sha": "566cb32f6c8e19ce8a61c5bf9fae7bd75662cfe9",
+  "fix_files": [
+    ".github/actions/setup-project-env/action.yml",
+    ".github/workflows/devflow-review.yml",
+    "README.md"
+  ],
+  "loop_role": "fix",
+  "synthesized": true,
+  "sweep_defs_read": {
+    "status": "unrecoverable",
+    "reason": "fix-commit-only synthesis: no iteration record was found for this run, and a fix commit carries no trace of which sweep definitions were read"
+  },
+  "sweep_evidence": {
+    "status": "unrecoverable",
+    "reason": "fix-commit-only synthesis: no iteration record was found for this run, and a fix commit carries no trace of the sweep outcomes"
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "unrecoverable",
+      "reason": "fix-commit-only synthesis: no iteration record was found for this run, and a fix commit carries no trace of whether the Step 3.5 fix-delta gate ran"
+    }
+  },
+  "telemetry": "unavailable"
+}
