@@ -8,6 +8,6 @@ type: Added
   key stored in the existing `DEVFLOW_PROVIDER_API_KEY` secret. Such an entry needs no `base_url`,
   takes its AWS region from the entry's `env` map (`AWS_REGION`, required), exports the key as
   `AWS_BEARER_TOKEN_BEDROCK`, and passes the action's `use_bedrock` input — no second secret and no
-  AWS role setup. The two existing auth arms (`bearer`, `api_key`) and the Anthropic default path
-  keep their prior job-environment variables and action inputs, pinned by the existing `#313`
-  regression fixtures. (#1778)
+  AWS role setup. The existing `bearer` and `api_key` auth arms and the Anthropic default path keep
+  their prior job-environment variables and action inputs, pinned by the existing `#313` regression
+  fixtures. (#1778)
