@@ -177,6 +177,12 @@ assert_eq "lpe token: content-present → stdout stays byte-verbatim (token not 
   "$(printf 'line one\nline two')" "$LPE_TOK_CONTENT_OUT"
 assert_eq "lpe token: content-present → stderr carries the content-present token" "yes" \
   "$(case "$(cat "$LPE_TOK_CONTENT_ERR")" in *'PROMPT-EXTENSION-STATUS: content-present'*) echo yes ;; *) echo no ;; esac)"
+# The token line carries the `load-prompt-extension.sh: ` diagnostic prefix, and it is
+# load-bearing: the phase-3 reviewer classifies the merged stdout/stderr by dropping
+# `load-prompt-extension.sh: ` lines, so an unprefixed token would leak into its content
+# classification and misreport an empty extension as loaded-with-content. Pin the prefix.
+assert_eq "lpe token: the status line carries the load-prompt-extension.sh: diagnostic prefix (phase-3 discriminator)" "yes" \
+  "$(case "$(cat "$LPE_TOK_CONTENT_ERR")" in *'load-prompt-extension.sh: PROMPT-EXTENSION-STATUS: content-present'*) echo yes ;; *) echo no ;; esac)"
 # absent extension → present-empty token, empty stdout.
 LPE_TOK_ABS_ERR="$LPE_DIR/err-tok-abs"
 LPE_TOK_ABS_OUT="$(cd "$LPE_DIR" && bash "$LPE" pr-description 2>"$LPE_TOK_ABS_ERR")"
