@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1778",
+  "generated_at": "2026-08-19T17:28:04Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.30",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 29.648718349999992,
+    "tokens": {
+      "input_tokens": 258,
+      "output_tokens": 127763,
+      "cache_read_input_tokens": 35750847,
+      "cache_creation_input_tokens": 355356,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 338,
+        "outputTokens": 147105,
+        "cacheReadInputTokens": 39243592,
+        "cacheCreationInputTokens": 549137,
+        "webSearchRequests": 0,
+        "costUSD": 28.065802249999994,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 32,
+        "outputTokens": 12217,
+        "cacheReadInputTokens": 847717,
+        "cacheCreationInputTokens": 305400,
+        "webSearchRequests": 0,
+        "costUSD": 1.5829160999999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 168,
+    "duration_ms": 5409873
+  },
+  "permission_denials": {
+    "count": 17,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      ".prflow/vendor/prflow/scripts/workpad.py handoff-state .prflow/tmp/implement-handoff-1770-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT.json --issue 1770 --run-id $GITHUB_RUN_ID --run-attempt $GITHUB_RUN_ATTEMPT; echo \"EXIT=$?\"",
+      "printf 'RUN_ID=%s\\nRUN_ATTEMPT=%s\\nSERVER=%s\\nREPO=%s\\n' \"$GITHUB_RUN_ID\" \"$GITHUB_RUN_ATTEMPT\" \"$GITHUB_SERVER_URL\" \"$GITHUB_REPOSITORY\"",
+      ".prflow/vendor/prflow/scripts/update-branch-checkpoint.sh 2>&1 | tail -20; echo \"RC=${PIPESTATUS[0]}\"",
+      "cd /home/runner/work/prflow/prflow\nmkdir -p .prflow/tmp\nFP=$(python3 .prflow/vendor/prflow/scripts/checkout-fingerprint.py)\ncat > /tmp/flight-input.json <<EOF\n{\"command\": \"lib/test/run-shard.sh monolith\", \"checkout\": $FP, \"declared_by\": \"ac-evidence-verifier-1770\"}\nEOF\nCLAIM=$(python3 .prflow/vendor/prflow/scripts/verification-flight.py claim --input-file /tmp/flight-input.json --state-dir .prflow/tmp/verification-flights 2>&1)\necho \"$CLAIM\"",
+      "mkdir -p .prflow/tmp && python3 .prflow/vendor/prflow/scripts/checkout-fingerprint.py > /tmp/fp.json && python3 -c \"\nimport json\nfp = json.load(open('/tmp/fp.json'))\ndata = {'command': 'lib/test/run-shard.sh monolith', 'checkout': fp, 'declared_by': 'ac-evidence-verifier-1770'}\njson.dump(data, open('/tmp/flight-input.json','w'))\n\"\ncat /tmp/flight-input.json",
+      "python3 .prflow/vendor/prflow/scripts/checkout-fingerprint.py > /tmp/fp.json",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp\npython3 /home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/checkout-fingerprint.py > /home/runner/work/prflow/prflow/.prflow/tmp/fp.json\ncat /home/runner/work/prflow/prflow/.prflow/tmp/fp.json",
+      "\"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/.prflow/vendor/prflow/skills/docs}\"/../../scripts/load-prompt-extension.sh docs; echo \"---EXIT:$?---\"",
+      "INTERNAL_ENABLED=$(\"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/.prflow/vendor/prflow/skills/docs}\"/../../scripts/config-get.sh .docs.internal_enabled true); EXTERNAL_ENABLED=$(\"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/.prflow/vendor/prflow/skills/docs}\"/../../scripts/config-get.sh .docs.external_enabled true); echo \"INTERNAL=$INTERNAL_ENABLED EXTERNAL=$EXTERNAL_ENABLED\"",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/load-prompt-extension.sh docs",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/config-get.sh .docs.internal_enabled true",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/config-get.sh .docs.external_enabled true",
+      "( .prflow/vendor/prflow/scripts/prompt-surface-growth.py 2>&1 || scripts/prompt-surface-growth.py 2>&1 ) ",
+      "ls .prflow/tmp/review/pr-1778/deferrals.json 2>/dev/null && cat .prflow/tmp/review/pr-1778/deferrals.json 2>/dev/null; echo \"---WORKPAD POST-MERGE---\"; WID=$(scripts/workpad.py id 1770 2>/dev/null||true); echo \"wid=$WID\"; scripts/workpad.py body \"$WID\" 2>/dev/null | grep -iE '\\(post-merge\\)' | head",
+      "PN=$(gh pr view --json number --jq '.number' 2>/dev/null); echo \"PR=$PN\"; test -n \"$PN\" && gh api --method PATCH \"repos/{owner}/{repo}/pulls/1778\" -F body=@/home/runner/work/prflow/prflow/.prflow/tmp/pr-1778-body.md --jq '.number' ",
+      "git ls-files -z > .prflow/tmp/tracked-1770.z 2>/dev/null; python3 lib/test/pin-corpus-classifier.py --repo-root . --adjudications lib/test/pin-corpus-adjudications.tsv --tracked-files .prflow/tmp/tracked-1770.z --output .prflow/tmp/census-out-1770.tsv --expected-out-of-scope 0 2>&1 | head -30; echo \"RC=$?\"",
+      "sed -n '6455,6470p' /home/runner/work/prflow/prflow/.prflow/tmp/parallel-suite/run-493018-0/logs/*monolith* 2>/dev/null; echo \"=== gate source ===\"; grep -n \"mutation-routing worktree gate is established and clean\" lib/test/run.sh"
+    ],
+    "total": 17,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
