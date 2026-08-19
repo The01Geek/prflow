@@ -598,7 +598,7 @@ class FailClosedAndAnchoring(unittest.TestCase):
                 # rejection from any other precondition fails the assertion.
                 self.assertIn("--draft-path", r.stderr, bad)
                 self.assertIn(
-                    "single-line POSIX-form absolute path", r.stderr, bad)
+                    "single-line host-absolute path", r.stderr, bad)
         # A path carrying a literal slot token is rejected, so render_dispatch's
         # substituted-last invariant holds unconditionally rather than by
         # argument provenance.
@@ -1540,6 +1540,125 @@ class AbsPathSeparatorClosure(unittest.TestCase):
                      "/a b/c (1)/d.md", "/tmp/x.md"):
             with self.subTest(good=good):
                 self.assertEqual(mod._abs_path(good), good)
+
+
+class AbsPathHostAbsoluteWidening(unittest.TestCase):
+    """Issue #1762: `_abs_path` admits any HOST-absolute path (drive-letter forms on
+    Windows), returns it UNCHANGED, and agrees with issue-audit-state.py's bound-path
+    test on every input. The check is host-dependent, so the Windows arm is asserted
+    against an injected `ntpath` fixture (a drive-letter string is genuinely relative
+    on the POSIX host these tests run on)."""
+
+    STATE_OWNER = REPO / "scripts" / "issue-audit-state.py"
+
+    def _mods(self):
+        import importlib.util
+
+        def load(name, path):
+            spec = importlib.util.spec_from_file_location(name, str(path))
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            return mod
+
+        return load("rap_widen", RENDERER), load("ias_widen", self.STATE_OWNER)
+
+    # (input, accepted-on-posixpath, accepted-on-ntpath). The full input-shape matrix
+    # the path check must classify, each asserted on BOTH path modules because the same
+    # string is absolute on one and relative on the other.
+    MATRIX = [
+        ("/Users/x/f.md", True, False),          # POSIX absolute
+        ("C:/Users/x/f.md", False, True),        # drive-letter, forward slashes
+        ("C:\\Users\\x\\f.md", False, True),     # drive-letter, backslashes
+        ("//host/share/f.md", True, True),       # UNC / double-slash root
+        ("C:foo", False, False),                 # drive-relative, no separator
+        ("", False, False),                      # empty
+        ("\\Users\\x\\f.md", False, False),      # rooted, no drive
+        ("/a/b.md\nAlso: evil", False, False),   # spans more than one line
+        ("/a/{DRAFT_PATH}.md", False, False),    # carries a curly-brace slot token
+    ]
+
+    def _accepts(self, mod, value, pathmod):
+        import argparse
+        try:
+            self.assertEqual(mod._abs_path(value, pathmod), value)  # returned UNCHANGED
+            return True
+        except argparse.ArgumentTypeError:
+            return False
+
+    def test_matrix_on_both_path_modules(self):
+        import ntpath
+        import posixpath
+        rap, _ = self._mods()
+        for value, on_posix, on_nt in self.MATRIX:
+            with self.subTest(value=repr(value), mod="posix"):
+                self.assertEqual(self._accepts(rap, value, posixpath), on_posix)
+            with self.subTest(value=repr(value), mod="nt"):
+                self.assertEqual(self._accepts(rap, value, ntpath), on_nt)
+
+    def test_windows_both_spellings_accepted(self):
+        import ntpath
+        rap, _ = self._mods()
+        for v in ("C:/Users/x/f.md", "C:\\Users\\x\\f.md"):
+            with self.subTest(v=v):
+                self.assertEqual(rap._abs_path(v, ntpath), v)
+
+    def test_rooted_no_drive_refused_and_version_stable(self):
+        # AC #18/#19: a rooted path naming no drive is refused on ntpath REGARDLESS of
+        # the interpreter's own ntpath.isabs verdict (True before 3.13, False from
+        # 3.13), so the check does not depend on that changed classification.
+        import ntpath
+        rap, _ = self._mods()
+        for v in ("\\Users\\x\\f.md", "/Users/x/f.md"):
+            with self.subTest(v=v):
+                self.assertFalse(rap._host_abs_path(v, ntpath))
+                self.assertFalse(self._accepts(rap, v, ntpath))
+
+    def test_returns_input_unchanged_and_opens_a_real_file(self):
+        # AC: the module returns the accepted path unchanged, so it is a path main()
+        # can then open. Prove it end-to-end against a real file on the host module.
+        with tempfile.TemporaryDirectory() as d:
+            real = os.path.join(d, "draft.md")
+            with open(real, "w", encoding="utf-8") as fh:
+                fh.write("hello — draft")
+            rap, _ = self._mods()
+            returned = rap._abs_path(real)  # host os.path
+            self.assertEqual(returned, real)
+            self.assertEqual(Path(returned).read_text(encoding="utf-8"), "hello — draft")
+
+    def test_pure_no_filesystem_access(self):
+        # AC: pure function of (string, path module, interpreter) — a non-existent
+        # drive-letter path is still accepted on ntpath (no filesystem probe).
+        import ntpath
+        rap, _ = self._mods()
+        self.assertEqual(
+            rap._abs_path("C:/nonexistent/zzz-does-not-exist.md", ntpath),
+            "C:/nonexistent/zzz-does-not-exist.md",
+        )
+
+    def test_idempotent(self):
+        import ntpath
+        import posixpath
+        rap, _ = self._mods()
+        for value, on_posix, on_nt in self.MATRIX:
+            for pathmod, ok in ((posixpath, on_posix), (ntpath, on_nt)):
+                if not ok:
+                    continue
+                once = rap._abs_path(value, pathmod)
+                self.assertEqual(rap._abs_path(once, pathmod), once)
+
+    def test_agrees_with_state_owner_host_absolute_test(self):
+        # AC #15: the absolute-path test render applies and the one issue-audit-state
+        # applies agree on every input on every supported host (path module).
+        import ntpath
+        import posixpath
+        rap, ias = self._mods()
+        for value, _p, _n in self.MATRIX:
+            for pathmod in (posixpath, ntpath):
+                with self.subTest(value=repr(value), mod=pathmod.__name__):
+                    self.assertEqual(
+                        rap._host_abs_path(value, pathmod),
+                        ias._host_abs_path(value, pathmod),
+                    )
 
 
 class OutOfBoundsEnumerations(unittest.TestCase):

@@ -39,7 +39,9 @@ Contract (issue #600):
   its inputs, which is in turn what lets ``issue-audit-state.py`` regenerate the
   canonical bytes and compare digests.
 - Closed argument surface: closed-vocabulary mode/arm/hook tokens, a kebab-case
-  slug, single-line absolute paths, and the machine-generated sentinel pair. No
+  slug, single-line host-absolute paths (either POSIX or Windows spelling — a
+  backslash drive-letter path is admitted; a newline and a ``{`` slot token are
+  refused), and the machine-generated sentinel pair. No
   free-text parameter reaches any rendered block: every slot filled
   from an argument (``<slug>``, ``{DRAFT_PATH}``, ``{INSTRUCTIONS_PATH}``, and
   the ``{SENTINEL_OPEN}`` /
@@ -106,6 +108,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import os
 import re
 import subprocess
 import sys
@@ -1321,8 +1324,28 @@ def _sentinel(value: str) -> str:
     return value
 
 
-def _abs_path(value: str) -> str:
-    # Shape check for the path arguments: POSIX-form, absolute, single-line.
+def _host_abs_path(value: str, _pathmod=os.path) -> bool:
+    """True iff ``value`` is absolute per the interpreter's OWN path module.
+
+    A leading ``/`` on POSIX; a drive-letter or UNC root on Windows (``C:\\``,
+    ``C:/``, ``\\\\host\\share``). A rooted path naming no drive (``\\Users\\x``,
+    ``/Users/x`` on Windows) is refused on EVERY supported interpreter: ``ntpath.isabs``
+    classified that True before 3.13 and False from 3.13, so on a Windows-style
+    module absoluteness additionally requires a non-empty drive — which makes the
+    verdict version-stable instead of depending on that changed classification.
+    Pure: no environment probe and no filesystem access. Mirrored verbatim by
+    ``scripts/issue-audit-state.py``'s ``_host_abs_path`` so the two path checks agree
+    on every input on every supported host (issue #1762 — edited together).
+    """
+    if not _pathmod.isabs(value):
+        return False
+    if _pathmod.sep == "\\":  # a Windows-style path module (ntpath)
+        return _pathmod.splitdrive(value)[0] != ""
+    return True
+
+
+def _abs_path(value: str, _pathmod=os.path) -> str:
+    # Shape check for the path arguments: host-absolute, single-line, no slot token.
     #
     # Deliberately NOT a closed vocabulary, and the claim it supports is scoped to
     # match: a legitimate checkout path can contain spaces and most punctuation, so
@@ -1335,11 +1358,16 @@ def _abs_path(value: str) -> str:
     # narrow claim (no free-text parameter reaches the rendered block) and not a
     # broad one this check does not implement.
     #
-    # POSIX-form only: a Windows-form path is normalized at prompt time (#275), so
-    # the message names that remedy rather than reading as a contradiction of what
-    # is, on that platform, a genuinely absolute path.
-    # `{` is rejected so a path can never carry a literal slot token
-    # ({CONSUMER_DIMENSIONS}, {SENTINEL_OPEN}, ...). Without it the
+    # Host-absolute, not POSIX-only (issue #1762): the check admits any path the
+    # interpreter's own path module reports as absolute on the host it runs on, so a
+    # Windows drive-letter path in EITHER spelling — C:/Users/x, C:\Users\x — is
+    # accepted where the repository-root helper (git worktree list --porcelain) or an
+    # MSYS-rewritten argument produces it, and a backslash is therefore now admitted.
+    # The accepted value is returned UNCHANGED, so the path admitted is the path main()
+    # then opens; rewriting it would make the dispatch bytes diverge from the record
+    # issue-audit-state.py regenerates for its digest comparison. A newline is still
+    # refused (below); a `{` slot token is still refused so a path can never carry a
+    # literal slot token ({CONSUMER_DIMENSIONS}, {SENTINEL_OPEN}, ...) — without it the
     # substituted-last invariant in render_dispatch would hold only by argument
     # provenance; with it, it holds unconditionally.
     #
@@ -1351,14 +1379,13 @@ def _abs_path(value: str) -> str:
     # refuse. `value.splitlines() != [value]` is total over that set and also catches a
     # TRAILING separator, which an `in` test on the split result would miss.
     if (
-        not value.startswith("/")
-        or value.splitlines() != [value]
+        value.splitlines() != [value]
         or "{" in value
+        or not _host_abs_path(value, _pathmod)
     ):
         raise argparse.ArgumentTypeError(
-            f"path must be a single-line POSIX-form absolute path with no "
-            f"'{{' slot token (got {value!r}); normalize a Windows-form path "
-            "first (see lib/normalize-path.sh)"
+            f"path must be a single-line host-absolute path with no "
+            f"'{{' slot token (got {value!r})"
         )
     return value
 

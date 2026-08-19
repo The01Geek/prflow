@@ -5924,20 +5924,151 @@ assert_eq("#222: importing a hardened module leaves sys.stderr object unchanged"
 assert_eq("#222: importing a hardened module leaves stream encodings unchanged",
           _enc_before,
           (getattr(sys.stdout, "encoding", None), getattr(sys.stderr, "encoding", None)))
-# Each hardened module DOES expose the entry-path helper (so main() can call it).
-# branch-for-issue.py is loaded here (it is not used elsewhere in this file) so all
-# seven hardened scripts are covered — discover-deferral-manifests.py (#555) joined
-# this coverage list, so the count is seven, not the earlier six.
+# issue #1762: derived write-side UTF-8-forcing guard. Replaces the fixed seven-name
+# hasattr list (which could not notice a new helper and had already fallen behind on
+# match-lint-adjudications.py). The list of files it checks is DERIVED from the
+# repository index (git ls-files -z, never a recursive tree walk into sibling
+# worktrees — issue #711), covering tracked Python COMMANDS in scripts/ and lib/,
+# excluding lib/test/; no directory outside those two holds a tracked Python command
+# this guard covers (its population statement names that boundary).
 _branch_for_issue = _load('branch_for_issue', SCRIPTS / 'branch-for-issue.py')
-for _modname, _mod in (
-    ('workpad', workpad), ('parse_acs', parse_acs), ('file_deferrals', file_deferrals),
-    ('match_deferrals', match_deferrals),
-    ('resolve_review_overrides', resolve_review_overrides),
-    ('branch_for_issue', _branch_for_issue),
-    ('discover_deferrals', discover_deferrals),
-):
-    assert_eq(f"#222: {_modname} defines _force_utf8_streams (entry-path helper)",
-              True, hasattr(_mod, '_force_utf8_streams'))
+
+
+def _u8w_is_main_guard(node):
+    # `__name__ == "__main__"` in any comparison position.
+    return (isinstance(node, ast.Compare)
+            and isinstance(node.left, ast.Name) and node.left.id == "__name__"
+            and any(isinstance(c, ast.Constant) and c.value == "__main__"
+                    for c in node.comparators))
+
+
+def _u8w_derive_list(repo_root):
+    # The checked file list — separable from the checking step so a synthetic list can
+    # drive the checker without adding, staging, or removing any file in the checkout.
+    out = _subprocess.run(
+        ["git", "ls-files", "-z", "--", "scripts/*.py", "lib/*.py"],
+        cwd=str(repo_root), capture_output=True, text=True, check=True,
+    ).stdout
+    return [p for p in out.split("\0") if p and not p.startswith("lib/test/")]
+
+
+# stale-prose-lint.py forces UTF-8 with its own inline reconfigure(errors="replace")
+# rather than _force_utf8_streams(): an undecodable byte in one reviewed file must
+# degrade that one character, never raise and abort the whole scan. Declared exception,
+# still verified to force streams the replace-not-raise way below.
+_U8W_EXCEPTIONS = {
+    "scripts/stale-prose-lint.py":
+        'inline reconfigure(encoding="utf-8", errors="replace") — an undecodable byte '
+        "must degrade one character, never raise mid-scan",
+}
+
+
+def _u8w_called_names(node):
+    names = set()
+    for n in ast.walk(node):
+        if isinstance(n, ast.Call):
+            f = n.func
+            if isinstance(f, ast.Name):
+                names.add(f.id)
+            elif isinstance(f, ast.Attribute):
+                names.add(f.attr)
+    return names
+
+
+def _u8w_reaches_forcing(source, relpath):
+    # (has_main_entry, entry_reaches_force). A command entry path is a module-body
+    # `if __name__ == "__main__":` block; entry_reaches_force is True iff a call to
+    # _force_utf8_streams is reachable from that block — directly, or through a function
+    # it calls such as main() — so a file that DEFINES the helper but never calls it on
+    # the entry path fails.
+    tree = ast.parse(source, filename=relpath)
+    calls_by_func = {}
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            calls_by_func[node.name] = _u8w_called_names(node)
+    has_main, main_calls = False, set()
+    for node in tree.body:
+        if isinstance(node, ast.If) and any(
+                _u8w_is_main_guard(t) for t in ast.walk(node.test)):
+            has_main = True
+            main_calls |= _u8w_called_names(node)
+    if not has_main:
+        return (False, False)
+    seen, frontier = set(), list(main_calls)
+    while frontier:
+        name = frontier.pop()
+        if name == "_force_utf8_streams":
+            return (True, True)
+        if name in seen:
+            continue
+        seen.add(name)
+        frontier.extend(calls_by_func.get(name, ()))
+    return (True, False)
+
+
+def _u8w_run(file_list, read_source=None):
+    # Check every command in file_list. Returns (commands_checked, violations). A file
+    # with no entry block is classified out (not a command). Refuses an empty list so an
+    # emptied enumeration cannot pass vacuously.
+    if not file_list:
+        raise ValueError("#1762 guard refuses an empty file list")
+    if read_source is None:
+        def read_source(rel):
+            return (SCRIPTS.parent / rel).read_text(encoding="utf-8")
+    checked, viols = 0, []
+    for rel in file_list:
+        src = read_source(rel)
+        has_main, reaches = _u8w_reaches_forcing(src, rel)
+        if not has_main:
+            continue  # import-only module — outside the obligation, by rule
+        checked += 1
+        if rel in _U8W_EXCEPTIONS:
+            if 'reconfigure(encoding="utf-8", errors="replace")' not in src:
+                viols.append(rel)
+            continue
+        if not reaches:
+            viols.append(rel)
+    return checked, viols
+
+
+_u8w_files = _u8w_derive_list(SCRIPTS.parent)
+assert_eq("#1762 AC7: derived scripts/*.py+lib/*.py command population is non-empty",
+          True, len(_u8w_files) >= 40)
+_u8w_checked, _u8w_viol = _u8w_run(_u8w_files)
+assert_eq(f"#1762 AC1/AC3: every tracked scripts/+lib/ command forces UTF-8 on its "
+          f"entry path (checked {_u8w_checked})",
+          [], _u8w_viol)
+# Separable derivation + fail-naming, proven WITHOUT staging a file: a synthetic
+# non-conforming entry fails naming exactly it.
+_u8w_syn = _u8w_run(
+    ["synthetic/bad-1762.py"],
+    read_source=lambda _rel: "if __name__ == '__main__':\n    print('no forcing')\n")
+assert_eq("#1762 AC8: guard fails on a synthetic non-conforming entry, naming it",
+          (1, ["synthetic/bad-1762.py"]), _u8w_syn)
+# A file with no entry block is classified OUT by the rule, not by name.
+assert_eq("#1762 AC2/AC6: a file with no __main__ entry block is outside the obligation",
+          (0, []),
+          _u8w_run(["synthetic/module-1762.py"], read_source=lambda _rel: "VALUE = 1\n"))
+# Empty-list refusal.
+_u8w_empty_refused = False
+try:
+    _u8w_run([])
+except ValueError:
+    _u8w_empty_refused = True
+assert_eq("#1762 AC9: guard refuses an empty file list", True, _u8w_empty_refused)
+# The five lib/ Python commands are inside the guarded population (AC4).
+assert_eq("#1762 AC4: the five lib/ Python commands are in the population",
+          True, set(_u8w_files) >= {
+              "lib/generate-capability-profiles.py",
+              "lib/generate-env-freeze-advisory.py",
+              "lib/generate-plugin-identity.py",
+              "lib/migrate-config-values.py",
+              "lib/plugin_identity.py"})
+# stale-prose-lint.py is recorded as a declared exception naming its reason (AC10).
+assert_eq("#1762 AC10: stale-prose-lint.py is a declared exception with a stated reason",
+          True,
+          "scripts/stale-prose-lint.py" in _U8W_EXCEPTIONS
+          and bool(_U8W_EXCEPTIONS["scripts/stale-prose-lint.py"].strip()))
 
 
 # #1337: apostrophes are deleted before the non-alphanumeric slug substitution, so a
