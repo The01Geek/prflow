@@ -69,9 +69,11 @@ jobs:
             CID=$(python3 scripts/workpad.py id "$n" 2>/dev/null) || continue
             [ -n "$CID" ] || continue
             python3 scripts/workpad.py body "$CID" > "$RUNNER_TEMP/wp-$n.md" 2>/dev/null || continue
+            # The enabled decision is owned by the shell guard above (which also avoids
+            # the enumeration when disabled), so decide's --enabled is not re-passed here.
             DEC=$(python3 scripts/stall-observer-scan.py decide \
               --body-file "$RUNNER_TEMP/wp-$n.md" --now "$NOW" \
-              --threshold "$THRESHOLD" --enabled "$OBS_ENABLED" --format json) || continue
+              --threshold "$THRESHOLD" --format json) || continue
             TOKEN=$(echo "$DEC" | jq -r '.decision')
             if [ "$TOKEN" = "stale-advisory" ]; then
               MSG=$(echo "$DEC" | jq -r '.message')

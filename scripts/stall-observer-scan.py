@@ -49,26 +49,28 @@ _WORD_CLASS = {
 
 _STATUS_RE = re.compile(r"^\*\*Status:\*\*\s+(.+?)\s*$", re.MULTILINE)
 _LAST_UPDATED_RE = re.compile(r"^\*\*Last updated:\*\*\s+(.+?)\s*$", re.MULTILINE)
-_CHECKPOINT_RE = re.compile(r"<!--\s*prflow:checkpoint\s+(\S+)\s*-->")
+# Resolve both marker spellings: a workpad mutated across the devflow->prflow rename can
+# carry a pre-rename checkpoint beside post-rename ones, so a prflow-only reader would miss it.
+_CHECKPOINT_RE = re.compile(r"<!--\s*(?:prflow|devflow):checkpoint\s+(\S+)\s*-->")
 
 # The report-only decision vocabulary. Deliberately disjoint from the backstop's
 # kill/resume/fail tokens — the observer never mutates a run.
 DECISION_TOKENS = frozenset({"disabled", "not-candidate", "unreadable", "fresh", "stale-advisory"})
 
-WorkpadFacts = namedtuple("WorkpadFacts", "status_word status_class last_updated last_checkpoint")
+WorkpadFacts = namedtuple("WorkpadFacts", "status_class last_updated last_checkpoint")
 Decision = namedtuple("Decision", "token minutes message")
 
 
 def _classify_status(status_line_value):
     if not status_line_value:
-        return "", "unknown"
+        return "unknown"
     parts = status_line_value.split()
     glyph = parts[0]
     word = parts[1] if len(parts) > 1 else parts[0]
     cls = _GLYPH_CLASS.get(glyph)
     if cls is None:
         cls = _WORD_CLASS.get(word.lower(), "unknown")
-    return word, cls
+    return cls
 
 
 def parse_dt(text):
@@ -94,12 +96,12 @@ def parse_workpad(body):
     input rather than raising — the caller distinguishes those via `decide`."""
     body = body or ""
     m = _STATUS_RE.search(body)
-    status_word, status_class = _classify_status(m.group(1) if m else "")
+    status_class = _classify_status(m.group(1) if m else "")
     lu = _LAST_UPDATED_RE.search(body)
     last_updated = parse_dt(lu.group(1)) if lu else None
     checkpoints = _CHECKPOINT_RE.findall(body)
     last_checkpoint = checkpoints[-1] if checkpoints else None
-    return WorkpadFacts(status_word, status_class, last_updated, last_checkpoint)
+    return WorkpadFacts(status_class, last_updated, last_checkpoint)
 
 
 def _enabled(value):

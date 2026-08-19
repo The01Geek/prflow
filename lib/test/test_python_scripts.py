@@ -34102,6 +34102,11 @@ _fmm = stall_observer.parse_workpad(
 assert_eq("#1027 parse: most-recent of several checkpoints wins",
           "gha:1:1:phase2", _fmm.last_checkpoint)
 
+# Both marker spellings resolve (a workpad mutated across the devflow->prflow rename).
+_fdf = stall_observer.parse_workpad(_wp1027(checkpoint="", extra="  - 07:30 — legacy <!-- devflow:checkpoint gha:1:1:legacy -->"))
+assert_eq("#1027 parse: legacy devflow:checkpoint spelling still resolves",
+          "gha:1:1:legacy", _fdf.last_checkpoint)
+
 # Clock skew: now before last_updated never reports negative silence.
 _early1027 = _dt1027(2026, 8, 19, 7, 0, tzinfo=_tz1027.utc)
 assert_eq("#1027 decide: clock skew (now < last_updated) -> fresh, floored to 0",
