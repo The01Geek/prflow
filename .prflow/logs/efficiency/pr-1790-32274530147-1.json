@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1790",
+  "generated_at": "2026-08-19T16:25:18Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.30",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 8.959381749999999,
+    "tokens": {
+      "input_tokens": 60,
+      "output_tokens": 39021,
+      "cache_read_input_tokens": 4893926,
+      "cache_creation_input_tokens": 225773,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 123,
+        "outputTokens": 62696,
+        "cacheReadInputTokens": 6484736,
+        "cacheCreationInputTokens": 528376,
+        "webSearchRequests": 0,
+        "costUSD": 8.959381749999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 43,
+    "duration_ms": 703691
+  },
+  "permission_denials": {
+    "count": 6,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"run=${GITHUB_RUN_ID:-none} attempt=${GITHUB_RUN_ATTEMPT:-none}\"; mkdir -p .prflow/tmp/review/pr-1790/run; gh pr diff 1790 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1790/run/diff.patch | grep -c '^diff --git'",
+      "git show 610c2b341cd9c4b12a2672f138112431526011f2:skills/review/phases/phase-0-3-6-blocker-recheck.md | sed -n '9,25p' | tr -s ' \\t' ' ' | sed -E 's/^ *[-] //; s/^[0-9]+\\. //; s/^ +//' | tr -d '\\n' > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1790/old.txt\ngit show cc64985da93bffbb9f7dc35ff80b372bbaefa084:skills/review/phases/phase-0-3-6-blocker-recheck.md | sed -n '9,31p' | tr -s ' \\t' ' ' | sed -E 's/^ *[-] //; s/^[0-9]+\\. //; s/^ +//' | tr -d '\\n' > /home/runner/work/prflow/prflow/. …[per-command-truncated]",
+      "git show 610c2b341cd9c4b12a2672f138112431526011f2:skills/review/phases/phase-0-3-6-blocker-recheck.md | sed -n '9,25p' | tr -s ' \\t\\n' ' ' | sed -E 's/ *- / /g' | tr -cd 'a-zA-Z0-9' > .prflow/tmp/review/pr-1790/old.txt\ngit show cc64985da93bffbb9f7dc35ff80b372bbaefa084:skills/review/phases/phase-0-3-6-blocker-recheck.md | sed -n '9,31p' | tr -s ' \\t\\n' ' ' | sed -E 's/ *- / /g' | tr -cd 'a-zA-Z0-9' > .prflow/tmp/review/pr-1790/new.txt\ncmp .prflow/tmp/review/pr-1790/old.txt .prflow/tmp/review/pr-1 …[per-command-truncated]",
+      "git show 610c2b341cd9c4b12a2672f138112431526011f2:skills/review/phases/phase-0-3-6-blocker-recheck.md | sed -n '9,25p' | tr -s ' \\t\\n' ' ' | tr -cd 'a-zA-Z0-9' | cksum\ngit show cc64985da93bffbb9f7dc35ff80b372bbaefa084:skills/review/phases/phase-0-3-6-blocker-recheck.md | sed -n '9,31p' | tr -s ' \\t\\n' ' ' | tr -cd 'a-zA-Z0-9' | cksum",
+      "for f in skills/implement/phases/phase-3-ac-gate.md skills/review/phases/phase-0-3-6-blocker-recheck.md skills/review-and-fix/references/loop-control.md; do wc -c \"$f\"; done; echo \"---exemptions---\"; cat lib/test/reference-size-exemptions.json 2>/dev/null | head -40",
+      "ls .changeset/ 2>/dev/null; echo \"---plugin.json/CHANGELOG touched?---\"; git diff --name-only $(git merge-base HEAD 610c2b341cd9c4b12a2672f138112431526011f2 2>/dev/null || echo 610c2b341cd9c4b12a2672f138112431526011f2)..HEAD 2>/dev/null"
+    ],
+    "total": 6,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
