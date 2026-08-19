@@ -1,0 +1,197 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-19T08:20:00Z",
+  "fix_commit_sha": "f0ef3496fcb34a5cf75d78040ac7f46079c0ef9e",
+  "fix_files": [
+    "CLAUDE.md",
+    "skills/review-and-fix/SKILL.md",
+    "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+    "docs/internal/implement-context.md",
+    "lib/test/lint-reference-size.py",
+    "lib/test/run.sh"
+  ],
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "current_substep": null,
+  "checklist": [],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:comment-analyzer",
+    "prflow:silent-failure-hunter",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": "intentional"
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Important",
+      "description": "Two internal-doc describing sites (DEVFLOW_SYSTEM_OVERVIEW.md:452, implement-context.md:39-41) still asserted the old fail-closed-truncated size behavior; DEVFLOW_SYSTEM_OVERVIEW.md self-contradicted its reconciled row-4",
+      "defect_signature": {
+        "file": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+        "line_range": [
+          452,
+          452
+        ],
+        "kind": "stale_mirror"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Important",
+      "description": "Two test-file describing sites (lib/test/lint-reference-size.py:8-11 docstring, lib/test/run.sh:53152-53154 comment) still asserted the old fail-closed-truncated size behavior (fix-delta pass)",
+      "defect_signature": {
+        "file": "lib/test/lint-reference-size.py",
+        "line_range": [
+          8,
+          11
+        ],
+        "kind": "stale_mirror"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "CLAUDE.md 'before the gate runs' imprecise; paging is part of the gate",
+      "defect_signature": {
+        "file": "CLAUDE.md",
+        "line_range": [
+          107,
+          107
+        ],
+        "kind": "wording"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "review-and-fix recovery clause lacked the report/observable clause (AC-9 parity)",
+      "defect_signature": {
+        "file": "skills/review-and-fix/SKILL.md",
+        "line_range": [
+          322,
+          322
+        ],
+        "kind": "parity"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Four terser mirror arms omit the 'adds no new content' termination bound the canonical surfaces carry; fail-closed by construction, non-blocking",
+      "defect_signature": {
+        "file": "skills/implement/phases/phase-4-documentation.md",
+        "line_range": [
+          24,
+          24
+        ],
+        "kind": "parity"
+      },
+      "fix_decision": "advisory"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "Three implement sub-reference gate arms omit the report/observability clause; canonical surfaces carry it; non-blocking",
+      "defect_signature": {
+        "file": "skills/implement/phases/phase-2-sweeps-contract.md",
+        "line_range": [
+          110,
+          110
+        ],
+        "kind": "parity"
+      },
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "7a57b82d2832651fa87ce60a7e5fcfe390119bb5"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "f0ef3496fcb34a5cf75d78040ac7f46079c0ef9e"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "b4509c59001c17a74b303a43cbbb5bf645394ae6"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "12b464e2ae754fa534c2dc0ef5e15d7c75efe394"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "advisory",
+      "source_file": "skills/implement/phases/phase-4-documentation.md",
+      "claim_text": "terser mirror arms omit the 'adds no new content' termination bound",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold — fail-closed by construction; canonical surfaces carry the bound; non-blocking per all reviewers"
+    },
+    {
+      "finding_id": "F-6",
+      "decision": "advisory",
+      "source_file": "skills/implement/phases/phase-2-sweeps-contract.md",
+      "claim_text": "three implement sub-reference gate arms omit the report clause",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold — canonical surfaces carry the report clause; non-blocking per all reviewers"
+    }
+  ],
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "refixed",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "ran_at": "2026-08-19T08:22:00Z",
+    "reviewed_sha": "12b464e2ae754fa534c2dc0ef5e15d7c75efe394",
+    "verdict": "APPROVE WITH ADVISORY NOTES",
+    "coverage": "full",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:comment-analyzer",
+      "prflow:silent-failure-hunter",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:comment-analyzer",
+      "prflow:silent-failure-hunter",
+      "prflow:requesting-code-review"
+    ],
+    "checklist_skipped": "intentional",
+    "phase3_findings": [
+      {
+        "agent": "prflow:comment-analyzer",
+        "severity": "Important",
+        "description": "two stale internal-doc describing sites (promoted, fixed)"
+      }
+    ],
+    "comparison": {
+      "shadow_total": 4,
+      "overlap_with_iter_N": 0,
+      "new": 1,
+      "new_critical": 0,
+      "new_important": 1
+    },
+    "promoted_to_iter_next": true
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
