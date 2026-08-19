@@ -14,7 +14,7 @@ authors:
 repository-code: "https://github.com/The01Geek/prflow"
 url: "https://github.com/The01Geek/prflow"
 license: MIT
-version: 2.33.23
+version: 2.33.25
 keywords:
   - claude-code
   - agentic-ai

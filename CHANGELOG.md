@@ -4,6 +4,16 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.33.25] — 2026-08-19
+
+### Fixed
+- **Corrected a misleading comment in the `#1604` deferral-drafter pin block of `lib/test/run.sh`.** The block's header comment attributed the agent's write-literal and dispatch prohibitions to `lint-shipped-pruned-path.py`, which audits path/citation references in `skills/**`/`agents/**` and enforces no such thing. The comment now states the wrong change it prevents (do not relax the write-literal absence pins as redundant) and names the real runtime enforcer — the agent's `tools:` frontmatter pinned in that same block. Comment prose only; no assertion or pin changed. (#1779)
+
+## [2.33.24] — 2026-08-19
+
+### Changed
+- **Name the search-tool ranking at the codebase-search instructions in the affected skill files.** In `receiving-code-review`, `docs-sync-internal`, and the implement stranded-dependents sweep, each instruction that tells an agent to search the codebase now names the existing Grep-tool-first ranking instead of a bare "grep" (single-named-file and verification probes are left unchanged); `docs-bootstrap-internal`'s three recursive `find` pipelines are replaced with Glob-tool directives that skip dependency and build directories; and `CLAUDE.md`'s coupled-site sweep sentence now lists the three search tools in ranking order. (#1777)
+
 ## [2.33.23] — 2026-08-19
 
 ### Changed
