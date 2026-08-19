@@ -56,7 +56,13 @@ what a long create-issue run actually pays:
   members (each under the ceiling), **retired that exemption** from
   `lib/test/reference-size-exemptions.json`, and added a per-member 55,000-byte limit
   plus an aggregate source-byte budget over the manifest's population
-  (`lib/test/create-issue-step-3-6-members.json`). Do not read it as issue #766's
+  (`lib/test/create-issue-step-3-6-members.json`). Issue #1752 then restructured **which**
+  members a run reads and when: the entry `references/step-3-6-audit.md` now loads the shared
+  member (part 1) unconditionally to run the run bootstrap, and defers the dispatch and
+  adjudication members (parts 2 and 3, audit-only) to load as a pair **only when a user
+  elects an audit round** at the Step 4 pre-approval pause — so the default run that elects
+  no round never reads them. The aggregate stayed within budget across the move
+  (70,461 ≤ 72,458). Do not read it as issue #766's
   budget returning: an authoring budget asks how long prose *ought* to be, while this is a
   property of what the reader can return in one call. The distinction is recorded at length
   in [`implement-context.md`](implement-context.md).
@@ -114,7 +120,7 @@ Manifest reports add `schema_version`, `benchmark_id`, `manifest_provenance`, an
 
 ### Paired case-identity gate and the median-within-baseline verdict (issue #1702)
 
-Because the Step 3.6 decomposition adds bounded file reads at audit entry, a paired fixed-corpus evaluation must prove those reads do not increase runtime main-thread token cost — and it must compare like against like. `scripts/create_issue_eval.py` (the implementation behind `scripts/create-issue-context-eval.py`) gained an **AC10 case-identity gate**: before it compares a baseline population against a revised one, it verifies that both sides carry **equal case identities and equal counts**, and it **fails closed** when a case is missing on one side, duplicated, or split by a resume — so a comparison can only proceed over an identical case/run population on both sides. Once that identity check passes, the paired comparison emits the **median runtime main-thread token cost** for the post-baseline and revised runs and a **revised-median-within-baseline verdict** (the revised median must not exceed the baseline). This is the runtime half of the #1702 fix, kept separate from the per-file and aggregate *static* byte guards described above.
+Because the Step 3.6 decomposition adds bounded file reads at audit entry, a paired fixed-corpus evaluation must prove those reads do not increase runtime main-thread token cost — and it must compare like against like. (Since issue #1752 those dispatch/adjudication reads land only on a run that elects an audit round; a declined run pays only the always-loaded shared member, so the reads this gate weighs are now scoped to elected-round runs.) `scripts/create_issue_eval.py` (the implementation behind `scripts/create-issue-context-eval.py`) gained an **AC10 case-identity gate**: before it compares a baseline population against a revised one, it verifies that both sides carry **equal case identities and equal counts**, and it **fails closed** when a case is missing on one side, duplicated, or split by a resume — so a comparison can only proceed over an identical case/run population on both sides. Once that identity check passes, the paired comparison emits the **median runtime main-thread token cost** for the post-baseline and revised runs and a **revised-median-within-baseline verdict** (the revised median must not exceed the baseline). This is the runtime half of the #1702 fix, kept separate from the per-file and aggregate *static* byte guards described above.
 
 The legacy corpus invocation above — not the run-addressable manifest example — is the measurement command for **every** figure this document reports.
 Running it with no corpus present exits non-zero with a diagnostic naming the missing
