@@ -32050,6 +32050,14 @@ print(next(s["run"] for j in d["jobs"].values() for s in j.get("steps",[]) if s.
     assert_eq "#313/#1770 inject-body: bedrock arm exports AWS_BEARER_TOKEN_BEDROCK + AWS_REGION, NOT ANTHROPIC_BASE_URL/ANTHROPIC_AUTH_TOKEN (AC 4/5)" "yes" \
       "$(grep -qxF 'AWS_BEARER_TOKEN_BEDROCK=awskey' "$R313_GENV.kv" && grep -qxF 'AWS_REGION=us-east-1' "$R313_GENV.kv" && ! grep -q 'ANTHROPIC_BASE_URL' "$R313_GENV.kv" && ! grep -q 'ANTHROPIC_AUTH_TOKEN' "$R313_GENV.kv" && echo yes || echo no)"
     : > "$R313_GENV"
+    # #1770: API_TIMEOUT_MS is hoisted to a single post-branch write, so it applies to the bedrock
+    # arm too. Pin it on the bedrock arm — a mutation moving it back inside the bearer/api_key else
+    # branch would silently drop API_TIMEOUT_MS on the bedrock arm while staying GREEN elsewhere.
+    ( export DECISION='{"env":{"AWS_REGION":"us-east-1"}}' AUTH=bedrock_api_key BASE_URL="" TIMEOUT_MS=600000 PROVIDER=bed PROVIDER_API_KEY=awskey SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" ) >/dev/null 2>&1
+    gh_kv "$R313_GENV" > "$R313_GENV.kv"
+    assert_eq "#313/#1770 inject-body: bedrock arm writes API_TIMEOUT_MS (hoisted post-branch write applies to the bedrock arm)" "yes" \
+      "$(grep -qxF 'API_TIMEOUT_MS=600000' "$R313_GENV.kv" && grep -qxF 'AWS_BEARER_TOKEN_BEDROCK=awskey' "$R313_GENV.kv" && echo yes || echo no)"
+    : > "$R313_GENV"
     # #1770 AC 7: the bedrock arm fails loud (exit 1) when its env map sets no AWS_REGION, and the
     # error names the section and provider.
     R313_RC=0
