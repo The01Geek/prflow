@@ -186,5 +186,76 @@
       "iter": 2,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.36",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 65.65313739999999,
+    "tokens": {
+      "input_tokens": 352,
+      "output_tokens": 158947,
+      "cache_read_input_tokens": 73063506,
+      "cache_creation_input_tokens": 666535,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 596,
+        "outputTokens": 233799,
+        "cacheReadInputTokens": 79612320,
+        "cacheCreationInputTokens": 2063187,
+        "webSearchRequests": 0,
+        "costUSD": 61.04854000000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 170,
+        "outputTokens": 30267,
+        "cacheReadInputTokens": 3921233,
+        "cacheCreationInputTokens": 792990,
+        "webSearchRequests": 0,
+        "costUSD": 4.6045973999999985,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 246,
+    "duration_ms": 3716151
+  },
+  "permission_denials": {
+    "count": 11,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=$GITHUB_ACTIONS\"; echo \"RUN_ID=$GITHUB_RUN_ID\"; echo \"ATTEMPT=$GITHUB_RUN_ATTEMPT\"; echo \"REPO=$GITHUB_REPOSITORY\"; echo \"SERVER=$GITHUB_SERVER_URL\"; git status --porcelain; echo \"---BRANCH---\"; git branch --show-current",
+      "BASE=$(.prflow/vendor/prflow/scripts/config-get.sh .base_branch main) || BASE=\"\"\n[ -n \"$BASE\" ] || { echo \"prflow: base_branch read failed; falling back to 'main'\" >&2; BASE=main; }\nCUR=$(git branch --show-current 2>/dev/null) || CUR=\"\"\necho \"BASE=$BASE CUR=$CUR\"\n\nCOMMON_DIR=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || COMMON_DIR=\"\"\nGIT_DIR_PATH=$(git rev-parse --path-format=absolute --git-dir 2>/dev/null) || GIT_DIR_PATH=\"\"\necho \"COMMON_DIR=$COMMON_DIR\"\necho \"GIT_DIR_ …[per-command-truncated]",
+      "CUR=$(git branch --show-current)\n.prflow/vendor/prflow/scripts/workpad.py update 1804 --branch \"$CUR\"",
+      ".prflow/vendor/prflow/scripts/workpad.py update 1804 \\\n  --note \"§2.3 operand ledger: operand = git diff --merge-base origin/main (3 files: skills/create-issue/SKILL.md, docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md, docs/internal/skills/create-issue.md). Diff shape: prose rewrite of a routing/description contract; add-only of one dated snapshot sentence. Sweeps run: 2.3.0, 2.3.0d, 2.3.3, 2.3.4, 2.3.4a, 2.3.4b, 2.3.5, 2.3.6.\" \\\n  --note \"2.3.0 changed-contract: searched skills/ docs/ CLAUDE.md (grep  …[per-command-truncated]",
+      "lib/test/regenerate-artifacts.py 2>&1 | tail -30; echo \"EXIT=${PIPESTATUS[0]}\"",
+      "git diff --no-index -U0 /dev/null .changeset/issue-1804-create-issue-step1-shallow-first.md | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree; echo \"EXIT=$?\"",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1805/32303875011-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1805/32303875011-1/verdicts/iter-1/VC-3-n3c.json << 'EOF'\n{\n  \"id\": \"VC-3\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"skills/create-issue/SKILL.md:208 and :211 confirm 'an escalating deep arm read the artifact' at .prflow/tmp/issue-step1-<slug>.md, written by the orchestrator on both shallow/deep paths (line 207-208). references/step-2-clarify.md …[per-command-truncated]",
+      ".prflow/vendor/prflow/scripts/reconcile-ac-verifiers.py --evidence-file /home/runner/work/prflow/prflow/.prflow/tmp/ac-evidence-1804.json --claim-file /home/runner/work/prflow/prflow/.prflow/tmp/ac-claim-1804.json 2>/dev/null | tail -20; echo \"RECONCILE_EXIT=${PIPESTATUS[0]}\"",
+      "echo \"=== EXTENSION ===\" && (.prflow/vendor/prflow/scripts/load-prompt-extension.sh pr-description 2>&1 || scripts/load-prompt-extension.sh pr-description 2>&1) && echo \"=== SURFACE GROWTH ===\" && (.prflow/vendor/prflow/scripts/prompt-surface-growth.py 2>&1 || scripts/prompt-surface-growth.py 2>&1)",
+      "scripts/prompt-surface-growth.py 2>&1; echo \"RC=$?\"",
+      "scripts/prompt-surface-growth.py"
+    ],
+    "total": 11,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
