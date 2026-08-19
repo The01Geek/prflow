@@ -27995,8 +27995,8 @@ assert_eq("#793/#1751: the confirming round spends its OWN counter, and the auto
 # rounds, with the confirming one bounded on its own constant.
 # The separation that can actually FAIL: they are two distinct counter KEYS, both funding
 # rounds, and _funded_rounds sums both — so spending one leaves the other's headroom
-# intact. An identity comparison of the two ceilings graded nothing (both are 1, and small
-# ints are interned, so `is not` was already False — with an `or`-tautology behind it).
+# intact. Do not regrade this as an identity comparison of the two ceilings: that compares
+# interned small ints and grades nothing, whatever values the two constants hold.
 assert_eq("#793/#1751: the confirming counter is a DISTINCT funding key from the automatic "
           "pool, and both are summed by _funded_rounds (which no longer adds a free round)",
           (True, True, 2),
@@ -28010,6 +28010,11 @@ assert_eq("#793/#1751: spending the confirming counter leaves the automatic pool
           (1, 1),
           (_m793._funded_rounds({'confirming_rounds_used': 1}),
            _m793._funded_rounds({'automatic_reaudits_used': 1})))
+
+assert_eq("#1751: an unspent state funds ZERO rounds at the _funded_rounds boundary — the "
+          "free `1 +` term is gone, so no round opens without a recorded election",
+          0,
+          _m793._funded_rounds({}))
 
 # issue #1751: _MAX_AUTOMATIC_REAUDITS is now zero, so `automatic_reaudits_used < it` is
 # never true and every REVISE round answers `revise-then-evaluate-offer`. The automatic

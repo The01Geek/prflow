@@ -676,35 +676,14 @@ def _record_splitting_char(text):
 
 # Ported budgets and bounds. These are the prose's numbers, preserved verbatim.
 #
-# `_MAX_AUTOMATIC_REAUDITS` is DECIDED ZERO by issue #1751: no audit round the skill did
-# not elect ever opens, so the automatic re-audit is abolished rather than merely capped.
-# Its readers are `cmd_record_dispatch`'s spend predicate — where `used < 0` is never true,
-# so the derived automatic spend is inert without being removed — and `next_action`, whose
-# REVISE arm now always falls through to `revise-then-evaluate-offer` (the automatic
-# `revise-and-reaudit` token is thereby unreachable, which is correct: it named the very
-# automatic behaviour this change abolishes). Zeroing it is the strongest form of the
-# documented principle that the user, not the skill, spends the tokens: issue #827 (which
-# proposed RAISING it, closed not-planned) and issue #1751 (which zeroed it) both rest on
-# that principle. The confirming round #793 introduces is funded from
-# `_MAX_CONFIRMING_ROUNDS` below and is untouched here.
+# Do not raise `_MAX_AUTOMATIC_REAUDITS` above zero: any non-zero value opens an audit
+# round the user did not elect, which issue #1751 abolished. Its readers (`cmd_record_dispatch`'s
+# spend predicate, `next_action`'s REVISE arm) are inert at zero, not dead — leave them.
 _MAX_AUTOMATIC_REAUDITS = 0
 _USER_ROUND_CAP = 3
-# issue #793: the confirming whole-draft round that follows an all-`addressed` `targeted`
-# round draws on its OWN counter, never the shared automatic pool. That separation is
-# forced, not stylistic: the automatic pool is a single shared budget, and walking it with
-# the shipped ceiling of one shows round 2 funded off round 1's `REVISE` and driving the
-# counter to its ceiling — so round 3 is ALREADY refused. A confirming round after a clean
-# scoped round therefore has no automatic funding available at any position, not merely at
-# a second revision cycle. One is enough: the confirming round is whole-draft evidence, so
-# a run needs at most one per scoped round that came back clean.
-#
-# Issue #1751 deliberately leaves this at one, NOT zero. The confirming round completes the
-# evidence for a scoped round the user already elected, so it is user-elected work being
-# finished, never the skill spending a round on its own initiative — the thing #1751
-# abolishes. It is also load-bearing: a clean scoped round never grounds the eligibility
-# scan (which skips `targeted` rounds), so without it a converged run would clear approval
-# only through the file-anyway election. A run that elects nothing has no scoped round, so
-# this counter never spends there.
+# Do not zero `_MAX_CONFIRMING_ROUNDS` alongside `_MAX_AUTOMATIC_REAUDITS`, and do not
+# fund the confirming round from the automatic pool: a clean `targeted` round never grounds
+# the eligibility scan, so at zero a converged run clears approval only by file-anyway.
 _MAX_CONFIRMING_ROUNDS = 1
 # issue #792: the exact-byte final-byte pass draws on its OWN slot, outside
 # `_USER_ROUND_CAP`, so a run that legitimately spent every discovery round still gets
@@ -7303,13 +7282,9 @@ def _carriage_ok(attempt, args):
 
 def cmd_record_revision(args):
     doc = _load_for_mutation('record-revision', args.slug, args.nonce)
-    # issue #1751 zero-round arm: a run whose user declined every audit offer has no round
-    # but can still revise its draft in the Step 4 iterate loop — the revision bumps the
-    # ordinal, invalidating the recorded decline exactly as it invalidates a decline
-    # recorded after a round. Without it the iterate loop deadlocks and a decline can never
-    # be invalidated by later bytes. On a zero-round state there is no file-arm substrate to
-    # bind, so the #705 guarantee below does not apply, and the only plausible --after-round
-    # value is 0 (floor and ceiling both 0); the shared tail records the revision.
+    # Do not route a zero-round state into the #705 file-arm guard below: with no round
+    # there is no audit substrate to bind, and refusing here deadlocks the Step 4 iterate
+    # loop so a recorded decline could never be invalidated by later bytes.
     zero_round = not doc['rounds']
     if not zero_round:
         # issue #705: the file-arm staged-write guarantee, enforced by the tool rather than
@@ -7713,10 +7688,8 @@ def cmd_record_override(args):
                   'no round has completed, so there is no audit for an override to '
                   'override: recording one here would ground eligibility on a draft the '
                   'tool never audited')
-        # A zero-round user-decline binds to the canonical draft's digest where one was
-        # supplied (--draft-file) and records unbound where none exists, mirroring the
-        # arm-scoped binding the file-arm epoch case applies below. There is no epoch to
-        # dereference, so the file-arm bind check below is skipped for this arm.
+        # Do not extend the file-arm bind check below to this arm: there is no epoch to
+        # dereference at zero rounds, so it would refuse every declined run.
     elif epoch['attempts'][-1]['arm'] == 'file' and not digest:
         # --draft-file is optional in the argparse surface because the embed/inline arms
         # have no trustworthy canonical file to bind. On a file-arm epoch one exists, so
@@ -7970,6 +7943,9 @@ def _record_decline_bound_epoch(doc, decline, args):
         _fail('record-creation-epoch',
               'an attestation is already recorded; re-binding the creation epoch would '
               'silently discard that tamper evidence')
+    # Do not relax this into an unbound epoch when the decline itself is unbound: the
+    # decline/draft digest match is enforced at the eligibility boundary (`_valid_override`),
+    # which an epoch recorded with no comparand would leave with nothing to compare.
     if not args.draft_file:
         _fail('record-creation-epoch',
               'a decline-bound creation epoch must recompute the body-only digest from '

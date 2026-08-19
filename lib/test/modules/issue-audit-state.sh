@@ -2555,6 +2555,29 @@ if [ -d "$ZD_SB" ]; then
     python3 "$IAS" record-creation-epoch zdn --nonce "$NN" --round 0 \
       > /dev/null 2> .zd-epoch-nodraft; printf '%s' "$?" > .zd-epoch-nodraft-rc
 
+    # AC11 discriminator: the decline-bound epoch's digest is BODY-ONLY, not whole-file.
+    # Bind two fresh runs to drafts sharing a body but differing in TITLE — a whole-file
+    # digest differs across them, a body-only digest is equal. Equality is the discriminator.
+    printf '# A DIFFERENT TITLE ENTIRELY\n\nAUDITED body line.\n' > retitled.md
+    NT="$(python3 "$IAS" init zdt | sed -n '1s/nonce=//p')"
+    python3 "$IAS" record-override zdt --nonce "$NT" --kind user-decline --surface step4-offer \
+      --draft-file retitled.md > /dev/null 2>&1
+    python3 "$IAS" record-creation-epoch zdt --nonce "$NT" --round 0 --draft-file retitled.md > .zd-epoch-retitled 2>&1
+    # Positive control: the two drafts really are distinct FILES, so the equality above is a
+    # body-only match and not two reads of one path.
+    cmp -s draft.md retitled.md; printf '%s' "$?" > .zd-drafts-differ-rc
+    # Compare here, not in the assertion: an extractor absent from PATH would yield two
+    # empty strings and pass an equality assertion vacuously. Requiring non-empty fails closed.
+    ZD_D1="$(sed -n 's/.*body_digest=//p' .zd-epoch)"
+    ZD_D2="$(sed -n 's/.*body_digest=//p' .zd-epoch-retitled)"
+    if [ -n "$ZD_D1" ] && [ "$ZD_D1" = "$ZD_D2" ]; then printf '1' > .zd-body-only-rc
+    else printf '0' > .zd-body-only-rc; fi
+
+    # AC11 negative guard: the decline arm's attestation-frozen refusal. zdd attested above,
+    # so re-binding its creation epoch through the SAME decline arm must refuse.
+    python3 "$IAS" record-creation-epoch zdd --nonce "$ND" --round 0 --draft-file draft.md \
+      > /dev/null 2> .zd-epoch-refrozen; printf '%s' "$?" > .zd-epoch-refrozen-rc
+
     # AC10 (sandbox unbound): a decline recorded where NO canonical file exists is accepted
     # unbound and still reaches eligible=yes when queried with no digest.
     NS="$(python3 "$IAS" init zds | sed -n '1s/nonce=//p')"
@@ -2585,6 +2608,12 @@ if [ -d "$ZD_SB" ]; then
     "1" "$(grep -c 'eligible=no' "$ZD_SB/.zd-elig-post-orig" 2>/dev/null)"
   assert_eq "#1751 zero_round_decline_rows: a decline-bound creation epoch with no --draft-file refuses (cannot recompute the body-only digest)" \
     "1:1" "$(cat "$ZD_SB/.zd-epoch-nodraft-rc" 2>/dev/null):$(grep -c 'must recompute the body-only digest' "$ZD_SB/.zd-epoch-nodraft" 2>/dev/null)"
+  assert_eq "#1751 zero_round_decline_rows: the decline-bound epoch digest is BODY-ONLY — two drafts sharing a body but not a title bind the SAME digest (a whole-file digest would differ)" \
+    "1" "$(cat "$ZD_SB/.zd-body-only-rc" 2>/dev/null)"
+  assert_eq "#1751 zero_round_decline_rows: ... and the two drafts are genuinely distinct files (positive control against a vacuous self-comparison)" \
+    "1" "$(cat "$ZD_SB/.zd-drafts-differ-rc" 2>/dev/null)"
+  assert_eq "#1751 zero_round_decline_rows: the decline arm refuses to re-bind a creation epoch past a recorded attestation (tamper evidence is forward-only)" \
+    "1:1" "$(cat "$ZD_SB/.zd-epoch-refrozen-rc" 2>/dev/null):$(grep -c 'an attestation is already recorded' "$ZD_SB/.zd-epoch-refrozen" 2>/dev/null)"
   assert_eq "#1751 zero_round_decline_rows: an unbound sandbox decline reaches eligible=yes with no digest supplied" \
     "1" "$(grep -c 'eligible=yes' "$ZD_SB/.zd-elig-sandbox" 2>/dev/null)"
   rm -rf "$ZD_SB"
