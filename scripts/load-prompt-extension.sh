@@ -394,14 +394,6 @@ if [ -f "$ext_file" ]; then
     fi
     if [ "$section_requested" -eq 0 ]; then
         cat "$ext_file"
-        # issue #1299: status token on STDERR (never stdout — stdout stays byte-verbatim).
-        # The `load-prompt-extension.sh: ` prefix is load-bearing: the phase-3 reviewer drops
-        # `load-prompt-extension.sh: ` lines when classifying, so dropping it leaks this token.
-        if [ -s "$ext_file" ]; then
-            printf 'load-prompt-extension.sh: PROMPT-EXTENSION-STATUS: content-present\n' >&2
-        else
-            printf 'load-prompt-extension.sh: PROMPT-EXTENSION-STATUS: present-empty\n' >&2
-        fi
     else
         # One pass over the file, tracking three pieces of state: whether we are
         # inside a fenced code block, inside an HTML comment block, and inside the
@@ -549,9 +541,16 @@ if [ -f "$ext_file" ]; then
             echo "load-prompt-extension.sh: no section headed '$section' in '$ext_file'; ${_detail}" >&2
         fi
     fi
-elif [ "$section_requested" -eq 0 ]; then
-    # issue #1299: absent extension in whole-file mode (undeliverable shapes exited 2
-    # above, so this is the no-op arm). Emit present-empty so silence — no token at all —
-    # means a harness refusal, not a consumer who configured no extension.
-    printf 'load-prompt-extension.sh: PROMPT-EXTENSION-STATUS: present-empty\n' >&2
+fi
+
+# issue #1299: whole-file status token, computed once, emitted at one STDERR site (never
+# stdout — stdout stays byte-verbatim). Undeliverable shapes exited 2 above. The
+# `load-prompt-extension.sh: ` prefix is load-bearing (phase-3 drops those lines when classifying).
+if [ "$section_requested" -eq 0 ]; then
+    if [ -f "$ext_file" ] && [ -s "$ext_file" ]; then
+        _wf_status=content-present
+    else
+        _wf_status=present-empty
+    fi
+    printf 'load-prompt-extension.sh: PROMPT-EXTENSION-STATUS: %s\n' "$_wf_status" >&2
 fi
