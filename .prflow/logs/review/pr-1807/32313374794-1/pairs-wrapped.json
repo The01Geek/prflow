@@ -1,0 +1,223 @@
+{
+  "pairs": [
+    {
+      "item": {
+        "id": "VC-1",
+        "category": "issue_acceptance",
+        "claim_provenance": "generated_paraphrase"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-1807/32313374794-1/verdicts/iter-1/VC-1-r1a91k.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-2",
+        "category": "issue_acceptance",
+        "claim_provenance": "generated_paraphrase"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-1807/32313374794-1/verdicts/iter-1/VC-2-r2b72m.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-3",
+        "category": "issue_acceptance",
+        "claim_provenance": "generated_paraphrase"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-1807/32313374794-1/verdicts/iter-1/VC-3-r3c53n.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-4",
+        "category": "issue_acceptance",
+        "claim_provenance": "generated_paraphrase"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-1807/32313374794-1/verdicts/iter-1/VC-4-r4d14v.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-5",
+        "category": "issue_acceptance",
+        "claim_provenance": "generated_paraphrase"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-1807/32313374794-1/verdicts/iter-1/VC-5-r5e88w.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-6",
+        "category": "issue_acceptance",
+        "claim_provenance": "generated_paraphrase"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-1807/32313374794-1/verdicts/iter-1/VC-6-r6f26p.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-7",
+        "category": "issue_acceptance",
+        "claim_provenance": "generated_paraphrase"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-1807/32313374794-1/verdicts/iter-1/VC-7-r7g77c.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-8",
+        "category": "absolute_claim",
+        "claim_provenance": "source_authored",
+        "source_excerpt": "Guard the SECONDARY block so its data-shape failure never suppresses the primary next_call; re-raise AssertionError so a contract bug stays loud in main()'s handler, never swallowed."
+      },
+      "verdict_path": ".prflow/tmp/review/pr-1807/32313374794-1/verdicts/iter-1/VC-8-r8h39j.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-9",
+        "category": "test_mock_alignment",
+        "claim_provenance": "generated_paraphrase"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-1807/32313374794-1/verdicts/iter-1/VC-9-r9i44a.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-10",
+        "category": "data_format_assumption",
+        "claim_provenance": "generated_paraphrase"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-1807/32313374794-1/verdicts/iter-1/VC-10-r10j55b.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-11",
+        "category": "test_mock_alignment",
+        "claim_provenance": "generated_paraphrase"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-1807/32313374794-1/verdicts/iter-1/VC-11-r11k66c.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-12",
+        "category": "dependency_interaction",
+        "claim_provenance": "generated_paraphrase"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-1807/32313374794-1/verdicts/iter-1/VC-12-r12l77d.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-13",
+        "category": "dependency_interaction",
+        "claim_provenance": "generated_paraphrase"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-1807/32313374794-1/verdicts/iter-1/VC-13-r13m88e.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-14",
+        "category": "string_presence",
+        "claim_provenance": "generated_paraphrase"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-1807/32313374794-1/verdicts/iter-1/VC-14-r14n99f.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-15",
+        "category": "issue_acceptance",
+        "claim_provenance": "generated_paraphrase"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-1807/32313374794-1/verdicts/iter-1/VC-15-r15o00g.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-16",
+        "category": "absolute_claim",
+        "claim_provenance": "source_authored",
+        "source_excerpt": "the standalone clean-path calls that remain are exactly two classes ... complete by construction."
+      },
+      "verdict_path": ".prflow/tmp/review/pr-1807/32313374794-1/verdicts/iter-1/VC-16-r16p11h.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-17",
+        "category": "dependency_interaction",
+        "claim_provenance": "generated_paraphrase"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-1807/32313374794-1/verdicts/iter-1/VC-17-r17q22i.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-18",
+        "category": "dependency_interaction",
+        "claim_provenance": "generated_paraphrase"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-1807/32313374794-1/verdicts/iter-1/VC-18-r18r33j.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-19",
+        "category": "dependency_interaction",
+        "claim_provenance": "generated_paraphrase"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-1807/32313374794-1/verdicts/iter-1/VC-19-r19s44k.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-20",
+        "category": "dependency_interaction",
+        "claim_provenance": "generated_paraphrase"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-1807/32313374794-1/verdicts/iter-1/VC-20-r20t55l.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-21",
+        "category": "data_format_assumption",
+        "claim_provenance": "generated_paraphrase"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-1807/32313374794-1/verdicts/iter-1/VC-21-r21u66m.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-22",
+        "category": "data_format_assumption",
+        "claim_provenance": "generated_paraphrase"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-1807/32313374794-1/verdicts/iter-1/VC-22-r22v77n.json",
+      "response_text": "FAIL"
+    },
+    {
+      "item": {
+        "id": "VC-23",
+        "category": "absolute_claim",
+        "claim_provenance": "source_authored",
+        "source_excerpt": "The summary line is one of the root's non-degradable invariants: it renders on every arm and every round count."
+      },
+      "verdict_path": ".prflow/tmp/review/pr-1807/32313374794-1/verdicts/iter-1/VC-23-r23w88o.json",
+      "response_text": "PASS"
+    },
+    {
+      "item": {
+        "id": "VC-24",
+        "category": "issue_acceptance",
+        "claim_provenance": "generated_paraphrase"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-1807/32313374794-1/verdicts/iter-1/VC-24-r24x99p.json",
+      "response_text": "PASS"
+    }
+  ]
+}
