@@ -6,11 +6,13 @@
 PRFlow loads its phase and reference files progressively behind a boundary gate: the
 file's first line must be its `start` marker and its last line the matching `end`
 marker, and the loading agent verifies both before acting on the body. A file larger
-than the reader can return in one call yields `start` and no `end` — the `truncated`
-shape, which `/prflow:implement`, `/prflow:review`, `/prflow:review-and-fix` and
-`/prflow:docs-verify` all treat as fail-closed — on a file that is intact on disk.
-Nothing measured these files, so growth past the cap reached an author with no signal
-at edit time and none in CI.
+than the reader can return in one call yields `start` and no `end` on a file intact on
+disk; the boundary gate now recovers such a read by paging the file whole before its
+checks run, so the size no longer misreads as the `truncated` shape — but a file over
+the cap still costs every loader extra reads, and a smaller-budget reader may be unable
+to complete the paging, so the ceiling still forces a trim. Nothing else measured these
+files, so growth past the cap reached an author with no signal at edit time and none in
+CI.
 
 Threshold derivation
 --------------------

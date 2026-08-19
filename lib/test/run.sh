@@ -53149,9 +53149,10 @@ assert_eq "public site guard: a page navigated twice fails completeness" "no" \
 
 # ── #1595 reference-size ceiling (lib/test/lint-reference-size.py) ──
 # A boundary-gated reference larger than the reader can return in one call yields its
-# start marker and no end marker — the `truncated` shape `/prflow:implement`, `/prflow:review`,
-# `/prflow:review-and-fix` and `/prflow:docs-verify` treat as fail-closed, and that
-# `/prflow:create-issue` degrades best-effort on — with the file intact on disk. The lint measures bytes against a
+# start marker and no end marker on a file intact on disk; the boundary gate now recovers
+# such a read by paging the file whole before its checks run, so the size no longer misreads
+# as the `truncated` shape — but the file still costs extra reads and may exceed a smaller
+# reader budget, so the ceiling still forces a trim. The lint measures bytes against a
 # ceiling derived from the reader's token cap; these assertions drive its executable
 # boundary (exit code + emitted verdict lines).
 echo "#1595 reference-size ceiling: gated references and skill roots stay under the reader's Read cap"
