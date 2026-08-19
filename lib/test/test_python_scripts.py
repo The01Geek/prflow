@@ -7788,6 +7788,69 @@ assert_eq("#562 summary_fields: a worktree-root binding surfaces bound_root + bo
 _sf_none = issue_audit_state.summary_fields(_state([_round(1, 'file', 'FILE', 'D1')]), 'D1')
 assert_eq("#562 summary_fields: an unbound run surfaces bound_root=None bound_tier=None",
           (None, None), (_sf_none['bound_root'], _sf_none['bound_tier']))
+
+# issue #1803: the summary-block compact subset + the batched finding-evidence ingester.
+# (1) The help-enumerated subset equals _SUMMARY_BLOCK_FIELDS, and the emitted block's field
+#     set equals it too — help text and rendered surface cannot drift (both derive from the
+#     one constant).
+_bp_desc = issue_audit_state.build_parser().description
+assert_eq("#1803 summary_block: the --help description enumerates exactly _SUMMARY_BLOCK_FIELDS",
+          True, ', '.join(issue_audit_state._SUMMARY_BLOCK_FIELDS) in _bp_desc)
+_blk1 = issue_audit_state._summary_block_line(
+    issue_audit_state.summary_fields(_state([_round(1, 'file', 'FILE', 'D1')]), 'D1'))
+_blk_fields = tuple(tok.split('=', 1)[0]
+                    for tok in _blk1[len('summary-block '):].split(' '))
+assert_eq("#1803 summary_block: the emitted block's field set equals _SUMMARY_BLOCK_FIELDS",
+          issue_audit_state._SUMMARY_BLOCK_FIELDS, _blk_fields)
+# (2) State currency: the block reflects the state it is derived from.
+_blk0 = issue_audit_state._summary_block_line(
+    issue_audit_state.summary_fields(_state([]), None))
+assert_eq("#1803 summary_block: a zero-round state renders rounds_run=0", True,
+          'rounds_run=0' in _blk0)
+assert_eq("#1803 summary_block: a one-round FILE state renders rounds_run=1", True,
+          'rounds_run=1' in _blk1)
+assert_eq("#1803 summary_block: a None state renders the unestablished shape", True,
+          'state=unestablished' in issue_audit_state._summary_block_line(
+              issue_audit_state.summary_fields(None)))
+# (3) The batched finding-evidence records-file ingester — the adversarial malformed-input
+#     matrix (CLAUDE.md's shape discipline, applied to an agent-authored JSON records file the
+#     repo does not itself produce). A structurally-malformed file is refused; an entry that
+#     merely OMITS content fields is ingested (recorded `incomplete` downstream), never refused.
+with tempfile.TemporaryDirectory() as _fe_dir:
+    def _fe(content):
+        p = os.path.join(_fe_dir, 'fe.json')
+        with open(p, 'w', encoding='utf-8') as fh:
+            fh.write(content)
+        return p
+    _ing = issue_audit_state._ingest_finding_evidence_records
+    _recs = _ing(_fe('[{"finding_id":1,"locator":"a","command":"c","observed":"o",'
+                     '"baseline_revision":"r"},{"finding_id":2}]'))
+    assert_eq("#1803 fe_records: a valid file yields one record per finding, in file order",
+              [1, 2], [r['finding_id'] for r in _recs])
+    assert_eq("#1803 fe_records: an entry omitting content fields ingests them None "
+              "(recorded incomplete downstream, not refused here)",
+              (None, None, None),
+              (_recs[1]['locator'], _recs[1]['command'], _recs[1]['observed']))
+    assert_raises("#1803 fe_records: a not-JSON file is refused",
+                  SystemExit, lambda: _ing(_fe('not json')))
+    assert_raises("#1803 fe_records: a non-array top level is refused",
+                  SystemExit, lambda: _ing(_fe('{"finding_id":1}')))
+    assert_raises("#1803 fe_records: an empty array is refused",
+                  SystemExit, lambda: _ing(_fe('[]')))
+    assert_raises("#1803 fe_records: an entry missing finding_id is refused",
+                  SystemExit, lambda: _ing(_fe('[{"locator":"a"}]')))
+    assert_raises("#1803 fe_records: a non-int finding_id is refused",
+                  SystemExit, lambda: _ing(_fe('[{"finding_id":"1"}]')))
+    assert_raises("#1803 fe_records: a bool finding_id is refused (not read as id 1)",
+                  SystemExit, lambda: _ing(_fe('[{"finding_id":true}]')))
+    assert_raises("#1803 fe_records: a negative finding_id is refused",
+                  SystemExit, lambda: _ing(_fe('[{"finding_id":-1}]')))
+    assert_raises("#1803 fe_records: a wrong-type field is refused",
+                  SystemExit, lambda: _ing(_fe('[{"finding_id":1,"locator":5}]')))
+    assert_raises("#1803 fe_records: a non-object entry is refused",
+                  SystemExit, lambda: _ing(_fe('[5]')))
+    assert_raises("#1803 fe_records: a duplicate finding_id is refused",
+                  SystemExit, lambda: _ing(_fe('[{"finding_id":1},{"finding_id":1}]')))
 # _binding_line — the query answer shape, incl. the fail-closed unbound token.
 assert_eq("#562 _binding_line: unbound state answers the fail-closed bound=none token",
           'bound=none tier=none non_bound_root=none latest_revision_landed=yes',
