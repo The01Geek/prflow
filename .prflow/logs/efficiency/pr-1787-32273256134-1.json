@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1787",
+  "generated_at": "2026-08-19T17:13:17Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.30",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 14.540449500000005,
+    "tokens": {
+      "input_tokens": 116,
+      "output_tokens": 36430,
+      "cache_read_input_tokens": 11233669,
+      "cache_creation_input_tokens": 208325,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 246,
+        "outputTokens": 85635,
+        "cacheReadInputTokens": 18897364,
+        "cacheCreationInputTokens": 346951,
+        "webSearchRequests": 0,
+        "costUSD": 14.540449500000005,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 68,
+    "duration_ms": 4344974
+  },
+  "permission_denials": {
+    "count": 4,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git fetch origin issue-1513-a-deferred-reflection-was-recorded-with-no-follow 2>&1 | tail -3\ngit checkout issue-1513-a-deferred-reflection-was-recorded-with-no-follow 2>&1 | tail -3\necho \"---current---\"; git branch --show-current\necho \"---head vs upstream---\"; git rev-parse HEAD; git rev-parse @{u} 2>&1\necho \"---status---\"; git status --porcelain\necho \"---env---\"; echo \"GHA=$GITHUB_ACTIONS RUN_ID=$GITHUB_RUN_ID ATTEMPT=$GITHUB_RUN_ATTEMPT\"",
+      "sed -n '9795,9835p' /home/runner/work/prflow/prflow/.prflow/tmp/parallel-suite/run-93019-0/logs/monolith*",
+      "wc -c skills/implement/phases/phase-4-documentation.md; echo \"ceiling 61750, over by:\"; echo \"$((63061-61750))\"",
+      "for t in \"deferred-presence\" \"discover-deferral-manifests.py\" \"read-doc-needed-deliverables.sh\" \"docgate-outcome\" \"record-completion-evidence\" \"review-coverage-disposition\" \"tick-progress\" \"implement_pr_state\" \"update-branch-checkpoint.sh\" \"base-update-checkpoint-4\" \"gh pr ready\" \"verification-flight.py\" \"apply-labels.sh\" \"dropped-failed\" \"blocked\"; do printf \"%-40s %s\\n\" \"$t\" \"$(grep -c -- \"$t\" skills/implement/phases/phase-4-documentation.md)\"; done; echo \"=== fence count ===\"; grep -c '```' s …[per-command-truncated]"
+    ],
+    "total": 4,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
