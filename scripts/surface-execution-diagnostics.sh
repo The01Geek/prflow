@@ -59,6 +59,13 @@ if [ -z "${DEVFLOW_JQ:-}" ]; then
   DEVFLOW_JQ=jq
 fi
 
+# Never make this an unguarded `.`, and never re-derive the version with a second
+# extraction jq (issue #1528): a deployment missing the sibling must reach the call-site
+# `type devflow_probe_cli_version` guard, not abort under `set -u`.
+# shellcheck source=../lib/probe-observation.sh
+. "$_SED_DIR/../lib/probe-observation.sh" \
+  || echo "devflow: surface-execution-diagnostics: probe-observation.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — claude_code_version will publish 'unavailable'" >&2
+
 # Emit BLOCK to stdout, and append it to $GITHUB_STEP_SUMMARY when that variable
 # is set and non-empty (AC2). Kept in one place so every exit path surfaces to
 # both sinks identically.
@@ -127,6 +134,43 @@ _publish_denials() {  # rendered-block
   fi
 }
 
+# _publish_claude_code_version — publish claude_code_version (issue #1528) and, on
+# success, raise a `::notice::` (the in-job read-back that makes this a measurement a
+# consumer reads). Contract, each clause a wrong change it forbids:
+#   - value-publish ONLY claude_code_version; every other init field stays type-only
+#     behind scripts/extract-execution-shape.sh's redaction boundary;
+#   - derive with bash builtins ONLY — sed/head/grep/awk/cut/tr are not preflight-
+#     guaranteed (lib/preflight.sh) and fail-open to empty when absent;
+#   - "unknown" is the literal `unavailable`, never empty/0, and raises no notice.
+# Why the redaction boundary and the read-back-from-block invariant: see
+# docs/internal/execution-diagnostics.md.
+_publish_claude_code_version() {  # rendered-block
+  _ccver=""
+  while IFS= read -r _line; do
+    case "$_line" in
+      "- claude_code_version: "*)
+        _ccver="${_line#- claude_code_version: }"
+        break
+        ;;
+    esac
+  done <<<"$1"   # here-string like _publish_denials: the loop stays in this shell, so
+                 # `_ccver` survives it.
+  # Empty means the line was absent: the block always renders at least `unavailable`,
+  # so no separate saw-it flag is needed to tell "not found" from a real empty value.
+  if [ -z "$_ccver" ]; then
+    _ccver=unavailable
+  fi
+  if [ -n "${GITHUB_OUTPUT:-}" ]; then
+    printf 'claude_code_version=%s\n' "$_ccver" >> "$GITHUB_OUTPUT" \
+      || echo "devflow: surface-execution-diagnostics: could not append claude_code_version to GITHUB_OUTPUT ('$GITHUB_OUTPUT') — no step output is published for this run" >&2
+  fi
+  if [ "$_ccver" != unavailable ]; then
+    echo "::notice::DevFlow: claude-code CLI version $_ccver (from the execution-file init record)"
+  else
+    echo "devflow: surface-execution-diagnostics: claude_code_version could not be established from the execution file — publishing 'unavailable'" >&2
+  fi
+}
+
 _HEADER="## DevFlow execution diagnostics"
 _NO_DIAG="$_HEADER
 _No diagnostics available (execution file absent, empty, or unparseable)._"
@@ -138,7 +182,18 @@ if [ -z "$FILE" ] || [ ! -f "$FILE" ] || [ ! -s "$FILE" ]; then
   echo "devflow: surface-execution-diagnostics: execution file absent or empty ('$FILE') — no diagnostics available" >&2
   _emit "$_NO_DIAG"
   _publish_denials "$_NO_DIAG"
+  _publish_claude_code_version "$_NO_DIAG"
   exit 0
+fi
+
+# Resolve the CLI version once (#1528) via the shared reader, rendered into the block so
+# the published and human values agree. An absent reader (partial deployment) degrades
+# to `unavailable` + breadcrumb here — never a set -u abort.
+if type devflow_probe_cli_version >/dev/null 2>&1; then
+  CCVER=$(devflow_probe_cli_version "$FILE")
+else
+  CCVER=unavailable
+  echo "devflow: surface-execution-diagnostics: devflow_probe_cli_version unavailable (probe-observation.sh not sourced) — claude_code_version will publish 'unavailable'" >&2
 fi
 
 # Build the whole formatted block in one slurp-based jq program. `-s` normalizes
@@ -146,7 +201,7 @@ fi
 # result object at any depth. Denials are gathered from every `permission_denials`
 # array anywhere in the slurped input (they may not live in the result event).
 # tool_input is truncated to keep the surfaced block readable.
-if ! BLOCK=$("$DEVFLOW_JQ" -rs --arg header "$_HEADER" '
+if ! BLOCK=$("$DEVFLOW_JQ" -rs --arg header "$_HEADER" --arg ccver "$CCVER" '
     def trunc($s):
       ($s | tostring) as $t
       | if ($t | length) > 200 then ($t[0:200] + "…(truncated)") else $t end;
@@ -179,8 +234,12 @@ if ! BLOCK=$("$DEVFLOW_JQ" -rs --arg header "$_HEADER" '
         | if type == "array" then .[] else . end
         | select(type == "object")] | unique) as $denials
     | if $r == null and ($denials | length) == 0 then
-        # Parsed, but no result event and no denial detail: nothing to surface.
+        # No result event and no denial detail — but the CLI version lives in the
+        # system/init record independent of the result event, so still surface it: a
+        # stalled init-but-no-result run is exactly when the build version matters (#1528).
         $header, "",
+        "- claude_code_version: \($ccver)",
+        "",
         "_No diagnostics available (no result event in execution file)._"
       else
         # Count resolution keeps "unknown" distinct from "measured zero" — do NOT
@@ -207,6 +266,7 @@ if ! BLOCK=$("$DEVFLOW_JQ" -rs --arg header "$_HEADER" '
           "- duration_ms: \(orna($r.duration_ms))",
           "- total_cost_usd: \(orna($r.total_cost_usd))",
           "- permission_denials_count: \(orna($count))",
+          "- claude_code_version: \($ccver)",
           "",
           "### Permission denials",
           # Gathered detail is surfaced FIRST — before the count==0 / unavailable
@@ -235,9 +295,11 @@ if ! BLOCK=$("$DEVFLOW_JQ" -rs --arg header "$_HEADER" '
   echo "devflow: surface-execution-diagnostics: jq ('$DEVFLOW_JQ') exited non-zero on '$FILE' (parse error or unrunnable jq) — no diagnostics available" >&2
   _emit "$_NO_DIAG"
   _publish_denials "$_NO_DIAG"
+  _publish_claude_code_version "$_NO_DIAG"
   exit 0
 fi
 
 _emit "$BLOCK"
 _publish_denials "$BLOCK"
+_publish_claude_code_version "$BLOCK"
 exit 0

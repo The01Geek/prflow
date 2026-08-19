@@ -114,16 +114,13 @@ elif [ ! -r . ] || [ ! -x . ]; then
 else
   echo "(no subdirectories)"
 fi
-
-# Database tables (if schema files exist)
-find . -name "*.sql" -o -name "*.schema" | head -10
-
-# Page controllers / routes
-find . -path "*/pages/*" -o -path "*/routes/*" -o -path "*/controllers/*" | head -20
-
-# Configuration and integrations
-find . -name "*.config.*" -o -name "*.yml" -o -name "*.yaml" | grep -v node_modules | head -10
 ```
+
+Then use the Glob tool (not a shell command) to enumerate the remaining signals. Run one Glob call per pattern (or brace-expand into a single pattern, e.g. `**/*.{sql,schema}`) and ignore VCS, dependency, and build directories (e.g. `node_modules`, `vendor`, build output) in the results:
+
+- Database tables (if schema files exist): `**/*.{sql,schema}` (or `**/*.sql` and `**/*.schema` as separate calls).
+- Page controllers / routes: `**/pages/**`, `**/routes/**`, and `**/controllers/**`, each a separate call.
+- Configuration and integrations: `**/*.config.*`, and `**/*.{yml,yaml}` (or `**/*.yml` and `**/*.yaml` as separate calls).
 
 ### Step 3: Design the Category Structure
 
