@@ -59,11 +59,9 @@ if [ -z "${DEVFLOW_JQ:-}" ]; then
   DEVFLOW_JQ=jq
 fi
 
-# Guarded source of the shared execution-file readers (issue #1528): reuse
-# devflow_probe_cli_version to publish claude_code_version rather than a second
-# extraction jq. Partial-copy posture like resolve-jq.sh above — a deployment missing
-# this sibling degrades to an `unavailable` version with a breadcrumb, never a set -u
-# abort. The function's own absence is re-checked at the call site.
+# Never make this a hard source, and never re-derive the version with a second
+# extraction jq (issue #1528): a deployment missing this sibling must reach the
+# call-site `type devflow_probe_cli_version` guard, not a set -u abort.
 # shellcheck source=../lib/probe-observation.sh
 . "$_SED_DIR/../lib/probe-observation.sh" \
   || echo "devflow: surface-execution-diagnostics: probe-observation.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — claude_code_version will publish 'unavailable'" >&2
@@ -164,7 +162,7 @@ _publish_claude_code_version() {  # rendered-block
   fi
   if [ -n "${GITHUB_OUTPUT:-}" ]; then
     printf 'claude_code_version=%s\n' "$_ccver" >> "$GITHUB_OUTPUT" \
-      || echo "devflow: surface-execution-diagnostics: could not append claude_code_version to GITHUB_OUTPUT ('$GITHUB_OUTPUT') — downstream jobs will read the 'unavailable' default" >&2
+      || echo "devflow: surface-execution-diagnostics: could not append claude_code_version to GITHUB_OUTPUT ('$GITHUB_OUTPUT') — no step output is published for this run" >&2
   fi
   if [ "$_ccver" != unavailable ]; then
     echo "::notice::DevFlow: claude-code CLI version $_ccver (from the execution-file init record)"

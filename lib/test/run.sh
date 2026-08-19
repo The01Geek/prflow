@@ -37236,6 +37236,26 @@ assert_eq "#1528 diagnostics emits NO ::notice:: when the version is unavailable
 # An unparseable execution file is also `unavailable`, never a forged value.
 assert_eq "#1528 diagnostics publishes 'unavailable' on an unparseable execution file" "yes" \
   "$(_diag_run 'not json' >/dev/null; grep -qxF 'claude_code_version=unavailable' "$D363/out" && echo yes || echo no)"
+
+# The absent/empty-file branch is the EARLIEST exit and returns before the version is ever
+# resolved — it must still publish `unavailable`, never leave the output key absent.
+# Attributed by that branch's own breadcrumb so a jq-parse-error exit cannot pass for it.
+assert_eq "#1528 diagnostics publishes 'unavailable' + the absent-file breadcrumb on a nonexistent execution file" "unavailable-crumb-0" \
+  "$(_nf=$(mktemp -d); \
+     _err=$( ( GITHUB_OUTPUT="$_nf/out" bash "$SED_SH" "$_nf/missing.json" >/dev/null ) 2>&1 ); _rc=$?; \
+     _v=$(sed -n 's/^claude_code_version=//p' "$_nf/out"); \
+     printf '%s' "$_err" | grep -qF 'execution file absent or empty' && _c=crumb || _c=nocrumb; \
+     rm -rf "$_nf"; echo "${_v}-${_c}-${_rc}")"
+assert_eq "#1528 diagnostics publishes 'unavailable' on a present-but-empty execution file" "unavailable" \
+  "$(_ef=$(mktemp -d); : > "$_ef/exec.json"; \
+     ( GITHUB_OUTPUT="$_ef/out" bash "$SED_SH" "$_ef/exec.json" >/dev/null 2>&1 ); \
+     _v=$(sed -n 's/^claude_code_version=//p' "$_ef/out"); rm -rf "$_ef"; echo "$_v")"
+# Positive control on the same rig: without it, a rig that never ran the script at all
+# would read as two passing `unavailable` assertions above.
+assert_eq "#1528 absent-file rig positive control: a real init record publishes the version" "2.1.226" \
+  "$(_pc=$(mktemp -d); printf '%s' "$_D_INIT" > "$_pc/exec.json"; \
+     ( GITHUB_OUTPUT="$_pc/out" bash "$SED_SH" "$_pc/exec.json" >/dev/null 2>&1 ); \
+     _v=$(sed -n 's/^claude_code_version=//p' "$_pc/out"); rm -rf "$_pc"; echo "$_v")"
 # A version outside the version alphabet (an injected step-summary payload) sanitizes to
 # `unavailable` rather than being echoed — the reused reader fails CLOSED.
 _D_BADVER='[{"type":"system","subtype":"init","claude_code_version":"2.1.226 <script>alert(1)</script>"},{"type":"result","is_error":false}]'
@@ -37262,6 +37282,16 @@ assert_eq "#1528 diagnostics still publishes the version when sed is absent from
      sed -n 's/^claude_code_version=//p' "$_sedless/out"; rm -rf "$_sedless")"
 assert_eq "#1528 diagnostics still exits 0 with a version present and GITHUB_OUTPUT set" "0" \
   "$(_diag_run "$_D_INIT" >/dev/null 2>&1; echo $?)"
+
+# Standalone/local run (GITHUB_OUTPUT unset): the ::notice:: read-back is the ONLY consumer
+# there, so it must still fire, and the skipped append must raise no breadcrumb — a
+# breadcrumb on the normal standalone path would train a maintainer to ignore the real one.
+assert_eq "#1528 diagnostics emits the ::notice:: and no append breadcrumb with GITHUB_OUTPUT unset (standalone run)" "notice-nocrumb-0" \
+  "$(_so=$(mktemp -d); printf '%s' "$_D_INIT" > "$_so/exec.json"; \
+     _out=$( ( unset GITHUB_OUTPUT; bash "$SED_SH" "$_so/exec.json" ) 2>&1 ); _rc=$?; \
+     printf '%s' "$_out" | grep -qF '::notice::DevFlow: claude-code CLI version 2.1.226' && _n=notice || _n=nonotice; \
+     printf '%s' "$_out" | grep -qF 'could not append claude_code_version to GITHUB_OUTPUT' && _c=crumb || _c=nocrumb; \
+     rm -rf "$_so"; echo "${_n}-${_c}-${_rc}")"
 
 # AC3 (redaction posture): among the init fields, ONLY claude_code_version — a
 # low-sensitivity scalar — is value-published. The others (model/tools/agents/skills/

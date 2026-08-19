@@ -8,11 +8,14 @@ exits 0.
 
 ## Published values
 
-Two scalars are value-published to `$GITHUB_OUTPUT` for downstream jobs to read:
+Two scalars are value-published to `$GITHUB_OUTPUT`:
 
 - `permission_denials_count` — the reconciled count of permission denials (issue #363).
+  `devflow-runner.yml` re-exposes it as a job output for downstream jobs to read.
 - `claude_code_version` — the CLI build the run executed on, read from the execution
-  file's `{"type":"system","subtype":"init"}` record (issue #1528).
+  file's `{"type":"system","subtype":"init"}` record (issue #1528). No workflow maps it
+  to a job output today; its only reader is the in-job `::notice::` below. Add a job-output
+  mapping when a cross-job consumer actually exists, not before.
 
 `claude_code_version` is resolved by reusing `lib/probe-observation.sh`'s
 `devflow_probe_cli_version` rather than a second extraction `jq`, so the extraction, the
