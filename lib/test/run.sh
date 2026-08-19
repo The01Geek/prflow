@@ -24383,7 +24383,11 @@ assert_eq "#858 matcher-probe: Task is absent from the capability manifest (the 
 # provenance claim, so pin the form the jobs actually pass.
 # structural-pin-ok: machine-sentinel-provenance -- the recorded ref/commit IS the record's
 # provenance key; a wrong value makes the committed evidence unre-verifiable after merge.
-assert_eq "#858 matcher-probe: both verdict steps pass the PR head ref/sha, not the merge ref/sha" "2" \
+# All verdict steps that record a ref use the PR HEAD ref/sha, never the merge ref/sha: the
+# two subagent-write jobs (#858) plus the two skill-body-load jobs (#1618) added the same
+# idiom, so this count is 4. Any verdict step reverting to the merge-commit GITHUB_SHA is
+# caught by the sibling assertion just below.
+assert_eq "#858 matcher-probe: every ref-recording verdict step passes the PR head ref/sha, not the merge ref/sha" "4" \
   "$(grep -cF -- '--ref "${PROBE_REF}"' "$LIB/../.github/workflows/matcher-probe.yml" || true)"
 assert_eq "#858 matcher-probe: neither verdict step reverted to the merge-commit GITHUB_SHA" "0" \
   "$(grep -cF -- '--head-commit "${GITHUB_SHA}"' "$LIB/../.github/workflows/matcher-probe.yml" || true)"
@@ -24813,9 +24817,11 @@ for job_name, tier in (("skill-body-load-review-probe", "review"),
             sys.exit(0)
     if ("--tier %s" % tier) not in run and ("--tier=%s" % tier) not in run:
         print("%s verdict step does not name its tier %s" % (job_name, tier)); sys.exit(0)
-# The audited paths must be real files, or the on-disk control read is vacuous.
+# The audited paths must be real files, or the on-disk control read is vacuous. Derive the
+# repo root from the (normalized) workflow path: .github/workflows/matcher-probe.yml is three
+# levels below the root.
 import os
-base = os.path.dirname(os.path.dirname(os.path.dirname(helper_path)))
+base = os.path.dirname(os.path.dirname(os.path.dirname(os.path.normpath(wf_path))))
 for path in roots.values():
     if not os.path.isfile(os.path.join(base, path)):
         print("audited root path does not exist on disk: %s" % path); sys.exit(0)
