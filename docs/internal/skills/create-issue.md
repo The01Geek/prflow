@@ -76,7 +76,7 @@ The obsolete `step-3-6-audit.md` size exemption was removed from `lib/test/refer
 ## Boundaries and failure paths
 
 - A docs-verify peer must finish and return its structured findings before clarification begins.
-- A missing or unreadable internal-doc population is reported as unestablished, not silently treated as no documentation.
+- An absent internal-doc location is an established absence; a location that exists but cannot be read, or holds no git-index entries, is recorded unestablished rather than silently treated as no documentation.
 - A report-only peer does not write, commit, push, or dispatch another peer.
 - A documentation claim that cannot be confirmed against code remains unconfirmed in the findings and cannot be promoted into the issue as fact.
 - Step 4's working-file listing never prevents an issue from being created; every one of its failure arms reports and continues.

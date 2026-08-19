@@ -186,6 +186,12 @@ the orchestrator dispatches a context-isolated Agent-tool subagent whose prompt 
 invoke `superpowers:writing-skills` and perform the edit under that skill's RED/GREEN discipline,
 returning the edit and its evidence.
 
+**Added-prose trim pass.** Before returning a trigger-glob edit, re-read only the lines you added
+and delete every sentence whose reader is the reviewer rather than the executing agent — a rule's
+justification, a completeness or provenance aside, a pre-empted misreading, a description of what
+the diff changed. Keep the instruction and at most one consequence clause; the rest belongs in the
+issue and the commit message.
+
 **Concurrent dispatch.** Helpers for trigger-glob files that need not change together are dispatched
 concurrently **only** where `CLAUDE.md`'s convention on committing before dispatching a subagent has
 been established as satisfied; anywhere it has not, that convention's own degraded arms govern the
