@@ -250,7 +250,7 @@ BEFORE implementing:
   4. Check: Works on all platforms/versions?
   5. Check: Does reviewer understand full context?
   6. Check: Does the note appeal to a "convention" / "standard" / "canonical pattern"?
-           search the repo — with the Grep tool first, then `rg` where it resolves on the host, then `grep -rnE` (excluding VCS, dependency, and build directories) — to confirm that convention actually exists before reshaping code to match it.
+           grep the repo to confirm that convention actually exists before reshaping code to match it, using the Grep tool first, then `rg` where it resolves on the host, then `grep -rnE` (excluding VCS, dependency, and build directories).
 
 IF suggestion seems wrong:
   Push back with technical reasoning
@@ -429,7 +429,7 @@ When replying to inline review comments on GitHub, reply in the comment thread (
 
 A fix is not a lower-stakes edit than the code it corrects — it is fresh code, written under time pressure by the one context least able to see its own blind spot. That is exactly how a fix closes the reported defect while quietly introducing a new one. Before the verification gate, give the fix delta the same scrutiny you would give any new code you wrote, matched to what the fix actually did:
 
-- A deletion strands what fed the removed code — a now-unused local, import, or lookup — and can leave callers, links, or references pointing at something that is gone. Re-read the whole surrounding unit and search for references to anything you removed with the Grep tool first, then `rg` where it resolves on the host, then `grep -rnE` (excluding VCS, dependency, and build directories).
+- A deletion strands what fed the removed code — a now-unused local, import, or lookup — and can leave callers, links, or references pointing at something that is gone. Re-read the whole surrounding unit and grep for references to anything you removed, using the Grep tool first, then `rg` where it resolves on the host, then `grep -rnE` (excluding VCS, dependency, and build directories).
 - A contract change (a renamed symbol, an altered signature, a tightened validator, a moved output stream) is only half-done at the line you edited: it ripples to every dependent caller, fixture, and assertion. Search for the old shape with the Grep tool first, then `rg` where it resolves on the host, then `grep -rnE` (excluding VCS, dependency, and build directories) — a dependent that still compiles can still be semantically stale.
 - A new error path or fallback can swallow the very failure it was added to surface. Confirm it leaves a specific, actionable account and never defaults an error into a success-shaped value.
 - A new guard must accept no more than its downstream consumer — see *Share the Contract* below.
