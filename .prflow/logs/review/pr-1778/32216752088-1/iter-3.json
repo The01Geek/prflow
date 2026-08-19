@@ -1,0 +1,152 @@
+{
+  "iter": 3,
+  "started_at": "2026-08-19T05:58:00Z",
+  "fix_commit_sha": null,
+  "fix_files": [],
+  "loop_role": "fix",
+  "current_step": "2.6",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [],
+  "fix_decisions": [],
+  "convergence_inputs": {
+    "fixes_applied": 0,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "verdict": "APPROVE",
+  "note": "Iteration 3 clean: all Phase 3 agents APPROVE, no new findings. Prior findings all fixed (test gaps) / deferred to Phase 4.1 (docs ACs 17/18) / parked (whitespace-region, schema-region defense-in-depth). Tentative verdict APPROVE WITH ADVISORY NOTES.",
+  "shadow": {
+    "ran_at": "2026-08-19T06:05:00Z",
+    "reviewed_sha": "d1e1c76e9fae654d4f32af0d1410161a763ee47f",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": [
+      "scoping clause added: the two documentation acceptance criteria (external providers.md worked entry, internal cloud-setup.md language) were noted as owned by the implement run's later documentation pass and out of scope for this code review — a truthful benign docs-out-of-scope scoping clause, not a focus/prioritization clause and not loop findings/fix-decisions/pushback"
+    ],
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Suggestion",
+        "description": "Schema does not require AWS_REGION for bedrock entries (defense-in-depth; runtime fails loud).",
+        "defect_signature": {
+          "file": ".prflow/config.schema.json",
+          "line_range": [
+            290,
+            295
+          ],
+          "kind": "test_gap"
+        }
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Suggestion",
+        "description": "Action-input semantics source-pinned only (inherent harness limitation, not fixable).",
+        "defect_signature": {
+          "file": ".github/workflows/devflow.yml",
+          "line_range": [
+            1682,
+            1685
+          ],
+          "kind": "test_gap"
+        }
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Suggestion",
+        "description": "Schema allOf if/then structurally pinned, not validated against inputs by a JSON-schema validator (low-criticality; resolver runtime enforces the same logic).",
+        "defect_signature": {
+          "file": ".prflow/config.schema.json",
+          "line_range": [
+            290,
+            307
+          ],
+          "kind": "test_gap"
+        }
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "severity": "Suggestion",
+        "description": "Minor: bedrock arm re-parses DECISION for the region guard (double parse); not worth changing.",
+        "defect_signature": {
+          "file": ".github/workflows/devflow.yml",
+          "line_range": [
+            1373,
+            1379
+          ],
+          "kind": "other"
+        }
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 4,
+      "overlap_with_iter_N": 1,
+      "new": 3,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "park_calibration": {
+    "evidence_comparisons": [
+      {
+        "parked_finding_ref": {
+          "iter": 2,
+          "index": 3
+        },
+        "parked_finding_id": "F-2",
+        "shadow_finding_index": 0,
+        "relation": "equivalent",
+        "rationale": "shadow re-raises the schema-does-not-require-AWS_REGION point at Suggestion on the same basis (runtime fails loud; defense-in-depth), adding no new failing input; parked severity Suggestion, re-raise <= Suggestion, source anchored",
+        "operands_present": true,
+        "disposition": "preserved"
+      }
+    ]
+  },
+  "verdict_note": "Shadow full-coverage (5/5) APPROVE, no new Critical/Important. Schema-region advisory overlap → park-calibration preserved. Two new Suggestions (action-input inherent, schema-validator) are non-Critical residuals → soft-proceed. prompt_addenda non-none (benign docs-out-of-scope scoping clause) → terminal not-attested state: tentative verdict APPROVE WITH ADVISORY NOTES stands but the shadow is reported as not-independently-verified (CLEAN-NOT-VERIFIED); dispatch=attempted, roster=complete.",
+  "telemetry": {
+    "phase_3": {
+      "calls": 4,
+      "tokens": 300000,
+      "wall_clock_s": 50
+    },
+    "step_2_6": {
+      "calls": 5,
+      "tokens": 384000,
+      "wall_clock_s": 90
+    }
+  },
+  "synthesized": false
+}

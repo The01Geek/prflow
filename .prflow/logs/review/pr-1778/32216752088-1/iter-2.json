@@ -1,0 +1,170 @@
+{
+  "iter": 2,
+  "started_at": "2026-08-19T05:50:00Z",
+  "fix_commit_sha": "d1e1c76",
+  "fix_files": [
+    "lib/test/run.sh"
+  ],
+  "loop_role": "fix",
+  "current_step": "3",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "docs/external/docs/configuration/providers.md field table stale (auth 'bearer or api_key', base_url required) vs shipped 3-value enum + conditional base_url.",
+      "defect_signature": {
+        "file": "docs/external/docs/configuration/providers.md",
+        "line_range": [
+          14,
+          15
+        ],
+        "kind": "comment_drift"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "deferred"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md resolver description stale (base_url required, auth bearer|api_key, no bedrock path).",
+      "defect_signature": {
+        "file": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+        "line_range": [
+          979,
+          1076
+        ],
+        "kind": "comment_drift"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "deferred"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "Hoisted API_TIMEOUT_MS write not exercised on the bedrock arm (all fixtures TIMEOUT_MS=''); a regression re-nesting it in the else branch would silently drop it on bedrock.",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          null,
+          null
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Whitespace-only AWS_REGION passes the region guard (non-empty string). Narrow edge; author-typed whitespace.",
+      "defect_signature": {
+        "file": ".github/workflows/devflow.yml",
+        "line_range": [
+          1373,
+          1376
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "d1e1c76"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "deferred",
+      "source_file": "docs/external/docs/configuration/providers.md",
+      "claim_text": "external providers doc stale for bedrock",
+      "skip_category": "out-of-scope",
+      "evidence": "Documentation deliverable owned by implement Phase 4.1 (the prflow:docs pass), tracked by acceptance criterion 17. The review-and-fix loop reviews code and does not author docs; Phase 4.1 writes the external providers.md bedrock entry and Phase 3.4 defers the doc-AC to it.",
+      "parking_evidence": {
+        "basis": "docs are authored by implement Phase 4.1, not by the review-and-fix code loop; tracked by AC 17",
+        "failing_input": "a consumer reading providers.md is told bedrock_api_key is invalid until Phase 4.1 updates it",
+        "source": "docs/external/docs/configuration/providers.md + AC 17 + implement Phase 4.1",
+        "finding_ref": {
+          "iter": 2,
+          "index": 0
+        }
+      }
+    },
+    {
+      "finding_id": "F-6",
+      "decision": "deferred",
+      "source_file": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+      "claim_text": "internal system overview resolver description stale",
+      "skip_category": "out-of-scope",
+      "evidence": "Documentation deliverable owned by implement Phase 4.1 (the prflow:docs pass), in the issue's Documentation Needed list. Phase 4.1 updates the §17 provider description.",
+      "parking_evidence": {
+        "basis": "docs authored by implement Phase 4.1; in the Documentation Needed list",
+        "failing_input": "the §17 resolver description misstates the two- vs three-value contract until Phase 4.1",
+        "source": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md + Documentation Needed + implement Phase 4.1",
+        "finding_ref": {
+          "iter": 2,
+          "index": 1
+        }
+      }
+    },
+    {
+      "finding_id": "F-7",
+      "decision": "advisory",
+      "source_file": ".github/workflows/devflow.yml",
+      "claim_text": "whitespace-only AWS_REGION passes the guard",
+      "skip_category": "advisory-parked",
+      "evidence": "A non-empty all-whitespace region is a narrow author-typed edge, the same class as any syntactically-invalid-but-non-empty region string; not gated. The runtime still authenticates then fails at model-call time, no worse than any bad region value. Out of scope for the AC set; surfaced for the human.",
+      "parking_evidence": {
+        "basis": "narrow edge (author-typed whitespace), same class as any invalid non-empty region; not in the AC set",
+        "failing_input": "AWS_REGION set to a whitespace-only string",
+        "source": ".github/workflows/devflow.yml inject-step region guard",
+        "finding_ref": {
+          "iter": 2,
+          "index": 3
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 1,
+    "fix_diff_lines": 8,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "shadow": {
+    "ran_at": null,
+    "reviewed_sha": null,
+    "verdict": null,
+    "coverage": null,
+    "reviewers_dispatched": [],
+    "expected_reviewers": [],
+    "promoted_to_iter_next": false
+  },
+  "telemetry": {
+    "phase_3": {
+      "calls": 5,
+      "tokens": 384000,
+      "wall_clock_s": 90
+    }
+  },
+  "synthesized": false
+}

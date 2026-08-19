@@ -1,0 +1,268 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-19T05:40:00Z",
+  "fix_commit_sha": "9373d2f",
+  "fix_files": [
+    "lib/test/run.sh"
+  ],
+  "loop_role": "fix",
+  "current_step": "3",
+  "current_substep": null,
+  "pending_dispatch": null,
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "checklist": [
+    {
+      "id": "VC-1",
+      "category": "issue_acceptance",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-2",
+      "category": "issue_acceptance",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-3",
+      "category": "issue_acceptance",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-4",
+      "category": "issue_acceptance",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-5",
+      "category": "issue_acceptance",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-6",
+      "category": "issue_acceptance",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-7",
+      "category": "issue_acceptance",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-8",
+      "category": "issue_acceptance",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-9",
+      "category": "issue_acceptance",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-10",
+      "category": "issue_acceptance",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-11",
+      "category": "issue_acceptance",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-12",
+      "category": "issue_acceptance",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-13",
+      "category": "issue_acceptance",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-14",
+      "category": "issue_acceptance",
+      "verdict": "PASS",
+      "raw_verdict": "FAIL",
+      "normalized": true,
+      "evidence": "NORMALIZED (wording-only): the AC's actual invariant is the resolver region / run: bodies byte-identity (pinned by #313, monolith green); the generated claim 'step bodies' overreached to include the env: blocks which legitimately differ."
+    },
+    {
+      "id": "VC-15",
+      "category": "issue_acceptance",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-16",
+      "category": "issue_acceptance",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-17",
+      "category": "issue_acceptance",
+      "verdict": "FAIL",
+      "evidence": "External docs providers.md carries no Bedrock entry yet — deferred doc-AC owned by Phase 4.1 documentation pass."
+    },
+    {
+      "id": "VC-18",
+      "category": "issue_acceptance",
+      "verdict": "FAIL",
+      "evidence": "Internal cloud-setup.md still carries the two stale statements — deferred doc-AC owned by Phase 4.1 documentation pass."
+    },
+    {
+      "id": "VC-19",
+      "category": "data_format_assumption",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-20",
+      "category": "dependency_interaction",
+      "verdict": "INCONCLUSIVE",
+      "evidence": "External claude-code-action contract (use_bedrock input, step-level env override); in-repo code correct; established by the issue's sourced third-party facts."
+    },
+    {
+      "id": "VC-21",
+      "category": "test_mock_alignment",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-22",
+      "category": "data_format_assumption",
+      "verdict": "PASS"
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "Non-string AWS_REGION (number/object) claimed absent-via-strings by a comment but not exercised by an executed inject-body test; six-shape matrix wrong-type row missing.",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          null,
+          null
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Schema does not conditionally require AWS_REGION for bedrock_api_key entries (runtime fails loud; defense-in-depth only).",
+      "defect_signature": {
+        "file": ".prflow/config.schema.json",
+        "line_range": [
+          28,
+          67
+        ],
+        "kind": "other"
+      },
+      "corroboration_count": 2,
+      "fix_decision": "deferred"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "use_bedrock action-input contract is an external (claude-code-action) assumption not verifiable in-repo.",
+      "defect_signature": {
+        "file": ".github/workflows/devflow.yml",
+        "line_range": [
+          1682,
+          1685
+        ],
+        "kind": "api_misuse"
+      },
+      "corroboration_count": 2,
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "9373d2f"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "deferred",
+      "source_file": ".prflow/config.schema.json",
+      "claim_text": "schema does not require AWS_REGION for bedrock entries",
+      "skip_category": "out-of-scope",
+      "evidence": "The issue deliberately keeps the region in the open env-map passthrough (env is additionalProperties:{string}); the runtime guard fails loud with an actionable message. Recorded as a candidate follow-up (add a second allOf if/then). Not in the AC set.",
+      "parking_evidence": {
+        "basis": "the region is intentionally carried in the open env map per the issue's design; runtime guard is authoritative/fail-closed",
+        "failing_input": "a bedrock entry lacking env.AWS_REGION passes JSON-schema validation but fails loud at runtime",
+        "source": ".prflow/config.schema.json:28-67 + inject-step region guard",
+        "finding_ref": {
+          "iter": 1,
+          "index": 1
+        }
+      }
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "advisory",
+      "source_file": ".github/workflows/devflow.yml",
+      "claim_text": "use_bedrock external action contract unverifiable in-repo",
+      "skip_category": "advisory-parked",
+      "evidence": "Established by the issue's sourced third-party facts (base-action/src/validate-env.ts, action.yml); recorded as an unverified boundary reflection. The external action source is not in this repo, so it cannot be verified here; the design (input over job-env export) is sound.",
+      "parking_evidence": {
+        "basis": "external dependency contract established by the issue's cited sources; not verifiable in-repo",
+        "failing_input": "the claude-code-action use_bedrock input handling and its empty-string-off convention",
+        "source": "https://github.com/anthropics/claude-code-action base-action/src/validate-env.ts + action.yml",
+        "finding_ref": {
+          "iter": 1,
+          "index": 2
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 1,
+    "fix_diff_lines": 12,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "shadow": {
+    "ran_at": null,
+    "reviewed_sha": null,
+    "verdict": null,
+    "coverage": null,
+    "reviewers_dispatched": [],
+    "expected_reviewers": [],
+    "promoted_to_iter_next": false
+  },
+  "telemetry": {
+    "phase_1": {
+      "calls": 1,
+      "tokens": 76596,
+      "wall_clock_s": 74
+    },
+    "phase_2": {
+      "calls": 22,
+      "tokens": 1150000,
+      "wall_clock_s": 90
+    },
+    "phase_3": {
+      "calls": 5,
+      "tokens": 370000,
+      "wall_clock_s": 90
+    }
+  },
+  "synthesized": false
+}
