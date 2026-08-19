@@ -160,20 +160,9 @@ _ci_cleanup_on_signal() {
 trap _ci_cleanup EXIT
 trap _ci_cleanup_on_signal HUP INT TERM
 
-# The implement-skill bundle backs the #467 D2 Phase-2.4 leg (the widened
-# best-effort-parser rule must appear exactly once across the implement skill's
-# root + phase references). Assembled here from LIB, member by member. This restores
-# the monolith `_build_skill_bundle` fail-LOUD-per-member contract (NOT the sibling
-# review-and-fix-contract.sh's `cat … 2>/dev/null || :`, which silently swallows a
-# missing/empty/unreadable member): a member that is not a readable non-empty file
-# records a FAIL through the assertion channel naming that member, so a corrupt
-# implement engine file cannot pass the pin green just because the pinned sentence
-# survives in a different member. On the clean path no assertion is added (count
-# unchanged); a bad member adds exactly one FAIL.
-CI_IMPL_BUNDLE="$_ci_tmp_root/implement-skill-bundle.md"
-devflow_module_build_bundle "ci module: implement-bundle" "$CI_IMPL_BUNDLE" \
-  "$CI_ROOT/skills/implement/SKILL.md" "$CI_ROOT"/skills/implement/phases/*.md \
-  "$CI_ROOT"/skills/implement/references/*.md
+# CI_IMPL_BUNDLE build removed by the #1759 residual-prose sweep: its sole consumer was the
+# retired #467 D2 (Phase 2.4 leg) pin. The implement-skill bundle's own coverage (including the
+# corrupt-member tripwire) belongs to the implement module, not this create-issue module.
 
 # The create-issue bundle (#614) backs every content-survival pin over the split
 # skill. run.sh hoists an identical build and binds it as the CI_BUNDLE --var so the

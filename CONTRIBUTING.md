@@ -428,7 +428,7 @@ are read by nobody but the agent. The third (`291(AC4)`, the
 1** instead — same retention, different reason and a coupled copy-removal
 requirement. Do not generalize one `#291` pin's arm to the others.
 
-**Current state — drained: the last authorized sweep (issue #1759) has landed.**
+**Current state — the create-issue window #1753 opened is drained (issue #1759); a separate implement-skill window (#1765) now awaits its own sweep.**
 Arm 2 selected nothing until #885, because every census row was
 adjudicated `boundary`. #885's re-adjudication pass walked every mechanically
 prose-bucketed site, confirmed per site whether any tool or consumer reads the pinned
@@ -441,7 +441,10 @@ step 2's re-adjudication moved the 28 sites nothing reads into `prose-sole-copy`
 step 3's sweep retired exactly those 28 pins with their rows. #1753 refilled it again,
 for the create-issue-associated pins, and #1759's sweep then retired exactly those pins
 (23 sites over 22 adjudication keys) with their rows — each `prose-multi-copy` row alongside
-one counted-copy deletion — draining the population back to boundary-only. Read the authorization record for any pass in history — the census as of the re-adjudication
+one counted-copy deletion — draining that create-issue population. The census then re-filled
+again from a concurrent, separately-authorized re-adjudication (#1765, nine implement-skill
+prose pins), so it is not boundary-only at this instant: that new population awaits its own
+sweep, which is the standing shape below. Read the authorization record for any pass in history — the census as of the re-adjudication
 commit, plus the `pin-corpus-adjudication-changes` bundles, which name every key that
 moved and every key that went. Expect the same shape every time: a prose-bucketed
 population exists only between a re-adjudication and the sweep it authorizes.

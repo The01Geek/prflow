@@ -34776,7 +34776,6 @@ CI_MOD_VARS=(
   --var "CI_TMPL_AUDIT=skills/create-issue/references/audit-prompt-template.md"
   --var "CI_TMPL=skills/create-issue/references/issue-template.md"
   --var "CI_EXT=.prflow/prompt-extensions/create-issue.md"
-  --var "CI_CLAUDE=CLAUDE.md"
   --var "CI_INVENTORY=lib/test/modules/create-issue-contract.inventory.md"
   # CI_ROOT lets the meta-guard resolve the module's own `$CI_ROOT/…` assignments
   # (including CI_DV) and inline `$CI_ROOT/…` pin targets; without

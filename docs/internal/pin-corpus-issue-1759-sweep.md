@@ -10,8 +10,10 @@ consumer reads.
 ## Disposition of the 23 swept sites: RETIRED
 
 The universals in this section are grounded by the enumerated 23-row table below (executed:
-the regenerated `.prflow/logs/pin-corpus-inventory.tsv` carries zero prose-bucketed rows, and
-every retired site appears in the table with its arm).
+the regenerated `.prflow/logs/pin-corpus-inventory.tsv` carries none of the 23 swept create-issue
+literals as a prose row, and every retired site appears in the table with its arm). Any
+prose-bucketed rows still in that census belong to a separate, concurrently-authorized
+re-adjudication (issue #1765's implement-skill pins), outside this sweep's scope.
 
 **Consumer search (shared by the 23 rows below).** For each of the 23 literals, `pin-corpus-lint.py`'s
 `machine_consumer_evidence` search — run over the same consumer corpus the lint reads — returned
