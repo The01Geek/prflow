@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1782",
+  "generated_at": "2026-08-19T06:15:36Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.21",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 39.277351699999976,
+    "tokens": {
+      "input_tokens": 274,
+      "output_tokens": 129676,
+      "cache_read_input_tokens": 43847338,
+      "cache_creation_input_tokens": 567700,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 364,
+        "outputTokens": 162050,
+        "cacheReadInputTokens": 45470927,
+        "cacheCreationInputTokens": 955683,
+        "webSearchRequests": 0,
+        "costUSD": 34.890427249999995,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 188,
+        "outputTokens": 31468,
+        "cacheReadInputTokens": 4701414,
+        "cacheCreationInputTokens": 667711,
+        "webSearchRequests": 0,
+        "costUSD": 4.38692445,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 193,
+    "duration_ms": 3280273
+  },
+  "permission_denials": {
+    "count": 8,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=$GITHUB_RUN_ID ATTEMPT=$GITHUB_RUN_ATTEMPT SERVER=$GITHUB_SERVER_URL REPO=$GITHUB_REPOSITORY\"",
+      "cd /home/runner/work/prflow/prflow\nmkdir -p .prflow/tmp\ngit fetch origin \"+refs/heads/main:refs/remotes/origin/main\" || { echo \"FETCH FAILED\"; exit 1; }\necho OK",
+      "cd /home/runner/work/prflow/prflow\nBRANCH=$(.prflow/vendor/prflow/scripts/branch-for-issue.py 1771 --title-file .prflow/tmp/devflow-issue-1771-title.txt) || { echo \"BRANCH-FOR-ISSUE FAILED\"; exit 1; }\necho \"BRANCH=$BRANCH\"\n[ -n \"$BRANCH\" ] || { echo \"EMPTY BRANCH\"; exit 1; }\ngit checkout -b \"$BRANCH\" origin/main",
+      "cd /home/runner/work/prflow/prflow\nCUR=$(git branch --show-current)\n.prflow/vendor/prflow/scripts/workpad.py update 1771 --branch \"$CUR\"",
+      "\\\n.prflow/vendor/prflow/scripts/workpad.py update 1771 --note \"issue-claim audit (projection): issue carries no Desired Behavior section and no resolved acceptance criteria (design/refinement issue, no ACs provided) — zero obligations, nothing to project\" && \\\n.prflow/vendor/prflow/scripts/workpad.py update 1771 --note \"issue-claim audit (count): claimed 'five grounds' in step-4-present-create.md sub-step 3a — verified 'One offer, five grounds' with matching precedence order (final-byte, steerin …[per-command-truncated]",
+      "lib/test/test_python_scripts.py 2>&1 | grep -iE '1771|FAIL|assert|Traceback|Error' | head -30; echo \"---rc:${PIPESTATUS[0]}\"",
+      "git diff --no-index -U0 /dev/null .changeset/issue-1771-final-byte-resolution-settled.md | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree; echo \"---rc done\"",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before\ngit hash-object .prflow/tmp/review-dirty-tree-before"
+    ],
+    "total": 8,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
