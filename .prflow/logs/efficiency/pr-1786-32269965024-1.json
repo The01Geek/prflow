@@ -113,5 +113,69 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.26",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 14.886432600000001,
+    "tokens": {
+      "input_tokens": 98,
+      "output_tokens": 47215,
+      "cache_read_input_tokens": 8949105,
+      "cache_creation_input_tokens": 248465,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 145,
+        "outputTokens": 71514,
+        "cacheReadInputTokens": 10071964,
+        "cacheCreationInputTokens": 666128,
+        "webSearchRequests": 0,
+        "costUSD": 11.919600749999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 118,
+        "outputTokens": 17220,
+        "cacheReadInputTokens": 2595397,
+        "cacheCreationInputTokens": 514549,
+        "webSearchRequests": 0,
+        "costUSD": 2.96683185,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 80,
+    "duration_ms": 801919
+  },
+  "permission_denials": {
+    "count": 4,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---ENV---\"; echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-}\"; echo \"GITHUB_RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT:-}\"",
+      "printf 'RUN_ID=%s\\n' \"${GITHUB_RUN_ID:-none}\"; printf 'ATTEMPT=%s\\n' \"${GITHUB_RUN_ATTEMPT:-none}\"; printf 'ACTIONS=%s\\n' \"${GITHUB_ACTIONS:-none}\"",
+      "git checkout 3be62d8c29832071ed5e93b94624550c2035d008 2>&1 | tail -3; echo \"checkout-rc=${PIPESTATUS[0]}\"; git rev-parse HEAD; grep -c \"claude_code_version\" docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before && [ -f .prflow/tmp/review-dirty-tree-before ] && [ ! -L .prflow/tmp/review-dirty-tree-before ] && git hash-object .prflow/tmp/review-dirty-tree-before"
+    ],
+    "total": 4,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
