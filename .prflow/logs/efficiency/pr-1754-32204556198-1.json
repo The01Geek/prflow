@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1754",
+  "generated_at": "2026-08-19T01:35:15Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.17",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 12.001254249999999,
+    "tokens": {
+      "input_tokens": 56,
+      "output_tokens": 41036,
+      "cache_read_input_tokens": 4693591,
+      "cache_creation_input_tokens": 240196,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 151,
+        "outputTokens": 92330,
+        "cacheReadInputTokens": 7890516,
+        "cacheCreationInputTokens": 775401,
+        "webSearchRequests": 0,
+        "costUSD": 12.001254249999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 43,
+    "duration_ms": 814962
+  },
+  "permission_denials": {
+    "count": 5,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-none} ATTEMPT=${GITHUB_RUN_ATTEMPT:-1}\"; mkdir -p .prflow/tmp/review/pr-1754/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}; echo \"dir made\"",
+      "mkdir -p .prflow/tmp\nif rm -f \".prflow/tmp/review-dirty-tree-before\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \".prflow/tmp/review-dirty-tree-before\" &&\n   [ -f \".prflow/tmp/review-dirty-tree-before\" ] &&\n   [ ! -L \".prflow/tmp/review-dirty-tree-before\" ] &&\n   git hash-object \".prflow/tmp/review-dirty-tree-before\"; then\n  :\nelse\n  rm -f \".prflow/tmp/review-dirty-tree-before\" 2>/dev/null\n  printf '%s\\n' disabled > \".prflow/tmp/review-dirty-tree-disabl …[per-command-truncated]",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >/tmp/ext_stdout.txt 2>/tmp/ext_stderr.txt; echo \"EXIT=$?\"; echo \"---STDOUT BYTES---\"; wc -c </tmp/ext_stdout.txt; echo \"---STDOUT---\"; cat /tmp/ext_stdout.txt; echo \"---STDERR---\"; cat /tmp/ext_stderr.txt",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >/tmp/ext_stdout.txt 2>/tmp/ext_stderr.txt; echo \"EXIT=$?\"; echo \"STDOUT_BYTES=$(wc -c </tmp/ext_stdout.txt)\"",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >.prflow/tmp/ext_stdout.txt 2>.prflow/tmp/ext_stderr.txt; echo \"EXIT=$?\"; echo \"STDOUT_BYTES=$(wc -c <.prflow/tmp/ext_stdout.txt)\"; echo \"STDERR_BYTES=$(wc -c <.prflow/tmp/ext_stderr.txt)\""
+    ],
+    "total": 5,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
