@@ -119,6 +119,17 @@ if sys.version_info < (3, 11):  # fail fast, before any PEP 604 annotation below
     )
     sys.exit(1)
 
+def _force_utf8_streams():
+    """Force stdout/stderr to UTF-8. Never call this at import: doing so mutates the
+    streams of any process that imports this module for tests. Tolerates a stream that
+    has no usable `reconfigure` (issue #1762)."""
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 VERDICT_ENUM = ("PASS", "FAIL", "INCONCLUSIVE")
 SCOPE_ENUM = ("generated_claim_text", "source_authored_text", "none")
 NORMALIZED_PREFIX = "NORMALIZED (wording-only): "
@@ -539,6 +550,7 @@ def run(pairs_file):
 
 
 def main(argv=None):
+    _force_utf8_streams()
     argv = list(sys.argv[1:] if argv is None else argv)
     if not argv:
         # Emit on stdout as well as stderr, for the same reason as the version guard
