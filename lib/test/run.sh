@@ -31950,10 +31950,13 @@ print(next(s["run"] for j in d["jobs"].values() for s in j.get("steps",[]) if s.
   if [ -n "$R313_INJ_BODY" ] && [ -n "$R313_GENV" ]; then
     # bearer → ANTHROPIC_BASE_URL + API_TIMEOUT_MS + ANTHROPIC_AUTH_TOKEN(secret) + env map, each
     # written via the newline-safe heredoc form (normalized back to KEY=VALUE by gh_kv).
-    ( export DECISION='{"env":{"CLAUDE_CODE_SUBAGENT_MODEL":"z-ai/glm-5.2"}}' AUTH=bearer BASE_URL=https://openrouter.ai/api TIMEOUT_MS=3000000 PROVIDER=openrouter PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" ) >/dev/null 2>&1
+    ( export DECISION='{"env":{"ANTHROPIC_DEFAULT_HAIKU_MODEL":"z-ai/glm-4.7"}}' AUTH=bearer BASE_URL=https://openrouter.ai/api TIMEOUT_MS=3000000 PROVIDER=openrouter PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" ) >/dev/null 2>&1
     gh_kv "$R313_GENV" > "$R313_GENV.kv"
+    # env-map value is a NON-denied key (issue #1773): CLAUDE_CODE_SUBAGENT_MODEL is now
+    # deny-listed by the inject step, so this "env map is written" assertion uses the
+    # still-legitimate ANTHROPIC_DEFAULT_HAIKU_MODEL instead.
     assert_eq "#313 inject-body: bearer exports BASE_URL + API_TIMEOUT_MS + ANTHROPIC_AUTH_TOKEN + env map" "yes" \
-      "$(grep -qxF 'ANTHROPIC_BASE_URL=https://openrouter.ai/api' "$R313_GENV.kv" && grep -qxF 'API_TIMEOUT_MS=3000000' "$R313_GENV.kv" && grep -qxF 'ANTHROPIC_AUTH_TOKEN=sekret' "$R313_GENV.kv" && grep -qxF 'CLAUDE_CODE_SUBAGENT_MODEL=z-ai/glm-5.2' "$R313_GENV.kv" && echo yes || echo no)"
+      "$(grep -qxF 'ANTHROPIC_BASE_URL=https://openrouter.ai/api' "$R313_GENV.kv" && grep -qxF 'API_TIMEOUT_MS=3000000' "$R313_GENV.kv" && grep -qxF 'ANTHROPIC_AUTH_TOKEN=sekret' "$R313_GENV.kv" && grep -qxF 'ANTHROPIC_DEFAULT_HAIKU_MODEL=z-ai/glm-4.7' "$R313_GENV.kv" && echo yes || echo no)"
     : > "$R313_GENV"
     # api_key → base_url written, but NO ANTHROPIC_AUTH_TOKEN (key rides the action input only);
     # and with TIMEOUT_MS="" NO API_TIMEOUT_MS line either — a mutation writing it unconditionally
@@ -32003,6 +32006,42 @@ print(next(s["run"] for j in d["jobs"].values() for s in j.get("steps",[]) if s.
     ( export DECISION='{"env":{"K<<X":"x"}}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" ) >/dev/null 2>&1 || R313_RC=$?
     assert_eq "#313 inject-body: an env-map key containing '<<' fails loud (exit 1, key-validation guard)" "1" "$R313_RC"
     : > "$R313_GENV"
+    # env-map KEY-NAME deny list (issue #1773): a key whose NAME is harmful is refused (exit 1,
+    # ::error:: naming it, no $GITHUB_ENV write) — see the workflow SECURITY comment for which
+    # names and why. Per key: exit 1, the ::error:: names the key, and no top-level env var written.
+    for R1773_KEY in PATH GITHUB_TOKEN ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_BEARER_TOKEN_BEDROCK CLAUDE_CODE_SUBAGENT_MODEL; do
+      R313_RC=0
+      R313_OUT="$( export DECISION="{\"env\":{\"$R1773_KEY\":\"x\"}}" AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" 2>&1 )" || R313_RC=$?
+      assert_eq "#1773 inject-body: forbidden env-map key $R1773_KEY fails loud (exit 1, deny-list guard)" "1" "$R313_RC"
+      # The offending key appears in the ::error:: ONLY via the guard's dynamic key echo —
+      # the static prose names classes, not literals — so grepping the key name is honest.
+      assert_eq "#1773 inject-body: forbidden key $R1773_KEY emits ::error:: naming the key + refusing" "yes" \
+        "$(printf '%s' "$R313_OUT" | grep -qF '::error::' && printf '%s' "$R313_OUT" | grep -qF "$R1773_KEY" && printf '%s' "$R313_OUT" | grep -qiF 'refusing to run' && echo yes || echo no)"
+      R313_TOPKEYS="$(gh_topkeys "$R313_GENV")"
+      assert_eq "#1773 inject-body: forbidden key $R1773_KEY writes NO top-level env var (guard fired before emit)" "yes" \
+        "$([ -z "$R313_TOPKEYS" ] && echo yes || echo no)"
+      : > "$R313_GENV"
+    done
+    # Case-insensitive: a lower/mixed-case spelling of a denied name is also refused.
+    R313_RC=0
+    ( export DECISION='{"env":{"github_token":"x"}}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" ) >/dev/null 2>&1 || R313_RC=$?
+    assert_eq "#1773 inject-body: a case-variant denied key (github_token) is also refused (exit 1)" "1" "$R313_RC"
+    : > "$R313_GENV"
+    # Multiple denied keys in one map: fail loud (exit 1) AND the ::error:: names BOTH — exercises
+    # the guard's [ .env|keys[]|select ]|join(" ") collection, not just a single-element match.
+    R313_RC=0
+    R313_OUT="$( export DECISION='{"env":{"PATH":"x","ANTHROPIC_API_KEY":"y"}}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" 2>&1 )" || R313_RC=$?
+    assert_eq "#1773 inject-body: two denied keys in one map fail loud (exit 1)" "1" "$R313_RC"
+    assert_eq "#1773 inject-body: the ::error:: names BOTH denied keys (join collects all, not just the first)" "yes" \
+      "$(printf '%s' "$R313_OUT" | grep -qF 'PATH' && printf '%s' "$R313_OUT" | grep -qF 'ANTHROPIC_API_KEY' && echo yes || echo no)"
+    : > "$R313_GENV"
+    # Exact-match boundary: a NON-denied key that is a near-miss superstring of a denied name is
+    # still exported (not refused) — pins IN() exact membership against a contains/prefix regression.
+    ( export DECISION='{"env":{"GITHUB_TOKEN_ID":"z"}}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" ) >/dev/null 2>&1
+    gh_kv "$R313_GENV" > "$R313_GENV.kv"
+    assert_eq "#1773 inject-body: a near-miss non-denied key (GITHUB_TOKEN_ID) is still exported (IN() is exact-match)" "yes" \
+      "$(grep -qxF 'GITHUB_TOKEN_ID=z' "$R313_GENV.kv" && echo yes || echo no)"
+    rm -f "$R313_GENV.kv"; : > "$R313_GENV"
     # A well-formed env-map key still passes (no false fire on the documented keys).
     ( export DECISION='{"env":{"ANTHROPIC_DEFAULT_HAIKU_MODEL":"glm-4.7"}}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" ) >/dev/null 2>&1
     gh_kv "$R313_GENV" > "$R313_GENV.kv"
