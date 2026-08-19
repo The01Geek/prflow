@@ -40,16 +40,47 @@ IDENTITY_REFRESHES = HERE / "pin-identity-refreshes.tsv"
 ADJUDICATIONS = REPO_ROOT / "lib/test/pin-corpus-adjudications.tsv"
 CLASSIFIER = HERE / "pin-corpus-classifier.py"
 LINT = HERE / "pin-corpus-lint.py"
-# Controls over both arms of machine_consumer_evidence, in .sh and .py only: an arm or a
-# comment-stripped language with no control can regress to matching nothing while the
-# screen below still reports green.  .yml/.yaml and .jq carry no control.
-_CONTROL_VERBATIM = (  # .sh, whole-literal arm: scripts/render-grounding-block.sh
-    "> is not a verdict — it reads like an approval to a human while counting as"
+# Both arms of machine_consumer_evidence in each comment-stripped language (.yaml
+# shares .yml's branch).  Dropping a language's control lets its operative text
+# regress to empty while the corpus floor and per-prefix check — both PRESENCE-only —
+# still read green, leaving every prose row's `is None` screen passing vacuously.
+_MACHINE_CONSUMER_CONTROLS = (  # (literal, evidence phrase, expected consumer path)
+    (
+        "> is not a verdict — it reads like an approval to a human while counting as",
+        "contains the pinned literal",
+        "scripts/render-grounding-block.sh",
+    ),
+    (
+        "the PROVENANCE_LABEL_SUPERSEDED selector spelling is accepted here",
+        "contains the distinctive token",
+        "lib/scan.sh",
+    ),
+    (
+        "could not read audit-prompt template at",
+        "contains the pinned literal",
+        "scripts/render-audit-prompt.py",
+    ),
+    (
+        "name: lib + python tests",
+        "contains the pinned literal",
+        ".github/workflows/ci.yml",
+    ),
+    (
+        "the BASH_MAX_TIMEOUT_MS ceiling is set for this step",
+        "contains the distinctive token",
+        ".github/workflows/devflow-implement.yml",
+    ),
+    (
+        '{ clean: false, reason: "review-verdict signal unreadable" }',
+        "contains the pinned literal",
+        "lib/cheap-gate.jq",
+    ),
+    (
+        "the review_reject_outstanding signal decides this gate",
+        "contains the distinctive token",
+        "lib/cheap-gate.jq",
+    ),
 )
-_CONTROL_TOKEN = (  # absent verbatim; token arm via lib/scan.sh
-    "the PROVENANCE_LABEL_SUPERSEDED selector spelling is accepted here"
-)
-_CONTROL_PY = "could not read audit-prompt template at"  # scripts/render-audit-prompt.py
 
 IDENTITY_COLUMNS = (
     "source_file",
@@ -1111,17 +1142,17 @@ class ResidualProseRetirementManifestTests(unittest.TestCase):
             {prefix.rstrip("/") for prefix in lint.MACHINE_CONSUMER_PATH_PREFIXES},
             "a declared machine-consumer prefix contributed no files",
         )
-        # Assert WHICH arm answered: machine_consumer_evidence tries the whole literal
-        # first, so a token control that ever appears verbatim would pass while silently
-        # testing the other arm.
-        for control, phrase in (
-            (_CONTROL_VERBATIM, "contains the pinned literal"),
-            (_CONTROL_TOKEN, "contains the distinctive token"),
-            (_CONTROL_PY, "contains the pinned literal"),
-        ):
+        # Pin the arm and the answering file: the whole literal is tried first, so a
+        # token control appearing verbatim would silently test the other arm, and a
+        # control answered by another language's file tests that language, not its own.
+        for control, phrase, expected_path in _MACHINE_CONSUMER_CONTROLS:
             evidence = lint.machine_consumer_evidence(control, corpus)
             self.assertIsNotNone(evidence, f"machine-consumer search lost a control: {control!r}")
             self.assertIn(phrase, evidence)
+            self.assertTrue(
+                evidence.startswith(expected_path + " "),
+                f"control {control!r} answered from {evidence!r}, not {expected_path}",
+            )
         for row in rows:
             bucket = row["bucket_final"]
             if bucket not in PROSE_BUCKETS:

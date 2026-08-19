@@ -458,7 +458,8 @@ maintainer rationale rather than the classifier's mechanical fallback, and (sinc
 `machine_consumer_evidence` search, so a row bucketed as prose while a tool still reads
 it turns the suite RED. That search is **one-sided** — a hit disproves the bucket, a
 miss proves nothing — so it is backed by anti-vacuity controls (a corpus-size floor, a
-per-prefix contribution check, and one control literal per matching arm) that fail
+per-prefix contribution check, and a control literal pinned to its own consumer file
+for each matching arm in each comment-stripped language) that fail
 rather than let a degraded search read as a clean population. That per-row half
 ranges over whatever sits in a prose bucket at the time, so it is live between a
 re-adjudication and the sweep it authorizes and empty otherwise; the bucket-set half
