@@ -1225,6 +1225,10 @@
       "note": "the widened audited population of lint-ungranted-helper-spelling.py: the prompt-extension prefix and the two exact auto-loaded paths are reported like a skills/ path, the exact-path half is not a docs/internal/ prefix, every declared population member (exact paths and prefixes alike) is reachable by the default index enumeration, and the empty-audited floor message names the widened members",
       "owner": "unmodularized"
     },
+    "1528": {
+      "note": "run.sh #1528 block: surface-execution-diagnostics.sh publishes claude_code_version from the execution-file init record (publish/::notice:: read-back, unavailable fallback, builtins-only, redaction posture, no-result-event + partial-deployment + append-failure arms)",
+      "owner": "unmodularized"
+    },
     "1536": {
       "note": "compose-run-url.sh unit arms and the seed body-rewrite / RUNLINK assertions (the review-progress Run link is helper-composed, not agent-fabricated)",
       "owner": "unmodularized"

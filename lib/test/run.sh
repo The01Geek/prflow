@@ -37179,6 +37179,142 @@ assert_eq "#363 diagnostics publishes the gathered denial count when the count f
 assert_eq "#363 diagnostics exits 0 with no GITHUB_OUTPUT set (standalone run)" "0" \
   "$(printf '%s' "$_D_HOT" > "$D363/exec.json"; ( unset GITHUB_OUTPUT; bash "$SED_SH" "$D363/exec.json" >/dev/null 2>&1 ); echo $?)"
 
+# ────────────────────────────────────────────────────────────────────────────
+echo "#1528 observability: claude_code_version published from the init record + read back"
+# ────────────────────────────────────────────────────────────────────────────
+# The execution file's system/init record carries claude_code_version; surface-
+# execution-diagnostics.sh now publishes it (reusing lib/probe-observation.sh's
+# devflow_probe_cli_version) so a live run's own CLI build is recorded in-job, with
+# no 7-day artifact and no execution_transcript_artifact_enabled opt-in (issue #1528).
+_D_INIT='[{"type":"system","subtype":"init","claude_code_version":"2.1.226"},{"type":"result","is_error":false,"num_turns":3,"permission_denials_count":0}]'
+
+# AC1: the version is published to GITHUB_OUTPUT from the init record.
+assert_eq "#1528 diagnostics publishes claude_code_version=<v> from the init record" "yes" \
+  "$(_diag_run "$_D_INIT" >/dev/null; grep -qxF 'claude_code_version=2.1.226' "$D363/out" && echo yes || echo no)"
+# AC2: a consumer reads the published value back — the in-job ::notice:: naming it.
+assert_eq "#1528 diagnostics emits a ::notice:: naming the resolved version (the read-back consumer)" "yes" \
+  "$(_o=$(_diag_run "$_D_INIT"); printf '%s' "$_o" | grep -qF '::notice::DevFlow: claude-code CLI version 2.1.226' && echo yes || echo no)"
+# Human + machine agree: the rendered block carries the same value the output publishes.
+assert_eq "#1528 diagnostics renders claude_code_version into the block (human+machine agree)" "yes" \
+  "$(_o=$(_diag_run "$_D_INIT"); printf '%s' "$_o" | grep -qxF -e '- claude_code_version: 2.1.226' && echo yes || echo no)"
+
+# AC1: an init record lacking the field publishes the literal `unavailable` (never empty/0)
+# and raises no notice — unknown is not a version.
+assert_eq "#1528 diagnostics publishes 'unavailable' (never empty/0) when the init record lacks the version" "yes" \
+  "$(_diag_run "$_D_COLD" >/dev/null; grep -qxF 'claude_code_version=unavailable' "$D363/out" && echo yes || echo no)"
+assert_eq "#1528 diagnostics emits NO ::notice:: when the version is unavailable" "no" \
+  "$(_o=$(_diag_run "$_D_COLD"); printf '%s' "$_o" | grep -qF '::notice::DevFlow: claude-code CLI version' && echo yes || echo no)"
+# An unparseable execution file is also `unavailable`, never a forged value.
+assert_eq "#1528 diagnostics publishes 'unavailable' on an unparseable execution file" "yes" \
+  "$(_diag_run 'not json' >/dev/null; grep -qxF 'claude_code_version=unavailable' "$D363/out" && echo yes || echo no)"
+
+# Attribute the absent-file rejection to the absent-file branch's OWN breadcrumb: the
+# value assertions on that branch below cannot tell it from the jq-parse-error exit, which
+# publishes the same `unavailable` from the same `$_NO_DIAG` block.
+assert_eq "#1528 the absent-file 'unavailable' comes from the absent-file branch, not the jq-error branch" "crumb" \
+  "$(_nf=$(mktemp -d); \
+     _err=$( ( GITHUB_OUTPUT="$_nf/out" bash "$SED_SH" "$_nf/missing.json" >/dev/null ) 2>&1 ); \
+     printf '%s' "$_err" | grep -qF 'execution file absent or empty' && _c=crumb || _c=nocrumb; \
+     rm -rf "$_nf"; echo "$_c")"
+# A version outside the version alphabet (an injected step-summary payload) sanitizes to
+# `unavailable` rather than being echoed — the reused reader fails CLOSED.
+_D_BADVER='[{"type":"system","subtype":"init","claude_code_version":"2.1.226 <script>alert(1)</script>"},{"type":"result","is_error":false}]'
+assert_eq "#1528 diagnostics sanitizes a non-version-alphabet claude_code_version to 'unavailable'" "yes" \
+  "$(_diag_run "$_D_BADVER" >/dev/null; grep -qxF 'claude_code_version=unavailable' "$D363/out" && echo yes || echo no)"
+
+# The value must be derived with bash builtins — `tr`/`sed`/`cut`/`head` are NOT
+# preflight prerequisites (see lib/preflight.sh), so a missing one would silently
+# yield an empty value and publish a fail-open blank (the guard-class-2 rule).
+assert_eq "#1528 diagnostics derives the published version with bash builtins, not sed/head/grep/awk/cut/tr" "0" \
+  "$(python3 - "$SED_SH" <<'PY'
+import re, sys
+src = open(sys.argv[1], encoding="utf-8").read()
+body = src[src.index("_publish_claude_code_version() {"):src.index("\n}", src.index("_publish_claude_code_version() {"))]
+print(len(re.findall(r"(^|[|;&(]|\$\()\s*(sed|head|grep|awk|cut|tr)\s", body, re.M)))
+PY
+)"
+assert_eq "#1528 diagnostics still publishes the version when sed is absent from PATH" "2.1.226" \
+  "$(_sedless=$(mktemp -d); mkdir -p "$_sedless/bin"; \
+     for _c in bash printf echo cat rm mktemp grep head tr wc cut date dirname basename env test jq python3 type; do \
+       _p=$(command -v "$_c" 2>/dev/null) && ln -sf "$_p" "$_sedless/bin/$_c" 2>/dev/null; done; \
+     printf '%s' "$_D_INIT" > "$_sedless/exec.json"; \
+     ( PATH="$_sedless/bin" GITHUB_OUTPUT="$_sedless/out" bash "$SED_SH" "$_sedless/exec.json" >/dev/null 2>&1 ); \
+     sed -n 's/^claude_code_version=//p' "$_sedless/out"; rm -rf "$_sedless")"
+assert_eq "#1528 diagnostics still exits 0 with a version present and GITHUB_OUTPUT set" "0" \
+  "$(_diag_run "$_D_INIT" >/dev/null 2>&1; echo $?)"
+
+# AC3 (redaction posture): among the init fields, ONLY claude_code_version — a
+# low-sensitivity scalar — is value-published. The others (model/tools/agents/skills/
+# plugins/mcp_servers/permissionMode/capabilities/slash_commands) stay type-only via
+# extract-execution-shape.sh's redaction boundary (unchanged), because a resolved tools
+# list carries consumer-specific paths and the job log is public.
+_D_INITFULL='[{"type":"system","subtype":"init","claude_code_version":"2.1.226","model":"claude-opus-4","tools":["Bash","Read"],"agents":["a"],"skills":["s"],"plugins":["p"],"mcp_servers":[],"permissionMode":"default","capabilities":[],"slash_commands":[]},{"type":"result","is_error":false,"permission_denials_count":0}]'
+assert_eq "#1528 diagnostics value-publishes NO init field other than claude_code_version to GITHUB_OUTPUT (redaction posture)" "0" \
+  "$(_diag_run "$_D_INITFULL" >/dev/null; grep -cE '^(model|tools|agents|skills|plugins|mcp_servers|permissionMode|capabilities|slash_commands)=' "$D363/out")"
+
+# The version lives in the system/init record independent of a result event, so an
+# incomplete run (init present, no result — the stalled-run case this diagnostic exists
+# for) still publishes and renders it, rather than discarding a resolved version.
+_D_INITONLY='[{"type":"system","subtype":"init","claude_code_version":"2.1.226"}]'
+assert_eq "#1528 diagnostics publishes the version on an init-but-no-result-event run" "yes" \
+  "$(_diag_run "$_D_INITONLY" >/dev/null; grep -qxF 'claude_code_version=2.1.226' "$D363/out" && echo yes || echo no)"
+assert_eq "#1528 diagnostics renders the version into the no-result-event block" "yes" \
+  "$(_o=$(_diag_run "$_D_INITONLY"); printf '%s' "$_o" | grep -qxF -e '- claude_code_version: 2.1.226' && echo yes || echo no)"
+# The ::notice:: read-back fires on the incomplete-run path too — the feature's headline use
+# case is a stalled init-but-no-result run, so the consumer read-back must reach it.
+assert_eq "#1528 diagnostics emits the ::notice:: on an init-but-no-result-event run" "yes" \
+  "$(_o=$(_diag_run "$_D_INITONLY"); printf '%s' "$_o" | grep -qF '::notice::DevFlow: claude-code CLI version 2.1.226' && echo yes || echo no)"
+
+# Partial deployment: the sibling lib/probe-observation.sh is absent, so the reused reader
+# is not defined. The type-guard must degrade CCVER to `unavailable` with a breadcrumb and
+# still exit 0 — never a set -u abort (the guarded-source design's central resilience claim).
+assert_eq "#1528 diagnostics degrades to 'unavailable' + exit 0 with a breadcrumb when probe-observation.sh is not sourced" "unavailable-0-crumb" \
+  "$(_pd=$(mktemp -d); mkdir -p "$_pd/scripts" "$_pd/lib"; \
+     cp "$SED_SH" "$_pd/scripts/surface-execution-diagnostics.sh"; \
+     cp "$LIB/../lib/resolve-jq.sh" "$_pd/lib/resolve-jq.sh"; \
+     printf '%s' "$_D_INIT" > "$_pd/exec.json"; \
+     _err=$( ( GITHUB_OUTPUT="$_pd/out" bash "$_pd/scripts/surface-execution-diagnostics.sh" "$_pd/exec.json" >/dev/null ) 2>&1 ); _rc=$?; \
+     _v=$(sed -n 's/^claude_code_version=//p' "$_pd/out"); \
+     printf '%s' "$_err" | grep -qF 'devflow_probe_cli_version unavailable' && _c=crumb || _c=nocrumb; \
+     rm -rf "$_pd"; echo "${_v}-${_rc}-${_c}")"
+
+# The absent/empty-file guard exits before the version resolver runs, so all three of its
+# arms must still publish the `unavailable` sentinel: an empty or forged value there would
+# tell a consumer the CLI build was observed on a run whose execution file never existed.
+assert_eq "#1528 diagnostics publishes 'unavailable' on every absent/empty-execution-file arm (no arg, missing path, zero-byte)" "unavailable|unavailable|unavailable" \
+  "$(: > "$D363/out"; ( GITHUB_OUTPUT="$D363/out" bash "$SED_SH" >/dev/null 2>&1 ); \
+     _noarg=$(sed -n 's/^claude_code_version=//p' "$D363/out"); \
+     : > "$D363/out"; ( GITHUB_OUTPUT="$D363/out" bash "$SED_SH" "$D363/no-such-exec.json" >/dev/null 2>&1 ); \
+     _gone=$(sed -n 's/^claude_code_version=//p' "$D363/out"); \
+     : > "$D363/out"; : > "$D363/zero.json"; \
+     ( GITHUB_OUTPUT="$D363/out" bash "$SED_SH" "$D363/zero.json" >/dev/null 2>&1 ); \
+     _zero=$(sed -n 's/^claude_code_version=//p' "$D363/out"); rm -f "$D363/zero.json"; \
+     echo "${_noarg}|${_gone}|${_zero}")"
+assert_eq "#1528 diagnostics raises no ::notice:: and still exits 0 when the execution file is absent" "nonotice-0" \
+  "$(: > "$D363/out"; \
+     _o=$( ( GITHUB_OUTPUT="$D363/out" bash "$SED_SH" "$D363/no-such-exec.json" ) 2>&1 ); _rc=$?; \
+     printf '%s' "$_o" | grep -qF '::notice::DevFlow: claude-code CLI version' && _n=notice || _n=nonotice; \
+     echo "${_n}-${_rc}")"
+
+# Standalone/local run: with GITHUB_OUTPUT unset the append is skipped, but the ::notice::
+# read-back must still fire and the skip must stay silent — a breadcrumb on the normal
+# local path would train a maintainer to ignore the real append-failure breadcrumb below.
+assert_eq "#1528 diagnostics emits the ::notice:: with no GITHUB_OUTPUT set and breadcrumbs nothing" "notice-nocrumb-0" \
+  "$(printf '%s' "$_D_INIT" > "$D363/exec.json"; \
+     _out=$( ( unset GITHUB_OUTPUT; bash "$SED_SH" "$D363/exec.json" ) 2>/dev/null ); \
+     _err=$( ( unset GITHUB_OUTPUT; bash "$SED_SH" "$D363/exec.json" 2>&1 >/dev/null ) ); _rc=$?; \
+     printf '%s' "$_out" | grep -qF '::notice::DevFlow: claude-code CLI version 2.1.226' && _n=notice || _n=nonotice; \
+     [ -z "$_err" ] && _c=nocrumb || _c=crumb; \
+     echo "${_n}-${_c}-${_rc}")"
+
+# A GITHUB_OUTPUT write failure (here: the var points at a directory, so the append
+# redirect fails) leaves a stderr breadcrumb and still exits 0 — never a silent stall.
+assert_eq "#1528 diagnostics breadcrumbs + exits 0 when the GITHUB_OUTPUT append fails" "crumb-0" \
+  "$(_af=$(mktemp -d); printf '%s' "$_D_INIT" > "$_af/exec.json"; mkdir -p "$_af/outdir"; \
+     _err=$( ( GITHUB_OUTPUT="$_af/outdir" bash "$SED_SH" "$_af/exec.json" >/dev/null ) 2>&1 ); _rc=$?; \
+     printf '%s' "$_err" | grep -qF 'could not append claude_code_version to GITHUB_OUTPUT' && _c=crumb || _c=nocrumb; \
+     rm -rf "$_af"; echo "${_c}-${_rc}")"
+
 # ── Workflow plumbing: the runner exposes the count, defaulting to 0, and the
 # ── review workflow's finalize_check consumes it and raises an ::error:: on a
 # ── no-verdict run. These are the deterministic backstops for an engine that
