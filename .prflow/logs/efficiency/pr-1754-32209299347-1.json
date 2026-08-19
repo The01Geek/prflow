@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1754",
+  "generated_at": "2026-08-19T02:52:40Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.17",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 12.455312249999997,
+    "tokens": {
+      "input_tokens": 62,
+      "output_tokens": 34472,
+      "cache_read_input_tokens": 5178505,
+      "cache_creation_input_tokens": 225166,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 200,
+        "outputTokens": 86791,
+        "cacheReadInputTokens": 10505892,
+        "cacheCreationInputTokens": 669955,
+        "webSearchRequests": 0,
+        "costUSD": 12.455312249999997,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 43,
+    "duration_ms": 749643
+  },
+  "permission_denials": {
+    "count": 16,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---ENV---\"; echo \"RUN_ID=${GITHUB_RUN_ID:-unset} ATTEMPT=${GITHUB_RUN_ATTEMPT:-unset} SKILLDIR=${CLAUDE_SKILL_DIR:-unset}\"",
+      "printf 'RUN_ID=%s ATTEMPT=%s\\n' \"${GITHUB_RUN_ID:-none}\" \"${GITHUB_RUN_ATTEMPT:-none}\"",
+      "mkdir -p .prflow/tmp\nif rm -f \".prflow/tmp/review-dirty-tree-before\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \".prflow/tmp/review-dirty-tree-before\" &&\n   [ -f \".prflow/tmp/review-dirty-tree-before\" ] &&\n   [ ! -L \".prflow/tmp/review-dirty-tree-before\" ] &&\n   git hash-object \".prflow/tmp/review-dirty-tree-before\"; then\n  :\nelse\n  echo \"SNAPSHOT-FAILED\"\n  printf '%s\\n' disabled > \".prflow/tmp/review-dirty-tree-disabled\"\nfi",
+      "git status --porcelain -z > .prflow/tmp/review-dirty-tree-before",
+      "cd /home/runner/work/prflow/prflow\nfor s in \"self-referential-ordinal\" \"success/neutral/skipped/null\" \"the review_reject_outstanding signal decides this gate\" \"the BASH_MAX_TIMEOUT_MS ceiling is set for this step\" \"truncated-but-still-parseable\" \"present-but-non-regular\" \"the PROVENANCE_LABEL_SUPERSEDED selector spelling is accepted here\" \"could not read audit-prompt template at\" \"name: lib + python tests\"; do\n  echo \"=== $s ===\"\n  grep -rn -F \"$s\" .github/workflows/ci.yml .github/workflows/devf …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\nfor tok in BASH_MAX_TIMEOUT_MS PROVENANCE_LABEL_SUPERSEDED review_reject_outstanding; do\n  echo \"=== $tok ===\"\n  git grep -l -F \"$tok\" -- 'scripts/*' 'lib/*' '.github/*' ':!lib/test/*' | sort\ndone",
+      "cd /home/runner/work/prflow/prflow\ntmp=$(mktemp -d)\ngit worktree add -q \"$tmp\" c3fb7897f5caac073ab68ce6e01b892e8bef6e2d 2>&1 | tail -2\ncd \"$tmp\"\npython3 -m pytest lib/test/test_residual_prose_retirement_manifest.py -k test_final_inventory_realizes_only_authorized_buckets -q 2>&1 | tail -25\necho \"WT=$tmp\"",
+      "git worktree add -q /tmp/pr1754wt c3fb7897f5caac073ab68ce6e01b892e8bef6e2d 2>&1 | tail -2; echo done",
+      "git worktree add -q /tmp/pr1754wt c3fb7897f5caac073ab68ce6e01b892e8bef6e2d; echo \"rc=$?\"",
+      "git worktree add -q /tmp/pr1754wt c3fb7897f5caac073ab68ce6e01b892e8bef6e2d",
+      "cd /home/runner/work/prflow/prflow\necho \"=== last-3 columns per row: bucket_mechanical, bucket_final, rationale? find NF ===\"\ngit show c3fb7897f5caac073ab68ce6e01b892e8bef6e2d:.prflow/logs/pin-corpus-inventory.tsv | grep -v '^#' | awk -F'\\t' 'NR==1{print \"NF=\"NF} {print $(NF-2)\"|\"$(NF-1)}' | head -1\necho \"=== count bucket_final (NF-1) prose at HEAD ===\"\ngit show c3fb7897f5caac073ab68ce6e01b892e8bef6e2d:.prflow/logs/pin-corpus-inventory.tsv | grep -v '^#' | awk -F'\\t' '{print $(NF-1)}' | grep -cE …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\ngit show c3fb7897f5caac073ab68ce6e01b892e8bef6e2d:.prflow/logs/pin-corpus-inventory.tsv > /tmp/inv_head.tsv\ngit show 73bdc12fb00586a9f56de842d49e7c1a82be70a2:.prflow/logs/pin-corpus-inventory.tsv > /tmp/inv_base.tsv\ngrep -v '^#' /tmp/inv_head.tsv | awk -F'\\t' 'NR==1{print \"NF=\"NF}'\necho \"HEAD bucket_final prose (col NF-1):\"; grep -v '^#' /tmp/inv_head.tsv | awk -F'\\t' '{print $(NF-1)}' | grep -cE '^prose'\necho \"BASE bucket_final prose:\"; grep -v '^#' /tmp/inv_b …[per-command-truncated]",
+      "git show c3fb7897f5caac073ab68ce6e01b892e8bef6e2d:.prflow/logs/pin-corpus-inventory.tsv > /tmp/inv_head.tsv; git show 73bdc12fb00586a9f56de842d49e7c1a82be70a2:.prflow/logs/pin-corpus-inventory.tsv > /tmp/inv_base.tsv; echo saved",
+      "git show c3fb7897f5caac073ab68ce6e01b892e8bef6e2d:.prflow/logs/pin-corpus-inventory.tsv > /tmp/inv_head.tsv",
+      "cd /home/runner/work/prflow/prflow\ngit show c3fb7897f5caac073ab68ce6e01b892e8bef6e2d:.prflow/logs/pin-corpus-inventory.tsv > .prflow/tmp/inv_head.tsv\ngit show 73bdc12fb00586a9f56de842d49e7c1a82be70a2:.prflow/logs/pin-corpus-inventory.tsv > .prflow/tmp/inv_base.tsv\necho \"NF:\"; grep -v '^#' .prflow/tmp/inv_head.tsv | awk -F'\\t' 'NR==1{print NF}'\necho \"HEAD bucket_final(NF-1) prose:\"; grep -v '^#' .prflow/tmp/inv_head.tsv | awk -F'\\t' '{print $(NF-1)}' | grep -cE '^prose'\necho \"BASE bucket_final(NF …[per-command-truncated]",
+      "git show c3fb7897f5caac073ab68ce6e01b892e8bef6e2d:.prflow/logs/pin-corpus-inventory.tsv > /home/runner/work/prflow/prflow/.prflow/tmp/inv_head.tsv"
+    ],
+    "total": 16,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
