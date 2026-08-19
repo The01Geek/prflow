@@ -749,6 +749,41 @@ implement Phase 2**, and the Phase 3.4 gate below is its downstream verifier. Th
 a named assertion, and every assertion maps back" duty in the issue body is retired; do not reintroduce
 it as current create-issue behavior.
 
+## Prompt-surface routing-evidence gate (pre-review, Phase 3.2.5; issue #1458)
+
+`skills/implement/phases/phase-3-review.md` §3.2.5 gates the review request on this repository's
+prompt-surface routing evidence, so a run that edited a prompt-surface file without recording the
+`Writing-skills evidence:` marker stops **before** requesting review rather than surfacing the omission
+only as a review-time finding. It is the producer-side counterpart of the review engine's own gate in
+`.prflow/prompt-extensions/{review-and-fix,review}.md`, which stays in place as the backstop for a
+marker that is present but malformed. The gate lives on a phase file — a surface the orchestrator
+`Read`s from the tree — rather than a prompt extension precisely because an extension does not reach the
+cloud tier (the `` !`cmd` `` render refusal), which is where the marker had no enforcement point at all.
+
+Three properties make it safe against the false-stall failure mode:
+
+- **Self-scoped to a policy-carrying checkout.** The phase file ships verbatim into consumer repos that
+  do not run DevFlow's routing rule, so the gate first reads `.prflow/prompt-extensions/implement.md`
+  whole and runs only when the heading `Prompt-surface edit routing` is present; a genuinely absent
+  policy makes the gate inert. An unread or half-read probe leaves the policy's presence unestablished
+  and is treated as present, so a truncated read never silently disables the gate.
+- **Presence check only.** Any `Writing-skills evidence:` marker on the workpad or PR body discharges
+  the gate — including one whose four dispositions are all `=no` — mirroring the routing rule's own
+  "`no` is a fully discharging value" contract; the disposition values are never inspected here.
+- **Fails closed on an uncomputable delta.** The touched-file set is the §2.3 branch-delta
+  (`git diff --merge-base origin/<base> --name-only`); when it cannot be established the gate requires
+  the marker rather than reading the empty result as a clean no-match.
+
+The trigger-glob set — `skills/*/SKILL.md`, `skills/implement/phases/*.md`,
+`skills/implement/references/*.md`, `skills/review/phases/*.md`, `skills/review-and-fix/references/*.md`,
+`.prflow/prompt-extensions/*.md`, and the deliberate exclusion of `agents/*.md` and other skill
+companion files — is byte-identical to the routing rule's own set in
+`.prflow/prompt-extensions/implement.md`. That makes it a coupled site pinned in lockstep by the
+`#1458` block in `lib/test/run.sh`: an edit to one set is reconciled against the other in the same
+change. This joins the same pre-review-gate family as the Phase 3.4 acceptance-criteria gate and the
+Phase 4.3 base-update checkpoints — a precondition enforced mechanically at implement time rather than
+left to the review pass.
+
 ## Acceptance-criteria gate: the gated `(post-merge)` tag (Phase 3.4)
 
 ### Two dispatched fresh-context verifiers, reconciled (issue #1575)
