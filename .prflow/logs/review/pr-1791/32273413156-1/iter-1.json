@@ -1,0 +1,104 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-19T16:05:00Z",
+  "fix_commit_sha": "9b0ac744b",
+  "fix_files": [
+    "skills/implement/phases/phase-3-review.md",
+    "lib/test/run.sh"
+  ],
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "F2 self-scope introduced an unpinned third cross-file coupling (the Prompt-surface edit routing scope-heading); a rename would silently disable the gate.",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          28330,
+          28343
+        ],
+        "kind": "unpinned_coupling"
+      },
+      "corroboration_count": 3,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "Shadow: truncated read of the routing extension (| head / bounded budget) misses the heading and is misread as policy-absent -> gate inert, silently disabling the gate.",
+      "defect_signature": {
+        "file": "skills/implement/phases/phase-3-review.md",
+        "line_range": [
+          224,
+          224
+        ],
+        "kind": "silent_fail_open"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-heading-pin",
+      "decision": "applied",
+      "commit": "162a7caba"
+    },
+    {
+      "finding_id": "F-truncated-read",
+      "decision": "applied",
+      "commit": "9b0ac744b"
+    }
+  ],
+  "shadow": {
+    "ran_at": "2026-08-19T16:20:00Z",
+    "reviewed_sha": "9b0ac744b",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "checklist_skipped": "intentional",
+    "phase3_findings": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "convergence_inputs": {
+    "fixes_applied": 2,
+    "fix_diff_lines": 12,
+    "new_corroborated_critical_count": 0
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
