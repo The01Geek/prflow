@@ -20,7 +20,7 @@ When the filesystem refuses the append of a revision-delta evidence line to the 
 
 ## Criterion disposition record
 
-When the filesystem refuses the append of a disposition line to the `## Criterion disposition record` section of `.prflow/tmp/issue-derivation-<slug>.md` (the omit/merge/add grading record `references/issue-template.md` mandates per added criterion), post that line — naming the criterion it dispositions — as a visible inline-in-chat block in the current turn, and do not trust any on-disk `## Criterion disposition record`. Step 4's presentation confirmation reads that inline block as the record's sole stand-in. The reduced durability is reported and filing is never blocked.
+When the filesystem refuses the append of a disposition line to the `## Criterion disposition record` section of `.prflow/tmp/issue-derivation-<slug>.md` (the omit/merge/add grading record `references/issue-template.md` mandates per added criterion), post that line — naming the criterion it dispositions — as a visible inline-in-chat block in the current turn, and re-post it whenever a later turn reaches Step 4's presentation confirmation that reads it, and do not trust any on-disk `## Criterion disposition record`. Step 4's presentation confirmation reads that inline block as the record's sole stand-in. The reduced durability is reported and filing is never blocked.
 
 ## Step 2 / Step 3 — the derivation gate's stand-in
 
