@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1776",
+  "generated_at": "2026-08-19T05:26:20Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.21",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 15.8699467,
+    "tokens": {
+      "input_tokens": 82,
+      "output_tokens": 46057,
+      "cache_read_input_tokens": 7140930,
+      "cache_creation_input_tokens": 408899,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 140,
+        "outputTokens": 72108,
+        "cacheReadInputTokens": 8715629,
+        "cacheCreationInputTokens": 793199,
+        "webSearchRequests": 0,
+        "costUSD": 12.652079500000003,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 134,
+        "outputTokens": 20524,
+        "cacheReadInputTokens": 2927884,
+        "cacheCreationInputTokens": 541664,
+        "webSearchRequests": 0,
+        "costUSD": 3.217867200000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 67,
+    "duration_ms": 810113
+  },
+  "permission_denials": {
+    "count": 7,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"run-id=${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}\"; echo \"actions=${GITHUB_ACTIONS:-none}\"",
+      "mkdir -p .prflow/tmp\nif rm -f \".prflow/tmp/review-dirty-tree-before\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \".prflow/tmp/review-dirty-tree-before\" &&\n   [ -f \".prflow/tmp/review-dirty-tree-before\" ] &&\n   [ ! -L \".prflow/tmp/review-dirty-tree-before\" ] &&\n   git hash-object \".prflow/tmp/review-dirty-tree-before\"; then\n  :\nelse\n  echo \"::warning::snapshot failed\" >&2\n  printf '%s\\n' disabled > \".prflow/tmp/review-dirty-tree-disabled\"\nfi",
+      "git status --porcelain -z > .prflow/tmp/review-dirty-tree-before; git hash-object .prflow/tmp/review-dirty-tree-before",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review 2>/tmp/ext.err >/tmp/ext.out; echo \"EXIT=$?\"; echo \"---STDOUT bytes---\"; wc -c </tmp/ext.out; echo \"---STDOUT---\"; cat /tmp/ext.out; echo \"---STDERR---\"; cat /tmp/ext.err",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review 2>/tmp/ext.err >/tmp/ext.out; echo \"EXIT=$?\"; wc -c </tmp/ext.out",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review 2>.prflow/tmp/ext.err >.prflow/tmp/ext.out; echo \"EXIT=$?\"; wc -c <.prflow/tmp/ext.out",
+      "ls .changeset/ 2>/dev/null; echo \"---\"; for f in $(git ls-files '.changeset/*.md' | grep -v README | head -3); do echo \"== $f ==\"; head -6 \"$f\"; done; echo \"=== consolidate parser ===\"; grep -rn \"bump\\|^---\" scripts/consolidate-changesets.py 2>/dev/null | head"
+    ],
+    "total": 7,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
