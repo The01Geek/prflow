@@ -214,6 +214,27 @@ LPE_TOK_SEC_OUT="$(cd "$LPE_DIR" && bash "$LPE" implement --section '## Nope' 2>
 assert_eq "lpe token: --section absent-heading → empty stdout" "" "$LPE_TOK_SEC_OUT"
 assert_eq "lpe token: --section mode emits NO PROMPT-EXTENSION-STATUS token (whole-file scoped)" "yes" \
   "$(case "$(cat "$LPE_TOK_SEC_ERR")" in *'PROMPT-EXTENSION-STATUS:'*) echo no ;; *) echo yes ;; esac)"
+# A --section that FINDS and extracts a section (the create-issue production shape) also
+# emits no token — pins that the scope guard is section-mode-wide, not absent-heading-only.
+printf '## Sec\nbody\n' > "$LPE_DIR/.prflow/prompt-extensions/secfound.md"
+LPE_TOK_SF_ERR="$LPE_DIR/err-tok-sf"
+LPE_TOK_SF_OUT="$(cd "$LPE_DIR" && bash "$LPE" secfound --section '## Sec' 2>"$LPE_TOK_SF_ERR")"
+assert_eq "lpe token: --section that extracts a section → still no token (create-issue shape)" "yes" \
+  "$(case "$(cat "$LPE_TOK_SF_ERR")" in *'PROMPT-EXTENSION-STATUS:'*) echo no ;; *) echo yes ;; esac)"
+assert_eq "lpe token: --section found-section → extracts the section body" "yes" \
+  "$(case "$LPE_TOK_SF_OUT" in *body*) echo yes ;; *) echo no ;; esac)"
+rm -f "$LPE_DIR/.prflow/prompt-extensions/secfound.md"
+# Documented divergence pin (issue #1299): a whitespace-only file is content-present here (the
+# loader's -s size basis), diverging from render-prompt-extension.sh's stdout-strip basis; pin
+# it so a future "alignment" cannot silently change the -s contract this header documents.
+printf '   \n\n' > "$LPE_DIR/.prflow/prompt-extensions/wsonly.md"
+LPE_TOK_WS_ERR="$LPE_DIR/err-tok-ws"
+LPE_TOK_WS_OUT="$(cd "$LPE_DIR" && bash "$LPE" wsonly 2>"$LPE_TOK_WS_ERR")"
+assert_eq "lpe token: whitespace-only file → content-present (loader's -s basis, issue #1299)" "yes" \
+  "$(case "$(cat "$LPE_TOK_WS_ERR")" in *'PROMPT-EXTENSION-STATUS: content-present'*) echo yes ;; *) echo no ;; esac)"
+assert_eq "lpe token: whitespace-only file → stdout carries its bytes (why -s calls it content)" "yes" \
+  "$([ -n "$LPE_TOK_WS_OUT" ] && echo yes || echo no)"
+rm -f "$LPE_DIR/.prflow/prompt-extensions/wsonly.md"
 
 # ── issue #611: `--section '<heading>'` markdown-section extraction ──────────
 # The heading-extraction rule is SPECIFIED once in skills/create-issue/SKILL.md
