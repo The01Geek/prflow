@@ -319,7 +319,7 @@ After the `Read`: quote the body's literal first and last lines, and let `S` and
 
 On any identity or boundary row: stop that phase, report the label with the phase id and reference path, and do not act on the body, improvise the phase from its orientation text, or repair the file. A body can read as complete and correct and still fail these checks: a defective boundary or identity means what you hold is not the bundle this engine was built against, so its plausibility is worth nothing.
 
-Required copy. Rows 1–7 and the paged-read recovery above are mirrored in `skills/implement/SKILL.md`'s *Phase-reference boundary contract*; edit both in the same change. That copy adds two rows this one omits: its row 9 `set-incomplete` checks that every on-disk member of a multi-file phase set arrived, which is distinct from paged-read recovery — recovery assembles one file the reader delivered in pages, while `set-incomplete` checks that all files of a set were read.
+Required copy. Rows 1–7 and the paged-read recovery above are mirrored in `skills/implement/SKILL.md`'s *Phase-reference boundary contract*; edit both in the same change. That copy adds the rows `misrouted` and `set-incomplete` this one omits; its `set-incomplete` checks that every on-disk member of a multi-file phase set arrived, distinct from paged-read recovery — recovery assembles one file the reader delivered in pages, while `set-incomplete` checks that all files of a set were read.
 
 ### Phase routing
 
