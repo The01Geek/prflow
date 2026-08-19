@@ -225,7 +225,7 @@ Write mode (default): load `references/write-mode.md` now and follow it. Build i
 skill's directory per the *Portable helper anchor* rules above and read it with the runner's
 file-read tool — never a new shell invocation. The load is accepted only when the file's **first
 line is its `start` boundary marker and its last line is the matching `end` marker**, each naming
-that file's own path.
+that file's own path, with exactly one of each. A file the reader returns only in pages — a partial-view notice with an `offset`/`limit` continuation — is not damaged: page it forward until no continuation is offered or a page adds nothing new, then apply that acceptance rule to the assembled whole document, and report the recovery. A read you cannot complete, a gap in the page sequence, or a message you cannot classify as that notice reaches the fail-closed stop below.
 
 That reference carries the action paths (accurate / outdated / missing), the file operations and
 naming rules, the quality standards, the scope constraints, and the completion criteria.

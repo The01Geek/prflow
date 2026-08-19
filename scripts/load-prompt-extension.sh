@@ -81,8 +81,22 @@
 #     repo root, which the issue-#295 repo-root-reader enumerations in
 #     .prflow/config.schema.json and scripts/emit-git-env.sh record.
 #
-# When the file is absent — or present but empty — this prints nothing and exits 0
-# (the no-op path), so a skill that calls this behaves exactly as before unless the
+# In WHOLE-FILE mode (no --section) this also emits a
+# `load-prompt-extension.sh: PROMPT-EXTENSION-STATUS: <content-present|present-empty>` line on
+# STDERR (issue #1299), reusing scripts/render-prompt-extension.sh's status token strings:
+# `content-present` when a non-empty file's bytes were printed to stdout (decided by `-s`),
+# `present-empty` on the absent/empty no-op arm. The `-s` size test is the loader's own basis;
+# render-prompt-extension.sh instead classifies by whether its captured stdout is empty after
+# trailing-newline stripping, so a whitespace-only file differs between the two — each token
+# stays consistent with its own stdout. The token is STDERR-only so stdout stays byte-verbatim,
+# and it makes an absent/empty extension distinguishable from a harness refusal (which produces
+# no output at all). The `load-prompt-extension.sh: ` prefix is what lets the phase-3 reviewer's
+# stdout-classification discriminator, which drops `load-prompt-extension.sh: ` lines, still
+# neutralize this diagnostic. --section mode emits no token, so create-issue's byte-and-stderr
+# contract is unchanged.
+#
+# When the file is absent — or present but empty — this prints nothing on stdout and exits
+# 0 (the no-op path), so a skill that reads stdout behaves exactly as before unless the
 # consumer opted in.
 #
 # This is DevFlow's single upgrade-safe extension point: a consumer adds
@@ -531,4 +545,16 @@ if [ -f "$ext_file" ]; then
             echo "load-prompt-extension.sh: no section headed '$section' in '$ext_file'; ${_detail}" >&2
         fi
     fi
+fi
+
+# issue #1299: whole-file status token, computed once, emitted at one STDERR site (never
+# stdout — stdout stays byte-verbatim). Undeliverable shapes exited 2 above. The
+# `load-prompt-extension.sh: ` prefix is load-bearing (phase-3 drops those lines when classifying).
+if [ "$section_requested" -eq 0 ]; then
+    if [ -f "$ext_file" ] && [ -s "$ext_file" ]; then
+        _wf_status=content-present
+    else
+        _wf_status=present-empty
+    fi
+    printf 'load-prompt-extension.sh: PROMPT-EXTENSION-STATUS: %s\n' "$_wf_status" >&2
 fi
