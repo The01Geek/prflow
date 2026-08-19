@@ -164,6 +164,23 @@ with values `site` (default — a criterion satisfied at a specific location) an
 `universal` (quantifies over every unit of a named surface). A `universal` item carries a
 `universal_surface` sub-value naming the file the verifier must read whole.
 
+**Read-cap constraint — the whole-surface read must fail closed, not silently truncate.**
+"Read the whole surface" is not free: the runner's Read tool caps at ~61,750 bytes (the
+`lint-reference-size.py` ceiling), and the sizes in *Frequency and size* run far past it —
+`lib/test/run.sh` at 3.9 MB, `docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md` at 619 KB. A
+verifier told to "read the whole surface" for one of those receives a *truncated* prefix,
+finds no falsifying unit in the part it saw, and could emit `property_proven: true` / PASS
+for a universal it never fully read — a **fail-open on the merge gate** when the gating key
+resolves on (worse than the normalization hazard below, because it needs no `_aux_state`
+misreport). So the implementation must bound the read: a `universal_surface` larger than the
+verifier can read whole in one pass forces the item to **INCONCLUSIVE** (which Phase 4.2
+rule 2 still surfaces under the advisory channel when gating is off), never a silent partial
+PASS — or the verifier paginates and enumerates the surface in chunks, asserting the
+property over every chunk before it may set `property_proven: true`. This constraint is why
+the largest candidate surfaces (`lib/test/run.sh`, `docs/internal/*.md`) — which
+`prompt-surface-growth.py` does not even cover — are the ones the recommendation's opt-in
+default most protects.
+
 Every new checklist-item field is a five-way contract. Coupled sites that must change **in
 the same commit** (this spike edits none of them):
 
