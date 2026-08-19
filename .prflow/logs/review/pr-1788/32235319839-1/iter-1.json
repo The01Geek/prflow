@@ -1,0 +1,215 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-19T09:20:00Z",
+  "fix_commit_sha": "fabf6c3bd83e617bad7b5ec944c78d7c44c94efd",
+  "fix_files": [
+    "skills/review-and-fix/SKILL.md"
+  ],
+  "loop_role": "fix",
+  "current_step": "3",
+  "current_substep": null,
+  "sweep_defs_read": [
+    {
+      "path": "../implement/phases/phase-2-implement.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0"
+      ]
+    },
+    {
+      "path": "../implement/phases/phase-2-sweeps-contract.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0",
+        "2.3.0a",
+        "2.3.0b",
+        "2.3.0c",
+        "2.3.0d"
+      ]
+    },
+    {
+      "path": "../implement/phases/phase-2-sweeps-quality.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.1",
+        "2.3.2",
+        "2.3.3",
+        "2.3.4",
+        "2.3.4a",
+        "2.3.4b",
+        "2.3.5",
+        "2.3.6",
+        "2.3.7"
+      ]
+    }
+  ],
+  "sweep_evidence": {
+    "status": "run",
+    "note": "fix delta = one prose line (re-read rule absent-operand arm) in skills/review-and-fix/SKILL.md; classified changed-predicate (2.3.0) — no coupled site cites this arm, run.sh:35467 pin is on the stamp imperative not this arm and is unaffected; 2.3.4b stale-prose-lint --rev HEAD clean (only the pre-existing informational CU row); no new coverage universal added"
+  },
+  "checklist": [
+    {
+      "id": "VC-1",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:skill.md:firing-predicate-durable-operand",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-2",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:skill.md:absent-operand-distinguishes-fail-closed",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-3",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:loop-control.md:producer-stated-at-stamp-imperative",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-4",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:skill.md:pre-change-record-fails-closed",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-5",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:skill.md:runsh-pins-still-resolve",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-6",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "data_format_assumption:skill.md:issued-by-equals-current-step-example",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-7",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "absolute_claim:skill.md:absent-dispatch-loop-stamp-only-when-loop-step",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-8",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "absolute_claim:changeset:no-issued-by-fails-closed",
+      "reused_from_iter_prev": false
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "The absent-pending_dispatch + loop-current_step arm named a classification (lost loop stamp) but no explicit action, unlike its sibling arms which each end in an explicit disposition.",
+      "defect_signature": {
+        "file": "skills/review-and-fix/SKILL.md",
+        "line_range": [
+          338,
+          338
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "'names a loop reference' was imprecise against the current_step step-id vocabulary; loop-control's dispatches are engine-inline, not lost loop stamps.",
+      "defect_signature": {
+        "file": "skills/review-and-fix/SKILL.md",
+        "line_range": [
+          338,
+          338
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "fabf6c3bd83e617bad7b5ec944c78d7c44c94efd"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "fabf6c3bd83e617bad7b5ec944c78d7c44c94efd"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 1,
+    "fix_diff_lines": 1,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "test_first_gate": [
+    {
+      "decision": "no-automated-test",
+      "command": "n/a",
+      "result": "n/a",
+      "evidence": "fix edits agent-executed prompt prose (the fix loop's own re-read rule) whose only reader is the runtime agent; per this repo's recorded decision it carries no automated regression coverage and a wording pin is prohibited. Fix routed through superpowers:writing-skills subagent (RED/GREEN discipline); Writing-skills evidence recorded on the workpad."
+    }
+  ],
+  "verification_evidence": {
+    "command": "n/a (whole-suite obligation owned by implement Phase 4.3)",
+    "result": "skipped",
+    "reason": "implement-driven fix loop, prose-only fix; per .prflow/prompt-extensions/review-and-fix.md the whole-suite obligation is owned exactly once by implement Phase 4.3, not the loop terminal",
+    "skipped_checks": []
+  },
+  "stale_prose_check": {
+    "rows": [
+      {
+        "verdict": "UNRESOLVABLE",
+        "rule": "CU",
+        "file": "skills/review-and-fix/SKILL.md",
+        "line": 338,
+        "detail": "coverage-universal: recognition-only (every phase entry) — pre-existing universal not authored by this change; informational, never gates"
+      }
+    ],
+    "outcome": "clean (no STALE; one informational UNRESOLVABLE CU on the pre-existing 'binds every phase entry' universal)"
+  },
+  "base_checkpoint": {
+    "token": "UP_TO_DATE",
+    "behind_by": null
+  },
+  "telemetry": "unavailable",
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "synthesized": false
+}
