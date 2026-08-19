@@ -39,6 +39,57 @@ MANIFEST = REPO_ROOT / ".prflow/logs/residual-prose-retirement-manifest.tsv"
 IDENTITY_REFRESHES = HERE / "pin-identity-refreshes.tsv"
 ADJUDICATIONS = REPO_ROOT / "lib/test/pin-corpus-adjudications.tsv"
 CLASSIFIER = HERE / "pin-corpus-classifier.py"
+LINT = HERE / "pin-corpus-lint.py"
+# Both arms of machine_consumer_evidence in each comment-stripped language (.yaml
+# shares .yml's branch).  Dropping a language's control lets its operative text
+# regress to empty while every other check here still reads green.
+_MACHINE_CONSUMER_CONTROLS = (  # (literal, evidence phrase, expected consumer path)
+    (
+        "> is not a verdict — it reads like an approval to a human while counting as",
+        "contains the pinned literal",
+        "scripts/render-grounding-block.sh",
+    ),
+    (
+        "the PROVENANCE_LABEL_SUPERSEDED selector spelling is accepted here",
+        "contains the distinctive token",
+        "lib/scan.sh",
+    ),
+    (
+        "could not read audit-prompt template at",
+        "contains the pinned literal",
+        "scripts/render-audit-prompt.py",
+    ),
+    (
+        "name: lib + python tests",
+        "contains the pinned literal",
+        ".github/workflows/ci.yml",
+    ),
+    (
+        "the BASH_MAX_TIMEOUT_MS ceiling is set for this step",
+        "contains the distinctive token",
+        ".github/workflows/devflow-implement.yml",
+    ),
+    (
+        '{ clean: false, reason: "review-verdict signal unreadable" }',
+        "contains the pinned literal",
+        "lib/cheap-gate.jq",
+    ),
+    (
+        "the review_reject_outstanding signal decides this gate",
+        "contains the distinctive token",
+        "lib/cheap-gate.jq",
+    ),
+)
+
+# Comment subtraction is what keeps a literal QUOTED in a consumer comment from
+# reading as a program that consumes it.  Each token below is prose that lives only
+# in its file's comments; without the raw-presence half these pass by deletion.
+_COMMENT_SUBTRACTION_CONTROLS = (  # (comment-only token, home consumer path)
+    ("truncated-but-still-parseable", "lib/scan.sh"),
+    ("present-but-non-regular", "scripts/render-audit-prompt.py"),
+    ("self-referential-ordinal", ".github/workflows/ci.yml"),
+    ("success/neutral/skipped/null", "lib/cheap-gate.jq"),
+)
 
 IDENTITY_COLUMNS = (
     "source_file",
@@ -336,6 +387,26 @@ def load_classifier():
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def load_lint():
+    spec = importlib.util.spec_from_file_location("pin_corpus_lint", LINT)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def build_consumer_corpus(lint):
+    """Return ``(sources, corpus, skipped)`` via the lint's own loader.
+
+    Never re-derive the enumeration here: a second copy of the corpus rules
+    drifts silently from the ladder that actually gates a pin, leaving this
+    assertion measuring a corpus production never uses.
+    """
+    sources, skipped = lint.load_machine_consumer_sources(REPO_ROOT)
+    return sources, lint.build_machine_consumer_corpus(sources), skipped
 
 
 _HISTORICAL_INVENTORY_CACHE: dict[str, str] = {}
@@ -1063,6 +1134,49 @@ class ResidualProseRetirementManifestTests(unittest.TestCase):
         )
         classifier = load_classifier()
         table = classifier.parse_adjudications(ADJUDICATIONS.read_text(encoding="utf-8"))
+        # One-sided screen: a hit proves the bucket WRONG, a miss proves nothing.  Never
+        # read a green here as evidence the prose population is clean.
+        lint = load_lint()
+        sources, corpus, skipped = build_consumer_corpus(lint)
+        # Every miss below is indistinguishable from a degraded search, so establish the
+        # search still works before trusting one.  Never drop one of these as redundant:
+        # each catches a degradation the others pass.
+        # A dropped file is a hole the screen cannot see: the loader routes an unreadable
+        # or non-UTF-8 consumer to a stderr breadcrumb, so without this every prose row
+        # whose sole consumer was dropped passes vacuously.
+        self.assertEqual((), tuple(skipped), "machine-consumer corpus dropped a file")
+        # Collapse floor only — a per-file drop is caught exactly above, so this is slack
+        # on purpose: it catches an enumeration that returned nothing or nearly nothing,
+        # never ordinary consolidation shrinkage of the consumer surface.
+        self.assertGreater(len(corpus), 50, "machine-consumer corpus is implausibly small")
+        self.assertEqual(
+            {path.split("/")[0] for path, _ in corpus},
+            {prefix.rstrip("/") for prefix in lint.MACHINE_CONSUMER_PATH_PREFIXES},
+            "a declared machine-consumer prefix contributed no files",
+        )
+        # Pin the arm and the answering file: the whole literal is tried first, so a
+        # token control appearing verbatim would silently test the other arm, and a
+        # control answered by another language's file tests that language, not its own.
+        for control, phrase, expected_path in _MACHINE_CONSUMER_CONTROLS:
+            evidence = lint.machine_consumer_evidence(control, corpus)
+            self.assertIsNotNone(evidence, f"machine-consumer search lost a control: {control!r}")
+            self.assertIn(phrase, evidence)
+            self.assertTrue(
+                evidence.startswith(expected_path + " "),
+                f"control {control!r} answered from {evidence!r}, not {expected_path}",
+            )
+        # Assert the raw presence first: a token deleted from its home would otherwise
+        # satisfy the absence half while proving nothing about subtraction.
+        for control, home in _COMMENT_SUBTRACTION_CONTROLS:
+            # assertTrue, not assertIn: assertIn dumps the whole consumer file into
+            # the failure message, burying the one line that names the cause.
+            self.assertTrue(
+                control in sources[home], f"control {control!r} left {home}"
+            )
+            self.assertIsNone(
+                lint.machine_consumer_evidence(control, corpus),
+                f"comment subtraction is not live: {control!r} survived from {home}",
+            )
         for row in rows:
             bucket = row["bucket_final"]
             if bucket not in PROSE_BUCKETS:
@@ -1075,10 +1189,11 @@ class ResidualProseRetirementManifestTests(unittest.TestCase):
                 self.assertGreaterEqual(counted, 2, where)
             rationale = decode_cell(row["adjudication_rationale"])
             self.assertFalse(rationale.startswith("mechanical:"), where)
-            digest = hashlib.sha256(
-                decode_cell(row["literal"]).encode("utf-8")
-            ).hexdigest()
+            literal = decode_cell(row["literal"])
+            digest = hashlib.sha256(literal.encode("utf-8")).hexdigest()
             self.assertIn(f"literal:{digest}", table, where)
+            evidence = lint.machine_consumer_evidence(literal, corpus)
+            self.assertIsNone(evidence, f"{where}: {evidence}")
         # The census is frozen at a revision that predates the .devflow/ ->
         # .prflow/ state-directory rename (issue #1002), so its homes carry the
         # superseded spelling.  Project each home before the membership test,
