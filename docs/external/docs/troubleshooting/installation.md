@@ -62,6 +62,10 @@ export DEVFLOW_JQ=jq.exe
 
 If shell helpers are not running under a POSIX bash, install WSL bash, Git Bash or MSYS2 bash and set `DEVFLOW_BASH` at the invocation boundary.
 
+## A Windows Helper Crashed on an Em-dash or Emoji
+
+PRFlow's first-party Python helpers force their standard output and standard error to UTF-8 on their entry path, so non-ASCII output (an em-dash, an emoji) no longer raises an encoding error on a Windows host whose default codec is not UTF-8. If an older version crashes this way, update PRFlow. On Linux and macOS, where the default codec is already UTF-8, this is a no-op.
+
 ## The Cloud Installer Preserved a File
 
 A line naming `PRESERVED` means the installer could not prove that the existing file was untouched. It leaves the original in place and writes the new bytes to `<path>.prflow-new`.

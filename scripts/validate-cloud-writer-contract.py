@@ -374,7 +374,19 @@ def extract_profile_grants(workflow_path):
     return set(_GRANT_RE.findall(scanned))
 
 
+def _force_utf8_streams():
+    """Force stdout/stderr to UTF-8. Never call this at import: doing so mutates the
+    streams of any process that imports this module for tests. Tolerates a stream that
+    has no usable `reconfigure` (issue #1762)."""
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 def main(argv=None):
+    _force_utf8_streams()
     argv = list(sys.argv[1:] if argv is None else argv)
     manifest_path = argv[0] if argv else _MANIFEST_DEFAULT
     violations = validate(manifest_path)

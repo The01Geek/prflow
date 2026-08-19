@@ -4,6 +4,33 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.33.21] — 2026-08-19
+
+### Changed
+Re-adjudicate nine existence-pin census rows covering `skills/implement/SKILL.md`'s
+terminal-status self-check and non-interactive self-answer rule from `boundary` into
+a prose bucket, so a later change is authorized to retire those pins and reword the
+sentences they freeze. No pin is deleted here.
+
+## [2.33.20] — 2026-08-19
+
+### Fixed
+- **`/prflow:create-issue` Step 1 now names how to resolve the internal-documentation location, so a run no longer misreads `.docs.internal` as a missing file and reports a false "no documentation."** A resolution that yields no usable location now records the documentation leg unestablished rather than an established absence. (#1763)
+
+## [2.33.19] — 2026-08-19
+
+### Fixed
+- **Close two Windows-only failures in the Python helper floor.** Every tracked
+  `scripts/*.py` and `lib/*.py` command now forces stdout/stderr to UTF-8 on its
+  entry path, so a non-UTF-8 default codec (e.g. Windows cp1252) no longer crashes a
+  helper that prints an em-dash or emoji; a new guard in `lib/test/test_python_scripts.py`
+  derives its checked file list from the repository index, so a newly added helper is
+  covered without editing the test. `scripts/render-audit-prompt.py`'s `_abs_path`
+  argument check now accepts an interpreter-absolute path — a leading `/` on POSIX, or a
+  Windows drive-letter or UNC root in either the forward-slash or backslash spelling — and
+  returns it unchanged, unblocking the issue-audit step on Windows. On Linux and macOS
+  the behavior is unchanged. (#1764)
+
 ## [2.33.18] — 2026-08-19
 
 ### Changed

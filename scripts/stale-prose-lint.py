@@ -1747,6 +1747,9 @@ def main(argv):
         # Reconfigure to utf-8/errors="replace" so an odd byte degrades that one character,
         # never the pass. Guarded because a replaced/wrapped stream (a test harness, a pipe
         # object) may lack reconfigure() or reject the call.
+        # Never widen this to OSError the way _force_utf8_streams does: here the
+        # enclosing catch-all turns an escape into the contracted exit 2, and swallowing
+        # would let the run report completion over stdout it could not write.
         for _stream in (sys.stdout, sys.stderr):
             try:
                 _stream.reconfigure(encoding="utf-8", errors="replace")

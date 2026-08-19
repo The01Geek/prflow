@@ -30035,6 +30035,40 @@ assert_eq "#222 smoke: workpad.py id resolves a comment with a non-ASCII body" "
 rm -rf "$U8_GHD"
 
 # ────────────────────────────────────────────────────────────────────────────
+echo "issue #1762: previously-unhardened commands force UTF-8 on their entry path"
+# ────────────────────────────────────────────────────────────────────────────
+# The stream-forcing sweep hardened every tracked scripts/*.py and lib/*.py COMMAND
+# (test_python_scripts.py's derived guard proves the whole population). These three
+# name the exact commands the issue calls out: each printed non-ASCII output and
+# CRASHED with an unhandled UnicodeEncodeError under a non-UTF-8 codec before the
+# sweep (RED), and now exits 0 with the non-ASCII content intact (GREEN). `ascii` is
+# the discriminating codec — em-dash (U+2014) and section-sign (U+00A7) are
+# cp1252/latin-1-encodable, so a cp1252 test of them would be vacuous.
+U8W_RA="$(mktemp)"
+PYTHONIOENCODING=ascii python3 "$U8_SCRIPTS/render-audit-prompt.py" checklist > "$U8W_RA" 2>/dev/null
+U8W_RA_RC=$?
+assert_eq "#1762 RED->GREEN: render-audit-prompt.py checklist exits 0 under ascii" "0" "$U8W_RA_RC"
+assert_eq "#1762: render-audit-prompt.py checklist emits its em-dash as UTF-8 (did not crash)" "yes" \
+  "$(grep -qF '—' "$U8W_RA" && echo yes || echo no)"
+rm -f "$U8W_RA"
+
+U8W_PF="$(mktemp)"
+PYTHONIOENCODING=ascii python3 "$U8_SCRIPTS/preflight.py" --help > "$U8W_PF" 2>/dev/null
+U8W_PF_RC=$?
+assert_eq "#1762 RED->GREEN: preflight.py --help exits 0 under ascii" "0" "$U8W_PF_RC"
+assert_eq "#1762: preflight.py --help emits its non-ASCII help text as UTF-8" "yes" \
+  "$(grep -qF '§' "$U8W_PF" && echo yes || echo no)"
+rm -f "$U8W_PF"
+
+U8W_CE="$(mktemp)"
+PYTHONIOENCODING=ascii python3 "$U8_SCRIPTS/check-completion-evidence.py" --help > "$U8W_CE" 2>/dev/null
+U8W_CE_RC=$?
+assert_eq "#1762 RED->GREEN: check-completion-evidence.py --help exits 0 under ascii" "0" "$U8W_CE_RC"
+assert_eq "#1762: check-completion-evidence.py --help emits its em-dash as UTF-8" "yes" \
+  "$(grep -qF '—' "$U8W_CE" && echo yes || echo no)"
+rm -f "$U8W_CE"
+
+# ────────────────────────────────────────────────────────────────────────────
 echo "issue #1678: explicit UTF-8 decoding on local text-file readers (hostile file codec)"
 # parse-acs.py --body-file, workpad.py::_read_section_file, and
 # branch-for-issue.py --title-file decode local files as UTF-8 EXPLICITLY (never

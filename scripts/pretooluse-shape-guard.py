@@ -186,6 +186,17 @@ import subprocess
 import sys
 import time
 
+def _force_utf8_streams():
+    """Force stdout/stderr to UTF-8. Never call this at import: doing so mutates the
+    streams of any process that imports this module for tests. Tolerates a stream that
+    has no usable `reconfigure` (issue #1762)."""
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 # ── Arm → permitted-alternative remediation (issue #805) ──────────────────────
 # This table is the guard's own named table; NO remediation text is composed at runtime,
 # and it carries NO entry for an excluded arm (R2, R3-heredoc). The cloud allowlist
@@ -735,6 +746,7 @@ def main() -> int:
     # inversion the emitted-`defer` fall-through turned out to be (run 30967680822). Exit 0
     # is therefore load-bearing here, and the empty stdout is what makes it a no-decision.
     # The heartbeat is best-effort inside _run and is itself covered here.
+    _force_utf8_streams()
     try:
         _run()
     except BaseException as exc:
