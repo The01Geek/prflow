@@ -34185,6 +34185,13 @@ _wfdef1027 = re.findall(r'THRESHOLD=(\d+)', _wf1027)
 assert_eq("#1027 coupling: threshold default is one value across schema, example, and workflow fallback",
           True, _schdef1027 == _exdef1027 and _wfdef1027 == [str(_schdef1027)] * len(_wfdef1027) and len(_wfdef1027) >= 1)
 
+# stale-advisory on a workpad with no checkpoint yet (an early-silence stall): the message omits
+# the checkpoint clause rather than interpolating None.
+_dnc1027 = stall_observer.decide(stall_observer.parse_workpad(_wp1027(checkpoint="")), _now1027, 90, "true")
+assert_eq("#1027 decide: stale-advisory with no checkpoint -> stale-advisory", "stale-advisory", _dnc1027.token)
+assert_eq("#1027 decide: stale-advisory with no checkpoint omits the checkpoint clause",
+          True, "last checkpoint" not in _dnc1027.message)
+
 print()
 print(f"{PASS} passed, {FAIL} failed")
 sys.exit(0 if FAIL == 0 else 1)

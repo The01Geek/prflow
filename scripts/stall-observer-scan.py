@@ -11,13 +11,10 @@ threshold. It REPORTS ("silent for N minutes; last checkpoint X"); it never kill
 a run and never re-dispatches one, so its decision vocabulary carries no
 kill/resume/fail token and it can never race the backstop's `resume` arm.
 
-The threshold is advisory-only, configurable, and conservative by default (no
-wall-clock gap cleanly separates a stall from legitimate work; issue #1027 and the
-changeset carry the data).
+The threshold is advisory-only, configurable, and conservative by default.
 
 Pure/deterministic given inputs: `decide` takes an explicit `now`, so its decision
-branches are drivable from fixtures with no clock or network dependency (the reason the
-decision core is extracted from the workflow YAML, mirroring stall-backstop-decide.sh).
+branches are drivable from fixtures with no clock or network dependency.
 """
 
 import argparse

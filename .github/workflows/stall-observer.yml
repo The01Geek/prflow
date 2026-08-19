@@ -1,10 +1,8 @@
 name: PRFlow Stall Observer
 
-# Out-of-band, REPORT-ONLY in-flight stall observer (issue #1027): a scheduled job that reads
-# each open PRFlow issue's workpad staleness and surfaces long-silent in-flight runs as
-# annotations + a step summary. It NEVER kills or re-dispatches a run (so it cannot race the
-# in-job backstop's resume arm) — issue #1027 and the changeset carry the rationale and data.
-# Plugin-internal: install.sh does not ship it, so it runs on hardcoded infra (issue #582 group 3).
+# Out-of-band, REPORT-ONLY in-flight stall observer (issue #1027): a scheduled job that surfaces
+# long-silent in-flight runs as annotations. It NEVER kills or re-dispatches a run. Plugin-internal:
+# install.sh does not ship it, so it runs on hardcoded infra (issue #582 group 3).
 
 on:
   schedule:
