@@ -68,13 +68,22 @@ optimisation.
 ## Budget separation, and the constant that was left alone
 
 The confirming whole-draft round that follows an all-`addressed` scoped round is funded from
-`_MAX_CONFIRMING_ROUNDS`, its own counter. `_MAX_AUTOMATIC_REAUDITS` is **unchanged**, and the
-reason is a second reader rather than caution: besides the spend predicate, `next_action` compares
-against it to choose between running another round now and asking the user first, so raising it
-would move one whole audit round out of the user's decision on **every** run — including every
-embed-arm, inline-arm and empty-delta run that can never take a scoped round and would pay a full
-cold round for no saving. Issue #827, which proposed raising it from 1 to 2, was closed as not
-planned in favour of that position.
+`_MAX_CONFIRMING_ROUNDS`, its own counter. At the time of this change `_MAX_AUTOMATIC_REAUDITS` was
+left **unchanged** at 1, and the reason was a second reader rather than caution: besides the spend
+predicate, `next_action` compares against it to choose between running another round now and asking
+the user first, so raising it would move one whole audit round out of the user's decision on
+**every** run — including every embed-arm, inline-arm and empty-delta run that can never take a
+scoped round and would pay a full cold round for no saving. Issue #827, which proposed raising it
+from 1 to 2, was closed as not planned in favour of that position.
+
+**Superseded by issue #1751.** `_MAX_AUTOMATIC_REAUDITS` is now `0`: the automatic re-audit after a
+`REVISE` verdict is abolished, `next_action` always falls through to `revise-then-evaluate-offer`,
+and `revise-and-reaudit` is unreachable — every audit round is now offered to the user before it
+opens, so the "second reader" reasoning above resolves the same way in the opposite direction (the
+skill spends no round the user did not elect). **`_MAX_CONFIRMING_ROUNDS` stays 1** across that
+change: the confirming round completes the evidence for a scoped round the user already elected, so
+it is not the skill spending a round on its own initiative, and on a run that elects nothing there
+is no scoped round and the counter never spends.
 
 ## Deferred with this change
 

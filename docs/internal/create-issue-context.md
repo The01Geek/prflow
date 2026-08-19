@@ -62,8 +62,17 @@ what a long create-issue run actually pays:
   in [`implement-context.md`](implement-context.md).
 - **Runtime main-thread context** — the live per-turn token weight the *orchestrator*
   (main thread) carries across a run's many turns: clarification rounds, revision
-  loops, up to three user-chosen audit rounds plus the issue-#792 exact-byte pass
-  funded from its own slot outside that cap, and staged re-writes. It is measured per turn as
+  loops, up to three user-chosen audit rounds plus one confirming round — at most
+  four discovery-class rounds, each **offered before it opens** at the Step 4
+  pre-approval pause (issue #1751), where a satisfied user elects none and the
+  default run pays zero audit rounds — plus the issue-#792 exact-byte pass
+  funded from its own slot outside that cap, and staged re-writes. Since issue
+  #1751 there is no free first round: `_funded_rounds` funds only a round a
+  recorded `record-offer --accepted` election paid for, the automatic re-audit
+  after a `REVISE` verdict is abolished (`_MAX_AUTOMATIC_REAUDITS` is `0`,
+  `next_action` always answers `revise-then-evaluate-offer`), and a zero-round
+  `user-decline` still grounds eligibility, binds a decline-bound creation epoch,
+  and emits the body. It is measured per turn as
   `input_tokens + cache_read_input_tokens + cache_creation_input_tokens`. This is the
   quantity `scripts/create-issue-context-eval.py` measures, and the cost that drives
   the long-run latency and session-cap pressure issue #767 targets.

@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.33.18] — 2026-08-19
+
+### Changed
+- **`/prflow:create-issue` now offers every fresh-context audit round to the user before it opens.** The default cost of a run drops to zero audit rounds: a user satisfied with the rendered draft elects none and files immediately. Rigor is opt-in — accept the offer at the Step 4 pre-approval pause and pay for exactly the rounds you choose, up to three elected discovery rounds plus one confirming round (against the previous automatic maximum of six). The automatic re-audit after a `REVISE` verdict is abolished, and a run that elects nothing still records its decision, binds creation to that decline, and emits its body. (#1756)
+
 ## [2.33.17] — 2026-08-19
 
 ### Changed

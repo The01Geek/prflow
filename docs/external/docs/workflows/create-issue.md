@@ -22,9 +22,10 @@ PRFlow inspects the repository and existing documentation before it drafts. It a
 PRFlow does not create an issue as soon as it has enough context.
 
 1. Review the complete title and body that PRFlow renders in chat.
-2. Approve that exact draft or request changes.
-3. Choose whether to assign the new issue to yourself.
-4. Let PRFlow create the issue after both decisions are explicit.
+2. Choose whether to spend a fresh-context audit round on the draft. PRFlow offers one before it runs; a satisfied reviewer declines and the issue is filed unaudited. Each round you accept re-verifies the draft against the repository and takes time, so you pay only for the rounds you choose — the default is none.
+3. Approve that exact draft or request changes.
+4. Choose whether to assign the new issue to yourself.
+5. Let PRFlow create the issue after both decisions are explicit.
 
 An earlier instruction such as "just create it" does not replace approval of the final rendered draft. The `PRFlow` label is applied after creation when repository permissions allow it.
 

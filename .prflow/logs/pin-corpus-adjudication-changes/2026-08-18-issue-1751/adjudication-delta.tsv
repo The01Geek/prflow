@@ -1,0 +1,7 @@
+adjudication_key	base_state	current_state
+literal:025a72c7ee8656ea2782dc7e3b8d76a069b35477067cfbfa252faabdda860678	null	"[""boundary"",""issue #1751 AC15 cross-file-phase-contract: step-3-6-audit.md entry states the offer-before-round contract for every audit round""]"
+literal:b18dec8fb9d179bb51715265443e813869db995ceb7a8ad4e41ac8b273e70e24	null	"[""boundary"",""issue #1751 AC15 cross-file-phase-contract: step-3-6-audit-dispatch.md states a dispatched round is offered and accepted before it opens""]"
+literal:e1c57177cf55df2270d4ba6705c635b788fd1554a89a283de581258429c1b122	null	"[""boundary"",""issue #1751 AC15 cross-file-phase-contract: step-3-6-audit-adjudication.md states every audit-round question is asked before the round at Step 4's pause""]"
+literal:db254089d6ea1abb656c3aaf41f1faf0779d26e01f4fddacc4ba3dc276594e66	null	"[""boundary"",""issue #1751 AC15 cross-file-phase-contract: fallback-audit-dispatch-arms.md degraded inline arm offers the round before running it""]"
+literal:108cc4897146a1cddc09acb20b3fb4d9e8f36cba645696f58f3bcebbde3a5223	null	"[""boundary"",""issue #1751 AC15 cross-file-phase-contract: fallback-audit-boundary-offer.md offers the round before running it""]"
+literal:4e451356100f7938e1639b428db4432bea6bf97c21b2c9a52c567d7b130ff779	null	"[""boundary"",""issue #1751 AC15 cross-file-phase-contract: fallback-state-owner-unavailable.md offers exactly one audit round before running it""]"
