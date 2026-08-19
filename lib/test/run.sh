@@ -51966,7 +51966,7 @@ assert_eq "#1402/#1423 lint: an empty DEVFLOW_WITHHELD_TIER does not refuse (the
 # The print flag exits before the slice and schema reads, so a query about the workflow set
 # cannot be refused by — or misdiagnosed against — a source it never consults.
 assert_eq "#1402 lint: --print-never-shipped-set is independent of the slice and schema sources" \
-  "rc=0|agents-seam-probe ci devflow-runner matcher-probe telemetry-push version-consolidate" \
+  "rc=0|agents-seam-probe ci devflow-runner matcher-probe stall-observer telemetry-push version-consolidate" \
   "$(cd "$LIB/.." && sp_encode --print-never-shipped-set --slice-source /dev/null --schema-source /dev/null)"
 # Selection collects every candidate before choosing, so ambiguity refuses rather than
 # resolving by position. Both conjuncts say nothing about a loop's DIRECTION — the fixture's
@@ -52000,7 +52000,7 @@ assert_eq "#1402 lint: --print-never-shipped-set joins the mutually exclusive pr
 # copy loop, turns this RED rather than silently widening or narrowing the audit.
 SP_NEVER_REAL="$(cd "$LIB/.." && python3 "$SP_LINT" --print-never-shipped-set | python3 -c 'import sys; print(" ".join(sys.stdin.read().split()))')"
 assert_eq "#1402 lint: the real never-shipped set matches the checked-in expectation" \
-  "agents-seam-probe ci devflow-runner matcher-probe telemetry-push version-consolidate" "$SP_NEVER_REAL"
+  "agents-seam-probe ci devflow-runner matcher-probe stall-observer telemetry-push version-consolidate" "$SP_NEVER_REAL"
 # The #582 partition names this same group from its own transcribed literals: everything the
 # copy loop does NOT install, i.e. the plugin-internal group PLUS the retained-but-unshipped
 # withheld tier (issue #1423 — a withheld name reaches no fresh consumer, so it is forbidden
