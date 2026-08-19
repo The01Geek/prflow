@@ -160,6 +160,60 @@ assert_eq "lpe: idempotent — identical output on re-run" "$LPE_IDEM1" "$LPE_ID
 assert_eq "lpe: read-only — source file unchanged after run" \
   "$LPE_CKSUM_BEFORE" "$LPE_CKSUM_AFTER"
 
+# ── issue #1299: whole-file mode emits a PROMPT-EXTENSION-STATUS token on stderr ──
+# The review engine's extension-load ladder runs the loader as an ordinary Bash call and
+# the reviewing agent reports the token, so an absent/empty extension is DISTINGUISHABLE
+# from a harness refusal (which produces no output at all). The token uses
+# render-prompt-extension.sh's exact vocabulary (content-present / present-empty /
+# unestablished). STDOUT stays byte-verbatim — the token is on STDERR only — so the
+# forwarded extension text is not mutated (AC4). The feature is scoped to WHOLE-FILE mode:
+# --section extraction (create-issue) emits no token. Fixtures set up above under $LPE_DIR:
+# implement.md carries 'line one\nline two'; pr-description.md is absent; create-issue.md
+# is empty.
+LPE_TOK_CONTENT_ERR="$LPE_DIR/err-tok-content"
+LPE_TOK_CONTENT_OUT="$(cd "$LPE_DIR" && bash "$LPE" implement 2>"$LPE_TOK_CONTENT_ERR")"
+# content-present: STDOUT is byte-identical to before (verbatim), token is on STDERR.
+assert_eq "lpe token: content-present → stdout stays byte-verbatim (token not on stdout)" \
+  "$(printf 'line one\nline two')" "$LPE_TOK_CONTENT_OUT"
+assert_eq "lpe token: content-present → stderr carries the content-present token" "yes" \
+  "$(case "$(cat "$LPE_TOK_CONTENT_ERR")" in *'PROMPT-EXTENSION-STATUS: content-present'*) echo yes ;; *) echo no ;; esac)"
+# absent extension → present-empty token, empty stdout.
+LPE_TOK_ABS_ERR="$LPE_DIR/err-tok-abs"
+LPE_TOK_ABS_OUT="$(cd "$LPE_DIR" && bash "$LPE" pr-description 2>"$LPE_TOK_ABS_ERR")"
+assert_eq "lpe token: absent extension → empty stdout" "" "$LPE_TOK_ABS_OUT"
+assert_eq "lpe token: absent extension → stderr carries the present-empty token" "yes" \
+  "$(case "$(cat "$LPE_TOK_ABS_ERR")" in *'PROMPT-EXTENSION-STATUS: present-empty'*) echo yes ;; *) echo no ;; esac)"
+# empty extension file → present-empty token, empty stdout.
+LPE_TOK_EMP_ERR="$LPE_DIR/err-tok-emp"
+LPE_TOK_EMP_OUT="$(cd "$LPE_DIR" && bash "$LPE" create-issue 2>"$LPE_TOK_EMP_ERR")"
+assert_eq "lpe token: empty extension file → empty stdout" "" "$LPE_TOK_EMP_OUT"
+assert_eq "lpe token: empty extension file → stderr carries the present-empty token" "yes" \
+  "$(case "$(cat "$LPE_TOK_EMP_ERR")" in *'PROMPT-EXTENSION-STATUS: present-empty'*) echo yes ;; *) echo no ;; esac)"
+# present-empty and content-present are DISTINCT tokens: a reader keyed on 'printed text'
+# alone could not tell an empty extension from a refusal; the token makes them decidable.
+assert_eq "lpe token: present-empty is not content-present (distinct tokens)" "yes" \
+  "$(case "$(cat "$LPE_TOK_ABS_ERR")" in *'content-present'*) echo no ;; *) echo yes ;; esac)"
+# unestablished is NEVER collapsed onto present-empty (AC3): an undeliverable extension
+# (a broken symlink) exits non-zero with its breadcrumb and emits NO present-empty token,
+# so a non-zero exit / silence is distinguishable from a real present-empty. A broken
+# symlink's guard fires regardless of uid, so this row holds under root too.
+ln -s "./this-token-target-missing.md" "$LPE_DIR/.prflow/prompt-extensions/tokbroken.md"
+LPE_TOK_UND_ERR="$LPE_DIR/err-tok-und"
+LPE_TOK_UND_OUT="$(cd "$LPE_DIR" && bash "$LPE" tokbroken 2>"$LPE_TOK_UND_ERR")"; LPE_TOK_UND_RC=$?
+assert_eq "lpe token: undeliverable extension → exit non-zero (not present-empty)" "yes" \
+  "$([ "$LPE_TOK_UND_RC" -ne 0 ] && echo yes || echo no)"
+assert_eq "lpe token: undeliverable extension → NO present-empty token (unestablished != empty)" "yes" \
+  "$(case "$(cat "$LPE_TOK_UND_ERR")" in *'PROMPT-EXTENSION-STATUS: present-empty'*) echo no ;; *) echo yes ;; esac)"
+rm -f "$LPE_DIR/.prflow/prompt-extensions/tokbroken.md"
+# Scope guard: the token is emitted in WHOLE-FILE mode only. A --section extraction
+# (create-issue's use) emits no PROMPT-EXTENSION-STATUS token, so its byte-and-stderr
+# contract is unchanged. implement.md carries no '## ' heading, so this is the
+# absent-heading --section no-op.
+LPE_TOK_SEC_ERR="$LPE_DIR/err-tok-sec"
+LPE_TOK_SEC_OUT="$(cd "$LPE_DIR" && bash "$LPE" implement --section '## Nope' 2>"$LPE_TOK_SEC_ERR")"
+assert_eq "lpe token: --section mode emits NO PROMPT-EXTENSION-STATUS token (whole-file scoped)" "yes" \
+  "$(case "$(cat "$LPE_TOK_SEC_ERR")" in *'PROMPT-EXTENSION-STATUS:'*) echo no ;; *) echo yes ;; esac)"
+
 # ── issue #611: `--section '<heading>'` markdown-section extraction ──────────
 # The heading-extraction rule is SPECIFIED once in skills/create-issue/SKILL.md
 # (Step 2's `## Evidence axes` forwarding paragraph) and IMPLEMENTED once here, in

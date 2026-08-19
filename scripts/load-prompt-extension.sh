@@ -81,8 +81,15 @@
 #     repo root, which the issue-#295 repo-root-reader enumerations in
 #     .prflow/config.schema.json and scripts/emit-git-env.sh record.
 #
-# When the file is absent — or present but empty — this prints nothing and exits 0
-# (the no-op path), so a skill that calls this behaves exactly as before unless the
+# In WHOLE-FILE mode (no --section) this also emits a status token on STDERR, mirroring
+# scripts/render-prompt-extension.sh's vocabulary (issue #1299): `content-present` when it
+# printed extension text, `present-empty` on the absent/empty no-op arm. The token is
+# STDERR-only so stdout stays byte-verbatim, and it makes an absent/empty extension
+# distinguishable from a harness refusal (which produces no output at all). --section mode
+# emits no token, so create-issue's byte-and-stderr contract is unchanged.
+#
+# When the file is absent — or present but empty — this prints nothing on stdout and exits
+# 0 (the no-op path), so a skill that reads stdout behaves exactly as before unless the
 # consumer opted in.
 #
 # This is DevFlow's single upgrade-safe extension point: a consumer adds
@@ -384,6 +391,14 @@ if [ -f "$ext_file" ]; then
     fi
     if [ "$section_requested" -eq 0 ]; then
         cat "$ext_file"
+        # issue #1299: emit the status token on STDERR, never stdout — stdout must stay
+        # byte-verbatim, so moving this to stdout would corrupt the forwarded extension text.
+        # Vocabulary mirrors scripts/render-prompt-extension.sh (content-present/present-empty).
+        if [ -s "$ext_file" ]; then
+            printf 'PROMPT-EXTENSION-STATUS: content-present\n' >&2
+        else
+            printf 'PROMPT-EXTENSION-STATUS: present-empty\n' >&2
+        fi
     else
         # One pass over the file, tracking three pieces of state: whether we are
         # inside a fenced code block, inside an HTML comment block, and inside the
@@ -531,4 +546,9 @@ if [ -f "$ext_file" ]; then
             echo "load-prompt-extension.sh: no section headed '$section' in '$ext_file'; ${_detail}" >&2
         fi
     fi
+elif [ "$section_requested" -eq 0 ]; then
+    # issue #1299: absent extension in whole-file mode (undeliverable shapes exited 2
+    # above, so this is the no-op arm). Emit present-empty so silence — no token at all —
+    # means a harness refusal, not a consumer who configured no extension.
+    printf 'PROMPT-EXTENSION-STATUS: present-empty\n' >&2
 fi
