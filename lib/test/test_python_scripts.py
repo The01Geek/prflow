@@ -34175,6 +34175,16 @@ assert_eq("#1027 decide: not-candidate carries minutes None",
 assert_eq("#1027 decide: unreadable carries minutes None",
           None, stall_observer.decide(_fb, _now1027, 90, "true").minutes)
 
+# Coupled invariant: the advisory-threshold default lives in the schema, the example, and the
+# workflow's shell fallback — a retune that moves one and not the others silently ships a config
+# whose omitted-key behaviour disagrees with the schema's advertised default.
+_schema1027 = _json1027.loads((SCRIPTS.parent / ".prflow" / "config.schema.json").read_text(encoding="utf-8"))
+_schdef1027 = _schema1027["properties"]["prflow_implement"]["properties"]["stall_observer"]["properties"]["advisory_threshold_minutes"]["default"]
+_exdef1027 = _json1027.loads((SCRIPTS.parent / ".prflow" / "config.example.json").read_text(encoding="utf-8"))["prflow_implement"]["stall_observer"]["advisory_threshold_minutes"]
+_wfdef1027 = re.findall(r'THRESHOLD=(\d+)', _wf1027)
+assert_eq("#1027 coupling: threshold default is one value across schema, example, and workflow fallback",
+          True, _schdef1027 == _exdef1027 and _wfdef1027 == [str(_schdef1027)] * len(_wfdef1027) and len(_wfdef1027) >= 1)
+
 print()
 print(f"{PASS} passed, {FAIL} failed")
 sys.exit(0 if FAIL == 0 else 1)
