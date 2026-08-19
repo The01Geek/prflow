@@ -23791,32 +23791,38 @@ def _dra_refl(text):
     return f"- {_DRA_GLYPH} **{_DRA_LABEL}:** {text}\n"
 
 
+def _dra_texts(body):
+    """Drive _deferred_reflection_texts the way cmd_deferred_reflection_audit does —
+    split the body once and hand it the sections list."""
+    return workpad._deferred_reflection_texts(workpad._split_sections(body)[1])
+
+
 # --- the reader in isolation ---
 assert_eq("#1513 _deferred_reflection_texts extracts each deferred bullet's trailing text",
           ['advisory one', 'advisory two'],
-          workpad._deferred_reflection_texts(
+          _dra_texts(
               _dp_body(reflection_extra=_dra_refl('advisory one') + _dra_refl('advisory two'))))
 assert_eq("#1513 it ignores non-deferred reflection bullets (blocked/dropped-failed/note)",
           [],
-          workpad._deferred_reflection_texts(_dp_body(reflection_extra=(
+          _dra_texts(_dp_body(reflection_extra=(
               "- ⛔ **Blocked:** b\n- ❗ **Dropped/Failed:** f\n- ℹ️ a note\n"))))
 assert_eq("#1513 a present reflection section with no deferred bullet is an empty list, not None",
-          [], workpad._deferred_reflection_texts(_dp_body()))
+          [], _dra_texts(_dp_body()))
 # Round-trip against the REAL writer: a bullet _insert_reflection_bullet actually writes
 # for kind='deferred' must read back through the reader — guards against silent drift if
 # the deferred kind's render shape (glyph/label) ever changes.
 assert_eq("#1513 a deferred bullet from the real writer reads back through the reader",
           ['written advisory'],
-          workpad._deferred_reflection_texts(
+          _dra_texts(
               apply_mut(_dp_body(), make_args(reflection=['written advisory'],
                                               reflection_kind='deferred'))))
 assert_eq("#1513 an ABSENT ## Devflow Reflection section reads as None (unestablished)",
           None,
-          workpad._deferred_reflection_texts(
+          _dra_texts(
               _dp_body().replace('## Devflow Reflection', '## Retro')))
 assert_eq("#1513 a DUPLICATED ## Devflow Reflection section reads as None (unestablished)",
           None,
-          workpad._deferred_reflection_texts(
+          _dra_texts(
               _dp_body(reflection_extra=_dra_refl('x'))
               + "\n## Devflow Reflection\n<details>\n</details>\n"))
 

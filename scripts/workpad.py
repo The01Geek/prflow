@@ -1922,18 +1922,20 @@ def cmd_deferred_presence(args):
 # reflection with no backing, reported as handled while filed nowhere). This
 # reader and `cmd_deferred_reflection_audit` make the unbacked case detectable at
 # Phase 4 instead of silently passing completion.
-def _deferred_reflection_texts(body: str) -> "list[str] | None":
+def _deferred_reflection_texts(sections) -> "list[str] | None":
     """Trailing text of every rendered `deferred` reflection bullet, or None.
 
-    None means the body does not present exactly one `## Devflow Reflection`
-    section (absent or duplicated) — read as *unestablished* by the caller, the
-    fail-closed direction `_progress_content_or_none` also takes, never as an
-    empty set. The bullet shape is derived from `_REFLECTION_KINDS['deferred']`
-    so this reader cannot drift from `_insert_reflection_bullet`'s writer; the
-    exact-prefix match keeps a marker-shaped literal quoted inside other prose
-    from counting.
+    Takes the already-split `sections` (from `_split_sections`) rather than the
+    raw body, so the caller resolves both this section and `## Progress` from one
+    split — the "resolve the section ONCE" discipline `cmd_deferred_presence`
+    follows. None means the body does not present exactly one `## Devflow
+    Reflection` section (absent or duplicated) — read as *unestablished* by the
+    caller, the fail-closed direction `_progress_content_or_none` also takes,
+    never as an empty set. The bullet shape is derived from
+    `_REFLECTION_KINDS['deferred']` so this reader cannot drift from
+    `_insert_reflection_bullet`'s writer; the exact-prefix match keeps a
+    marker-shaped literal quoted inside other prose from counting.
     """
-    _, sections = _split_sections(body)
     content = _single_section_content(sections, 'Devflow Reflection')
     if content is None:
         return None
@@ -1992,7 +1994,12 @@ def cmd_deferred_reflection_audit(args):
         )
         _print_unestablished('workpad-unresolved')
     body = c.get('body') or ''
-    reflections = _deferred_reflection_texts(body)
+    # Resolve the body into sections ONCE and read both the reflection section and
+    # ## Progress from it, matching cmd_deferred_presence's "resolve the section ONCE"
+    # discipline — the body runs to tens of KB at Phase 4, so a per-reader re-split
+    # would scan it twice for a result that cannot change mid-invocation.
+    _, sections = _split_sections(body)
+    reflections = _deferred_reflection_texts(sections)
     if reflections is None:
         sys.stderr.write(
             "workpad.py deferred-reflection-audit: the workpad does not carry exactly one "
@@ -2003,7 +2010,7 @@ def cmd_deferred_reflection_audit(args):
     if not reflections:
         print('backed: 0')
         sys.exit(0)
-    content = _progress_content_or_none(body)
+    content = _single_section_content(sections, 'Progress')
     if content is None:
         sys.stderr.write(
             "workpad.py deferred-reflection-audit: the workpad does not carry exactly one "
