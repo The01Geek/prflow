@@ -1,0 +1,246 @@
+{
+  "iter": 1,
+  "source": "review-and-fix",
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "current_substep": null,
+  "fix_commit_sha": null,
+  "fix_files": [],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "checklist": [
+    {
+      "id": "VC-1",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-2",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "raw_verdict": "FAIL",
+      "normalized": false,
+      "evidence": "re-dispatched: code property confirmed (reads outcome, calls _steering_established); first FAIL was over-strict grading of generated claim wording"
+    },
+    {
+      "id": "VC-3",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-4",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-5",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-6",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-7",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-8",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-9",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-10",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-11",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-12",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The conv['converged'] conjunct is not independently mutation-anchored; add a query-convergence assertion in the pre-resolution control",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          74,
+          81
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 2,
+      "fix_decision": "below-threshold"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "Defensive early-returns (rnd is None, outcome == 'FILE') are untested; a direct unit call asserting False would lock the defensive contract",
+      "defect_signature": {
+        "file": "scripts/issue-audit-state.py",
+        "line_range": [
+          185,
+          186
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 2,
+      "fix_decision": "below-threshold"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "below-threshold",
+      "source_file": "lib/test/test_python_scripts.py",
+      "claim_text": "conv['converged'] conjunct not independently mutation-anchored",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "below-threshold",
+      "source_file": "scripts/issue-audit-state.py",
+      "claim_text": "defensive early-returns untested",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    }
+  ],
+  "parked_class_sweep": {
+    "classes": [
+      {
+        "source_finding_ids": [
+          "F-1",
+          "F-2"
+        ],
+        "kind_literal": "test_gap",
+        "sites_examined": [
+          "scripts/issue-audit-state.py:3242-3261",
+          "lib/test/test_python_scripts.py:#1771 rows"
+        ],
+        "new_siblings": []
+      }
+    ],
+    "truncation": null,
+    "dispatch": "verified"
+  },
+  "shadow": {
+    "ran_at": "2026-08-19T16:20:00Z",
+    "reviewed_sha": "f9011294127b22a8d673932107a3fc49319e51cf",
+    "verdict": "APPROVE WITH CAVEAT",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Suggestion",
+        "description": "conv['converged'] term is untestable redundant guard (basis=='resolution' implies converged)",
+        "defect_signature": {
+          "file": "scripts/issue-audit-state.py",
+          "line_range": [
+            3260,
+            3261
+          ],
+          "kind": "test_gap"
+        }
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Suggestion",
+        "description": "defensive early-returns uncovered (acknowledged intentional in docstring)",
+        "defect_signature": {
+          "file": "scripts/issue-audit-state.py",
+          "line_range": [
+            3256,
+            3257
+          ],
+          "kind": "test_gap"
+        }
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 2,
+      "overlap_with_iter_N": 2,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "park_calibration": {
+    "evidence_comparisons": [
+      {
+        "parked_finding_ref": {
+          "iter": 1,
+          "index": 0
+        },
+        "parked_finding_id": "F-1",
+        "shadow_finding_index": 0,
+        "relation": "equivalent",
+        "rationale": "shadow re-raises the same converged-conjunct test-gap at Suggestion on the same basis, no new failing input",
+        "operands_present": true,
+        "disposition": "preserved"
+      },
+      {
+        "parked_finding_ref": {
+          "iter": 1,
+          "index": 1
+        },
+        "parked_finding_id": "F-2",
+        "shadow_finding_index": 1,
+        "relation": "equivalent",
+        "rationale": "shadow re-raises the same defensive-early-return test-gap at Suggestion on the same basis",
+        "operands_present": true,
+        "disposition": "preserved"
+      }
+    ]
+  },
+  "telemetry": "unavailable",
+  "synthesized": false
+}

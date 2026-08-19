@@ -1,0 +1,138 @@
+{
+  "pairs": [
+    {
+      "item": {
+        "id": "VC-1",
+        "category": "dependency_interaction",
+        "claim": "_final_byte_resolution_settled calls evaluate_convergence(state) and reads conv['converged'] and conv['basis']",
+        "source_file": "scripts/issue-audit-state.py",
+        "claim_provenance": "generated_paraphrase"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-1782/32273162056-1/verdicts/iter-1/VC-1-n7a3.json",
+      "response_text": ""
+    },
+    {
+      "item": {
+        "id": "VC-2",
+        "category": "dependency_interaction",
+        "claim": "_final_byte_resolution_settled reads rnd.get('outcome') expecting 'FILE' for a file-arm round, and calls _steering_established(rnd)",
+        "source_file": "scripts/issue-audit-state.py",
+        "claim_provenance": "generated_paraphrase"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-1782/32273162056-1/verdicts/iter-1/VC-2-k2p9.json",
+      "response_text": ""
+    },
+    {
+      "item": {
+        "id": "VC-3",
+        "category": "dependency_interaction",
+        "claim": "evaluate_final_byte_trigger passes fb['round'] to _final_byte_resolution_settled",
+        "source_file": "scripts/issue-audit-state.py",
+        "claim_provenance": "generated_paraphrase"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-1782/32273162056-1/verdicts/iter-1/VC-3-m4q1.json",
+      "response_text": ""
+    },
+    {
+      "item": {
+        "id": "VC-4",
+        "category": "data_format_assumption",
+        "claim": "query-final-byte serializes final_byte_trigger=not-hold / final_byte_reason=resolution-settled",
+        "source_file": "scripts/issue-audit-state.py",
+        "claim_provenance": "generated_paraphrase"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-1782/32273162056-1/verdicts/iter-1/VC-4-w8z2.json",
+      "response_text": ""
+    },
+    {
+      "item": {
+        "id": "VC-5",
+        "category": "test_mock_alignment",
+        "claim": "clean_round/uncovered_round pass verdict/findings to self.ret",
+        "source_file": "lib/test/test_python_scripts.py",
+        "claim_provenance": "generated_paraphrase"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-1782/32273162056-1/verdicts/iter-1/VC-5-r5t7.json",
+      "response_text": ""
+    },
+    {
+      "item": {
+        "id": "VC-6",
+        "category": "test_mock_alignment",
+        "claim": "test asserts query-convergence basis=resolution after record-revision+record-resolution",
+        "source_file": "lib/test/test_python_scripts.py",
+        "claim_provenance": "generated_paraphrase"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-1782/32273162056-1/verdicts/iter-1/VC-6-b3c8.json",
+      "response_text": ""
+    },
+    {
+      "item": {
+        "id": "VC-7",
+        "category": "issue_acceptance",
+        "claim": "converged basis=resolution steering-established suppresses second offer",
+        "source_file": "scripts/issue-audit-state.py",
+        "claim_provenance": "generated_paraphrase"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-1782/32273162056-1/verdicts/iter-1/VC-7-d9f4.json",
+      "response_text": ""
+    },
+    {
+      "item": {
+        "id": "VC-8",
+        "category": "issue_acceptance",
+        "claim": "coverage stays uncovered while offer withheld",
+        "source_file": "scripts/issue-audit-state.py",
+        "claim_provenance": "generated_paraphrase"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-1782/32273162056-1/verdicts/iter-1/VC-8-h6j0.json",
+      "response_text": ""
+    },
+    {
+      "item": {
+        "id": "VC-9",
+        "category": "issue_acceptance",
+        "claim": "suppression conditional not blanket",
+        "source_file": "scripts/issue-audit-state.py",
+        "claim_provenance": "generated_paraphrase"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-1782/32273162056-1/verdicts/iter-1/VC-9-p2x5.json",
+      "response_text": ""
+    },
+    {
+      "item": {
+        "id": "VC-10",
+        "category": "absolute_claim",
+        "claim": "suppression admits only exact basis==resolution; resolution-stale still fires",
+        "source_excerpt": "return conv['converged'] and conv['basis'] == 'resolution'",
+        "source_file": "scripts/issue-audit-state.py",
+        "claim_provenance": "source_authored"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-1782/32273162056-1/verdicts/iter-1/VC-10-t8v3.json",
+      "response_text": ""
+    },
+    {
+      "item": {
+        "id": "VC-11",
+        "category": "absolute_claim",
+        "claim": "doc line matches code suppression condition",
+        "source_excerpt": "The trigger fires wherever the reported coverage is uncovered and the dedicated slot is unspent, except it is suppressed",
+        "source_file": "skills/create-issue/references/step-4-present-create.md",
+        "claim_provenance": "source_authored"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-1782/32273162056-1/verdicts/iter-1/VC-11-c1n6.json",
+      "response_text": ""
+    },
+    {
+      "item": {
+        "id": "VC-12",
+        "category": "test_mock_alignment",
+        "claim": "query-summary emits steering=not-established for uncovered_round",
+        "source_file": "lib/test/test_python_scripts.py",
+        "claim_provenance": "generated_paraphrase"
+      },
+      "verdict_path": ".prflow/tmp/review/pr-1782/32273162056-1/verdicts/iter-1/VC-12-g7k4.json",
+      "response_text": ""
+    }
+  ]
+}
