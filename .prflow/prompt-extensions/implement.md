@@ -139,9 +139,8 @@ this runtime; and **improvement ideas** the run surfaced even if you did not act
 specific improvement so the retrospective can act without re-deriving what you saw. Reserve the
 other kinds for what they mean: `note` (a friction you worked around), `issue-accuracy` (the
 driving issue's own claims were wrong), `blocked` (a hard stop), `deferred` (punted work
-already tracked by a scope-decision-deferred record or deferrals-manifest entry),
-`dropped-failed` (untracked punted work, or a subagent/step that failed and you continued
-past).
+already tracked by a scope-decision-deferred record), `dropped-failed` (untracked punted
+work, or a subagent/step that failed and you continued past).
 
 **Before finalizing (Phase 4.3), confirm the side task ran — and record it on the surface whose
 cost matches the signal.** `lib/cheap-gate.jq` forces an LLM retrospective pass on any run that
