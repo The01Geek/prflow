@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1778",
+  "generated_at": "2026-08-19T18:00:30Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.31",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 30.612166950000006,
+    "tokens": {
+      "input_tokens": 112,
+      "output_tokens": 81987,
+      "cache_read_input_tokens": 13014998,
+      "cache_creation_input_tokens": 343906,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 202,
+        "outputTokens": 133361,
+        "cacheReadInputTokens": 16009585,
+        "cacheCreationInputTokens": 939002,
+        "webSearchRequests": 0,
+        "costUSD": 18.498237500000005,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 479,
+        "outputTokens": 69519,
+        "cacheReadInputTokens": 9982634,
+        "cacheCreationInputTokens": 2151187,
+        "webSearchRequests": 0,
+        "costUSD": 12.105963449999996,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      },
+      "claude-haiku-4-5-20251001": {
+        "inputTokens": 7281,
+        "outputTokens": 137,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 0,
+        "webSearchRequests": 0,
+        "costUSD": 0.007966,
+        "contextWindow": 200000,
+        "maxOutputTokens": 32000,
+        "canonicalModel": "claude-haiku-4-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 115,
+    "duration_ms": 1467001
+  },
+  "permission_denials": {
+    "count": 21,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---RUNENV---\"; echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-unset} GITHUB_RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT:-unset}\"",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1778/32282319035-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1778/32282319035-1/verdicts/iter-1/VC-9-1f30bb5f94d4dfc8.json << 'EOF'\n{\"id\":\"VC-9\",\"verdict\":\"PASS\",\"evidence\":\"In .github/workflows/devflow.yml the AUTH-branch at lines 1369-1389: the bedrock_api_key arm (1369-1382) alone contains the AWS_REGION required-value check (1373-1376) and the stray base_url warning (1379-1381). The else branch ( …[per-command-truncated]",
+      "mkdir -p .prflow/tmp/review/pr-1778/32282319035-1/verdicts/iter-1\ncat > .prflow/tmp/review/pr-1778/32282319035-1/verdicts/iter-1/VC-10-08ac389fe124b931.json << 'EOF'\n{\"id\":\"VC-10\",\"verdict\":\"PASS\",\"evidence\":\"Diff (git diff 7fe93d2ad HEAD -- .github/workflows/devflow.yml) shows the else branch (AUTH != bedrock_api_key) still unconditionally does genv ANTHROPIC_BASE_URL \\\"$BASE_URL\\\" and, only when AUTH=bearer, genv ANTHROPIC_AUTH_TOKEN \\\"$PROVIDER_API_KEY\\\" - identical to pre-change behavior, ju …[per-command-truncated]",
+      "for f in devflow.yml devflow-implement.yml devflow-runner.yml; do\necho \"=== $f ===\"\nsed -n '/devflow-provider-resolver BEGIN/,/devflow-provider-resolver END/p' .github/workflows/$f > /tmp/resolver_$f.txt\nwc -l /tmp/resolver_$f.txt\ndone",
+      "cd /home/runner/work/prflow/prflow\nsed -n '/devflow-provider-resolver BEGIN/,/devflow-provider-resolver END/p' .github/workflows/devflow.yml > /tmp/r1.txt\nsed -n '/devflow-provider-resolver BEGIN/,/devflow-provider-resolver END/p' .github/workflows/devflow-implement.yml > /tmp/r2.txt\nsed -n '/devflow-provider-resolver BEGIN/,/devflow-provider-resolver END/p' .github/workflows/devflow-runner.yml > /tmp/r3.txt\nwc -l /tmp/r1.txt /tmp/r2.txt /tmp/r3.txt\ndiff /tmp/r1.txt /tmp/r2.txt\necho \"---diff1v3- …[per-command-truncated]",
+      "sed -n '/devflow-provider-resolver BEGIN/,/devflow-provider-resolver END/p' .github/workflows/devflow.yml > /tmp/r1.txt",
+      "sed -n '/devflow-provider-resolver BEGIN/,/devflow-provider-resolver END/p' .github/workflows/devflow-implement.yml > /tmp/r2.txt",
+      "sed -n '/devflow-provider-resolver BEGIN/,/devflow-provider-resolver END/p' .github/workflows/devflow-runner.yml > /tmp/r3.txt",
+      "mkdir -p .prflow/tmp/verify14\nsed -n '/devflow-provider-resolver BEGIN/,/devflow-provider-resolver END/p' .github/workflows/devflow.yml > .prflow/tmp/verify14/r1.txt",
+      "sed -n '/devflow-provider-resolver BEGIN/,/devflow-provider-resolver END/p' .github/workflows/devflow-implement.yml > .prflow/tmp/verify14/r2.txt",
+      "sed -n '/devflow-provider-resolver BEGIN/,/devflow-provider-resolver END/p' .github/workflows/devflow-runner.yml > .prflow/tmp/verify14/r3.txt",
+      "cd /tmp && rm -rf cca && git clone --quiet --depth 1 --branch v1 https://github.com/anthropics/claude-code-action.git cca 2>&1 | tail -5; grep -n \"use_bedrock\" -r cca/action.yml 2>&1",
+      "rm -rf /tmp/cca && git clone --quiet --depth 1 --branch v1 https://github.com/anthropics/claude-code-action.git /tmp/cca 2>&1 | tail -5; grep -n \"use_bedrock\" /tmp/cca/action.yml",
+      "rm -rf /tmp/cca; git clone --quiet --depth 1 --branch v1 https://github.com/anthropics/claude-code-action.git /tmp/cca; echo done",
+      "git clone --quiet --depth 1 --branch v1 https://github.com/anthropics/claude-code-action.git /tmp/cca2",
+      "pip show requests 2>/dev/null; curl -s --max-time 5 https://raw.githubusercontent.com/anthropics/claude-code-action/v1/action.yml 2>&1 | head -50",
+      "curl -s --max-time 5 https://raw.githubusercontent.com/anthropics/claude-code-action/v1/action.yml | head -80",
+      "mkdir -p .prflow/tmp\nif rm -f \".prflow/tmp/review-dirty-tree-before\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \".prflow/tmp/review-dirty-tree-before\" &&\n   [ -f \".prflow/tmp/review-dirty-tree-before\" ] &&\n   [ ! -L \".prflow/tmp/review-dirty-tree-before\" ] &&\n   git hash-object \".prflow/tmp/review-dirty-tree-before\"; then\n  :\nelse\n  echo \"::warning::snapshot failed\"\n  rm -f \".prflow/tmp/review-dirty-tree-before\" 2>/dev/null\n  printf '%s\\n' disabled > \" …[per-command-truncated]",
+      "git status --porcelain -z > .prflow/tmp/review-dirty-tree-before",
+      "cd /home/runner/work/prflow/prflow\nfor f in devflow-implement devflow-runner devflow; do\n  awk '/devflow-provider-resolver BEGIN/,/devflow-provider-resolver END/' .github/workflows/$f.yml | sha256sum | sed \"s|-|$f resolver|\"\ndone\necho \"---inject bedrock block presence---\"\ngrep -c 'AWS_BEARER_TOKEN_BEDROCK' .github/workflows/devflow-implement.yml .github/workflows/devflow-runner.yml .github/workflows/devflow.yml",
+      "cd /home/runner/work/prflow/prflow\nfor f in devflow-implement devflow-runner devflow; do\n  awk '/devflow-provider-resolver BEGIN/,/devflow-provider-resolver END/' .github/workflows/$f.yml | sha256sum\ndone"
+    ],
+    "total": 21,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
