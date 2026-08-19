@@ -4891,10 +4891,17 @@ def _emit_next_call(cmd_name, args, ctx):
     # parser shape it does not itself check; the resolver already answers `foreign-nonce` /
     # `state-unestablished` for an absent value.
     nonce = ctx.pop('nonce', None) or getattr(args, 'nonce', None)
-    # issue #1803: the state-summary block. It MUST print here — after the command's own
-    # decided line and before `next_call=` — or the three-part contract (decided line first,
-    # block, `next_call=` last) breaks and the module's first-line / last-line pins fail.
-    print(_summary_block_line(summary_fields(state)))
+    # issue #1803: block prints between the decided line and `next_call=` (order the pins need).
+    # Guard the SECONDARY block so its data-shape failure never suppresses the primary next_call;
+    # re-raise AssertionError so a contract bug stays loud in main()'s handler, never swallowed.
+    try:
+        _block = _summary_block_line(summary_fields(state))
+    except AssertionError:
+        raise
+    except Exception:  # noqa: BLE001 - secondary channel; the primary next_call must survive
+        _block = None
+    if _block is not None:
+        print(_block)
     print(_resolve_next_call(cmd_name, state, args.slug, nonce, **ctx))
 
 
@@ -4974,9 +4981,9 @@ _SUMMARY_FIELDS = (
 )
 
 
-# issue #1803: compact digest-INDEPENDENT subset of `_SUMMARY_FIELDS` for the `summary-block`
-# line. Never add a digest-resolved field (`token`/`final_byte_*`/`coverage_*`/`calibration_*`):
-# the emit site holds no `--draft-file`, so it renders a None digest and would disagree with query-summary.
+# issue #1803: compact subset of `_SUMMARY_FIELDS` for the `summary-block` line. Never add a
+# field whose value depends on `current_digest` (`token`, `final_byte_coverage`): the emit site
+# holds no `--draft-file`, so it renders a None digest and would disagree with query-summary.
 _SUMMARY_BLOCK_FIELDS = (
     'state', 'findings_count', 'revisions_applied', 'verdict', 'rounds_run',
     'consumer_dimensions_appended', 'degraded', 'user_declined', 'cap_reached',
@@ -4986,6 +4993,13 @@ _SUMMARY_BLOCK_FIELDS = (
 )
 _SUMMARY_BLOCK_BOOL_FIELDS = frozenset(
     ('consumer_dimensions_appended', 'degraded', 'user_declined', 'cap_reached'))
+# Fail loudly at import on a non-subset member, mirroring `_summary`'s loud constructor: a name
+# outside `_SUMMARY_FIELDS` would otherwise KeyError deep inside `_summary_block_line` on the
+# always-exit-0 query path (a two-class-contract violation), never at this definition site.
+assert set(_SUMMARY_BLOCK_FIELDS) <= set(_SUMMARY_FIELDS), (
+    'issue-audit-state.py: _SUMMARY_BLOCK_FIELDS must be a subset of _SUMMARY_FIELDS')
+assert _SUMMARY_BLOCK_BOOL_FIELDS <= set(_SUMMARY_BLOCK_FIELDS), (
+    'issue-audit-state.py: _SUMMARY_BLOCK_BOOL_FIELDS must be a subset of _SUMMARY_BLOCK_FIELDS')
 
 
 def _summary(**fields):

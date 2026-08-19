@@ -2634,6 +2634,9 @@ if [ -d "$SBK_SB" ]; then
     NONCE="$(sed -n 's/^nonce=//p' .sbk-init | head -1)"
     # A state-defaulted read also carries the block between its decided line and next_call=.
     python3 "$IAS" query-summary b1803 --nonce "$NONCE" > .sbk-qs 2>/dev/null
+    # An EXCLUDED subcommand (a multi-line read-back) prints NO summary-block line — the block
+    # would otherwise forge an extra line on a machine-parsed read-back.
+    python3 "$IAS" query-findings b1803 --nonce "$NONCE" > .sbk-qf 2>/dev/null
     # Batched finding-evidence: one call records a whole round's evidence, one decided line
     # per finding each with its own completeness verdict, then the block and next_call.
     printf '%s\n' '[{"finding_id":1,"locator":"a.py:1","command":"c","observed":"o","baseline_revision":"r"},{"finding_id":2,"locator":"b.py:2"}]' > .prflow/tmp/fe.json
@@ -2678,5 +2681,14 @@ if [ -d "$SBK_SB" ]; then
     "1:1" "$(cat "$SBK_SB/.sbk-mixed-rc" 2>/dev/null):$(grep -c 'finding-evidence-records-mixed-form' "$SBK_SB/.sbk-mixed-err" 2>/dev/null)"
   assert_eq "#1803 batched_finding_evidence: a single-finding call naming no selector is refused" \
     "1:1" "$(cat "$SBK_SB/.sbk-nosel-rc" 2>/dev/null):$(grep -c 'finding-evidence-missing-finding-selector' "$SBK_SB/.sbk-nosel-err" 2>/dev/null)"
+  # The batched form (multiple decided finding lines) still exhibits the full three-part
+  # contract — a summary-block line then next_call= last, after the N decided lines.
+  assert_eq "#1803 batched_finding_evidence: the batch prints a summary-block line after its decided lines" \
+    "1" "$(grep -c '^summary-block ' "$SBK_SB/.sbk-batch" 2>/dev/null)"
+  assert_eq "#1803 batched_finding_evidence: next_call= stays the batch's final stdout line" \
+    "1" "$(tail -n 1 "$SBK_SB/.sbk-batch" 2>/dev/null | grep -c '^next_call=')"
+  # An excluded (multi-line read-back) subcommand prints NO summary-block line.
+  assert_eq "#1803 summary_block: an excluded read-back (query-findings) prints no summary-block line" \
+    "0" "$(grep -c '^summary-block ' "$SBK_SB/.sbk-qf" 2>/dev/null)"
   rm -rf "$SBK_SB"
 fi

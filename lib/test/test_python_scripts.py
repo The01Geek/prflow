@@ -7851,6 +7851,8 @@ with tempfile.TemporaryDirectory() as _fe_dir:
                   SystemExit, lambda: _ing(_fe('[5]')))
     assert_raises("#1803 fe_records: a duplicate finding_id is refused",
                   SystemExit, lambda: _ing(_fe('[{"finding_id":1},{"finding_id":1}]')))
+    assert_raises("#1803 fe_records: an unreadable records-file path is refused",
+                  SystemExit, lambda: _ing(os.path.join(_fe_dir, 'does-not-exist.json')))
 # (4) Cross-render equality: the summary-block tokens equal query-summary's tokens for the
 #     shared subset, so the two surfaces cannot render one field two ways — the invariant
 #     `_summary_block_line`'s docstring asserts, enforced here rather than merely claimed
@@ -7875,6 +7877,18 @@ with tempfile.TemporaryDirectory() as _xr_dir:
     _qs_sub = {f: _qs_tok.get(f) for f in issue_audit_state._SUMMARY_BLOCK_FIELDS}
     assert_eq("#1803 cross-render: every summary-block token equals query-summary's for the "
               "shared subset", _qs_sub, _blk_sub)
+# (5) The non-trivial arms of the block's duplicated `effective_unresolved`/`markers` renderers
+#     (the cross-render state above resolves both to their None arm) — pin the count and the
+#     comma-join, so a regression editing one copy of either mirror is caught.
+_bf = dict(issue_audit_state.summary_fields(None))
+_bf['effective_unresolved'] = 2
+_bf['adjudicated_verdict'] = 'REVISE'
+_bf['markers'] = ['file-unreadable', 'write-failed']
+_bln = issue_audit_state._summary_block_line(_bf)
+assert_eq("#1803 summary_block: a live effective_unresolved renders its count (non-None arm)",
+          True, ' effective_unresolved=2 ' in _bln)
+assert_eq("#1803 summary_block: non-empty markers render comma-joined (non-None arm)",
+          True, ' markers=file-unreadable,write-failed ' in _bln)
 # _binding_line — the query answer shape, incl. the fail-closed unbound token.
 assert_eq("#562 _binding_line: unbound state answers the fail-closed bound=none token",
           'bound=none tier=none non_bound_root=none latest_revision_landed=yes',
