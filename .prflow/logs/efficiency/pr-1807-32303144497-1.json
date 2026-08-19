@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1807",
+  "generated_at": "2026-08-19T23:19:07Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.36",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 86.97794645,
+    "tokens": {
+      "input_tokens": 464,
+      "output_tokens": 271311,
+      "cache_read_input_tokens": 109231063,
+      "cache_creation_input_tokens": 725532,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 772,
+        "outputTokens": 363276,
+        "cacheReadInputTokens": 119131941,
+        "cacheCreationInputTokens": 1691349,
+        "webSearchRequests": 0,
+        "costUSD": 81.94340674999997,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 208,
+        "outputTokens": 41973,
+        "cacheReadInputTokens": 7926619,
+        "cacheCreationInputTokens": 540356,
+        "webSearchRequests": 0,
+        "costUSD": 5.034539700000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 345,
+    "duration_ms": 7178511
+  },
+  "permission_denials": {
+    "count": 15,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GHA=${GITHUB_ACTIONS:-unset} RUNID=${GITHUB_RUN_ID:-unset} BASE=${GITHUB_BASE_REF:-unset}\"; git branch --show-current; git status --porcelain | head; .prflow/vendor/prflow/scripts/config-get.sh base_branch 2>/dev/null || echo \"config-get-failed\"",
+      "printenv GITHUB_ACTIONS",
+      "cd /home/runner/work/prflow/prflow\nWP_BRANCH=\"\"\nPR_JSON='[]'\n[ -n \"$WP_BRANCH\" ] && { PR_JSON=$(gh pr list --head \"$WP_BRANCH\" --state open --json number,headRefName,createdAt,closingIssuesReferences,isCrossRepository) || PR_JSON=''; }\n[ \"$PR_JSON\" = \"[]\" ] && { PR_JSON=$(gh pr list --search \"1803 in:body\" --state open --json number,headRefName,createdAt,closingIssuesReferences,isCrossRepository) || PR_JSON=''; }\necho \"PR_JSON=$PR_JSON\"",
+      "cd /home/runner/work/prflow/prflow\nBASE=$(.prflow/vendor/prflow/scripts/config-get.sh .base_branch main) || BASE=\"\"\n[ -n \"$BASE\" ] || BASE=main\nCUR=$(git branch --show-current 2>/dev/null) || CUR=\"\"\necho \"BASE=$BASE CUR=$CUR\"\nCOMMON_DIR=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || COMMON_DIR=\"\"\nGIT_DIR_PATH=$(git rev-parse --path-format=absolute --git-dir 2>/dev/null) || GIT_DIR_PATH=\"\"\necho \"COMMON_DIR=$COMMON_DIR\"\necho \"GIT_DIR_PATH=$GIT_DIR_PATH\"",
+      ".prflow/vendor/prflow/scripts/workpad.py update 1803 --branch \"$(git branch --show-current)\"",
+      "\\\n.prflow/vendor/prflow/scripts/workpad.py update 1803 --note \"issue-claim audit (projection): every Desired Behavior obligation is represented in the resolved acceptance criteria — pass complete\" && \\\n.prflow/vendor/prflow/scripts/workpad.py update 1803 --note \"issue-claim audit (count): claimed 'roughly forty subcommands' and 'roughly 85% of reference byte ceiling', verified 39 add_parser subcommands and ~86.8% of ceiling at HEAD — within stated rounding, no correction needed\" && \\\n.prflow/ven …[per-command-truncated]",
+      "echo \"=== mixed form ===\"; python3 scripts/issue-audit-state.py record-finding-evidence smoke1803 --nonce 0392dc65c64d3ff3 --round 0 --finding-id 5 --finding-evidence-records-file .prflow/tmp/smoke-fe-1803.json 2>&1; echo \"exit=$?\"\necho \"=== duplicate id ===\"; python3 scripts/issue-audit-state.py record-finding-evidence smoke1803 --nonce 0392dc65c64d3ff3 --round 0 --finding-evidence-records-file .prflow/tmp/smoke-dup-1803.json 2>&1; echo \"exit=$?\"\necho \"=== missing selector ===\"; python3 scripts …[per-command-truncated]",
+      "git diff --no-index -U0 /dev/null .changeset/issue-1803-shrink-audit-call-protocol.md | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree 2>&1 | tail -6",
+      "python3 .prflow/vendor/prflow/scripts/checkout-fingerprint.py > /tmp/checkout.json 2>&1\ncat /tmp/checkout.json\npython3 -c \"import json; d=json.load(open('/tmp/checkout.json')); print({k:len(v) for k,v in d.items()})\"",
+      "python3 .prflow/vendor/prflow/scripts/checkout-fingerprint.py > /home/runner/work/prflow/prflow/.prflow/tmp/checkout-1803.json; cat /home/runner/work/prflow/prflow/.prflow/tmp/checkout-1803.json",
+      "python3 .prflow/vendor/prflow/scripts/checkout-fingerprint.py > .prflow/tmp/checkout-1803.json && cat .prflow/tmp/checkout-1803.json",
+      "TOKEN=a5eee6454201d25765e69d977eb159987f72bc81f7d931126549270b3efaa701\nFLIGHT=a2b12873dee3cafbe17e95ceee1e9fdeb27ed6d47d751aaa52a5c2bce7af8b5d\npython3 .prflow/vendor/prflow/scripts/verification-flight.py finish --flight \"$FLIGHT\" --token \"$TOKEN\" --result passed --state-dir .prflow/tmp/verification-flights-1803 --evidence '{\"module\":\"issue-audit-state\",\"passed\":279,\"failed\":0,\"skipped\":0}' 2>&1\necho \"---finish rc=$?---\"\ncp .prflow/tmp/verification-flights-1803/*/*.json /home/runner/work/prflow/p …[per-command-truncated]",
+      "scripts/prompt-surface-growth.py 2>&1 | head -60",
+      "cat > /tmp/pr1803-body.md <<'EOF'\n[View run](https://github.com/The01Geek/prflow/actions/runs/32303144497)\n\n<!-- PR_BODY_START -->\n## Summary\n- Shrinks the create-issue audit state owner's (`scripts/issue-audit-state.py`) per-run call protocol so a run records the same facts in fewer shell round-trips, lowering per-run cost and the chance of a mis-ordered subcommand call.\n- Every subcommand that prints a `next_call=` line now also prints a `summary-block` line between its decided answer line and …[per-command-truncated]",
+      ".prflow/vendor/prflow/scripts/run-jq.sh -r '.comment.id // empty' \"$GITHUB_EVENT_PATH\" 2>/dev/null || true"
+    ],
+    "total": 15,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
