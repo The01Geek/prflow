@@ -22309,6 +22309,54 @@ def _row792_revise_revokes(r):
 _with_run792(_row792_revise_revokes)
 
 
+# issue #1771 — the final-byte OFFER is suppressed (trigger not-hold, reason
+# resolution-settled) when the drafter's own self-verified resolutions closed every finding
+# from a steering-established round, i.e. the run converged basis=resolution with zero
+# effective unresolved. The coverage axis still reports the bytes `uncovered` truthfully —
+# only the offer is withheld — so a converged run does not pause a second time. Breaking the
+# `_final_byte_resolution_settled` suppression (or its steering / basis / converged terms)
+# reopens the offer and turns the not-hold assertion RED; the pre-resolution control below
+# is what proves the suppression is conditional, not a blanket disabling of the ground.
+def _row1771_resolution_settled_suppresses(r):
+    r.generate()
+    d = r.dispatch()
+    assert d.returncode == 0, f'#1771 harness: dispatch failed: {d.stderr!r}'
+    # A file-arm REVISE round whose steering-absence IS established (it quotes the correct
+    # instruction oid), so the final-byte selector picks it and coverage is
+    # uncovered/latest-verdict-revise — the exact state issue #1771 reports.
+    r.ret(instructions_oid=r.oid(r.instr), extra='no', verdict='REVISE', findings=1)
+    _pre = r.fb()
+    assert_eq("#1771 control: an as-yet-unresolved REVISE round still fires the final-byte "
+              "offer — the run has not converged, so the suppression does not apply",
+              'hold', _field704(_pre, 'final_byte_trigger='))
+    assert_eq("#1771 control: ... on the uncovered/latest-verdict-revise coverage state",
+              ('uncovered', 'latest-verdict-revise'),
+              (_field704(_pre, 'final_byte_coverage='), _field704(_pre, 'final_byte_reason=')))
+    # Adjudicate the round REVISE with a one-entry ledger, then settle that entry by a
+    # self-verified resolution against the recorded revision — the basis=resolution path.
+    r.adjudicate(1, 'REVISE', 1, '1', 'unresolved: finding A\n')
+    r('record-revision', r.slug, '--after-round', '1', '--stdin-digest',
+      stdin='revised bytes\n', nonce=True)
+    r('record-resolution', r.slug, '--round', '1', '--revision-ordinal', '1',
+      '--resolved-ids', '1', nonce=True)
+    assert_eq("#1771 precondition: the run converged on a resolution basis with zero "
+              "effective unresolved must-revise findings",
+              'converged=yes reason= basis=resolution unledgered_revise=none',
+              decided(r('query-convergence', r.slug, nonce=True).stdout))
+    _line = r.fb()
+    assert_eq("#1771: a steering-established REVISE round whose findings were all resolved "
+              "SUPPRESSES the final-byte offer — the trigger does not hold",
+              'not-hold', _field704(_line, 'final_byte_trigger='))
+    assert_eq("#1771: ... naming resolution-settled as the trigger reason",
+              'resolution-settled', _field704(_line, 'final_byte_reason='))
+    assert_eq("#1771: ... while the coverage axis still reports the bytes uncovered — the "
+              "offer is withheld, the factual coverage is not overwritten",
+              'uncovered', _field704(_line, 'final_byte_coverage='))
+
+
+_with_run792(_row1771_resolution_settled_suppresses)
+
+
 # AC87 sibling — the `_final_byte_revoked` TRUE branch, which no other row reaches. The
 # revoking round must be verdict-bearing, NEWER, REVISE, and on a NON-file arm: on the file
 # arm the selector picks the REVISE round itself (the row above, `latest-verdict-revise`), so
