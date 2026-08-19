@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1757",
+  "generated_at": "2026-08-19T00:05:32Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.15",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 19.315489,
+    "tokens": {
+      "input_tokens": 94,
+      "output_tokens": 69552,
+      "cache_read_input_tokens": 9260339,
+      "cache_creation_input_tokens": 300578,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 250,
+        "outputTokens": 123758,
+        "cacheReadInputTokens": 15601693,
+        "cacheCreationInputTokens": 1166764,
+        "webSearchRequests": 0,
+        "costUSD": 19.315489,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 71,
+    "duration_ms": 1181988
+  },
+  "permission_denials": {
+    "count": 12,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"run_id=${GITHUB_RUN_ID:-EMPTY} attempt=${GITHUB_RUN_ATTEMPT:-EMPTY} actions=${GITHUB_ACTIONS:-EMPTY}\"",
+      "D=.prflow/tmp/review/pr-1757/32198433686-1\nawk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' $D/diff.patch | tee $D/batch-1.patch | grep -c '^diff --git'\nawk -v s=11 -v e=20 '/^diff --git/{n++} n>=s && n<=e' $D/diff.patch | tee $D/batch-2.patch | grep -c '^diff --git'\nawk -v s=21 -v e=26 '/^diff --git/{n++} n>=s && n<=e' $D/diff.patch | tee $D/batch-3.patch | grep -c '^diff --git'",
+      "mkdir -p .prflow/tmp\nif rm -f \".prflow/tmp/review-dirty-tree-before\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \".prflow/tmp/review-dirty-tree-before\" &&\n   [ -f \".prflow/tmp/review-dirty-tree-before\" ] &&\n   [ ! -L \".prflow/tmp/review-dirty-tree-before\" ] &&\n   git hash-object \".prflow/tmp/review-dirty-tree-before\"; then\n  :\nelse\n  echo \"::warning::snapshot failed; backstop disabled\" >&2\n  rm -f \".prflow/tmp/review-dirty-tree-before\" 2>/dev/null\n  pri …[per-command-truncated]",
+      "git status --porcelain -z > .prflow/tmp/review-dirty-tree-before",
+      "cd /home/runner/work/prflow/prflow\nfor p in \"audit summary line is mandatory\" \"whose absence fails open\" \"never block issue creation\" \"Fallback ladder\" \"Omit none of these\" \"config unreadable\" \"never silently skip writing it down\" \"refuses the append of a revision-delta\" \"audit independence unestablished\" \"Loader-failure arm\" \"parser cannot run\" \"Omit .*--verdict.* entirely\" \"Keep the .if./.else. shape\" \"silently anchor the whole issue\" \"consumer axes: unestablished\"; do\n  n=$(grep -rl \"$p\" skil …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow || exit; for p in \"audit summary line is mandatory\" \"whose absence fails open\" \"never block issue creation\" \"Fallback ladder\" \"Omit none of these\" \"config unreadable\" \"never silently skip writing it down\" \"refuses the append of a revision-delta\" \"audit independence unestablished\" \"Loader-failure arm\" \"parser cannot run\" \"entirely when the return carried no parseable\" \"Keep the\" \"silently anchor the whole issue\" \"consumer axes: unestablished\"; do n=$(grep -rl \"$ …[per-command-truncated]",
+      "cat > /tmp/chk.py <<'PYEOF'\nimport re, os, glob\ndiff=open('.prflow/tmp/review/pr-1757/32198433686-1/diff.patch').read().splitlines()\n# collect current file contents for create-issue and changeset\ntree={}\nfor f in glob.glob('skills/create-issue/**',recursive=True):\n    if os.path.isfile(f):\n        tree[f]=open(f,encoding='utf-8',errors='replace').read()\nallcontent=\"\\n\".join(tree.values())\ndef norm(s):\n    return re.sub(r'\\s+',' ',s).strip()\nallnorm=norm(allcontent)\nremoved=[]\nadded=set()\nfor ln  …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow || exit; cat > .prflow/tmp/chk.py <<'PYEOF'\nimport re, os, glob\ndiff=open('.prflow/tmp/review/pr-1757/32198433686-1/diff.patch').read().splitlines()\ntree={}\nfor f in glob.glob('skills/create-issue/**',recursive=True):\n    if os.path.isfile(f):\n        tree[f]=open(f,encoding='utf-8',errors='replace').read()\nallnorm=re.sub(r'\\s+',' ',\" \\n\".join(tree.values()))\ndef norm(s): return re.sub(r'\\s+',' ',s).strip()\nremoved=[]; added=set()\nfor ln in diff:\n    if ln.star …[per-command-truncated]",
+      "total=0; for f in $(git ls-tree -r --name-only origin/create-issue-consequence-trim -- skills/create-issue/SKILL.md skills/create-issue/references/); do bytes=$(git cat-file -s origin/create-issue-consequence-trim:\"$f\"); total=$((total+bytes)); done; echo \"PR branch total bytes: $total\"; echo \"base total: 369588\"; echo \"drop: $((369588-total))\"; python3 -c \"print('pct: %.2f' % (100*(369588-$total)/369588))\"",
+      "cat > /home/runner/work/prflow/prflow/.prflow/tmp/chk.py <<'PYEOF'\nimport re, os, glob\nos.chdir('/home/runner/work/prflow/prflow')\ndiff=open('.prflow/tmp/review/pr-1757/32198433686-1/diff.patch').read().splitlines()\ntree={}\nfor f in glob.glob('skills/create-issue/**',recursive=True):\n    if os.path.isfile(f):\n        tree[f]=open(f,encoding='utf-8',errors='replace').read()\nallnorm=re.sub(r'\\s+',' ',\" \\n\".join(tree.values()))\ndef norm(s): return re.sub(r'\\s+',' ',s).strip()\nremoved=[]; added=set( …[per-command-truncated]",
+      "echo \"=== corpus bytes at PR head 1eac886 ===\"\ngit ls-tree -r -l 1eac88699850c37f2f33ee9016f18c927e2fa571 -- skills/create-issue | awk '$2==\"blob\" && $4 ~ /\\.md$/ {sum+=$4==\"\"?0:$4} END{print \"files/awk-note\"}'\ngit ls-tree -r -l 1eac88699850c37f2f33ee9016f18c927e2fa571 -- skills/create-issue | awk '$4 ~ /\\.md$/ {n++; s+=$4} END{print \"md_files=\"n\"  total_bytes=\"s}'\necho \"=== corpus bytes at base 9fe279c ===\"\ngit ls-tree -r -l 9fe279c67a8276e4f4d3b473657fd36758a59a87 -- skills/create-issue | awk  …[per-command-truncated]",
+      "git ls-tree -r -l 1eac88699850c37f2f33ee9016f18c927e2fa571 -- skills/create-issue | awk '$4 ~ /\\.md$/ {n++; s+=$4} END{print \"HEAD md_files=\"n\" total_bytes=\"s}'"
+    ],
+    "total": 12,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
