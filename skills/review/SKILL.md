@@ -303,6 +303,8 @@ Each reference carries these as its literal first and last lines:
 <!-- prflow:review-ref phase=<id> file=skills/review/phases/<name>.md end -->
 ```
 
+Paged-read recovery (before the counting below). A reader that cannot return a file in one call delivers a first page and states how to read the rest — a partial-view notice carrying an `offset`/`limit` continuation. That is a page limit, not damage. On such a notice, keep reading forward, each call continuing past the last page, until no further continuation is offered; then run the checks over the **assembled whole document** — its literal first and last lines, and `S`/`E` counted across every page — and report the recovery (name the file and the page count) so it is observable afterward. A partial delivery you complete this way reaches no boundary row. The recovery is bounded and fails closed: stop the moment a page adds no new content or no continuation is offered, and route a `Read` that errored with no partial-view continuation — or any reader message you cannot classify as that notice — to row 1 (`denied`), so a reader without paging and any unrecognized report behave exactly as before. Clear the checks only when every page from first to last arrived — a document missing its middle is not whole — and the exactly-once property holds across the assembled whole, so a duplicated pair still fails row 5 however the content came in. The recovery persists no state: the gate re-runs and re-pages from the start on every re-entry, which terminates, so a compaction between pages costs only a re-read.
+
 After the `Read`: quote the body's literal first and last lines, and let `S` and `E` count the lines matching the expected `start` and `end` markers — expected meaning bearing this phase's id and the reference's own bundle-relative path exactly as written in the marker — the path the run resolved and read the file from is not compared, so a marker naming a different phase or file matches nothing here and a mis-routed read fails closed. Decide rows 6 and 7 from those two quoted lines, never from an impression the markers *look* right. Test the rows in order; the first that fires is the attributed shape:
 
 | # | Shape | Fires when | Stop label |
@@ -317,7 +319,7 @@ After the `Read`: quote the body's literal first and last lines, and let `S` and
 
 On any identity or boundary row: stop that phase, report the label with the phase id and reference path, and do not act on the body, improvise the phase from its orientation text, or repair the file. A body can read as complete and correct and still fail these checks: a defective boundary or identity means what you hold is not the bundle this engine was built against, so its plausibility is worth nothing.
 
-Required copy. Rows 1–7 are mirrored in `skills/implement/SKILL.md`'s *Phase-reference boundary contract*; edit both in the same change.
+Required copy. Rows 1–7 and the paged-read recovery above are mirrored in `skills/implement/SKILL.md`'s *Phase-reference boundary contract*; edit both in the same change. That copy adds two rows this one omits: its row 9 `set-incomplete` checks that every on-disk member of a multi-file phase set arrived, which is distinct from paged-read recovery — recovery assembles one file the reader delivered in pages, while `set-incomplete` checks that all files of a set were read.
 
 ### Phase routing
 
