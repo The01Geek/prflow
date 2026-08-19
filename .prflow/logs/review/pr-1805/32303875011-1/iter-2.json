@@ -1,0 +1,114 @@
+{
+  "iter": 2,
+  "source": "review-and-fix",
+  "loop_role": "promoted",
+  "promotion_provenance": "shadow",
+  "fix_commit_sha": "16c86a6cd8d0f0cbe70f50cf91766bba14519718",
+  "fix_files": [
+    "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+    ".changeset/issue-1804-create-issue-step1-shallow-first.md"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "checklist": [],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "shadow:code-reviewer+comment-analyzer",
+      "severity": "Important",
+      "description": "system-overview 'doc-reliability signal is the only entry to deep' self-contradiction (promoted from iter-1 shadow)",
+      "defect_signature": {
+        "file": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+        "line_range": [
+          783,
+          783
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 2,
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "SHADOW-1",
+      "decision": "applied",
+      "commit": "16c86a6cd8d0f0cbe70f50cf91766bba14519718"
+    }
+  ],
+  "shadow": {
+    "ran_at": "2026-08-19T22:00:00Z",
+    "reviewed_sha": "16c86a6cd8d0f0cbe70f50cf91766bba14519718",
+    "verdict": "APPROVE WITH ADVISORY NOTES",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": "intentional-promoted-iter",
+    "phase3_findings": [
+      {
+        "agent": "prflow:comment-analyzer",
+        "severity": "Suggestion",
+        "description": "docs/internal/cutovers/issue-749-step1-right-sizing-growth.md (diff-untouched) still describes the pre-pass selection operand; a historical past-time cutover snapshot, correctly left as-is per 2 agents",
+        "defect_signature": {
+          "file": "docs/internal/cutovers/issue-749-step1-right-sizing-growth.md",
+          "line_range": [
+            21,
+            46
+          ],
+          "kind": "comment_drift"
+        },
+        "corroboration_count": 1
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "severity": "Suggestion",
+        "description": "changeset 'almost always read full-floor' phrasing; backed by the issue's own 'effectively always answers yes' framing, non-blocking",
+        "defect_signature": {
+          "file": ".changeset/issue-1804-create-issue-step1-shallow-first.md",
+          "line_range": [
+            12,
+            12
+          ],
+          "kind": "style"
+        },
+        "corroboration_count": 1
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 2,
+      "overlap_with_iter_N": 0,
+      "new": 2,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "park_calibration": {
+    "evidence_comparisons": []
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

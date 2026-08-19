@@ -1,0 +1,134 @@
+{
+  "iter": 1,
+  "source": "review-and-fix",
+  "loop_role": "fix",
+  "fix_commit_sha": "ccd0a0ea9585baa8a60eb2ed0247dd367058c741",
+  "fix_files": [],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "checklist": [
+    {
+      "id": "VC-1",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-2",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-3",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-4",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-5",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-6",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-7",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-8",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-9",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-10",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-11",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-12",
+      "verdict": "PASS"
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [],
+  "fix_decisions": [],
+  "shadow": {
+    "ran_at": "2026-08-19T21:55:08Z",
+    "reviewed_sha": "ccd0a0ea9585baa8a60eb2ed0247dd367058c741",
+    "verdict": "REJECT",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:code-reviewer",
+        "severity": "Important",
+        "description": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md line 783: 'the doc-reliability signal is the only entry to deep' is self-contradicting (the same sentence lists two other escalation triggers); should say escalation is the only entry.",
+        "defect_signature": {
+          "file": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+          "line_range": [
+            783,
+            783
+          ],
+          "kind": "documented_falsehood"
+        },
+        "corroboration_count": 2
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "severity": "Important",
+        "description": "same documented_falsehood in the system-overview escalation sentence",
+        "defect_signature": {
+          "file": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+          "line_range": [
+            783,
+            783
+          ],
+          "kind": "documented_falsehood"
+        },
+        "corroboration_count": 2
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 3,
+      "overlap_with_iter_N": 0,
+      "new": 1,
+      "new_critical": 0,
+      "new_important": 1
+    },
+    "promoted_to_iter_next": true
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
