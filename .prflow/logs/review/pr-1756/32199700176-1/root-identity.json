@@ -1,0 +1,15 @@
+{
+  "canonical_root": "/home/runner/work/prflow/prflow/skills/review/SKILL.md",
+  "root_hash": "65d9a35752e1ebf60110743e6b9d4b2738b57238",
+  "references": {
+    "skills/review/phases/phase-0-setup.md": "b834468b4308ab2253840a37310a6b09152a41bc",
+    "skills/review/phases/phase-0-3-6-blocker-recheck.md": "b9381f41308856db3f7d855fecb68bc009451924",
+    "skills/review/phases/phase-0-6-stale-prose-lint.md": "5395317ded9ec2e1b41644dff5ec8536c350fff9",
+    "skills/review/phases/phase-1-checklist.md": "6ca236ef2e5f01e61b94afa40b2033b87d6a0076",
+    "skills/review/phases/phase-2-verification.md": "d073db8793e7e8803b1aa0364cc3767436ddb15d",
+    "skills/review/phases/phase-3-agents.md": "f0a8ba70bcb4f518c7f2507a3497d7e7de300d12",
+    "skills/review/phases/phase-4-verdict.md": "7d58da7eeb15e84ce98373a4a4c0bd4b118ec90f",
+    "skills/review/phases/phase-4-1-7-stale-adjudication.md": "5804863507b4c079052f77502d462b686ec8fb4f",
+    "skills/review/phases/phase-4-4-github-post.md": "f2ebcee06f7a1972125f6b6db2a82b63f83fdef6"
+  }
+}
