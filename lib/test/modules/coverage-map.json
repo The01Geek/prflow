@@ -67,6 +67,10 @@
       "note": "issue #927 name-agnostic plugin identity: compiles the baked discriminator regions",
       "owner": "unmodularized"
     },
+    "lib/generate-terminal-result-table.py": {
+      "note": "issue #1273 independent Python oracle + generator of the terminal-result total mapping table (lib/terminal-result-table.tsv); its --check is a regenerate row in lib/test/regenerate-artifacts.py, and the terminal-result-class module cross-checks the generated table against scripts/terminal-result-class.sh over the full input cross-product",
+      "owner": "terminal-result-class"
+    },
     "lib/implement-stop-guard.sh": {
       "note": "",
       "owner": "unmodularized"
@@ -772,6 +776,10 @@
       "note": "",
       "owner": "unmodularized"
     },
+    "scripts/terminal-result-class.sh": {
+      "note": "issue #1273 pure terminal-result classifier: reconciles the workpad status class + job status (implement) and the verdict-post producer outcome (review) into the bounded terminal classes complete/blocked/incomplete and verdict-posted/incomplete, plus the success/non-success conclusion matrix; driven per arm over the generated total table lib/terminal-result-table.tsv and a per-AC hand oracle by the terminal-result-class module.",
+      "owner": "terminal-result-class"
+    },
     "scripts/update-branch-checkpoint.sh": {
       "note": "",
       "owner": "unmodularized"
@@ -817,6 +825,7 @@
     "lib/rename-map.json",
     "lib/review-profile.tokens",
     "lib/subagent-dispatch-sites.json",
+    "lib/terminal-result-table.tsv",
     "lib/writing-standard.md",
     "scripts/devflow-cloud-writer-contract.json",
     "scripts/workflow-flight-recorder-registry.json"
@@ -1110,9 +1119,17 @@
       "note": "",
       "owner": "review-stall-backstop"
     },
+    "1273": {
+      "note": "",
+      "owner": "terminal-result-class"
+    },
     "1288": {
       "note": "",
       "owner": "parallel-suite-runner"
+    },
+    "1299": {
+      "note": "",
+      "owner": "prompt-extension-reader"
     },
     "1309": {
       "note": "",
@@ -1228,6 +1245,10 @@
     },
     "1526": {
       "note": "the widened audited population of lint-ungranted-helper-spelling.py: the prompt-extension prefix and the two exact auto-loaded paths are reported like a skills/ path, the exact-path half is not a docs/internal/ prefix, every declared population member (exact paths and prefixes alike) is reachable by the default index enumeration, and the empty-audited floor message names the widened members",
+      "owner": "unmodularized"
+    },
+    "1528": {
+      "note": "run.sh #1528 block: surface-execution-diagnostics.sh publishes claude_code_version from the execution-file init record (publish/::notice:: read-back, unavailable fallback, builtins-only, redaction posture, no-result-event + partial-deployment + append-failure arms)",
       "owner": "unmodularized"
     },
     "1536": {

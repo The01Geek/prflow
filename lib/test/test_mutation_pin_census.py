@@ -52,6 +52,7 @@ AUDITED = (
     "lib/test/modules/tier1-rename-migration.sh",
     "lib/test/modules/parallel-suite-runner.sh",
     "lib/test/modules/phase2-durability-checkpoint.sh",
+    "lib/test/modules/terminal-result-class.sh",
 )
 DEFINITIONS = ""
 
