@@ -1,0 +1,120 @@
+{
+  "iter": 1,
+  "fix_commit_sha": "a8a3d59ae",
+  "fix_files": [
+    "scripts/issue-audit-state.py",
+    "lib/test/modules/issue-audit-state.sh",
+    "lib/test/run.sh",
+    "scripts/workflow-flight-recorder-registry.json",
+    "lib/test/test_python_scripts.py"
+  ],
+  "loop_role": "fix",
+  "current_step": "2.6",
+  "current_substep": "parse_and_compare",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": "skipped"
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:type-design-analyzer"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Important",
+      "description": "_SUMMARY_BLOCK_FIELDS comment misclassified coverage_*/calibration_* as digest-resolved",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "summary_fields failure coupled to primary next_call channel",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:type-design-analyzer",
+      "severity": "Suggestion",
+      "description": "_SUMMARY_BLOCK_FIELDS subset invariant test-only, not import-enforced",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "cross-render non-None arm, excluded-subcommand no-block, batched three-part shape, unreadable records-file untested",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "changeset (#1807) cross-ref — confirmed correct PR number",
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "a8a3d59ae"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "a8a3d59ae"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "a8a3d59ae"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "a8a3d59ae"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "advisory",
+      "skip_category": "advisory-parked",
+      "evidence": "changeset (#1807) is the correct PR number"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 4,
+    "fix_diff_lines": 49,
+    "new_corroborated_critical_count": 0
+  },
+  "shadow": {
+    "ran_at": "iteration-1",
+    "reviewed_sha": "a8a3d59ae",
+    "verdict": "clean",
+    "coverage": "full",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter"
+    ],
+    "reason": "both shadow reviewers independently found no Critical/Important defect in the post-fix HEAD",
+    "checklist_skipped": "skipped",
+    "phase3_findings": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
