@@ -31799,6 +31799,7 @@ import sys, yaml
 files = sys.argv[1:]
 names = ["Resolve model provider",
          "Inject provider endpoint (provider-routed sections only)",
+         "Export provider effort capability to job env",
          "Build claude_args head (model + conditional effort)"]
 bodies = {n: [] for n in names}
 for f in files:
@@ -31814,7 +31815,7 @@ for n in names:
 print(",".join(out))
 PY
 )"
-  assert_eq "#313 single-sourced: Resolve/Inject/cargs run: bodies byte-identical across the 3 workflows" "yes,yes,yes" "$R313_BODY_IDENT"
+  assert_eq "#313 single-sourced: Resolve/Inject/export-effort/cargs run: bodies byte-identical across the 3 workflows" "yes,yes,yes,yes" "$R313_BODY_IDENT"
 
   # gh_kv normalizes a $GITHUB_ENV/$GITHUB_OUTPUT file written in GitHub's newline-safe
   # multiline-heredoc form (KEY<<DELIM\nvalue\nDELIM — the form this PR now uses everywhere)

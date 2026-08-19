@@ -5557,6 +5557,63 @@ try:
 finally:
     _os.unlink(_e554_cfg)
 
+# --effort-supported ENV fallback (issue #1772): with the CLI flag omitted, the
+# resolver reads the routed provider's capability from the PRFLOW_EFFORT_SUPPORTED
+# env var the cloud workflows export from their already-resolved provider decision
+# — the caller-wiring the #554 flag lacked. Absent/unrecognized falls back to
+# "true" (today's Anthropic-path behavior); an explicit CLI flag still wins.
+with _tempfile.NamedTemporaryFile('w', suffix='.json', delete=False) as _e1772f:
+    _e1772f.write('{"prflow_review":{"agent_overrides":'
+                  '{"devflow:code-reviewer":{"effort":"low"}}}}')
+    _e1772_cfg = _e1772f.name
+_prev_env_1772 = _os.environ.get("PRFLOW_EFFORT_SUPPORTED")
+
+
+def _run_1772(argv, env_val):
+    if env_val is None:
+        _os.environ.pop("PRFLOW_EFFORT_SUPPORTED", None)
+    else:
+        _os.environ["PRFLOW_EFFORT_SUPPORTED"] = env_val
+    _o, _e = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(_o), contextlib.redirect_stderr(_e):
+        _rc = _rro.main(argv)
+    return _rc, _o.getvalue(), _e.getvalue()
+
+
+try:
+    _base_argv_1772 = ["devflow:code-reviewer", "--config", _e1772_cfg]
+    # env false, no CLI flag → capability ::warning:: naming the provider (#1772 wiring).
+    _rc_f, _o_f, _e_f = _run_1772(_base_argv_1772, "false")
+    assert_eq("main(#1772): PRFLOW_EFFORT_SUPPORTED=false exits 0", 0, _rc_f)
+    assert_eq("main(#1772): env false → provider ::warning:: with no CLI flag",
+              True, "::warning::" in _e_f and "effort_supported" in _e_f)
+    assert_eq("main(#1772): env false keeps stdout pure JSON",
+              {"devflow:code-reviewer": {"effort": "low"}}, json.loads(_o_f))
+    # env true → benign ::notice::, no provider warning.
+    _rc_t, _o_t, _e_t = _run_1772(_base_argv_1772, "true")
+    assert_eq("main(#1772): env true → benign ::notice::, no provider ::warning::",
+              True, "::notice::" in _e_t and "::warning::" not in _e_t)
+    # env absent → defaults to true (benign notice), preserving today's behavior.
+    _rc_a, _o_a, _e_a = _run_1772(_base_argv_1772, None)
+    assert_eq("main(#1772): env absent defaults to effort supported (benign notice)",
+              True, "::notice::" in _e_a and "::warning::" not in _e_a)
+    # explicit --effort-supported true WINS over env false (flag precedence).
+    _rc_o, _o_o, _e_o = _run_1772(
+        _base_argv_1772 + ["--effort-supported", "true"], "false")
+    assert_eq("main(#1772): explicit --effort-supported true overrides env false",
+              True, "::notice::" in _e_o and "::warning::" not in _e_o)
+    # unrecognized env value → fall back to true (benign notice) AND a warning
+    # naming the var, never a silent coercion.
+    _rc_u, _o_u, _e_u = _run_1772(_base_argv_1772, "yes")
+    assert_eq("main(#1772): unrecognized env value falls back to true with a warning",
+              True, "::notice::" in _e_u and "PRFLOW_EFFORT_SUPPORTED" in _e_u)
+finally:
+    if _prev_env_1772 is None:
+        _os.environ.pop("PRFLOW_EFFORT_SUPPORTED", None)
+    else:
+        _os.environ["PRFLOW_EFFORT_SUPPORTED"] = _prev_env_1772
+    _os.unlink(_e1772_cfg)
+
 # A non-object `default` on the real read_raw path: the warning must name the real
 # consequence (no fallback for no-entry agents), NOT the nonsensical "default still
 # applies" phrasing meaningful only for a real agent key.

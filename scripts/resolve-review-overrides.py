@@ -632,6 +632,37 @@ def _force_utf8_streams():
             pass
 
 
+# The job env var the cloud workflows export from their already-resolved provider
+# decision (issue #1772). It carries the provider capability into the in-session
+# engine, which cannot introspect the routed provider itself.
+_EFFORT_SUPPORTED_ENV = "PRFLOW_EFFORT_SUPPORTED"
+
+
+def _resolve_effort_supported(cli_value):
+    """Resolve the provider effort capability -> (bool, warning_or_None).
+
+    Precedence: an explicit `--effort-supported` CLI value wins; else the
+    PRFLOW_EFFORT_SUPPORTED env var (issue #1772); else the 'true' default (the
+    Anthropic path). Fail OPEN, not closed: an absent var preserves today's
+    behavior, and an env value that is neither 'true' nor 'false' falls back to
+    'true' WITH a warning rather than a silent coercion — dropping per-agent
+    effort on every unset/local run would regress the common default path, and
+    the resolved-model Haiku guard still catches a real capability rejection.
+    """
+    if cli_value is not None:
+        return cli_value == "true", None
+    raw = os.environ.get(_EFFORT_SUPPORTED_ENV)
+    if raw is None or raw.strip() == "":
+        return True, None
+    normalized = raw.strip().lower()
+    if normalized in ("true", "false"):
+        return normalized == "true", None
+    return True, (
+        f"{_EFFORT_SUPPORTED_ENV}={raw!r} is not 'true' or 'false'; assuming the "
+        "provider supports effort (true)."
+    )
+
+
 def main(argv=None):
     _force_utf8_streams()
     parser = argparse.ArgumentParser(description=__doc__)
@@ -645,16 +676,18 @@ def main(argv=None):
     parser.add_argument(
         "--effort-supported",
         choices=("true", "false"),
-        default="true",
+        default=None,
         help=(
             "the routed provider's effort_supported capability (#313); when "
             "'false', a resolved per-agent effort is reported as a "
-            "capability-restricted fallback. Default 'true' (the Anthropic path). "
-            "This is a caller-supplied forward seam: the in-session engine cannot "
-            "itself introspect the routed provider's capability, so the model-level "
-            "Haiku restriction (read from the resolved model) is the capability "
-            "guard active by default; a caller that knows the provider capability "
-            "passes it here."
+            "capability-restricted fallback. When omitted, the PRFLOW_EFFORT_SUPPORTED "
+            "environment variable is read instead (the cloud workflows export it from "
+            "the already-resolved provider decision — issue #1772); an absent or "
+            "unrecognized value falls back to 'true' (the Anthropic path). The "
+            "in-session engine cannot itself introspect the routed provider's "
+            "capability, so the model-level Haiku restriction (read from the resolved "
+            "model) is the capability guard active by default; the workflow-exported "
+            "env var (or an explicit flag) carries the provider capability."
         ),
     )
     parser.add_argument(
@@ -701,14 +734,21 @@ def main(argv=None):
     # dedupes its own, but a malformed `default` makes resolve_overrides emit one
     # (now agent-agnostic) line that would otherwise repeat, and the two sources
     # can also overlap. One actionable line per distinct problem.
-    for w in dict.fromkeys(read_warnings + resolve_warnings):
+    # Resolve the provider effort capability (CLI flag > PRFLOW_EFFORT_SUPPORTED
+    # env > 'true' default) and fold its unrecognized-value warning into the same
+    # deduped stream, so a fat-fingered env value surfaces one actionable line.
+    effort_supported, effort_supported_warning = _resolve_effort_supported(
+        args.effort_supported)
+    extra_warnings = [effort_supported_warning] if effort_supported_warning else []
+    for w in dict.fromkeys(read_warnings + resolve_warnings + extra_warnings):
         sys.stderr.write(f"::warning::resolve-review-overrides: {w}\n")
     # Honest fallback report (issue #554): decide the per-agent effort-application
     # outcome and emit report lines to stderr (stdout stays pure JSON). A benign
     # in-session no-seam fallback is one informational `::notice::` summary; a
     # capability-restricted one (Haiku model / effort_supported=false) is a
     # `::warning::` naming the model/provider. Never claims an unearned success.
-    effort_supported = (args.effort_supported == "true")
+    # (effort_supported is resolved above, from the CLI flag or the
+    # PRFLOW_EFFORT_SUPPORTED env var — issue #1772.)
     if args.effort_json:
         # Observability mode (issue #609): stdout is the five-field map, and the
         # #554 report lines are deliberately NOT re-emitted — this is a second
