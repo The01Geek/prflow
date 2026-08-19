@@ -4505,40 +4505,19 @@ assert_eq "F1: misregistration guard detects an injected SKILL.md (find non-empt
   "$([ -z "$(find "$_f1_skilldir" -name SKILL.md 2>/dev/null)" ] && echo yes || echo no)"
 rm -rf "$_f1_skilldir"
 # ── end issue #218 structural assertions ──
-# ── issue #232: terminal-status self-check (SKILL.md orchestrator) + Phase 4.1 post-subagent
-# re-anchor (phase-4-documentation.md) — two halves of one guard family against a run that
-# stops before Phase 4 finalization (workpad frozen at an in-progress Status, un-described
-# draft PR). Coupled to the skill clauses: removing either clause turns the suite RED.
-# Presence is checked via assert_pin_unique (exactly once).
+# ── issue #232: the Phase 4.1 post-subagent re-anchor (phase-4-documentation.md), guarding
+# against a run that stops before Phase 4 finalization (workpad frozen at an in-progress
+# Status, un-described draft PR). Coupled to the skill clause: removing it turns the suite
+# RED.
 # (P4_FILE is the shared phase-file path hoisted next to IMPL_PHASES_DIR above.)
-# (1) SKILL.md terminal-status self-check — AC1 (must not end on an in-progress Status) +
-#     AC2 (keyed on workpad Status, explicitly not PR draft state).
-assert_pin_unique "#232: SKILL self-check forbids ending on an in-progress Status (operative)" \
-  'the run is not finished — return to the phase that owns the remaining work' "$IMPL_ORCH"
-assert_pin_unique "#232: SKILL self-check keys on workpad Status, not PR draft state (AC2)" \
-  'keys on the workpad `Status`, not on PR draft state' "$IMPL_ORCH"
-# (2) phase-4-documentation.md Phase 4.1 post-subagent re-anchor scope. Issue #362
-#     reworded the scope clause from
-#     "the Phase 4.1 docs subagent return only" to "**subagent** returns", because a
-#     Skill-tool return is now covered by the orchestrator's generalized mid-phase
-#     re-anchor instead. Issue #1577 added a SECOND subagent-return re-anchor (§4.2's
-#     PR-description subagent, before §4.3); that note is worded "fires on a
-#     **subagent** return only" so this grandfathered, adjudicated literal stays
-#     unique to the §4.1 note (per CLAUDE.md #843/#876 the §4.2 re-anchor is
-#     agent-executed prompt prose that owes no new prose pin — the review pass is its
-#     control).
+# Do not re-point this pin at §4.2's re-anchor or widen its literal: the literal is
+# grandfathered as unique to the §4.1 note, and §4.2's counterpart is agent-executed prose
+# that owes no pin (CLAUDE.md #843/#876). Provenance: docs/internal/implement-skill.md.
 assert_pin_unique "#232/#362: phase-4 re-anchor scoped to **subagent** returns (AC4, reworded)" \
   'scoped to **subagent** returns' "$P4_FILE"
-# AC1 operative: the normative prohibition sentence (not only its corrective consequence).
-assert_pin_unique "#232: SKILL self-check keeps the run-final-message prohibition (operative)" \
-  'Do not emit your run-final message while the workpad' "$IMPL_ORCH"
-# review iter-1 (silent-failure-hunter F1/F2): the two robustness hardenings — the self-check
-# binds EVERY termination path (not only a deliberate wrap-up), and the Phase 4.1 re-anchor
-# TRIGGER is repeated in the always-loaded orchestrator so a subagent-return eviction cannot
-# remove it. Pin both so a later edit cannot silently drop the hardening.
-assert_pin_unique "#232: SKILL self-check binds every termination path (SFH F1)" \
-  'This guard binds **every** way the run can end' "$IMPL_ORCH"
-# review iter-2 (shadow pr-test-analyzer): pin the operative re-read instruction directly.
+# review iter-2 (shadow pr-test-analyzer): pin the operative re-read instruction directly —
+# the Phase 4.1 re-anchor TRIGGER is repeated in the always-loaded orchestrator so a
+# subagent-return eviction cannot remove it, and dropping the pin drops that hardening.
 assert_pin_unique "#232: orchestrator keeps the OPERATIVE always-loaded re-Read directive (SFH F2)" \
   'the phase file before continuing to §4.2 (resume from §4.2' "$IMPL_ORCH"
 # AC4 scope constraint is mirrored in the always-loaded orchestrator too; pin that copy so the
@@ -4632,10 +4611,10 @@ assert_eq "#362: the vendored requesting-code-review skill is still present and 
   "$([ -f "$LIB/../skills/requesting-code-review/SKILL.md" ] && echo yes || echo no)"
 
 # ── issue #366: guard /devflow:implement against a nested-Skill tail-call early-stop.
-# Four prose contracts in the always-resident orchestrator ($IMPL_ORCH) — the completion
-# re-anchor, the exclusionary Skill rule, the carve-out's SKILL.md sentence, and the
-# terminal-status self-check — one of which (the carve-out) is a coupled pair whose other
-# half is a CLAUDE.md Conventions bullet pinned against the CLAUDE.md path.
+# Three prose contracts in the always-resident orchestrator ($IMPL_ORCH) — the completion
+# re-anchor, the exclusionary Skill rule, and the carve-out's SKILL.md sentence — one of
+# which (the carve-out) is a coupled pair whose other half is a CLAUDE.md Conventions
+# bullet pinned against the CLAUDE.md path.
 # Each operative sentence is pinned with assert_pin_unique (exactly-once)
 # at the owning file boundary via assert_pin_unique.
 # (a) Skill-completion re-anchor trigger — completion-anchored, never re-invoke, orchestrator-resident.
@@ -4661,17 +4640,9 @@ assert_pin_unique "#366: SKILL carve-out is widened to cover the issue's own ACs
   'whether by a Phase-3 review finding **or by the issue' "$IMPL_ORCH"
 assert_pin_unique "#366: CLAUDE.md carve-out bullet carries the same AC4 widening arm (coupled)" \
   'whether by a Phase-3 review finding **or by the issue' "$LIB/../CLAUDE.md"
-# (d) Terminal-status self-check: read Status immediately before run-final message + accurate backstop citation.
-assert_pin_unique "#366: SKILL self-check reads Status immediately before any run-final message (operative)" \
-  'read the workpad `Status` line immediately before emitting any run-final message' "$IMPL_ORCH"
-# The backstop-accuracy clause must track what the backstop actually does. Since #356 it
-# re-dispatches AND, on a fail-loud exit taken after a genuinely interim Status read, flips
-# the workpad to the terminal `Failed` (💥) status — so the old clause ("it never writes a
-# terminal `Status`") is false, and pinning it would enforce the falsehood. What stays true,
-# and is the load-bearing point for the self-check, is that the backstop never drives a run
-# to `Complete`: only the run itself can do that.
-assert_pin_unique "#366/#356: SKILL self-check cites the cloud Stall backstop as re-dispatch + a dead-run Failed flip, never a Complete (operative)" \
-  're-dispatches (bounded auto-resume, honest-red on cap exhaustion) and, on a fail-loud exit, flips the workpad to the terminal `Failed` (💥) status — it never drives a run to `Complete`' "$IMPL_ORCH"
+# Do not reintroduce a wording pin over the SKILL.md terminal-status self-check: issue #1768
+# retired the status-read and stall-backstop-citation pins that stood here, and a
+# replacement re-freezes wording that criterion released (CLAUDE.md prose-pin policy).
 # ── issue #254: Phase 4.0.5 deferrals-manifest discovery must search BOTH the pr-<N>
 # slug dir and the sanitized-current-branch slug dir — a current-branch-mode
 # /devflow:review-and-fix run writes its manifest under the branch slug, so a
@@ -12888,7 +12859,7 @@ echo "load-prompt-extension.sh (consumer prompt-extension reader)"
 # module owns the whole former in-file section; see its .inventory.md for the
 # coverage map back to this location.
 if ! devflow_run_full_suite_module "$LIB/test/modules/prompt-extension-reader.sh" \
-  "prompt-extension-reader" 158; then
+  "prompt-extension-reader" 177; then
   printf 'ERROR: prompt-extension-reader boundary could not record its result\n'
   exit 1
 fi
@@ -13019,9 +12990,11 @@ assert_eq "#295 AC10: config-get git-root-no-.prflow returns the default" "FALLB
   "$(cd "$SIL295/a/b/c" && bash "$CG" .docs.internal FALLBACK 2>/dev/null)"
 assert_eq "#295 AC10: config-get git-root-no-.prflow stays SILENT (empty stderr)" "" \
   "$(cd "$SIL295/a/b/c" && bash "$CG" .docs.internal FALLBACK 2>&1 >/dev/null)"
-# loader: no-op (prints nothing) AND empty stderr.
-assert_eq "#295 AC10: loader git-root-no-.prflow stays SILENT (empty stderr)" "" \
-  "$(cd "$SIL295/a/b/c" && bash "$LPE" implement 2>&1 >/dev/null)"
+# loader: no-op with empty STDOUT. Since issue #1299 the whole-file no-op arm emits a
+# `PROMPT-EXTENSION-STATUS: present-empty` stderr line, so this AC10 guard checks the ABSENCE
+# of the #295 could-not-resolve breadcrumb (the regression it protects) rather than empty stderr.
+assert_eq "#295 AC10: loader git-root-no-.prflow emits no could-not-resolve breadcrumb" "yes" \
+  "$(cd "$SIL295/a/b/c" && bash "$LPE" implement 2>&1 >/dev/null | grep -qF 'could not resolve' && echo no || echo yes)"
 # workpad marker: default marker AND empty stderr (pop the env override so the read
 # reaches the config path).
 assert_eq "#295 AC10: workpad marker git-root-no-.prflow stays SILENT (empty stderr)" "" \
@@ -15842,11 +15815,9 @@ CI_SKILL_256="$CREATE_ISSUE_BUNDLE"   # #614: content-survival target — the sp
 assert_eq "#256 AC1: create-issue removed the goes-quiet disengagement trigger" "yes" \
   "$(! grep -qF 'goes quiet' "$CI_SKILL_256" && echo yes || echo no)"  # raw-guard-ok: absence pin — the removed trigger literal must be GONE
 # ── #272: create-issue gains UI-change visual-specification awareness ──
-# Retain the template section heading.
-CI_TEMPLATE_272="$LIB/../skills/create-issue/references/issue-template.md"
-# AC6: the template carries the new Visual Specification section heading …
-assert_pin_unique "#272 AC6: issue-template has the Visual Specification section heading" \
-  '## Visual Specification' "$CI_TEMPLATE_272"
+# RETIRED by #1759: #272 AC6 "issue-template has the Visual Specification section heading"; its
+# CI_TEMPLATE_272 sole-reader variable is removed with it to avoid an SC2034 unused-assignment.
+# Disposition: docs/internal/pin-corpus-issue-1759-sweep.md
 
 # ── #446: executable config-reader and implement-offer-gate boundaries ──
 CI446_TMPL="$LIB/../skills/create-issue/references/issue-template.md"
@@ -16231,8 +16202,7 @@ assert_pin_unique "#275 pin (P3-live): phase-3 carries the live --persist backst
   "$PORTABLE_ANCHOR_LITERAL"'lib/efficiency-trace.sh --persist' "$LIB/../skills/implement/phases/phase-3-fix-loop.md"
 assert_pin_unique "#275 pin (P3-live): the gated §4.0.5 reference carries a live file-deferrals.py invocation via the portable anchor" \
   "$PORTABLE_ANCHOR_LITERAL"'scripts/file-deferrals.py' "$LIB/../skills/implement/references/deferred-review-findings.md"  # structural-pin-ok: helper-contract -- the filing helper's invocation must resolve through the portable anchor; a bare or absolute spelling is refused on every runner this anchor exists for
-assert_pin_unique "#275 pin (P4-ci): create-issue preamble carries the never-capture operative sentence" \
-  'Never capture the anchor into a shell variable that a later statement reads' "$LIB/../skills/create-issue/SKILL.md"
+# RETIRED by #1759: #275 pin (P4-ci) "create-issue preamble carries the never-capture operative sentence". Disposition: docs/internal/pin-corpus-issue-1759-sweep.md
 # ────────────────────────────────────────────────────────────────────────────
 echo "#332: resolve-main-root.sh (main-worktree root) + create-issue draft-path"
 # ────────────────────────────────────────────────────────────────────────────
@@ -16484,12 +16454,13 @@ assert_eq "#332 gotcha: Step 2 derivation artifact stays cwd-relative (not main-
 # real skill dir, as on Claude Code) as a command head and assert the resolved helper is
 # actually reached — catching a quoting/expansion defect in the literal (a moved quote, a
 # glob-active placeholder char) that would break all 22 files in lockstep while every
-# static pin stayed GREEN. load-prompt-extension.sh with a bogus skill name exits 0 and
-# prints nothing (the repo tracks only docs.md.example, no live docs.md), so a
-# clean rc-0 no-op IS the observable.
+# static pin stayed GREEN. The repo tracks only docs.md.example (no live docs.md), so the
+# helper takes its whole-file no-op arm; since issue #1299 that arm emits a
+# `PROMPT-EXTENSION-STATUS: present-empty` line, which is the positive reached-the-helper observable.
 PA_BEHAV_CMD="$PORTABLE_ANCHOR_LITERAL"'scripts/load-prompt-extension.sh docs'
 PA_BEHAV_OUT="$(cd "$LIB/.." && CLAUDE_SKILL_DIR="$PWD/skills/docs" bash -c "$PA_BEHAV_CMD" 2>&1)"; PA_BEHAV_RC=$?
-assert_eq "#275 behavioral: the no-extension helper run prints nothing (clean no-op observable)" "" "$PA_BEHAV_OUT"
+assert_eq "#275 behavioral: the no-extension helper run reaches the helper (present-empty token, clean no-op)" "yes" \
+  "$(case "$PA_BEHAV_OUT" in *'PROMPT-EXTENSION-STATUS: present-empty'*) echo yes ;; *) echo no ;; esac)"
 assert_eq "#275 behavioral: the canonical anchor literal executes and reaches the helper (CLAUDE_SKILL_DIR set)" "0" "$PA_BEHAV_RC"
 # And with the var EMPTY the same literal must fail (the placeholder is not a real path) —
 # proving the fallback text is inert as a path, not accidentally resolvable.
@@ -33560,6 +33531,18 @@ if ! devflow_run_full_suite_module "$LIB/test/modules/review-stall-backstop.sh" 
   exit 1
 fi
 # ────────────────────────────────────────────────────────────────────────────
+echo "#1273 terminal-result classifier + generated total table"
+# ────────────────────────────────────────────────────────────────────────────
+# scripts/terminal-result-class.sh driven over every row of the generated total
+# table lib/terminal-result-table.tsv (the independent Python oracle
+# lib/generate-terminal-result-table.py), plus the per-AC hand oracle and the
+# usage/arity guard. See the module for the coverage map back to this location.
+if ! devflow_run_full_suite_module "$LIB/test/modules/terminal-result-class.sh" \
+  "terminal-result-class" 150; then
+  printf 'ERROR: terminal-result-class boundary could not record its result\n'
+  exit 1
+fi
+# ────────────────────────────────────────────────────────────────────────────
 echo "#1139 Phase 2 mid-run durability checkpoint"
 # ────────────────────────────────────────────────────────────────────────────
 # scripts/phase2-durability-checkpoint.sh driven against a scratch git repository
@@ -34779,7 +34762,6 @@ CI_MOD_VARS=(
   --var "CI_TMPL_AUDIT=skills/create-issue/references/audit-prompt-template.md"
   --var "CI_TMPL=skills/create-issue/references/issue-template.md"
   --var "CI_EXT=.prflow/prompt-extensions/create-issue.md"
-  --var "CI_CLAUDE=CLAUDE.md"
   --var "CI_INVENTORY=lib/test/modules/create-issue-contract.inventory.md"
   # CI_ROOT lets the meta-guard resolve the module's own `$CI_ROOT/…` assignments
   # (including CI_DV) and inline `$CI_ROOT/…` pin targets; without
@@ -36317,9 +36299,9 @@ assert_eq "#815 the flight-recorder registry carries a reference load_class row 
 # reference kept its write literals); the agent gets its own pins here. The agent performs NO
 # GitHub write and dispatches nothing, so the writes and the one-subagent-layer constraint both
 # rest on the orchestrator. RED against a stub agent carrying any write literal or an Agent
-# dispatch. This is a machine-consumed capability boundary (lint-shipped-pruned-path audits the
-# agents/** population), not prose — a permitted target under #1604's AC that no run.sh pin names
-# the agent for prose text.
+# dispatch. Do not relax the write-literal absence pins below as redundant: their runtime
+# enforcer is the agent's `tools:` frontmatter, pinned further down, and #1604's AC7
+# mandates the body-text checks too.
 echo "#1604 deferral-drafter composition agent"
 DEFDRAFTER="$LIB/../agents/deferral-drafter.md"
 _issue1515_deferred_projection_route() {
@@ -37211,6 +37193,142 @@ assert_eq "#363 diagnostics publishes the gathered denial count when the count f
 # Absent GITHUB_OUTPUT (standalone/local run) must not break the always-exit-0 contract.
 assert_eq "#363 diagnostics exits 0 with no GITHUB_OUTPUT set (standalone run)" "0" \
   "$(printf '%s' "$_D_HOT" > "$D363/exec.json"; ( unset GITHUB_OUTPUT; bash "$SED_SH" "$D363/exec.json" >/dev/null 2>&1 ); echo $?)"
+
+# ────────────────────────────────────────────────────────────────────────────
+echo "#1528 observability: claude_code_version published from the init record + read back"
+# ────────────────────────────────────────────────────────────────────────────
+# The execution file's system/init record carries claude_code_version; surface-
+# execution-diagnostics.sh now publishes it (reusing lib/probe-observation.sh's
+# devflow_probe_cli_version) so a live run's own CLI build is recorded in-job, with
+# no 7-day artifact and no execution_transcript_artifact_enabled opt-in (issue #1528).
+_D_INIT='[{"type":"system","subtype":"init","claude_code_version":"2.1.226"},{"type":"result","is_error":false,"num_turns":3,"permission_denials_count":0}]'
+
+# AC1: the version is published to GITHUB_OUTPUT from the init record.
+assert_eq "#1528 diagnostics publishes claude_code_version=<v> from the init record" "yes" \
+  "$(_diag_run "$_D_INIT" >/dev/null; grep -qxF 'claude_code_version=2.1.226' "$D363/out" && echo yes || echo no)"
+# AC2: a consumer reads the published value back — the in-job ::notice:: naming it.
+assert_eq "#1528 diagnostics emits a ::notice:: naming the resolved version (the read-back consumer)" "yes" \
+  "$(_o=$(_diag_run "$_D_INIT"); printf '%s' "$_o" | grep -qF '::notice::DevFlow: claude-code CLI version 2.1.226' && echo yes || echo no)"
+# Human + machine agree: the rendered block carries the same value the output publishes.
+assert_eq "#1528 diagnostics renders claude_code_version into the block (human+machine agree)" "yes" \
+  "$(_o=$(_diag_run "$_D_INIT"); printf '%s' "$_o" | grep -qxF -e '- claude_code_version: 2.1.226' && echo yes || echo no)"
+
+# AC1: an init record lacking the field publishes the literal `unavailable` (never empty/0)
+# and raises no notice — unknown is not a version.
+assert_eq "#1528 diagnostics publishes 'unavailable' (never empty/0) when the init record lacks the version" "yes" \
+  "$(_diag_run "$_D_COLD" >/dev/null; grep -qxF 'claude_code_version=unavailable' "$D363/out" && echo yes || echo no)"
+assert_eq "#1528 diagnostics emits NO ::notice:: when the version is unavailable" "no" \
+  "$(_o=$(_diag_run "$_D_COLD"); printf '%s' "$_o" | grep -qF '::notice::DevFlow: claude-code CLI version' && echo yes || echo no)"
+# An unparseable execution file is also `unavailable`, never a forged value.
+assert_eq "#1528 diagnostics publishes 'unavailable' on an unparseable execution file" "yes" \
+  "$(_diag_run 'not json' >/dev/null; grep -qxF 'claude_code_version=unavailable' "$D363/out" && echo yes || echo no)"
+
+# Attribute the absent-file rejection to the absent-file branch's OWN breadcrumb: the
+# value assertions on that branch below cannot tell it from the jq-parse-error exit, which
+# publishes the same `unavailable` from the same `$_NO_DIAG` block.
+assert_eq "#1528 the absent-file 'unavailable' comes from the absent-file branch, not the jq-error branch" "crumb" \
+  "$(_nf=$(mktemp -d); \
+     _err=$( ( GITHUB_OUTPUT="$_nf/out" bash "$SED_SH" "$_nf/missing.json" >/dev/null ) 2>&1 ); \
+     printf '%s' "$_err" | grep -qF 'execution file absent or empty' && _c=crumb || _c=nocrumb; \
+     rm -rf "$_nf"; echo "$_c")"
+# A version outside the version alphabet (an injected step-summary payload) sanitizes to
+# `unavailable` rather than being echoed — the reused reader fails CLOSED.
+_D_BADVER='[{"type":"system","subtype":"init","claude_code_version":"2.1.226 <script>alert(1)</script>"},{"type":"result","is_error":false}]'
+assert_eq "#1528 diagnostics sanitizes a non-version-alphabet claude_code_version to 'unavailable'" "yes" \
+  "$(_diag_run "$_D_BADVER" >/dev/null; grep -qxF 'claude_code_version=unavailable' "$D363/out" && echo yes || echo no)"
+
+# The value must be derived with bash builtins — `tr`/`sed`/`cut`/`head` are NOT
+# preflight prerequisites (see lib/preflight.sh), so a missing one would silently
+# yield an empty value and publish a fail-open blank (the guard-class-2 rule).
+assert_eq "#1528 diagnostics derives the published version with bash builtins, not sed/head/grep/awk/cut/tr" "0" \
+  "$(python3 - "$SED_SH" <<'PY'
+import re, sys
+src = open(sys.argv[1], encoding="utf-8").read()
+body = src[src.index("_publish_claude_code_version() {"):src.index("\n}", src.index("_publish_claude_code_version() {"))]
+print(len(re.findall(r"(^|[|;&(]|\$\()\s*(sed|head|grep|awk|cut|tr)\s", body, re.M)))
+PY
+)"
+assert_eq "#1528 diagnostics still publishes the version when sed is absent from PATH" "2.1.226" \
+  "$(_sedless=$(mktemp -d); mkdir -p "$_sedless/bin"; \
+     for _c in bash printf echo cat rm mktemp grep head tr wc cut date dirname basename env test jq python3 type; do \
+       _p=$(command -v "$_c" 2>/dev/null) && ln -sf "$_p" "$_sedless/bin/$_c" 2>/dev/null; done; \
+     printf '%s' "$_D_INIT" > "$_sedless/exec.json"; \
+     ( PATH="$_sedless/bin" GITHUB_OUTPUT="$_sedless/out" bash "$SED_SH" "$_sedless/exec.json" >/dev/null 2>&1 ); \
+     sed -n 's/^claude_code_version=//p' "$_sedless/out"; rm -rf "$_sedless")"
+assert_eq "#1528 diagnostics still exits 0 with a version present and GITHUB_OUTPUT set" "0" \
+  "$(_diag_run "$_D_INIT" >/dev/null 2>&1; echo $?)"
+
+# AC3 (redaction posture): among the init fields, ONLY claude_code_version — a
+# low-sensitivity scalar — is value-published. The others (model/tools/agents/skills/
+# plugins/mcp_servers/permissionMode/capabilities/slash_commands) stay type-only via
+# extract-execution-shape.sh's redaction boundary (unchanged), because a resolved tools
+# list carries consumer-specific paths and the job log is public.
+_D_INITFULL='[{"type":"system","subtype":"init","claude_code_version":"2.1.226","model":"claude-opus-4","tools":["Bash","Read"],"agents":["a"],"skills":["s"],"plugins":["p"],"mcp_servers":[],"permissionMode":"default","capabilities":[],"slash_commands":[]},{"type":"result","is_error":false,"permission_denials_count":0}]'
+assert_eq "#1528 diagnostics value-publishes NO init field other than claude_code_version to GITHUB_OUTPUT (redaction posture)" "0" \
+  "$(_diag_run "$_D_INITFULL" >/dev/null; grep -cE '^(model|tools|agents|skills|plugins|mcp_servers|permissionMode|capabilities|slash_commands)=' "$D363/out")"
+
+# The version lives in the system/init record independent of a result event, so an
+# incomplete run (init present, no result — the stalled-run case this diagnostic exists
+# for) still publishes and renders it, rather than discarding a resolved version.
+_D_INITONLY='[{"type":"system","subtype":"init","claude_code_version":"2.1.226"}]'
+assert_eq "#1528 diagnostics publishes the version on an init-but-no-result-event run" "yes" \
+  "$(_diag_run "$_D_INITONLY" >/dev/null; grep -qxF 'claude_code_version=2.1.226' "$D363/out" && echo yes || echo no)"
+assert_eq "#1528 diagnostics renders the version into the no-result-event block" "yes" \
+  "$(_o=$(_diag_run "$_D_INITONLY"); printf '%s' "$_o" | grep -qxF -e '- claude_code_version: 2.1.226' && echo yes || echo no)"
+# The ::notice:: read-back fires on the incomplete-run path too — the feature's headline use
+# case is a stalled init-but-no-result run, so the consumer read-back must reach it.
+assert_eq "#1528 diagnostics emits the ::notice:: on an init-but-no-result-event run" "yes" \
+  "$(_o=$(_diag_run "$_D_INITONLY"); printf '%s' "$_o" | grep -qF '::notice::DevFlow: claude-code CLI version 2.1.226' && echo yes || echo no)"
+
+# Partial deployment: the sibling lib/probe-observation.sh is absent, so the reused reader
+# is not defined. The type-guard must degrade CCVER to `unavailable` with a breadcrumb and
+# still exit 0 — never a set -u abort (the guarded-source design's central resilience claim).
+assert_eq "#1528 diagnostics degrades to 'unavailable' + exit 0 with a breadcrumb when probe-observation.sh is not sourced" "unavailable-0-crumb" \
+  "$(_pd=$(mktemp -d); mkdir -p "$_pd/scripts" "$_pd/lib"; \
+     cp "$SED_SH" "$_pd/scripts/surface-execution-diagnostics.sh"; \
+     cp "$LIB/../lib/resolve-jq.sh" "$_pd/lib/resolve-jq.sh"; \
+     printf '%s' "$_D_INIT" > "$_pd/exec.json"; \
+     _err=$( ( GITHUB_OUTPUT="$_pd/out" bash "$_pd/scripts/surface-execution-diagnostics.sh" "$_pd/exec.json" >/dev/null ) 2>&1 ); _rc=$?; \
+     _v=$(sed -n 's/^claude_code_version=//p' "$_pd/out"); \
+     printf '%s' "$_err" | grep -qF 'devflow_probe_cli_version unavailable' && _c=crumb || _c=nocrumb; \
+     rm -rf "$_pd"; echo "${_v}-${_rc}-${_c}")"
+
+# The absent/empty-file guard exits before the version resolver runs, so all three of its
+# arms must still publish the `unavailable` sentinel: an empty or forged value there would
+# tell a consumer the CLI build was observed on a run whose execution file never existed.
+assert_eq "#1528 diagnostics publishes 'unavailable' on every absent/empty-execution-file arm (no arg, missing path, zero-byte)" "unavailable|unavailable|unavailable" \
+  "$(: > "$D363/out"; ( GITHUB_OUTPUT="$D363/out" bash "$SED_SH" >/dev/null 2>&1 ); \
+     _noarg=$(sed -n 's/^claude_code_version=//p' "$D363/out"); \
+     : > "$D363/out"; ( GITHUB_OUTPUT="$D363/out" bash "$SED_SH" "$D363/no-such-exec.json" >/dev/null 2>&1 ); \
+     _gone=$(sed -n 's/^claude_code_version=//p' "$D363/out"); \
+     : > "$D363/out"; : > "$D363/zero.json"; \
+     ( GITHUB_OUTPUT="$D363/out" bash "$SED_SH" "$D363/zero.json" >/dev/null 2>&1 ); \
+     _zero=$(sed -n 's/^claude_code_version=//p' "$D363/out"); rm -f "$D363/zero.json"; \
+     echo "${_noarg}|${_gone}|${_zero}")"
+assert_eq "#1528 diagnostics raises no ::notice:: and still exits 0 when the execution file is absent" "nonotice-0" \
+  "$(: > "$D363/out"; \
+     _o=$( ( GITHUB_OUTPUT="$D363/out" bash "$SED_SH" "$D363/no-such-exec.json" ) 2>&1 ); _rc=$?; \
+     printf '%s' "$_o" | grep -qF '::notice::DevFlow: claude-code CLI version' && _n=notice || _n=nonotice; \
+     echo "${_n}-${_rc}")"
+
+# Standalone/local run: with GITHUB_OUTPUT unset the append is skipped, but the ::notice::
+# read-back must still fire and the skip must stay silent — a breadcrumb on the normal
+# local path would train a maintainer to ignore the real append-failure breadcrumb below.
+assert_eq "#1528 diagnostics emits the ::notice:: with no GITHUB_OUTPUT set and breadcrumbs nothing" "notice-nocrumb-0" \
+  "$(printf '%s' "$_D_INIT" > "$D363/exec.json"; \
+     _out=$( ( unset GITHUB_OUTPUT; bash "$SED_SH" "$D363/exec.json" ) 2>/dev/null ); \
+     _err=$( ( unset GITHUB_OUTPUT; bash "$SED_SH" "$D363/exec.json" 2>&1 >/dev/null ) ); _rc=$?; \
+     printf '%s' "$_out" | grep -qF '::notice::DevFlow: claude-code CLI version 2.1.226' && _n=notice || _n=nonotice; \
+     [ -z "$_err" ] && _c=nocrumb || _c=crumb; \
+     echo "${_n}-${_c}-${_rc}")"
+
+# A GITHUB_OUTPUT write failure (here: the var points at a directory, so the append
+# redirect fails) leaves a stderr breadcrumb and still exits 0 — never a silent stall.
+assert_eq "#1528 diagnostics breadcrumbs + exits 0 when the GITHUB_OUTPUT append fails" "crumb-0" \
+  "$(_af=$(mktemp -d); printf '%s' "$_D_INIT" > "$_af/exec.json"; mkdir -p "$_af/outdir"; \
+     _err=$( ( GITHUB_OUTPUT="$_af/outdir" bash "$SED_SH" "$_af/exec.json" >/dev/null ) 2>&1 ); _rc=$?; \
+     printf '%s' "$_err" | grep -qF 'could not append claude_code_version to GITHUB_OUTPUT' && _c=crumb || _c=nocrumb; \
+     rm -rf "$_af"; echo "${_c}-${_rc}")"
 
 # ── Workflow plumbing: the runner exposes the count, defaulting to 0, and the
 # ── review workflow's finalize_check consumes it and raises an ::error:: on a
@@ -47443,7 +47561,7 @@ fi
 # The registry and this full-suite call share the same lower-bound contract;
 # test_module_runner.py parses this operand and rejects any coupling drift.
 if ! devflow_run_full_suite_module "$LIB/test/modules/create-issue-contract.sh" \
-  "create-issue-contract" 418; then
+  "create-issue-contract" 397; then
   printf 'ERROR: create-issue-contract boundary could not record its result\n'
   exit 1
 fi
@@ -53148,12 +53266,9 @@ assert_eq "public site guard: a page navigated twice fails completeness" "no" \
   "$(public_docs_pages_are_navigated_once "$PUBLIC_DUPE_FIXTURE")"
 
 # ── #1595 reference-size ceiling (lib/test/lint-reference-size.py) ──
-# A boundary-gated reference larger than the reader can return in one call yields its
-# start marker and no end marker — the `truncated` shape `/prflow:implement`, `/prflow:review`,
-# `/prflow:review-and-fix` and `/prflow:docs-verify` treat as fail-closed, and that
-# `/prflow:create-issue` degrades best-effort on — with the file intact on disk. The lint measures bytes against a
-# ceiling derived from the reader's token cap; these assertions drive its executable
-# boundary (exit code + emitted verdict lines).
+# Do not relax or exempt this ceiling on the grounds that the boundary gate now pages an
+# over-budget reference whole: paging still costs every loader extra reads, and a smaller
+# reader budget may not complete it. Drive the lint's exit code and verdict lines, not its prose.
 echo "#1595 reference-size ceiling: gated references and skill roots stay under the reader's Read cap"
 RSZ_LINT="$LIB/test/lint-reference-size.py"
 
