@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1769",
+  "generated_at": "2026-08-19T08:13:46Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.23",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 12.364366400000002,
+    "tokens": {
+      "input_tokens": 56,
+      "output_tokens": 49498,
+      "cache_read_input_tokens": 4570022,
+      "cache_creation_input_tokens": 227921,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 188,
+        "outputTokens": 87309,
+        "cacheReadInputTokens": 9142775,
+        "cacheCreationInputTokens": 568551,
+        "webSearchRequests": 0,
+        "costUSD": 11.1632,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 42,
+        "outputTokens": 16148,
+        "cacheReadInputTokens": 1315468,
+        "cacheCreationInputTokens": 150448,
+        "webSearchRequests": 0,
+        "costUSD": 1.2011663999999997,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 44,
+    "duration_ms": 836205
+  },
+  "permission_denials": {
+    "count": 24,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---RUNENV---\"; echo \"run_id=${GITHUB_RUN_ID:-EMPTY} attempt=${GITHUB_RUN_ATTEMPT:-EMPTY}\"",
+      "mkdir -p .prflow/tmp/review/pr-1769/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}",
+      "echo \"run_id=${GITHUB_RUN_ID:-EMPTY}\"; echo \"attempt=${GITHUB_RUN_ATTEMPT:-EMPTY}\"",
+      "/home/runner/work/prflow/prflow/skills/review/../../scripts/compose-run-url.sh",
+      "/home/runner/work/prflow/prflow/skills/review/../../scripts/workpad.py acs-resolve 1759 --pr 1769 ; echo \"acs-rc=$?\"",
+      "echo \"=== inventory adjudicated-prose (field-based) ===\"; awk -F'\\t' '{n=NF; if($(n-1)==\"prose-sole-copy\"||$(n-1)==\"prose-multi-copy\") c++} END{print c+0}' .prflow/logs/pin-corpus-inventory.tsv\necho \"=== rows where last-but-one field is prose ===\"; awk -F'\\t' '{n=NF; if($(n-1)==\"prose-sole-copy\"||$(n-1)==\"prose-multi-copy\") print NR\": \"$2\" | mech=\"$(n-2)\" adj=\"$(n-1)}' .prflow/logs/pin-corpus-inventory.tsv | head -20",
+      "git show 332e8ae403a43d158cc40369465c10813b4399dc:lib/test/modules/create-issue-contract.sh > /tmp/head_module.sh; git show main:lib/test/modules/create-issue-contract.sh > /tmp/base_module.sh; echo \"=== head unique count ===\"; grep -c 'devflow_module_pin_unique' /tmp/head_module.sh; echo \"=== base unique count ===\"; grep -c 'devflow_module_pin_unique' /tmp/base_module.sh",
+      "git show 332e8ae403a43d158cc40369465c10813b4399dc:lib/test/modules/create-issue-contract.sh > /tmp/head_module.sh",
+      "git show main:lib/test/modules/create-issue-contract.sh > /tmp/base_module.sh",
+      "git show 332e8ae403a43d158cc40369465c10813b4399dc:lib/test/modules/create-issue-contract.sh > .prflow/tmp/head_module.sh; git show main:lib/test/modules/create-issue-contract.sh > .prflow/tmp/base_module.sh; echo \"head pin_unique:\"; grep -c 'devflow_module_pin_unique' .prflow/tmp/head_module.sh; echo \"base pin_unique:\"; grep -c 'devflow_module_pin_unique' .prflow/tmp/base_module.sh",
+      "git show 332e8ae403a43d158cc40369465c10813b4399dc:lib/test/modules/create-issue-contract.sh > .prflow/tmp/head_module.sh",
+      "cd /home/runner/work/prflow/prflow\necho \"=== any CI_CLAUDE / CI_TEMPLATE_272 usage across all tracked files on head ===\"\nfor f in $(git show 332e8ae403a43d158cc40369465c10813b4399dc:lib/test/run.sh > /dev/null 2>&1; git ls-tree -r --name-only 332e8ae403a43d158cc40369465c10813b4399dc | grep -E '\\.(sh|py|jq)$'); do\n  git show 332e8ae403a43d158cc40369465c10813b4399dc:\"$f\" 2>/dev/null | grep -nE 'CI_CLAUDE|CI_TEMPLATE_272' | sed \"s|^|$f:|\"\ndone",
+      "cd /home/runner/work/prflow/prflow\ngit ls-tree -r --name-only 332e8ae403a43d158cc40369465c10813b4399dc | grep -E '\\.(sh|py|jq)$' > /tmp/files.txt\nwhile IFS= read -r f; do\n  git show \"332e8ae403a43d158cc40369465c10813b4399dc:$f\" 2>/dev/null | grep -nE 'CI_CLAUDE|CI_TEMPLATE_272' | sed \"s|^|$f:|\"\ndone < /tmp/files.txt",
+      "cd /home/runner/work/prflow/prflow\ngit show 332e8ae403a43d158cc40369465c10813b4399dc:lib/test/run.sh > /tmp/head_run.sh\ngit show 332e8ae403a43d158cc40369465c10813b4399dc:lib/test/modules/create-issue-contract.sh > /tmp/head_cic.sh\ngit show 332e8ae403a43d158cc40369465c10813b4399dc:lib/test/test_module_runner.py > /tmp/head_tmr.py 2>/dev/null\necho done",
+      "git show 332e8ae403a43d158cc40369465c10813b4399dc:lib/test/modules/create-issue-contract.sh > /tmp/head_cic.sh; wc -l /tmp/head_cic.sh",
+      "git show 332e8ae403a43d158cc40369465c10813b4399dc:lib/test/modules/create-issue-contract.sh > /tmp/head_cic.sh",
+      "git show 332e8ae403a43d158cc40369465c10813b4399dc:lib/test/modules/create-issue-contract.sh > .prflow/tmp/head_cic.sh",
+      "git show 332e8ae403a43d158cc40369465c10813b4399dc:scripts/workflow-flight-recorder-registry.json | python3 -c \"\nimport json,sys\nd=json.load(sys.stdin)\ndef find(o,path=''):\n    if isinstance(o,dict):\n        if 'create-issue-contract' in json.dumps(o)[:200] or True:\n            pass\n        for k,v in o.items():\n            find(v,path+'/'+k)\n    elif isinstance(o,list):\n        for i,v in enumerate(o):\n            find(v,path+f'[{i}]')\n\"\ngrep -n '\"create-issue-contract\"' -A3 <(git show 332e8ae40 …[per-command-truncated]",
+      "git show 332e8ae403a43d158cc40369465c10813b4399dc:scripts/workflow-flight-recorder-registry.json > /tmp/reg.json\ngit show 332e8ae403a43d158cc40369465c10813b4399dc:lib/test/run.sh > /tmp/run.sh\ngrep -n '\"create-issue-contract\"' -A5 /tmp/reg.json\necho ---\nsed -n '47430,47450p' /tmp/run.sh",
+      "git show 332e8ae403a43d158cc40369465c10813b4399dc:scripts/workflow-flight-recorder-registry.json > /tmp/reg.json",
+      "git show 332e8ae403a43d158cc40369465c10813b4399dc:lib/test/run.sh > /tmp/run.sh",
+      "git show 332e8ae403a43d158cc40369465c10813b4399dc:scripts/workflow-flight-recorder-registry.json > .prflow/tmp_reg.json 2>/dev/null || mkdir -p .prflow/tmp && git show 332e8ae403a43d158cc40369465c10813b4399dc:scripts/workflow-flight-recorder-registry.json > .prflow/tmp/reg.json\ngit show 332e8ae403a43d158cc40369465c10813b4399dc:lib/test/run.sh > .prflow/tmp/run.sh\ngrep -n '\"create-issue-contract\"' -A5 .prflow/tmp/reg.json",
+      "mkdir -p .prflow/tmp && git show 332e8ae403a43d158cc40369465c10813b4399dc:scripts/workflow-flight-recorder-registry.json > .prflow/tmp/reg.json",
+      "git show 332e8ae403a43d158cc40369465c10813b4399dc:lib/test/run.sh > .prflow/tmp/run.sh"
+    ],
+    "total": 24,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
