@@ -1725,7 +1725,7 @@ class ModuleRunnerTests(unittest.TestCase):
 
     def test_create_issue_self_allocated_root_rejects_unsafe_mktemp_output(self) -> None:
         source = CREATE_ISSUE_MODULE_SOURCE.read_text(encoding="utf-8")
-        boundary = "# The implement-skill bundle backs the #467 D2 Phase-2.4 leg"
+        boundary = 'CI_IMPL_BUNDLE="$_ci_tmp_root/implement-skill-bundle.md"'
         self.assertEqual(source.count(boundary), 1)
         short_module = self.root / "short-create-issue.sh"
         short_module.write_text(
@@ -1777,7 +1777,7 @@ class ModuleRunnerTests(unittest.TestCase):
         self,
     ) -> None:
         source = CREATE_ISSUE_MODULE_SOURCE.read_text(encoding="utf-8")
-        boundary = "# The implement-skill bundle backs the #467 D2 Phase-2.4 leg"
+        boundary = 'CI_IMPL_BUNDLE="$_ci_tmp_root/implement-skill-bundle.md"'
         self.assertEqual(source.count(boundary), 1)
         short_module = self.root / "short-create-issue-traversal.sh"
         short_module.write_text(

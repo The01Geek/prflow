@@ -15842,11 +15842,9 @@ CI_SKILL_256="$CREATE_ISSUE_BUNDLE"   # #614: content-survival target — the sp
 assert_eq "#256 AC1: create-issue removed the goes-quiet disengagement trigger" "yes" \
   "$(! grep -qF 'goes quiet' "$CI_SKILL_256" && echo yes || echo no)"  # raw-guard-ok: absence pin — the removed trigger literal must be GONE
 # ── #272: create-issue gains UI-change visual-specification awareness ──
-# Retain the template section heading.
-CI_TEMPLATE_272="$LIB/../skills/create-issue/references/issue-template.md"
-# AC6: the template carries the new Visual Specification section heading …
-assert_pin_unique "#272 AC6: issue-template has the Visual Specification section heading" \
-  '## Visual Specification' "$CI_TEMPLATE_272"
+# RETIRED by #1759: #272 AC6 "issue-template has the Visual Specification section heading"; its
+# CI_TEMPLATE_272 sole-reader variable is removed with it to avoid an SC2034 unused-assignment.
+# Disposition: docs/internal/pin-corpus-issue-1759-sweep.md
 
 # ── #446: executable config-reader and implement-offer-gate boundaries ──
 CI446_TMPL="$LIB/../skills/create-issue/references/issue-template.md"
@@ -16231,8 +16229,7 @@ assert_pin_unique "#275 pin (P3-live): phase-3 carries the live --persist backst
   "$PORTABLE_ANCHOR_LITERAL"'lib/efficiency-trace.sh --persist' "$LIB/../skills/implement/phases/phase-3-fix-loop.md"
 assert_pin_unique "#275 pin (P3-live): the gated §4.0.5 reference carries a live file-deferrals.py invocation via the portable anchor" \
   "$PORTABLE_ANCHOR_LITERAL"'scripts/file-deferrals.py' "$LIB/../skills/implement/references/deferred-review-findings.md"  # structural-pin-ok: helper-contract -- the filing helper's invocation must resolve through the portable anchor; a bare or absolute spelling is refused on every runner this anchor exists for
-assert_pin_unique "#275 pin (P4-ci): create-issue preamble carries the never-capture operative sentence" \
-  'Never capture the anchor into a shell variable that a later statement reads' "$LIB/../skills/create-issue/SKILL.md"
+# RETIRED by #1759: #275 pin (P4-ci) "create-issue preamble carries the never-capture operative sentence". Disposition: docs/internal/pin-corpus-issue-1759-sweep.md
 # ────────────────────────────────────────────────────────────────────────────
 echo "#332: resolve-main-root.sh (main-worktree root) + create-issue draft-path"
 # ────────────────────────────────────────────────────────────────────────────
@@ -34779,7 +34776,6 @@ CI_MOD_VARS=(
   --var "CI_TMPL_AUDIT=skills/create-issue/references/audit-prompt-template.md"
   --var "CI_TMPL=skills/create-issue/references/issue-template.md"
   --var "CI_EXT=.prflow/prompt-extensions/create-issue.md"
-  --var "CI_CLAUDE=CLAUDE.md"
   --var "CI_INVENTORY=lib/test/modules/create-issue-contract.inventory.md"
   # CI_ROOT lets the meta-guard resolve the module's own `$CI_ROOT/…` assignments
   # (including CI_DV) and inline `$CI_ROOT/…` pin targets; without
@@ -47443,7 +47439,7 @@ fi
 # The registry and this full-suite call share the same lower-bound contract;
 # test_module_runner.py parses this operand and rejects any coupling drift.
 if ! devflow_run_full_suite_module "$LIB/test/modules/create-issue-contract.sh" \
-  "create-issue-contract" 418; then
+  "create-issue-contract" 397; then
   printf 'ERROR: create-issue-contract boundary could not record its result\n'
   exit 1
 fi
