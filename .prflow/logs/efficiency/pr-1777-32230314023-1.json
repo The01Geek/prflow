@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1777",
+  "generated_at": "2026-08-19T08:11:24Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.23",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 11.876659999999996,
+    "tokens": {
+      "input_tokens": 88,
+      "output_tokens": 37774,
+      "cache_read_input_tokens": 7606496,
+      "cache_creation_input_tokens": 227501,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 135,
+        "outputTokens": 57690,
+        "cacheReadInputTokens": 8767582,
+        "cacheCreationInputTokens": 498198,
+        "webSearchRequests": 0,
+        "costUSD": 9.793582250000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 74,
+        "outputTokens": 11465,
+        "cacheReadInputTokens": 1506890,
+        "cacheCreationInputTokens": 389017,
+        "webSearchRequests": 0,
+        "costUSD": 2.0830777499999997,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 72,
+    "duration_ms": 703806
+  },
+  "permission_denials": {
+    "count": 9,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1777/run/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1777/run/verdicts/iter-1/VC-1-n1a7.json << 'EOF'\n{\"id\":\"VC-1\",\"verdict\":\"PASS\",\"evidence\":\"At PR head 018eb3cc: skills/docs-sync-internal/SKILL.md names the ranking 'the Grep tool first, then rg where it resolves on the host, then grep -rnE (excluding VCS, dependency, and build directories)' at every codebase-search instruction (Step 2 HIGH/LOW IMPAC …[per-command-truncated]",
+      "mkdir -p \"$(dirname .prflow/tmp/review/pr-1777/run/verdicts/iter-1/VC-10-nAj6.json)\"",
+      "mkdir -p .prflow/tmp\nif rm -f \".prflow/tmp/review-dirty-tree-before\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \".prflow/tmp/review-dirty-tree-before\" &&\n   [ -f \".prflow/tmp/review-dirty-tree-before\" ] &&\n   [ ! -L \".prflow/tmp/review-dirty-tree-before\" ] &&\n   git hash-object \".prflow/tmp/review-dirty-tree-before\"; then\n  : \nelse\n  echo \"::warning::snapshot failed\" >&2\n  rm -f \".prflow/tmp/review-dirty-tree-before\" 2>/dev/null\n  printf '%s\\n' disable …[per-command-truncated]",
+      "printf '%s\\n' disabled > .prflow/tmp/review-dirty-tree-disabled; ls .prflow/tmp/review-dirty-tree-disabled",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >/tmp/ext.out 2>/tmp/ext.err; echo \"EXIT=$?\"; echo \"---STDOUT---\"; cat /tmp/ext.out; echo \"---STDERR---\"; cat /tmp/ext.err",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review 1>/tmp/ext.out 2>/tmp/ext.err; echo \"EXIT=$?\"",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review 1>.prflow/tmp/ext.out 2>.prflow/tmp/ext.err; echo \"EXIT=$?\"",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review 2>/dev/null | cat; echo \"PIPESTATUS_HELPER=${PIPESTATUS[0]}\"",
+      "for f in skills/docs-sync-internal/SKILL.md skills/receiving-code-review/SKILL.md skills/implement/references/sweep-2-3-2-stranded-dependents.md; do echo \"=== $f ===\"; git show 018eb3cc4e636b2409196b6f4d23cfb03f98f11b:$f | grep -niE 'grep|search the|search for' | grep -viE 'Grep tool first'; done"
+    ],
+    "total": 9,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
