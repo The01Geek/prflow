@@ -174,7 +174,7 @@ Re-anchor before §4.2 (mandatory, after the Phase 4.1 documentation subagent re
 
 ### 4.2 Generate PR Description
 
-Dispatch barrier. As at §4.1, every subagent dispatch here is bound by the dispatch-collection requirement in the engine-ground-truth block injected into this run's prompt — read it there (if your prompt carries no such block, collect every dispatch before the turn ends anyway).
+Dispatch barrier. Every subagent dispatch here is bound by the dispatch-collection requirement in the engine-ground-truth block injected into this run's prompt — read it there (if your prompt carries no such block, collect every dispatch before the turn ends anyway).
 
 Spawn one general-purpose subagent (using the Agent tool) that both updates the PR description and reconciles its claims, so the diff-reading claim audit runs in the subagent's own context, not this orchestrator's. Compose its dispatch instruction to direct it to:
 

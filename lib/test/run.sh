@@ -4508,11 +4508,8 @@ rm -rf "$_f1_skilldir"
 # ── issue #232: the Phase 4.1 post-subagent re-anchor (phase-4-documentation.md), guarding
 # against a run that stops before Phase 4 finalization (workpad frozen at an in-progress
 # Status, un-described draft PR). Coupled to the skill clause: removing it turns the suite
-# RED. Presence is checked via assert_pin_unique (exactly once).
+# RED.
 # (P4_FILE is the shared phase-file path hoisted next to IMPL_PHASES_DIR above.)
-# Do not add a wording pin here over the SKILL.md terminal-status self-check: issue #1768
-# retired that family under CLAUDE.md's prose-pin policy (#843/#876), and a replacement
-# would re-freeze the wording that criterion exists to have released.
 # phase-4-documentation.md Phase 4.1 post-subagent re-anchor scope. Issue #362 reworded the
 # scope clause from "the Phase 4.1 docs subagent return only" to "**subagent** returns",
 # because a Skill-tool return is now covered by the orchestrator's generalized mid-phase
@@ -4523,10 +4520,9 @@ rm -rf "$_f1_skilldir"
 # prose pin — the review pass is its control).
 assert_pin_unique "#232/#362: phase-4 re-anchor scoped to **subagent** returns (AC4, reworded)" \
   'scoped to **subagent** returns' "$P4_FILE"
-# review iter-1 (silent-failure-hunter F2): the Phase 4.1 re-anchor TRIGGER is repeated in
-# the always-loaded orchestrator so a subagent-return eviction cannot remove it. Pin it so a
-# later edit cannot silently drop the hardening.
-# review iter-2 (shadow pr-test-analyzer): pin the operative re-read instruction directly.
+# review iter-2 (shadow pr-test-analyzer): pin the operative re-read instruction directly —
+# the Phase 4.1 re-anchor TRIGGER is repeated in the always-loaded orchestrator so a
+# subagent-return eviction cannot remove it, and dropping the pin drops that hardening.
 assert_pin_unique "#232: orchestrator keeps the OPERATIVE always-loaded re-Read directive (SFH F2)" \
   'the phase file before continuing to §4.2 (resume from §4.2' "$IMPL_ORCH"
 # AC4 scope constraint is mirrored in the always-loaded orchestrator too; pin that copy so the
@@ -4620,10 +4616,10 @@ assert_eq "#362: the vendored requesting-code-review skill is still present and 
   "$([ -f "$LIB/../skills/requesting-code-review/SKILL.md" ] && echo yes || echo no)"
 
 # ── issue #366: guard /devflow:implement against a nested-Skill tail-call early-stop.
-# Four prose contracts in the always-resident orchestrator ($IMPL_ORCH) — the completion
-# re-anchor, the exclusionary Skill rule, the carve-out's SKILL.md sentence, and the
-# terminal-status self-check — one of which (the carve-out) is a coupled pair whose other
-# half is a CLAUDE.md Conventions bullet pinned against the CLAUDE.md path.
+# Three prose contracts in the always-resident orchestrator ($IMPL_ORCH) — the completion
+# re-anchor, the exclusionary Skill rule, and the carve-out's SKILL.md sentence — one of
+# which (the carve-out) is a coupled pair whose other half is a CLAUDE.md Conventions
+# bullet pinned against the CLAUDE.md path.
 # Each operative sentence is pinned with assert_pin_unique (exactly-once)
 # at the owning file boundary via assert_pin_unique.
 # (a) Skill-completion re-anchor trigger — completion-anchored, never re-invoke, orchestrator-resident.
@@ -4649,8 +4645,8 @@ assert_pin_unique "#366: SKILL carve-out is widened to cover the issue's own ACs
   'whether by a Phase-3 review finding **or by the issue' "$IMPL_ORCH"
 assert_pin_unique "#366: CLAUDE.md carve-out bullet carries the same AC4 widening arm (coupled)" \
   'whether by a Phase-3 review finding **or by the issue' "$LIB/../CLAUDE.md"
-# (d) Do not reintroduce a wording pin over the SKILL.md terminal-status self-check: issue
-# #1768 retired the status-read and stall-backstop-citation pins that stood here, and a
+# Do not reintroduce a wording pin over the SKILL.md terminal-status self-check: issue #1768
+# retired the status-read and stall-backstop-citation pins that stood here, and a
 # replacement re-freezes wording that criterion released (CLAUDE.md prose-pin policy).
 # ── issue #254: Phase 4.0.5 deferrals-manifest discovery must search BOTH the pr-<N>
 # slug dir and the sanitized-current-branch slug dir — a current-branch-mode
