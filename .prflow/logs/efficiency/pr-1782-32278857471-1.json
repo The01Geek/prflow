@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1782",
+  "generated_at": "2026-08-19T17:06:40Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.31",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 8.2198925,
+    "tokens": {
+      "input_tokens": 46,
+      "output_tokens": 25478,
+      "cache_read_input_tokens": 3393729,
+      "cache_creation_input_tokens": 201607,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 120,
+        "outputTokens": 53683,
+        "cacheReadInputTokens": 5327620,
+        "cacheCreationInputTokens": 553181,
+        "webSearchRequests": 0,
+        "costUSD": 8.2198925,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 32,
+    "duration_ms": 466564
+  },
+  "permission_denials": {
+    "count": 2,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "mkdir -p .prflow/tmp\nif rm -f \".prflow/tmp/review-dirty-tree-before\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \".prflow/tmp/review-dirty-tree-before\" &&\n   [ -f \".prflow/tmp/review-dirty-tree-before\" ] &&\n   [ ! -L \".prflow/tmp/review-dirty-tree-before\" ] &&\n   git hash-object \".prflow/tmp/review-dirty-tree-before\"; then\n  echo \"snapshot-ok\"\nelse\n  echo \"snapshot-failed\"\nfi\nprintf '%s\\n' \"\" > .prflow/tmp/displaced-paths.txt; echo \"displaced-list-empty …[per-command-truncated]",
+      "git status --porcelain -z > .prflow/tmp/review-dirty-tree-before; git hash-object .prflow/tmp/review-dirty-tree-before"
+    ],
+    "total": 2,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
