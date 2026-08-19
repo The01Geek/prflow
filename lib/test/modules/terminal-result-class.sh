@@ -95,6 +95,15 @@ for trc_line in \
   assert_eq "#1273 review '$trc_line' -> incomplete" \
     "incomplete" "$(bash "$TRC_HELPER" review "$trc_line")"
 done
+# Input normalization contract: a trailing carriage return IS trimmed (a receipt line
+# written on one platform and read on another), so a CR-terminated POSTED literal still
+# verdict-posts; leading whitespace is deliberately NOT trimmed, so an indented line
+# stays outside the vocabulary and falls to incomplete. A regression that dropped the
+# trailing-CR trim, or broadened it to strip leading/other whitespace, goes RED here.
+assert_eq "#1273 review 'POSTED review APPROVE\\r' (trailing CR trimmed) -> verdict-posted" \
+  "verdict-posted" "$(bash "$TRC_HELPER" review "$(printf 'POSTED review APPROVE\r')")"
+assert_eq "#1273 review ' POSTED review APPROVE' (leading space NOT trimmed) -> incomplete" \
+  "incomplete" "$(bash "$TRC_HELPER" review " POSTED review APPROVE")"
 # AC: job-conclusion matrix — complete/verdict-posted succeed; blocked/incomplete and
 # any unknown class fail closed to non-success.
 assert_eq "#1273 conclusion(complete) -> success" "success" "$(bash "$TRC_HELPER" conclusion complete)"

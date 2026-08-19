@@ -13,9 +13,9 @@ implementations — over the entire input space — turns the suite RED.
 
 Totality is not asserted by inspection: the implement leg emits exactly
 ``len(WORKPAD_CLASSES) * len(JOB_STATUSES)`` rows and the review leg exactly
-``len(REVIEW_OUTCOMES)`` rows, and the module re-derives those products and asserts
-the row counts match, so an input the vocabulary omits is a missing row, not a silent
-gap.
+``len(REVIEW_OUTCOMES)`` rows, and the module asserts the emitted row counts equal
+those fixed expected totals, so an input the vocabulary omits is a missing row that
+fails the count, not a silent gap.
 
 The closed vocabularies below are the shared property of the producers this mapping
 reconciles — change a producer's vocabulary and re-run this generator so its ``--check``
