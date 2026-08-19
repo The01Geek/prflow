@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1780",
+  "generated_at": "2026-08-19T16:41:09Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.30",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 16.865765500000002,
+    "tokens": {
+      "input_tokens": 134,
+      "output_tokens": 45164,
+      "cache_read_input_tokens": 14789084,
+      "cache_creation_input_tokens": 278586,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 274,
+        "outputTokens": 80741,
+        "cacheReadInputTokens": 18399696,
+        "cacheCreationInputTokens": 736212,
+        "webSearchRequests": 0,
+        "costUSD": 16.865765500000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 88,
+    "duration_ms": 2575287
+  },
+  "permission_denials": {
+    "count": 7,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GHA=$GITHUB_ACTIONS RUNID=$GITHUB_RUN_ID\"; echo \"---behind main---\"; git rev-list --count HEAD..origin/main; echo \"---diff stat vs mergebase---\"; git diff --stat c311e1bbeb645a8576182353bbc1178d4d66e3bc HEAD; echo \"---tree---\"; git status --porcelain",
+      "printf 'GHA=[%s] RUNID=[%s]\\n' \"$GITHUB_ACTIONS\" \"$GITHUB_RUN_ID\"; echo \"---behind main---\"; git rev-list --count HEAD..origin/main; echo \"---diffstat vs mergebase---\"; git diff --stat c311e1bbeb645a8576182353bbc1178d4d66e3bc HEAD; echo \"---tree---\"; git status --porcelain",
+      ".prflow/vendor/prflow/scripts/workpad.py update 1772 \\\n  --expect-comment-id 5337864152 --expect-status Failed \\\n  --status Setup \\\n  --run-link \"[View run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)\" \\\n  --record-classification non-bug \"Wires the already-shipped-but-uncalled --effort-supported seam into its callers; integration wiring, not repair of a reproducible runtime malfunction\" \\\n  --reconcile-reproduction non-bug --reconcile-extension-rows \\\n  --checkpoint \"gha:$ …[per-command-truncated]",
+      "ROOT=$(git rev-parse --show-toplevel); printf 'root=[%s]\\n' \"${ROOT}\"",
+      "for f in devflow-implement devflow-runner devflow; do echo \"=== $f ===\"; grep -n \"effort_supported\\|id: provider\\|steps.provider\" .github/workflows/$f.yml | head -30; done",
+      "scripts/prompt-surface-growth.py 2>&1; echo \"---EXIT:$?---\"",
+      "scripts/prompt-surface-growth.py"
+    ],
+    "total": 7,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
