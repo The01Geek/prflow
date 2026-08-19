@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1766",
+  "generated_at": "2026-08-19T05:23:09Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.21",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 11.480509499999998,
+    "tokens": {
+      "input_tokens": 60,
+      "output_tokens": 38779,
+      "cache_read_input_tokens": 4942000,
+      "cache_creation_input_tokens": 235165,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 108,
+        "outputTokens": 61578,
+        "cacheReadInputTokens": 6145330,
+        "cacheCreationInputTokens": 539536,
+        "webSearchRequests": 0,
+        "costUSD": 8.86662375,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 94,
+        "outputTokens": 13696,
+        "cacheReadInputTokens": 1977800,
+        "cacheCreationInputTokens": 483953,
+        "webSearchRequests": 0,
+        "costUSD": 2.6138857500000006,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 54,
+    "duration_ms": 714737
+  },
+  "permission_denials": {
+    "count": 9,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---RUNID---\"; echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-EMPTY} ATTEMPT=${GITHUB_RUN_ATTEMPT:-EMPTY}\"; echo \"---BASE---\"; .prflow/vendor/prflow/scripts/config-get.sh .base_branch main",
+      "echo \"=== full 'two admissible origins — the request named' statement occurrences at PR head ===\"\ngit show 1b0bf9747:skills/create-issue/references/issue-template.md | grep -c \"exactly two admissible origins — the request named the guarantee\"\ngit show 1b0bf9747:skills/create-issue/references/step-3-5-steelman.md | grep -c \"exactly two admissible origins — the request named the guarantee\"\necho \"=== Body-routing sentence unchanged at PR head ===\"\ngit show 1b0bf9747:skills/create-issue/references/i …[per-command-truncated]",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before\ngit hash-object .prflow/tmp/review-dirty-tree-before",
+      "for f in visual premises regression contracts semantic compatibility; do echo \"=== $f ===\"; git show 1b0bf9747:skills/create-issue/references/quality-group-$f.md | grep -n -i \"omit/merge/add\\|acceptance criter\\|- \\[ \\]\" | head -20; done",
+      "for f in visual premises regression contracts semantic compatibility; do echo \"=== $f ===\"; git show 1b0bf9747:skills/create-issue/references/quality-group-$f.md > /tmp/qg-$f.md; grep -c -i \"omit/merge/add\" /tmp/qg-$f.md; done",
+      "for g in visual premises regression; do echo \"=== $g ===\"; git show 1b0bf9747:skills/create-issue/references/quality-group-$g.md | grep -in \"acceptance cri\\|criterion\\|omit/merge\\|issue-template\" | head; done",
+      "for g in visual premises regression; do echo \"=== $g ===\"; git show 1b0bf9747:skills/create-issue/references/quality-group-$g.md | grep -in 'criterion\\|acceptance cri\\|omit/merge\\|issue-template' | head; done",
+      "for f in $(git show 1b0bf9747:skills/create-issue/references/ 2>/dev/null); do :; done; git grep -n \"admissible origin\" 1b0bf9747 -- 'skills/create-issue/**' 2>/dev/null",
+      "grep -n -i \"two admissible origins\\|admissible origin\" $(git show 1b0bf9747 --stat 2>/dev/null; echo) 2>/dev/null; git show 1b0bf9747:skills/create-issue/references/step-3-5-steelman.md | grep -c \"admissible origin\""
+    ],
+    "total": 9,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
