@@ -42,10 +42,9 @@ jobs:
         run: |
           set -euo pipefail
           ENABLED=$(echo "$CONFIG_JSON" | jq -r '.workflows.prflow // false')
-          # Bare extraction, never `// true`/`// 90`: jq's `//` treats a real JSON `false`/`0`
-          # as null and returns the default, so an explicit enabled=false or threshold=0 would
-          # be silently coerced to its truthy default (the #312 off-switch trap). null (absent)
-          # is defaulted below in shell instead.
+          # Bare extraction, never `// true`/`// 90`: jq's `//` treats a real JSON `false`/`0` as
+          # null and returns the default, silently coercing enabled=false / threshold=0 to their
+          # truthy default (the #312 off-switch trap). null (absent) is defaulted below in shell.
           OBS_ENABLED=$(echo "$CONFIG_JSON" | jq -r '.prflow_implement.stall_observer.enabled')
           THRESHOLD=$(echo "$CONFIG_JSON" | jq -r '.prflow_implement.stall_observer.advisory_threshold_minutes')
           if [ "$ENABLED" != "true" ]; then
@@ -73,10 +72,9 @@ jobs:
             echo "## PRFlow stall observer — $NOW"
             echo "Advisory threshold: ${THRESHOLD} min (advisory-only — this observer never kills or resumes a run)."
           } >> "$GITHUB_STEP_SUMMARY"
-          # Enumerate open PRFlow issues. The OR-search label form is mandatory: repeated
-          # --label flags AND, silently returning zero candidates (CLAUDE.md label-filter trap).
-          # Check the enumeration's own status: a failed `gh issue list` must not read as an
-          # empty (clean) scan — surfacing stalls is the observer's whole job.
+          # OR-search label form is mandatory: repeated --label flags AND to zero candidates
+          # (CLAUDE.md trap). And a failed `gh issue list` must not read as an empty clean scan
+          # — surfacing stalls is the observer's whole job, so its rc is checked below.
           if ! ISSUES_RAW=$(gh issue list --state open --limit 200 \
             --search 'label:PRFlow,DevFlow' --json number --jq '.[].number'); then
             echo "::warning::stall-observer: could not list open PRFlow issues (gh issue list failed); this scan did not run"
@@ -88,8 +86,16 @@ jobs:
           SKIPPED=0
           for n in "${ISSUES[@]}"; do
             [ -n "$n" ] || continue
-            # No workpad on this issue (workpad.py id exits 2) is the common case — skip quietly.
-            CID=$(python3 scripts/workpad.py id "$n" 2>/dev/null) || continue
+            # workpad.py id exits 2 for "no workpad" (common — skip quietly); any other non-zero
+            # is a real gh/parse error the sibling steps also surface, so warn + count it.
+            if CID=$(python3 scripts/workpad.py id "$n" 2>/dev/null); then
+              :
+            else
+              id_rc=$?
+              if [ "$id_rc" -eq 2 ]; then continue; fi
+              echo "::warning::stall-observer: could not resolve workpad id for issue #${n} (workpad.py id rc=${id_rc}); skipped"
+              SKIPPED=$((SKIPPED + 1)); continue
+            fi
             [ -n "$CID" ] || continue
             # A body-read or decision failure is unexpected (decide encodes every malformed
             # input as an rc-0 token), so surface it rather than dropping the issue silently.

@@ -34160,6 +34160,21 @@ _wftok1027 = re.search(r'\[ "\$TOKEN" = "([^"]+)" \]', _wf1027)
 assert_eq("#1027 coupling: workflow TOKEN comparison uses a real DECISION_TOKENS member", True,
           _wftok1027 is not None and _wftok1027.group(1) in stall_observer.DECISION_TOKENS)
 
+# Exact-threshold boundary: minutes == threshold is stale-advisory (decide uses `minutes < threshold`).
+_bnd1027 = _dt1027(2026, 8, 19, 8, 58, tzinfo=_tz1027.utc)  # exactly 90 min after 07:28
+assert_eq("#1027 decide: minutes == threshold -> stale-advisory (boundary)",
+          "stale-advisory", stall_observer.decide(_f1027, _bnd1027, 90, "true").token)
+assert_eq("#1027 decide: minutes == threshold reports that exact minute count",
+          90, stall_observer.decide(_f1027, _bnd1027, 90, "true").minutes)
+
+# minutes is None on every non-fresh/non-stale token (never a spurious silence figure).
+assert_eq("#1027 decide: disabled carries minutes None",
+          None, stall_observer.decide(_f1027, _now1027, 90, "false").minutes)
+assert_eq("#1027 decide: not-candidate carries minutes None",
+          None, stall_observer.decide(stall_observer.parse_workpad(_wp1027(status="🎉 Complete")), _now1027, 90, "true").minutes)
+assert_eq("#1027 decide: unreadable carries minutes None",
+          None, stall_observer.decide(_fb, _now1027, 90, "true").minutes)
+
 print()
 print(f"{PASS} passed, {FAIL} failed")
 sys.exit(0 if FAIL == 0 else 1)
