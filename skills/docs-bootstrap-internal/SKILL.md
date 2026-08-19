@@ -116,11 +116,11 @@ else
 fi
 ```
 
-Then use the Glob tool (not a shell command) to enumerate the remaining signals:
+Then use the Glob tool (not a shell command) to enumerate the remaining signals. Run one Glob call per pattern (or brace-expand into a single pattern, e.g. `**/*.{sql,schema}`) and ignore VCS, dependency, and build directories (e.g. `node_modules`, `vendor`, build output) in the results:
 
-- Database tables (if schema files exist): Glob patterns `**/*.sql` and `**/*.schema`.
-- Page controllers / routes: Glob patterns `**/pages/**`, `**/routes/**`, and `**/controllers/**`.
-- Configuration and integrations: Glob patterns `**/*.config.*`, `**/*.yml`, and `**/*.yaml`.
+- Database tables (if schema files exist): `**/*.{sql,schema}` (or `**/*.sql` and `**/*.schema` as separate calls).
+- Page controllers / routes: `**/pages/**`, `**/routes/**`, and `**/controllers/**`, each a separate call.
+- Configuration and integrations: `**/*.config.*`, and `**/*.{yml,yaml}` (or `**/*.yml` and `**/*.yaml` as separate calls).
 
 ### Step 3: Design the Category Structure
 
