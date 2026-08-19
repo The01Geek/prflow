@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1792",
+  "generated_at": "2026-08-19T15:45:27Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.26",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 7.277749249999998,
+    "tokens": {
+      "input_tokens": 66,
+      "output_tokens": 25509,
+      "cache_read_input_tokens": 4737217,
+      "cache_creation_input_tokens": 183773,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 104,
+        "outputTokens": 46073,
+        "cacheReadInputTokens": 5598411,
+        "cacheCreationInputTokens": 421928,
+        "webSearchRequests": 0,
+        "costUSD": 7.277749249999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 43,
+    "duration_ms": 475857
+  },
+  "permission_denials": {
+    "count": 3,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---ENV---\"; echo \"RUN_ID=${GITHUB_RUN_ID:-unset} ATTEMPT=${GITHUB_RUN_ATTEMPT:-unset}\"",
+      "mkdir -p .prflow/tmp/review/pr-1792/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}; gh pr diff 1792 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1792/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}/diff.patch | grep -c '^diff --git'",
+      "for f in scripts/post-review-verdict.sh scripts/check-verdict-post-reached.sh scripts/stall-backstop-decide.sh scripts/workpad.py; do test -e \"$f\" && echo \"EXISTS: $f\" || echo \"MISSING: $f\"; done"
+    ],
+    "total": 3,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
