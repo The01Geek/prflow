@@ -123,5 +123,60 @@
       "iter": 5,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.17",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 19.179190750000007,
+    "tokens": {
+      "input_tokens": 98,
+      "output_tokens": 67228,
+      "cache_read_input_tokens": 9485348,
+      "cache_creation_input_tokens": 283713,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 236,
+        "outputTokens": 135846,
+        "cacheReadInputTokens": 15352524,
+        "cacheCreationInputTokens": 1126668,
+        "webSearchRequests": 0,
+        "costUSD": 19.179190750000007,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 74,
+    "duration_ms": 1252769
+  },
+  "permission_denials": {
+    "count": 7,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---BASE---\"; .prflow/vendor/prflow/scripts/config-get.sh .base_branch main; echo \"---ENV---\"; echo \"RUN_ID=${GITHUB_RUN_ID:-} ATTEMPT=${GITHUB_RUN_ATTEMPT:-}\"",
+      "echo \"run=${GITHUB_RUN_ID:-none} attempt=${GITHUB_RUN_ATTEMPT:-1}\"",
+      "cd /home/runner/work/prflow/prflow; echo \"=== stale round-class refs in shipped create-issue prose (PR head) ===\"; git show 5e13543:skills/create-issue/SKILL.md | grep -niE 'revise-and-reaudit|automatic re-?audit' || echo \"SKILL.md: none\"; for f in step-3-6-audit step-3-6-audit-adjudication step-3-6-audit-dispatch step-4-present-create degradation-routing; do echo \"--- $f ---\"; git show 5e13543:skills/create-issue/references/$f.md | grep -niE 'revise-and-reaudit|automatic re-?audit' || echo \"non …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow; echo \"=== offer-before-round sentence presence in each of the 7 candidate arms (PR head) ===\"; for f in step-3-6-audit step-3-6-audit-shared step-3-6-audit-dispatch step-3-6-audit-adjudication fallback-audit-dispatch-arms fallback-audit-boundary-offer fallback-state-owner-unavailable; do printf '%-32s ' \"$f:\"; git show 5e13543:skills/create-issue/references/$f.md 2>/dev/null | grep -icE 'offered? .*before (it|this|the round|running)|before (it|the round) opens …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow; mkdir -p .prflow/tmp; if rm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null && git status --porcelain -z > .prflow/tmp/review-dirty-tree-before && [ -f .prflow/tmp/review-dirty-tree-before ] && [ ! -L .prflow/tmp/review-dirty-tree-before ] && git hash-object .prflow/tmp/review-dirty-tree-before; then echo OK; else echo \"SNAP-FAIL\"; printf '%s\\n' disabled > .prflow/tmp/review-dirty-tree-disabled; fi",
+      "cd /home/runner/work/prflow/prflow; git status --porcelain -z > .prflow/tmp/review-dirty-tree-before",
+      "cd /home/runner/work/prflow/prflow; echo \"=== registered subcommands (independent signal) for the 5 new _CONDITIONAL members ===\"; for c in query-round-kind query-arm record-return record-adjudication query-next-action record-offer query-adjudication-records record-adjudication-render; do printf '%-28s ' \"$c:\"; grep -qE \"add_parser\\('$c'\" scripts/issue-audit-state.py && echo \"REGISTERED\" || echo \"MISSING\"; done; echo; echo \"=== ALC MEASURE line + expect ===\"; grep -nE 'ALC_795_EXPECT|ALC_795_CAL …[per-command-truncated]"
+    ],
+    "total": 7,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
