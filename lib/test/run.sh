@@ -4510,14 +4510,9 @@ rm -rf "$_f1_skilldir"
 # Status, un-described draft PR). Coupled to the skill clause: removing it turns the suite
 # RED.
 # (P4_FILE is the shared phase-file path hoisted next to IMPL_PHASES_DIR above.)
-# phase-4-documentation.md Phase 4.1 post-subagent re-anchor scope. Issue #362 reworded the
-# scope clause from "the Phase 4.1 docs subagent return only" to "**subagent** returns",
-# because a Skill-tool return is now covered by the orchestrator's generalized mid-phase
-# re-anchor instead. Issue #1577 added a SECOND subagent-return re-anchor (§4.2's
-# PR-description subagent, before §4.3); that note is worded "fires on a **subagent** return
-# only" so this grandfathered, adjudicated literal stays unique to the §4.1 note (per
-# CLAUDE.md #843/#876 the §4.2 re-anchor is agent-executed prompt prose that owes no new
-# prose pin — the review pass is its control).
+# Do not re-point this pin at §4.2's re-anchor or widen its literal: the literal is
+# grandfathered as unique to the §4.1 note, and §4.2's counterpart is agent-executed prose
+# that owes no pin (CLAUDE.md #843/#876). Provenance: docs/internal/implement-skill.md.
 assert_pin_unique "#232/#362: phase-4 re-anchor scoped to **subagent** returns (AC4, reworded)" \
   'scoped to **subagent** returns' "$P4_FILE"
 # review iter-2 (shadow pr-test-analyzer): pin the operative re-read instruction directly —
