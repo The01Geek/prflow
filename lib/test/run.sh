@@ -24697,6 +24697,12 @@ def result(content, uid="su1", is_error=False):
 # than leaving an empty fixture the helper would read as unparseable and pass for the wrong reason.
 scenarios = {
     "whole":       [skill_use(), result(body)],
+    # The REAL claude-code-action shape: tool_result content is a list of text blocks, not a
+    # plain string. content_text must reconstruct the body from the blocks (join text fields),
+    # or a quote/newline in a control line would fail to match a JSON-escaped serialization.
+    "whole_blocks":[skill_use(),
+                    {"type": "tool_result", "tool_use_id": "su1",
+                     "content": [{"type": "text", "text": body}], "is_error": False}],
     # Body missing its final line: the tail control cannot be found.
     "short_tail":  [skill_use(), result(body.rsplit("\n", 2)[0])],
     # Only the tail line survives: tail present, a real interior line absent.
@@ -24781,6 +24787,10 @@ assert_eq "#1618 skill-body: an absent execution file -> unestablished" \
   "unestablished" \
   "$(_o="$(python3 "$SBL" "$SBL_TMP/definitely-not-here.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" 2>/dev/null)"; case "$_o" in *'VERDICT: '*) _v="${_o#*'VERDICT: '}"; printf '%s' "${_v%%$'\n'*}" ;; *) printf 'NO_VERDICT' ;; esac)"
 
+# The real claude-code-action content shape (a list of text blocks) reconstructs to the body,
+# so a whole delivery still reads delivered-whole rather than failing the disk-control match.
+assert_eq "#1618 skill-body: tool_result content as a list of text blocks -> delivered-whole" \
+  "delivered-whole" "$(sbl whole_blocks)"
 # A single whole-file JSON document (not JSONL) still resolves — the whole-file json.loads path.
 assert_eq "#1618 skill-body: whole-file JSON (not JSONL) -> delivered-whole" \
   "delivered-whole" "$(sbl whole_json)"

@@ -103,6 +103,19 @@ def collect_skill_pairs(parsed):
     def content_text(content):
         if isinstance(content, str):
             return content
+        # claude-code-action records a tool_result's content as a list of blocks, e.g.
+        # [{"type": "text", "text": "<body>"}]. Reconstruct the delivered text by joining the
+        # text blocks so the raw on-disk controls substring-match the delivered body — a
+        # json.dumps of the list would JSON-escape the body and a control line carrying a
+        # quote/backslash/newline would then fail to match a genuinely-whole delivery. Fall
+        # back to a JSON dump only for a shape carrying no text blocks.
+        if isinstance(content, list):
+            texts = [
+                b["text"] for b in content
+                if isinstance(b, dict) and b.get("type") == "text" and isinstance(b.get("text"), str)
+            ]
+            if texts:
+                return "".join(texts)
         return json.dumps(content)
 
     def walk(o):
