@@ -31650,6 +31650,21 @@ assert_eq "#313 resolver: provider env map survives into the decision intact" \
   '{"ANTHROPIC_DEFAULT_HAIKU_MODEL":"z-ai/glm-4.7","CLAUDE_CODE_SUBAGENT_MODEL":"z-ai/glm-5.2","CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS":"1"}' \
   "$(echo '{"claude_model":"m","providers":{"p":{"base_url":"u","auth":"bearer","env":{"ANTHROPIC_DEFAULT_HAIKU_MODEL":"z-ai/glm-4.7","CLAUDE_CODE_SUBAGENT_MODEL":"z-ai/glm-5.2","CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS":"1"}}},"prflow_implement":{"provider":"p"}}' | r313 prflow_implement | jq -c .env)"
 
+# AC 1 (#1770): a bedrock_api_key entry with NO base_url resolves to an ACTIVE provider
+# decision (not an incomplete_provider error) — base_url is optional on this arm, default "".
+assert_eq "#313/#1770 resolver: bedrock_api_key entry without base_url → active decision (base_url empty)" \
+  '{"provider":"bed","base_url":"","auth":"bedrock_api_key","timeout_ms":"","effort_supported":false,"model":"us.anthropic.claude-x","env":{"AWS_REGION":"us-east-1"}}' \
+  "$(echo '{"claude_model":"m","providers":{"bed":{"auth":"bedrock_api_key","env":{"AWS_REGION":"us-east-1"}}},"prflow_implement":{"provider":"bed","claude_model":"us.anthropic.claude-x"}}' | r313 prflow_implement)"
+# #1770: a bedrock_api_key entry MAY still carry a base_url — the resolver keeps it in the
+# decision (the inject step ignores it and warns); the arm stays active, not an error.
+assert_eq "#313/#1770 resolver: bedrock_api_key entry carrying base_url → decision retains it (inject warns)" \
+  '{"provider":"bed","base_url":"https://x","auth":"bedrock_api_key","timeout_ms":"","effort_supported":false,"model":"m","env":{"AWS_REGION":"us-east-1"}}' \
+  "$(echo '{"claude_model":"m","providers":{"bed":{"auth":"bedrock_api_key","base_url":"https://x","env":{"AWS_REGION":"us-east-1"}}},"prflow_implement":{"provider":"bed"}}' | r313 prflow_implement)"
+# #1770 six-shape matrix (base_url on the bedrock arm): a wrong-type base_url coerces to ""
+# rather than crashing or erroring — base_url is not required nor validated on this arm.
+assert_eq "#313/#1770 resolver: bedrock_api_key entry with wrong-type base_url → base_url coerced to empty" "" \
+  "$(echo '{"claude_model":"m","providers":{"bed":{"auth":"bedrock_api_key","base_url":{"x":1},"env":{"AWS_REGION":"us-east-1"}}},"prflow_implement":{"provider":"bed"}}' | r313 prflow_implement | jq -r .base_url)"
+
 # AC 9: adversarial input-shape matrix — each malformed shape yields exit-0 plus its
 # SPECIFIC (not generic) documented decision/error marker. The resolver type-guards every
 # index, so NO shape crashes the workflow step (rc≠0) — the exit-0 sweep below proves it.
@@ -31660,11 +31675,12 @@ assert_eq "#313 matrix: providers wrong-type (string) → undefined_provider mar
   '{"error":"undefined_provider","section":"prflow_implement","provider":"openrouter","detail":"provider is not defined in the providers map"}' \
   "$(echo '{"claude_model":"m","providers":"nope","prflow_implement":{"provider":"openrouter"}}' | r313 prflow_implement)"
 # Provider PRESENT but incomplete → FAIL-LOUD error marker (not a silent default with an
-# empty base_url/auth): a provider-active decision must never reach the inject step with an
-# empty ANTHROPIC_BASE_URL / a non-{bearer,api_key} auth (review C1/sfh — the old fail-open).
-assert_eq "#313 matrix: provider entry present but missing base_url → incomplete_provider marker (fail-loud)" \
+# empty base_url/auth): a bearer/api_key provider-active decision must never reach the inject
+# step with an empty ANTHROPIC_BASE_URL, and the resolver rejects an auth value outside
+# {bearer,api_key,bedrock_api_key} before the inject step (review C1/sfh — the old fail-open).
+assert_eq "#313 matrix: provider entry present (bearer) but missing base_url → incomplete_provider marker (fail-loud)" \
   '{"error":"incomplete_provider","section":"prflow_implement","provider":"p","detail":"provider entry has no base_url"}' \
-  "$(echo '{"claude_model":"m","providers":{"p":{}},"prflow_implement":{"provider":"p"}}' | r313 prflow_implement)"
+  "$(echo '{"claude_model":"m","providers":{"p":{"auth":"bearer"}},"prflow_implement":{"provider":"p"}}' | r313 prflow_implement)"
 # The EMPTY-STRING base_url disjunct (distinct from the missing/wrong-type one above): a
 # present but empty base_url is also fail-loud. Pins the `== ""` half of the guard so a
 # mutation dropping it (reintroducing the empty-ANTHROPIC_BASE_URL fail-open) goes RED.
@@ -31672,10 +31688,10 @@ assert_eq "#313 matrix: provider entry with EMPTY base_url → incomplete_provid
   '{"error":"incomplete_provider","section":"prflow_implement","provider":"p","detail":"provider entry has no base_url"}' \
   "$(echo '{"claude_model":"m","providers":{"p":{"base_url":"","auth":"bearer"}},"prflow_implement":{"provider":"p"}}' | r313 prflow_implement)"
 assert_eq "#313 matrix: provider entry present but missing auth → incomplete_provider marker" \
-  '{"error":"incomplete_provider","section":"prflow_implement","provider":"p","detail":"provider auth must be bearer or api_key"}' \
+  '{"error":"incomplete_provider","section":"prflow_implement","provider":"p","detail":"provider auth must be one of bearer, api_key, bedrock_api_key"}' \
   "$(echo '{"claude_model":"m","providers":{"p":{"base_url":"u"}},"prflow_implement":{"provider":"p"}}' | r313 prflow_implement)"
-assert_eq "#313 matrix: provider auth outside {bearer,api_key} (e.g. Bearer) → incomplete_provider marker" \
-  '{"error":"incomplete_provider","section":"prflow_implement","provider":"p","detail":"provider auth must be bearer or api_key"}' \
+assert_eq "#313 matrix: provider auth outside {bearer,api_key,bedrock_api_key} (e.g. Bearer) → incomplete_provider marker" \
+  '{"error":"incomplete_provider","section":"prflow_implement","provider":"p","detail":"provider auth must be one of bearer, api_key, bedrock_api_key"}' \
   "$(echo '{"claude_model":"m","providers":{"p":{"base_url":"u","auth":"Bearer"}},"prflow_implement":{"provider":"p"}}' | r313 prflow_implement)"
 assert_eq "#313 matrix: empty-string section provider → Anthropic-default decision" \
   '{"provider":"","base_url":"","auth":"","timeout_ms":"","effort_supported":true,"model":"m","env":{}}' \
@@ -31730,9 +31746,17 @@ for R313_WF in "$IMPL_WF" "$RUNNER_WF" "$LIGHT_WF"; do
   # claude_code_oauth_token stays under the empty-decision (no-provider) condition.
   assert_pin_unique "#313 defaults: $R313_TAG passes OAuth token only on the no-provider path" \
     "steps.provider.outputs.provider == '' && secrets.CLAUDE_CODE_OAUTH_TOKEN" "$R313_WF"
-  # anthropic_api_key rides only on the provider-active path.
-  assert_pin_unique "#313 defaults: $R313_TAG passes anthropic_api_key only on the provider path" \
-    "steps.provider.outputs.provider != '' && secrets.DEVFLOW_PROVIDER_API_KEY" "$R313_WF"
+  # structural-pin-ok: routing-dispatch-contract -- the use_bedrock action input is the
+  # dispatch contract selecting Amazon Bedrock at the action layer (#1770 AC 2/3), an
+  # expression the runner evaluates and no executed step body writes.
+  assert_pin_unique "#313/#1770 AC2/3: $R313_TAG passes use_bedrock 'true' only on the bedrock_api_key arm ('' otherwise)" \
+    "steps.provider.outputs.auth == 'bedrock_api_key' && 'true' || ''" "$R313_WF"
+  # anthropic_api_key rides on the bearer/api_key arms: provider-active AND not the bedrock
+  # arm (#1770 AC 6 narrows it so bedrock passes '' here).
+  # structural-pin-ok: routing-dispatch-contract -- the anthropic_api_key action input is a
+  # runner-evaluated credential-routing expression, unreachable by executing the step bodies.
+  assert_pin_unique "#313 defaults: $R313_TAG passes anthropic_api_key only on the non-bedrock provider path" \
+    "steps.provider.outputs.provider != '' && steps.provider.outputs.auth != 'bedrock_api_key' && secrets.DEVFLOW_PROVIDER_API_KEY" "$R313_WF"
   # AC 6 empty-secret guard: the inject step's run body is byte-identical across the three,
   # so a UNIFORM removal keeps the body-identity check GREEN — this per-file presence pin is
   # what makes dropping the fail-loud guard from all three go RED (assert_pin_unique proves
@@ -31910,6 +31934,15 @@ print(next(s["run"] for j in d["jobs"].values() for s in j.get("steps",[]) if s.
     assert_eq "#313 resolve-body: undefined provider fails loud (exit 1)" "1" "$R313_RC"
     assert_eq "#313 resolve-body: undefined provider emits ::error:: naming the section + provider" "yes" \
       "$(printf '%s' "$R313_OUT" | grep -qF '::error::' && printf '%s' "$R313_OUT" | grep -qF 'prflow_implement' && printf '%s' "$R313_OUT" | grep -qF "'nope'" && echo yes || echo no)"
+    : > "$R313_GOUT0"
+    # #1770 AC 13: an auth value OUTSIDE the three-value set fails loud, and the refusal names
+    # all three legal values while NOT instructing the reader to supply base_url (the wrapper no
+    # longer carries the "base_url + auth: bearer|api_key" remediation hint).
+    R313_RC=0
+    R313_OUT="$( export CONFIG_JSON='{"claude_model":"m","providers":{"p":{"auth":"xyz"}},"prflow_implement":{"provider":"p"}}' SECTION=prflow_implement GITHUB_OUTPUT="$R313_GOUT0"; bash -c "$R313_RES_BODY" 2>&1 )" || R313_RC=$?
+    assert_eq "#313/#1770 resolve-body: out-of-set auth fails loud (exit 1, AC 13)" "1" "$R313_RC"
+    assert_eq "#313/#1770 resolve-body: the out-of-set-auth refusal names all three legal values and does NOT instruct base_url (AC 13)" "yes" \
+      "$(printf '%s' "$R313_OUT" | grep -qF 'bearer' && printf '%s' "$R313_OUT" | grep -qF 'bedrock_api_key' && ! printf '%s' "$R313_OUT" | grep -qF 'base_url' && echo yes || echo no)"
     # Provider-active path (review Suggestion #7): the resolve body was executed only for
     # default + error configs, never a provider-active one — so a mutation in the scalar-emit
     # jq for a real provider stayed uncovered here (caught only transitively). Drive a
@@ -32008,6 +32041,46 @@ print(next(s["run"] for j in d["jobs"].values() for s in j.get("steps",[]) if s.
     gh_kv "$R313_GENV" > "$R313_GENV.kv"
     assert_eq "#313 inject-body: a valid env-map key passes the key-validation guard (no false fire)" "yes" \
       "$(grep -qxF 'ANTHROPIC_DEFAULT_HAIKU_MODEL=glm-4.7' "$R313_GENV.kv" && echo yes || echo no)"
+    : > "$R313_GENV"
+    # #1770 AC 4/5: the bedrock_api_key arm exports the secret as AWS_BEARER_TOKEN_BEDROCK and
+    # writes NEITHER ANTHROPIC_BASE_URL NOR ANTHROPIC_AUTH_TOKEN; the env map (AWS_REGION) still
+    # rides via the shared passthrough. A mutation exporting ANTHROPIC_BASE_URL here goes RED.
+    ( export DECISION='{"env":{"AWS_REGION":"us-east-1"}}' AUTH=bedrock_api_key BASE_URL="" TIMEOUT_MS="" PROVIDER=bed PROVIDER_API_KEY=awskey SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" ) >/dev/null 2>&1
+    gh_kv "$R313_GENV" > "$R313_GENV.kv"
+    assert_eq "#313/#1770 inject-body: bedrock arm exports AWS_BEARER_TOKEN_BEDROCK + AWS_REGION, NOT ANTHROPIC_BASE_URL/ANTHROPIC_AUTH_TOKEN (AC 4/5)" "yes" \
+      "$(grep -qxF 'AWS_BEARER_TOKEN_BEDROCK=awskey' "$R313_GENV.kv" && grep -qxF 'AWS_REGION=us-east-1' "$R313_GENV.kv" && ! grep -q 'ANTHROPIC_BASE_URL' "$R313_GENV.kv" && ! grep -q 'ANTHROPIC_AUTH_TOKEN' "$R313_GENV.kv" && echo yes || echo no)"
+    : > "$R313_GENV"
+    # #1770 AC 7: the bedrock arm fails loud (exit 1) when its env map sets no AWS_REGION, and the
+    # error names the section and provider.
+    R313_RC=0
+    R313_OUT="$( export DECISION='{"env":{}}' AUTH=bedrock_api_key BASE_URL="" TIMEOUT_MS="" PROVIDER=bed PROVIDER_API_KEY=awskey SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" 2>&1 )" || R313_RC=$?
+    assert_eq "#313/#1770 inject-body: bedrock arm with no AWS_REGION fails loud (exit 1, AC 7)" "1" "$R313_RC"
+    assert_eq "#313/#1770 inject-body: the missing-region error names the section + provider + AWS_REGION (AC 7)" "yes" \
+      "$(printf '%s' "$R313_OUT" | grep -qF '::error::' && printf '%s' "$R313_OUT" | grep -qF 'prflow_implement' && printf '%s' "$R313_OUT" | grep -qF "'bed'" && printf '%s' "$R313_OUT" | grep -qF 'AWS_REGION' && echo yes || echo no)"
+    : > "$R313_GENV"
+    # #1770 valid-falsy row: an EMPTY-STRING AWS_REGION is treated as absent (strings|select),
+    # so the region guard still fails loud rather than exporting an empty region variable.
+    R313_RC=0
+    ( export DECISION='{"env":{"AWS_REGION":""}}' AUTH=bedrock_api_key BASE_URL="" TIMEOUT_MS="" PROVIDER=bed PROVIDER_API_KEY=awskey SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" ) >/dev/null 2>&1 || R313_RC=$?
+    assert_eq "#313/#1770 inject-body: bedrock arm with EMPTY-string AWS_REGION fails loud (valid-falsy → absent, exit 1)" "1" "$R313_RC"
+    : > "$R313_GENV"
+    # #1770 AC 8: a bedrock entry that ALSO carries base_url CONTINUES (exit 0), warns naming the
+    # section/provider/base_url, and still writes NO ANTHROPIC_BASE_URL. This fixture pins the
+    # suppression by supplying the very input whose export the arm drops.
+    R313_RC=0
+    R313_OUT="$( export DECISION='{"env":{"AWS_REGION":"us-east-1"}}' AUTH=bedrock_api_key BASE_URL="https://x" TIMEOUT_MS="" PROVIDER=bed PROVIDER_API_KEY=awskey SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" 2>&1 )" || R313_RC=$?
+    assert_eq "#313/#1770 inject-body: bedrock arm carrying base_url continues (exit 0, AC 8)" "0" "$R313_RC"
+    gh_kv "$R313_GENV" > "$R313_GENV.kv"
+    assert_eq "#313/#1770 inject-body: bedrock+base_url warns naming section/provider/base_url AND writes no ANTHROPIC_BASE_URL (AC 8)" "yes" \
+      "$(printf '%s' "$R313_OUT" | grep -qF '::warning::' && printf '%s' "$R313_OUT" | grep -qF 'prflow_implement' && printf '%s' "$R313_OUT" | grep -qF "'bed'" && printf '%s' "$R313_OUT" | grep -qF 'base_url' && ! grep -q 'ANTHROPIC_BASE_URL' "$R313_GENV.kv" && echo yes || echo no)"
+    : > "$R313_GENV"
+    # #1770 AC 9: a BEARER entry whose env map carries AWS_REGION runs exactly as before — base_url
+    # + auth token + the AWS_REGION passthrough, no bedrock token, and NO warning (a stray AWS_REGION
+    # in a gateway entry's env map must not trip the bedrock path or emit a warning).
+    R313_OUT="$( export DECISION='{"env":{"AWS_REGION":"us-east-1"}}' AUTH=bearer BASE_URL=https://g TIMEOUT_MS="" PROVIDER=g PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" 2>&1 )"
+    gh_kv "$R313_GENV" > "$R313_GENV.kv"
+    assert_eq "#313/#1770 inject-body: bearer arm with AWS_REGION in env map runs unchanged, no bedrock token, NO warning (AC 9)" "yes" \
+      "$(grep -qxF 'ANTHROPIC_BASE_URL=https://g' "$R313_GENV.kv" && grep -qxF 'ANTHROPIC_AUTH_TOKEN=sekret' "$R313_GENV.kv" && grep -qxF 'AWS_REGION=us-east-1' "$R313_GENV.kv" && ! grep -q 'AWS_BEARER_TOKEN_BEDROCK' "$R313_GENV.kv" && ! printf '%s' "$R313_OUT" | grep -qF '::warning::' && echo yes || echo no)"
     rm -f "$R313_GENV" "$R313_GENV.kv"
   else
     echo "  SKIP  #313 inject-body behavioral checks (no writable temp / body extraction failed)"
@@ -32239,16 +32312,32 @@ fi
 
 # Matrix completeness (review PTA-2): the {field}×{wrong-type/empty} sweep pins base_url
 # both missing and empty-string, but auth only missing + wrong-value ('Bearer'); add the
-# empty-string auth cell so the `($a != "bearer" and $a != "api_key")` disjunct is pinned
+# empty-string auth cell so the three-value auth disjunct is pinned
 # on an EMPTY value too (a real input shape a future guard rewrite could regress).
 assert_eq "#313 matrix: provider entry with EMPTY auth ('') → incomplete_provider marker (auth-disjunct completeness)" \
-  '{"error":"incomplete_provider","section":"prflow_implement","provider":"p","detail":"provider auth must be bearer or api_key"}' \
+  '{"error":"incomplete_provider","section":"prflow_implement","provider":"p","detail":"provider auth must be one of bearer, api_key, bedrock_api_key"}' \
   "$(echo '{"claude_model":"m","providers":{"p":{"base_url":"u","auth":""}},"prflow_implement":{"provider":"p"}}' | r313 prflow_implement)"
 # AC 8 (review PTA-3): the runner's dead `model` workflow_call input was removed. Pin the
 # reference absence so a re-introduced `inputs.model` (a merge-revert of the threading) goes
 # RED — the removal becomes a conscious future change rather than a silent regression.
 assert_eq "#313 AC8: devflow-runner.yml carries no reference to the removed dead 'model' workflow_call input" "0" \
   "$(pin_count 'inputs.model' "$RUNNER_WF")"
+
+# #1770 provider-schema vocabulary (config.schema.json): the auth enum and the base_url
+# conditional are typed config-vocabulary boundaries the resolver's runtime checks mirror.
+# structural-pin-ok: schema-config-vocabulary -- the provider entry auth enum + required set
+# is a typed config vocabulary; AC 12 pins it to exactly three values and AC 15 pins the
+# entry's closed-field guard.
+R1770_SCHEMA="$LIB/../.prflow/config.schema.json"
+assert_eq "#1770 AC12: providers entry auth enum accepts exactly bearer/api_key/bedrock_api_key" \
+  '["bearer","api_key","bedrock_api_key"]' \
+  "$(jq -c '.properties.providers.additionalProperties.properties.auth.enum' "$R1770_SCHEMA")"
+assert_eq "#1770 AC15: providers entry still refuses unknown fields (additionalProperties:false)" "false" \
+  "$(jq -c '.properties.providers.additionalProperties.additionalProperties' "$R1770_SCHEMA")"
+assert_eq "#1770: providers entry no longer lists base_url in its top-level required set" "false" \
+  "$(jq -c '(.properties.providers.additionalProperties.required // []) | any(. == "base_url")' "$R1770_SCHEMA")"
+assert_eq "#1770: providers entry conditionally requires base_url for bearer/api_key (allOf if/then)" "yes" \
+  "$(jq -e '.properties.providers.additionalProperties.allOf | any((.if.properties.auth.enum == ["bearer","api_key"]) and (.then.required == ["base_url"]))' "$R1770_SCHEMA" >/dev/null 2>&1 && echo yes || echo no)"
 
 unset RESOLVER
 
