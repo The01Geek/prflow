@@ -1909,6 +1909,140 @@ def cmd_deferred_presence(args):
     sys.exit(1)
 
 
+# Issue #1513 — the deferred-REFLECTION backing audit: a `--reflection-kind
+# deferred` bullet reads as a tracked deferral but files nothing, so this reader
+# and cmd_deferred_reflection_audit make an unbacked one detectable at Phase 4.
+# The backing contract and the two-channel rationale are in the function
+# docstrings below.
+def _deferred_reflection_texts(sections: "list[tuple[str, str]]") -> "list[str] | None":
+    """Trailing text of every rendered `deferred` reflection bullet, or None.
+
+    Takes the already-split `sections` (from `_split_sections`) rather than the
+    raw body, so the caller resolves both this section and `## Progress` from one
+    split — the "resolve the section ONCE" discipline `cmd_deferred_presence`
+    follows. None means the body does not present exactly one `## Devflow
+    Reflection` section (absent or duplicated) — read as *unestablished* by the
+    caller, the fail-closed direction `_progress_content_or_none` also takes,
+    never as an empty set. The bullet shape is derived from
+    `_REFLECTION_KINDS['deferred']` so this reader cannot drift from
+    `_insert_reflection_bullet`'s writer; the exact-prefix match keeps a
+    marker-shaped literal quoted inside other prose from counting.
+    """
+    content = _single_section_content(sections, 'Devflow Reflection')
+    if content is None:
+        return None
+    glyph, label, _sub = _REFLECTION_KINDS['deferred']
+    prefix = f'- {glyph} **{label}:** '
+    texts: list[str] = []
+    for line in content.split('\n'):
+        stripped = line.strip()
+        if stripped.startswith(prefix):
+            texts.append(stripped[len(prefix):])
+    return texts
+
+
+def cmd_deferred_reflection_audit(args):
+    """Audit whether every `deferred`-kind reflection this run recorded is backed
+    by a scope-decision-deferred record bound to this run's PR (issue #1513).
+
+    grep(1)-style three-state exit (0/1/2), the same shape `cmd_deferred_presence`
+    uses — but the polarity is inverted from that sibling: here 0 is the CLEAN
+    state (backed) and 1 the problem state (unbacked), whereas there 0 is the
+    act-now state (outstanding):
+
+      0  backed        — the deferred-reflection count does not exceed the count
+                        of `kind=deferred` scope-decision records bound to this
+                        PR (the zero-reflection case included). Phase 4 continues.
+      1  unbacked      — more `deferred` reflections than bound records: at least
+                        one renders as an actionable deferral no channel filed.
+                        Prints `unbacked: <n>` (the excess) then one `text:` line
+                        per deferred reflection. Phase 4.0.6 surfaces it.
+      2  unestablished — the backing count could not be settled: the fail-closed
+                        causes this shares with `deferred-presence` — `workpad-unresolved`,
+                        `progress-section-unreadable`, `reader-divergence`, and an
+                        `unbound`/`corrupted` record — plus `reflection-section-unreadable`
+                        (`ambiguous-criteria` does not apply: a count comparison is
+                        indifferent to two records sharing one normalized text). Phase 4
+                        records a note; never read as "nothing unbacked".
+
+    The backing comparand is the count of scope-decision records bound to this
+    PR. An unbound/corrupted/reader-divergent record makes that count unreliable,
+    so those route to *unestablished* — never to a false `unbacked`. Only one
+    bounded count line goes to stdout; the body is never printed.
+
+    Known residual: `backed` is a count floor, not a per-reflection identity
+    match — a reflection carries no join key to a record's criterion, so N
+    reflections beside N records tracking unrelated criteria read as `backed`.
+    The routing rule (a `deferred` reflection is used only for a
+    scope-decision-backed punt) is the compensating control.
+
+    The scope-decision record is the only channel a `deferred` reflection pairs
+    with, so the review-and-fix deferrals manifest (Channel 2) is deliberately
+    NOT folded into the backing count: the fix loop records `dropped-failed`,
+    never `deferred`, for its punts (phase-3-fix-loop.md), and the routing rule
+    does not name the manifest as backing for `deferred` — folding it in without
+    re-establishing those invariants would let a future Channel-2 `deferred`
+    producer escape this audit.
+    """
+    marker = _workpad_marker(args.marker)
+    c = _find_workpad_comment(
+        'deferred-reflection-audit', _repo_full(api_fail_code=2), args.issue, marker,
+        api_fail_code=2,
+    )
+    if c is None:
+        sys.stderr.write(
+            f"workpad.py deferred-reflection-audit: no workpad comment carrying {marker!r} "
+            f"on issue #{args.issue}; whether any deferred reflection is unbacked could not "
+            f"be established\n"
+        )
+        _print_unestablished('workpad-unresolved')
+    body = c.get('body') or ''
+    # Resolve the body into sections ONCE and read both the reflection section and
+    # ## Progress from it, matching cmd_deferred_presence's "resolve the section ONCE"
+    # discipline — the body runs to tens of KB at Phase 4, so a per-reader re-split
+    # would scan it twice for a result that cannot change mid-invocation.
+    _, sections = _split_sections(body)
+    reflections = _deferred_reflection_texts(sections)
+    if reflections is None:
+        sys.stderr.write(
+            "workpad.py deferred-reflection-audit: the workpad does not carry exactly one "
+            "'## Devflow Reflection' section (absent or duplicated), so whether any deferred "
+            "reflection is unbacked could not be established\n"
+        )
+        _print_unestablished('reflection-section-unreadable')
+    if not reflections:
+        print('backed: 0')
+        sys.exit(0)
+    content = _single_section_content(sections, 'Progress')
+    if content is None:
+        sys.stderr.write(
+            "workpad.py deferred-reflection-audit: the workpad does not carry exactly one "
+            "'## Progress' section (absent or duplicated), so the backing scope-decision "
+            "records could not be read\n"
+        )
+        _print_unestablished('progress-section-unreadable')
+    bound, unbound, corrupted = _bound_deferred_records(content, args.pr)
+    seen = len(bound) + unbound + corrupted
+    whole = _whole_body_deferred_count(body)
+    if whole > seen:
+        sys.stderr.write(
+            f"workpad.py deferred-reflection-audit: the whole-body scan finds {whole} "
+            f"kind=deferred record(s) but only {seen} sit in an isolated '## Progress' "
+            f"bullet, so the backing count could not be established\n"
+        )
+        _print_unestablished('reader-divergence', unbound, corrupted)
+    if unbound or corrupted:
+        _print_unestablished(
+            'corrupted-records' if corrupted else 'unbound-records', unbound, corrupted)
+    if len(reflections) > len(bound):
+        print(f'unbacked: {len(reflections) - len(bound)}')
+        for text in reflections:
+            print(f'text: {text}')
+        sys.exit(1)
+    print(f'backed: {len(reflections)}')
+    sys.exit(0)
+
+
 # The bug-only "reproduction captured" ## Progress sub-row. SINGLE SOURCE for the
 # row `cmd_new_body` renders AND the row `_reconcile_reproduction_row` (issue #449)
 # adds/removes to match the recorded content classification — so the reconcile can
@@ -5919,6 +6053,23 @@ def main():
                         'answers unestablished rather than a confident zero.')
     s.add_argument('--marker', default=None, help=_marker_help)
     s.set_defaults(func=cmd_deferred_presence)
+
+    s = sub.add_parser(
+        'deferred-reflection-audit',
+        help="Bounded check that every deferred-kind reflection this run recorded "
+             "is backed by a scope-decision-deferred record bound to this run's PR "
+             '(issue #1513). Exits 0 backed / 1 unbacked / 2 unestablished '
+             '(grep-style), prints one count line and, on exit 1, one text: line '
+             'per deferred reflection. Never prints the body. Phase 4.0.6 surfaces '
+             'an unbacked reflection.',
+    )
+    s.add_argument('issue', type=int)
+    s.add_argument('pr', type=int,
+                   help="This run's PR number, as a decimal literal. A deferred "
+                        'reflection with no scope-decision record bound to this PR '
+                        'is unbacked.')
+    s.add_argument('--marker', default=None, help=_marker_help)
+    s.set_defaults(func=cmd_deferred_reflection_audit)
 
     s = sub.add_parser('patch', help='PATCH a workpad comment from a body file; prints new body.')
     s.add_argument('comment_id', type=int)
