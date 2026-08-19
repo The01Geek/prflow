@@ -37276,6 +37276,36 @@ _D_INITFULL='[{"type":"system","subtype":"init","claude_code_version":"2.1.226",
 assert_eq "#1528 diagnostics value-publishes NO init field other than claude_code_version to GITHUB_OUTPUT (redaction posture)" "0" \
   "$(_diag_run "$_D_INITFULL" >/dev/null; grep -cE '^(model|tools|agents|skills|plugins|mcp_servers|permissionMode|capabilities|slash_commands)=' "$D363/out")"
 
+# The version lives in the system/init record independent of a result event, so an
+# incomplete run (init present, no result — the stalled-run case this diagnostic exists
+# for) still publishes and renders it, rather than discarding a resolved version.
+_D_INITONLY='[{"type":"system","subtype":"init","claude_code_version":"2.1.226"}]'
+assert_eq "#1528 diagnostics publishes the version on an init-but-no-result-event run" "yes" \
+  "$(_diag_run "$_D_INITONLY" >/dev/null; grep -qxF 'claude_code_version=2.1.226' "$D363/out" && echo yes || echo no)"
+assert_eq "#1528 diagnostics renders the version into the no-result-event block" "yes" \
+  "$(_o=$(_diag_run "$_D_INITONLY"); printf '%s' "$_o" | grep -qxF -e '- claude_code_version: 2.1.226' && echo yes || echo no)"
+
+# Partial deployment: the sibling lib/probe-observation.sh is absent, so the reused reader
+# is not defined. The type-guard must degrade CCVER to `unavailable` with a breadcrumb and
+# still exit 0 — never a set -u abort (the guarded-source design's central resilience claim).
+assert_eq "#1528 diagnostics degrades to 'unavailable' + exit 0 with a breadcrumb when probe-observation.sh is not sourced" "unavailable-0-crumb" \
+  "$(_pd=$(mktemp -d); mkdir -p "$_pd/scripts" "$_pd/lib"; \
+     cp "$SED_SH" "$_pd/scripts/surface-execution-diagnostics.sh"; \
+     cp "$LIB/../lib/resolve-jq.sh" "$_pd/lib/resolve-jq.sh"; \
+     printf '%s' "$_D_INIT" > "$_pd/exec.json"; \
+     _err=$( ( GITHUB_OUTPUT="$_pd/out" bash "$_pd/scripts/surface-execution-diagnostics.sh" "$_pd/exec.json" >/dev/null ) 2>&1 ); _rc=$?; \
+     _v=$(sed -n 's/^claude_code_version=//p' "$_pd/out"); \
+     printf '%s' "$_err" | grep -qF 'devflow_probe_cli_version unavailable' && _c=crumb || _c=nocrumb; \
+     rm -rf "$_pd"; echo "${_v}-${_rc}-${_c}")"
+
+# A GITHUB_OUTPUT write failure (here: the var points at a directory, so the append
+# redirect fails) leaves a stderr breadcrumb and still exits 0 — never a silent stall.
+assert_eq "#1528 diagnostics breadcrumbs + exits 0 when the GITHUB_OUTPUT append fails" "crumb-0" \
+  "$(_af=$(mktemp -d); printf '%s' "$_D_INIT" > "$_af/exec.json"; mkdir -p "$_af/outdir"; \
+     _err=$( ( GITHUB_OUTPUT="$_af/outdir" bash "$SED_SH" "$_af/exec.json" >/dev/null ) 2>&1 ); _rc=$?; \
+     printf '%s' "$_err" | grep -qF 'could not append claude_code_version to GITHUB_OUTPUT' && _c=crumb || _c=nocrumb; \
+     rm -rf "$_af"; echo "${_c}-${_rc}")"
+
 # ── Workflow plumbing: the runner exposes the count, defaulting to 0, and the
 # ── review workflow's finalize_check consumes it and raises an ::error:: on a
 # ── no-verdict run. These are the deterministic backstops for an engine that

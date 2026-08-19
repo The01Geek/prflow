@@ -136,24 +136,16 @@ _publish_denials() {  # rendered-block
   fi
 }
 
-# Publish the claude-code CLI version and, when it resolved, raise a `::notice::` so a
-# live run records the CLI build it actually ran on directly in the job — the in-job
-# read-back that makes this a measurement something consumes, not another artifact
-# nobody reads (issue #1528).
-#
-# REDACTION POSTURE — do not value-publish the other init fields here. Among the
-# execution-file init record's fields ONLY claude_code_version — a low-sensitivity
-# version scalar — is value-published; tools/agents/skills/plugins/mcp_servers/model/
-# permissionMode/capabilities/slash_commands stay type-only behind
-# scripts/extract-execution-shape.sh's redaction boundary (left unchanged), because a
-# resolved tools list can carry consumer-specific paths from .prflow.allowed_tools and
-# the job log is public.
-#
-# Read back out of the ALREADY-RENDERED block (like _publish_denials) so the human line
-# and the machine output cannot disagree, and parsed with bash builtins ONLY — no
-# sed/head/grep/awk/cut/tr, which are not preflight prerequisites (lib/preflight.sh) and
-# would fail-open to an empty value on a host lacking one. "Unknown" is the literal
-# `unavailable`, never empty or 0, and raises no notice. Additive, always exits 0.
+# _publish_claude_code_version — publish claude_code_version (issue #1528) and, on
+# success, raise a `::notice::` (the in-job read-back that makes this a measurement a
+# consumer reads). Contract, each clause a wrong change it forbids:
+#   - value-publish ONLY claude_code_version; every other init field stays type-only
+#     behind scripts/extract-execution-shape.sh's redaction boundary;
+#   - derive with bash builtins ONLY — sed/head/grep/awk/cut/tr are not preflight-
+#     guaranteed (lib/preflight.sh) and fail-open to empty when absent;
+#   - "unknown" is the literal `unavailable`, never empty/0, and raises no notice.
+# Why the redaction boundary and the read-back-from-block invariant: see
+# docs/internal/execution-diagnostics.md.
 _publish_claude_code_version() {  # rendered-block
   _ccver=""
   while IFS= read -r _line; do
@@ -196,10 +188,9 @@ if [ -z "$FILE" ] || [ ! -f "$FILE" ] || [ ! -s "$FILE" ]; then
   exit 0
 fi
 
-# Resolve the CLI version once (issue #1528), reusing the shared reader rather than a
-# second extraction jq; it is rendered into the block below so the published value and
-# the human line agree. Degrade to `unavailable` with a breadcrumb if the reader is
-# absent (partial deployment) — never a set -u abort.
+# Resolve the CLI version once (#1528) via the shared reader, rendered into the block so
+# the published and human values agree. An absent reader (partial deployment) degrades
+# to `unavailable` + breadcrumb here — never a set -u abort.
 if type devflow_probe_cli_version >/dev/null 2>&1; then
   CCVER=$(devflow_probe_cli_version "$FILE")
 else
@@ -245,8 +236,12 @@ if ! BLOCK=$("$DEVFLOW_JQ" -rs --arg header "$_HEADER" --arg ccver "$CCVER" '
         | if type == "array" then .[] else . end
         | select(type == "object")] | unique) as $denials
     | if $r == null and ($denials | length) == 0 then
-        # Parsed, but no result event and no denial detail: nothing to surface.
+        # No result event and no denial detail — but the CLI version lives in the
+        # system/init record independent of the result event, so still surface it: a
+        # stalled init-but-no-result run is exactly when the build version matters (#1528).
         $header, "",
+        "- claude_code_version: \($ccver)",
+        "",
         "_No diagnostics available (no result event in execution file)._"
       else
         # Count resolution keeps "unknown" distinct from "measured zero" — do NOT
