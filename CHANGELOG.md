@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.33.23] — 2026-08-19
+
+### Changed
+create-issue Step 4: correct the presentation gate, the final-byte read ordering, the post-creation question scope, and the sub-step 2 root/slug recipes; route the shared staging procedure for a Step 4 write.
+
 ## [2.33.22] — 2026-08-19
 
 ### Changed
