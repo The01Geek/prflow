@@ -1,0 +1,275 @@
+{
+  "iter": 1,
+  "source": "review-and-fix",
+  "loop_role": "fix",
+  "fix_commit_sha": "2a11f779d91e96911a54dcf5ddcb1d3d0c586afa",
+  "fix_files": [
+    "docs/internal/skills/create-issue.md"
+  ],
+  "current_step": "loop-exit",
+  "current_substep": null,
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "detect_all_audit": false,
+    "checklist_skipped": null
+  },
+  "checklist": [
+    {
+      "id": "VC-1",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-2",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-3",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-4",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-5",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-6",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-7",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-8",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-9",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-10",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "raw_verdict": "FAIL",
+      "evidence": "iter-1 initial FAIL (doc not yet corrected); fixed in Step 3 (commit 2a11f77), re-verified PASS"
+    },
+    {
+      "id": "VC-11",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "The (JSON-object, list, bare-scalar shapes) parenthetical could be read as classifying a legitimate path-shaped string scalar as non-path.",
+      "defect_signature": {
+        "file": "skills/create-issue/SKILL.md",
+        "line_range": [
+          183,
+          185
+        ],
+        "kind": "style"
+      },
+      "corroboration_count": 2,
+      "fix_decision": "pushed_back"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Cloud-tier the resolver line leads with the unexpanded anchor with no vendored-literal fallback, so the key is perpetually assumed on cloud.",
+      "defect_signature": {
+        "file": "skills/create-issue/SKILL.md",
+        "line_range": [
+          180,
+          180
+        ],
+        "kind": "style"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "pushed_back"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "The 'exits zero having printed nothing' outcome is unreachable under the prescribed invocation (a non-empty default is passed).",
+      "defect_signature": {
+        "file": "skills/create-issue/SKILL.md",
+        "line_range": [
+          183,
+          184
+        ],
+        "kind": "style"
+      },
+      "corroboration_count": 2,
+      "fix_decision": "pushed_back"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "VC-10",
+      "decision": "applied",
+      "commit": "2a11f779d91e96911a54dcf5ddcb1d3d0c586afa",
+      "note": "AC #6 doc-AC: corrected docs/internal/skills/create-issue.md location-outcome sentence to match the skill's stated outcomes"
+    },
+    {
+      "finding_id": "F-S1",
+      "decision": "pushed_back",
+      "source_file": "skills/create-issue/SKILL.md",
+      "claim_text": "bare-scalar parenthetical could misclassify a path-string scalar as non-path",
+      "skip_category": "claim-quality",
+      "evidence": "the governing clause 'a value that is not a path' is authoritative and the parenthetical matches AC3's own wording ('a value that is not a path, which is what it emits for a JSON object, a list, and a bare scalar'); the mechanism fails safe (a bad location passed as --search-space yields no git-index entries and the downstream rule records unestablished); both passes graded it Suggestion and fail-safe",
+      "parking_evidence": {
+        "basis": "prose matches the AC-mandated wording and the governing not-a-path clause is authoritative; fails safe downstream",
+        "failing_input": "a config value that is a path-shaped string scalar (the healthy case) read against the parenthetical",
+        "source": "skills/create-issue/SKILL.md:183-185, 196-199 (downstream index-entry check); AC3",
+        "finding_ref": {
+          "iter": 1,
+          "index": 0
+        }
+      }
+    },
+    {
+      "finding_id": "F-S2",
+      "decision": "pushed_back",
+      "source_file": "skills/create-issue/SKILL.md",
+      "claim_text": "cloud-anchor leading token has no vendored-literal fallback",
+      "skip_category": "claim-quality",
+      "evidence": "refuted: /prflow:create-issue runs on the local/interactive tier only (issue Technical Context: 'No workflow resolves this command, so no cloud allowlist governs the invocation'); the anchor form is the sanctioned single-source spelling for a non-cloud-enrolled site (not enrolled in lint-anchor-fallback-arm.py); the blinded shadow did NOT re-raise this finding, corroborating it is not a real defect",
+      "parking_evidence": {
+        "basis": "create-issue is local-tier-only so no cloud matcher governs the invocation; anchor is the sanctioned spelling",
+        "failing_input": "a cloud run of /prflow:create-issue (does not exist — no workflow resolves it)",
+        "source": "issue #1761 Technical Context (Execution tier); skills/create-issue/SKILL.md anchor convention",
+        "finding_ref": {
+          "iter": 1,
+          "index": 1
+        }
+      }
+    },
+    {
+      "finding_id": "F-S3",
+      "decision": "pushed_back",
+      "source_file": "skills/create-issue/SKILL.md",
+      "claim_text": "'exits zero having printed nothing' is unreachable under the prescribed invocation",
+      "skip_category": "out-of-scope",
+      "evidence": "AC3 explicitly mandates the passage state the three outcomes 'complete by construction', including 'the helper exits zero having printed nothing'; it is defensive completeness of the yields-no-usable-location partition; removing it would violate AC3; both passes graded it Suggestion and behavior-inert/fail-safe",
+      "parking_evidence": {
+        "basis": "AC3 mandates stating this outcome as one of the three complete-by-construction outcomes",
+        "failing_input": "the prescribed invocation config-get.sh .docs.internal docs/internal/ (a non-empty default means exit-0-empty-print does not fire, but the partition still enumerates it)",
+        "source": "issue #1761 AC3",
+        "finding_ref": {
+          "iter": 1,
+          "index": 2
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 1,
+    "fix_diff_lines": 1,
+    "new_corroborated_critical_count": 0
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "refixed",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "ran_at": "2026-08-19T00:00:00Z",
+    "reviewed_sha": "2a11f779d91e96911a54dcf5ddcb1d3d0c586afa",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Suggestion",
+        "description": "JSON-shape discrimination asks the agent to observe a distinction the resolver erased (list/scalar arrive as strings); fails safe via downstream index-entry check.",
+        "defect_signature": {
+          "file": "skills/create-issue/SKILL.md",
+          "line_range": [
+            183,
+            185
+          ],
+          "kind": "style"
+        }
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Suggestion",
+        "description": "'exits zero having printed nothing' arm unreachable on this call shape.",
+        "defect_signature": {
+          "file": "skills/create-issue/SKILL.md",
+          "line_range": [
+            183,
+            184
+          ],
+          "kind": "style"
+        }
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "severity": "Suggestion",
+        "description": "'these three and complete by construction' phrasing reads awkwardly (editorial).",
+        "defect_signature": {
+          "file": "skills/create-issue/SKILL.md",
+          "line_range": [
+            183,
+            185
+          ],
+          "kind": "style"
+        }
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 3,
+      "overlap_with_iter_N": 3,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "telemetry": "unavailable",
+  "synthesized": false
+}
