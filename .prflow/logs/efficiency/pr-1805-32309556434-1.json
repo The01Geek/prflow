@@ -123,5 +123,74 @@
       "iter": 5,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.37",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 12.006833550000001,
+    "tokens": {
+      "input_tokens": 66,
+      "output_tokens": 41235,
+      "cache_read_input_tokens": 5270223,
+      "cache_creation_input_tokens": 243224,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 111,
+        "outputTokens": 64696,
+        "cacheReadInputTokens": 6326165,
+        "cacheCreationInputTokens": 557638,
+        "webSearchRequests": 0,
+        "costUSD": 9.178365,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 132,
+        "outputTokens": 20144,
+        "cacheReadInputTokens": 2908121,
+        "cacheCreationInputTokens": 440927,
+        "webSearchRequests": 0,
+        "costUSD": 2.8284685499999993,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 50,
+    "duration_ms": 747910
+  },
+  "permission_denials": {
+    "count": 9,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"run=${GITHUB_RUN_ID:-none}-${GITHUB_RUN_ATTEMPT:-1}\"; mkdir -p .prflow/tmp/review/pr-1805/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}; gh pr diff 1805 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1805/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}/diff.patch | grep -c '^diff --git'",
+      "echo \"RUN_ID=$GITHUB_RUN_ID\"; echo \"ATTEMPT=$GITHUB_RUN_ATTEMPT\"",
+      "git show 6ab3ba1785cd3985b4caa35538daea0aa3d164ab:skills/create-issue/SKILL.md > /tmp/base-skill.md\ngrep -n \"Escalat\\|UNRELIABLE\\|ABSENT\\|unestablished duty\\|none-observed\\|judged-not-engaged\" /tmp/base-skill.md | head -60",
+      "git show 6ab3ba1785cd3985b4caa35538daea0aa3d164ab:skills/create-issue/SKILL.md > /tmp/base-skill.md",
+      "git show 6ab3ba1785cd3985b4caa35538daea0aa3d164ab:skills/create-issue/SKILL.md > /home/runner/work/prflow/prflow/.prflow/tmp/base-skill.md\ngrep -n \"Escalat\\|UNRELIABLE\\|ABSENT\\|unestablished duty\\|none-observed\\|judged-not-engaged\" /home/runner/work/prflow/prflow/.prflow/tmp/base-skill.md",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1805/32309556434-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1805/32309556434-1/verdicts/iter-1/VC-4-n4d0.json << 'EOF'\n{\"id\":\"VC-4\",\"verdict\":\"PASS\",\"evidence\":\"git diff 6ab3ba17..HEAD -- skills/create-issue/SKILL.md shows the only changes are to arm selection (shallow-first with escalation to deep, replacing the pre-pass duty-floor selector) and prose trimming. Lines 184-185 (unchanged by this diff …[per-command-truncated]",
+      "mkdir -p \"/home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1805/32309556434-1/verdicts/iter-1\"\ncat > \"/home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1805/32309556434-1/verdicts/iter-1/VC-3-n3c9.json\" << 'EOF'\n{\"id\":\"VC-3\",\"verdict\":\"PASS\",\"evidence\":\"git diff 6ab3ba1785cd3985b4caa35538daea0aa3d164ab...HEAD -- skills/create-issue/references/step-2-clarify.md is empty, confirming the warm-start rule file is untouched by this PR. skills/create-issue/SKILL.md:184-185 confirms deep peers  …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1805/32309556434-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1805/32309556434-1/verdicts/iter-1/VC-6-n6f2.json << 'EOF'\n{\"id\":\"VC-6\",\"verdict\":\"PASS\",\"evidence\":\"git diff 6ab3ba1785cd3985b4caa35538daea0aa3d164ab..HEAD -- skills/create-issue/SKILL.md shows changes only to the arm-selection prose (Step 1's shallow/deep description, now shallow-first with deep reached only via escalation) at lines ~167- …[per-command-truncated]",
+      "git -C /home/runner/work/prflow/prflow show 6ab3ba1785cd3985b4caa35538daea0aa3d164ab:skills/create-issue/SKILL.md 2>/dev/null | grep -n -i \"deep\\|shallow\\|escalat\" | head -80"
+    ],
+    "total": 9,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
