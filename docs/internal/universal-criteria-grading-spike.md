@@ -180,9 +180,10 @@ and, with gating off, is reported by the Phase 4.1 `## Issue Compliance` advisor
 the advisory channel excludes a `universal` item from rules 1 and 2. Alternatively the
 verifier paginates and enumerates the surface in chunks, asserting the property over every
 chunk before it may set `property_proven: true`. Either way the detection step must be a
-*pre-read blob-size check* — `git cat-file -s HEAD:<universal_surface>` (a preflight-safe
-blob-byte read, avoiding the shipped-code `wc` caveat noted under *Frequency and size*)
-compared against the read-cap byte proxy — not the agent noticing a truncated prefix: the
+*pre-read blob-size check* — `git cat-file -s HEAD:<universal_surface>` (a git-only,
+preflight-safe blob-byte read; the `git show … | wc -c` primitive *Frequency and size* uses
+for the offline table would be unsafe here, since `wc` is not preflight-guaranteed) compared
+against the read-cap byte proxy — not the agent noticing a truncated prefix: the
 Read tool truncates silently with no in-band signal, so "read the whole surface, then
 falsify" with no size gate is exactly the fail-open this paragraph exists to prevent. This constraint is why
 the largest candidate surfaces (`lib/test/run.sh`, `docs/internal/*.md`) — which
