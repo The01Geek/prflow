@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1760",
+  "generated_at": "2026-08-19T00:12:02Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.15",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 11.481169749999998,
+    "tokens": {
+      "input_tokens": 42,
+      "output_tokens": 17760,
+      "cache_read_input_tokens": 3560414,
+      "cache_creation_input_tokens": 236807,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 142,
+        "outputTokens": 45094,
+        "cacheReadInputTokens": 8183517,
+        "cacheCreationInputTokens": 859732,
+        "webSearchRequests": 0,
+        "costUSD": 11.481169749999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 28,
+    "duration_ms": 402520
+  },
+  "permission_denials": {
+    "count": 8,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "\"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/skills/requesting-code-review}\"/../../scripts/load-prompt-extension.sh requesting-code-review 2>&1; echo \"---EXIT:$?\"",
+      "/home/runner/work/prflow/prflow/scripts/load-prompt-extension.sh requesting-code-review 2>&1; echo \"---EXIT:$?\"",
+      "/home/runner/work/prflow/prflow/scripts/load-prompt-extension.sh requesting-code-review",
+      "for f in skills/review/phases/*.md; do first=$(grep -m1 -n \"prflow:review-ref\" \"$f\" | head -1); echo \"== $f\"; sed -n '1p;$p' \"$f\" | grep -c \"prflow:review-ref\" ; done",
+      "for f in skills/review/phases/*.md; do echo \"== $(basename $f)\"; head -1 \"$f\" | grep -o \"review-ref.*start\" | head -c60; echo; tail -1 \"$f\" | grep -o \"review-ref.*end\" | head -c60; echo; done",
+      "cd skills/review/phases && for f in *.md; do echo \"== $f\"; head -1 \"$f\" | grep -oq \"review-ref.*start\" && echo \"start-OK\" || echo \"START-MISSING\"; tail -1 \"$f\" | grep -oq \"review-ref.*end\" && echo \"end-OK\" || echo \"END-MISSING\"; done",
+      "cat /home/runner/work/prflow/prflow/lib/test/reference-size-exemptions.json 2>/dev/null; echo \"===CHANGESET DIR===\"; ls /home/runner/work/prflow/prflow/.changeset/ 2>/dev/null; echo \"===SAMPLE EXISTING CHANGESET (if any beyond new)===\"; git -C /home/runner/work/prflow/prflow show HEAD:.changeset 2>/dev/null | head; echo \"===consolidate script frontmatter keys===\"; grep -nE \"bump|type|schema|frontmatter|^\\s*keys|require\" /home/runner/work/prflow/prflow/scripts/consolidate-changesets.py 2>/dev/nul …[per-command-truncated]",
+      "gh pr view 1760 --json headRefOid --jq .headRefOid\necho \"---anchor pin (#275 P4) byte-identity check: review SKILL.md vs docs SKILL.md preamble---\"\ndiff <(grep -n 'CLAUDE_SKILL_DIR:-<absolute skill base directory' skills/review/SKILL.md | head -1) /dev/null >/dev/null 2>&1; echo \"anchor present in review root: $(grep -c 'Portable helper anchor' skills/review/SKILL.md)\""
+    ],
+    "total": 8,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
