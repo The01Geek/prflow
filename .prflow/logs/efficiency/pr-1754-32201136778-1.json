@@ -123,5 +123,78 @@
       "iter": 5,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.17",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 18.021122300000002,
+    "tokens": {
+      "input_tokens": 86,
+      "output_tokens": 52242,
+      "cache_read_input_tokens": 8123708,
+      "cache_creation_input_tokens": 270592,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 185,
+        "outputTokens": 96916,
+        "cacheReadInputTokens": 11687446,
+        "cacheCreationInputTokens": 768760,
+        "webSearchRequests": 0,
+        "costUSD": 14.087018000000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 200,
+        "outputTokens": 26807,
+        "cacheReadInputTokens": 4582631,
+        "cacheCreationInputTokens": 575096,
+        "webSearchRequests": 0,
+        "costUSD": 3.9341043000000004,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 66,
+    "duration_ms": 1030951
+  },
+  "permission_denials": {
+    "count": 13,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-unset} ATTEMPT=${GITHUB_RUN_ATTEMPT:-unset} ACTIONS=${GITHUB_ACTIONS:-unset}\"; git status --porcelain; echo \"---branch---\"; git branch --show-current",
+      "SHA=$(git rev-parse HEAD); echo $SHA\npython3 lib/test/pin-corpus-classifier.py --repo-root . --source lib --source scripts --source skills --source agents --source .github --adjudications lib/test/pin-corpus-adjudications.tsv --output /tmp/regen-inventory.tsv --revision \"$SHA\" 2>&1 | tail -40",
+      "SHA=\"$(git rev-parse HEAD)\"\npython3 lib/test/pin-corpus-classifier.py --repo-root . --source lib --source scripts --source skills --source agents --source .github --adjudications lib/test/pin-corpus-adjudications.tsv --output /tmp/regen-inventory.tsv --revision \"${SHA}\" > /tmp/pcl.log 2>&1\necho rc=$?\ntail -60 /tmp/pcl.log",
+      "bash /tmp/run_pcl.sh; echo rc=$?; tail -80 /tmp/pcl.log",
+      "git rev-parse HEAD > /tmp/sha.txt; cat /tmp/sha.txt",
+      "bash /tmp/run_pcl2.sh",
+      "bash /tmp/run_pcl2.sh",
+      "cd /home/runner/work/prflow/prflow; for f in scripts/render-grounding-block.sh scripts/config-get.sh scripts/discover-deferral-manifests.py scripts/issue-audit-state.py scripts/parse-acs.py; do ls -la \"$f\" 2>&1; done\ngrep -rn \"config-get.sh\" scripts/ lib/ 2>/dev/null | grep -i docs.labels | head -5\nfind . -iname \"config-get.sh\"",
+      "mkdir -p .prflow/tmp\nif rm -f \".prflow/tmp/review-dirty-tree-before\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \".prflow/tmp/review-dirty-tree-before\" &&\n   [ -f \".prflow/tmp/review-dirty-tree-before\" ] &&\n   [ ! -L \".prflow/tmp/review-dirty-tree-before\" ] &&\n   git hash-object \".prflow/tmp/review-dirty-tree-before\"; then\n  :\nelse\n  echo \"::warning::snapshot failed\"\n  rm -f \".prflow/tmp/review-dirty-tree-before\" 2>/dev/null\n  printf '%s\\n' disabled > \" …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow; python3 lib/test/pin-corpus-classifier.py --repo-root . --adjudications lib/test/pin-corpus-adjudications.tsv --output /tmp/regen-inventory.tsv --revision e1f9d988d233ce6d6f29cbb200625a0e173e3f96 2>&1 | tail -5; echo \"=== diff regen vs committed ===\"; diff /tmp/regen-inventory.tsv .prflow/logs/pin-corpus-inventory.tsv && echo \"IDENTICAL\"",
+      "cd /home/runner/work/prflow/prflow; diff /tmp/regen-inventory.tsv .prflow/logs/pin-corpus-inventory.tsv > /tmp/inv.diff 2>&1; echo \"exit=$?\"; wc -l /tmp/inv.diff; head -30 /tmp/inv.diff | cut -c1-160",
+      "diff /tmp/regen-inventory.tsv .prflow/logs/pin-corpus-inventory.tsv > /tmp/inv.diff 2>&1; echo \"exit=$?\"; wc -l /tmp/inv.diff",
+      "diff /tmp/regen-inventory.tsv /home/runner/work/prflow/prflow/.prflow/logs/pin-corpus-inventory.tsv | head -40 | cut -c1-150"
+    ],
+    "total": 13,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
