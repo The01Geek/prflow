@@ -156,18 +156,18 @@ _publish_denials() {  # rendered-block
 # `unavailable`, never empty or 0, and raises no notice. Additive, always exits 0.
 _publish_claude_code_version() {  # rendered-block
   _ccver=""
-  _saw_ccver=0
   while IFS= read -r _line; do
     case "$_line" in
       "- claude_code_version: "*)
-        _saw_ccver=1
         _ccver="${_line#- claude_code_version: }"
         break
         ;;
     esac
   done <<<"$1"   # here-string like _publish_denials: the loop stays in this shell, so
                  # `_ccver` survives it.
-  if [ "$_saw_ccver" -eq 0 ] || [ -z "$_ccver" ]; then
+  # Empty means the line was absent: the block always renders at least `unavailable`,
+  # so no separate saw-it flag is needed to tell "not found" from a real empty value.
+  if [ -z "$_ccver" ]; then
     _ccver=unavailable
   fi
   if [ -n "${GITHUB_OUTPUT:-}" ]; then
