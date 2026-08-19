@@ -1,0 +1,157 @@
+{
+  "iter": 1,
+  "fix_commit_sha": "456bc0c3799f2a94508fab93eb0553c7dd461b22",
+  "fix_files": [
+    "lib/test/test_python_scripts.py",
+    "lib/test/run.sh",
+    "lib/test/modules/coverage-map.json"
+  ],
+  "loop_role": "fix",
+  "current_step": "3",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "checklist": [
+    {
+      "id": "VC-1",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "api_contract:devflow.yml:provider-effort-supported-output"
+    },
+    {
+      "id": "VC-2",
+      "verification_mode": "lite",
+      "verdict": "PASS",
+      "claim_signature": "api_contract:resolve-review-overrides.py:env-var-name-matches-export"
+    },
+    {
+      "id": "VC-3",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "api_contract:devflow.yml:export-step-same-job-as-resolver"
+    },
+    {
+      "id": "VC-4",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "data_format_assumption:devflow.yml:effort-supported-string-form"
+    },
+    {
+      "id": "VC-5",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "test_mock_alignment:test_python_scripts.py:1772-env-fallback-behavior"
+    },
+    {
+      "id": "VC-6",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "api_contract:run.sh:export-effort-step-byte-identical"
+    },
+    {
+      "id": "VC-7",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "absolute_claim:resolve-review-overrides.py:absent-unrecognized-falls-back-true"
+    },
+    {
+      "id": "VC-8",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "dependency_interaction:resolve-review-overrides.py:effort-default-none-consumers"
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "#313 pin compares only run: body, not the env.EFFORT_SUPPORTED wiring; a mistyped env source passes green yet exports empty PRFLOW_EFFORT_SUPPORTED",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          31800,
+          31818
+        ],
+        "kind": "test_gap"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "empty/whitespace-only env value branch untested (the common Anthropic-path production input)",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          172,
+          175
+        ],
+        "kind": "test_gap"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "case/whitespace normalization (strip().lower()) untested",
+      "defect_signature": {
+        "file": "scripts/resolve-review-overrides.py",
+        "line_range": [
+          226,
+          228
+        ],
+        "kind": "test_gap"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "empty steps.provider.outputs.effort_supported fails open silently by design (advisory)",
+      "defect_signature": {
+        "file": ".github/workflows/devflow.yml",
+        "line_range": [
+          69,
+          77
+        ],
+        "kind": "logic_error"
+      },
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "456bc0c3799f2a94508fab93eb0553c7dd461b22"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "456bc0c3799f2a94508fab93eb0553c7dd461b22"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "456bc0c3799f2a94508fab93eb0553c7dd461b22"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 3,
+    "fix_diff_lines": 45,
+    "new_corroborated_critical_count": 0
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

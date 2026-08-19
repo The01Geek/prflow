@@ -1,0 +1,184 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1780",
+  "generated_at": "2026-08-19T06:15:40Z",
+  "config_fingerprint": {
+    "sha256": "041eed3b8a65185548cb1b1544ee25378f9e9c253130671130b6be30a3374ec2",
+    "partial": false,
+    "salient": {
+      "verdict_severity_threshold": "critical",
+      "fix_severity_threshold": "suggestion",
+      "max_iterations": 5
+    }
+  },
+  "source": "review-and-fix",
+  "synthesized": false,
+  "cut_candidate_min_dispatch": 3,
+  "iterations": 1,
+  "per_iteration": [
+    {
+      "iter": 1,
+      "loop_role": "fix",
+      "synthesized": false,
+      "phase3_dispatched": [
+        "prflow:code-reviewer",
+        "prflow:silent-failure-hunter",
+        "prflow:comment-analyzer",
+        "prflow:pr-test-analyzer",
+        "prflow:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 5,
+      "phase3_dispatched_present": true,
+      "dispatched_effort_present": false,
+      "agent_effort": [
+        {
+          "agent": "prflow:code-reviewer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:comment-analyzer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:pr-test-analyzer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:requesting-code-review",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:silent-failure-hunter",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        }
+      ],
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "mixed",
+      "checklist_lite_count": 1,
+      "checklist_agent_count": 7,
+      "fixes_applied": 3,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "prflow:code-reviewer",
+          "verdict": null
+        },
+        {
+          "agent": "prflow:comment-analyzer",
+          "verdict": null
+        },
+        {
+          "agent": "prflow:pr-test-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "prflow:requesting-code-review",
+          "verdict": null
+        },
+        {
+          "agent": "prflow:silent-failure-hunter",
+          "verdict": "noise"
+        }
+      ]
+    }
+  ],
+  "telemetry": [
+    {
+      "iter": 1,
+      "phases": "unavailable"
+    }
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.21",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 42.79765495000001,
+    "tokens": {
+      "input_tokens": 266,
+      "output_tokens": 131668,
+      "cache_read_input_tokens": 43321766,
+      "cache_creation_input_tokens": 540704,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 428,
+        "outputTokens": 203025,
+        "cacheReadInputTokens": 46760475,
+        "cacheCreationInputTokens": 1753989,
+        "webSearchRequests": 0,
+        "costUSD": 41.448073750000006,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 62,
+        "outputTokens": 12443,
+        "cacheReadInputTokens": 1819634,
+        "cacheCreationInputTokens": 164496,
+        "webSearchRequests": 0,
+        "costUSD": 1.3495811999999996,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 205,
+    "duration_ms": 3278577
+  },
+  "permission_denials": {
+    "count": 7,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-<empty>}\"; echo \"RUN_ID=${GITHUB_RUN_ID:-<empty>}\"; git branch --show-current; git status --porcelain | head",
+      "BASE=$(.prflow/vendor/prflow/scripts/config-get.sh .base_branch main) || BASE=\"\"\n[ -n \"$BASE\" ] || BASE=main\nCUR=$(git branch --show-current 2>/dev/null) || CUR=\"\"\necho \"BASE=$BASE CUR=$CUR\"\n\nCOMMON_DIR=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || COMMON_DIR=\"\"\nGIT_DIR_PATH=$(git rev-parse --path-format=absolute --git-dir 2>/dev/null) || GIT_DIR_PATH=\"\"\necho \"COMMON_DIR=$COMMON_DIR\"\necho \"GIT_DIR_PATH=$GIT_DIR_PATH\"",
+      "BASE=$(.prflow/vendor/prflow/scripts/config-get.sh .base_branch main) || BASE=\"\"\nif [ -z \"$BASE\" ]; then BASE=main; fi\nCUR=$(git branch --show-current 2>/dev/null) || CUR=\"\"\necho \"BASE=$BASE\"\necho \"CUR=$CUR\"",
+      "lib/test/test_python_scripts.py 2>&1 | grep -E \"#1772|[0-9]+ (passed|failed)|^(PASS|FAIL) \" | grep -iE \"1772|[0-9]+ passed|[0-9]+ failed\"; echo \"EXIT=${PIPESTATUS[0]}\"",
+      "git diff --no-index -U0 /dev/null .changeset/issue-1772-effort-supported-wiring.md | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree; echo \"LINT_EXIT=$?\"",
+      "git diff --no-index -U0 /dev/null .changeset/issue-1772-effort-supported-wiring.md | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree",
+      "mkdir -p .prflow/tmp; rm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null; git status --porcelain -z > .prflow/tmp/review-dirty-tree-before; git hash-object .prflow/tmp/review-dirty-tree-before"
+    ],
+    "total": 7,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
