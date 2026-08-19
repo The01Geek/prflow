@@ -34135,6 +34135,31 @@ _rj1027 = _cli1027(_wp1027(), "2026-08-19 09:00 UTC", 90, "true", fmt="json")
 assert_eq("#1027 CLI --format json: decision field", "stale-advisory",
           _json1027.loads(_rj1027.stdout)["decision"])
 
+# CLI error-exit paths — the workflow's per-issue `|| continue` depends on these rc-2 exits.
+_rbad1027 = _sp1027.run([sys.executable, str(SCRIPTS / 'stall-observer-scan.py'), 'decide',
+                         '--body-file', '/nonexistent/definitely/missing-1027.md',
+                         '--now', '2026-08-19 09:00 UTC', '--threshold', '90'],
+                        capture_output=True, text=True)
+assert_eq("#1027 CLI: unreadable --body-file exits 2", 2, _rbad1027.returncode)
+assert_eq("#1027 CLI: unparseable --now exits 2", 2, _cli1027(_wp1027(), "not-a-timestamp", 90, "true").returncode)
+
+# parse_dt ISO 8601 branch (a documented accepted format), including the naive->UTC backfill.
+assert_eq("#1027 parse_dt: ISO 8601 with Z suffix",
+          _dt1027(2026, 8, 19, 7, 28, tzinfo=_tz1027.utc), stall_observer.parse_dt("2026-08-19T07:28:00Z"))
+assert_eq("#1027 parse_dt: naive ISO 8601 is assumed UTC",
+          _dt1027(2026, 8, 19, 7, 28, tzinfo=_tz1027.utc), stall_observer.parse_dt("2026-08-19T07:28:00"))
+
+# Word fallback: an un-glyphed status word still classifies via _WORD_CLASS.
+_fwf1027 = stall_observer.parse_workpad("**Status:** Implementing\n**Last updated:** 2026-08-19 07:28 UTC\n")
+assert_eq("#1027 parse: un-glyphed status word classifies via _WORD_CLASS", "interim", _fwf1027.status_class)
+
+# Cross-file coupling: the workflow's TOKEN comparison literal must be a real DECISION_TOKENS
+# member, or a rename on either side silently makes the workflow match nothing (fail-open).
+_wf1027 = (SCRIPTS.parent / ".github" / "workflows" / "stall-observer.yml").read_text(encoding="utf-8")
+_wftok1027 = re.search(r'\[ "\$TOKEN" = "([^"]+)" \]', _wf1027)
+assert_eq("#1027 coupling: workflow TOKEN comparison uses a real DECISION_TOKENS member", True,
+          _wftok1027 is not None and _wftok1027.group(1) in stall_observer.DECISION_TOKENS)
+
 print()
 print(f"{PASS} passed, {FAIL} failed")
 sys.exit(0 if FAIL == 0 else 1)

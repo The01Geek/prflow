@@ -7,12 +7,10 @@ name: PRFlow Stall Observer
 # workpad **Last updated:** time against an ADVISORY staleness threshold and surfaces
 # "silent for N minutes; last checkpoint X" as a job annotation + step summary. It
 # NEVER kills a run and NEVER re-dispatches one — so it cannot race the backstop's
-# `resume` arm. Because no wall-clock gap cleanly separates a stall from legitimate
-# work (a healthy run ran 119 min; a 69-min inter-checkpoint gap occurred on healthy
-# runs too), the threshold is advisory-only and its default is conservative and
-# provisional. Plugin-internal: install.sh does not ship this file to consumers, so it
-# runs on this repo's own GitHub-hosted infra with a hardcoded runner (issue #582
-# group 3).
+# `resume` arm. The threshold is advisory-only and conservative by default (issue #1027
+# and the changeset carry the data). Plugin-internal: install.sh does not ship this file
+# to consumers, so it runs on this repo's own GitHub-hosted infra with a hardcoded runner
+# (issue #582 group 3).
 
 on:
   schedule:
@@ -44,15 +42,31 @@ jobs:
         run: |
           set -euo pipefail
           ENABLED=$(echo "$CONFIG_JSON" | jq -r '.workflows.prflow // false')
-          OBS_ENABLED=$(echo "$CONFIG_JSON" | jq -r '.prflow_implement.stall_observer.enabled // true')
-          THRESHOLD=$(echo "$CONFIG_JSON" | jq -r '.prflow_implement.stall_observer.advisory_threshold_minutes // 90')
+          # Bare extraction, never `// true`/`// 90`: jq's `//` treats a real JSON `false`/`0`
+          # as null and returns the default, so an explicit enabled=false or threshold=0 would
+          # be silently coerced to its truthy default (the #312 off-switch trap). null (absent)
+          # is defaulted below in shell instead.
+          OBS_ENABLED=$(echo "$CONFIG_JSON" | jq -r '.prflow_implement.stall_observer.enabled')
+          THRESHOLD=$(echo "$CONFIG_JSON" | jq -r '.prflow_implement.stall_observer.advisory_threshold_minutes')
           if [ "$ENABLED" != "true" ]; then
             echo "PRFlow workflows disabled (workflows.prflow is not true); stall observer no-op."
             exit 0
           fi
+          # Only the exact JSON false disables (a real false is preserved); null/absent → enabled.
           if [ "$OBS_ENABLED" = "false" ]; then
             echo "Stall observer disabled (prflow_implement.stall_observer.enabled=false); no-op."
             exit 0
+          fi
+          # Absent → silent default 90; a present non-integer would make every `decide` call
+          # exit non-zero and drop every issue, so validate and fall back loudly instead.
+          if [ "$THRESHOLD" = "null" ]; then
+            THRESHOLD=90
+          else
+            case "$THRESHOLD" in
+              ''|*[!0-9]*)
+                echo "::warning::stall-observer: advisory_threshold_minutes '$THRESHOLD' is not a non-negative integer; using 90"
+                THRESHOLD=90 ;;
+            esac
           fi
           NOW=$(date -u +'%Y-%m-%d %H:%M UTC')
           {
@@ -61,19 +75,36 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           # Enumerate open PRFlow issues. The OR-search label form is mandatory: repeated
           # --label flags AND, silently returning zero candidates (CLAUDE.md label-filter trap).
-          mapfile -t ISSUES < <(gh issue list --state open --limit 200 \
-            --search 'label:PRFlow,DevFlow' --json number --jq '.[].number')
+          # Check the enumeration's own status: a failed `gh issue list` must not read as an
+          # empty (clean) scan — surfacing stalls is the observer's whole job.
+          if ! ISSUES_RAW=$(gh issue list --state open --limit 200 \
+            --search 'label:PRFlow,DevFlow' --json number --jq '.[].number'); then
+            echo "::warning::stall-observer: could not list open PRFlow issues (gh issue list failed); this scan did not run"
+            echo "Scan could not run: gh issue list failed — this is NOT a clean result." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          mapfile -t ISSUES <<< "$ISSUES_RAW"
           FLAGGED=0
+          SKIPPED=0
           for n in "${ISSUES[@]}"; do
             [ -n "$n" ] || continue
+            # No workpad on this issue (workpad.py id exits 2) is the common case — skip quietly.
             CID=$(python3 scripts/workpad.py id "$n" 2>/dev/null) || continue
             [ -n "$CID" ] || continue
-            python3 scripts/workpad.py body "$CID" > "$RUNNER_TEMP/wp-$n.md" 2>/dev/null || continue
-            # The enabled decision is owned by the shell guard above (which also avoids
-            # the enumeration when disabled), so decide's --enabled is not re-passed here.
-            DEC=$(python3 scripts/stall-observer-scan.py decide \
+            # A body-read or decision failure is unexpected (decide encodes every malformed
+            # input as an rc-0 token), so surface it rather than dropping the issue silently.
+            if ! python3 scripts/workpad.py body "$CID" > "$RUNNER_TEMP/wp-$n.md"; then
+              echo "::warning::stall-observer: could not read workpad body for issue #${n}; skipped"
+              SKIPPED=$((SKIPPED + 1)); continue
+            fi
+            # The enabled decision is owned by the shell guard above, so decide's --enabled
+            # is not re-passed here.
+            if ! DEC=$(python3 scripts/stall-observer-scan.py decide \
               --body-file "$RUNNER_TEMP/wp-$n.md" --now "$NOW" \
-              --threshold "$THRESHOLD" --format json) || continue
+              --threshold "$THRESHOLD" --format json); then
+              echo "::warning::stall-observer: decision helper failed for issue #${n} (unexpected); skipped"
+              SKIPPED=$((SKIPPED + 1)); continue
+            fi
             TOKEN=$(echo "$DEC" | jq -r '.decision')
             if [ "$TOKEN" = "stale-advisory" ]; then
               MSG=$(echo "$DEC" | jq -r '.message')
@@ -84,4 +115,7 @@ jobs:
           done
           if [ "$FLAGGED" -eq 0 ]; then
             echo "No in-flight implement run exceeded the advisory threshold." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ "$SKIPPED" -gt 0 ]; then
+            echo "${SKIPPED} issue(s) skipped due to read/decision errors (see job warnings)." >> "$GITHUB_STEP_SUMMARY"
           fi

@@ -11,11 +11,9 @@ threshold. It REPORTS ("silent for N minutes; last checkpoint X"); it never kill
 a run and never re-dispatches one, so its decision vocabulary carries no
 kill/resume/fail token and it can never race the backstop's `resume` arm.
 
-The measurement over the runs available when this was written found no wall-clock
-threshold that cleanly separates a stall from legitimate work (a healthy run ran
-119 min; a 69-min inter-checkpoint gap occurred on healthy runs too), so the
-threshold is advisory-only and configurable, and its default is deliberately
-conservative and provisional pending a larger sample.
+The threshold is advisory-only, configurable, and conservative by default (no
+wall-clock gap cleanly separates a stall from legitimate work; issue #1027 and the
+changeset carry the data).
 
 Pure/deterministic given inputs: `decide` takes an explicit `now`, so its decision
 branches are drivable from fixtures with no clock or network dependency (the reason the
