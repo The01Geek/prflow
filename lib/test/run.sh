@@ -24712,8 +24712,19 @@ scenarios = {
     # Parses cleanly but records no tool_use of any kind.
     "wrong_shape": [{"type": "system", "note": "no tool uses here"}],
 }
-if scen in ("unparseable",):
+if scen == "unparseable":
     open(out, "w", encoding="utf-8").write("{ not json at all\n")
+elif scen == "whole_json":
+    # A single whole-file JSON document (not JSONL) — exercises parse_execution_file's
+    # json.loads(raw) success path, which the line-by-line fixtures never reach.
+    open(out, "w", encoding="utf-8").write(json.dumps(scenarios["whole"]))
+elif scen == "partial_corrupt":
+    # Some lines parse, one does not: parse_execution_file returns a non-empty note_top, which
+    # forces every root to unestablished even though a valid Skill pair was recovered.
+    with open(out, "w", encoding="utf-8") as fh:
+        for r in scenarios["whole"]:
+            fh.write(json.dumps(r) + "\n")
+        fh.write("{ this line is not valid json\n")
 elif scen in scenarios:
     with open(out, "w", encoding="utf-8") as fh:
         for r in scenarios[scen]:
@@ -24770,6 +24781,29 @@ assert_eq "#1618 skill-body: an absent execution file -> unestablished" \
   "unestablished" \
   "$(_o="$(python3 "$SBL" "$SBL_TMP/definitely-not-here.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" 2>/dev/null)"; case "$_o" in *'VERDICT: '*) _v="${_o#*'VERDICT: '}"; printf '%s' "${_v%%$'\n'*}" ;; *) printf 'NO_VERDICT' ;; esac)"
 
+# A single whole-file JSON document (not JSONL) still resolves — the whole-file json.loads path.
+assert_eq "#1618 skill-body: whole-file JSON (not JSONL) -> delivered-whole" \
+  "delivered-whole" "$(sbl whole_json)"
+# A partially-corrupt file (some lines parse, one does not) forces unestablished — a recovered
+# Skill pair must NOT be adjudicated as delivered-whole when the file could not be read cleanly.
+assert_eq "#1618 skill-body: partially-corrupt execution file -> unestablished (not a clean read)" \
+  "unestablished" "$(sbl partial_corrupt)"
+# The on-disk control file is unreadable (a Skill pair is present, but the --root path does not
+# exist): read_controls fails, so the delivered body cannot be checked -> unestablished, never
+# collapsed onto delivered-whole. Exercised with a real Skill pair and a bogus control path.
+assert_eq "#1618 skill-body: unreadable on-disk control file -> unestablished" \
+  "unestablished" \
+  "$(sbl_build whole >/dev/null 2>&1; _o="$(python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=/definitely/not/here/SKILL.md" 2>/dev/null)"; case "$_o" in *'VERDICT: '*) _v="${_o#*'VERDICT: '}"; printf '%s' "${_v%%$'\n'*}" ;; *) printf 'NO_VERDICT' ;; esac)"
+# Multi-root audit (the shape both workflow jobs actually use): two --root operands emit two
+# per-root VERDICT lines. The `whole` fixture carries a prflow:review pair only, so review reads
+# delivered-whole and implement (no pair) reads unestablished — proving the loop runs per root
+# rather than short-circuiting on the first. Counted with grep -c (a missing count fails the
+# assert loudly), never a selection-determining tr/sed pipeline.
+assert_eq "#1618 skill-body: multi-root audit emits a delivered-whole for the present root" "1" \
+  "$(sbl_build whole >/dev/null 2>&1; python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" --root "prflow:implement=/definitely/not/here/SKILL.md" 2>/dev/null | grep -c 'VERDICT: delivered-whole')"
+assert_eq "#1618 skill-body: multi-root audit emits an unestablished for the absent root" "1" \
+  "$(sbl_build whole >/dev/null 2>&1; python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" --root "prflow:implement=/definitely/not/here/SKILL.md" 2>/dev/null | grep -c 'VERDICT: unestablished')"
+
 # Empty selection MUST fail rather than report a clean pass — an audit that audited nothing
 # reading as an audit that found nothing is this defect one level up. No --root -> exit !=0,
 # NO-ROOTS, and never a delivered-whole line.
@@ -24785,9 +24819,9 @@ assert_eq "#1618 skill-body: empty selection prints no delivered-whole verdict" 
 # at their real on-disk paths — a job that dropped a --root would silently measure nothing
 # for that root while the suite stayed green.
 assert_eq "#1618 skill-body: matcher-probe jobs and helper are coupled" "coupled" \
-  "$(python3 - "$LIB/../.github/workflows/matcher-probe.yml" "$SBL" <<'PY_SBL_COUPLED'
+  "$(python3 - "$LIB/../.github/workflows/matcher-probe.yml" <<'PY_SBL_COUPLED'
 import sys, yaml
-wf_path, helper_path = sys.argv[1], sys.argv[2]
+wf_path = sys.argv[1]
 jobs = yaml.safe_load(open(wf_path, encoding="utf-8"))["jobs"] or {}
 roots = {"prflow:review": "skills/review/SKILL.md", "prflow:implement": "skills/implement/SKILL.md"}
 for job_name, tier in (("skill-body-load-review-probe", "review"),

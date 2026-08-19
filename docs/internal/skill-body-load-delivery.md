@@ -540,19 +540,22 @@ Expressed in the ceiling's own unit — raw on-disk file bytes, `len(read_bytes(
 - At the merge base of this branch, `skills/review/SKILL.md` is **56,526 bytes** and
   `skills/implement/SKILL.md` is **57,124 bytes** — both **under** the 61,750-byte ceiling, and
   **neither carries an exemption row**. `lib/test/reference-size-exemptions.json` exempts exactly one
-  skill root, `skills/retrospective-weekly/SKILL.md` (83,427 bytes). (Session A's own figures —
-  `review` at 65,822 bytes — predate the trims that brought both roots under the ceiling; issue
-  #1618's premise cited the older 65,970-byte size, corrected on this run.)
+  skill root, `skills/retrospective-weekly/SKILL.md` (recorded at 83,427 bytes in that file's frozen
+  snapshot; 71,331 bytes on disk at HEAD, still above the 61,750-byte ceiling — the recorded and the
+  current on-disk figure are different numbers, and only the on-disk one is the deliverable size).
+  (Session A's own figures — `review` at 65,822 bytes — predate the trims that brought both roots
+  under the ceiling; issue #1618's premise cited the older 65,970-byte size, corrected on this run.)
 - So the skill-root half of the ceiling currently carries **one** exemption, and it is **not** either
   root measured here. The two engine roots are compliant on file bytes with no exemption to classify.
 - Because the four cloud verdicts are `unestablished`, session B **cannot yet** say whether the loader
   on either cloud tier shares the byte ceiling's premise. Session A settled that for the local tier
-  (the Skill tool carried 83,427 bytes whole, 35% above the ceiling), making the ceiling the wrong
-  instrument for the *loader* there and the sole `retrospective-weekly` skill-root exemption **vacuous
-  as a delivery obligation** on the local tier. Whether that exemption is a **real** delivery
-  obligation or **vacuous** on the two cloud tiers waits on a cloud verdict: a cloud `short-delivery`
-  below 83,427 bytes would make it real there; a cloud `delivered-whole` at or above it would make it
-  vacuous there too. Until then it is `unestablished` on both cloud tiers, and this record says so
+  (the Skill tool carried that body whole at its then-recorded 83,427 bytes, 35% above the ceiling),
+  making the ceiling the wrong instrument for the *loader* there and the sole `retrospective-weekly`
+  skill-root exemption **vacuous as a delivery obligation** on the local tier. Whether that exemption
+  is a **real** delivery obligation or **vacuous** on the two cloud tiers waits on a cloud verdict: a
+  cloud `short-delivery` below the file's on-disk size would make it real there; a cloud
+  `delivered-whole` at or above its on-disk size would make it vacuous there too. Until then it is
+  `unestablished` on both cloud tiers, and this record says so
   rather than importing session A's local adjudication onto tiers it did not observe.
 
 ## What this measurement does NOT establish

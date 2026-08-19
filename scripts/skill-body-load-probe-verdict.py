@@ -211,7 +211,8 @@ def verdict_for_root(skill_name, path, pairs, note_top):
     if tail not in body:
         return "short-delivery", (
             "the delivered body did NOT contain the file's last non-empty line, so the tail "
-            "of %s was lost — the routing/verdict-emitter region for the review root" % skill_name
+            "of %s was lost (for the review root the tail is the routing/verdict-emitter "
+            "region)" % skill_name
         )
     if mid is not None and mid not in body:
         return "short-delivery", (
