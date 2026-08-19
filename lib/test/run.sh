@@ -36313,9 +36313,9 @@ assert_eq "#815 the flight-recorder registry carries a reference load_class row 
 # reference kept its write literals); the agent gets its own pins here. The agent performs NO
 # GitHub write and dispatches nothing, so the writes and the one-subagent-layer constraint both
 # rest on the orchestrator. RED against a stub agent carrying any write literal or an Agent
-# dispatch. This is a machine-consumed capability boundary (lint-shipped-pruned-path audits the
-# agents/** population), not prose — a permitted target under #1604's AC that no run.sh pin names
-# the agent for prose text.
+# dispatch. Do not relax the write-literal absence pins below as redundant: their runtime
+# enforcer is the agent's `tools:` frontmatter, pinned further down, and #1604's AC7
+# mandates the body-text checks too.
 echo "#1604 deferral-drafter composition agent"
 DEFDRAFTER="$LIB/../agents/deferral-drafter.md"
 _issue1515_deferred_projection_route() {
