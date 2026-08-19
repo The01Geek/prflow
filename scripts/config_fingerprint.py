@@ -52,6 +52,17 @@ def fingerprint_from_config(cfg):
     return {"sha256": digest, "partial": len(blocks) < 2, "salient": salient}
 
 
+def _force_utf8_streams():
+    """Force stdout/stderr to UTF-8. Never call this at import: doing so mutates the
+    streams of any process that imports this module for tests. Tolerates a stream that
+    has no usable `reconfigure` (issue #1762)."""
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 def _main(argv):
     """CLI: read a config path (argv[1]), print the fingerprint JSON object or the
     literal `null`. Best-effort — a missing/unreadable/non-object config prints
@@ -92,4 +103,5 @@ def _main(argv):
 
 
 if __name__ == "__main__":
+    _force_utf8_streams()
     sys.exit(_main(sys.argv))

@@ -123,6 +123,8 @@ Git Bash and MSYS2 rewrite a **standalone slash-leading argument** — one whose
 
 **Do not add an environment prefix to PRFlow's own call sites.** `MSYS_NO_PATHCONV=1` or `MSYS2_ARG_CONV_EXCL=…` suppress the conversion for your *own* commands, but PRFlow does not prepend either to its invocations — the host-safe-operand rule keeps the argument non-convertible instead, so no per-call environment variable is required.
 
+**Scope: standalone slash-leading literals only — an absolute *path* operand is handled by the accepting check instead.** The host-safe-operand rule covers exactly the class it can: a value the shell would rewrite because its *whole* value looks like a Unix path. An **absolute path argument** is the complementary class and is handled the opposite way. When MSYS rewrites a correct `/c/Users/…` to `C:/Users/…` in transit, or `scripts/resolve-main-root.sh` reports the native-git repository root as `C:/Users/…`, `scripts/render-audit-prompt.py`'s `_abs_path` argument check now **accepts** the host-absolute drive-letter form — in either the forward-slash or backslash spelling — and returns it unchanged, rather than rejecting it as a non-POSIX path. A path operand therefore needs no host-safe rewriting: the check admits a drive-rooted or UNC-rooted Windows path, and a `/`-leading POSIX path, which the interpreter can then open. A Windows-style path rooted at no drive (`\Users\x`) stays refused (issue #1762).
+
 ### Non-Claude-Code runners (Copilot CLI, Cursor, Codex CLI, Gemini CLI): the skill anchor
 
 Every local-tier skill locates its bundled helpers through a **portable single-statement anchor**: `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/…`. On Claude Code, `$CLAUDE_SKILL_DIR` is exported and the command runs as written. On other runners the variable expands **empty**; the agent substitutes the placeholder with the skill base directory the runner reports in context (Copilot CLI prints a `Base directory for this skill:` line), normalizing a Windows-form path (`C:\...`) to POSIX form first (`wslpath -u` / `cygpath -u`, or the `lib/normalize-path.sh` drive-letter rules). Two constraints make the *single-statement* shape load-bearing rather than stylistic:
@@ -154,9 +156,9 @@ PowerShell's double-quote handling can split a `--note`/`--reflection` text argu
 For autonomous GitHub Actions automation, run the installer from your repo root. It is idempotent, so re-running it at a *newer* release tag is also how you update. It writes into your repository — the workflows and composite actions under `.github/`, a local `marketplace.json`, and `.prflow/` templates (config scaffold, schema, ignore file) — so those changes land in version control. **Download it, read it, then run the downloaded file:**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.33.18/install.sh -o devflow-install.sh
+curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.33.19/install.sh -o devflow-install.sh
 # review devflow-install.sh, then:
-DEVFLOW_REF=v2.33.18 bash devflow-install.sh
+DEVFLOW_REF=v2.33.19 bash devflow-install.sh
 ```
 
 <a id="pinning-the-installer"></a>
@@ -175,8 +177,8 @@ Independently of either pin, `install.sh` stamps `.prflow/config.json`'s `prflow
 `curl … | bash` runs the script without giving you a chance to read it. If you accept that, still pin both refs:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.33.18/install.sh \
-  | DEVFLOW_REF=v2.33.18 bash
+curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.33.19/install.sh \
+  | DEVFLOW_REF=v2.33.19 bash
 ```
 
 </details>
