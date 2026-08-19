@@ -1,0 +1,224 @@
+{
+  "iter": 1,
+  "source": "review-and-fix",
+  "fix_commit_sha": "7849715b3",
+  "fix_files": [
+    "docs/internal/universal-criteria-grading-spike.md"
+  ],
+  "loop_role": "fix",
+  "current_step": "3",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": null
+  },
+  "checklist": [
+    {
+      "id": "VC-1",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-2",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-3",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-4",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-5",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-6",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-7",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-8",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-9",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-10",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-11",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-12",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-13",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-14",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-15",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-16",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-17",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-18",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "prompt-surface-growth message misquoted for this branch",
+      "defect_signature": {
+        "file": "docs/internal/universal-criteria-grading-spike.md",
+        "line_range": [
+          158,
+          160
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 3,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Important",
+      "description": "Phase 4.2 quote flagged non-verbatim (matched summary bullets, not the numbered rules)",
+      "defect_signature": {
+        "file": "docs/internal/universal-criteria-grading-spike.md",
+        "line_range": [
+          185,
+          191
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 2,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "reproduction command uses wc -c (non-preflight tool) in an offline spike appendix; finding states no change required",
+      "defect_signature": {
+        "file": "docs/internal/universal-criteria-grading-spike.md",
+        "line_range": [
+          128,
+          130
+        ],
+        "kind": "style"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "7849715b3"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "7849715b3",
+      "source_file": "docs/internal/universal-criteria-grading-spike.md",
+      "claim_text": "Phase 4.2 quote non-verbatim",
+      "skip_category": "claim-quality",
+      "evidence": "quote is verbatim from phase-4-verdict.md lines 202-203 (VC-5 confirmed byte-match); reviewers matched the ## Verdict Criteria summary; added a precise section pointer to defuse the ambiguity",
+      "parking_evidence": {
+        "basis": "technically a false positive but clarified in place",
+        "failing_input": "a reader checking the ## Verdict Criteria summary bullets instead of §4.2 numbered rules",
+        "source": "skills/review/phases/phase-4-verdict.md:202-203",
+        "finding_ref": {
+          "iter": 1,
+          "index": 1
+        }
+      }
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "advisory",
+      "source_file": "docs/internal/universal-criteria-grading-spike.md",
+      "claim_text": "wc -c in reproduction command",
+      "skip_category": "advisory-parked",
+      "evidence": "offline one-time measurement primitive in a spike appendix, not shipped runtime code; the finding itself states 'No change required to this doc'",
+      "parking_evidence": {
+        "basis": "advisory: non-preflight tool in a doc's offline reproduction command, not a shipped selection/emit",
+        "failing_input": "a missing wc on the measurement host",
+        "source": "docs/internal/universal-criteria-grading-spike.md:128-130",
+        "finding_ref": {
+          "iter": 1,
+          "index": 2
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 2,
+    "fix_diff_lines": 11,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "shadow": {
+    "ran_at": null,
+    "reviewed_sha": null,
+    "verdict": null,
+    "coverage": null,
+    "reviewers_dispatched": [],
+    "expected_reviewers": [],
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
