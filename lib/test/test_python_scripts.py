@@ -22218,24 +22218,32 @@ class _Run792(_Run709):
                   (0, True), (ret.returncode, f'outcome={verdict}' in ret.stdout))
         return ret
 
-    def clean_round(self):
-        """One dispatch/return round that ESTABLISHES steering — the `covered` precondition."""
-        self.generate()
-        d = self.dispatch()
-        assert d.returncode == 0, f'#792 harness: dispatch failed: {d.stderr!r}'
-        return self.ret(instructions_oid=self.oid(self.instr), extra='no')
+    def clean_round(self, verdict='FILE', findings=0):
+        """One dispatch/return round that ESTABLISHES steering — the `covered` precondition.
 
-    def uncovered_round(self):
-        """One round that quotes NO instruction oid — the `uncovered` precondition.
-
-        The mirror of `clean_round`, factored because eight rows below open with it: if the
-        steering-unestablished shape ever changes, a row left behind would silently become a
-        COVERED run whose negative assertions then pass vacuously.
+        `verdict`/`findings` default to the clean FILE round; #1771 reuses this same
+        steering-establishing shape for a REVISE round so a future change to how
+        steering-establishment is recorded cannot silently leave a hand-inlined copy behind.
         """
         self.generate()
         d = self.dispatch()
         assert d.returncode == 0, f'#792 harness: dispatch failed: {d.stderr!r}'
-        return self.ret(instructions_oid=None, extra='no')
+        return self.ret(instructions_oid=self.oid(self.instr), extra='no',
+                        verdict=verdict, findings=findings)
+
+    def uncovered_round(self, verdict='FILE', findings=0):
+        """One round that quotes NO instruction oid — the `uncovered` precondition.
+
+        The mirror of `clean_round`, factored because eight rows below open with it: if the
+        steering-unestablished shape ever changes, a row left behind would silently become a
+        COVERED run whose negative assertions then pass vacuously. `verdict`/`findings` default
+        to the clean FILE round; #1771 reuses the same steering-unestablished shape for a REVISE
+        round rather than re-inlining it.
+        """
+        self.generate()
+        d = self.dispatch()
+        assert d.returncode == 0, f'#792 harness: dispatch failed: {d.stderr!r}'
+        return self.ret(instructions_oid=None, extra='no', verdict=verdict, findings=findings)
 
 
 def _with_run792(fn, **kw):
@@ -22307,6 +22315,106 @@ def _row792_revise_revokes(r):
 
 
 _with_run792(_row792_revise_revokes)
+
+
+# issue #1771 — the final-byte OFFER is suppressed (trigger not-hold, reason
+# resolution-settled) when the drafter's own self-verified resolutions closed every finding
+# from a steering-established round, i.e. the run converged basis=resolution with zero
+# effective unresolved. The coverage axis still reports the bytes `uncovered` truthfully —
+# only the offer is withheld — so a converged run does not pause a second time. Breaking the
+# `_final_byte_resolution_settled` suppression (or its steering / basis / converged terms)
+# reopens the offer and turns the not-hold assertion RED; the pre-resolution control below
+# is what proves the suppression is conditional, not a blanket disabling of the ground.
+def _row1771_resolution_settled_suppresses(r):
+    # A file-arm REVISE round whose steering-absence IS established (clean_round quotes the
+    # correct instruction oid), so the final-byte selector picks it and coverage is
+    # uncovered/latest-verdict-revise — the exact state issue #1771 reports. Reuse the
+    # centralized steering-establishing harness so a change to that shape cannot silently make
+    # this row's negative assertions pass against the wrong state.
+    r.clean_round(verdict='REVISE', findings=1)
+    _pre = r.fb()
+    assert_eq("#1771 control: an as-yet-unresolved REVISE round still fires the final-byte "
+              "offer — the run has not converged, so the suppression does not apply",
+              'hold', _field704(_pre, 'final_byte_trigger='))
+    assert_eq("#1771 control: ... on the uncovered/latest-verdict-revise coverage state",
+              ('uncovered', 'latest-verdict-revise'),
+              (_field704(_pre, 'final_byte_coverage='), _field704(_pre, 'final_byte_reason=')))
+    # Adjudicate the round REVISE with a one-entry ledger, then settle that entry by a
+    # self-verified resolution against the recorded revision — the basis=resolution path.
+    r.adjudicate(1, 'REVISE', 1, '1', 'unresolved: finding A\n')
+    r('record-revision', r.slug, '--after-round', '1', '--stdin-digest',
+      stdin='revised bytes\n', nonce=True)
+    r('record-resolution', r.slug, '--round', '1', '--revision-ordinal', '1',
+      '--resolved-ids', '1', nonce=True)
+    assert_eq("#1771 precondition: the run converged on a resolution basis with zero "
+              "effective unresolved must-revise findings",
+              'converged=yes reason= basis=resolution unledgered_revise=none',
+              decided(r('query-convergence', r.slug, nonce=True).stdout))
+    _line = r.fb()
+    assert_eq("#1771: a steering-established REVISE round whose findings were all resolved "
+              "SUPPRESSES the final-byte offer — the trigger does not hold",
+              'not-hold', _field704(_line, 'final_byte_trigger='))
+    assert_eq("#1771: ... naming resolution-settled as the trigger reason",
+              'resolution-settled', _field704(_line, 'final_byte_reason='))
+    assert_eq("#1771: ... while the coverage axis still reports the bytes uncovered — the "
+              "offer is withheld, the factual coverage is not overwritten",
+              'uncovered', _field704(_line, 'final_byte_coverage='))
+
+
+_with_run792(_row1771_resolution_settled_suppresses)
+
+
+# issue #1771 control — the suppression's STEERING-ESTABLISHED term. A non-FILE round whose
+# steering-absence was NOT established, driven to converged basis=resolution, must still FIRE
+# the offer: deleting `if not _steering_established(rnd): return False` would wrongly suppress
+# the offer for a round whose independence was never established (the state the offer exists to
+# catch), and this row goes RED on that mutation.
+def _row1771_steering_unestablished_still_fires(r):
+    r.uncovered_round(verdict='REVISE', findings=1)
+    r.adjudicate(1, 'REVISE', 1, '1', 'unresolved: finding A\n')
+    r('record-revision', r.slug, '--after-round', '1', '--stdin-digest',
+      stdin='revised bytes\n', nonce=True)
+    r('record-resolution', r.slug, '--round', '1', '--revision-ordinal', '1',
+      '--resolved-ids', '1', nonce=True)
+    assert_eq("#1771 control: the round converged on a resolution basis",
+              'converged=yes reason= basis=resolution unledgered_revise=none',
+              decided(r('query-convergence', r.slug, nonce=True).stdout))
+    assert_eq("#1771 control: ... but its steering-absence was NOT established",
+              'not-established',
+              _field704(decided(r('query-summary', r.slug, nonce=True).stdout), 'steering='))
+    assert_eq("#1771: a converged basis=resolution round whose steering was NOT established "
+              "still FIRES the final-byte offer — the steering-established term withholds "
+              "suppression",
+              'hold', _field704(r.fb(), 'final_byte_trigger='))
+
+
+_with_run792(_row1771_steering_unestablished_still_fires)
+
+
+# issue #1771 control — the suppression's exact basis=='resolution' term. A steering-established
+# non-FILE round settled by resolution, then a LATER revision postdating that verification, so
+# convergence reports basis=resolution-stale. The suppression admits only exact 'resolution', so
+# the offer must still fire; widening the term to accept resolution-stale would wrongly suppress
+# over stale-verified bytes, and this row goes RED on that mutation.
+def _row1771_resolution_stale_still_fires(r):
+    r.clean_round(verdict='REVISE', findings=1)
+    r.adjudicate(1, 'REVISE', 1, '1', 'unresolved: finding A\n')
+    r('record-revision', r.slug, '--after-round', '1', '--stdin-digest',
+      stdin='rev one\n', nonce=True)
+    r('record-resolution', r.slug, '--round', '1', '--revision-ordinal', '1',
+      '--resolved-ids', '1', nonce=True)
+    r('record-revision', r.slug, '--after-round', '1', '--stdin-digest',
+      stdin='rev two\n', nonce=True)
+    assert_eq("#1771 control: a later revision postdates the resolution's verification, so the "
+              "run converges on basis=resolution-stale",
+              'converged=yes reason= basis=resolution-stale unledgered_revise=none',
+              decided(r('query-convergence', r.slug, nonce=True).stdout))
+    assert_eq("#1771: a converged basis=resolution-STALE round still FIRES the final-byte offer "
+              "— the suppression admits only exact basis=resolution",
+              'hold', _field704(r.fb(), 'final_byte_trigger='))
+
+
+_with_run792(_row1771_resolution_stale_still_fires)
 
 
 # AC87 sibling — the `_final_byte_revoked` TRUE branch, which no other row reaches. The

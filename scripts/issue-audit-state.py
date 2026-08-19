@@ -3239,13 +3239,42 @@ def final_byte_slot_unspent(state, current_digest):
     return spent_for is None or spent_for != current_digest
 
 
+def _final_byte_resolution_settled(state, rnd):
+    """Suppress the final-byte OFFER when the drafter's own resolutions closed a round (#1771).
+
+    True only when `rnd` closed non-FILE (a `latest-verdict-revise` selection), its
+    steering-absence was ESTABLISHED, and the run converged on `basis=resolution` with zero
+    effective unresolved findings — the common case a REVISE round whose findings the drafter
+    then self-verified and resolved reaches. The final-byte offer exists to catch bytes no
+    auditor read, but a second user pause there duplicates diligence already done, so the
+    offer is withheld here while `evaluate_final_byte_coverage` still reports the bytes
+    `uncovered` truthfully. Steering-established is required so a round whose independence
+    could not be established still earns the offer. The FILE early-return is defensive: a
+    steering-established FILE round reports `covered`, so the caller's `if holds` guard never
+    reaches this helper for it — the return guards only against a future coverage-contract change.
+    """
+    if rnd is None or rnd.get('outcome') == 'FILE':
+        return False
+    if not _steering_established(rnd):
+        return False
+    conv = evaluate_convergence(state)
+    return conv['converged'] and conv['basis'] == 'resolution'
+
+
 def evaluate_final_byte_trigger(state, current_digest=None, digest_failed=False):
     """Whether the final-byte exact-byte offer holds (issue #792).
 
-    Holds if and only if the reported coverage is `uncovered` AND the dedicated slot is
-    unspent for the current canonical digest — never on `unestablished` (where an
-    accepted round could not change the answer, so the offer would fund nothing and
-    leave the run with no next action), never on `covered`.
+    Holds if and only if the reported coverage is `uncovered`, the dedicated slot is
+    unspent for the current canonical digest, AND the offer is not suppressed by issue
+    #1771's resolution-settled rule — never on `unestablished` (where an accepted round
+    could not change the answer, so the offer would fund nothing and leave the run with no
+    next action), never on `covered`.
+
+    The #1771 suppression withholds the OFFER, not the coverage axis: when the run converged
+    `basis=resolution` on a steering-established REVISE round's self-verified fixes, `holds`
+    is False and the reason becomes `resolution-settled`, while `coverage` stays `uncovered`
+    so the factual "were these bytes audited" report is not overwritten. See
+    `_final_byte_resolution_settled`.
 
     Answered on its own `query-final-byte`, deliberately NOT appended to
     `query-triggers`: that query's Step 3.6 -> Step 4 boundary consumer applies
@@ -3256,7 +3285,10 @@ def evaluate_final_byte_trigger(state, current_digest=None, digest_failed=False)
     fb = evaluate_final_byte_coverage(state, current_digest, digest_failed=digest_failed)
     holds = (fb['coverage'] == 'uncovered'
              and final_byte_slot_unspent(state, current_digest))
-    return {'holds': holds, 'coverage': fb['coverage'], 'reason': fb['reason']}
+    reason = fb['reason']
+    if holds and _final_byte_resolution_settled(state, fb['round']):
+        holds, reason = False, 'resolution-settled'
+    return {'holds': holds, 'coverage': fb['coverage'], 'reason': reason}
 
 
 def _final_byte_honoured(rnd):
