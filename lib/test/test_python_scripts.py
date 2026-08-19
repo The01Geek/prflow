@@ -22368,7 +22368,7 @@ _with_run792(_row1771_resolution_settled_suppresses)
 # steering-absence was NOT established, driven to converged basis=resolution, must still FIRE
 # the offer: deleting `if not _steering_established(rnd): return False` would wrongly suppress
 # the offer for a round whose independence was never established (the state the offer exists to
-# catch), and only this row goes RED on that mutation.
+# catch), and this row goes RED on that mutation.
 def _row1771_steering_unestablished_still_fires(r):
     r.uncovered_round(verdict='REVISE', findings=1)
     r.adjudicate(1, 'REVISE', 1, '1', 'unresolved: finding A\n')
@@ -22395,7 +22395,7 @@ _with_run792(_row1771_steering_unestablished_still_fires)
 # non-FILE round settled by resolution, then a LATER revision postdating that verification, so
 # convergence reports basis=resolution-stale. The suppression admits only exact 'resolution', so
 # the offer must still fire; widening the term to accept resolution-stale would wrongly suppress
-# over stale-verified bytes, and only this row goes RED on that mutation.
+# over stale-verified bytes, and this row goes RED on that mutation.
 def _row1771_resolution_stale_still_fires(r):
     r.clean_round(verdict='REVISE', findings=1)
     r.adjudicate(1, 'REVISE', 1, '1', 'unresolved: finding A\n')
