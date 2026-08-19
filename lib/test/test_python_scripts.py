@@ -7851,6 +7851,30 @@ with tempfile.TemporaryDirectory() as _fe_dir:
                   SystemExit, lambda: _ing(_fe('[5]')))
     assert_raises("#1803 fe_records: a duplicate finding_id is refused",
                   SystemExit, lambda: _ing(_fe('[{"finding_id":1},{"finding_id":1}]')))
+# (4) Cross-render equality: the summary-block tokens equal query-summary's tokens for the
+#     shared subset, so the two surfaces cannot render one field two ways — the invariant
+#     `_summary_block_line`'s docstring asserts, enforced here rather than merely claimed
+#     (issue #1803 /simplify finding).
+with tempfile.TemporaryDirectory() as _xr_dir:
+    _xr_root = Path(_xr_dir)
+    _xr_state = _state([_round(1, 'file', 'FILE', 'D1')])
+    issue_audit_state.save_state(_xr_state, 's', root=_xr_root)
+    _xr_orig = issue_audit_state._repo_root
+    try:
+        issue_audit_state._repo_root = lambda: _xr_root
+        _qs_buf = io.StringIO()
+        with contextlib.redirect_stdout(_qs_buf), contextlib.redirect_stderr(io.StringIO()):
+            issue_audit_state.cmd_query_summary(argparse.Namespace(
+                cmd='query-summary', slug='s', nonce=_xr_state['nonce'], draft_file=None))
+    finally:
+        issue_audit_state._repo_root = _xr_orig
+    _qs_tok = dict(t.split('=', 1) for t in _qs_buf.getvalue().split('\n')[0].split(' '))
+    _blk_tok = dict(t.split('=', 1) for t in issue_audit_state._summary_block_line(
+        issue_audit_state.summary_fields(_xr_state))[len('summary-block '):].split(' '))
+    _blk_sub = {f: _blk_tok.get(f) for f in issue_audit_state._SUMMARY_BLOCK_FIELDS}
+    _qs_sub = {f: _qs_tok.get(f) for f in issue_audit_state._SUMMARY_BLOCK_FIELDS}
+    assert_eq("#1803 cross-render: every summary-block token equals query-summary's for the "
+              "shared subset", _qs_sub, _blk_sub)
 # _binding_line — the query answer shape, incl. the fail-closed unbound token.
 assert_eq("#562 _binding_line: unbound state answers the fail-closed bound=none token",
           'bound=none tier=none non_bound_root=none latest_revision_landed=yes',
