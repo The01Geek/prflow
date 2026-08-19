@@ -1,0 +1,122 @@
+{
+  "iter": 1,
+  "fix_commit_sha": "805d8dd0",
+  "fix_files": [
+    "scripts/load-prompt-extension.sh",
+    "lib/test/modules/prompt-extension-reader.sh"
+  ],
+  "loop_role": "fix",
+  "current_step": "2.6",
+  "current_substep": "run_shadow_fanout",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "DEVFLOW_PROMPT_EXTENSION_ROOT branch untested for token emission (production review-tier path)",
+      "defect_signature": {
+        "file": "lib/test/modules/prompt-extension-reader.sh",
+        "line_range": [
+          163,
+          225
+        ],
+        "kind": "token-emission-untested-on-primary-consumer-branch"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "undeliverable negative assertion too narrow (only present-empty)",
+      "defect_signature": {
+        "file": "lib/test/modules/prompt-extension-reader.sh",
+        "line_range": [
+          200,
+          205
+        ],
+        "kind": "negative-assertion-too-narrow"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "classification-boundary divergence between loader -s and render $()-strip for whitespace-only files; comment claims vocabulary reuse",
+      "defect_signature": {
+        "file": "scripts/load-prompt-extension.sh",
+        "line_range": [
+          82,
+          92
+        ],
+        "kind": "classification-boundary-note"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "test comment block exceeds 3-line inline cap; header grammar 'keeps X neutralizing'",
+      "defect_signature": {
+        "file": "lib/test/modules/prompt-extension-reader.sh",
+        "line_range": [
+          163,
+          172
+        ],
+        "kind": "comment_discipline"
+      },
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "805d8dd0"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "805d8dd0"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "805d8dd0"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "805d8dd0"
+    }
+  ],
+  "shadow": {
+    "ran_at": null,
+    "verdict": null,
+    "coverage": null,
+    "reviewers_dispatched": [],
+    "expected_reviewers": [],
+    "phase3_findings": [],
+    "comparison": {
+      "shadow_total": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
