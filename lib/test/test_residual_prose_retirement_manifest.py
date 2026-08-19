@@ -42,8 +42,7 @@ CLASSIFIER = HERE / "pin-corpus-classifier.py"
 LINT = HERE / "pin-corpus-lint.py"
 # Both arms of machine_consumer_evidence in each comment-stripped language (.yaml
 # shares .yml's branch).  Dropping a language's control lets its operative text
-# regress to empty while the corpus floor and per-prefix check — both PRESENCE-only —
-# still read green, leaving every prose row's `is None` screen passing vacuously.
+# regress to empty while every other check here still reads green.
 _MACHINE_CONSUMER_CONTROLS = (  # (literal, evidence phrase, expected consumer path)
     (
         "> is not a verdict — it reads like an approval to a human while counting as",
@@ -80,6 +79,16 @@ _MACHINE_CONSUMER_CONTROLS = (  # (literal, evidence phrase, expected consumer p
         "contains the distinctive token",
         "lib/cheap-gate.jq",
     ),
+)
+
+# Comment subtraction is what keeps a literal QUOTED in a consumer comment from
+# reading as a program that consumes it.  Each token below is prose that lives only
+# in its file's comments; without the raw-presence half these pass by deletion.
+_COMMENT_SUBTRACTION_CONTROLS = (  # (comment-only token, home consumer path)
+    ("truncated-but-still-parseable", "lib/scan.sh"),
+    ("present-but-non-regular", "scripts/render-audit-prompt.py"),
+    ("self-referential-ordinal", ".github/workflows/ci.yml"),
+    ("success/neutral/skipped/null", "lib/cheap-gate.jq"),
 )
 
 IDENTITY_COLUMNS = (
@@ -390,15 +399,14 @@ def load_lint():
 
 
 def build_consumer_corpus(lint):
-    """Return the step-1 machine-consumer corpus, via the lint's own loader.
+    """Return ``(sources, corpus, skipped)`` via the lint's own loader.
 
     Never re-derive the enumeration here: a second copy of the corpus rules
     drifts silently from the ladder that actually gates a pin, leaving this
     assertion measuring a corpus production never uses.
     """
-    return lint.build_machine_consumer_corpus(
-        lint.load_machine_consumer_sources(REPO_ROOT)
-    )
+    sources, skipped = lint.load_machine_consumer_sources(REPO_ROOT)
+    return sources, lint.build_machine_consumer_corpus(sources), skipped
 
 
 _HISTORICAL_INVENTORY_CACHE: dict[str, str] = {}
@@ -1129,14 +1137,18 @@ class ResidualProseRetirementManifestTests(unittest.TestCase):
         # One-sided screen: a hit proves the bucket WRONG, a miss proves nothing.  Never
         # read a green here as evidence the prose population is clean.
         lint = load_lint()
-        corpus = build_consumer_corpus(lint)
+        sources, corpus, skipped = build_consumer_corpus(lint)
         # Every miss below is indistinguishable from a degraded search, so establish the
         # search still works before trusting one.  Never drop one of these as redundant:
         # each catches a degradation the others pass.
-        # Floored near the live population, not at a token value: load_machine_consumer_sources
-        # drops an unreadable file to a stderr breadcrumb nothing asserts on, so a slack
-        # floor tolerates a majority collapse.
-        self.assertGreater(len(corpus), 200, "machine-consumer corpus is implausibly small")
+        # A dropped file is a hole the screen cannot see: the loader routes an unreadable
+        # or non-UTF-8 consumer to a stderr breadcrumb, so without this every prose row
+        # whose sole consumer was dropped passes vacuously.
+        self.assertEqual((), tuple(skipped), "machine-consumer corpus dropped a file")
+        # Collapse floor only — a per-file drop is caught exactly above, so this is slack
+        # on purpose: it catches an enumeration that returned nothing or nearly nothing,
+        # never ordinary consolidation shrinkage of the consumer surface.
+        self.assertGreater(len(corpus), 50, "machine-consumer corpus is implausibly small")
         self.assertEqual(
             {path.split("/")[0] for path, _ in corpus},
             {prefix.rstrip("/") for prefix in lint.MACHINE_CONSUMER_PATH_PREFIXES},
@@ -1152,6 +1164,14 @@ class ResidualProseRetirementManifestTests(unittest.TestCase):
             self.assertTrue(
                 evidence.startswith(expected_path + " "),
                 f"control {control!r} answered from {evidence!r}, not {expected_path}",
+            )
+        # Assert the raw presence first: a token deleted from its home would otherwise
+        # satisfy the absence half while proving nothing about subtraction.
+        for control, home in _COMMENT_SUBTRACTION_CONTROLS:
+            self.assertIn(control, sources[home], f"control {control!r} left {home}")
+            self.assertIsNone(
+                lint.machine_consumer_evidence(control, corpus),
+                f"comment subtraction is not live: {control!r} survived from {home}",
             )
         for row in rows:
             bucket = row["bucket_final"]
