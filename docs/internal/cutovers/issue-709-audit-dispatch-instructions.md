@@ -75,10 +75,13 @@ in `create-issue-budget.md`, and `CHANGELOG.md` records the subsystem's retireme
 ## Consuming paths
 
 The superseded prose had exactly one consuming path: **the file-arm state-owner-routed audit
-dispatch** (Step 3.6's initial round, same-round retries, boundary-offer rounds,
-revise-and-reaudit rounds, and Step 4 sub-step 4 re-audits all reach the same composition step).
-Every one of them now invokes `render-audit-prompt.py dispatch-instructions` and dispatches a
-generated pointer.
+dispatch** (Step 3.6's initial round, same-round retries, user-elected offer rounds, and Step 4
+sub-step 4 re-audits all reach the same composition step). Every one of them now invokes
+`render-audit-prompt.py dispatch-instructions` and dispatches a generated pointer. (Issue #1751
+abolished the automatic re-audit that followed a `REVISE` verdict — `_MAX_AUTOMATIC_REAUDITS` is
+now `0` and every round is user-elected before it opens — so the former "revise-and-reaudit rounds"
+class named here no longer exists; the composition step it reached is now reached only by a
+user-elected round.)
 
 The other four consumption categories are **not** superseded and keep their prose verbatim: the
 degraded inline arm (ii), the Step 3.5 self-check (iii), Step 2's `## Evidence axes` forwarding

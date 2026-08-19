@@ -23,7 +23,7 @@ The seven slots:
 - [ ] 2. Clarify the user story until the Definition of Ready is met (Step 2)
 - [ ] 3. Draft the issue and pass the no-options gate (Step 3)
 - [ ] 4. Steelman the draft against the code, revise, re-pass the no-options gate, and append the steelman record to the derivation artifact (Step 3.5)
-- [ ] 5. Audit the draft in a fresh context, act on the verdict, and re-gate any revision (Step 3.6)
+- [ ] 5. Bootstrap the audit state, offer the fresh-context audit, and run and act on any round the user elects (Step 3.6)
 - [ ] 6. Present the rendered issue, get the user's explicit confirmation, then create it (Step 4, sub-steps 1–5)
 - [ ] 7. After creation succeeds, run the gated implement-offer step — present the offer, or print the withheld-offer reason (Step 4, sub-step 6)
 
@@ -65,7 +65,7 @@ a skip — stop and run the full step.
 - "The docs-verify dispatch is expensive; I'll skip it."
 - "There is no user here, so the clarification or approval step cannot run."
 - "I already have a solid draft; more grounding is wasted effort."
-- "There is no draft yet, so the audit has nothing to check."
+- "The draft looks clean, so I won't bother offering the audit round."
 - "Let me just render the draft and report, to be efficient."
 
 ## Rationalizations
@@ -76,9 +76,9 @@ a skip — stop and run the full step.
 | "Let me do a reasonable, abbreviated pass and be honest" | Announcing an abbreviation does not authorize it, and a shortened pipeline is not a pipeline. |
 | "Step 1 says dispatch docs-verify peers. That's expensive." | Cost is not a gate. Step 1 grounds every later claim; skipping it drafts blind. |
 | "Given time pressure I should still do this properly-ish" | "Properly-ish" is the abbreviation this law forbids; run the step, or record what genuinely cannot be resolved in the Blocked section. |
-| "no user available" | The absence of a user does not excuse an artifact no user is needed for; self-answer from the issue's own material where the run is non-interactive and continue. |
-| "Enough grounding. I have a solid draft." | Confidence in the draft is what the later steps test; the audit runs precisely on the drafts that feel solid. |
-| "I'll skip the audit subagent since there's no draft to audit" | There is always a draft to audit at Step 3.6 — Step 3 produced it — so the audit is never vacuous. |
+| "no user available" | The absence of a user does not excuse an artifact no user is needed for; self-answer from the issue's own material where the run is non-interactive and continue — and a non-interactive run self-answers the audit offer as a `user-decline` override and proceeds unaudited. |
+| "Enough grounding. I have a solid draft." | Confidence in the draft is what the later steps test; the fresh-context audit is offered on precisely the drafts that feel solid, and whether the round runs is the user's election, not yours to pre-empt. |
+| "I'll skip the audit offer since the draft looks fine" | The audit is the user's election, offered at Step 4 before any round opens; you may skip neither the offer, the bootstrap, nor the summary line — only the user may decline the round, and a declined run files unaudited. |
 | "Let me be efficient — render the draft and report" | Rendering and reporting is not creating; the pipeline ends at a created-or-paused issue, not a report. |
 
 ## Core principle
@@ -127,7 +127,7 @@ These five hold on every path, including every degraded arm above, and are load-
 
 1. **The issue is created only after the user explicitly approves the full rendered draft in chat.** The full title and body are rendered verbatim in your message first; an earlier "just create it", a complete Step 2, or a paused pipeline is never a substitute for approval of *this* draft.
 2. **The no-options gate** (stated under Step 3 below) passes on the body that is shown and on every revision of it.
-3. **The audit summary line is mandatory and always renders** — even on a clean `VERDICT: FILE` with zero findings. A skipped or degraded audit is never silent.
+3. **The audit summary line is mandatory and always renders** — even on a run that elected no audit round (rounds run: zero) or a clean `VERDICT: FILE` with zero findings. A declined, skipped, or degraded audit is never silent.
 4. The reserved `PRFlow` provenance label is applied best-effort after creation, and any degradation is reported explicitly — a label hiccup never blocks creation, and a `PRFlow` label that could not be applied is named in the final outcome rather than passed over.
 5. The self-assignment election is resolved before creation, on every path including every degraded arm. It is asked in the same pause as the approval question; an explicit yes adds `--assignee "@me"`, an explicit no creates it unassigned, and silence or any non-yes/non-no reply pauses and re-asks — no issue-creation command runs until the answer is an explicit yes or no, whatever the approval answer was. This election belongs to the interactive create path only; a draft-only request never reaches it.
 
@@ -255,7 +255,7 @@ Drafting produces a candidate issue in your message only — nothing is posted t
 
 Load `references/step-3-5-steelman.md` per the *Reference routing* rules above and follow it exactly, on every entry into this step.
 
-### Step 3.6: Fresh-context audit (mandatory, before the user sees it)
+### Step 3.6: Fresh-context audit bootstrap and offer (before the user sees it)
 
 Load `references/step-3-6-audit.md` per the *Reference routing* rules above and follow it exactly, on every entry into this step.
 
@@ -290,10 +290,11 @@ Re-run the producing step for every absent path, then resume at the draft render
 re-entry reuses the slug already bound and binds no new one; a zero-byte `.prflow/tmp/issue-run-slug`
 is not a re-run of Step 1 but the slug-unestablished arm above. A missing derivation file re-runs Step 2's independent-derivation pass, not
 Step 2 whole, reporting any genuine clarification deficit in the draft message — and re-runs
-Step 3.5's steelman pass afterwards. The audit
-artifact's re-entry belongs to the Step 4 presentation gate alone (`references/step-4-present-create.md`),
-which stops and runs Step 3.6 when neither this run's artifact nor its inline stand-in is present;
-this listing reports that path's class and re-enters no step for it. Where any step was re-entered,
+Step 3.5's steelman pass afterwards. The run
+bootstrap's re-entry belongs to the Step 4 presentation gate alone (`references/step-4-present-create.md`),
+which stops and runs it when this run holds no nonce or bound draft; a run that elected no audit round
+has no audit artifact, and the gate admits it rather than re-entering Step 3.6 to dispatch an unasked round.
+This listing reports that path's class and re-enters no step for it. Where any step was re-entered,
 that message names the steps re-run and any finding of theirs the draft does not already reflect. A
 producing step that cannot run gets an in-chat breadcrumb naming the file and the failure kind; this
 listing never blocks issue creation. These four paths are the run-state files this listing covers; it

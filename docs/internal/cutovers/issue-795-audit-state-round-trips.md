@@ -176,6 +176,15 @@ write's `record-staged-write` is prose-mandated by the shared write procedure. O
 omitted them, so the rise measures the prose catching up with the run. Read a later green MEASURE
 line against that baseline rather than against the pre-#1466 one.
 
+**Issue #1751 moved the figure again, and this time behavior did change.** With every fresh-context
+audit round now offered to the user before it opens, the mandated call sequence is re-ordered so the
+`record-offer` election precedes the first `record-dispatch`, and the calls that a round now takes
+only when the user elects it are re-classified as conditional in `lib/test/check-audit-lifecycle-contracts.py`'s
+`_CONDITIONAL` set (whose first member is `record-offer`) rather than counted in the per-round
+unconditional list. The derived `unconditional_call_count` therefore moves, and the pinned
+`ALC_795_EXPECT` in `lib/test/run.sh` moves with it. Read the live MEASURE line — not a number
+copied here — and read it against the post-#1751 baseline.
+
 The real-corpus before/after record, the stated reason its "after" row is a post-merge obligation
 rather than a pre-merge figure, and the reproduction recipe that produces it are in
 [`create-issue-context.md`](../create-issue-context.md). The unfilled row there is unfilled by

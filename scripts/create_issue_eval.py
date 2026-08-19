@@ -59,7 +59,11 @@ axis reads a silent `0` that is indistinguishable from a genuinely free audit. T
 first real-corpus run is what settles it: read `total_unrounded_auditor_cost` and the
 per-round tallies together, and treat an all-zero auditor axis on a corpus that
 demonstrably ran audit rounds (`dispatch_rounds` non-empty) as evidence of this
-assumption failing, not as a measurement.
+assumption failing, not as a measurement. Since issue #1751 made every fresh-context
+audit round user-elected, an EMPTY `dispatch_rounds` set is the expected default of a
+run that declined the audit — not evidence of anything — so the discriminator above is
+deliberately conditioned on `dispatch_rounds` non-empty and never reads a zero-round run
+as an attribution failure.
 
 Per-record token usage is read from `message.usage.{input_tokens,
 cache_read_input_tokens, cache_creation_input_tokens, output_tokens}`. Per-turn

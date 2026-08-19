@@ -93,7 +93,9 @@ A pass that closes **without a file-arm verdict** refunds the slot — and the r
 a **separate** `final_byte_refunds` term rather than by decrementing the grant counter. That split
 is load-bearing and was a live defect the review pass caught: `final_byte_passes_used` is a
 *funding* term (it is in `_ROUND_BUDGETS`, and `_funded_rounds` compares against the monotonically
-growing `len(doc['rounds'])`), so decrementing it retracts budget for a round already opened —
+growing `len(doc['rounds'])`; issue #1751 dropped the free `1 +` term from `_funded_rounds`, so a
+round is now funded only by a recorded `record-offer --accepted` election and the default run funds
+none — the comparison itself is unchanged), so decrementing it retracts budget for a round already opened —
 re-arming the offer while hard-refusing the replacement dispatch as unfunded, on exactly the two
 states the dedicated slot exists to keep fundable. `final_byte_passes_used` therefore counts grants
 a round *did or will* claim: a refund never touches it, and it is decremented on exactly one class
@@ -166,9 +168,11 @@ answer the wrong way.
 - `skills/create-issue/references/step-4-present-create.md` — the sub-step-4 exclusivity sentence
   (now a suppression), the sub-step-5 subsumption, the approval-election evaluation point, the
   return-handling carve-out, and the summary-line field enumeration.
-- `skills/create-issue/references/step-3-6-audit.md` — the second live copy of the
+- `skills/create-issue/references/step-3-6-audit-adjudication.md` — the second live copy of the
   one-offer-per-pause contract, the closed Queries enumeration, and the canonical call-sequence
-  line.
+  line. (Issue #1702's Step 3.6 decomposition moved this contract text out of the entry reference
+  `step-3-6-audit.md` into the `step-3-6-audit-adjudication.md` member; the pointer is updated here
+  accordingly.)
 - `lib/test/test_python_scripts.py` — the behavioral rows, plus the two **perturbed comparands**
   this change was obliged to re-derive: the hand-transcribed `_TRANSITION_ROWS` (locked against the
   module table by both length and in-order content) and the order-locked `query-summary` field-run

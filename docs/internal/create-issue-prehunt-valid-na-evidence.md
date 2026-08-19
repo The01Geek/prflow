@@ -7,7 +7,8 @@ SPDX-License-Identifier: MIT
 This file is the reproducible before-and-after behavioral evidence for the change that moves
 dimension-applicability classification ahead of the finding hunt in the create-issue Step 3.6
 fresh-context audit (`skills/create-issue/references/audit-prompt-template.md` and
-`skills/create-issue/references/step-3-6-audit.md`).
+`skills/create-issue/references/step-3-6-audit-adjudication.md`, the coverage/calibration member
+that issue #1702's Step 3.6 decomposition split out of the former `step-3-6-audit.md`).
 
 The change is agent-executed prompt prose whose only reader is the runtime audit reviewer, so per
 this repository's recorded position (issues #843/#876) it carries no automated regression coverage;

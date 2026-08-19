@@ -8599,6 +8599,16 @@ _malformed('a non-integer user_rounds_used counter', dict(_GOOD, user_rounds_use
 _malformed('a creation record that is not an object', dict(_GOOD, creation='yes'))
 _malformed('a creation record missing its body_only_digest',
            dict(_GOOD, creation={'epoch_round': 1}))
+# issue #1751: epoch_round was widened to Optional[int] for the decline-bound epoch. The
+# widening must NOT fail open on garbage — a non-integer, non-None epoch_round is still
+# rejected — and a decline-bound epoch_round=None is the new legal shape.
+_malformed('#1751: a creation record with a non-integer, non-None epoch_round',
+           dict(_GOOD, creation={'body_only_digest': 'B', 'epoch_round': 'one',
+                                 'epoch_arm': 'file', 'attestation': None}))
+assert_eq("#1751 (valid-falsy control): a decline-bound epoch_round=None is a legal live state",
+          's', issue_audit_state._validate(
+              dict(_GOOD, creation={'body_only_digest': 'B', 'epoch_round': None,
+                                    'epoch_arm': 'file', 'attestation': None}), 's')['slug'])
 assert_eq("#546 review-round (valid-falsy control): creation=None is a legal live state",
           's', issue_audit_state._validate(dict(_GOOD, creation=None), 's')['slug'])
 
@@ -17869,6 +17879,11 @@ class _Run603:
 
     def open_round(self, n, verdict='REVISE', findings=1):
         Path(self.tmp, 'd.md').write_text(f'draft {n}\n', encoding='utf-8')
+        # issue #1751: no round is free-funded any more, so every round this helper opens is
+        # user-elected. Record the election before the dispatch (the funding gate refuses an
+        # unfunded open). A test driving the unfunded/ceiling path dispatches directly rather
+        # than through this helper.
+        self('record-offer', self.slug, '--accepted', nonce=True)
         digest = self._field(
             self('record-dispatch', '--kind', 'discovery', self.slug, '--round', str(n), '--arm', 'file',
                  '--draft-file', 'd.md', nonce=True), 'digest=', 'record-dispatch')
@@ -18613,6 +18628,7 @@ def _row3b(r):
     # A round that EXISTS but has not closed takes the round-not-completed arm (an absent
     # round takes unknown-round above, so the two arms need different fixtures).
     Path(r.tmp, 'd.md').write_text('draft 2\n', encoding='utf-8')
+    r('record-offer', r.slug, '--accepted', nonce=True)  # issue #1751: round 2 is user-elected
     r('record-dispatch', '--kind', 'discovery', r.slug, '--round', '2', '--arm', 'file', '--draft-file', 'd.md',
       nonce=True)
     open_rnd = r('record-resolution', r.slug, '--round', '2', '--revision-ordinal', '1',
@@ -20144,6 +20160,9 @@ class _Run709(_Run603):
         return issue_audit_state.hash_bytes(Path(path).read_bytes())
 
     def dispatch(self, with_instructions=True):
+        # issue #1751: fund the round with a user election before the dispatch (no round is
+        # free-funded now). Idempotent-enough for this single-round harness.
+        self('record-offer', self.slug, '--accepted', nonce=True)
         argv = ['record-dispatch', '--kind', 'discovery', self.slug, '--round', '1', '--arm', 'file',
                 '--draft-file', self.draft]
         if with_instructions:
@@ -20316,6 +20335,7 @@ def _row709_regen(r):
     # input is the remaining closed input the regeneration reads, and an absolute path to
     # a file that does not exist passes the dispatch-time shape check and fails only where
     # this row needs it to — inside the regeneration.
+    r('record-offer', r.slug, '--accepted', nonce=True)  # issue #1751: fund the round
     d = r('record-dispatch', '--kind', 'discovery', r.slug, '--round', '1', '--arm', 'file',
           '--draft-file', r.draft, '--instructions-file', r.instr,
           '--instructions-draft-path', r.draft,
@@ -20377,6 +20397,7 @@ _with_run709(_row709_reason_attribution)
 # BLOCKED: the override ground and `emit-body`'s other paths are untouched, only the
 # coverage-backed clean grounding is withheld.
 def _row709_embed(r):
+    r('record-offer', r.slug, '--accepted', nonce=True)  # issue #1751: fund the round
     d = r('record-dispatch', '--kind', 'discovery', r.slug, '--round', '1', '--arm', 'inline',
           stdin='# t\n\nb\n', nonce=True)
     assert d.returncode == 0, d.stderr
@@ -20444,6 +20465,7 @@ def _row709_draft_disagreement(r):
     # Positive control on the same fixture: the identical call with the paths agreeing
     # succeeds, so the row above proves the comparison fired and not that some other
     # precondition rejected the dispatch.
+    r('record-offer', r.slug, '--accepted', nonce=True)  # issue #1751: fund the round
     ok = r('record-dispatch', '--kind', 'discovery', r.slug, '--round', '1', '--arm', 'file',
            '--draft-file', r.draft, '--instructions-file', r.instr,
            '--instructions-draft-path', r.draft, nonce=True)
@@ -20468,6 +20490,7 @@ def _row709_recorded_template(r):
         cwd=r.tmp, capture_output=True, text=True)
     assert got.returncode == 0, got.stderr
     Path(r.instr).write_text(got.stdout, encoding='utf-8')
+    r('record-offer', r.slug, '--accepted', nonce=True)  # issue #1751: fund the round
     d = r('record-dispatch', '--kind', 'discovery', r.slug, '--round', '1', '--arm', 'file',
           '--draft-file', r.draft, '--instructions-file', r.instr,
           '--instructions-draft-path', r.draft,
@@ -20486,6 +20509,7 @@ _with_run709(_row709_recorded_template)
 # literal and `_DEGRADED_REASONS` fails with rc 2 on the least-exercised path there is —
 # the one taken only when generation has ALREADY failed.
 def _row709_degraded_reason(r):
+    r('record-offer', r.slug, '--accepted', nonce=True)  # issue #1751: fund the round
     d = r('record-dispatch', '--kind', 'discovery', r.slug, '--round', '1', '--arm', 'file',
           '--draft-file', r.draft, nonce=True)
     assert d.returncode == 0, d.stderr
@@ -20650,6 +20674,7 @@ _with_run709(_row709_pre_dispatch_steering_is_recorded)
 # mid-round) or silencing the breadcrumb both ship green.
 def _row709_dispatch_regeneration_unverified(r):
     r.generate()
+    r('record-offer', r.slug, '--accepted', nonce=True)  # issue #1751: fund the round
     got = r('record-dispatch', '--kind', 'discovery', r.slug, '--round', '1', '--arm', 'file',
             '--draft-file', r.draft, '--instructions-file', r.instr,
             '--instructions-draft-path', r.draft,
@@ -21414,6 +21439,7 @@ def _cov_preconditions(r):
     # A DISPATCHED-but-unreturned round: `record-dispatch` records the round, and the
     # outcome only exists after `record-return`, so this is the genuinely-open shape.
     Path(r.tmp, 'd.md').write_text('draft 1\n', encoding='utf-8')
+    r('record-offer', r.slug, '--accepted', nonce=True)  # issue #1751: fund the round
     r('record-dispatch', '--kind', 'discovery', r.slug, '--round', '1', '--arm', 'file',
       '--draft-file', 'd.md', nonce=True)
     open_round = r('record-coverage', r.slug, '--round', '1', '--render', 'full',
@@ -25381,6 +25407,9 @@ class _Run795:
         # The artifact is retired once the dispatch it enabled has run, so the next
         # round's kind selection stays cold exactly as these rows assume.
         art = _stage_bytes(self, 'd.md')
+        # issue #1751: fund the round with a user election before the dispatch (no round is
+        # free-funded now; the funding gate refuses an unfunded open).
+        self('record-offer', self.slug, '--accepted', nonce=True)
         out = self('record-dispatch', '--kind', 'discovery', self.slug, '--round', str(n),
                    '--arm', 'file', '--draft-file', 'd.md', nonce=True)
         if art is not None:
@@ -25869,7 +25898,7 @@ assert_eq("#795 checker: over an unmutated tree every arm passes (the rows above
 # --- #1466: the REVERSE-completeness arm, driven against crafted reference documents -----
 # `check_sequence` grades one direction only — every name the sequence prints is a registered
 # subcommand. Nothing required a call the reference documents MANDATE to appear in the
-# sequence, which is how `query-round-kind` and `record-staged-write` went missing from it
+# sequence, which is how `query-boundary` and `record-staged-write` went missing from it
 # while the suite stayed green over a completeness sentence asserting the opposite.
 # `check_fenced_completeness` adds the other direction over the reach a fence scan has, so
 # these rows drive it against crafted documents rather than the shipped ones.
@@ -25946,16 +25975,16 @@ def _alc_fenced(step36=None, step4=None, fence_exempt=True):
 # --- membership: a fenced call the sequence names passes; one it omits refuses ------------
 assert_eq("#1466 reverse check: a fenced subcommand the sequence names passes",
           None,
-          _alc_fenced(step36=_alc_doc(["init", "query-arm"],
-                                      [_alc_call("init"), _alc_call("query-arm")],
+          _alc_fenced(step36=_alc_doc(["init", "query-summary"],
+                                      [_alc_call("init"), _alc_call("query-summary")],
                                       extra=_ALC_COND_MENTIONS)))
 
 _alc_omitted = _alc_fenced(step36=_alc_doc(["init"],
-                                           [_alc_call("init"), _alc_call("query-arm")],
+                                           [_alc_call("init"), _alc_call("query-summary")],
                                            extra=_ALC_COND_MENTIONS))
 assert_eq("#1466 reverse check: a fenced subcommand named in neither the sequence nor the "
           "exemption set refuses, naming that subcommand",
-          True, _alc_omitted is not None and "query-arm" in _alc_omitted)
+          True, _alc_omitted is not None and "query-summary" in _alc_omitted)
 
 # The SECOND reference file is scanned too — the completeness sentence ranges over both, so
 # an omission living there must refuse identically.
@@ -26028,22 +26057,22 @@ assert_eq("#1466 reverse check: a _FENCE_EXEMPT member invoked in no fence is re
 
 # --- defect reproduction: today's document, before the repair ----------------------------
 _alc_today = _alc_fenced(step36=_alc_doc(
-    ["init", "query-draft-binding", "record-draft-binding", "query-arm"],
-    [_alc_call("init"), _alc_call("query-round-kind"), _alc_call("record-staged-write"),
-     _alc_call("query-arm"), _alc_call("record-draft-binding")],
+    ["init", "query-draft-binding", "record-draft-binding", "query-summary"],
+    [_alc_call("init"), _alc_call("query-boundary"), _alc_call("record-staged-write"),
+     _alc_call("query-summary"), _alc_call("record-draft-binding")],
     extra=_ALC_COND_MENTIONS))
-assert_eq("#1466 reverse check: the pre-repair document (query-round-kind and "
+assert_eq("#1466 reverse check: the pre-repair document (query-boundary and "
           "record-staged-write fenced, listed nowhere) refuses naming both",
           True,
           _alc_today is not None
-          and "query-round-kind" in _alc_today and "record-staged-write" in _alc_today)
+          and "query-boundary" in _alc_today and "record-staged-write" in _alc_today)
 
 # The refusal's operand list is ordered and deduped, so it needs a multi-element case with a
 # repeat: a call fenced twice must be named once, and the names must arrive in document order.
 _alc_dedup = _alc_fenced(step36=_alc_doc(
     ["init"],
-    [_alc_call("record-adjudication"), _alc_call("query-arm"),
-     _alc_call("record-adjudication"), _alc_call("init")],
+    [_alc_call("record-coverage"), _alc_call("query-summary"),
+     _alc_call("record-coverage"), _alc_call("init")],
     extra=_ALC_COND_MENTIONS))
 assert_eq("#1466 reverse check: a call fenced twice is reported once, and the orphans arrive "
           "in document order",
@@ -26052,9 +26081,9 @@ assert_eq("#1466 reverse check: a call fenced twice is reported once, and the or
           # unguarded `.count()` would raise AttributeError — aborting the run at this line
           # instead of failing this one row.
           (_alc_dedup is not None,
-           (_alc_dedup or "").count("record-adjudication"),
+           (_alc_dedup or "").count("record-coverage"),
            _alc_dedup is not None
-           and _alc_dedup.index("record-adjudication") < _alc_dedup.index("query-arm")))
+           and _alc_dedup.index("record-coverage") < _alc_dedup.index("query-summary")))
 
 # The attribution's OWN fail-open control. Taking the first *registered* token after the
 # helper (and skipping anything else) would drop a typo'd or renamed subcommand entirely: no
@@ -26100,11 +26129,11 @@ assert_eq("#1466 reverse check: a state-owner fence with NO non-flag operand ref
 # the check would then pass green over exactly the drift it exists to catch. This row is that
 # fail-open's regression control.
 _alc_flagged = _alc_fenced(step36=_alc_doc(
-    ["init"], [_alc_call("init"), _alc_call("query-arm", flags="-X importtime ")],
+    ["init"], [_alc_call("init"), _alc_call("query-summary", flags="-X importtime ")],
     extra=_ALC_COND_MENTIONS))
 assert_eq("#1466 reverse check: a fence placing an interpreter flag ahead of the script path "
           "is still attributed to its subcommand",
-          True, _alc_flagged is not None and "query-arm" in _alc_flagged)
+          True, _alc_flagged is not None and "query-summary" in _alc_flagged)
 
 # --- degenerate inputs: an empty scanned population is a refusal, never a clean pass -------
 # The population comes from the REUSED fence enumeration, which this check reads but does not
@@ -26145,14 +26174,14 @@ assert_eq("#1466 reverse check RESIDUAL: an invocation in a non-`bash` fence is 
           None,
           _alc_fenced(step36=_alc_doc(["init"], [_alc_call("init")],
                                       extra=_ALC_COND_MENTIONS + "\n\n```console\n"
-                                      + _alc_call("query-arm") + "\n```\n")))
+                                      + _alc_call("query-summary") + "\n```\n")))
 
 assert_eq("#1466 reverse check RESIDUAL: an invocation named only in inline prose backticks "
           "is invisible to the check",
           None,
           _alc_fenced(step36=_alc_doc(["init"], [_alc_call("init")],
                                       extra=_ALC_COND_MENTIONS
-                                      + " see `" + _alc_call("query-arm") + "`")))
+                                      + " see `" + _alc_call("query-summary") + "`")))
 
 # The bare-`(…)`-subshell residual, pinned in BOTH directions because the boundary is not
 # where "subshells are invisible" would put it: the trailing `)` attaches to the unit's last
@@ -26163,9 +26192,9 @@ assert_eq("#1466 reverse check RESIDUAL: an invocation named only in inline pros
 assert_eq("#1466 reverse check: an unaccounted invocation nested in a bare `(…)` subshell is "
           "still VISIBLE and refuses — the subshell is not an escape route",
           True,
-          (lambda r: r is not None and "query-arm" in r)(
+          (lambda r: r is not None and "query-summary" in r)(
               _alc_fenced(step36=_alc_doc(
-                  ["init"], [_alc_call("init"), "(" + _alc_call("query-arm") + ")"],
+                  ["init"], [_alc_call("init"), "(" + _alc_call("query-summary") + ")"],
                   extra=_ALC_COND_MENTIONS))))
 
 assert_eq("#1466 reverse check RESIDUAL: the trailing `)` hides a subshell unit only when the "
@@ -26188,10 +26217,10 @@ assert_eq("#1466 reverse check: a duplicated anchor line refuses rather than sel
 assert_eq("#1466 reverse check: a sequence paragraph split by a blank line is read short "
           "and refuses on the calls the truncated paragraph no longer names",
           True,
-          (lambda r: r is not None and "query-arm" in r)(
+          (lambda r: r is not None and "query-summary" in r)(
               _alc_fenced(step36="\n".join([
-                  _ALC_ANCHOR, "", "`init`", "", "`query-arm`", "",
-                  "```bash", _alc_call("query-arm"), "```", "", _ALC_COND_MENTIONS]))))
+                  _ALC_ANCHOR, "", "`init`", "", "`query-summary`", "",
+                  "```bash", _alc_call("query-summary"), "```", "", _ALC_COND_MENTIONS]))))
 
 # --- the reused-API and module-load guards are driven, not merely stated -------------------
 # `_load_extractor`'s name check and `_load_module`'s load guard are this arm's answer to
@@ -26259,7 +26288,7 @@ _alc_saved36b, _alc_saved4b = _alc795.STEP36, _alc795.STEP4
 with tempfile.TemporaryDirectory() as _alc_tmp2:
     _p36b = _alc795.Path(_alc_tmp2) / "a.md"
     _p4b = _alc795.Path(_alc_tmp2) / "b.md"
-    _p36b.write_text(_alc_doc(["init", "query-arm", "init"], [], extra=_ALC_COND_MENTIONS),
+    _p36b.write_text(_alc_doc(["init", "query-summary", "init"], [], extra=_ALC_COND_MENTIONS),
                      encoding="utf-8")
     _p4b.write_text("`query-draft-binding`\n", encoding="utf-8")
     try:
@@ -28038,9 +28067,11 @@ def _793_state_doc(run):
 def _793_targeted_run():
     """discovery(REVISE) -> revision -> targeted(all addressed) -> confirming round.
 
-    The whole point of the dedicated counter: under the shipped shared ceiling of one,
-    round 2 spends the automatic budget, so round 3 is ALREADY refused. The companion row
-    below asserts exactly that, so this one is not grading a permissive funding test.
+    The whole point of the dedicated counter: with the automatic budget abolished (issue
+    #1751), a confirming round after an all-addressed targeted round is funded ONLY by its
+    own `confirming_rounds_used` counter, never a user election, so it opens without an
+    offer. The companion row below asserts a further unfunded round is refused, so this one
+    is not grading a permissive funding test.
     """
     td = tempfile.mkdtemp()
     run = _Run603(td, slug='s793t')
@@ -28056,6 +28087,7 @@ def _793_targeted_run():
     run('record-staged-write', run.slug, '--path', _p1, '--digest', _d1, nonce=True)
     # Round 1: a cold discovery round that finds one defect. `autostage=False` because the
     # staged write is already recorded above, and a second one would duplicate the entry.
+    run('record-offer', run.slug, '--accepted', nonce=True)  # issue #1751: fund the round
     dig = run._field(run('record-dispatch', '--kind', 'discovery', run.slug, '--round', '1',
                          '--arm', 'file', '--draft-file', 'd.md', nonce=True,
                          autostage=False),
@@ -28106,6 +28138,7 @@ assert_eq("#793: a targeted dispatch without --scope-file is refused, named",
           (True, True),
           (_793_nos.returncode != 0, 'scope-file-missing' in _793_nos.stderr))
 
+_793_run('record-offer', _793_run.slug, '--accepted', nonce=True)  # issue #1751: fund round 2
 _793_d2 = _793_run('record-dispatch', '--kind', 'targeted', _793_run.slug, '--round', '2',
                    '--arm', 'file', '--draft-file', 'd.md', '--scope-file', _793_scope,
                    nonce=True)
@@ -28139,8 +28172,9 @@ assert_eq("#1105: a scoped dispatch records a two-element ordered draft_lines sp
                   for x in _1105_recorded_span)
           and _1105_recorded_span[0] <= _1105_recorded_span[1])
 
-assert_eq("#793: ... and the shared automatic counter is unchanged across it",
-          1, _793_doc2.get('automatic_reaudits_used'))
+assert_eq("#1751: the automatic counter never spends — the targeted round is user-elected, "
+          "not an automatic re-audit (which is abolished)",
+          0, _793_doc2.get('automatic_reaudits_used', 0))
 
 # The confirming round opens with NO accepted user offer, from the dedicated counter.
 _793_d3 = _793_run('record-dispatch', '--kind', 'discovery', _793_run.slug, '--round', '3',
@@ -28149,9 +28183,10 @@ assert_eq("#793: the confirming round opens with no accepted user offer",
           0, _793_d3.returncode)
 
 _793_doc3 = _793_state_doc(_793_run)
-assert_eq("#793: ... funded from its OWN counter, leaving the shared automatic pool alone",
-          (1, 1),
-          (_793_doc3.get('confirming_rounds_used'), _793_doc3.get('automatic_reaudits_used')))
+assert_eq("#793/#1751: the confirming round spends its OWN counter, and the automatic pool "
+          "stays at zero (it is abolished)",
+          (1, 0),
+          (_793_doc3.get('confirming_rounds_used'), _793_doc3.get('automatic_reaudits_used', 0)))
 
 # The criterion is that the confirming round never competes with the shared automatic
 # pool. Asserting `_MAX_AUTOMATIC_REAUDITS == _MAX_AUTOMATIC_REAUDITS` would be a tautology
@@ -28159,25 +28194,33 @@ assert_eq("#793: ... funded from its OWN counter, leaving the shared automatic p
 # rounds, with the confirming one bounded on its own constant.
 # The separation that can actually FAIL: they are two distinct counter KEYS, both funding
 # rounds, and _funded_rounds sums both — so spending one leaves the other's headroom
-# intact. An identity comparison of the two ceilings graded nothing (both are 1, and small
-# ints are interned, so `is not` was already False — with an `or`-tautology behind it).
-assert_eq("#793: the confirming counter is a DISTINCT funding key from the shared "
-          "automatic pool, and both are summed by _funded_rounds",
-          (True, True, 3),
+# intact. Do not regrade this as an identity comparison of the two ceilings: that compares
+# interned small ints and grades nothing, whatever values the two constants hold.
+assert_eq("#793/#1751: the confirming counter is a DISTINCT funding key from the automatic "
+          "pool, and both are summed by _funded_rounds (which no longer adds a free round)",
+          (True, True, 2),
           ('confirming_rounds_used' in _m793._ROUND_BUDGETS,
            'automatic_reaudits_used' in _m793._ROUND_BUDGETS,
            _m793._funded_rounds({'automatic_reaudits_used': 1,
                                  'confirming_rounds_used': 1})))
 
-assert_eq("#793: spending the confirming counter leaves the shared automatic pool's "
-          "headroom untouched (the two never compete)",
-          (2, 2),
+assert_eq("#793/#1751: spending the confirming counter leaves the automatic pool's "
+          "headroom untouched (the two never compete); each spend funds exactly its round",
+          (1, 1),
           (_m793._funded_rounds({'confirming_rounds_used': 1}),
            _m793._funded_rounds({'automatic_reaudits_used': 1})))
 
-assert_eq("#793: next_action still keys its revise-and-reaudit / revise-then-evaluate-offer "
-          "split on the SHARED constant — the second reader that is why it was left alone",
-          ('revise-and-reaudit', 'revise-then-evaluate-offer'),
+assert_eq("#1751: an unspent state funds ZERO rounds at the _funded_rounds boundary — the "
+          "free `1 +` term is gone, so no round opens without a recorded election",
+          0,
+          _m793._funded_rounds({}))
+
+# issue #1751: _MAX_AUTOMATIC_REAUDITS is now zero, so `automatic_reaudits_used < it` is
+# never true and every REVISE round answers `revise-then-evaluate-offer`. The automatic
+# `revise-and-reaudit` token is unreachable by any recordable state.
+assert_eq("#1751: a REVISE round always answers revise-then-evaluate-offer (the automatic "
+          "re-audit is abolished; revise-and-reaudit is unreachable)",
+          ('revise-then-evaluate-offer', 'revise-then-evaluate-offer'),
           (_m793.next_action({'rounds': [{'round': 1, 'outcome': 'REVISE',
                                           'kind': 'discovery'}],
                               'automatic_reaudits_used': 0}, 1),
@@ -28186,8 +28229,9 @@ assert_eq("#793: next_action still keys its revise-and-reaudit / revise-then-eva
                               'automatic_reaudits_used':
                                   _m793._MAX_AUTOMATIC_REAUDITS}, 1)))
 
-# The companion row: today's REVISE-keyed predicate alone would REFUSE that third round.
-# Without this, the row above could be passing on a permissive funding test.
+# The companion row: with rounds 1 and 2 each funded by one election (open_round), a third
+# round with no further election IS unfunded and refused. Without this, the row above could
+# be passing on a permissive funding test.
 with tempfile.TemporaryDirectory() as _t793c:
     _rc = _Run603(_t793c, slug='s793c')
     Path(_t793c, 'd.md').write_text('draft\n', encoding='utf-8')
@@ -28232,6 +28276,7 @@ with tempfile.TemporaryDirectory() as _t793e:
     _re = _Run603(_t793e, slug='s793e')
     Path(_t793e, 'd.md').write_text('draft\n', encoding='utf-8')
     _re.open_round(1, 'REVISE')
+    _re('record-offer', _re.slug, '--accepted', nonce=True)  # issue #1751: fund round 2
     _emb = _re('record-dispatch', '--kind', 'discovery', _re.slug, '--round', '2',
                '--arm', 'embed', '--marker', 'write-failed', nonce=True,
                stdin='body bytes\n')
@@ -28328,6 +28373,7 @@ def _793_scoped_round(tmpdir_holder):
     run = _Run603(td, slug='s793s')
     draft = Path(td, 'd.md')
     draft.write_text('# T\n\n## A\n\nold\n', encoding='utf-8')
+    run('record-offer', run.slug, '--accepted', nonce=True)  # issue #1751: fund round 1
     dig = run._field(run('record-dispatch', '--kind', 'discovery', run.slug, '--round', '1',
                          '--arm', 'file', '--draft-file', 'd.md', nonce=True),
                      'digest=', 'record-dispatch')
@@ -28361,6 +28407,7 @@ def _793_dispatch_scoped(run, scope, draft, rnd='2'):
          '--instructions-path', instr, '--scope-file', str(Path(scope).resolve())],
         capture_output=True, text=True)
     Path(instr).write_text(rendered.stdout, encoding='utf-8')
+    run('record-offer', run.slug, '--accepted', nonce=True)  # issue #1751: fund the round
     return run('record-dispatch', '--kind', 'targeted', run.slug, '--round', rnd,
                '--arm', 'file', '--draft-file', str(draft.resolve()),
                '--scope-file', str(Path(scope).resolve()),
@@ -29008,6 +29055,7 @@ def _1103_open_round(tmp):
     """A run with round 1 dispatched on the file arm, awaiting its return."""
     run = _Run603(tmp)
     Path(run.tmp, 'd.md').write_text('draft body\n', encoding='utf-8')
+    run('record-offer', run.slug, '--accepted', nonce=True)  # issue #1751: fund round 1
     d = run('record-dispatch', '--kind', 'discovery', run.slug, '--round', '1',
             '--arm', 'file', '--draft-file', 'd.md', nonce=True)
     if d.returncode != 0 or 'digest=' not in d.stdout:
@@ -29092,6 +29140,7 @@ def _1103_open_embed(tmp):
     carriage check compares against.
     """
     run = _Run603(tmp)
+    run('record-offer', run.slug, '--accepted', nonce=True)  # issue #1751: fund round 1
     d = run('record-dispatch', '--kind', 'discovery', run.slug, '--round', '1',
             '--arm', 'embed', '--marker', 'digest-unrecorded', stdin='draft body\n',
             nonce=True)
@@ -29137,6 +29186,7 @@ def _1103_state(run):
 with tempfile.TemporaryDirectory() as _t_disp:
     _run = _Run603(_t_disp)
     Path(_run.tmp, 'd.md').write_text('draft one\n', encoding='utf-8')
+    _run('record-offer', _run.slug, '--accepted', nonce=True)  # issue #1751: fund round 1
     _d1 = _run('record-dispatch', '--kind', 'discovery', _run.slug, '--round', '1',
                '--arm', 'file', '--draft-file', 'd.md', nonce=True)
     _dig1 = _d1.stdout.split('digest=', 1)[1].split()[0]
@@ -29149,6 +29199,7 @@ with tempfile.TemporaryDirectory() as _t_disp:
     _run('record-return', _run.slug, '--round', '1', '--verdict', 'REVISE',
          '--findings-count', '1', '--carriage-object-id', _dig1, nonce=True)
     Path(_run.tmp, 'd.md').write_text('draft two\n', encoding='utf-8')
+    _run('record-offer', _run.slug, '--accepted', nonce=True)  # issue #1751: fund round 2
     _d2 = _run('record-dispatch', '--kind', 'discovery', _run.slug, '--round', '2',
                '--arm', 'file', '--draft-file', 'd.md', nonce=True)
     assert_eq("#1103: a fall-off discovery round records the failing-condition reason and "
@@ -29163,6 +29214,7 @@ with tempfile.TemporaryDirectory() as _t_disp:
 with tempfile.TemporaryDirectory() as _t_retry:
     _run = _Run603(_t_retry)
     Path(_run.tmp, 'd.md').write_text('retry body\n', encoding='utf-8')
+    _run('record-offer', _run.slug, '--accepted', nonce=True)  # issue #1751: fund round 1
     _run('record-dispatch', '--kind', 'discovery', _run.slug, '--round', '1',
          '--arm', 'file', '--draft-file', 'd.md', nonce=True)
     _reason_before = _1103_state(_run)['rounds'][0].get('kind_reason')
@@ -29252,6 +29304,11 @@ def _1104_stage(run):
 
 
 def _1104_dispatch(run, arm='file'):
+    # issue #1751: fund the round (the file-arm-requires-staged-write refusal these rows
+    # grade fires BEFORE the funding gate, so a still-unstaged file-arm dispatch keeps
+    # refusing on that reason; the embed/inline and post-stage file arms reach the gate and
+    # need the election). Idempotent-enough: a re-dispatch of an open round skips funding.
+    run('record-offer', run.slug, '--accepted', nonce=True)
     argv = ['record-dispatch', '--kind', 'discovery', run.slug, '--round', '1',
             '--arm', arm]
     if arm == 'file':
