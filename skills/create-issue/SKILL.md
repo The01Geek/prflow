@@ -174,14 +174,26 @@ never `tr`, `sed`, `wc`, `cut` or `head`, which preflight does not guarantee and
 
 Both arms dispatch rather than run inline, so survey tool output stays in a peer's context; no git history is read.
 
-Legs disjoint by construction: the location resolved from `.docs.internal`, and the tracked tree
-minus that location's subtree — never an assertion they are already disjoint.
-Both enumerate from the index, and each reaches its peer as docs-verify's search-space operand,
+Legs disjoint by construction: the internal-documentation location, and the tracked tree
+minus that location's subtree — never an assertion they are already disjoint. Resolve that
+location by reading the `.docs.internal` key of `.prflow/config.json` through the bundled resolver,
+which prints the default `docs/internal/` when the key is missing:
+`"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .docs.internal docs/internal/`.
+`.docs.internal` is that config key path, not a filename — read as a file it is absent, and that
+misreading is exactly the established absence a failed resolution may never report. When the resolver
+yields no usable location — it exits non-zero, or exits zero having printed nothing, or prints a value
+that is not a path (the JSON-object, list, and bare-scalar shapes), these three and complete by
+construction — record the documentation leg unestablished, never an established absence, because you
+have established nothing about the location. When the resolver cannot be run at all, use the default
+`docs/internal/`, say in your output that the location was assumed rather than resolved, and record the
+leg unestablished when that directory holds no tracked files.
+Both enumerate from the index, and each reaches its peer inside the docs-verify invocation the
+dispatching run composes for that peer — as that invocation's `--search-space <pathspec>` operand,
 never as dispatch-prompt prose its own contract overrides. The duty floor, not the space's size,
 bounds each peer.
 
-The orchestrator reconciles both returns. An empty documentation leg is an established absence only
-when the location itself is absent.
+The orchestrator reconciles both returns. Once a location is in hand the existing rules are unchanged:
+an empty documentation leg is an established absence only when the location itself is absent.
 Record unestablished when the location exists and the read fails, and equally when it exists and
 reads cleanly yet holds no git-index entries (an absolute path, a parent escape, a symlink, an
 untracked docs tree — the schema forbids none), so claim no documentation coverage rather than a
