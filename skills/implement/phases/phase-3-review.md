@@ -217,4 +217,26 @@ No verification round is owed between §3.2 and §3.3. This commit ships without
 
 Then tick the `/simplify` gate: `workpad.py update $ISSUE_NUMBER --tick-progress "simplify"`.
 
+### 3.2.5 Prompt-surface edit routing evidence gate (pre-review — DevFlow-repo policy)
+
+Before §3.3 requests review, enforce this repo's prompt-surface routing evidence as a mechanical precondition, so a missing routing discharge stops the run here instead of surfacing only as a review-time finding. This is the producer-side counterpart of the review engine's own backstop (`.prflow/prompt-extensions/review-and-fix.md` and `review.md`, "Prompt-surface edit routing evidence gate"), which stays in place for a marker that is present but malformed. Presence check only — any `Writing-skills evidence:` marker discharges the gate, including one whose four dispositions are all `=no`; never inspect the disposition values here.
+
+Compute the branch-delta touched-file set — the §2.3 operand. Read the base branch, then list the touched paths (each its own fence; substitute the printed base as a literal):
+
+```bash
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/config-get.sh .base_branch main
+```
+```bash
+git diff --merge-base origin/<base> --name-only
+```
+
+Match each touched path against the trigger-glob set — byte-identical to the routing rule's own set in `.prflow/prompt-extensions/implement.md`, a coupled site the suite pins in lockstep; edit one and reconcile the other in the same change:
+
+`skills/*/SKILL.md`, `skills/implement/phases/*.md`, `skills/implement/references/*.md`, `skills/review/phases/*.md`, `skills/review-and-fix/references/*.md`, `.prflow/prompt-extensions/*.md`
+
+`agents/*.md` and every skill companion file other than those two reference sets are excluded — do not widen the set, or the gate stalls runs the routing rule never routed.
+
+- No touched path matches → the gate is a no-op; continue to §3.3.
+- A touched path matches → confirm the marker is present on the workpad or the PR body. Read the workpad body (`workpad.py id $ISSUE_NUMBER`, then `workpad.py body <id>` with the printed id as a literal) and, only if it lacks the literal, the PR body (`gh pr view <pr-number> --json body --jq '.body'`). The marker is present when either surface contains the literal `Writing-skills evidence:` — discharge and continue to §3.3, whatever the dispositions read. A read that fails or cannot be resolved reads as marker-absent on that surface, never as checked-and-clean; when neither surface can be confirmed to contain the literal, do not advance to §3.3: `workpad.py update $ISSUE_NUMBER --status Blocked --reflection-kind blocked --reflection "Phase 3.2.5: the diff touches a prompt-surface trigger-glob path but no 'Writing-skills evidence:' marker is present on the workpad or PR body — route the edit through the writing-skills discipline (see .prflow/prompt-extensions/implement.md, 'Prompt-surface edit routing') and record the marker before review"`, emit the 👎 outcome reaction (see *Outcome reaction* in the Workpad Reference), remove the run marker, and stop.
+
 <!-- prflow:implement-ref phase=3 file=skills/implement/phases/phase-3-review.md end -->
