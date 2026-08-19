@@ -4,6 +4,17 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.33.23] — 2026-08-19
+
+### Changed
+create-issue Step 4: correct the presentation gate, the final-byte read ordering, the post-creation question scope, and the sub-step 2 root/slug recipes; route the shared staging procedure for a Step 4 write.
+
+## [2.33.22] — 2026-08-19
+
+### Changed
+- **`/prflow:create-issue` loads the Step 3.6 dispatch and adjudication procedure members only when an audit round is elected.** The run bootstrap (`init` and the nonce, the canonical-draft write and its two Step 3.5 gates, and the draft-root binding) is re-homed into the always-loaded shared member, so a run that elects no audit round at the Step 4 pre-approval pause no longer reads the two audit-only members — cutting the reference bytes such a run pays for on every invocation. The bootstrap, the acceptance-criteria parseability gate, and the Verified-premise handle check still run unconditionally before the pause. (#1767)
+- **`/prflow:create-issue` now grades every candidate acceptance criterion through an omit/merge/add test before adding it.** The always-loaded acceptance-criteria contract states one rule: a candidate that is not admissible is omitted, a candidate an existing same-evidence criterion can carry is merged into it, and only a candidate that is neither is added — and each added criterion records a one-line disposition in the run's `.prflow/tmp/` derivation artifact, which Step 4 confirms against the drafted criteria before presentation. The admissibility test moves into that contract from the Step 3.5 steelman (which now points at it), and the conditionally-loaded quality groups that mint criteria and the audit-adjudication revise step carry a pointer to it, so a run that loads no quality group still gets the rule. Nothing here refuses, blocks, or pauses a draft, and no count or threshold gates anything. (#1766)
+
 ## [2.33.21] — 2026-08-19
 
 ### Changed
