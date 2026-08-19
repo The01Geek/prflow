@@ -5964,15 +5964,11 @@ _U8W_EXCEPTIONS = {
 
 
 def _u8w_called_names(node):
-    names = set()
-    for n in ast.walk(node):
-        if isinstance(n, ast.Call):
-            f = n.func
-            if isinstance(f, ast.Name):
-                names.add(f.id)
-            elif isinstance(f, ast.Attribute):
-                names.add(f.attr)
-    return names
+    # Bare-name calls only: the forcing helper and the entry function (main/_main)
+    # are always invoked as bare names, so collapsing an attribute call to its bare
+    # attribute would only risk a same-name collision masking a missing call.
+    return {n.func.id for n in ast.walk(node)
+            if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
 
 
 def _u8w_reaches_forcing(source, relpath):
