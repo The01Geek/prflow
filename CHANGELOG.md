@@ -4,6 +4,22 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.33.28] — 2026-08-19
+
+### Added
+- **Every live run now publishes its `claude_code_version` from the execution file's `system/init` record.** `scripts/surface-execution-diagnostics.sh` reuses `lib/probe-observation.sh`'s `devflow_probe_cli_version` to read the CLI build directly in-job — no 7-day transcript artifact and no `execution_transcript_artifact_enabled` opt-in — rendering it into the diagnostics block (including the incomplete-run branch that carries an init record but no result event), publishing `claude_code_version` to `GITHUB_OUTPUT`, and emitting a `::notice::` naming the resolved version so a live run records the build it actually ran on. An absent or unreadable init record resolves to the literal `unavailable` — never an empty or zero value — and a `GITHUB_OUTPUT` write failure leaves a stderr breadcrumb rather than a silent empty output, mirroring the sibling `permission_denials_count` channel. Among the init fields only this low-sensitivity version scalar is value-published; the others stay type-only behind `scripts/extract-execution-shape.sh`'s redaction boundary, which is unchanged. (#1786)
+
+## [2.33.27] — 2026-08-19
+
+### Changed
+- **A gated reference the reader can only deliver in pages now loads instead of failing the boundary gate.** Each boundary contract gains a paged-read recovery step: it pages a partial-view / `offset`-`limit` delivery forward to the whole document, then runs the marker checks over the assembled result. A read that cannot be completed, a gap in the page sequence, and a genuinely damaged file each still take the gate's existing fail-closed or degrade outcome. (#1784)
+
+## [2.33.26] — 2026-08-19
+
+### Fixed
+- **`/prflow:implement`'s Terminal-status self-check now binds every turn boundary, not only the run's final message.** A local, interactive run could end a turn part-way through the pipeline with a progress note and wait for a human reply, because the rule was written against the run-final message and the skill defined neither term against a turn boundary. The self-check is rewritten to read the live workpad `Status` before ending any turn once the workpad exists, to name the four grounds on which a turn may end, to name their complement as forbidden, to state what governs the pre-workpad window, and to route a refused status read to a retry rather than to a stop. Where the injected engine-ground-truth block is present, its rule that ending a turn ends the process leaves no non-final ground usable, so no cloud run reads the new set as a licence to stop. (#1774)
+- **The two implement-bundle dispatch barriers that bound a dispatch to that injected block now also tell a run whose prompt carries no such block what to do**, matching the arm the Phase 2.1 and Phase 4.1 barriers already carried. (#1774)
+
 ## [2.33.25] — 2026-08-19
 
 ### Fixed
