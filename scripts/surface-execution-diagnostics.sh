@@ -59,9 +59,9 @@ if [ -z "${DEVFLOW_JQ:-}" ]; then
   DEVFLOW_JQ=jq
 fi
 
-# Never make this a hard source, and never re-derive the version with a second
-# extraction jq (issue #1528): a deployment missing this sibling must reach the
-# call-site `type devflow_probe_cli_version` guard, not a set -u abort.
+# Never make this an unguarded `.`, and never re-derive the version with a second
+# extraction jq (issue #1528): a deployment missing the sibling must reach the call-site
+# `type devflow_probe_cli_version` guard, not abort under `set -u`.
 # shellcheck source=../lib/probe-observation.sh
 . "$_SED_DIR/../lib/probe-observation.sh" \
   || echo "devflow: surface-execution-diagnostics: probe-observation.sh could not be sourced from ../lib relative to ${BASH_SOURCE[0]} — claude_code_version will publish 'unavailable'" >&2
