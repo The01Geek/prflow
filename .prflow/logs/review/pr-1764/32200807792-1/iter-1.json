@@ -1,0 +1,169 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-19T00:00:00Z",
+  "fix_commit_sha": "54c4c4337b5d8b25c20b6faad6e406abb8bff3b8",
+  "fix_files": [
+    "lib/test/test_render_audit_prompt.py"
+  ],
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "current_substep": null,
+  "pending_dispatch": null,
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": true,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:type-design-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "docstring 'Mirrored verbatim' loose re differing type annotations; version-provenance narrative acceptable under carve-out",
+      "defect_signature": {
+        "file": "scripts/render-audit-prompt.py",
+        "line_range": [
+          1327,
+          1338
+        ],
+        "kind": "comment_precision"
+      },
+      "fix_decision": "advisory"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "_force_utf8_streams exception branches untested; static guard does not inspect the codec arg; 3 of ~57 commands get end-to-end proof",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          5960,
+          6010
+        ],
+        "kind": "coverage_gap"
+      },
+      "fix_decision": "advisory"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "_abs_path comment block exceeds 3-line cap; pre-existing oversized block, load-bearing carve-out applies",
+      "defect_signature": {
+        "file": "scripts/render-audit-prompt.py",
+        "line_range": [
+          1341,
+          1391
+        ],
+        "kind": "comment_length"
+      },
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "S-1",
+      "decision": "advisory",
+      "source_file": "scripts/render-audit-prompt.py",
+      "claim_text": "docstring 'Mirrored verbatim' loose",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    },
+    {
+      "finding_id": "S-2",
+      "decision": "advisory",
+      "source_file": "lib/test/test_python_scripts.py",
+      "claim_text": "static guard does not inspect codec arg",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    },
+    {
+      "finding_id": "S-3",
+      "decision": "advisory",
+      "source_file": "scripts/render-audit-prompt.py",
+      "claim_text": "_abs_path comment block over 3-line cap",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 1,
+    "fix_diff_lines": 19,
+    "new_corroborated_critical_count": 0
+  },
+  "shadow": {
+    "ran_at": "2026-08-19T00:00:00Z",
+    "reviewed_sha": "a3595abe7eef52ab6f6d706ff9330074151e4e07",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:type-design-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:type-design-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Important",
+        "description": "composed _is_bound_path not directly tested under injected ntpath (only extracted _host_abs_path is)",
+        "defect_signature": {
+          "file": "lib/test/test_render_audit_prompt.py",
+          "line_range": [
+            1560,
+            1560
+          ],
+          "kind": "coverage_gap"
+        },
+        "fix_decision": "applied"
+      }
+    ],
+    "comparison": {
+      "shadow_total": 1,
+      "overlap_with_iter_N": 0,
+      "new": 1,
+      "new_critical": 0,
+      "new_important": 1
+    },
+    "promoted_to_iter_next": true
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "refixed",
+      "reason": null
+    }
+  },
+  "telemetry": {
+    "phase_3": {
+      "calls": 6,
+      "tokens": 405000,
+      "wall_clock_s": 165
+    },
+    "step_2_6": {
+      "calls": 6,
+      "tokens": 420000,
+      "wall_clock_s": 535
+    }
+  },
+  "synthesized": false
+}
