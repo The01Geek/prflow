@@ -113,5 +113,73 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.30",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 31.939878,
+    "tokens": {
+      "input_tokens": 162,
+      "output_tokens": 98932,
+      "cache_read_input_tokens": 24159772,
+      "cache_creation_input_tokens": 401325,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 400,
+        "outputTokens": 190422,
+        "cacheReadInputTokens": 31074658,
+        "cacheCreationInputTokens": 1496003,
+        "webSearchRequests": 0,
+        "costUSD": 31.154866500000004,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 26,
+        "outputTokens": 8530,
+        "cacheReadInputTokens": 631545,
+        "cacheCreationInputTokens": 124672,
+        "webSearchRequests": 0,
+        "costUSD": 0.7850115,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 134,
+    "duration_ms": 4472368
+  },
+  "permission_denials": {
+    "count": 8,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      ".prflow/vendor/prflow/scripts/config-get.sh base_branch 2>/dev/null; echo \"---\"; git rev-parse --abbrev-ref HEAD; echo \"ENV GITHUB_ACTIONS=$GITHUB_ACTIONS\"",
+      "printf 'RUN_ID:%s\\nATTEMPT:%s\\nSERVER:%s\\nREPO:%s\\n' \"$GITHUB_RUN_ID\" \"$GITHUB_RUN_ATTEMPT\" \"$GITHUB_SERVER_URL\" \"$GITHUB_REPOSITORY\"",
+      "git log --oneline origin/main..HEAD; echo \"=== STATUS ===\"; git status --porcelain; echo \"=== FILES CHANGED vs main ===\"; git diff --name-status $(git merge-base origin/main HEAD)..HEAD",
+      "cd /home/runner/work/prflow/prflow; grep -nE \"^grep_present\\(\\)|^pin_count\\(\\)\" lib/test/run.sh; sed -n '/^grep_present()/,/^}/p;/^pin_count()/,/^}/p' lib/test/run.sh | head -30",
+      "cd /home/runner/work/prflow/prflow; git fetch origin main -q 2>&1; echo \"===POST-MERGE ACs in workpad===\"; scripts/workpad.py id 1458 2>/dev/null; echo \"---\"; WID=$(scripts/workpad.py id 1458 2>/dev/null); scripts/workpad.py body \"$WID\" 2>/dev/null | grep -iE '\\(post-merge\\)' ; echo \"===DEFERRALS===\"; ls -la .prflow/tmp/review/pr-1791/deferrals.json 2>&1",
+      "cd /home/runner/work/prflow/prflow; WID=$(scripts/workpad.py id 1458 2>/dev/null); echo \"WID=$WID\"; scripts/workpad.py body \"$WID\" 2>/dev/null | grep -iE 'post-merge' | head; echo \"===DEFERRALS===\"; ls -la .prflow/tmp/review/pr-1791/deferrals.json 2>&1 | head -1",
+      "cd /home/runner/work/prflow/prflow; scripts/prompt-surface-growth.py 2>&1; echo \"===EXIT $?===\"",
+      "scripts/prompt-surface-growth.py"
+    ],
+    "total": 8,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
