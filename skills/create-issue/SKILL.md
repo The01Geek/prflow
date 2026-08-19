@@ -169,7 +169,7 @@ Derive any value deciding a leg's pathspec with python3 or bash builtins, never 
 `cut` or `head`.
 
 - Shallow — the unconditional first shape: one dispatched peer over the union of the deep legs, enumerated from the git index.
-- Deep — reached only when the escalation below promotes to it: two parallel dispatched peers over those legs separately.
+- Deep — two parallel dispatched peers over those legs separately.
 
 Both arms dispatch rather than run inline; no git history is read.
 
