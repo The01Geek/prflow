@@ -36,9 +36,11 @@ long implement run actually pays:
   judgment about prose. An **authoring budget** asks how long prose *ought* to be — a
   target someone chose, which is why #765 retired it. A **reader-capability ceiling** is a
   property of what the tool can return: above it the Read tool yields a file's `start`
-  marker and no `end` marker on a file that is intact on disk — the `truncated` shape
-  `/prflow:implement`, `/prflow:review`, `/prflow:review-and-fix` and `/prflow:docs-verify`
-  treat as fail-closed, and `/prflow:create-issue` degrades best-effort on. The ceiling is
+  marker and no `end` marker on a file that is intact on disk — a read each gate now
+  recovers by paging the file whole before its checks run (the *paged-read recovery* each
+  boundary contract states), so an over-budget-but-intact reference loads instead of being
+  misread as the fail-closed `truncated` shape (or, in `/prflow:create-issue`, a degrade).
+  The ceiling is
   therefore derived from the reader's token cap, not from an opinion about length, and it
   says nothing about whether a shorter phase file would be better written.
 
