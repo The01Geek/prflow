@@ -19,7 +19,7 @@ exhausted, use the inline fallback in `references/fallback-no-task-tool.md`, loa
 
 The seven slots:
 
-- [ ] 1. Run Step 1's selected arm and write its evidence artifact
+- [ ] 1. Run Step 1's arm and write its evidence artifact
 - [ ] 2. Clarify the user story until the Definition of Ready is met (Step 2)
 - [ ] 3. Draft the issue and pass the no-options gate (Step 3)
 - [ ] 4. Steelman the draft against the code, revise, re-pass the no-options gate, and append the steelman record to the derivation artifact (Step 3.5)
@@ -164,12 +164,12 @@ whitespace-only, or not that single-slug shape is recorded unestablished and rou
 title-derived fallback `references/step-4-present-create.md` retains — never a slug composed from a
 partial read.
 
-Two arms, selected before any dispatch by a pre-pass operand: the duty-floor duties you judge the
-topic to engage. Derive it — and any value deciding which leg ran — with python3 or bash builtins,
-never `tr`, `sed`, `wc`, `cut` or `head`.
+Every dispatch starts with the shallow arm; the deep arm is reached only by the escalation below.
+Derive any value deciding a leg's pathspec with python3 or bash builtins, never `tr`, `sed`, `wc`,
+`cut` or `head`.
 
-- Shallow — fewer than the full floor, and the arm for a topic engaging no duty: one dispatched peer over the union of the deep legs, enumerated from the git index.
-- Deep — the full floor, entered directly: two parallel dispatched peers over those legs separately.
+- Shallow — the unconditional first shape: one dispatched peer over the union of the deep legs, enumerated from the git index.
+- Deep — two parallel dispatched peers over those legs separately.
 
 Both arms dispatch rather than run inline; no git history is read.
 
@@ -197,12 +197,12 @@ An incomplete return — one that succeeds but omits or malforms its duty status
 bearing observation for a duty it reported `judged-not-engaged` — records that duty unestablished
 with a breadcrumb naming the missing field, never a discharged floor.
 
-Escalation shallow→deep is the doc-reliability signal's only role, never the arm selector. Escalate
+Escalation shallow→deep is the only entry to the deep arm. Escalate
 on `UNRELIABLE` or `ABSENT`, on an unestablished duty, and on any judged-not-engaged duty whose returned
 bearing observation is non-empty once the producer's explicit `none-observed` token is excluded —
 that field is always present, so escalate on any value other than `none-observed` and record
 unestablished (which escalates) when it is absent or unparseable. That comparand is a field of the
-report you receive, so the pre-pass judgement does not gate it.
+report you receive.
 
 Evidence artifact. The orchestrator — never a peer — writes the returned evidence (reconciled, on
 the deep arm) to `.prflow/tmp/issue-step1-<slug>.md`, anchored to the working directory, on both
