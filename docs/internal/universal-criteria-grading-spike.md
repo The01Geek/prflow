@@ -138,8 +138,11 @@ Two findings fall out of the size column:
    worst-case cost the design must bound. Additionally, the tool has no per-file query
    mode: it reports only merge-base→HEAD deltas for branch-changed covered files, so the
    byte figures above come from its measurement *primitive* (blob bytes) rather than a
-   table it printed (on this spike's own branch it correctly prints *"no branch commits to
-   measure"* because the deliverable is under `docs/internal/`, an uncovered prefix).
+   table it printed (on this spike's own branch it correctly renders no table — its
+   commits touch only `docs/internal/`, an uncovered prefix, so it reaches the `if not
+   rows` arm and prints *"no tracked `*.md` under `skills/`, `agents/`, or
+   `.prflow/prompt-extensions/` changed between `<base>` and `<head>` — no table
+   rendered."*).
 
 ## Field decision
 
@@ -183,7 +186,9 @@ break.
 ## Advisory channel
 
 **Phase 4.2 rules 1 and 2, quoted as they read at HEAD** (`skills/review/phases/
-phase-4-verdict.md` §4.2):
+phase-4-verdict.md` §4.2, the numbered list under *"Apply these rules in order"*; the
+same two rules are also summarized, in different wording, under that file's earlier
+*"## Verdict Criteria"* heading):
 
 > 1. Any verification checklist item with verdict FAIL → REJECT
 > 2. Any verification checklist item with verdict INCONCLUSIVE → REJECT (add "manual
