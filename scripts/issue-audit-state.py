@@ -3249,7 +3249,9 @@ def _final_byte_resolution_settled(state, rnd):
     auditor read, but a second user pause there duplicates diligence already done, so the
     offer is withheld here while `evaluate_final_byte_coverage` still reports the bytes
     `uncovered` truthfully. Steering-established is required so a round whose independence
-    could not be established still earns the offer.
+    could not be established still earns the offer. The FILE early-return is defensive: a
+    steering-established FILE round reports `covered`, so the caller's `if holds` guard never
+    reaches this helper for it — the return guards only against a future coverage-contract change.
     """
     if rnd is None or rnd.get('outcome') == 'FILE':
         return False
