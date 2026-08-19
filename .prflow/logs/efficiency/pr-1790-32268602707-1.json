@@ -123,5 +123,87 @@
       "iter": 5,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.26",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 14.679967499999997,
+    "tokens": {
+      "input_tokens": 94,
+      "output_tokens": 52619,
+      "cache_read_input_tokens": 8451532,
+      "cache_creation_input_tokens": 249438,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 153,
+        "outputTokens": 74845,
+        "cacheReadInputTokens": 10055385,
+        "cacheCreationInputTokens": 560633,
+        "webSearchRequests": 0,
+        "costUSD": 11.338931250000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 130,
+        "outputTokens": 21880,
+        "cacheReadInputTokens": 3088825,
+        "cacheCreationInputTokens": 556213,
+        "webSearchRequests": 0,
+        "costUSD": 3.341036250000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 68,
+    "duration_ms": 1026504
+  },
+  "permission_denials": {
+    "count": 22,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---ENV---\"; echo \"RUN_ID=${GITHUB_RUN_ID:-}\"; echo \"RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT:-}\"; echo \"GHA=${GITHUB_ACTIONS:-}\"",
+      "git show 33dbd3ce34422946f5478968d12a8cc3ec0fc5b8:skills/review-and-fix/references/loop-control.md > /tmp/base.md 2>&1 | head -5\nsed -n '150,175p' /tmp/base.md",
+      "git show 33dbd3ce34422946f5478968d12a8cc3ec0fc5b8:skills/review-and-fix/references/loop-control.md > /tmp/base.md; sed -n '150,175p' /tmp/base.md",
+      "git show 33dbd3ce34422946f5478968d12a8cc3ec0fc5b8:skills/review-and-fix/references/loop-control.md > /tmp/base.md",
+      "git show 33dbd3ce34422946f5478968d12a8cc3ec0fc5b8:skills/review-and-fix/references/loop-control.md > .prflow/tmp/base-loop-control.md && sed -n '150,175p' .prflow/tmp/base-loop-control.md",
+      "git show 33dbd3ce34422946f5478968d12a8cc3ec0fc5b:skills/review/phases/phase-0-3-6-blocker-recheck.md > /tmp/base.md 2>&1 | head -5; wc -l /tmp/base.md; echo \"---diff---\"; diff /tmp/base.md skills/review/phases/phase-0-3-6-blocker-recheck.md",
+      "git show 33dbd3ce34422946f5478968d12a8cc3ec0fc5b:skills/review/phases/phase-0-3-6-blocker-recheck.md > /tmp/base.md; wc -l /tmp/base.md; echo \"---diff---\"; diff /tmp/base.md skills/review/phases/phase-0-3-6-blocker-recheck.md",
+      "git show 33dbd3ce34422946f5478968d12a8cc3ec0fc5b:skills/review/phases/phase-0-3-6-blocker-recheck.md > /tmp/base.md && wc -l /tmp/base.md && echo \"---diff---\" && diff /tmp/base.md skills/review/phases/phase-0-3-6-blocker-recheck.md",
+      "git show 33dbd3ce34422946f5478968d12a8cc3ec0fc5b:skills/review/phases/phase-0-3-6-blocker-recheck.md > /tmp/base.md",
+      "git show 33dbd3ce34422946f5478968d12a8cc3ec0fc5b:skills/review/phases/phase-0-3-6-blocker-recheck.md > /home/runner/work/prflow/prflow/.prflow/tmp/base_vc7.md; wc -l /home/runner/work/prflow/prflow/.prflow/tmp/base_vc7.md",
+      "git show 33dbd3ce34422946f5478968d12a8cc3ec0fc5b:skills/review/phases/phase-0-3-6-blocker-recheck.md > .prflow/tmp/base_vc7.md",
+      "git show 33dbd3ce34422946f5478968d12a8cc3ec0fc5b:skills/review/phases/phase-0-3-6-blocker-recheck.md | tr -s ' \\n' ' ' | sed 's/^- //g; s/ - / /g' > /tmp/base_flat.txt 2>/dev/null || true\ngit show 33dbd3ce34422946f5478968d12a8cc3ec0fc5b:skills/review/phases/phase-0-3-6-blocker-recheck.md | sed 's/^[0-9]\\+\\. //; s/^   - //; s/^- //' | tr '\\n' ' ' | tr -s ' ' > /tmp/base_norm.txt\ncat skills/review/phases/phase-0-3-6-blocker-recheck.md | sed 's/^[0-9]\\+\\. //; s/^   - //; s/^- //' | tr '\\n' ' ' | tr …[per-command-truncated]",
+      "wc -l /tmp/base_norm.txt /tmp/cur_norm.txt 2>&1; ls -la /tmp/*.txt 2>&1",
+      "python3 -c \"\nimport subprocess\nbase = subprocess.run(['git','show','33dbd3ce34422946f5478968d12a8cc3ec0fc5b:skills/review/phases/phase-0-3-6-blocker-recheck.md'], capture_output=True, text=True).stdout\nwith open('skills/review/phases/phase-0-3-6-blocker-recheck.md') as f:\n    cur = f.read()\nimport re\ndef norm(s):\n    lines = s.split(chr(10))\n    out = []\n    for l in lines:\n        l = re.sub(r'^\\s*\\d+\\.\\s*','',l)\n        l = re.sub(r'^\\s*-\\s*','',l)\n        out.append(l)\n    text = ' '.join(out …[per-command-truncated]",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before\ngit hash-object .prflow/tmp/review-dirty-tree-before",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review 2>/dev/null | head -50; echo \"---EXIT:${PIPESTATUS[0]}---\"",
+      "cd /home/runner/work/prflow/prflow\necho \"=== Precondition 1 & 3 word-content comparison (strip list markers/whitespace) ===\"\ngit show 33dbd3ce34422946f5478968d12a8cc3ec0fc5b8:skills/review/phases/phase-0-3-6-blocker-recheck.md > /tmp/old.md\ngit show 18262bad1a801b2986b4a0d2a2cfc61332476f66:skills/review/phases/phase-0-3-6-blocker-recheck.md > /tmp/new.md\n# Normalize: remove leading list markers and collapse whitespace, then diff word streams\nnorm(){ tr -s ' \\t\\n' ' ' < \"$1\" | sed 's/- //g'; }\ndi …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\ngit show 33dbd3ce34422946f5478968d12a8cc3ec0fc5b8:skills/review/phases/phase-0-3-6-blocker-recheck.md > /tmp/old.md\ngit show 18262bad1a801b2986b4a0d2a2cfc61332476f66:skills/review/phases/phase-0-3-6-blocker-recheck.md > /tmp/new.md\npython3 - <<'PY'\nimport re\ndef norm(p):\n    t=open(p).read()\n    # drop list-marker prefixes and numbering, collapse whitespace\n    t=re.sub(r'^\\s*[-*]\\s+','',t,flags=re.M)\n    t=re.sub(r'^\\s*\\d+\\.\\s+','',t,flags=re.M)\n    return re. …[per-command-truncated]",
+      "git show 33dbd3ce34422946f5478968d12a8cc3ec0fc5b8:skills/review/phases/phase-0-3-6-blocker-recheck.md > /tmp/old.md",
+      "git show 18262bad1a801b2986b4a0d2a2cfc61332476f66:skills/review/phases/phase-0-3-6-blocker-recheck.md > /tmp/new.md",
+      "cd /home/runner/work/prflow/prflow\ngit show 33dbd3ce34422946f5478968d12a8cc3ec0fc5b8:skills/review/phases/phase-0-3-6-blocker-recheck.md > .prflow/tmp/old.md\ngit show 18262bad1a801b2986b4a0d2a2cfc61332476f66:skills/review/phases/phase-0-3-6-blocker-recheck.md > .prflow/tmp/new.md",
+      "git show 33dbd3ce34422946f5478968d12a8cc3ec0fc5b8:skills/review/phases/phase-0-3-6-blocker-recheck.md > .prflow/tmp/old.md"
+    ],
+    "total": 22,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
