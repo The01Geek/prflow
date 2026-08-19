@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1786",
+  "generated_at": "2026-08-19T13:44:41Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.23",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 13.2785732,
+    "tokens": {
+      "input_tokens": 80,
+      "output_tokens": 47378,
+      "cache_read_input_tokens": 6815922,
+      "cache_creation_input_tokens": 246750,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 136,
+        "outputTokens": 81326,
+        "cacheReadInputTokens": 8182630,
+        "cacheCreationInputTokens": 633587,
+        "webSearchRequests": 0,
+        "costUSD": 11.010376250000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 98,
+        "outputTokens": 13697,
+        "cacheReadInputTokens": 2179314,
+        "cacheCreationInputTokens": 375641,
+        "webSearchRequests": 0,
+        "costUSD": 2.2681969499999997,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 68,
+    "duration_ms": 879488
+  },
+  "permission_denials": {
+    "count": 3,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-} ATTEMPT=${GITHUB_RUN_ATTEMPT:-1}\"; mkdir -p .prflow/tmp/review/pr-1786/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}; echo \"slugdir=.prflow/tmp/review/pr-1786/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}\"",
+      "echo \"=== other changesets for format comparison ===\"; ls .changeset/ | head; echo \"=== a sample existing changeset head ===\"; for f in .changeset/*.md; do [ \"$(basename \"$f\")\" != \"README.md\" ] && head -5 \"$f\" && break; done; echo \"=== coverage-map JSON validity ===\"; jq -e '.' lib/test/modules/coverage-map.json >/dev/null 2>&1 && echo \"base-copy valid JSON\"; echo \"=== does PR touch any workflow yaml? ===\"; grep -c 'diff --git.*\\.github/workflows' .prflow/tmp/review/pr-1786/32258307663-1/diff.pa …[per-command-truncated]",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before"
+    ],
+    "total": 3,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
