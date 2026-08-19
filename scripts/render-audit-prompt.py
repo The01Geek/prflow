@@ -1358,18 +1358,11 @@ def _abs_path(value: str, _pathmod=os.path) -> str:
     # narrow claim (no free-text parameter reaches the rendered block) and not a
     # broad one this check does not implement.
     #
-    # Host-absolute, not POSIX-only (issue #1762): the check admits any path the
-    # interpreter's own path module reports as absolute on the host it runs on, so a
-    # Windows drive-letter path in EITHER spelling — C:/Users/x, C:\Users\x — is
-    # accepted where the repository-root helper (git worktree list --porcelain) or an
-    # MSYS-rewritten argument produces it, and a backslash is therefore now admitted.
-    # The accepted value is returned UNCHANGED, so the path admitted is the path main()
-    # then opens; rewriting it would make the dispatch bytes diverge from the record
-    # issue-audit-state.py regenerates for its digest comparison. A newline is still
-    # refused (below); a `{` slot token is still refused so a path can never carry a
-    # literal slot token ({CONSUMER_DIMENSIONS}, {SENTINEL_OPEN}, ...) — without it the
-    # substituted-last invariant in render_dispatch would hold only by argument
-    # provenance; with it, it holds unconditionally.
+    # Never normalize or rewrite the accepted value (issue #1762): main() opens exactly
+    # what _host_abs_path admitted, and a rewrite would make the dispatch bytes diverge
+    # from the record issue-audit-state.py regenerates for its digest comparison.
+    # Never drop the `{` test: without it render_dispatch's substituted-last invariant
+    # would hold only by argument provenance rather than unconditionally.
     #
     # Single-line-ness is tested with `splitlines()` itself, not an `"\n"`/`"\r"`
     # membership pair, because `splitlines()` is what every downstream consumer of the
@@ -1422,14 +1415,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _force_utf8_streams():
-    """Force stdout/stderr to UTF-8 on the CLI entry path only (not at import, so a
-    unit-test import never mutates the importer's streams). A no-op where the ambient
-    codec is already UTF-8; self-defends against a non-UTF-8 default codec such as
-    Windows cp1252. Tolerates a non-TextIOWrapper stream (issue #1762)."""
+    """Force stdout/stderr to UTF-8. Never call this at import: doing so mutates the
+    streams of any process that imports this module for tests. Tolerates a stream that
+    has no usable `reconfigure` (issue #1762)."""
     for _stream in (sys.stdout, sys.stderr):
         try:
             _stream.reconfigure(encoding="utf-8")
-        except (AttributeError, ValueError):
+        except (AttributeError, ValueError, OSError):
             pass
 
 

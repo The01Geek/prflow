@@ -1542,6 +1542,25 @@ class AbsPathSeparatorClosure(unittest.TestCase):
                 self.assertEqual(mod._abs_path(good), good)
 
 
+class _Pre313Ntpath:
+    """A Windows-style path module answering `isabs` the way ntpath did before Python
+    3.13 — True for a rooted path naming no drive. Never replace this with the real
+    ntpath: on a 3.13+ host that answer is already False, so the drive guard the
+    version-stability test exists to pin would never be reached."""
+
+    sep = "\\"
+
+    @staticmethod
+    def isabs(value):
+        import ntpath
+        return ntpath.isabs(value) or value[:1] in ("\\", "/")
+
+    @staticmethod
+    def splitdrive(value):
+        import ntpath
+        return ntpath.splitdrive(value)
+
+
 class AbsPathHostAbsoluteWidening(unittest.TestCase):
     """Issue #1762: `_abs_path` admits any HOST-absolute path (drive-letter forms on
     Windows), returns it UNCHANGED, and agrees with issue-audit-state.py's bound-path
@@ -1570,6 +1589,7 @@ class AbsPathHostAbsoluteWidening(unittest.TestCase):
         ("C:/Users/x/f.md", False, True),        # drive-letter, forward slashes
         ("C:\\Users\\x\\f.md", False, True),     # drive-letter, backslashes
         ("//host/share/f.md", True, True),       # UNC / double-slash root
+        ("\\\\host\\share\\f.md", False, True),  # UNC root, canonical backslash spelling
         ("C:foo", False, False),                 # drive-relative, no separator
         ("", False, False),                      # empty
         ("\\Users\\x\\f.md", False, False),      # rooted, no drive
@@ -1605,13 +1625,21 @@ class AbsPathHostAbsoluteWidening(unittest.TestCase):
     def test_rooted_no_drive_refused_and_version_stable(self):
         # AC #18/#19: a rooted path naming no drive is refused on ntpath REGARDLESS of
         # the interpreter's own ntpath.isabs verdict (True before 3.13, False from
-        # 3.13), so the check does not depend on that changed classification.
+        # 3.13), so the check does not depend on that changed classification. Drive the
+        # pre-3.13 verdict through a stub module: on a 3.13+ host the real ntpath.isabs
+        # already answers False, so the drive guard is never reached and its deletion
+        # would go unnoticed here.
         import ntpath
-        rap, _ = self._mods()
+        rap, ias = self._mods()
         for v in ("\\Users\\x\\f.md", "/Users/x/f.md"):
-            with self.subTest(v=v):
-                self.assertFalse(rap._host_abs_path(v, ntpath))
-                self.assertFalse(self._accepts(rap, v, ntpath))
+            for mod, label in ((ntpath, "host ntpath"), (_Pre313Ntpath(), "pre-3.13")):
+                with self.subTest(v=v, mod=label):
+                    self.assertFalse(rap._host_abs_path(v, mod))
+                    self.assertFalse(ias._host_abs_path(v, mod))
+                    self.assertFalse(self._accepts(rap, v, mod))
+            # Positive control: the stub really does report the pre-3.13 True that the
+            # drive guard has to override, so this is not a vacuous refusal.
+            self.assertTrue(_Pre313Ntpath().isabs(v))
 
     def test_returns_input_unchanged_and_opens_a_real_file(self):
         # AC: the module returns the accepted path unchanged, so it is a path main()

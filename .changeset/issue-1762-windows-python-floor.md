@@ -9,7 +9,7 @@ type: Fixed
   helper that prints an em-dash or emoji; a new guard in `lib/test/test_python_scripts.py`
   derives its checked file list from the repository index, so a newly added helper is
   covered without editing the test. `scripts/render-audit-prompt.py`'s `_abs_path`
-  argument check now accepts any path its interpreter reports as absolute — including a
-  Windows drive-letter path in either the forward-slash or backslash spelling — and
+  argument check now accepts an interpreter-absolute path — a leading `/` on POSIX, or a
+  Windows drive-letter or UNC root in either the forward-slash or backslash spelling — and
   returns it unchanged, unblocking the issue-audit step on Windows. On Linux and macOS
   the behavior is unchanged. (#1764)

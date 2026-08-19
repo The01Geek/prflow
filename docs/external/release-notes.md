@@ -11,7 +11,7 @@ This page summarizes user-visible PRFlow changes. For a complete change history,
 
 ## August 19, 2026
 
-- **Fix: two Windows-only failures in PRFlow's Python helpers are closed.** On a Windows host whose default codec is not UTF-8, a first-party helper that printed an em-dash or emoji used to crash with an encoding error; every tracked helper now forces its output to UTF-8 on startup, so that output prints cleanly. Separately, the issue-audit step rejected a Windows drive-letter path (`C:/Users/…` or `C:\Users\…`), blocking `/prflow:create-issue`'s audit on Windows; the path check now accepts any path the interpreter treats as absolute — including the drive-letter form in either slash spelling — and uses it unchanged. Linux and macOS are unaffected. You get this through the normal plugin update. (#1762)
+- **Fix: two Windows-only failures in PRFlow's Python helpers are closed.** On a Windows host whose default codec is not UTF-8, a first-party helper that printed an em-dash or emoji used to crash with an encoding error; every tracked helper now forces its output to UTF-8 on startup, so that output prints cleanly. Separately, the issue-audit step rejected a Windows drive-letter path (`C:/Users/…` or `C:\Users\…`), blocking `/prflow:create-issue`'s audit on Windows; the path check now accepts the absolute path forms the host actually uses — a leading `/` on Linux and macOS, or a drive-letter (`C:/…`, `C:\…`) or network-share root on Windows — and uses it unchanged. Linux and macOS are unaffected. You get this through the normal plugin update. (#1762)
 
 ## August 14, 2026
 

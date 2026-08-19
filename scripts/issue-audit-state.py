@@ -9311,14 +9311,13 @@ def _stdin_bytes_or_fail(args, command, phrase):
 
 
 def _force_utf8_streams():
-    """Force stdout/stderr to UTF-8 on the CLI entry path only (not at import, so a
-    unit-test import never mutates the importer's streams). A no-op where the ambient
-    codec is already UTF-8; self-defends against a non-UTF-8 default codec such as
-    Windows cp1252. Tolerates a non-TextIOWrapper stream (issue #1762)."""
+    """Force stdout/stderr to UTF-8. Never call this at import: doing so mutates the
+    streams of any process that imports this module for tests. Tolerates a stream that
+    has no usable `reconfigure` (issue #1762)."""
     for _stream in (sys.stdout, sys.stderr):
         try:
             _stream.reconfigure(encoding="utf-8")
-        except (AttributeError, ValueError):
+        except (AttributeError, ValueError, OSError):
             pass
 
 

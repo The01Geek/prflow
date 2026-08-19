@@ -6002,6 +6002,49 @@ def _u8w_reaches_forcing(source, relpath):
     return (True, False)
 
 
+def _u8w_reaches_inline_replace(source, relpath):
+    # (has_main_entry, entry_reaches_inline). The declared-exception discipline, applied
+    # the same reachability way as the rule: True iff a reconfigure(encoding="utf-8",
+    # errors="replace") call sits in the entry block or in a function reachable from it.
+    # A raw substring test would pass on a call in dead code no entry path runs.
+    tree = ast.parse(source, filename=relpath)
+
+    def has_inline(node):
+        for n in ast.walk(node):
+            if not (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                    and n.func.attr == "reconfigure"):
+                continue
+            kw = {k.arg: getattr(k.value, "value", None) for k in n.keywords}
+            if kw.get("encoding") == "utf-8" and kw.get("errors") == "replace":
+                return True
+        return False
+
+    calls_by_func, inline_by_func = {}, {}
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            calls_by_func[node.name] = _u8w_called_names(node)
+            inline_by_func[node.name] = has_inline(node)
+    has_main, main_calls, main_inline = False, set(), False
+    for node in tree.body:
+        if isinstance(node, ast.If) and any(
+                _u8w_is_main_guard(t) for t in ast.walk(node.test)):
+            has_main = True
+            main_calls |= _u8w_called_names(node)
+            main_inline = main_inline or has_inline(node)
+    if not has_main:
+        return (False, False)
+    seen, frontier = set(), list(main_calls)
+    while frontier:
+        name = frontier.pop()
+        if inline_by_func.get(name):
+            return (True, True)
+        if name in seen:
+            continue
+        seen.add(name)
+        frontier.extend(calls_by_func.get(name, ()))
+    return (True, main_inline)
+
+
 def _u8w_run(file_list, read_source=None):
     # Check every command in file_list. Returns (commands_checked, violations). A file
     # with no entry block is classified out (not a command). Refuses an empty list so an
@@ -6019,7 +6062,7 @@ def _u8w_run(file_list, read_source=None):
             continue  # import-only module — outside the obligation, by rule
         checked += 1
         if rel in _U8W_EXCEPTIONS:
-            if 'reconfigure(encoding="utf-8", errors="replace")' not in src:
+            if not _u8w_reaches_inline_replace(src, rel)[1]:
                 viols.append(rel)
             continue
         if not reaches:
@@ -6041,6 +6084,35 @@ _u8w_syn = _u8w_run(
     read_source=lambda _rel: "if __name__ == '__main__':\n    print('no forcing')\n")
 assert_eq("#1762 AC8: guard fails on a synthetic non-conforming entry, naming it",
           (1, ["synthetic/bad-1762.py"]), _u8w_syn)
+# The literal regression shape: a file that DEFINES the forcing helper but never calls
+# it on the entry path. The walk is define-agnostic, so this must still fail.
+assert_eq("#1762 AC8: guard fails a file that defines _force_utf8_streams but never "
+          "calls it on the entry path",
+          (1, ["synthetic/defines-only-1762.py"]),
+          _u8w_run(["synthetic/defines-only-1762.py"], read_source=lambda _rel: (
+              "def _force_utf8_streams():\n    pass\n\n"
+              "def main():\n    return 0\n\n"
+              "if __name__ == '__main__':\n    main()\n")))
+# The declared-exception arm takes the same reachability discipline, not a raw substring
+# scan: an inline replace-reconfigure sitting in dead code fails.
+assert_eq("#1762 AC10: a declared exception whose replace-reconfigure is unreachable "
+          "from the entry path fails",
+          (1, ["scripts/stale-prose-lint.py"]),
+          _u8w_run(["scripts/stale-prose-lint.py"], read_source=lambda _rel: (
+              "import sys\n\n"
+              "def _dead():\n"
+              "    sys.stdout.reconfigure(encoding='utf-8', errors='replace')\n\n"
+              "def main():\n    return 0\n\n"
+              "if __name__ == '__main__':\n    main()\n")))
+assert_eq("#1762 AC10: a declared exception whose replace-reconfigure IS reachable "
+          "from the entry path passes",
+          (1, []),
+          _u8w_run(["scripts/stale-prose-lint.py"], read_source=lambda _rel: (
+              "import sys\n\n"
+              "def main():\n"
+              "    sys.stdout.reconfigure(encoding='utf-8', errors='replace')\n"
+              "    return 0\n\n"
+              "if __name__ == '__main__':\n    main()\n")))
 # A file with no entry block is classified OUT by the rule, not by name.
 assert_eq("#1762 AC2/AC6: a file with no __main__ entry block is outside the obligation",
           (0, []),
