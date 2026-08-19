@@ -17,8 +17,8 @@ threshold that cleanly separates a stall from legitimate work (a healthy run ran
 threshold is advisory-only and configurable, and its default is deliberately
 conservative and provisional pending a larger sample.
 
-Pure/deterministic given inputs: `decide` takes an explicit `now`, so every branch
-is drivable from a fixture with no clock or network dependency (the reason the
+Pure/deterministic given inputs: `decide` takes an explicit `now`, so its decision
+branches are drivable from fixtures with no clock or network dependency (the reason the
 decision core is extracted from the workflow YAML, mirroring stall-backstop-decide.sh).
 """
 
@@ -159,7 +159,19 @@ def _cmd_decide(args):
     return 0
 
 
+def _force_utf8_streams():
+    """Force stdout/stderr to UTF-8 in the CLI entry path only (not at import, so a
+    unit-test import does not mutate the importer's streams). Keeps the helper
+    self-defending against a non-UTF-8 ambient codec (Windows' cp1252)."""
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 def main(argv=None):
+    _force_utf8_streams()
     parser = argparse.ArgumentParser(description="Out-of-band stall observer decision core (reports, never kills).")
     sub = parser.add_subparsers(dest="cmd", required=True)
     d = sub.add_parser("decide", help="decide one issue's advisory stall token from its workpad body")
