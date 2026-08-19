@@ -250,7 +250,7 @@ BEFORE implementing:
   4. Check: Works on all platforms/versions?
   5. Check: Does reviewer understand full context?
   6. Check: Does the note appeal to a "convention" / "standard" / "canonical pattern"?
-           grep the repo to confirm that convention actually exists before reshaping code to match it.
+           search the repo — with the Grep tool first, then `rg` where it resolves on the host, then `grep -rnE` (excluding VCS, dependency, and build directories) — to confirm that convention actually exists before reshaping code to match it.
 
 IF suggestion seems wrong:
   Push back with technical reasoning
@@ -272,7 +272,7 @@ your human partner's rule: "External feedback - be skeptical, but check carefull
 
 ```
 IF reviewer suggests "implementing properly":
-  grep codebase for actual usage
+  search the codebase for actual usage with the Grep tool first, then `rg` where it resolves on the host, then `grep -rnE` (excluding VCS, dependency, and build directories)
 
   IF unused: "This endpoint isn't called. Remove it (YAGNI)?"
   IF used: Then implement properly
@@ -429,11 +429,11 @@ When replying to inline review comments on GitHub, reply in the comment thread (
 
 A fix is not a lower-stakes edit than the code it corrects — it is fresh code, written under time pressure by the one context least able to see its own blind spot. That is exactly how a fix closes the reported defect while quietly introducing a new one. Before the verification gate, give the fix delta the same scrutiny you would give any new code you wrote, matched to what the fix actually did:
 
-- A deletion strands what fed the removed code — a now-unused local, import, or lookup — and can leave callers, links, or references pointing at something that is gone. Re-read the whole surrounding unit and grep for references to anything you removed.
-- A contract change (a renamed symbol, an altered signature, a tightened validator, a moved output stream) is only half-done at the line you edited: it ripples to every dependent caller, fixture, and assertion. Grep for the old shape — a dependent that still compiles can still be semantically stale.
+- A deletion strands what fed the removed code — a now-unused local, import, or lookup — and can leave callers, links, or references pointing at something that is gone. Re-read the whole surrounding unit and search for references to anything you removed with the Grep tool first, then `rg` where it resolves on the host, then `grep -rnE` (excluding VCS, dependency, and build directories).
+- A contract change (a renamed symbol, an altered signature, a tightened validator, a moved output stream) is only half-done at the line you edited: it ripples to every dependent caller, fixture, and assertion. Search for the old shape with the Grep tool first, then `rg` where it resolves on the host, then `grep -rnE` (excluding VCS, dependency, and build directories) — a dependent that still compiles can still be semantically stale.
 - A new error path or fallback can swallow the very failure it was added to surface. Confirm it leaves a specific, actionable account and never defaults an error into a success-shaped value.
 - A new guard must accept no more than its downstream consumer — see *Share the Contract* below.
-- **A fix to the *cited* instance is only half the fix when the same defect class recurs elsewhere.** A finding names one site, but the shape you just fixed — an unguarded assignment, an untested selection/branch arm, a missing null-check, a stale comment, a re-derived validator — usually repeats across sibling arms in the same function, coupled mirror sites, and parallel call sites. Before claiming done, grep the file (and every mirror/coupled site) for the pattern you just corrected and fix every instance in the same change. Fixing only the line the reviewer happened to cite while an identical sibling sits two arms away ships the same defect straight back for the next pass to re-raise — and the next reviewer, staring at the exact region, is the one most likely to miss it too. Treat the cited instance as a *sample of a class*, not the whole of it.
+- **A fix to the *cited* instance is only half the fix when the same defect class recurs elsewhere.** A finding names one site, but the shape you just fixed — an unguarded assignment, an untested selection/branch arm, a missing null-check, a stale comment, a re-derived validator — usually repeats across sibling arms in the same function, coupled mirror sites, and parallel call sites. Before claiming done, search the file (and every mirror/coupled site) for the pattern you just corrected — with the Grep tool first, then `rg` where it resolves on the host, then `grep -rnE` (excluding VCS, dependency, and build directories) — and fix every instance in the same change. Fixing only the line the reviewer happened to cite while an identical sibling sits two arms away ships the same defect straight back for the next pass to re-raise — and the next reviewer, staring at the exact region, is the one most likely to miss it too. Treat the cited instance as a *sample of a class*, not the whole of it.
 
 The reason to do this *now*, before claiming done, is cost: a defect you catch in your own fix delta costs nothing, one that reaches the next review pass costs a whole iteration, and one that slips the pass ships. Don't lean on a later review — or on an automated fix-delta gate, if your loop has one — to find a defect your fix introduced. Write it right the first time.
 
@@ -451,7 +451,7 @@ Two rules close both holes:
 
 ## Share the Contract: Parse, Don't Validate
 
-This is a rule that fires on the event of writing a guard — not standing advice to recall later. The moment you are about to add a guard or validator protecting a downstream consumer (a parser, a `strptime`, a JSON decode, a type-narrowing op), the trigger fires and you do two things in order. First, name the downstream operation the guard protects, in the code, before writing the predicate — then write the guard *as* that operation rather than a predicate that approximates it. Second, before writing any new predicate over a string or shape, grep the file for an existing idiom doing the same job — the correct operation often already sits a few lines away, and re-deriving it by hand is exactly how a guard's accepted-input set drifts wider than its consumer's.
+This is a rule that fires on the event of writing a guard — not standing advice to recall later. The moment you are about to add a guard or validator protecting a downstream consumer (a parser, a `strptime`, a JSON decode, a type-narrowing op), the trigger fires and you do two things in order. First, name the downstream operation the guard protects, in the code, before writing the predicate — then write the guard *as* that operation rather than a predicate that approximates it. Second, before writing any new predicate over a string or shape, search the file for an existing idiom doing the same job with the Grep tool first, then `rg` where it resolves on the host, then `grep -rnE` (excluding VCS, dependency, and build directories) — the correct operation often already sits a few lines away, and re-deriving it by hand is exactly how a guard's accepted-input set drifts wider than its consumer's.
 
 Concretely: prefer using that consumer as the guard itself rather than writing a separate validator that *approximates* the consumer's contract.
 
