@@ -44,6 +44,11 @@ CI_REF_REVDELTA="$CI_ROOT/skills/create-issue/references/revision-delta.md"
 # member — so this seam targets that member.
 # shellcheck disable=SC2034  # pin-retarget seam (see the block comment above)
 CI_REF_STEP36="$CI_ROOT/skills/create-issue/references/step-3-6-audit-dispatch.md"
+# #1752 re-homed the run bootstrap (init/nonce, the canonical write and its two Step 3.5
+# gates, and the draft-root binding) into the always-loaded SHARED member, so the
+# Verified-premise in-chat-sink executing site (AC8) now lives there, not in the dispatch member.
+# shellcheck disable=SC2034  # pin-retarget seam (see the block comment above)
+CI_REF_STEP36_SHARED="$CI_ROOT/skills/create-issue/references/step-3-6-audit-shared.md"
 # shellcheck disable=SC2034  # pin-retarget seam (see the block comment above)
 CI_REF_STEP4="$CI_ROOT/skills/create-issue/references/step-4-present-create.md"
 CI_REF_FB_NOTASK="$CI_ROOT/skills/create-issue/references/fallback-no-task-tool.md"
@@ -478,7 +483,7 @@ devflow_module_pin_unique "#1675: Step 3.5 routes handle=path to a recognized qu
   "$CI_REF_STEP35"  # structural-pin-ok: cross-file-phase-contract -- Step 3.5 authors the remedy; losing this site reopens the unrepairable handle=path loop before canonical write
 devflow_module_pin_unique "#1675: Step 3.6 routes handle=path to a recognized quotation beside the path" \
   'for `handle=path`, add a recognized quotation beside the cited repository path' \
-  "$CI_REF_STEP36"  # structural-pin-ok: cross-file-phase-contract -- Step 3.6 executes the remedy independently; a second copy in Step 3.5 cannot substitute for this consumer site
+  "$CI_REF_STEP36_SHARED"  # structural-pin-ok: cross-file-phase-contract -- the run bootstrap (re-homed into the shared member by #1752) executes the remedy independently; a second copy in Step 3.5 cannot substitute for this consumer site
 devflow_module_pin_unique "#1675: exhausted AC rewrites require the disclosed file-anyway election before approval" \
   'An exhausted Acceptance Criteria rewrite requires an explicit file-anyway election before the ordinary approval gate can authorize creation.' \
   "$CI_REF_STEP4"  # structural-pin-ok: lifecycle-state-transition -- exhaustion must transition through disclosure and a user election rather than silently blocking or falling into ordinary approval
@@ -900,13 +905,14 @@ devflow_module_pin_unique "#1695 AC5: step-3-6-audit-dispatch names the required
   'required of the bound live caller' \
   "$CI_REF_STEP36"  # structural-pin-ok: routing-dispatch-contract -- the bound-live-caller --write-path forwarding obligation (AC5); removal drops the two-layer distinction the CLI help and the live caller must agree on
 # AC8 — the Verified-premise unavailable arm names the in-chat sink in BOTH the declaring
-# reference (step-3-5-steelman) and the executing reference (step-3-6-audit-dispatch).
+# reference (step-3-5-steelman) and the executing reference. Since #1752 the executing site is
+# the SHARED member (the run bootstrap re-homed there), not the dispatch member.
 devflow_module_pin_unique "#1695 AC8: step-3-5-steelman (declaring) names the Verified-premise in-chat sink" \
   'reports its failure kind as an in-chat breadcrumb' \
   "$CI_REF_STEP35"  # structural-pin-ok: cross-file-phase-contract -- the declaring reference names the Verified-premise in-chat sink and must agree with the executing reference (AC8)
-devflow_module_pin_unique "#1695 AC8: step-3-6-audit-dispatch (executing) names the Verified-premise in-chat sink" \
+devflow_module_pin_unique "#1695 AC8: step-3-6-audit-shared (executing) names the Verified-premise in-chat sink" \
   'reports its failure kind as an in-chat breadcrumb' \
-  "$CI_REF_STEP36"  # structural-pin-ok: cross-file-phase-contract -- the executing reference names the Verified-premise in-chat sink and must agree with the declaring reference (AC8)
+  "$CI_REF_STEP36_SHARED"  # structural-pin-ok: cross-file-phase-contract -- the executing reference (the re-homed run bootstrap in the shared member) names the Verified-premise in-chat sink and must agree with the declaring reference (AC8)
 # AC7 — the Step 3.5-record entry gate's executing contract (item 9 of step-3-5-steelman,
 # the site that actually routes) reports confirmed/missing/stale as an in-chat breadcrumb
 # before routing.
