@@ -4,6 +4,17 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.33.17] — 2026-08-19
+
+### Changed
+- **Removed rationale prose from the `/prflow:review` engine.** The skill root and its nine phase references drop 29,495 bytes (9.7%), from 303,098 to 273,603. The sweep deletes only sentences and clauses whose sole job is to explain why a rule exists or what breaks if it is skipped. Every severity definition, demotion rule, threshold, phase transition, agent dispatch, verification-mode routing rule and verdict condition is retained, as are all boundary markers, command fences and the `config_only` extension set that `phase-0-setup.md` and `phase-3-agents.md` deliberately carry in duplicate. Security-relevant prose — prompt injection, untrusted check names and command output, the trusted-source boundary, the read-only reviewer allowlist — was retained in full by rule rather than judged case by case. A side effect is that `skills/review/SKILL.md` moves from 640 bytes under the read-truncation ceiling to 5,224 under it.
+
+## [2.33.16] — 2026-08-19
+
+### Changed
+- **Removed rationale prose from the `/prflow:create-issue` skill and its 27 references.** The corpus drops 23,697 bytes (6.4%), from 369,588 to 345,891, across 25 of 28 files. The sweep deletes only sentences and clauses whose sole job is to explain why a rule exists or what breaks if it is skipped; every operative instruction, routing target, condition, threshold, arm, ordering and output shape is retained, as are all boundary markers, renderer slot tokens and the reconciled degradation-routing table. Rationale that states a runner, host or install fact available nowhere else in the skill was kept, along with the plain-language authoring guidance protected by consumer feedback. Three files came back unchanged because every sentence in them is an arm or a condition.
+- **Removed unnecessary rationale prose from the `/prflow:implement` skill.** The skill drops 9,444 bytes (1.8%), from 516,979 to 507,535, across 18 of its 20 files. The bar for this pass was deliberately conservative: a consequence was removed only when it directed no action and stated no fact used anywhere else, and anything potentially needed was retained. Most of what went is design history, provenance notes and duplicated motivation rather than consequence prose in the strict sense. Every instruction, routing target, condition, threshold, arm, ordering and output shape is unchanged, all 513 test-asserted literals are intact, and the cross-pass coherence rule's two coupled mirror sites remain byte-identical.
+
 ## [2.33.15] — 2026-08-18
 
 ### Changed
