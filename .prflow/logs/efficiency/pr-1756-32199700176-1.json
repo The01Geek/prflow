@@ -113,5 +113,68 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.15",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 26.092854700000004,
+    "tokens": {
+      "input_tokens": 112,
+      "output_tokens": 88579,
+      "cache_read_input_tokens": 12283500,
+      "cache_creation_input_tokens": 343982,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 260,
+        "outputTokens": 168990,
+        "cacheReadInputTokens": 18523486,
+        "cacheCreationInputTokens": 1273264,
+        "webSearchRequests": 0,
+        "costUSD": 22.7356255,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 154,
+        "outputTokens": 40465,
+        "cacheReadInputTokens": 4356899,
+        "cacheCreationInputTokens": 384726,
+        "webSearchRequests": 0,
+        "costUSD": 3.3572292000000004,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 92,
+    "duration_ms": 1508450
+  },
+  "permission_denials": {
+    "count": 3,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"run_id=${GITHUB_RUN_ID:-EMPTY} attempt=${GITHUB_RUN_ATTEMPT:-EMPTY} actions=${GITHUB_ACTIONS:-EMPTY}\"",
+      "D=.prflow/tmp/review/pr-1756/32199700176-1\nawk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' $D/diff.patch | tee $D/batch-1.patch | grep -c '^diff --git'\nawk -v s=11 -v e=20 '/^diff --git/{n++} n>=s && n<=e' $D/diff.patch | tee $D/batch-2.patch | grep -c '^diff --git'\nawk -v s=21 -v e=30 '/^diff --git/{n++} n>=s && n<=e' $D/diff.patch | tee $D/batch-3.patch | grep -c '^diff --git'\nawk -v s=31 -v e=40 '/^diff --git/{n++} n>=s && n<=e' $D/diff.patch | tee $D/batch-4.patch | grep -c '^diff --git …[per-command-truncated]",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before\ngit hash-object .prflow/tmp/review-dirty-tree-before"
+    ],
+    "total": 3,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
