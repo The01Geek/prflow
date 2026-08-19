@@ -275,7 +275,7 @@ Handle the printed token per the implement-driven outcome-handling contract in p
 
 Read the token as the leading word of the emitted line, never as the whole line — the matching rule `scripts/update-branch-checkpoint.sh`'s own header states. Read it from the invocation's output, never from a shell capture.
 
-First, separate "the invocation never ran" from "the invocation ran and reported something". The invocation is known to have never run only when the tool boundary *reports* it — a local-tier classifier denial message, or an rc 127. Those take the *tier-refused* arm at the end of this section. A silent cloud matcher denial produces no output and no failure signal, so it takes the refusal arm below (fail-closed), not the tier-refused arm. Everything else ran, routed by the gate below on the first field of its output.
+First, separate "the invocation never ran" from "the invocation ran and reported something" — and be honest about which denials are observable. The invocation is known to have never run only when the tool boundary *reports* it — a local-tier classifier denial message, or an rc 127. Those take the *tier-refused* arm at the end of this section. A silent cloud matcher denial produces no output and no failure signal, so it takes the refusal arm below (fail-closed), not the tier-refused arm. Everything else ran, routed by the gate below on the first field of its output.
 
 Publish gate (checkpoint-4-specific — the run does not publish or complete on a non-clean checkpoint). The clean set is `UPDATED`, `UP_TO_DATE`, `DISABLED`; the non-clean set is `CONFLICT`, `UNVERIFIED`, `PUSH_REJECTED`, `MERGE_IN_PROGRESS`. Route the observed first field:
 
