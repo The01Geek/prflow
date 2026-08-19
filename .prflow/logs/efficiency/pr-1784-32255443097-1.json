@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1784",
+  "generated_at": "2026-08-19T13:10:43Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.23",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 9.284001999999997,
+    "tokens": {
+      "input_tokens": 44,
+      "output_tokens": 30855,
+      "cache_read_input_tokens": 3546500,
+      "cache_creation_input_tokens": 227790,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 106,
+        "outputTokens": 73384,
+        "cacheReadInputTokens": 5194419,
+        "cacheCreationInputTokens": 639592,
+        "webSearchRequests": 0,
+        "costUSD": 9.284001999999997,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 36,
+    "duration_ms": 682675
+  },
+  "permission_denials": {
+    "count": 5,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"run_id=${GITHUB_RUN_ID:-unset} attempt=${GITHUB_RUN_ATTEMPT:-unset}\"",
+      "mkdir -p .prflow/tmp && rm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null; git status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before",
+      "ls -la /home/runner/work/_temp/devflow-trusted-prompt-ext/ 2>&1; echo \"---\"; cat /home/runner/work/_temp/devflow-trusted-prompt-ext/requesting-code-review.md 2>&1 | head -20",
+      "ls -la /home/runner/work/_temp/devflow-trusted-prompt-ext/ 2>&1",
+      "for f in skills/review/SKILL.md skills/implement/SKILL.md skills/implement/phases/phase-4-documentation.md skills/implement/phases/phase-2-sweeps-contract.md skills/create-issue/SKILL.md skills/docs-verify/SKILL.md skills/review-and-fix/SKILL.md; do printf '%s ' \"$f\"; git show aca31eded57ef644944c5a6c967b3f486ad6ff7d:\"$f\" | wc -c; done"
+    ],
+    "total": 5,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
