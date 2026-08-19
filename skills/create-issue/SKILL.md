@@ -181,11 +181,14 @@ which prints the default `docs/internal/` when the key is missing:
 `.docs.internal` is that config key path, not a filename — read as a file it is absent, and that
 misreading is exactly the established absence a failed resolution may never report. When the resolver
 yields no usable location — it exits non-zero, or exits zero having printed nothing, or prints a value
-that is not a path (the JSON-object, list, and bare-scalar shapes), these three and complete by
-construction — record the documentation leg unestablished, never an established absence, because you
-have established nothing about the location. When the resolver cannot be run at all, use the default
-`docs/internal/`, say in your output that the location was assumed rather than resolved, and record the
-leg unestablished when that directory holds no tracked files.
+that is not a path — these three outcomes and complete by construction — record the documentation leg
+unestablished, never an established absence, because you have established nothing about the location.
+Judge that third outcome on the text printed, not on the config shape behind it: a JSON object always
+prints `[object Object]`, while a list or a non-string scalar prints coerced text that may itself be
+path-shaped. When the resolver cannot be run at all — nothing executed, the invocation having been
+refused or the helper being absent, as distinct from an invocation that ran and exited non-zero — use
+the default `docs/internal/`, say in your output that the location was assumed rather than resolved,
+and record the leg unestablished when that directory holds no tracked files.
 Both enumerate from the index, and each reaches its peer inside the docs-verify invocation the
 dispatching run composes for that peer — as that invocation's `--search-space <pathspec>` operand,
 never as dispatch-prompt prose its own contract overrides. The duty floor, not the space's size,
