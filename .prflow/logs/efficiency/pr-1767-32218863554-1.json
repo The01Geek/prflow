@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1767",
+  "generated_at": "2026-08-19T05:29:23Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.21",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 11.7990275,
+    "tokens": {
+      "input_tokens": 38,
+      "output_tokens": 25065,
+      "cache_read_input_tokens": 2751536,
+      "cache_creation_input_tokens": 213235,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 190,
+        "outputTokens": 92475,
+        "cacheReadInputTokens": 8555055,
+        "cacheCreationInputTokens": 705447,
+        "webSearchRequests": 0,
+        "costUSD": 11.7990275,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 33,
+    "duration_ms": 623061
+  },
+  "permission_denials": {
+    "count": 16,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-none} ATTEMPT=${GITHUB_RUN_ATTEMPT:-none}\"",
+      "RUN_ID=\"${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}\"; echo \"run-id=$RUN_ID\"; mkdir -p \".prflow/tmp/review/pr-1767/$RUN_ID\"; echo \"created\"",
+      "printf 'run=%s attempt=%s\\n' \"${GITHUB_RUN_ID:-local}\" \"${GITHUB_RUN_ATTEMPT:-1}\"",
+      "mkdir -p .prflow/tmp && rm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null; git status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before",
+      "cd /home/runner/work/prflow/prflow\nTMP=$(mktemp -d)\ngit worktree add -q \"$TMP\" HEAD 2>/dev/null\ncd \"$TMP\"\ngit apply /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1767/32218863554-1/diff.patch && echo \"APPLIED OK\" || echo \"APPLY FAILED\"\necho \"=== shared: handle=path ===\"; grep -c \"add a recognized quotation beside the cited repository path\" skills/create-issue/references/step-3-6-audit-shared.md\necho \"=== shared: in-chat breadcrumb ===\"; grep -c \"reports its failure kind as an in-chat bre …[per-command-truncated]",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >/tmp/ext.out 2>/tmp/ext.err; echo \"EXIT=$?\"; echo \"--- STDOUT ---\"; cat /tmp/ext.out; echo \"--- STDERR ---\"; cat /tmp/ext.err; echo \"--- STDOUT BYTES ---\"; wc -c /tmp/ext.out",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >/tmp/ext.out 2>/tmp/ext.err; echo \"EXIT=$?\"",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review >.prflow/tmp/ext.out 2>.prflow/tmp/ext.err; echo \"EXIT=$?\"",
+      "TMP=$(mktemp -d) && git worktree add -q \"$TMP\" HEAD && cd \"$TMP\" && git apply /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1767/32218863554-1/diff.patch && echo APPLIED && echo \"shared handle=path:\" && grep -c \"add a recognized quotation beside the cited repository path\" skills/create-issue/references/step-3-6-audit-shared.md && echo \"shared breadcrumb:\" && grep -c \"reports its failure kind as an in-chat breadcrumb\" skills/create-issue/references/step-3-6-audit-shared.md && echo \"dispat …[per-command-truncated]",
+      "TMP=$(mktemp -d) && git worktree add -q \"$TMP\" HEAD && cd \"$TMP\" && git apply /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1767/32218863554-1/diff.patch && echo APPLIED && echo \"shared handle=path:\" && grep -c \"add a recognized quotation beside the cited repository path\" skills/create-issue/references/step-3-6-audit-shared.md && echo \"shared breadcrumb:\" && grep -c \"reports its failure kind as an in-chat breadcrumb\" skills/create-issue/references/step-3-6-audit-shared.md && echo \"dispat …[per-command-truncated]",
+      "git worktree add -q /tmp/wt1767 HEAD",
+      "mkdir -p /tmp/apply1767 && cp -r skills/create-issue /tmp/apply1767/ && cp -r lib /tmp/apply1767/ && cp -r docs /tmp/apply1767/ && echo done",
+      "for f in step-3-6-audit-shared.md step-3-6-audit-dispatch.md step-3-6-audit-adjudication.md step-3-6-audit.md; do echo \"=== $f: $(wc -c < skills/create-issue/references/$f) bytes ===\"; done; echo \"TOTAL: $(cat skills/create-issue/references/step-3-6-audit-shared.md skills/create-issue/references/step-3-6-audit-dispatch.md skills/create-issue/references/step-3-6-audit-adjudication.md | wc -c)\"",
+      "echo \"=== all CI_REF_STEP36 (non-shared) pins and their literals ===\"; grep -nE 'CI_REF_STEP36\"' lib/test/modules/create-issue-contract.sh; echo; echo \"=== check each remaining dispatch-pin literal still in dispatch member ===\"; for lit in 'required of the bound live caller' 'add a recognized quotation beside the cited repository path'; do printf '%s => ' \"$lit\"; grep -c \"$lit\" skills/create-issue/references/step-3-6-audit-dispatch.md; done; echo \"=== omitted-member positive control ===\"; grep - …[per-command-truncated]",
+      "H=f36bc050c9cfc232debcf29af0513728bb85859e; tot=0; for f in step-3-6-audit.md step-3-6-audit-shared.md step-3-6-audit-dispatch.md step-3-6-audit-adjudication.md; do s=$(git cat-file -p $H:skills/create-issue/references/$f | wc -c); echo \"$f: $s\"; tot=$((tot+s)); done; echo \"AGG=$tot\"",
+      "for f in step-3-6-audit.md step-3-6-audit-shared.md step-3-6-audit-dispatch.md step-3-6-audit-adjudication.md; do git cat-file -p f36bc050c9cfc232debcf29af0513728bb85859e:skills/create-issue/references/$f | wc -c; done"
+    ],
+    "total": 16,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
