@@ -32,8 +32,10 @@ TWO-CLASS CLI CONTRACT (the skill branches on exactly this):
     SECOND and final line, `next_call=` (see `_resolve_next_call`); the decided answer
     line above is unchanged and stays FIRST; since issue #1803 a `summary-block` line — a
     compact fixed `_SUMMARY_BLOCK_FIELDS` subset of the `query-summary` fields — prints
-    between the decided line and that final `next_call=` line, so a caller reads
-    post-mutation state from the call it just made. `_NEXT_CALL_EXCLUDED` names the
+    between the decided answer line(s) and that final `next_call=` line, so a caller reads
+    post-mutation state from the call it just made. "Line(s)": the batched
+    `record-finding-evidence` form prints one decided `finding=` line per finding, and the
+    block follows the LAST of them. `_NEXT_CALL_EXCLUDED` names the
     subcommands that print neither the summary-block nor the `next_call=` line. A crashed read is never
     presented as a value. Queries are strictly READ-ONLY: the tool-unavailability fallback depends
     on a mutation-persistence failure still leaving the queries answering, so no
@@ -4891,7 +4893,7 @@ def _emit_next_call(cmd_name, args, ctx):
     # parser shape it does not itself check; the resolver already answers `foreign-nonce` /
     # `state-unestablished` for an absent value.
     nonce = ctx.pop('nonce', None) or getattr(args, 'nonce', None)
-    # issue #1803: block prints between the decided line and `next_call=` (order the pins need).
+    # issue #1803: block prints after the decided answer line(s) and before `next_call=`.
     # Guard the SECONDARY block so its data-shape failure never suppresses the primary next_call;
     # re-raise AssertionError so a contract bug stays loud in main()'s handler, never swallowed.
     try:
@@ -8996,7 +8998,8 @@ def build_parser():
             'Queries always exit 0 once the arguments parse and print a decided answer '
             'line; mutations exit non-zero with a named breadcrumb. Most subcommands then '
             'print, as their final stdout line, a next_call= line naming the next legal '
-            'invocation; between the decided answer line (which stays first) and that final '
+            'invocation; between the decided answer line(s) (the first of which stays first) '
+            'and that final '
             'next_call= line they print a summary-block line carrying a compact fixed subset '
             'of the query-summary fields (' + ', '.join(_SUMMARY_BLOCK_FIELDS) + '), so a '
             'caller reads post-mutation state from the call it just made. next_call= is a '

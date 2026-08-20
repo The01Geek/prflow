@@ -7853,6 +7853,26 @@ with tempfile.TemporaryDirectory() as _fe_dir:
                   SystemExit, lambda: _ing(_fe('[{"finding_id":1},{"finding_id":1}]')))
     assert_raises("#1803 fe_records: an unreadable records-file path is refused",
                   SystemExit, lambda: _ing(os.path.join(_fe_dir, 'does-not-exist.json')))
+    # Do not move the UTF-8 decode after `json.loads`, and do not drop it: every fixture
+    # above is written through a text file, so only a raw-bytes fixture reaches this arm.
+    def _fe_bytes(payload):
+        q = os.path.join(_fe_dir, 'fe-bytes.json')
+        with open(q, 'wb') as fh:
+            fh.write(payload)
+        return q
+    _und_err = io.StringIO()
+    with contextlib.redirect_stderr(_und_err):
+        assert_raises("#1803 fe_records: an undecodable (non-UTF-8) records file is refused",
+                      SystemExit, lambda: _ing(_fe_bytes(b'[{"finding_id":1,"locator":"\xff\xfe"}]')))
+    assert_eq("#1803 fe_records: ... attributed to the decode guard, not the JSON parser",
+              (True, False),
+              ('finding-evidence-records-undecodable' in _und_err.getvalue(),
+               'finding-evidence-records-not-json' in _und_err.getvalue()))
+    # Positive control on the same fixture shape: the identical record as valid UTF-8 ingests,
+    # so the refusal above is attributable to the bytes and not to the record's own shape.
+    assert_eq("#1803 fe_records positive control: the same record as valid UTF-8 ingests",
+              [1], [r['finding_id'] for r in _ing(_fe_bytes(
+                  '[{"finding_id":1,"locator":"\u00ff\u00fe"}]'.encode('utf-8')))])
 # (4) Do not render a shared field differently in `_summary_block_line` and `query-summary`
 #     — the two surfaces are contracted to agree token-for-token on the shared subset.
 with tempfile.TemporaryDirectory() as _xr_dir:
@@ -7960,6 +7980,30 @@ assert_eq("#1803 summary_block guard: a non-AssertionError render failure names 
 assert_eq("#1803 summary_block guard: the primary next_call= line still prints (no block)",
           (True, False), (_sw_out.getvalue().startswith('next_call='),
                           'summary-block' in _sw_out.getvalue()))
+# Positive control for the `except AssertionError: raise` arm above: do not widen the swallow
+# to cover AssertionError — a self-check failure is a TOOL defect main() must name as a contract
+# violation, not one more environment hiccup on stderr.
+_ae_orig = issue_audit_state._summary_block_line
+_ae_out, _ae_err = io.StringIO(), io.StringIO()
+try:
+    def _ae_boom(_fields):
+        raise AssertionError('self-check tripped')
+    issue_audit_state._summary_block_line = _ae_boom
+    with contextlib.redirect_stdout(_ae_out), contextlib.redirect_stderr(_ae_err):
+        try:
+            issue_audit_state._emit_next_call('record-degraded', argparse.Namespace(
+                cmd='record-degraded', slug='no-such-slug-1803', nonce='n0', round=None,
+                draft_file=None), {})
+            _ae_raised = None
+        except AssertionError as exc:
+            _ae_raised = str(exc)
+finally:
+    issue_audit_state._summary_block_line = _ae_orig
+assert_eq("#1803 summary_block guard: an AssertionError propagates rather than being swallowed",
+          'self-check tripped', _ae_raised)
+assert_eq("#1803 summary_block guard: ... and it is NOT reported as the render-failed swallow",
+          (False, False), ('summary-block render failed' in _ae_err.getvalue(),
+                           _ae_out.getvalue().startswith('next_call=')))
 # _binding_line — the query answer shape, incl. the fail-closed unbound token.
 assert_eq("#562 _binding_line: unbound state answers the fail-closed bound=none token",
           'bound=none tier=none non_bound_root=none latest_revision_landed=yes',

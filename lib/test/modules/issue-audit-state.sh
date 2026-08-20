@@ -403,6 +403,13 @@ if m._finding_count(st) != 2: sys.exit(8)                    # never the UNESTAB
   assert_eq "#546 cli_roundtrip_restricted_path: emit-body emits the body below the title heading" \
     "Body line one (revised).
 Body line two." "$(cat "$IAS_SB/.rt-body" 2>/dev/null)"
+  # emit-body is in _NEXT_CALL_EXCLUDED but is NOT routed through _emit_next_call at all, so
+  # the query-findings row alone leaves this path uncovered: a block appended here would forge
+  # extra bytes into a body a caller pipes straight to `gh issue create`.
+  assert_eq "#1803 summary_block: a SUCCESSFUL emit-body prints neither a summary-block nor a next_call= line" \
+    "0:0" "$(grep -c '^summary-block ' "$IAS_SB/.rt-body" 2>/dev/null):$(grep -c '^next_call=' "$IAS_SB/.rt-body" 2>/dev/null)"
+  assert_eq "#1803 summary_block: ... positive control — that emit-body did produce output (not a vacuous empty file)" \
+    "1" "$([ -s "$IAS_SB/.rt-body" ] && echo 1 || echo 0)"
   # The tool's own artifact population is exactly one file: the state JSON.
   assert_eq "#546 cli_roundtrip_restricted_path: the run creates no file besides the state JSON" \
     "issue-audit-state-rt.json" "$(cat "$IAS_SB/.rt-files" 2>/dev/null)"
@@ -2649,6 +2656,12 @@ if [ -d "$SBK_SB" ]; then
     # A single-finding call naming no selector is refused.
     python3 "$IAS" record-finding-evidence b1803 --nonce "$NONCE" --round 0 > /dev/null 2> .sbk-nosel-err
     printf '%s' "$?" > .sbk-nosel-rc
+    # Do not narrow the mutual-exclusion scan to --finding-id: every per-finding flag is a
+    # mixed call, and the breadcrumb's singular/plural branch has its own wording.
+    python3 "$IAS" record-finding-evidence b1803 --nonce "$NONCE" --round 0 --locator z.py:9 --finding-evidence-records-file .prflow/tmp/fe.json > /dev/null 2> .sbk-mixed-loc-err
+    printf '%s' "$?" > .sbk-mixed-loc-rc
+    python3 "$IAS" record-finding-evidence b1803 --nonce "$NONCE" --round 0 --locator z.py:9 --command c9 --finding-evidence-records-file .prflow/tmp/fe.json > /dev/null 2> .sbk-mixed-two-err
+    printf '%s' "$?" > .sbk-mixed-two-rc
   ) || true
   assert_eq "#1803 summary_block: a mutation prints its decided line first" \
     "1" "$(sed -n 1p "$SBK_SB/.sbk-init" 2>/dev/null | grep -c '^nonce=')"
@@ -2678,6 +2691,12 @@ if [ -d "$SBK_SB" ]; then
     "1:1" "$(cat "$SBK_SB/.sbk-mixed-rc" 2>/dev/null):$(grep -c 'finding-evidence-records-mixed-form' "$SBK_SB/.sbk-mixed-err" 2>/dev/null)"
   assert_eq "#1803 batched_finding_evidence: a single-finding call naming no selector is refused" \
     "1:1" "$(cat "$SBK_SB/.sbk-nosel-rc" 2>/dev/null):$(grep -c 'finding-evidence-missing-finding-selector' "$SBK_SB/.sbk-nosel-err" 2>/dev/null)"
+  assert_eq "#1803 batched_finding_evidence: a per-finding flag OTHER than --finding-id is a mixed call too" \
+    "1:1" "$(cat "$SBK_SB/.sbk-mixed-loc-rc" 2>/dev/null):$(grep -c 'finding-evidence-records-mixed-form' "$SBK_SB/.sbk-mixed-loc-err" 2>/dev/null)"
+  assert_eq "#1803 batched_finding_evidence: ... and the singular branch names that one flag" \
+    "1" "$(grep -c -- '--locator was also passed' "$SBK_SB/.sbk-mixed-loc-err" 2>/dev/null)"
+  assert_eq "#1803 batched_finding_evidence: two per-finding flags take the PLURAL breadcrumb branch, naming both" \
+    "1" "$(grep -c -- '--locator,--command were also passed' "$SBK_SB/.sbk-mixed-two-err" 2>/dev/null)"
   # The batched form (multiple decided finding lines) still exhibits the full three-part
   # contract — a summary-block line then next_call= last, after the N decided lines.
   assert_eq "#1803 batched_finding_evidence: the batch prints a summary-block line after its decided lines" \
