@@ -124,5 +124,88 @@
         }
       }
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.48",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 50.025192899999965,
+    "tokens": {
+      "input_tokens": 322,
+      "output_tokens": 154844,
+      "cache_read_input_tokens": 57147196,
+      "cache_creation_input_tokens": 555741,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 476,
+        "outputTokens": 202951,
+        "cacheReadInputTokens": 60827633,
+        "cacheCreationInputTokens": 1547103,
+        "webSearchRequests": 0,
+        "costUSD": 47.24339399999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 148,
+        "outputTokens": 24847,
+        "cacheReadInputTokens": 4048333,
+        "cacheCreationInputTokens": 318440,
+        "webSearchRequests": 0,
+        "costUSD": 2.7817989000000005,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 244,
+    "duration_ms": 3987457
+  },
+  "permission_denials": {
+    "count": 23,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=$GITHUB_ACTIONS\"; echo \"GITHUB_RUN_ID=$GITHUB_RUN_ID\"; echo \"GITHUB_REPOSITORY=$GITHUB_REPOSITORY\"; echo \"BASE-from-git:\"; git rev-parse --abbrev-ref HEAD; git status --porcelain",
+      ".prflow/vendor/prflow/scripts/config-get.sh base_branch 2>/dev/null; echo \"---\"; printf 'GHA:%s\\n' \"$GITHUB_ACTIONS\"; printf 'RUNID:%s\\n' \"$GITHUB_RUN_ID\"",
+      "cd /home/runner/work/prflow/prflow\nBASE=$(.prflow/vendor/prflow/scripts/config-get.sh .base_branch main) || BASE=\"\"\n[ -n \"$BASE\" ] || { echo \"fallback to main\" >&2; BASE=main; }\necho \"BASE=$BASE\"\nCUR=$(git branch --show-current 2>/dev/null) || CUR=\"\"\necho \"CUR=$CUR\"\nCOMMON_DIR=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || COMMON_DIR=\"\"\nGIT_DIR_PATH=$(git rev-parse --path-format=absolute --git-dir 2>/dev/null) || GIT_DIR_PATH=\"\"\necho \"COMMON_DIR=$COMMON_DIR\"\necho \"GIT_DI …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\nBRANCH=issue-1870-step-9-retrospective-digest-filter-drops-analyst\ngit checkout -b \"$BRANCH\" \"origin/main\"",
+      "cd /home/runner/work/prflow/prflow\n.prflow/vendor/prflow/scripts/workpad.py update 1870 --branch \"$(git branch --show-current)\"",
+      "\\\n.prflow/vendor/prflow/scripts/workpad.py update 1870 --note \"issue-claim audit (projection): every Desired Behavior obligation is represented in the resolved acceptance criteria — pass complete\" && \\\n.prflow/vendor/prflow/scripts/workpad.py update 1870 --note \"issue-claim audit (count): no count or enumeration claims found — pass complete\" && \\\n.prflow/vendor/prflow/scripts/workpad.py update 1870 --note \"issue-claim audit (negative-scope): issue excluded 'lib/compute-patterns.jq changes (clean …[per-command-truncated]",
+      "ls -la lib/analyzed-digest.jq && printf '%s\\n' '{\"pr\":1,\"verdict\":\"clean\",\"summary\":\"x\",\"categories\":[\"t\"],\"descriptors\":[],\"suggested_interventions\":[]}' | jq -sc -f lib/analyzed-digest.jq",
+      "git diff --no-index -U0 /dev/null lib/analyzed-digest.jq | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree; echo \"SPL2_EXIT=$?\"",
+      "jq -n -f lib/analyzed-digest.jq </dev/null >/dev/null 2>&1 && echo \"jq-compiles:yes\" || jq 'empty' -f lib/analyzed-digest.jq <<<'[]' >/dev/null 2>&1 && echo \"jq-loads:yes\"; echo '[]' | jq -sc -f lib/analyzed-digest.jq",
+      "git push origin HEAD:refs/heads/issue-1870-step-9-retrospective-digest-filter-drops-analyst 2>&1 | tail -3; echo \"PUSH_EXIT=${PIPESTATUS[0]}\"",
+      "ls .changeset/ 2>/dev/null | head; echo \"=== example ===\"; f=$(ls .changeset/*.md 2>/dev/null | grep -v README | head -1); echo \"FILE: $f\"; cat \"$f\" 2>/dev/null; echo \"=== README hint ===\"; head -30 .changeset/README.md 2>/dev/null",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/skills/requesting-code-review/../../scripts/load-prompt-extension.sh requesting-code-review 2>&1 | head -50",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review",
+      "./.prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review 2>&1",
+      "printf '%s\\n' '{\"pr\":3,\"verdict\":\"clean\",\"summary\":\"x\",\"categories\":[\"tooling-gap\"],\"descriptors\":[],\"suggested_interventions\":[]}\n{\"pr\":4,\"verdict\":\"clean\",\"summary\":\"y\",\"categories\":[],\"descriptors\":[],\"suggested_interventions\":[]}\n{\"pr\":6,\"verdict\":\"clean\",\"summary\":\"m\",\"categories\":\"oops\",\"descriptors\":null,\"suggested_interventions\":[]}\n{\"pr\":7,\"verdict\":\"imperfect\",\"summary\":\"ok\"}' | jq -sc -f lib/analyzed-digest.jq",
+      "mkdir -p .prflow/tmp\ncat > .prflow/tmp/flight-input-1870.json <<'EOF'\n{\n  \"command\": \"lib/test/run-module.sh retrospective-lifecycle\",\n  \"checkout_id\": \"/home/runner/work/prflow/prflow/.git\",\n  \"head\": \"612732957c867835af713e4ca675d4905259ac3a\",\n  \"index_digest\": \"064ca0083a8c6cd9d01fd56b03f887ebbcfa155f\",\n  \"tracked_digest\": \"064ca0083a8c6cd9d01fd56b03f887ebbcfa155f\",\n  \"untracked_digest\": \"4b825dc642cb6eb9a060e54bf8d69288fbee4904\",\n  \"candidate_identity\": \"acceptance-verifier-1870\"\n}\nEOF\npytho …[per-command-truncated]",
+      "python3 -c \"\nimport json\nd = {'exit_status': 0, 'command': 'lib/test/run-module.sh retrospective-lifecycle', 'tally': '668 passed, 0 failed', 'log': '/home/runner/work/prflow/prflow/.prflow/tmp/test-module-logs/retrospective-lifecycle.log.iW4Tt1'}\nopen('.prflow/tmp/flight-summary-1870.json','w').write(json.dumps(d))\n\"\nFLIGHT=cb8bc1640d2fa76177442062d43b21d515c6fdf5d79962010e22d352103204d5\nTOKEN=334288bb88c758e76ac309ef9fba7a0de2e22eaf8bbfae1c77a1d715af4a252e\npython3 .prflow/vendor/prflow/scripts …[per-command-truncated]",
+      "python3 .prflow/vendor/prflow/scripts/checkout-fingerprint.py > .prflow/tmp/current-checkout-1870.json\ncat .prflow/tmp/current-checkout-1870.json",
+      "scripts/prompt-surface-growth.py 2>&1",
+      "mkdir -p .prflow/tmp && cat > .prflow/tmp/pr-1873-body.md <<'EOF'\n<!-- PR_BODY_START -->\n## Summary\n- Widens the weekly retrospective's Step-9 \"Analyzed PRs\" digest so analyst-graded `clean` PRs — which cost a Stage A LLM call and are counted in `analyzed_count` — are no longer silently dropped from the digest.\n- Extracts the Step-9 filter into a dedicated `lib/analyzed-digest.jq` and has `skills/retrospective-weekly/SKILL.md` Step 9 delegate to it, distinguishing analyst-graded `clean` (populat …[per-command-truncated]",
+      "lib/test/run-parallel.sh 2>&1 | tail -30; echo \"SUITE_EXIT=${PIPESTATUS[0]}\"",
+      ".prflow/vendor/prflow/scripts/run-jq.sh -r '.comment.id // empty' \"$GITHUB_EVENT_PATH\" 2>/dev/null || true"
+    ],
+    "total": 23,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
