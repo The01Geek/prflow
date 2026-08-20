@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.33.52] — 2026-08-20
+
+### Added
+- **`/prflow:init` now advises enabling VS Code Copilot's nested-subagent setting.** When the run is under a VS Code Copilot harness, init recommends turning on `chat.subagents.allowInvocationsFromSubagents` (off by default) so a subagent can dispatch its own subagents, giving review agents better context isolation; with it off a subagent silently does that work inline instead of erroring. (#1877)
+
 ## [2.33.51] — 2026-08-20
 
 ### Fixed
