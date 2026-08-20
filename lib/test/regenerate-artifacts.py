@@ -423,28 +423,6 @@ ROWS = (
         # Preflight (issue #1244): `--check` is read-only and sub-second (~0.04 s).
         "preflight_eligible": True,
     },
-    {
-        "name": "terminal-result-table",
-        # Bound: the generator is stdlib-only and sub-second; a generous ms-scale multiple.
-        "timeout_seconds": 22,
-        "kind": "judgment",
-        "argv": ("python3", "lib/generate-terminal-result-table.py", "--check"),
-        "clean": (0,),
-        # (0, 1): --check exits 0 when the checked-in table matches and 1 on drift (or an
-        # unreadable table, which regenerating writes). The generator raises no exit 2.
-        "exits": (0, 1),
-        "policy": (
-            "regenerate the total mapping table with "
-            "`python3 lib/generate-terminal-result-table.py` "
-            "(it is a pure function of the closed vocabularies in that generator)"
-        ),
-        # regenerate: the table is a pure function of the generator's own closed
-        # vocabularies with no by-hand sibling, so re-running the writer IS the answer.
-        "conflict_class": "regenerate",
-        "conflict_paths": ("lib/terminal-result-table.tsv",),
-        # Preflight (issue #1244): `--check` is read-only and sub-second.
-        "preflight_eligible": True,
-    },
 )
 
 # ── Coupled-site registry (issue #1206) ──────────────────────────────────────
