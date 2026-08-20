@@ -1,0 +1,151 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-20T00:00:00Z",
+  "current_step": "loop-exit",
+  "current_substep": null,
+  "loop_role": "fix",
+  "fix_commit_sha": null,
+  "fix_files": [],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "fixture comment block at lib/test/modules/issue-audit-state.sh ~2143-2150 runs 8 physical lines with derivation beyond the prevention core",
+      "defect_signature": {
+        "file": "lib/test/modules/issue-audit-state.sh",
+        "line_range": [
+          2143,
+          2150
+        ],
+        "kind": "style"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "below-threshold"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "_binding_line proven-no full-line rendering asserted only via CLI, not at unit level (low value; string interpolation uniform)",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          8017,
+          8031
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "below-threshold"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "below-threshold",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "below-threshold",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    }
+  ],
+  "shadow": {
+    "ran_at": "2026-08-20T00:00:00Z",
+    "reviewed_sha": "9f2d3e452b9cb0def1a15bc3c13b85579e8288f1",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:comment-analyzer",
+        "severity": "Suggestion",
+        "description": "fixture comment block over the 3-line prevention cap (overlap with iter-1)",
+        "defect_signature": {
+          "file": "lib/test/modules/issue-audit-state.sh",
+          "line_range": [
+            2143,
+            2150
+          ],
+          "kind": "style"
+        }
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Suggestion",
+        "description": "write-failure+no-digest precedence untested (new; below Important)",
+        "defect_signature": {
+          "file": "lib/test/test_python_scripts.py",
+          "line_range": null,
+          "kind": "test_gap"
+        }
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 2,
+      "overlap_with_iter_N": 1,
+      "new": 1,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "park_calibration": {
+    "evidence_comparisons": [
+      {
+        "parked_finding_ref": {
+          "iter": 1,
+          "index": 0
+        },
+        "parked_finding_id": "F-1",
+        "shadow_finding_index": 0,
+        "relation": "equivalent",
+        "rationale": "shadow re-raises the same fixture-comment style finding at the same Suggestion severity on the same basis; no mis-grade shape matches",
+        "operands_present": true,
+        "disposition": "preserved"
+      }
+    ]
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": "no fix applied this iteration"
+    }
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
