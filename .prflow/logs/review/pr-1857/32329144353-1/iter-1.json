@@ -1,0 +1,116 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-20T03:42:00Z",
+  "fix_commit_sha": null,
+  "fix_files": [],
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "current_substep": null,
+  "checklist": [
+    {
+      "id": "VC-1",
+      "claim": "check-completion-evidence.py exists with the documented flags",
+      "verification_mode": "agent",
+      "claim_signature": "dependency_interaction:loop-exit.md:validator-cli-flags",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-2",
+      "claim": "receiving-code-review names Loop Exit as discharge site",
+      "verification_mode": "agent",
+      "claim_signature": "api_contract:loop-exit.md:receiving-review-names-loop-exit",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-3",
+      "claim": "rewritten paragraph preserves all four instructions",
+      "verification_mode": "agent",
+      "claim_signature": "absolute_claim:changeset:preserves-all-four-instructions",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-4",
+      "claim": "run id 30310938175 removed from loop-exit.md",
+      "verification_mode": "lite",
+      "claim_signature": "string_presence:loop-exit.md:run-id-citation-removed",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-5",
+      "claim": "'review shape' ordinal removed from loop-exit.md",
+      "verification_mode": "lite",
+      "claim_signature": "string_presence:loop-exit.md:probe-row-ordinal-removed",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-6",
+      "claim": "changeset frontmatter bump:patch/type:Fixed valid",
+      "verification_mode": "agent",
+      "claim_signature": "data_format_assumption:changeset:frontmatter-vocab",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-7",
+      "claim": "loop-exit.md ships verbatim to consumers (not pruned)",
+      "verification_mode": "agent",
+      "claim_signature": "absolute_claim:changeset:file-ships-verbatim-to-consumer",
+      "verdict": "PASS"
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [],
+  "fix_decisions": [],
+  "convergence_inputs": {
+    "fixes_applied": 0,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "shadow": {
+    "ran_at": "2026-08-20T03:50:00Z",
+    "reviewed_sha": "6f6a22858ddcc0be928f22127886582adee961df",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "park_calibration": {
+    "evidence_comparisons": []
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
