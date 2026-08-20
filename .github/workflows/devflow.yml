@@ -2080,13 +2080,23 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.backstop-token.outputs.token || github.token }}
           REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+          CONTEXT_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+          COMMAND: ${{ needs.gate.outputs.command }}
           # A dead manual review posted no verdict for HEAD, so the derived
           # verdict is incomplete by construction.
           VERDICT: incomplete
           APP_TOKEN_PRESENT: ${{ steps.backstop-token.outputs.token != '' }}
         run: |
           set -euo pipefail
+          # Prefer the resolved command's trailing number (the reviewed thread), else
+          # the event's when the command carries none; otherwise `/prflow:review N`
+          # typed elsewhere resumes the wrong PR. Bash builtins only (issue #1858).
+          PR_NUMBER="${COMMAND##* }"
+          case "$PR_NUMBER" in
+            ''|*[!0-9]*) PR_NUMBER="$CONTEXT_NUMBER" ;;
+          esac
+          # The stall-backstop helper reads PR_NUMBER from the env (issue #1858).
+          export PR_NUMBER
           if [ -z "${PR_NUMBER:-}" ]; then
             echo "::notice::review stall backstop: no PR number on this event; nothing to resume."
             exit 0
@@ -2143,12 +2153,6 @@ jobs:
       # degenerate defensive form since issue #1163 left `issue_comment` the sole
       # trigger. No API call, so there is no unknown state to fall back from.
       #
-      # Residual, shared with the stall backstop above and unchanged by this
-      # step: PR_NUMBER comes from the EVENT, not from an explicit number in the
-      # command, so `/prflow:review 1150` typed on some other pull request
-      # records against the pull request it was typed on. The PR-ness gate
-      # narrows the worst version of that (an issue) out entirely.
-      #
       # THE STEP SELECTS NOTHING ABOUT THE RECORD. check-verdict-post-reached.sh
       # reduces the run-scoped receipt to one line; describe-verdict-post-gap.sh
       # picks the arm and writes every byte that arm emits into two files. This
@@ -2173,7 +2177,8 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
           REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+          CONTEXT_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+          COMMAND: ${{ needs.gate.outputs.command }}
           # The login of THIS run's reviewer identity (issue #1250). On the
           # /prflow:review path the agent runs under the downscoped DevFlow-Reviewer
           # token, so any review it POSTs — including one written directly through the
@@ -2190,6 +2195,13 @@ jobs:
           JOB_CANCELLED: ${{ job.status == 'cancelled' }}
         run: |
           set -uo pipefail
+          # Prefer the resolved command's trailing number (the reviewed thread), else
+          # the event's when the command carries none; otherwise `/prflow:review N`
+          # typed elsewhere records against the wrong PR. Bash builtins only (issue #1858).
+          PR_NUMBER="${COMMAND##* }"
+          case "$PR_NUMBER" in
+            ''|*[!0-9]*) PR_NUMBER="$CONTEXT_NUMBER" ;;
+          esac
           CHECK=.prflow/vendor/prflow/scripts/check-verdict-post-reached.sh
           [ -f "$CHECK" ] || CHECK=scripts/check-verdict-post-reached.sh
           GAP=.prflow/vendor/prflow/scripts/describe-verdict-post-gap.sh
@@ -2309,10 +2321,18 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
           REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+          CONTEXT_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+          COMMAND: ${{ needs.gate.outputs.command }}
           ENGINE_ERROR: ${{ steps.engine.outputs.is_error }}
         run: |
           set -uo pipefail
+          # Prefer the resolved command's trailing number (the reviewed thread), else
+          # the event's when the command carries none; otherwise `/prflow:review N`
+          # typed elsewhere dismisses on the wrong PR. Bash builtins only (issue #1858).
+          PR_NUMBER="${COMMAND##* }"
+          case "$PR_NUMBER" in
+            ''|*[!0-9]*) PR_NUMBER="$CONTEXT_NUMBER" ;;
+          esac
           # stale-REJECT dismissal net BEGIN
           NET=.prflow/vendor/prflow/scripts/dismiss-stale-rejections-net.sh
           [ -f "$NET" ] || NET=scripts/dismiss-stale-rejections-net.sh
