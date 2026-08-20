@@ -27796,20 +27796,23 @@ assert_eq("#1634 helper: the summary reports a nonzero ungraded count when detec
           True, 'UNGRADED_CLAIMS total=1' in _cvp_out)
 
 # --- test_adjudicated_output_byte_identical ---------------------------------
-# The issue-1441 snapshot, adjudicated against the tree at this commit: the
-# ungraded pass appends its own lines and changes NO adjudicated line, tally, or
-# exit code. This baseline was captured from the pre-change helper.
+# Re-captured after #1866: bullets 1/2/4 quote their premise inside a backtick
+# span the recognizer no longer scans, so they are honest `unestablished` — do not
+# re-capture as `holds`. `_cvp_path_detail` reads the live constant to stay drift-proof.
+_cvp_path_detail = (
+    'cited path present but the bullet carries no quotation to re-derive the '
+    'premise from (' + check_verified_premises._QUOTE_RULE + ')')
 _CVP_1441_BASELINE = (
-    'bullet=1 handle=path-quote state=holds detail=every quoted sentence resolves in '
-    'lib/fetch-pr-context.sh\n'
-    'bullet=2 handle=path-quote state=holds detail=every quoted sentence resolves in '
-    'lib/fetch-pr-context.sh\n'
+    'bullet=1 handle=path state=unestablished detail=' + _cvp_path_detail
+    + ': lib/fetch-pr-context.sh\n'
+    'bullet=2 handle=path state=unestablished detail=' + _cvp_path_detail
+    + ': lib/fetch-pr-context.sh\n'
     'bullet=3 handle=path-quote state=refuted detail=quoted sentence no longer occurs in '
     'scripts/build-experiment-records.py: Paginate: /commits/{sha}/check-runs serves only '
     'the first 30 check-runs per page\n'
-    'bullet=4 handle=path-quote state=holds detail=every quoted sentence resolves in '
-    'lib/cheap-gate.jq\n'
-    'VERIFIED_PREMISES total=4 holds=3 refuted=1 unestablished=0')
+    'bullet=4 handle=path state=unestablished detail=' + _cvp_path_detail
+    + ': lib/cheap-gate.jq\n'
+    'VERIFIED_PREMISES total=4 holds=0 refuted=1 unestablished=3')
 _cvp_rc, _cvp_out = _cvp_run_real(_CVP_1441_FIXTURE)
 assert_eq("#1634 helper: the adjudicated output for the issue-1441 snapshot is byte-identical "
           "to the pre-change output — the ungraded pass adds lines and moves no verdict "
@@ -28096,6 +28099,169 @@ assert_eq("#1634 helper: an emission failure reports UNGRADED_CLAIMS unavailable
           True, 'UNGRADED_CLAIMS unavailable reason=internal-error detail=' in _cvp_emit_out
           and 'UNGRADED_CLAIMS total=' not in _cvp_emit_out
           and 'emission boom' in _cvp_emit_err)
+
+# issue #1866 — recognizer stops earning unverified clean passes; four defects, same CLI boundary
+
+# --- AC1: text inside a backtick code span is invisible to quote detection ---
+# The backticked command carries a double-quoted string that would otherwise be
+# matched as the premise quotation and refuted against the cited file; the real
+# quotation sits OUTSIDE the backticks and resolves, so the bullet holds.
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    '**Verified:** `grep -c "not-a-real-premise-string" docs/notes.md` proves it; '
+    '`docs/notes.md` — "exited 2 with exactly that"\n')
+assert_eq("#1866 helper: a double-quoted string inside a backticked command is not "
+          "matched as the premise quotation — the real quotation outside it grades holds",
+          True, 'state=holds' in _cvp_out and 'state=refuted' not in _cvp_out)
+
+# Move 2 — two backticked spans with the real premise quotation between them still holds.
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    '**Verified:** `grep "x" f` — "exited 2 with exactly that" — `docs/notes.md`\n')
+assert_eq("#1866 helper: the real quotation between two backticked spans still grades holds",
+          True, 'state=holds' in _cvp_out)
+
+# Move 2 (adversarial) — an unpaired backtick leaves the span unstripped and still grades,
+# never detonating into an internal error.
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    '**Verified:** `docs/notes.md` — "exited 2 with exactly that" and a stray ` tick\n')
+assert_eq("#1866 helper: an unpaired backtick still grades (does not detonate)",
+          True, 'bullet=1' in _cvp_out and 'reason=internal-error' not in _cvp_out
+          and 'state=holds' in _cvp_out)
+
+# --- AC2: a blockquote-prefixed `> Verified:` line is reported in UNGRADED_CLAIMS ---
+# Section-independent: no premise section here at all, yet the line is surfaced.
+_cvp_rc, _cvp_out = _cvp_run(
+    'Some intro text.\n\n'
+    '> Verified: `docs/notes.md` "exited 2 with exactly that"\n')
+assert_eq("#1866 helper: a blockquote-prefixed `> Verified:` line is reported in "
+          "UNGRADED_CLAIMS, not silently counted as a clean total=0 pass",
+          True, len(_cvp_ungraded_lines(_cvp_out)) >= 1
+          and any('Verified' in line for line in _cvp_ungraded_lines(_cvp_out))
+          and 'UNGRADED_CLAIMS total=0' not in _cvp_out)
+
+# Move 2 — a body mixing one recognized bullet and one blockquoted line: total=1 + one ungraded.
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    '**Verified:** `docs/notes.md` — "exited 2 with exactly that"\n\n'
+    '> Verified: `config.json` "some other premise text"\n')
+assert_eq("#1866 helper: a recognized bullet plus a blockquoted line reports "
+          "VERIFIED_PREMISES total=1 and exactly one ungraded claim",
+          True, 'VERIFIED_PREMISES total=1 ' in _cvp_out
+          and len(_cvp_ungraded_lines(_cvp_out)) == 1)
+
+# --- AC3: a quotation truncated at an internal `"` is unestablished, never refuted ---
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    '**Verified:** `docs/notes.md` — '
+    '"zzq unique prefix that never occurs "here and stops"\n')
+assert_eq("#1866 helper: a quotation carrying an internal double quote is graded "
+          "unestablished with the delimiter rule named, never refuted against the fragment",
+          True, 'state=unestablished' in _cvp_out and 'state=refuted' not in _cvp_out
+          and 'double-quote' in _cvp_out)
+assert_eq("#1866 helper: the truncated-quotation bullet does not exit with the refutation code",
+          0, _cvp_rc)
+
+# --- AC4: a shape refusal states the eight-character minimum quotation length ---
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    '**Verified:** `docs/notes.md` — "1234567"\n')
+assert_eq("#1866 helper: the seven-character-quotation shape refusal names the eight-character floor",
+          True, 'handle=path' in _cvp_out and 'state=unestablished' in _cvp_out
+          and 'eight' in _cvp_out)
+
+# --- AC7: untouched surfaces keep their current outputs ---
+_cvp_rc, _cvp_out = _cvp_run('## Current Behavior\n\nNothing verifiable is asserted here.\n')
+assert_eq("#1866 helper: a body with no verification-shaped text still reports the clean total=0 pair",
+          True, 'VERIFIED_PREMISES total=0 holds=0 refuted=0 unestablished=0' in _cvp_out
+          and 'UNGRADED_CLAIMS total=0' in _cvp_out and _cvp_rc == 0)
+_cvp_rc, _cvp_out = _cvp_run('   \n\n  \n')
+assert_eq("#1866 helper: the empty body still reports reason=body-empty",
+          True, 'reason=body-empty' in _cvp_out and _cvp_rc == 3)
+
+# --- Review follow-up: a bolded `> **Verified:**` blockquote is graded once by
+# _MARKER arm A, never ALSO reported in UNGRADED_CLAIMS (the `[ \t>]*` class
+# excludes `*`, so the blockquote regex does not match it) ---
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    '> **Verified:** `docs/notes.md` — "exited 2 with exactly that"\n')
+assert_eq("#1866 helper: a bolded `> **Verified:**` blockquote is graded exactly once "
+          "and not double-counted as an ungraded claim",
+          True, 'VERIFIED_PREMISES total=1 ' in _cvp_out
+          and len(_cvp_ungraded_lines(_cvp_out)) == 0)
+
+# --- Review follow-up: mixed ungraded detections are numbered in document order —
+# a blockquote line BEFORE a collocation phrase yields claims 1 (blockquote) then 2 ---
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    '> Verified: `config.json` "some real premise text"\n\n'
+    'The fixture was verified against main.\n')
+_u_lines = _cvp_ungraded_lines(_cvp_out)
+assert_eq("#1866 helper: a blockquote line before a collocation phrase yields two "
+          "ungraded claims numbered in document order (blockquote first)",
+          True, len(_u_lines) == 2
+          and 'ungraded_claim=1 region=blockquote ' in _u_lines[0]
+          and 'ungraded_claim=2 region=Current Behavior ' in _u_lines[1])
+
+# --- Review follow-up: the truncated-quotation reroute counts TYPOGRAPHIC delimiters
+# too (not only ASCII), and the count trips with more than one matched quotation ---
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    '**Verified:** `docs/notes.md` — '
+    '“zzq unique absent prefix” and a stray “ mark\n')
+assert_eq("#1866 helper: a truncated typographic quotation is graded unestablished "
+          "(the typographic delimiters are counted), never refuted",
+          True, 'state=unestablished' in _cvp_out and 'state=refuted' not in _cvp_out
+          and 'double-quote' in _cvp_out)
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    '**Verified:** `docs/notes.md` — '
+    '"real quote alpha here" and "real quote beta here" plus a stray " mark\n')
+assert_eq("#1866 helper: the truncation count trips with more than one matched "
+          "quotation (quote_delims > 2*len(quotes)) — unestablished, not refuted",
+          True, 'state=unestablished' in _cvp_out and 'state=refuted' not in _cvp_out)
+
+# --- Review follow-up: recheck strips backtick spans before counting delimiters, so a
+# backticked command's internal `"` does not inflate quote_delims (mutation `stripped =
+# span` at the count site would flip a genuinely-stale premise off refuted) ---
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    '**Verified:** `docs/notes.md` cited, `grep "x" here` — '
+    '"genuinely absent quote text"\n')
+assert_eq("#1866 helper: a backticked command's internal double quote does not inflate "
+          "the truncation count — a genuinely-stale premise on a strong path still refutes",
+          True, 'state=refuted' in _cvp_out)
+
+# --- Review follow-up: a `> Verified:` line inside a fenced code block is excluded
+# (the graded/code exclusion set covers fenced lines), so it is NOT surfaced as ungraded ---
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\nSome text.\n\n'
+    '```\n> Verified: `docs/notes.md` "exited 2 with exactly that"\n```\n\nmore text.\n')
+assert_eq("#1866 helper: a `> Verified:` line inside a code fence is not reported as an "
+          "ungraded claim",
+          True, len(_cvp_ungraded_lines(_cvp_out)) == 0
+          and 'VERIFIED_PREMISES total=0 ' in _cvp_out)
+
+# --- Review follow-up (shadow): AC3's fail-toward-unestablished direction is pinned — a
+# genuinely-stale premise on a strong path whose span ALSO carries a stray unbalanced `"`
+# has double-quote chars beyond the matched pair, so it refuses (unestablished), never refutes ---
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    '**Verified:** `docs/notes.md` — '
+    '"genuinely absent premise text here" (see the 3" measurement)\n')
+assert_eq("#1866 helper: an extra unbalanced double quote in the span refuses a stale "
+          "premise to unestablished (AC3), never refuted against the matched pair",
+          True, 'state=unestablished' in _cvp_out and 'state=refuted' not in _cvp_out)
+
+# --- Review follow-up (shadow): the 2*len(quotes) accounting accepts two genuinely-balanced
+# quotations (quote_delims == 2*len(quotes)) as NOT truncated — both resolve, so it holds ---
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    '**Verified:** `docs/notes.md` — "exited 2 with" and "exactly that message"\n')
+assert_eq("#1866 helper: two balanced resolving quotations are not misread as a truncated "
+          "quotation — the bullet still grades holds",
+          True, 'state=holds' in _cvp_out)
 
 print()
 print("issue-audit-state: tool-owned round kinds (issue #793)")
