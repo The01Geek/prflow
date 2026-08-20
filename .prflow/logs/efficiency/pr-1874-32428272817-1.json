@@ -113,5 +113,69 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.50",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 15.400028799999994,
+    "tokens": {
+      "input_tokens": 84,
+      "output_tokens": 50353,
+      "cache_read_input_tokens": 7734220,
+      "cache_creation_input_tokens": 251292,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 129,
+        "outputTokens": 72815,
+        "cacheReadInputTokens": 8705807,
+        "cacheCreationInputTokens": 615892,
+        "webSearchRequests": 0,
+        "costUSD": 10.965593499999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 188,
+        "outputTokens": 24467,
+        "cacheReadInputTokens": 4204146,
+        "cacheCreationInputTokens": 748166,
+        "webSearchRequests": 0,
+        "costUSD": 4.4344353000000005,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 71,
+    "duration_ms": 811313
+  },
+  "permission_denials": {
+    "count": 4,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-UNSET} ATTEMPT=${GITHUB_RUN_ATTEMPT:-UNSET} ACTIONS=${GITHUB_ACTIONS:-UNSET}\"",
+      "mkdir -p .prflow/tmp/review/pr-1874/32428272817-1/verdicts/iter-1\nrm -f .prflow/tmp/review/pr-1874/32428272817-1/verdicts/iter-1/*.json\n.prflow/vendor/prflow/scripts/resolve-review-overrides.py \"prflow:checklist-verifier\" ; echo \"rc=$?\"",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1874/32428272817-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1874/32428272817-1/verdicts/iter-1/VC-7-s4l9z8.json << 'EOF'\n{\"id\":\"VC-7\",\"verdict\":\"PASS\",\"evidence\":\"All four reworded comment blocks in .github/workflows/devflow.yml (diff.patch lines ~39-40, 52-54, 65-67, 78-80) state that since issue #1863 the light-command resolver's derivation 'lands on the guarded thread' / the resolved trailing num …[per-command-truncated]",
+      "find / -name \"resolve-command-trigger.sh\" 2>/dev/null"
+    ],
+    "total": 4,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
