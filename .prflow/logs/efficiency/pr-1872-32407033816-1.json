@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1872",
+  "generated_at": "2026-08-20T19:09:59Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.46",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 0,
+    "tokens": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "cache_creation_input_tokens": 0,
+      "total_tokens": null
+    },
+    "model_usage": {},
+    "num_turns": 1,
+    "duration_ms": 512
+  },
+  "permission_denials": {
+    "count": "unavailable",
+    "tool_names": [],
+    "commands_state": "zero",
+    "commands": [],
+    "total": 0,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": false,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
