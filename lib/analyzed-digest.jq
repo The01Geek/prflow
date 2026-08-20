@@ -1,9 +1,9 @@
 # analyzed-digest.jq — selects the weekly retrospective's "Analyzed PRs" digest
 # lines from the slurped new-entries.jsonl array (invoke with jq -s).
 #
-# Every entry selected here cost a Stage A LLM call and is counted in
-# analyzed_count, so it must appear in the digest: imperfect, blocked, or an
-# analyst-graded clean grade. A gate-skipped clean entry (lib/clean-entry.jq) is
+# The verdicts selected here — imperfect, blocked, and analyst-graded clean — are
+# the Stage A outcomes counted in analyzed_count, so they belong in the digest. A
+# gate-skipped clean entry (lib/clean-entry.jq) is
 # mechanical, cost no LLM call, and stays excluded — it is told apart by its empty
 # analysis fields: lib/clean-entry.jq hard-codes categories/descriptors/
 # suggested_interventions to [], whereas an analyst-graded clean populates at least
@@ -14,8 +14,8 @@
 # non-array shape on one row must not abort the whole filter (same discipline as
 # lib/compute-patterns.jq's grouping_tags/descriptors guards).
 #
-# lib/compute-patterns.jq deliberately keeps its own imperfect-or-blocked select
-# (clean must contribute no pattern occurrences) and is NOT affected by this file.
+# lib/compute-patterns.jq keeps its own imperfect-or-blocked select and is
+# unchanged by this file (AC2).
 #
 # Invocation:
 #   jq -sc -f lib/analyzed-digest.jq .prflow/tmp/new-entries.jsonl

@@ -3227,10 +3227,9 @@ assert_eq "#893 select: the alias-lookup jq failure breadcrumb names the alias l
 ad_run() {
   printf '%s\n' "$1" | jq -sc -f "$LIB/analyzed-digest.jq"
 }
-# One row per verdict shape. The two clean rows are the crux: an analyst-graded
-# clean (populated analysis fields) must appear in the digest; a gate-skipped
-# clean (lib/clean-entry.jq defaults: categories/descriptors/suggested_interventions
-# all empty) must not.
+# The clean rows are the crux: an analyst-graded clean (populated analysis fields)
+# must appear in the digest; a gate-skipped clean (lib/clean-entry.jq defaults:
+# categories/descriptors/suggested_interventions all empty) must not.
 AD_ENTRIES='{"pr":1,"verdict":"imperfect","summary":"real finding","categories":["doc-accuracy"],"descriptors":["d"],"suggested_interventions":[]}
 {"pr":2,"verdict":"blocked","summary":"blocked one","categories":[],"descriptors":[],"suggested_interventions":[]}
 {"pr":3,"verdict":"clean","summary":"analyst graded clean","categories":["tooling-gap"],"descriptors":[],"suggested_interventions":[]}
@@ -3256,8 +3255,8 @@ AD_VIEW3="$(ad_run '{"pr":6,"verdict":"clean","summary":"malformed","categories"
 {"pr":7,"verdict":"imperfect","summary":"ok"}')"
 assert_eq "#1870 analyzed-digest: a malformed clean row is excluded, not fatal (imperfect row survives)" "true" \
   "$(printf '%s' "$AD_VIEW3" | jq -e '(any(.[]; .pr == 7)) and ((any(.[]; .pr == 6)) | not)' >/dev/null 2>&1 && echo true || echo false)"
-# AC2: compute-patterns.jq still excludes a clean verdict from pattern occurrences —
-# an analyst-graded clean entry (populated fields) contributes NO pattern occurrence.
+# AC2: compute-patterns.jq still excludes a clean verdict from pattern occurrences.
+# The clean fixture below yields occurrence_count 0.
 AD_CP_CLEAN="$(cp_run '{"schema_version":2,"kind":"implementation","pr":8,"merged_at":"2026-05-01T00:00:00Z","verdict":"clean","categories":["tooling-gap"],"descriptors":["x"]}' '{"schema_version":2,"patterns":{},"dismissed":{}}')"
 assert_eq "#1870 AC2: compute-patterns.jq excludes a clean verdict from occurrences" "true" \
   "$(printf '%s' "$AD_CP_CLEAN" | jq -e '.["tooling-gap"].occurrence_count == 0' >/dev/null 2>&1 && echo true || echo false)"
