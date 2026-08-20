@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.33.46] — 2026-08-20
+
+### Fixed
+- **`create-issue`: report `latest_revision_landed` three-way (`yes`/`no`/`unestablished`) instead of collapsing cannot-prove onto `no`.** `issue-audit-state.py`'s `latest_revision_landed` predicate now returns `no` only when a recorded write-failure proves the latest revision did not land, and `unestablished` when the recorded state proves neither landing nor failure (the common `basis=resolution` terminal path, or a revision with no recorded stdin digest) — so `query-draft-binding` no longer shows a false-alarm `no` on a healthy run, and its `--help` enumerates the three tokens. (#1868)
+
 ## [2.33.45] — 2026-08-20
 
 ### Removed
