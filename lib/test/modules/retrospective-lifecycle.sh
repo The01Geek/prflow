@@ -3220,5 +3220,47 @@ assert_eq "#893 select: the alias-lookup jq failure breadcrumb names the alias l
 # token sets alias onto the existing key") — so the failure above is attributable
 # to the shim's forced jq error, not to some unrelated defect in the fixture.
 
+# ────────────────────────────────────────────────────────────────────────────
+# analyzed-digest.jq — Step-9 "Analyzed PRs" digest filter (issue #1870)
+# ────────────────────────────────────────────────────────────────────────────
+# ad_run <entries-jsonl> -> the digest selection ({pr,verdict,summary}[]) on stdout
+ad_run() {
+  printf '%s\n' "$1" | jq -sc -f "$LIB/analyzed-digest.jq"
+}
+# One row per verdict shape. The two clean rows are the crux: an analyst-graded
+# clean (populated analysis fields) must appear in the digest; a gate-skipped
+# clean (lib/clean-entry.jq defaults: categories/descriptors/suggested_interventions
+# all empty) must not.
+AD_ENTRIES='{"pr":1,"verdict":"imperfect","summary":"real finding","categories":["doc-accuracy"],"descriptors":["d"],"suggested_interventions":[]}
+{"pr":2,"verdict":"blocked","summary":"blocked one","categories":[],"descriptors":[],"suggested_interventions":[]}
+{"pr":3,"verdict":"clean","summary":"analyst graded clean","categories":["tooling-gap"],"descriptors":[],"suggested_interventions":[]}
+{"pr":4,"verdict":"clean","summary":"gate-skipped clean","categories":[],"descriptors":[],"suggested_interventions":[]}'
+AD_VIEW="$(ad_run "$AD_ENTRIES")"
+assert_eq "#1870 analyzed-digest: imperfect entry included" "true" \
+  "$(printf '%s' "$AD_VIEW" | jq -e 'any(.[]; .pr == 1)' >/dev/null 2>&1 && echo true || echo false)"
+assert_eq "#1870 analyzed-digest: blocked entry included" "true" \
+  "$(printf '%s' "$AD_VIEW" | jq -e 'any(.[]; .pr == 2)' >/dev/null 2>&1 && echo true || echo false)"
+assert_eq "#1870 analyzed-digest: analyst-graded clean (populated fields) included" "true" \
+  "$(printf '%s' "$AD_VIEW" | jq -e 'any(.[]; .pr == 3)' >/dev/null 2>&1 && echo true || echo false)"
+assert_eq "#1870 analyzed-digest: gate-skipped clean (empty fields) excluded" "false" \
+  "$(printf '%s' "$AD_VIEW" | jq -e 'any(.[]; .pr == 4)' >/dev/null 2>&1 && echo true || echo false)"
+assert_eq "#1870 analyzed-digest: selection is exactly {pr,verdict,summary}" "pr summary verdict" \
+  "$(printf '%s' "$AD_VIEW" | jq -r '.[0] | keys | sort | join(" ")')"
+# A populated descriptors OR suggested_interventions alone also qualifies a clean grade.
+AD_VIEW2="$(ad_run '{"pr":5,"verdict":"clean","summary":"only interventions","categories":[],"descriptors":[],"suggested_interventions":[{"kind":"x"}]}')"
+assert_eq "#1870 analyzed-digest: clean with only suggested_interventions populated is included" "true" \
+  "$(printf '%s' "$AD_VIEW2" | jq -e 'any(.[]; .pr == 5)' >/dev/null 2>&1 && echo true || echo false)"
+# Robustness: a malformed (non-array) analysis field on one row must not abort the
+# whole filter — the well-formed imperfect row on the next line still comes through.
+AD_VIEW3="$(ad_run '{"pr":6,"verdict":"clean","summary":"malformed","categories":"oops","descriptors":null,"suggested_interventions":[]}
+{"pr":7,"verdict":"imperfect","summary":"ok"}')"
+assert_eq "#1870 analyzed-digest: a malformed clean row is excluded, not fatal (imperfect row survives)" "true" \
+  "$(printf '%s' "$AD_VIEW3" | jq -e '(any(.[]; .pr == 7)) and ((any(.[]; .pr == 6)) | not)' >/dev/null 2>&1 && echo true || echo false)"
+# AC2: compute-patterns.jq still excludes a clean verdict from pattern occurrences —
+# an analyst-graded clean entry (populated fields) contributes NO pattern occurrence.
+AD_CP_CLEAN="$(cp_run '{"schema_version":2,"kind":"implementation","pr":8,"merged_at":"2026-05-01T00:00:00Z","verdict":"clean","categories":["tooling-gap"],"descriptors":["x"]}' '{"schema_version":2,"patterns":{},"dismissed":{}}')"
+assert_eq "#1870 AC2: compute-patterns.jq excludes a clean verdict from occurrences" "true" \
+  "$(printf '%s' "$AD_CP_CLEAN" | jq -e '.["tooling-gap"].occurrence_count == 0' >/dev/null 2>&1 && echo true || echo false)"
+
 rm -rf "$RL_TMP"
 trap - RETURN
