@@ -2611,15 +2611,9 @@ unset EB1261 DECIDE1261 DECIDE1261_CODE T1261 D_NC D_HC D_UN1 D_UN2 D_UN3 D_UN4 
 # ────────────────────────────────────────────────────────────────────────────
 echo "#1858 review outcome recorded against the reviewed PR, not the commented-on one"
 # ────────────────────────────────────────────────────────────────────────────
-# Three command-job steps used to read PR_NUMBER straight from the event, so a
-# `/prflow:review N` typed on a different thread recorded against the wrong PR.
-# Each now derives PR_NUMBER from the resolved command's trailing number, falling
-# back to the event's only when the command carries none — the same derivation the
-# dead-run flip step performs. Driven by EXTRACTING each step's run block from the
-# parsed YAML and EXECUTING it against recording stubs, so a swapped
-# CONTEXT_NUMBER/COMMAND or a dropped fallback is caught behaviorally. RED before
-# the change: the steps read an unset PR_NUMBER env, so the recorded landing number
-# is empty rather than the command's number.
+# Each of the three command-job steps derives PR_NUMBER from the resolved command's
+# trailing number (event-number fallback); executing each step's real run block from
+# the parsed YAML catches a swapped CONTEXT_NUMBER/COMMAND or a dropped fallback.
 S1858_WF="$REPO_ROOT/.github/workflows/devflow.yml"
 
 # Extract one command-job step's `run` body to a file.
@@ -2638,8 +2632,7 @@ PY
 # Run one step's derivation and print the PR number that reached its write helper.
 # $1 = pre-extracted step-block file, $2 = COMMAND, $3 = CONTEXT_NUMBER. Step 1's
 # helper reads PR_NUMBER from the env; steps 2 and 3 receive it positionally ($3
-# and $2). The block is extracted once per step by the loop below and reused across
-# that step's assertions, so the YAML is parsed three times, not nine.
+# and $2). Each step's block is extracted once and reused across its assertions.
 s1858_land() {
   local block="$1" cmd="$2" ctx="$3"
   local box rec
@@ -2697,6 +2690,8 @@ for S1858_STEP in \
     "10" "$(s1858_land "$S1858_BLOCK" '/prflow:review' '10')"
   assert_eq "#1858 [$S1858_STEP]: a non-numeric trailing token falls back to the event's own number" \
     "10" "$(s1858_land "$S1858_BLOCK" '/prflow:review-and-fix HEAD' '10')"
+  assert_eq "#1858 [$S1858_STEP]: no number on either the command or the event resolves empty" \
+    "" "$(s1858_land "$S1858_BLOCK" '/prflow:review' '')"
 done
 rm -rf "$S1858_BLOCKS"
 
