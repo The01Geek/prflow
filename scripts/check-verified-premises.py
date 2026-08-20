@@ -479,7 +479,7 @@ def classify(span: str) -> tuple:
 
 
 def recheck(handle: str, paths: list, quotes: list, root: Path,
-            span: str = '') -> tuple:
+            span: str) -> tuple:
     """Adjudicate one bullet against the tree. Returns `(state, detail)`."""
     if handle in _UNDECIDABLE_REASONS:
         # No domain to read, or a handle this helper declines to execute. The
@@ -656,9 +656,9 @@ def recheck(handle: str, paths: list, quotes: list, root: Path,
     # weak-path, unread-file and elision arms all exist to close.
     adjudicated_strong = [p.bare for p in paths
                           if p.strength == 'strong' and p.bare in readable]
-    # A double-quote inside a quotation truncates the match to a fragment. More
-    # delimiters (backtick spans excluded) than the matched quotations consume
-    # means a quotation was truncated, so a miss must refuse, not refute (#1866).
+    # Extra double-quote delimiters beyond the matched pair(s) (backtick spans
+    # excluded) mean a quotation could not be delimited whole (a truncation, or a
+    # stray quote), so a miss must refuse rather than refute — AC3 (#1866).
     stripped = _BACKTICKED.sub(' ', span)
     quote_delims = sum(stripped.count(ch) for ch in ('"', '“', '”'))
     truncated_quote = quote_delims > 2 * len(quotes)

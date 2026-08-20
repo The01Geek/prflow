@@ -28224,6 +28224,26 @@ assert_eq("#1866 helper: a `> Verified:` line inside a code fence is not reporte
           True, len(_cvp_ungraded_lines(_cvp_out)) == 0
           and 'VERIFIED_PREMISES total=0 ' in _cvp_out)
 
+# --- Review follow-up (shadow): AC3's fail-toward-unestablished direction is pinned — a
+# genuinely-stale premise on a strong path whose span ALSO carries a stray unbalanced `"`
+# has double-quote chars beyond the matched pair, so it refuses (unestablished), never refutes ---
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    '**Verified:** `docs/notes.md` — '
+    '"genuinely absent premise text here" (see the 3" measurement)\n')
+assert_eq("#1866 helper: an extra unbalanced double quote in the span refuses a stale "
+          "premise to unestablished (AC3), never refuted against the matched pair",
+          True, 'state=unestablished' in _cvp_out and 'state=refuted' not in _cvp_out)
+
+# --- Review follow-up (shadow): the 2*len(quotes) accounting accepts two genuinely-balanced
+# quotations (quote_delims == 2*len(quotes)) as NOT truncated — both resolve, so it holds ---
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    '**Verified:** `docs/notes.md` — "exited 2 with" and "exactly that message"\n')
+assert_eq("#1866 helper: two balanced resolving quotations are not misread as a truncated "
+          "quotation — the bullet still grades holds",
+          True, 'state=holds' in _cvp_out)
+
 print()
 print("issue-audit-state: tool-owned round kinds (issue #793)")
 
