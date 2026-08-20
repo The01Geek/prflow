@@ -33794,8 +33794,10 @@ def _prov_transcript(*, model=None, resolved_model=None, extra=()):
 
 def _prov_run(*, version="9.9.9", config=_PROV_UNSET, effort=_PROV_UNSET,
               session_id=_PROV_UNSET, transcript=None, write_transcript=True,
-              config_dir=_PROV_UNSET, prflow_version=None):
-    """Drive a fixture copy of the helper; return (stdout_stripped, stderr, rc)."""
+              config_dir=_PROV_UNSET, prflow_version=None, command="/prflow:implement"):
+    """Drive a fixture copy of the helper; return (stdout_stripped, stderr, rc).
+    command names the value passed to the now-required --command flag; command=None
+    omits the flag entirely (the missing-required-argument case)."""
     d = tempfile.mkdtemp(prefix="prov1655-")
     try:
         scripts_dir = os.path.join(d, "scripts")
@@ -33825,6 +33827,8 @@ def _prov_run(*, version="9.9.9", config=_PROV_UNSET, effort=_PROV_UNSET,
             Path(os.path.join(proj, f"{sid}.jsonl")).write_text(
                 "\n".join(transcript), encoding="utf-8")
         argv = [sys.executable, helper]
+        if command is not None:
+            argv += ["--command", command]
         if config is not _PROV_UNSET:
             cfg = os.path.join(d, "cfg.json")
             body = config if isinstance(config, str) else json.dumps(config)
@@ -33838,37 +33842,107 @@ def _prov_run(*, version="9.9.9", config=_PROV_UNSET, effort=_PROV_UNSET,
 
 
 _PB = "Generated via /prflow:implement"
+_PB_CI = "Generated via /prflow:create-issue"
+
+
+def _pl(inner):
+    """The renderer wraps the whole provenance line in single-underscore italics."""
+    return f"_{inner}_"
+
 
 # Full line — version, model, effort all established.
 _o, _e, _rc = _prov_run(version="2.32.58", effort="high",
                         transcript=_prov_transcript(model="claude-opus-5"))
-assert_eq("#1655 full line names version, model, effort", f"{_PB} (v2.32.58, claude-opus-5, high)", _o)
+assert_eq("#1655 full line names version, model, effort", _pl(f"{_PB} (v2.32.58, claude-opus-5, high)"), _o)
 assert_eq("#1655 full line exits 0", 0, _rc)
 assert_eq("#1655 rendered line carries no backtick", False, "`" in _o)
 
 # Guarantee class: neither model nor effort — version alone, no empty punctuation, breadcrumbs name each.
 _o, _e, _rc = _prov_run(version="2.32.58", write_transcript=False)
-assert_eq("#1655 only version established -> version alone", f"{_PB} (v2.32.58)", _o)
+assert_eq("#1655 only version established -> version alone", _pl(f"{_PB} (v2.32.58)"), _o)
 assert_eq("#1655 version-alone exits 0", 0, _rc)
 assert_eq("#1655 breadcrumb names omitted effort", True, "effort unestablished" in _e)
 assert_eq("#1655 breadcrumb names omitted model", True, "model unestablished" in _e)
 
 # Effort unset, model readable -> version + model only.
 _o, _e, _rc = _prov_run(version="2.32.58", transcript=_prov_transcript(model="claude-opus-5"))
-assert_eq("#1655 effort unset -> version + model only", f"{_PB} (v2.32.58, claude-opus-5)", _o)
+assert_eq("#1655 effort unset -> version + model only", _pl(f"{_PB} (v2.32.58, claude-opus-5)"), _o)
 
 # Model unavailable, effort set -> version + effort only.
 _o, _e, _rc = _prov_run(version="2.32.58", effort="max", write_transcript=False)
-assert_eq("#1655 no model, effort set -> version + effort only", f"{_PB} (v2.32.58, max)", _o)
+assert_eq("#1655 no model, effort set -> version + effort only", _pl(f"{_PB} (v2.32.58, max)"), _o)
 
 # CLAUDE_EFFORT whitespace-only is unestablished.
 _o, _e, _rc = _prov_run(version="2.32.58", effort="   ", write_transcript=False)
-assert_eq("#1655 whitespace-only CLAUDE_EFFORT is unestablished", f"{_PB} (v2.32.58)", _o)
+assert_eq("#1655 whitespace-only CLAUDE_EFFORT is unestablished", _pl(f"{_PB} (v2.32.58)"), _o)
+
+# --command names the command in the printed line; the value passed is echoed verbatim (AC1, AC2).
+_o, _e, _rc = _prov_run(version="7.7.7", write_transcript=False, command="/prflow:create-issue")
+assert_eq("#1655 --command /prflow:create-issue version-only line", _pl(f"{_PB_CI} (v7.7.7)"), _o)
+assert_eq("#1655 --command create-issue version-only exits 0", 0, _rc)
+_o, _e, _rc = _prov_run(version="7.7.7", write_transcript=False, command="/prflow:implement")
+assert_eq("#1655 --command /prflow:implement version-only line", _pl(f"{_PB} (v7.7.7)"), _o)
+# The command name in the printed line is exactly the value passed to --command.
+_o, _e, _rc = _prov_run(version="2.32.58", effort="high",
+                        transcript=_prov_transcript(model="claude-opus-5"),
+                        command="/prflow:create-issue")
+assert_eq("#1655 create-issue full line names version, model, effort",
+          _pl(f"{_PB_CI} (v2.32.58, claude-opus-5, high)"), _o)
+
+# --command omitted entirely: nothing on stdout, usage to stderr, exit non-zero (AC3).
+_o, _e, _rc = _prov_run(version="2.32.58", write_transcript=False, command=None)
+assert_eq("#1655 missing --command prints nothing on stdout", "", _o)
+assert_eq("#1655 missing --command exits non-zero", True, _rc != 0)
+assert_eq("#1655 missing --command writes a usage message to stderr",
+          True, "usage" in _e.lower() and "--command" in _e)
+
+# A --command value carrying a shell-active or control char: nothing on stdout, reason on
+# stderr, exit 0 (AC13 — the five classes: backtick, dollar, backslash, double-quote, control).
+for _cmdval, _lbl in (
+    ("/prflow:c`id`", "backtick"),
+    ("/prflow:c$(id)", "dollar"),
+    ("/prflow:c\\x", "backslash"),
+    ('/prflow:c"x', "double-quote"),
+    ("/prflow:c\tx", "control-tab"),
+    ("/prflow:c\nx", "control-newline"),
+    # The control class runs \x00-\x1f AND \x7f; \x7f is the isolated upper end, so a
+    # regex edit dropping it would go unnoticed without this row. \x00 cannot be tested
+    # here: an embedded null byte raises ValueError before execve, so no argv can carry it.
+    ("/prflow:c\x7fx", "control-del"),
+):
+    _o, _e, _rc = _prov_run(version="2.32.58", write_transcript=False, command=_cmdval)
+    assert_eq(f"#1655 shell-active --command ({_lbl}) prints nothing on stdout", "", _o)
+    assert_eq(f"#1655 shell-active --command ({_lbl}) exits 0", 0, _rc)
+    # Assert the drop names the COMMAND specifically — a generic non-empty check would pass
+    # if an unrelated value (model/effort) had been the thing dropped.
+    assert_eq(f"#1655 shell-active --command ({_lbl}) stderr names the command drop",
+              True, "command omitted" in _e)
+
+# A blank / whitespace-only --command value: nothing on stdout, a NAMED breadcrumb (not a
+# silent drop), exit 0 — argparse only checks presence, so this present-but-blank case is
+# between the missing-argument and shell-active cases.
+for _blank in ("", "   "):
+    _o, _e, _rc = _prov_run(version="2.32.58", write_transcript=False, command=_blank)
+    assert_eq("#1655 blank --command prints nothing on stdout", "", _o)
+    assert_eq("#1655 blank --command exits 0", 0, _rc)
+    assert_eq("#1655 blank --command breadcrumbs the blank drop (not silent)",
+              True, "command omitted (blank" in _e)
+
+# An inert --command value the helper has never heard of renders verbatim: the helper
+# carries no command allowlist, so adding one would break every non-canonical caller.
+_o, _e, _rc = _prov_run(version="2.32.58", write_transcript=False, command="/prflow:foo")
+assert_eq("#1655 non-canonical inert --command renders verbatim (no allowlist)",
+          _pl("Generated via /prflow:foo (v2.32.58)"), _o)
+assert_eq("#1655 non-canonical inert --command exits 0", 0, _rc)
+
+# Case variant: a --command value with a leading slash renders unchanged.
+_o, _e, _rc = _prov_run(version="2.32.58", write_transcript=False, command="/prflow:implement")
+assert_eq("#1655 leading-slash --command value is preserved", _pl(f"{_PB} (v2.32.58)"), _o)
 
 # Beside-the-helper manifest wins over a config prflow_version that differs.
 _o, _e, _rc = _prov_run(version="1.1.1", write_transcript=False,
-                        config={"prflow_version": "2.2.2", "prflow_implement": {}})
-assert_eq("#1655 names the beside-the-helper manifest version", f"{_PB} (v1.1.1)", _o)
+                        config={"prflow_version": "2.2.2", "prflow": {}})
+assert_eq("#1655 names the beside-the-helper manifest version", _pl(f"{_PB} (v1.1.1)"), _o)
 assert_eq("#1655 does NOT name the config prflow_version", False, "2.2.2" in _o)
 
 # resolvedModel is never a source; the bare assistant model wins.
@@ -33876,109 +33950,133 @@ _o, _e, _rc = _prov_run(version="2.32.58",
                         transcript=_prov_transcript(resolved_model="claude-opus-5[1m]",
                                                     model="claude-sonnet-5"))
 assert_eq("#1655 names the assistant message.model, not resolvedModel",
-          f"{_PB} (v2.32.58, claude-sonnet-5)", _o)
+          _pl(f"{_PB} (v2.32.58, claude-sonnet-5)"), _o)
 assert_eq("#1655 the marked resolvedModel id is never emitted", False, "[1m]" in _o)
 
 # Most-recent assistant record wins.
 _o, _e, _rc = _prov_run(version="2.32.58",
                         transcript=_prov_transcript(model="claude-old") +
                         _prov_transcript(model="claude-new"))
-assert_eq("#1655 names the MOST RECENT assistant model", f"{_PB} (v2.32.58, claude-new)", _o)
+assert_eq("#1655 names the MOST RECENT assistant model", _pl(f"{_PB} (v2.32.58, claude-new)"), _o)
 
 # Truncated final record -> last complete assistant record still read.
 _trunc = _prov_transcript(model="claude-opus-5") + ['{"type": "assistant", "message": {"mod']
 _o, _e, _rc = _prov_run(version="2.32.58", transcript=_trunc)
 assert_eq("#1655 truncated final record -> last complete record wins",
-          f"{_PB} (v2.32.58, claude-opus-5)", _o)
+          _pl(f"{_PB} (v2.32.58, claude-opus-5)"), _o)
 assert_eq("#1655 truncated-record run exits 0", 0, _rc)
 
-# Config off-switch: explicit false suppresses the model+effort clause; version stays.
+# Config off-switch: explicit false in the prflow section suppresses the clause; version stays.
 _o, _e, _rc = _prov_run(version="2.32.58", effort="high",
                         transcript=_prov_transcript(model="claude-opus-5"),
-                        config={"prflow_implement": {"publish_model_effort": False}})
-assert_eq("#1655 explicit false suppresses model+effort clause", f"{_PB} (v2.32.58)", _o)
+                        config={"prflow": {"publish_model_effort": False}})
+assert_eq("#1655 explicit false suppresses model+effort clause", _pl(f"{_PB} (v2.32.58)"), _o)
 assert_eq("#1655 suppression breadcrumb emitted", True, "suppressed" in _e)
 assert_eq("#1655 suppressed run exits 0", 0, _rc)
 
-# Config six-shape adversarial matrix for publish_model_effort (a config-JSON consumer).
+# Config six-shape adversarial matrix for prflow.publish_model_effort (a config-JSON consumer).
 _shapes = [
-    ("object", {"prflow_implement": {"publish_model_effort": {"x": 1}}}, True),
-    ("array", {"prflow_implement": {"publish_model_effort": [False]}}, True),
-    ("scalar-true", {"prflow_implement": {"publish_model_effort": True}}, True),
-    ("valid-falsy-false", {"prflow_implement": {"publish_model_effort": False}}, False),
-    ("missing", {"prflow_implement": {}}, True),
-    ("wrong-type-string-false", {"prflow_implement": {"publish_model_effort": "false"}}, True),
+    ("object", {"prflow": {"publish_model_effort": {"x": 1}}}, True),
+    ("array", {"prflow": {"publish_model_effort": [False]}}, True),
+    ("scalar-true", {"prflow": {"publish_model_effort": True}}, True),
+    ("valid-falsy-false", {"prflow": {"publish_model_effort": False}}, False),
+    ("missing", {"prflow": {}}, True),
+    ("wrong-type-string-false", {"prflow": {"publish_model_effort": "false"}}, True),
 ]
 for _name, _cfg, _permits in _shapes:
     _o, _e, _rc = _prov_run(version="2.32.58", effort="high",
                             transcript=_prov_transcript(model="claude-opus-5"), config=_cfg)
-    _expect = f"{_PB} (v2.32.58, claude-opus-5, high)" if _permits else f"{_PB} (v2.32.58)"
+    _expect = _pl(f"{_PB} (v2.32.58, claude-opus-5, high)") if _permits else _pl(f"{_PB} (v2.32.58)")
     assert_eq(f"#1655 config shape '{_name}' renders correctly", _expect, _o)
     assert_eq(f"#1655 config shape '{_name}' exits 0", 0, _rc)
+
+# The superseded section is read by nothing: the same six shapes there all leave the clause
+# enabled, and nothing is written to stderr about the stale key. The section name is held in a
+# variable so AC6's `git grep publish_model_effort` finds no occurrence co-located with the
+# superseded-section literal, while AC17 still drives the legacy fixture.
+_LEGACY_SECTION = "prflow_implement"
+for _name, _cfg, _ in _shapes:
+    _legacy = {_LEGACY_SECTION: _cfg["prflow"]}
+    _o, _e, _rc = _prov_run(version="2.32.58", effort="high",
+                            transcript=_prov_transcript(model="claude-opus-5"), config=_legacy)
+    assert_eq(f"#1655 legacy superseded-section shape '{_name}' does not suppress",
+              _pl(f"{_PB} (v2.32.58, claude-opus-5, high)"), _o)
+    assert_eq(f"#1655 legacy superseded-section shape '{_name}' says nothing about the stale key",
+              True, _LEGACY_SECTION not in _e and "publish_model_effort" not in _e)
+
+# Stale-key AC17: only the superseded section's key set to false, no prflow key -> model and
+# effort still printed, and stderr carries nothing about the superseded key.
+_o, _e, _rc = _prov_run(version="2.32.58", effort="high",
+                        transcript=_prov_transcript(model="claude-opus-5"),
+                        config={_LEGACY_SECTION: {"publish_model_effort": False}})
+assert_eq("#1655 stale superseded-section false still prints model+effort",
+          _pl(f"{_PB} (v2.32.58, claude-opus-5, high)"), _o)
+assert_eq("#1655 stale key run says nothing about the superseded key on stderr",
+          True, _LEGACY_SECTION not in _e and "publish_model_effort" not in _e)
 
 # The string "false" is NOT the boolean false — a truthy-default read must not coerce it.
 _o, _e, _rc = _prov_run(version="2.32.58", effort="high",
                         transcript=_prov_transcript(model="claude-opus-5"),
-                        config={"prflow_implement": {"publish_model_effort": "false"}})
+                        config={"prflow": {"publish_model_effort": "false"}})
 assert_eq("#1655 string 'false' does not suppress (raw JSON, not string-coerced)",
-          f"{_PB} (v2.32.58, claude-opus-5, high)", _o)
+          _pl(f"{_PB} (v2.32.58, claude-opus-5, high)"), _o)
 
 # Malformed config JSON -> clause left enabled, breadcrumb, exit 0.
 _o, _e, _rc = _prov_run(version="2.32.58", effort="high",
                         transcript=_prov_transcript(model="claude-opus-5"),
                         config="{not valid json")
-assert_eq("#1655 malformed config -> clause enabled", f"{_PB} (v2.32.58, claude-opus-5, high)", _o)
+assert_eq("#1655 malformed config -> clause enabled", _pl(f"{_PB} (v2.32.58, claude-opus-5, high)"), _o)
 assert_eq("#1655 malformed config exits 0", 0, _rc)
 
 # Transcript JSON-Lines matrix — each shape exits 0 and renders version alone (no model).
 _o, _e, _rc = _prov_run(version="2.32.58", transcript=[])  # empty file
-assert_eq("#1655 empty transcript -> version alone", f"{_PB} (v2.32.58)", _o)
+assert_eq("#1655 empty transcript -> version alone", _pl(f"{_PB} (v2.32.58)"), _o)
 assert_eq("#1655 empty transcript exits 0", 0, _rc)
 
 _o, _e, _rc = _prov_run(version="2.32.58",
                         transcript=[json.dumps({"type": "user", "message": {"model": "x"}})])
-assert_eq("#1655 no assistant record -> version alone", f"{_PB} (v2.32.58)", _o)
+assert_eq("#1655 no assistant record -> version alone", _pl(f"{_PB} (v2.32.58)"), _o)
 assert_eq("#1655 no-assistant-record run exits 0", 0, _rc)
 
 _o, _e, _rc = _prov_run(version="2.32.58", transcript=["{ this is not json"])
-assert_eq("#1655 malformed transcript JSON -> version alone", f"{_PB} (v2.32.58)", _o)
+assert_eq("#1655 malformed transcript JSON -> version alone", _pl(f"{_PB} (v2.32.58)"), _o)
 assert_eq("#1655 malformed transcript exits 0", 0, _rc)
 
 _o, _e, _rc = _prov_run(version="2.32.58",
                         transcript=[json.dumps({"type": "assistant", "message": {"model": 123}})])
-assert_eq("#1655 wrong-typed message.model -> version alone", f"{_PB} (v2.32.58)", _o)
+assert_eq("#1655 wrong-typed message.model -> version alone", _pl(f"{_PB} (v2.32.58)"), _o)
 assert_eq("#1655 wrong-typed field exits 0", 0, _rc)
 
 # Session id set but the derived transcript is missing: version alone + breadcrumb naming the path tried.
 _o, _e, _rc = _prov_run(version="2.32.58", write_transcript=False)
-assert_eq("#1655 absent transcript -> version alone", f"{_PB} (v2.32.58)", _o)
+assert_eq("#1655 absent transcript -> version alone", _pl(f"{_PB} (v2.32.58)"), _o)
 assert_eq("#1655 absent-transcript breadcrumb names the derived path tried",
           True, "no transcript at derived path" in _e)
 
 # No session id at all -> model unestablished naming the missing session id.
 _o, _e, _rc = _prov_run(version="2.32.58", session_id=None, write_transcript=False)
-assert_eq("#1655 no session id -> version alone", f"{_PB} (v2.32.58)", _o)
+assert_eq("#1655 no session id -> version alone", _pl(f"{_PB} (v2.32.58)"), _o)
 assert_eq("#1655 missing-session-id breadcrumb names CLAUDE_CODE_SESSION_ID",
           True, "CLAUDE_CODE_SESSION_ID" in _e)
 
 # Default config dir with a missing transcript store: version alone, exit 0.
 _o, _e, _rc = _prov_run(version="2.32.58", config_dir=None, write_transcript=False,
                         session_id="sess-1655-nostore-unique")
-assert_eq("#1655 no transcript store -> version alone (default dir branch)", f"{_PB} (v2.32.58)", _o)
+assert_eq("#1655 no transcript store -> version alone (default dir branch)", _pl(f"{_PB} (v2.32.58)"), _o)
 assert_eq("#1655 no-store run exits 0", 0, _rc)
 
 # Wrong-typed manifest .version (non-string) -> version omitted, established values still named.
 _o, _e, _rc = _prov_run(version={"version": 123}, effort="high",
                         transcript=_prov_transcript(model="claude-opus-5"))
 assert_eq("#1655 wrong-typed manifest .version -> version omitted",
-          f"{_PB} (claude-opus-5, high)", _o)
+          _pl(f"{_PB} (claude-opus-5, high)"), _o)
 assert_eq("#1655 wrong-typed .version breadcrumb names version", True, "version unestablished" in _e)
 
 # No manifest beside the helper -> version omitted, established values still named.
 _o, _e, _rc = _prov_run(version=None, effort="high",
                         transcript=_prov_transcript(model="claude-opus-5"))
 assert_eq("#1655 no manifest -> version omitted, model+effort named",
-          f"{_PB} (claude-opus-5, high)", _o)
+          _pl(f"{_PB} (claude-opus-5, high)"), _o)
 assert_eq("#1655 no-manifest breadcrumb names version", True, "version unestablished" in _e)
 assert_eq("#1655 no-manifest run exits 0", 0, _rc)
 
@@ -33986,41 +34084,41 @@ assert_eq("#1655 no-manifest run exits 0", 0, _rc)
 # shipped), so the "no backtick / no shell-active construct" guarantee holds by construction.
 _o, _e, _rc = _prov_run(version="2.32.58", effort="high",
                         transcript=_prov_transcript(model="claude`whoami`5"))
-assert_eq("#1655 model carrying a backtick is dropped, not shipped", f"{_PB} (v2.32.58, high)", _o)
+assert_eq("#1655 model carrying a backtick is dropped, not shipped", _pl(f"{_PB} (v2.32.58, high)"), _o)
 assert_eq("#1655 dropped-for-backtick line carries no backtick", False, "`" in _o)
 assert_eq("#1655 shell-active drop emits a breadcrumb", True, "shell-active" in _e)
 
 _o, _e, _rc = _prov_run(version="2.32.58", effort="high",
                         transcript=_prov_transcript(model="claude$(id)5"))
-assert_eq("#1655 model carrying a $-substitution is dropped", f"{_PB} (v2.32.58, high)", _o)
+assert_eq("#1655 model carrying a $-substitution is dropped", _pl(f"{_PB} (v2.32.58, high)"), _o)
 assert_eq("#1655 dropped-for-dollar line carries no dollar", False, "$" in _o)
 
 _o, _e, _rc = _prov_run(version="2.32.58\n9.9.9", write_transcript=False)
-assert_eq("#1655 version carrying a newline is dropped", _PB, _o)
+assert_eq("#1655 version carrying a newline is dropped", _pl(_PB), _o)
 
 # Config matrix — the section/top-level dimensions of model_effort_permitted's guards.
 _o, _e, _rc = _prov_run(version="2.32.58", effort="high",
                         transcript=_prov_transcript(model="claude-opus-5"), config=[1, 2, 3])
 assert_eq("#1655 top-level config not an object -> clause enabled",
-          f"{_PB} (v2.32.58, claude-opus-5, high)", _o)
+          _pl(f"{_PB} (v2.32.58, claude-opus-5, high)"), _o)
 _o, _e, _rc = _prov_run(version="2.32.58", effort="high",
                         transcript=_prov_transcript(model="claude-opus-5"),
-                        config={"prflow_implement": [False]})
-assert_eq("#1655 prflow_implement section as an array -> clause enabled",
-          f"{_PB} (v2.32.58, claude-opus-5, high)", _o)
+                        config={"prflow": [False]})
+assert_eq("#1655 prflow section as an array -> clause enabled",
+          _pl(f"{_PB} (v2.32.58, claude-opus-5, high)"), _o)
 _o, _e, _rc = _prov_run(version="2.32.58", effort="high",
                         transcript=_prov_transcript(model="claude-opus-5"),
-                        config={"prflow_implement": "off"})
-assert_eq("#1655 prflow_implement section as a scalar -> clause enabled",
-          f"{_PB} (v2.32.58, claude-opus-5, high)", _o)
+                        config={"prflow": "off"})
+assert_eq("#1655 prflow section as a scalar -> clause enabled",
+          _pl(f"{_PB} (v2.32.58, claude-opus-5, high)"), _o)
 
 # valid-falsy non-coercion: JSON 0 and "" are not the boolean false and must not suppress.
 for _fv, _lbl in ((0, "zero"), ("", "empty-string")):
     _o, _e, _rc = _prov_run(version="2.32.58", effort="high",
                             transcript=_prov_transcript(model="claude-opus-5"),
-                            config={"prflow_implement": {"publish_model_effort": _fv}})
+                            config={"prflow": {"publish_model_effort": _fv}})
     assert_eq(f"#1655 config value {_lbl} does not suppress (only JSON false does)",
-              f"{_PB} (v2.32.58, claude-opus-5, high)", _o)
+              _pl(f"{_PB} (v2.32.58, claude-opus-5, high)"), _o)
 
 # read_model most-recent semantics: a valid earlier record then a wrong-typed later one
 # falls back to the last COMPLETE assistant model, not to no model.
@@ -34028,7 +34126,7 @@ _o, _e, _rc = _prov_run(version="2.32.58",
                         transcript=_prov_transcript(model="claude-good") +
                         [json.dumps({"type": "assistant", "message": {"model": 123}})])
 assert_eq("#1655 wrong-typed later record falls back to the last valid model",
-          f"{_PB} (v2.32.58, claude-good)", _o)
+          _pl(f"{_PB} (v2.32.58, claude-good)"), _o)
 
 # Contract assertions tied to acceptance criteria: the phase-file lints and the profile
 # drift check pass over the real tree after the change.

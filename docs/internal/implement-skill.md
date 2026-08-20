@@ -1065,10 +1065,13 @@ A `/prflow:implement` PR body has **two distinct writers**, and both must be und
 because the second regenerates over the first's output:
 
 - **Phase 3.1 (the draft-PR create fence)** is the sole author of the **provenance line** —
-  `Generated via /prflow:implement (v<version>[, <model>][, <effort>])`. The line is rendered by
-  the bundled helper `scripts/render-pr-provenance-line.py` in its own fence and substituted into
-  the `gh pr create --body` as a literal, because each phase fence is a separate shell and the
-  create fence must stay a single statement. The helper resolves the **version** from the plugin
+  `_Generated via /prflow:implement (v<version>[, <model>][, <effort>])_` (Markdown italics, since
+  issue #1809). The line is rendered by the bundled helper `scripts/render-pr-provenance-line.py`,
+  which takes the command name as a required `--command` argument (so one renderer serves both
+  `/prflow:implement` and `/prflow:create-issue`) and returns the finished italic line. Phase 3.1
+  invokes it as `--command /prflow:implement` in its own fence and substitutes the result into the
+  `gh pr create --body` as a literal, because each phase fence is a separate shell and the create
+  fence must stay a single statement. The helper resolves the **version** from the plugin
   manifest beside itself (mirroring `lib/efficiency-trace.sh`), the **model** from the most-recent
   assistant record of the session transcript (never the `resolvedModel` field, which names a
   dispatched subagent's model), and the **effort** from `CLAUDE_EFFORT`; any value it cannot
@@ -1077,10 +1080,13 @@ because the second regenerates over the first's output:
   shell-active construct by construction, so nothing in it can reach the double-quoted `--body` it
   is substituted into. This writes only on the **CREATE** arm; a resumed run that adopts an
   existing PR leaves the body untouched. The provenance line is gated by the config key
-  `prflow_implement.publish_model_effort` (default `true`; an explicit JSON `false` suppresses the
-  model+effort clause while the version is always emitted), read at run time from the working tree
-  so the value is live in the same run (it is absent from the trigger-time extract step of
-  `devflow-implement.yml`).
+  `prflow.publish_model_effort` (default `true`; only the JSON boolean `false` suppresses the
+  model+effort clause — the string `"false"` and the array `[false]` do not — while the version is
+  always emitted), read at run time from the working tree so the value is live in the same run (it
+  is absent from the trigger-time extract step of `devflow-implement.yml`). One key now gates the
+  clause for both commands that emit the line; it supersedes the former per-command key in the
+  `prflow_implement` section, which is read by nothing. The renderer exits 0 in every
+  case except a missing required `--command` argument (an argparse usage error).
 - **Phase 4.2 (`skills/pr-description/SKILL.md`)** authors the rest of the body — the summary,
   `Resolves #N`, acceptance-criteria and test-plan sections — and **regenerates** it late in the
   run. Before issue #1655 the provenance line survived that regeneration only by accident, as
