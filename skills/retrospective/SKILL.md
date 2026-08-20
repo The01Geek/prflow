@@ -127,15 +127,27 @@ had to fix), then `commits` (message trail), then `issue` (original intent).
 
 ### verdict
 
-One of `imperfect` or `blocked`. (`clean` never reaches you — the orchestrator
-handled those mechanically.)
+One of `clean`, `imperfect`, or `blocked`. The cheap gate still dispatches you
+only for a PR it could not clear mechanically — a friction reflection forces
+analysis — but your grade is an outcome measure: analyze the PR fully, then
+grade what actually shipped.
 
+- `clean` — every mechanical signal is spotless (`signals.post_bot_commits` 0,
+  `signals.ci_failures_during_pr` 0, `signals.review_comments_count` 0,
+  `signals.review_reject_outstanding` false, `signals.ci_status_unknown` false,
+  `signals.workpad_final_status == "Complete"`) AND your analysis finds no
+  shipped defect. The analysis still runs — the learnings, `categories`,
+  `descriptors`, `summary`, and `suggested_interventions` are still recorded;
+  only the grade reflects that nothing went wrong.
 - `imperfect` — the PR shipped but then needed substantive human commits
   after the bot's last commit (`signals.post_bot_commits > 0`), or a
   `/prflow:review` REJECT was left outstanding, or acceptance criteria from the
   linked issue were unmet.
 - `blocked` — `signals.workpad_final_status == "Blocked"` or the workpad /
   PR thread shows work was abandoned mid-task with no shipped fix.
+
+When none of the three strictly fits, default to `clean` when every mechanical
+signal above is spotless and to `imperfect` otherwise.
 
 Interim workpad states (`Setup`, `Discovering`, `Reproducing`, `Planning`,
 `Implementing`, `Reviewing`, `Documenting`) mean the run never reached Phase 4
@@ -162,9 +174,11 @@ Workpad-absent analysis rule. The absent-workpad sentinels
   its audit trail (and, for `"NoIssue"`, its issue linkage). Analyze from the remaining
   evidence — the PR diff and commits, the reviews, and the issue thread when one
   resolved — and record the missing workpad (and, for `"NoIssue"`, the broken linkage)
-  as friction in the entry's `descriptors`. Follow the existing `imperfect` / `blocked`
-  verdict definitions; when neither strictly fits, default to `imperfect` with a
-  descriptor naming the absent workpad.
+  as friction in the entry's `descriptors`. Follow the `clean` / `imperfect` /
+  `blocked` verdict definitions above; the neither-fits default resolves to
+  `imperfect` here, because an absent-workpad sentinel `workpad_final_status`
+  (`Absent`/`NoIssue`) is never spotless — record a descriptor naming the absent
+  workpad.
 - A sentinel bundle *without* provenance is analyzed under the same rule, minus the
   lost-audit-trail framing.
 
@@ -265,7 +279,7 @@ newlines that break naive serialization).
   "branch": "<bundle.branch>",
   "head_sha": "<bundle.head_sha>",
   "merge_commit_sha": "<bundle.merge_commit_sha>",
-  "verdict": "imperfect | blocked",
+  "verdict": "clean | imperfect | blocked",
   "categories": ["...", "..."],
   "descriptors": ["...", "..."],
   "signals": <bundle.signals verbatim>,
@@ -283,6 +297,13 @@ stdout. Omit the key entirely in every other case.
 `categories` must be drawn from the fixed vocabulary above; `descriptors` is
 free text. Echo `pr`, `issue`, `branch`, `head_sha`, `merge_commit_sha`,
 `merged_at`, and `signals` straight from the bundle — do not recompute them.
+
+An analyst-graded `clean` entry is a fully analyzed entry: it populates
+`categories`, `descriptors`, `summary`, and `suggested_interventions` exactly as
+an `imperfect` entry does and echoes `signals` verbatim. That populated analysis
+is what distinguishes it from a gate-skipped clean entry (`lib/clean-entry.jq`),
+whose analysis fields carry defaults.
+
 Print the object and stop.
 
 Example construction:
