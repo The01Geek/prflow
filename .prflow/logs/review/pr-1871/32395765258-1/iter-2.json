@@ -1,0 +1,118 @@
+{
+  "iter": 2,
+  "source": "review-and-fix",
+  "loop_role": "fix",
+  "fix_commit_sha": null,
+  "fix_files": [],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "checklist": [
+    {
+      "id": "VC-1",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:audit-prompt-template.md:directly-applicable-verbatim-edit",
+      "reused_from_iter_prev": true
+    },
+    {
+      "id": "VC-2",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:audit-prompt-template.md:no-branch-no-placeholder",
+      "reused_from_iter_prev": true
+    },
+    {
+      "id": "VC-3",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:audit-prompt-template.md:explicit-inability-statement",
+      "reused_from_iter_prev": true
+    },
+    {
+      "id": "VC-4",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:audit-prompt-template.md:coupled-sites-agree",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-5",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:audit-prompt-template.md:no-new-coverage-script-unchanged",
+      "reused_from_iter_prev": true
+    },
+    {
+      "id": "VC-6",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "absolute_claim:audit-prompt-template.md:never-branch-or-placeholder",
+      "reused_from_iter_prev": false
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [],
+  "fix_decisions": [],
+  "sweep_defs_read": [],
+  "sweep_evidence": {
+    "status": "not-run",
+    "reason": "no fixes applied"
+  },
+  "convergence_inputs": {
+    "fixes_applied": 0,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "verification_evidence": {
+    "command": "n/a (prose-only agent-template change)",
+    "result": "skipped",
+    "reason": "no automated test boundary; whole-suite gate owned by implement Phase 4.3",
+    "skipped_checks": []
+  },
+  "shadow": {
+    "ran_at": "shadow pass (convergence-time trigger)",
+    "reviewed_sha": "9bae38a14be1931bf45a70c002a39894da0d97ed",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "park_calibration": {
+    "evidence_comparisons": []
+  },
+  "telemetry": "unavailable",
+  "synthesized": false
+}

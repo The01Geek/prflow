@@ -1,0 +1,136 @@
+{
+  "iter": 1,
+  "source": "review-and-fix",
+  "loop_role": "fix",
+  "fix_commit_sha": "997f1795d96e6fc5ba1410bd3f1dd6a003e01b3d",
+  "fix_files": [
+    "skills/create-issue/references/audit-prompt-template.md"
+  ],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "checklist": [
+    {
+      "id": "VC-1",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:audit-prompt-template.md:directly-applicable-verbatim-edit",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-2",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:audit-prompt-template.md:no-branch-no-placeholder",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-3",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:audit-prompt-template.md:explicit-inability-statement",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-4",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:audit-prompt-template.md:coupled-sites-agree",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-5",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:audit-prompt-template.md:no-new-coverage-script-unchanged",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-6",
+      "verification_mode": "agent",
+      "verdict": "FAIL",
+      "claim_signature": "absolute_claim:audit-prompt-template.md:never-branch-or-placeholder",
+      "reused_from_iter_prev": false
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [],
+  "fix_decisions": [
+    {
+      "finding_id": "VC-6",
+      "decision": "applied",
+      "commit": "997f1795d96e6fc5ba1410bd3f1dd6a003e01b3d"
+    }
+  ],
+  "sweep_defs_read": [
+    {
+      "path": "../implement/phases/phase-2-implement.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0",
+        "2.3.0a"
+      ]
+    },
+    {
+      "path": "../implement/phases/phase-2-sweeps-contract.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0c",
+        "2.3.4b"
+      ]
+    },
+    {
+      "path": "../implement/phases/phase-2-sweeps-quality.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.3",
+        "2.3.4a",
+        "2.3.5",
+        "2.3.6"
+      ]
+    }
+  ],
+  "sweep_evidence": {
+    "status": "run",
+    "note": "fix delta is a one-clause wording alignment in agent-prompt prose; §2.3.4a self-authored-claim: changeset already says 'never more than one branch', consistent; §2.3.4b stale-prose-lint over branch delta exit 0, no rows; no coverage universal added."
+  },
+  "base_checkpoint": {
+    "token": "UPDATED",
+    "behind_by": 8
+  },
+  "stale_prose_check": {
+    "result": "clean",
+    "rows": [],
+    "exit": 0
+  },
+  "verification_evidence": {
+    "command": "n/a (prose-only agent-template change; no automated test boundary per #843/#876)",
+    "result": "skipped",
+    "reason": "no automated test boundary; verification is by reading + Phase 3 review agents; whole-suite gate owned by implement Phase 4.3",
+    "skipped_checks": []
+  },
+  "test_first_gate": [
+    {
+      "decision": "no-automated-test",
+      "command": "read both sites for literal consistency",
+      "result": "pass",
+      "evidence": "fix is a behaviorally-inert synonym alignment ('a branch choice' -> 'more than one branch'); both sites now use identical phrasing matching issue AC2; no behavioral delta for a RED/GREEN micro-test to exhibit."
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 1,
+    "fix_diff_lines": 1,
+    "new_corroborated_critical_count": 0
+  },
+  "telemetry": "unavailable",
+  "synthesized": false
+}
