@@ -1970,18 +1970,11 @@ jobs:
               exit 0
               ;;
           esac
-          # The resolved command carries its OWN target number (the detector emits
-          # `/prflow:<cmd> <n>`), and that is the thread the engine seeded its
-          # progress comment on — which is not always the thread the triggering
-          # comment sits on, because a collaborator can write `/prflow:review 42`
-          # from somewhere else. While the handler was flip-only that mismatch was
-          # a harmless no-op; now that a confirmed absence WRITES, addressing the
-          # event's own number would post a '❌ Review failed' comment on a thread
-          # that never had a review. Prefer the command's trailing number and fall
-          # back to the event's only when the command carries none. Derived with
-          # parameter expansion and a `case` glob — both bash builtins, because a
-          # value that decides where a write lands must not flow through a
-          # non-preflight-guaranteed PATH tool.
+          # TARGET_NUMBER is the command's own number (the detector emits
+          # `/prflow:<cmd> <n>`; since issue #1863 that equals the thread the comment
+          # and the seeded progress comment sit on, and the fallback covers a
+          # numberless command). Bash builtins only — a value that decides where a
+          # write lands must not flow through a non-preflight-guaranteed PATH tool.
           TARGET_NUMBER="${COMMAND##* }"
           case "$TARGET_NUMBER" in
             ''|*[!0-9]*) TARGET_NUMBER="$CONTEXT_NUMBER" ;;
@@ -2088,9 +2081,9 @@ jobs:
           APP_TOKEN_PRESENT: ${{ steps.backstop-token.outputs.token != '' }}
         run: |
           set -euo pipefail
-          # Prefer the resolved command's trailing number (the reviewed thread), else
-          # the event's when the command carries none; otherwise `/prflow:review N`
-          # typed elsewhere resumes the wrong PR. Bash builtins only (issue #1858).
+          # Since issue #1863 the light-command resolver makes the command's trailing
+          # number the reviewed thread's own, so this derivation (and its event-number
+          # fallback) lands on the guarded thread. Bash builtins only (issue #1858).
           PR_NUMBER="${COMMAND##* }"
           case "$PR_NUMBER" in
             ''|*[!0-9]*) PR_NUMBER="$CONTEXT_NUMBER" ;;
@@ -2195,9 +2188,9 @@ jobs:
           JOB_CANCELLED: ${{ job.status == 'cancelled' }}
         run: |
           set -uo pipefail
-          # Prefer the resolved command's trailing number (the reviewed thread), else
-          # the event's when the command carries none; otherwise `/prflow:review N`
-          # typed elsewhere records against the wrong PR. Bash builtins only (issue #1858).
+          # Since issue #1863 the light-command resolver makes the command's trailing
+          # number the reviewed thread's own, so this derivation (and its event-number
+          # fallback) lands on the guarded thread. Bash builtins only (issue #1858).
           PR_NUMBER="${COMMAND##* }"
           case "$PR_NUMBER" in
             ''|*[!0-9]*) PR_NUMBER="$CONTEXT_NUMBER" ;;
@@ -2326,9 +2319,9 @@ jobs:
           ENGINE_ERROR: ${{ steps.engine.outputs.is_error }}
         run: |
           set -uo pipefail
-          # Prefer the resolved command's trailing number (the reviewed thread), else
-          # the event's when the command carries none; otherwise `/prflow:review N`
-          # typed elsewhere dismisses on the wrong PR. Bash builtins only (issue #1858).
+          # Since issue #1863 the light-command resolver makes the command's trailing
+          # number the reviewed thread's own, so this derivation (and its event-number
+          # fallback) lands on the guarded thread. Bash builtins only (issue #1858).
           PR_NUMBER="${COMMAND##* }"
           case "$PR_NUMBER" in
             ''|*[!0-9]*) PR_NUMBER="$CONTEXT_NUMBER" ;;
