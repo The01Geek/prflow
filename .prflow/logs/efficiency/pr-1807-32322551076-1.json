@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1807",
+  "generated_at": "2026-08-20T02:20:41Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.38",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 29.93238885000001,
+    "tokens": {
+      "input_tokens": 112,
+      "output_tokens": 96439,
+      "cache_read_input_tokens": 10188030,
+      "cache_creation_input_tokens": 490930,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 184,
+        "outputTokens": 149795,
+        "cacheReadInputTokens": 12745857,
+        "cacheCreationInputTokens": 1115261,
+        "webSearchRequests": 0,
+        "costUSD": 18.930092249999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 498,
+        "outputTokens": 87398,
+        "cacheReadInputTokens": 11611167,
+        "cacheCreationInputTokens": 1655062,
+        "webSearchRequests": 0,
+        "costUSD": 11.002296599999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 103,
+    "duration_ms": 1643694
+  },
+  "permission_denials": {
+    "count": 13,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-<unset>} ATTEMPT=${GITHUB_RUN_ATTEMPT:-<unset>}\"; mkdir -p .prflow/tmp/review/pr-1807/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}; echo done",
+      "cd /home/runner/work/prflow/prflow\n: > .prflow/tmp/displaced-paths.txt\nmkdir -p .prflow/tmp/review/pr-1807/32322551076-1/verdicts/iter-1\nfor i in $(seq 1 26); do echo \"VC-$i $(head -c8 /dev/urandom | od -An -tx1 | tr -d ' \\n')\"; done",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1807/32322551076-1/verdicts/iter-1 && head -c 260 /dev/urandom | od -An -tx1 | tr -d ' \\n' | head -c 520; echo",
+      "for n in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26; do printf 'VC-%s-' \"$n\"; head -c 8 /dev/urandom | od -An -tx1 | tr -d ' \\n'; printf '\\n'; done",
+      "head -c 208 /dev/urandom | od -An -tx1 | tr -d ' ' | fold -w16 | head -26",
+      "od -An -N208 -tx1 /dev/urandom | tr -d ' \\n'",
+      "basename \"$(mktemp -u)\"",
+      "rm -f /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1807/32322551076-1/verdicts/iter-1/*.json; ls /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1807/32322551076-1/verdicts/iter-1/ 2>&1; echo \"wiped\"",
+      "find /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1807/32322551076-1/verdicts/iter-1 -name '*.json' -delete; find /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1807/32322551076-1/verdicts/iter-1 -type f | wc -l",
+      "NO_COLOR=1 PYTHON_COLORS=0 python3 scripts/issue-audit-state.py --help 2>&1 | tr -s '[:space:]' ' ' | grep -oF 'state, findings_count, revisions_applied, verdict, rounds_run'",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1807/32322551076-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1807/32322551076-1/verdicts/iter-1/VC-18-SwgRLe634VviVC-18.json << 'EOF'\n{\n  \"id\": \"VC-18\",\n  \"verdict\": \"FAIL\",\n  \"evidence\": \"scripts/issue-audit-state.py has two documented degraded arms where a non-excluded subcommand prints next_call= WITHOUT a preceding summary-block line. (1) In _emit_next_call (lines 4897-4910), if _summary_block_li …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1807/32322551076-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1807/32322551076-1/verdicts/iter-1/VC-25-SwgRLe634VviVC-25.json << 'EOF'\n{\"id\":\"VC-25\",\"verdict\":\"PASS\",\"evidence\":\"skills/create-issue/references/step-3-6-audit-adjudication.md:101 documents the clean-run call sequence: '... query-final-byte → render the summary line from the preceding call's summary-block line → query-eligibility --mode a …[per-command-truncated]",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before"
+    ],
+    "total": 13,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
