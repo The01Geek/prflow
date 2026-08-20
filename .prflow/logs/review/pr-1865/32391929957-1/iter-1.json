@@ -1,0 +1,173 @@
+{
+  "iter": 1,
+  "source": "review",
+  "loop_role": "fix",
+  "fix_commit_sha": "f428d312f",
+  "fix_files": [
+    "skills/retrospective/SKILL.md"
+  ],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "checklist": [
+    {
+      "id": "VC-1",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:skill.md:stage-a-clean-verdict-defined",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-2",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:skill.md:clean-entry-populated-fields",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-3",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:compute-patterns.jq:imperfect-blocked-only-unchanged",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-4",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:cheap-gate.jq:byte-unchanged",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-5",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "absolute_claim:skill.md:absent-workpad-never-spotless",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-6",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "data_format_assumption:skill.md:signal-key-names-match-bundle",
+      "reused_from_iter_prev": false
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "neither-fits default (SKILL.md:149-150) dropped the no-shipped-defect conjunct, so a spotless-signal PR with an analyst-found defect defaulted to clean (fail-open, erased from pattern detection)",
+      "defect_signature": {
+        "file": "skills/retrospective/SKILL.md",
+        "line_range": [
+          149,
+          150
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "over_grade_shape": 3,
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "f428d312f"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 1,
+    "fix_diff_lines": 3,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "base_checkpoint": {
+    "token": "UP_TO_DATE",
+    "behind_by": null
+  },
+  "stale_prose_check": [
+    {
+      "verdict": "UNRESOLVABLE",
+      "rule": "CU",
+      "file": ".changeset/issue-1442-stage-a-clean-verdict.md",
+      "line": 6,
+      "detail": "coverage-universal recognition-only (informational, non-gating)"
+    }
+  ],
+  "verification_evidence": {
+    "command": "prompt RED/GREEN micro-test (agent-executed prose; no automated suite boundary)",
+    "result": "skipped",
+    "reason": "deliverable is agent-executed prompt prose with no executable boundary; whole-suite gate owned by implement Phase 4.3",
+    "skipped_checks": []
+  },
+  "test_first_gate": [
+    {
+      "decision": "no-automated-test (model-context prose)",
+      "command": "subagent RED/GREEN + no-guidance control",
+      "result": "pass",
+      "evidence": "RED old default grades spotless+defect clean; GREEN tightened default grades imperfect; control confirms failure specific to wording"
+    }
+  ],
+  "sweep_defs_read": [],
+  "sweep_evidence": {
+    "status": "run",
+    "note": "fix delta is a one-clause prose tightening of a decision predicate; 2.3.0-class reconciled against the same verdict-vocabulary sites already swept in Phase 2; no new peers/enums/consumers introduced"
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "refixed",
+      "reason": null
+    }
+  },
+  "telemetry": "unavailable",
+  "shadow": {
+    "ran_at": "early-trigger (engine_self_modifying, after iteration 1)",
+    "reviewed_sha": "f428d312f4e9e2fe9226795e59118fd620d764a7",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false
+}
