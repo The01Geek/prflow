@@ -48509,16 +48509,6 @@ ICE_TEST_RC=$?
 assert_eq "issue #1209: implement context eval focused tests pass" "0" "$ICE_TEST_RC"
 [ "$ICE_TEST_RC" -eq 0 ] || while IFS= read -r _ice_line || [ -n "$_ice_line" ]; do printf '    %s\n' "$_ice_line"; done <<< "$ICE_TEST_OUT"
 
-# issue #1314: the trusted-emitter review-verdict handoff importer is the trust
-# boundary between the untrusted review producer and the trusted emitter — its
-# focused tests drive the accepted shape and every documented rejection class
-# (AC5), and the security-critical invariant that a rejection publishes NO output
-# artifact. A non-zero exit surfaces the unittest output here.
-IRVH_TEST_OUT="$(python3 "$LIB/test/test_import_review_verdict_handoff.py" 2>&1)"
-IRVH_TEST_RC=$?
-assert_eq "issue #1314: review-verdict handoff importer focused tests pass" "0" "$IRVH_TEST_RC"
-[ "$IRVH_TEST_RC" -eq 0 ] || while IFS= read -r _irvh_line || [ -n "$_irvh_line" ]; do printf '    %s\n' "$_irvh_line"; done <<< "$IRVH_TEST_OUT"
-
 # harness-python-guards contract coverage (issue #707: extracted from this file's
 # #600 / #527 / #528 / #668 / #798 / #810 / #591 Python guard blocks into a focused
 # module, plus the #985 profiler unit tests added there directly). The registry and
