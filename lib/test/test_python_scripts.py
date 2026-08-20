@@ -27777,14 +27777,9 @@ assert_eq("#1634 helper: the summary reports a nonzero ungraded count when detec
           True, 'UNGRADED_CLAIMS total=1' in _cvp_out)
 
 # --- test_adjudicated_output_byte_identical ---------------------------------
-# The issue-1441 snapshot, adjudicated against the tree at this commit: the
-# ungraded pass appends its own lines and changes NO adjudicated line, tally, or
-# exit code. Re-captured after #1866: bullets 1, 2 and 4 quote their premise line
-# INSIDE a backtick code span, which the recognizer no longer scans (backticks
-# were never quotation delimiters), so they are honest `unestablished` rather than
-# the false `holds` the pre-#1866 inner-double-quote match minted. Bullet 3's
-# quotation is in real double quotes outside any backtick span, so it is unchanged.
-# The path-arm detail references the live `_QUOTE_RULE` constant to stay drift-proof.
+# Re-captured after #1866: bullets 1/2/4 quote their premise inside a backtick
+# span the recognizer no longer scans, so they are honest `unestablished` — do not
+# re-capture as `holds`. `_cvp_path_detail` reads the live constant to stay drift-proof.
 _cvp_path_detail = (
     'cited path present but the bullet carries no quotation to re-derive the '
     'premise from (' + check_verified_premises._QUOTE_RULE + ')')
@@ -28169,6 +28164,48 @@ assert_eq("#1866 helper: a body with no verification-shaped text still reports t
 _cvp_rc, _cvp_out = _cvp_run('   \n\n  \n')
 assert_eq("#1866 helper: the empty body still reports reason=body-empty",
           True, 'reason=body-empty' in _cvp_out and _cvp_rc == 3)
+
+# --- Review follow-up: a bolded `> **Verified:**` blockquote is graded once by
+# _MARKER arm A, never ALSO reported in UNGRADED_CLAIMS (the `[ \t>]*` class
+# excludes `*`, so the blockquote regex does not match it) ---
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    '> **Verified:** `docs/notes.md` — "exited 2 with exactly that"\n')
+assert_eq("#1866 helper: a bolded `> **Verified:**` blockquote is graded exactly once "
+          "and not double-counted as an ungraded claim",
+          True, 'VERIFIED_PREMISES total=1 ' in _cvp_out
+          and len(_cvp_ungraded_lines(_cvp_out)) == 0)
+
+# --- Review follow-up: mixed ungraded detections are numbered in document order —
+# a blockquote line BEFORE a collocation phrase yields claims 1 (blockquote) then 2 ---
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    '> Verified: `config.json` "some real premise text"\n\n'
+    'The fixture was verified against main.\n')
+_u_lines = _cvp_ungraded_lines(_cvp_out)
+assert_eq("#1866 helper: a blockquote line before a collocation phrase yields two "
+          "ungraded claims numbered in document order (blockquote first)",
+          True, len(_u_lines) == 2
+          and 'ungraded_claim=1 region=blockquote ' in _u_lines[0]
+          and 'ungraded_claim=2 region=Current Behavior ' in _u_lines[1])
+
+# --- Review follow-up: the truncated-quotation reroute counts TYPOGRAPHIC delimiters
+# too (not only ASCII), and the count trips with more than one matched quotation ---
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    '**Verified:** `docs/notes.md` — '
+    '“zzq unique absent prefix” and a stray “ mark\n')
+assert_eq("#1866 helper: a truncated typographic quotation is graded unestablished "
+          "(the typographic delimiters are counted), never refuted",
+          True, 'state=unestablished' in _cvp_out and 'state=refuted' not in _cvp_out
+          and 'double-quote' in _cvp_out)
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    '**Verified:** `docs/notes.md` — '
+    '"real quote alpha here" and "real quote beta here" plus a stray " mark\n')
+assert_eq("#1866 helper: the truncation count trips with more than one matched "
+          "quotation (quote_delims > 2*len(quotes)) — unestablished, not refuted",
+          True, 'state=unestablished' in _cvp_out and 'state=refuted' not in _cvp_out)
 
 print()
 print("issue-audit-state: tool-owned round kinds (issue #793)")
