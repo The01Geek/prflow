@@ -28203,10 +28203,9 @@ assert_eq("#1866 helper: the truncation count trips with more than one matched "
           "quotation (quote_delims > 2*len(quotes)) — unestablished, not refuted",
           True, 'state=unestablished' in _cvp_out and 'state=refuted' not in _cvp_out)
 
-# --- Review follow-up: recheck strips backtick spans BEFORE counting delimiters, so a
-# backticked command's internal `"` does not inflate quote_delims and falsely flip a
-# genuinely-stale premise from refuted to unestablished (mutation `stripped = span` at
-# the count site would break this) ---
+# --- Review follow-up: recheck strips backtick spans before counting delimiters, so a
+# backticked command's internal `"` does not inflate quote_delims (mutation `stripped =
+# span` at the count site would flip a genuinely-stale premise off refuted) ---
 _cvp_rc, _cvp_out = _cvp_run(
     '## Current Behavior\n\n'
     '**Verified:** `docs/notes.md` cited, `grep "x" here` — '
