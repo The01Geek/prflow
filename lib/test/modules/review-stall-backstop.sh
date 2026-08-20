@@ -2629,10 +2629,9 @@ open(sys.argv[3], "w", encoding="utf-8").write(named[0]["run"])
 PY
 }
 
-# Run one step's derivation and print the PR number that reached its write helper.
-# $1 = pre-extracted step-block file, $2 = COMMAND, $3 = CONTEXT_NUMBER. Step 1's
-# helper reads PR_NUMBER from the env; steps 2 and 3 receive it positionally ($3
-# and $2). Each step's block is extracted once and reused across its assertions.
+# Run one step's derivation; print the PR number that reached its write helper.
+# $1 = step-block file, $2 = COMMAND, $3 = CONTEXT_NUMBER. Step 1's helper reads
+# PR_NUMBER from the env; steps 2 and 3 receive it positionally ($3 and $2).
 s1858_land() {
   local block="$1" cmd="$2" ctx="$3"
   local box rec
