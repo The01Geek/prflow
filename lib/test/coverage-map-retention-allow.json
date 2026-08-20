@@ -1,1 +1,7 @@
-[]
+[
+  {
+    "half": "files",
+    "key": "scripts/import-review-verdict-handoff.py",
+    "reason": "importer deleted by PR #1864 (issue #1860): orphaned review-verdict handoff after #1385 was closed"
+  }
+]
