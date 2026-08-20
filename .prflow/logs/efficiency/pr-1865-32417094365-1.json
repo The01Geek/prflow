@@ -100,5 +100,69 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.48",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 10.851424300000001,
+    "tokens": {
+      "input_tokens": 74,
+      "output_tokens": 38198,
+      "cache_read_input_tokens": 6093836,
+      "cache_creation_input_tokens": 223496,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 119,
+        "outputTokens": 54680,
+        "cacheReadInputTokens": 7056894,
+        "cacheCreationInputTokens": 510442,
+        "webSearchRequests": 0,
+        "costUSD": 8.924414500000003,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 76,
+        "outputTokens": 10161,
+        "cacheReadInputTokens": 1563706,
+        "cacheCreationInputTokens": 348068,
+        "webSearchRequests": 0,
+        "costUSD": 1.9270097999999996,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 66,
+    "duration_ms": 622780
+  },
+  "permission_denials": {
+    "count": 4,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---RUNENV---\"; echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-<empty>}\"; echo \"GITHUB_RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT:-<empty>}\"; echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-<empty>}\"",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1865/32417094365-1/verdicts/iter-0\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1865/32417094365-1/verdicts/iter-0/VC-3-m5n2v7b.json <<'EOF'\n{\"id\": \"VC-3\", \"verdict\": \"PASS\", \"evidence\": \"Added text in diff (skills/retrospective/SKILL.md, near 'Example construction') states verbatim: 'An analyst-graded clean entry is a fully analyzed entry: it populates categories, descriptors, summary, and suggested_interventions exac …[per-command-truncated]",
+      "mkdir -p .prflow/tmp\nif rm -f \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\" &&\n   [ -f \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\" ] &&\n   [ ! -L \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\" ] &&\n   git hash-object \"${GIT_SNAP_BEFORE:-.prflow/tmp/review-dirty-tree-before}\"; then\n  : \nelse\n  echo \"::warning::dev …[per-command-truncated]",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before\ntest -f .prflow/tmp/review-dirty-tree-before && test ! -L .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before"
+    ],
+    "total": 4,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
