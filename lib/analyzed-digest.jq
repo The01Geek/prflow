@@ -3,12 +3,11 @@
 #
 # The verdicts selected here — imperfect, blocked, and analyst-graded clean — are
 # the Stage A outcomes counted in analyzed_count, so they belong in the digest. A
-# gate-skipped clean entry (lib/clean-entry.jq) is
-# mechanical, cost no LLM call, and stays excluded — it is told apart by its empty
-# analysis fields: lib/clean-entry.jq hard-codes categories/descriptors/
-# suggested_interventions to [], whereas an analyst-graded clean populates at least
-# one. Selecting on empty-vs-populated (not on the summary text) keeps the two
-# clean shapes distinguishable without pinning a template string.
+# gate-skipped clean entry (lib/clean-entry.jq) made no LLM call and stays
+# excluded: it is told apart by its empty analysis fields — lib/clean-entry.jq
+# hard-codes categories/descriptors/suggested_interventions to [], whereas an
+# analyst-graded clean populates at least one. Selecting on empty-vs-populated
+# rather than on the summary text avoids pinning a template string.
 #
 # `arrays` guards each analysis field: those fields are LLM-authored, so a
 # non-array shape on one row must not abort the whole filter (same discipline as
