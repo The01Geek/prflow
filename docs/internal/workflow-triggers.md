@@ -621,6 +621,36 @@ surface is wired in.
 > a separate issue. This section covers only the markdown-aware anchoring and the
 > self-marker guard.
 
+## A comment-triggered light command addresses its own thread (issue #1863)
+
+The detector recognises an optional trailing number on a light command
+(`/prflow:review 42`, `/prflow:review #42`), so **which** comments fire is exactly
+as the anchoring rules above describe. But `scripts/resolve-command-trigger.sh` no
+longer *uses* that number to pick a target: it **discards** it and resolves to the
+event's own context number — the number of the thread the comment was posted on —
+unconditionally, for all three light commands (`/prflow:review`,
+`/prflow:review-and-fix`, `/prflow:pr-description`). A command carrying no number
+resolves to the thread's number exactly as before.
+
+**Why the number is ignored rather than honoured.** `devflow.yml`'s `command` job
+decides *whether* two `always()` steps run — the verdict-reach record and the
+superseded-REJECT dismissal net — by asking whether the thread the comment sits on
+is a pull request, then acts on the resolved command's number. Since #1858 those
+two could differ: `/prflow:review 42` posted on a pull-request thread passed the
+guard yet acted on issue 42, and `/prflow:review 99` on a plain issue skipped the
+guard while a real review ran against pull request 99. Discarding the typed number
+makes the guard's subject and the acted-on number the same value, with no functional
+change to the workflow steps (only their comments were reworded). The heavy path
+(`/prflow:implement`, `scripts/resolve-implement-trigger.sh`) is untouched — it
+requires an explicit number and still resolves to it.
+
+**The discard is logged.** When a light command carries a trailing number, the
+resolver writes a `::warning::` line to standard error — reaching the workflow run
+log — naming both the number that was ignored and the thread number that was used,
+so someone who typed one number and got a review of a different thread can find out
+why. The automated post-CI trigger (`scripts/post-ci-review-trigger.sh`) posts the
+bare command with no number, so it never trips this path.
+
 ## A `/prflow:implement` run keeps progress on the issue workpad
 
 A run maintains one canonical issue comment, the marker-tagged *workpad*
