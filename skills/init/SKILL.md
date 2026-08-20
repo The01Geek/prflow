@@ -366,6 +366,10 @@ Never run the external documentation bootstrap, and never dispatch a subagent th
 
 On every path through this step, `/prflow:init` creates no git commit.
 
+## Then: advise on nested subagents under VS Code Copilot (advisory)
+
+If — and only if — this run is under a VS Code Copilot harness, tell the user that turning on `chat.subagents.allowInvocationsFromSubagents` (a boolean, off by default) lets a subagent dispatch its own subagents, to a nesting depth of 5, and recommend it for better review-agent isolation. Left off, a subagent is simply not given the delegation tool and silently does that work inline in one context, so nothing errors and the lost isolation is invisible. Say nothing about it on any other harness, never edit the user's editor settings yourself, and never present it as something PRFlow requires today.
+
 ## Finally: advisory project-memory check (CLAUDE.md)
 
 Config is scaffolded and the preflight has run, so init has already succeeded — this last step is a purely advisory project-memory check that never creates, writes, or edits `CLAUDE.md` (or any agent-instruction file) and never blocks or fails init regardless of what it finds. A repo with no `CLAUDE.md` gives DevFlow's automations no project memory, so `/prflow:review` and `/prflow:implement` run without the conventions, gotchas, and architecture notes that materially improve their output. Surface that gap once, here, without ever touching a file.
