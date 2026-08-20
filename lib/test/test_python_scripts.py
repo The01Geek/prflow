@@ -28081,11 +28081,7 @@ assert_eq("#1634 helper: an emission failure reports UNGRADED_CLAIMS unavailable
           and 'UNGRADED_CLAIMS total=' not in _cvp_emit_out
           and 'emission boom' in _cvp_emit_err)
 
-# ---------------------------------------------------------------------------
-# issue #1866 — the recognizer stops earning clean passes it did not verify
-#
-# Four defects, each driven at the same CLI boundary the block above uses.
-# ---------------------------------------------------------------------------
+# issue #1866 — recognizer stops earning unverified clean passes; four defects, same CLI boundary
 
 # --- AC1: text inside a backtick code span is invisible to quote detection ---
 # The backticked command carries a double-quoted string that would otherwise be
@@ -28206,6 +28202,28 @@ _cvp_rc, _cvp_out = _cvp_run(
 assert_eq("#1866 helper: the truncation count trips with more than one matched "
           "quotation (quote_delims > 2*len(quotes)) — unestablished, not refuted",
           True, 'state=unestablished' in _cvp_out and 'state=refuted' not in _cvp_out)
+
+# --- Review follow-up: recheck strips backtick spans BEFORE counting delimiters, so a
+# backticked command's internal `"` does not inflate quote_delims and falsely flip a
+# genuinely-stale premise from refuted to unestablished (mutation `stripped = span` at
+# the count site would break this) ---
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    '**Verified:** `docs/notes.md` cited, `grep "x" here` — '
+    '"genuinely absent quote text"\n')
+assert_eq("#1866 helper: a backticked command's internal double quote does not inflate "
+          "the truncation count — a genuinely-stale premise on a strong path still refutes",
+          True, 'state=refuted' in _cvp_out)
+
+# --- Review follow-up: a `> Verified:` line inside a fenced code block is excluded
+# (the graded/code exclusion set covers fenced lines), so it is NOT surfaced as ungraded ---
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\nSome text.\n\n'
+    '```\n> Verified: `docs/notes.md` "exited 2 with exactly that"\n```\n\nmore text.\n')
+assert_eq("#1866 helper: a `> Verified:` line inside a code fence is not reported as an "
+          "ungraded claim",
+          True, len(_cvp_ungraded_lines(_cvp_out)) == 0
+          and 'VERIFIED_PREMISES total=0 ' in _cvp_out)
 
 print()
 print("issue-audit-state: tool-owned round kinds (issue #793)")
