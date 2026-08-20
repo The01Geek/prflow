@@ -16,6 +16,10 @@ The Definition of Ready carries a matching **Reproduction facts (defect reports 
 
 The documentation pass is a code-exploration input. It reports how the topic works today and exposes unestablished duties; it does not treat existing prose as authoritative or edit the repository in report-only mode.
 
+### Provenance signature (issue #1809)
+
+Since issue #1809 a created issue ends with the shared provenance line `_Generated via /prflow:create-issue (vX[, <model>][, <effort>])_` (Markdown italics) as its last line, where `X` is the plugin version the run executed. It is the same line the `/prflow:implement` draft PR emits, produced by the same bundled helper `scripts/render-pr-provenance-line.py --command /prflow:create-issue`; `references/step-4-present-create.md` appends it ahead of the first canonical draft write, so the identical bytes are shown for approval, saved to `issue-draft-<slug>.md`, hashed by any audit round, and posted as the created issue — one set of bytes throughout. Appending after creation would land outside the hashed body and read as tampering. The model+effort clause is gated by `prflow.publish_model_effort` (default on; only the JSON boolean `false` suppresses it — the version is always emitted); when the renderer produces no readable output the line is omitted entirely, with no placeholder.
+
 ## The completion tracker
 
 Before it does any of the pipeline's work, a run establishes a seven-slot tracker. The slots are the pipeline's gates, in order: run Step 1's arm and write its evidence artifact; clarify the story to the Definition of Ready; draft the issue and pass the no-options gate; steelman the draft against the code and append the steelman record; run any fresh-context audit round the user elects at the pre-approval pause and act on its verdict (a run that elects none dispatches no auditor); present the rendered issue, get explicit confirmation, and create it; and run the gated implement-offer step after creation succeeds. A slot is marked in progress when its step starts and completed only when the step is done, so the tracker is what makes an abandoned or abbreviated pipeline visible rather than inferable. Slot 6 is the creation gate — an unconfirmed run is paused there, not complete — and slot 7 is a post-creation hand-off rather than a gate on creating the issue.
@@ -100,6 +104,7 @@ The obsolete `step-3-6-audit.md` size exemption was removed from `lib/test/refer
 - `skills/create-issue/references/degradation-routing.md` — which reference loads on which trigger, and the degraded behavior each failed load falls back on.
 - `skills/create-issue/references/fallback-no-task-tool.md` — the inline checklist fallback and its state-file mirror.
 - `scripts/check-verified-premises.py` and `scripts/parse-acs.py` — verified-premise and acceptance-criteria handling.
+- `scripts/render-pr-provenance-line.py` — shared renderer of the provenance signature (`--command /prflow:create-issue`), gated by `prflow.publish_model_effort`.
 - `docs/internal/create-issue-context.md` — runtime context and evaluation evidence.
 
 ## Related topics

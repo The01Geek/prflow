@@ -650,7 +650,7 @@
     },
     "scripts/render-pr-provenance-line.py": {
       "focused_test": "lib/test/test_python_scripts.py",
-      "note": "issue #1655 draft-PR provenance-line renderer; always exits 0, prints one backtick-free line (version from the beside-helper manifest, model from the session transcript's most-recent assistant record never resolvedModel, effort from CLAUDE_EFFORT, model+effort gated by prflow_implement.publish_model_effort). Driven directly in lib/test/test_python_scripts.py over rendering, the config six-shape matrix, the transcript JSON-Lines matrix, and the phase-file lint/profile contract assertions",
+      "note": "issue #1655/#1809 shared provenance-line renderer; takes the command name via a required --command argument and prints one backtick-free italic line naming it (version from the beside-helper manifest, model from the session transcript's most-recent assistant record never resolvedModel, effort from CLAUDE_EFFORT, model+effort gated by prflow.publish_model_effort). Exits 0 in every case except a missing required --command argument, which is an argparse usage error (usage to stderr, nothing to stdout, non-zero exit). Driven directly in lib/test/test_python_scripts.py over rendering for both command values, the config six-shape matrix, the transcript JSON-Lines matrix, and the phase-file lint/profile contract assertions",
       "owner": "unmodularized"
     },
     "scripts/render-prompt-extension.sh": {
