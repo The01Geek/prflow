@@ -126,10 +126,8 @@ ias_stage() {  # <slug> <nonce> <draft-file>
 IAS_HELP_546="$(NO_COLOR=1 PYTHON_COLORS=0 python3 "$IAS" --help 2>&1 | tr -s '[:space:]' ' ')"
 assert_eq "#546 help_surface_pin: --help states the query exit-0 contract (rendered)" \
   "1" "$(printf '%s' "$IAS_HELP_546" | grep -oF -- 'Queries always exit 0 once the arguments parse and print a decided answer line' | grep -c .)"
-# issue #795 + #1803: the rendered description states the three-part output contract — the
-# decided line first, a summary-block line, then a final next_call= line — and enumerates
-# the compact _SUMMARY_BLOCK_FIELDS subset the block carries. A description that understates
-# what the tool prints is the failure this pin (a surface mid-run runs consult) exists to catch.
+# issue #795 + #1803: do not let the rendered description understate what the tool prints —
+# mid-run callers consult it for the three-part output contract and the block's field subset.
 assert_eq "#1803 help_surface_pin: --help states the summary-block line between the decided line and the final next_call= line (rendered)" \
   "1" "$(printf '%s' "$IAS_HELP_546" | grep -oF -- 'they print a summary-block line carrying a compact fixed subset of the query-summary fields' | grep -c .)"
 assert_eq "#1803 help_surface_pin: --help enumerates the summary-block subset (rendered)" \
@@ -2620,10 +2618,9 @@ if [ -d "$ZD_SB" ]; then
   rm -rf "$ZD_SB"
 fi
 
-# issue #1803 — the three-part output contract (decided line first, a summary-block line,
-# then next_call= last) and the batched finding-evidence records-file form. The block lets a
-# caller read post-mutation state from the call it just made, so the audit references drop the
-# standalone read-backs whose answers it carries.
+# issue #1803 — the three-part output contract (decided line first, summary-block, next_call=
+# last) and the batched finding-evidence records-file form. Do not reorder the three parts: the
+# audit references dropped the standalone read-backs whose answers the block now carries.
 SBK_SB="$(git_sandbox '#1803 summary_block_and_batched_evidence')"
 if [ -d "$SBK_SB" ]; then
   (

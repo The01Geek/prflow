@@ -421,13 +421,13 @@ Every subcommand that prints a `next_call=` line now also prints a **summary-blo
 between its decided answer line and the `next_call=` line — a compact fixed subset of the
 `query-summary` fields (enumerated in the tool's `--help`) — so the clean path reads the
 state it needs from the call it just made instead of issuing a standalone `query-summary`
-read-back. Dropping that read lowers the per-round mandated `unconditional_call_count` from
+read-back. Dropping that read lowers the per-run mandated `unconditional_call_count` from
 13 to 12; that figure is derived live by `lib/test/check-audit-lifecycle-contracts.py` and
 printed on the same `MEASURE` line, so read it there rather than from a number copied here.
 `record-finding-evidence` also gained a batched `--finding-evidence-records-file` form that
 records a whole round's finding evidence from one JSON file (each entry keeping its own
 completeness verdict), replacing one call per finding — a saving the mandated-call figure
-does not capture, since it counts the once-per-round mandated calls, not the per-finding
+does not capture, since it counts the once-per-run mandated calls, not the per-finding
 calls a multi-finding round makes.
 
 **The real-corpus "after" figure is a post-merge measurement, and is deliberately not

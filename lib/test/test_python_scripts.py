@@ -7790,9 +7790,8 @@ assert_eq("#562 summary_fields: an unbound run surfaces bound_root=None bound_ti
           (None, None), (_sf_none['bound_root'], _sf_none['bound_tier']))
 
 # issue #1803: the summary-block compact subset + the batched finding-evidence ingester.
-# (1) The help-enumerated subset equals _SUMMARY_BLOCK_FIELDS, and the emitted block's field
-#     set equals it too — help text and rendered surface cannot drift (both derive from the
-#     one constant).
+# (1) Do not enumerate the block's fields in `--help` or the renderer independently of
+#     `_SUMMARY_BLOCK_FIELDS` — a second list drifts from the emitted surface.
 _bp_desc = issue_audit_state.build_parser().description
 assert_eq("#1803 summary_block: the --help description enumerates exactly _SUMMARY_BLOCK_FIELDS",
           True, ', '.join(issue_audit_state._SUMMARY_BLOCK_FIELDS) in _bp_desc)
@@ -7812,10 +7811,9 @@ assert_eq("#1803 summary_block: a one-round FILE state renders rounds_run=1", Tr
 assert_eq("#1803 summary_block: a None state renders the unestablished shape", True,
           'state=unestablished' in issue_audit_state._summary_block_line(
               issue_audit_state.summary_fields(None)))
-# (3) The batched finding-evidence records-file ingester — the adversarial malformed-input
-#     matrix (CLAUDE.md's shape discipline, applied to an agent-authored JSON records file the
-#     repo does not itself produce). A structurally-malformed file is refused; an entry that
-#     merely OMITS content fields is ingested (recorded `incomplete` downstream), never refused.
+# (3) Do not relax the ingester into accepting a malformed records file, and do not tighten
+#     it into refusing an entry that merely OMITS content fields — that entry must ingest and
+#     be recorded `incomplete` downstream, never rejected.
 with tempfile.TemporaryDirectory() as _fe_dir:
     def _fe(content):
         p = os.path.join(_fe_dir, 'fe.json')
@@ -7824,7 +7822,9 @@ with tempfile.TemporaryDirectory() as _fe_dir:
         return p
     _ing = issue_audit_state._ingest_finding_evidence_records
     _recs = _ing(_fe('[{"finding_id":1,"locator":"a","command":"c","observed":"o",'
-                     '"baseline_revision":"r"},{"finding_id":2}]'))
+                     '"baseline_revision":"r","baseline_identity":"bi"},{"finding_id":2}]'))
+    assert_eq("#1803 fe_records: the optional baseline_identity is carried through, not dropped",
+              ('bi', None), (_recs[0]['baseline_identity'], _recs[1]['baseline_identity']))
     assert_eq("#1803 fe_records: a valid file yields one record per finding, in file order",
               [1, 2], [r['finding_id'] for r in _recs])
     assert_eq("#1803 fe_records: an entry omitting content fields ingests them None "
@@ -7853,10 +7853,8 @@ with tempfile.TemporaryDirectory() as _fe_dir:
                   SystemExit, lambda: _ing(_fe('[{"finding_id":1},{"finding_id":1}]')))
     assert_raises("#1803 fe_records: an unreadable records-file path is refused",
                   SystemExit, lambda: _ing(os.path.join(_fe_dir, 'does-not-exist.json')))
-# (4) Cross-render equality: the summary-block tokens equal query-summary's tokens for the
-#     shared subset, so the two surfaces cannot render one field two ways — the invariant
-#     `_summary_block_line`'s docstring asserts, enforced here rather than merely claimed
-#     (issue #1803 /simplify finding).
+# (4) Do not render a shared field differently in `_summary_block_line` and `query-summary`
+#     — the two surfaces are contracted to agree token-for-token on the shared subset.
 with tempfile.TemporaryDirectory() as _xr_dir:
     _xr_root = Path(_xr_dir)
     _xr_state = _state([_round(1, 'file', 'FILE', 'D1')])
@@ -7877,9 +7875,8 @@ with tempfile.TemporaryDirectory() as _xr_dir:
     _qs_sub = {f: _qs_tok.get(f) for f in issue_audit_state._SUMMARY_BLOCK_FIELDS}
     assert_eq("#1803 cross-render: every summary-block token equals query-summary's for the "
               "shared subset", _qs_sub, _blk_sub)
-# (5) The non-trivial arms of the block's duplicated `effective_unresolved`/`markers` renderers
-#     (the cross-render state above resolves both to their None arm) — pin the count and the
-#     comma-join, so a regression editing one copy of either mirror is caught.
+# (5) Do not edit one copy of the duplicated `effective_unresolved`/`markers` renderers: the
+#     cross-render state above resolves both to their None arm, so only these rows catch it.
 _bf = dict(issue_audit_state.summary_fields(None))
 _bf['effective_unresolved'] = 2
 _bf['adjudicated_verdict'] = 'REVISE'
@@ -7889,6 +7886,80 @@ assert_eq("#1803 summary_block: a live effective_unresolved renders its count (n
           True, ' effective_unresolved=2 ' in _bln)
 assert_eq("#1803 summary_block: non-empty markers render comma-joined (non-None arm)",
           True, ' markers=file-unreadable,write-failed ' in _bln)
+# (6) Do not move `_save_or_fail` inside the batch loop: a prior-call overwrite conflict fires
+# PARTWAY through it, and a per-record save would persist the earlier records. The in-batch
+# duplicate-id rows above reject before any mutation, so they cannot catch that.
+with tempfile.TemporaryDirectory() as _ba_dir:
+    _ba_root = Path(_ba_dir)
+
+    def _ba_run(colliding_entry):
+        _ba_state = _state([_round(1, 'file', 'FILE', 'D1')])
+        _ba_state['finding_evidence'] = {'1:7': {
+            'locator': 'L0', 'command': 'C0', 'observed': 'O0',
+            'baseline_revision': 'R0', 'completeness': 'complete'}}
+        issue_audit_state.save_state(_ba_state, 's', root=_ba_root)
+        _ba_path = os.path.join(_ba_dir, 'batch.json')
+        with open(_ba_path, 'w', encoding='utf-8') as fh:
+            json.dump([{'finding_id': 5, 'locator': 'L5', 'command': 'C5',
+                        'observed': 'O5', 'baseline_revision': 'R5'},
+                       colliding_entry], fh)
+        _ba_orig = issue_audit_state._repo_root
+        _ba_err = io.StringIO()
+        try:
+            issue_audit_state._repo_root = lambda: _ba_root
+            with contextlib.redirect_stdout(io.StringIO()), \
+                    contextlib.redirect_stderr(_ba_err):
+                try:
+                    issue_audit_state.cmd_record_finding_evidence(argparse.Namespace(
+                        cmd='record-finding-evidence', slug='s', nonce='n0', round=1,
+                        finding_id=None, locator=None, command=None, observed_stdin=False,
+                        baseline_revision=None, baseline_identity=None,
+                        finding_evidence_records_file=_ba_path))
+                    _ba_exit = None
+                except SystemExit as exc:
+                    _ba_exit = exc
+            _ba_keys = sorted(issue_audit_state.load_state('s', root=_ba_root)
+                              .get('finding_evidence', {}))
+        finally:
+            issue_audit_state._repo_root = _ba_orig
+        return _ba_exit, _ba_err.getvalue(), _ba_keys
+
+    _ba_exit, _ba_msg, _ba_keys = _ba_run(
+        {'finding_id': 7, 'locator': 'L1', 'command': 'C1', 'observed': 'O1',
+         'baseline_revision': 'R1'})
+    assert_eq("#1803 batch atomicity: a record colliding with PRIOR-call evidence refuses "
+              "the batch", True, _ba_exit is not None)
+    assert_eq("#1803 batch atomicity: the refusal is attributed to the overwrite guard, not "
+              "a precondition", True, 'evidence-overwrite-differs' in _ba_msg)
+    assert_eq("#1803 batch atomicity: the earlier record in the same batch is NOT persisted "
+              "(one save, after the loop)", ['1:7'], _ba_keys)
+    # Positive control on the same fixture: only the colliding entry's disagreement changes.
+    _pc_exit, _pc_msg, _pc_keys = _ba_run(
+        {'finding_id': 7, 'locator': 'L0', 'command': 'C0', 'observed': 'O0',
+         'baseline_revision': 'R0'})
+    assert_eq("#1803 batch atomicity positive control: an idempotent replay of the colliding "
+              "entry lands the whole batch", (None, ['1:5', '1:7']), (_pc_exit, _pc_keys))
+# (7) Do not restore the summary-block guard to a silent swallow: a `summary_fields` data-shape
+# bug would drop the block for every caller with no signal, and only the breadcrumb tells that
+# loss apart from a subcommand that legitimately emits none. The primary next_call= must survive.
+_sw_orig = issue_audit_state._summary_block_line
+_sw_out, _sw_err = io.StringIO(), io.StringIO()
+try:
+    def _sw_boom(_fields):
+        raise ValueError('rendered nothing')
+    issue_audit_state._summary_block_line = _sw_boom
+    with contextlib.redirect_stdout(_sw_out), contextlib.redirect_stderr(_sw_err):
+        issue_audit_state._emit_next_call('record-degraded', argparse.Namespace(
+            cmd='record-degraded', slug='no-such-slug-1803', nonce='n0', round=None,
+            draft_file=None), {})
+finally:
+    issue_audit_state._summary_block_line = _sw_orig
+assert_eq("#1803 summary_block guard: a non-AssertionError render failure names itself on stderr",
+          True, 'summary-block render failed' in _sw_err.getvalue()
+          and 'ValueError' in _sw_err.getvalue())
+assert_eq("#1803 summary_block guard: the primary next_call= line still prints (no block)",
+          (True, False), (_sw_out.getvalue().startswith('next_call='),
+                          'summary-block' in _sw_out.getvalue()))
 # _binding_line — the query answer shape, incl. the fail-closed unbound token.
 assert_eq("#562 _binding_line: unbound state answers the fail-closed bound=none token",
           'bound=none tier=none non_bound_root=none latest_revision_landed=yes',

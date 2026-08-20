@@ -4898,7 +4898,12 @@ def _emit_next_call(cmd_name, args, ctx):
         _block = _summary_block_line(summary_fields(state))
     except AssertionError:
         raise
-    except Exception:  # noqa: BLE001 - secondary channel; the primary next_call must survive
+    except Exception as _exc:  # noqa: BLE001 - secondary channel; the primary next_call must survive
+        # Name the swallow on stderr: without it a `summary_fields` data-shape bug drops the
+        # block for every caller with no signal, leaving the loss indistinguishable from a
+        # subcommand that legitimately emits none.
+        print(f'issue-audit-state: summary-block render failed ({type(_exc).__name__}: {_exc}); '
+              'block omitted, next_call= stands', file=sys.stderr)
         _block = None
     if _block is not None:
         print(_block)
