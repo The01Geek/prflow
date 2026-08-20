@@ -18,7 +18,10 @@ worse than no premise at all.
 
 The helper's second, **non-adjudicating** pass surfaces these: it reports every collocation-family
 phrase ("verified against", "confirmed against", "checked against", "verified at drafting time") in a
-premise-bearing region as an `ungraded_claim=…` line. **The drafting-side duty** (stated in
+premise-bearing region — and every blockquote-prefixed `> Verified:` line, which no grading arm
+matches because the leading `>` breaks the line anchor — as an `ungraded_claim=…` line, so a
+verification wearing a shape the marker cannot grade is reported rather than counted as a silent
+zero. **The drafting-side duty** (stated in
 `skills/create-issue/references/step-3-5-steelman.md` and executed at
 `skills/create-issue/references/step-3-6-audit.md`): resolve **every** ungraded detection before the
 draft is presented to the user — either rewrite the annotation as a `Verified:` bullet carrying a
