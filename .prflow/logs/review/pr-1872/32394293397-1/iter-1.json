@@ -1,0 +1,151 @@
+{
+  "iter": 1,
+  "fix_commit_sha": "bc35a26",
+  "fix_files": [
+    "lib/test/test_python_scripts.py"
+  ],
+  "loop_role": "fix",
+  "current_step": "3",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "the > **Verified:** non-double-count behavior is claimed in a comment but never tested",
+      "defect_signature": {
+        "file": "scripts/check-verified-premises.py",
+        "line_range": [
+          268,
+          271
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "the mixed-origin document-order sort of ungraded detections is untested",
+      "defect_signature": {
+        "file": "scripts/check-verified-premises.py",
+        "line_range": [
+          826,
+          841
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "the truncated-quotation reroute is only exercised with ASCII quotes, not typographic or len(quotes)>1",
+      "defect_signature": {
+        "file": "scripts/check-verified-premises.py",
+        "line_range": [
+          659,
+          672
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "the re-captured-baseline comment exceeds the three-line cap (derivation-heavy)",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          22,
+          27
+        ],
+        "kind": "style"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "truncated-quote heuristic can conservatively downgrade a real refutation to unestablished on unrelated stray quote chars (conservative by design, matches AC3)",
+      "defect_signature": {
+        "file": "scripts/check-verified-premises.py",
+        "line_range": [
+          659,
+          671
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "bc35a26"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "bc35a26"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "bc35a26"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "bc35a26"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "advisory",
+      "source_file": "scripts/check-verified-premises.py",
+      "claim_text": "truncated_quote count heuristic can downgrade a real refutation",
+      "skip_category": "advisory-parked",
+      "evidence": "conservative-by-design; matches AC3's fail-toward-unestablished asymmetry; corroborated by silent-failure-hunter and requesting-code-review as intended behavior",
+      "parking_evidence": {
+        "basis": "the module's documented refute->unestablished asymmetry is the intended safe direction",
+        "failing_input": "a bullet span carrying stray double-quote characters outside the matched pair",
+        "source": "scripts/check-verified-premises.py:659-671",
+        "finding_ref": {
+          "iter": 1,
+          "index": 4
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 4,
+    "fix_diff_lines": 40,
+    "new_corroborated_critical_count": 0
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
