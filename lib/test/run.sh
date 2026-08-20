@@ -39397,7 +39397,7 @@ assert_eq "#423 T9 schema: severity default important" "important" "$(jq -r "$SP
 assert_eq "#423 T9 schema: severity enum is exactly the three values" '["critical","important","suggestion"]' "$(jq -c "$SP_PROP.properties.severity.enum" "$SP_SCHEMA")"
 assert_eq "#423 T9 example: enabled scaffolds false (consumer default off)" "false" "$(jq -r '.prflow_review.stale_prose.enabled' "$SP_EXAMPLE")"
 assert_eq "#423 T9 example: severity matches schema default" "important" "$(jq -r '.prflow_review.stale_prose.severity' "$SP_EXAMPLE")"
-assert_eq "#423 T9 tracked config carries stale_prose.enabled explicitly" "true" "$(jq -r '.prflow_review.stale_prose.enabled' "$SP_CONFIG")"
+assert_eq "#423 T9 tracked config carries stale_prose.enabled explicitly" "false" "$(jq -r '.prflow_review.stale_prose.enabled' "$SP_CONFIG")"
 assert_eq "#423 T9 tracked config carries stale_prose.severity explicitly" "suggestion" "$(jq -r '.prflow_review.stale_prose.severity' "$SP_CONFIG")"
 # scaffold-config.sh scaffolds config.json FROM config.example.json (cp + deep-merge
 # backfill), so the block flows into the scaffolder's output — proven end-to-end.

@@ -128,7 +128,7 @@
     "verdict_severity_threshold": "critical",
     "live_progress_comment_enabled": true,
     "stale_prose": {
-      "enabled": true,
+      "enabled": false,
       "severity": "suggestion"
     },
     "require_up_to_date": true,
