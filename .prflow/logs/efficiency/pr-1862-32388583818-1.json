@@ -114,5 +114,92 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.41",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 56.83501880000004,
+    "tokens": {
+      "input_tokens": 332,
+      "output_tokens": 149867,
+      "cache_read_input_tokens": 59637690,
+      "cache_creation_input_tokens": 632350,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 552,
+        "outputTokens": 215480,
+        "cacheReadInputTokens": 66021701,
+        "cacheCreationInputTokens": 1649600,
+        "webSearchRequests": 0,
+        "costUSD": 51.08192300000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 260,
+        "outputTokens": 39411,
+        "cacheReadInputTokens": 6237661,
+        "cacheCreationInputTokens": 877294,
+        "webSearchRequests": 0,
+        "costUSD": 5.7530958,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 280,
+    "duration_ms": 5049871
+  },
+  "permission_denials": {
+    "count": 27,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GHA=[$GITHUB_ACTIONS] RUN_ID=[$GITHUB_RUN_ID]\"; git branch --show-current; git config user.name",
+      ".prflow/vendor/prflow/scripts/workpad.py handoff-state \".prflow/tmp/implement-handoff-1859-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT.json\" --issue 1859 --run-id \"$GITHUB_RUN_ID\" --run-attempt \"$GITHUB_RUN_ATTEMPT\"",
+      "PR_JSON=$(gh pr list --search \"1859 in:body\" --state open --json number,headRefName,createdAt,closingIssuesReferences,isCrossRepository) || PR_JSON=''\necho \"$PR_JSON\"",
+      "BASE=$(.prflow/vendor/prflow/scripts/config-get.sh .base_branch main) || BASE=\"\"\n[ -n \"$BASE\" ] || BASE=main\nCUR=$(git branch --show-current 2>/dev/null) || CUR=\"\"\nCOMMON_DIR=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || COMMON_DIR=\"\"\nGIT_DIR_PATH=$(git rev-parse --path-format=absolute --git-dir 2>/dev/null) || GIT_DIR_PATH=\"\"\necho \"BASE=$BASE CUR=$CUR COMMON_DIR=$COMMON_DIR GIT_DIR_PATH=$GIT_DIR_PATH\"",
+      ".prflow/vendor/prflow/scripts/workpad.py update 1859 --branch \"$(git branch --show-current)\"",
+      "ls .changeset/ | head; echo \"---sample---\"; cat \"$(ls .changeset/*.md 2>/dev/null | grep -v README | head -1)\" 2>/dev/null",
+      "lib/test/test_module_runner.py 2>&1 | tail -20; echo \"MRUNNER_EXIT=${PIPESTATUS[0]}\"",
+      "lib/test/test_mutation_pin_census.py 2>&1 | tail -15; echo \"CENSUS_EXIT=${PIPESTATUS[0]}\"",
+      "lib/test/test_module_runner.py 2>&1 | tail -20",
+      "lib/test/test_mutation_pin_census.py 2>&1 | tail -15",
+      "git diff --merge-base origin/main -U0 | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree; echo \"LINT_EXIT_FOLLOWS\"; git diff --merge-base origin/main -U0 | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree > /home/runner/work/prflow/prflow/.prflow/tmp/sp.out 2>/home/runner/work/prflow/prflow/.prflow/tmp/sp.err; echo \"rc-captured\"; cat /home/runner/work/prflow/prflow/.prflow/tmp/sp.err",
+      "git diff --no-index -U0 /dev/null .changeset/issue-1859-delete-terminal-result-classifier.md | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree; echo \"rc-done\"",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1862/32388583818-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1862/32388583818-1/verdicts/iter-1/VC-10-k3w9.json << 'EOF'\n{\n  \"id\": \"VC-10\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"scripts/workflow-flight-recorder-registry.json has no 'terminal-result-class' entry anywhere (grep found zero matches); the file remains valid JSON (python3 json.load succeeded); the test_modules object's last entry is now 'iss …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow; echo \"=== deleted files exist? ===\"; for f in scripts/terminal-result-class.sh lib/terminal-result-table.tsv lib/generate-terminal-result-table.py lib/test/modules/terminal-result-class.sh lib/test/modules/terminal-result-class.inventory.md; do [ -e \"$f\" ] && echo \"STILL EXISTS: $f\" || echo \"gone: $f\"; done; echo \"=== terminal-result-class owner leftovers ===\"; grep -rn \"terminal-result-class\" --include=*.json --include=*.sh --include=*.py --include=*.yml . |  …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow; for f in scripts/terminal-result-class.sh lib/terminal-result-table.tsv lib/generate-terminal-result-table.py lib/test/modules/terminal-result-class.sh lib/test/modules/terminal-result-class.inventory.md; do test -e \"$f\" && echo \"STILL EXISTS $f\" || echo \"gone $f\"; done",
+      "for f in lib/test/pin-corpus-lint.py .github/workflows/ci.yml lib/test/modules/coverage-map.json lib/test/regenerate-artifacts.py lib/test/run-shard.sh lib/test/run.sh scripts/workflow-flight-recorder-registry.json; do printf '%s: ' \"$f\"; grep -c 'terminal-result' \"$f\"; done",
+      "mkdir -p .prflow/tmp/verification-flights\ncat > /tmp/flight-input.json <<'EOF'\n{\n  \"profile\": {\n    \"profile_version\": 1,\n    \"argv\": [\"lib/test/run-parallel.sh\"],\n    \"cwd\": \"/home/runner/work/prflow/prflow\",\n    \"environment\": {},\n    \"toolchain\": {},\n    \"dependencies\": {},\n    \"output_roots\": [\".prflow/tmp/parallel-suite\"],\n    \"external_services\": \"none\"\n  },\n  \"checkout\": {\n    \"checkout_id\": \"/home/runner/work/prflow/prflow/.git\",\n    \"head\": \"beff7a1d061445292cede6f7ada738be369c3801\",\n   …[per-command-truncated]",
+      "python3 - <<'PYEOF'\nimport json\ndata = {\n  \"profile\": {\n    \"profile_version\": 1,\n    \"argv\": [\"lib/test/run-parallel.sh\"],\n    \"cwd\": \"/home/runner/work/prflow/prflow\",\n    \"environment\": {},\n    \"toolchain\": {},\n    \"dependencies\": {},\n    \"output_roots\": [\".prflow/tmp/parallel-suite\"],\n    \"external_services\": \"none\"\n  },\n  \"checkout\": {\n    \"checkout_id\": \"/home/runner/work/prflow/prflow/.git\",\n    \"head\": \"beff7a1d061445292cede6f7ada738be369c3801\",\n    \"index_digest\": \"739f3041f21c558ea4dea …[per-command-truncated]",
+      "python3 -c \"\nimport json\nd = {\n  'exit_status': 0,\n  'aggregate': 'CLEAN',\n  'passed': 20442,\n  'failed': 0,\n  'skipped': 0,\n  'command': 'lib/test/run-parallel.sh',\n  'run_root': '/home/runner/work/prflow/prflow/.prflow/tmp/parallel-suite/run-196991-0',\n  'shards': ['monolith', 'python-pool', 'modules-pin', 'modules-large', 'modules-rest']\n}\njson.dump(d, open('/tmp/flight-summary.json', 'w'))\nprint('ok')\n\"\nFLIGHT=cb81f6b0e92b82fa468e91cd6f90cf07353e2f1d0af90ad267ca3b1e80c9070b\nTOKEN=01f896d01bb …[per-command-truncated]",
+      "ls -la /tmp/flight-summary.json && cat /tmp/flight-summary.json",
+      "cat /tmp/flight-summary.json",
+      ".prflow/vendor/prflow/scripts/checkout-fingerprint.py > .prflow/tmp/verification-flights/current-checkout-1859.json 2>&1\n.prflow/vendor/prflow/scripts/verification-flight.py status --flight cb81f6b0e92b82fa468e91cd6f90cf07353e2f1d0af90ad267ca3b1e80c9070b --current-checkout-file .prflow/tmp/verification-flights/current-checkout-1859.json 2>&1\necho \"EXIT=$?\"\nfind .prflow/tmp/verification-flights -maxdepth 1 -type f",
+      ".prflow/vendor/prflow/skills/docs/../../scripts/config-get.sh .docs.internal_enabled true; echo \"---\"; .prflow/vendor/prflow/skills/docs/../../scripts/config-get.sh .docs.external_enabled true",
+      "scripts/prompt-surface-growth.py 2>&1; echo \"RC=$?\"",
+      "scripts/prompt-surface-growth.py 2>&1; echo \"RC=$?\"",
+      "cat > /tmp/pr1862-body.md <<'EOF'\n[View run](https://github.com/The01Geek/prflow/actions/runs/32388583818)\n\n<!-- PR_BODY_START -->\n## Summary\n- Delete the `terminal-result` classifier shipped by PR #1792 (issue #1273): nothing — no workflow, skill, or script — ever wired it, and the follow-up family (#1794, #1797, #1798, #1799) that would have is closed, so it was permanently dead code vendored into every consumer checkout.\n- Sweep every reference to it in the same change so the suite passes wit …[per-command-truncated]",
+      "lib/test/run-parallel.sh 2>&1 | tail -25; echo \"SUITE-EXIT=${PIPESTATUS[0]}\""
+    ],
+    "total": 27,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
