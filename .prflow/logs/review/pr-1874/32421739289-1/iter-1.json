@@ -1,0 +1,185 @@
+{
+  "iter": 1,
+  "fix_commit_sha": "27ea3452def97e51776c4b24bec167285ecc7105",
+  "fix_files": [
+    "scripts/resolve-command-trigger.sh",
+    ".github/workflows/devflow.yml",
+    "lib/test/modules/review-trigger-helpers.sh"
+  ],
+  "loop_role": "fix",
+  "current_step": "3.5",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "detect_all_audit": false,
+    "checklist_skipped": null
+  },
+  "checklist": [
+    {
+      "id": "VC-1",
+      "category": "issue_acceptance",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-2",
+      "category": "issue_acceptance",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-3",
+      "category": "issue_acceptance",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-4",
+      "category": "issue_acceptance",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-5",
+      "category": "issue_acceptance",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-6",
+      "category": "issue_acceptance",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-7",
+      "category": "issue_acceptance",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-8",
+      "category": "absolute_claim",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-9",
+      "category": "dependency_interaction",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-10",
+      "category": "test_mock_alignment",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-11",
+      "category": "data_format_assumption",
+      "verdict": "PASS"
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "Widened decline path untested: trailing number + empty context_number now declines (was: fired); <none> rendering untested",
+      "defect_signature": {
+        "file": "scripts/resolve-command-trigger.sh",
+        "line_range": [
+          190,
+          200
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "Discard stderr line asserted for review only, not review-and-fix / pr-description",
+      "defect_signature": {
+        "file": "lib/test/modules/review-trigger-helpers.sh",
+        "line_range": [
+          174,
+          179
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "Resolver target-number comment (10 lines) exceeds the 3-line comment cap; derivation-heavy",
+      "defect_signature": {
+        "file": "scripts/resolve-command-trigger.sh",
+        "line_range": [
+          207,
+          216
+        ],
+        "kind": "style"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "devflow.yml first reworded comment block (5 lines) exceeds the 3-line cap; carries provenance",
+      "defect_signature": {
+        "file": ".github/workflows/devflow.yml",
+        "line_range": [
+          39,
+          43
+        ],
+        "kind": "style"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "27ea3452",
+      "evidence": "Added rct #1863 test: trailing number + empty CONTEXT_NUMBER (direct env form) declines should_run=false and the discard line renders <none>"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "27ea3452",
+      "evidence": "Added discard-line grep assertions for review-and-fix and pr-description"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "27ea3452",
+      "evidence": "Trimmed the resolver target-number comment to 3 lines (instruction + PATH-tool prevention; rationale removed)"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "27ea3452",
+      "evidence": "Trimmed devflow.yml first comment block to 3 lines"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 4,
+    "fix_diff_lines": 25,
+    "new_corroborated_critical_count": 0
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "refixed",
+      "reason": "module review-trigger-helpers 844 passed 0 failed after fixes; resolver shellcheck clean; regenerate-artifacts reconciled"
+    }
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
