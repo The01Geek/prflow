@@ -3253,6 +3253,18 @@ assert_eq "#1870 analyzed-digest: clean with only suggested_interventions popula
 AD_VIEW2B="$(ad_run '{"pr":9,"verdict":"clean","summary":"only descriptors","categories":[],"descriptors":["d"],"suggested_interventions":[]}')"
 assert_eq "#1870 analyzed-digest: clean with only descriptors populated is included" "true" \
   "$(printf '%s' "$AD_VIEW2B" | jq -e 'any(.[]; .pr == 9)' >/dev/null 2>&1 && echo true || echo false)"
+# A malformed field alongside a valid populated one still qualifies: the per-field
+# arrays guard tolerates the bad field while the good field includes the row.
+AD_VIEW2C="$(ad_run '{"pr":10,"verdict":"clean","summary":"malformed+valid","categories":"oops","descriptors":["d"],"suggested_interventions":[]}')"
+assert_eq "#1870 analyzed-digest: clean with one malformed field but another populated is included" "true" \
+  "$(printf '%s' "$AD_VIEW2C" | jq -e 'any(.[]; .pr == 10)' >/dev/null 2>&1 && echo true || echo false)"
+# A verdict outside {imperfect,blocked,clean} is excluded.
+AD_VIEW4="$(ad_run '{"pr":11,"verdict":"skipped","summary":"unknown verdict","categories":["x"]}')"
+assert_eq "#1870 analyzed-digest: an unknown verdict is excluded" "false" \
+  "$(printf '%s' "$AD_VIEW4" | jq -e 'any(.[]; .pr == 11)' >/dev/null 2>&1 && echo true || echo false)"
+# An empty entry stream yields an empty selection, not an error.
+assert_eq "#1870 analyzed-digest: empty input yields []" "[]" \
+  "$(printf '' | jq -sc -f "$LIB/analyzed-digest.jq")"
 # Robustness: a malformed (non-array) analysis field on one row must not abort the
 # whole filter — the well-formed imperfect row on the next line still comes through.
 AD_VIEW3="$(ad_run '{"pr":6,"verdict":"clean","summary":"malformed","categories":"oops","descriptors":null,"suggested_interventions":[]}
