@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1862",
+  "generated_at": "2026-08-20T17:50:38Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.42",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 10.445069750000002,
+    "tokens": {
+      "input_tokens": 46,
+      "output_tokens": 25659,
+      "cache_read_input_tokens": 3377757,
+      "cache_creation_input_tokens": 201532,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 188,
+        "outputTokens": 63495,
+        "cacheReadInputTokens": 8442082,
+        "cacheCreationInputTokens": 620795,
+        "webSearchRequests": 0,
+        "costUSD": 10.445069750000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 32,
+    "duration_ms": 563052
+  },
+  "permission_denials": {
+    "count": 4,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-unset} ATTEMPT=${GITHUB_RUN_ATTEMPT:-unset}\"; echo \"run-id-literal=${GITHUB_RUN_ID:-local-$(date -u +%Y%m%dT%H%M%SZ)}-${GITHUB_RUN_ATTEMPT:-1}\"",
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-unset} ATTEMPT=${GITHUB_RUN_ATTEMPT:-unset}\"",
+      "/home/runner/work/prflow/prflow/skills/requesting-code-review/../../scripts/load-prompt-extension.sh requesting-code-review",
+      "scripts/load-prompt-extension.sh requesting-code-review"
+    ],
+    "total": 4,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
