@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1810",
+  "generated_at": "2026-08-20T02:05:50Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.38",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 13.854854250000004,
+    "tokens": {
+      "input_tokens": 76,
+      "output_tokens": 52357,
+      "cache_read_input_tokens": 7225290,
+      "cache_creation_input_tokens": 288353,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 150,
+        "outputTokens": 96029,
+        "cacheReadInputTokens": 9641695,
+        "cacheCreationInputTokens": 845597,
+        "webSearchRequests": 0,
+        "costUSD": 13.588627500000003,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 1,
+        "outputTokens": 6181,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 46269,
+        "webSearchRequests": 0,
+        "costUSD": 0.26622674999999996,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 63,
+    "duration_ms": 1026598
+  },
+  "permission_denials": {
+    "count": 4,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---RUNENV---\"; echo \"run=${GITHUB_RUN_ID:-none} attempt=${GITHUB_RUN_ATTEMPT:-1}\"",
+      "echo \"run=$GITHUB_RUN_ID attempt=$GITHUB_RUN_ATTEMPT actions=$GITHUB_ACTIONS\"",
+      "echo \"=== is .prflow/vendor tracked? ===\"; git ls-files '.prflow/vendor/*' | head -3; echo \"vendor-tracked-count: $(git ls-files '.prflow/vendor/*' | wc -l)\"; echo \"=== .gitignore for vendor ===\"; git check-ignore .prflow/vendor/prflow/scripts/render-pr-provenance-line.py || echo \"(not ignored)\"",
+      "mkdir -p .prflow/tmp\nif rm -f \".prflow/tmp/review-dirty-tree-before\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \".prflow/tmp/review-dirty-tree-before\" &&\n   [ -f \".prflow/tmp/review-dirty-tree-before\" ] &&\n   [ ! -L \".prflow/tmp/review-dirty-tree-before\" ] &&\n   git hash-object \".prflow/tmp/review-dirty-tree-before\"; then\n  :\nelse\n  echo \"::warning::snapshot failed\" >&2\n  rm -f \".prflow/tmp/review-dirty-tree-before\" 2>/dev/null\n  printf '%s\\n' disabled …[per-command-truncated]"
+    ],
+    "total": 4,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
