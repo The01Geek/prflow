@@ -290,5 +290,87 @@
       "iter": 4,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.41",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 82.1985295,
+    "tokens": {
+      "input_tokens": 444,
+      "output_tokens": 234027,
+      "cache_read_input_tokens": 95502265,
+      "cache_creation_input_tokens": 702417,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 772,
+        "outputTokens": 373473,
+        "cacheReadInputTokens": 103942378,
+        "cacheCreationInputTokens": 2465541,
+        "webSearchRequests": 0,
+        "costUSD": 79.355569,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 126,
+        "outputTokens": 22356,
+        "cacheReadInputTokens": 3538150,
+        "cacheCreationInputTokens": 385546,
+        "webSearchRequests": 0,
+        "costUSD": 2.8429605,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 276,
+    "duration_ms": 7563199
+  },
+  "permission_denials": {
+    "count": 22,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-<unset>}\"; echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-<unset>}\"; echo \"BASE=${BASE:-<unset>}\"; git branch --show-current; git status --porcelain | head; ls .prflow/tmp/ 2>/dev/null || echo \"no tmp\"",
+      "cd /home/runner/work/prflow/prflow\nBASE=$(.prflow/vendor/prflow/scripts/config-get.sh .base_branch main) || BASE=\"\"\n[ -n \"$BASE\" ] || BASE=main\necho \"BASE=$BASE\"\ngit fetch origin \"+refs/heads/$BASE:refs/remotes/origin/$BASE\"",
+      "cd /home/runner/work/prflow/prflow\nrun() { .prflow/vendor/prflow/scripts/workpad.py update 1866 \"$@\" || scripts/workpad.py update 1866 \"$@\" || python3 scripts/workpad.py update 1866 \"$@\"; }\n\nrun --note \"issue-claim audit (projection): every Desired Behavior obligation is represented in the resolved acceptance criteria — pass complete\"\n\nrun --note \"issue-claim audit (count): no count or enumeration claims found — pass complete\"\n\nrun --note \"issue-claim audit (negative-scope): issue excluded 'work …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/repro-1866\ncd() { echo \"no cd\"; }\n# Defect 1: blockquote-prefixed Verified line only\nprintf '## Current Behavior\\n\\nSome text.\\n\\n> Verified: `scripts/check-verified-premises.py` \"the quoted premise here\"\\n' > /home/runner/work/prflow/prflow/.prflow/tmp/repro-1866/d1.md\necho \"=== DEFECT 1 (blockquote-only) ===\"\n.prflow/vendor/prflow/scripts/check-verified-premises.py --body-file /home/runner/work/prflow/prflow/.prflow/tmp/repro-1866/d1.md --re …[per-command-truncated]",
+      "lib/test/test_python_scripts.py 2>&1 | grep -iE \"FAIL|#1866|Traceback|AssertionError\" | head; echo \"RC=${PIPESTATUS[0]}\"; echo \"---tail---\"; lib/test/test_python_scripts.py 2>&1 | tail -5",
+      "scripts/check-verified-premises.py --body-file lib/test/fixtures/issue-1441-body.md --repo-root /home/runner/work/prflow/prflow 2>&1 | grep -E \"^bullet=|VERIFIED_PREMISES\"",
+      "lib/test/lint-reference-size.py 2>&1 | tail -15; echo \"RSEXIT=$?\"",
+      "git diff --no-index -U0 /dev/null .changeset/issue-1866-check-verified-premises.md | python3 scripts/stale-prose-lint.py --worktree; echo \"SP_EXIT=$?\"",
+      "git diff --no-index -U0 /dev/null .changeset/issue-1866-check-verified-premises.md > .prflow/tmp/cs-1866.diff 2>/dev/null || true",
+      "git diff origin/main...HEAD > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1872/32394293397-1/diff.patch\ngit status --porcelain; echo \"SNAP_END\"; wc -l /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1872/32394293397-1/diff.patch",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp\nCO=$(python3 /home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/checkout-fingerprint.py)\npython3 - \"$CO\" <<'PYEOF'\nimport json,sys\nco = json.loads(sys.argv[1])\ndecl = {\n  \"schema_version\": 1,\n  \"profile\": {\n    \"profile_version\": 1,\n    \"argv\": [\"lib/test/test_python_scripts.py\"],\n    \"cwd\": \"/home/runner/work/prflow/prflow\",\n    \"environment\": {},\n    \"toolchain\": {},\n    \"dependencies\": {},\n    \"output_roots\": [],\n    \"external_se …[per-command-truncated]",
+      "cat > /home/runner/work/prflow/prflow/.prflow/tmp/build_decl.py <<'PYEOF'\nimport json, subprocess\nco = json.loads(subprocess.check_output([\"python3\", \"/home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/checkout-fingerprint.py\"]))\ndecl = {\n  \"schema_version\": 1,\n  \"profile\": {\n    \"profile_version\": 1,\n    \"argv\": [\"lib/test/test_python_scripts.py\"],\n    \"cwd\": \"/home/runner/work/prflow/prflow\",\n    \"environment\": {},\n    \"toolchain\": {},\n    \"dependencies\": {},\n    \"output_roots\": [], …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp; printf 'placeholder' > /home/runner/work/prflow/prflow/.prflow/tmp/build_decl.py; echo ok",
+      "INTERNAL_ENABLED=$(\"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/.prflow/vendor/prflow/skills/docs}\"/../../scripts/config-get.sh .docs.internal_enabled true); EXTERNAL_ENABLED=$(\"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/.prflow/vendor/prflow/skills/docs}\"/../../scripts/config-get.sh .docs.external_enabled true); echo \"INTERNAL=$INTERNAL_ENABLED EXTERNAL=$EXTERNAL_ENABLED\"",
+      "\"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/.prflow/vendor/prflow/skills/docs}\"/../../scripts/load-prompt-extension.sh docs; echo \"EXIT=$?\"",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/config-get.sh .docs.internal_enabled true",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/config-get.sh .docs.external_enabled true",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/load-prompt-extension.sh docs",
+      "( .prflow/vendor/prflow/scripts/load-prompt-extension.sh pr-description 2>/dev/null || scripts/load-prompt-extension.sh pr-description )",
+      ".prflow/vendor/prflow/scripts/prompt-surface-growth.py 2>&1 || scripts/prompt-surface-growth.py",
+      "mkdir -p .prflow/tmp && cat > .prflow/tmp/pr-1872-body.md <<'EOF'\n<!-- PR_BODY_START -->\n## Summary\n- `scripts/check-verified-premises.py` graded a backticked command's double-quoted argument as the premise quotation and printed a clean `total=0` for bodies whose verification bullets it never recognized — a clean line no longer means \"graded\".\n- Text inside backtick code spans is now excluded from quotation detection, blockquote-prefixed `> Verified:` lines are surfaced as ungraded claims, a quo …[per-command-truncated]",
+      "PR_NUMBER=$(gh pr view 1872 --json number --jq '.number'); if [ -z \"$PR_NUMBER\" ]; then echo \"ERROR: empty PR number\"; exit 1; fi; gh api --method PATCH \"repos/{owner}/{repo}/pulls/${PR_NUMBER}\" -F body=@.prflow/tmp/pr-1872-body.md --jq '.number'"
+    ],
+    "total": 22,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
