@@ -4670,10 +4670,14 @@ assert_eq "rct #1863: plain-spelling → discarded number named on stderr" \
   "1" "$(grep -c 'ignoring 42 .*using the thread.s number 99' "$RCT_ERR")"; rm -f "$RCT_ERR"
 rct_run "/devflow:review-and-fix #42"
 assert_eq "rct #1863: review-and-fix trailing number → thread's number" \
-  "command=/prflow:review-and-fix 99" "$(echo "$RCT_OUT" | grep '^command=')"; rm -f "$RCT_ERR"
+  "command=/prflow:review-and-fix 99" "$(echo "$RCT_OUT" | grep '^command=')"
+assert_eq "rct #1863: review-and-fix → discarded number named on stderr" \
+  "1" "$(grep -c 'ignoring 42 .*using the thread.s number 99' "$RCT_ERR")"; rm -f "$RCT_ERR"
 rct_run "/devflow:pr-description 42"
 assert_eq "rct #1863: pr-description trailing number → thread's number" \
-  "command=/prflow:pr-description 99" "$(echo "$RCT_OUT" | grep '^command=')"; rm -f "$RCT_ERR"
+  "command=/prflow:pr-description 99" "$(echo "$RCT_OUT" | grep '^command=')"
+assert_eq "rct #1863: pr-description → discarded number named on stderr" \
+  "1" "$(grep -c 'ignoring 42 .*using the thread.s number 99' "$RCT_ERR")"; rm -f "$RCT_ERR"
 rct_run "/devflow:review 99"                      # typed number equals the thread's own
 assert_eq "rct #1863: typed number equal to the thread's still discards to the thread" \
   "command=/prflow:review 99" "$(echo "$RCT_OUT" | grep '^command=')"
@@ -4684,6 +4688,19 @@ assert_eq "rct #1863: no trailing number → thread's number (unchanged)" \
   "command=/prflow:review 99" "$(echo "$RCT_OUT" | grep '^command=')"
 assert_eq "rct #1863: no trailing number → no discard line on stderr" \
   "0" "$(grep -c 'addresses the thread it was posted on' "$RCT_ERR")"; rm -f "$RCT_ERR"
+# A trailing number with NO context/thread number: the thread is the sole source, so
+# the resolver declines (should_run=false) and the discard line renders the used
+# number as <none> via ${context_number:-<none>} — the widened decline path. Driven
+# with a direct empty CONTEXT_NUMBER (rct_run's `${2:-99}` would coerce "" back to 99).
+RCT_NC_ERR="$(mktemp)"
+OUT="$(PATH="$RCT_STUB:$PATH" ACTOR="devflow-bot" ALLOWED_BOTS="devflow-bot" \
+  REPO="o/r" GH_TOKEN="x" CONTEXT_NUMBER="" \
+  TRIGGER_TEXT="/devflow:review 42" bash "$RCT" 2>"$RCT_NC_ERR")"
+assert_eq "rct #1863: trailing number + no context number → declines" \
+  "should_run=false" "$(echo "$OUT" | grep '^should_run=')"
+assert_eq "rct #1863: …and the discard line renders the thread number as <none>" \
+  "1" "$(grep -c 'ignoring 42 .*using the thread.s number <none>' "$RCT_NC_ERR")"
+rm -f "$RCT_NC_ERR"
 
 rm -rf "$RCT_STUB"
 

@@ -1970,11 +1970,9 @@ jobs:
               exit 0
               ;;
           esac
-          # TARGET_NUMBER is the command's own number (the detector emits
-          # `/prflow:<cmd> <n>`; since issue #1863 that equals the thread the comment
-          # and the seeded progress comment sit on, and the fallback covers a
-          # numberless command). Bash builtins only — a value that decides where a
-          # write lands must not flow through a non-preflight-guaranteed PATH tool.
+          # TARGET_NUMBER is the command's own number; since issue #1863 that equals the
+          # thread the comment sits on (the fallback covers a numberless command). Bash
+          # builtins only — this value decides where a write lands (no non-preflight PATH tool).
           TARGET_NUMBER="${COMMAND##* }"
           case "$TARGET_NUMBER" in
             ''|*[!0-9]*) TARGET_NUMBER="$CONTEXT_NUMBER" ;;

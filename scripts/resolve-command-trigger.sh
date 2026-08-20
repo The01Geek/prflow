@@ -177,16 +177,9 @@ if [ "$authorized" != "true" ]; then
 fi
 
 # --- Target number resolution -----------------------------------------------
-# A LIGHT command addresses the THREAD it was commented on, never a number typed
-# in the command text: the detector still recognises a trailing number (so which
-# comments fire is unchanged), but here that number is discarded in favour of the
-# event's context number, so the workflow's PR-ness guard tests the same thread
-# the acted-on number names, by construction (issue #1863). Discarding a typed
-# number that carried a real intent silently would strand the person who typed
-# it, so name both numbers on stderr (a run-log line) whenever one is discarded.
-# resolve-implement-trigger.sh is the heavy path and deliberately keeps
-# explicit-number-wins. Bash builtins only — a value that decides where a write
-# lands must not flow through a non-preflight-guaranteed PATH tool.
+# A light command addresses the THREAD it was commented on: discard the detector's
+# trailing number, use $context_number, and name both numbers on stderr when one is
+# discarded. Bash builtins only — this value decides where a write lands (issue #1863).
 if [ -n "$det_number" ]; then
   echo "::warning::${cmd} carries a trailing number ${det_number}, but a light command addresses the thread it was posted on; ignoring ${det_number} and using the thread's number ${context_number:-<none>}." >&2
 fi
