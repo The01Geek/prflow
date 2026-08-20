@@ -88,6 +88,7 @@ Schema of `.prflow/tmp/pr-<n>.context.json` produced by `fetch-pr-context.sh`:
 | `reflections` | array | The bullet lines from the workpad's `## Devflow Reflection` `<details>` block — the bot's own self-reported friction notes (`[]` when none) |
 | `review_verdicts` | array | Verdict entries in time order, drawn from the **union** of the PR conversation comments and the durable bot PR reviews: `[{verdict,createdAt,source}]` where `verdict` is APPROVE or REJECT and `source` is `pr_comment` or `pr_review`. Any verdict heading in either source qualifies (not only `/prflow:review` output). |
 | `implement_summary_comment` | string\|null | The `/prflow:implement` completion summary comment body |
+| `pr_devflow_provenance` | boolean | True iff the `PRFlow` provenance label (or its superseded `DevFlow` spelling) is on the PR or the resolved linked issue. |
 | `signals` | object | See below |
 
 `signals` sub-keys:
@@ -97,8 +98,8 @@ Schema of `.prflow/tmp/pr-<n>.context.json` produced by `fetch-pr-context.sh`:
 | `review_comments_count` | number | Total inline review comments |
 | `post_bot_commits` | number | Substantive commits by a human AFTER the bot's last commit — pure merge commits (`Merge branch 'main'` etc.) are not counted |
 | `ci_failures_during_pr` | number | Check-runs on the head SHA, across every page, whose conclusion is a real red signal — `failure`, `timed_out`, `action_required`, or any unrecognised conclusion (a denylist, so an unknown future one counts). Superseded runs (`cancelled`, `stale`) and `success`/`neutral`/`skipped`/still-running do not count. |
+| `ci_status_unknown` | boolean | True when the check-runs read failed or yielded no usable count, so `ci_failures_during_pr` is not trustworthy — CI status could not be established, which is never spotless. |
 | `workpad_final_status` | string | Parsed Status line from the workpad, e.g. `"Complete"`, `"Blocked"`, `"Cancelled"`, or one of the absent/corrupt sentinels `"Unparsed"` / `"Absent"` / `"NoIssue"`. |
-| `pr_devflow_provenance` | boolean | True iff the `PRFlow` provenance label (or its superseded `DevFlow` spelling) is on the PR or the resolved linked issue. |
 | `ttm_hours` | number | Time from PR creation to merge, in decimal hours |
 | `review_reject_outstanding` | boolean | True when the chronologically-last review verdict (from either conversation comments or durable PR reviews) is REJECT |
 
@@ -136,9 +137,9 @@ grade what actually shipped.
   `signals.ci_failures_during_pr` 0, `signals.review_comments_count` 0,
   `signals.review_reject_outstanding` false, `signals.ci_status_unknown` false,
   `signals.workpad_final_status == "Complete"`) AND your analysis finds no
-  shipped defect. The analysis still runs — the learnings, `categories`,
-  `descriptors`, `summary`, and `suggested_interventions` are still recorded;
-  only the grade reflects that nothing went wrong.
+  shipped defect. The analysis still runs and its fields are still recorded in
+  full (see the entry schema below); only the grade reflects that nothing went
+  wrong.
 - `imperfect` — the PR shipped but then needed substantive human commits
   after the bot's last commit (`signals.post_bot_commits > 0`), or a
   `/prflow:review` REJECT was left outstanding, or acceptance criteria from the
