@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1864",
+  "generated_at": "2026-08-20T17:44:26Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.42",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 3.1146910000000005,
+    "tokens": {
+      "input_tokens": 42,
+      "output_tokens": 12995,
+      "cache_read_input_tokens": 2725772,
+      "cache_creation_input_tokens": 142672,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 42,
+        "outputTokens": 12995,
+        "cacheReadInputTokens": 2725772,
+        "cacheCreationInputTokens": 142672,
+        "webSearchRequests": 0,
+        "costUSD": 3.1146910000000005,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 25,
+    "duration_ms": 206332
+  },
+  "permission_denials": {
+    "count": 3,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git grep -n -I -E 'import.review.verdict.handoff|import_review_verdict_handoff' 59570d90972dc6684db59af63f5a9f2b82047109 -- . ':(exclude)CHANGELOG.md' ':(exclude).prflow/learnings/**' ':(exclude).prflow/logs/**' ; echo \"---exit=$?---\"",
+      "git ls-tree -r --name-only 59570d90972dc6684db59af63f5a9f2b82047109 | grep -E 'import-review-verdict-handoff|import_review_verdict_handoff' ; echo \"---files at PR head (should be empty)---\"",
+      "git ls-tree -r --name-only 59570d90972dc6684db59af63f5a9f2b82047109 | grep -E 'import-review-verdict-handoff|import_review_verdict_handoff'"
+    ],
+    "total": 3,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
