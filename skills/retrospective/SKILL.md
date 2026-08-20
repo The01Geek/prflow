@@ -146,8 +146,9 @@ grade what actually shipped.
 - `blocked` — `signals.workpad_final_status == "Blocked"` or the workpad /
   PR thread shows work was abandoned mid-task with no shipped fix.
 
-When none of the three strictly fits, default to `clean` when every mechanical
-signal above is spotless and to `imperfect` otherwise.
+When none of the three strictly fits, default to `clean` only when every
+mechanical signal above is spotless **and** your analysis found no shipped
+defect, and to `imperfect` otherwise.
 
 Interim workpad states (`Setup`, `Discovering`, `Reproducing`, `Planning`,
 `Implementing`, `Reviewing`, `Documenting`) mean the run never reached Phase 4
