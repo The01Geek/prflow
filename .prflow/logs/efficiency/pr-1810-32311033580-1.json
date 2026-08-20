@@ -113,5 +113,92 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.37",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 72.76080889999999,
+    "tokens": {
+      "input_tokens": 374,
+      "output_tokens": 204747,
+      "cache_read_input_tokens": 79313437,
+      "cache_creation_input_tokens": 661435,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 684,
+        "outputTokens": 302123,
+        "cacheReadInputTokens": 89418205,
+        "cacheCreationInputTokens": 2326879,
+        "webSearchRequests": 0,
+        "costUSD": 69.28897249999996,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 112,
+        "outputTokens": 36250,
+        "cacheReadInputTokens": 3518118,
+        "cacheCreationInputTokens": 499284,
+        "webSearchRequests": 0,
+        "costUSD": 3.4718364,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 235,
+    "duration_ms": 5668448
+  },
+  "permission_denials": {
+    "count": 27,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=$GITHUB_ACTIONS\"; echo \"GITHUB_RUN_ID=$GITHUB_RUN_ID\"; echo \"GITHUB_REPOSITORY=$GITHUB_REPOSITORY\"; echo \"CLAUDE_SKILL_DIR=$CLAUDE_SKILL_DIR\"; git branch --show-current; git status --porcelain",
+      "printf 'GITHUB_ACTIONS=%s\\n' \"$GITHUB_ACTIONS\"; printf 'GITHUB_RUN_ID=%s\\n' \"$GITHUB_RUN_ID\"; printf 'RUN_ATTEMPT=%s\\n' \"$GITHUB_RUN_ATTEMPT\"; printf 'SKILLDIR=%s\\n' \"$CLAUDE_SKILL_DIR\"",
+      "printf 'actions[%s] run[%s] attempt[%s] skilldir[%s]\\n' \"$GITHUB_ACTIONS\" \"$GITHUB_RUN_ID\" \"$GITHUB_RUN_ATTEMPT\" \"$CLAUDE_SKILL_DIR\"",
+      "PR_JSON='[]'\nWP_BRANCH=\"\"\n[ \"$PR_JSON\" = \"[]\" ] && { PR_JSON=$(gh pr list --search \"1809 in:body\" --state open --json number,headRefName,createdAt,closingIssuesReferences,isCrossRepository) || PR_JSON=''; }\necho \"PR_JSON=$PR_JSON\"",
+      "BASE=$(.prflow/vendor/prflow/scripts/config-get.sh .base_branch main) || BASE=\"\"\n[ -n \"$BASE\" ] || BASE=main\nCUR=$(git branch --show-current 2>/dev/null) || CUR=\"\"\nCOMMON_DIR=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || COMMON_DIR=\"\"\nGIT_DIR_PATH=$(git rev-parse --path-format=absolute --git-dir 2>/dev/null) || GIT_DIR_PATH=\"\"\necho \"BASE=$BASE CUR=$CUR COMMON_DIR=$COMMON_DIR GIT_DIR_PATH=$GIT_DIR_PATH\"",
+      "for f in scripts/render-pr-provenance-line.py skills/implement/phases/phase-3-review.md skills/pr-description/SKILL.md skills/create-issue/references/step-4-present-create.md .prflow/config.schema.json .prflow/config.example.json docs/external/docs/configuration/implementation.md lib/test/modules/coverage-map.json; do [ -f \"$f\" ] && echo \"OK $f\" || echo \"MISSING $f\"; done",
+      "for f in scripts/render-pr-provenance-line.py skills/implement/phases/phase-3-review.md skills/pr-description/SKILL.md skills/create-issue/references/step-4-present-create.md .prflow/config.schema.json .prflow/config.example.json docs/external/docs/configuration/implementation.md lib/test/modules/coverage-map.json skills/create-issue/references/issue-template.md lib/test/lint-anchor-fallback-arm.py; do [ -f \"$f\" ] && echo OK:$f || echo MISSING:$f; done",
+      "\\\n.prflow/vendor/prflow/scripts/workpad.py update 1809 --note \"issue-claim audit (projection): every Desired Behavior obligation is represented in the resolved acceptance criteria — pass complete\" && \\\n.prflow/vendor/prflow/scripts/workpad.py update 1809 --note \"issue-claim audit (count): claimed 'one Python script, two skill prose surfaces, one skill reference, two config files, one customer-facing documentation page' file-count enumeration, verified all named files exist at HEAD with matching  …[per-command-truncated]",
+      "lib/test/test_python_scripts.py 2>&1 | grep -iE \"#1655|FAIL|Traceback|Error\" | head -40; echo \"rc=${PIPESTATUS[0]}\"",
+      "grep -n \"render-pr-provenance-line\" lib/test/fixtures/anchor-fallback-arm/green/skills/implement/phases/phase-3-review.md 2>/dev/null; echo \"---LINT---\"; lib/test/lint-anchor-fallback-arm.py; echo \"lint exit: $?\"",
+      "lib/test/lint-anchor-fallback-arm.py; echo \"lint exit: $?\"",
+      "lib/test/lint-anchor-fallback-arm.py",
+      "ls -la .prflow/vendor/prflow/scripts/render-pr-provenance-line.py; echo \"---repo root---\"; scripts/render-pr-provenance-line.py --command /prflow:implement; echo \"root_exit=$?\"",
+      "git diff --no-index -U0 /dev/null .changeset/issue-1809-shared-provenance-signature.md | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree; echo \"exit=$?\"",
+      "ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)\nmkdir -p \"$ROOT/.prflow/tmp\"\n[ -n \"${ZSH_VERSION:-}\" ] && setopt nonomatch || :\nset -- \"$ROOT\"/.prflow/tmp/review/*/*/iter-*.json\nif [ -e \"$1\" ]; then printf '%s\\n' \"$@\" | sort; else echo \"(none)\"; fi",
+      "git diff --merge-base origin/main HEAD > .prflow/tmp/review/pr-1810/32311033580-1/diff.patch; echo \"wrote diff, lines:\"; wc -l .prflow/tmp/review/pr-1810/32311033580-1/diff.patch; echo \"stale_prose_enabled:\"; .prflow/vendor/prflow/scripts/config-get.sh .prflow_review.stale_prose.enabled false",
+      "python3 scripts/render-pr-provenance-line.py --command /prflow:create-issue; echo RC=$?; python3 scripts/render-pr-provenance-line.py; echo RC=$?",
+      "gh pr view 1810 --json body -R \"$(git -C /home/runner/work/prflow/prflow remote get-url origin | sed -E 's#.*github.com[:/]##; s#\\.git$##')\" 2>&1 | head -5; echo \"---\"; gh pr view 1810 --json body 2>&1 | python3 -c \"import json,sys; d=json.load(sys.stdin); print(repr(d['body'][-300:]))\" 2>&1",
+      "\"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/.prflow/vendor/prflow/skills/docs}\"/../../scripts/load-prompt-extension.sh docs; echo \"---GATES---\"; \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/.prflow/vendor/prflow/skills/docs}\"/../../scripts/config-get.sh .docs.internal_enabled true; \"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/.prflow/vendor/prflow/skills/docs}\"/../../scripts/config-get.sh .docs.external_enabled true",
+      "cd /home/runner/work/prflow/prflow; echo \"=== aggregate ===\"; cat .prflow/tmp/review/pr-1810/deferrals.json 2>/dev/null || echo \"NO AGGREGATE\"; echo \"=== run-scoped ===\"; find .prflow/tmp/review/pr-1810 -name '*.json' -exec echo {} \\; -exec cat {} \\; 2>/dev/null; echo \"=== workpad ===\"; WID=$(scripts/workpad.py id 1809 2>/dev/null || true); echo \"wid=$WID\"",
+      "cd /home/runner/work/prflow/prflow; echo \"=== changeset ===\"; cat .changeset/issue-1809-shared-provenance-signature.md; echo \"=== test tail ===\"; git diff origin/main...HEAD -- lib/test/test_python_scripts.py | sed -n '/Contract assertions tied/,$p' | head -80",
+      "/home/runner/work/prflow/prflow/scripts/prompt-surface-growth.py 2>&1 | head -40",
+      "scripts/prompt-surface-growth.py",
+      "cat > /home/runner/work/prflow/prflow/.prflow/tmp/pr-1810-body.md <<'EOF'\n[View run](https://github.com/The01Geek/prflow/actions/runs/32311033580)\n\n<!-- PR_BODY_START -->\n## Summary\n- Collapses the two per-command provenance renderers into one: `scripts/render-pr-provenance-line.py` now takes a required `--command` argument and emits the finished line in Markdown italics, so `/prflow:implement` and `/prflow:create-issue` paste one identical set of bytes.\n- Adds a provenance signature to issues c …[per-command-truncated]",
+      "git -C /home/runner/work/prflow/prflow grep -n publish_model_effort -- ':!CHANGELOG.md' ':!.changeset/' | grep prflow_implement || echo \"NO prflow_implement-qualified occurrences (AC6 holds)\"",
+      "TRIGGER_COMMENT_ID=$(.prflow/vendor/prflow/scripts/run-jq.sh -r '.comment.id // empty' \"$GITHUB_EVENT_PATH\" 2>/dev/null || true)\nif [ -z \"$TRIGGER_COMMENT_ID\" ]; then\n  TRIGGER_COMMENT_ID=$(gh api \"repos/{owner}/{repo}/issues/1809/comments?per_page=100\" --jq 'map(select((.body | contains(\"/prflow:implement\")) and ((.body | test(\"(pr|dev)flow:workpad\")) | not))) | last | .id' 2>/dev/null || true)\nfi\nprintf 'trigger-comment-id: %s\\n' \"$TRIGGER_COMMENT_ID\"",
+      "jq -r '.comment.id // empty' \"$GITHUB_EVENT_PATH\" 2>/dev/null; echo \"END\""
+    ],
+    "total": 27,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
