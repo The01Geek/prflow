@@ -7716,39 +7716,42 @@ assert_eq("#562 post_revision_write_failure_rows (control): a clean round with n
               issue_audit_state.evaluate_eligibility(
                   _state([_round(1, 'file', 'FILE', 'D1')]), 'approve', 'D1')))
 
-# latest_revision_landed — the clearing predicate over recorded facts.
-assert_eq("#562 latest_revision_landed: no revisions -> vacuously landed",
-          True, issue_audit_state.latest_revision_landed(_state([_round(1, 'file', 'FILE')])))
-# A revision carrying a stdin_digest that no later file-arm dispatch digest matches: not landed.
+# latest_revision_landed — the clearing predicate over recorded facts. Since #1841 it
+# reports one of three tokens ('yes'/'no'/'unestablished') instead of a boolean, so the
+# proven-failed arm ('no') and the cannot-prove arm ('unestablished') no longer share 'no'.
+assert_eq("#562/#1841 latest_revision_landed: no revisions -> vacuously landed ('yes')",
+          'yes', issue_audit_state.latest_revision_landed(_state([_round(1, 'file', 'FILE')])))
+# _unlanded fixture (revision digest D2, only a predating round 1): landing is unprovable,
+# so the predicate reports 'unestablished' (not the proven-failed 'no').
 _unlanded = _state([_round(1, 'file', 'FILE', 'D1')])
 _unlanded['revisions'] = [{'ordinal': 1, 'after_round': 1, 'floor_round': 1,
                            'stdin_digest': 'D2'}]
-assert_eq("#562 latest_revision_landed: a revision whose stdin_digest matches no later "
-          "landed dispatch digest -> not landed",
-          False, issue_audit_state.latest_revision_landed(_unlanded))
-# ... and once a later file-arm dispatch records that digest, it counts as landed.
+assert_eq("#562/#1841 latest_revision_landed: a revision whose stdin_digest matches no "
+          "later landed dispatch digest -> cannot prove landing ('unestablished')",
+          'unestablished', issue_audit_state.latest_revision_landed(_unlanded))
+# ... and once a later file-arm dispatch records that digest, it counts as landed ('yes').
 _landed = _state([_round(1, 'file', 'FILE', 'D1'), _round(2, 'file', 'FILE', 'D2')])
 _landed['revisions'] = [{'ordinal': 1, 'after_round': 1, 'floor_round': 1,
                          'stdin_digest': 'D2'}]
-assert_eq("#562 latest_revision_landed: a later landed dispatch digest equal to the "
-          "revision's stdin_digest -> landed (the clearing predicate)",
-          True, issue_audit_state.latest_revision_landed(_landed))
-# A revision with no stdin_digest (legacy/embed epoch) fails closed to not-landed.
+assert_eq("#562/#1841 latest_revision_landed: a later landed dispatch digest equal to the "
+          "revision's stdin_digest -> landed ('yes', the clearing predicate)",
+          'yes', issue_audit_state.latest_revision_landed(_landed))
+# A revision with no stdin_digest (legacy/embed epoch) cannot be proven landed -> 'unestablished'.
 _nodigest = _state([_round(1, 'file', 'FILE', 'D1')], revisions=(1,))
-assert_eq("#562 latest_revision_landed: a revision with no recorded stdin_digest fails "
-          "closed to not landed",
-          False, issue_audit_state.latest_revision_landed(_nodigest))
+assert_eq("#562/#1841 latest_revision_landed: a revision with no recorded stdin_digest "
+          "cannot be proven landed -> 'unestablished'",
+          'unestablished', issue_audit_state.latest_revision_landed(_nodigest))
 # write_failures wiring: a recorded overwrite failure for the latest revision's ordinal
-# makes it NOT landed even when its stdin_digest coincidentally equals a later dispatch
-# digest (the user revised back to bytes a round already saw).
+# proves it did NOT land -> 'no', even when its stdin_digest coincidentally equals a later
+# dispatch digest (the user revised back to bytes a round already saw).
 _wf_notlanded = _state([_round(1, 'file', 'FILE', 'D1'), _round(2, 'file', 'FILE', 'D2')])
 _wf_notlanded['revisions'] = [{'ordinal': 1, 'after_round': 1, 'floor_round': 1,
                                'stdin_digest': 'D2'}]
 _wf_notlanded['write_failures'] = [1]
-assert_eq("#562 latest_revision_landed: a recorded write-failure for the latest "
-          "revision's ordinal reports NOT landed even when the digest matches a later "
+assert_eq("#562/#1841 latest_revision_landed: a recorded write-failure for the latest "
+          "revision's ordinal proves NOT landed ('no') even when the digest matches a later "
           "dispatch (the write-failure log and the predicate are wired together)",
-          False, issue_audit_state.latest_revision_landed(_wf_notlanded))
+          'no', issue_audit_state.latest_revision_landed(_wf_notlanded))
 # Two-revision keying: `len(revs) in write_failures` targets the LATEST ordinal, not any
 # recorded one. Rounds 1-3 (round 3 lands DB, matching revision 2's stdin_digest); two
 # revisions (ordinals 1, 2). A write-failure on the EARLIER ordinal (1) must NOT report the
@@ -7760,23 +7763,25 @@ _wf_earlier = _state([_round(1, 'file', 'FILE', 'D1'), _round(2, 'file', 'FILE',
                       _round(3, 'file', 'FILE', 'DB')])
 _wf_earlier['revisions'] = [dict(r) for r in _two_revs]
 _wf_earlier['write_failures'] = [1]
-assert_eq("#562 latest_revision_landed: a write-failure on an EARLIER revision's ordinal "
-          "does not block the latest (len(revs)=2 not in [1]; round 3 lands DB) -> landed",
-          True, issue_audit_state.latest_revision_landed(_wf_earlier))
+assert_eq("#562/#1841 latest_revision_landed: a write-failure on an EARLIER revision's ordinal "
+          "does not block the latest (len(revs)=2 not in [1]; round 3 lands DB) -> landed ('yes')",
+          'yes', issue_audit_state.latest_revision_landed(_wf_earlier))
 _wf_latest = _state([_round(1, 'file', 'FILE', 'D1'), _round(2, 'file', 'FILE', 'D2'),
                      _round(3, 'file', 'FILE', 'DB')])
 _wf_latest['revisions'] = [dict(r) for r in _two_revs]
 _wf_latest['write_failures'] = [2]
-assert_eq("#562 latest_revision_landed: a write-failure on the LATEST ordinal (len(revs)=2) "
-          "reports NOT landed even with a subsequent matching dispatch (keys on the latest)",
-          False, issue_audit_state.latest_revision_landed(_wf_latest))
-# Ordering: a PREDATING file-arm dispatch that shares the digest does not count as landed.
+assert_eq("#562/#1841 latest_revision_landed: a write-failure on the LATEST ordinal (len(revs)=2) "
+          "proves NOT landed ('no') even with a subsequent matching dispatch (keys on the latest)",
+          'no', issue_audit_state.latest_revision_landed(_wf_latest))
+# Ordering: a PREDATING file-arm dispatch that shares the digest cannot prove landing, so the
+# predicate reports 'unestablished' (not 'no' — nothing proves the write failed either).
 _pre = _state([_round(1, 'file', 'FILE', 'D2')])
 _pre['revisions'] = [{'ordinal': 1, 'after_round': 1, 'floor_round': 1,
                       'stdin_digest': 'D2'}]
-assert_eq("#562 latest_revision_landed: a file-arm dispatch that PREDATES the revision "
-          "(round <= after_round) does not satisfy the subsequent-write clearing predicate",
-          False, issue_audit_state.latest_revision_landed(_pre))
+assert_eq("#562/#1841 latest_revision_landed: a file-arm dispatch that PREDATES the revision "
+          "(round <= after_round) does not satisfy the subsequent-write clearing predicate "
+          "-> 'unestablished'",
+          'unestablished', issue_audit_state.latest_revision_landed(_pre))
 
 # summary_fields — the bound root + tier surface the display marker derives from.
 _bound_wt = dict(_state([_round(1, 'file', 'FILE', 'D1')]),
@@ -8012,6 +8017,20 @@ assert_eq("#562 _binding_line: a bound run answers bound path + tier + non-bound
           'bound=/wt/root tier=worktree-root non_bound_root=/main/root '
           'latest_revision_landed=yes',
           issue_audit_state._binding_line(_bound_wt))
+# #1841: the full query-draft-binding line on a state shaped like the common basis=resolution
+# terminal path — bound, one clean file-arm round on D1, a recorded revision whose stdin_digest
+# matches D1 (it landed) but with NO subsequent round-initiating dispatch to prove it — reports
+# the cannot-prove token 'unestablished', not the false-alarm 'no'.
+_bound_unlanded = dict(_state([_round(1, 'file', 'FILE', 'D1')], revisions=(1,)),
+                       draft_binding={'path': '/wt/root', 'tier': 'worktree-root',
+                                      'non_bound_root': '/main/root'})
+_bound_unlanded['revisions'] = [{'ordinal': 1, 'after_round': 1, 'floor_round': 1,
+                                 'stdin_digest': 'D1'}]
+assert_eq("#1841 _binding_line: a bound run whose latest revision cannot be proven landed "
+          "answers latest_revision_landed=unestablished (the basis=resolution terminal path)",
+          'bound=/wt/root tier=worktree-root non_bound_root=/main/root '
+          'latest_revision_landed=unestablished',
+          issue_audit_state._binding_line(_bound_unlanded))
 # _bound_draft_file — the readers join the fixed draft subpath onto the bound root, so a
 # drifted --draft-file cannot redirect them; unbound derives None (fall back to caller).
 assert_eq("#562 _bound_draft_file: joins .prflow/tmp/issue-draft-<slug>.md onto the "

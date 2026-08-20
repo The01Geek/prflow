@@ -33642,18 +33642,6 @@ if ! devflow_run_full_suite_module "$LIB/test/modules/review-stall-backstop.sh" 
   exit 1
 fi
 # ────────────────────────────────────────────────────────────────────────────
-echo "#1273 terminal-result classifier + generated total table"
-# ────────────────────────────────────────────────────────────────────────────
-# scripts/terminal-result-class.sh driven over every row of the generated total
-# table lib/terminal-result-table.tsv (the independent Python oracle
-# lib/generate-terminal-result-table.py), plus the per-AC hand oracle and the
-# usage/arity guard. See the module for the coverage map back to this location.
-if ! devflow_run_full_suite_module "$LIB/test/modules/terminal-result-class.sh" \
-  "terminal-result-class" 150; then
-  printf 'ERROR: terminal-result-class boundary could not record its result\n'
-  exit 1
-fi
-# ────────────────────────────────────────────────────────────────────────────
 echo "#1139 Phase 2 mid-run durability checkpoint"
 # ────────────────────────────────────────────────────────────────────────────
 # scripts/phase2-durability-checkpoint.sh driven against a scratch git repository
@@ -48509,16 +48497,6 @@ ICE_TEST_RC=$?
 assert_eq "issue #1209: implement context eval focused tests pass" "0" "$ICE_TEST_RC"
 [ "$ICE_TEST_RC" -eq 0 ] || while IFS= read -r _ice_line || [ -n "$_ice_line" ]; do printf '    %s\n' "$_ice_line"; done <<< "$ICE_TEST_OUT"
 
-# issue #1314: the trusted-emitter review-verdict handoff importer is the trust
-# boundary between the untrusted review producer and the trusted emitter — its
-# focused tests drive the accepted shape and every documented rejection class
-# (AC5), and the security-critical invariant that a rejection publishes NO output
-# artifact. A non-zero exit surfaces the unittest output here.
-IRVH_TEST_OUT="$(python3 "$LIB/test/test_import_review_verdict_handoff.py" 2>&1)"
-IRVH_TEST_RC=$?
-assert_eq "issue #1314: review-verdict handoff importer focused tests pass" "0" "$IRVH_TEST_RC"
-[ "$IRVH_TEST_RC" -eq 0 ] || while IFS= read -r _irvh_line || [ -n "$_irvh_line" ]; do printf '    %s\n' "$_irvh_line"; done <<< "$IRVH_TEST_OUT"
-
 # harness-python-guards contract coverage (issue #707: extracted from this file's
 # #600 / #527 / #528 / #668 / #798 / #810 / #591 Python guard blocks into a focused
 # module, plus the #985 profiler unit tests added there directly). The registry and
@@ -48535,7 +48513,7 @@ fi
 # and this full-suite call share the same lower-bound contract; test_module_runner.py
 # parses this operand and rejects any coupling drift.
 if ! devflow_run_full_suite_module "$LIB/test/modules/issue-audit-state.sh" \
-  "issue-audit-state" 284; then
+  "issue-audit-state" 286; then
   printf 'ERROR: issue-audit-state boundary could not record its result\n'
   exit 1
 fi

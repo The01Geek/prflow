@@ -2142,16 +2142,21 @@ if [ -d "$DB_SB" ]; then
       --after-round 1 --stdin-digest > .dr-sd 2>&1
     printf '' | python3 "$IAS" record-revision dr --nonce "$NR" --after-round 1 \
       --stdin-digest > /dev/null 2> .dr-empty; printf '%s' "$?" > .dr-empty-rc
-    # Bound-branch `latest_revision_landed=no` (review Suggestion #5): every OTHER driving
-    # state has no revision, so the bound-branch string is only ever seen with a vacuous
-    # `yes`. Here `dr` carries a recorded revision with an stdin digest but NO subsequent
-    # landed write (only round 1 exists, predating the revision), so `latest_revision_landed`
-    # is genuinely False. Bind a root and query it: `query-draft-binding` must render the
-    # bound branch's `latest_revision_landed=no`. A regression hardcoding `yes` in the
-    # bound-branch assembly (the exact stale-file bug the flag exists to catch) fails RED here.
+    # Bound-branch cannot-prove vs proven-failed tokens (#1841; was review Suggestion #5).
+    # `dr` carries a recorded revision with an stdin digest but NO subsequent landed write
+    # (only round 1 exists, predating the revision), so `latest_revision_landed` can prove
+    # neither landing nor failure -> `unestablished` (the common basis=resolution terminal
+    # path). Bind a root and query it. Then record an overwrite failure for the latest
+    # ordinal and re-query: that PROVES non-landing -> `no`, the token a `yes`-hardcoding
+    # regression in the bound-branch assembly (the exact stale-file bug the flag exists to
+    # catch) would break RED.
     python3 "$IAS" record-draft-binding dr --nonce "$NR" \
       --path "$DB_SB" --tier worktree-root > /dev/null 2>&1
     python3 "$IAS" query-draft-binding dr --nonce "$NR" > .dr-unlanded 2>/dev/null
+    python3 "$IAS" record-write-failure dr --nonce "$NR" --ordinal 1 > /dev/null 2>&1
+    python3 "$IAS" query-draft-binding dr --nonce "$NR" > .dr-failed 2>/dev/null
+    # AC1: the query-draft-binding --help text enumerates the three landed tokens.
+    python3 "$IAS" query-draft-binding --help > .dbh-help 2>&1
     # Bound-path source override: bind a root, put the canonical draft under it, and prove
     # emit-body reads the BOUND file, not a drifted --draft-file (the anti-drift property).
     python3 "$IAS" init 'do' > /dev/null 2>&1
@@ -2271,11 +2276,20 @@ if [ -d "$DB_SB" ]; then
   # (a re-order or a dropped field fails RED). $BR is the bound root for the `do` epoch.
   assert_eq "#562 draft_binding_cli_rows: query-summary renders bound_root/bound_tier before the trailing attestation field (S#6)" \
     "1" "$(grep -cF "bound_root=$DB_SB/boundroot bound_tier=main-root steering=established steering_reason=canonical-match attestation=" "$DB_SB/.do-summary" 2>/dev/null)"
-  # S#5: a bound run whose latest revision has NOT landed renders the bound-branch
-  # `latest_revision_landed=no` — the string a `yes`-hardcoding regression would break.
-  assert_eq "#562 draft_binding_cli_rows: a bound run with an unlanded revision renders latest_revision_landed=no (S#5 — bound-branch 'no' was never exercised)" \
-    "bound=$DB_SB tier=worktree-root non_bound_root=none latest_revision_landed=no" \
+  # #1841: a bound run whose latest revision cannot be proven landed (no write-failure, no
+  # subsequent matching dispatch) renders `latest_revision_landed=unestablished` — the
+  # common basis=resolution terminal path, no longer the false-alarm `no`.
+  assert_eq "#1841 draft_binding_cli_rows: a bound run whose latest revision cannot be proven landed renders latest_revision_landed=unestablished" \
+    "bound=$DB_SB tier=worktree-root non_bound_root=none latest_revision_landed=unestablished" \
     "$(sed -n 1p "$DB_SB/.dr-unlanded" 2>/dev/null)"
+  # #1841: once an overwrite failure is recorded for the latest ordinal, non-landing is
+  # PROVEN -> `no` (the bound-branch `no` string a `yes`-hardcoding regression would break).
+  assert_eq "#1841 draft_binding_cli_rows: a bound run with a recorded write-failure for the latest ordinal renders latest_revision_landed=no" \
+    "bound=$DB_SB tier=worktree-root non_bound_root=none latest_revision_landed=no" \
+    "$(sed -n 1p "$DB_SB/.dr-failed" 2>/dev/null)"
+  # #1841 AC1: query-draft-binding --help enumerates the three landed tokens.
+  assert_eq "#1841 draft_binding_cli_rows: query-draft-binding --help enumerates the yes/no/unestablished landed tokens" \
+    "1" "$(grep -c 'yes/no/unestablished' "$DB_SB/.dbh-help" 2>/dev/null)"
   # S#7: an unbound run's readers fall back to the caller `--draft-file` (emit-body emits it).
   assert_eq "#562 draft_binding_cli_rows: an UNBOUND run's readers fall back to the caller --draft-file (S#7)" \
     "1" "$(grep -c '^UNBOUND BODY$' "$DB_SB/.du-body" 2>/dev/null)"
