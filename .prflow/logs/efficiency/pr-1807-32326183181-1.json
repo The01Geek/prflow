@@ -117,5 +117,105 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.39",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 29.15234625000001,
+    "tokens": {
+      "input_tokens": 104,
+      "output_tokens": 102692,
+      "cache_read_input_tokens": 11691019,
+      "cache_creation_input_tokens": 347937,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 218,
+        "outputTokens": 158195,
+        "cacheReadInputTokens": 15825429,
+        "cacheCreationInputTokens": 968382,
+        "webSearchRequests": 0,
+        "costUSD": 19.225830750000004,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 430,
+        "outputTokens": 75554,
+        "cacheReadInputTokens": 10091435,
+        "cacheCreationInputTokens": 1537196,
+        "webSearchRequests": 0,
+        "costUSD": 9.9265155,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 113,
+    "duration_ms": 1853391
+  },
+  "permission_denials": {
+    "count": 47,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---ENV---\"; echo \"RUN_ID=${GITHUB_RUN_ID:-} ATTEMPT=${GITHUB_RUN_ATTEMPT:-} ACTIONS=${GITHUB_ACTIONS:-}\"",
+      "mkdir -p .prflow/tmp/review/pr-1807/32326183181-1/verdicts/iter-1\nrm -f .prflow/tmp/review/pr-1807/32326183181-1/verdicts/iter-1/*.json\ntouch .prflow/tmp/displaced-paths.txt\n.prflow/vendor/prflow/scripts/resolve-review-overrides.py \"prflow:checklist-verifier\" ; echo \"rc=$?\"",
+      "mkdir -p .prflow/tmp/review/pr-1807/32326183181-1/verdicts/iter-1; find .prflow/tmp/review/pr-1807/32326183181-1/verdicts/iter-1 -name '*.json' -delete; touch .prflow/tmp/displaced-paths.txt; .prflow/vendor/prflow/scripts/resolve-review-overrides.py \"prflow:checklist-verifier\"; echo \"rc=$?\"",
+      "git show 29e46daac1da0fb3d93932c9581e6d9eed8e04e9:scripts/issue-audit-state.py > /tmp/audit.py; wc -l /tmp/audit.py",
+      "git show 29e46daac1da0fb3d93932c9581e6d9eed8e04e9:scripts/issue-audit-state.py > /tmp/audit.py",
+      "git show 29e46daac1da0fb3d93932c9581e6d9eed8e04e9:scripts/issue-audit-state.py > /home/runner/work/prflow/prflow/.prflow/tmp/audit.py; wc -l /home/runner/work/prflow/prflow/.prflow/tmp/audit.py",
+      "grep -n \"^def cmd_query\\|def _fail\\|def main(\" /home/runner/work/prflow/prflow/scripts/issue-audit-state.py | head -5\ngit -C /home/runner/work/prflow/prflow show 29e46daac1da0fb3d93932c9581e6d9eed8e04e9:scripts/issue-audit-state.py > /tmp/head_iastate.py\ngrep -n \"_NEXT_CALL_EXCLUDED\\s*=\" /tmp/head_iastate.py",
+      "git -C /home/runner/work/prflow/prflow show 29e46daac1da0fb3d93932c9581e6d9eed8e04e9:scripts/issue-audit-state.py > /tmp/head_iastate.py; grep -n \"_NEXT_CALL_EXCLUDED\\s*=\" /tmp/head_iastate.py",
+      "git -C /home/runner/work/prflow/prflow show 29e46daac1da0fb3d93932c9581e6d9eed8e04e9:scripts/issue-audit-state.py > /tmp/head_iastate.py",
+      "for s in _SUMMARY_BLOCK_FIELDS _summary_block_line _ingest_finding_evidence_records summary_fields cmd_query_summary cmd_record_finding_evidence _emit_next_call; do echo \"== $s ==\"; git show 29e46daac1da0fb3d93932c9581e6d9eed8e04e9:lib/test/test_python_scripts.py | grep -n \"$s\" | head -5; done",
+      "git show 29e46daac1da0fb3d93932c9581e6d9eed8e04e9:lib/test/test_python_scripts.py > /tmp/test_py.py\ngit show 29e46daac1da0fb3d93932c9581e6d9eed8e04e9:scripts/issue-audit-state.py > /tmp/audit.py\ngrep -n \"_SUMMARY_BLOCK_FIELDS\\|_summary_block_line\\|_ingest_finding_evidence_records\\|summary_fields\\|cmd_query_summary\\|cmd_record_finding_evidence\\|_emit_next_call\" /tmp/test_py.py",
+      "git show 29e46daac1da0fb3d93932c9581e6d9eed8e04e9:lib/test/test_python_scripts.py > /tmp/test_py.py",
+      "git show 29e46daac1da0fb3d93932c9581e6d9eed8e04e9:scripts/issue-audit-state.py > /tmp/audit.py",
+      "git show 29e46daac1da0fb3d93932c9581e6d9eed8e04e9:docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md > /tmp/overview_head.md\ngrep -n \"next_call=\" /tmp/overview_head.md\necho ---\ngrep -n \"1751\" /tmp/overview_head.md\necho ---\ngrep -n -i \"re-audit\\|reaudit\" /tmp/overview_head.md\necho ---\ngrep -n -i \"output contract\" /tmp/overview_head.md",
+      "git show 29e46daac1da0fb3d93932c9581e6d9eed8e04e9:lib/test/test_python_scripts.py > /tmp/test_py.py && git show 29e46daac1da0fb3d93932c9581e6d9eed8e04e9:scripts/issue-audit-state.py > /tmp/audit.py && echo OK",
+      "git show 29e46daac1da0fb3d93932c9581e6d9eed8e04e9:docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md > /tmp/overview_head.md",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/vc8 && git show 29e46daac1da0fb3d93932c9581e6d9eed8e04e9:lib/test/test_python_scripts.py > /home/runner/work/prflow/prflow/.prflow/tmp/vc8/test_py.py",
+      "git show 29e46daac1da0fb3d93932c9581e6d9eed8e04e9:docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md > /home/runner/work/prflow/prflow/.prflow/tmp/overview_head.md\nwc -l /home/runner/work/prflow/prflow/.prflow/tmp/overview_head.md",
+      "cd /home/runner/work/prflow/prflow\ngit worktree add /tmp/pr1807-check pr-1807-check 2>&1 | tail -10",
+      "git show 29e46daac1da0fb3d93932c9581e6d9eed8e04e9:lib/test/test_python_scripts.py > .prflow/tmp/test_py_vc8.py",
+      "git show 29e46daac1da0fb3d93932c9581e6d9eed8e04e9:docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md > overview_head_tmp.md\nwc -l overview_head_tmp.md",
+      "git worktree add /tmp/pr1807-check pr-1807-check 2>&1 | tail -10",
+      "git worktree add /tmp/pr1807-check pr-1807-check",
+      "mkdir -p /tmp/pr1807-archive && git archive 29e46daac1da0fb3d93932c9581e6d9eed8e04e9 | tar -x -C /tmp/pr1807-archive\ncd /tmp/pr1807-archive\npython3 - <<'PYEOF'\nimport sys, re, subprocess, importlib.util, pathlib\nroot = pathlib.Path('/tmp/pr1807-archive')\n\ndef _load(rel, name):\n    spec = importlib.util.spec_from_file_location(name, root / rel)\n    mod = importlib.util.module_from_spec(spec)\n    spec.loader.exec_module(mod)\n    return mod\n\n_ADD_PARSER = re.compile(r\"sub\\.add_parser\\(\\s*['\\\"]([a-z …[per-command-truncated]",
+      "mkdir -p /tmp/pr1807-archive && git archive 29e46daac1da0fb3d93932c9581e6d9eed8e04e9 | tar -x -C /tmp/pr1807-archive\npython3 - <<'PYEOF'\nimport sys, re, subprocess, importlib.util, pathlib\nroot = pathlib.Path('/tmp/pr1807-archive')\n\ndef _load(rel, name):\n    spec = importlib.util.spec_from_file_location(name, root / rel)\n    mod = importlib.util.module_from_spec(spec)\n    spec.loader.exec_module(mod)\n    return mod\n\n_ADD_PARSER = re.compile(r\"sub\\.add_parser\\(\\s*['\\\"]([a-z0-9][a-z0-9-]*)['\\\"]\",  …[per-command-truncated]",
+      "mkdir -p /tmp/pr1807-archive",
+      "git archive 29e46daac1da0fb3d93932c9581e6d9eed8e04e9 | tar -x -C /home/runner/work/prflow/prflow/.prflow/tmp/pr1807-archive",
+      "git archive 29e46daac1da0fb3d93932c9581e6d9eed8e04e9 -o /home/runner/work/prflow/prflow/.prflow/tmp/pr1807.tar",
+      "git archive --format=tar 29e46daac1da0fb3d93932c9581e6d9eed8e04e9 > /home/runner/work/prflow/prflow/.prflow/tmp/pr1807.tar",
+      "git archive --format=tar 29e46daac1da0fb3d93932c9581e6d9eed8e04e9 > /home/runner/work/prflow/prflow/.prflow/tmp/pr1807.tar",
+      "git archive --format=tar 29e46daac1da0fb3d93932c9581e6d9eed8e04e9 | tar -x -C /home/runner/work/prflow/prflow/.prflow/tmp/pr1807-archive",
+      "git ls-tree -r --name-only 29e46daac1da0fb3d93932c9581e6d9eed8e04e9 -- skills scripts lib > /tmp/filelist.txt 2>&1 | head -1\nwc -l /tmp/filelist.txt",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1807/32326183181-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1807/32326183181-1/verdicts/iter-1/VC-13-a5.json << 'EOF'\n{\n  \"id\": \"VC-13\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"scripts/issue-audit-state.py:4897-4908 (_emit_next_call) wraps `_summary_block_line(summary_fields(state))` in try/except: `except AssertionError: raise` re-raises, and `except Exception as _exc` prints 'issue-audit-state: summar …[per-command-truncated]",
+      "for f in docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md docs/internal/create-issue-context.md docs/internal/skills/create-issue.md docs/internal/cutovers/issue-795-audit-state-round-trips.md; do echo \"== $f ==\"; git show 29e46daac1da0fb3d93932c9581e6d9eed8e04e9:\"$f\" 2>&1 | grep -n \"unconditional_call_count\\|13 to 12\\|dropped from 13\\|derived live\" ; done",
+      "for f in docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md docs/internal/create-issue-context.md docs/internal/skills/create-issue.md docs/internal/cutovers/issue-795-audit-state-round-trips.md; do echo \"== $f ==\"; git show \"29e46daac1da0fb3d93932c9581e6d9eed8e04e9:$f\" 2>&1 > /tmp/out.txt; grep -n \"unconditional_call_count\" /tmp/out.txt; grep -n \"13 to 12\" /tmp/out.txt; grep -n \"derived live\" /tmp/out.txt; done",
+      "git show 29e46daac1da0fb3d93932c9581e6d9eed8e04e9:docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md > /tmp/f1.md 2>&1\ngit show 29e46daac1da0fb3d93932c9581e6d9eed8e04e9:docs/internal/create-issue-context.md > /tmp/f2.md 2>&1\ngit show 29e46daac1da0fb3d93932c9581e6d9eed8e04e9:docs/internal/skills/create-issue.md > /tmp/f3.md 2>&1\ngit show 29e46daac1da0fb3d93932c9581e6d9eed8e04e9:docs/internal/cutovers/issue-795-audit-state-round-trips.md > /tmp/f4.md 2>&1\necho done",
+      "git show 29e46daac1da0fb3d93932c9581e6d9eed8e04e9:docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md > /tmp/f1.md 2>&1",
+      "git show 29e46daac1da0fb3d93932c9581e6d9eed8e04e9:docs/internal/create-issue-context.md > /tmp/f2.md 2>&1",
+      "git show 29e46daac1da0fb3d93932c9581e6d9eed8e04e9:docs/internal/skills/create-issue.md > /tmp/f3.md 2>&1",
+      "git show 29e46daac1da0fb3d93932c9581e6d9eed8e04e9:docs/internal/cutovers/issue-795-audit-state-round-trips.md > /tmp/f4.md 2>&1"
+    ],
+    "total": 47,
+    "truncated": true,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
