@@ -33733,6 +33733,10 @@ for _cmdval, _lbl in (
     ('/prflow:c"x', "double-quote"),
     ("/prflow:c\tx", "control-tab"),
     ("/prflow:c\nx", "control-newline"),
+    # The control class runs \x00-\x1f AND \x7f; \x7f is the isolated upper end, so a
+    # regex edit dropping it would go unnoticed without this row. \x00 cannot be tested
+    # here: an embedded null byte raises ValueError before execve, so no argv can carry it.
+    ("/prflow:c\x7fx", "control-del"),
 ):
     _o, _e, _rc = _prov_run(version="2.32.58", write_transcript=False, command=_cmdval)
     assert_eq(f"#1655 shell-active --command ({_lbl}) prints nothing on stdout", "", _o)
@@ -33751,6 +33755,13 @@ for _blank in ("", "   "):
     assert_eq("#1655 blank --command exits 0", 0, _rc)
     assert_eq("#1655 blank --command breadcrumbs the blank drop (not silent)",
               True, "command omitted (blank" in _e)
+
+# An inert --command value the helper has never heard of renders verbatim: the helper
+# carries no command allowlist, so adding one would break every non-canonical caller.
+_o, _e, _rc = _prov_run(version="2.32.58", write_transcript=False, command="/prflow:foo")
+assert_eq("#1655 non-canonical inert --command renders verbatim (no allowlist)",
+          _pl("Generated via /prflow:foo (v2.32.58)"), _o)
+assert_eq("#1655 non-canonical inert --command exits 0", 0, _rc)
 
 # Case variant: a --command value with a leading slash renders unchanged.
 _o, _e, _rc = _prov_run(version="2.32.58", write_transcript=False, command="/prflow:implement")
