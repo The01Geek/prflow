@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1810",
+  "generated_at": "2026-08-20T00:50:22Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.38",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 8.820822249999999,
+    "tokens": {
+      "input_tokens": 38,
+      "output_tokens": 25221,
+      "cache_read_input_tokens": 2738591,
+      "cache_creation_input_tokens": 208149,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 110,
+        "outputTokens": 58888,
+        "cacheReadInputTokens": 5297152,
+        "cacheCreationInputTokens": 627030,
+        "webSearchRequests": 0,
+        "costUSD": 8.820822249999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 31,
+    "duration_ms": 511393
+  },
+  "permission_denials": {
+    "count": 8,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-none} ATTEMPT=${GITHUB_RUN_ATTEMPT:-none}\"; mkdir -p .prflow/tmp/review/pr-1810/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}; gh pr diff 1810 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1810/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}/diff.patch | grep -c '^diff --git'",
+      "mkdir -p .prflow/tmp\nif rm -f \".prflow/tmp/review-dirty-tree-before\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \".prflow/tmp/review-dirty-tree-before\" &&\n   [ -f \".prflow/tmp/review-dirty-tree-before\" ] &&\n   [ ! -L \".prflow/tmp/review-dirty-tree-before\" ] &&\n   git hash-object \".prflow/tmp/review-dirty-tree-before\"; then\n  :\nelse\n  echo \"::warning::snapshot failed\" >&2\n  rm -f \".prflow/tmp/review-dirty-tree-before\" 2>/dev/null\n  printf '%s\\n' disabled …[per-command-truncated]",
+      "git status --porcelain -z > .prflow/tmp/review-dirty-tree-before; git hash-object .prflow/tmp/review-dirty-tree-before",
+      "cd /tmp && rm -rf prov-test && mkdir -p prov-test/scripts prov-test/.claude-plugin && git -C /home/runner/work/prflow/prflow show 4a7e086d149336bad75238ce7dd613134aba8bbb:scripts/render-pr-provenance-line.py > prov-test/scripts/render-pr-provenance-line.py && chmod +x prov-test/scripts/render-pr-provenance-line.py && echo '{\"version\":\"9.9.9\"}' > prov-test/.claude-plugin/plugin.json\ncd /tmp/prov-test\necho \"=== create-issue version only ===\"; CLAUDE_EFFORT= scripts/render-pr-provenance-line.py --c …[per-command-truncated]",
+      "cd /tmp && rm -rf prov-test && mkdir -p prov-test/scripts prov-test/.claude-plugin && git -C /home/runner/work/prflow/prflow show 4a7e086d149336bad75238ce7dd613134aba8bbb:scripts/render-pr-provenance-line.py > prov-test/scripts/render-pr-provenance-line.py && chmod +x prov-test/scripts/render-pr-provenance-line.py && printf '{\"version\":\"9.9.9\"}' > prov-test/.claude-plugin/plugin.json && echo made",
+      "rm -rf /tmp/prov-test && mkdir -p /tmp/prov-test/scripts /tmp/prov-test/.claude-plugin && git -C /home/runner/work/prflow/prflow show 4a7e086d149336bad75238ce7dd613134aba8bbb:scripts/render-pr-provenance-line.py > /tmp/prov-test/scripts/render-pr-provenance-line.py && chmod +x /tmp/prov-test/scripts/render-pr-provenance-line.py && printf '{\"version\":\"9.9.9\"}' > /tmp/prov-test/.claude-plugin/plugin.json && echo made",
+      "git -C /home/runner/work/prflow/prflow show 4a7e086d149336bad75238ce7dd613134aba8bbb:scripts/render-pr-provenance-line.py > /tmp/rp.py",
+      "git -C /home/runner/work/prflow/prflow show 4a7e086d149336bad75238ce7dd613134aba8bbb:scripts/render-pr-provenance-line.py > /home/runner/work/prflow/prflow/.prflow/tmp/rp.py && mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/rpt/.claude-plugin && cp /home/runner/work/prflow/prflow/.prflow/tmp/rp.py /home/runner/work/prflow/prflow/.prflow/tmp/rpt/render-pr-provenance-line.py && printf '{\"version\":\"9.9.9\"}' > /home/runner/work/prflow/prflow/.prflow/tmp/rpt/.claude-plugin/plugin.json && echo o …[per-command-truncated]"
+    ],
+    "total": 8,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
