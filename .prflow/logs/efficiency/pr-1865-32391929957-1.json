@@ -100,5 +100,85 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.41",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 59.2432014,
+    "tokens": {
+      "input_tokens": 304,
+      "output_tokens": 191441,
+      "cache_read_input_tokens": 66781326,
+      "cache_creation_input_tokens": 723046,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 479,
+        "outputTokens": 240097,
+        "cacheReadInputTokens": 71137875,
+        "cacheCreationInputTokens": 1736101,
+        "webSearchRequests": 0,
+        "costUSD": 55.13581124999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 170,
+        "outputTokens": 31013,
+        "cacheReadInputTokens": 4316063,
+        "cacheCreationInputTokens": 625831,
+        "webSearchRequests": 0,
+        "costUSD": 4.10739015,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 239,
+    "duration_ms": 4859332
+  },
+  "permission_denials": {
+    "count": 20,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GHA=${GITHUB_ACTIONS:-unset} RUNID=${GITHUB_RUN_ID:-empty} ATTEMPT=${GITHUB_RUN_ATTEMPT:-empty} SERVER=${GITHUB_SERVER_URL:-empty} REPO=${GITHUB_REPOSITORY:-empty}\"",
+      "CUR=$(git branch --show-current 2>/dev/null) || CUR=\"\"\necho \"CUR=$CUR\"\nBASE=$(.prflow/vendor/prflow/scripts/config-get.sh .base_branch main) || BASE=\"\"\n[ -n \"$BASE\" ] || BASE=main\necho \"BASE=$BASE\"",
+      ".prflow/vendor/prflow/scripts/workpad.py update 1442 --branch \"$(git branch --show-current)\"",
+      "\"./.prflow/vendor/prflow/scripts/check-verified-premises.py\" --body-file .prflow/tmp/issue-body/issue-1442.md --repo-root /home/runner/work/prflow/prflow; echo \"EXIT=$?\"",
+      "git --no-pager diff --stat; echo \"=== FULL DIFF ===\"; git --no-pager diff skills/retrospective/SKILL.md",
+      ".prflow/vendor/prflow/scripts/workpad.py update 1442 \\\n  --note \"sweep selection: diff shape = add-only prose to one SKILL.md adding a value (clean) to the analyst-verdict enumerated set and shipping policy-stating agent prose. Fired: 2.3.0b + 2.3.0c + always-on 2.3.3/2.3.4/2.3.4a/2.3.4b/2.3.5/2.3.6. Not fired: 2.3.0/2.3.0a/2.3.0d/2.3.1/2.3.2/2.3.7 (no deletion, no contract change, no removal/weakening, no peer-replicated rule, no collection output). Operand = git diff --merge-base origin/main.\" …[per-command-truncated]",
+      "ls .changeset/ | head; echo \"=== sample ===\"; cat \"$(ls .changeset/*.md | grep -v README | head -1)\" 2>/dev/null || echo \"(none pending)\"",
+      "git diff --no-index -U0 /dev/null .changeset/issue-1442-stage-a-clean-verdict.md | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree; echo \"EXIT=$?\"",
+      "mkdir -p .prflow/tmp/review/pr-1865/32391929957-1/verdicts/iter-1\ncat > .prflow/tmp/review/pr-1865/32391929957-1/verdicts/iter-1/VC-3-b5t0z4.json << 'EOF'\n{\"id\":\"VC-3\",\"verdict\":\"PASS\",\"evidence\":\"git diff --name-only origin/main...HEAD does not list lib/compute-patterns.jq, confirming it is unchanged in this PR. lib/compute-patterns.jq:107 and :129 both filter with select(.verdict == \\\"imperfect\\\" or .verdict == \\\"blocked\\\"), confirming pattern occurrences are selected only from imperfect and b …[per-command-truncated]",
+      "ls /home/runner/work/prflow/prflow/.changeset/ 2>/dev/null; echo \"---\"; git -C /home/runner/work/prflow/prflow log --oneline -1",
+      ".prflow/vendor/prflow/scripts/checkout-fingerprint.py 2>&1 | head -5; echo \"EXIT=${PIPESTATUS[0]}\"",
+      "FP=$(python3 .prflow/vendor/prflow/scripts/checkout-fingerprint.py)\nmkdir -p /tmp/vf\npython3 - \"$FP\" <<'EOF' > /tmp/vf/decl.json\nimport json,sys\nfp=json.loads(sys.argv[1])\ndecl={\n  \"schema_version\":1,\n  \"profile\":{\n    \"profile_version\":1,\n    \"argv\":[\"lib/test/run-shard.sh\",\"monolith\"],\n    \"cwd\":\"/home/runner/work/prflow/prflow\",\n    \"environment\":{},\n    \"toolchain\":{},\n    \"dependencies\":{},\n    \"output_roots\":[],\n    \"external_services\":\"none\"\n  },\n  \"checkout\":fp,\n  \"candidate_identity\":\"f …[per-command-truncated]",
+      "cat > /tmp/vf/build_decl.py << 'PYEOF'\nimport json, subprocess, sys\nfp = json.loads(subprocess.check_output(\n    [\"python3\", \".prflow/vendor/prflow/scripts/checkout-fingerprint.py\"]\n))\ndecl = {\n    \"schema_version\": 1,\n    \"profile\": {\n        \"profile_version\": 1,\n        \"argv\": [\"lib/test/run-shard.sh\", \"monolith\"],\n        \"cwd\": \"/home/runner/work/prflow/prflow\",\n        \"environment\": {},\n        \"toolchain\": {},\n        \"dependencies\": {},\n        \"output_roots\": [],\n        \"external_ser …[per-command-truncated]",
+      "printf '%s\\n' \\\n'import json, subprocess' \\\n'fp = json.loads(subprocess.check_output([\"python3\", \".prflow/vendor/prflow/scripts/checkout-fingerprint.py\"]))' \\\n'profile = dict()' \\\n'profile[\"profile_version\"] = 1' \\\n'profile[\"argv\"] = [\"lib/test/run-shard.sh\", \"monolith\"]' \\\n'profile[\"cwd\"] = \"/home/runner/work/prflow/prflow\"' \\\n'profile[\"environment\"] = dict()' \\\n'profile[\"toolchain\"] = dict()' \\\n'profile[\"dependencies\"] = dict()' \\\n'profile[\"output_roots\"] = []' \\\n'profile[\"external_services\"]  …[per-command-truncated]",
+      "printf '%s\\n' 'import json, subprocess' 'fp = json.loads(subprocess.check_output([\"python3\", \".prflow/vendor/prflow/scripts/checkout-fingerprint.py\"]))' 'profile = dict()' 'profile[\"profile_version\"] = 1' 'profile[\"argv\"] = [\"lib/test/run-shard.sh\", \"monolith\"]' 'profile[\"cwd\"] = \"/home/runner/work/prflow/prflow\"' 'profile[\"environment\"] = dict()' 'profile[\"toolchain\"] = dict()' 'profile[\"dependencies\"] = dict()' 'profile[\"output_roots\"] = []' 'profile[\"external_services\"] = \"none\"' 'decl = dict …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/vf\nprintf '%s\\n' 'import json, subprocess' 'fp = json.loads(subprocess.check_output([\"python3\", \".prflow/vendor/prflow/scripts/checkout-fingerprint.py\"]))' 'profile = dict()' 'profile[\"profile_version\"] = 1' 'profile[\"argv\"] = [\"lib/test/run-shard.sh\", \"monolith\"]' 'profile[\"cwd\"] = \"/home/runner/work/prflow/prflow\"' 'profile[\"environment\"] = dict()' 'profile[\"toolchain\"] = dict()' 'profile[\"dependencies\"] = dict()' 'profile[\"output_roots\"] =  …[per-command-truncated]",
+      "gh issue create --title \"Step-9 retrospective digest filter drops analyst-graded clean PRs from the Analyzed PRs list\" --label \"PRFlow\" --body \"## Problem Statement\n\nDiscovered while implementing #1442 (which lets the Stage A retrospective analyst grade an analyzed PR \\`clean\\`). The Step 9 status-report digest in \\`skills/retrospective-weekly/SKILL.md\\` (line ~1001) builds its \\\"### Analyzed PRs\\\" list with:\n\n\\`\\`\\`\nselect(.verdict == \\\"imperfect\\\" or .verdict == \\\"blocked\\\")\n\\`\\`\\`\n\nover \\`new …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow; echo \"=== SIZE HELPER ===\"; scripts/prompt-surface-growth.py 2>&1; echo \"=== PR NUMBER ===\"; gh pr view --json number --jq '.number' 2>&1; echo \"=== ISSUE 1870 ===\"; gh issue view 1870 --json number,title,state --jq '\"\\(.number) \\(.state) \\(.title)\"' 2>&1; echo \"=== DEFERRALS ===\"; PR=$(gh pr view --json number --jq '.number' 2>/dev/null); ls -la .prflow/tmp/review/pr-${PR}/deferrals.json 2>&1 || echo \"no deferrals file\"",
+      "scripts/prompt-surface-growth.py 2>&1",
+      ".prflow/vendor/prflow/scripts/run-jq.sh -r '.comment.id // empty' \"$GITHUB_EVENT_PATH\" 2>/dev/null || true"
+    ],
+    "total": 20,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
