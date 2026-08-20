@@ -2783,13 +2783,20 @@ def _bound_draft_file(state, slug):
 
 
 def latest_revision_landed(state):
-    """True when the latest recorded revision's bytes have landed at the bound path.
+    """Three-way token for whether the latest revision's bytes landed at the bound path.
 
-    Vacuously true when no revision is recorded (nothing is unlanded). Otherwise the
-    latest revision counts as landed once a **subsequent** recorded landed write at the
-    bound path (a round-initiating file-arm dispatch record qualifies) carries a digest
-    equal to that revision's recorded stdin digest — the clearing predicate that lets a
-    recovered run re-enter the full file-arm contract (issue #562).
+    Returns one of `'yes'` / `'no'` / `'unestablished'` (issue #1841 widened this from a
+    boolean so the proven-failed arm and the cannot-prove arm stop sharing `'no'`):
+      - `'yes'` — vacuously when no revision is recorded (nothing is unlanded), or when a
+        **subsequent** recorded landed write at the bound path (a round-initiating file-arm
+        dispatch record qualifies) carries a digest equal to the latest revision's recorded
+        stdin digest — the clearing predicate that lets a recovered run re-enter the full
+        file-arm contract (issue #562).
+      - `'no'` — a recorded overwrite failure for the latest revision's ordinal proves the
+        bytes did not land.
+      - `'unestablished'` — the recorded state proves neither: no write-failure, but no
+        subsequent matching dispatch to prove landing (the common `basis=resolution`
+        terminal path), or the latest revision carries no stdin digest to match on.
 
     Two fail-closed conditions, both load-bearing:
       - A recorded overwrite failure for the latest revision (its ordinal in
@@ -2811,27 +2818,29 @@ def latest_revision_landed(state):
         is greater than the revision's `after_round` — so a *predating* dispatch that
         happens to share the digest never satisfies the clearing predicate. A revision
         with NO stdin digest (a legacy/embed-epoch revision) cannot be proven landed and
-        fails closed to `not landed`, the conservative presentation choice.
+        reports `'unestablished'`, the conservative presentation choice — as does a latest
+        revision with a digest but no subsequent matching dispatch.
     """
     revs = state['revisions']
     if not revs:
-        return True
+        return 'yes'
     latest = revs[-1]
     # The latest revision's ordinal is len(revs) (the 1..N chain). A recorded overwrite
-    # failure for it means it never landed.
+    # failure for it PROVES it never landed -> 'no' (terminal for the ordinal, checked
+    # before the clearing scan so a later matching dispatch never clears it).
     if len(revs) in (state.get('write_failures') or []):
-        return False
+        return 'no'
     want = latest.get('stdin_digest')
     if not want:
-        return False
+        return _UNESTABLISHED
     after = latest.get('after_round', 0)
     for rnd in state['rounds']:
         if rnd['round'] <= after:
             continue  # only a write recorded AFTER the revision proves it landed
         for att in rnd['attempts']:
             if att['arm'] == 'file' and att.get('digest') == want:
-                return True
-    return False
+                return 'yes'
+    return _UNESTABLISHED
 
 
 def evaluate_triggers(state):
@@ -7755,7 +7764,7 @@ def _binding_line(state):
         return 'bound=none tier=none non_bound_root=none latest_revision_landed=yes'
     return (f'bound={b["path"]} tier={b["tier"]} '
             f'non_bound_root={b["non_bound_root"] or "none"} '
-            f'latest_revision_landed={_yn(latest_revision_landed(state))}')
+            f'latest_revision_landed={latest_revision_landed(state)}')
 
 
 def cmd_query_draft_binding(args):
@@ -9533,7 +9542,13 @@ def build_parser():
     s = sub.add_parser('query-draft-binding',
                        help='Emit the recorded tiered draft-root binding (#562): bound '
                             'path, tier token, non-bound root, and the latest-revision '
-                            'landed flag. Fail-closed bound=none when unbound.')
+                            'landed token (one of yes/no/unestablished, #1841). '
+                            'Fail-closed bound=none when unbound.',
+                       description='Emit the recorded tiered draft-root binding (#562): '
+                            'bound path, tier token, non-bound root, and the '
+                            'latest_revision_landed token, which is one of '
+                            'yes/no/unestablished (#1841). Fail-closed bound=none when '
+                            'unbound.')
     s.add_argument('slug')
     s.add_argument('--nonce', required=True)
     s.set_defaults(func=cmd_query_draft_binding)
