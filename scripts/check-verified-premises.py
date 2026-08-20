@@ -481,12 +481,6 @@ def classify(span: str) -> tuple:
 def recheck(handle: str, paths: list, quotes: list, root: Path,
             span: str = '') -> tuple:
     """Adjudicate one bullet against the tree. Returns `(state, detail)`."""
-    # A double-quote inside a quotation truncates the match to a fragment. More
-    # delimiters (backtick spans excluded) than the matched quotations consume
-    # means a quotation was truncated, so a miss must refuse, not refute (#1866).
-    stripped = _BACKTICKED.sub(' ', span)
-    quote_delims = sum(stripped.count(ch) for ch in ('"', '“', '”'))
-    truncated_quote = quote_delims > 2 * len(quotes)
     if handle in _UNDECIDABLE_REASONS:
         # No domain to read, or a handle this helper declines to execute. The
         # premise is not refuted — it is simply undecided, which routes the
@@ -662,6 +656,12 @@ def recheck(handle: str, paths: list, quotes: list, root: Path,
     # weak-path, unread-file and elision arms all exist to close.
     adjudicated_strong = [p.bare for p in paths
                           if p.strength == 'strong' and p.bare in readable]
+    # A double-quote inside a quotation truncates the match to a fragment. More
+    # delimiters (backtick spans excluded) than the matched quotations consume
+    # means a quotation was truncated, so a miss must refuse, not refute (#1866).
+    stripped = _BACKTICKED.sub(' ', span)
+    quote_delims = sum(stripped.count(ch) for ch in ('"', '“', '”'))
+    truncated_quote = quote_delims > 2 * len(quotes)
     if adjudicated_strong and truncated_quote:
         # The matched quotation is a truncated fragment, not the premise, so a
         # miss on it must not assert a stale-premise verdict — refuse (#1866).
