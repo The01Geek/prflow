@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.33.41] — 2026-08-20
+
+### Fixed
+- **Drop non-consumer-resolvable probe-row and run-id citations from the shipped `review-and-fix` loop-exit reference.** The *Completion-evidence check* paragraph in `skills/review-and-fix/references/loop-exit.md` justified treating the completion-evidence validator's review-tier permitted-ness as unrecorded by citing this repository's own matcher-probe row ordinals and a GitHub Actions run id — pointers a consumer repo (which receives the file verbatim) cannot consult. The paragraph now states each surviving instruction by naming the thing rather than the ordinal, preserving all four instructions. (#1857)
+
 ## [2.33.40] — 2026-08-20
 
 ### Changed
