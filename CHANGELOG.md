@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.33.44] — 2026-08-20
+
+### Fixed
+- **Forbid `/prflow:create-issue`'s closing step from starting implementation inline.** Step 4 sub-step 6 of `skills/create-issue/references/step-4-present-create.md` specified only the trigger-comment post mechanism and never stated what the run must not do instead, so a spent-context run could offer to implement inline. The offered and withheld arms now both state that the closing offer is only ever to post the trigger comment and that the run never starts implementation itself (because implement must begin in a fresh-context agent); the *cloud implement tier disabled or unconfigured* withheld arm additionally tells the user to start `/prflow:implement` in a fresh session; and invariant 5 of the non-degradable invariants block in `skills/create-issue/SKILL.md` carries the same rule so it survives context compaction. (#1867)
+
 ## [2.33.43] — 2026-08-20
 
 ### Removed
