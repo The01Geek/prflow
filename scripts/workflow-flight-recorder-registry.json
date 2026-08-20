@@ -93,9 +93,9 @@
     },
     "issue-audit-state": {
       "path": "lib/test/modules/issue-audit-state.sh",
-      "minimum_assertions": 261,
+      "minimum_assertions": 284,
       "assertion_floor_policy": "exact",
-      "description": "Focused drivers for scripts/issue-audit-state.py, the create-issue Step 3.6 audit-lifecycle state owner: the restricted-PATH CLI round trip and its #889 quoted-draft-line findings, the #603 digest filter-mode rows and the stale pre-cutover event log, the query exit contract, re-init/force and foreign-nonce rows, the embed-arm emitter, creation binding, override attestation and preconditions, the next-action and user-round budgets, illegal transitions, shadow and convergence rounds, the iteration-3/4/5/6 hardening, variance and seam rows, the retry-arm deadlock matrix, the #562 draft-binding CLI rows and the #569 write-path cross-check"
+      "description": "Focused drivers for scripts/issue-audit-state.py, the create-issue Step 3.6 audit-lifecycle state owner: the restricted-PATH CLI round trip and its #889 quoted-draft-line findings, the #603 digest filter-mode rows and the stale pre-cutover event log, the query exit contract, re-init/force and foreign-nonce rows, the embed-arm emitter, creation binding, override attestation and preconditions, the next-action and user-round budgets, illegal transitions, shadow and convergence rounds, the iteration-3/4/5/6 hardening, variance and seam rows, the retry-arm deadlock matrix, the #562 draft-binding CLI rows, the #569 write-path cross-check, and the #1803 summary-block three-part output contract + batched finding-evidence records-file rows"
     },
     "terminal-result-class": {
       "path": "lib/test/modules/terminal-result-class.sh",

@@ -126,13 +126,12 @@ ias_stage() {  # <slug> <nonce> <draft-file>
 IAS_HELP_546="$(NO_COLOR=1 PYTHON_COLORS=0 python3 "$IAS" --help 2>&1 | tr -s '[:space:]' ' ')"
 assert_eq "#546 help_surface_pin: --help states the query exit-0 contract (rendered)" \
   "1" "$(printf '%s' "$IAS_HELP_546" | grep -oF -- 'Queries always exit 0 once the arguments parse and print a decided answer line' | grep -c .)"
-# issue #795: the trailing `next_call=` line falsified the old rendered description, which
-# promised a single decided token. Re-anchored onto the AMENDED rendered text above, and
-# extended below to cover the second line the same rendered surface now describes — this
-# is the surface 18 of 57 measured runs consulted mid-run, so a description that under-
-# states what the tool prints is the failure this pin exists to catch.
-assert_eq "#795 help_surface_pin: --help states the next_call= second line and its reviewed-suggestion status (rendered)" \
-  "1" "$(printf '%s' "$IAS_HELP_546" | grep -oF -- 'print a second and final next_call= line naming the next legal invocation; it is a generated suggestion the caller reviews, never an instruction, and the decided answer line stays first' | grep -c .)"
+# issue #795 + #1803: do not let the rendered description understate what the tool prints —
+# mid-run callers consult it for the three-part output contract and the block's field subset.
+assert_eq "#1803 help_surface_pin: --help states the summary-block line between the decided line and the final next_call= line (rendered)" \
+  "1" "$(printf '%s' "$IAS_HELP_546" | grep -oF -- 'they print a summary-block line carrying a compact fixed subset of the query-summary fields' | grep -c .)"
+assert_eq "#1803 help_surface_pin: --help enumerates the summary-block subset (rendered)" \
+  "1" "$(printf '%s' "$IAS_HELP_546" | grep -oF -- 'state, findings_count, revisions_applied, verdict, rounds_run' | grep -c .)"
 assert_eq "#546 help_surface_pin: --help states the mutation breadcrumb contract (rendered)" \
   "1" "$(printf '%s' "$IAS_HELP_546" | grep -oF -- 'mutations exit non-zero with a named breadcrumb' | grep -c .)"
 # The subcommand roster renders in the PARENT help (a subparser's own --help does not
@@ -370,7 +369,7 @@ if m._finding_count(st) != 2: sys.exit(8)                    # never the UNESTAB
   assert_eq "#1105 cli_roundtrip_restricted_path: an all-addressed targeted round schedules the confirming whole-draft round" \
     "1" "$(grep -c 'confirm-whole-draft' "$IAS_SB/.rt-tnext" 2>/dev/null)"
   assert_eq "#548 cli_roundtrip_restricted_path: query-summary RENDERS the latest round's adjudicated tokens at the CLI (round 3: FILE, 0 unresolved)" \
-    "1" "$(grep -c 'adjudicated_verdict=FILE must_revise=0 advisory=1 invalid=0 unresolved_must_revise=0' "$IAS_SB/.rt-summary" 2>/dev/null)"
+    "1" "$(grep -v '^summary-block ' "$IAS_SB/.rt-summary" 2>/dev/null | grep -c 'adjudicated_verdict=FILE must_revise=0 advisory=1 invalid=0 unresolved_must_revise=0')"
   assert_eq "#548 cli_roundtrip_restricted_path: record-adjudication echoes the adjudicated payload" \
     "adjudicated=REVISE unresolved=2 must_revise=2 advisory=0 invalid=0 superseded=0" "$(sed -n 1p "$IAS_SB/.rt-adj" 2>/dev/null)"
   assert_eq "#743 cli_roundtrip_restricted_path: query-adjudication-records reads back the round-3 advisory record" \
@@ -404,6 +403,13 @@ if m._finding_count(st) != 2: sys.exit(8)                    # never the UNESTAB
   assert_eq "#546 cli_roundtrip_restricted_path: emit-body emits the body below the title heading" \
     "Body line one (revised).
 Body line two." "$(cat "$IAS_SB/.rt-body" 2>/dev/null)"
+  # emit-body is in _NEXT_CALL_EXCLUDED but is NOT routed through _emit_next_call at all, so
+  # the query-findings row alone leaves this path uncovered: a block appended here would forge
+  # extra bytes into a body a caller pipes straight to `gh issue create`.
+  assert_eq "#1803 summary_block: a SUCCESSFUL emit-body prints neither a summary-block nor a next_call= line" \
+    "0:0" "$(grep -c '^summary-block ' "$IAS_SB/.rt-body" 2>/dev/null):$(grep -c '^next_call=' "$IAS_SB/.rt-body" 2>/dev/null)"
+  assert_eq "#1803 summary_block: ... positive control — that emit-body did produce output (not a vacuous empty file)" \
+    "1" "$([ -s "$IAS_SB/.rt-body" ] && echo 1 || echo 0)"
   # The tool's own artifact population is exactly one file: the state JSON.
   assert_eq "#546 cli_roundtrip_restricted_path: the run creates no file besides the state JSON" \
     "issue-audit-state-rt.json" "$(cat "$IAS_SB/.rt-files" 2>/dev/null)"
@@ -1137,13 +1143,13 @@ if [ -d "$IT_SB" ]; then
     "1" "$(grep -c 'is out of order' "$IT_SB/.it-ooo-err" 2>/dev/null)"
   # attestation-in-summary: the status field is part of the rendered summary line
   assert_eq "#546 illegal_transition_rows: query-summary surfaces the attestation field (none when no epoch)" \
-    "1" "$(grep -c 'attestation=none' "$IT_SB/.it-summary" 2>/dev/null)"
+    "1" "$(grep -v '^summary-block ' "$IT_SB/.it-summary" 2>/dev/null | grep -c 'attestation=none')"
   assert_eq "#546 illegal_transition_rows: a mismatching attestation is surfaced end-to-end as the bare token" \
-    "1" "$(grep -c 'attestation=mismatch$' "$IT_SB/.it-summary2" 2>/dev/null)"
+    "1" "$(grep -v '^summary-block ' "$IT_SB/.it-summary2" 2>/dev/null | grep -c 'attestation=mismatch$')"
   assert_eq "#546 illegal_transition_rows: record-creation-attestation reports the mismatch on its own output too" \
     "attestation=mismatch" "$(sed -n 1p "$IT_SB/.it-att-out" 2>/dev/null)"
   assert_eq "#546 illegal_transition_rows: a refused completion's --findings-count is never recorded (clean close omitting its own count reads none, not the unproven 5)" \
-    "1" "$(grep -c 'findings_count=none' "$IT_SB/.it-fc-summary" 2>/dev/null)"
+    "1" "$(grep -v '^summary-block ' "$IT_SB/.it-fc-summary" 2>/dev/null | grep -c 'findings_count=none')"
   assert_eq "#546 illegal_transition_rows: an unreadable draft file refuses draft-undigestible at exit 0" \
     "eligible=no reason=draft-undigestible:0" \
     "$(sed -n 1p "$IT_SB/.it-undig-out" 2>/dev/null):$(sed -n 1p "$IT_SB/.it-undig-rc" 2>/dev/null)"
@@ -1253,7 +1259,7 @@ if [ -d "$SR_SB" ]; then
   assert_eq "#546 shadow_round_rows: a recorded retry dispatch clears pending — next-action answers the awaiting token" \
     "action=round-open-awaiting-return" "$(sed -n 1p "$SR_SB/.sr-rb-na" 2>/dev/null)"
   assert_eq "#546 shadow_round_rows: record-degraded surfaces in the summary" \
-    "1" "$(grep -c 'degraded=yes' "$SR_SB/.sr-deg-summary" 2>/dev/null)"
+    "1" "$(grep -v '^summary-block ' "$SR_SB/.sr-deg-summary" 2>/dev/null | grep -c 'degraded=yes')"
   rm -rf "$SR_SB"
 fi
 
@@ -2597,9 +2603,9 @@ if [ -d "$ZD_SB" ]; then
   assert_eq "#1751 zero_round_decline_rows: a faithfully-posted body attests match against the decline-bound epoch" \
     "attestation=match" "$(sed -n 1p "$ZD_SB/.zd-attest" 2>/dev/null)"
   assert_eq "#1751 zero_round_decline_rows: the summary reports rounds_run=0 on a declined run" \
-    "1" "$(grep -c 'rounds_run=0' "$ZD_SB/.zd-summary" 2>/dev/null)"
+    "1" "$(grep -v '^summary-block ' "$ZD_SB/.zd-summary" 2>/dev/null | grep -c 'rounds_run=0')"
   assert_eq "#1751 zero_round_decline_rows: ... and the summary records the user decline" \
-    "1" "$(grep -c 'user_declined=yes' "$ZD_SB/.zd-summary" 2>/dev/null)"
+    "1" "$(grep -v '^summary-block ' "$ZD_SB/.zd-summary" 2>/dev/null | grep -c 'user_declined=yes')"
   assert_eq "#1751 zero_round_decline_rows: a bound zero-round decline grounds eligibility before a revision" \
     "1" "$(grep -c 'eligible=yes' "$ZD_SB/.zd-elig-pre" 2>/dev/null)"
   assert_eq "#1751 zero_round_decline_rows: a recorded revision stops the bound decline grounding eligibility (positive eligible=no control, not a vacuous absence)" \
@@ -2617,4 +2623,88 @@ if [ -d "$ZD_SB" ]; then
   assert_eq "#1751 zero_round_decline_rows: an unbound sandbox decline reaches eligible=yes with no digest supplied" \
     "1" "$(grep -c 'eligible=yes' "$ZD_SB/.zd-elig-sandbox" 2>/dev/null)"
   rm -rf "$ZD_SB"
+fi
+
+# issue #1803 — the three-part output contract (decided line first, summary-block, next_call=
+# last) and the batched finding-evidence records-file form. Do not reorder the three parts: the
+# audit references dropped the standalone read-backs whose answers the block now carries.
+SBK_SB="$(git_sandbox '#1803 summary_block_and_batched_evidence')"
+if [ -d "$SBK_SB" ]; then
+  (
+    cd "$SBK_SB" || exit 1
+    mkdir -p .prflow/tmp
+    # A mutation prints its decided line first, then the summary-block line, then next_call=.
+    python3 "$IAS" init b1803 > .sbk-init 2>/dev/null
+    NONCE="$(sed -n 's/^nonce=//p' .sbk-init | head -1)"
+    # A state-defaulted read also carries the block between its decided line and next_call=.
+    python3 "$IAS" query-summary b1803 --nonce "$NONCE" > .sbk-qs 2>/dev/null
+    # An EXCLUDED subcommand (a multi-line read-back) prints NO summary-block line — the block
+    # would otherwise forge an extra line on a machine-parsed read-back.
+    python3 "$IAS" query-findings b1803 --nonce "$NONCE" > .sbk-qf 2>/dev/null
+    # Batched finding-evidence: one call records a whole round's evidence, one decided line
+    # per finding each with its own completeness verdict, then the block and next_call.
+    printf '%s\n' '[{"finding_id":1,"locator":"a.py:1","command":"c","observed":"o","baseline_revision":"r"},{"finding_id":2,"locator":"b.py:2"}]' > .prflow/tmp/fe.json
+    python3 "$IAS" record-finding-evidence b1803 --nonce "$NONCE" --round 0 --finding-evidence-records-file .prflow/tmp/fe.json > .sbk-batch 2>/dev/null
+    printf '%s' "$?" > .sbk-batch-rc
+    # A duplicate finding id in the batch is refused before any save.
+    printf '%s\n' '[{"finding_id":3,"locator":"a"},{"finding_id":3,"locator":"b"}]' > .prflow/tmp/dup.json
+    python3 "$IAS" record-finding-evidence b1803 --nonce "$NONCE" --round 0 --finding-evidence-records-file .prflow/tmp/dup.json > .sbk-dup 2> .sbk-dup-err
+    printf '%s' "$?" > .sbk-dup-rc
+    # The batched form and the per-finding flags are mutually exclusive.
+    python3 "$IAS" record-finding-evidence b1803 --nonce "$NONCE" --round 0 --finding-id 5 --finding-evidence-records-file .prflow/tmp/fe.json > /dev/null 2> .sbk-mixed-err
+    printf '%s' "$?" > .sbk-mixed-rc
+    # A single-finding call naming no selector is refused.
+    python3 "$IAS" record-finding-evidence b1803 --nonce "$NONCE" --round 0 > /dev/null 2> .sbk-nosel-err
+    printf '%s' "$?" > .sbk-nosel-rc
+    # Do not narrow the mutual-exclusion scan to --finding-id: every per-finding flag is a
+    # mixed call, and the breadcrumb's singular/plural branch has its own wording.
+    python3 "$IAS" record-finding-evidence b1803 --nonce "$NONCE" --round 0 --locator z.py:9 --finding-evidence-records-file .prflow/tmp/fe.json > /dev/null 2> .sbk-mixed-loc-err
+    printf '%s' "$?" > .sbk-mixed-loc-rc
+    python3 "$IAS" record-finding-evidence b1803 --nonce "$NONCE" --round 0 --locator z.py:9 --command c9 --finding-evidence-records-file .prflow/tmp/fe.json > /dev/null 2> .sbk-mixed-two-err
+    printf '%s' "$?" > .sbk-mixed-two-rc
+  ) || true
+  assert_eq "#1803 summary_block: a mutation prints its decided line first" \
+    "1" "$(sed -n 1p "$SBK_SB/.sbk-init" 2>/dev/null | grep -c '^nonce=')"
+  assert_eq "#1803 summary_block: the summary-block line prints between the decided line and next_call=" \
+    "1" "$(sed -n 2p "$SBK_SB/.sbk-init" 2>/dev/null | grep -c '^summary-block ')"
+  assert_eq "#1803 summary_block: next_call= stays the final stdout line" \
+    "1" "$(tail -n 1 "$SBK_SB/.sbk-init" 2>/dev/null | grep -c '^next_call=')"
+  assert_eq "#1803 summary_block: the block carries the compact subset (state first, attestation last)" \
+    "1" "$(grep -c '^summary-block state=ok .* attestation=none$' "$SBK_SB/.sbk-init" 2>/dev/null)"
+  assert_eq "#1803 summary_block: query-summary also carries a summary-block line" \
+    "1" "$(sed -n 2p "$SBK_SB/.sbk-qs" 2>/dev/null | grep -c '^summary-block ')"
+  assert_eq "#1803 summary_block: query-summary's decided line stays first (state=...)" \
+    "1" "$(sed -n 1p "$SBK_SB/.sbk-qs" 2>/dev/null | grep -c '^state=')"
+  assert_eq "#1803 batched_finding_evidence: the batch exits 0" \
+    "0" "$(cat "$SBK_SB/.sbk-batch-rc" 2>/dev/null)"
+  assert_eq "#1803 batched_finding_evidence: finding 1 records complete" \
+    "1" "$(grep -c '^finding=0:1 completeness=complete missing=none$' "$SBK_SB/.sbk-batch" 2>/dev/null)"
+  assert_eq "#1803 batched_finding_evidence: finding 2 records incomplete with its own missing set" \
+    "1" "$(grep -c '^finding=0:2 completeness=incomplete missing=command,observed,baseline_revision$' "$SBK_SB/.sbk-batch" 2>/dev/null)"
+  assert_eq "#1803 batched_finding_evidence: the batch's first stdout line is a decided finding line" \
+    "1" "$(sed -n 1p "$SBK_SB/.sbk-batch" 2>/dev/null | grep -c '^finding=0:1 ')"
+  assert_eq "#1803 batched_finding_evidence: a duplicate finding id is refused non-zero" \
+    "1" "$(cat "$SBK_SB/.sbk-dup-rc" 2>/dev/null)"
+  assert_eq "#1803 batched_finding_evidence: ... naming the duplicate-id breadcrumb" \
+    "1" "$(grep -c 'finding-evidence-records-duplicate-id' "$SBK_SB/.sbk-dup-err" 2>/dev/null)"
+  assert_eq "#1803 batched_finding_evidence: the batched form and per-finding flags are mutually exclusive" \
+    "1:1" "$(cat "$SBK_SB/.sbk-mixed-rc" 2>/dev/null):$(grep -c 'finding-evidence-records-mixed-form' "$SBK_SB/.sbk-mixed-err" 2>/dev/null)"
+  assert_eq "#1803 batched_finding_evidence: a single-finding call naming no selector is refused" \
+    "1:1" "$(cat "$SBK_SB/.sbk-nosel-rc" 2>/dev/null):$(grep -c 'finding-evidence-missing-finding-selector' "$SBK_SB/.sbk-nosel-err" 2>/dev/null)"
+  assert_eq "#1803 batched_finding_evidence: a per-finding flag OTHER than --finding-id is a mixed call too" \
+    "1:1" "$(cat "$SBK_SB/.sbk-mixed-loc-rc" 2>/dev/null):$(grep -c 'finding-evidence-records-mixed-form' "$SBK_SB/.sbk-mixed-loc-err" 2>/dev/null)"
+  assert_eq "#1803 batched_finding_evidence: ... and the singular branch names that one flag" \
+    "1" "$(grep -c -- '--locator was also passed' "$SBK_SB/.sbk-mixed-loc-err" 2>/dev/null)"
+  assert_eq "#1803 batched_finding_evidence: two per-finding flags take the PLURAL breadcrumb branch, naming both" \
+    "1" "$(grep -c -- '--locator,--command were also passed' "$SBK_SB/.sbk-mixed-two-err" 2>/dev/null)"
+  # The batched form (multiple decided finding lines) still exhibits the full three-part
+  # contract — a summary-block line then next_call= last, after the N decided lines.
+  assert_eq "#1803 batched_finding_evidence: the batch prints a summary-block line after its decided lines" \
+    "1" "$(grep -c '^summary-block ' "$SBK_SB/.sbk-batch" 2>/dev/null)"
+  assert_eq "#1803 batched_finding_evidence: next_call= stays the batch's final stdout line" \
+    "1" "$(tail -n 1 "$SBK_SB/.sbk-batch" 2>/dev/null | grep -c '^next_call=')"
+  # An excluded (multi-line read-back) subcommand prints NO summary-block line.
+  assert_eq "#1803 summary_block: an excluded read-back (query-findings) prints no summary-block line" \
+    "0" "$(grep -c '^summary-block ' "$SBK_SB/.sbk-qf" 2>/dev/null)"
+  rm -rf "$SBK_SB"
 fi

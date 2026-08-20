@@ -69,6 +69,15 @@ The bootstrap re-home is the point of issue #1752. The `init` call and nonce min
 
 Each member carries a `<!-- prflow:create-issue-set step=3.6 part=k of=3 -->` marker as its second line. Part 1 must be held before any `init`, canonical-draft write, or state-owner mutation; parts 2 and 3 are held as a whole pair before any dispatch. Audit semantics, state-owner sequencing, user elections, and degraded behavior are otherwise unchanged: the ordered-set gate rejects a bad boundary state with the existing attributable outcome for each state (denied, empty, missing, truncated, duplicate, reversed, noncanonical, misrouted, set-incomplete), and a required-member load failure enters the existing degraded path exactly once before audit work begins, so issue creation stays non-terminating on that path.
 
+### The state-owner call protocol is shrunk (issue #1803)
+
+The call sequence the adjudication member (part 3) owns records the same facts in fewer `scripts/issue-audit-state.py` round-trips. Two changes drive it:
+
+- **Three-part output contract.** Every subcommand that prints a `next_call=` line now also prints a **summary-block** line between its decided answer line (still first) and the `next_call=` line (now last) — a compact fixed subset of the fields `query-summary` reports, enumerated in the tool's own `--help`. A caller reads the state it needs from the call it just made, so the clean path drops its standalone `query-summary` read; the retained `query-*` subcommands stay registered as recovery instruments and none is removed.
+- **Batched finding evidence.** `record-finding-evidence` gained a `--finding-evidence-records-file` form recording a whole round's finding evidence from one JSON file (each entry keeps its own completeness verdict), mirroring the existing adjudication records-file ingestion — one call per round instead of one per finding.
+
+The per-run mandated `unconditional_call_count` drops from 13 to 12 as a result; that figure is derived live from the shipped sequence prose by `lib/test/check-audit-lifecycle-contracts.py` (printed on `lib/test/run.sh`'s `MEASURE` line), never transcribed here.
+
 ### The member manifest is the single source
 
 `lib/test/create-issue-step-3-6-members.json` single-sources the declared set — the entry reference, the ordered members, the `per_member_limit_bytes` (55,000), and the `aggregate_baseline_bytes` (72,458, captured at commit e712655b6). Every guard reconciles against that manifest rather than an inline roster:

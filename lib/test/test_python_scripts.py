@@ -7788,6 +7788,222 @@ assert_eq("#562 summary_fields: a worktree-root binding surfaces bound_root + bo
 _sf_none = issue_audit_state.summary_fields(_state([_round(1, 'file', 'FILE', 'D1')]), 'D1')
 assert_eq("#562 summary_fields: an unbound run surfaces bound_root=None bound_tier=None",
           (None, None), (_sf_none['bound_root'], _sf_none['bound_tier']))
+
+# issue #1803: the summary-block compact subset + the batched finding-evidence ingester.
+# (1) Do not enumerate the block's fields in `--help` or the renderer independently of
+#     `_SUMMARY_BLOCK_FIELDS` — a second list drifts from the emitted surface.
+_bp_desc = issue_audit_state.build_parser().description
+assert_eq("#1803 summary_block: the --help description enumerates exactly _SUMMARY_BLOCK_FIELDS",
+          True, ', '.join(issue_audit_state._SUMMARY_BLOCK_FIELDS) in _bp_desc)
+_blk1 = issue_audit_state._summary_block_line(
+    issue_audit_state.summary_fields(_state([_round(1, 'file', 'FILE', 'D1')]), 'D1'))
+_blk_fields = tuple(tok.split('=', 1)[0]
+                    for tok in _blk1[len('summary-block '):].split(' '))
+assert_eq("#1803 summary_block: the emitted block's field set equals _SUMMARY_BLOCK_FIELDS",
+          issue_audit_state._SUMMARY_BLOCK_FIELDS, _blk_fields)
+# (2) State currency: the block reflects the state it is derived from.
+_blk0 = issue_audit_state._summary_block_line(
+    issue_audit_state.summary_fields(_state([]), None))
+assert_eq("#1803 summary_block: a zero-round state renders rounds_run=0", True,
+          'rounds_run=0' in _blk0)
+assert_eq("#1803 summary_block: a one-round FILE state renders rounds_run=1", True,
+          'rounds_run=1' in _blk1)
+assert_eq("#1803 summary_block: a None state renders the unestablished shape", True,
+          'state=unestablished' in issue_audit_state._summary_block_line(
+              issue_audit_state.summary_fields(None)))
+# (3) Do not relax the ingester into accepting a malformed records file, and do not tighten
+#     it into refusing an entry that merely OMITS content fields — that entry must ingest and
+#     be recorded `incomplete` downstream, never rejected.
+with tempfile.TemporaryDirectory() as _fe_dir:
+    def _fe(content):
+        p = os.path.join(_fe_dir, 'fe.json')
+        with open(p, 'w', encoding='utf-8') as fh:
+            fh.write(content)
+        return p
+    _ing = issue_audit_state._ingest_finding_evidence_records
+    _recs = _ing(_fe('[{"finding_id":1,"locator":"a","command":"c","observed":"o",'
+                     '"baseline_revision":"r","baseline_identity":"bi"},{"finding_id":2}]'))
+    assert_eq("#1803 fe_records: the optional baseline_identity is carried through, not dropped",
+              ('bi', None), (_recs[0]['baseline_identity'], _recs[1]['baseline_identity']))
+    assert_eq("#1803 fe_records: a valid file yields one record per finding, in file order",
+              [1, 2], [r['finding_id'] for r in _recs])
+    assert_eq("#1803 fe_records: an entry omitting content fields ingests them None "
+              "(recorded incomplete downstream, not refused here)",
+              (None, None, None),
+              (_recs[1]['locator'], _recs[1]['command'], _recs[1]['observed']))
+    assert_raises("#1803 fe_records: a not-JSON file is refused",
+                  SystemExit, lambda: _ing(_fe('not json')))
+    assert_raises("#1803 fe_records: a non-array top level is refused",
+                  SystemExit, lambda: _ing(_fe('{"finding_id":1}')))
+    assert_raises("#1803 fe_records: an empty array is refused",
+                  SystemExit, lambda: _ing(_fe('[]')))
+    assert_raises("#1803 fe_records: an entry missing finding_id is refused",
+                  SystemExit, lambda: _ing(_fe('[{"locator":"a"}]')))
+    assert_raises("#1803 fe_records: a non-int finding_id is refused",
+                  SystemExit, lambda: _ing(_fe('[{"finding_id":"1"}]')))
+    assert_raises("#1803 fe_records: a bool finding_id is refused (not read as id 1)",
+                  SystemExit, lambda: _ing(_fe('[{"finding_id":true}]')))
+    assert_raises("#1803 fe_records: a negative finding_id is refused",
+                  SystemExit, lambda: _ing(_fe('[{"finding_id":-1}]')))
+    assert_raises("#1803 fe_records: a wrong-type field is refused",
+                  SystemExit, lambda: _ing(_fe('[{"finding_id":1,"locator":5}]')))
+    assert_raises("#1803 fe_records: a non-object entry is refused",
+                  SystemExit, lambda: _ing(_fe('[5]')))
+    assert_raises("#1803 fe_records: a duplicate finding_id is refused",
+                  SystemExit, lambda: _ing(_fe('[{"finding_id":1},{"finding_id":1}]')))
+    assert_raises("#1803 fe_records: an unreadable records-file path is refused",
+                  SystemExit, lambda: _ing(os.path.join(_fe_dir, 'does-not-exist.json')))
+    # Do not move the UTF-8 decode after `json.loads`, and do not drop it: every fixture
+    # above is written through a text file, so only a raw-bytes fixture reaches this arm.
+    def _fe_bytes(payload):
+        q = os.path.join(_fe_dir, 'fe-bytes.json')
+        with open(q, 'wb') as fh:
+            fh.write(payload)
+        return q
+    _und_err = io.StringIO()
+    with contextlib.redirect_stderr(_und_err):
+        assert_raises("#1803 fe_records: an undecodable (non-UTF-8) records file is refused",
+                      SystemExit, lambda: _ing(_fe_bytes(b'[{"finding_id":1,"locator":"\xff\xfe"}]')))
+    assert_eq("#1803 fe_records: ... attributed to the decode guard, not the JSON parser",
+              (True, False),
+              ('finding-evidence-records-undecodable' in _und_err.getvalue(),
+               'finding-evidence-records-not-json' in _und_err.getvalue()))
+    # Positive control on the same fixture shape: the identical record as valid UTF-8 ingests,
+    # so the refusal above is attributable to the bytes and not to the record's own shape.
+    assert_eq("#1803 fe_records positive control: the same record as valid UTF-8 ingests",
+              [1], [r['finding_id'] for r in _ing(_fe_bytes(
+                  '[{"finding_id":1,"locator":"\u00ff\u00fe"}]'.encode('utf-8')))])
+# (4) Do not render a shared field differently in `_summary_block_line` and `query-summary`
+#     — the two surfaces are contracted to agree token-for-token on the shared subset.
+with tempfile.TemporaryDirectory() as _xr_dir:
+    _xr_root = Path(_xr_dir)
+    _xr_state = _state([_round(1, 'file', 'FILE', 'D1')])
+    issue_audit_state.save_state(_xr_state, 's', root=_xr_root)
+    _xr_orig = issue_audit_state._repo_root
+    try:
+        issue_audit_state._repo_root = lambda: _xr_root
+        _qs_buf = io.StringIO()
+        with contextlib.redirect_stdout(_qs_buf), contextlib.redirect_stderr(io.StringIO()):
+            issue_audit_state.cmd_query_summary(argparse.Namespace(
+                cmd='query-summary', slug='s', nonce=_xr_state['nonce'], draft_file=None))
+    finally:
+        issue_audit_state._repo_root = _xr_orig
+    _qs_tok = dict(t.split('=', 1) for t in _qs_buf.getvalue().split('\n')[0].split(' '))
+    _blk_tok = dict(t.split('=', 1) for t in issue_audit_state._summary_block_line(
+        issue_audit_state.summary_fields(_xr_state))[len('summary-block '):].split(' '))
+    _blk_sub = {f: _blk_tok.get(f) for f in issue_audit_state._SUMMARY_BLOCK_FIELDS}
+    _qs_sub = {f: _qs_tok.get(f) for f in issue_audit_state._SUMMARY_BLOCK_FIELDS}
+    assert_eq("#1803 cross-render: every summary-block token equals query-summary's for the "
+              "shared subset", _qs_sub, _blk_sub)
+# (5) Do not edit one copy of the duplicated `effective_unresolved`/`markers` renderers: the
+#     cross-render state above resolves both to their None arm, so only these rows catch it.
+_bf = dict(issue_audit_state.summary_fields(None))
+_bf['effective_unresolved'] = 2
+_bf['adjudicated_verdict'] = 'REVISE'
+_bf['markers'] = ['file-unreadable', 'write-failed']
+_bln = issue_audit_state._summary_block_line(_bf)
+assert_eq("#1803 summary_block: a live effective_unresolved renders its count (non-None arm)",
+          True, ' effective_unresolved=2 ' in _bln)
+assert_eq("#1803 summary_block: non-empty markers render comma-joined (non-None arm)",
+          True, ' markers=file-unreadable,write-failed ' in _bln)
+# (6) Do not move `_save_or_fail` inside the batch loop: a prior-call overwrite conflict fires
+# PARTWAY through it, and a per-record save would persist the earlier records. The in-batch
+# duplicate-id rows above reject before any mutation, so they cannot catch that.
+with tempfile.TemporaryDirectory() as _ba_dir:
+    _ba_root = Path(_ba_dir)
+
+    def _ba_run(colliding_entry):
+        _ba_state = _state([_round(1, 'file', 'FILE', 'D1')])
+        _ba_state['finding_evidence'] = {'1:7': {
+            'locator': 'L0', 'command': 'C0', 'observed': 'O0',
+            'baseline_revision': 'R0', 'completeness': 'complete'}}
+        issue_audit_state.save_state(_ba_state, 's', root=_ba_root)
+        _ba_path = os.path.join(_ba_dir, 'batch.json')
+        with open(_ba_path, 'w', encoding='utf-8') as fh:
+            json.dump([{'finding_id': 5, 'locator': 'L5', 'command': 'C5',
+                        'observed': 'O5', 'baseline_revision': 'R5'},
+                       colliding_entry], fh)
+        _ba_orig = issue_audit_state._repo_root
+        _ba_err = io.StringIO()
+        try:
+            issue_audit_state._repo_root = lambda: _ba_root
+            with contextlib.redirect_stdout(io.StringIO()), \
+                    contextlib.redirect_stderr(_ba_err):
+                try:
+                    issue_audit_state.cmd_record_finding_evidence(argparse.Namespace(
+                        cmd='record-finding-evidence', slug='s', nonce='n0', round=1,
+                        finding_id=None, locator=None, command=None, observed_stdin=False,
+                        baseline_revision=None, baseline_identity=None,
+                        finding_evidence_records_file=_ba_path))
+                    _ba_exit = None
+                except SystemExit as exc:
+                    _ba_exit = exc
+            _ba_keys = sorted(issue_audit_state.load_state('s', root=_ba_root)
+                              .get('finding_evidence', {}))
+        finally:
+            issue_audit_state._repo_root = _ba_orig
+        return _ba_exit, _ba_err.getvalue(), _ba_keys
+
+    _ba_exit, _ba_msg, _ba_keys = _ba_run(
+        {'finding_id': 7, 'locator': 'L1', 'command': 'C1', 'observed': 'O1',
+         'baseline_revision': 'R1'})
+    assert_eq("#1803 batch atomicity: a record colliding with PRIOR-call evidence refuses "
+              "the batch", True, _ba_exit is not None)
+    assert_eq("#1803 batch atomicity: the refusal is attributed to the overwrite guard, not "
+              "a precondition", True, 'evidence-overwrite-differs' in _ba_msg)
+    assert_eq("#1803 batch atomicity: the earlier record in the same batch is NOT persisted "
+              "(one save, after the loop)", ['1:7'], _ba_keys)
+    # Positive control on the same fixture: only the colliding entry's disagreement changes.
+    _pc_exit, _pc_msg, _pc_keys = _ba_run(
+        {'finding_id': 7, 'locator': 'L0', 'command': 'C0', 'observed': 'O0',
+         'baseline_revision': 'R0'})
+    assert_eq("#1803 batch atomicity positive control: an idempotent replay of the colliding "
+              "entry lands the whole batch", (None, ['1:5', '1:7']), (_pc_exit, _pc_keys))
+# (7) Do not restore the summary-block guard to a silent swallow: a `summary_fields` data-shape
+# bug would drop the block for every caller with no signal, and only the breadcrumb tells that
+# loss apart from a subcommand that legitimately emits none. The primary next_call= must survive.
+_sw_orig = issue_audit_state._summary_block_line
+_sw_out, _sw_err = io.StringIO(), io.StringIO()
+try:
+    def _sw_boom(_fields):
+        raise ValueError('rendered nothing')
+    issue_audit_state._summary_block_line = _sw_boom
+    with contextlib.redirect_stdout(_sw_out), contextlib.redirect_stderr(_sw_err):
+        issue_audit_state._emit_next_call('record-degraded', argparse.Namespace(
+            cmd='record-degraded', slug='no-such-slug-1803', nonce='n0', round=None,
+            draft_file=None), {})
+finally:
+    issue_audit_state._summary_block_line = _sw_orig
+assert_eq("#1803 summary_block guard: a non-AssertionError render failure names itself on stderr",
+          True, 'summary-block render failed' in _sw_err.getvalue()
+          and 'ValueError' in _sw_err.getvalue())
+assert_eq("#1803 summary_block guard: the primary next_call= line still prints (no block)",
+          (True, False), (_sw_out.getvalue().startswith('next_call='),
+                          'summary-block' in _sw_out.getvalue()))
+# Positive control for the `except AssertionError: raise` arm above: do not widen the swallow
+# to cover AssertionError — a self-check failure is a TOOL defect main() must name as a contract
+# violation, not one more environment hiccup on stderr.
+_ae_orig = issue_audit_state._summary_block_line
+_ae_out, _ae_err = io.StringIO(), io.StringIO()
+try:
+    def _ae_boom(_fields):
+        raise AssertionError('self-check tripped')
+    issue_audit_state._summary_block_line = _ae_boom
+    with contextlib.redirect_stdout(_ae_out), contextlib.redirect_stderr(_ae_err):
+        try:
+            issue_audit_state._emit_next_call('record-degraded', argparse.Namespace(
+                cmd='record-degraded', slug='no-such-slug-1803', nonce='n0', round=None,
+                draft_file=None), {})
+            _ae_raised = None
+        except AssertionError as exc:
+            _ae_raised = str(exc)
+finally:
+    issue_audit_state._summary_block_line = _ae_orig
+assert_eq("#1803 summary_block guard: an AssertionError propagates rather than being swallowed",
+          'self-check tripped', _ae_raised)
+assert_eq("#1803 summary_block guard: ... and it is NOT reported as the render-failed swallow",
+          (False, False), ('summary-block render failed' in _ae_err.getvalue(),
+                           _ae_out.getvalue().startswith('next_call=')))
 # _binding_line — the query answer shape, incl. the fail-closed unbound token.
 assert_eq("#562 _binding_line: unbound state answers the fail-closed bound=none token",
           'bound=none tier=none non_bound_root=none latest_revision_landed=yes',
