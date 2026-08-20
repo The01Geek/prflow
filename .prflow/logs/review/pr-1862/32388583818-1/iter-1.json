@@ -1,0 +1,148 @@
+{
+  "iter": 1,
+  "source": "review",
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "current_substep": null,
+  "fix_commit_sha": null,
+  "fix_files": [],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "detect_all_audit": true,
+    "checklist_skipped": null
+  },
+  "checklist": [
+    {
+      "id": "VC-1",
+      "category": "issue_acceptance",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-2",
+      "category": "issue_acceptance",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-3",
+      "category": "data_format_assumption",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-4",
+      "category": "dependency_interaction",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-5",
+      "category": "dependency_interaction",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-6",
+      "category": "dependency_interaction",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-7",
+      "category": "data_format_assumption",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-8",
+      "category": "dependency_interaction",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-9",
+      "category": "data_format_assumption",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-10",
+      "category": "dependency_interaction",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-11",
+      "category": "test_mock_alignment",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-12",
+      "category": "dependency_interaction",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [],
+  "fix_decisions": [],
+  "convergence_inputs": {
+    "fixes_applied": 0,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "engine_verdict": "APPROVE",
+  "shadow": {
+    "ran_at": "2026-08-20T16:00:00Z",
+    "reviewed_sha": "beff7a1d061445292cede6f7ada738be369c3801",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "park_calibration": {
+    "evidence_comparisons": []
+  },
+  "telemetry": "unavailable",
+  "synthesized": false
+}
