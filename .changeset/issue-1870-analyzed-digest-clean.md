@@ -9,5 +9,5 @@ type: Fixed
   alongside `imperfect` and `blocked`, while still excluding gate-skipped clean entries (whose
   analysis fields are empty, from `lib/clean-entry.jq`). Previously an analyst-graded clean PR cost a
   Stage A LLM call and was counted in `analyzed_count` yet was dropped from the digest, so the
-  "Analyzed PRs" list under-reported. `lib/compute-patterns.jq` is unchanged, so clean still
-  contributes no pattern occurrences. (#1873)
+  "Analyzed PRs" list under-reported. `lib/compute-patterns.jq` and its own `imperfect`-or-`blocked`
+  pattern-occurrence select are left unchanged (AC2). (#1873)
