@@ -2607,3 +2607,91 @@ assert_eq "#1261 record_empty_branch is referenced exactly 3x (def + 2 flips) �
 
 rm -rf "$T1261"
 unset EB1261 DECIDE1261 DECIDE1261_CODE T1261 D_NC D_HC D_UN1 D_UN2 D_UN3 D_UN4 D_BODY D_PLACEHOLDER OUT_FAIL1261 RC_FAIL1261 OUT_DEDUP1261
+
+# ────────────────────────────────────────────────────────────────────────────
+echo "#1858 review outcome recorded against the reviewed PR, not the commented-on one"
+# ────────────────────────────────────────────────────────────────────────────
+# Each of the three command-job steps derives PR_NUMBER from the resolved command's
+# trailing number (event-number fallback); executing each step's real run block from
+# the parsed YAML catches a swapped CONTEXT_NUMBER/COMMAND or a dropped fallback.
+S1858_WF="$REPO_ROOT/.github/workflows/devflow.yml"
+
+# Extract one command-job step's `run` body to a file.
+s1858_extract() {  # $1 = step name, $2 = output file
+  python3 - "$S1858_WF" "$1" "$2" <<'PY'
+import sys, yaml
+doc = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
+steps = doc["jobs"]["command"]["steps"]
+named = [s for s in steps if s.get("name") == sys.argv[2]]
+if len(named) != 1:
+    raise SystemExit(f"expected exactly one step named {sys.argv[2]!r}, found {len(named)}")
+open(sys.argv[3], "w", encoding="utf-8").write(named[0]["run"])
+PY
+}
+
+# Run one step's derivation; print the PR number that reached its write helper.
+# $1 = step-block file, $2 = COMMAND, $3 = CONTEXT_NUMBER. Step 1's helper reads
+# PR_NUMBER from the env; steps 2 and 3 receive it positionally ($3 and $2).
+s1858_land() {
+  local block="$1" cmd="$2" ctx="$3"
+  local box rec
+  box="$(mktemp -d)"
+  rec="$box/landing"
+  mkdir -p "$box/.prflow/vendor/prflow/scripts" "$box/bin" "$box/tmp"
+  : > "$rec"
+  cat > "$box/bin/gh" <<EOF
+#!/usr/bin/env bash
+case "\$*" in
+  *reviews*) echo '[]' ;;
+  *pulls/*)  echo 'deadbeef' ;;
+  *) : ;;
+esac
+EOF
+  cat > "$box/.prflow/vendor/prflow/scripts/post-review-backstop-comment.sh" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\${PR_NUMBER:-}" >> "$rec"
+EOF
+  cat > "$box/.prflow/vendor/prflow/scripts/check-verdict-post-reached.sh" <<'EOF'
+#!/usr/bin/env bash
+echo NOT-REACHED
+EOF
+  cat > "$box/.prflow/vendor/prflow/scripts/describe-verdict-post-gap.sh" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$3" >> "$rec"
+EOF
+  cat > "$box/.prflow/vendor/prflow/scripts/dismiss-stale-rejections-net.sh" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "\$2" >> "$rec"
+echo no-dismiss-undetermined
+EOF
+  chmod +x "$box/bin/gh" "$box/.prflow/vendor/prflow/scripts/"*.sh
+  cp "$block" "$box/block.sh"
+  ( cd "$box" && unset PR_NUMBER
+    PATH="$box/bin:$PATH" RUNNER_TEMP="$box/tmp" GH_TOKEN=x REPO=o/r \
+      GITHUB_RUN_ID=1 VERDICT=incomplete APP_TOKEN_PRESENT=false ENGINE_ERROR=false \
+      COMMAND="$cmd" CONTEXT_NUMBER="$ctx" bash block.sh >/dev/null 2>&1 || true )
+  sed -n '1p' "$rec"
+  rm -rf "$box"
+}
+
+S1858_BLOCKS="$(mktemp -d)"
+S1858_I=0
+for S1858_STEP in \
+  "Review stall backstop" \
+  "Record whether the verdict emitter was reached" \
+  "Dismiss superseded REJECT on a determined APPROVE"; do
+  S1858_I=$((S1858_I + 1))
+  S1858_BLOCK="$S1858_BLOCKS/block-$S1858_I.sh"
+  s1858_extract "$S1858_STEP" "$S1858_BLOCK"
+  assert_eq "#1858 [$S1858_STEP]: the command's own trailing number wins over a differing event number" \
+    "42" "$(s1858_land "$S1858_BLOCK" '/prflow:review 42' '10')"
+  assert_eq "#1858 [$S1858_STEP]: a command carrying no number falls back to the event's own" \
+    "10" "$(s1858_land "$S1858_BLOCK" '/prflow:review' '10')"
+  assert_eq "#1858 [$S1858_STEP]: a non-numeric trailing token falls back to the event's own number" \
+    "10" "$(s1858_land "$S1858_BLOCK" '/prflow:review-and-fix HEAD' '10')"
+  assert_eq "#1858 [$S1858_STEP]: no number on either the command or the event resolves empty" \
+    "" "$(s1858_land "$S1858_BLOCK" '/prflow:review' '')"
+done
+rm -rf "$S1858_BLOCKS"
+
+unset S1858_WF S1858_STEP S1858_BLOCKS S1858_BLOCK S1858_I
