@@ -9542,8 +9542,7 @@ def build_parser():
     s = sub.add_parser('query-draft-binding',
                        help='Emit the recorded tiered draft-root binding (#562): bound '
                             'path, tier token, non-bound root, and the latest-revision '
-                            'landed token (one of yes/no/unestablished, #1841). '
-                            'Fail-closed bound=none when unbound.',
+                            'landed token. Fail-closed bound=none when unbound.',
                        description='Emit the recorded tiered draft-root binding (#562): '
                             'bound path, tier token, non-bound root, and the '
                             'latest_revision_landed token, which is one of '
