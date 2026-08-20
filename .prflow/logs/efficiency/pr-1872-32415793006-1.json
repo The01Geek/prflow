@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1872",
+  "generated_at": "2026-08-20T20:55:11Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.46",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 7.609016499999999,
+    "tokens": {
+      "input_tokens": 40,
+      "output_tokens": 23912,
+      "cache_read_input_tokens": 2602601,
+      "cache_creation_input_tokens": 174739,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 100,
+        "outputTokens": 61143,
+        "cacheReadInputTokens": 4176453,
+        "cacheCreationInputTokens": 533831,
+        "webSearchRequests": 0,
+        "costUSD": 7.609016499999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 30,
+    "duration_ms": 468002
+  },
+  "permission_denials": {
+    "count": 2,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-none} ATTEMPT=${GITHUB_RUN_ATTEMPT:-none} ACTIONS=${GITHUB_ACTIONS:-none}\"",
+      "mkdir -p .prflow/tmp/review/pr-1872/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}\ngh pr diff 1872 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1872/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}/diff.patch | grep -c '^diff --git'"
+    ],
+    "total": 2,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
