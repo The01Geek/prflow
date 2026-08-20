@@ -1,0 +1,185 @@
+{
+  "iter": 2,
+  "started_at": "2026-08-20T16:07:00Z",
+  "source": "review-and-fix",
+  "loop_role": "fix",
+  "current_step": "2.6",
+  "progress_surface": "workpad",
+  "fix_commit_sha": null,
+  "fix_files": [],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "detect_all_audit": false,
+    "checklist_skipped": null
+  },
+  "checklist": [
+    {
+      "id": "VC-1",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:import-review-verdict-handoff.py:both-files-deleted",
+      "reused_from_iter_prev": true
+    },
+    {
+      "id": "VC-2",
+      "verification_mode": "lite",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:run.sh:irvh-block-removed",
+      "reused_from_iter_prev": true
+    },
+    {
+      "id": "VC-3",
+      "verification_mode": "lite",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:coverage-map.json:importer-entry-removed",
+      "reused_from_iter_prev": true
+    },
+    {
+      "id": "VC-4",
+      "verification_mode": "lite",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:test_module_runner.py:serial-entry-removed",
+      "reused_from_iter_prev": true
+    },
+    {
+      "id": "VC-5",
+      "verification_mode": "lite",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:config.json:grant-removed",
+      "reused_from_iter_prev": true
+    },
+    {
+      "id": "VC-6",
+      "verification_mode": "lite",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:matcher-probe.yml:grant-mirror-removed",
+      "reused_from_iter_prev": true
+    },
+    {
+      "id": "VC-7",
+      "verification_mode": "lite",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:loop-verdict-marker-test.py:comment-ref-removed",
+      "reused_from_iter_prev": true
+    },
+    {
+      "id": "VC-8",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:repo:no-residual-references",
+      "reused_from_iter_prev": false,
+      "evidence": "re-verified after changeset reword: only CHANGELOG.md + .prflow/learnings/ (exempt) remain"
+    },
+    {
+      "id": "VC-9",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:post-review-verdict.sh:byte-unchanged",
+      "reused_from_iter_prev": true
+    },
+    {
+      "id": "VC-10",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:changeset:records-removal",
+      "reused_from_iter_prev": false,
+      "evidence": "changeset re-verified: bump patch, type Removed, records removal, no literal token pair"
+    },
+    {
+      "id": "VC-11",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:capability-profiles.json:grant-absent",
+      "reused_from_iter_prev": true
+    },
+    {
+      "id": "VC-12",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "data_format_assumption:coverage-map.json:guard-consistency",
+      "reused_from_iter_prev": true
+    },
+    {
+      "id": "VC-13",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "dependency_interaction:matcher-probe.yml:extras-config-mirror-consistency",
+      "reused_from_iter_prev": true
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [],
+  "fix_decisions": [],
+  "convergence_inputs": {
+    "fixes_applied": 0,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "sweep_defs_read": [],
+  "sweep_evidence": {
+    "status": "not-run",
+    "reason": "no fixes applied"
+  },
+  "verification_evidence": {
+    "command": "n/a — no-fix iteration; engine re-review only",
+    "result": "skipped",
+    "reason": "no fixes applied this iteration; verification owned by /prflow:implement Phase 4.3",
+    "skipped_checks": []
+  },
+  "test_first_gate": [],
+  "telemetry": "unavailable",
+  "engine_verdict": "APPROVE",
+  "shadow": {
+    "ran_at": "2026-08-20T16:07:00Z",
+    "reviewed_sha": "bbda984eec703c3c2a4bf3a61ada964b6f7e2358",
+    "trigger": "convergence-time",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "park_calibration": {
+    "evidence_comparisons": []
+  },
+  "park_calibration_sentinel": "park-calibration gate clean: no parked finding matched",
+  "over_grade_gate": "over-grade calibration gate clean: no promote-path finding flagged",
+  "synthesized": false
+}

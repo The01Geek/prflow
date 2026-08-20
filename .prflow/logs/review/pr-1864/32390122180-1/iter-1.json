@@ -1,0 +1,227 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-20T16:07:00Z",
+  "source": "review-and-fix",
+  "loop_role": "fix",
+  "current_step": "3",
+  "current_substep": null,
+  "progress_surface": "workpad",
+  "fix_commit_sha": "bbda984ee",
+  "fix_files": [
+    ".changeset/issue-1860-remove-orphaned-review-verdict-importer.md"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "detect_all_audit": false,
+    "checklist_skipped": null
+  },
+  "checklist": [
+    {
+      "id": "VC-1",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:import-review-verdict-handoff.py:both-files-deleted",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-2",
+      "verification_mode": "lite",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:run.sh:irvh-block-removed",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-3",
+      "verification_mode": "lite",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:coverage-map.json:importer-entry-removed",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-4",
+      "verification_mode": "lite",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:test_module_runner.py:serial-entry-removed",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-5",
+      "verification_mode": "lite",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:config.json:grant-removed",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-6",
+      "verification_mode": "lite",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:matcher-probe.yml:grant-mirror-removed",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-7",
+      "verification_mode": "lite",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:loop-verdict-marker-test.py:comment-ref-removed",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-8",
+      "verification_mode": "agent",
+      "verdict": "FAIL",
+      "claim_signature": "issue_acceptance:repo:no-residual-references",
+      "reused_from_iter_prev": false,
+      "evidence": "changeset file referenced the literal; FIXED this iteration by rewording"
+    },
+    {
+      "id": "VC-9",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:post-review-verdict.sh:byte-unchanged",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-10",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:changeset:records-removal",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-11",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:capability-profiles.json:grant-absent",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-12",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "data_format_assumption:coverage-map.json:guard-consistency",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-13",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "dependency_interaction:matcher-probe.yml:extras-config-mirror-consistency",
+      "reused_from_iter_prev": false
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile_note": "engine_self_modifying (lib/** touched) -> full checklist",
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "AC5 violation: the new changeset referenced the removed identifiers (import-review-verdict-handoff / import_review_verdict_handoff), and .changeset/ is outside AC5's exempt set (CHANGELOG.md, .prflow/learnings/, .prflow/logs/).",
+      "defect_signature": {
+        "file": ".changeset/issue-1860-remove-orphaned-review-verdict-importer.md",
+        "line_range": [
+          12,
+          17
+        ],
+        "kind": "other"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "bbda984ee"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 1,
+    "fix_diff_lines": 14,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "sweep_defs_read": [],
+  "sweep_evidence": {
+    "status": "run",
+    "note": "fix delta is add-only changeset prose reword; 2.3.4b stale-prose-lint clean (sp-rc=0), no coverage universal"
+  },
+  "base_checkpoint": {
+    "token": "UP_TO_DATE",
+    "behind_by": null
+  },
+  "stale_prose_check": {
+    "result": "clean",
+    "rows": []
+  },
+  "verification_evidence": {
+    "command": "git ls-files -z | xargs -0 grep -lE 'import[-_]review[-_]verdict[-_]handoff' (AC5 re-check) + lite grep probes",
+    "result": "pass",
+    "duration_s": 5,
+    "skipped_checks": []
+  },
+  "test_first_gate": [
+    {
+      "decision": "no-automated-test",
+      "command": "n/a (prose changeset reword)",
+      "result": "pass",
+      "evidence": "fix removes the literal token pair from changeset prose; verified by tree-wide AC5 grep — only CHANGELOG.md + .prflow/learnings/ (exempt) remain"
+    }
+  ],
+  "telemetry": "unavailable",
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "ran_at": "2026-08-20T16:07:00Z",
+    "reviewed_sha": "bbda984ee",
+    "trigger": "early (engine_self_modifying, after iteration 1)",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false
+}
