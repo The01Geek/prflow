@@ -7,6 +7,10 @@
       "note": "issue #788 retrospective issue-closure lifecycle",
       "owner": "retrospective-lifecycle"
     },
+    "lib/analyzed-digest.jq": {
+      "note": "issue #1870 Step-9 Analyzed PRs digest filter",
+      "owner": "retrospective-lifecycle"
+    },
     "lib/audit-bundle-selection.sh": {
       "note": "issue #894 Stage B occurrence-bundle cap validation + most-recent-N selection",
       "owner": "retrospective-lifecycle"
@@ -1431,6 +1435,10 @@
     "187": {
       "note": "",
       "owner": "unmodularized"
+    },
+    "1870": {
+      "note": "",
+      "owner": "retrospective-lifecycle"
     },
     "189": {
       "note": "",
