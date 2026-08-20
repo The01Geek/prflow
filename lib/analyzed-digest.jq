@@ -21,9 +21,8 @@
 #   jq -sc -f lib/analyzed-digest.jq .prflow/tmp/new-entries.jsonl
 
 def _analysis_nonempty:
-  (((.categories | arrays) // []) | length) > 0
-  or (((.descriptors | arrays) // []) | length) > 0
-  or (((.suggested_interventions | arrays) // []) | length) > 0;
+  any(.categories, .descriptors, .suggested_interventions;
+      ((arrays // []) | length) > 0);
 
 [ .[]
   | select(
