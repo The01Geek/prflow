@@ -355,10 +355,16 @@ distinguishes the *cause* so a genuine misconfiguration is never laundered into 
   misconfiguration, so it is a **`::warning::` naming the model/provider** — the same channel the
   resolver already uses for an invalid effort value or an unusable model.
 
-The provider `effort_supported` capability is a **caller-supplied** input (`--effort-supported`, default
-`true` — the Anthropic path): the in-session engine cannot introspect the routed provider's capability,
-so the model-level Haiku restriction (read from the resolved model) is the capability guard active by
-default, and a caller that knows the provider capability passes it in.
+The provider `effort_supported` capability is resolved by the cloud workflow — the only layer that can
+introspect the routed provider — and exported to the review job's environment as
+`PRFLOW_EFFORT_SUPPORTED` (from the already-resolved `steps.provider.outputs.effort_supported`
+decision, in all three cloud workflows). `resolve-review-overrides.py` reads that env var by default
+(issue #1772), so an `effort_supported: false` provider now reaches the in-session per-agent effort
+decision as a capability-restricted fallback instead of being silently ignored — closing the gap issue
+#606's retrospective recorded. Precedence: an explicit `--effort-supported`
+flag still wins; an absent or unrecognized env value falls back to `true` (the Anthropic path), so the
+common default-path run keeps its per-agent effort and the model-level Haiku restriction (read from the
+resolved model) remains the always-on capability guard.
 
 > **Scope of the Haiku guard: the *resolved override entry's* model, not the session model.** The
 > guard reads the `model` of the entry `resolve-review-overrides.py` resolved for that agent. Because
