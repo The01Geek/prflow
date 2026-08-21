@@ -1594,10 +1594,13 @@ notes the schema does not carry:
   default-branch checkout for the command workflows). Beyond the env-var-name *shape*
   guard, the inject step **refuses the run** (fail loud, `::error::` naming the offending
   key, before any `$GITHUB_ENV` write) when a key's name is a credential
-  (`ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
-  `AWS_SESSION_TOKEN`, `AWS_BEARER_TOKEN_BEDROCK` — set the provider credential via the
-  `DEVFLOW_PROVIDER_API_KEY` secret, never in committed config), a name that would shadow
-  the environment of every later job step (`PATH`, `GITHUB_TOKEN`), or
+  (`ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN`, `AWS_ACCESS_KEY_ID`,
+  `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `AWS_BEARER_TOKEN_BEDROCK` — set the provider
+  credential via the `DEVFLOW_PROVIDER_API_KEY` secret, never in committed config), a name that
+  would shadow the environment of every later job step or its Actions plumbing (`PATH`,
+  `GITHUB_TOKEN`, `GH_TOKEN`, `GITHUB_ENV`, `GITHUB_OUTPUT`, `GITHUB_PATH`), an interpreter or
+  loader hook that would run code in every later step (`BASH_ENV`, `ENV`, `LD_PRELOAD`,
+  `LD_LIBRARY_PATH`, `DYLD_INSERT_LIBRARIES`, `NODE_OPTIONS`, `PYTHONPATH`), or
   `CLAUDE_CODE_SUBAGENT_MODEL` (it overrides both the per-invocation and per-subagent model
   and flattens the `agent_overrides` review roster to one model — use
   `ANTHROPIC_DEFAULT_HAIKU_MODEL` to map only the background model). The match is

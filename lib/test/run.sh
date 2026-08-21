@@ -31616,9 +31616,9 @@ assert_eq "#313 resolver: default (no providers, no section provider) → Anthro
   "$(echo '{"claude_model":"claude-opus-4-8","prflow_implement":{}}' | r313 prflow_implement)"
 # ACs 3/4: implement-section decision carries openrouter fields; the runner
 # section stays default in the SAME config (per-section isolation).
-R313_CFG='{"claude_model":"m","providers":{"openrouter":{"base_url":"https://openrouter.ai/api","auth":"bearer","timeout_ms":3000000,"env":{"CLAUDE_CODE_SUBAGENT_MODEL":"z-ai/glm-5.2"}}},"prflow_implement":{"provider":"openrouter","claude_model":"z-ai/glm-5.2"}}'
+R313_CFG='{"claude_model":"m","providers":{"openrouter":{"base_url":"https://openrouter.ai/api","auth":"bearer","timeout_ms":3000000,"env":{"ANTHROPIC_DEFAULT_HAIKU_MODEL":"z-ai/glm-4.7"}}},"prflow_implement":{"provider":"openrouter","claude_model":"z-ai/glm-5.2"}}'
 assert_eq "#313 resolver: section provider selects openrouter (base_url/auth/model/env)" \
-  '{"provider":"openrouter","base_url":"https://openrouter.ai/api","auth":"bearer","timeout_ms":3000000,"effort_supported":false,"model":"z-ai/glm-5.2","env":{"CLAUDE_CODE_SUBAGENT_MODEL":"z-ai/glm-5.2"}}' \
+  '{"provider":"openrouter","base_url":"https://openrouter.ai/api","auth":"bearer","timeout_ms":3000000,"effort_supported":false,"model":"z-ai/glm-5.2","env":{"ANTHROPIC_DEFAULT_HAIKU_MODEL":"z-ai/glm-4.7"}}' \
   "$(echo "$R313_CFG" | r313 prflow_implement)"
 assert_eq "#313 resolver: unrelated section stays Anthropic-default in the same provider config (AC 4 isolation)" \
   '{"provider":"","base_url":"","auth":"","timeout_ms":"","effort_supported":true,"model":"m","env":{}}' \
@@ -31645,10 +31645,12 @@ assert_eq "#313 resolver: effort_supported true when provider sets it (keep --ef
 # truthiness (a mutation to `(… // false)` would flip this GREEN→behavior on a gateway).
 assert_eq "#313 resolver: effort_supported non-boolean (string) → false (strict == true)" "false" \
   "$(echo '{"claude_model":"m","providers":{"p":{"base_url":"u","auth":"api_key","effort_supported":"true"}},"prflow_implement":{"provider":"p"}}' | r313 prflow_implement | jq -r .effort_supported)"
-# AC 4: the provider env map (haiku/subagent/betas keys) survives intact.
+# AC 4: the provider env map (background-model/attribution/betas keys) survives intact.
+# Keep every key here off the inject step's deny list (issue #1773): the resolver does no name
+# filtering, so a denied key would pass here while encoding a config the inject step refuses.
 assert_eq "#313 resolver: provider env map survives into the decision intact" \
-  '{"ANTHROPIC_DEFAULT_HAIKU_MODEL":"z-ai/glm-4.7","CLAUDE_CODE_SUBAGENT_MODEL":"z-ai/glm-5.2","CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS":"1"}' \
-  "$(echo '{"claude_model":"m","providers":{"p":{"base_url":"u","auth":"bearer","env":{"ANTHROPIC_DEFAULT_HAIKU_MODEL":"z-ai/glm-4.7","CLAUDE_CODE_SUBAGENT_MODEL":"z-ai/glm-5.2","CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS":"1"}}},"prflow_implement":{"provider":"p"}}' | r313 prflow_implement | jq -c .env)"
+  '{"ANTHROPIC_DEFAULT_HAIKU_MODEL":"z-ai/glm-4.7","CLAUDE_CODE_ATTRIBUTION_HEADER":"0","CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS":"1"}' \
+  "$(echo '{"claude_model":"m","providers":{"p":{"base_url":"u","auth":"bearer","env":{"ANTHROPIC_DEFAULT_HAIKU_MODEL":"z-ai/glm-4.7","CLAUDE_CODE_ATTRIBUTION_HEADER":"0","CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS":"1"}}},"prflow_implement":{"provider":"p"}}' | r313 prflow_implement | jq -c .env)"
 
 # AC 9: adversarial input-shape matrix — each malformed shape yields exit-0 plus its
 # SPECIFIC (not generic) documented decision/error marker. The resolver type-guards every
@@ -31952,9 +31954,8 @@ print(next(s["run"] for j in d["jobs"].values() for s in j.get("steps",[]) if s.
     # written via the newline-safe heredoc form (normalized back to KEY=VALUE by gh_kv).
     ( export DECISION='{"env":{"ANTHROPIC_DEFAULT_HAIKU_MODEL":"z-ai/glm-4.7"}}' AUTH=bearer BASE_URL=https://openrouter.ai/api TIMEOUT_MS=3000000 PROVIDER=openrouter PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" ) >/dev/null 2>&1
     gh_kv "$R313_GENV" > "$R313_GENV.kv"
-    # env-map value is a NON-denied key (issue #1773): CLAUDE_CODE_SUBAGENT_MODEL is now
-    # deny-listed by the inject step, so this "env map is written" assertion uses the
-    # still-legitimate ANTHROPIC_DEFAULT_HAIKU_MODEL instead.
+    # Do not use a deny-listed key name here (issue #1773): this assertion proves the env map
+    # IS written, so a denied key would exit 1 before the emit and make it vacuous.
     assert_eq "#313 inject-body: bearer exports BASE_URL + API_TIMEOUT_MS + ANTHROPIC_AUTH_TOKEN + env map" "yes" \
       "$(grep -qxF 'ANTHROPIC_BASE_URL=https://openrouter.ai/api' "$R313_GENV.kv" && grep -qxF 'API_TIMEOUT_MS=3000000' "$R313_GENV.kv" && grep -qxF 'ANTHROPIC_AUTH_TOKEN=sekret' "$R313_GENV.kv" && grep -qxF 'ANTHROPIC_DEFAULT_HAIKU_MODEL=z-ai/glm-4.7' "$R313_GENV.kv" && echo yes || echo no)"
     : > "$R313_GENV"
@@ -32009,12 +32010,13 @@ print(next(s["run"] for j in d["jobs"].values() for s in j.get("steps",[]) if s.
     # env-map KEY-NAME deny list (issue #1773): a key whose NAME is harmful is refused (exit 1,
     # ::error:: naming it, no $GITHUB_ENV write) — see the workflow SECURITY comment for which
     # names and why. Per key: exit 1, the ::error:: names the key, and no top-level env var written.
-    for R1773_KEY in PATH GITHUB_TOKEN ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_BEARER_TOKEN_BEDROCK CLAUDE_CODE_SUBAGENT_MODEL; do
+    for R1773_KEY in PATH GITHUB_TOKEN GH_TOKEN GITHUB_ENV GITHUB_OUTPUT GITHUB_PATH ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN CLAUDE_CODE_OAUTH_TOKEN AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_BEARER_TOKEN_BEDROCK BASH_ENV ENV LD_PRELOAD LD_LIBRARY_PATH DYLD_INSERT_LIBRARIES NODE_OPTIONS PYTHONPATH CLAUDE_CODE_SUBAGENT_MODEL; do
       R313_RC=0
       R313_OUT="$( export DECISION="{\"env\":{\"$R1773_KEY\":\"x\"}}" AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" 2>&1 )" || R313_RC=$?
       assert_eq "#1773 inject-body: forbidden env-map key $R1773_KEY fails loud (exit 1, deny-list guard)" "1" "$R313_RC"
-      # The offending key appears in the ::error:: ONLY via the guard's dynamic key echo —
-      # the static prose names classes, not literals — so grepping the key name is honest.
+      # Honest only while no denied name is a substring of the ::error::'s STATIC text (whose
+      # sole literal today is DEVFLOW_PROVIDER_API_KEY): the match must come from the guard's
+      # dynamic key echo. Do not name a denied key literally in that message.
       assert_eq "#1773 inject-body: forbidden key $R1773_KEY emits ::error:: naming the key + refusing" "yes" \
         "$(printf '%s' "$R313_OUT" | grep -qF '::error::' && printf '%s' "$R313_OUT" | grep -qF "$R1773_KEY" && printf '%s' "$R313_OUT" | grep -qiF 'refusing to run' && echo yes || echo no)"
       R313_TOPKEYS="$(gh_topkeys "$R313_GENV")"
@@ -32024,9 +32026,20 @@ print(next(s["run"] for j in d["jobs"].values() for s in j.get("steps",[]) if s.
     done
     # Case-insensitive: a lower/mixed-case spelling of a denied name is also refused.
     R313_RC=0
-    ( export DECISION='{"env":{"github_token":"x"}}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" ) >/dev/null 2>&1 || R313_RC=$?
+    R313_OUT="$( export DECISION='{"env":{"github_token":"x"}}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" 2>&1 )" || R313_RC=$?
     assert_eq "#1773 inject-body: a case-variant denied key (github_token) is also refused (exit 1)" "1" "$R313_RC"
+    # Attribute the refusal to the deny-list guard: an exit-code-only assertion cannot tell it
+    # from the shape guard or any later failure, so pin the ::error:: echoing the key back.
+    assert_eq "#1773 inject-body: the case-variant refusal is the deny-list guard (::error:: names github_token)" "yes" \
+      "$(printf '%s' "$R313_OUT" | grep -qF '::error::' && printf '%s' "$R313_OUT" | grep -qF 'github_token' && printf '%s' "$R313_OUT" | grep -qiF 'refusing to run' && echo yes || echo no)"
     : > "$R313_GENV"
+    # Positive control on the same shape: a lower-case NON-denied key IS exported, so the
+    # refusal above is attributable to the denied NAME and not to the key being lower-case.
+    ( export DECISION='{"env":{"github_token_id":"z"}}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" ) >/dev/null 2>&1
+    gh_kv "$R313_GENV" > "$R313_GENV.kv"
+    assert_eq "#1773 inject-body: a lower-case non-denied key (github_token_id) is still exported (lower case alone is not the refusal)" "yes" \
+      "$(grep -qxF 'github_token_id=z' "$R313_GENV.kv" && echo yes || echo no)"
+    rm -f "$R313_GENV.kv"; : > "$R313_GENV"
     # Multiple denied keys in one map: fail loud (exit 1) AND the ::error:: names BOTH — exercises
     # the guard's [ .env|keys[]|select ]|join(" ") collection, not just a single-element match.
     R313_RC=0

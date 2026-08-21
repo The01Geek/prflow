@@ -915,12 +915,13 @@ jobs:
             echo "::error::.prflow/config.json section '$SECTION' provider '$PROVIDER' has an env-map key that is not a valid environment variable name ([A-Za-z_][A-Za-z0-9_]*). Fix the providers.$PROVIDER.env keys. Refusing to run."
             exit 1
           fi
-          # SECURITY (issue #1773): the shape guard above accepts any valid env-var NAME, so
-          # this refuses names that are harmful once exported — credential names, PATH/GITHUB_TOKEN
-          # shadows, and CLAUDE_CODE_SUBAGENT_MODEL (flattens the review roster). Do not drop it.
-          denied_env_keys="$(printf '%s' "$DECISION" | jq -r '[.env // {} | keys[] | select(ascii_upcase | IN("PATH","GITHUB_TOKEN","ANTHROPIC_API_KEY","ANTHROPIC_AUTH_TOKEN","AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY","AWS_SESSION_TOKEN","AWS_BEARER_TOKEN_BEDROCK","CLAUDE_CODE_SUBAGENT_MODEL"))] | join(" ")')"
+          # SECURITY (issue #1773): the shape guard above accepts any valid env-var NAME, so this
+          # refuses names harmful once exported — credentials, job-plumbing and interpreter/loader
+          # shadows (GITHUB_ENV, BASH_ENV, LD_PRELOAD, …), CLAUDE_CODE_SUBAGENT_MODEL. Do not drop it.
+          # `.env` is already an object: the resolver coerces a non-object to {}. Do not add a shape guard.
+          denied_env_keys="$(printf '%s' "$DECISION" | jq -r '[.env // {} | keys[] | select(ascii_upcase | IN("PATH","GITHUB_TOKEN","GH_TOKEN","GITHUB_ENV","GITHUB_OUTPUT","GITHUB_PATH","ANTHROPIC_API_KEY","ANTHROPIC_AUTH_TOKEN","CLAUDE_CODE_OAUTH_TOKEN","AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY","AWS_SESSION_TOKEN","AWS_BEARER_TOKEN_BEDROCK","BASH_ENV","ENV","LD_PRELOAD","LD_LIBRARY_PATH","DYLD_INSERT_LIBRARIES","NODE_OPTIONS","PYTHONPATH","CLAUDE_CODE_SUBAGENT_MODEL"))] | join(" ")')"
           if [ -n "$denied_env_keys" ]; then
-            echo "::error::.prflow/config.json section '$SECTION' provider '$PROVIDER' env map contains forbidden key(s): $denied_env_keys — a credential name, a runtime-sensitive variable that would shadow the job environment, or the subagent-model override that flattens the review roster. Set credentials via the DEVFLOW_PROVIDER_API_KEY repository secret, and remove these keys from providers.$PROVIDER.env. Refusing to run."
+            echo "::error::.prflow/config.json section '$SECTION' provider '$PROVIDER' env map contains forbidden key(s): $denied_env_keys — a credential name, a variable that would shadow the job environment or its Actions plumbing, an interpreter/loader hook that would run code in every later step, or the subagent-model override that flattens the review roster. Set credentials via the DEVFLOW_PROVIDER_API_KEY repository secret, and remove these keys from providers.$PROVIDER.env. Refusing to run."
             exit 1
           fi
           # Every $GITHUB_ENV write below uses GitHub's newline-safe multiline (heredoc) form —
@@ -937,8 +938,9 @@ jobs:
           # same key also rides as the anthropic_api_key action input below (the
           # documented two-slot recipe). auth: api_key passes it via the input only.
           if [ "$AUTH" = "bearer" ]; then genv ANTHROPIC_AUTH_TOKEN "$PROVIDER_API_KEY"; fi
-          # Every key of the provider env map (haiku/subagent model mappings, the
-          # beta/attribution toggles, …) verbatim, each as a heredoc block. These are
+          # Every key of the provider env map that survived the deny list above (the background
+          # model mapping, the beta/attribution toggles, …) verbatim, each as a heredoc block.
+          # Do not describe a subagent-model mapping here: that key name is now refused. These are
           # non-secret model/config values (only the API key above is a masked secret).
           edelim="ENV_EOF_$(date +%s%N)_$$"
           printf '%s' "$DECISION" | jq -r --arg d "$edelim" '.env | to_entries[] | "\(.key)<<\($d)", "\(.value)", $d' >> "$GITHUB_ENV"
