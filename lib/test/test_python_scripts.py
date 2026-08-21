@@ -24166,6 +24166,18 @@ _rp_malformed = _RP_BODY.replace(
 assert_eq("#1876 a malformed resume-point payload reads as absent (exit 1)",
           1, _dp_cli(['resume-point', '1876'], _rp_malformed)[0])
 
+# #1003 dual-spelling: a superseded `devflow:` resume-point marker reads back too
+# (the family rides _MARKER_NS_RE's (?:pr|dev)flow alternation — guard it so a regex
+# edit dropping `dev` cannot pass silently).
+_rp_devflow = _RP_BODY.replace(
+    '- [ ] **Review**',
+    '- [ ] **Review**\n  - 00:00:00 — mid-phase resume point '
+    '<!-- devflow:checkpoint resume-point:'
+    + workpad._encode_resume_point('phase-3-ac-gate.md 3.4') + ' -->')
+assert_eq("#1876 a superseded devflow: resume-point marker reads back (dual-spelling #1003)",
+          (0, "phase-3-ac-gate.md 3.4\n"),
+          _dp_cli(['resume-point', '1876'], _rp_devflow))
+
 # a body with no resume-point marker reads back empty (exit 1).
 assert_eq("#1876 a body with no resume-point marker reads back empty (exit 1)",
           1, _dp_cli(['resume-point', '1876'], _RP_BODY)[0])
