@@ -1,0 +1,172 @@
+{
+  "iter": 1,
+  "fix_commit_sha": "c44080c4ae404b7bb91302d109eda8dd55df2165",
+  "fix_files": [
+    "lib/test/modules/coverage-map.json",
+    "lib/test/run.sh",
+    "scripts/refresh-app-credentials.sh",
+    "scripts/sign-jwt-rs256.py",
+    "scripts/stop-refresher.sh"
+  ],
+  "loop_role": "fix",
+  "current_step": "3",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": true,
+    "engine_self_modifying": false,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:type-design-analyzer"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "lib/refresher-sign.sh (new file) has no coverage-map entry -> coverage_map_guard Arm 1 fails RED",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "refresher-selftest.sh never executed by any test; its 3 arms + marker write untested end-to-end",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "JWT header/payload never verified against an expected value (byte-equality is self-referential for header/payload)",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "cross-job reaper kills by persisted PID with no ownership check -> PID-reuse hazard on the long-lived self-hosted runner",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "reaper emits 'reaped' even when kill failed",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "spawned-child enumeration omits python3 (the child receiving the key)",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:type-design-analyzer",
+      "severity": "Suggestion",
+      "description": "iss escaping guards quotes/backslashes but not control chars; json.dumps covers the full set",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "mint collapses 'resolver lib unreadable' into generic 'no interpreter resolved' message",
+      "fix_decision": "advisory"
+    },
+    {
+      "agent": "prflow:type-design-analyzer",
+      "severity": "Suggestion",
+      "description": "RSA key returned as a bare (n,d) tuple rather than a NamedTuple",
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "c44080c4ae404b7bb91302d109eda8dd55df2165"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "c44080c4ae404b7bb91302d109eda8dd55df2165"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "c44080c4ae404b7bb91302d109eda8dd55df2165"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "c44080c4ae404b7bb91302d109eda8dd55df2165"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "applied",
+      "commit": "c44080c4ae404b7bb91302d109eda8dd55df2165"
+    },
+    {
+      "finding_id": "F-6",
+      "decision": "applied",
+      "commit": "c44080c4ae404b7bb91302d109eda8dd55df2165"
+    },
+    {
+      "finding_id": "F-7",
+      "decision": "applied",
+      "commit": "c44080c4ae404b7bb91302d109eda8dd55df2165"
+    },
+    {
+      "finding_id": "F-8",
+      "decision": "advisory",
+      "source_file": "scripts/refresh-app-credentials.sh",
+      "claim_text": "mint resolver-unreadable message precision",
+      "skip_category": "uncategorized",
+      "evidence": "message already fails closed and names the resolver path; a Low message-precision nit"
+    },
+    {
+      "finding_id": "F-9",
+      "decision": "advisory",
+      "source_file": "scripts/sign-jwt-rs256.py",
+      "claim_text": "NamedTuple for (n,d)",
+      "skip_category": "uncategorized",
+      "evidence": "Suggestion; two-call-site module, positional convention adequate for the surface"
+    }
+  ],
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "ran_at": "iteration-2",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:pr-test-analyzer",
+      "prflow:comment-analyzer",
+      "prflow:type-design-analyzer"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:pr-test-analyzer",
+      "prflow:comment-analyzer",
+      "prflow:type-design-analyzer"
+    ],
+    "checklist_skipped": null,
+    "comparison": {
+      "new": 2,
+      "new_critical": 0,
+      "new_important": 1
+    },
+    "note": "shadow surfaced 1 MEDIUM (reaper /proc-only inertness on /proc-less hosts) + 1 low (self-test comment); both fixed in iteration-2 commit 96e39bb18 and verified green (monolith 9688 passed)"
+  },
+  "loop_verdict_marker": "<!-- prflow:loop-verdict result=approve coverage=full -->",
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
