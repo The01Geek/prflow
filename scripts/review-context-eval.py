@@ -11,8 +11,8 @@ cost a run — how many times each engine file was read, in which context each r
 happened, and the peak accumulated context of each context that read one. It reads
 transcripts and writes a report; it stores nothing and changes no repository state.
 
-It is the third of this repository's transcript-walking context instruments, after
-scripts/create-issue-context-eval.py (issue #767) and scripts/implement-context-eval.py
+It is the third of this repository's transcript-walking context instruments, after the
+create-issue-context instrument (issue #767) and the implement-context instrument
 (issue #1209), and reuses their proven streaming / per-record degradation / symlink-escape
 / determinism design. Its ONE substantive difference from the implement sibling is the
 attribution axis: the sibling filters sidechain (subagent) records out entirely, because
