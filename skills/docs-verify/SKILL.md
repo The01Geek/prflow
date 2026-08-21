@@ -140,7 +140,7 @@ you measured and how you counted it, so the caller has a defined comparand to re
 to quantities only — `file:line` references and qualitative judgments stay as decisive as the rest of
 the report.
 
-**A report-only pass dispatches no subagent of its own** — keep dispatch to a single subagent layer, because nested dispatch is not portable across harnesses, where some withhold it so the capability is absent as a missing tool rather than an error and a nested dispatch would silently flatten to a single-agent self-check. Escalation is a return-value contract: return your doc-reliability signal and your per-duty statuses, and the caller decides. Never branch into a deeper pass internally.
+**A report-only pass dispatches no subagent of its own** — the pass is always a leaf; a nested dispatch would silently flatten to a single-agent self-check. Escalation is a return-value contract: return your doc-reliability signal and your per-duty statuses, and the caller decides. Never branch into a deeper pass internally.
 
 ## Objective (write mode)
 
