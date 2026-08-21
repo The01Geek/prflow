@@ -537,14 +537,21 @@ narrowed by one interior anchor and no further.
 Expressed in the ceiling's own unit — raw on-disk file bytes, `len(read_bytes())`, the instrument
 `lib/test/lint-reference-size.py` applies:
 
-- At the merge base of this branch, `skills/review/SKILL.md` is **56,526 bytes** and
-  `skills/implement/SKILL.md` is **57,124 bytes** — both **under** the 61,750-byte ceiling, and
+- Measured 2026-08-19 at this branch's then-merge-base, `skills/review/SKILL.md` is **56,526 bytes**
+  and `skills/implement/SKILL.md` is **57,124 bytes** — both **under** the 61,750-byte ceiling, and
   **neither carries an exemption row**. `lib/test/reference-size-exemptions.json` exempts exactly one
   skill root, `skills/retrospective-weekly/SKILL.md` (recorded at 83,427 bytes in that file's frozen
-  snapshot; 71,331 bytes on disk at HEAD, still above the 61,750-byte ceiling — the recorded and the
-  current on-disk figure are different numbers, and only the on-disk one is the deliverable size).
+  snapshot; 71,331 bytes on disk at that snapshot, still above the 61,750-byte ceiling — the recorded
+  and the on-disk figure are different numbers, and only the on-disk one is the deliverable size).
   (Session A's own figures — `review` at 65,822 bytes — predate the trims that brought both roots
   under the ceiling; issue #1618's premise cited the older 65,970-byte size, corrected on this run.)
+- **Re-measured 2026-08-21 at merge base `1bcc25bca`,** when this branch was brought up to date:
+  `skills/review/SKILL.md` **57,559 bytes**, `skills/implement/SKILL.md` **60,656 bytes**,
+  `skills/retrospective-weekly/SKILL.md` **71,268 bytes**. The conclusions below are unchanged — both
+  engine roots remain under the ceiling with no exemption row, and `retrospective-weekly` remains the
+  sole skill-root exemption. What moved is *which* root sits closest to the line: `implement` now has
+  1,094 bytes of headroom and is reported by the `#1614` near-full advisory, so the delivery question
+  this probe answers has migrated from the review root to the implement root rather than lapsing.
 - So the skill-root half of the ceiling currently carries **one** exemption, and it is **not** either
   root measured here. The two engine roots are compliant on file bytes with no exemption to classify.
 - Because the four cloud verdicts are `unestablished`, session B **cannot yet** say whether the loader
