@@ -2,23 +2,229 @@
   "iter": 1,
   "started_at": "2026-08-21T16:59:09Z",
   "loop_role": "fix",
-  "current_step": "3.5",
-  "current_substep": "fix_delta_gate",
-  "pending_dispatch": {
-    "kind": "fix_delta_gate_blinded_review",
-    "roster": [
-      "general-purpose"
-    ],
-    "dispatched_at": "2026-08-21T18:05:00Z",
-    "issued_by": "3.5"
-  },
+  "current_step": "loop-exit",
+  "current_substep": "awaiting_ci_reading",
+  "pending_dispatch": null,
   "run_id": "local-20260821T165909Z-1",
   "pr_number": 1781,
   "fix_threshold": "suggestion",
   "max_iters": 5,
   "iter_fix_base": "6362256f6d13d6b26a75ec5588504537c32c56c6",
   "fix_commit_sha": "00794e052f63eb79721f27a20aa14c08f688f2e9",
+  "fix_files": [
+    ".changeset/issue-1773-provider-env-deny-list.md",
+    ".github/workflows/devflow-implement.yml",
+    ".github/workflows/devflow-runner.yml",
+    ".github/workflows/devflow.yml",
+    ".prflow/config.schema.json",
+    "docs/internal/cloud-setup.md",
+    "lib/test/modules/coverage-map.json",
+    "lib/test/run.sh"
+  ],
   "verdict_from_engine": "REJECT",
-  "synthesized": false,
-  "telemetry": "unavailable"
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "checklist": "not returned by the Step 1 engine subagent (documented fanned-out degradation: checklist and dispatched_effort are produced inside the subagent and are not returned); Phase 1+2 ran in full, 1 FAIL (VC-2)",
+  "dispatched_effort": "not returned by the engine subagent (same documented fanned-out degradation)",
+  "sweep_defs_read": [
+    {
+      "path": "phase-2-implement.md",
+      "read": "whole",
+      "sweeps": [
+        "2.0",
+        "2.0.5",
+        "2.1",
+        "2.1.5",
+        "2.2",
+        "2.2.4",
+        "2.2.5",
+        "2.2.6",
+        "2.2.7"
+      ]
+    },
+    {
+      "path": "phase-2-sweeps-contract.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0",
+        "2.3.0a",
+        "2.3.0b",
+        "2.3.0c",
+        "2.3.0d"
+      ]
+    },
+    {
+      "path": "phase-2-sweeps-quality.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.1",
+        "2.3.2",
+        "2.3.3",
+        "2.3.4",
+        "2.3.4a",
+        "2.3.4b",
+        "2.3.5",
+        "2.3.6",
+        "2.3.7"
+      ]
+    },
+    {
+      "path": "references/sweep-2-3-0-changed-contract.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0"
+      ]
+    },
+    {
+      "path": "references/sweep-2-3-0a-peer-checkpoint.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0a"
+      ]
+    },
+    {
+      "path": "references/sweep-2-3-0b-enum-enumeration.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0b"
+      ]
+    },
+    {
+      "path": "references/sweep-2-3-0c-operand-trace.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0c"
+      ]
+    }
+  ],
+  "sweep_evidence": {
+    "status": "run",
+    "diff_shape_classified": "tightened a validator (deny list widened 9 -> 21 names) at three co-equal workflow mirror sites; added members to a set enumerated in 7 places; added a guard; no deletion; no collection ordering/dedup added",
+    "sweeps_run": [
+      "2.3.0",
+      "2.3.0a",
+      "2.3.0b",
+      "2.3.0c",
+      "2.3.3",
+      "2.3.4",
+      "2.3.4a",
+      "2.3.4b",
+      "2.3.5",
+      "2.3.6"
+    ],
+    "sweeps_not_triggered": [
+      "2.3.0d (no membership removal, no weakened universal)",
+      "2.3.1 (no code deleted)",
+      "2.3.2 (no method/file/route deleted)",
+      "2.3.7 (no new collection ordering/dedup/aggregation)"
+    ],
+    "2.3.0": "clean - enumerated every provider env-map fixture in tracked files via `git ls-files -z | xargs -0 grep -noE '\"env\":\\{[^}]*\\}'`; 34 fixtures, none uses a now-denied key, so the widened predicate breaks no existing fixture. Relocation half not applicable (no prose literal/heading/path relocated).",
+    "2.3.0a": "clean - step 0 classification: co-locatable peers (search arm alone), recorded. Search on member literals returned exactly 7 peer sites, all carrying the widened set, no exemption owed. Repo's own .prflow/config.json and config.example.json carry no providers block, so no self-inflicted breakage. Prose does not overclaim breadth.",
+    "2.3.0b": "8 sites matched on existing member literals; 7 reconciled (the peer set), 1 exemption recorded: .github/workflows/ci.yml names ANTHROPIC_API_KEY/CLAUDE_CODE_OAUTH_TOKEN in a comment about that job's own auth-free validation, not as an enumeration of this deny list. Fall-through consumer (export everything not denied) is the intended arm, unchanged.",
+    "2.3.0c": "operand table completed for the guard's one comparand. denied_env_keys is DERIVED (jq pipeline). Producer: devflow.yml:1365. Emitted on every path the guard selects: yes, unconditional. Other producers of the same (empty) value: .env empty, .env with no denied key, AND jq failing - distinguished only by the bare VAR=$(...) assignment inheriting jq's exit status under set -e. All six derived-comparand arms decided (producer failure/unparseable/wrong-type -> abort rc!=0 no export; valid-falsy/missing -> // {} -> empty -> intended export path). ACTION TAKEN: added an assertion pinning the fail-closed direction, since nothing pinned it and a local/export prefix or || true would flip it fail-open.",
+    "2.3.3": "clean - portability checked on touched lines: no GNU-only flags, no \\b, no paste; grep -qF/-qiF/-qxF and [ -z ]/[ -ne ] are portable. jq program stays inside single quotes with no apostrophes in added names. No new files, so no SPDX owed.",
+    "2.3.4": "workflow-diff addendum fired (diff touches .github/workflows/). (a) endpoint-permission map: the delta adds NO gh api call, so the required-permission set is empty - nothing to reconcile against the job's permissions block. (b) event-path artifact lifecycle: the delta adds no new event path and leaves no new check run, status, or comment, so no reader re-check owed. Supported-runtime claim (bare VAR=$(...) assignment takes the substitution's exit status under set -e) corroborated by the engine verifier's measured rc 5 on every non-object shape.",
+    "2.3.4a": "discharged by a scoped prflow:comment-analyzer re-dispatch over the mechanism identifiers across the 8 touched files; it verified all five edited comment sites against post-fix behaviour and independently confirmed the ::error:: substring non-vacuity for all 21 names. Two comments it flagged as rationale-rather-than-prohibition were recast. Mirror-fact check: no added comment carries an exact count or exhaustive enumeration (the SECURITY comment's list is explicitly illustrative with an ellipsis).",
+    "2.3.4b": "recorded clean pass (arm 2): `git diff --merge-base origin/main -U0 | scripts/stale-prose-lint.py --worktree` -> zero rows, exit 0, producer emitted hunks (confirmed by the .json coverage-universal note). No new tracked file authored, so leg 2 had no target.",
+    "2.3.5": "clean - additions are minimal and reuse existing helpers (assert_eq, gh_kv, gh_topkeys); no duplicated logic, no new nesting, no wasted work introduced.",
+    "2.3.6": "clean - the guard fails loud (::error:: naming the offending key, exit 1) before any $GITHUB_ENV write. Added test scaffolding captures exit codes deliberately and asserts on them rather than discarding them. No new || true, no new 2>/dev/null that hides a decision-bearing failure."
+  },
+  "test_first_gate": [
+    {
+      "decision": "test-first-gate: applies (deny-list widening adds automated-testable behavior)",
+      "command": "lib/test/run.sh (#1773 inject-body block) - NOT RUN",
+      "result": "unrunnable",
+      "evidence": "Unrunnable by OPERATOR POLICY, not permission denial: the operator barred all local test execution and directed verification by push + CI reading. Test authored FIRST (12 new names added to the R1773_KEY loop before the workflow guard was widened) and left un-run. RED-ness is a READ-DERIVED prediction, explicitly not an observed RED. Backstop: Step 3.5 blinded gate (ran, clean) + CI reading for the pushed commit."
+    },
+    {
+      "decision": "mutation-check of added/edited guards",
+      "command": "copy-based mutation check - NOT RUN",
+      "result": "unrunnable",
+      "evidence": "Same operator-policy bar. Non-vacuity is therefore NOT established by execution. Compensating evidence: the Step 3.5 blinded gate read each added assertion against its target and reported all five clean under the attribution check, tracing the discriminating state change for each."
+    }
+  ],
+  "verification_evidence": {
+    "command": "push + CI reading (CLAUDE.md local/interactive tier rung 1) - operator-directed",
+    "result": "unestablished",
+    "reason": "NO CI RUN WAS CREATED for pushed head 00794e052f63eb79721f27a20aa14c08f688f2e9. Established, not assumed: `gh run list --commit <full-40-hex>` returned empty ~15 min after the push; `gh run list --branch <head-ref>` shows only the 2026-08-19 runs on the prior head; and `gh api repos/{owner}/{repo}/commits/<sha>/check-runs` reports total_count=1, the single run being `Mintlify Deployment: completed/skipped`. The required check `lib + python tests` is ABSENT, which CLAUDE.md rung 1 classifies as unestablished and never a pass. Actions is NOT down (repo-wide runs firing minutes earlier). Probable cause: the head branch is 402 commits behind origin/main (7 ahead), this repository's recorded far-behind-branch non-trigger. Remedy NOT taken without operator direction: a base-branch update (merge origin/main) and re-push to fire `synchronize`. Per rung 1 this run therefore reports Blocked-on-verification rather than recording a skip and claiming completion.",
+    "skipped_checks": [],
+    "focused_selection": {
+      "surfaces": [
+        {
+          "surface": "lib/test/run.sh",
+          "coverage_map_entry": "1773 -> owner unmodularized, no focused_test",
+          "target": "none",
+          "exemption_ground": "unmodularized entry with no focused_test AND operator bar on local test execution"
+        },
+        {
+          "surface": ".github/workflows/*.yml",
+          "coverage_map_entry": "none",
+          "target": "none",
+          "exemption_ground": "no coverage-map entry (map covers lib/ and scripts/ only)"
+        },
+        {
+          "surface": ".prflow/config.schema.json / docs/internal/cloud-setup.md / .changeset/",
+          "coverage_map_entry": "none",
+          "target": "none",
+          "exemption_ground": "no coverage-map entry"
+        }
+      ],
+      "single_flight_consulted": false,
+      "single_flight_note": "not consulted and none owed: the obligation is scoped to a full-suite RELAUNCH, which this run never performs. The CI-reading path launches nothing and is non-reusable by construction."
+    }
+  },
+  "stale_prose_check": {
+    "command": "git diff 1bcc25bca...HEAD | scripts/stale-prose-lint.py --rev HEAD",
+    "rc": 0,
+    "stale_rows": [],
+    "note": "informational coverage-universal line for .json files (fail-open coverage disclosure); re-run after batch 2 via the 2.3.4b merge-base form, also zero rows"
+  },
+  "batched_regeneration": "run",
+  "with_floors": "not run - the --with-floors row executes the real focused module runners, which the operator's no-local-test-execution directive bars; CI test_module_runner.py enforces the module-floor equality instead",
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "ran_at": null,
+    "reviewed_sha": null,
+    "verdict": null,
+    "coverage": "not_verified",
+    "reason": "engine_self_modifying=true armed the early-shadow trigger after iteration 1, but the operator directed the run to finish without a further iteration. A shadow is a full independent engine fan-out. Recorded not_verified, which PROHIBITS any clean approve-family verdict. This run must NOT be reported as independently audited.",
+    "reviewers_dispatched": [],
+    "expected_reviewers": [],
+    "promoted_to_iter_next": false
+  },
+  "parked_class_sweep": {
+    "classes": [],
+    "truncation": null,
+    "dispatch": "not_applicable",
+    "note": "sweep runs only at a convergence entry after a tentative non-REJECT verdict; iteration 1's engine verdict is REJECT"
+  },
+  "convergence_inputs": {
+    "fixes_applied": 10,
+    "fix_diff_lines": 96,
+    "new_corroborated_critical_count": 0
+  },
+  "telemetry": "unavailable",
+  "synthesized": false
 }
