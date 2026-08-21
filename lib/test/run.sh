@@ -14482,6 +14482,29 @@ assert_eq "#1443 rung3: trailing prose after a Verdict heading token is not a ve
   "$(_uv '[]' "$(_uv_botr "## Verdict"$'\n\n'"APPROVE after the fixes landed.")" | _uv_shape)"
 assert_eq "#1443 count: a lowercase token still raises the residual count" "0 1" \
   "$(_uv '[]' "$(_uv_botr "the reviewer said approve"$'\n\n'"Nothing else.")" | _uv_shape)"
+# A star bullet is a list marker as much as a dash is, and a typographic quote marks a
+# recap of someone else's verdict — neither is emphasis.
+assert_eq "#1443 rung3: a star-bulleted Verdict: line is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Summary:"$'\n\n'"* Verdict: REJECT")" | _uv_shape)"
+assert_eq "#1443 rung3: a curly-quoted Verdict: line is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "The earlier review said:"$'\n\n'"“Verdict: REJECT”")" | _uv_shape)"
+assert_eq "#1443 rung3: a bullet-glyph Verdict: line is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Summary:"$'\n\n'"• Verdict: REJECT")" | _uv_shape)"
+assert_eq "#1443 rung3: an em-dash-prefixed Verdict: line is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Summary:"$'\n\n'"— Verdict: REJECT")" | _uv_shape)"
+# Trailing prose is prose in every script, not only in Latin letters.
+assert_eq "#1443 rung3: non-Latin trailing prose after the token is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Verdict: REJECT — 已被后续的批准取代"$'\n\n'"Done.")" | _uv_shape)"
+# The leading word is script-agnostic: one word plus the anchor plus the token is the same
+# headline whatever script the word is in, so this resolves exactly as an English one does.
+assert_eq "#1443 rung3: a non-Latin leading word makes the same headline" "REJECT" \
+  "$(_uv '[]' "$(_uv_botr "结论 Verdict: REJECT"$'\n\n'"Done.")" | _uv_verds)"
+# Stripping a line must not pull a later line into sub-rung 2's three-line window.
+assert_eq "#1443 rung3: stripping an indented block does not widen the three-line window" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Example:"$'\n\n'"    quoted line one"$'\n'"    quoted line two"$'\n\n'"Devflow Review: REJECT")" | _uv_shape)"
+# A fence closes only on its own marker, so a tilde line inside a backtick block is content.
+assert_eq "#1443 rung3: a tilde line does not close a backtick fence" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Quoting:"$'\n\n'"\`\`\`"$'\n'"~~~"$'\n'"## ✅ Devflow Review — APPROVE"$'\n'"\`\`\`")" | _uv_shape)"
 # The comment-region strip needs a body whose commented-out line a rung WOULD read.
 assert_eq "#1443 rung3: a rung-3 shape inside a multi-line HTML comment is not a verdict" "0 1" \
   "$(_uv '[]' "$(_uv_botr "<!--"$'\n'"## Devflow Review — APPROVE"$'\n'"-->"$'\n'"Some review text.")" | _uv_shape)"

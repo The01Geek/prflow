@@ -573,13 +573,19 @@ REVIEW_VERDICTS_BUNDLE="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" --slurpfile re
             elif ($l | test("<!--")) then (if ($l | test("-->")) then . else .comment = true end)
             elif ($l | test("^[ \t]*>")) then .
             elif ($l | test("^(\t| {4,})")) then .
+            elif ($l | test("^ {0,3}([-*+]|[0-9]+[.)])[ \t]")) then .
+            elif ($l | test("^ {0,3}\\|")) then .
+            elif ($l | test("~~")) then .
             else .out += [$l] end))
         | .out;
-    # A verdict headline may be prefixed only by heading and emphasis marks, whitespace and
-    # emoji. Admitting any run of non-letters instead makes a list marker, an ordinal, a
-    # table pipe or a strikethrough run read as decoration — and those mark the line as a
-    # recap QUOTING a verdict rather than casting one.
-    def headline_prefix: "^(?:[ \t#*_]|[^\\x00-\\x7F])*";
+    # A verdict headline may be prefixed only by heading marks, emphasis marks, whitespace
+    # and emoji — never by a quotation mark, a bullet glyph or a dash, each of which marks
+    # the line as a recap QUOTING a verdict rather than casting one. Widening this to all
+    # of non-ASCII admits exactly those.
+    def emoji: "[\\x{1F300}-\\x{1FAFF}\\x{2600}-\\x{27BF}\\x{2B00}-\\x{2BFF}\\x{FE0F}\\x{200D}]";
+    def headline_prefix: "^(?:[ \t#*_]|" + emoji + ")*";
+    # Letters in ANY script, so trailing prose in a non-Latin script is prose here too.
+    def not_letters: "[^\\p{L}]";
     def rung3($lines; $login):
         if ((($login | strings) // "") | endswith("[bot]")) then
           rung3_window($lines) as $w
@@ -587,7 +593,7 @@ REVIEW_VERDICTS_BUNDLE="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" --slurpfile re
           # ends. A guard that only anchors the prefix, or that re-derives the token with a
           # second pattern, admits the trailing prose an artifact quotes a prior verdict in.
           | ([ $w[]
-               | capture(headline_prefix + "(?i:Verdict):[^A-Za-z]*(?<v>APPROVE|REJECT)[^A-Za-z]*$")
+               | capture(headline_prefix + "(?i:Verdict):" + not_letters + "*(?<v>APPROVE|REJECT)" + not_letters + "*$")
                | .v ]) as $r1
           | if ($r1 | length) > 0 then $r1[0:1]
             elif any($w[]; test(headline_prefix + "(?i:Verdict):")) then []
@@ -596,8 +602,12 @@ REVIEW_VERDICTS_BUNDLE="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" --slurpfile re
               # the token — collapsing punctuation away instead lets an ordinary sentence
               # ("Do not review. REJECT.") wear the headline shape. The token stays
               # case-SENSITIVE so lowercase prose cannot satisfy it.
-              ([ $w[] | select(test("[^ \t]")) ][0:3]
-               | map(capture(headline_prefix + "([A-Za-z]+[^A-Za-z]+)?(?i:Review|Verdict)[^A-Za-z]+(?<v>APPROVE|REJECT)[^A-Za-z]*$"))
+              # The three-line window is taken from the RAW lines and then intersected with
+              # the stripped set: taking it from the stripped list would let dropping a
+              # quoted block pull a later line into the window a narrowing must not widen.
+              ([ $lines[0:30][] | select(test("[^ \t]")) ][0:3]
+               | map(select(. as $line | any($w[]; . == $line)))
+               | map(capture(headline_prefix + "(\\p{L}+" + not_letters + "+)?(?i:Review|Verdict)" + not_letters + "+(?<v>APPROVE|REJECT)" + not_letters + "*$"))
                | map(.v)) as $r2
               | if ($r2 | length) == 1 then $r2
                 else
@@ -606,7 +616,7 @@ REVIEW_VERDICTS_BUNDLE="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" --slurpfile re
                               and (($w[$i] | gsub("[^A-Za-z]"; "") | ascii_downcase) == "verdict"))
                      | ([ ($w[($i + 1):] | .[]) | select(test("[^ \t]")) ][0]) as $nxt
                      | select($nxt != null)
-                     | ($nxt | capture(headline_prefix + "(?<v>APPROVE|REJECT)[^A-Za-z]*$"))
+                     | ($nxt | capture(headline_prefix + "(?<v>APPROVE|REJECT)" + not_letters + "*$"))
                      | .v ]) as $r3
                   | $r3[0:1]
                 end
