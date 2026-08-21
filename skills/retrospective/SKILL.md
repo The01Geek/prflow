@@ -86,7 +86,8 @@ Schema of `.prflow/tmp/pr-<n>.context.json` produced by `fetch-pr-context.sh`:
 | `commits` | array | `[{sha,author_login,committer_login,committed_at,message}]` |
 | `workpad_body` | string\|null | Full text of the `<!-- prflow:workpad -->` comment, read from the **issue** thread (where the workpad lives), not the PR thread |
 | `reflections` | array | The bullet lines from the workpad's `## Devflow Reflection` `<details>` block — the bot's own self-reported friction notes (`[]` when none) |
-| `review_verdicts` | array | Verdict entries in time order, drawn from the **union** of the PR conversation comments and the durable bot PR reviews: `[{verdict,createdAt,source}]` where `verdict` is APPROVE or REJECT and `source` is `pr_comment` or `pr_review`. Any verdict heading in either source qualifies (not only `/prflow:review` output). |
+| `review_verdicts` | array | Verdict entries in time order, drawn from the **union** of the PR conversation comments and the durable bot PR reviews: `[{verdict,createdAt,source}]` where `verdict` is APPROVE or REJECT and `source` is `pr_comment` or `pr_review`. A verdict heading in either source qualifies (not only `/prflow:review` output), as does one of a bounded set of bot-authored verdict shapes. |
+| `review_verdict_unparsed_count` | number | Count of scanned comment/review artifacts that yielded no verdict from any rung yet carry an `APPROVE`/`REJECT` token in their first 30 lines — an upper bound on verdict-shaped artifacts the union did not parse, since an artifact merely mentioning the tokens also counts. It feeds no signal; `review_reject_outstanding` is derived from `review_verdicts` alone. |
 | `implement_summary_comment` | string\|null | The `/prflow:implement` completion summary comment body |
 | `pr_devflow_provenance` | boolean | True iff the `PRFlow` provenance label (or its superseded `DevFlow` spelling) is on the PR or the resolved linked issue. |
 | `signals` | object | See below |
