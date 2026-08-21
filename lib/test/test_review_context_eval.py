@@ -74,7 +74,7 @@ def _expected_from_fixture(corpus_root):
     rather than a copied constant.
     """
     sessions = [os.path.join(dp, f)
-                for dp, _d, files in os.walk(corpus_root)
+                for dp, _d, files in os.walk(corpus_root)  # tree-walk-ok: rooted at the caller-supplied corpus dir (a fixtures subdir or a tempdir), never the repo root
                 for f in sorted(files) if f.endswith(".jsonl")]
     contexts = {}
     for path in sorted(sessions):
@@ -165,7 +165,7 @@ class EngineKeyRecognizerTest(unittest.TestCase):
         seen = 0
         for prefix in RCE.ENGINE_PREFIXES:
             root = os.path.join(_REPO, prefix.rstrip("/"))
-            for dp, _d, files in os.walk(root):
+            for dp, _d, files in os.walk(root):  # tree-walk-ok: rooted at a fixed engine subtree (skills/review, skills/review-and-fix), not the repo root
                 for f in files:
                     if not f.endswith(".md"):
                         continue
@@ -582,7 +582,7 @@ class SecretDetectorTest(unittest.TestCase):
             self.assertTrue(os.path.exists(path),
                             "secret-scan target is missing: {}".format(path))
         targets = list(named)
-        for dirpath, _dirs, files in os.walk(_FIX):
+        for dirpath, _dirs, files in os.walk(_FIX):  # tree-walk-ok: rooted at the fixed committed review-eval fixtures subdir, not the repo root
             for f in sorted(files):
                 if f == "planted-owner-id.txt":
                     continue
@@ -618,7 +618,7 @@ class NoAutoInvocationTest(unittest.TestCase):
                 self.fail("could not walk {} while checking the no-auto-invocation "
                           "invariant: {}".format(_sub, exc))
 
-            for dirpath, dirs, files in os.walk(root, onerror=_walk_error):
+            for dirpath, dirs, files in os.walk(root, onerror=_walk_error):  # tree-walk-ok: rooted at fixed subtrees (skills/.github/scripts/lib/.prflow/prompt-extensions), not the repo root
                 dirs[:] = [d for d in dirs if d != "__pycache__"]
                 for f in files:
                     p = os.path.join(dirpath, f)

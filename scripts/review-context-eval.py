@@ -63,8 +63,8 @@ import json
 import os
 import sys
 
-# Engine-file subtrees, longest prefix first. A subtree rename must be mirrored here in the
-# same change or reads under it silently stop counting;
+# The two engine-file subtrees (disjoint — neither prefix contains the other). A subtree
+# rename must be mirrored here in the same change or reads under it silently stop counting;
 # test_prefixes_map_to_real_on_disk_subtrees reconciles these against the on-disk dirs.
 ENGINE_PREFIXES = ("skills/review-and-fix/", "skills/review/")
 

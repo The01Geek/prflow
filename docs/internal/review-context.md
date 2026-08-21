@@ -60,5 +60,5 @@ symbolic link is never read. Re-running over the same unchanged directory produc
 byte-identical output.
 
 Regrowth in the review-engine surface becomes visible in these numbers rather than only in
-the per-file 61,750-byte ceiling in `lib/test/lint-reference-size.py`, which fires on one
-file at a time and says nothing about what a single engine entry costs.
+the per-file byte ceiling in `lib/test/lint-reference-size.py`, which fires on one file at a
+time and says nothing about what a single engine entry costs.
