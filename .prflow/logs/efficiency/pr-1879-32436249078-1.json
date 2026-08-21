@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1879",
+  "generated_at": "2026-08-21T01:36:28Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.52",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 5.389537749999999,
+    "tokens": {
+      "input_tokens": 38,
+      "output_tokens": 30939,
+      "cache_read_input_tokens": 2449680,
+      "cache_creation_input_tokens": 172511,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 70,
+        "outputTokens": 47935,
+        "cacheReadInputTokens": 3276543,
+        "cacheCreationInputTokens": 304900,
+        "webSearchRequests": 0,
+        "costUSD": 5.389537749999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 32,
+    "duration_ms": 551532
+  },
+  "permission_denials": {
+    "count": 2,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-unset} ATTEMPT=${GITHUB_RUN_ATTEMPT:-unset}\"; git status --porcelain; echo \"---PRVIEW---\"; gh pr view 1879 --json headRefName,baseRefName,baseRefOid,headRefOid,body,closingIssuesReferences --jq '.'",
+      "for f in skills/docs-verify/SKILL.md skills/review-and-fix/references/shadow-review.md; do\n  before=$(git show b45e66bb6cbac142b5b926c37ae0d83d65573bef:\"$f\" 2>/dev/null | wc -c)\n  after=$(wc -c < \"$f\")\n  echo \"$f: before=$before after=$after delta=$((after-before))\"\ndone"
+    ],
+    "total": 2,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
