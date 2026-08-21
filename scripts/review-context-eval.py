@@ -11,15 +11,9 @@ cost a run — how many times each engine file was read, in which context each r
 happened, and the peak accumulated context of each context that read one. It reads
 transcripts and writes a report; it stores nothing and changes no repository state.
 
-It is the third of this repository's transcript-walking context instruments, after the
-create-issue-context instrument (issue #767) and the implement-context instrument
-(issue #1209), and reuses their proven streaming / per-record degradation / symlink-escape
-/ determinism design. Its ONE substantive difference from the implement sibling is the
-attribution axis: the sibling filters sidechain (subagent) records out entirely, because
-the implement phase files are read by the orchestrator on the main thread; this instrument
-attributes reads PER CONTEXT instead, because after issue #1850 the review engine's entries
-are dispatched into subagent contexts, and an instrument that counted only main-thread
-reads would report the engine cost went to zero rather than that it moved.
+Reads are attributed PER CONTEXT rather than filtered to the main thread, because the
+review engine's entries are dispatched into subagent contexts and a main-thread-only count
+would report the engine cost went to zero rather than that it moved.
 
 An "engine file" is any file under `skills/review/` or `skills/review-and-fix/`. Matching
 is by path SUBTREE, not basename, because both subtrees carry a `SKILL.md` (a basename
@@ -41,8 +35,11 @@ contexts reading the same engine file into one count.
 The per-context report is scoped to contexts that read at least one engine file; each such
 context reports its peak accumulated context — `max` over its turns of
 `input_tokens + cache_read_input_tokens + cache_creation_input_tokens` (output excluded) —
-or the UNESTABLISHED sentinel when no turn carried a `usage` object (an unmeasured peak is
-never collapsed onto a real-looking 0). Read counts are plain counts, so a genuinely-zero
+or the UNESTABLISHED sentinel when no turn carried an established residency measurement (an
+unmeasured peak is never collapsed onto a real-looking 0). A turn carries one when at least
+one of those three `usage` sub-fields holds a usable count; a turn with no `usage` object,
+or one whose every residency sub-field is absent/null/non-numeric/non-finite, is counted as
+an unmeasured turn instead. Read counts are plain counts, so a genuinely-zero
 read count reads as 0; only the residency STATISTICS (median/max peak) carry the
 UNESTABLISHED sentinel for an empty population.
 
@@ -143,31 +140,40 @@ def _max_or_unestablished(values):
     return max(values) if values else UNESTABLISHED
 
 
-def _usage_field(usage, key):
-    """Read one usage sub-field, treating null/missing/non-numeric as 0."""
+RESIDENCY_KEYS = ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")
+
+
+def _usage_value(usage, key):
+    """One usage sub-field's ESTABLISHED token count, or None when it carries none.
+
+    None covers absent, null, bool (an int subclass, never a token count), non-numeric and
+    non-finite values. It is the single predicate every residency read shares, so no caller
+    can accept a wider set of values than this one establishes.
+    """
     if not isinstance(usage, dict):
-        return 0
+        return None
     val = usage.get(key)
-    if isinstance(val, bool):  # bool is an int subclass; never a token count
-        return 0
+    if isinstance(val, bool):
+        return None
     if isinstance(val, (int, float)):
-        # A non-finite float (json.loads accepts bare Infinity/-Infinity/NaN) is not a token
-        # count: int(inf) raises OverflowError, which is outside eval_corpus's per-record
-        # backstop tuple and would detonate the whole walk. Treat it as 0, like any other
-        # non-numeric value, so one hostile record degrades per-record instead.
+        # Do not drop the non-finite guard: json.loads accepts bare Infinity/NaN, and
+        # int(inf) raises OverflowError, outside eval_corpus's per-record backstop tuple.
         if isinstance(val, float) and not math.isfinite(val):
-            return 0
+            return None
         return int(val)
-    return 0
+    return None
 
 
 def _context_tokens(usage):
-    """Residency tokens = input + cache_read + cache_creation (no output)."""
-    return (
-        _usage_field(usage, "input_tokens")
-        + _usage_field(usage, "cache_read_input_tokens")
-        + _usage_field(usage, "cache_creation_input_tokens")
-    )
+    """Residency tokens = input + cache_read + cache_creation (no output), or None.
+
+    None when NO residency sub-field carried an established count: an empty or wholly
+    unusable `usage` object measured nothing, and folding its 0 into a peak would report an
+    unmeasured turn as a real-looking 0.
+    """
+    established = [v for v in (_usage_value(usage, k) for k in RESIDENCY_KEYS)
+                   if v is not None]
+    return sum(established) if established else None
 
 
 class ContextAccumulator:
@@ -177,15 +183,14 @@ class ContextAccumulator:
     read tally — never full record bodies, so a corpus of any size streams in bounded
     memory (there is one accumulator per context, and contexts are few).
 
-    `skipped` is the caller's corpus-wide skip tally; the accumulator writes the
-    `unresolvable_read_path` key into it so a Read whose `file_path` shape is unusable is
-    accounted rather than silently read as "not an engine file".
+    Every counter is the accumulator's OWN; `eval_corpus` folds the corpus-wide ones in
+    after the walk. Do not pass the shared skip tally in to be mutated here: that made a
+    correct tally depend on the caller having pre-seeded a key this class does not own.
     """
 
-    def __init__(self, context, is_subagent, skipped):
+    def __init__(self, context, is_subagent):
         self.context = context
         self.is_subagent = is_subagent
-        self.skipped = skipped
         self.sources = set()
         self.turn_count = 0
         # Running max of per-turn residency; None until a turn carries a usage object, so
@@ -195,6 +200,9 @@ class ContextAccumulator:
         self.compact_boundary_count = 0
         # engine-relative key -> number of Read blocks that read that engine file.
         self.engine_reads = {}
+        # Read blocks whose file_path shape was unusable; eval_corpus folds this into the
+        # corpus-wide skip tally under `unresolvable_read_path`.
+        self.unresolvable_read_paths = 0
 
     def note_source(self, source):
         self.sources.add(source)
@@ -210,14 +218,13 @@ class ContextAccumulator:
         message = record.get("message")
         if not isinstance(message, dict):
             message = {}
-        usage = message.get("usage")
-        if isinstance(usage, dict):
-            tokens = _context_tokens(usage)
-            self.peak = tokens if self.peak is None else max(self.peak, tokens)
-        else:
-            # No usage object at all: residency was never recorded for this turn. Tally it
-            # rather than folding a 0 into the peak (which would drag it down).
+        tokens = _context_tokens(message.get("usage"))
+        if tokens is None:
+            # Residency was never established for this turn. Tally it rather than folding a
+            # 0 into the peak, which would report an unmeasured turn as a real value.
             self.usage_missing_turns += 1
+        else:
+            self.peak = tokens if self.peak is None else max(self.peak, tokens)
 
         content = message.get("content")
         if not isinstance(content, list):
@@ -234,7 +241,7 @@ class ContextAccumulator:
                 # The path could not be ESTABLISHED, so it is accounted rather than silently
                 # read as "not an engine file". A Read of a NON-engine file is a legitimate
                 # non-count and is deliberately NOT tallied here.
-                self.skipped["unresolvable_read_path"] += 1
+                self.unresolvable_read_paths += 1
                 continue
             key = _engine_file_key(file_path)
             if key is not None:
@@ -373,7 +380,7 @@ def eval_corpus(corpus_root):
                     key, is_sub = _context_identity(record, rel_source)
                     acc = accumulators.get(key)
                     if acc is None:
-                        acc = ContextAccumulator(key, is_sub, skipped)
+                        acc = ContextAccumulator(key, is_sub)
                         accumulators[key] = acc
                     acc.note_source(rel_source)
                     if rtype == "assistant":
@@ -388,6 +395,11 @@ def eval_corpus(corpus_root):
                         )
                     )
                     continue
+
+    # Fold over EVERY accumulator, not just the reporting ones: a context excluded for
+    # reading no engine file can still have dropped a Read with an unusable path.
+    for acc in accumulators.values():
+        skipped["unresolvable_read_path"] += acc.unresolvable_read_paths
 
     contexts = [acc.result() for acc in accumulators.values()
                 if acc.total_engine_reads() > 0]

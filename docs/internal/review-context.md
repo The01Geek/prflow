@@ -49,8 +49,11 @@ The report gives, for one supplied directory:
   subagent distinction;
 - the peak accumulated context of each context that read an engine file — `max` over that
   context's turns of `input_tokens + cache_read_input_tokens + cache_creation_input_tokens`
-  (output excluded), or `unestablished` when no turn carried a `usage` object (an
-  unmeasured peak is never collapsed onto a real-looking 0);
+  (output excluded), or `unestablished` when no turn carried an established residency
+  measurement (an unmeasured peak is never collapsed onto a real-looking 0). A turn
+  establishes one when at least one of those three sub-fields holds a usable count, so a
+  turn with no `usage` object, and one whose every residency sub-field is absent, null,
+  non-numeric or non-finite, are both counted as unmeasured turns instead;
 - an aggregate summary and a skip tally.
 
 A directory with no engine-file read produces a report saying so and exits zero. A record

@@ -279,6 +279,38 @@ class BoundaryTest(_SingleCorpusMixin, unittest.TestCase):
         kinds = {c["context"]: c["is_subagent"] for c in contexts}
         self.assertEqual(kinds, {"main:S": False, "sub:G": True})
 
+    def test_missing_identity_field_falls_back_to_the_source_path(self):
+        # A record whose identifying field is absent keys on its SOURCE file, and the
+        # main:/sub: prefix is what keeps the two from colliding on that one shared path.
+        # Expected keys are written out here rather than taken from the fixture
+        # re-derivation, so a fallback bug mirrored into that oracle cannot pass.
+        contexts, totals, _ = self._run({
+            "s.jsonl": [
+                '{"type":"assistant","isSidechain":false,'
+                '"message":{"usage":{"input_tokens":5},"content":[{"type":"tool_use",'
+                '"id":"1","name":"Read","input":{"file_path":"skills/review/SKILL.md"}}]}}',
+                '{"type":"assistant","isSidechain":true,'
+                '"message":{"usage":{"input_tokens":6},"content":[{"type":"tool_use",'
+                '"id":"2","name":"Read","input":{"file_path":"skills/review/SKILL.md"}}]}}'],
+        })
+        self.assertEqual(
+            {c["context"]: c["is_subagent"] for c in contexts},
+            {"main:file:s.jsonl": False, "sub:file:s.jsonl": True})
+        self.assertEqual(totals["skills/review/SKILL.md"],
+                         {"total": 2, "main_thread": 1, "subagent": 1})
+        self.assertEqual([c["peak_context"] for c in contexts], [5, 6])
+
+    def test_non_string_identity_field_falls_back_to_the_source_path(self):
+        # A present-but-unusable agentId is as unidentified as an absent one; without the
+        # isinstance guard the key would be built from a non-string and detonate.
+        contexts, _, _ = self._run({
+            "sub.jsonl": [
+                '{"type":"assistant","isSidechain":true,"agentId":17,'
+                '"message":{"usage":{"input_tokens":6},"content":[{"type":"tool_use",'
+                '"id":"1","name":"Read","input":{"file_path":"skills/review/SKILL.md"}}]}}'],
+        })
+        self.assertEqual([c["context"] for c in contexts], ["sub:file:sub.jsonl"])
+
     def test_peak_is_max_per_turn_residency(self):
         contexts, _, _ = self._run({
             "s.jsonl": [
@@ -426,17 +458,22 @@ class AdversarialTest(_SingleCorpusMixin, unittest.TestCase):
                     '{"type":"assistant","isSidechain":false,"sessionId":"S",'
                     '"message":{"usage":{"input_tokens":2},"content":[{"type":"tool_use",'
                     '"id":"2","name":"Read",'
-                    '"input":{"file_path":"skills/review/SKILL.md"}}]}}'],
+                    '"input":{"file_path":"skills/review/SKILL.md"}}]}}',
+                    # A context reporting NO engine read still has its dropped Read
+                    # accounted: excluding it from the fold would lose the tally.
+                    '{"type":"assistant","isSidechain":true,"agentId":"G",'
+                    '"message":{"usage":{"input_tokens":3},"content":[{"type":"tool_use",'
+                    '"id":"3","name":"Read","input":{"file_path":null}}]}}'],
             })
         finally:
             sys.stderr = saved
-        self.assertEqual(skipped["unresolvable_read_path"], 1)
+        self.assertEqual(skipped["unresolvable_read_path"], 2)
         self.assertEqual(skipped["malformed_record"], 0)
         self.assertEqual(len(contexts), 1)
 
     def test_non_finite_token_value_degrades_not_detonates(self):
         # json.loads accepts bare Infinity; int(inf) raises OverflowError, which is OUTSIDE
-        # eval_corpus's per-record backstop tuple — without the _usage_field guard one such
+        # eval_corpus's per-record backstop tuple — without the _usage_value guard one such
         # record aborts the whole walk. Assert the run still reports the good record.
         contexts, totals, skipped = self._run({
             "s.jsonl": [
@@ -453,10 +490,31 @@ class AdversarialTest(_SingleCorpusMixin, unittest.TestCase):
         self.assertEqual(contexts[0]["peak_context"], 42)
         self.assertEqual(skipped["malformed_record"], 0)
 
-    def test_usage_field_treats_non_finite_as_zero(self):
-        self.assertEqual(RCE._usage_field({"input_tokens": float("inf")}, "input_tokens"), 0)
-        self.assertEqual(RCE._usage_field({"input_tokens": float("nan")}, "input_tokens"), 0)
-        self.assertEqual(RCE._usage_field({"input_tokens": 7.0}, "input_tokens"), 7)
+    def test_usage_value_establishes_only_a_usable_count(self):
+        # Every unusable shape reads None (unestablished), never 0 — the peak's whole
+        # unknown-is-not-zero discipline rests on this one predicate.
+        for bad in (float("inf"), float("nan"), True, False, "7", None, [7]):
+            self.assertIsNone(RCE._usage_value({"input_tokens": bad}, "input_tokens"), bad)
+        self.assertIsNone(RCE._usage_value({}, "input_tokens"))
+        self.assertIsNone(RCE._usage_value("not a dict", "input_tokens"))
+        self.assertEqual(RCE._usage_value({"input_tokens": 7.0}, "input_tokens"), 7)
+        self.assertEqual(RCE._usage_value({"input_tokens": 0}, "input_tokens"), 0)
+
+    def test_empty_usage_object_reads_unestablished_peak_not_zero(self):
+        # A usage object carrying no usable residency field measured nothing; folding its
+        # 0 into the peak would report an unmeasured turn as a real value.
+        contexts, _, _ = self._run({
+            "s.jsonl": [
+                '{"type":"assistant","isSidechain":false,"sessionId":"S",'
+                '"message":{"usage":{},"content":[{"type":"tool_use","id":"1",'
+                '"name":"Read","input":{"file_path":"skills/review/SKILL.md"}}]}}',
+                '{"type":"assistant","isSidechain":false,"sessionId":"S",'
+                '"message":{"usage":{"output_tokens":80},"content":[{"type":"tool_use",'
+                '"id":"2","name":"Read",'
+                '"input":{"file_path":"skills/review/SKILL.md"}}]}}'],
+        })
+        self.assertEqual(contexts[0]["peak_context"], RCE.UNESTABLISHED)
+        self.assertEqual(contexts[0]["usage_missing_turns"], 2)
 
     def test_message_wrong_shape_does_not_detonate(self):
         saved = sys.stderr
