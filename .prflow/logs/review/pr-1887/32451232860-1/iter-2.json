@@ -1,0 +1,97 @@
+{
+  "iter": 2,
+  "started_at": "2026-08-21T00:10:00Z",
+  "fix_commit_sha": null,
+  "fix_files": [],
+  "loop_role": "fix",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:type-design-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [],
+  "fix_decisions": [],
+  "convergence_inputs": {
+    "fixes_applied": 0,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "shadow": {
+    "ran_at": "2026-08-21T00:12:00Z",
+    "reviewed_sha": "8eafb1fd8",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:type-design-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:type-design-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Important",
+        "description": "_usage_field: int(float('inf')) raises OverflowError (outside per-record backstop tuple) -> detonates the walk on a non-finite token value; contradicts degrade-per-record contract / AC5",
+        "defect_signature": {
+          "file": "scripts/review-context-eval.py",
+          "line_range": [
+            153,
+            153
+          ],
+          "kind": "unhandled_exception"
+        }
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "severity": "Important",
+        "description": "docs/internal/review-context.md asserts DEVFLOW_SYSTEM_OVERVIEW.md 'only points here' but no such pointer existed at HEAD (self-authored-claim falsehood)",
+        "defect_signature": {
+          "file": "docs/internal/review-context.md",
+          "line_range": [
+            13,
+            14
+          ],
+          "kind": "documented_falsehood"
+        }
+      }
+    ],
+    "comparison": {
+      "shadow_total": 2,
+      "overlap_with_iter_N": 0,
+      "new": 2,
+      "new_critical": 0,
+      "new_important": 2
+    },
+    "promoted_to_iter_next": true
+  },
+  "verification_evidence": {
+    "skipped_checks": []
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

@@ -1,0 +1,70 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-21T00:00:00Z",
+  "fix_commit_sha": "8eafb1fd8",
+  "fix_files": [
+    "lib/test/test_review_context_eval.py",
+    "scripts/review-context-eval.py",
+    "docs/internal/review-context.md"
+  ],
+  "loop_role": "fix",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:type-design-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Critical",
+      "description": "Four os.walk() calls in lib/test/test_review_context_eval.py lack the # tree-walk-ok: marker required by lib/test/lint-tree-enumeration.py (#711); CI lib+python tests goes RED.",
+      "defect_signature": {
+        "file": "lib/test/test_review_context_eval.py",
+        "line_range": [
+          77,
+          621
+        ],
+        "kind": "missing_declaration_marker"
+      },
+      "corroboration_count": 1
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "8eafb1fd8"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 1,
+    "fix_diff_lines": 8,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "refixed",
+      "reason": null
+    }
+  },
+  "verification_evidence": {
+    "skipped_checks": []
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

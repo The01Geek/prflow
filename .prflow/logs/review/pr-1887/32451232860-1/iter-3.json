@@ -1,0 +1,122 @@
+{
+  "iter": 3,
+  "started_at": "2026-08-21T00:14:00Z",
+  "fix_commit_sha": "7b139a273",
+  "fix_files": [
+    "scripts/review-context-eval.py",
+    "lib/test/test_review_context_eval.py",
+    "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md"
+  ],
+  "loop_role": "promoted",
+  "promotion_provenance": "shadow",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": true,
+    "engine_self_modifying": false,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:type-design-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "non-finite token OverflowError (promoted from iter-2 shadow) — FIXED",
+      "defect_signature": {
+        "file": "scripts/review-context-eval.py",
+        "line_range": [
+          153,
+          160
+        ],
+        "kind": "unhandled_exception"
+      },
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Important",
+      "description": "doc false pointer claim (promoted from iter-2 shadow) — FIXED",
+      "defect_signature": {
+        "file": "docs/internal/review-context.md",
+        "line_range": [
+          13,
+          14
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 1
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "7b139a273"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "7b139a273"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 2,
+    "fix_diff_lines": 45,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "refixed",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "ran_at": "2026-08-21T00:20:00Z",
+    "reviewed_sha": "7b139a273",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:type-design-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:type-design-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "comparison": {
+      "shadow_total": 13,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "verification_evidence": {
+    "skipped_checks": []
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
