@@ -137,7 +137,15 @@ def load_rsa_private_key(pem: bytes):
     text = pem.decode("latin-1")
     if "-----BEGIN" not in text:
         raise SignerError("raw DER key (no PEM armor) — only PEM is accepted")
-    if "ENCRYPTED" in text or "Proc-Type:" in text or "DEK-Info:" in text:
+    # Anchor the encryption markers to the lines that can carry them — a BEGIN marker
+    # and an RFC 1421 header — never the whole text: the base64 alphabet is uppercase-
+    # inclusive, so a body run spelling ENCRYPTED would refuse a valid unencrypted key.
+    if any(
+        (line.startswith("-----BEGIN") and "ENCRYPTED" in line)
+        or line.startswith("Proc-Type:")
+        or line.startswith("DEK-Info:")
+        for line in (raw.strip() for raw in text.splitlines())
+    ):
         raise SignerError("passphrase-protected (encrypted) PEM")
     if "BEGIN OPENSSH PRIVATE KEY" in text:
         raise SignerError("OpenSSH-format private key")

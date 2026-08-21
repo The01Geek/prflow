@@ -83,7 +83,10 @@ reason=""
 impact="git push / gh calls past ~60 min may have used a stale token"
 
 if [ -f "$PIDFILE" ]; then
-  pid="$(cat "$PIDFILE" 2>/dev/null || true)"
+  # Same builtin-not-`cat` rule as the reaper below: a host without cat would read
+  # every pidfile empty and report a spurious defeat instead of this job's real state.
+  pid=""
+  read -r pid 2>/dev/null < "$PIDFILE" || :
   if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
     kill "$pid" 2>/dev/null || true
     # Briefly wait for the signalled process to actually exit before tailing its log, so
@@ -131,17 +134,22 @@ fi
 
 # Cross-job reaper (issue #1882): job-scoping the pidfile removed the accidental
 # cross-job kill a shared pidfile used to provide, so retire any OTHER job's
-# refresher still looping on this runner — an orphan whose job-identity handle
-# names a job that is no longer current, whose self-termination may have failed,
-# must not keep holding a live repository-write token. Reap every job-scoped
-# pidfile that is not this job's own and whose pid is still alive.
+# refresher still looping on this runner — an orphan whose self-termination may
+# have failed must not keep holding a live repository-write token. Every pidfile
+# in the glob that is not this job's own is another job's by construction, so the
+# reap decision is that name inequality plus the liveness and identity checks
+# below — never a read of the orphan's job pointer.
 REAP_GLOB="${DEVFLOW_REFRESH_REAP_GLOB:-${RUNNER_TEMP:-/tmp}/devflow-refresh-*.pid}"
 # Intentional glob + word-split of the reap pattern.
 # shellcheck disable=SC2086
 for _rpf in $REAP_GLOB; do
   [ -f "$_rpf" ] || continue
   [ "$_rpf" = "$PIDFILE" ] && continue
-  _ropid="$(cat "$_rpf" 2>/dev/null || true)"
+  # Read the pid with the `read` BUILTIN, never `cat`: cat is not preflight-guaranteed,
+  # and on a host lacking it every pidfile would read empty and be unlinked below as
+  # stale — silently retiring the record of a LIVE orphan instead of signalling it.
+  _ropid=""
+  read -r _ropid 2>/dev/null < "$_rpf" || :
   # A stale pidfile (empty, or a pid that is no longer alive) is retired so no later
   # teardown re-consults it.
   if [ -z "$_ropid" ] || ! kill -0 "$_ropid" 2>/dev/null; then

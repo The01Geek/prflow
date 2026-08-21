@@ -34953,6 +34953,58 @@ assert_eq("#1882 signer carries the RFC 8017 SHA-256 DigestInfo prefix", "303130
 assert_raises("#1882 signer rejects a non-integer iat/exp before any signature", _signer1882.SignerError,
               lambda: _signer1882.sign_jwt("iss", "notanint", "2", b"-----BEGIN RSA PRIVATE KEY-----\nAA\n-----END RSA PRIVATE KEY-----\n"))
 
+_signer_refuses_1882("DSA key", b"-----BEGIN DSA PRIVATE KEY-----\nMHQ=\n-----END DSA PRIVATE KEY-----\n", "DSA private key")
+_signer_refuses_1882("unrecognized PEM type", b"-----BEGIN CERTIFICATE-----\nMHQ=\n-----END CERTIFICATE-----\n", "unrecognized PEM type")
+_signer_refuses_1882("undecodable base64 body", b"-----BEGIN RSA PRIVATE KEY-----\n!!!!\n-----END RSA PRIVATE KEY-----\n", "undecodable base64 body")
+
+
+# The `len(t) + 11 > k` minimum-modulus guard in sign_jwt: a modulus too small to hold
+# the EMSA-PKCS1-v1_5 encoding must be refused BY NAME rather than producing a short or
+# malformed signature. Production App keys (2048/4096-bit) never reach it, so only a
+# synthetic key exercises it — hence the hand-built DER below rather than a real fixture.
+def _der_len_1882(size):
+    """DER length octets: short form under 128, else long form. A 1024-bit modulus needs
+    the long form, so a short-form-only encoder would build a fixture the parser refuses
+    for the wrong reason and the guard under test would never be reached."""
+    if size < 0x80:
+        return size.to_bytes(1, "big")
+    raw = size.to_bytes((size.bit_length() + 7) // 8, "big")
+    return (0x80 | len(raw)).to_bytes(1, "big") + raw
+
+
+def _der_int_1882(value):
+    raw = value.to_bytes(max(1, (value.bit_length() + 7) // 8), "big")
+    if raw[0] & 0x80:
+        raw = b"\x00" + raw
+    return b"\x02" + _der_len_1882(len(raw)) + raw
+
+
+def _pkcs1_pem_1882(n, d):
+    """Hand-build a PKCS#1 RSAPrivateKey PEM carrying the given modulus/exponent."""
+    body = _der_int_1882(0) + _der_int_1882(n) + _der_int_1882(65537) + _der_int_1882(d)
+    seq = b"\x30" + _der_len_1882(len(body)) + body
+    b64 = _signer1882.base64.b64encode(seq).decode()
+    return ("-----BEGIN RSA PRIVATE KEY-----\n" + b64 + "\n-----END RSA PRIVATE KEY-----\n").encode()
+
+
+# 256-bit modulus: k = 32, and len(t) + 11 = 62 > 32, so the guard fires.
+_small_n_1882 = (1 << 255) | 1
+_small_pem_1882 = _pkcs1_pem_1882(_small_n_1882, 3)
+assert_eq("#1882 signer parses the hand-built small-modulus PEM (positive control: the fixture is otherwise valid)",
+          (_small_n_1882, 3), _signer1882.load_rsa_private_key(_small_pem_1882))
+try:
+    _signer1882.sign_jwt("iss", "1", "2", _small_pem_1882)
+    assert_eq("#1882 signer refuses a too-small RSA modulus (raised SignerError)", True, False)
+except _signer1882.SignerError as _exc_1882:
+    # Attribute the refusal to THIS guard: several other refusals raise SignerError too.
+    assert_eq("#1882 signer refuses a too-small RSA modulus naming the modulus",
+              True, "modulus too small" in str(_exc_1882))
+
+# Positive control on the same builder: a 1024-bit modulus clears the guard and signs.
+_big_pem_1882 = _pkcs1_pem_1882((1 << 1023) | 1, 3)
+assert_eq("#1882 signer signs with a modulus large enough for the PKCS#1 v1.5 encoding",
+          3, len(_signer1882.sign_jwt("iss", "1", "2", _big_pem_1882).split(b".")))
+
 print()
 print(f"{PASS} passed, {FAIL} failed")
 sys.exit(0 if FAIL == 0 else 1)
