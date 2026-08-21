@@ -1,0 +1,30 @@
+{
+  "iter": 1,
+  "fix_commit_sha": "122cdb59c1dee7cc6bcc0e05ebec7ed0e5360f8c",
+  "fix_files": [
+    ".github/workflows/devflow-implement.yml",
+    "CHANGELOG.md",
+    "docs/cloud-setup.md",
+    "docs/workflow-triggers.md",
+    "lib/test/run.sh",
+    "scripts/dedupe-implement-run.sh",
+    "scripts/react-to-trigger.sh"
+  ],
+  "loop_role": "fix",
+  "synthesized": true,
+  "sweep_defs_read": {
+    "status": "unrecoverable",
+    "reason": "fix-commit-only synthesis: no iteration record was found for this run, and a fix commit carries no trace of which sweep definitions were read"
+  },
+  "sweep_evidence": {
+    "status": "unrecoverable",
+    "reason": "fix-commit-only synthesis: no iteration record was found for this run, and a fix commit carries no trace of the sweep outcomes"
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "unrecoverable",
+      "reason": "fix-commit-only synthesis: no iteration record was found for this run, and a fix commit carries no trace of whether the Step 3.5 fix-delta gate ran"
+    }
+  },
+  "telemetry": "unavailable"
+}

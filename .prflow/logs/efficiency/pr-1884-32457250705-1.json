@@ -1,0 +1,197 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1884",
+  "generated_at": "2026-08-21T07:31:38Z",
+  "config_fingerprint": {
+    "sha256": "c2dd346fdf78eacf9e402b333f46db8770aa0afa8742a7dc4ac5d1139ba96283",
+    "partial": false,
+    "salient": {
+      "verdict_severity_threshold": "critical",
+      "fix_severity_threshold": "suggestion",
+      "max_iterations": 5
+    }
+  },
+  "source": "review-and-fix",
+  "synthesized": true,
+  "cut_candidate_min_dispatch": 3,
+  "iterations": 5,
+  "per_iteration": [
+    {
+      "iter": 1,
+      "loop_role": "fix",
+      "synthesized": true,
+      "phase3_dispatched": [],
+      "phase3_dispatched_count": 0,
+      "phase3_dispatched_present": false,
+      "dispatched_effort_present": false,
+      "agent_effort": [],
+      "diff_profile": null,
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 0,
+      "added_nothing": true,
+      "agent_verdicts": []
+    },
+    {
+      "iter": 2,
+      "loop_role": "fix",
+      "synthesized": true,
+      "phase3_dispatched": [],
+      "phase3_dispatched_count": 0,
+      "phase3_dispatched_present": false,
+      "dispatched_effort_present": false,
+      "agent_effort": [],
+      "diff_profile": null,
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 0,
+      "added_nothing": true,
+      "agent_verdicts": []
+    },
+    {
+      "iter": 3,
+      "loop_role": "fix",
+      "synthesized": true,
+      "phase3_dispatched": [],
+      "phase3_dispatched_count": 0,
+      "phase3_dispatched_present": false,
+      "dispatched_effort_present": false,
+      "agent_effort": [],
+      "diff_profile": null,
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 0,
+      "added_nothing": true,
+      "agent_verdicts": []
+    },
+    {
+      "iter": 4,
+      "loop_role": "fix",
+      "synthesized": true,
+      "phase3_dispatched": [],
+      "phase3_dispatched_count": 0,
+      "phase3_dispatched_present": false,
+      "dispatched_effort_present": false,
+      "agent_effort": [],
+      "diff_profile": null,
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 0,
+      "added_nothing": true,
+      "agent_verdicts": []
+    },
+    {
+      "iter": 5,
+      "loop_role": "fix",
+      "synthesized": true,
+      "phase3_dispatched": [],
+      "phase3_dispatched_count": 0,
+      "phase3_dispatched_present": false,
+      "dispatched_effort_present": false,
+      "agent_effort": [],
+      "diff_profile": null,
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 0,
+      "added_nothing": true,
+      "agent_verdicts": []
+    }
+  ],
+  "telemetry": [
+    {
+      "iter": 1,
+      "phases": "unavailable"
+    },
+    {
+      "iter": 2,
+      "phases": "unavailable"
+    },
+    {
+      "iter": 3,
+      "phases": "unavailable"
+    },
+    {
+      "iter": 4,
+      "phases": "unavailable"
+    },
+    {
+      "iter": 5,
+      "phases": "unavailable"
+    }
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.56",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 31.45721735000003,
+    "tokens": {
+      "input_tokens": 74,
+      "output_tokens": 73930,
+      "cache_read_input_tokens": 6640630,
+      "cache_creation_input_tokens": 866740,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 124,
+        "outputTokens": 127756,
+        "cacheReadInputTokens": 7813667,
+        "cacheCreationInputTokens": 1537432,
+        "webSearchRequests": 0,
+        "costUSD": 19.960578500000004,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 455,
+        "outputTokens": 76322,
+        "cacheReadInputTokens": 9828442,
+        "cacheCreationInputTokens": 1973843,
+        "webSearchRequests": 0,
+        "costUSD": 11.496638849999997,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 100,
+    "duration_ms": 1371760
+  },
+  "permission_denials": {
+    "count": 10,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---ENV---\"; echo \"RUN_ID=${GITHUB_RUN_ID:-}\"; echo \"ATTEMPT=${GITHUB_RUN_ATTEMPT:-}\"; echo \"ACTIONS=${GITHUB_ACTIONS:-}\"",
+      "bash lib/test/modules/installer-wiring.sh 2>&1 | tail -20",
+      "cat /home/runner/work/prflow/prflow/scripts/refresh-app-credentials.sh 2>/dev/null || find / -name refresh-app-credentials.sh 2>/dev/null",
+      "cat /home/runner/work/prflow/prflow/.prflow/tmp/displaced-paths.txt 2>/dev/null; echo \"---\"; git -C /home/runner/work/prflow/prflow show HEAD:scripts/refresh-app-credentials.sh 2>&1 | head -50",
+      "git -C /home/runner/work/prflow/prflow show HEAD:scripts/refresh-app-credentials.sh 2>&1 | head -80",
+      "git -C /home/runner/work/prflow/prflow show HEAD:scripts/refresh-app-credentials.sh",
+      "cat /home/runner/work/prflow/prflow/lib/resolve-python.sh 2>/dev/null || find / -name resolve-python.sh 2>/dev/null",
+      "find / -iname \"sign-jwt-rs256.py\" 2>/dev/null",
+      "find / -iname \"sign-jwt-rs256.py\" 2>/dev/null; find / -iname \"test_python_scripts.py\" 2>/dev/null",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before"
+    ],
+    "total": 10,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
