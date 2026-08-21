@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1888",
+  "generated_at": "2026-08-21T12:46:56Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.58",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 20.035593350000003,
+    "tokens": {
+      "input_tokens": 80,
+      "output_tokens": 51366,
+      "cache_read_input_tokens": 7584851,
+      "cache_creation_input_tokens": 294273,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 125,
+        "outputTokens": 93589,
+        "cacheReadInputTokens": 8687606,
+        "cacheCreationInputTokens": 767648,
+        "webSearchRequests": 0,
+        "costUSD": 12.58547675,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 308,
+        "outputTokens": 55521,
+        "cacheReadInputTokens": 6941542,
+        "cacheCreationInputTokens": 1209044,
+        "webSearchRequests": 0,
+        "costUSD": 7.450116600000003,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 81,
+    "duration_ms": 1037147
+  },
+  "permission_denials": {
+    "count": 3,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---RUNID---\"; echo \"run=${GITHUB_RUN_ID:-none} attempt=${GITHUB_RUN_ATTEMPT:-none}\"",
+      "echo \"run=${GITHUB_RUN_ID:-EMPTY} attempt=${GITHUB_RUN_ATTEMPT:-EMPTY} actions=${GITHUB_ACTIONS:-EMPTY}\"",
+      "mkdir -p .prflow/tmp/review/pr-1888/standalone-1888/verdicts/iter-1; : > .prflow/tmp/displaced-paths.txt; echo ok"
+    ],
+    "total": 3,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
