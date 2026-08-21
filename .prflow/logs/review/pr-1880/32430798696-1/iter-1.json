@@ -1,0 +1,177 @@
+{
+  "iter": 1,
+  "fix_commit_sha": "bf912e2e7",
+  "fix_files": [
+    "lib/test/test_python_scripts.py"
+  ],
+  "loop_role": "fix",
+  "current_step": "3.5",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "checklist": [
+    {
+      "id": "VC-1",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-2",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-3",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-4",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-5",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-6",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-7",
+      "verdict": "FAIL",
+      "evidence": "over-broad checklist paraphrase; AC7 (Phase-4/nested-completion/entry-gate triggers in SKILL.md) holds — doc edit describes the Skill-tool re-anchor, not the Phase-4 trigger"
+    },
+    {
+      "id": "VC-8",
+      "verdict": "FAIL",
+      "evidence": "over-broad checklist paraphrase; AC8 holds — SKILL.md 60656<=60659, ceiling applies only to gated files, no exemption added"
+    },
+    {
+      "id": "VC-9",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-10",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-11",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-12",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-13",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-14",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-15",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-16",
+      "verdict": "PASS"
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "dual-spelling devflow: resume-point read-back untested (#1003 contract)",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          24184,
+          24192
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "empty-string --record-resume-point silently no-ops",
+      "defect_signature": {
+        "file": "scripts/workpad.py",
+        "line_range": [
+          5415,
+          5420
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 3,
+      "fix_decision": "advisory"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "resume-point family header comment block exceeds 3-line cap (mirrors existing completion-ci/review-coverage family headers — sanctioned coupled-mirror)",
+      "defect_signature": {
+        "file": "scripts/workpad.py",
+        "line_range": [
+          3992,
+          4003
+        ],
+        "kind": "other"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "advisory"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "SKILL.md states no exit-1 fallback (rule mandates recording on every invocation; byte ceiling forbids adding prose)",
+      "defect_signature": {
+        "file": "skills/implement/SKILL.md",
+        "line_range": [
+          20,
+          20
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "bf912e2e7"
+    }
+  ],
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "ran_at": null,
+    "reviewed_sha": null,
+    "verdict": null,
+    "coverage": null,
+    "reviewers_dispatched": [],
+    "expected_reviewers": []
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
