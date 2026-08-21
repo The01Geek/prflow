@@ -34920,6 +34920,117 @@ assert_eq("#1560: the template with external_services != \"none\" is refused (no
 assert_eq("#1560: the template with an object-id field off the 40/64-hex shape is refused",
           True, _descriptor_rc_1560(_decl1560.replace("1111111111111111111111111111111111111111", "nothex")) != 0)
 
+# ── issue #1882: the openssl-free JWT signer refuses every non-(PKCS#1|PKCS#8-RSA)
+# input BY NAME and never emits a signature. Byte-equality against openssl and the
+# happy-path sign are covered by the #1882 arms in the #487 run.sh block (which has
+# openssl to generate keys and a reference signature); these unit arms drive the
+# encoding-detection refusals directly, which need no valid key.
+_signer1882 = _load('sign_jwt_rs256', SCRIPTS / 'sign-jwt-rs256.py')
+
+
+def _signer_refuses_1882(name, pem, needle):
+    try:
+        _signer1882.load_rsa_private_key(pem)
+    except _signer1882.SignerError as exc:
+        assert_eq(f"#1882 signer refuses {name} naming the encoding", True, needle in str(exc))
+        return
+    assert_eq(f"#1882 signer refuses {name} (raised SignerError)", True, False)
+
+
+_signer_refuses_1882("empty stdin", b"", "empty standard input")
+_signer_refuses_1882("raw DER (no PEM armor)", b"\x30\x82\x01\x00\x02\x01\x00", "raw DER")
+_signer_refuses_1882("OpenSSH key", b"-----BEGIN OPENSSH PRIVATE KEY-----\nAAAA\n-----END OPENSSH PRIVATE KEY-----\n", "OpenSSH")
+_signer_refuses_1882("EC key", b"-----BEGIN EC PRIVATE KEY-----\nMHQ=\n-----END EC PRIVATE KEY-----\n", "EC private key")
+_signer_refuses_1882("passphrase-protected PEM", b"-----BEGIN RSA PRIVATE KEY-----\nProc-Type: 4,ENCRYPTED\nDEK-Info: AES-128-CBC,0\n\nAAAA\n-----END RSA PRIVATE KEY-----\n", "passphrase-protected")
+_signer_refuses_1882("truncated PEM (no END)", b"-----BEGIN RSA PRIVATE KEY-----\nMIICXQIBAAKBgQ\n", "truncated PEM")
+_notseq_1882 = ("-----BEGIN RSA PRIVATE KEY-----\n"
+                + _signer1882.base64.b64encode(b"\x02\x01\x00").decode()
+                + "\n-----END RSA PRIVATE KEY-----\n")
+_signer_refuses_1882("PEM body that is not an RSA key structure", _notseq_1882.encode(), "not a valid RSA private key structure")
+
+assert_eq("#1882 signer _b64url strips padding and uses the URL-safe alphabet", b"__8", _signer1882._b64url(b"\xff\xff"))
+assert_eq("#1882 signer carries the RFC 8017 SHA-256 DigestInfo prefix", "3031300d060960864801650304020105000420", _signer1882._SHA256_DIGESTINFO.hex())
+assert_raises("#1882 signer rejects a non-integer iat/exp before any signature", _signer1882.SignerError,
+              lambda: _signer1882.sign_jwt("iss", "notanint", "2", b"-----BEGIN RSA PRIVATE KEY-----\nAA\n-----END RSA PRIVATE KEY-----\n"))
+
+_signer_refuses_1882("DSA key", b"-----BEGIN DSA PRIVATE KEY-----\nMHQ=\n-----END DSA PRIVATE KEY-----\n", "DSA private key")
+_signer_refuses_1882("unrecognized PEM type", b"-----BEGIN CERTIFICATE-----\nMHQ=\n-----END CERTIFICATE-----\n", "unrecognized PEM type")
+_signer_refuses_1882("undecodable base64 body", b"-----BEGIN RSA PRIVATE KEY-----\n!!!!\n-----END RSA PRIVATE KEY-----\n", "undecodable base64 body")
+
+
+# The `len(t) + 11 > k` minimum-modulus guard in sign_jwt: a modulus too small to hold
+# the EMSA-PKCS1-v1_5 encoding must be refused BY NAME rather than producing a short or
+# malformed signature. Production App keys (2048/4096-bit) never reach it, so only a
+# synthetic key exercises it — hence the hand-built DER below rather than a real fixture.
+def _der_len_1882(size):
+    """DER length octets: short form under 128, else long form. A 1024-bit modulus needs
+    the long form, so a short-form-only encoder would build a fixture the parser refuses
+    for the wrong reason and the guard under test would never be reached."""
+    if size < 0x80:
+        return size.to_bytes(1, "big")
+    raw = size.to_bytes((size.bit_length() + 7) // 8, "big")
+    return (0x80 | len(raw)).to_bytes(1, "big") + raw
+
+
+def _der_int_1882(value):
+    raw = value.to_bytes(max(1, (value.bit_length() + 7) // 8), "big")
+    if raw[0] & 0x80:
+        raw = b"\x00" + raw
+    return b"\x02" + _der_len_1882(len(raw)) + raw
+
+
+def _pkcs1_pem_1882(n, d):
+    """Hand-build a PKCS#1 RSAPrivateKey PEM carrying the given modulus/exponent."""
+    body = _der_int_1882(0) + _der_int_1882(n) + _der_int_1882(65537) + _der_int_1882(d)
+    seq = b"\x30" + _der_len_1882(len(body)) + body
+    b64 = _signer1882.base64.b64encode(seq).decode()
+    return ("-----BEGIN RSA PRIVATE KEY-----\n" + b64 + "\n-----END RSA PRIVATE KEY-----\n").encode()
+
+
+# 256-bit modulus: k = 32, and len(t) + 11 = 62 > 32, so the guard fires.
+_small_n_1882 = (1 << 255) | 1
+_small_pem_1882 = _pkcs1_pem_1882(_small_n_1882, 3)
+assert_eq("#1882 signer parses the hand-built small-modulus PEM (positive control: the fixture is otherwise valid)",
+          (_small_n_1882, 3), _signer1882.load_rsa_private_key(_small_pem_1882))
+try:
+    _signer1882.sign_jwt("iss", "1", "2", _small_pem_1882)
+    assert_eq("#1882 signer refuses a too-small RSA modulus (raised SignerError)", True, False)
+except _signer1882.SignerError as _exc_1882:
+    # Attribute the refusal to THIS guard: several other refusals raise SignerError too.
+    assert_eq("#1882 signer refuses a too-small RSA modulus naming the modulus",
+              True, "modulus too small" in str(_exc_1882))
+
+# Positive control on the same builder: a 1024-bit modulus clears the guard and signs.
+_big_pem_1882 = _pkcs1_pem_1882((1 << 1023) | 1, 3)
+assert_eq("#1882 signer signs with a modulus large enough for the PKCS#1 v1.5 encoding",
+          3, len(_signer1882.sign_jwt("iss", "1", "2", _big_pem_1882).split(b".")))
+
+# SignerError's docstring promises "its message never carries key bytes". Execute that
+# invariant rather than trusting per-raise-site discipline: feed each refusal path a
+# body carrying a recognizable marker and assert the marker never reaches the message.
+_KEYMARK_1882 = "SUPERSECRETKEYBODYMARKER"
+_keymark_b64_1882 = _signer1882.base64.b64encode(_KEYMARK_1882.encode()).decode()
+for _label_1882, _pem_1882 in (
+    ("PKCS#1 body that is not a key structure",
+     f"-----BEGIN RSA PRIVATE KEY-----\n{_keymark_b64_1882}\n-----END RSA PRIVATE KEY-----\n"),
+    ("PKCS#8 body that is not a key structure",
+     f"-----BEGIN PRIVATE KEY-----\n{_keymark_b64_1882}\n-----END PRIVATE KEY-----\n"),
+    ("undecodable body",
+     f"-----BEGIN RSA PRIVATE KEY-----\n{_KEYMARK_1882}!!\n-----END RSA PRIVATE KEY-----\n"),
+    ("unrecognized PEM type",
+     f"-----BEGIN {_KEYMARK_1882}-----\n{_keymark_b64_1882}\n-----END {_KEYMARK_1882}-----\n"),
+    ("truncated PEM",
+     f"-----BEGIN RSA PRIVATE KEY-----\n{_keymark_b64_1882}\n"),
+):
+    try:
+        _signer1882.load_rsa_private_key(_pem_1882.encode())
+        _msg_1882 = ""
+    except _signer1882.SignerError as _kexc_1882:
+        _msg_1882 = str(_kexc_1882)
+    assert_eq(f"#1882 SignerError message carries no key bytes ({_label_1882})",
+              True,
+              _KEYMARK_1882 not in _msg_1882 and _keymark_b64_1882 not in _msg_1882)
+
 print()
 print(f"{PASS} passed, {FAIL} failed")
 sys.exit(0 if FAIL == 0 else 1)

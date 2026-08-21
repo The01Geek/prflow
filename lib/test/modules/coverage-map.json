@@ -127,6 +127,10 @@
       "note": "",
       "owner": "unmodularized"
     },
+    "lib/refresher-sign.sh": {
+      "note": "issue #1882 shared openssl-free JWT-signing call (devflow_sign_jwt) for the mint and self-test; exercised via the mint in the #1882 arms of the #487 run.sh block and directly by the refresher-selftest arms there",
+      "owner": "unmodularized"
+    },
     "lib/render-report.sh": {
       "note": "issue #788 retrospective issue-closure lifecycle",
       "owner": "retrospective-lifecycle"
@@ -631,6 +635,10 @@
       "note": "",
       "owner": "unmodularized"
     },
+    "scripts/refresher-selftest.sh": {
+      "note": "issue #1882 pre-launch credential-refresher self-test (3-arm signer gate); driven by the #1882 arms in the #487 run.sh block",
+      "owner": "unmodularized"
+    },
     "scripts/render-audit-prompt.py": {
       "note": "issue #600 create-issue Step 3.6 audit-prompt renderer; driven by lib/test/test_render_audit_prompt.py + the #600 block in the harness-python-guards module",
       "owner": "harness-python-guards"
@@ -693,6 +701,11 @@
       "note": "issue #671 bounded-retry/backoff wrapper extracted from ci.yml's CLI install step",
       "owner": "unmodularized"
     },
+    "scripts/review-context-eval.py": {
+      "focused_test": "lib/test/test_review_context_eval.py",
+      "note": "issue #1852 review-engine per-context read eval; maintainer-only instrument, tested directly by lib/test/test_review_context_eval.py (serial)",
+      "owner": "unmodularized"
+    },
     "scripts/route-guard-counts-outcome.sh": {
       "note": "issue #908 review Important #2: RGC_RC/FIRED -> counts outcome routing out of devflow-runner.yml's guard step",
       "owner": "unmodularized"
@@ -727,6 +740,11 @@
     },
     "scripts/seed-review-progress.sh": {
       "note": "review live-progress seed find-or-create helper; driven per PER-ARM refusal token by the #857/#871 run_sh_blocks block, whose grounded-coverage row derives the emitted token set from this file's source",
+      "owner": "unmodularized"
+    },
+    "scripts/sign-jwt-rs256.py": {
+      "focused_test": "lib/test/test_python_scripts.py",
+      "note": "issue #1882 openssl-free RSASSA-PKCS1-v1_5 JWT signer for the credential refresher; byte-equality against openssl + malformed-input matrix in the #1882 arms of the #487 run.sh block and unit arms in test_python_scripts.py",
       "owner": "unmodularized"
     },
     "scripts/stage-draft-write.py": {
@@ -1428,6 +1446,10 @@
       "note": "",
       "owner": "unmodularized"
     },
+    "1852": {
+      "note": "",
+      "owner": "unmodularized"
+    },
     "1858": {
       "note": "",
       "owner": "review-stall-backstop"
@@ -1447,6 +1469,10 @@
     "1870": {
       "note": "",
       "owner": "retrospective-lifecycle"
+    },
+    "1882": {
+      "note": "",
+      "owner": "unmodularized"
     },
     "189": {
       "note": "",
