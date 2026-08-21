@@ -123,5 +123,70 @@
       "iter": 5,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.56",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 24.6844769,
+    "tokens": {
+      "input_tokens": 94,
+      "output_tokens": 66821,
+      "cache_read_input_tokens": 9554526,
+      "cache_creation_input_tokens": 526806,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 150,
+        "outputTokens": 108739,
+        "cacheReadInputTokens": 10949866,
+        "cacheCreationInputTokens": 1161881,
+        "webSearchRequests": 0,
+        "costUSD": 17.431436750000007,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 280,
+        "outputTokens": 47268,
+        "cacheReadInputTokens": 5861488,
+        "cacheCreationInputTokens": 1275929,
+        "webSearchRequests": 0,
+        "costUSD": 7.253040149999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 92,
+    "duration_ms": 1122246
+  },
+  "permission_denials": {
+    "count": 5,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"run=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT:-1}\"; echo \"attempt=${GITHUB_RUN_ATTEMPT:-1}\"",
+      "cat -n /home/runner/work/prflow/prflow/scripts/review-context-eval.py 2>/dev/null | head -400 || find / -name \"review-context-eval.py\" 2>/dev/null",
+      "find / -name \"review-context-eval.py\" 2>/dev/null",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1887/32463835430-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1887/32463835430-1/verdicts/iter-1/VC-21-bee81ebb.json << 'EOF'\n{\n  \"id\": \"VC-21\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"scripts/review-context-eval.py:355-397 confirms eval_corpus's per-line try/except structure: json.loads failure -> skipped['non_json_line']+=1 (L361-364); non-dict record -> skipped['not_object']+=1 (L365-367); missing 'typ …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow; a=$(python3 scripts/review-context-eval.py lib/test/fixtures/review-eval/corpus --format json); b=$(python3 scripts/review-context-eval.py lib/test/fixtures/review-eval/corpus --format json); [ \"$a\" = \"$b\" ] && echo \"DETERMINISTIC-OK\"; python3 scripts/review-context-eval.py lib/test/fixtures/review-eval/corpus 2>&1 | head -20"
+    ],
+    "total": 5,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
