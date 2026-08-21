@@ -51,7 +51,7 @@
     },
     "installer-wiring": {
       "path": "lib/test/modules/installer-wiring.sh",
-      "minimum_assertions": 277,
+      "minimum_assertions": 287,
       "assertion_floor_policy": "exact",
       "description": "Focused installer and workflow-wiring coverage: the #487/#491 credential-refresher and fresh-gh wrapper workflow wiring, the #533 seven-output install-gh-wrapper.sh validation with its planted-defect controls, the #544 fingerprint-comparison symmetry, the #599 workflow-token and secret-file permission pins, and the #690 Windows mode-probe arms, and the consumer UPGRADE path driven end-to-end over fixture consumer repositories (provenance manifest, non-clobbering preservation, the dry-run preview, the withheld review tier, name-agnostic identifier migration, the stale-config detect-and-route report with its adversarial input-shape matrix, the #970 preserved-artifact sidecar ignore rule driven over a real git index, and the #971 preview language-detection scan root)"
     },
