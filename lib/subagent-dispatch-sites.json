@@ -30,6 +30,16 @@
       "dispatcher": "skills/review-and-fix/references/shadow-review.md",
       "skill": "requesting-code-review",
       "handoff": "inherited"
+    },
+    {
+      "dispatcher": "skills/review-and-fix/references/loop-control.md",
+      "skill": "review",
+      "handoff": "by-path"
+    },
+    {
+      "dispatcher": "skills/review-and-fix/references/shadow-review.md",
+      "skill": "review",
+      "handoff": "by-path"
     }
   ],
   "declared_non_dispatch": []
