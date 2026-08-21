@@ -87,6 +87,11 @@ else
     fi
 fi
 
+# Every `--paginate` slurp normalizes through this one filter: `add` on a
+# single-object page yields that object, and a later `.[] | .user`/`.body` read then
+# aborts the whole run instead of failing closed. Add a slurp, reuse this variable.
+_JQ_PAGES_TO_OBJECTS='(add // []) | if type == "array" then map(select(type == "object")) else [] end'
+
 # ── 5. Issue details ─────────────────────────────────────────────────────────
 ISSUE_JSON="null"
 # The workpad lives on the ISSUE (header `# PRFlow Workpad — Issue #<N>`,
@@ -99,10 +104,7 @@ if [ "$ISSUE_NUMBER" != "null" ]; then
       || { echo "::error::fetch-pr-context: failed to fetch issue ${ISSUE_NUMBER} for PR ${PR}" >&2; exit 1; }
     _ISSUE_COMMENTS_RAW="$("$DEVFLOW_GH" api "repos/${REPO}/issues/${ISSUE_NUMBER}/comments" --paginate)" \
       || { echo "::error::fetch-pr-context: failed to fetch issue comments for issue ${ISSUE_NUMBER}" >&2; exit 1; }
-    # Normalize every paginated payload to an array of OBJECTS: `add` on a single-object
-    # page yields that object, and every later `.[] | .user`/`.body` read then aborts the
-    # whole run instead of failing closed. Apply the same guard at each `*_RAW` slurp below.
-    ISSUE_COMMENTS_RAW="$(printf '%s' "$_ISSUE_COMMENTS_RAW" | "$DEVFLOW_JQ" -s '(add // []) | if type == "array" then map(select(type == "object")) else [] end')"
+    ISSUE_COMMENTS_RAW="$(printf '%s' "$_ISSUE_COMMENTS_RAW" | "$DEVFLOW_JQ" -s "$_JQ_PAGES_TO_OBJECTS")"
     # Normalize issue comments to {author, body, createdAt}
     ISSUE_COMMENTS_NORM="$(echo "$ISSUE_COMMENTS_RAW" | "$DEVFLOW_JQ" '[.[] | {author: (.user.login // ""), body: (.body // ""), createdAt: (.created_at // "")}]')"
     # `labels` normalization is TOTAL over every JSON shape (mirrors the §5b `norm`
@@ -151,25 +153,25 @@ esac
 # ── 6. Review comments (inline diff comments) ────────────────────────────────
 _REVIEW_COMMENTS_RAW="$("$DEVFLOW_GH" api "repos/${REPO}/pulls/${PR}/comments" --paginate)" \
   || { echo "::error::fetch-pr-context: failed to fetch review comments for PR ${PR}" >&2; exit 1; }
-REVIEW_COMMENTS_RAW="$(printf '%s' "$_REVIEW_COMMENTS_RAW" | "$DEVFLOW_JQ" -s '(add // []) | if type == "array" then map(select(type == "object")) else [] end')"
+REVIEW_COMMENTS_RAW="$(printf '%s' "$_REVIEW_COMMENTS_RAW" | "$DEVFLOW_JQ" -s "$_JQ_PAGES_TO_OBJECTS")"
 REVIEW_COMMENTS="$(echo "$REVIEW_COMMENTS_RAW" | "$DEVFLOW_JQ" '[.[] | {author: (.user.login // ""), body: (.body // ""), path: (.path // ""), line: (.line // null), createdAt: (.created_at // "")}]')"
 
 # ── 7. PR conversation comments ───────────────────────────────────────────────
 _PR_COMMENTS_RAW="$("$DEVFLOW_GH" api "repos/${REPO}/issues/${PR}/comments" --paginate)" \
   || { echo "::error::fetch-pr-context: failed to fetch PR conversation comments for PR ${PR}" >&2; exit 1; }
-PR_COMMENTS_RAW="$(printf '%s' "$_PR_COMMENTS_RAW" | "$DEVFLOW_JQ" -s '(add // []) | if type == "array" then map(select(type == "object")) else [] end')"
+PR_COMMENTS_RAW="$(printf '%s' "$_PR_COMMENTS_RAW" | "$DEVFLOW_JQ" -s "$_JQ_PAGES_TO_OBJECTS")"
 PR_COMMENTS="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" '[.[] | {author: (.user.login // ""), body: (.body // ""), createdAt: (.created_at // "")}]')"
 
 # ── 8. PR reviews ─────────────────────────────────────────────────────────────
 _PR_REVIEWS_RAW="$("$DEVFLOW_GH" api "repos/${REPO}/pulls/${PR}/reviews" --paginate)" \
   || { echo "::error::fetch-pr-context: failed to fetch PR reviews for PR ${PR}" >&2; exit 1; }
-PR_REVIEWS_RAW="$(printf '%s' "$_PR_REVIEWS_RAW" | "$DEVFLOW_JQ" -s '(add // []) | if type == "array" then map(select(type == "object")) else [] end')"
+PR_REVIEWS_RAW="$(printf '%s' "$_PR_REVIEWS_RAW" | "$DEVFLOW_JQ" -s "$_JQ_PAGES_TO_OBJECTS")"
 PR_REVIEWS="$(echo "$PR_REVIEWS_RAW" | "$DEVFLOW_JQ" '[.[] | {author: (.user.login // ""), state: (.state // ""), body: (.body // ""), submittedAt: (.submitted_at // "")}]')"
 
 # ── 9. Commits ────────────────────────────────────────────────────────────────
 _COMMITS_RAW="$("$DEVFLOW_GH" api "repos/${REPO}/pulls/${PR}/commits" --paginate)" \
   || { echo "::error::fetch-pr-context: failed to fetch commits for PR ${PR}" >&2; exit 1; }
-COMMITS_RAW="$(printf '%s' "$_COMMITS_RAW" | "$DEVFLOW_JQ" -s '(add // []) | if type == "array" then map(select(type == "object")) else [] end')"
+COMMITS_RAW="$(printf '%s' "$_COMMITS_RAW" | "$DEVFLOW_JQ" -s "$_JQ_PAGES_TO_OBJECTS")"
 COMMITS="$(echo "$COMMITS_RAW" | "$DEVFLOW_JQ" '[.[] | {sha: .sha, author_login: (.author.login // ""), committer_login: (.committer.login // ""), committed_at: (.commit.committer.date // ""), message: (.commit.message // ""), parents_count: ((.parents // []) | length)}]')"
 
 # ── 10. Diff ──────────────────────────────────────────────────────────────────
@@ -557,17 +559,17 @@ PYEOF
 # review_reject_outstanding is derived from review_verdicts alone.
 printf '%s' "$PR_REVIEWS_RAW" > "$_JQ_TMP/pr_reviews_raw.json"
 REVIEW_VERDICTS_BUNDLE="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" --slurpfile reviews "$_JQ_TMP/pr_reviews_raw.json" '
-    def token_in_window($body):
-        [ ($body | strings) | split("\n") | .[0:30][] | select(test("APPROVE|REJECT")) ] | length > 0;
+    # Deliberately NOT rung3s window: this scan keeps the HTML-comment lines rung 3
+    # skips, so a marker line nobody parsed still counts as an unread artifact.
+    def token_in_window($lines):
+        any($lines[0:30][]; test("APPROVE|REJECT"));
     def rung3($lines; $login):
-        if ((($login | strings) // "") | endswith("[bot]")) | not then []
-        else
+        if ((($login | strings) // "") | endswith("[bot]")) then
           ([ $lines[0:30][] | select(test("^[ \t]*<!--") | not) ]) as $w
           | ([ $w[]
-               | select(test("Verdict:[^A-Za-z]*(APPROVE|REJECT)"; "i"))
                | capture("Verdict:[^A-Za-z]*(?<v>APPROVE|REJECT)"; "i")
                | (.v | ascii_upcase) ]) as $r1
-          | if ($r1 | length) > 0 then [$r1[0]]
+          | if ($r1 | length) > 0 then $r1[0:1]
             else
               ([ $w[] | select(test("[^ \t]")) ][0:3]) as $nb
               | ([ $nb[] | scan("APPROVE|REJECT") ]) as $r2
@@ -581,10 +583,10 @@ REVIEW_VERDICTS_BUNDLE="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" --slurpfile re
                      | [ $nxt | scan("APPROVE|REJECT") ]
                      | select(length == 1)
                      | .[0] ]) as $r3
-                  | if ($r3 | length) > 0 then [$r3[0]] else [] end
+                  | $r3[0:1]
                 end
             end
-        end;
+        else [] end;
     def verdicts_in($body; $login):
         (($body | strings) | split("\n") | map(rtrimstr("\r"))) as $lines
         | ([ $lines[0:2][]
@@ -606,9 +608,10 @@ REVIEW_VERDICTS_BUNDLE="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" --slurpfile re
           | select(type == "object")
           | . as $a
           | ($a.user | if type == "object" then .login else null end) as $login
+          | ((($a.body | strings) // "") | split("\n") | map(rtrimstr("\r"))) as $lines
           | ([ verdicts_in($a.body; $login) ]) as $vs
           | { vs: $vs,
-              unparsed: ((($vs | length) == 0) and token_in_window($a.body)),
+              unparsed: ((($vs | length) == 0) and token_in_window($lines)),
               createdAt: (($a[$tskey]) // ""),
               source: $src } ];
     # Guard both payloads to arrays before iterating: a non-array comments payload
@@ -624,7 +627,7 @@ REVIEW_VERDICTS_BUNDLE="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" --slurpfile re
     | (
         scanned($comments; "created_at"; "pr_comment")
         +
-        scanned([ $reviews_arr[] | select(type == "object") | select(.state != "PENDING") ]; "submitted_at"; "pr_review")
+        scanned([ $reviews_arr[] | objects | select(.state != "PENDING") ]; "submitted_at"; "pr_review")
       ) as $records
     | { verdicts:
           ( [ $records[] | . as $rec | $rec.vs[] | {verdict: ., createdAt: $rec.createdAt, source: $rec.source} ]
