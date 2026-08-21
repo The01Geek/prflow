@@ -760,6 +760,11 @@
       "note": "",
       "owner": "unmodularized"
     },
+    "scripts/stall-observer-scan.py": {
+      "focused_test": "lib/test/test_python_scripts.py",
+      "note": "issue #1027 out-of-band stall observer decision core (reports, never kills)",
+      "owner": "unmodularized"
+    },
     "scripts/stop-hook-probe.sh": {
       "note": "",
       "owner": "unmodularized"
