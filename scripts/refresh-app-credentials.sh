@@ -81,6 +81,10 @@ RESOLVE_PY_LIB="$_HERE/../lib/resolve-python.sh"
 [ -r "$RESOLVE_PY_LIB" ] && . "$RESOLVE_PY_LIB"
 PYTHON_OVERRIDE="${DEVFLOW_REFRESH_PYTHON:-}"
 SIGNER_HELPER="${DEVFLOW_REFRESH_SIGNER:-$_HERE/sign-jwt-rs256.py}"
+# The openssl-free signer invocation (key on stdin, bounded key-free stderr) is
+# shared with refresher-selftest.sh so the two never drift (issue #1882).
+# shellcheck source=../lib/refresher-sign.sh
+. "$_HERE/../lib/refresher-sign.sh"
 
 # ── Overridable knobs (defaults are the production values) ──
 # The mint override (AC "Suite coverage"): when set, it is run VERBATIM and its
@@ -152,7 +156,6 @@ real_mint() {
   # Resolve the interpreter for the openssl-free signer. rc 1 (a Python older than
   # 3.11) and rc 3 (no interpreter at all) each STOP the mint with a diagnostic
   # naming the interpreter or the resolver by path — never an empty value onward.
-  local -a signer_py=()
   local spec prc
   if [ -n "$PYTHON_OVERRIDE" ]; then
     spec="$(eval "$PYTHON_OVERRIDE")"; prc=$?
@@ -164,39 +167,26 @@ real_mint() {
     1) warn "mint: the resolved Python interpreter '$spec' is older than the required version 3.11 — cannot sign the JWT; previous credential left in place"; return 1 ;;
     *) warn "mint: no Python interpreter resolved (consulted the resolver lib/resolve-python.sh at '$RESOLVE_PY_LIB') — cannot sign the JWT; previous credential left in place"; return 1 ;;
   esac
-  # Intentional word-split of the (possibly two-word, e.g. `py -3`) interpreter spec.
-  # shellcheck disable=SC2206
-  signer_py=($spec)
 
   # JWT timestamps: iat 60s in the past (clock skew), exp 9 minutes out (< the
   # 10-minute max). The clock read is guard-class 2 (`date` is not preflight-
   # guaranteed): an absent/empty `date` STOPS the mint naming it, rather than
   # yielding an empty timestamp signed into a 1970-dated token the API rejects.
-  local now iat exp jwt signer_err_file signer_err signer_rc
+  local now iat exp jwt
   now="$(date +%s 2>/dev/null)"
   case "$now" in
     ''|*[!0-9]*) warn "mint: the clock read failed — the 'date' command produced no timestamp; cannot mint"; return 1 ;;
   esac
   iat=$((now - 60)); exp=$((now + 540))
 
-  # Sign the whole JWT with the standard-library signer, the key on stdin (never
-  # argv, never disk). A non-zero exit is the signer refusing the key; its own
-  # diagnostic — bounded to three lines and key-free by the signer's contract — is
-  # surfaced (a missing `head` degrades the DETAIL to empty, never a key leak).
-  signer_err=""
-  signer_err_file="$(mktemp 2>/dev/null || true)"
-  if [ -n "$signer_err_file" ]; then
-    jwt="$(printf '%s' "$KEY" | "${signer_py[@]}" "$SIGNER_HELPER" "$app_id" "$iat" "$exp" 2>"$signer_err_file")"; signer_rc=$?
-    signer_err="$(head -n 3 "$signer_err_file" 2>/dev/null || true)"
-    signer_err="${signer_err//$'\n'/ }"       # flatten to one ::warning:: line (bash builtin, no tr)
-    rm -f "$signer_err_file" 2>/dev/null || true
-  else
-    jwt="$(printf '%s' "$KEY" | "${signer_py[@]}" "$SIGNER_HELPER" "$app_id" "$iat" "$exp" 2>/dev/null)"; signer_rc=$?
-  fi
-  if [ "$signer_rc" -ne 0 ] || [ -z "$jwt" ]; then
-    warn "mint: JWT signing failed at the openssl-free signer step${signer_err:+ — $signer_err}"
+  # Sign the whole JWT with the shared standard-library signer (lib/refresher-sign.sh)
+  # — the key on stdin, never argv/disk. A non-zero exit is the signer refusing the
+  # key; its bounded, key-free diagnostic is surfaced.
+  if ! devflow_sign_jwt "$SIGNER_HELPER" "$spec" "$app_id" "$iat" "$exp" || [ -z "$DEVFLOW_SIGN_STDOUT" ]; then
+    warn "mint: JWT signing failed at the openssl-free signer step${DEVFLOW_SIGN_STDERR:+ — $DEVFLOW_SIGN_STDERR}"
     return 1
   fi
+  jwt="$DEVFLOW_SIGN_STDOUT"
 
   # Disclosed residual (symmetric to the /proc/<pid>/environ PEM vector closed at
   # launch): the two curl calls below pass the app JWT in argv (`-H "Authorization:

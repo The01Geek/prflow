@@ -40,11 +40,17 @@ _HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RESOLVE_PY_LIB="$_HERE/../lib/resolve-python.sh"
 SIGNER="${DEVFLOW_REFRESH_SIGNER:-$_HERE/sign-jwt-rs256.py}"
 MARKER="${DEVFLOW_REFRESH_SELFTEST_FAILED:-}"
+# The openssl-free signer invocation is shared with the mint (issue #1882).
+# shellcheck source=../lib/refresher-sign.sh
+. "$_HERE/../lib/refresher-sign.sh"
 
 warn() { printf '::warning::refresher-selftest: %s\n' "$*" >&2; }
 
 # Read the PEM key from stdin into shell memory only (never argv, never disk).
+# Consumed by devflow_sign_jwt (sourced from lib/refresher-sign.sh) as a global.
+# shellcheck disable=SC2034
 KEY=""
+# shellcheck disable=SC2034
 IFS= read -r -d '' KEY || true
 
 # Warn-and-continue arm: the signer helper is absent or not a readable file (an
@@ -87,28 +93,11 @@ case "$prc" in
   *) job_fault "no Python interpreter resolved at all (consulted the resolver lib/resolve-python.sh at '$RESOLVE_PY_LIB') — cannot sign; the previous credential is left in place" ;;
 esac
 
-# Intentional word-split of the (possibly two-word) interpreter spec.
-# shellcheck disable=SC2206
-PY=($spec)
-
-# Sign a throwaway input with the real key on stdin. A non-zero exit is the
-# signer refusing the key — a host fault. Capture its stderr (bounded to the
-# first three lines, key-free by the signer's own contract) for the diagnostic.
-_errf=""
-_errf="$(mktemp 2>/dev/null || true)"
-if [ -n "$_errf" ]; then
-  sig="$(printf '%s' "$KEY" | "${PY[@]}" "$SIGNER" selftest 1 2 2>"$_errf")"
-  src=$?
-  _err="$(head -n 3 "$_errf" 2>/dev/null || true)"
-  rm -f "$_errf" 2>/dev/null || true
-else
-  sig="$(printf '%s' "$KEY" | "${PY[@]}" "$SIGNER" selftest 1 2 2>&1)"
-  src=$?
-  _err="$sig"
-fi
-
-if [ "$src" -ne 0 ] || [ -z "$sig" ]; then
-  job_fault "the signer refused the key at the JWT signing step: ${_err:-(no diagnostic captured)}"
+# Sign a throwaway input with the real key on stdin via the shared signer helper.
+# A non-zero exit or empty stdout is the signer refusing the key — a host fault;
+# its bounded, key-free diagnostic is surfaced.
+if ! devflow_sign_jwt "$SIGNER" "$spec" selftest 1 2 || [ -z "$DEVFLOW_SIGN_STDOUT" ]; then
+  job_fault "the signer refused the key at the JWT signing step: ${DEVFLOW_SIGN_STDERR:-(no diagnostic captured)}"
 fi
 
 printf 'refresher-selftest: self-test passed (the signer produced a signature)\n'
