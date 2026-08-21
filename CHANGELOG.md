@@ -7,7 +7,7 @@ to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [2.33.53] — 2026-08-21
 
 ### Fixed
-- **Reframe the nested-subagent-dispatch constraint as cross-harness portability.** The shadow-review and docs-verify prose previously stated that a subagent cannot dispatch its own subagents as a fixed harness property; nested dispatch is in fact available on some harnesses and withheld on others. The shipped `skills/**` bodies now give cross-harness portability as the reason for keeping dispatch to a single subagent layer and name the failure mode as silent flattening — an absent tool rather than an error — while the internal docs single-home the harness capability table and version facts. (#1879)
+- **Reframe the nested-subagent-dispatch constraint as cross-harness portability.** The shadow-review and docs-verify prose previously stated that a subagent cannot dispatch its own subagents as a fixed harness property; nested dispatch is in fact available on some harnesses and withheld on others. The shipped `skills/**` bodies now name the failure mode as silent flattening to a single-agent self-check; the internal docs single-home the cross-harness portability rationale, the harness capability table, and the version facts. (#1879)
 
 ## [2.33.52] — 2026-08-20
 
