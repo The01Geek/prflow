@@ -150,17 +150,46 @@ assert_eq "#491 coupled-default: pidfile default basename agrees (refresh-app-cr
 # exact RUNNER_TEMP/<basename> token the workflow writes (space-bounded, so a suffix-append on
 # either side breaks the match), in BOTH workflows.
 _r_fp491="$(_dfbn "$LIB/../scripts/gh-fresh.sh" '^FINGERPRINT_FILE=')"
-_r_log491="$(_dfbn "$LIB/../scripts/stop-refresher.sh" '^LOG=')"
 # The fingerprint WRITER moved from the two workflow YAML bodies into the single
 # checked-in installer (issue #533) — compare the writer/reader DEFAULTS directly,
 # the same extract-and-compare shape as the token-file/pidfile pins above.
 _w_fp533="$(_dfbn "$INSTALL533" '^FINGERPRINT_FILE=')"
 assert_eq "#491 coupled-default: fingerprint default basename agrees (install-gh-wrapper.sh writer <-> gh-fresh.sh reader) [$_w_fp533]" "yes" \
   "$([ -n "$_w_fp533" ] && [ "$_w_fp533" = "$_r_fp491" ] && echo yes || echo no)"
+# The log path is now job-scoped and passed EXPLICITLY from the Start step to the
+# teardown via GITHUB_ENV (issue #1882) — its producer is the workflow redirect and
+# its consumer is stop-refresher.sh's DEVFLOW_REFRESH_LOG default, two separately-
+# upgrading artifacts, so a basename-agreement pin no longer applies. Pin the
+# explicit-passing contract instead: the Start step publishes DEVFLOW_REFRESH_LOG.
 for _wf491 in devflow-implement devflow; do
-  _wfbns491=" $(grep -oE 'RUNNER_TEMP/devflow-[a-zA-Z0-9._-]+' "$WF/$_wf491.yml" | sed 's#RUNNER_TEMP/##' | sort -u | tr '\n' ' ')"
-  assert_eq "#491 coupled-default: $_wf491.yml writes the log basename stop-refresher.sh reads [$_r_log491]" "yes" \
-    "$([ -n "$_r_log491" ] && printf '%s' "$_wfbns491" | grep -qF " $_r_log491 " && echo yes || echo no)"
+  assert_eq "#1882 explicit-log: $_wf491.yml Start step publishes DEVFLOW_REFRESH_LOG to GITHUB_ENV (job-scoped log passed to the teardown, not inferred)" "1" \
+    "$(printf '%s\n' "$(mint_blk 'Start credential refresher (optional)' "$WF/$_wf491.yml")" | grep -cF 'DEVFLOW_REFRESH_LOG=')"
+done
+
+# ── #1882 pre-launch self-test wiring. Each writer workflow's Start step runs the
+# refresher self-test (signer helper) with the key on stdin BEFORE the detached
+# launch; a signing fault fails the job at the gate. Pin the wiring in both files.
+for _wf1882 in devflow-implement devflow; do
+  _WFF1882="$WF/$_wf1882.yml"
+  _startblk1882="$(mint_blk 'Start credential refresher (optional)' "$_WFF1882")"
+  assert_eq "#1882 self-test: $_wf1882.yml Start step invokes the vendored refresher-selftest.sh" "1" \
+    "$(printf '%s\n' "$_startblk1882" | grep -cF '.prflow/vendor/prflow/scripts/refresher-selftest.sh')"
+  # The self-test runs BEFORE the detached loop launch, so a host that cannot sign
+  # is loud before the agent starts rather than after the token's hour.
+  _selftest_ln1882="$(printf '%s\n' "$_startblk1882" | grep -nF 'refresher-selftest.sh' | head -1 | cut -d: -f1)"
+  _nohup_ln1882="$(printf '%s\n' "$_startblk1882" | grep -nF 'nohup bash .prflow/vendor/prflow/scripts/refresh-app-credentials.sh loop' | head -1 | cut -d: -f1)"
+  assert_eq "#1882 self-test: $_wf1882.yml runs the self-test BEFORE the detached launch" "yes" \
+    "$([ -n "$_selftest_ln1882" ] && [ -n "$_nohup_ln1882" ] && [ "$_selftest_ln1882" -lt "$_nohup_ln1882" ] && echo yes || echo no)"
+  # Job-scoped token file + pidfile are published to GITHUB_ENV so a later job on the
+  # same runner never reads or retires this job's token file / pidfile / log.
+  assert_eq "#1882 job-scope: $_wf1882.yml Start step publishes a job-scoped DEVFLOW_GH_TOKEN_FILE to GITHUB_ENV" "1" \
+    "$(printf '%s\n' "$_startblk1882" | grep -cF 'DEVFLOW_GH_TOKEN_FILE=$TOK')"
+  assert_eq "#1882 job-scope: $_wf1882.yml Start step publishes a job-scoped DEVFLOW_REFRESH_PIDFILE to GITHUB_ENV" "1" \
+    "$(printf '%s\n' "$_startblk1882" | grep -cF 'DEVFLOW_REFRESH_PIDFILE=$PID')"
+  # The loop is launched with the job pointer so it can retire itself once its job is
+  # no longer the runner's current one.
+  assert_eq "#1882 job-scope: $_wf1882.yml launches the loop with DEVFLOW_REFRESH_JOB_ID + DEVFLOW_REFRESH_JOB_POINTER" "1 1" \
+    "$(printf '%s\n' "$_startblk1882" | grep -cF 'DEVFLOW_REFRESH_JOB_ID=') $(printf '%s\n' "$_startblk1882" | grep -cF 'DEVFLOW_REFRESH_JOB_POINTER=$PTR')"
 done
 
 # Fail-fast prose rule (surface-presence class, per the issue's Testing Strategy): the

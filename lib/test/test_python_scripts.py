@@ -34920,6 +34920,39 @@ assert_eq("#1560: the template with external_services != \"none\" is refused (no
 assert_eq("#1560: the template with an object-id field off the 40/64-hex shape is refused",
           True, _descriptor_rc_1560(_decl1560.replace("1111111111111111111111111111111111111111", "nothex")) != 0)
 
+# ── issue #1882: the openssl-free JWT signer refuses every non-(PKCS#1|PKCS#8-RSA)
+# input BY NAME and never emits a signature. Byte-equality against openssl and the
+# happy-path sign are covered by the #1882 arms in the #487 run.sh block (which has
+# openssl to generate keys and a reference signature); these unit arms drive the
+# encoding-detection refusals directly, which need no valid key.
+_signer1882 = _load('sign_jwt_rs256', SCRIPTS / 'sign-jwt-rs256.py')
+
+
+def _signer_refuses_1882(name, pem, needle):
+    try:
+        _signer1882.load_rsa_private_key(pem)
+    except _signer1882.SignerError as exc:
+        assert_eq(f"#1882 signer refuses {name} naming the encoding", True, needle in str(exc))
+        return
+    assert_eq(f"#1882 signer refuses {name} (raised SignerError)", True, False)
+
+
+_signer_refuses_1882("empty stdin", b"", "empty standard input")
+_signer_refuses_1882("raw DER (no PEM armor)", b"\x30\x82\x01\x00\x02\x01\x00", "raw DER")
+_signer_refuses_1882("OpenSSH key", b"-----BEGIN OPENSSH PRIVATE KEY-----\nAAAA\n-----END OPENSSH PRIVATE KEY-----\n", "OpenSSH")
+_signer_refuses_1882("EC key", b"-----BEGIN EC PRIVATE KEY-----\nMHQ=\n-----END EC PRIVATE KEY-----\n", "EC private key")
+_signer_refuses_1882("passphrase-protected PEM", b"-----BEGIN RSA PRIVATE KEY-----\nProc-Type: 4,ENCRYPTED\nDEK-Info: AES-128-CBC,0\n\nAAAA\n-----END RSA PRIVATE KEY-----\n", "passphrase-protected")
+_signer_refuses_1882("truncated PEM (no END)", b"-----BEGIN RSA PRIVATE KEY-----\nMIICXQIBAAKBgQ\n", "truncated PEM")
+_notseq_1882 = ("-----BEGIN RSA PRIVATE KEY-----\n"
+                + _signer1882.base64.b64encode(b"\x02\x01\x00").decode()
+                + "\n-----END RSA PRIVATE KEY-----\n")
+_signer_refuses_1882("PEM body that is not an RSA key structure", _notseq_1882.encode(), "not a valid RSA private key structure")
+
+assert_eq("#1882 signer _b64url strips padding and uses the URL-safe alphabet", b"__8", _signer1882._b64url(b"\xff\xff"))
+assert_eq("#1882 signer carries the RFC 8017 SHA-256 DigestInfo prefix", "3031300d060960864801650304020105000420", _signer1882._SHA256_DIGESTINFO.hex())
+assert_raises("#1882 signer rejects a non-integer iat/exp before any signature", _signer1882.SignerError,
+              lambda: _signer1882.sign_jwt("iss", "notanint", "2", b"-----BEGIN RSA PRIVATE KEY-----\nAA\n-----END RSA PRIVATE KEY-----\n"))
+
 print()
 print(f"{PASS} passed, {FAIL} failed")
 sys.exit(0 if FAIL == 0 else 1)

@@ -179,7 +179,20 @@ def sign_jwt(iss: str, iat: str, exp: str, pem: bytes) -> bytes:
     return signing_input + b"." + _b64url(signature)
 
 
+def _force_utf8_streams():
+    """Force stdout/stderr to UTF-8, idempotently, on the CLI entry path only (not at
+    import, so unit tests importing this module never mutate the importer's streams).
+    The em-dash this signer emits in its refusal diagnostics would otherwise raise
+    UnicodeEncodeError under a non-UTF-8 ambient codec (Windows' cp1252)."""
+    for _stream in (sys.stdout, sys.stderr):
+        try:
+            _stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
 def main(argv) -> int:
+    _force_utf8_streams()
     if len(argv) != 3:
         sys.stderr.write("sign-jwt-rs256: usage: sign-jwt-rs256.py <iss> <iat> <exp> (key on stdin)\n")
         return 2
