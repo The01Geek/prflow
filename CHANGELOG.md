@@ -4,6 +4,20 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.33.60] — 2026-08-21
+
+### Added
+- **Add an out-of-band, report-only stall observer for in-flight implement runs.** A new scheduled workflow (`.github/workflows/stall-observer.yml`) and pure decision helper (`scripts/stall-observer-scan.py`) read each open PRFlow issue's workpad `**Last updated:**` time against an advisory staleness threshold and surface "silent for N minutes; last checkpoint X" as a job annotation + step summary — the in-job stall backstop runs only after the agent step returns, so it structurally cannot observe a still-running job. The observer never kills or re-dispatches a run (so it cannot race the backstop's resume arm); the threshold is advisory-only and configurable via `prflow_implement.stall_observer.advisory_threshold_minutes` (default 90, provisional), and the observer is gated by `prflow_implement.stall_observer.enabled`. Plugin-internal in this release (not shipped to consumer repos). (#1783)
+- **Added a Skill-tool body-delivery probe for the two cloud tiers.** Two sibling jobs in
+  `.github/workflows/matcher-probe.yml` (`skill-body-load-review-probe`,
+  `skill-body-load-implement-probe`) load the real plugin and invoke the Skill tool once per
+  engine root under `show_full_output: true`, and a new unit-tested helper
+  `scripts/skill-body-load-probe-verdict.py` derives a per-root delivered-whole /
+  short-delivery / unestablished verdict from the Skill `tool_result` in the execution file —
+  never model text. `docs/internal/skill-body-load-delivery.md` gains a session-B record whose
+  four cloud verdicts are `unestablished` until a maintainer dispatches the jobs. No
+  `skills/**` or `agents/**` file changes, so consumers receive nothing. (#1618)
+
 ## [2.33.59] — 2026-08-21
 
 ### Changed
