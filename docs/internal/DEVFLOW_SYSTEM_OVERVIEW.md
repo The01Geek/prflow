@@ -736,18 +736,7 @@ The fix loop above applies the `prflow:receiving-code-review` principles inside 
 
 **The by-path handoff, and the single-writer invariant.** The engine subagent returns its results **by path**, not as text in the return body: an entry-keyed `engine-return-*.json` under the existing run-scoped scratch directory (`.prflow/tmp/review/<slug>/<run-id>/`) carrying `phase3_findings`, `phase3_dispatched`, `diff_profile`, `cap_drops` plus the verdict/report; the Step 2.6 shadow entry additionally returns each reviewer's assessment + defect_signatures for the parent's coverage 1:1-join. The parent folds those fields into the fused iteration-record write it already owns, so **the fix loop stays the sole writer of `iter-<N>.json`** and its field shapes are unchanged — no lock is needed because the parent blocks on the subagent's return. The two dispatch sites are registered in `lib/subagent-dispatch-sites.json` with `handoff: by-path`. The **fix half stays resident** in the orchestrator: it wrote the code, makes the commits, and keeps sole ownership of the iteration record.
 
-**Harness portability table (the reason the fallback exists).** Nested-dispatch support is uneven, and a harness without it flattens *silently*, so the capability check discriminates at runtime rather than being gated on configuration:
-
-| Harness | Reaches the needed depth? |
-| --- | --- |
-| Claude Code | Yes |
-| Copilot CLI | Yes |
-| Cursor 2.5+ | Capped at exactly two launch levels |
-| Codex CLI v2 | Undocumented |
-| VS Code Copilot | Needs a setting that is off by default |
-| Gemini CLI | Documents a hard block |
-
-The cross-harness picture and the version facts also live in [`docs/internal/shadow-review.md`](shadow-review.md). **This rationale is recorded here, not in any shipped `skills/**` body** — a shipped body carries the instruction plus at most one sentence of consequence, and ships verbatim into consumer repos where it must stay repo-agnostic.
+**Why the fallback exists.** Nested-dispatch support is uneven across harnesses, and a harness without it flattens *silently*, so the capability check discriminates at runtime rather than being gated on configuration. The per-harness capability table and the version facts are single-homed in [`docs/internal/shadow-review.md`](shadow-review.md). **This rationale is recorded here, not in any shipped `skills/**` body** — a shipped body carries the instruction plus at most one sentence of consequence, and ships verbatim into consumer repos where it must stay repo-agnostic.
 
 **Honest degradation, coverage is a positive assertion.** A degraded pass must **never** clear a PR. The shadow's `coverage: "full"` is *proven*, not assumed on no-error: the parent computes the expected reviewer roster from the shadow's own diff classification and confirms every dispatched reviewer returned cleanly. Any shortfall → `coverage: "not_verified"` and the verdict is reported **unverified**. A single transient reviewer failure gets exactly **one** targeted re-dispatch; structural or multi-reviewer failures fail closed immediately.
 
