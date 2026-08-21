@@ -249,7 +249,7 @@ class ContextAccumulator:
             "usage_missing_turns": self.usage_missing_turns,
             "compact_boundary_count": self.compact_boundary_count,
             "engine_reads": engine_reads,
-            "total_engine_reads": sum(engine_reads.values()),
+            "total_engine_reads": self.total_engine_reads(),
         }
 
 

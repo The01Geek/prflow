@@ -385,7 +385,6 @@ class AdversarialTest(_SingleCorpusMixin, unittest.TestCase):
     def test_malformed_records_degrade_and_are_reported(self):
         # AC5: an unparseable record is a skipped record with a reason; the run still
         # reports on the records it could parse.
-        contexts, skipped = None, None
         contexts, totals, skipped = self._run({
             "s.jsonl": [
                 'not json at all',
