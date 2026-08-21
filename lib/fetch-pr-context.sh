@@ -87,9 +87,9 @@ else
     fi
 fi
 
-# Every `--paginate` slurp normalizes through this one filter: `add` on a
-# single-object page yields that object, and a later `.[] | .user`/`.body` read then
-# aborts the whole run instead of failing closed. Add a slurp, reuse this variable.
+# The five list-endpoint slurps below (issue comments, review comments, PR comments, PR
+# reviews, commits) normalize through this one filter: `add` on a single-object page
+# yields that object, and a later `.[] | .user`/`.body` read then aborts the whole run.
 _JQ_PAGES_TO_OBJECTS='(add // []) | if type == "array" then map(select(type == "object")) else [] end'
 
 # ── 5. Issue details ─────────────────────────────────────────────────────────
@@ -542,37 +542,48 @@ PYEOF
 # an untimestamped APPROVE can never clear a timestamped REJECT). `.index` is
 # stripped before emission — review_verdicts is read verbatim by the Stage A agent.
 #
-# Rung 3 (issue #1443) — the BOT-ONLY fallback, consulted only when rungs 1 and 2
-# both yield nothing for an artifact. It runs only when the artifact's author login
-# ends `[bot]`, scans only the body's first 30 lines, skips HTML-comment lines (so no
-# marker line — the superseded `devflow:` spelling included — is ever read as a
-# verdict here), and contributes at most ONE verdict. Its sub-rungs are tried in a
-# fixed order, first match winning: (1) a line whose `Verdict:` literal is followed by
-# a run of non-letters and then the token, case-insensitive; (2) exactly one token
-# across the first three non-blank lines; (3) a heading whose letters spell `Verdict`,
-# with the token on its next non-blank line. It closes four shapes measured in this
-# repository's own merged pull requests that rung 2's `Verdict:`-on-a-heading grammar
-# misses. Beside the union, `review_verdict_unparsed_count` counts the scanned
-# artifacts that survive all three rungs with no verdict yet carry a token inside that
-# same 30-line window, so an empty union no longer means both "no review happened" and
-# "a verdict was posted in a shape this filter does not read". The count feeds nothing:
-# review_reject_outstanding is derived from review_verdicts alone.
+# Rung 3 (issue #1443) — the BOT-ONLY fallback, consulted only when rungs 1 and 2 both
+# yield nothing. Widen none of its four constraints without re-reading them together:
+# the `[bot]` login gate, the 30-line window, `rung3_window`'s comment/fence/quote
+# stripping, and the per-sub-rung line anchors are jointly what stops ordinary bot prose
+# — every PRFlow-authored comment is bot-authored — from minting a verdict that feeds
+# review_reject_outstanding. `review_verdict_unparsed_count` counts the scanned artifacts
+# that survive all three rungs with no verdict yet carry a token in that same window; it
+# feeds nothing, and review_reject_outstanding is derived from review_verdicts alone.
 printf '%s' "$PR_REVIEWS_RAW" > "$_JQ_TMP/pr_reviews_raw.json"
 REVIEW_VERDICTS_BUNDLE="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" --slurpfile reviews "$_JQ_TMP/pr_reviews_raw.json" '
-    # Deliberately NOT rung3s window: this scan keeps the HTML-comment lines rung 3
-    # skips, so a marker line nobody parsed still counts as an unread artifact.
+    # Lookarounds, not a consumed boundary class: a consumed one swallows the separator
+    # and misses the second of two adjacent tokens, so an ambiguous line reads as one.
+    def verdict_tokens($s):
+        [ $s | scan("(?<![A-Za-z])(APPROVE|REJECT)(?![A-Za-z])"; "i") ] | flatten | map(ascii_upcase);
+    # Deliberately NOT rung3s window: this scan keeps the quoted and commented lines rung 3
+    # drops, so an artifact nobody parsed still counts as unread rather than vanishing.
     def token_in_window($lines):
-        any($lines[0:30][]; test("APPROVE|REJECT"));
+        any($lines[0:30][]; verdict_tokens(.) | length > 0);
+    # Drop every line rung 3 must not read a verdict from: an HTML-comment region (opening
+    # line, continuations and close alike), a fenced block, and a blockquote.
+    def rung3_window($lines):
+        (reduce ($lines[0:30][]) as $l ({comment: false, fence: false, out: []};
+            if .comment then (if ($l | test("-->")) then .comment = false else . end)
+            elif ($l | test("^[ \t]*```")) then .fence = (.fence | not)
+            elif .fence then .
+            elif ($l | test("<!--")) then (if ($l | test("-->")) then . else .comment = true end)
+            elif ($l | test("^[ \t]*>")) then .
+            else .out += [$l] end))
+        | .out;
     def rung3($lines; $login):
         if ((($login | strings) // "") | endswith("[bot]")) then
-          ([ $lines[0:30][] | select(test("^[ \t]*<!--") | not) ]) as $w
+          rung3_window($lines) as $w
           | ([ $w[]
+               | select(test("^[^A-Za-z]*Verdict:"; "i"))
                | capture("Verdict:[^A-Za-z]*(?<v>APPROVE|REJECT)"; "i")
                | (.v | ascii_upcase) ]) as $r1
           | if ($r1 | length) > 0 then $r1[0:1]
             else
-              ([ $w[] | select(test("[^ \t]")) ][0:3]) as $nb
-              | ([ $nb[] | scan("APPROVE|REJECT") ]) as $r2
+              ([ $w[]
+                 | select(test("[^ \t]")) ][0:3]
+               | map(select(test("^[^A-Za-z]*([A-Za-z]+[^A-Za-z]+)?(Review|Verdict)([^A-Za-z]|$)"; "i")))) as $nb
+              | ([ $nb[] | verdict_tokens(.) ] | flatten) as $r2
               | if ($r2 | length) == 1 then $r2
                 else
                   ([ range(0; $w | length) as $i
@@ -580,7 +591,7 @@ REVIEW_VERDICTS_BUNDLE="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" --slurpfile re
                      | ([ ($w[($i + 1):] | .[]) | select(test("[^ \t]")) ][0]) as $nxt
                      | select($nxt != null)
                      | select($nxt | test("^#") | not)
-                     | [ $nxt | scan("APPROVE|REJECT") ]
+                     | verdict_tokens($nxt)
                      | select(length == 1)
                      | .[0] ]) as $r3
                   | $r3[0:1]
@@ -640,8 +651,8 @@ REVIEW_VERDICTS_BUNDLE="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" --slurpfile re
 ')"
 REVIEW_VERDICTS="$(echo "$REVIEW_VERDICTS_BUNDLE" | "$DEVFLOW_JQ" -c '.verdicts // []')"
 REVIEW_VERDICT_UNPARSED_COUNT="$(echo "$REVIEW_VERDICTS_BUNDLE" | "$DEVFLOW_JQ" -r '.unparsed // 0')"
-# Fail closed on an empty split: an unset operand would abort the final --argjson
-# assembly, taking the whole bundle with it.
+# Never leave either empty: REVIEW_REJECT_OUTSTANDING is derived from the array below and
+# the count is passed with --argjson, so an empty split aborts the whole bundle assembly.
 [ -n "$REVIEW_VERDICTS" ] || REVIEW_VERDICTS='[]'
 case "$REVIEW_VERDICT_UNPARSED_COUNT" in
     ''|*[!0-9]*)

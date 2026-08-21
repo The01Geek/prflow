@@ -14435,6 +14435,28 @@ assert_eq "#1443 rung3: an empty body contributes nothing and raises no count" "
   "$(_uv '[]' "$(_uv_botr "")" | _uv_shape)"
 assert_eq "#1443 rung3: a blank-only body contributes nothing and raises no count" "0 0" \
   "$(_uv '[]' "$(_uv_botr $'\n\n\n')" | _uv_shape)"
+# Negative controls INSIDE the scan window: rung 3 must not mint a verdict from
+# ordinary bot prose, a substring, a quoted line, or commented-out text.
+assert_eq "#1443 rung3: incidental token in bot prose is not a verdict" "0 1" \
+  "$(_uv "$(_uv_botc "Claude finished addressing the REJECT findings."$'\n\n'"All fixed.")" '[]' | _uv_shape)"
+assert_eq "#1443 rung3: a review-and-fix headline plus a prose REJECT is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "### /prflow:review-and-fix"$'\n\n'"Addressed every REJECT finding from the last review.")" | _uv_shape)"
+assert_eq "#1443 rung3: APPROVED is not the APPROVE token" "0 0" \
+  "$(_uv '[]' "$(_uv_botr "This PR was APPROVED by the maintainer."$'\n\n'"Nothing else to say.")" | _uv_shape)"
+assert_eq "#1443 rung3: a blockquoted verdict inside the window is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Addressing the review:"$'\n\n'"> **Verdict: REJECT**"$'\n\n'"Fixed now.")" | _uv_shape)"
+# The fenced shape must carry no rung-2 `Verdict:` heading: rung 2 scans every line with
+# no window, so such a heading is read by rung 2 and never reaches rung 3.
+assert_eq "#1443 rung3: a fenced rung-3 shape inside the window is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Quoting the contract:"$'\n\n'"\`\`\`"$'\n'"## ✅ Devflow Review — APPROVE"$'\n'"\`\`\`")" | _uv_shape)"
+assert_eq "#1443 rung3: a MULTI-LINE HTML comment carrying a marker is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "<!--"$'\n'"devflow:review-verdict head=$UVM_HEAD verdict=REJECT"$'\n'"-->"$'\n'"Some review text.")" | _uv_shape)"
+# The at-most-one contract, asserted rather than only stated.
+assert_eq "#1443 rung3: two rung-3 verdict lines contribute exactly one entry" "1-APPROVE" \
+  "$(_uv '[]' "$(_uv_botr "**Verdict: APPROVE**"$'\n\n'"later"$'\n\n'"**Verdict: ❌ REJECT**")" | jq -r '"\(.review_verdicts | length)-\(.review_verdicts[0].verdict)"')"
+# Rung 2 still pre-empts rung 3, as rung 1 does.
+assert_eq "#1443 rung3: the rung-2 heading grammar pre-empts the new rung" "APPROVE" \
+  "$(_uv '[]' "$(_uv_botr "## Verdict: APPROVE"$'\n\n'"**Verdict: ❌ REJECT**")" | _uv_verds)"
 # Idempotency: two runs over identical payloads emit byte-identical results.
 UV3_RUN1="$(_uv "$(_uv_botc "$UV3_S3")" "$(_uv_botr "$UV3_S4")" | jq -c '{review_verdicts, review_verdict_unparsed_count}')"
 UV3_RUN2="$(_uv "$(_uv_botc "$UV3_S3")" "$(_uv_botr "$UV3_S4")" | jq -c '{review_verdicts, review_verdict_unparsed_count}')"
