@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1886",
+  "generated_at": "2026-08-21T06:42:07Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.55",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 12.999757250000005,
+    "tokens": {
+      "input_tokens": 72,
+      "output_tokens": 48243,
+      "cache_read_input_tokens": 6182326,
+      "cache_creation_input_tokens": 235248,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 112,
+        "outputTokens": 66756,
+        "cacheReadInputTokens": 7143345,
+        "cacheCreationInputTokens": 554637,
+        "webSearchRequests": 0,
+        "costUSD": 9.58979375,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 158,
+        "outputTokens": 26658,
+        "cacheReadInputTokens": 4365590,
+        "cacheCreationInputTokens": 453318,
+        "webSearchRequests": 0,
+        "costUSD": 3.409963500000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 63,
+    "duration_ms": 832046
+  },
+  "permission_denials": {
+    "count": 4,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---RUNID---\"; echo \"${GITHUB_RUN_ID:-none}-${GITHUB_RUN_ATTEMPT:-1}\"",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1886/32454413449-1/verdicts/iter-standalone\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1886/32454413449-1/verdicts/iter-standalone/VC-7-h8j3m.json << 'EOF'\n{\"id\": \"VC-7\", \"verdict\": \"PASS\", \"evidence\": \"The changeset .changeset/step1-engine-return-roster-coverage-check.md (added in commit c8c71c234, since consolidated and deleted from HEAD) had frontmatter 'bump: patch' and 'type: Changed'. scripts/consolidate-change …[per-command-truncated]",
+      "mkdir -p .prflow/tmp\nif rm -f \".prflow/tmp/review-dirty-tree-before\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \".prflow/tmp/review-dirty-tree-before\" &&\n   [ -f \".prflow/tmp/review-dirty-tree-before\" ] &&\n   [ ! -L \".prflow/tmp/review-dirty-tree-before\" ] &&\n   git hash-object \".prflow/tmp/review-dirty-tree-before\"; then\n  :\nelse\n  echo \"::warning::snapshot failed\" >&2\n  rm -f \".prflow/tmp/review-dirty-tree-before\" 2>/dev/null\n  printf '%s\\n' disabled …[per-command-truncated]",
+      "ls /home/runner/work/prflow/prflow/.changeset/ 2>/dev/null; echo \"---\"; git -C /home/runner/work/prflow/prflow show HEAD:.changeset/config.json 2>/dev/null | head -40"
+    ],
+    "total": 4,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
