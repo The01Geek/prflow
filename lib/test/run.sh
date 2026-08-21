@@ -46834,7 +46834,8 @@ assert_eq "#466 mla-extension-pins: review-and-fix carries the config-derivation
 # pre-launch self-test, job-scoping and fail-closed-guard arms below — gh-stubbed, no
 # network, no real key. The mint honors the verbatim, never-probed DEVFLOW_REFRESH_MINT
 # override (the lib/resolve-bin.sh DEVFLOW_<TOOL> stub contract), and the credential-
-# surface targets + sleep are overridable, so every arm runs at the desk.
+# surface targets + sleep are overridable, so the arms run at the desk with no network
+# and no real key.
 # ────────────────────────────────────────────────────────────────────────────
 REFRESH_SH="$LIB/../scripts/refresh-app-credentials.sh"
 GHFRESH_SH="$LIB/../scripts/gh-fresh.sh"
@@ -47613,13 +47614,13 @@ assert_eq "#491 arm20b: stop-refresher still exits 0 on the divergence arm" "0" 
 # ── Issue #1882: the JWT is signed WITHOUT openssl (sign-jwt-rs256.py), a
 # synchronous pre-launch self-test, job-scoped loop lifetime/state, and fail-closed
 # clock/text-tool guards. RSAKEY22 (a real PKCS#1 key), D487, CFG23B and STOP_SH are
-# reused; every arm runs at the desk (no network, no real credential).
+# reused; the arms run at the desk with no network and no real credential.
 SIGNER_1882="$LIB/../scripts/sign-jwt-rs256.py"
 _realssl_1882="$(command -v openssl)"
 
 # 1882a (AC1) — an openssl stub that exits NON-ZERO for every `dgst` still yields a
-# full cycle (both surfaces rewritten + the `cycle OK` line), proving no part of the
-# SIGNING path calls openssl; `openssl base64` for surface 1 still delegates.
+# full cycle (the extraheader and token-file surfaces rewritten + the `cycle OK` line),
+# proving the SIGNING path calls no openssl; `openssl base64` for surface 1 delegates.
 BIN1882A="$D487/bin1882a"; mkdir -p "$BIN1882A"
 cat > "$BIN1882A/openssl" <<EOF1882A
 #!/usr/bin/env bash
@@ -47778,7 +47779,7 @@ rm -rf "$D487"
 # hand-edited workflow — driven end to end and joined to the shipped workflow's own
 # trigger-time guard.
 if ! devflow_run_full_suite_module "$LIB/test/modules/installer-wiring.sh" \
-  "installer-wiring" 277; then
+  "installer-wiring" 287; then
   printf 'ERROR: installer-wiring boundary could not record its result\n'
   exit 1
 fi

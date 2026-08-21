@@ -34,10 +34,10 @@ The primitive is hand-rolled RSASSA-PKCS1-v1_5 (RFC 8017 §8.2): SHA-256 digest,
 the SHA-256 ``DigestInfo`` prefix, EMSA-PKCS1-v1_5 padding sized from the
 modulus, and the built-in three-argument ``pow``. It is deterministic, so a
 byte-equality check against ``openssl`` is a total verification (the suite runs
-it); it has no verification surface (it signs with the caller's own key and
-nothing verifies the signature), so a defect yields a token GitHub rejects — an
-availability failure the mint's retry cycle already absorbs, never an accepted
-forgery.
+it); the signer only signs — it signs with the caller's own key and the system
+verifies its output nowhere — so a defect yields a token GitHub rejects (an
+availability failure the mint's retry cycle already absorbs) rather than an
+accepted forgery.
 """
 import base64
 import hashlib

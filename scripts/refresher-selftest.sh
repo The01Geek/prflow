@@ -6,7 +6,7 @@
 # BEFORE it detaches the loop, so a host that cannot sign is loud immediately
 # rather than after the job-start token's hour lapses. It signs a throwaway
 # input with the real key on stdin (never argv, never disk) and routes the
-# outcome to one of three arms:
+# outcome to one of these arms:
 #
 #   * PASS (exit 0, emits a "self-test passed" line): the signer produced a
 #     signature. The Start step launches the loop.

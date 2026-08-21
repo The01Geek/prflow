@@ -168,7 +168,8 @@ done
 
 # ── #1882 pre-launch self-test wiring. Each writer workflow's Start step runs the
 # refresher self-test (signer helper) with the key on stdin BEFORE the detached
-# launch; a signing fault fails the job at the gate. Pin the wiring in both files.
+# launch; a signing fault fails the job at the gate. Pin the wiring in
+# devflow-implement.yml and devflow.yml.
 for _wf1882 in devflow-implement devflow; do
   _WFF1882="$WF/$_wf1882.yml"
   _startblk1882="$(mint_blk 'Start credential refresher (optional)' "$_WFF1882")"
