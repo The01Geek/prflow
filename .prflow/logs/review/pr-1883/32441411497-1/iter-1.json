@@ -1,0 +1,207 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-21T03:00:00Z",
+  "fix_commit_sha": "a17e704c6a332ad3f49d5674f8b020ce6e3c2b21",
+  "fix_files": [
+    "skills/review-and-fix/references/loop-control.md",
+    "skills/review-and-fix/references/shadow-review.md",
+    ".changeset/issue-1850-dispatch-review-engine-subagent.md"
+  ],
+  "loop_role": "fix",
+  "current_step": "3",
+  "current_substep": null,
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:comment-analyzer",
+    "prflow:silent-failure-hunter"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "shadow-review.md left the parent-orchestrated fan-out machinery describing the opposite execution model for the fanned-out path",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/shadow-review.md",
+        "line_range": [
+          5,
+          55
+        ],
+        "kind": "prose_contradiction"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "a fanned-out dispatch returning neither value, or a missing/unreadable return file, had no fail-closed arm (fail-open to false-clean review)",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/loop-control.md",
+        "line_range": [
+          161,
+          161
+        ],
+        "kind": "silent_failure_fail_open"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "the fanned-out return contract omitted the verdict/report that Step 2 requires",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/loop-control.md",
+        "line_range": [
+          161,
+          161
+        ],
+        "kind": "underspecified_return"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "checklist and dispatched_effort lost on the fanned-out path (silent optimization regression)",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/loop-control.md",
+        "line_range": [
+          161,
+          161
+        ],
+        "kind": "silent_degradation"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "entry-scoped return filename collided between the two same-iteration engine entries",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/loop-control.md",
+        "line_range": [
+          161,
+          161
+        ],
+        "kind": "naming_collision"
+      },
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "a17e704c6a332ad3f49d5674f8b020ce6e3c2b21"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "a17e704c6a332ad3f49d5674f8b020ce6e3c2b21"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "a17e704c6a332ad3f49d5674f8b020ce6e3c2b21"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "a17e704c6a332ad3f49d5674f8b020ce6e3c2b21"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "applied",
+      "commit": "a17e704c6a332ad3f49d5674f8b020ce6e3c2b21"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 5,
+    "fix_diff_lines": 6,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "checklist": [],
+  "shadow": {
+    "ran_at": "2026-08-21T03:30:00Z",
+    "reviewed_sha": "830fd630f8d2ced9a480d5bc1e5c2900f9723aaa",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:code-reviewer",
+        "severity": "Important",
+        "description": "shadow-review.md framing lines 5/10/35 still parent-orchestrated (fixed)",
+        "defect_signature": {
+          "file": "skills/review-and-fix/references/shadow-review.md",
+          "line_range": [
+            5,
+            55
+          ],
+          "kind": "prose_contradiction"
+        }
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Important",
+        "description": "shadow fanned-out lacked explicit fail-closed arm (fixed)",
+        "defect_signature": {
+          "file": "skills/review-and-fix/references/loop-control.md",
+          "line_range": [
+            161,
+            161
+          ],
+          "kind": "silent_failure_fail_open"
+        }
+      },
+      {
+        "agent": "general-purpose",
+        "severity": "Suggestion",
+        "description": "fanned-out shadow machinery ownership under-specified (fixed)",
+        "defect_signature": {
+          "file": "skills/review-and-fix/references/shadow-review.md",
+          "line_range": [
+            41,
+            41
+          ],
+          "kind": "under_specification"
+        }
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 3,
+      "overlap_with_iter_N": 0,
+      "new": 3,
+      "new_critical": 0,
+      "new_important": 2
+    },
+    "promoted_to_iter_next": true
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
