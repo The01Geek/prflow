@@ -63,12 +63,9 @@ import json
 import os
 import sys
 
-# An engine file is any file under one of these repo-relative subtrees. The longer prefix
-# is listed first so a `skills/review-and-fix/…` path is never mis-attributed (the two are
-# disjoint at a segment boundary — after `skills/review` a review-and-fix path has `-`, not
-# `/` — but longest-first keeps the intent explicit). A subtree rename must be mirrored
-# here in the same change; `test_prefixes_map_to_real_on_disk_subtrees` reconciles these
-# against the on-disk directories so a rename goes RED rather than silently reporting zero.
+# Engine-file subtrees, longest prefix first. A subtree rename must be mirrored here in the
+# same change or reads under it silently stop counting;
+# test_prefixes_map_to_real_on_disk_subtrees reconciles these against the on-disk dirs.
 ENGINE_PREFIXES = ("skills/review-and-fix/", "skills/review/")
 
 # The sentinel a residency statistic carries when its population is empty. It is NEVER a

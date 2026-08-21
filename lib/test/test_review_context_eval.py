@@ -247,7 +247,7 @@ class _SingleCorpusMixin:
 class BoundaryTest(_SingleCorpusMixin, unittest.TestCase):
     def test_two_contexts_reading_same_engine_file_do_not_collapse(self):
         # Implementation Notes: two contexts reading the same engine file must be two
-        # counts, not one — witnessed across two SEPARATE files (the real subagent layout).
+        # counts, not one — witnessed across separate files (the real subagent layout).
         contexts, totals, _ = self._run({
             "main.jsonl": [
                 '{"type":"assistant","isSidechain":false,"sessionId":"A",'
