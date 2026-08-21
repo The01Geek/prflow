@@ -99,6 +99,9 @@ if [ "$ISSUE_NUMBER" != "null" ]; then
       || { echo "::error::fetch-pr-context: failed to fetch issue ${ISSUE_NUMBER} for PR ${PR}" >&2; exit 1; }
     _ISSUE_COMMENTS_RAW="$("$DEVFLOW_GH" api "repos/${REPO}/issues/${ISSUE_NUMBER}/comments" --paginate)" \
       || { echo "::error::fetch-pr-context: failed to fetch issue comments for issue ${ISSUE_NUMBER}" >&2; exit 1; }
+    # Normalize every paginated payload to an array of OBJECTS: `add` on a single-object
+    # page yields that object, and every later `.[] | .user`/`.body` read then aborts the
+    # whole run instead of failing closed. Apply the same guard at each `*_RAW` slurp below.
     ISSUE_COMMENTS_RAW="$(printf '%s' "$_ISSUE_COMMENTS_RAW" | "$DEVFLOW_JQ" -s '(add // []) | if type == "array" then map(select(type == "object")) else [] end')"
     # Normalize issue comments to {author, body, createdAt}
     ISSUE_COMMENTS_NORM="$(echo "$ISSUE_COMMENTS_RAW" | "$DEVFLOW_JQ" '[.[] | {author: (.user.login // ""), body: (.body // ""), createdAt: (.created_at // "")}]')"
@@ -148,15 +151,12 @@ esac
 # ── 6. Review comments (inline diff comments) ────────────────────────────────
 _REVIEW_COMMENTS_RAW="$("$DEVFLOW_GH" api "repos/${REPO}/pulls/${PR}/comments" --paginate)" \
   || { echo "::error::fetch-pr-context: failed to fetch review comments for PR ${PR}" >&2; exit 1; }
-REVIEW_COMMENTS_RAW="$(printf '%s' "$_REVIEW_COMMENTS_RAW" | "$DEVFLOW_JQ" -s 'add // []')"
+REVIEW_COMMENTS_RAW="$(printf '%s' "$_REVIEW_COMMENTS_RAW" | "$DEVFLOW_JQ" -s '(add // []) | if type == "array" then map(select(type == "object")) else [] end')"
 REVIEW_COMMENTS="$(echo "$REVIEW_COMMENTS_RAW" | "$DEVFLOW_JQ" '[.[] | {author: (.user.login // ""), body: (.body // ""), path: (.path // ""), line: (.line // null), createdAt: (.created_at // "")}]')"
 
 # ── 7. PR conversation comments ───────────────────────────────────────────────
 _PR_COMMENTS_RAW="$("$DEVFLOW_GH" api "repos/${REPO}/issues/${PR}/comments" --paginate)" \
   || { echo "::error::fetch-pr-context: failed to fetch PR conversation comments for PR ${PR}" >&2; exit 1; }
-# Never hand a non-array — or an array carrying a non-object element — downstream:
-# `add` on a single-object page yields that object, and every later `.[] | .user`/`.body`
-# read then aborts the whole run instead of failing closed to an empty result.
 PR_COMMENTS_RAW="$(printf '%s' "$_PR_COMMENTS_RAW" | "$DEVFLOW_JQ" -s '(add // []) | if type == "array" then map(select(type == "object")) else [] end')"
 PR_COMMENTS="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" '[.[] | {author: (.user.login // ""), body: (.body // ""), createdAt: (.created_at // "")}]')"
 
@@ -169,7 +169,7 @@ PR_REVIEWS="$(echo "$PR_REVIEWS_RAW" | "$DEVFLOW_JQ" '[.[] | {author: (.user.log
 # ── 9. Commits ────────────────────────────────────────────────────────────────
 _COMMITS_RAW="$("$DEVFLOW_GH" api "repos/${REPO}/pulls/${PR}/commits" --paginate)" \
   || { echo "::error::fetch-pr-context: failed to fetch commits for PR ${PR}" >&2; exit 1; }
-COMMITS_RAW="$(printf '%s' "$_COMMITS_RAW" | "$DEVFLOW_JQ" -s 'add // []')"
+COMMITS_RAW="$(printf '%s' "$_COMMITS_RAW" | "$DEVFLOW_JQ" -s '(add // []) | if type == "array" then map(select(type == "object")) else [] end')"
 COMMITS="$(echo "$COMMITS_RAW" | "$DEVFLOW_JQ" '[.[] | {sha: .sha, author_login: (.author.login // ""), committer_login: (.committer.login // ""), committed_at: (.commit.committer.date // ""), message: (.commit.message // ""), parents_count: ((.parents // []) | length)}]')"
 
 # ── 10. Diff ──────────────────────────────────────────────────────────────────
@@ -642,7 +642,7 @@ REVIEW_VERDICT_UNPARSED_COUNT="$(echo "$REVIEW_VERDICTS_BUNDLE" | "$DEVFLOW_JQ" 
 [ -n "$REVIEW_VERDICTS" ] || REVIEW_VERDICTS='[]'
 case "$REVIEW_VERDICT_UNPARSED_COUNT" in
     ''|*[!0-9]*)
-        echo "fetch-pr-context.sh: review_verdict_unparsed_count could not be derived from the union filter; emitting 0" >&2
+        echo "fetch-pr-context.sh: the union filter yielded a non-numeric review_verdict_unparsed_count (${REVIEW_VERDICT_UNPARSED_COUNT:-<empty>}); emitting 0" >&2
         REVIEW_VERDICT_UNPARSED_COUNT=0 ;;
 esac
 

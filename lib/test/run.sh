@@ -14377,6 +14377,9 @@ assert_eq "#1443 count: every verdict-bearing artifact parsed → 0" "0" \
   "$(_uv "$(_uv_botc "$UV3_S1")" '[]' | _uv_unparsed)"
 assert_eq "#1443 count: exactly one unparsed verdict-bearing artifact → 1" "0 1" \
   "$(_uv "$(_uv_botc "APPROVE"$'\n'"REJECT"$'\n'"third")" '[]' | _uv_shape)"
+# The tally aggregates across both legs, so a single-artifact case cannot exercise it.
+assert_eq "#1443 count: two unparsed artifacts, one per leg → 2" "0 2" \
+  "$(_uv "$(_uv_botc "APPROVE"$'\n'"REJECT"$'\n'"third")" "$(_uv_botr "APPROVE"$'\n'"REJECT"$'\n'"third")" | _uv_shape)"
 # The closed malformed-payload set: the filter keeps running and the bundle is emitted.
 assert_eq "#1443 malformed: comments payload is a JSON object" "0 0" \
   "$(_uv '{"a":1}' '[]' | _uv_shape)"
