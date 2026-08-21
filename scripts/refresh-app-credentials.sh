@@ -35,8 +35,8 @@
 # Key hygiene (AC "Key hygiene"): THIS SCRIPT reads the PEM private key from stdin
 # into shell memory only; it never re-exports that value into an environment
 # variable, never passes it as a process argument, and never writes it to disk
-# (openssl signs with the key handed over a file descriptor via process
-# substitution, a /dev/fd path, not a real file). Scope note: the *workflow* Start
+# (the openssl-free JWT signer, scripts/sign-jwt-rs256.py, likewise reads the key
+# on ITS stdin — never a file, never an argv, issue #1882). Scope note: the *workflow* Start
 # step passes the key as its own step-level `DEVFLOW_APP_PRIVATE_KEY` env solely to
 # pipe it to this script's stdin. The `/proc/<pid>/environ` exposure of that
 # inherited var is closed at the WORKFLOW launch, not here: the detached refresher
@@ -56,15 +56,31 @@
 # the credential-surface targets + sleep are overridable, so lib/test/run.sh
 # drives every arm with no network, no real key, and no real gh.
 #
-# Cloud-only (ubuntu-latest); tool checks fail closed with a `::warning::` when a
-# tool is missing (guard-class 2), never silently.
+# Runs on every runner the `runs-on` expression can select (issue #1882 removed
+# the openssl process-substitution signing that failed on native-Windows hosts).
+# Tool checks fail closed with a `::warning::` when a tool is missing (guard-class
+# 2), never silently.
 
 set -uo pipefail
 
+_HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # ── jq via the shared execution-verified resolver (the new-jq-caller pin) ──
 # shellcheck source=../lib/resolve-jq.sh
-. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/resolve-jq.sh"
+. "$_HERE/../lib/resolve-jq.sh"
 : "${DEVFLOW_JQ:=jq}"
+
+# ── Python interpreter for the openssl-free JWT signer (issue #1882). resolve-
+# python.sh echoes an invocation that may be TWO words (e.g. `py -3`) and returns
+# 0 (ok) / 1 (too-old) / 3 (none); the refresher captures it into a word-split
+# array. It is deliberately NOT the resolve-jq.sh idiom (it assigns nothing,
+# always-succeeds nothing, and exposes no DEVFLOW_ seam), so the refresher adds
+# its own verbatim-never-probed override mirroring DEVFLOW_REFRESH_MINT.
+RESOLVE_PY_LIB="$_HERE/../lib/resolve-python.sh"
+# shellcheck source=../lib/resolve-python.sh
+[ -r "$RESOLVE_PY_LIB" ] && . "$RESOLVE_PY_LIB"
+PYTHON_OVERRIDE="${DEVFLOW_REFRESH_PYTHON:-}"
+SIGNER_HELPER="${DEVFLOW_REFRESH_SIGNER:-$_HERE/sign-jwt-rs256.py}"
 
 # ── Overridable knobs (defaults are the production values) ──
 # The mint override (AC "Suite coverage"): when set, it is run VERBATIM and its
@@ -77,6 +93,16 @@ MINT_OVERRIDE="${DEVFLOW_REFRESH_MINT:-}"
 CONFIG_FILE_OVERRIDE="${DEVFLOW_REFRESH_CONFIG_FILE:-}"
 TOKEN_FILE="${DEVFLOW_REFRESH_TOKEN_FILE:-${RUNNER_TEMP:-/tmp}/devflow-gh-token}"
 PIDFILE="${DEVFLOW_REFRESH_PIDFILE:-${RUNNER_TEMP:-/tmp}/devflow-refresh.pid}"
+# Job-identity handle + its runner-level pointer (issue #1882). On a self-hosted,
+# long-lived runner the Start step writes this job's handle into JOB_POINTER and
+# launches the loop with JOB_ID set to the same handle; the loop re-reads the
+# pointer each cycle and retires itself once it no longer names this job, so an
+# orphan never outlives the job that started it. Both empty on a local/test run
+# (no job scoping — the loop runs to MAX_CYCLES). The job-scoped TOKEN_FILE /
+# PIDFILE / log paths are passed EXPLICITLY by the Start step; the defaults above
+# stay job-independent so the #491 writer<>reader basename pins still hold.
+JOB_ID="${DEVFLOW_REFRESH_JOB_ID:-}"
+JOB_POINTER="${DEVFLOW_REFRESH_JOB_POINTER:-}"
 # Cadence (seconds) and the sleep command, overridable so the suite never waits.
 INTERVAL="${DEVFLOW_REFRESH_INTERVAL:-2700}"   # 45 minutes
 BACKOFF="${DEVFLOW_REFRESH_BACKOFF:-120}"       # 2 minutes
@@ -111,36 +137,66 @@ read_key_from_stdin() {
 # ── The real mint (no override): build an RS256 app JWT, resolve the
 # installation id, and mint an installation access token. Echoes the raw token
 # on success; returns non-zero (with a specific ::warning::) on any failure. ──
-# `tr` is a non-preflight PATH tool on an emitted value (CLAUDE.md guard-class 2),
-# but this is a deliberate, safe exemption: the refresher is cloud-only
-# (ubuntu-latest, where `tr` is guaranteed) AND it fails closed — a missing `tr`
-# yields a malformed JWT → the mint fails → a `::warning::` fires and the previous
-# credential is retained, never a wrong-but-emitted value.
-b64url() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
-
 real_mint() {
   local app_id="${DEVFLOW_APP_ID:-}"
   if [ -z "$app_id" ]; then warn "mint: DEVFLOW_APP_ID empty — cannot mint"; return 1; fi
   if [ -z "$KEY" ]; then warn "mint: no private key on stdin — cannot mint"; return 1; fi
-  for tool in openssl curl; do
-    command -v "$tool" >/dev/null 2>&1 || { warn "mint: required tool '$tool' not found on PATH"; return 1; }
-  done
+  # The signing path no longer calls openssl (issue #1882 — sign-jwt-rs256.py builds
+  # the whole JWT in the standard library), so the mint's own tool pre-check narrows
+  # to the tool it still uses: curl. `openssl base64` survives only in run_cycle's
+  # surface-1 encode, guarded there, which is why openssl stays a host requirement.
+  command -v curl >/dev/null 2>&1 || { warn "mint: required tool 'curl' not found on PATH"; return 1; }
   local repo="${GITHUB_REPOSITORY:-}"
   if [ -z "$repo" ]; then warn "mint: GITHUB_REPOSITORY empty — cannot resolve installation"; return 1; fi
 
-  # JWT: iat 60s in the past (clock skew), exp 9 minutes out (< the 10-minute max).
-  local now iat exp header payload signing_input sig jwt
-  now="$(date +%s)"; iat=$((now - 60)); exp=$((now + 540))
-  header="$(printf '{"alg":"RS256","typ":"JWT"}' | b64url)"
-  payload="$(printf '{"iat":%d,"exp":%d,"iss":"%s"}' "$iat" "$exp" "$app_id" | b64url)"
-  signing_input="${header}.${payload}"
-  # Sign with the key over a file descriptor (process substitution → /dev/fd/N),
-  # never a disk path — key hygiene.
-  sig="$(printf '%s' "$signing_input" \
-    | openssl dgst -sha256 -sign <(printf '%s' "$KEY") -binary 2>/dev/null | b64url)" \
-    || { warn "mint: JWT signing failed (bad private key?)"; return 1; }
-  [ -n "$sig" ] || { warn "mint: JWT signing produced no signature"; return 1; }
-  jwt="${signing_input}.${sig}"
+  # Resolve the interpreter for the openssl-free signer. rc 1 (a Python older than
+  # 3.11) and rc 3 (no interpreter at all) each STOP the mint with a diagnostic
+  # naming the interpreter or the resolver by path — never an empty value onward.
+  local -a signer_py=()
+  local spec prc
+  if [ -n "$PYTHON_OVERRIDE" ]; then
+    spec="$(eval "$PYTHON_OVERRIDE")"; prc=$?
+  else
+    spec="$(devflow_resolve_python 2>/dev/null)"; prc=$?
+  fi
+  case "$prc" in
+    0) ;;
+    1) warn "mint: the resolved Python interpreter '$spec' is older than the required version 3.11 — cannot sign the JWT; previous credential left in place"; return 1 ;;
+    *) warn "mint: no Python interpreter resolved (consulted the resolver lib/resolve-python.sh at '$RESOLVE_PY_LIB') — cannot sign the JWT; previous credential left in place"; return 1 ;;
+  esac
+  # Intentional word-split of the (possibly two-word, e.g. `py -3`) interpreter spec.
+  # shellcheck disable=SC2206
+  signer_py=($spec)
+
+  # JWT timestamps: iat 60s in the past (clock skew), exp 9 minutes out (< the
+  # 10-minute max). The clock read is guard-class 2 (`date` is not preflight-
+  # guaranteed): an absent/empty `date` STOPS the mint naming it, rather than
+  # yielding an empty timestamp signed into a 1970-dated token the API rejects.
+  local now iat exp jwt signer_err_file signer_err signer_rc
+  now="$(date +%s 2>/dev/null)"
+  case "$now" in
+    ''|*[!0-9]*) warn "mint: the clock read failed — the 'date' command produced no timestamp; cannot mint"; return 1 ;;
+  esac
+  iat=$((now - 60)); exp=$((now + 540))
+
+  # Sign the whole JWT with the standard-library signer, the key on stdin (never
+  # argv, never disk). A non-zero exit is the signer refusing the key; its own
+  # diagnostic — bounded to three lines and key-free by the signer's contract — is
+  # surfaced (a missing `head` degrades the DETAIL to empty, never a key leak).
+  signer_err=""
+  signer_err_file="$(mktemp 2>/dev/null || true)"
+  if [ -n "$signer_err_file" ]; then
+    jwt="$(printf '%s' "$KEY" | "${signer_py[@]}" "$SIGNER_HELPER" "$app_id" "$iat" "$exp" 2>"$signer_err_file")"; signer_rc=$?
+    signer_err="$(head -n 3 "$signer_err_file" 2>/dev/null || true)"
+    signer_err="${signer_err//$'\n'/ }"       # flatten to one ::warning:: line (bash builtin, no tr)
+    rm -f "$signer_err_file" 2>/dev/null || true
+  else
+    jwt="$(printf '%s' "$KEY" | "${signer_py[@]}" "$SIGNER_HELPER" "$app_id" "$iat" "$exp" 2>/dev/null)"; signer_rc=$?
+  fi
+  if [ "$signer_rc" -ne 0 ] || [ -z "$jwt" ]; then
+    warn "mint: JWT signing failed at the openssl-free signer step${signer_err:+ — $signer_err}"
+    return 1
+  fi
 
   # Disclosed residual (symmetric to the /proc/<pid>/environ PEM vector closed at
   # launch): the two curl calls below pass the app JWT in argv (`-H "Authorization:
@@ -301,6 +357,21 @@ cmd_cycle() {
   return 0
 }
 
+# Job-supersession check (issue #1882): true when the runner-level pointer exists,
+# is non-empty, and names a DIFFERENT job than this loop's JOB_ID — a newer job has
+# claimed the runner and this refresher is now an orphan. A missing/empty pointer
+# or an empty JOB_ID returns false (fail-safe: never retire a healthy refresher on
+# an unreadable pointer). It never consults the launcher shell's PID, which the
+# Start step orphans within the same step, so keying on that would exit at once.
+job_superseded() {
+  [ -n "$JOB_ID" ] || return 1
+  [ -n "$JOB_POINTER" ] || return 1
+  [ -f "$JOB_POINTER" ] || return 1
+  local cur; cur="$(cat "$JOB_POINTER" 2>/dev/null || true)"
+  [ -n "$cur" ] || return 1
+  [ "$cur" != "$JOB_ID" ]
+}
+
 cmd_loop() {
   read_key_from_stdin
   # Record our PID so the workflow's `if: always()` step can kill us by pidfile —
@@ -317,6 +388,12 @@ cmd_loop() {
   trap 'exit 0' TERM
   local count=0
   while :; do
+    # Retire on job supersession BEFORE the next cycle, so an orphan whose job is
+    # gone stops rewriting a later job's credential surfaces (issue #1882).
+    if job_superseded; then
+      printf 'refresh-app-credentials: job %s is no longer current on this runner; the refresher is retiring itself\n' "$JOB_ID"
+      return 0
+    fi
     # Sleep in the BACKGROUND and `wait` on it, so the TERM trap interrupts the
     # wait and retires the process promptly — a foreground `sleep` would only let
     # `trap 'exit 0' TERM` fire after the full interval elapsed, delaying
