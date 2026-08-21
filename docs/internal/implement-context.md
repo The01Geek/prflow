@@ -145,15 +145,16 @@ The same single entry-gate statement continues, verbatim:
 > picks up at a later phase — never relying on a read from an earlier phase or session.
 
 and `skills/implement/SKILL.md`'s **Mid-phase re-anchor after a Skill-tool return**
-rule adds, verbatim:
+rule adds, verbatim (since issue #1876 scoped it to the displaced member):
 
-> Re-`Read` **every member of the current phase's reference set under
-> `<skill-dir>/phases/`, in the entry-gate order**, after **every** Skill-tool return
-> mid-phase — `simplify`, `review-and-fix`, or any other — and resume …
+> after **every** Skill-tool return mid-phase — `simplify`, `review-and-fix`, or any
+> other — read it back (`workpad.py resume-point`), re-`Read` **only the one member of
+> the reference set under `<skill-dir>/phases/` holding it**, and resume …
 
 So a run that bounces through Phase 3's fix loop pays for Phase 3's whole file set again on
-every pass, and a run that calls out to a nested skill and returns pays for the current
-phase file again. **How many times each phase file is re-read across a run — not how big
+every pass, and a run that calls out to a nested skill and returns pays for only the one
+member of the phase's reference set holding its recorded resume point (issue #1876), not
+the whole set. **How many times each phase file is re-read across a run — not how big
 it is once — is the cost shape worth measuring.** This is precisely the axis the
 instrument reports, and the one the create-issue instrument has no equivalent of.
 

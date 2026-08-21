@@ -18,7 +18,10 @@ worse than no premise at all.
 
 The helper's second, **non-adjudicating** pass surfaces these: it reports every collocation-family
 phrase ("verified against", "confirmed against", "checked against", "verified at drafting time") in a
-premise-bearing region as an `ungraded_claim=…` line. **The drafting-side duty** (stated in
+premise-bearing region — and every blockquote-prefixed `> Verified:` line, which no grading arm
+matches because the leading `>` breaks the line anchor — as an `ungraded_claim=…` line, so a
+verification wearing a shape the marker cannot grade is reported rather than counted as a silent
+zero. **The drafting-side duty** (stated in
 `skills/create-issue/references/step-3-5-steelman.md` and executed at
 `skills/create-issue/references/step-3-6-audit.md`): resolve **every** ungraded detection before the
 draft is presented to the user — either rewrite the annotation as a `Verified:` bullet carrying a
@@ -415,6 +418,20 @@ by exactly those three. Three reductions compose into the reduction **#795** mad
   corrective round-trip at all, and the dispatch-routing answers that name a call now
   render the flag in `needs=` on the arms where the measured trap bit — the 24-of-63
   missing-`--round` class.
+
+**Issue #1803 shrinks the protocol again — a further live-figure move, not a regression.**
+Every subcommand that prints a `next_call=` line now also prints a **summary-block** line
+between its decided answer line and the `next_call=` line — a compact fixed subset of the
+`query-summary` fields (enumerated in the tool's `--help`) — so the clean path reads the
+state it needs from the call it just made instead of issuing a standalone `query-summary`
+read-back. Dropping that read lowers the per-run mandated `unconditional_call_count` from
+13 to 12; that figure is derived live by `lib/test/check-audit-lifecycle-contracts.py` and
+printed on the same `MEASURE` line, so read it there rather than from a number copied here.
+`record-finding-evidence` also gained a batched `--finding-evidence-records-file` form that
+records a whole round's finding evidence from one JSON file (each entry keeping its own
+completeness verdict), replacing one call per finding — a saving the mandated-call figure
+does not capture, since it counts the once-per-run mandated calls, not the per-finding
+calls a multi-finding round makes.
 
 **The real-corpus "after" figure is a post-merge measurement, and is deliberately not
 filled in here.** Re-running the same transcript analysis today would re-read the same

@@ -5,7 +5,7 @@
 section and the chat-output `{shadow status}` rendering) — the step references the thin
 `skills/review-and-fix/SKILL.md` root routes to (issue #530)
 
-This doc captures the mechanics of the shadow review pass and the structural constraint that
+This doc captures the mechanics of the shadow review pass and the portability constraint that
 shapes its design, so the constraint is not re-derived (or re-broken) by a future maintainer who
 sees "just run the engine in a fresh subagent" as the obvious simplification. It is not.
 
@@ -44,22 +44,43 @@ experienced users already do manually — run `/prflow:review <PR>` after `/prfl
 instead of being left for the human to discover. It directly targets the empirically-observed
 "a manual review finds things the fix loop missed" pattern.
 
-## The structural constraint: a subagent cannot dispatch the engine's fan-out
+## The portability constraint: keep the shadow to a single subagent layer
 
 The natural-looking implementation — dispatch one `general-purpose` subagent and tell it to "run
-the whole engine in your fresh context" — **does not work**, and the failure is silent.
+the whole engine in your fresh context" — **does not work portably**, and the failure is silent.
 
 `/prflow:review`'s engine *fans out to subagents*: Phase 1, Phase 1.5, and Phase 3 dispatch
-reviewer/verifier subagents, and Phase 2 dispatches for its agent-path checklist items. But a
-**subagent cannot dispatch its own subagents** — nested `Agent`/`Task` dispatch is unsupported by
-the harness. This is **structural, not a permissions gap**: granting the `Agent` tool to the
-shadow subagent does not fix it.
+reviewer/verifier subagents, and Phase 2 dispatches for its agent-path checklist items. A subagent
+dispatching its own subagents works on Claude Code today, but **nested dispatch is not portable
+across harnesses**: on a harness that withholds it the capability is absent as a *missing tool*,
+never an error, so granting the `Agent` tool to the shadow subagent cannot restore it.
 
-So a single shadow subagent told to run the engine reaches Phase 3, finds it cannot launch the
-reviewer fan-out, and **silently collapses to a degraded single-agent self-check** that returns a
-plausible clean `APPROVE`. The audit never actually runs — and a degraded self-check re-deriving
-the loop's own answer is the exact false-convergence the step exists to prevent. This was the root
-cause fixed under issue #57.
+So on such a harness a single shadow subagent told to run the engine reaches Phase 3, finds it
+cannot launch the reviewer fan-out, and **silently flattens to a degraded single-agent self-check**
+that returns a plausible clean `APPROVE`. The audit never actually runs — and a degraded self-check
+re-deriving the loop's own answer is the exact false-convergence the step exists to prevent. This
+was the danger investigated under issue #57 — real, but wrongly recorded as a fixed harness
+property; the actual constraint is cross-harness portability, which warrants keeping the shadow to a
+single subagent layer.
+
+### Nested dispatch across harnesses (the single home of this table)
+
+This page is the one place the cross-harness picture and the version facts below are recorded; the
+other internal pages point here rather than restate them.
+
+| harness | nested dispatch |
+|---|---|
+| Claude Code | yes, default depth 3 |
+| Copilot CLI | yes, default depth 4 |
+| Cursor >=2.5 | yes, capped at exactly 2 launch levels |
+| Codex CLI v2 | undocumented |
+| VS Code Copilot | only with `chat.subagents.allowInvocationsFromSubagents`, off by default |
+| Gemini CLI | no — documented hard block |
+
+Version facts (Claude Code): v2.1.217 disabled nested dispatch by default; v2.1.219 re-enabled it at
+depth 3, controlled by `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` (counting layers below the main
+conversation; a value of 1 disables). Because the capability varies by harness and by version, the
+one-subagent-layer rule is a portability floor rather than a claim that nesting never works.
 
 **The fix: the PARENT orchestrator runs the shadow fan-out itself.** The parent *can* dispatch
 subagents, so it re-runs `/prflow:review`'s Phases 0 through 4.3 inline — resolving the engine

@@ -27,20 +27,26 @@
     },
     "providers": {
       "type": "object",
-      "description": "OPT-IN, BEST-EFFORT third-party model providers for the CLOUD tier (issue #313). A named map of Anthropic-compatible endpoints — a hosted model gateway, or a self-run proxy exposing Anthropic's message API — that the devflow / prflow_implement / prflow_runner sections can each route to via their own `provider` key. With no providers map and no per-section `provider`, cloud behavior matches the Anthropic-OAuth default (unchanged for a given `claude_model`; the runner's default-path model now resolves from base-ref config). The provider API credential is NOT named here — it is always the fixed repository secret DEVFLOW_PROVIDER_API_KEY (kept greppable/auditable and fail-closed on absence). Anthropic does not support routing Claude Code to non-Claude models, so this is best-effort.",
+      "description": "OPT-IN, BEST-EFFORT third-party model providers for the CLOUD tier (issue #313). A named map of model provider routes that the devflow / prflow_implement / prflow_runner sections can each select via their own `provider` key. A route is either an HTTP endpoint speaking Anthropic's message API (a hosted model gateway, or a self-run proxy) or, with `auth: bedrock_api_key`, Amazon Bedrock reached with a long-lived Bedrock API key. With no providers map and no per-section `provider`, cloud behavior matches the Anthropic-OAuth default (unchanged for a given `claude_model`; the runner's default-path model now resolves from base-ref config). The provider API credential is NOT named here — it is always the fixed repository secret DEVFLOW_PROVIDER_API_KEY (kept greppable/auditable and fail-closed on absence). Anthropic does not support routing Claude Code to non-Claude models, so this is best-effort.",
       "additionalProperties": {
         "type": "object",
-        "required": ["base_url", "auth"],
+        "required": ["auth"],
         "additionalProperties": false,
+        "allOf": [
+          {
+            "if": { "required": ["auth"], "properties": { "auth": { "enum": ["bearer", "api_key"] } } },
+            "then": { "required": ["base_url"] }
+          }
+        ],
         "properties": {
           "base_url": {
             "type": "string",
-            "description": "Anthropic-compatible base URL: scheme + host + whatever path prefix your endpoint serves Anthropic's message API under. The client appends the API path (/v1/messages) itself, so this value does not include a /v1 segment of its own. Exported to the action step as ANTHROPIC_BASE_URL."
+            "description": "Anthropic-compatible base URL: scheme + host + whatever path prefix your endpoint serves Anthropic's message API under. The client appends the API path (/v1/messages) itself, so this value does not include a /v1 segment of its own. Exported to the action step as ANTHROPIC_BASE_URL. Required for `bearer` and `api_key` auth; ignored (and warned about) for `bedrock_api_key`, which reaches Bedrock via the AWS region rather than a base URL."
           },
           "auth": {
             "type": "string",
-            "enum": ["bearer", "api_key"],
-            "description": "How DEVFLOW_PROVIDER_API_KEY is presented. 'bearer' (the usual case for a hosted gateway): the key rides as the anthropic_api_key action input AND as ANTHROPIC_AUTH_TOKEN (the Authorization: Bearer header) — the documented two-slot recipe. 'api_key': the key is passed as the anthropic_api_key input only (x-api-key)."
+            "enum": ["bearer", "api_key", "bedrock_api_key"],
+            "description": "How DEVFLOW_PROVIDER_API_KEY is presented. 'bearer' (the usual case for a hosted gateway): the key rides as the anthropic_api_key action input AND as ANTHROPIC_AUTH_TOKEN (the Authorization: Bearer header) — the documented two-slot recipe. 'api_key': the key is passed as the anthropic_api_key input only (x-api-key). 'bedrock_api_key': the key is a long-lived Amazon Bedrock API key, exported as AWS_BEARER_TOKEN_BEDROCK and passed with the use_bedrock action input so the run reaches Amazon Bedrock (not an Anthropic endpoint); this arm needs no base_url and requires AWS_REGION in the entry's env map."
           },
           "timeout_ms": {
             "type": "integer",
@@ -125,6 +131,11 @@
           "type": "boolean",
           "default": false,
           "description": "Opt-in: on the cloud-tier WRITER runs (/prflow:implement's claude job and /prflow:review-and-fix's command job), author the agent's git commits as the human who triggered the run, so `git blame`/history show the responsible human — parity with local runs. Default FALSE; when false or absent, commits are authored exactly as today (byte-for-byte unchanged). Read at TRIGGER time from a trusted default-branch checkout, so its effect is POST-MERGE-ONLY: a value present only in a PR head has no effect on that PR's own run. HUMANS ONLY, fail-safe: identity is emitted only for a GitHub `.type == \"User\"` login that does not carry the `[bot]` suffix; any other type, a `[bot]` login, or a type that cannot be established falls back to current authorship with a warning. The read-only review tier (devflow-runner.yml) never commits and is untouched. Needs NO new credential — commit author/committer is git metadata, independent of the push token (which stays the App/github-actions[bot] identity). Fail-open: attribution is advisory and never fails or gates the run. Posting the review AS the human and the PR opened-by identity are out of scope (they require a per-user credential)."
+        },
+        "publish_model_effort": {
+          "type": "boolean",
+          "description": "Whether the PRFlow provenance line (rendered by scripts/render-pr-provenance-line.py) names the session model and reasoning effort alongside the plugin version, for every command that emits the line — the /prflow:implement draft-PR line and the /prflow:create-issue issue line alike. true (the default) publishes the model and effort clause when those values can be established; the plugin version is always emitted whatever this key holds. Set to an explicit JSON false to suppress the model and effort clause (version only) for a repository that does not wish to publish its model configuration. The helper reads this key directly from the checked-out working-tree config in Python (mirroring scripts/workpad.py), NOT via config-get.sh, so suppression is detected as a raw JSON boolean false — an explicit false switches the clause off, while a missing key, empty string, or any other value leaves it enabled (the truthy-default direction). Read at RUN time from the working tree. This key supersedes the former per-command key in the prflow_implement section, which is now read by nothing.",
+          "default": true
         }
       }
     },
@@ -169,11 +180,6 @@
         "update_branch_checkpoints": {
           "type": "boolean",
           "description": "Master switch for the base-branch update checkpoints (issue #448). true (the default) brings the feature branch up to date with base_branch at four checkpoints of a /prflow:implement run \u2014 the end of Phase 1.4 (every \u00a71.4 arm since issue #779 \u2014 new branch, adopted branch, and landed resume alike), pre-draft-PR (Phase 3.1), each fix iteration + loop exit of the review-and-fix loop under --push-each-iteration (Checkpoint 3), and pre-ready (Phase 4.3) \u2014 via scripts/update-branch-checkpoint.sh, so every state the merge gate or an auto-review consumes is current, including the terminal pushed state. This same key also governs the checkpoint inside a standalone /prflow:review-and-fix --push-each-iteration run. Disabled exactly when the value serializes to the string 'false' via config-get.sh \u2014 an explicit JSON false, the JSON string \"false\", or [false] (arrays comma-join); a missing key, empty string, or any other value leaves the checkpoints enabled (issue #312 valid-falsy discipline). A consumer repo without an up-to-date branch-protection rule keeps working unchanged apart from ordinary base merges on feature branches.",
-          "default": true
-        },
-        "publish_model_effort": {
-          "type": "boolean",
-          "description": "Whether the /prflow:implement draft-PR provenance line (rendered by scripts/render-pr-provenance-line.py in Phase 3.1) names the session model and reasoning effort alongside the plugin version. true (the default) publishes the model and effort clause when those values can be established; the plugin version is always emitted whatever this key holds. Set to an explicit JSON false to suppress the model and effort clause (version only) for a repository that does not wish to publish its model configuration. The helper reads this key directly from the checked-out working-tree config in Python (mirroring scripts/workpad.py), NOT via config-get.sh, so the suppression is detected as a raw JSON boolean false — an explicit false switches the clause off, while a missing key, empty string, or any other value leaves it enabled (the truthy-default direction). Read at RUN time from the working tree (not the trigger-time extract step of devflow-implement.yml), so a repository that changes it sees the change in the same run.",
           "default": true
         },
         "stall_backstop": {

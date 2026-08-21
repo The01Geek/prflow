@@ -998,7 +998,7 @@ Step 6 (`patterns-full.json`) — every pattern with its lifecycle status
 suppressed and below-threshold ones:
 
 ```bash
-ANALYZED_JSON="$($LIB/../scripts/run-jq.sh -sc '[.[] | select(.verdict == "imperfect" or .verdict == "blocked") | {pr, verdict, summary}]' .prflow/tmp/new-entries.jsonl)"
+ANALYZED_JSON="$($LIB/../scripts/run-jq.sh -sc -f "$LIB/analyzed-digest.jq" .prflow/tmp/new-entries.jsonl)"
 # The report's `.patterns` is the UNFILTERED whole-pattern view (patterns-full.json),
 # not the filtered actionable list, or the report reads like a quiet week.
 # Annotate that view with each pattern's filing outcome and, where a cap withheld it,

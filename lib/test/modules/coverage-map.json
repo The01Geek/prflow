@@ -7,6 +7,10 @@
       "note": "issue #788 retrospective issue-closure lifecycle",
       "owner": "retrospective-lifecycle"
     },
+    "lib/analyzed-digest.jq": {
+      "note": "issue #1870 Step-9 Analyzed PRs digest filter",
+      "owner": "retrospective-lifecycle"
+    },
     "lib/audit-bundle-selection.sh": {
       "note": "issue #894 Stage B occurrence-bundle cap validation + most-recent-N selection",
       "owner": "retrospective-lifecycle"
@@ -67,10 +71,6 @@
       "note": "issue #927 name-agnostic plugin identity: compiles the baked discriminator regions",
       "owner": "unmodularized"
     },
-    "lib/generate-terminal-result-table.py": {
-      "note": "issue #1273 independent Python oracle + generator of the terminal-result total mapping table (lib/terminal-result-table.tsv); its --check is a regenerate row in lib/test/regenerate-artifacts.py, and the terminal-result-class module cross-checks the generated table against scripts/terminal-result-class.sh over the full input cross-product",
-      "owner": "terminal-result-class"
-    },
     "lib/implement-stop-guard.sh": {
       "note": "",
       "owner": "unmodularized"
@@ -125,6 +125,10 @@
     },
     "lib/recurring-targets.sh": {
       "note": "",
+      "owner": "unmodularized"
+    },
+    "lib/refresher-sign.sh": {
+      "note": "issue #1882 shared openssl-free JWT-signing call (devflow_sign_jwt) for the mint and self-test; exercised via the mint in the #1882 arms of the #487 run.sh block and directly by the refresher-selftest arms there",
       "owner": "unmodularized"
     },
     "lib/render-report.sh": {
@@ -474,11 +478,6 @@
       "note": "issue #1209 implement runtime-context eval; maintainer-only instrument, tested directly by lib/test/test_implement_context_eval.py (serial)",
       "owner": "unmodularized"
     },
-    "scripts/import-review-verdict-handoff.py": {
-      "focused_test": "lib/test/test_import_review_verdict_handoff.py",
-      "note": "issue #1314 trusted-emitter review-verdict handoff importer (the untrusted-input validation trust boundary); accepted shape + full rejection matrix driven by lib/test/test_import_review_verdict_handoff.py",
-      "owner": "unmodularized"
-    },
     "scripts/import-workflow-transcript.py": {
       "focused_test": "lib/test/test_workflow_flight_recorder.py",
       "note": "",
@@ -636,6 +635,10 @@
       "note": "",
       "owner": "unmodularized"
     },
+    "scripts/refresher-selftest.sh": {
+      "note": "issue #1882 pre-launch credential-refresher self-test (3-arm signer gate); driven by the #1882 arms in the #487 run.sh block",
+      "owner": "unmodularized"
+    },
     "scripts/render-audit-prompt.py": {
       "note": "issue #600 create-issue Step 3.6 audit-prompt renderer; driven by lib/test/test_render_audit_prompt.py + the #600 block in the harness-python-guards module",
       "owner": "harness-python-guards"
@@ -650,7 +653,7 @@
     },
     "scripts/render-pr-provenance-line.py": {
       "focused_test": "lib/test/test_python_scripts.py",
-      "note": "issue #1655 draft-PR provenance-line renderer; always exits 0, prints one backtick-free line (version from the beside-helper manifest, model from the session transcript's most-recent assistant record never resolvedModel, effort from CLAUDE_EFFORT, model+effort gated by prflow_implement.publish_model_effort). Driven directly in lib/test/test_python_scripts.py over rendering, the config six-shape matrix, the transcript JSON-Lines matrix, and the phase-file lint/profile contract assertions",
+      "note": "issue #1655/#1809 shared provenance-line renderer; takes the command name via a required --command argument and prints one backtick-free italic line naming it (version from the beside-helper manifest, model from the session transcript's most-recent assistant record never resolvedModel, effort from CLAUDE_EFFORT, model+effort gated by prflow.publish_model_effort). Exits 0 in every case except a missing required --command argument, which is an argparse usage error (usage to stderr, nothing to stdout, non-zero exit). Driven directly in lib/test/test_python_scripts.py over rendering for both command values, the config six-shape matrix, the transcript JSON-Lines matrix, and the phase-file lint/profile contract assertions",
       "owner": "unmodularized"
     },
     "scripts/render-prompt-extension.sh": {
@@ -698,6 +701,11 @@
       "note": "issue #671 bounded-retry/backoff wrapper extracted from ci.yml's CLI install step",
       "owner": "unmodularized"
     },
+    "scripts/review-context-eval.py": {
+      "focused_test": "lib/test/test_review_context_eval.py",
+      "note": "issue #1852 review-engine per-context read eval; maintainer-only instrument, tested directly by lib/test/test_review_context_eval.py (serial)",
+      "owner": "unmodularized"
+    },
     "scripts/route-guard-counts-outcome.sh": {
       "note": "issue #908 review Important #2: RGC_RC/FIRED -> counts outcome routing out of devflow-runner.yml's guard step",
       "owner": "unmodularized"
@@ -732,6 +740,11 @@
     },
     "scripts/seed-review-progress.sh": {
       "note": "review live-progress seed find-or-create helper; driven per PER-ARM refusal token by the #857/#871 run_sh_blocks block, whose grounded-coverage row derives the emitted token set from this file's source",
+      "owner": "unmodularized"
+    },
+    "scripts/sign-jwt-rs256.py": {
+      "focused_test": "lib/test/test_python_scripts.py",
+      "note": "issue #1882 openssl-free RSASSA-PKCS1-v1_5 JWT signer for the credential refresher; byte-equality against openssl + malformed-input matrix in the #1882 arms of the #487 run.sh block and unit arms in test_python_scripts.py",
       "owner": "unmodularized"
     },
     "scripts/stage-draft-write.py": {
@@ -770,10 +783,6 @@
     "scripts/telemetry-push-artifact.sh": {
       "note": "",
       "owner": "unmodularized"
-    },
-    "scripts/terminal-result-class.sh": {
-      "note": "issue #1273 pure terminal-result classifier: reconciles the workpad status class + job status (implement) and the verdict-post producer outcome (review) into the bounded terminal classes complete/blocked/incomplete and verdict-posted/incomplete, plus the success/non-success conclusion matrix; driven per arm over the generated total table lib/terminal-result-table.tsv and a per-AC hand oracle by the terminal-result-class module.",
-      "owner": "terminal-result-class"
     },
     "scripts/update-branch-checkpoint.sh": {
       "note": "",
@@ -820,7 +829,6 @@
     "lib/rename-map.json",
     "lib/review-profile.tokens",
     "lib/subagent-dispatch-sites.json",
-    "lib/terminal-result-table.tsv",
     "lib/writing-standard.md",
     "scripts/devflow-cloud-writer-contract.json",
     "scripts/workflow-flight-recorder-registry.json"
@@ -1114,10 +1122,6 @@
       "note": "",
       "owner": "review-stall-backstop"
     },
-    "1273": {
-      "note": "",
-      "owner": "terminal-result-class"
-    },
     "1288": {
       "note": "",
       "owner": "parallel-suite-runner"
@@ -1203,6 +1207,10 @@
       "owner": "unmodularized"
     },
     "1441": {
+      "note": "",
+      "owner": "unmodularized"
+    },
+    "1443": {
       "note": "",
       "owner": "unmodularized"
     },
@@ -1410,9 +1418,17 @@
       "note": "",
       "owner": "efficiency-trace-telemetry"
     },
+    "1770": {
+      "note": "",
+      "owner": "unmodularized"
+    },
     "1772": {
       "note": "",
       "owner": "unmodularized"
+    },
+    "1803": {
+      "note": "",
+      "owner": "issue-audit-state"
     },
     "181": {
       "note": "",
@@ -1426,15 +1442,39 @@
       "note": "",
       "owner": "unmodularized"
     },
+    "1841": {
+      "note": "",
+      "owner": "issue-audit-state"
+    },
     "185": {
       "note": "",
       "owner": "unmodularized"
+    },
+    "1852": {
+      "note": "",
+      "owner": "unmodularized"
+    },
+    "1858": {
+      "note": "",
+      "owner": "review-stall-backstop"
     },
     "186": {
       "note": "",
       "owner": "unmodularized"
     },
+    "1863": {
+      "note": "",
+      "owner": "review-trigger-helpers"
+    },
     "187": {
+      "note": "",
+      "owner": "unmodularized"
+    },
+    "1870": {
+      "note": "",
+      "owner": "retrospective-lifecycle"
+    },
+    "1882": {
       "note": "",
       "owner": "unmodularized"
     },
