@@ -14333,6 +14333,109 @@ assert_eq "#1030 union: a devflow:review-verdict spelling is not a marker" "" \
 # A non-string body still skips the entry rather than aborting the marker filter.
 assert_eq "#1030 union: a non-string body skips without aborting the marker scan" "REJECT" \
   "$(_uv '[]' "$(jq -nc --arg b "$UVM_REJECT" '[{state:"COMMENTED",body:5,submitted_at:"2026-01-01T00:00:00Z"},{state:"COMMENTED",body:$b,submitted_at:"2026-01-02T00:00:00Z"}]')" | _uv_verds)"
+# ── #1443: the bot-only third rung + the unparsed-artifact count ─────────────
+# Four verdict shapes measured in this repository's own merged pull requests that
+# rungs 1 and 2 both miss, plus the count that names what still gets missed. Every
+# assertion runs the REAL producer through the stub.
+_uv_unparsed() { jq -r '.review_verdict_unparsed_count'; }
+_uv_shape()    { jq -r '"\(.review_verdicts | length) \(.review_verdict_unparsed_count)"'; }
+# $1 = body → a one-artifact comments / reviews payload authored by a [bot] login.
+_uv_botc() { jq -nc --arg b "$1" '[{user:{login:"github-actions[bot]"},body:$b,created_at:"2026-01-01T00:00:00Z"}]'; }
+_uv_botr() { jq -nc --arg b "$1" '[{user:{login:"github-actions[bot]"},state:"COMMENTED",body:$b,submitted_at:"2026-01-01T00:00:00Z"}]'; }
+UV3_S1='## ✅ Devflow Review — APPROVE'
+UV3_S2='**Devflow Review: APPROVE** ✅'
+UV3_S3='## Verdict'$'\n\n''**APPROVE** ✅'
+UV3_S4='**Verdict: ✅ REJECT**'
+# The closed four-shape set, through the comment leg and the review leg alike.
+assert_eq "#1443 rung3: heading with no Verdict: literal (comment leg)" "APPROVE" \
+  "$(_uv "$(_uv_botc "$UV3_S1")" '[]' | _uv_verds)"
+assert_eq "#1443 rung3: heading with no Verdict: literal (review leg)" "APPROVE" \
+  "$(_uv '[]' "$(_uv_botr "$UV3_S1")" | _uv_verds)"
+assert_eq "#1443 rung3: bold non-heading verdict line (comment leg)" "APPROVE" \
+  "$(_uv "$(_uv_botc "$UV3_S2")" '[]' | _uv_verds)"
+assert_eq "#1443 rung3: bold non-heading verdict line (review leg)" "APPROVE" \
+  "$(_uv '[]' "$(_uv_botr "$UV3_S2")" | _uv_verds)"
+assert_eq "#1443 rung3: Verdict heading, token on a later line (comment leg)" "APPROVE" \
+  "$(_uv "$(_uv_botc "$UV3_S3")" '[]' | _uv_verds)"
+assert_eq "#1443 rung3: Verdict heading, token on a later line (review leg)" "APPROVE" \
+  "$(_uv '[]' "$(_uv_botr "$UV3_S3")" | _uv_verds)"
+assert_eq "#1443 rung3: emoji between Verdict: and the token (comment leg)" "REJECT" \
+  "$(_uv "$(_uv_botc "$UV3_S4")" '[]' | _uv_verds)"
+assert_eq "#1443 rung3: emoji between Verdict: and the token (review leg)" "REJECT" \
+  "$(_uv '[]' "$(_uv_botr "$UV3_S4")" | _uv_verds)"
+# The login gate: a non-[bot] author never reaches the new rung, whatever the shape.
+assert_eq "#1443 rung3: a non-bot login contributes nothing through the new rung" "0 1" \
+  "$(_uv "$(jq -nc --arg b "$UV3_S1" '[{user:{login:"octocat"},body:$b,created_at:"2026-01-01T00:00:00Z"}]')" '[]' | _uv_shape)"
+# Rung 1 wins outright: a marked body carrying an opposite-verdict shape below it
+# contributes the MARKER's verdict once, and the new rung is not consulted.
+assert_eq "#1443 rung3: a valid marker pre-empts the new rung (opposite shape below)" "1-APPROVE" \
+  "$(_uv '[]' "$(_uv_botr "$UVM_APPROVE"$'\n'"$UV3_S4")" | jq -r '"\(.review_verdicts | length)-\(.review_verdicts[0].verdict)"')"
+# The count: 0 with nothing to scan, 0 when everything parsed, 1 for one miss.
+assert_eq "#1443 count: no comments and no reviews → 0" "0" \
+  "$(_uv '[]' '[]' | _uv_unparsed)"
+assert_eq "#1443 count: every verdict-bearing artifact parsed → 0" "0" \
+  "$(_uv "$(_uv_botc "$UV3_S1")" '[]' | _uv_unparsed)"
+assert_eq "#1443 count: exactly one unparsed verdict-bearing artifact → 1" "0 1" \
+  "$(_uv "$(_uv_botc "APPROVE"$'\n'"REJECT"$'\n'"third")" '[]' | _uv_shape)"
+# The closed malformed-payload set: the filter keeps running and the bundle is emitted.
+assert_eq "#1443 malformed: comments payload is a JSON object" "0 0" \
+  "$(_uv '{"a":1}' '[]' | _uv_shape)"
+assert_eq "#1443 malformed: comments payload is a JSON string" "0 0" \
+  "$(_uv '"hello"' '[]' | _uv_shape)"
+assert_eq "#1443 malformed: body is null" "0 0" \
+  "$(_uv '[{"user":{"login":"x[bot]"},"body":null,"created_at":"2026-01-01T00:00:00Z"}]' '[]' | _uv_shape)"
+assert_eq "#1443 malformed: body is a number" "0 0" \
+  "$(_uv '[{"user":{"login":"x[bot]"},"body":5,"created_at":"2026-01-01T00:00:00Z"}]' '[]' | _uv_shape)"
+assert_eq "#1443 malformed: no body key" "0 0" \
+  "$(_uv '[{"user":{"login":"x[bot]"},"created_at":"2026-01-01T00:00:00Z"}]' '[]' | _uv_shape)"
+assert_eq "#1443 malformed: no user key" "0 0" \
+  "$(_uv '[{"body":"nothing to read here","created_at":"2026-01-01T00:00:00Z"}]' '[]' | _uv_shape)"
+assert_eq "#1443 malformed: user is null" "0 0" \
+  "$(_uv '[{"user":null,"body":"nothing to read here","created_at":"2026-01-01T00:00:00Z"}]' '[]' | _uv_shape)"
+assert_eq "#1443 malformed: user.login is an empty string" "0 0" \
+  "$(_uv '[{"user":{"login":""},"body":"nothing to read here","created_at":"2026-01-01T00:00:00Z"}]' '[]' | _uv_shape)"
+# The entry key set is unchanged, and the count feeds nothing: a rung-3 REJECT still
+# drives review_reject_outstanding through review_verdicts alone.
+assert_eq "#1443 entries still carry EXACTLY verdict/createdAt/source" "true" \
+  "$(_uv "$(_uv_botc "$UV3_S4")" '[]' | jq -r 'all(.review_verdicts[]; (keys | sort) == ["createdAt","source","verdict"])')"
+assert_eq "#1443 a rung-3 REJECT sets review_reject_outstanding=true" "true" \
+  "$(_uv "$(_uv_botc "$UV3_S4")" '[]' | _uv_rro)"
+assert_eq "#1443 an unparsed artifact alone never sets review_reject_outstanding" "false" \
+  "$(_uv "$(_uv_botc "APPROVE"$'\n'"REJECT"$'\n'"third")" '[]' | _uv_rro)"
+# The superseded devflow: spelling is accepted nowhere — not by rung 1, and not by
+# the new rung reading the token out of the marker comment line.
+assert_eq "#1443 a devflow:review-verdict line is not a verdict, even for a bot" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "<!-- devflow:review-verdict head=$UVM_HEAD verdict=REJECT -->")" | _uv_shape)"
+# Adversarial: the new grammar quoted inside a finding, below the scanned window.
+assert_eq "#1443 rung3: the grammar quoted below line 30 contributes nothing" "0 0" \
+  "$(_uv '[]' "$(_uv_botr "$(jq -nr '[range(30)|"filler"] + ["```","## Verdict","APPROVE","```","> **Verdict: REJECT**"] | join("\n")')")" | _uv_shape)"
+# Boundary: the scan window is the first 30 lines, inclusive. The probe line carries
+# no `Verdict:` literal, so rung 2 — which scans every line — cannot answer for it, and
+# the padding is blank so the line stays inside sub-rung 2's first-three-non-blank set.
+assert_eq "#1443 rung3: a token on line 30 is read" "APPROVE" \
+  "$(_uv '[]' "$(_uv_botr "$(jq -nr '[range(29)|""] + ["## ✅ Devflow Review — APPROVE"] | join("\n")')")" | _uv_verds)"
+assert_eq "#1443 rung3: the same token on line 31 is neither read nor counted" "0 0" \
+  "$(_uv '[]' "$(_uv_botr "$(jq -nr '[range(30)|""] + ["## ✅ Devflow Review — APPROVE"] | join("\n")')")" | _uv_shape)"
+# Boundary: the heading lookahead skips blank lines but stops at another heading.
+assert_eq "#1443 rung3: Verdict heading resolves across blank lines" "APPROVE" \
+  "$(_uv '[]' "$(_uv_botr "one"$'\n'"two"$'\n'"three"$'\n\n'"## Verdict"$'\n\n\n\n'"**APPROVE** ✅")" | _uv_verds)"
+assert_eq "#1443 rung3: Verdict heading followed by another heading does not resolve" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "one"$'\n'"two"$'\n'"three"$'\n\n'"## Verdict"$'\n\n'"## Findings"$'\n'"APPROVE")" | _uv_shape)"
+# Multiplicity and ordering: two artifacts matching different sub-rungs, timestamp
+# order preserved, and an untimestamped entry appended after the partition.
+assert_eq "#1443 rung3: two artifacts, different sub-rungs → timestamp order" "APPROVE REJECT" \
+  "$(_uv '[]' "$(jq -nc --arg a "$UV3_S1" --arg r "$UV3_S4" '[{user:{login:"b[bot]"},state:"COMMENTED",body:$a,submitted_at:"2026-01-01T00:00:00Z"},{user:{login:"b[bot]"},state:"COMMENTED",body:$r,submitted_at:"2026-01-02T00:00:00Z"}]')" | _uv_verds)"
+assert_eq "#1443 rung3: an untimestamped entry lands after the timestamped partition" "REJECT APPROVE" \
+  "$(_uv '[]' "$(jq -nc --arg a "$UV3_S1" --arg r "$UV3_S4" '[{user:{login:"b[bot]"},state:"COMMENTED",body:$a,submitted_at:null},{user:{login:"b[bot]"},state:"COMMENTED",body:$r,submitted_at:"2026-01-02T00:00:00Z"}]')" | _uv_verds)"
+# Absence: an empty body and a blank-only body each contribute nothing and count nothing.
+assert_eq "#1443 rung3: an empty body contributes nothing and raises no count" "0 0" \
+  "$(_uv '[]' "$(_uv_botr "")" | _uv_shape)"
+assert_eq "#1443 rung3: a blank-only body contributes nothing and raises no count" "0 0" \
+  "$(_uv '[]' "$(_uv_botr $'\n\n\n')" | _uv_shape)"
+# Idempotency: two runs over identical payloads emit byte-identical results.
+UV3_RUN1="$(_uv "$(_uv_botc "$UV3_S3")" "$(_uv_botr "$UV3_S4")" | jq -c '{review_verdicts, review_verdict_unparsed_count}')"
+UV3_RUN2="$(_uv "$(_uv_botc "$UV3_S3")" "$(_uv_botr "$UV3_S4")" | jq -c '{review_verdicts, review_verdict_unparsed_count}')"
+assert_eq "#1443 rung3: the extraction is idempotent over identical payloads" "$UV3_RUN1" "$UV3_RUN2"
 rm -rf "$F895"
 
 # ────────────────────────────────────────────────────────────────────────────
