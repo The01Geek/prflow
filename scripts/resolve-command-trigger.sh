@@ -177,11 +177,13 @@ if [ "$authorized" != "true" ]; then
 fi
 
 # --- Target number resolution -----------------------------------------------
-# The detector already returned the explicit number on the matched standalone
-# command line (optional leading #), if any; else fall back to the event's
-# context number.
-number="$det_number"
-[ -z "$number" ] && number="$context_number"
+# A light command addresses the THREAD it was commented on: discard the detector's
+# trailing number, use $context_number, and name both numbers on stderr when one is
+# discarded. Bash builtins only — this value decides where a write lands (issue #1863).
+if [ -n "$det_number" ]; then
+  echo "::warning::${cmd} carries a trailing number ${det_number}, but a light command addresses the thread it was posted on; ignoring ${det_number} and using the thread's number ${context_number:-<none>}." >&2
+fi
+number="$context_number"
 
 if ! [[ "$number" =~ ^[0-9]+$ ]]; then
   echo "::warning::Could not resolve an issue/PR number for ${cmd}; skipping." >&2

@@ -1,1 +1,22 @@
-[]
+[
+  {
+    "half": "files",
+    "key": "lib/generate-terminal-result-table.py",
+    "reason": "deleted by PR #1862 (issue #1859): the unwired terminal-result classifier's table generator was removed along with the classifier"
+  },
+  {
+    "half": "files",
+    "key": "scripts/terminal-result-class.sh",
+    "reason": "deleted by PR #1862 (issue #1859): the unwired terminal-result classifier helper was removed from the tree"
+  },
+  {
+    "half": "run_sh_blocks",
+    "key": "1273",
+    "reason": "retired by PR #1862 (issue #1859): the #1273 follow-up family was dropped, so this run.sh block covering the terminal-result classifier no longer exists"
+  },
+  {
+    "half": "files",
+    "key": "scripts/import-review-verdict-handoff.py",
+    "reason": "importer deleted by PR #1864 (issue #1860): orphaned review-verdict handoff after #1385 was closed"
+  }
+]

@@ -4369,14 +4369,21 @@ RCT="$LIB/../scripts/resolve-command-trigger.sh"
 RCT_WF_DEVFLOW="$LIB/../.github/workflows/devflow.yml"
 RCT_STUB="$(mktemp -d)"; cp "$LIB/test/fixtures/gh-stub.sh" "$RCT_STUB/gh"; chmod +x "$RCT_STUB/gh"
 
-# 1. Allowed bot, /devflow:review with explicit number → review command.
+# 1. issue #1863: a light command carries a trailing number (hash-prefixed
+# spelling), but the resolver addresses the THREAD it was posted on, not the
+# typed number — the reproduction case (pre-#1863 this asserted command 42). The
+# discarded number is named on stderr alongside the thread number actually used.
+RCT_T1_ERR="$(mktemp)"
 OUT="$(PATH="$RCT_STUB:$PATH" ACTOR="devflow-bot" ALLOWED_BOTS="devflow-bot" \
   REPO="o/r" GH_TOKEN="x" CONTEXT_NUMBER="99" \
-  TRIGGER_TEXT="/devflow:review #42" bash "$RCT")"
-assert_eq "rct: review w/ explicit number → should_run" \
+  TRIGGER_TEXT="/devflow:review #42" bash "$RCT" 2>"$RCT_T1_ERR")"
+assert_eq "rct #1863: review w/ trailing number → should_run" \
   "should_run=true" "$(echo "$OUT" | grep '^should_run=')"
-assert_eq "rct: review w/ explicit number → command" \
-  "command=/prflow:review 42" "$(echo "$OUT" | grep '^command=')"
+assert_eq "rct #1863: review w/ trailing number resolves the thread, not the typed number" \
+  "command=/prflow:review 99" "$(echo "$OUT" | grep '^command=')"
+assert_eq "rct #1863: the discarded typed number is named on stderr" \
+  "1" "$(grep -c 'ignoring 42 .*using the thread.s number 99' "$RCT_T1_ERR")"
+rm -f "$RCT_T1_ERR"
 
 # 2. review-and-fix disambiguation, STANDALONE form. (Rewritten for issue #314:
 # the old assertion fed the prose-wrapped "please run /devflow:review-and-fix
@@ -4468,8 +4475,10 @@ assert_eq "rct #314: fail-closed after an unclosed fence → should_run=false" \
 rct_run "$(printf 'Here is the PR summary.\n\n/devflow:review 42\n\nthanks')"
 assert_eq "rct #314: standalone command on its own line in a multi-line body fires" \
   "should_run=true" "$(echo "$RCT_OUT" | grep '^should_run=')"
-assert_eq "rct #314: …and resolves the explicit number" \
-  "command=/prflow:review 42" "$(echo "$RCT_OUT" | grep '^command=')"; rm -f "$RCT_ERR"
+assert_eq "rct #1863: …and resolves the thread's number, not the typed one" \
+  "command=/prflow:review 99" "$(echo "$RCT_OUT" | grep '^command=')"
+assert_eq "rct #1863: …and names the discarded typed number on stderr" \
+  "1" "$(grep -c 'ignoring 42 .*using the thread.s number 99' "$RCT_ERR")"; rm -f "$RCT_ERR"
 
 # 10. Self-marker decline (defense-in-depth), asserted BEFORE authorization:
 # the review-progress marker prefix and the workpad marker each decline with a
@@ -4589,8 +4598,13 @@ OUT="$(ACTOR='foo[bot]' ALLOWED_BOTS='foo' REPO='acme/x' GH_TOKEN='x' \
   PATH="$RCT_NOSED_DIR" bash "$RCT" 2>"$RCT_NOSED_ERR")"
 assert_eq "rct #1046: sed absent → a standalone light command still fires" \
   "should_run=true" "$(echo "$OUT" | grep '^should_run=')"
-assert_eq "rct #1046: sed absent → the token's own command+number is still extracted" \
-  "command=/prflow:review 42" "$(echo "$OUT" | grep '^command=')"
+assert_eq "rct #1863: sed absent → the resolved command is the thread's number" \
+  "command=/prflow:review 7" "$(echo "$OUT" | grep '^command=')"
+# The token's OWN number (42) is still extracted from the detector's stdout by the
+# builtins parse — now proven by its appearance as the discarded number on stderr,
+# rather than by being emitted (the thread's number is emitted post-#1863).
+assert_eq "rct #1863: sed absent → the token's own number is still extracted (named as discarded)" \
+  "1" "$(grep -c 'ignoring 42 .*using the thread.s number 7' "$RCT_NOSED_ERR")"
 
 # ...and the DECLINE path emits a definite verdict rather than aborting. rc 0 +
 # a `should_run=false` line is exactly what the raw `sed` abort could not produce.
@@ -4644,6 +4658,49 @@ assert_eq "rct #1046: detector emitting no command= line → should_run=false (f
 assert_eq "rct #1046: detector emitting no command= line → a distinct output-contract ::warning::" \
   "1" "$(grep -c "emitted no 'command=' line" "$RCT_BADDET_ERR")"
 rm -rf "$RCT_BADDET_DIR"; rm -f "$RCT_BADDET_ERR" "$RCT_BADDET_OUT"
+
+# 15. issue #1863: the thread-addressing rule holds for the plain spelling and
+# for all three light commands, the discard line fires even when the typed number
+# equals the thread's own, and a command carrying no number still resolves to the
+# thread (the common, unchanged case).
+rct_run "/devflow:review 42"                     # plain (no #) spelling
+assert_eq "rct #1863: plain-spelling trailing number → thread's number" \
+  "command=/prflow:review 99" "$(echo "$RCT_OUT" | grep '^command=')"
+assert_eq "rct #1863: plain-spelling → discarded number named on stderr" \
+  "1" "$(grep -c 'ignoring 42 .*using the thread.s number 99' "$RCT_ERR")"; rm -f "$RCT_ERR"
+rct_run "/devflow:review-and-fix #42"
+assert_eq "rct #1863: review-and-fix trailing number → thread's number" \
+  "command=/prflow:review-and-fix 99" "$(echo "$RCT_OUT" | grep '^command=')"
+assert_eq "rct #1863: review-and-fix → discarded number named on stderr" \
+  "1" "$(grep -c 'ignoring 42 .*using the thread.s number 99' "$RCT_ERR")"; rm -f "$RCT_ERR"
+rct_run "/devflow:pr-description 42"
+assert_eq "rct #1863: pr-description trailing number → thread's number" \
+  "command=/prflow:pr-description 99" "$(echo "$RCT_OUT" | grep '^command=')"
+assert_eq "rct #1863: pr-description → discarded number named on stderr" \
+  "1" "$(grep -c 'ignoring 42 .*using the thread.s number 99' "$RCT_ERR")"; rm -f "$RCT_ERR"
+rct_run "/devflow:review 99"                      # typed number equals the thread's own
+assert_eq "rct #1863: typed number equal to the thread's still discards to the thread" \
+  "command=/prflow:review 99" "$(echo "$RCT_OUT" | grep '^command=')"
+assert_eq "rct #1863: …and still names the discard on stderr" \
+  "1" "$(grep -c 'ignoring 99 .*using the thread.s number 99' "$RCT_ERR")"; rm -f "$RCT_ERR"
+rct_run "/devflow:review"                          # no trailing number: resolves the thread, as today
+assert_eq "rct #1863: no trailing number → thread's number (unchanged)" \
+  "command=/prflow:review 99" "$(echo "$RCT_OUT" | grep '^command=')"
+assert_eq "rct #1863: no trailing number → no discard line on stderr" \
+  "0" "$(grep -c 'addresses the thread it was posted on' "$RCT_ERR")"; rm -f "$RCT_ERR"
+# A trailing number with NO context/thread number: the thread is the sole source, so
+# the resolver declines (should_run=false) and the discard line renders the used
+# number as <none> via ${context_number:-<none>} — the widened decline path. Driven
+# with a direct empty CONTEXT_NUMBER (rct_run's `${2:-99}` would coerce "" back to 99).
+RCT_NC_ERR="$(mktemp)"
+OUT="$(PATH="$RCT_STUB:$PATH" ACTOR="devflow-bot" ALLOWED_BOTS="devflow-bot" \
+  REPO="o/r" GH_TOKEN="x" CONTEXT_NUMBER="" \
+  TRIGGER_TEXT="/devflow:review 42" bash "$RCT" 2>"$RCT_NC_ERR")"
+assert_eq "rct #1863: trailing number + no context number → declines" \
+  "should_run=false" "$(echo "$OUT" | grep '^should_run=')"
+assert_eq "rct #1863: …and the discard line renders the thread number as <none>" \
+  "1" "$(grep -c 'ignoring 42 .*using the thread.s number <none>' "$RCT_NC_ERR")"
+rm -f "$RCT_NC_ERR"
 
 rm -rf "$RCT_STUB"
 

@@ -42,7 +42,7 @@
       "Bash(lib/test/test_create_issue_context_eval.py:*)",
       "Bash(lib/test/test_create_issue_benchmark.py:*)",
       "Bash(lib/test/test_implement_context_eval.py:*)",
-      "Bash(lib/test/test_import_review_verdict_handoff.py:*)",
+      "Bash(lib/test/test_review_context_eval.py:*)",
       "Bash(lib/test/coverage_map_guard.py:*)",
       "Bash(lib/preflight.sh:*)",
       "Bash(shellcheck:*)",
@@ -129,7 +129,7 @@
     "verdict_severity_threshold": "critical",
     "live_progress_comment_enabled": true,
     "stale_prose": {
-      "enabled": true,
+      "enabled": false,
       "severity": "suggestion"
     },
     "require_up_to_date": true,

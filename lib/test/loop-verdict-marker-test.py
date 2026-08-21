@@ -36,8 +36,7 @@ HELPER = str(Path(__file__).resolve().parent.parent.parent / "scripts" / "loop-v
 # Import the helper's own constants, so the clean/non-clean split is the helper's and a
 # drifted transcription goes RED below. The subprocess drives remain the behavioural surface;
 # this import exists only to read the vocabulary, and the hyphenated filename is why it
-# goes through spec_from_file_location (the idiom lib/test/test_import_review_verdict_handoff.py
-# already uses for a hyphen-named script).
+# goes through spec_from_file_location (the standard idiom for importing a hyphen-named script).
 _spec = importlib.util.spec_from_file_location("loop_verdict_marker", HELPER)
 assert _spec and _spec.loader
 helper = importlib.util.module_from_spec(_spec)

@@ -1232,12 +1232,50 @@ jobs:
           # step runs right after `vendor-plugin` on the same sequential job, so the
           # vendored path is always present — a fallback would be dead code. Do NOT add
           # one in a wrong-direction "reconcile" with the Stop step.
+          # Job-scoped state (issue #1882): so a later job on this runner never reads or
+          # retires another job's token file/pidfile/log, and the loop retires itself
+          # once its job is no longer the runner's current one (the pointer below).
+          HANDLE="${GITHUB_RUN_ID:-0}-${GITHUB_RUN_ATTEMPT:-0}-${GITHUB_JOB:-job}"
+          PTR="$RUNNER_TEMP/devflow-refresh.current-job"
+          PID="$RUNNER_TEMP/devflow-refresh-$HANDLE.pid"
+          TOK="$RUNNER_TEMP/devflow-gh-token-$HANDLE"
+          LOG="$RUNNER_TEMP/devflow-refresh-$HANDLE.log"
+          STMARK="$RUNNER_TEMP/devflow-refresh-$HANDLE.selftest-failed"
+          printf '%s' "$HANDLE" > "$PTR"
+          rm -f "$STMARK" 2>/dev/null || true
+          # Publish the job-scoped paths to later steps: gh-fresh reads the token file,
+          # the teardown reads the pidfile/log/self-test marker/job pointer.
+          {
+            echo "DEVFLOW_GH_TOKEN_FILE=$TOK"
+            echo "DEVFLOW_REFRESH_PIDFILE=$PID"
+            echo "DEVFLOW_REFRESH_LOG=$LOG"
+            echo "DEVFLOW_REFRESH_SELFTEST_FAILED=$STMARK"
+            echo "DEVFLOW_REFRESH_JOB_POINTER=$PTR"
+          } >> "$GITHUB_ENV"
+          # Pre-launch self-test (issue #1882): sign a throwaway input with the real key
+          # BEFORE the agent launches, so a host that cannot sign is loud immediately
+          # rather than after the token's hour. A signer that refuses the key, or an
+          # unresolved/too-old interpreter, FAILS THE JOB here (set -e on the non-zero
+          # exit); an absent signer helper (older vendored slice) is warn-and-continue.
+          # Told apart by the helper's presence and exit status, never by its output.
+          SELFTEST=.prflow/vendor/prflow/scripts/refresher-selftest.sh
+          if [ -f "$SELFTEST" ]; then
+            printf '%s' "$DEVFLOW_APP_PRIVATE_KEY" \
+              | DEVFLOW_REFRESH_SELFTEST_FAILED="$STMARK" bash "$SELFTEST"
+          else
+            echo "::warning::credential refresher self-test skipped: no signer helper in this vendored plugin slice (older pin) — launching without a pre-flight signer check"
+          fi
+          # Detached loop. env -u drops the PEM from the long-lived process's environ;
+          # the job-scoped paths + pointer are passed DIRECTLY (GITHUB_ENV reaches only
+          # LATER steps, not this backgrounded subprocess). Key on stdin, never argv/disk.
           printf '%s' "$DEVFLOW_APP_PRIVATE_KEY" \
             | env -u DEVFLOW_APP_PRIVATE_KEY \
+                DEVFLOW_REFRESH_JOB_ID="$HANDLE" DEVFLOW_REFRESH_JOB_POINTER="$PTR" \
+                DEVFLOW_REFRESH_PIDFILE="$PID" DEVFLOW_REFRESH_TOKEN_FILE="$TOK" \
                 nohup bash .prflow/vendor/prflow/scripts/refresh-app-credentials.sh loop \
-                >"$RUNNER_TEMP/devflow-refresh.log" 2>&1 &
+                >"$LOG" 2>&1 &
           disown || true
-          echo "credential refresher started (detached); log: $RUNNER_TEMP/devflow-refresh.log"
+          echo "credential refresher started (detached); log: $LOG"
 
       # Body delegated to the checked-in seven-output-validated installer (issue
       # #533) — see devflow-implement.yml's install-step comment for the full
@@ -1281,13 +1319,13 @@ jobs:
               (if (($cfg.providers) | type) == "object" then $cfg.providers else {} end) as $provs
               | if (($provs[$praw]) | type) != "object" then
                   {error:"undefined_provider", section:$section, provider:$praw, detail:"provider is not defined in the providers map"}
-                elif ((($provs[$praw].base_url) | type) != "string" or ($provs[$praw].base_url == "")) then
+                elif (($provs[$praw].auth) as $a | ($a != "bearer" and $a != "api_key" and $a != "bedrock_api_key")) then
+                  {error:"incomplete_provider", section:$section, provider:$praw, detail:"provider auth must be one of bearer, api_key, bedrock_api_key"}
+                elif (($provs[$praw].auth) as $a | (($a == "bearer" or $a == "api_key") and ((($provs[$praw].base_url) | type) != "string" or ($provs[$praw].base_url == "")))) then
                   {error:"incomplete_provider", section:$section, provider:$praw, detail:"provider entry has no base_url"}
-                elif (($provs[$praw].auth) as $a | ($a != "bearer" and $a != "api_key")) then
-                  {error:"incomplete_provider", section:$section, provider:$praw, detail:"provider auth must be bearer or api_key"}
                 else
                   ($provs[$praw]) as $p
-                  | {provider:$praw, base_url:$p.base_url, auth:$p.auth, timeout_ms:($p.timeout_ms // ""), effort_supported:(($p.effort_supported // false) == true), model:$model, env:(if (($p.env) | type) == "object" then $p.env else {} end)}
+                  | {provider:$praw, base_url:(if (($p.base_url) | type) == "string" then $p.base_url else "" end), auth:$p.auth, timeout_ms:($p.timeout_ms // ""), effort_supported:(($p.effort_supported // false) == true), model:$model, env:(if (($p.env) | type) == "object" then $p.env else {} end)}
                 end
             end
           '
@@ -1304,7 +1342,7 @@ jobs:
           if [ "$(printf '%s' "$DECISION" | jq -r '.error // ""')" != "" ]; then
             PNAME=$(printf '%s' "$DECISION" | jq -r '.provider // ""')
             DETAIL=$(printf '%s' "$DECISION" | jq -r '.detail // "provider configuration is invalid"')
-            echo "::error::.prflow/config.json section '$SECTION' provider '$PNAME': $DETAIL. Fix the providers.$PNAME entry (base_url + auth: bearer|api_key) or remove the section provider key. Refusing to run."
+            echo "::error::.prflow/config.json section '$SECTION' provider '$PNAME': $DETAIL. Fix the providers.$PNAME entry or remove the section provider key. Refusing to run."
             exit 1
           fi
           # One jq pass emits every scalar decision field to the step output, each as a
@@ -1364,14 +1402,31 @@ jobs:
           # a plain KEY=VALUE line and inject/forge a further job env var. Mirrors the resolver's
           # decision<< output; the timestamped+PID delimiter makes value collision negligible.
           genv() { local d; d="ENV_EOF_$(date +%s%N)_$$"; { printf '%s<<%s\n' "$1" "$d"; printf '%s\n' "$2"; printf '%s\n' "$d"; } >> "$GITHUB_ENV"; }
-          # base_url is guaranteed non-empty by the resolver (a provider-active decision
-          # fails loud on an empty base_url), so write it unconditionally.
-          genv ANTHROPIC_BASE_URL "$BASE_URL"
+          # base_url is guaranteed non-empty by the resolver for bearer/api_key; the
+          # bedrock_api_key arm needs none and reaches Bedrock via AWS_REGION instead.
+          if [ "$AUTH" = "bedrock_api_key" ]; then
+            # AWS region is required and travels in the env map (passthrough below); fail
+            # loud when absent/empty so the run does not authenticate then die on every
+            # model call. A non-string region reads as absent (strings|select) — fail closed.
+            if ! printf '%s' "$DECISION" | jq -e '.env.AWS_REGION | strings | select(. != "")' >/dev/null 2>&1; then
+              echo "::error::.prflow/config.json section '$SECTION' provider '$PROVIDER' uses bedrock_api_key auth but its env map sets no AWS_REGION. Add AWS_REGION to providers.$PROVIDER.env (the Bedrock client requires a region). Refusing to run."
+              exit 1
+            fi
+            # base_url is unused here; warn (never fail) if one was set, and export NO
+            # ANTHROPIC_BASE_URL/ANTHROPIC_AUTH_TOKEN on this arm.
+            if [ -n "$BASE_URL" ]; then
+              echo "::warning::.prflow/config.json section '$SECTION' provider '$PROVIDER' uses bedrock_api_key auth; its base_url is ignored (Bedrock is reached via AWS_REGION, not base_url). Remove base_url from providers.$PROVIDER."
+            fi
+            genv AWS_BEARER_TOKEN_BEDROCK "$PROVIDER_API_KEY"
+          else
+            genv ANTHROPIC_BASE_URL "$BASE_URL"
+            # Bearer-token gateways read Authorization from ANTHROPIC_AUTH_TOKEN; the
+            # same key also rides as the anthropic_api_key action input below (the
+            # documented two-slot recipe). auth: api_key passes it via the input only.
+            if [ "$AUTH" = "bearer" ]; then genv ANTHROPIC_AUTH_TOKEN "$PROVIDER_API_KEY"; fi
+          fi
+          # API_TIMEOUT_MS applies to either arm, so write it once after the branch.
           if [ -n "$TIMEOUT_MS" ]; then genv API_TIMEOUT_MS "$TIMEOUT_MS"; fi
-          # Bearer-token gateways read Authorization from ANTHROPIC_AUTH_TOKEN; the
-          # same key also rides as the anthropic_api_key action input below (the
-          # documented two-slot recipe). auth: api_key passes it via the input only.
-          if [ "$AUTH" = "bearer" ]; then genv ANTHROPIC_AUTH_TOKEN "$PROVIDER_API_KEY"; fi
           # Every key of the provider env map (haiku/subagent model mappings, the
           # beta/attribution toggles, …) verbatim, each as a heredoc block. These are
           # non-secret model/config values (only the API key above is a masked secret).
@@ -1662,7 +1717,13 @@ jobs:
           # Provider path only: the fixed DEVFLOW_PROVIDER_API_KEY secret satisfies
           # the action's launch check (and, for bearer auth, is ALSO exported as
           # ANTHROPIC_AUTH_TOKEN by the inject step). Empty on the default path.
-          anthropic_api_key: ${{ steps.provider.outputs.provider != '' && secrets.DEVFLOW_PROVIDER_API_KEY || '' }}
+          # use_bedrock selects Amazon Bedrock at the action layer; it must travel as this
+          # input (not a job-env export) because the action's step-level env overrides the
+          # job env, blanking a job-env CLAUDE_CODE_USE_BEDROCK. Empty off the Bedrock arm.
+          use_bedrock: ${{ steps.provider.outputs.auth == 'bedrock_api_key' && 'true' || '' }}
+          # anthropic_api_key rides on the bearer/api_key arms; the bedrock_api_key arm
+          # passes '' here and authenticates via AWS_BEARER_TOKEN_BEDROCK.
+          anthropic_api_key: ${{ steps.provider.outputs.provider != '' && steps.provider.outputs.auth != 'bedrock_api_key' && secrets.DEVFLOW_PROVIDER_API_KEY || '' }}
           # Identity by command: `/devflow:review` runs under the downscoped
           # DevFlow-Reviewer token (or GITHUB_TOKEN when the reviewer App is
           # unset) — NEVER the primary app token, so the review is not a
@@ -1947,18 +2008,9 @@ jobs:
               exit 0
               ;;
           esac
-          # The resolved command carries its OWN target number (the detector emits
-          # `/prflow:<cmd> <n>`), and that is the thread the engine seeded its
-          # progress comment on — which is not always the thread the triggering
-          # comment sits on, because a collaborator can write `/prflow:review 42`
-          # from somewhere else. While the handler was flip-only that mismatch was
-          # a harmless no-op; now that a confirmed absence WRITES, addressing the
-          # event's own number would post a '❌ Review failed' comment on a thread
-          # that never had a review. Prefer the command's trailing number and fall
-          # back to the event's only when the command carries none. Derived with
-          # parameter expansion and a `case` glob — both bash builtins, because a
-          # value that decides where a write lands must not flow through a
-          # non-preflight-guaranteed PATH tool.
+          # TARGET_NUMBER is the command's own number; since issue #1863 that equals the
+          # thread the comment sits on (the fallback covers a numberless command). Bash
+          # builtins only — this value decides where a write lands (no non-preflight PATH tool).
           TARGET_NUMBER="${COMMAND##* }"
           case "$TARGET_NUMBER" in
             ''|*[!0-9]*) TARGET_NUMBER="$CONTEXT_NUMBER" ;;
@@ -2057,13 +2109,23 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.backstop-token.outputs.token || github.token }}
           REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+          CONTEXT_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+          COMMAND: ${{ needs.gate.outputs.command }}
           # A dead manual review posted no verdict for HEAD, so the derived
           # verdict is incomplete by construction.
           VERDICT: incomplete
           APP_TOKEN_PRESENT: ${{ steps.backstop-token.outputs.token != '' }}
         run: |
           set -euo pipefail
+          # Since issue #1863 the light-command resolver makes the command's trailing
+          # number the reviewed thread's own, so this derivation (and its event-number
+          # fallback) lands on the guarded thread. Bash builtins only (issue #1858).
+          PR_NUMBER="${COMMAND##* }"
+          case "$PR_NUMBER" in
+            ''|*[!0-9]*) PR_NUMBER="$CONTEXT_NUMBER" ;;
+          esac
+          # The stall-backstop helper reads PR_NUMBER from the env (issue #1858).
+          export PR_NUMBER
           if [ -z "${PR_NUMBER:-}" ]; then
             echo "::notice::review stall backstop: no PR number on this event; nothing to resume."
             exit 0
@@ -2120,12 +2182,6 @@ jobs:
       # degenerate defensive form since issue #1163 left `issue_comment` the sole
       # trigger. No API call, so there is no unknown state to fall back from.
       #
-      # Residual, shared with the stall backstop above and unchanged by this
-      # step: PR_NUMBER comes from the EVENT, not from an explicit number in the
-      # command, so `/prflow:review 1150` typed on some other pull request
-      # records against the pull request it was typed on. The PR-ness gate
-      # narrows the worst version of that (an issue) out entirely.
-      #
       # THE STEP SELECTS NOTHING ABOUT THE RECORD. check-verdict-post-reached.sh
       # reduces the run-scoped receipt to one line; describe-verdict-post-gap.sh
       # picks the arm and writes every byte that arm emits into two files. This
@@ -2150,7 +2206,8 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
           REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+          CONTEXT_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+          COMMAND: ${{ needs.gate.outputs.command }}
           # The login of THIS run's reviewer identity (issue #1250). On the
           # /prflow:review path the agent runs under the downscoped DevFlow-Reviewer
           # token, so any review it POSTs — including one written directly through the
@@ -2167,6 +2224,13 @@ jobs:
           JOB_CANCELLED: ${{ job.status == 'cancelled' }}
         run: |
           set -uo pipefail
+          # Since issue #1863 the light-command resolver makes the command's trailing
+          # number the reviewed thread's own, so this derivation (and its event-number
+          # fallback) lands on the guarded thread. Bash builtins only (issue #1858).
+          PR_NUMBER="${COMMAND##* }"
+          case "$PR_NUMBER" in
+            ''|*[!0-9]*) PR_NUMBER="$CONTEXT_NUMBER" ;;
+          esac
           CHECK=.prflow/vendor/prflow/scripts/check-verdict-post-reached.sh
           [ -f "$CHECK" ] || CHECK=scripts/check-verdict-post-reached.sh
           GAP=.prflow/vendor/prflow/scripts/describe-verdict-post-gap.sh
@@ -2286,10 +2350,18 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
           REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+          CONTEXT_NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+          COMMAND: ${{ needs.gate.outputs.command }}
           ENGINE_ERROR: ${{ steps.engine.outputs.is_error }}
         run: |
           set -uo pipefail
+          # Since issue #1863 the light-command resolver makes the command's trailing
+          # number the reviewed thread's own, so this derivation (and its event-number
+          # fallback) lands on the guarded thread. Bash builtins only (issue #1858).
+          PR_NUMBER="${COMMAND##* }"
+          case "$PR_NUMBER" in
+            ''|*[!0-9]*) PR_NUMBER="$CONTEXT_NUMBER" ;;
+          esac
           # stale-REJECT dismissal net BEGIN
           NET=.prflow/vendor/prflow/scripts/dismiss-stale-rejections-net.sh
           [ -f "$NET" ] || NET=scripts/dismiss-stale-rejections-net.sh

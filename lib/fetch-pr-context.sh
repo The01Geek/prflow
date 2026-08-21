@@ -87,6 +87,11 @@ else
     fi
 fi
 
+# The five list-endpoint slurps below (issue comments, review comments, PR comments, PR
+# reviews, commits) normalize through this one filter: `add` on a single-object page
+# yields that object, and a later `.[] | .user`/`.body` read then aborts the whole run.
+_JQ_PAGES_TO_OBJECTS='(add // []) | if type == "array" then map(select(type == "object")) else [] end'
+
 # ── 5. Issue details ─────────────────────────────────────────────────────────
 ISSUE_JSON="null"
 # The workpad lives on the ISSUE (header `# PRFlow Workpad — Issue #<N>`,
@@ -99,9 +104,9 @@ if [ "$ISSUE_NUMBER" != "null" ]; then
       || { echo "::error::fetch-pr-context: failed to fetch issue ${ISSUE_NUMBER} for PR ${PR}" >&2; exit 1; }
     _ISSUE_COMMENTS_RAW="$("$DEVFLOW_GH" api "repos/${REPO}/issues/${ISSUE_NUMBER}/comments" --paginate)" \
       || { echo "::error::fetch-pr-context: failed to fetch issue comments for issue ${ISSUE_NUMBER}" >&2; exit 1; }
-    ISSUE_COMMENTS_RAW="$(printf '%s' "$_ISSUE_COMMENTS_RAW" | "$DEVFLOW_JQ" -s 'add // []')"
+    ISSUE_COMMENTS_RAW="$(printf '%s' "$_ISSUE_COMMENTS_RAW" | "$DEVFLOW_JQ" -s "$_JQ_PAGES_TO_OBJECTS")"
     # Normalize issue comments to {author, body, createdAt}
-    ISSUE_COMMENTS_NORM="$(echo "$ISSUE_COMMENTS_RAW" | "$DEVFLOW_JQ" '[.[] | {author: (.user.login // ""), body: (.body // ""), createdAt: (.created_at // "")}]')"
+    ISSUE_COMMENTS_NORM="$(echo "$ISSUE_COMMENTS_RAW" | "$DEVFLOW_JQ" '[.[] | {author: ((.user | if type == "object" then .login else null end) // ""), body: (.body // ""), createdAt: (.created_at // "")}]')"
     # `labels` normalization is TOTAL over every JSON shape (mirrors the §5b `norm`
     # def below): an array of label objects → their names, an array of strings →
     # themselves, and a wrong-type/missing `labels` → []. A non-total extraction
@@ -148,25 +153,25 @@ esac
 # ── 6. Review comments (inline diff comments) ────────────────────────────────
 _REVIEW_COMMENTS_RAW="$("$DEVFLOW_GH" api "repos/${REPO}/pulls/${PR}/comments" --paginate)" \
   || { echo "::error::fetch-pr-context: failed to fetch review comments for PR ${PR}" >&2; exit 1; }
-REVIEW_COMMENTS_RAW="$(printf '%s' "$_REVIEW_COMMENTS_RAW" | "$DEVFLOW_JQ" -s 'add // []')"
-REVIEW_COMMENTS="$(echo "$REVIEW_COMMENTS_RAW" | "$DEVFLOW_JQ" '[.[] | {author: (.user.login // ""), body: (.body // ""), path: (.path // ""), line: (.line // null), createdAt: (.created_at // "")}]')"
+REVIEW_COMMENTS_RAW="$(printf '%s' "$_REVIEW_COMMENTS_RAW" | "$DEVFLOW_JQ" -s "$_JQ_PAGES_TO_OBJECTS")"
+REVIEW_COMMENTS="$(echo "$REVIEW_COMMENTS_RAW" | "$DEVFLOW_JQ" '[.[] | {author: ((.user | if type == "object" then .login else null end) // ""), body: (.body // ""), path: (.path // ""), line: (.line // null), createdAt: (.created_at // "")}]')"
 
 # ── 7. PR conversation comments ───────────────────────────────────────────────
 _PR_COMMENTS_RAW="$("$DEVFLOW_GH" api "repos/${REPO}/issues/${PR}/comments" --paginate)" \
   || { echo "::error::fetch-pr-context: failed to fetch PR conversation comments for PR ${PR}" >&2; exit 1; }
-PR_COMMENTS_RAW="$(printf '%s' "$_PR_COMMENTS_RAW" | "$DEVFLOW_JQ" -s 'add // []')"
-PR_COMMENTS="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" '[.[] | {author: (.user.login // ""), body: (.body // ""), createdAt: (.created_at // "")}]')"
+PR_COMMENTS_RAW="$(printf '%s' "$_PR_COMMENTS_RAW" | "$DEVFLOW_JQ" -s "$_JQ_PAGES_TO_OBJECTS")"
+PR_COMMENTS="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" '[.[] | {author: ((.user | if type == "object" then .login else null end) // ""), body: (.body // ""), createdAt: (.created_at // "")}]')"
 
 # ── 8. PR reviews ─────────────────────────────────────────────────────────────
 _PR_REVIEWS_RAW="$("$DEVFLOW_GH" api "repos/${REPO}/pulls/${PR}/reviews" --paginate)" \
   || { echo "::error::fetch-pr-context: failed to fetch PR reviews for PR ${PR}" >&2; exit 1; }
-PR_REVIEWS_RAW="$(printf '%s' "$_PR_REVIEWS_RAW" | "$DEVFLOW_JQ" -s 'add // []')"
-PR_REVIEWS="$(echo "$PR_REVIEWS_RAW" | "$DEVFLOW_JQ" '[.[] | {author: (.user.login // ""), state: (.state // ""), body: (.body // ""), submittedAt: (.submitted_at // "")}]')"
+PR_REVIEWS_RAW="$(printf '%s' "$_PR_REVIEWS_RAW" | "$DEVFLOW_JQ" -s "$_JQ_PAGES_TO_OBJECTS")"
+PR_REVIEWS="$(echo "$PR_REVIEWS_RAW" | "$DEVFLOW_JQ" '[.[] | {author: ((.user | if type == "object" then .login else null end) // ""), state: (.state // ""), body: (.body // ""), submittedAt: (.submitted_at // "")}]')"
 
 # ── 9. Commits ────────────────────────────────────────────────────────────────
 _COMMITS_RAW="$("$DEVFLOW_GH" api "repos/${REPO}/pulls/${PR}/commits" --paginate)" \
   || { echo "::error::fetch-pr-context: failed to fetch commits for PR ${PR}" >&2; exit 1; }
-COMMITS_RAW="$(printf '%s' "$_COMMITS_RAW" | "$DEVFLOW_JQ" -s 'add // []')"
+COMMITS_RAW="$(printf '%s' "$_COMMITS_RAW" | "$DEVFLOW_JQ" -s "$_JQ_PAGES_TO_OBJECTS")"
 COMMITS="$(echo "$COMMITS_RAW" | "$DEVFLOW_JQ" '[.[] | {sha: .sha, author_login: (.author.login // ""), committer_login: (.committer.login // ""), committed_at: (.commit.committer.date // ""), message: (.commit.message // ""), parents_count: ((.parents // []) | length)}]')"
 
 # ── 10. Diff ──────────────────────────────────────────────────────────────────
@@ -324,7 +329,7 @@ fi
 # The workpad lives on the ISSUE thread (ISSUE_COMMENTS_RAW), not the PR
 # conversation thread — reading it from the PR thread (the old bug) left it
 # ~always empty, so the workpad signal in cheap-gate.jq was inert.
-WORKPAD_BODY="$(echo "$ISSUE_COMMENTS_RAW" | "$DEVFLOW_JQ" -r '[.[] | select((.body // "") | test("<!-- (pr|dev)flow:workpad -->"; "i"))] | first | .body // ""')"
+WORKPAD_BODY="$(echo "$ISSUE_COMMENTS_RAW" | "$DEVFLOW_JQ" -r '[.[] | select(((.body | strings) // "") | test("<!-- (pr|dev)flow:workpad -->"; "i"))] | first | .body // ""')"
 WORKPAD_FINAL_STATUS=""
 REFLECTIONS="[]"
 # reflections_friction_count: the number of reflection bullets that force LLM
@@ -536,21 +541,131 @@ PYEOF
 # present in review_verdicts but never becomes the chronologically-last entry (so
 # an untimestamped APPROVE can never clear a timestamped REJECT). `.index` is
 # stripped before emission — review_verdicts is read verbatim by the Stage A agent.
+#
+# Rung 3 (issue #1443) — the BOT-ONLY fallback, consulted only when rungs 1 and 2 both
+# yield nothing. Widen none of its four constraints without re-reading them together:
+# the `[bot]` login gate, the 30-line window, `rung3_mask`'s comment/fence/quote
+# stripping, and the per-sub-rung line anchors are jointly what stops ordinary bot prose
+# — every PRFlow-authored comment is bot-authored — from minting a verdict that feeds
+# review_reject_outstanding. `review_verdict_unparsed_count` counts the scanned artifacts
+# that survive all three rungs with no verdict yet carry a token in that same window; it
+# feeds nothing, and review_reject_outstanding is derived from review_verdicts alone.
 printf '%s' "$PR_REVIEWS_RAW" > "$_JQ_TMP/pr_reviews_raw.json"
-REVIEW_VERDICTS="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" --slurpfile reviews "$_JQ_TMP/pr_reviews_raw.json" '
-    def verdicts_in($body):
+REVIEW_VERDICTS_BUNDLE="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" --slurpfile reviews "$_JQ_TMP/pr_reviews_raw.json" '
+    # Deliberately wider than rung 3 on the axes that matter — unmasked, a bare
+    # substring, case-insensitive. Narrowing any axis onto rung 3 makes an artifact
+    # rung 3 declined vanish from the count as well as the union, recreating the
+    # two-meanings collapse the count exists to end.
+    def token_in_window($lines):
+        any($lines[0:30][]; test("APPROVE|REJECT"; "i"));
+    # Drop every line rung 3 must not read a verdict from: an HTML-comment region (opening
+    # line, continuations and close alike), a fenced block, a blockquote, and an indented
+    # code block. A fence closes only on its own marker, so a tilde line cannot close a
+    # backtick block and leave the rest of the window readable.
+    # Returns a POSITIONAL mask — one entry per window line, the line itself or null —
+    # never a compacted list. Compacting closes the gap between a heading and a later
+    # token, so a stripped block would make a distant token read as the adjacent one.
+    # Every branch below appends exactly one entry, or the mask stops lining up with the
+    # lines it masks and a verdict is read from the wrong one; rung3 checks that length.
+    # Dropped: HTML-comment regions, fenced blocks, blockquotes, indented code, list items,
+    # table rows and strikethrough — every construct that marks a line as quoting.
+    def rung3_mask($lines):
+        (reduce ($lines[0:30][]) as $l ({comment: false, fence: null, out: []};
+            if .comment then
+                ((if ($l | test("-->")) then .comment = false else . end) | .out += [null])
+            elif .fence != null then
+                (.fence as $f
+                 | (if ($l | test("^[ \t]*" + $f)) then .fence = null else . end)
+                 | .out += [null])
+            elif ($l | test("^[ \t]*```")) then (.fence = "```" | .out += [null])
+            elif ($l | test("^[ \t]*~~~")) then (.fence = "~~~" | .out += [null])
+            elif ($l | test("<!--")) then
+                ((if ($l | test("-->")) then . else .comment = true end) | .out += [null])
+            elif ($l | test("^[ \t]*>")) then .out += [null]
+            elif ($l | test("^(\t| {4,})")) then .out += [null]
+            elif ($l | test("^ {0,3}([-*+]|[0-9]+[.)])[ \t]")) then .out += [null]
+            elif ($l | test("\\|")) then .out += [null]
+            elif ($l | test("~~")) then .out += [null]
+            else .out += [$l] end))
+        | .out;
+    # An allow-list of decoration glyphs, never a block range and never all of non-ASCII:
+    # the dingbat and emoji planes also hold the bullet, ballot-box, heavy-quotation,
+    # speech-bubble and pointer glyphs that mark a line as a recap QUOTING a verdict.
+    def emoji: "[\\x{2705}\\x{274C}\\x{26A0}\\x{1F534}\\x{1F7E0}-\\x{1F7E2}\\x{FE0F}\\x{200D}]";
+    def headline_prefix: "^(?:[ \t#*_]|" + emoji + ")*";
+    # Letters in ANY script, so trailing prose in a non-Latin script is prose here too.
+    def not_letters: "[^\\p{L}]";
+    def rung3($lines; $login):
+        if ((($login | strings) // "") | endswith("[bot]")) then
+          rung3_mask($lines) as $m
+          | if ($m | length) != ($lines[0:30] | length) then [] else
+          ([ $m[] | select(. != null) ]) as $w
+          # Every sub-rung reads its token from its OWN whole-line capture, anchored at both
+          # ends. A guard that only anchors the prefix, or that re-derives the token with a
+          # second pattern, admits the trailing prose an artifact quotes a prior verdict in.
+          | ([ $w[]
+               | capture(headline_prefix + "(?i:Verdict):" + not_letters + "*(?<v>APPROVE|REJECT)" + not_letters + "*$")
+               | .v ]) as $r1
+          | if ($r1 | length) > 0 then $r1[0:1]
+            elif any($w[]; test(headline_prefix + "(?i:Verdict):")) then []
+            else
+              # Letters may appear only in one optional leading word, the anchor word, and
+              # the token — collapsing punctuation away instead lets an ordinary sentence
+              # ("Do not review. REJECT.") wear the headline shape. The token stays
+              # case-SENSITIVE so lowercase prose cannot satisfy it.
+              # The window is the first three non-blank lines BY POSITION, each kept only if
+              # it survived stripping: a stripped line is skipped, never backfilled from
+              # later in the body.
+              ([ range(0; $m | length) | select($lines[.] | test("[^ \t]")) ][0:3]
+               | map(select($m[.] != null))
+               | map($m[.])
+               | map(capture(headline_prefix + "(\\p{L}+" + not_letters + "+)?(?i:Review|Verdict)" + not_letters + "+(?<v>APPROVE|REJECT)" + not_letters + "*$"))
+               | map(.v)) as $r2
+              | if ($r2 | length) == 1 then $r2
+                else
+                  # The next non-blank line is found in the RAW body, and a stripped one is
+                  # a hard stop: the line adjacent to the heading is what decides.
+                  ([ range(0; $m | length) as $i
+                     | select($m[$i] != null)
+                     | select(($m[$i] | test("^#{1,6}[ \t]"))
+                              and (($m[$i] | gsub("[^A-Za-z]"; "") | ascii_downcase) == "verdict"))
+                     | ([ range($i + 1; $m | length) | select($lines[.] | test("[^ \t]")) ][0]) as $j
+                     | select($j != null)
+                     | select($m[$j] != null)
+                     | ($m[$j] | capture(headline_prefix + "(?<v>APPROVE|REJECT)" + not_letters + "*$"))
+                     | .v ]) as $r3
+                  | $r3[0:1]
+                end
+            end
+          end
+        else [] end;
+    def verdicts_in($body; $login):
         (($body | strings) | split("\n") | map(rtrimstr("\r"))) as $lines
         | ([ $lines[0:2][]
              | select(test("^<!-- prflow:review-verdict head=[0-9a-fA-F]{40} verdict=(APPROVE|REJECT) -->$"))
              | capture("verdict=(?<verdict>APPROVE|REJECT)")
              | .verdict ]) as $marked
         | (if ($marked | length) == 1 then $marked
-           else [ $lines[]
-                  | select(test("^#{1,6}[ \t]*(/review[ \t]*[—–-]+[ \t]*)?Verdict:[ \t]*\\**[ \t]*(APPROVE|REJECT)"; "i"))
-                  | capture("Verdict:[ \t]*\\**[ \t]*(?<verdict>APPROVE|REJECT)"; "i")
-                  | (.verdict | ascii_upcase) ]
+           else ([ $lines[]
+                   | select(test("^#{1,6}[ \t]*(/review[ \t]*[—–-]+[ \t]*)?Verdict:[ \t]*\\**[ \t]*(APPROVE|REJECT)"; "i"))
+                   | capture("Verdict:[ \t]*\\**[ \t]*(?<verdict>APPROVE|REJECT)"; "i")
+                   | (.verdict | ascii_upcase) ]) as $grammar
+                | (if ($grammar | length) > 0 then $grammar else rung3($lines; $login) end)
            end)
         | .[];
+    # Per-artifact scan record: the verdicts it yielded, and whether it is an
+    # artifact that yielded none yet visibly carries a token (the residual count).
+    def scanned($arts; $tskey; $src):
+        [ $arts[]
+          | select(type == "object")
+          | . as $a
+          | ($a.user | if type == "object" then .login else null end) as $login
+          | ((($a.body | strings) // "") | split("\n") | map(rtrimstr("\r"))) as $lines
+          | ([ verdicts_in($a.body; $login) ]) as $vs
+          | { vs: $vs,
+              unparsed: ((($vs | length) == 0) and token_in_window($lines)),
+              createdAt: (($a[$tskey]) // ""),
+              source: $src } ];
     # Guard both payloads to arrays before iterating: a non-array comments payload
     # (stdin `.`) or a non-array reviews payload ($reviews[0]) would otherwise abort
     # the whole filter on `.[]` (external structured format — fail closed to empty).
@@ -562,16 +677,38 @@ REVIEW_VERDICTS="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" --slurpfile reviews "
     (if type == "array" then . else [] end) as $comments
     | (if ($reviews[0] | type) == "array" then $reviews[0] else [] end) as $reviews_arr
     | (
-        [ $comments[] | . as $c | verdicts_in($c.body) | {verdict: ., createdAt: ($c.created_at // ""), source: "pr_comment"} ]
+        scanned($comments; "created_at"; "pr_comment")
         +
-        [ $reviews_arr[] | select(.state != "PENDING") | . as $r | verdicts_in($r.body) | {verdict: ., createdAt: ($r.submitted_at // ""), source: "pr_review"} ]
-    )
-    | to_entries | map(.value + {index: .key})
-    | ( map(select(.createdAt != "")) | sort_by(.createdAt, (.source == "pr_review"), .index) ) as $ts
-    | ( map(select(.createdAt == "")) ) as $nots
-    | ($ts + $nots)
-    | map({verdict, createdAt, source})
+        scanned([ $reviews_arr[] | objects | select(.state != "PENDING") ]; "submitted_at"; "pr_review")
+      ) as $records
+    | { verdicts:
+          ( [ $records[] | . as $rec | $rec.vs[] | {verdict: ., createdAt: $rec.createdAt, source: $rec.source} ]
+            | to_entries | map(.value + {index: .key})
+            | ( map(select(.createdAt != "")) | sort_by(.createdAt, (.source == "pr_review"), .index) ) as $ts
+            | ( map(select(.createdAt == "")) ) as $nots
+            | ($ts + $nots)
+            | map({verdict, createdAt, source}) ),
+        unparsed: ([ $records[] | select(.unparsed) ] | length) }
 ')"
+REVIEW_VERDICTS="$(echo "$REVIEW_VERDICTS_BUNDLE" | "$DEVFLOW_JQ" -c '.verdicts // []')"
+REVIEW_VERDICT_UNPARSED_COUNT="$(echo "$REVIEW_VERDICTS_BUNDLE" | "$DEVFLOW_JQ" -r '.unparsed // 0')"
+# Never leave either empty: REVIEW_REJECT_OUTSTANDING is derived from the array below and
+# the count is passed with --argjson, so an empty split aborts the whole bundle assembly.
+if [ -z "$REVIEW_VERDICTS" ]; then
+    # Empty here means the union filter produced no document at all, which is NOT the
+    # same fact as "no verdicts" — say so, or an unusable bundle reads as a clean PR and
+    # manufactures review_reject_outstanding=false. Not reachable via the producer path
+    # (the section-7 slurp always hands the filter an array, so it always emits an
+    # object, and a filter error aborts under set -e before this runs) — a fail-closed
+    # floor no producer-driven test can drive, like the array guards inside the filter.
+    echo "fetch-pr-context.sh: the union filter produced no review_verdicts document; emitting [] (verdicts could not be established for this PR)" >&2
+    REVIEW_VERDICTS='[]'
+fi
+case "$REVIEW_VERDICT_UNPARSED_COUNT" in
+    ''|*[!0-9]*)
+        echo "fetch-pr-context.sh: the union filter yielded a non-numeric review_verdict_unparsed_count (${REVIEW_VERDICT_UNPARSED_COUNT:-<empty>}); emitting 0" >&2
+        REVIEW_VERDICT_UNPARSED_COUNT=0 ;;
+esac
 
 # review_reject_outstanding: true when the chronologically-last TIMESTAMPED entry
 # is a REJECT, OR when any TIMESTAMP-LESS entry is a REJECT (the one-directional
@@ -609,7 +746,7 @@ case "$WORKPAD_BODY" in
 esac
 
 # implement_summary_comment: best-effort
-IMPLEMENT_SUMMARY="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" -r '[.[] | select(.body | test("Claude finished|/implement #"; "i"))] | first | .body // ""')"
+IMPLEMENT_SUMMARY="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" -r '[.[] | select((.body | strings) // "" | test("Claude finished|/implement #"; "i"))] | first | .body // ""')"
 if [ -n "$IMPLEMENT_SUMMARY" ]; then
     IMPLEMENT_SUMMARY_JSON="$("$DEVFLOW_JQ" -Rs '.' <<<"$IMPLEMENT_SUMMARY")"
 else
@@ -688,7 +825,7 @@ printf '%s' "$WORKPAD_BODY_JSON"        > "$_JQ_TMP/workpad_body.json"
 printf '%s' "$REFLECTIONS"              > "$_JQ_TMP/reflections.json"
 printf '%s' "$IMPLEMENT_SUMMARY_JSON"   > "$_JQ_TMP/implement_summary_comment.json"
 
-# argjson-ok: pr additions deletions diff_truncated issue_number review_reject_outstanding review_comments_count post_bot_commits ci_failures_during_pr ci_status_unknown pr_devflow_provenance reflections_friction_count base_update_checkpoint4_present ttm_hours -- all bounded scalars (numbers/booleans), never corpus-sized; every corpus-sized operand here is routed via --slurpfile (issue #895)
+# argjson-ok: pr additions deletions diff_truncated issue_number review_reject_outstanding review_verdict_unparsed_count review_comments_count post_bot_commits ci_failures_during_pr ci_status_unknown pr_devflow_provenance reflections_friction_count base_update_checkpoint4_present ttm_hours -- all bounded scalars (numbers/booleans), never corpus-sized; every corpus-sized operand here is routed via --slurpfile (issue #895)
 "$DEVFLOW_JQ" -n \
     --argjson pr "$PR" \
     --arg kind "$KIND" \
@@ -718,6 +855,7 @@ printf '%s' "$IMPLEMENT_SUMMARY_JSON"   > "$_JQ_TMP/implement_summary_comment.js
     --slurpfile reflections "$_JQ_TMP/reflections.json" \
     --slurpfile review_verdicts "$_JQ_TMP/review_verdicts.json" \
     --argjson review_reject_outstanding "$REVIEW_REJECT_OUTSTANDING" \
+    --argjson review_verdict_unparsed_count "$REVIEW_VERDICT_UNPARSED_COUNT" \
     --slurpfile implement_summary_comment "$_JQ_TMP/implement_summary_comment.json" \
     --argjson review_comments_count "$REVIEW_COMMENTS_COUNT" \
     --argjson post_bot_commits "$POST_BOT_COMMITS" \
@@ -759,6 +897,7 @@ printf '%s' "$IMPLEMENT_SUMMARY_JSON"   > "$_JQ_TMP/implement_summary_comment.js
         reflections_friction_count: $reflections_friction_count,
         base_update_checkpoint4_present: $base_update_checkpoint4_present,
         review_verdicts: $review_verdicts[0],
+        review_verdict_unparsed_count: $review_verdict_unparsed_count,
         implement_summary_comment: $implement_summary_comment[0],
         signals: {
             review_comments_count: $review_comments_count,
