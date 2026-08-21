@@ -711,6 +711,20 @@ before tested helper ownership exists. This sole-owner discipline is stated as a
 guidance in `CLAUDE.md`'s **Helper cutover** convention, with the lean-prose guidance in
 `.prflow/prompt-extensions/implement.md` under **Keeping prompt prose lean**.
 
+### Runtime per-context read cost (issue #1852)
+
+Separate from the per-file byte ceiling, nothing measured what *entering* the engine costs a
+run — and after issue #1850 dispatches the fix loop's engine entries into subagent contexts,
+that cost moves rather than vanishes. The behavioral instrument `scripts/review-context-eval.py`
+(maintainer-run over a transcript corpus; never on the engine's runtime path, so no new tool
+grant — only its focused test is granted, as for #767/#1209) measures, per run, how many times
+each engine file (`skills/review/**`, `skills/review-and-fix/**`) was read, attributes every
+read to the context that made it — distinguishing a main-thread read from a subagent read — and
+gives the peak accumulated context of each context that read one. It is the third of DevFlow's
+transcript-walking context instruments (§7, §11) and gates nothing. The details live in
+[`docs/internal/review-context.md`](review-context.md), the single source of truth for this
+axis; it is not paraphrased here.
+
 ### Direct invocation of `prflow:receiving-code-review`: the Reception Preflight (issue #545)
 
 The fix loop above applies the `prflow:receiving-code-review` principles inside its own machinery — the loop's mechanics establish PR context themselves. A **direct** invocation of the skill (an interactive maintainer session, or an operator flow dispatching it outside the loop) instead has a defined startup contract, the **Reception Preflight** in `skills/receiving-code-review/SKILL.md`: after the consumer-prompt-extension load and before the Step 0 branch update, before triage of any finding, before any file edit, and before any test-suite execution, the skill renders **one in-chat block of exactly nine context facts** — subject, PR head/base, checkout (with a head-match verdict), working-tree cleanliness, freshness, linked-issue requirements (each linked issue's body re-read in this run), consumer-prompt-extension outcome, severity threshold, and commit/path scope — each fact carrying **exactly one of six statuses**: `established`, `caller-supplied`, `missing`, `stale`, `ambiguous`, `not-applicable`. No rule in the contract assigns `stale` — an unobservable or un-re-measured fact renders `missing`, never `stale` (the status is reserved for a render that must carry a knowingly-superseded value, and it is never an input to the editing gate). A fact renders `established` only when its value was directly observed from a command output or a file read in the current run; anything else renders a degraded status with a one-line reason — never an assumed value (a failed fetch records divergence as *unknown, never zero-behind*; a shallow clone's undecidable ancestry renders the head-match `missing`, never a guessed verdict). The preflight's prescribed command set is **strictly read-only** — one exit-status-checked `git fetch` (remote-tracking refs only), `git rev-parse`, `git status`, `git merge-base --is-ancestor`, `git rev-list`, `gh pr view` (including its `files` scope read), `gh issue view`, the extension loader, and the threshold read, and nothing else; it never switches branches and never merges.

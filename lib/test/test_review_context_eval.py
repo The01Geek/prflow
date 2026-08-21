@@ -434,6 +434,30 @@ class AdversarialTest(_SingleCorpusMixin, unittest.TestCase):
         self.assertEqual(skipped["malformed_record"], 0)
         self.assertEqual(len(contexts), 1)
 
+    def test_non_finite_token_value_degrades_not_detonates(self):
+        # json.loads accepts bare Infinity; int(inf) raises OverflowError, which is OUTSIDE
+        # eval_corpus's per-record backstop tuple — without the _usage_field guard one such
+        # record aborts the whole walk. Assert the run still reports the good record.
+        contexts, totals, skipped = self._run({
+            "s.jsonl": [
+                '{"type":"assistant","isSidechain":false,"sessionId":"S",'
+                '"message":{"usage":{"input_tokens":Infinity},"content":[{"type":"tool_use",'
+                '"id":"1","name":"Read","input":{"file_path":"skills/review/SKILL.md"}}]}}',
+                '{"type":"assistant","isSidechain":false,"sessionId":"S",'
+                '"message":{"usage":{"input_tokens":42},"content":[{"type":"tool_use",'
+                '"id":"2","name":"Read","input":{"file_path":"skills/review/SKILL.md"}}]}}',
+            ],
+        })
+        self.assertEqual(len(contexts), 1)
+        # The non-finite sub-field degrades to 0, so the peak is the finite turn's 42.
+        self.assertEqual(contexts[0]["peak_context"], 42)
+        self.assertEqual(skipped["malformed_record"], 0)
+
+    def test_usage_field_treats_non_finite_as_zero(self):
+        self.assertEqual(RCE._usage_field({"input_tokens": float("inf")}, "input_tokens"), 0)
+        self.assertEqual(RCE._usage_field({"input_tokens": float("nan")}, "input_tokens"), 0)
+        self.assertEqual(RCE._usage_field({"input_tokens": 7.0}, "input_tokens"), 7)
+
     def test_message_wrong_shape_does_not_detonate(self):
         saved = sys.stderr
         sys.stderr = io.StringIO()

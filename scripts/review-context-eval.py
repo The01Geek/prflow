@@ -60,6 +60,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import sys
 
@@ -150,6 +151,12 @@ def _usage_field(usage, key):
     if isinstance(val, bool):  # bool is an int subclass; never a token count
         return 0
     if isinstance(val, (int, float)):
+        # A non-finite float (json.loads accepts bare Infinity/-Infinity/NaN) is not a token
+        # count: int(inf) raises OverflowError, which is outside eval_corpus's per-record
+        # backstop tuple and would detonate the whole walk. Treat it as 0, like any other
+        # non-numeric value, so one hostile record degrades per-record instead.
+        if isinstance(val, float) and not math.isfinite(val):
+            return 0
         return int(val)
     return 0
 
