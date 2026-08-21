@@ -119,6 +119,11 @@ def _parse_pkcs8(der: bytes):
 def _pem_body(text: str, begin: str, end: str) -> bytes:
     """Extract and base64-decode the body between a matching BEGIN/END pair."""
     start = text.find(begin)
+    if start < 0:
+        # The caller dispatches on the LOOSE marker substring, so a key whose armor is
+        # not the exact 5-dash form reaches here with start == -1; without this guard
+        # the slice below starts from a wrong positive offset instead of refusing.
+        raise SignerError("malformed PEM armor (no exact BEGIN marker)")
     after = start + len(begin)
     stop = text.find(end, after)
     if stop < 0:

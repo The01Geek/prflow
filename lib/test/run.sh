@@ -47659,6 +47659,10 @@ for _kd in "PKCS#1:$_k1_1882" "PKCS#8:$_k8_1882" "4096-bit:$_k4_1882"; do
   _tok1882="$(python3 "$SIGNER_1882" issx 1700000000 1700000540 < "$_kf")"
   _si1882="${_tok1882%.*}"; _so1882="${_tok1882##*.}"
   _sr1882="$(printf '%s' "$_si1882" | openssl dgst -sha256 -sign "$_kf" -binary | openssl base64 -A | tr '+/' '-_' | tr -d '=')"
+  # Non-vacuity precondition: a fixture whose generation failed leaves BOTH sides empty,
+  # and the equality below would then pass while comparing nothing.
+  assert_eq "#1882 arm1882b (AC2) $_lbl: both signatures are non-empty (non-vacuity precondition)" "yes yes" \
+    "$([ -n "$_so1882" ] && echo yes || echo no) $([ -n "$_sr1882" ] && echo yes || echo no)"
   assert_eq "#1882 arm1882b (AC2) byte-equality $_lbl [signer=$_so1882 openssl=$_sr1882]" "$_sr1882" "$_so1882"
 done
 
@@ -47677,6 +47681,16 @@ _o1882f="$(printf '%s' "$RSAKEY22" | env DEVFLOW_APP_ID=APPID1882F GITHUB_REPOSI
 assert_eq "#1882 arm1882f: no interpreter stops the mint naming the resolver lib/resolve-python.sh by path" "yes" \
   "$(printf '%s' "$_o1882f" | grep -qF 'resolver lib/resolve-python.sh' && echo yes || echo no)"
 assert_eq "#1882 arm1882f: previous credential intact after the no-interpreter arm (PREV23B)" "AUTHORIZATION: basic PREV23B" \
+  "$(git config --file "$CFG23B" --get 'http.https://github.com/.extraheader' 2>/dev/null)"
+# 1882f-empty — rc 0 with an EMPTY spec is a resolver contract breach, not a pass: it is
+# the one rc arm that would fail OPEN, running the signer through its shebang and silently
+# bypassing the 3.11 version gate the other arms enforce.
+_o1882fe="$(printf '%s' "$RSAKEY22" | env DEVFLOW_APP_ID=APPID1882FE GITHUB_REPOSITORY="owner/r" \
+  DEVFLOW_REFRESH_CONFIG_FILE="$CFG23B" DEVFLOW_REFRESH_TOKEN_FILE="$D487/tok1882fe" \
+  DEVFLOW_REFRESH_PYTHON='exit 0' bash "$REFRESH_SH" cycle 2>&1 >/dev/null)"
+assert_eq "#1882 arm1882f-empty: rc 0 with an empty spec stops the mint naming the resolver breach" "yes" \
+  "$(printf '%s' "$_o1882fe" | grep -qF 'returned success but no interpreter' && echo yes || echo no)"
+assert_eq "#1882 arm1882f-empty: previous credential intact after the empty-spec arm (PREV23B)" "AUTHORIZATION: basic PREV23B" \
   "$(git config --file "$CFG23B" --get 'http.https://github.com/.extraheader' 2>/dev/null)"
 
 # 1882g — clock read fail-closed: an unavailable `date` STOPS the mint naming the command.
@@ -47845,6 +47859,9 @@ assert_eq "#1882 arm1882n: self-test JOB-FAULT arm (refusing key) exits 3 and wr
 _sto1882="$(printf '%s' "$RSAKEY22" | env DEVFLOW_REFRESH_PYTHON='echo python3; exit 1' bash "$SELFTEST_1882" 2>&1)"; _sto1882_rc=$?
 assert_eq "#1882 arm1882n: self-test JOB-FAULT arm (too-old interpreter) exits 3 naming the version" "3 yes" \
   "$_sto1882_rc $(printf '%s' "$_sto1882" | grep -qF 'older than the required version 3.11' && echo yes || echo no)"
+_stoe1882="$(printf '%s' "$RSAKEY22" | env DEVFLOW_REFRESH_PYTHON='exit 0' bash "$SELFTEST_1882" 2>&1)"; _stoe1882_rc=$?
+assert_eq "#1882 arm1882n: self-test JOB-FAULT arm (rc 0 + empty spec) exits 3 naming the resolver breach" "3 yes" \
+  "$_stoe1882_rc $(printf '%s' "$_stoe1882" | grep -qF 'returned success but no interpreter' && echo yes || echo no)"
 _stw1882="$(printf '%s' "$RSAKEY22" | env DEVFLOW_REFRESH_SIGNER="$D487/absent-signer-n.py" bash "$SELFTEST_1882" 2>&1)"; _stw1882_rc=$?
 assert_eq "#1882 arm1882n: self-test WARN-CONTINUE arm (absent signer) exits 0 with a ::warning::" "0 yes" \
   "$_stw1882_rc $(printf '%s' "$_stw1882" | grep -qF '::warning::refresher-selftest' && echo yes || echo no)"

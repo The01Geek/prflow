@@ -309,6 +309,10 @@ run_cycle() {
   cfg="$(locate_extraheader_file)" || return 1
   b64="$(printf 'x-access-token:%s' "$token" | openssl base64 -A 2>/dev/null)" \
     || { warn "cycle: base64 encode of the token failed — push credential NOT rewritten"; return 1; }
+  # Empty output with a zero exit is the same contract breach the interpreter rc routing
+  # guards: writing it produces a well-formed header carrying no credential at all,
+  # which pushes fail on far less legibly than keeping the previous one.
+  [ -n "$b64" ] || { warn "cycle: base64 encode produced no output — push credential NOT rewritten"; return 1; }
   header="AUTHORIZATION: basic ${b64}"
   # git config writes via a lockfile + atomic rename, so a concurrent push reading
   # this credential sees the old-or-new value, never a torn/partial file.
@@ -363,7 +367,10 @@ job_superseded() {
   [ -n "$JOB_ID" ] || return 1
   [ -n "$JOB_POINTER" ] || return 1
   [ -f "$JOB_POINTER" ] || return 1
-  local cur; cur="$(cat "$JOB_POINTER" 2>/dev/null || true)"
+  # `read` builtin, not `cat`: cat is not preflight-guaranteed, and on a host without
+  # it every pointer read would come back empty and self-retirement would be silently
+  # disabled — the loop outliving its job is the defeat this function exists to prevent.
+  local cur=""; read -r cur 2>/dev/null < "$JOB_POINTER" || :
   [ -n "$cur" ] || return 1
   [ "$cur" != "$JOB_ID" ]
 }

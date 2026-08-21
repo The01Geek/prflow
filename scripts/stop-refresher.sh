@@ -109,9 +109,12 @@ for _rpf in $REAP_GLOB; do
     ps) command -v ps >/dev/null 2>&1 && _rcmd="$(ps -o args= -p "$_ropid" 2>/dev/null || true)" ;;
     *)
       if [ -r "/proc/$_ropid/cmdline" ]; then
-        # bash strips the NUL separators, so the args concatenate.
+        # bash strips the NUL separators, so the args concatenate. A host without `cat`
+        # leaves _rcmd empty here, so the ps fall-through below is unconditional —
+        # committing to /proc would make the reaper inert on a cat-less host.
         _rcmd="$(cat "/proc/$_ropid/cmdline" 2>/dev/null || true)"
-      elif command -v ps >/dev/null 2>&1; then
+      fi
+      if [ -z "$_rcmd" ] && command -v ps >/dev/null 2>&1; then
         _rcmd="$(ps -o args= -p "$_ropid" 2>/dev/null || true)"
       fi ;;
   esac
