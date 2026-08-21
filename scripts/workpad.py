@@ -4015,7 +4015,7 @@ def _encode_resume_point(text: str) -> str:
     return base64.urlsafe_b64encode(text.encode('utf-8')).rstrip(b'=').decode('ascii')
 
 
-def _decode_resume_point(payload: str) -> object:
+def _decode_resume_point(payload: str) -> str | None:
     """Decode a resume-point marker payload back to its text. Best-effort: a payload
     that is not valid base64url or not valid UTF-8 returns None, so a malformed marker
     reads as absent rather than raising."""
