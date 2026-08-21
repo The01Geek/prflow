@@ -1,0 +1,21 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-21T16:59:09Z",
+  "loop_role": "fix",
+  "current_step": "loop-control",
+  "current_substep": "step-1-run-engine",
+  "pending_dispatch": {
+    "kind": "review_engine",
+    "roster": [
+      "general-purpose"
+    ],
+    "dispatched_at": "2026-08-21T17:00:00Z",
+    "issued_by": "loop-control"
+  },
+  "run_id": "local-20260821T165909Z-1",
+  "pr_number": 1781,
+  "fix_threshold": "suggestion",
+  "max_iters": 5,
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

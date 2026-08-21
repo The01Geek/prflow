@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1781",
+  "generated_at": "2026-08-21T17:01:09Z",
+  "config_fingerprint": {
+    "sha256": "041eed3b8a65185548cb1b1544ee25378f9e9c253130671130b6be30a3374ec2",
+    "partial": false,
+    "salient": {
+      "verdict_severity_threshold": "critical",
+      "fix_severity_threshold": "suggestion",
+      "max_iterations": 5
+    }
+  },
+  "source": "review-and-fix",
+  "synthesized": false,
+  "cut_candidate_min_dispatch": 3,
+  "iterations": 1,
+  "per_iteration": [
+    {
+      "iter": 1,
+      "loop_role": "fix",
+      "synthesized": false,
+      "phase3_dispatched": [],
+      "phase3_dispatched_count": 0,
+      "phase3_dispatched_present": false,
+      "dispatched_effort_present": false,
+      "agent_effort": [],
+      "diff_profile": null,
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 0,
+      "added_nothing": true,
+      "agent_verdicts": []
+    }
+  ],
+  "telemetry": [
+    {
+      "iter": 1,
+      "phases": "unavailable"
+    }
+  ]
+}
