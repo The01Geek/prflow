@@ -32028,13 +32028,13 @@ print(next(s["run"] for j in d["jobs"].values() for s in j.get("steps",[]) if s.
     R313_RC=0
     R313_OUT="$( export DECISION='{"env":{"github_token":"x"}}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" 2>&1 )" || R313_RC=$?
     assert_eq "#1773 inject-body: a case-variant denied key (github_token) is also refused (exit 1)" "1" "$R313_RC"
-    # Attribute the refusal to the deny-list guard: an exit-code-only assertion cannot tell it
-    # from the shape guard or any later failure, so pin the ::error:: echoing the key back.
+    # Do not reduce this to an exit-code-only assertion: exit 1 alone cannot distinguish the
+    # deny-list guard from the shape guard or any later failure.
     assert_eq "#1773 inject-body: the case-variant refusal is the deny-list guard (::error:: names github_token)" "yes" \
       "$(printf '%s' "$R313_OUT" | grep -qF '::error::' && printf '%s' "$R313_OUT" | grep -qF 'github_token' && printf '%s' "$R313_OUT" | grep -qiF 'refusing to run' && echo yes || echo no)"
     : > "$R313_GENV"
-    # Positive control on the same shape: a lower-case NON-denied key IS exported, so the
-    # refusal above is attributable to the denied NAME and not to the key being lower-case.
+    # Do not delete this positive control: without it the refusal above is not attributable to
+    # the denied NAME rather than to the key being lower-case.
     ( export DECISION='{"env":{"github_token_id":"z"}}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" ) >/dev/null 2>&1
     gh_kv "$R313_GENV" > "$R313_GENV.kv"
     assert_eq "#1773 inject-body: a lower-case non-denied key (github_token_id) is still exported (lower case alone is not the refusal)" "yes" \
@@ -32055,6 +32055,15 @@ print(next(s["run"] for j in d["jobs"].values() for s in j.get("steps",[]) if s.
     assert_eq "#1773 inject-body: a near-miss non-denied key (GITHUB_TOKEN_ID) is still exported (IN() is exact-match)" "yes" \
       "$(grep -qxF 'GITHUB_TOKEN_ID=z' "$R313_GENV.kv" && echo yes || echo no)"
     rm -f "$R313_GENV.kv"; : > "$R313_GENV"
+    # Do not prefix the denied_env_keys assignment with local/export or append `|| true`: the
+    # bare form takes the jq exit status, and only that makes a malformed .env abort under
+    # set -e instead of yielding an empty key list the guard reads as "nothing denied".
+    R313_RC=0
+    ( export DECISION='{"env":"oops"}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" ) >/dev/null 2>&1 || R313_RC=$?
+    R313_TOPKEYS="$(gh_topkeys "$R313_GENV")"
+    assert_eq "#1773 inject-body: a non-object .env fails closed (non-zero exit, no env var written)" "yes" \
+      "$([ "$R313_RC" -ne 0 ] && [ -z "$R313_TOPKEYS" ] && echo yes || echo no)"
+    : > "$R313_GENV"
     # A well-formed env-map key still passes (no false fire on the documented keys).
     ( export DECISION='{"env":{"ANTHROPIC_DEFAULT_HAIKU_MODEL":"glm-4.7"}}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" ) >/dev/null 2>&1
     gh_kv "$R313_GENV" > "$R313_GENV.kv"
