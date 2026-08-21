@@ -1909,6 +1909,51 @@ def cmd_deferred_presence(args):
     sys.exit(1)
 
 
+def cmd_resume_point(args):
+    """Print this run's recorded mid-phase re-anchor resume point (issue #1876).
+
+    A NAVIGATION aid, never evidence: this reader is wired into no verdict/gate, so a
+    self-reported resume point can never reach a verification decision (issue #1489).
+    Exit codes follow `grep(1)`'s idiom, matching `deferred-presence`:
+
+      0  a resume point is on record — its decoded text is the sole stdout line.
+      1  no resume point is recorded (none written, or the marker is malformed and
+         reads as absent) — nothing is printed on stdout.
+      2  unestablished — the workpad or its single `## Progress` section could not be
+         read (stderr names which); the caller re-reads the full phase set rather than
+         trusting an unread record. (argparse's own usage exit is also 2.)
+
+    The workpad body itself is never printed."""
+    marker = _workpad_marker(args.marker)
+    c = _find_workpad_comment(
+        'resume-point', _repo_full(api_fail_code=2), args.issue, marker,
+        api_fail_code=2,
+    )
+    if c is None:
+        sys.stderr.write(
+            f"workpad.py resume-point: no workpad comment carrying {marker!r} on "
+            f"issue #{args.issue}; the mid-phase resume point could not be established\n"
+        )
+        sys.exit(2)
+    content = _progress_content_or_none(c.get('body') or '')
+    if content is None:
+        sys.stderr.write(
+            "workpad.py resume-point: the workpad does not carry exactly one "
+            "'## Progress' section (absent or duplicated); the mid-phase resume "
+            "point could not be established\n"
+        )
+        sys.exit(2)
+    # The producer strips the prior row and appends the new one, so at most one row
+    # survives; take the last decodable payload so a replay reads back the later one,
+    # and a malformed marker (undecodable) drops to absent rather than raising.
+    texts = [t for t in (_decode_resume_point(p)
+                         for p in _resume_point_marker_payloads(content)) if t is not None]
+    if not texts:
+        sys.exit(1)
+    print(texts[-1])
+    sys.exit(0)
+
+
 # Issue #1513 — the deferred-REFLECTION backing audit: a `--reflection-kind
 # deferred` bullet reads as a tracked deferral but files nothing, so this reader
 # and cmd_deferred_reflection_audit make an unbacked one detectable at Phase 4.
@@ -3944,6 +3989,57 @@ def _strip_completion_ci_marker_rows(content: str) -> str:
     return ''.join(kept)
 
 
+# ── Mid-phase resume-point family (issue #1876) ────────────────────────────────
+#
+# The Phase 3 mid-phase re-anchor used to re-read EVERY member of the phase's
+# reference set to recover the step position after a nested-skill return; this family
+# records that step position durably so only the member holding it need be re-read.
+# It is a NAVIGATION aid and NEVER evidence: no verdict/gate reads it (its reader is a
+# standalone subcommand wired into no `_*_verdict`), which is what keeps a run's
+# self-report out of any verification decision (issue #1489). It rides the same
+# keyed-checkpoint marker family (issue #537); the payload is a base64url-unpadded
+# token of the resume-point text, so it is a single whitespace-free `[^\s]+` the marker
+# and checkpoint-key grammars both accept, and it legitimately CHANGES between calls
+# (each mid-phase invocation records a fresh point), so the producer strips the prior
+# row and appends the new one — the reader returns the sole surviving payload. Both the
+# `prflow:` and superseded `devflow:` spellings are read per record (#1003).
+_RESUME_POINT_MARKER_KEY_PREFIX = 'resume-point:'
+_RESUME_POINT_MARKER_RE = re.compile(
+    _MARKER_NS_RE + r'checkpoint resume-point:([^\s]+?) -->'
+)
+
+
+def _encode_resume_point(text: str) -> str:
+    """Encode resume-point text as a base64url-unpadded token (whitespace-free), so it
+    fits the marker grammar and the checkpoint key grammar (`[A-Za-z0-9._:-]+`)."""
+    return base64.urlsafe_b64encode(text.encode('utf-8')).rstrip(b'=').decode('ascii')
+
+
+def _decode_resume_point(payload: str) -> str | None:
+    """Decode a resume-point marker payload back to its text. Best-effort: a payload
+    that is not valid base64url or not valid UTF-8 returns None, so a malformed marker
+    reads as absent rather than raising."""
+    try:
+        pad = '=' * (-len(payload) % 4)
+        return base64.urlsafe_b64decode(payload + pad).decode('utf-8')
+    except Exception:  # noqa: BLE001 - a corrupt payload fails closed to absent
+        return None
+
+
+def _resume_point_marker_payloads(progress_content: str) -> list[str]:
+    """Every payload carried by a `resume-point:` checkpoint marker in the ## Progress
+    content. A marker outside ## Progress is not passed here, so it reads as absent."""
+    return _RESUME_POINT_MARKER_RE.findall(progress_content or '')
+
+
+def _strip_resume_point_marker_rows(content: str) -> str:
+    """Remove any ## Progress row carrying a `resume-point:` marker, so a later record
+    replaces the prior one rather than accumulating."""
+    kept = [ln for ln in content.splitlines(keepends=True)
+            if not _RESUME_POINT_MARKER_RE.search(ln)]
+    return ''.join(kept)
+
+
 def _validate_ci_evidence(args, payload: str) -> None:
     """Validate a specific CI-derived completion-evidence marker payload.
 
@@ -4391,6 +4487,7 @@ _RESERVED_CHECKPOINT_KEY_PREFIXES = (
     (_REVIEW_COVERAGE_KEY_PREFIX, '`--record-review-coverage`'),
     (_COMPLETION_MARKER_KEY_PREFIX, '`--record-completion-evidence`'),
     (_COMPLETION_CI_MARKER_KEY_PREFIX, '`--record-completion-evidence-ci`'),
+    (_RESUME_POINT_MARKER_KEY_PREFIX, '`--record-resume-point`'),
 )
 
 
@@ -4869,6 +4966,7 @@ def _has_non_checkpoint_mutation(args) -> bool:
         getattr(args, 'review_coverage_disposition', None),
         getattr(args, 'strip_inherited_checkpoints', False),
         getattr(args, 'reconcile_extension_rows', False),
+        getattr(args, 'record_resume_point', None),
     ])
 
 
@@ -4971,8 +5069,8 @@ def _plan_checkpoints(body: str, checkpoint_reqs) -> list[tuple[str, str]]:
             if key.startswith(_prefix):
                 raise _UpdateError(
                     f"--checkpoint key {key!r} is in the reserved {_prefix!r} "
-                    f"namespace; record it with {_owner} instead, which validates the "
-                    "record and writes the accompanying evidence. No PATCH was made."
+                    f"namespace; record it with {_owner} instead, the flag that owns "
+                    "that namespace. No PATCH was made."
                 )
         # A line boundary splits the row across physical lines and leaves the marker
         # on the LAST one — so a line-filtering strip (`--strip-inherited-checkpoints`,
@@ -5316,6 +5414,14 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         }
         ci_payload = _encode_ci_payload(ci_record)
         _validate_ci_evidence(args, ci_payload)
+
+    # Mid-phase resume-point record (issue #1876). No validation — it is a NAVIGATION
+    # aid, never evidence — so unlike the completion families above it needs no
+    # before-mutation validation pass; the payload is encoded here and the row written
+    # below (replacing any prior resume-point row).
+    record_resume_point = getattr(args, 'record_resume_point', None)
+    resume_point_payload = (
+        _encode_resume_point(record_resume_point) if record_resume_point else None)
 
     # Review-coverage record + dispositions (issue #1453). Validated here, BEFORE any
     # body mutation, for the same all-or-nothing reason as the flight key above; the
@@ -5697,6 +5803,13 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
             f'(head {record_ci[0][:12]}…, {record_ci[2]}, validated) '
             f'{_checkpoint_marker(_ci_ck)}'
         )
+    # Mid-phase resume-point marker (issue #1876): a later record REPLACES the prior
+    # one, so any existing resume-point row is stripped below before this is appended.
+    if resume_point_payload:
+        _rp_ck = _RESUME_POINT_MARKER_KEY_PREFIX + resume_point_payload
+        progress_notes.append(
+            f'mid-phase resume point recorded {_checkpoint_marker(_rp_ck)}'
+        )
     # Review-coverage record + dispositions (issue #1453): validated above; the prior
     # rows were stripped just before the append loop, mirroring the completion-evidence
     # marker's replace-rather-than-accumulate semantics.
@@ -5779,6 +5892,8 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
             content = _strip_completion_marker_rows(content)
         if ci_payload:
             content = _strip_completion_ci_marker_rows(content)
+        if resume_point_payload:
+            content = _strip_resume_point_marker_rows(content)
         if review_coverage_payload:
             # A fresh record REPLACES the prior one (and its now-stale dispositions),
             # so the reader's "exactly one record" contract holds across a re-recorded
@@ -6055,6 +6170,18 @@ def main():
     s.set_defaults(func=cmd_deferred_presence)
 
     s = sub.add_parser(
+        'resume-point',
+        help="Print this run's recorded mid-phase re-anchor resume point (issue "
+             '#1876). Exits 0 with the resume point on stdout / 1 when none is '
+             'recorded (grep-style) / 2 unestablished (no workpad, or no single '
+             '## Progress section). A navigation aid read by no verdict/gate; never '
+             'prints the body.',
+    )
+    s.add_argument('issue', type=int)
+    s.add_argument('--marker', default=None, help=_marker_help)
+    s.set_defaults(func=cmd_resume_point)
+
+    s = sub.add_parser(
         'deferred-reflection-audit',
         help="Bounded check that every deferred-kind reflection this run recorded "
              "is backed by a scope-decision-deferred record bound to this run's PR "
@@ -6315,6 +6442,15 @@ def main():
                         'the flight marker, this satisfies a later "--status Complete" '
                         'write — the two families are counted together and exactly one '
                         'is required.')
+    u.add_argument('--record-resume-point', default=None, metavar='TEXT',
+                   help='Record this run\'s mid-phase re-anchor resume point (issue '
+                        '#1876) as a hidden "<!-- prflow:checkpoint '
+                        'resume-point:<payload> -->" ## Progress row, replacing any '
+                        'prior one. TEXT is the step to resume at after a nested-skill '
+                        'return (e.g. a phase-file and step). It is a NAVIGATION aid, '
+                        'never evidence: no verdict, completion-evidence, or '
+                        'review-coverage reader consumes it — read it back with the '
+                        '"resume-point" subcommand. Needs no other mutation to PATCH.')
     u.add_argument('--record-review-coverage', nargs=4, default=None,
                    metavar=('COVERAGE', 'DISPATCH', 'ROSTER', 'CHECKLIST'),
                    help='Record this run\'s resolved Phase 3 review-coverage state '
