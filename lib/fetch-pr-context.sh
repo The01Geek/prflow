@@ -172,7 +172,7 @@ PR_REVIEWS="$(echo "$PR_REVIEWS_RAW" | "$DEVFLOW_JQ" '[.[] | {author: ((.user | 
 _COMMITS_RAW="$("$DEVFLOW_GH" api "repos/${REPO}/pulls/${PR}/commits" --paginate)" \
   || { echo "::error::fetch-pr-context: failed to fetch commits for PR ${PR}" >&2; exit 1; }
 COMMITS_RAW="$(printf '%s' "$_COMMITS_RAW" | "$DEVFLOW_JQ" -s "$_JQ_PAGES_TO_OBJECTS")"
-COMMITS="$(echo "$COMMITS_RAW" | "$DEVFLOW_JQ" '[.[] | {sha: .sha, author_login: ((.author | if type == "object" then .login else null end) // ""), committer_login: ((.committer | if type == "object" then .login else null end) // ""), committed_at: (.commit.committer.date // ""), message: (.commit.message // ""), parents_count: ((.parents // []) | length)}]')"
+COMMITS="$(echo "$COMMITS_RAW" | "$DEVFLOW_JQ" '[.[] | {sha: .sha, author_login: (.author.login // ""), committer_login: (.committer.login // ""), committed_at: (.commit.committer.date // ""), message: (.commit.message // ""), parents_count: ((.parents // []) | length)}]')"
 
 # ── 10. Diff ──────────────────────────────────────────────────────────────────
 DIFF_BYTE_CAP="$(devflow_conf '.prflow_retrospective.diff_byte_cap' 204800)"
@@ -552,7 +552,7 @@ PYEOF
 # feeds nothing, and review_reject_outstanding is derived from review_verdicts alone.
 printf '%s' "$PR_REVIEWS_RAW" > "$_JQ_TMP/pr_reviews_raw.json"
 REVIEW_VERDICTS_BUNDLE="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" --slurpfile reviews "$_JQ_TMP/pr_reviews_raw.json" '
-    # Deliberately wider than rung 3 on every axis — the whole window, a bare
+    # Deliberately wider than rung 3 on the axes that matter — unmasked, a bare
     # substring, case-insensitive. Narrowing any axis onto rung 3 makes an artifact
     # rung 3 declined vanish from the count as well as the union, recreating the
     # two-meanings collapse the count exists to end.
@@ -569,9 +569,6 @@ REVIEW_VERDICTS_BUNDLE="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" --slurpfile re
     # lines it masks and a verdict is read from the wrong one; rung3 checks that length.
     # Dropped: HTML-comment regions, fenced blocks, blockquotes, indented code, list items,
     # table rows and strikethrough — every construct that marks a line as quoting.
-    # Emits one entry per input line, null where the line was dropped: a dropped line is
-    # SKIPPED, never backfilled from later in the body, so heading-to-token adjacency
-    # survives stripping. Compacting the output instead closes gaps that must stay open.
     def rung3_mask($lines):
         (reduce ($lines[0:30][]) as $l ({comment: false, fence: null, out: []};
             if .comment then
@@ -700,7 +697,10 @@ REVIEW_VERDICT_UNPARSED_COUNT="$(echo "$REVIEW_VERDICTS_BUNDLE" | "$DEVFLOW_JQ" 
 if [ -z "$REVIEW_VERDICTS" ]; then
     # Empty here means the union filter produced no document at all, which is NOT the
     # same fact as "no verdicts" — say so, or an unusable bundle reads as a clean PR and
-    # manufactures review_reject_outstanding=false.
+    # manufactures review_reject_outstanding=false. Not reachable via the producer path
+    # (the section-7 slurp always hands the filter an array, so it always emits an
+    # object, and a filter error aborts under set -e before this runs) — a fail-closed
+    # floor no producer-driven test can drive, like the array guards inside the filter.
     echo "fetch-pr-context.sh: the union filter produced no review_verdicts document; emitting [] (verdicts could not be established for this PR)" >&2
     REVIEW_VERDICTS='[]'
 fi

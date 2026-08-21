@@ -14403,6 +14403,13 @@ assert_eq "#1443 malformed: user is a string (comment leg)" "0 0" \
   "$(_uv '[{"user":"octocat","body":"nothing to read here","created_at":"2026-01-01T00:00:00Z"}]' '[]' | _uv_shape)"
 assert_eq "#1443 malformed: user is a string (review leg)" "0 0" \
   "$(_uv '[]' '[{"user":"octocat","state":"COMMENTED","body":"nothing to read here","submitted_at":"2026-01-01T00:00:00Z"}]' | _uv_shape)"
+# `// ""` replaces null and false but not a number, so a non-string login survives into
+# `author` as a non-string. Coverage for the AC7 shape family, not a regression pin: no
+# consumer of a comment or review `author` applies a string operation to it.
+assert_eq "#1443 malformed: user.login is a number (comment leg)" "0 0" \
+  "$(_uv '[{"user":{"login":123},"body":"nothing to read here","created_at":"2026-01-01T00:00:00Z"}]' '[]' | _uv_shape)"
+assert_eq "#1443 malformed: user.login is an object (review leg)" "0 0" \
+  "$(_uv '[]' '[{"user":{"login":{}},"state":"COMMENTED","body":"nothing to read here","submitted_at":"2026-01-01T00:00:00Z"}]' | _uv_shape)"
 # The pages normalizer drops non-object ELEMENTS as well as coercing a non-array page;
 # without that half a mixed-element page aborts every later .[] read.
 assert_eq "#1443 malformed: a page carrying non-object elements still yields the surviving verdict" "REJECT" \
@@ -14497,7 +14504,7 @@ assert_eq "#1443 count: a lowercase token still raises the residual count" "0 1"
 assert_eq "#1443 rung3: a star-bulleted Verdict: line is not a verdict" "0 1" \
   "$(_uv '[]' "$(_uv_botr "Summary:"$'\n\n'"* Verdict: REJECT")" | _uv_shape)"
 assert_eq "#1443 rung3: a curly-quoted Verdict: line is not a verdict" "0 1" \
-  "$(_uv '[]' "$(_uv_botr "The earlier review said:"$'\n\n'"“Verdict: REJECT”")" | _uv_shape)"
+  "$(_uv '[]' "$(_uv_botr "The earlier review said:"$'\n\n''“Verdict: REJECT”')" | _uv_shape)"
 assert_eq "#1443 rung3: a bullet-glyph Verdict: line is not a verdict" "0 1" \
   "$(_uv '[]' "$(_uv_botr "Summary:"$'\n\n'"• Verdict: REJECT")" | _uv_shape)"
 assert_eq "#1443 rung3: an em-dash-prefixed Verdict: line is not a verdict" "0 1" \
