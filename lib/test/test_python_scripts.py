@@ -244,6 +244,8 @@ def make_args(**overrides):
         record_review_coverage=None, review_coverage_disposition=[],
         # issue #1462 prompt-extension row reconciliation — read on every call.
         reconcile_extension_rows=False,
+        # issue #1876 mid-phase resume-point record — read on every call.
+        record_resume_point=None,
         print_body=False,
     )
     base.update(overrides)
@@ -24115,6 +24117,77 @@ assert_eq("#815 --mark-deferred-filed takes a value (it is not a bare flag)",
           True, 'NORMALIZED_TEXT' in _dp_update_help)
 assert_eq("#815 deferred-presence is registered as a subcommand",
           True, 'deferred-presence' in _dp_help(['--help']))
+
+
+# ── #1876 workpad.py resume-point: mid-phase re-anchor navigation record ────────
+print("#1876 workpad resume-point record + read-back")
+
+_RP_BODY = """<!-- devflow:workpad -->
+# Workpad
+
+**Status:** 🚀 Reviewing
+**Last updated:** 2026-01-01T00:00:00Z
+
+## Progress
+- [ ] **Review**
+"""
+
+# AC4 write path: one --record-resume-point call writes exactly one marker row.
+_rp_body1 = apply_mut(_RP_BODY, make_args(record_resume_point="phase-3-fix-loop.md 3.3.2"))
+assert_eq("#1876 a resume-point record writes exactly one resume-point marker",
+          1, _rp_body1.count('resume-point:'))
+# a standalone --record-resume-point is a mutation (it PATCHes, never a no-op).
+assert_eq("#1876 a standalone --record-resume-point is a non-checkpoint mutation",
+          True, workpad._has_non_checkpoint_mutation(make_args(record_resume_point="x")))
+
+# AC3/AC4 round trip: the recorded point reads back verbatim through the subcommand.
+assert_eq("#1876 round trip: the recorded resume point reads back verbatim",
+          (0, "phase-3-fix-loop.md 3.3.2\n"),
+          _dp_cli(['resume-point', '1876'], _rp_body1))
+
+# replay: a second record replaces the first; the read-back returns the LATER one.
+_rp_body2 = apply_mut(_rp_body1, make_args(record_resume_point="phase-3-ac-gate.md 3.4"))
+assert_eq("#1876 a second resume-point record leaves exactly one marker row",
+          1, _rp_body2.count('resume-point:'))
+assert_eq("#1876 replay reads back the later resume point",
+          (0, "phase-3-ac-gate.md 3.4\n"),
+          _dp_cli(['resume-point', '1876'], _rp_body2))
+
+# AC4 reserved-namespace refusal: a generic --checkpoint naming resume-point: is refused.
+assert_raises("#1876 a generic --checkpoint naming resume-point: is refused",
+              workpad._UpdateError,
+              lambda: apply_mut(_RP_BODY, make_args(checkpoint=[['resume-point:x', 'text']])))
+
+# a malformed payload (decodes to invalid UTF-8) reads as absent (exit 1), not a crash.
+_rp_malformed = _RP_BODY.replace(
+    '- [ ] **Review**',
+    '- [ ] **Review**\n  - 00:00:00 — mid-phase resume point '
+    '<!-- prflow:checkpoint resume-point:_w -->')
+assert_eq("#1876 a malformed resume-point payload reads as absent (exit 1)",
+          1, _dp_cli(['resume-point', '1876'], _rp_malformed)[0])
+
+# a body with no resume-point marker reads back empty (exit 1).
+assert_eq("#1876 a body with no resume-point marker reads back empty (exit 1)",
+          1, _dp_cli(['resume-point', '1876'], _RP_BODY)[0])
+
+# an unresolvable workpad is unestablished (exit 2), never a confident absent.
+assert_eq("#1876 an unresolvable workpad answers unestablished (exit 2)",
+          2, _dp_cli(['resume-point', '1876'], _RP_BODY, comment=False)[0])
+
+# AC5: navigation-only — no verdict/gate reader counts the resume-point record.
+_rp_progress = workpad._progress_content_or_none(_rp_body1)
+assert_eq("#1876 AC5: a resume-point marker is not read as CI completion evidence",
+          [], workpad._completion_ci_marker_payloads(_rp_progress))
+assert_eq("#1876 AC5: a resume-point marker is not read as flight completion evidence",
+          [], workpad._completion_marker_keys(_rp_progress))
+assert_eq("#1876 AC5: a resume-point marker is not read as a review-coverage record",
+          [], workpad._review_coverage_payloads(_rp_progress))
+
+# subcommand + flag registration through the real parser.
+assert_eq("#1876 resume-point is registered as a subcommand",
+          True, 'resume-point' in _dp_help(['--help']))
+assert_eq("#1876 --record-resume-point is registered on the update subcommand",
+          True, '--record-resume-point' in _dp_help(['update', '--help']))
 
 # ── #1513 workpad.py `deferred-reflection-audit`: is every deferred reflection backed? ──
 # A `--reflection-kind deferred` bullet renders under `### ⚠️ Action required` and reads
