@@ -126,5 +126,73 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.55",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 28.782424450000015,
+    "tokens": {
+      "input_tokens": 102,
+      "output_tokens": 88040,
+      "cache_read_input_tokens": 11048737,
+      "cache_creation_input_tokens": 325819,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 160,
+        "outputTokens": 154597,
+        "cacheReadInputTokens": 12577282,
+        "cacheCreationInputTokens": 986714,
+        "webSearchRequests": 0,
+        "costUSD": 17.543149749999994,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 460,
+        "outputTokens": 86258,
+        "cacheReadInputTokens": 10232999,
+        "cacheCreationInputTokens": 1833100,
+        "webSearchRequests": 0,
+        "costUSD": 11.239274700000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 104,
+    "duration_ms": 1727669
+  },
+  "permission_denials": {
+    "count": 8,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---RUNENV---\"; echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-}\"; echo \"GITHUB_RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT:-}\"; echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-}\"",
+      "find / -iname \"refresh-app-credentials.sh\" 2>/dev/null",
+      "find / -maxdepth 6 -iname \"sign-jwt-rs256.py\" 2>/dev/null; grep -n \"1882\\|sign-jwt-rs256\\|malformed-input\" /home/runner/work/prflow/prflow/lib/test/run.sh | head -50",
+      "find / -name \"refresher-sign.sh\" 2>/dev/null",
+      "grep -n \"refresh-app-credentials\\|cycle OK\\|run_cycle\\|signer\" /home/runner/work/prflow/prflow/lib/test/run.sh | grep -i \"cycle\\|refresh\" | head -30\necho ---\ngit -C /home/runner/work/prflow/prflow log --oneline -5 -- scripts/refresh-app-credentials.sh",
+      "find / -name \"refresher-sign.sh\" 2>/dev/null",
+      "find / -name \"sign-jwt-rs256.py\" 2>/dev/null",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1884/32453488192-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1884/32453488192-1/verdicts/iter-1/VC-49-88192b49.json << 'EOF'\n{\n  \"id\": \"VC-49\",\n  \"verdict\": \"PASS\",\n  \"evidence\": \"scripts/sign-jwt-rs256.py contains no subprocess/openssl invocation (pure stdlib: base64, hashlib, json, sys) and reads the key only via sys.stdin.buffer.read() at main() (line 203), with argv used only for iss/iat/exp (lin …[per-command-truncated]"
+    ],
+    "total": 8,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
