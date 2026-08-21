@@ -14445,8 +14445,16 @@ assert_eq "#1443 rung3: a token in prose BELOW an anchored headline is not a ver
 # constraint applies — only sub-rung 2's own whole-line shape rejects it.
 assert_eq "#1443 rung3: a token in prose ON an anchored headline is not a verdict" "0 1" \
   "$(_uv '[]' "$(_uv_botr "## Review: addressed the REJECT findings"$'\n\n'"Done.")" | _uv_shape)"
+# The escalation guard needs a body sub-rung 2 WOULD otherwise answer, or it stays green
+# with the guard deleted.
 assert_eq "#1443 rung3: a non-resolving Verdict: line does not escalate to a looser sub-rung" "0 1" \
-  "$(_uv '[]' "$(_uv_botr "**Verdict: pending** — see REJECT above"$'\n\n'"Waiting.")" | _uv_shape)"
+  "$(_uv '[]' "$(_uv_botr "Verdict: pending"$'\n\n'"Devflow Review: APPROVE")" | _uv_shape)"
+assert_eq "#1443 rung3: a mid-sentence Verdict: mention is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "See the prior Verdict: REJECT here."$'\n\n'"Nothing new.")" | _uv_shape)"
+assert_eq "#1443 rung3: a sentence whose words collapse to a headline is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Do not review. REJECT."$'\n\n'"Explained above.")" | _uv_shape)"
+assert_eq "#1443 rung3: a tilde-fenced rung-3 shape is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Quoting the contract:"$'\n\n'"~~~"$'\n'"## ✅ Devflow Review — APPROVE"$'\n'"~~~")" | _uv_shape)"
 # APPROVED yields no verdict, but still RAISES the residual count: the counter's operand
 # stays wider than the verdict tokenizer, or an unread artifact vanishes from both.
 assert_eq "#1443 rung3: APPROVED is not the APPROVE token but still counts as unread" "0 1" \
@@ -14467,7 +14475,7 @@ assert_eq "#1443 rung3: two rung-3 verdict lines contribute exactly one entry" "
 # Rung 2 still pre-empts rung 3, as rung 1 does. The two rungs must disagree and the
 # rung-3 shape must come FIRST, or the assertion stays green with rung 2 disabled.
 assert_eq "#1443 rung3: the rung-2 heading grammar pre-empts the new rung" "APPROVE" \
-  "$(_uv '[]' "$(_uv_botr "**Devflow Review: REJECT** ✅"$'\n\n'"## Verdict: APPROVE")" | _uv_verds)"
+  "$(_uv '[]' "$(_uv_botr "**Devflow Review: REJECT** ✅"$'\n\n'"## Verdict: APPROVE (looks good)")" | _uv_verds)"
 # Idempotency: two runs over identical payloads emit byte-identical results.
 UV3_RUN1="$(_uv "$(_uv_botc "$UV3_S3")" "$(_uv_botr "$UV3_S4")" | jq -c '{review_verdicts, review_verdict_unparsed_count}')"
 UV3_RUN2="$(_uv "$(_uv_botc "$UV3_S3")" "$(_uv_botr "$UV3_S4")" | jq -c '{review_verdicts, review_verdict_unparsed_count}')"

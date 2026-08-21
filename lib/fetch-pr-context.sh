@@ -552,22 +552,18 @@ PYEOF
 # feeds nothing, and review_reject_outstanding is derived from review_verdicts alone.
 printf '%s' "$PR_REVIEWS_RAW" > "$_JQ_TMP/pr_reviews_raw.json"
 REVIEW_VERDICTS_BUNDLE="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" --slurpfile reviews "$_JQ_TMP/pr_reviews_raw.json" '
-    # Lookarounds, not a consumed boundary class: a consumed one swallows the separator
-    # and misses the second of two adjacent tokens, so an ambiguous line reads as one.
-    def verdict_tokens($s):
-        [ $s | scan("(?<![A-Za-z])(APPROVE|REJECT)(?![A-Za-z])"; "i") ] | flatten | map(ascii_upcase);
-    # Deliberately WIDER than rung 3 on both axes — the whole window, and a bare substring
-    # rather than the bounded token verdict_tokens uses. Narrowing either axis onto rung 3
-    # makes an artifact rung 3 declined vanish from the union AND the residual count, which
-    # is the two-meanings collapse the count exists to end.
+    # Deliberately WIDER than every rung — the whole window, a bare substring, and
+    # case-insensitive. Narrowing any axis onto rung 3 makes an artifact rung 3 declined
+    # vanish from the union AND the residual count, the two-meanings collapse the count
+    # exists to end.
     def token_in_window($lines):
-        any($lines[0:30][]; test("APPROVE|REJECT"));
+        any($lines[0:30][]; test("APPROVE|REJECT"; "i"));
     # Drop every line rung 3 must not read a verdict from: an HTML-comment region (opening
     # line, continuations and close alike), a fenced block, and a blockquote.
     def rung3_window($lines):
         (reduce ($lines[0:30][]) as $l ({comment: false, fence: false, out: []};
             if .comment then (if ($l | test("-->")) then .comment = false else . end)
-            elif ($l | test("^[ \t]*```")) then .fence = (.fence | not)
+            elif ($l | test("^[ \t]*(```|~~~)")) then .fence = (.fence | not)
             elif .fence then .
             elif ($l | test("<!--")) then (if ($l | test("-->")) then . else .comment = true end)
             elif ($l | test("^[ \t]*>")) then .
@@ -576,33 +572,31 @@ REVIEW_VERDICTS_BUNDLE="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" --slurpfile re
     def rung3($lines; $login):
         if ((($login | strings) // "") | endswith("[bot]")) then
           rung3_window($lines) as $w
-          # Anchor the CAPTURE itself, never a looser `select` in front of it: a superset
-          # guard hands a `Verdict:` line that does not resolve — `Verdict: pending` — down
-          # to a looser sub-rung, which then reads a token from the prose beside it.
+          # Every sub-rung reads its token from its OWN whole-line capture, anchored at both
+          # ends. A guard that only anchors the prefix, or that re-derives the token with a
+          # second pattern, admits the trailing prose an artifact quotes a prior verdict in.
           | ([ $w[]
-               | capture("^[^A-Za-z]*Verdict:[^A-Za-z]*(?<v>APPROVE|REJECT)"; "i")
+               | capture("^[^A-Za-z]*Verdict:[^A-Za-z]*(?<v>APPROVE|REJECT)[^A-Za-z]*$"; "i")
                | (.v | ascii_upcase) ]) as $r1
           | if ($r1 | length) > 0 then $r1[0:1]
             elif any($w[]; test("^[^A-Za-z]*Verdict:"; "i")) then []
             else
-              # The WHOLE line must be the headline — an optional leading word, the anchor
-              # word, then the token and nothing else. Matching the anchor and the token
-              # separately admits any headline that merely mentions a verdict in prose.
-              ([ $w[]
-                 | select(test("[^ \t]")) ][0:3]
-               | map(select((gsub("[^A-Za-z]"; "") | ascii_upcase)
-                            | test("^([A-Z]+)?(REVIEW|VERDICT)(APPROVE|REJECT)$")))) as $nb
-              | ([ $nb[] | verdict_tokens(.) ] | flatten) as $r2
+              # Letters may appear only in one optional leading word, the anchor word, and
+              # the token — collapsing punctuation away instead lets an ordinary sentence
+              # ("Do not review. REJECT.") wear the headline shape. The token stays
+              # case-SENSITIVE so lowercase prose cannot satisfy it.
+              ([ $w[] | select(test("[^ \t]")) ][0:3]
+               | map(capture("^[^A-Za-z]*([A-Za-z]+[^A-Za-z]+)?(?i:Review|Verdict)[^A-Za-z]+(?<v>APPROVE|REJECT)[^A-Za-z]*$"))
+               | map(.v)) as $r2
               | if ($r2 | length) == 1 then $r2
                 else
                   ([ range(0; $w | length) as $i
-                     | select(($w[$i] | test("^#{1,6}[ \t]")) and (($w[$i] | gsub("[^A-Za-z]"; "")) == "Verdict"))
+                     | select(($w[$i] | test("^#{1,6}[ \t]"))
+                              and (($w[$i] | gsub("[^A-Za-z]"; "") | ascii_downcase) == "verdict"))
                      | ([ ($w[($i + 1):] | .[]) | select(test("[^ \t]")) ][0]) as $nxt
                      | select($nxt != null)
-                     | select($nxt | test("^#") | not)
-                     | verdict_tokens($nxt)
-                     | select(length == 1)
-                     | .[0] ]) as $r3
+                     | ($nxt | capture("^[^A-Za-z]*(?<v>APPROVE|REJECT)[^A-Za-z]*$"))
+                     | .v ]) as $r3
                   | $r3[0:1]
                 end
             end
