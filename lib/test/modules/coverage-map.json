@@ -693,6 +693,11 @@
       "note": "issue #671 bounded-retry/backoff wrapper extracted from ci.yml's CLI install step",
       "owner": "unmodularized"
     },
+    "scripts/review-context-eval.py": {
+      "focused_test": "lib/test/test_review_context_eval.py",
+      "note": "issue #1852 review-engine per-context read eval; maintainer-only instrument, tested directly by lib/test/test_review_context_eval.py (serial)",
+      "owner": "unmodularized"
+    },
     "scripts/route-guard-counts-outcome.sh": {
       "note": "issue #908 review Important #2: RGC_RC/FIRED -> counts outcome routing out of devflow-runner.yml's guard step",
       "owner": "unmodularized"
@@ -1421,6 +1426,10 @@
       "owner": "issue-audit-state"
     },
     "185": {
+      "note": "",
+      "owner": "unmodularized"
+    },
+    "1852": {
       "note": "",
       "owner": "unmodularized"
     },
