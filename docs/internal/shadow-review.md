@@ -5,7 +5,7 @@
 section and the chat-output `{shadow status}` rendering) — the step references the thin
 `skills/review-and-fix/SKILL.md` root routes to (issue #530)
 
-This doc captures the mechanics of the shadow review pass and the structural constraint that
+This doc captures the mechanics of the shadow review pass and the portability constraint that
 shapes its design, so the constraint is not re-derived (or re-broken) by a future maintainer who
 sees "just run the engine in a fresh subagent" as the obvious simplification. It is not.
 
@@ -59,9 +59,9 @@ So on such a harness a single shadow subagent told to run the engine reaches Pha
 cannot launch the reviewer fan-out, and **silently flattens to a degraded single-agent self-check**
 that returns a plausible clean `APPROVE`. The audit never actually runs — and a degraded self-check
 re-deriving the loop's own answer is the exact false-convergence the step exists to prevent. This
-was the danger investigated under issue #57; the danger was real, but its recorded cause (a fixed
-harness property) was not — the real constraint is cross-harness portability, and the operative rule
-it warrants is to keep the shadow to a single subagent layer.
+was the danger investigated under issue #57 — real, but wrongly recorded as a fixed harness
+property; the actual constraint is cross-harness portability, which warrants keeping the shadow to a
+single subagent layer.
 
 ### Nested dispatch across harnesses (the single home of this table)
 
