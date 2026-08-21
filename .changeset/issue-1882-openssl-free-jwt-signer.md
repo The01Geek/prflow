@@ -13,4 +13,5 @@ type: Fixed
   workflow's Start step now runs a synchronous pre-launch self-test that fails the job
   immediately on a signing fault; the clock read and the teardown's log read fail closed on a
   missing tool; and the refresher's token file, pidfile and log are job-scoped so the loop
-  retires itself once its job is gone and a cross-job reaper retires an orphaned one. (#1884)
+  retires itself once its job is gone and a cross-job reaper retires an orphaned refresher
+  whose identity it can confirm. (#1884)

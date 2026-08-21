@@ -17,7 +17,7 @@
 #     teardown attributes the job's failure to the signing fault rather than to
 #     a never-started refresher. The Start step fails the job.
 #   * WARN-CONTINUE (exit 0, emits a `::warning::`): the signer helper is absent
-#     or unrunnable — an older vendored plugin slice that carries no signer. The
+#     — an older vendored plugin slice that carries no signer. The
 #     Start step launches the loop anyway; the two upgrade channels skew, and an
 #     absent helper is not a host fault. Told apart from the refusing-signer arm
 #     by the helper's presence and exit status, never by parsing its output.

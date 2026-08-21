@@ -150,12 +150,17 @@ for _rpf in $REAP_GLOB; do
   fi
   # Confirm the LIVE pid is actually a refresher before signalling it. On a
   # long-lived self-hosted runner a dead refresher's pid can be recycled by an
-  # unrelated process, so a blind kill would hit the wrong one. Read the command
-  # line from /proc (bash strips the NUL separators, so the args concatenate); if
-  # it cannot be established (no readable /proc), SKIP the kill — fail safe, never
-  # signal an unverifiable pid.
+  # unrelated process, so a blind kill would hit the wrong one. /proc (Linux and
+  # MSYS2/Git-Bash, the native-Windows target) is the primary identity source and
+  # `ps` the macOS/BSD fallback; a host that can establish NEITHER leaves _rcmd
+  # empty and takes the fail-safe skip below — never signal an unverifiable pid.
   _rcmd=""
-  [ -r "/proc/$_ropid/cmdline" ] && _rcmd="$(cat "/proc/$_ropid/cmdline" 2>/dev/null || true)"
+  if [ -r "/proc/$_ropid/cmdline" ]; then
+    # bash strips the NUL separators, so the args concatenate.
+    _rcmd="$(cat "/proc/$_ropid/cmdline" 2>/dev/null || true)"
+  elif command -v ps >/dev/null 2>&1; then
+    _rcmd="$(ps -o args= -p "$_ropid" 2>/dev/null || true)"
+  fi
   case "$_rcmd" in
     *refresh-app-credentials.sh*)
       # Gate the "reaped" breadcrumb on the kill actually succeeding — otherwise the
