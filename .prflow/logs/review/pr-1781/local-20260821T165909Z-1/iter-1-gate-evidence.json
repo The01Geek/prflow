@@ -1,0 +1,14 @@
+[
+  {
+    "decision": "test-first-gate: applies (deny-list widening adds automated-testable behavior — an exit code and an ::error:: on new key names)",
+    "command": "lib/test/run.sh (#1773 inject-body block) — NOT RUN",
+    "result": "unrunnable",
+    "evidence": "Gate unrunnable by OPERATOR POLICY, not by permission denial: the operator directed this session to run no test suite locally (full or focused) and to verify by pushing and reading CI. This is therefore neither the ungranted-command arm (no command was denied) nor the no-automated-test arm (a conventional automated test does exist and was written). The test was authored FIRST and left un-run: the 12 new key names were added to the R1773_KEY deny-list loop before the workflow guard was widened. RED-ness is established by READING, not execution: at the pre-fix guard the jq IN() set did not contain the 12 new names, so each new key would be exported and the step would exit 0, failing `assert_eq \"...fails loud (exit 1, deny-list guard)\" \"1\" \"$R313_RC\"`. That is a read-derived prediction and is explicitly NOT an observed RED. Backstop named per the gate's own contract: Step 3.5's blinded fix-delta gate, the convergence shadow, and the CI reading for the pushed commit (the local tier's whole-suite completion gate per CLAUDE.md rung 1)."
+  },
+  {
+    "decision": "mutation-check of the added/edited guards (required by item 4 for any added or edited test guard)",
+    "command": "copy-based mutation check — NOT RUN",
+    "result": "unrunnable",
+    "evidence": "Same operator-policy bar. No mutation check was executed, so the new assertions are NOT established as non-vacuous by this run. Two of the edited assertions were specifically strengthened to be self-evidencing by construction rather than by a mutation run: the case-variant assertion now pins the guard's own ::error:: plus the offending key name (previously exit-code-only, which could not distinguish which guard fired), and the deny-list loop already pins ::error:: + key name + an empty $GITHUB_ENV top-level key set per key. Vacuity remains unverified by execution and is left to CI."
+  }
+]

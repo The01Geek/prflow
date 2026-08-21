@@ -2,20 +2,30 @@
   "iter": 1,
   "started_at": "2026-08-21T16:59:09Z",
   "loop_role": "fix",
-  "current_step": "loop-control",
-  "current_substep": "step-1-run-engine",
+  "current_step": "3",
+  "current_substep": "3a_mechanism_resweep",
   "pending_dispatch": {
-    "kind": "review_engine",
+    "kind": "scoped_comment_analyzer_resweep",
     "roster": [
-      "general-purpose"
+      "prflow:comment-analyzer"
     ],
-    "dispatched_at": "2026-08-21T17:00:00Z",
-    "issued_by": "loop-control"
+    "dispatched_at": "2026-08-21T17:40:00Z",
+    "issued_by": "3"
   },
   "run_id": "local-20260821T165909Z-1",
   "pr_number": 1781,
   "fix_threshold": "suggestion",
   "max_iters": 5,
+  "fix_commit_sha": "455fbd5d04ed6a3745beb206ecd5e36593aadacb",
+  "verdict_from_engine": "REJECT",
+  "stale_prose_check": {
+    "command": "git diff 1bcc25bca...HEAD | scripts/stale-prose-lint.py --rev HEAD",
+    "rc": 0,
+    "stale_rows": [],
+    "note": "informational coverage-universal line: no comment/prose scoping rule for .json, every added line examined (fail-open)"
+  },
+  "batched_regeneration": "run",
+  "with_floors": "not run - the --with-floors row executes the real focused module runners, which the operator's no-local-test-execution directive bars; CI test_module_runner.py enforces the module-floor equality instead",
   "synthesized": false,
   "telemetry": "unavailable"
 }
