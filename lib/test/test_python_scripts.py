@@ -24182,6 +24182,41 @@ assert_eq("#1876 a superseded devflow: resume-point marker reads back (dual-spel
 assert_eq("#1876 a body with no resume-point marker reads back empty (exit 1)",
           1, _dp_cli(['resume-point', '1876'], _RP_BODY)[0])
 
+# a duplicated ## Progress section is unestablished (exit 2), never a confident absent —
+# the fail-closed guard cmd_resume_point relies on _progress_content_or_none for.
+_rp_dup = _RP_BODY + "\n## Progress\n- [ ] second progress section\n"
+assert_eq("#1876 a duplicated ## Progress section answers unestablished (exit 2)",
+          2, _dp_cli(['resume-point', '1876'], _rp_dup)[0])
+
+# marker-injection safety: base64url encoding neutralizes the marker terminator (` -->`),
+# a comment opener (`<!--`) and a newline in the resume-point text, so a hazardous payload
+# still writes exactly one intact row and round-trips verbatim.
+_rp_hazard = "phase-3-fix-loop.md --> 3.3 <!-- x\nnext line"
+_rp_body_hz = apply_mut(_RP_BODY, make_args(record_resume_point=_rp_hazard))
+assert_eq("#1876 a hazardous resume-point payload still writes exactly one marker row",
+          1, _rp_body_hz.count('resume-point:'))
+assert_eq("#1876 a marker-terminator/comment/newline payload round-trips intact",
+          (0, _rp_hazard + "\n"), _dp_cli(['resume-point', '1876'], _rp_body_hz))
+
+# defensive last-wins: with two co-resident valid markers (as if a strip left both), the
+# reader returns the later payload via texts[-1].
+_rp_two = _RP_BODY.replace(
+    '- [ ] **Review**',
+    '- [ ] **Review**'
+    '\n  - 00:00:01 — mid-phase resume point <!-- prflow:checkpoint resume-point:'
+    + workpad._encode_resume_point('earlier point') + ' -->'
+    '\n  - 00:00:02 — mid-phase resume point <!-- prflow:checkpoint resume-point:'
+    + workpad._encode_resume_point('later point') + ' -->')
+assert_eq("#1876 with two co-resident resume-point markers the later payload wins",
+          (0, "later point\n"), _dp_cli(['resume-point', '1876'], _rp_two))
+
+# an empty --record-resume-point TEXT is a documented no-op (navigation-only design): it
+# writes no marker and does not register as a mutation, falling safe to a full re-read.
+assert_eq("#1876 an empty --record-resume-point writes no marker (no-op)",
+          0, apply_mut(_RP_BODY, make_args(record_resume_point="")).count('resume-point:'))
+assert_eq("#1876 an empty --record-resume-point is not a non-checkpoint mutation",
+          False, workpad._has_non_checkpoint_mutation(make_args(record_resume_point="")))
+
 # an unresolvable workpad is unestablished (exit 2), never a confident absent.
 assert_eq("#1876 an unresolvable workpad answers unestablished (exit 2)",
           2, _dp_cli(['resume-point', '1876'], _RP_BODY, comment=False)[0])

@@ -5069,8 +5069,8 @@ def _plan_checkpoints(body: str, checkpoint_reqs) -> list[tuple[str, str]]:
             if key.startswith(_prefix):
                 raise _UpdateError(
                     f"--checkpoint key {key!r} is in the reserved {_prefix!r} "
-                    f"namespace; record it with {_owner} instead, which validates the "
-                    "record and writes the accompanying evidence. No PATCH was made."
+                    f"namespace; record it with {_owner} instead, the flag that owns "
+                    "that namespace. No PATCH was made."
                 )
         # A line boundary splits the row across physical lines and leaves the marker
         # on the LAST one — so a line-filtering strip (`--strip-inherited-checkpoints`,
