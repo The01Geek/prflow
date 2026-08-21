@@ -127,6 +127,10 @@
       "note": "",
       "owner": "unmodularized"
     },
+    "lib/refresher-sign.sh": {
+      "note": "issue #1882 shared openssl-free JWT-signing call (devflow_sign_jwt) for the mint and self-test; exercised via the mint in the #1882 arms of the #487 run.sh block and directly by the refresher-selftest arms there",
+      "owner": "unmodularized"
+    },
     "lib/render-report.sh": {
       "note": "issue #788 retrospective issue-closure lifecycle",
       "owner": "retrospective-lifecycle"

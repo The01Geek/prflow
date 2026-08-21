@@ -41,6 +41,7 @@ accepted forgery.
 """
 import base64
 import hashlib
+import json
 import sys
 
 # rsaEncryption OID (1.2.840.113549.1.1.1) DER content bytes (after tag+length).
@@ -162,9 +163,11 @@ def sign_jwt(iss: str, iat: str, exp: str, pem: bytes) -> bytes:
         raise SignerError("iat and exp must be integers")
     n, d = load_rsa_private_key(pem)
     header = b'{"alg":"RS256","typ":"JWT"}'
-    # iss is inserted between two integer literals, so JSON-escape it defensively.
-    iss_json = '"' + iss.replace("\\", "\\\\").replace('"', '\\"') + '"'
-    payload = ('{"iat":%d,"exp":%d,"iss":%s}' % (iat_i, exp_i, iss_json)).encode("ascii")
+    # json.dumps escapes the full JSON set (quotes, backslashes, control characters) a
+    # hand-rolled replace would miss, so iss is safe between the two integer literals.
+    payload = json.dumps(
+        {"iat": iat_i, "exp": exp_i, "iss": iss}, separators=(",", ":")
+    ).encode("ascii")
     signing_input = _b64url(header) + b"." + _b64url(payload)
     digest = hashlib.sha256(signing_input).digest()
     t = _SHA256_DIGESTINFO + digest

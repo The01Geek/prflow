@@ -142,10 +142,36 @@ for _rpf in $REAP_GLOB; do
   [ -f "$_rpf" ] || continue
   [ "$_rpf" = "$PIDFILE" ] && continue
   _ropid="$(cat "$_rpf" 2>/dev/null || true)"
-  if [ -n "$_ropid" ] && kill -0 "$_ropid" 2>/dev/null; then
-    kill "$_ropid" 2>/dev/null || true
-    echo "reaped an orphaned credential refresher (pid $_ropid) from a prior job on this runner (pidfile $_rpf)"
+  # A stale pidfile (empty, or a pid that is no longer alive) is retired so no later
+  # teardown re-consults it.
+  if [ -z "$_ropid" ] || ! kill -0 "$_ropid" 2>/dev/null; then
+    rm -f "$_rpf" 2>/dev/null || true
+    continue
   fi
+  # Confirm the LIVE pid is actually a refresher before signalling it. On a
+  # long-lived self-hosted runner a dead refresher's pid can be recycled by an
+  # unrelated process, so a blind kill would hit the wrong one. Read the command
+  # line from /proc (bash strips the NUL separators, so the args concatenate); if
+  # it cannot be established (no readable /proc), SKIP the kill — fail safe, never
+  # signal an unverifiable pid.
+  _rcmd=""
+  [ -r "/proc/$_ropid/cmdline" ] && _rcmd="$(cat "/proc/$_ropid/cmdline" 2>/dev/null || true)"
+  case "$_rcmd" in
+    *refresh-app-credentials.sh*)
+      # Gate the "reaped" breadcrumb on the kill actually succeeding — otherwise the
+      # log asserts a retirement (EPERM, or the process exited in the window) that
+      # did not happen. Unlink the pidfile only after a confirmed signal.
+      if kill "$_ropid" 2>/dev/null; then
+        rm -f "$_rpf" 2>/dev/null || true
+        echo "reaped an orphaned credential refresher (pid $_ropid) from a prior job on this runner (pidfile $_rpf)"
+      else
+        echo "could not signal orphaned refresher pid $_ropid (pidfile $_rpf) — left for a later teardown"
+      fi ;;
+    "")
+      echo "skipped orphan reap for pid $_ropid (pidfile $_rpf): its command line could not be established, so it cannot be confirmed a refresher (fail-safe: not signalled)" ;;
+    *)
+      echo "skipped orphan reap for pid $_ropid (pidfile $_rpf): the live process is not a credential refresher (pid reused); leaving the stale pidfile for review" ;;
+  esac
 done
 
 if [ -f "$LOG" ]; then

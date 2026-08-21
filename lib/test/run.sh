@@ -47676,6 +47676,8 @@ _o1882f="$(printf '%s' "$RSAKEY22" | env DEVFLOW_APP_ID=APPID1882F GITHUB_REPOSI
   DEVFLOW_REFRESH_PYTHON='exit 3' bash "$REFRESH_SH" cycle 2>&1 >/dev/null)"
 assert_eq "#1882 arm1882f: no interpreter stops the mint naming the resolver lib/resolve-python.sh by path" "yes" \
   "$(printf '%s' "$_o1882f" | grep -qF 'resolver lib/resolve-python.sh' && echo yes || echo no)"
+assert_eq "#1882 arm1882f: previous credential intact after the no-interpreter arm (PREV23B)" "AUTHORIZATION: basic PREV23B" \
+  "$(git config --file "$CFG23B" --get 'http.https://github.com/.extraheader' 2>/dev/null)"
 
 # 1882g — clock read fail-closed: an unavailable `date` STOPS the mint naming the command.
 DATEDIR1882="$D487/nodate1882"; mkdir -p "$DATEDIR1882"
@@ -47730,16 +47732,39 @@ _s1882k="$(env "PATH=$MINBIN1882" DEVFLOW_REFRESH_PIDFILE="$D487/dead1882.pid" D
 assert_eq "#1882 arm1882k: unavailable grep/tail fails closed (defeated + warn, not silent)" "yes" \
   "$(printf '%s' "$_s1882k" | grep -qF 'grep/tail) are unavailable' && echo yes || echo no)"
 
-# 1882l — the cross-job reaper retires an orphaned refresher from a prior job.
-sleep 300 & _orp1882=$!; printf '%s' "$_orp1882" > "$D487/devflow-refresh-JOBOLD.pid"
+# 1882l — the cross-job reaper retires an orphaned refresher (a LIVE process whose
+# /proc command line names refresh-app-credentials.sh) from a prior job, and gates
+# the kill on process IDENTITY so a recycled/unrelated pid is never signalled.
+STUBREF1882="$D487/refresh-app-credentials.sh"   # stand-in whose bash cmdline matches
+printf '#!/usr/bin/env bash\nsleep 30\n' > "$STUBREF1882"; chmod +x "$STUBREF1882"
+bash "$STUBREF1882" & _orp1882=$!; printf '%s' "$_orp1882" > "$D487/devflow-refresh-JOBOLD.pid"
 _s1882l="$(DEVFLOW_REFRESH_PIDFILE="$D487/devflow-refresh-JOBNEW.pid" DEVFLOW_REFRESH_STARTED=skipped \
-  DEVFLOW_REFRESH_REAP_GLOB="$D487/devflow-refresh-*.pid" bash "$STOP_SH" 2>&1)"
-assert_eq "#1882 arm1882l: the cross-job reaper reports retiring an orphaned refresher" "yes" \
+  DEVFLOW_REFRESH_REAP_GLOB="$D487/devflow-refresh-JOBOLD.pid" bash "$STOP_SH" 2>&1)"
+assert_eq "#1882 arm1882l: the cross-job reaper retires an identity-confirmed orphaned refresher" "yes" \
   "$(printf '%s' "$_s1882l" | grep -qF 'reaped an orphaned credential refresher' && echo yes || echo no)"
-sleep 0.4 2>/dev/null || true
+sleep 0.5 2>/dev/null || true
 assert_eq "#1882 arm1882l: the reaped orphan is no longer alive" "no" \
   "$(kill -0 "$_orp1882" 2>/dev/null && echo yes || echo no)"
+assert_eq "#1882 arm1882l: the reaped orphan's pidfile is unlinked" "yes" \
+  "$([ ! -e "$D487/devflow-refresh-JOBOLD.pid" ] && echo yes || echo no)"
 kill "$_orp1882" 2>/dev/null || true
+# 1882l-neg — a LIVE pid whose command line is NOT a refresher (a recycled pid) is
+# SKIPPED, never killed: fail-safe against pid reuse on a long-lived runner.
+sleep 30 & _nonref1882=$!; printf '%s' "$_nonref1882" > "$D487/devflow-refresh-JOBREUSE.pid"
+_s1882ln="$(DEVFLOW_REFRESH_PIDFILE="$D487/devflow-refresh-JOBNEW2.pid" DEVFLOW_REFRESH_STARTED=skipped \
+  DEVFLOW_REFRESH_REAP_GLOB="$D487/devflow-refresh-JOBREUSE.pid" bash "$STOP_SH" 2>&1)"
+assert_eq "#1882 arm1882l-neg: a non-refresher (pid-reuse) live process is NOT reaped" "yes" \
+  "$(printf '%s' "$_s1882ln" | grep -qF 'is not a credential refresher' && echo yes || echo no)"
+sleep 0.2 2>/dev/null || true
+assert_eq "#1882 arm1882l-neg: the unrelated live process stays alive (fail-safe)" "yes" \
+  "$(kill -0 "$_nonref1882" 2>/dev/null && echo yes || echo no)"
+kill "$_nonref1882" 2>/dev/null || true
+# 1882l-stale — a pidfile whose pid is dead is UNLINKED so no later teardown re-reads it.
+printf '%s' "2147480000" > "$D487/devflow-refresh-JOBDEAD.pid"
+DEVFLOW_REFRESH_PIDFILE="$D487/devflow-refresh-JOBNEW3.pid" DEVFLOW_REFRESH_STARTED=skipped \
+  DEVFLOW_REFRESH_REAP_GLOB="$D487/devflow-refresh-JOBDEAD.pid" bash "$STOP_SH" >/dev/null 2>&1
+assert_eq "#1882 arm1882l-stale: a dead-pid pidfile is unlinked by the reaper" "yes" \
+  "$([ ! -e "$D487/devflow-refresh-JOBDEAD.pid" ] && echo yes || echo no)"
 
 # 1882m (AC5) — the signer refuses every non-(PKCS#1|PKCS#8-RSA) input BY NAME,
 # emitting no signature. Malformed-input matrix.
@@ -47761,6 +47786,36 @@ for _mc1882 in "passphrase|$_enc1882|passphrase-protected" "openssh|$D487/ossh.p
   assert_eq "#1882 arm1882m ($_mlbl1882): diagnostic names the detected encoding" "yes" \
     "$(grep -qF "$_mmsg1882" "$D487/merr1882" && echo yes || echo no)"
 done
+
+# 1882n — the pre-launch self-test itself (refresher-selftest.sh), driven DIRECTLY:
+# PASS on a real key, JOB-FAULT (exit 3 + marker written) on a refusing key, JOB-FAULT
+# naming the version on a too-old interpreter, and WARN-CONTINUE (exit 0 + ::warning::)
+# on an absent signer helper — the mechanism that makes an unsignable host loud, which
+# arm1882j only tested downstream (it fed stop-refresher a PRE-written marker).
+SELFTEST_1882="$LIB/../scripts/refresher-selftest.sh"
+_stp1882="$(printf '%s' "$RSAKEY22" | bash "$SELFTEST_1882" 2>&1)"; _stp1882_rc=$?
+assert_eq "#1882 arm1882n: self-test PASS arm (real key) exits 0 and reports passed" "0 yes" \
+  "$_stp1882_rc $(printf '%s' "$_stp1882" | grep -qF 'self-test passed' && echo yes || echo no)"
+_stf1882="$(printf 'NOT-A-PEM' | env DEVFLOW_REFRESH_SELFTEST_FAILED="$D487/stmarkn1882" bash "$SELFTEST_1882" 2>&1)"; _stf1882_rc=$?
+assert_eq "#1882 arm1882n: self-test JOB-FAULT arm (refusing key) exits 3 and writes the marker" "3 yes" \
+  "$_stf1882_rc $([ -s "$D487/stmarkn1882" ] && echo yes || echo no)"
+_sto1882="$(printf '%s' "$RSAKEY22" | env DEVFLOW_REFRESH_PYTHON='echo python3; exit 1' bash "$SELFTEST_1882" 2>&1)"; _sto1882_rc=$?
+assert_eq "#1882 arm1882n: self-test JOB-FAULT arm (too-old interpreter) exits 3 naming the version" "3 yes" \
+  "$_sto1882_rc $(printf '%s' "$_sto1882" | grep -qF 'older than the required version 3.11' && echo yes || echo no)"
+_stw1882="$(printf '%s' "$RSAKEY22" | env DEVFLOW_REFRESH_SIGNER="$D487/absent-signer-n.py" bash "$SELFTEST_1882" 2>&1)"; _stw1882_rc=$?
+assert_eq "#1882 arm1882n: self-test WARN-CONTINUE arm (absent signer) exits 0 with a ::warning::" "0 yes" \
+  "$_stw1882_rc $(printf '%s' "$_stw1882" | grep -qF '::warning::refresher-selftest' && echo yes || echo no)"
+
+# 1882o — the assembled JWT's header and payload decode to the EXPECTED JSON (not the
+# self-referential byte-equality check), and an iss carrying a double-quote is
+# JSON-escaped — pinning sign_jwt's header/claims assembly and the iss escaping.
+_jtok1882="$(python3 "$SIGNER_1882" 'app"q' 111 222 < "$_k1_1882")"
+_jh1882="${_jtok1882%%.*}"; _jrest1882="${_jtok1882#*.}"; _jp1882="${_jrest1882%%.*}"
+_pad1882() { local s="$1"; case $(( ${#s} % 4 )) in 2) s="$s==";; 3) s="$s=";; esac; printf '%s' "$s" | tr '_-' '/+'; }
+assert_eq "#1882 arm1882o: assembled JWT header decodes to the RS256 alg" '{"alg":"RS256","typ":"JWT"}' \
+  "$(_pad1882 "$_jh1882" | openssl base64 -d -A 2>/dev/null)"
+assert_eq "#1882 arm1882o: assembled JWT payload carries iat/exp and the JSON-escaped iss" '{"iat":111,"exp":222,"iss":"app\"q"}' \
+  "$(_pad1882 "$_jp1882" | openssl base64 -d -A 2>/dev/null)"
 
 rm -rf "$D487"
 

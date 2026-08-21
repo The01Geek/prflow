@@ -47,7 +47,7 @@
 # (prompt-injectable) `claude` agent step could otherwise read for the whole run.
 # read_key_from_stdin ALSO `unset`s the var as belt-and-suspenders — harmless when
 # `env -u` already removed it, and it scrubs bash's environment table so any child
-# the refresher spawns (openssl/curl/git) can never inherit the PEM. The key lives
+# the refresher spawns (python3/openssl/curl/git) can never inherit the PEM. The key lives
 # ONLY in the shell-memory `$KEY` (a non-exported shell var, never in any
 # `/proc/*/environ`), NEVER in the `claude` agent step's own env, and never on disk.
 #
@@ -132,7 +132,7 @@ read_key_from_stdin() {
   # because /proc/<pid>/environ snapshots the exec-time environment and a later
   # `unset` does NOT rewrite it (proc(5)). This `unset` therefore does not by itself
   # close the /proc vector; what it DOES do is scrub bash's in-memory environment so
-  # any child the refresher spawns afterward (openssl/curl/git) never inherits the
+  # any child the refresher spawns afterward (python3/openssl/curl/git) never inherits the
   # PEM in its own environment. It is a bash builtin (no non-preflight PATH tool on
   # this path) and is a harmless no-op when `env -u` already removed the var.
   unset DEVFLOW_APP_PRIVATE_KEY
