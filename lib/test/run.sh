@@ -48765,6 +48765,18 @@ ICE_TEST_RC=$?
 assert_eq "issue #1209: implement context eval focused tests pass" "0" "$ICE_TEST_RC"
 [ "$ICE_TEST_RC" -eq 0 ] || while IFS= read -r _ice_line || [ -n "$_ice_line" ]; do printf '    %s\n' "$_ice_line"; done <<< "$ICE_TEST_OUT"
 
+# review-context-eval parser coverage (issue #1852): the third transcript-walking context
+# instrument (scripts/review-context-eval.py), which measures per-context review-engine
+# read cost. The focused test asserts the engine-subtree recognizer, per-context
+# attribution with the main-thread/subagent distinction, per-context peak, the
+# no-engine-read/empty/missing-corpus arms, malformed-record degradation, the
+# symlink-escape guard, determinism, the no-owner-id scan with its planted positive
+# control, and the no-auto-invocation search. This block INVOKES the test, not the script.
+RCE_TEST_OUT="$(python3 "$LIB/test/test_review_context_eval.py" 2>&1)"
+RCE_TEST_RC=$?
+assert_eq "issue #1852: review context eval focused tests pass" "0" "$RCE_TEST_RC"
+[ "$RCE_TEST_RC" -eq 0 ] || while IFS= read -r _rce_line || [ -n "$_rce_line" ]; do printf '    %s\n' "$_rce_line"; done <<< "$RCE_TEST_OUT"
+
 # harness-python-guards contract coverage (issue #707: extracted from this file's
 # #600 / #527 / #528 / #668 / #798 / #810 / #591 Python guard blocks into a focused
 # module, plus the #985 profiler unit tests added there directly). The registry and
