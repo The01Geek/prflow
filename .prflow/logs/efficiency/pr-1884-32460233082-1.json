@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1884",
+  "generated_at": "2026-08-21T08:02:31Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.56",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 11.815454250000004,
+    "tokens": {
+      "input_tokens": 52,
+      "output_tokens": 39238,
+      "cache_read_input_tokens": 4833349,
+      "cache_creation_input_tokens": 274609,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 98,
+        "outputTokens": 95480,
+        "cacheReadInputTokens": 5918736,
+        "cacheCreationInputTokens": 870210,
+        "webSearchRequests": 0,
+        "costUSD": 11.815454250000004,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 42,
+    "duration_ms": 774015
+  },
+  "permission_denials": {
+    "count": 2,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---RUNENV---\"; echo \"run_id=${GITHUB_RUN_ID:-none} attempt=${GITHUB_RUN_ATTEMPT:-none}\"",
+      "D=.prflow/tmp/review/pr-1884/32460233082-1\nawk -v s=1 -v e=10 '/^diff --git/{n++} n>=s && n<=e' \"$D/diff.patch\" | tee \"$D/batch-1.patch\" | grep -c '^diff --git'\nawk -v s=11 -v e=16 '/^diff --git/{n++} n>=s && n<=e' \"$D/diff.patch\" | tee \"$D/batch-2.patch\" | grep -c '^diff --git'"
+    ],
+    "total": 2,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
