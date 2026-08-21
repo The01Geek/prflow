@@ -562,33 +562,42 @@ REVIEW_VERDICTS_BUNDLE="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" --slurpfile re
     # line, continuations and close alike), a fenced block, a blockquote, and an indented
     # code block. A fence closes only on its own marker, so a tilde line cannot close a
     # backtick block and leave the rest of the window readable.
-    def rung3_window($lines):
+    # Returns a POSITIONAL mask — one entry per window line, the line itself or null —
+    # never a compacted list. Compacting closes the gap between a heading and a later
+    # token, so a stripped block would make a distant token read as the adjacent one.
+    def rung3_mask($lines):
         (reduce ($lines[0:30][]) as $l ({comment: false, fence: null, out: []};
-            if .comment then (if ($l | test("-->")) then .comment = false else . end)
+            if .comment then
+                ((if ($l | test("-->")) then .comment = false else . end) | .out += [null])
             elif .fence != null then
                 (.fence as $f
-                 | if ($l | test("^[ \t]*" + $f)) then .fence = null else . end)
-            elif ($l | test("^[ \t]*```")) then .fence = "```"
-            elif ($l | test("^[ \t]*~~~")) then .fence = "~~~"
-            elif ($l | test("<!--")) then (if ($l | test("-->")) then . else .comment = true end)
-            elif ($l | test("^[ \t]*>")) then .
-            elif ($l | test("^(\t| {4,})")) then .
-            elif ($l | test("^ {0,3}([-*+]|[0-9]+[.)])[ \t]")) then .
-            elif ($l | test("^ {0,3}\\|")) then .
-            elif ($l | test("~~")) then .
+                 | (if ($l | test("^[ \t]*" + $f)) then .fence = null else . end)
+                 | .out += [null])
+            elif ($l | test("^[ \t]*```")) then (.fence = "```" | .out += [null])
+            elif ($l | test("^[ \t]*~~~")) then (.fence = "~~~" | .out += [null])
+            elif ($l | test("<!--")) then
+                ((if ($l | test("-->")) then . else .comment = true end) | .out += [null])
+            elif ($l | test("^[ \t]*>")) then .out += [null]
+            elif ($l | test("^(\t| {4,})")) then .out += [null]
+            elif ($l | test("^ {0,3}([-*+]|[0-9]+[.)])[ \t]")) then .out += [null]
+            elif ($l | test("\\|")) then .out += [null]
+            elif ($l | test("~~")) then .out += [null]
             else .out += [$l] end))
         | .out;
     # A verdict headline may be prefixed only by heading marks, emphasis marks, whitespace
     # and emoji — never by a quotation mark, a bullet glyph or a dash, each of which marks
     # the line as a recap QUOTING a verdict rather than casting one. Widening this to all
     # of non-ASCII admits exactly those.
-    def emoji: "[\\x{1F300}-\\x{1FAFF}\\x{2600}-\\x{27BF}\\x{2B00}-\\x{2BFF}\\x{FE0F}\\x{200D}]";
+    # An allow-list, never a block range: Miscellaneous Symbols and Dingbats hold the
+    # bullet, ballot-box and heavy-quotation glyphs a recap is marked with.
+    def emoji: "[\\x{1F300}-\\x{1FAFF}\\x{2705}\\x{274C}\\x{26A0}\\x{FE0F}\\x{200D}]";
     def headline_prefix: "^(?:[ \t#*_]|" + emoji + ")*";
     # Letters in ANY script, so trailing prose in a non-Latin script is prose here too.
     def not_letters: "[^\\p{L}]";
     def rung3($lines; $login):
         if ((($login | strings) // "") | endswith("[bot]")) then
-          rung3_window($lines) as $w
+          rung3_mask($lines) as $m
+          | ([ $m[] | select(. != null) ]) as $w
           # Every sub-rung reads its token from its OWN whole-line capture, anchored at both
           # ends. A guard that only anchors the prefix, or that re-derives the token with a
           # second pattern, admits the trailing prose an artifact quotes a prior verdict in.
@@ -602,21 +611,26 @@ REVIEW_VERDICTS_BUNDLE="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" --slurpfile re
               # the token — collapsing punctuation away instead lets an ordinary sentence
               # ("Do not review. REJECT.") wear the headline shape. The token stays
               # case-SENSITIVE so lowercase prose cannot satisfy it.
-              # The three-line window is taken from the RAW lines and then intersected with
-              # the stripped set: taking it from the stripped list would let dropping a
-              # quoted block pull a later line into the window a narrowing must not widen.
-              ([ $lines[0:30][] | select(test("[^ \t]")) ][0:3]
-               | map(select(. as $line | any($w[]; . == $line)))
+              # The window is the first three non-blank lines BY POSITION, each kept only if
+              # it survived stripping: a stripped line is skipped, never backfilled from
+              # later in the body.
+              ([ range(0; $m | length) | select($lines[.] | test("[^ \t]")) ][0:3]
+               | map(select($m[.] != null))
+               | map($m[.])
                | map(capture(headline_prefix + "(\\p{L}+" + not_letters + "+)?(?i:Review|Verdict)" + not_letters + "+(?<v>APPROVE|REJECT)" + not_letters + "*$"))
                | map(.v)) as $r2
               | if ($r2 | length) == 1 then $r2
                 else
-                  ([ range(0; $w | length) as $i
-                     | select(($w[$i] | test("^#{1,6}[ \t]"))
-                              and (($w[$i] | gsub("[^A-Za-z]"; "") | ascii_downcase) == "verdict"))
-                     | ([ ($w[($i + 1):] | .[]) | select(test("[^ \t]")) ][0]) as $nxt
-                     | select($nxt != null)
-                     | ($nxt | capture(headline_prefix + "(?<v>APPROVE|REJECT)" + not_letters + "*$"))
+                  # The next non-blank line is found in the RAW body, and a stripped one is
+                  # a hard stop: the line adjacent to the heading is what decides.
+                  ([ range(0; $m | length) as $i
+                     | select($m[$i] != null)
+                     | select(($m[$i] | test("^#{1,6}[ \t]"))
+                              and (($m[$i] | gsub("[^A-Za-z]"; "") | ascii_downcase) == "verdict"))
+                     | ([ range($i + 1; $m | length) | select($lines[.] | test("[^ \t]")) ][0]) as $j
+                     | select($j != null)
+                     | select($m[$j] != null)
+                     | ($m[$j] | capture(headline_prefix + "(?<v>APPROVE|REJECT)" + not_letters + "*$"))
                      | .v ]) as $r3
                   | $r3[0:1]
                 end

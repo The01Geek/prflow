@@ -14503,8 +14503,27 @@ assert_eq "#1443 rung3: a non-Latin leading word makes the same headline" "REJEC
 assert_eq "#1443 rung3: stripping an indented block does not widen the three-line window" "0 1" \
   "$(_uv '[]' "$(_uv_botr "Example:"$'\n\n'"    quoted line one"$'\n'"    quoted line two"$'\n\n'"Devflow Review: REJECT")" | _uv_shape)"
 # A fence closes only on its own marker, so a tilde line inside a backtick block is content.
+# No preamble: the shape must sit inside sub-rung 2's window, or the fence rule is never
+# the deciding factor and the assertion cannot fail under its own named regression.
 assert_eq "#1443 rung3: a tilde line does not close a backtick fence" "0 1" \
-  "$(_uv '[]' "$(_uv_botr "Quoting:"$'\n\n'"\`\`\`"$'\n'"~~~"$'\n'"## ✅ Devflow Review — APPROVE"$'\n'"\`\`\`")" | _uv_shape)"
+  "$(_uv '[]' "$(_uv_botr "\`\`\`"$'\n'"~~~"$'\n'"## ✅ Devflow Review — APPROVE"$'\n'"\`\`\`")" | _uv_shape)"
+# Stripping a line must not close the gap between a Verdict heading and a later token:
+# the line ADJACENT to the heading is a list item, so the heading resolves to nothing.
+assert_eq "#1443 rung3: a stripped block does not make a later token adjacent to a heading" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "## Verdict"$'\n\n'"- an item"$'\n'"- another"$'\n\n'"**REJECT**")" | _uv_shape)"
+# A stripped line stays stripped even when an identical string survives elsewhere.
+assert_eq "#1443 rung3: a fenced line is not re-admitted by an identical later line" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "\`\`\`"$'\n'"Devflow Review: REJECT"$'\n'"\`\`\`"$'\n'"padding one"$'\n'"padding two"$'\n'"Devflow Review: REJECT")" | _uv_shape)"
+# Dingbat bullets and heavy quotation marks are not emoji decoration.
+assert_eq "#1443 rung3: a dingbat-bulleted Verdict: line is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Earlier:"$'\n\n'"➤ Verdict: REJECT")" | _uv_shape)"
+assert_eq "#1443 rung3: a ballot-box Verdict: line is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Earlier:"$'\n\n'"☑ Verdict: REJECT")" | _uv_shape)"
+assert_eq "#1443 rung3: a heavy-quoted Verdict: line is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Earlier:"$'\n\n'"❝ Verdict: REJECT ❞")" | _uv_shape)"
+# A table row is a table row whether or not it opens with a pipe.
+assert_eq "#1443 rung3: a pipe-bearing Verdict: line is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Summary:"$'\n\n'"what | Verdict: REJECT |")" | _uv_shape)"
 # The comment-region strip needs a body whose commented-out line a rung WOULD read.
 assert_eq "#1443 rung3: a rung-3 shape inside a multi-line HTML comment is not a verdict" "0 1" \
   "$(_uv '[]' "$(_uv_botr "<!--"$'\n'"## Devflow Review — APPROVE"$'\n'"-->"$'\n'"Some review text.")" | _uv_shape)"
