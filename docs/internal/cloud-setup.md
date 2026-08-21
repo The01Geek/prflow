@@ -406,6 +406,9 @@ Before pointing `DEVFLOW_RUNNER` at a self-hosted runner:
 
 - Install `git`, `gh`, `jq`, and a POSIX **bash** on the runner. `defaults: run:
   shell: bash` requires **Git Bash** (or equivalent) on the runner's PATH.
+- Install `openssl`, `curl`, and `nohup` on the runner — the credential refresher
+  hard-requires all three (`openssl` for the push-credential base64 encode, `curl` for
+  the token mint, `nohup` to detach the loop), and none is guaranteed by `preflight.sh`.
 - On a **Windows / Git-Bash** runner, make `python3` resolve via the existing
   `scripts/provision-python3-shim.sh --apply` (a one-time runner-provisioning step,
   not a workflow change).
@@ -906,8 +909,9 @@ installation token and rewrites the two repo-controlled credential surfaces in p
    substitutes the refreshed token where the ambient (expiring) one would be used.
 
 **Key handling.** The App's PEM private key is piped to the refresher's **stdin** — it
-is never passed as a process argument and never written to disk (the JWT is signed with
-the key handed to `openssl` over a file descriptor). The workflow's Start step exports
+is never passed as a process argument and never written to disk (the JWT is signed by the
+resolved `python3` interpreter, which reads the key on its own standard input rather than
+being handed to `openssl` over a file descriptor). The workflow's Start step exports
 the key as a step-level env var only so that short-lived launcher shell can pipe it; the
 **detached refresher is launched with `env -u DEVFLOW_APP_PRIVATE_KEY`**, so the raw PEM
 is absent from the long-lived refresher's exec-time environment and therefore never
@@ -920,8 +924,15 @@ that vector). The key then lives only in the refresher's shell memory.
 (`repositories: [<repo>]`), matching the job-start token's default scope rather than
 minting an installation-wide token across every repo the App is installed on.
 
-**Loud degrade.** The refresher is best-effort and never fails the job: a failed cycle
-emits a per-arm `::warning::` naming what failed and warns-and-continues. Almost every
+**Loud degrade.** The refresher's detached loop is best-effort and never fails the job: a
+failed cycle emits a per-arm `::warning::` naming what failed and warns-and-continues. The
+**one** arm that now fails the job is the Start step's synchronous pre-launch self-test
+(`scripts/refresher-selftest.sh`): before the agent launches it signs a throwaway input
+with the real key, and a **signing fault** — the signer refusing the key, or a Python
+interpreter the resolver cannot resolve or reports as older than the required version —
+fails the job outright, because no retry clears a host-level signing fault. (An absent
+signer helper — an older vendored slice that predates it — is warn-and-continue, not a
+job failure.) Almost every
 failure arm leaves the previous credential in place, with one disclosed exception — if
 the push credential (surface 1, the checkout extraheader) has already been rewritten to
 the fresh token and only the gh token file (surface 2) then fails to write, the two
