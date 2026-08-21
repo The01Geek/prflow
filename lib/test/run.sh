@@ -14397,6 +14397,16 @@ assert_eq "#1443 malformed: user is null" "0 0" \
   "$(_uv '[{"user":null,"body":"nothing to read here","created_at":"2026-01-01T00:00:00Z"}]' '[]' | _uv_shape)"
 assert_eq "#1443 malformed: user.login is an empty string" "0 0" \
   "$(_uv '[{"user":{"login":""},"body":"nothing to read here","created_at":"2026-01-01T00:00:00Z"}]' '[]' | _uv_shape)"
+# A non-object `user` is the shape that indexes as a string: every reader of .user.login
+# must survive it, or one malformed artifact aborts the whole bundle under set -e.
+assert_eq "#1443 malformed: user is a string (comment leg)" "0 0" \
+  "$(_uv '[{"user":"octocat","body":"nothing to read here","created_at":"2026-01-01T00:00:00Z"}]' '[]' | _uv_shape)"
+assert_eq "#1443 malformed: user is a string (review leg)" "0 0" \
+  "$(_uv '[]' '[{"user":"octocat","state":"COMMENTED","body":"nothing to read here","submitted_at":"2026-01-01T00:00:00Z"}]' | _uv_shape)"
+# The pages normalizer drops non-object ELEMENTS as well as coercing a non-array page;
+# without that half a mixed-element page aborts every later .[] read.
+assert_eq "#1443 malformed: a page carrying non-object elements still yields the surviving verdict" "REJECT" \
+  "$(_uv '[]' "$(jq -nc --arg b "**Verdict: ✅ REJECT**" '[null,"x",{user:{login:"b[bot]"},state:"COMMENTED",body:$b,submitted_at:"2026-01-01T00:00:00Z"}]')" | _uv_verds)"
 # The entry key set is unchanged, and the count feeds nothing: a rung-3 REJECT still
 # drives review_reject_outstanding through review_verdicts alone.
 assert_eq "#1443 entries still carry EXACTLY verdict/createdAt/source" "true" \

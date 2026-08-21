@@ -106,7 +106,7 @@ if [ "$ISSUE_NUMBER" != "null" ]; then
       || { echo "::error::fetch-pr-context: failed to fetch issue comments for issue ${ISSUE_NUMBER}" >&2; exit 1; }
     ISSUE_COMMENTS_RAW="$(printf '%s' "$_ISSUE_COMMENTS_RAW" | "$DEVFLOW_JQ" -s "$_JQ_PAGES_TO_OBJECTS")"
     # Normalize issue comments to {author, body, createdAt}
-    ISSUE_COMMENTS_NORM="$(echo "$ISSUE_COMMENTS_RAW" | "$DEVFLOW_JQ" '[.[] | {author: (.user.login // ""), body: (.body // ""), createdAt: (.created_at // "")}]')"
+    ISSUE_COMMENTS_NORM="$(echo "$ISSUE_COMMENTS_RAW" | "$DEVFLOW_JQ" '[.[] | {author: ((.user | if type == "object" then .login else null end) // ""), body: (.body // ""), createdAt: (.created_at // "")}]')"
     # `labels` normalization is TOTAL over every JSON shape (mirrors the §5b `norm`
     # def below): an array of label objects → their names, an array of strings →
     # themselves, and a wrong-type/missing `labels` → []. A non-total extraction
@@ -154,25 +154,25 @@ esac
 _REVIEW_COMMENTS_RAW="$("$DEVFLOW_GH" api "repos/${REPO}/pulls/${PR}/comments" --paginate)" \
   || { echo "::error::fetch-pr-context: failed to fetch review comments for PR ${PR}" >&2; exit 1; }
 REVIEW_COMMENTS_RAW="$(printf '%s' "$_REVIEW_COMMENTS_RAW" | "$DEVFLOW_JQ" -s "$_JQ_PAGES_TO_OBJECTS")"
-REVIEW_COMMENTS="$(echo "$REVIEW_COMMENTS_RAW" | "$DEVFLOW_JQ" '[.[] | {author: (.user.login // ""), body: (.body // ""), path: (.path // ""), line: (.line // null), createdAt: (.created_at // "")}]')"
+REVIEW_COMMENTS="$(echo "$REVIEW_COMMENTS_RAW" | "$DEVFLOW_JQ" '[.[] | {author: ((.user | if type == "object" then .login else null end) // ""), body: (.body // ""), path: (.path // ""), line: (.line // null), createdAt: (.created_at // "")}]')"
 
 # ── 7. PR conversation comments ───────────────────────────────────────────────
 _PR_COMMENTS_RAW="$("$DEVFLOW_GH" api "repos/${REPO}/issues/${PR}/comments" --paginate)" \
   || { echo "::error::fetch-pr-context: failed to fetch PR conversation comments for PR ${PR}" >&2; exit 1; }
 PR_COMMENTS_RAW="$(printf '%s' "$_PR_COMMENTS_RAW" | "$DEVFLOW_JQ" -s "$_JQ_PAGES_TO_OBJECTS")"
-PR_COMMENTS="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" '[.[] | {author: (.user.login // ""), body: (.body // ""), createdAt: (.created_at // "")}]')"
+PR_COMMENTS="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" '[.[] | {author: ((.user | if type == "object" then .login else null end) // ""), body: (.body // ""), createdAt: (.created_at // "")}]')"
 
 # ── 8. PR reviews ─────────────────────────────────────────────────────────────
 _PR_REVIEWS_RAW="$("$DEVFLOW_GH" api "repos/${REPO}/pulls/${PR}/reviews" --paginate)" \
   || { echo "::error::fetch-pr-context: failed to fetch PR reviews for PR ${PR}" >&2; exit 1; }
 PR_REVIEWS_RAW="$(printf '%s' "$_PR_REVIEWS_RAW" | "$DEVFLOW_JQ" -s "$_JQ_PAGES_TO_OBJECTS")"
-PR_REVIEWS="$(echo "$PR_REVIEWS_RAW" | "$DEVFLOW_JQ" '[.[] | {author: (.user.login // ""), state: (.state // ""), body: (.body // ""), submittedAt: (.submitted_at // "")}]')"
+PR_REVIEWS="$(echo "$PR_REVIEWS_RAW" | "$DEVFLOW_JQ" '[.[] | {author: ((.user | if type == "object" then .login else null end) // ""), state: (.state // ""), body: (.body // ""), submittedAt: (.submitted_at // "")}]')"
 
 # ── 9. Commits ────────────────────────────────────────────────────────────────
 _COMMITS_RAW="$("$DEVFLOW_GH" api "repos/${REPO}/pulls/${PR}/commits" --paginate)" \
   || { echo "::error::fetch-pr-context: failed to fetch commits for PR ${PR}" >&2; exit 1; }
 COMMITS_RAW="$(printf '%s' "$_COMMITS_RAW" | "$DEVFLOW_JQ" -s "$_JQ_PAGES_TO_OBJECTS")"
-COMMITS="$(echo "$COMMITS_RAW" | "$DEVFLOW_JQ" '[.[] | {sha: .sha, author_login: (.author.login // ""), committer_login: (.committer.login // ""), committed_at: (.commit.committer.date // ""), message: (.commit.message // ""), parents_count: ((.parents // []) | length)}]')"
+COMMITS="$(echo "$COMMITS_RAW" | "$DEVFLOW_JQ" '[.[] | {sha: .sha, author_login: ((.author | if type == "object" then .login else null end) // ""), committer_login: ((.committer | if type == "object" then .login else null end) // ""), committed_at: (.commit.committer.date // ""), message: (.commit.message // ""), parents_count: ((.parents // []) | length)}]')"
 
 # ── 10. Diff ──────────────────────────────────────────────────────────────────
 DIFF_BYTE_CAP="$(devflow_conf '.prflow_retrospective.diff_byte_cap' 204800)"
@@ -552,10 +552,10 @@ PYEOF
 # feeds nothing, and review_reject_outstanding is derived from review_verdicts alone.
 printf '%s' "$PR_REVIEWS_RAW" > "$_JQ_TMP/pr_reviews_raw.json"
 REVIEW_VERDICTS_BUNDLE="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" --slurpfile reviews "$_JQ_TMP/pr_reviews_raw.json" '
-    # Deliberately WIDER than every rung — the whole window, a bare substring, and
-    # case-insensitive. Narrowing any axis onto rung 3 makes an artifact rung 3 declined
-    # vanish from the union AND the residual count, the two-meanings collapse the count
-    # exists to end.
+    # Deliberately wider than rung 3 on every axis — the whole window, a bare
+    # substring, case-insensitive. Narrowing any axis onto rung 3 makes an artifact
+    # rung 3 declined vanish from the count as well as the union, recreating the
+    # two-meanings collapse the count exists to end.
     def token_in_window($lines):
         any($lines[0:30][]; test("APPROVE|REJECT"; "i"));
     # Drop every line rung 3 must not read a verdict from: an HTML-comment region (opening
@@ -569,6 +569,9 @@ REVIEW_VERDICTS_BUNDLE="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" --slurpfile re
     # lines it masks and a verdict is read from the wrong one; rung3 checks that length.
     # Dropped: HTML-comment regions, fenced blocks, blockquotes, indented code, list items,
     # table rows and strikethrough — every construct that marks a line as quoting.
+    # Emits one entry per input line, null where the line was dropped: a dropped line is
+    # SKIPPED, never backfilled from later in the body, so heading-to-token adjacency
+    # survives stripping. Compacting the output instead closes gaps that must stay open.
     def rung3_mask($lines):
         (reduce ($lines[0:30][]) as $l ({comment: false, fence: null, out: []};
             if .comment then
@@ -588,14 +591,9 @@ REVIEW_VERDICTS_BUNDLE="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" --slurpfile re
             elif ($l | test("~~")) then .out += [null]
             else .out += [$l] end))
         | .out;
-    # A verdict headline may be prefixed only by heading marks, emphasis marks, whitespace
-    # and emoji — never by a quotation mark, a bullet glyph or a dash, each of which marks
-    # the line as a recap QUOTING a verdict rather than casting one. Widening this to all
-    # of non-ASCII admits exactly those.
-    # An allow-list of verdict marks, never a block range — on EITHER plane. Dingbats hold
-    # the bullet, ballot-box and heavy-quotation glyphs a recap is marked with, and the
-    # emoji planes hold the speech-bubble and pointer glyphs, so a range on either admits
-    # exactly the decoration this rule exists to refuse.
+    # An allow-list of decoration glyphs, never a block range and never all of non-ASCII:
+    # the dingbat and emoji planes also hold the bullet, ballot-box, heavy-quotation,
+    # speech-bubble and pointer glyphs that mark a line as a recap QUOTING a verdict.
     def emoji: "[\\x{2705}\\x{274C}\\x{26A0}\\x{1F534}\\x{1F7E0}-\\x{1F7E2}\\x{FE0F}\\x{200D}]";
     def headline_prefix: "^(?:[ \t#*_]|" + emoji + ")*";
     # Letters in ANY script, so trailing prose in a non-Latin script is prose here too.
@@ -699,7 +697,13 @@ REVIEW_VERDICTS="$(echo "$REVIEW_VERDICTS_BUNDLE" | "$DEVFLOW_JQ" -c '.verdicts 
 REVIEW_VERDICT_UNPARSED_COUNT="$(echo "$REVIEW_VERDICTS_BUNDLE" | "$DEVFLOW_JQ" -r '.unparsed // 0')"
 # Never leave either empty: REVIEW_REJECT_OUTSTANDING is derived from the array below and
 # the count is passed with --argjson, so an empty split aborts the whole bundle assembly.
-[ -n "$REVIEW_VERDICTS" ] || REVIEW_VERDICTS='[]'
+if [ -z "$REVIEW_VERDICTS" ]; then
+    # Empty here means the union filter produced no document at all, which is NOT the
+    # same fact as "no verdicts" — say so, or an unusable bundle reads as a clean PR and
+    # manufactures review_reject_outstanding=false.
+    echo "fetch-pr-context.sh: the union filter produced no review_verdicts document; emitting [] (verdicts could not be established for this PR)" >&2
+    REVIEW_VERDICTS='[]'
+fi
 case "$REVIEW_VERDICT_UNPARSED_COUNT" in
     ''|*[!0-9]*)
         echo "fetch-pr-context.sh: the union filter yielded a non-numeric review_verdict_unparsed_count (${REVIEW_VERDICT_UNPARSED_COUNT:-<empty>}); emitting 0" >&2
