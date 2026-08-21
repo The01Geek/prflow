@@ -27,6 +27,7 @@ Install these prerequisites before selecting the runner:
 - `jq`.
 - Python 3.11 or newer, available as `python3`.
 - A POSIX bash on `PATH`.
+- `openssl`, `curl`, and `nohup` — the long-run credential refresher hard-requires all three.
 - Docker when `setup.services` or repository checks need it.
 
 The workflows force `bash` for `run:` steps. On Windows, install Git Bash or an equivalent POSIX bash. If Python is available only as `python` or `py -3`, run the shipped `scripts/provision-python3-shim.sh --apply` once on the runner. Use `DEVFLOW_GH`, `DEVFLOW_JQ` or `DEVFLOW_BASH` only when the working executables are in nonstandard locations.

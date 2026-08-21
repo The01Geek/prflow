@@ -69,16 +69,16 @@ First read the base branch:
 
 Read the printed base from the tool result; on an empty read (malformed config or missing python3) fall back to the literal `main`. Substitute the resolved value for `<base>` below.
 
-Render the provenance line in its OWN fence, BEFORE composing the body. The bundled helper `scripts/render-pr-provenance-line.py` prints one provenance line on stdout (for example `Generated via /prflow:implement (v2.32.70, claude-opus-5, low)`, or `Generated via /prflow:implement (v2.32.70)` when the model/effort are unestablished); it always exits 0 and its line carries no backtick or other shell-active construct. Each phase fence is a separate shell, so read the printed line from THIS fence's tool result and substitute it as a literal for `<provenance-line>` in the body template below. Emit the granted vendored literal first — the bare anchor is denied as a leading token by the cloud matcher, so it is retained only as the fallback arm:
+Render the provenance line in its OWN fence, BEFORE composing the body. The bundled helper `scripts/render-pr-provenance-line.py` prints one provenance line on stdout (for example `_Generated via /prflow:implement (v2.32.70, claude-opus-5, low)_`, or `_Generated via /prflow:implement (v2.32.70)_` when the model/effort are unestablished); it exits 0 in every case except a missing required `--command` argument (an argparse usage error), and its line carries no backtick or other shell-active construct. Each phase fence is a separate shell, so read the printed line from THIS fence's tool result and substitute it as a literal for `<provenance-line>` in the body template below. Emit the granted vendored literal first — the bare anchor is denied as a leading token by the cloud matcher, so it is retained only as the fallback arm:
 
 ```bash
-.prflow/vendor/prflow/scripts/render-pr-provenance-line.py
+.prflow/vendor/prflow/scripts/render-pr-provenance-line.py --command /prflow:implement
 ```
 
 Tier-agnostic invocation procedure (the conditional form — do not classify your own tier). Emit the vendored literal above first. If it reports the file was not found (`command not found` / `No such file` / exit 127 — this repository's own local tier, where `.prflow/vendor/` is materialized only at runtime and so is absent from a working checkout), re-invoke the same helper with the `.prflow/vendor/prflow/` prefix removed (`scripts/render-pr-provenance-line.py`) as a single leading-token statement, then route on that invocation's outcome. If *that* is also not found (a non-Claude-Code runner — Copilot CLI, Cursor, Codex CLI, Gemini CLI — where neither repo-relative path exists), fall back to the portable anchor form below, which preserves the helper's portability on those runners (`${CLAUDE_SKILL_DIR}` is empty there and the runner reports a base directory the agent substitutes for the placeholder):
 
 ```bash
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/render-pr-provenance-line.py
+"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/render-pr-provenance-line.py --command /prflow:implement
 ```
 
 Read the printed line from the tool result and substitute it as a literal for `<provenance-line>` below. If the helper produced NO readable output at all — a harness refusal, or an empty print — OMIT the provenance line entirely: the body then carries no provenance parenthetical, and never a placeholder, an empty parenthetical, or an unsubstituted `<provenance-line>` token.

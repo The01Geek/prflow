@@ -30,8 +30,13 @@ TWO-CLASS CLI CONTRACT (the skill branches on exactly this):
     `evidence=none` / `records=none`), and the composite `query-boundary`, which prints
     one decided line per boundary component. Since issue #795 most subcommands print a
     SECOND and final line, `next_call=` (see `_resolve_next_call`); the decided answer
-    line above is unchanged and stays FIRST, and `_NEXT_CALL_EXCLUDED` names the
-    subcommands that print no such line. A crashed read is never
+    line above is unchanged and stays FIRST; since issue #1803 a `summary-block` line — a
+    compact fixed `_SUMMARY_BLOCK_FIELDS` subset of the `query-summary` fields — prints
+    between the decided answer line(s) and that final `next_call=` line, so a caller reads
+    post-mutation state from the call it just made. "Line(s)": the batched
+    `record-finding-evidence` form prints one decided `finding=` line per finding, and the
+    block follows the LAST of them. `_NEXT_CALL_EXCLUDED` names the
+    subcommands that print neither the summary-block nor the `next_call=` line. A crashed read is never
     presented as a value. Queries are strictly READ-ONLY: the tool-unavailability fallback depends
     on a mutation-persistence failure still leaving the queries answering, so no
     query may write. This is why the eligibility token is *derived* on demand rather
@@ -2778,13 +2783,20 @@ def _bound_draft_file(state, slug):
 
 
 def latest_revision_landed(state):
-    """True when the latest recorded revision's bytes have landed at the bound path.
+    """Three-way token for whether the latest revision's bytes landed at the bound path.
 
-    Vacuously true when no revision is recorded (nothing is unlanded). Otherwise the
-    latest revision counts as landed once a **subsequent** recorded landed write at the
-    bound path (a round-initiating file-arm dispatch record qualifies) carries a digest
-    equal to that revision's recorded stdin digest — the clearing predicate that lets a
-    recovered run re-enter the full file-arm contract (issue #562).
+    Returns one of `'yes'` / `'no'` / `'unestablished'` (issue #1841 widened this from a
+    boolean so the proven-failed arm and the cannot-prove arm stop sharing `'no'`):
+      - `'yes'` — vacuously when no revision is recorded (nothing is unlanded), or when a
+        **subsequent** recorded landed write at the bound path (a round-initiating file-arm
+        dispatch record qualifies) carries a digest equal to the latest revision's recorded
+        stdin digest — the clearing predicate that lets a recovered run re-enter the full
+        file-arm contract (issue #562).
+      - `'no'` — a recorded overwrite failure for the latest revision's ordinal proves the
+        bytes did not land.
+      - `'unestablished'` — the recorded state proves neither: no write-failure, but no
+        subsequent matching dispatch to prove landing (the common `basis=resolution`
+        terminal path), or the latest revision carries no stdin digest to match on.
 
     Two fail-closed conditions, both load-bearing:
       - A recorded overwrite failure for the latest revision (its ordinal in
@@ -2806,27 +2818,29 @@ def latest_revision_landed(state):
         is greater than the revision's `after_round` — so a *predating* dispatch that
         happens to share the digest never satisfies the clearing predicate. A revision
         with NO stdin digest (a legacy/embed-epoch revision) cannot be proven landed and
-        fails closed to `not landed`, the conservative presentation choice.
+        reports `'unestablished'`, the conservative presentation choice — as does a latest
+        revision with a digest but no subsequent matching dispatch.
     """
     revs = state['revisions']
     if not revs:
-        return True
+        return 'yes'
     latest = revs[-1]
     # The latest revision's ordinal is len(revs) (the 1..N chain). A recorded overwrite
-    # failure for it means it never landed.
+    # failure for it PROVES it never landed -> 'no' (terminal for the ordinal, checked
+    # before the clearing scan so a later matching dispatch never clears it).
     if len(revs) in (state.get('write_failures') or []):
-        return False
+        return 'no'
     want = latest.get('stdin_digest')
     if not want:
-        return False
+        return _UNESTABLISHED
     after = latest.get('after_round', 0)
     for rnd in state['rounds']:
         if rnd['round'] <= after:
             continue  # only a write recorded AFTER the revision proves it landed
         for att in rnd['attempts']:
             if att['arm'] == 'file' and att.get('digest') == want:
-                return True
-    return False
+                return 'yes'
+    return _UNESTABLISHED
 
 
 def evaluate_triggers(state):
@@ -3239,13 +3253,42 @@ def final_byte_slot_unspent(state, current_digest):
     return spent_for is None or spent_for != current_digest
 
 
+def _final_byte_resolution_settled(state, rnd):
+    """Suppress the final-byte OFFER when the drafter's own resolutions closed a round (#1771).
+
+    True only when `rnd` closed non-FILE (a `latest-verdict-revise` selection), its
+    steering-absence was ESTABLISHED, and the run converged on `basis=resolution` with zero
+    effective unresolved findings — the common case a REVISE round whose findings the drafter
+    then self-verified and resolved reaches. The final-byte offer exists to catch bytes no
+    auditor read, but a second user pause there duplicates diligence already done, so the
+    offer is withheld here while `evaluate_final_byte_coverage` still reports the bytes
+    `uncovered` truthfully. Steering-established is required so a round whose independence
+    could not be established still earns the offer. The FILE early-return is defensive: a
+    steering-established FILE round reports `covered`, so the caller's `if holds` guard never
+    reaches this helper for it — the return guards only against a future coverage-contract change.
+    """
+    if rnd is None or rnd.get('outcome') == 'FILE':
+        return False
+    if not _steering_established(rnd):
+        return False
+    conv = evaluate_convergence(state)
+    return conv['converged'] and conv['basis'] == 'resolution'
+
+
 def evaluate_final_byte_trigger(state, current_digest=None, digest_failed=False):
     """Whether the final-byte exact-byte offer holds (issue #792).
 
-    Holds if and only if the reported coverage is `uncovered` AND the dedicated slot is
-    unspent for the current canonical digest — never on `unestablished` (where an
-    accepted round could not change the answer, so the offer would fund nothing and
-    leave the run with no next action), never on `covered`.
+    Holds if and only if the reported coverage is `uncovered`, the dedicated slot is
+    unspent for the current canonical digest, AND the offer is not suppressed by issue
+    #1771's resolution-settled rule — never on `unestablished` (where an accepted round
+    could not change the answer, so the offer would fund nothing and leave the run with no
+    next action), never on `covered`.
+
+    The #1771 suppression withholds the OFFER, not the coverage axis: when the run converged
+    `basis=resolution` on a steering-established REVISE round's self-verified fixes, `holds`
+    is False and the reason becomes `resolution-settled`, while `coverage` stays `uncovered`
+    so the factual "were these bytes audited" report is not overwritten. See
+    `_final_byte_resolution_settled`.
 
     Answered on its own `query-final-byte`, deliberately NOT appended to
     `query-triggers`: that query's Step 3.6 -> Step 4 boundary consumer applies
@@ -3256,7 +3299,10 @@ def evaluate_final_byte_trigger(state, current_digest=None, digest_failed=False)
     fb = evaluate_final_byte_coverage(state, current_digest, digest_failed=digest_failed)
     holds = (fb['coverage'] == 'uncovered'
              and final_byte_slot_unspent(state, current_digest))
-    return {'holds': holds, 'coverage': fb['coverage'], 'reason': fb['reason']}
+    reason = fb['reason']
+    if holds and _final_byte_resolution_settled(state, fb['round']):
+        holds, reason = False, 'resolution-settled'
+    return {'holds': holds, 'coverage': fb['coverage'], 'reason': reason}
 
 
 def _final_byte_honoured(rnd):
@@ -4856,6 +4902,22 @@ def _emit_next_call(cmd_name, args, ctx):
     # parser shape it does not itself check; the resolver already answers `foreign-nonce` /
     # `state-unestablished` for an absent value.
     nonce = ctx.pop('nonce', None) or getattr(args, 'nonce', None)
+    # issue #1803: block prints after the decided answer line(s) and before `next_call=`.
+    # Guard the SECONDARY block so its data-shape failure never suppresses the primary next_call;
+    # re-raise AssertionError so a contract bug stays loud in main()'s handler, never swallowed.
+    try:
+        _block = _summary_block_line(summary_fields(state))
+    except AssertionError:
+        raise
+    except Exception as _exc:  # noqa: BLE001 - secondary channel; the primary next_call must survive
+        # Name the swallow on stderr: without it a `summary_fields` data-shape bug drops the
+        # block for every caller with no signal, leaving the loss indistinguishable from a
+        # subcommand that legitimately emits none.
+        print(f'issue-audit-state: summary-block render failed ({type(_exc).__name__}: {_exc}); '
+              'block omitted, next_call= stands', file=sys.stderr)
+        _block = None
+    if _block is not None:
+        print(_block)
     print(_resolve_next_call(cmd_name, state, args.slug, nonce, **ctx))
 
 
@@ -4935,6 +4997,27 @@ _SUMMARY_FIELDS = (
 )
 
 
+# issue #1803: compact subset of `_SUMMARY_FIELDS` for the `summary-block` line. Never add a
+# field whose value depends on `current_digest` (`token`, `final_byte_coverage`): the emit site
+# holds no `--draft-file`, so it renders a None digest and would disagree with query-summary.
+_SUMMARY_BLOCK_FIELDS = (
+    'state', 'findings_count', 'revisions_applied', 'verdict', 'rounds_run',
+    'consumer_dimensions_appended', 'degraded', 'user_declined', 'cap_reached',
+    'markers', 'adjudicated_verdict', 'must_revise', 'advisory', 'invalid',
+    'unresolved_must_revise', 'effective_unresolved', 'scoped_round',
+    'convergence_basis', 'steering', 'steering_reason', 'attestation',
+)
+_SUMMARY_BLOCK_BOOL_FIELDS = frozenset(
+    ('consumer_dimensions_appended', 'degraded', 'user_declined', 'cap_reached'))
+# Fail loudly at import on a non-subset member, mirroring `_summary`'s loud constructor: a name
+# outside `_SUMMARY_FIELDS` would otherwise KeyError deep inside `_summary_block_line` on the
+# always-exit-0 query path (a two-class-contract violation), never at this definition site.
+assert set(_SUMMARY_BLOCK_FIELDS) <= set(_SUMMARY_FIELDS), (
+    'issue-audit-state.py: _SUMMARY_BLOCK_FIELDS must be a subset of _SUMMARY_FIELDS')
+assert _SUMMARY_BLOCK_BOOL_FIELDS <= set(_SUMMARY_BLOCK_FIELDS), (
+    'issue-audit-state.py: _SUMMARY_BLOCK_BOOL_FIELDS must be a subset of _SUMMARY_BLOCK_FIELDS')
+
+
 def _summary(**fields):
     missing = [k for k in _SUMMARY_FIELDS if k not in fields]
     unknown = [k for k in fields if k not in _SUMMARY_FIELDS]
@@ -4944,6 +5027,31 @@ def _summary(**fields):
              f'branch must answer with exactly the same fields, or the query surface that '
              f'renders them raises KeyError on the branch that forgot one.')
     return {k: fields[k] for k in _SUMMARY_FIELDS}
+
+
+def _summary_block_line(fields):
+    """Render the compact `_SUMMARY_BLOCK_FIELDS` subset as one `summary-block …` line.
+
+    issue #1803: printed between a subcommand's decided answer line and its trailing
+    `next_call=` line, so a caller reads the post-mutation state it needs from the call it
+    just made rather than a standalone `query-summary` read-back. Reuses the same
+    None/yes-no/`unestablished` conventions the `query-summary` surface uses, so the two
+    surfaces cannot render one field two ways.
+    """
+    parts = []
+    for k in _SUMMARY_BLOCK_FIELDS:
+        v = fields[k]
+        if k in _SUMMARY_BLOCK_BOOL_FIELDS:
+            token = _yn(v)
+        elif k == 'markers':
+            token = ','.join(v) if v else 'none'
+        elif k == 'effective_unresolved':
+            token = ('none' if v is None and fields['adjudicated_verdict'] is None
+                     else _render_count(v))
+        else:
+            token = 'none' if v is None else str(v)
+        parts.append(f'{k}={token}')
+    return 'summary-block ' + ' '.join(parts)
 
 
 def summary_fields(state, current_digest=None, digest_failed=False):
@@ -7656,7 +7764,7 @@ def _binding_line(state):
         return 'bound=none tier=none non_bound_root=none latest_revision_landed=yes'
     return (f'bound={b["path"]} tier={b["tier"]} '
             f'non_bound_root={b["non_bound_root"] or "none"} '
-            f'latest_revision_landed={_yn(latest_revision_landed(state))}')
+            f'latest_revision_landed={latest_revision_landed(state)}')
 
 
 def cmd_query_draft_binding(args):
@@ -8081,42 +8189,18 @@ def cmd_record_creation_attestation(args):
     print(f'attestation={status}')
 
 
-def cmd_record_finding_evidence(args):
-    """Record one finding's reproducible evidence on the dedicated per-finding channel.
+def _record_one_finding_evidence(doc, round_, finding_id, supplied, prefix):
+    """Store one finding's evidence entry under `<round>:<finding-id>`, applying the
+    overwrite-conflict guard, and return `(key, completeness, missing)`.
 
-    Deliberately NOT `record-adjudication --ledger-stdin`: that transport carries a
-    one-line summary and refuses newlines and `<field>=` tokens by contract, so multi-line
-    observed output cannot ride on it. This channel is keyed by `<round>:<finding-id>`, caps
-    each field, and stores the text VERBATIM as data — the print boundary, not a refusal, is
-    where record-splitting bytes are neutralized. Instruction-shaped text is never
-    neutralized and never needs to be: it is stored and printed as data, never executed.
+    Shared by the single-finding and batched (`--finding-evidence-records-file`, issue #1803)
+    `record-finding-evidence` forms, so both apply the identical conflict/carry-forward rules.
+    `supplied` is the ordered `(field, value-or-None)` pairs; the caller saves the doc.
     """
-    prefix = 'record-finding-evidence'
-    doc = _load_for_mutation(prefix, args.slug, args.nonce)
-    observed = None
-    if args.observed_stdin:
-        # Read from stdin, hoisted into main() above the section (issue #1040), and
-        # consumed through the SHARED guard so a mid-read OSError and a closed fd 0 alike
-        # name their own cause. Neither may reach the decode below as None: the OSError
-        # would surface as a NoneType AttributeError that discards the real errno, and the
-        # closed fd 0 did exactly that before this routing. An empty read is a different
-        # thing entirely and still reaches the decode (see the note below it).
-        raw = _stdin_bytes_or_fail(args, prefix, 'the observed output')
-        # An empty read is NOT refused: issue #704 requires evidence that is absent or
-        # incomplete to be RECORDED `incomplete` (never verified), which is what
-        # `evidence_completeness` does with an empty `observed`. Refusing would record no
-        # evidence at all and lose the finding's locator and command with it.
-        try:
-            observed = raw.decode('utf-8')
-        except UnicodeDecodeError:
-            _fail(prefix, 'evidence-undecodable: the observed output is not valid UTF-8')
-    supplied = (('locator', args.locator), ('command', args.command),
-                ('observed', observed), ('baseline_revision', args.baseline_revision),
-                ('baseline_identity', args.baseline_identity))
     entry = {k: _bound_evidence(v) for k, v in supplied if v is not None}
     completeness, missing = evidence_completeness(entry)
     entry['completeness'] = completeness
-    key = f'{args.round}:{args.finding_id}'
+    key = f'{round_}:{finding_id}'
     store = doc.setdefault('finding_evidence', {})
     prior = store.get(key)
     if prior is not None:
@@ -8188,6 +8272,142 @@ def cmd_record_finding_evidence(args):
                           f'{" and ".join(clauses)}; record the second probe under its own '
                           f'finding id so the disagreement is surfaced, never overwritten')
     store[key] = entry
+    return key, completeness, missing
+
+
+def _ingest_finding_evidence_records(path):
+    """Read a round's per-finding evidence records from a JSON file, or fail closed.
+
+    issue #1803: the batched form of `record-finding-evidence` — one call records a whole
+    round's evidence, mirroring the `--advisory-records-file` ingestion (issue #743). Each
+    array object carries a required non-negative-int `finding_id` and the optional string
+    fields `locator`/`command`/`observed`/`baseline_revision`/`baseline_identity`; an absent
+    or empty content field is NOT refused (it records the entry `incomplete`, exactly as the
+    per-finding form does), but a structurally malformed file, a duplicate finding id, or a
+    non-string field IS. Returns the ordered list of validated record dicts.
+    """
+    prefix = 'record-finding-evidence'
+    try:
+        raw = Path(path).read_bytes()
+    except OSError as exc:
+        _fail(prefix, f'could not read the finding-evidence records file {path!r} '
+                      f'(finding-evidence-records-unreadable): {exc}')
+    try:
+        text = raw.decode('utf-8')
+    except UnicodeDecodeError as exc:
+        _fail(prefix, f'the finding-evidence records file is not valid UTF-8 '
+                      f'(finding-evidence-records-undecodable): {exc}')
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError as exc:
+        _fail(prefix, f'the finding-evidence records file is not valid JSON '
+                      f'(finding-evidence-records-not-json): {exc}')
+    if not isinstance(parsed, list):
+        _fail(prefix, 'the finding-evidence records file is not a JSON array '
+                      '(finding-evidence-records-not-list); one object per finding is required')
+    if not parsed:
+        _fail(prefix, 'the finding-evidence records file is an empty array '
+                      '(finding-evidence-records-empty); a batched call records at least one '
+                      'finding')
+    records = []
+    seen = set()
+    for idx, item in enumerate(parsed, start=1):
+        if not isinstance(item, dict):
+            _fail(prefix, f'finding-evidence record {idx} is not a JSON object '
+                          f'(finding-evidence-record-not-object)')
+        fid = item.get('finding_id')
+        # bool is an int subclass — reject it explicitly so a JSON `true` is not read as id 1.
+        if not isinstance(fid, int) or isinstance(fid, bool) or fid < 0:
+            _fail(prefix, f'finding-evidence record {idx} has a missing or non-negative-int '
+                          f'finding_id (finding-evidence-record-finding-id): {fid!r}')
+        if fid in seen:
+            _fail(prefix, f'finding-evidence record {idx} repeats finding_id {fid} '
+                          f'(finding-evidence-records-duplicate-id); one record per finding id')
+        seen.add(fid)
+        rec = {'finding_id': fid}
+        for field in ('locator', 'command', 'observed', 'baseline_revision',
+                      'baseline_identity'):
+            val = item.get(field)
+            if val is not None and not isinstance(val, str):
+                _fail(prefix, f'finding-evidence record {idx} field {field} is not a string '
+                              f'(finding-evidence-record-field-type): {val!r}')
+            rec[field] = val
+        records.append(rec)
+    return records
+
+
+def cmd_record_finding_evidence(args):
+    """Record one finding's reproducible evidence on the dedicated per-finding channel.
+
+    Deliberately NOT `record-adjudication --ledger-stdin`: that transport carries a
+    one-line summary and refuses newlines and `<field>=` tokens by contract, so multi-line
+    observed output cannot ride on it. This channel is keyed by `<round>:<finding-id>`, caps
+    each field, and stores the text VERBATIM as data — the print boundary, not a refusal, is
+    where record-splitting bytes are neutralized. Instruction-shaped text is never
+    neutralized and never needs to be: it is stored and printed as data, never executed.
+    """
+    prefix = 'record-finding-evidence'
+    doc = _load_for_mutation(prefix, args.slug, args.nonce)
+    # getattr, not attribute access: a hand-built caller namespace need not carry every parser
+    # field, exactly as _emit_next_call reads its namespace fields (issue #795).
+    if getattr(args, 'finding_evidence_records_file', None) is not None:
+        # issue #1803: the batched form records a whole round's evidence from one file; the
+        # per-finding flags are mutually exclusive with it, so a mixed call is a caller slip.
+        conflicting = [name for name, present in (
+            ('--finding-id', args.finding_id is not None),
+            ('--locator', args.locator is not None),
+            ('--command', args.command is not None),
+            ('--baseline-revision', args.baseline_revision is not None),
+            ('--baseline-identity', args.baseline_identity is not None),
+            ('--observed-stdin', args.observed_stdin)) if present]
+        if conflicting:
+            _fail(prefix, f'--finding-evidence-records-file batches a whole round and takes '
+                          f'none of the per-finding flags, but {",".join(conflicting)} '
+                          f'{"was" if len(conflicting) == 1 else "were"} also passed '
+                          f'(finding-evidence-records-mixed-form)')
+        records = _ingest_finding_evidence_records(args.finding_evidence_records_file)
+        lines = []
+        for rec in records:
+            supplied = (('locator', rec['locator']), ('command', rec['command']),
+                        ('observed', rec['observed']),
+                        ('baseline_revision', rec['baseline_revision']),
+                        ('baseline_identity', rec['baseline_identity']))
+            key, completeness, missing = _record_one_finding_evidence(
+                doc, args.round, rec['finding_id'], supplied, prefix)
+            lines.append(f'finding={key} completeness={completeness} '
+                         f'missing={",".join(missing) if missing else "none"}')
+        # Every finding is stored, then the doc is saved once — a conflict in any record
+        # raises before the save, so the batch lands atomically or not at all.
+        _save_or_fail(prefix, doc, args.slug)
+        for line in lines:
+            print(line)
+        return
+    if args.finding_id is None:
+        _fail(prefix, 'record-finding-evidence needs --finding-id (one finding) or '
+                      '--finding-evidence-records-file (a whole round); neither was passed '
+                      '(finding-evidence-missing-finding-selector)')
+    observed = None
+    if args.observed_stdin:
+        # Read from stdin, hoisted into main() above the section (issue #1040), and
+        # consumed through the SHARED guard so a mid-read OSError and a closed fd 0 alike
+        # name their own cause. Neither may reach the decode below as None: the OSError
+        # would surface as a NoneType AttributeError that discards the real errno, and the
+        # closed fd 0 did exactly that before this routing. An empty read is a different
+        # thing entirely and still reaches the decode (see the note below it).
+        raw = _stdin_bytes_or_fail(args, prefix, 'the observed output')
+        # An empty read is NOT refused: issue #704 requires evidence that is absent or
+        # incomplete to be RECORDED `incomplete` (never verified), which is what
+        # `evidence_completeness` does with an empty `observed`. Refusing would record no
+        # evidence at all and lose the finding's locator and command with it.
+        try:
+            observed = raw.decode('utf-8')
+        except UnicodeDecodeError:
+            _fail(prefix, 'evidence-undecodable: the observed output is not valid UTF-8')
+    supplied = (('locator', args.locator), ('command', args.command),
+                ('observed', observed), ('baseline_revision', args.baseline_revision),
+                ('baseline_identity', args.baseline_identity))
+    key, completeness, missing = _record_one_finding_evidence(
+        doc, args.round, args.finding_id, supplied, prefix)
     _save_or_fail(prefix, doc, args.slug)
     print(f'finding={key} completeness={completeness} '
           f'missing={",".join(missing) if missing else "none"}')
@@ -8782,13 +9002,17 @@ def build_parser():
     """
     p = argparse.ArgumentParser(
         prog='issue-audit-state.py',
-        description='State owner for the /devflow:create-issue fresh-context audit '
-                    'lifecycle. Queries always exit 0 once the arguments parse and '
-                    'print a decided answer line; '
-                    'mutations exit non-zero with a named breadcrumb. Most subcommands '
-                    'print a second and final next_call= line naming the next legal '
-                    'invocation; it is a generated suggestion the caller reviews, never '
-                    'an instruction, and the decided answer line stays first.')
+        description=(
+            'State owner for the /devflow:create-issue fresh-context audit lifecycle. '
+            'Queries always exit 0 once the arguments parse and print a decided answer '
+            'line; mutations exit non-zero with a named breadcrumb. Most subcommands then '
+            'print, as their final stdout line, a next_call= line naming the next legal '
+            'invocation; between the decided answer line(s) (the first of which stays first) '
+            'and that final '
+            'next_call= line they print a summary-block line carrying a compact fixed subset '
+            'of the query-summary fields (' + ', '.join(_SUMMARY_BLOCK_FIELDS) + '), so a '
+            'caller reads post-mutation state from the call it just made. next_call= is a '
+            'generated suggestion the caller reviews, never an instruction.'))
     sub = p.add_subparsers(dest='cmd', required=True)
 
     s = sub.add_parser('init', help='Start a run: mint a nonce (cold start deletes any '
@@ -9189,7 +9413,15 @@ def build_parser():
     s.add_argument('slug')
     s.add_argument('--nonce', required=True)
     s.add_argument('--round', type=_nonneg_int, required=True)  # issue #795 retained: per-round-id-selector
-    s.add_argument('--finding-id', type=_nonneg_int, required=True)
+    s.add_argument('--finding-id', type=_nonneg_int,
+                   help='One finding (single form); omit with --finding-evidence-records-file.')
+    s.add_argument('--finding-evidence-records-file',
+                   help="issue #1803: record a WHOLE round's finding evidence from one JSON "
+                        'file (array of objects, each a non-negative-int finding_id plus the '
+                        'optional string locator/command/observed/baseline_revision/'
+                        'baseline_identity), mirroring --advisory-records-file. Mutually '
+                        'exclusive with the per-finding flags; each entry gets its own '
+                        'completeness verdict.')
     s.add_argument('--locator')
     s.add_argument('--command')
     s.add_argument('--baseline-revision')
@@ -9310,7 +9542,12 @@ def build_parser():
     s = sub.add_parser('query-draft-binding',
                        help='Emit the recorded tiered draft-root binding (#562): bound '
                             'path, tier token, non-bound root, and the latest-revision '
-                            'landed flag. Fail-closed bound=none when unbound.')
+                            'landed token. Fail-closed bound=none when unbound.',
+                       description='Emit the recorded tiered draft-root binding (#562): '
+                            'bound path, tier token, non-bound root, and the '
+                            'latest_revision_landed token, which is one of '
+                            'yes/no/unestablished (#1841). Fail-closed bound=none when '
+                            'unbound.')
     s.add_argument('slug')
     s.add_argument('--nonce', required=True)
     s.set_defaults(func=cmd_query_draft_binding)

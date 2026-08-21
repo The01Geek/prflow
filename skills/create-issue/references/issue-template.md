@@ -183,8 +183,6 @@ The body is posted to GitHub, which turns `#`-number into a link. Never put a ba
 
 Create the issue directly, sourcing the body from the single presentation source — the same bytes the user approved. Which source depends on the epoch's arm:
 
-Consume the self-assignment answer. Step 4 sub-step 3c obtains the user's answer to *"Assign this issue to you?"* — asked in the same pause as the approval question — before any creation command runs. Substitute `<assignee-args>` into the `gh issue create` call on both arms below: on an explicit yes it is the token pair `--assignee "@me"` (in the same create call, no post-create edit); on an explicit no it is empty, preserving unassigned creation byte-for-byte. Never invoke a creation command before that answer is an explicit yes or no — silence or any non-yes/non-no reply pauses and re-asks (Step 4 sub-step 3c).
-
 On a file-arm epoch, the body comes from the gated canonical file, via the state owner's gated `emit-body` emitter (neither a query nor a mutation: unlike a query it does not always exit 0 — it refuses with a non-zero exit and empty stdout). Do not pipe it into `gh`:
 
 ```bash
@@ -196,7 +194,7 @@ On a file-arm epoch, the body comes from the gated canonical file, via the state
 Instead emit to a temp file, guard it non-empty, and only then post. Do it in one single statement, and go through a file rather than a `"$(…)"` capture, which changes the posted bytes against the recorded body-only digest. Substitute `<main-root>` with the main working-tree root Step 4 sub-step 2 resolved via `resolve-main-root.sh` — a cwd-relative `.prflow/tmp/` may not exist inside a linked worktree. Hand the guarded file to `gh` via `--body-file <path>`, never re-piped through `cat`; this temp file IS the gated `emit-body` output, so the never-`--body-file` rule does not apply here:
 
 ```bash
-python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/issue-audit-state.py emit-body "<slug>" --nonce "<nonce>" --draft-file "<absolute issue-draft-<slug>.md path>" > "<main-root>/.prflow/tmp/issue-body-<slug>.md" && test -s "<main-root>/.prflow/tmp/issue-body-<slug>.md" && gh issue create --title "Action-oriented title here" --body-file "<main-root>/.prflow/tmp/issue-body-<slug>.md" <assignee-args>
+python3 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/issue-audit-state.py emit-body "<slug>" --nonce "<nonce>" --draft-file "<absolute issue-draft-<slug>.md path>" > "<main-root>/.prflow/tmp/issue-body-<slug>.md" && test -s "<main-root>/.prflow/tmp/issue-body-<slug>.md" && gh issue create --title "Action-oriented title here" --body-file "<main-root>/.prflow/tmp/issue-body-<slug>.md"
 ```
 
 On an embed- or inline-arm epoch there is no trustworthy canonical file, so the body is re-emitted from context through a quoted heredoc (quoted so backticks and `$` in the markdown are not expanded):
@@ -204,7 +202,7 @@ On an embed- or inline-arm epoch there is no trustworthy canonical file, so the 
 The body below is a complete example to imitate. Study its shape and its plain voice, and do not copy its words into a real issue.
 
 ```bash
-gh issue create --title "Action-oriented title here" <assignee-args> --body-file - <<'BODY'
+gh issue create --title "Action-oriented title here" --body-file - <<'BODY'
 ## Problem Statement
 Survey owners cannot share results with people who do not use the tool. The only way to hand someone a result set is a link that needs an account to open, so an owner who wants to email results to an outside manager cannot.
 

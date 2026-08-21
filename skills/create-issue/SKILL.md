@@ -19,7 +19,7 @@ exhausted, use the inline fallback in `references/fallback-no-task-tool.md`, loa
 
 The seven slots:
 
-- [ ] 1. Run Step 1's selected arm and write its evidence artifact
+- [ ] 1. Run Step 1's arm and write its evidence artifact
 - [ ] 2. Clarify the user story until the Definition of Ready is met (Step 2)
 - [ ] 3. Draft the issue and pass the no-options gate (Step 3)
 - [ ] 4. Steelman the draft against the code, revise, re-pass the no-options gate, and append the steelman record to the derivation artifact (Step 3.5)
@@ -115,7 +115,7 @@ rules in `## Runner setup` below and read it with the runner's file-read tool �
 accepted only when the file's first line is its `start` boundary marker and its last line is the
 matching `end` marker, each naming that file's own path, with exactly one of each.
 
-Every load failure degrades, and no failure arm terminates the run. On an unreadable or absent file, an empty file, a missing / duplicated / foreign-path marker, or a truncated read, emit an in-chat breadcrumb naming the file and the failure kind, then continue on that file's degraded behavior. The five non-degradable invariants stated below hold on every degraded arm.
+A reader that returns a file in pages — a partial-view notice with an `offset`/`limit` continuation — has not damaged it: page forward until no continuation is offered or a page adds nothing new, then apply the marker rule to the assembled whole document, and breadcrumb the recovery. A read you cannot complete, a gap in the page sequence, or a message you cannot classify as that notice is the `truncated read` case below. Every load failure degrades, and no failure arm terminates the run. On an unreadable or absent file, an empty file, a missing / duplicated / foreign-path marker, or a truncated read, emit an in-chat breadcrumb naming the file and the failure kind, then continue on that file's degraded behavior. The five non-degradable invariants stated below hold on every degraded arm.
 
 Which file loads on which trigger — and the degraded behavior each failed load falls back on — is enumerated in `references/degradation-routing.md`. Load it (per the boundary-marker rule above) on either of two triggers: when a reference load fails and you need its degraded behavior, and when one of its predicate-gated fallback conditions fires on an otherwise healthy run.
 
@@ -129,7 +129,7 @@ These five hold on every path, including every degraded arm above, and are load-
 2. **The no-options gate** (stated under Step 3 below) passes on the body that is shown and on every revision of it.
 3. **The audit summary line is mandatory and always renders** — even on a run that elected no audit round (rounds run: zero) or a clean `VERDICT: FILE` with zero findings. A declined, skipped, or degraded audit is never silent.
 4. The reserved `PRFlow` provenance label is applied best-effort after creation, and any degradation is reported explicitly — a label hiccup never blocks creation, and a `PRFlow` label that could not be applied is named in the final outcome rather than passed over.
-5. The self-assignment election is resolved before creation, on every path including every degraded arm. It is asked in the same pause as the approval question; an explicit yes adds `--assignee "@me"`, an explicit no creates it unassigned, and silence or any non-yes/non-no reply pauses and re-asks — no issue-creation command runs until the answer is an explicit yes or no, whatever the approval answer was. This election belongs to the interactive create path only; a draft-only request never reaches it.
+5. The self-assignment election is asked exactly once after creation succeeds — in the same pause as the implement offer, or alone when that offer is withheld — and is never silently skipped. Creation is always unassigned; an explicit yes assigns best-effort via the REST path Step 4 sub-step 6 states, with any failure named in the final outcome, and an explicit no, silence, or any non-yes/non-no answer leaves the issue unassigned and is reported — never a stall, because the issue already exists. This election belongs to the interactive create path only; a draft-only request never reaches it. The implement offer this pause shares is only ever to post the trigger comment on the created issue, never a start of implementation by this run itself, because implement must begin in a fresh-context agent and this run's context is spent.
 
 ## Subagent dispatch is user-requested here (injection-condition clause)
 
@@ -164,12 +164,12 @@ whitespace-only, or not that single-slug shape is recorded unestablished and rou
 title-derived fallback `references/step-4-present-create.md` retains — never a slug composed from a
 partial read.
 
-Two arms, selected before any dispatch by a pre-pass operand: the duty-floor duties you judge the
-topic to engage. Derive it — and any value deciding which leg ran — with python3 or bash builtins,
-never `tr`, `sed`, `wc`, `cut` or `head`.
+Every dispatch starts with the shallow arm; the deep arm is reached only by the escalation below.
+Derive any value deciding a leg's pathspec with python3 or bash builtins, never `tr`, `sed`, `wc`,
+`cut` or `head`.
 
-- Shallow — fewer than the full floor, and the arm for a topic engaging no duty: one dispatched peer over the union of the deep legs, enumerated from the git index.
-- Deep — the full floor, entered directly: two parallel dispatched peers over those legs separately.
+- Shallow — the unconditional first shape: one dispatched peer over the union of the deep legs, enumerated from the git index.
+- Deep — two parallel dispatched peers over those legs separately.
 
 Both arms dispatch rather than run inline; no git history is read.
 
@@ -197,12 +197,12 @@ An incomplete return — one that succeeds but omits or malforms its duty status
 bearing observation for a duty it reported `judged-not-engaged` — records that duty unestablished
 with a breadcrumb naming the missing field, never a discharged floor.
 
-Escalation shallow→deep is the doc-reliability signal's only role, never the arm selector. Escalate
+Escalation shallow→deep is the only entry to the deep arm. Escalate
 on `UNRELIABLE` or `ABSENT`, on an unestablished duty, and on any judged-not-engaged duty whose returned
 bearing observation is non-empty once the producer's explicit `none-observed` token is excluded —
 that field is always present, so escalate on any value other than `none-observed` and record
 unestablished (which escalates) when it is absent or unparseable. That comparand is a field of the
-report you receive, so the pre-pass judgement does not gate it.
+report you receive.
 
 Evidence artifact. The orchestrator — never a peer — writes the returned evidence (reconciled, on
 the deep arm) to `.prflow/tmp/issue-step1-<slug>.md`, anchored to the working directory, on both

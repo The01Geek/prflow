@@ -161,9 +161,9 @@ Step 2: Analyze Each Code File
 For EACH code file that changed:
 - Examine the exact code changes (what was added or modified)
 - Assess the functional impact: Does this change how the feature works, or is it a refactor/cleanup/configuration change?
-  - HIGH IMPACT: New features, API changes, new methods, changed behavior → Search for ALL related documentation
+  - HIGH IMPACT: New features, API changes, new methods, changed behavior → Search for ALL related documentation, using the Grep tool first, then `rg` where it resolves on the host, then `grep -rnE` (excluding VCS, dependency, and build directories)
   - LOW IMPACT: Removed attributes, config tweaks, bug fixes with no behavior change → Update only directly affected documentation
-- Search for existing documentation that would be affected by this specific change
+- Search for existing documentation that would be affected by this specific change, using the Grep tool first, then `rg` where it resolves on the host, then `grep -rnE` (excluding VCS, dependency, and build directories)
 - Compare documentation with actual code changes
 - Determine if documentation update is needed
 - Focus on documentation that would be misleading or incorrect without updates
@@ -191,7 +191,7 @@ Edit files in `[[INTERNAL_DOC_LOCATION]]`:
   - Changed configuration → Update setup/configuration documentation
   - Rule: If code changed, documentation MUST change too
 - Strive for at least one documentation update per code file changed (exceptions must be explicitly justified)
-- Use grep/search tools to find all documentation files mentioning the changed code before editing
+- Use the Grep tool first, then `rg` where it resolves on the host, then `grep -rnE` (excluding VCS, dependency, and build directories) to find all documentation files mentioning the changed code before editing
 
 Step 5: Verify Every Factual Claim Against the Codebase
 ⚠️ **MANDATORY — do not skip. Write docs from the code, never from the issue body, the plan, or your memory of what the change "should" do.**
@@ -215,7 +215,7 @@ Before completing, verify you have:
 
 - [ ] Run `git diff origin/main...HEAD` (THREE dots) to see ONLY this branch's changes
 - [ ] Examined EVERY code change and assessed functional impact
-- [ ] Searched for related documentation using grep/search for each code change
+- [ ] Searched for related documentation using the Grep tool first, then `rg` where it resolves on the host, then `grep -rnE` (excluding VCS, dependency, and build directories) for each code change
 - [ ] Determined if documentation needs to be Added or Edited for each change
 - [ ] Provided markdown-formatted analysis output listing ALL code changes and their documentation status
 - [ ] Actually edited documentation files to align with code changes

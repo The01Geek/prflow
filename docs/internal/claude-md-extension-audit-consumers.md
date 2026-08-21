@@ -81,9 +81,7 @@ CLAUDE.md is reached via `$LIB/../CLAUDE.md`, `$WSR_CLAUDE`, `$E711_CLAUDE`, and
 - `#555 CLAUDE.md documents the implement-tier bundled-helper grant flow` — `'Implement-tier bundled-helper grant flow (issue #555)'`.
 - `#555 CLAUDE.md forbids hand-editing either generated workflow literal for such a grant` — `'**Never hand-edit either workflow literal** to add such a grant.'`.
 
-`lib/test/modules/create-issue-contract.sh` (targets `$CI_CLAUDE`):
-- `#467 D2 (CLAUDE.md leg): best-effort-parser gotcha widened to mutable-markdown/external-format` — `'The governed surface is broader than config JSON'` (the same literal is also pinned against the implement-skill bundle `$CI_IMPL_BUNDLE` by the paired `#467 D2 (Phase 2.4 leg)` assertion).
-- `#593: CLAUDE.md grant-timing gotcha states the in-PR-inert rule` — `'in-PR-inert and post-merge-only'`.
+(The former `lib/test/modules/create-issue-contract.sh` CLAUDE.md pins — the `#467 D2` best-effort-parser-widening leg and the `#593` grant-timing-rule leg — were retired by the issue #1759 residual-prose sweep, so no create-issue pin now asserts CLAUDE.md content; the operative CLAUDE.md sentences themselves are unchanged.)
 
 `lib/test/modules/review-and-fix-contract.sh` — module-private `_raf_pin_unique` wrapper pins against `RAF_EXTENSION = .prflow/prompt-extensions/review-and-fix.md`:
 - `raf extension: explicit local focused selection` — `'lib/test/run-module.sh review-and-fix-contract'`.
