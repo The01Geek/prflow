@@ -1,0 +1,625 @@
+{
+  "iter": 1,
+  "source": "review-and-fix",
+  "started_at": "2026-08-21T06:54:40Z",
+  "loop_role": "fix",
+  "fix_commit_sha": "3da93f112f41af99100aa0ac74a61804bab58918",
+  "fix_files": [
+    ".changeset/issue-1443-verdict-fallback-rung.md",
+    "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+    "lib/fetch-pr-context.sh",
+    "lib/test/run.sh",
+    "skills/retrospective/SKILL.md"
+  ],
+  "current_step": "3.5",
+  "current_substep": null,
+  "pending_dispatch": null,
+  "sweep_defs_read": [
+    {
+      "path": "../implement/phases/phase-2-implement.md",
+      "read": "whole",
+      "sweeps": [
+        "2.2.4",
+        "2.2.5",
+        "2.2.6",
+        "2.2.7"
+      ]
+    },
+    {
+      "path": "../implement/phases/phase-2-sweeps-contract.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0",
+        "2.3.0a",
+        "2.3.0b",
+        "2.3.0c",
+        "2.3.0d"
+      ]
+    },
+    {
+      "path": "../implement/phases/phase-2-sweeps-quality.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.1",
+        "2.3.2",
+        "2.3.3",
+        "2.3.4",
+        "2.3.4a",
+        "2.3.4b",
+        "2.3.5",
+        "2.3.6",
+        "2.3.7"
+      ]
+    },
+    {
+      "path": "../implement/references/sweep-2-3-0-changed-contract.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0"
+      ]
+    },
+    {
+      "path": "../implement/references/sweep-2-3-0b-enum-enumeration.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0b"
+      ]
+    },
+    {
+      "path": "../implement/references/sweep-2-3-0c-operand-trace.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0c"
+      ]
+    },
+    {
+      "path": "../implement/references/sweep-2-3-7-collection-cardinality.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.7"
+      ]
+    }
+  ],
+  "sweep_evidence": {
+    "status": "run",
+    "delta_shape": "changed predicate (rung3 matching grammar) + added guards (comment/fence/quote stripping, token boundaries, line anchors) + prose corrections",
+    "sweeps_run": [
+      "2.3.0",
+      "2.3.0c",
+      "2.3.3",
+      "2.3.4",
+      "2.3.4a",
+      "2.3.4b",
+      "2.3.5",
+      "2.3.6"
+    ],
+    "notes": "2.3.0: rung3's only caller is verdicts_in in the same jq program, updated with it; the two remaining repo hits for the identifier are docs prose stating no signature. 2.3.4a: every self-authored claim the delta touches was rewritten to what the code does — the rung-3 contract comment, the pagination-normalizer comment, the split-guard comment, the changeset, the retrospective schema rows, and the canonical overview page. 2.3.4b: one UNRESOLVABLE CU row on the overview page, informational and pointing at a pre-existing 'every other arm' universal the delta did not author."
+  },
+  "checklist": [
+    {
+      "id": "VC-1",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:run.sh:existing-895-block-unchanged",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-2",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:fetch-pr-context.sh:four-shapes-both-legs",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-3",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:fetch-pr-context.sh:non-bot-login-excluded",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-4",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:fetch-pr-context.sh:marker-preempts-rung3",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-5",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:fetch-pr-context.sh:unparsed-count-field",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-6",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:run.sh:unparsed-count-zero-zero-one",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-7",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:fetch-pr-context.sh:malformed-payload-closed-set",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-8",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:fetch-pr-context.sh:entry-keyset-and-count-feeds-nothing",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-9",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:fetch-pr-context.sh:devflow-spelling-rejected",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-10",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "data_format_assumption:fetch-pr-context.sh:paginate-pages-to-objects",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-11",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "dependency_interaction:fetch-pr-context.sh:unparsed-count-argjson-guard",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-12",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "dependency_interaction:fetch-pr-context.sh:subrung2-scan-token-count",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-13",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "dependency_interaction:fetch-pr-context.sh:strings-default-precedence",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-14",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "test_mock_alignment:run.sh:uv-bot-fixture-shape",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-15",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "test_mock_alignment:run.sh:uv-runs-real-producer",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-16",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "api_contract:fetch-pr-context.sh:argjson-ok-list-matches",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-17",
+      "verification_mode": "lite",
+      "verdict": "PASS",
+      "claim_signature": "api_contract:SKILL.md:unparsed-count-schema-row",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-18",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "api_contract:coverage-map.json:1443-entry-shape",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-19",
+      "verification_mode": "agent",
+      "verdict": "FAIL",
+      "claim_signature": "absolute_claim:fetch-pr-context.sh:no-marker-line-ever-read",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-20",
+      "verification_mode": "agent",
+      "verdict": "FAIL",
+      "claim_signature": "absolute_claim:fetch-pr-context.sh:every-paginate-slurp-normalized",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-21",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "absolute_claim:fetch-pr-context.sh:rung3-at-most-one-verdict",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-22",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "absolute_claim:run.sh:30-line-window-inclusive-boundary",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-23",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "data_format_assumption:fetch-pr-context.sh:token-window-false-positives",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-24",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "dependency_interaction:fetch-pr-context.sh:pending-review-exclusion",
+      "reused_from_iter_prev": false
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "dispatched_effort": [
+    {
+      "agent": "prflow:checklist-generator",
+      "phase": "1",
+      "requested": "low",
+      "resolved": "low",
+      "application_point": "session-fallback",
+      "effective": null,
+      "fallback_reason": "per-agent effort resolved but not applied: no in-session per-agent effort seam"
+    }
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "rung 3's grammar is far wider than the four shapes it was scoped to close: unanchored sub-rung 1, anchorless sub-rung 2, no token word boundary — bot prose mints verdicts that feed review_reject_outstanding",
+      "defect_signature": {
+        "file": "lib/fetch-pr-context.sh",
+        "line_range": [
+          566,
+          588
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 4,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "the HTML-comment skip claim is false against HEAD for a multi-line comment",
+      "defect_signature": {
+        "file": "lib/fetch-pr-context.sh",
+        "line_range": [
+          547,
+          549
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "no in-window negative control test, so the precision loss landed green",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          14336,
+          14403
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Important",
+      "description": "the canonical overview page and the retrospective schema row describe the fallback as a single heading grammar; both are coupled sites of this change",
+      "defect_signature": {
+        "file": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+        "line_range": [
+          890,
+          890
+        ],
+        "kind": "comment_drift"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "the at-most-one-verdict contract is stated but never asserted",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          14336,
+          14444
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "the split-guard comment names the wrong channel: REVIEW_VERDICTS is a --slurpfile operand, not an --argjson one",
+      "defect_signature": {
+        "file": "lib/fetch-pr-context.sh",
+        "line_range": [
+          643,
+          644
+        ],
+        "kind": "comment_drift"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "the rung-3 header block exceeds the three-line prevention-only cap and restates the code below it",
+      "defect_signature": {
+        "file": "lib/fetch-pr-context.sh",
+        "line_range": [
+          541,
+          556
+        ],
+        "kind": "style"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "the retrospective schema row's gloss overstates what review_verdict_unparsed_count measures",
+      "defect_signature": {
+        "file": "skills/retrospective/SKILL.md",
+        "line_range": [
+          90,
+          90
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "case-sensitivity asymmetry between sub-rung 1 and sub-rungs 2/3 plus token_in_window",
+      "defect_signature": {
+        "file": "lib/fetch-pr-context.sh",
+        "line_range": [
+          544,
+          578
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "rung-2 to rung-3 precedence untested",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          14336,
+          14444
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "the two fail-closed shell guards after the bundle split are unreachable under set -euo pipefail and untested",
+      "defect_signature": {
+        "file": "lib/fetch-pr-context.sh",
+        "line_range": [
+          595,
+          604
+        ],
+        "kind": "other"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "deferred"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "the object guards inside the union filter are shadowed by the pages normalizer and cannot be driven through the producer harness",
+      "defect_signature": {
+        "file": "lib/fetch-pr-context.sh",
+        "line_range": [
+          154,
+          172
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "deferred"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "3da93f112f41af99100aa0ac74a61804bab58918"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "3da93f112f41af99100aa0ac74a61804bab58918"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "3da93f112f41af99100aa0ac74a61804bab58918"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "3da93f112f41af99100aa0ac74a61804bab58918"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "applied",
+      "commit": "3da93f112f41af99100aa0ac74a61804bab58918"
+    },
+    {
+      "finding_id": "F-6",
+      "decision": "applied",
+      "commit": "3da93f112f41af99100aa0ac74a61804bab58918"
+    },
+    {
+      "finding_id": "F-7",
+      "decision": "applied",
+      "commit": "3da93f112f41af99100aa0ac74a61804bab58918"
+    },
+    {
+      "finding_id": "F-8",
+      "decision": "applied",
+      "commit": "3da93f112f41af99100aa0ac74a61804bab58918"
+    },
+    {
+      "finding_id": "F-9",
+      "decision": "applied",
+      "commit": "3da93f112f41af99100aa0ac74a61804bab58918"
+    },
+    {
+      "finding_id": "F-10",
+      "decision": "applied",
+      "commit": "3da93f112f41af99100aa0ac74a61804bab58918"
+    },
+    {
+      "finding_id": "F-11",
+      "decision": "deferred",
+      "source_file": "lib/fetch-pr-context.sh",
+      "claim_text": "the two fail-closed shell guards after the bundle split are unreachable under set -euo pipefail and untested",
+      "skip_category": "claim-quality",
+      "evidence": "the guards are defence-in-depth against a jq that exits 0 with unusable stdout; the reviewer's own note grants they are harmless, and removing a fail-closed guard to make the file testable inverts this repository's fail-closed convention",
+      "parking_evidence": {
+        "basis": "the finding asks for removal or a reachability proof of a fail-closed guard whose whole purpose is an unmodelled producer state",
+        "failing_input": "a jq invocation exiting 0 while emitting empty or non-numeric stdout",
+        "source": "lib/fetch-pr-context.sh, the numeric case guard and its stderr breadcrumb",
+        "finding_ref": {
+          "iter": 1,
+          "index": 10
+        }
+      }
+    },
+    {
+      "finding_id": "F-12",
+      "decision": "deferred",
+      "source_file": "lib/fetch-pr-context.sh",
+      "claim_text": "the object guards inside the union filter are shadowed by the pages normalizer and cannot be driven through the producer harness",
+      "skip_category": "claim-quality",
+      "evidence": "the filter's own header already records this as a deliberate fail-closed floor kept in case the upstream normalization changes or the filter is reused directly; the reviewer graded it acceptable defence-in-depth",
+      "parking_evidence": {
+        "basis": "the finding reports an unexercisable defence-in-depth guard the file documents as intentionally unreachable via the producer path",
+        "failing_input": "a non-object array member reaching the union filter without the pages normalizer",
+        "source": "lib/fetch-pr-context.sh, the array-guard comment above the union filter",
+        "finding_ref": {
+          "iter": 1,
+          "index": 11
+        }
+      }
+    }
+  ],
+  "test_first_gate": [
+    {
+      "decision": "automated test applies",
+      "command": "lib/test/run-shard.sh monolith",
+      "result": "RED then GREEN",
+      "evidence": "eight negative-control and contract assertions were written before the rung-3 fix; six went RED for the right reason (the tightened grammar did not exist yet) at 9685 passed / 6 failed, and all pass after the fix at 9692 passed / 0 failed / 0 skipped"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 10,
+    "fix_diff_lines": 118,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "base_checkpoint": {
+    "token": "UPDATED",
+    "behind_by": 4
+  },
+  "stale_prose_check": {
+    "rows": [
+      "UNRESOLVABLE\tCU\tdocs/internal/DEVFLOW_SYSTEM_OVERVIEW.md\t890\tcoverage-universal: recognition-only (every other arm)"
+    ],
+    "disposition": "informational: UNRESOLVABLE rows never gate, and the flagged universal is pre-existing prose in the paragraph this change edited, not a claim the delta authored"
+  },
+  "verification_evidence": {
+    "command": "lib/test/run-shard.sh monolith",
+    "result": "pass",
+    "duration_s": null,
+    "skipped_checks": [],
+    "focused_selection": {
+      "surfaces": [
+        {
+          "surface": "lib/fetch-pr-context.sh",
+          "coverage_map_entry": "unmodularized",
+          "target": "lib/test/run-shard.sh monolith",
+          "ground": "run.sh-resident surface; the monolith shard is its covering whole-file run"
+        },
+        {
+          "surface": "lib/test/run.sh",
+          "coverage_map_entry": "unmodularized",
+          "target": "lib/test/run-shard.sh monolith",
+          "ground": "the assertions are run.sh-resident, so the monolith shard is the covering run"
+        }
+      ],
+      "single_flight_consulted": false
+    }
+  },
+  "telemetry": "unavailable",
+  "synthesized": false
+}
