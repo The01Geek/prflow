@@ -1,0 +1,293 @@
+{
+  "iter": 1,
+  "source": "review",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": true,
+    "engine_self_modifying": true,
+    "detect_all_audit": false
+  },
+  "checklist": [
+    {
+      "verification_mode": "lite",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    }
+  ],
+  "phase3_dispatched": [
+    "code-reviewer",
+    "silent-failure-hunter",
+    "comment-analyzer",
+    "pr-test-analyzer",
+    "type-design-analyzer",
+    "requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "pr-test-analyzer",
+      "corroboration_count": 1,
+      "contributed_to_verdict": true
+    },
+    {
+      "agent": "silent-failure-hunter",
+      "corroboration_count": 1,
+      "contributed_to_verdict": true
+    },
+    {
+      "agent": "silent-failure-hunter",
+      "corroboration_count": 1,
+      "contributed_to_verdict": true
+    },
+    {
+      "agent": "silent-failure-hunter",
+      "corroboration_count": 1,
+      "contributed_to_verdict": true
+    },
+    {
+      "agent": "silent-failure-hunter",
+      "corroboration_count": 1,
+      "contributed_to_verdict": true
+    },
+    {
+      "agent": "comment-analyzer",
+      "corroboration_count": 1,
+      "contributed_to_verdict": true
+    },
+    {
+      "agent": "pr-test-analyzer",
+      "corroboration_count": 1,
+      "contributed_to_verdict": true
+    },
+    {
+      "agent": "type-design-analyzer",
+      "corroboration_count": 1,
+      "contributed_to_verdict": true
+    }
+  ],
+  "telemetry": "unavailable",
+  "synthesized": false
+}

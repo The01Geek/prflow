@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1884",
+  "generated_at": "2026-08-21T06:42:59Z",
+  "config_fingerprint": {
+    "sha256": "c2dd346fdf78eacf9e402b333f46db8770aa0afa8742a7dc4ac5d1139ba96283",
+    "partial": false,
+    "salient": {
+      "verdict_severity_threshold": "critical",
+      "fix_severity_threshold": "suggestion",
+      "max_iterations": 5
+    }
+  },
+  "source": "review",
+  "synthesized": false,
+  "cut_candidate_min_dispatch": 3,
+  "iterations": 1,
+  "per_iteration": [
+    {
+      "iter": 1,
+      "loop_role": "fix",
+      "synthesized": false,
+      "phase3_dispatched": [
+        "code-reviewer",
+        "silent-failure-hunter",
+        "comment-analyzer",
+        "pr-test-analyzer",
+        "type-design-analyzer",
+        "requesting-code-review"
+      ],
+      "phase3_dispatched_count": 6,
+      "phase3_dispatched_present": true,
+      "dispatched_effort_present": false,
+      "agent_effort": [
+        {
+          "agent": "code-reviewer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "comment-analyzer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "pr-test-analyzer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "requesting-code-review",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "silent-failure-hunter",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "type-design-analyzer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        }
+      ],
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": true,
+        "engine_self_modifying": true,
+        "detect_all_audit": false
+      },
+      "verification_posture": "mixed",
+      "checklist_lite_count": 1,
+      "checklist_agent_count": 56,
+      "fixes_applied": 0,
+      "added_nothing": true,
+      "agent_verdicts": [
+        {
+          "agent": "code-reviewer",
+          "verdict": null
+        },
+        {
+          "agent": "comment-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "pr-test-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "requesting-code-review",
+          "verdict": null
+        },
+        {
+          "agent": "silent-failure-hunter",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "type-design-analyzer",
+          "verdict": "unique-effective"
+        }
+      ]
+    }
+  ],
+  "telemetry": [
+    {
+      "iter": 1,
+      "phases": "unavailable"
+    }
+  ]
+}
