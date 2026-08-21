@@ -544,7 +544,7 @@ PYEOF
 #
 # Rung 3 (issue #1443) — the BOT-ONLY fallback, consulted only when rungs 1 and 2 both
 # yield nothing. Widen none of its four constraints without re-reading them together:
-# the `[bot]` login gate, the 30-line window, `rung3_window`'s comment/fence/quote
+# the `[bot]` login gate, the 30-line window, `rung3_mask`'s comment/fence/quote
 # stripping, and the per-sub-rung line anchors are jointly what stops ordinary bot prose
 # — every PRFlow-authored comment is bot-authored — from minting a verdict that feeds
 # review_reject_outstanding. `review_verdict_unparsed_count` counts the scanned artifacts
@@ -565,6 +565,10 @@ REVIEW_VERDICTS_BUNDLE="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" --slurpfile re
     # Returns a POSITIONAL mask — one entry per window line, the line itself or null —
     # never a compacted list. Compacting closes the gap between a heading and a later
     # token, so a stripped block would make a distant token read as the adjacent one.
+    # Every branch below appends exactly one entry, or the mask stops lining up with the
+    # lines it masks and a verdict is read from the wrong one; rung3 checks that length.
+    # Dropped: HTML-comment regions, fenced blocks, blockquotes, indented code, list items,
+    # table rows and strikethrough — every construct that marks a line as quoting.
     def rung3_mask($lines):
         (reduce ($lines[0:30][]) as $l ({comment: false, fence: null, out: []};
             if .comment then
@@ -588,16 +592,19 @@ REVIEW_VERDICTS_BUNDLE="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" --slurpfile re
     # and emoji — never by a quotation mark, a bullet glyph or a dash, each of which marks
     # the line as a recap QUOTING a verdict rather than casting one. Widening this to all
     # of non-ASCII admits exactly those.
-    # An allow-list, never a block range: Miscellaneous Symbols and Dingbats hold the
-    # bullet, ballot-box and heavy-quotation glyphs a recap is marked with.
-    def emoji: "[\\x{1F300}-\\x{1FAFF}\\x{2705}\\x{274C}\\x{26A0}\\x{FE0F}\\x{200D}]";
+    # An allow-list of verdict marks, never a block range — on EITHER plane. Dingbats hold
+    # the bullet, ballot-box and heavy-quotation glyphs a recap is marked with, and the
+    # emoji planes hold the speech-bubble and pointer glyphs, so a range on either admits
+    # exactly the decoration this rule exists to refuse.
+    def emoji: "[\\x{2705}\\x{274C}\\x{26A0}\\x{1F534}\\x{1F7E0}-\\x{1F7E2}\\x{FE0F}\\x{200D}]";
     def headline_prefix: "^(?:[ \t#*_]|" + emoji + ")*";
     # Letters in ANY script, so trailing prose in a non-Latin script is prose here too.
     def not_letters: "[^\\p{L}]";
     def rung3($lines; $login):
         if ((($login | strings) // "") | endswith("[bot]")) then
           rung3_mask($lines) as $m
-          | ([ $m[] | select(. != null) ]) as $w
+          | if ($m | length) != ($lines[0:30] | length) then [] else
+          ([ $m[] | select(. != null) ]) as $w
           # Every sub-rung reads its token from its OWN whole-line capture, anchored at both
           # ends. A guard that only anchors the prefix, or that re-derives the token with a
           # second pattern, admits the trailing prose an artifact quotes a prior verdict in.
@@ -635,6 +642,7 @@ REVIEW_VERDICTS_BUNDLE="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" --slurpfile re
                   | $r3[0:1]
                 end
             end
+          end
         else [] end;
     def verdicts_in($body; $login):
         (($body | strings) | split("\n") | map(rtrimstr("\r"))) as $lines

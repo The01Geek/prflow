@@ -14521,6 +14521,15 @@ assert_eq "#1443 rung3: a ballot-box Verdict: line is not a verdict" "0 1" \
   "$(_uv '[]' "$(_uv_botr "Earlier:"$'\n\n'"☑ Verdict: REJECT")" | _uv_shape)"
 assert_eq "#1443 rung3: a heavy-quoted Verdict: line is not a verdict" "0 1" \
   "$(_uv '[]' "$(_uv_botr "Earlier:"$'\n\n'"❝ Verdict: REJECT ❞")" | _uv_shape)"
+# The emoji planes hold speech-bubble and pointer glyphs too, so the allow-list has to
+# reach them as well as the dingbats — this case is separable from the dingbat siblings.
+assert_eq "#1443 rung3: a speech-bubble Verdict: line is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Earlier:"$'\n\n'"🗨 Verdict: REJECT")" | _uv_shape)"
+assert_eq "#1443 rung3: a pointer-glyph Verdict: line is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Earlier:"$'\n\n'"👉 Verdict: REJECT")" | _uv_shape)"
+# The verdict glyphs the corpus actually uses stay legal prefixes.
+assert_eq "#1443 rung3: a red-circle verdict headline still resolves" "REJECT" \
+  "$(_uv '[]' "$(_uv_botr "🔴 Devflow Review — REJECT"$'\n\n'"Done.")" | _uv_verds)"
 # A table row is a table row whether or not it opens with a pipe.
 assert_eq "#1443 rung3: a pipe-bearing Verdict: line is not a verdict" "0 1" \
   "$(_uv '[]' "$(_uv_botr "Summary:"$'\n\n'"what | Verdict: REJECT |")" | _uv_shape)"
