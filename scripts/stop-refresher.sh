@@ -51,6 +51,11 @@
 #                               than a never-started / stale-credential defeat.
 #   DEVFLOW_REFRESH_REAP_GLOB   glob of job-scoped pidfiles for the cross-job reaper
 #                               (default $RUNNER_TEMP/devflow-refresh-*.pid).
+#   DEVFLOW_REFRESH_IDENTITY_SOURCE  reaper identity source: `auto` (default: /proc,
+#                               then ps), `ps` (force the portable fallback), or
+#                               `none` (force the unverifiable-pid skip). Test seam —
+#                               no workflow sets it; the two non-auto arms are
+#                               otherwise unreachable on a Linux runner.
 
 set -uo pipefail
 
@@ -61,6 +66,72 @@ PIDFILE="${DEVFLOW_REFRESH_PIDFILE:-${RUNNER_TEMP:-/tmp}/devflow-refresh.pid}"
 LOG="${DEVFLOW_REFRESH_LOG:-${RUNNER_TEMP:-/tmp}/devflow-refresh.log}"
 STARTED="${DEVFLOW_REFRESH_STARTED:-success}"   # default success: a direct/test run has no gate
 SELFTEST_FAILED="${DEVFLOW_REFRESH_SELFTEST_FAILED:-}"
+
+# Ordered BEFORE the self-test attribution below, which exits 0: a job whose self-test
+# failed still shares the runner with a prior job's orphan, and reaping is exactly the
+# duty that must not be skipped on the self-hosted hosts this change targets.
+# Cross-job reaper (issue #1882): job-scoping the pidfile removed the accidental
+# cross-job kill a shared pidfile used to provide, so retire any OTHER job's
+# refresher still looping on this runner — an orphan whose self-termination may
+# have failed must not keep holding a live repository-write token. Every pidfile
+# in the glob that is not this job's own is another job's by construction, so the
+# reap decision is that name inequality plus the liveness and identity checks
+# below — never a read of the orphan's job pointer.
+REAP_GLOB="${DEVFLOW_REFRESH_REAP_GLOB:-${RUNNER_TEMP:-/tmp}/devflow-refresh-*.pid}"
+# Intentional glob + word-split of the reap pattern.
+# shellcheck disable=SC2086
+for _rpf in $REAP_GLOB; do
+  [ -f "$_rpf" ] || continue
+  [ "$_rpf" = "$PIDFILE" ] && continue
+  # Read the pid with the `read` BUILTIN, never `cat`: cat is not preflight-guaranteed,
+  # and on a host lacking it every pidfile would read empty and be unlinked below as
+  # stale — silently retiring the record of a LIVE orphan instead of signalling it.
+  _ropid=""
+  read -r _ropid 2>/dev/null < "$_rpf" || :
+  # A stale pidfile (empty, or a pid that is no longer alive) is retired so no later
+  # teardown re-consults it.
+  if [ -z "$_ropid" ] || ! kill -0 "$_ropid" 2>/dev/null; then
+    rm -f "$_rpf" 2>/dev/null || true
+    continue
+  fi
+  # Confirm the LIVE pid is actually a refresher before signalling it. On a
+  # long-lived self-hosted runner a dead refresher's pid can be recycled by an
+  # unrelated process, so a blind kill would hit the wrong one. /proc (Linux and
+  # MSYS2/Git-Bash, the native-Windows target) is the primary identity source and
+  # `ps` the macOS/BSD fallback; a host that can establish NEITHER leaves _rcmd
+  # empty and takes the fail-safe skip below — never signal an unverifiable pid.
+  _rcmd=""
+  case "${DEVFLOW_REFRESH_IDENTITY_SOURCE:-auto}" in
+    # Forcing `ps`/`none` is how the two non-/proc arms get driven at all: CI runs on
+    # Linux, where /proc is always readable, so without this seam neither the portable
+    # fallback nor the unverifiable-pid skip is ever executed by a test.
+    none) : ;;
+    ps) command -v ps >/dev/null 2>&1 && _rcmd="$(ps -o args= -p "$_ropid" 2>/dev/null || true)" ;;
+    *)
+      if [ -r "/proc/$_ropid/cmdline" ]; then
+        # bash strips the NUL separators, so the args concatenate.
+        _rcmd="$(cat "/proc/$_ropid/cmdline" 2>/dev/null || true)"
+      elif command -v ps >/dev/null 2>&1; then
+        _rcmd="$(ps -o args= -p "$_ropid" 2>/dev/null || true)"
+      fi ;;
+  esac
+  case "$_rcmd" in
+    *refresh-app-credentials.sh*)
+      # Gate the "reaped" breadcrumb on the kill actually succeeding — otherwise the
+      # log asserts a retirement (EPERM, or the process exited in the window) that
+      # did not happen. Unlink the pidfile only after a confirmed signal.
+      if kill "$_ropid" 2>/dev/null; then
+        rm -f "$_rpf" 2>/dev/null || true
+        echo "reaped an orphaned credential refresher (pid $_ropid) from a prior job on this runner (pidfile $_rpf)"
+      else
+        echo "could not signal orphaned refresher pid $_ropid (pidfile $_rpf) — left for a later teardown"
+      fi ;;
+    "")
+      echo "skipped orphan reap for pid $_ropid (pidfile $_rpf): its command line could not be established, so it cannot be confirmed a refresher (fail-safe: not signalled)" ;;
+    *)
+      echo "skipped orphan reap for pid $_ropid (pidfile $_rpf): the live process is not a credential refresher (pid reused); leaving the stale pidfile for review" ;;
+  esac
+done
 
 # Self-test attribution (issue #1882): the Start step's synchronous pre-launch
 # self-test failed the job BEFORE the detached launch, so the refresher never
@@ -131,61 +202,6 @@ else
   # failure to the refresher.
   echo "refresher Start step did not run (outcome='$STARTED'); missing pidfile is expected, not a defeat"
 fi
-
-# Cross-job reaper (issue #1882): job-scoping the pidfile removed the accidental
-# cross-job kill a shared pidfile used to provide, so retire any OTHER job's
-# refresher still looping on this runner — an orphan whose self-termination may
-# have failed must not keep holding a live repository-write token. Every pidfile
-# in the glob that is not this job's own is another job's by construction, so the
-# reap decision is that name inequality plus the liveness and identity checks
-# below — never a read of the orphan's job pointer.
-REAP_GLOB="${DEVFLOW_REFRESH_REAP_GLOB:-${RUNNER_TEMP:-/tmp}/devflow-refresh-*.pid}"
-# Intentional glob + word-split of the reap pattern.
-# shellcheck disable=SC2086
-for _rpf in $REAP_GLOB; do
-  [ -f "$_rpf" ] || continue
-  [ "$_rpf" = "$PIDFILE" ] && continue
-  # Read the pid with the `read` BUILTIN, never `cat`: cat is not preflight-guaranteed,
-  # and on a host lacking it every pidfile would read empty and be unlinked below as
-  # stale — silently retiring the record of a LIVE orphan instead of signalling it.
-  _ropid=""
-  read -r _ropid 2>/dev/null < "$_rpf" || :
-  # A stale pidfile (empty, or a pid that is no longer alive) is retired so no later
-  # teardown re-consults it.
-  if [ -z "$_ropid" ] || ! kill -0 "$_ropid" 2>/dev/null; then
-    rm -f "$_rpf" 2>/dev/null || true
-    continue
-  fi
-  # Confirm the LIVE pid is actually a refresher before signalling it. On a
-  # long-lived self-hosted runner a dead refresher's pid can be recycled by an
-  # unrelated process, so a blind kill would hit the wrong one. /proc (Linux and
-  # MSYS2/Git-Bash, the native-Windows target) is the primary identity source and
-  # `ps` the macOS/BSD fallback; a host that can establish NEITHER leaves _rcmd
-  # empty and takes the fail-safe skip below — never signal an unverifiable pid.
-  _rcmd=""
-  if [ -r "/proc/$_ropid/cmdline" ]; then
-    # bash strips the NUL separators, so the args concatenate.
-    _rcmd="$(cat "/proc/$_ropid/cmdline" 2>/dev/null || true)"
-  elif command -v ps >/dev/null 2>&1; then
-    _rcmd="$(ps -o args= -p "$_ropid" 2>/dev/null || true)"
-  fi
-  case "$_rcmd" in
-    *refresh-app-credentials.sh*)
-      # Gate the "reaped" breadcrumb on the kill actually succeeding — otherwise the
-      # log asserts a retirement (EPERM, or the process exited in the window) that
-      # did not happen. Unlink the pidfile only after a confirmed signal.
-      if kill "$_ropid" 2>/dev/null; then
-        rm -f "$_rpf" 2>/dev/null || true
-        echo "reaped an orphaned credential refresher (pid $_ropid) from a prior job on this runner (pidfile $_rpf)"
-      else
-        echo "could not signal orphaned refresher pid $_ropid (pidfile $_rpf) — left for a later teardown"
-      fi ;;
-    "")
-      echo "skipped orphan reap for pid $_ropid (pidfile $_rpf): its command line could not be established, so it cannot be confirmed a refresher (fail-safe: not signalled)" ;;
-    *)
-      echo "skipped orphan reap for pid $_ropid (pidfile $_rpf): the live process is not a credential refresher (pid reused); leaving the stale pidfile for review" ;;
-  esac
-done
 
 if [ -f "$LOG" ]; then
   echo "--- credential refresher log (tail) ---"

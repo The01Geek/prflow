@@ -35005,6 +35005,32 @@ _big_pem_1882 = _pkcs1_pem_1882((1 << 1023) | 1, 3)
 assert_eq("#1882 signer signs with a modulus large enough for the PKCS#1 v1.5 encoding",
           3, len(_signer1882.sign_jwt("iss", "1", "2", _big_pem_1882).split(b".")))
 
+# SignerError's docstring promises "its message never carries key bytes". Execute that
+# invariant rather than trusting per-raise-site discipline: feed each refusal path a
+# body carrying a recognizable marker and assert the marker never reaches the message.
+_KEYMARK_1882 = "SUPERSECRETKEYBODYMARKER"
+_keymark_b64_1882 = _signer1882.base64.b64encode(_KEYMARK_1882.encode()).decode()
+for _label_1882, _pem_1882 in (
+    ("PKCS#1 body that is not a key structure",
+     f"-----BEGIN RSA PRIVATE KEY-----\n{_keymark_b64_1882}\n-----END RSA PRIVATE KEY-----\n"),
+    ("PKCS#8 body that is not a key structure",
+     f"-----BEGIN PRIVATE KEY-----\n{_keymark_b64_1882}\n-----END PRIVATE KEY-----\n"),
+    ("undecodable body",
+     f"-----BEGIN RSA PRIVATE KEY-----\n{_KEYMARK_1882}!!\n-----END RSA PRIVATE KEY-----\n"),
+    ("unrecognized PEM type",
+     f"-----BEGIN {_KEYMARK_1882}-----\n{_keymark_b64_1882}\n-----END {_KEYMARK_1882}-----\n"),
+    ("truncated PEM",
+     f"-----BEGIN RSA PRIVATE KEY-----\n{_keymark_b64_1882}\n"),
+):
+    try:
+        _signer1882.load_rsa_private_key(_pem_1882.encode())
+        _msg_1882 = ""
+    except _signer1882.SignerError as _kexc_1882:
+        _msg_1882 = str(_kexc_1882)
+    assert_eq(f"#1882 SignerError message carries no key bytes ({_label_1882})",
+              True,
+              _KEYMARK_1882 not in _msg_1882 and _keymark_b64_1882 not in _msg_1882)
+
 print()
 print(f"{PASS} passed, {FAIL} failed")
 sys.exit(0 if FAIL == 0 else 1)

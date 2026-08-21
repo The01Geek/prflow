@@ -47765,6 +47765,49 @@ DEVFLOW_REFRESH_PIDFILE="$D487/devflow-refresh-JOBNEW3.pid" DEVFLOW_REFRESH_STAR
   DEVFLOW_REFRESH_REAP_GLOB="$D487/devflow-refresh-JOBDEAD.pid" bash "$STOP_SH" >/dev/null 2>&1
 assert_eq "#1882 arm1882l-stale: a dead-pid pidfile is unlinked by the reaper" "yes" \
   "$([ ! -e "$D487/devflow-refresh-JOBDEAD.pid" ] && echo yes || echo no)"
+# 1882l-ps — the PORTABLE `ps` identity fallback, forced. CI runs on Linux, where
+# /proc is always readable, so the macOS/BSD arm this PR ships is otherwise never
+# executed by any test and could regress unnoticed.
+bash "$STUBREF1882" & _orpps1882=$!; printf '%s' "$_orpps1882" > "$D487/devflow-refresh-JOBPS.pid"
+_s1882lps="$(DEVFLOW_REFRESH_PIDFILE="$D487/devflow-refresh-JOBNEW4.pid" DEVFLOW_REFRESH_STARTED=skipped \
+  DEVFLOW_REFRESH_IDENTITY_SOURCE=ps \
+  DEVFLOW_REFRESH_REAP_GLOB="$D487/devflow-refresh-JOBPS.pid" bash "$STOP_SH" 2>&1)"
+assert_eq "#1882 arm1882l-ps: the ps identity fallback confirms and reaps an orphan" "yes" \
+  "$(printf '%s' "$_s1882lps" | grep -qF 'reaped an orphaned credential refresher' && echo yes || echo no)"
+sleep 0.5 2>/dev/null || true
+assert_eq "#1882 arm1882l-ps: the ps-confirmed orphan is no longer alive" "no" \
+  "$(kill -0 "$_orpps1882" 2>/dev/null && echo yes || echo no)"
+kill "$_orpps1882" 2>/dev/null || true
+# 1882l-unverifiable — a host that can establish NEITHER identity source must SKIP,
+# never signal: the fail-safe arm that stops a pid-reuse kill on an unverifiable host.
+bash "$STUBREF1882" & _orpnone1882=$!; printf '%s' "$_orpnone1882" > "$D487/devflow-refresh-JOBNONE.pid"
+_s1882lun="$(DEVFLOW_REFRESH_PIDFILE="$D487/devflow-refresh-JOBNEW5.pid" DEVFLOW_REFRESH_STARTED=skipped \
+  DEVFLOW_REFRESH_IDENTITY_SOURCE=none \
+  DEVFLOW_REFRESH_REAP_GLOB="$D487/devflow-refresh-JOBNONE.pid" bash "$STOP_SH" 2>&1)"
+assert_eq "#1882 arm1882l-unverifiable: an unestablishable command line is skipped, naming the reason" "yes" \
+  "$(printf '%s' "$_s1882lun" | grep -qF 'cannot be confirmed a refresher' && echo yes || echo no)"
+sleep 0.2 2>/dev/null || true
+assert_eq "#1882 arm1882l-unverifiable: the unverifiable orphan is NOT signalled (fail-safe)" "yes" \
+  "$(kill -0 "$_orpnone1882" 2>/dev/null && echo yes || echo no)"
+assert_eq "#1882 arm1882l-unverifiable: its pidfile is retained for a later teardown" "yes" \
+  "$([ -e "$D487/devflow-refresh-JOBNONE.pid" ] && echo yes || echo no)"
+kill "$_orpnone1882" 2>/dev/null || true
+# 1882l-selftest — the reaper runs even when the self-test marker short-circuits the
+# teardown: a job whose self-test failed still shares the runner with a prior job's
+# orphan, and skipping the reap leaves it holding a live repository-write token.
+bash "$STUBREF1882" & _orpst1882=$!; printf '%s' "$_orpst1882" > "$D487/devflow-refresh-JOBST.pid"
+printf 'signing fault\n' > "$D487/stmark1882st"
+_s1882lst="$(DEVFLOW_REFRESH_SELFTEST_FAILED="$D487/stmark1882st" \
+  DEVFLOW_REFRESH_PIDFILE="$D487/devflow-refresh-JOBNEW6.pid" DEVFLOW_REFRESH_STARTED=failure \
+  DEVFLOW_REFRESH_REAP_GLOB="$D487/devflow-refresh-JOBST.pid" bash "$STOP_SH" 2>&1)"
+assert_eq "#1882 arm1882l-selftest: the reaper still runs on the self-test-failure path" "yes" \
+  "$(printf '%s' "$_s1882lst" | grep -qF 'reaped an orphaned credential refresher' && echo yes || echo no)"
+assert_eq "#1882 arm1882l-selftest: the signing-fault attribution is still emitted" "yes" \
+  "$(printf '%s' "$_s1882lst" | grep -qF 'this is a signing fault, not a stale-credential defeat' && echo yes || echo no)"
+sleep 0.5 2>/dev/null || true
+assert_eq "#1882 arm1882l-selftest: the orphan is retired on that path" "no" \
+  "$(kill -0 "$_orpst1882" 2>/dev/null && echo yes || echo no)"
+kill "$_orpst1882" 2>/dev/null || true
 
 # 1882m (AC5) — the signer refuses every non-(PKCS#1|PKCS#8-RSA) input BY NAME,
 # emitting no signature. Malformed-input matrix.

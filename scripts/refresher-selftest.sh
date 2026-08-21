@@ -88,7 +88,9 @@ else
 fi
 
 case "$prc" in
-  0) : ;;
+  # Same resolver-contract breach the mint guards: rc 0 with an empty spec would run
+  # the signer through its shebang, bypassing the 3.11 gate this routing enforces.
+  0) [ -n "$spec" ] || job_fault "the interpreter resolver returned success but no interpreter (empty spec from '$RESOLVE_PY_LIB') — cannot sign; the previous credential is left in place" ;;
   1) job_fault "the resolved Python interpreter '$spec' is older than the required version 3.11 — cannot sign; the previous credential is left in place" ;;
   *) job_fault "no Python interpreter resolved at all (consulted the resolver lib/resolve-python.sh at '$RESOLVE_PY_LIB') — cannot sign; the previous credential is left in place" ;;
 esac

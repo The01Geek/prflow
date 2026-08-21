@@ -163,7 +163,13 @@ real_mint() {
     spec="$(devflow_resolve_python 2>/dev/null)"; prc=$?
   fi
   case "$prc" in
-    0) ;;
+    # rc 0 with an EMPTY spec is a resolver contract breach, not a pass: an empty
+    # interpreter word would run the signer through its own shebang, silently
+    # bypassing the 3.11 version gate this rc routing exists to enforce.
+    0) if [ -z "$spec" ]; then
+         warn "mint: the interpreter resolver returned success but no interpreter (empty spec from '$RESOLVE_PY_LIB') — cannot sign the JWT; previous credential left in place"
+         return 1
+       fi ;;
     1) warn "mint: the resolved Python interpreter '$spec' is older than the required version 3.11 — cannot sign the JWT; previous credential left in place"; return 1 ;;
     *) warn "mint: no Python interpreter resolved (consulted the resolver lib/resolve-python.sh at '$RESOLVE_PY_LIB') — cannot sign the JWT; previous credential left in place"; return 1 ;;
   esac
