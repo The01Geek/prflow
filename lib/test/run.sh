@@ -14455,6 +14455,36 @@ assert_eq "#1443 rung3: a sentence whose words collapse to a headline is not a v
   "$(_uv '[]' "$(_uv_botr "Do not review. REJECT."$'\n\n'"Explained above.")" | _uv_shape)"
 assert_eq "#1443 rung3: a tilde-fenced rung-3 shape is not a verdict" "0 1" \
   "$(_uv '[]' "$(_uv_botr "Quoting the contract:"$'\n\n'"~~~"$'\n'"## ✅ Devflow Review — APPROVE"$'\n'"~~~")" | _uv_shape)"
+# A structural prefix is not decoration: a list marker, an ordinal, a table pipe, a
+# strikethrough run and a code indent each mark the line as something other than a
+# verdict headline — most often a recap QUOTING a superseded verdict.
+assert_eq "#1443 rung3: a list-item Verdict: line is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "## /prflow:review-and-fix"$'\n\n'"- [ ] Verdict: REJECT")" | _uv_shape)"
+assert_eq "#1443 rung3: an ordinal-listed Verdict: line is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Starting from:"$'\n\n'"1. Verdict: REJECT")" | _uv_shape)"
+assert_eq "#1443 rung3: a table-cell Verdict: line is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Summary:"$'\n\n'"| Verdict: REJECT |")" | _uv_shape)"
+assert_eq "#1443 rung3: a struck-through Verdict: line is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "~~Verdict: REJECT~~"$'\n\n'"Superseded.")" | _uv_shape)"
+assert_eq "#1443 rung3: an indented-code Verdict: line is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Example:"$'\n\n'"    Verdict: REJECT")" | _uv_shape)"
+assert_eq "#1443 rung3: a table-row Review headline is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Summary:"$'\n\n'"| Review | REJECT |")" | _uv_shape)"
+assert_eq "#1443 rung3: a bulleted option under a Verdict heading is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "## Verdict"$'\n\n'"- APPROVE")" | _uv_shape)"
+# Sub-rung 1 matches its token case-sensitively, as sub-rung 2 does.
+assert_eq "#1443 rung3: a lowercase verdict token is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "verdict: reject"$'\n\n'"Explained above.")" | _uv_shape)"
+# The three anchors the previous pass shipped uncovered.
+assert_eq "#1443 rung3: trailing prose after the token is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Verdict: REJECT was superseded by a later APPROVE."$'\n\n'"Done.")" | _uv_shape)"
+assert_eq "#1443 rung3: trailing prose after a Verdict heading token is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "## Verdict"$'\n\n'"APPROVE after the fixes landed.")" | _uv_shape)"
+assert_eq "#1443 count: a lowercase token still raises the residual count" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "the reviewer said approve"$'\n\n'"Nothing else.")" | _uv_shape)"
+# The comment-region strip needs a body whose commented-out line a rung WOULD read.
+assert_eq "#1443 rung3: a rung-3 shape inside a multi-line HTML comment is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "<!--"$'\n'"## Devflow Review — APPROVE"$'\n'"-->"$'\n'"Some review text.")" | _uv_shape)"
 # APPROVED yields no verdict, but still RAISES the residual count: the counter's operand
 # stays wider than the verdict tokenizer, or an unread artifact vanishes from both.
 assert_eq "#1443 rung3: APPROVED is not the APPROVE token but still counts as unread" "0 1" \

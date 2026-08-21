@@ -559,16 +559,27 @@ REVIEW_VERDICTS_BUNDLE="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" --slurpfile re
     def token_in_window($lines):
         any($lines[0:30][]; test("APPROVE|REJECT"; "i"));
     # Drop every line rung 3 must not read a verdict from: an HTML-comment region (opening
-    # line, continuations and close alike), a fenced block, and a blockquote.
+    # line, continuations and close alike), a fenced block, a blockquote, and an indented
+    # code block. A fence closes only on its own marker, so a tilde line cannot close a
+    # backtick block and leave the rest of the window readable.
     def rung3_window($lines):
-        (reduce ($lines[0:30][]) as $l ({comment: false, fence: false, out: []};
+        (reduce ($lines[0:30][]) as $l ({comment: false, fence: null, out: []};
             if .comment then (if ($l | test("-->")) then .comment = false else . end)
-            elif ($l | test("^[ \t]*(```|~~~)")) then .fence = (.fence | not)
-            elif .fence then .
+            elif .fence != null then
+                (.fence as $f
+                 | if ($l | test("^[ \t]*" + $f)) then .fence = null else . end)
+            elif ($l | test("^[ \t]*```")) then .fence = "```"
+            elif ($l | test("^[ \t]*~~~")) then .fence = "~~~"
             elif ($l | test("<!--")) then (if ($l | test("-->")) then . else .comment = true end)
             elif ($l | test("^[ \t]*>")) then .
+            elif ($l | test("^(\t| {4,})")) then .
             else .out += [$l] end))
         | .out;
+    # A verdict headline may be prefixed only by heading and emphasis marks, whitespace and
+    # emoji. Admitting any run of non-letters instead makes a list marker, an ordinal, a
+    # table pipe or a strikethrough run read as decoration — and those mark the line as a
+    # recap QUOTING a verdict rather than casting one.
+    def headline_prefix: "^(?:[ \t#*_]|[^\\x00-\\x7F])*";
     def rung3($lines; $login):
         if ((($login | strings) // "") | endswith("[bot]")) then
           rung3_window($lines) as $w
@@ -576,17 +587,17 @@ REVIEW_VERDICTS_BUNDLE="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" --slurpfile re
           # ends. A guard that only anchors the prefix, or that re-derives the token with a
           # second pattern, admits the trailing prose an artifact quotes a prior verdict in.
           | ([ $w[]
-               | capture("^[^A-Za-z]*Verdict:[^A-Za-z]*(?<v>APPROVE|REJECT)[^A-Za-z]*$"; "i")
-               | (.v | ascii_upcase) ]) as $r1
+               | capture(headline_prefix + "(?i:Verdict):[^A-Za-z]*(?<v>APPROVE|REJECT)[^A-Za-z]*$")
+               | .v ]) as $r1
           | if ($r1 | length) > 0 then $r1[0:1]
-            elif any($w[]; test("^[^A-Za-z]*Verdict:"; "i")) then []
+            elif any($w[]; test(headline_prefix + "(?i:Verdict):")) then []
             else
               # Letters may appear only in one optional leading word, the anchor word, and
               # the token — collapsing punctuation away instead lets an ordinary sentence
               # ("Do not review. REJECT.") wear the headline shape. The token stays
               # case-SENSITIVE so lowercase prose cannot satisfy it.
               ([ $w[] | select(test("[^ \t]")) ][0:3]
-               | map(capture("^[^A-Za-z]*([A-Za-z]+[^A-Za-z]+)?(?i:Review|Verdict)[^A-Za-z]+(?<v>APPROVE|REJECT)[^A-Za-z]*$"))
+               | map(capture(headline_prefix + "([A-Za-z]+[^A-Za-z]+)?(?i:Review|Verdict)[^A-Za-z]+(?<v>APPROVE|REJECT)[^A-Za-z]*$"))
                | map(.v)) as $r2
               | if ($r2 | length) == 1 then $r2
                 else
@@ -595,7 +606,7 @@ REVIEW_VERDICTS_BUNDLE="$(echo "$PR_COMMENTS_RAW" | "$DEVFLOW_JQ" --slurpfile re
                               and (($w[$i] | gsub("[^A-Za-z]"; "") | ascii_downcase) == "verdict"))
                      | ([ ($w[($i + 1):] | .[]) | select(test("[^ \t]")) ][0]) as $nxt
                      | select($nxt != null)
-                     | ($nxt | capture("^[^A-Za-z]*(?<v>APPROVE|REJECT)[^A-Za-z]*$"))
+                     | ($nxt | capture(headline_prefix + "(?<v>APPROVE|REJECT)[^A-Za-z]*$"))
                      | .v ]) as $r3
                   | $r3[0:1]
                 end
