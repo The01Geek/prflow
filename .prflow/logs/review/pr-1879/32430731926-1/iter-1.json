@@ -1,0 +1,153 @@
+{
+  "iter": 1,
+  "source": "review-and-fix",
+  "loop_role": "fix",
+  "fix_commit_sha": "87cbf8bdcf53e9c4d894f11f874cc0d02711ba36",
+  "fix_files": [
+    "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "checklist": [
+    {
+      "id": "VC-1",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-2",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-3",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "raw_verdict": "FAIL",
+      "normalized": false,
+      "evidence": "FAIL against pre-fix tree (overview L766 lacked silent-flatten consequence); FIXED in commit 87cbf8b, re-verified PASS"
+    },
+    {
+      "id": "VC-4",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-5",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-6",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-7",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-8",
+      "verification_mode": "lite",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-9",
+      "verification_mode": "agent",
+      "verdict": "INCONCLUSIVE",
+      "evidence": "CI 'lib + python tests' not yet green on head — post-PR merge gate on the cloud implement tier, established post-push"
+    },
+    {
+      "id": "VC-10",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-11",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "init/SKILL.md VS Code Copilot depth-5 vs table (out of scope: init/SKILL.md not in this PR)",
+      "defect_signature": {
+        "file": "skills/init/SKILL.md",
+        "line_range": [
+          373,
+          373
+        ],
+        "kind": "comment_drift"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "deferred"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "external harness/version facts will rot (informational — issue AC6 mandates them)",
+      "defect_signature": {
+        "file": "docs/internal/shadow-review.md",
+        "line_range": [
+          71,
+          71
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "advisory"
+    }
+  ],
+  "shadow": {
+    "ran_at": "early-trigger-after-iter-1 (engine_self_modifying)",
+    "reviewed_sha": "87cbf8bdcf53e9c4d894f11f874cc0d02711ba36",
+    "verdict": "APPROVE",
+    "coverage": "not_verified",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": "reviewer fan-out full and clean (blinded, 4/4 always-on for config_only); coverage recorded not_verified because the shadow's checklist axis (Phase 1+2) was not independently re-run in this hand-driven inline pass — the checklist was independently verified in iteration 1 (10 agent verifiers + 1 lite)",
+    "checklist_skipped": "shadow-checklist-not-rerun",
+    "phase3_findings": [],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 1,
+      "overlap_with_iter_N": 0,
+      "new": 1,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "convergence_inputs": {
+    "fixes_applied": 1,
+    "fix_diff_lines": 2,
+    "new_corroborated_critical_count": 0
+  },
+  "telemetry": "unavailable",
+  "synthesized": false
+}
