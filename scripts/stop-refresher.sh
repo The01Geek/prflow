@@ -45,12 +45,33 @@
 #                               step) a missing pidfile is EXPECTED, not a defeat, and
 #                               warning would misattribute an unrelated early failure
 #                               to the refresher.
+#   DEVFLOW_REFRESH_SELFTEST_FAILED  marker written by the Start step's pre-launch
+#                               self-test (issue #1882). When present, the job's
+#                               failure is attributed to the signing fault rather
+#                               than a never-started / stale-credential defeat.
+#   DEVFLOW_REFRESH_REAP_GLOB   glob of job-scoped pidfiles for the cross-job reaper
+#                               (default $RUNNER_TEMP/devflow-refresh-*.pid).
 
 set -uo pipefail
 
 PIDFILE="${DEVFLOW_REFRESH_PIDFILE:-${RUNNER_TEMP:-/tmp}/devflow-refresh.pid}"
+# The LOG path is job-scoped and passed EXPLICITLY from the Start step (issue
+# #1882): its producer is the workflow redirect and its consumer is this default,
+# two separately-upgrading artifacts, so neither infers the other's literal.
 LOG="${DEVFLOW_REFRESH_LOG:-${RUNNER_TEMP:-/tmp}/devflow-refresh.log}"
 STARTED="${DEVFLOW_REFRESH_STARTED:-success}"   # default success: a direct/test run has no gate
+SELFTEST_FAILED="${DEVFLOW_REFRESH_SELFTEST_FAILED:-}"
+
+# Self-test attribution (issue #1882): the Start step's synchronous pre-launch
+# self-test failed the job BEFORE the detached launch, so the refresher never
+# started by design. Name the signing fault instead of the did-not-start defeat
+# and its stale-token impact clause — the credentials never went stale past the
+# hour, the job failed at the signing gate.
+if [ -n "$SELFTEST_FAILED" ] && [ -f "$SELFTEST_FAILED" ]; then
+  echo "credential-refresher self-test failed before the detached launch: $(cat "$SELFTEST_FAILED" 2>/dev/null)"
+  echo "::warning::the credential-refresher self-test failed the job (a signing fault on this host); the refresher was deliberately not started — this is a signing fault, not a stale-credential defeat"
+  exit 0
+fi
 
 defeated=no
 reason=""
@@ -108,19 +129,41 @@ else
   echo "refresher Start step did not run (outcome='$STARTED'); missing pidfile is expected, not a defeat"
 fi
 
+# Cross-job reaper (issue #1882): job-scoping the pidfile removed the accidental
+# cross-job kill a shared pidfile used to provide, so retire any OTHER job's
+# refresher still looping on this runner — an orphan whose job-identity handle
+# names a job that is no longer current, whose self-termination may have failed,
+# must not keep holding a live repository-write token. Reap every job-scoped
+# pidfile that is not this job's own and whose pid is still alive.
+REAP_GLOB="${DEVFLOW_REFRESH_REAP_GLOB:-${RUNNER_TEMP:-/tmp}/devflow-refresh-*.pid}"
+# Intentional glob + word-split of the reap pattern.
+# shellcheck disable=SC2086
+for _rpf in $REAP_GLOB; do
+  [ -f "$_rpf" ] || continue
+  [ "$_rpf" = "$PIDFILE" ] && continue
+  _ropid="$(cat "$_rpf" 2>/dev/null || true)"
+  if [ -n "$_ropid" ] && kill -0 "$_ropid" 2>/dev/null; then
+    kill "$_ropid" 2>/dev/null || true
+    echo "reaped an orphaned credential refresher (pid $_ropid) from a prior job on this runner (pidfile $_rpf)"
+  fi
+done
+
 if [ -f "$LOG" ]; then
   echo "--- credential refresher log (tail) ---"
   tail -n 40 "$LOG" 2>/dev/null || true
   # Only consult the log for the sustained-vs-recovered decision when nothing has
   # decided defeat above (an absent pidfile, a dead pid, or an empty pidfile is a
   # more fundamental cause than any log line — a stale `cycle OK` must not mask it).
-  # Cloud-only exemption (parity with refresh-app-credentials.sh's tr note): the
-  # `grep`/`tail` below derive the value that GATES the user-facing defeat warning
-  # (guard-class-2), and neither is a lib/preflight.sh-guaranteed tool. A missing one
-  # would empty `last` → the `*)` arm → no warning (fail-open). This helper is invoked
-  # ONLY from the two writer workflows on ubuntu-latest, where grep/tail are always
-  # present, so the fail-open case is unreachable in the shipped invocation path.
+  # The `grep`/`tail` below derive the value that GATES the user-facing defeat
+  # warning (guard-class-2), and neither is a lib/preflight.sh-guaranteed tool. On
+  # a runner missing one this now FAILS CLOSED (issue #1882): treat the refresher
+  # as defeated and warn, rather than emptying `last` into the do-nothing arm and
+  # emitting nothing on exactly the non-Linux host class this change targets.
   if [ "$defeated" = no ]; then
+    if ! command -v grep >/dev/null 2>&1 || ! command -v tail >/dev/null 2>&1; then
+      defeated=yes
+      reason="the text tools that read the refresher log (grep/tail) are unavailable, so the refresher's health could not be verified"
+    else
     last="$(grep -E 'refresh-app-credentials:' "$LOG" 2>/dev/null | tail -n1)"
     case "$last" in
       *"cycle OK"*) : ;;                    # most recent cycle succeeded → creds fresh
@@ -136,6 +179,7 @@ if [ -f "$LOG" ]; then
       *"::warning::"*) defeated=yes; reason="the most recent refresh cycle failed" ;;
       *) : ;;                               # no cycle outcome logged yet → nothing to assert
     esac
+    fi
   fi
 fi
 
