@@ -747,6 +747,10 @@
       "note": "issue #1882 openssl-free RSASSA-PKCS1-v1_5 JWT signer for the credential refresher; byte-equality against openssl + malformed-input matrix in the #1882 arms of the #487 run.sh block and unit arms in test_python_scripts.py",
       "owner": "unmodularized"
     },
+    "scripts/skill-body-load-probe-verdict.py": {
+      "note": "issue #1618 Skill-tool body-delivery probe verdict helper (delivered-whole/short-delivery/unestablished per engine root). Pure function over a parsed execution file — asserted inline from lib/test/run.sh (the #1618 block), matching the agents-seam/background-tasks/env-propagation/subagent-write/placeholder probe-verdict precedents; no `focused_test`, which routes a change to it to the full suite rather than to a focused module. The block drives every verdict arm (whole, tail-lost, interior-lost, truncation-marker short deliveries; the never-loaded/error/no-result/wrong-shape/unparseable/absent-file unestablished arms), the build negative control, the empty-selection non-zero exit, and a coupling assertion binding the two matcher-probe.yml jobs (show_full_output, prflow plugin, both --root specs at their real on-disk paths, --tier) to the helper.",
+      "owner": "unmodularized"
+    },
     "scripts/stage-draft-write.py": {
       "note": "#705 helper unit tests: lib/test/test_python_scripts.py (stage/emit/apply modes) driven by run.sh",
       "owner": "unmodularized"
@@ -758,6 +762,11 @@
     },
     "scripts/stall-backstop-decide.sh": {
       "note": "",
+      "owner": "unmodularized"
+    },
+    "scripts/stall-observer-scan.py": {
+      "focused_test": "lib/test/test_python_scripts.py",
+      "note": "issue #1027 out-of-band stall observer decision core (reports, never kills)",
       "owner": "unmodularized"
     },
     "scripts/stop-hook-probe.sh": {
@@ -1316,6 +1325,10 @@
     },
     "1614": {
       "note": "the near-full advisory over lint-reference-size.py's --print-near-full: the derived near-full band stated by --print-threshold, the report's membership/headroom/ascending-order/equal-headroom-tie-break for files inside the band, the exclusion of files just outside the band and of over-ceiling files, the empty-report and exit-0 advisory contract, the positive control that an over-ceiling file still fails the ceiling gate, and the real-tree advisory that never emits the reserved NOTE shape",
+      "owner": "unmodularized"
+    },
+    "1618": {
+      "note": "Inline run.sh assertions driving every VERDICT arm of scripts/skill-body-load-probe-verdict.py (the issue-1618 Skill-tool body-delivery probe), unmodularized like its probe-verdict siblings. Driven: the delivered-whole / short-delivery (tail lost, interior lost, truncation-marker) measurements; the unestablished degraded arms (no Skill tool_use, error result, unpaired result, wrong-shape JSON, unparseable file, absent file); the build negative control; the empty-selection non-zero exit that must not read as a clean pass; and the coupling assertion binding the two matcher-probe.yml jobs (show_full_output, prflow plugin load, both --root specs at real on-disk paths, --tier) to the helper.",
       "owner": "unmodularized"
     },
     "1621": {
