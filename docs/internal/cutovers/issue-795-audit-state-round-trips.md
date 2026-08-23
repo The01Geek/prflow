@@ -60,10 +60,11 @@ member's handler and requires the resolver call.
 ## What `next_call=` is, and what it deliberately is not
 
 It is a **generated suggestion the caller reviews before running, never an instruction.** The
-decided answer line is unchanged and stays first; `next_call=` is second and final, in one of
+decided answer line is unchanged and stays first; `next_call=` is the final line, in one of
 three shapes — an invocation line, `next_call=none`, or `next_call=unestablished reason=<token>`.
 State-derivable operands are filled; caller-supplied ones are named bare in a `needs=` field and
-never guessed.
+never guessed. (Since issue #1803 a `summary-block` line prints between the decided answer
+line(s) and `next_call=`, so `next_call=` is final but no longer second.)
 
 Two properties of that split are load-bearing and were live defects a review round caught:
 

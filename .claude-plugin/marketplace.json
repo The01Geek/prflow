@@ -12,7 +12,7 @@
       "description": "Turn feature requests into review-ready pull requests: issue, implementation, tests, a review-and-fix loop, and docs. Runs locally or on GitHub Actions, and is built for complex brownfield repos. Each week its retrospective reads what you actually merged and proposes improvements to your skill extensions.",
       "author": { "name": "Daniel Radman", "email": "daniel@radman.ai" },
       "homepage": "https://github.com/The01Geek/prflow",
-      "version": "2.33.23",
+      "version": "2.33.60",
       "license": "MIT",
       "keywords": [
         "implement",

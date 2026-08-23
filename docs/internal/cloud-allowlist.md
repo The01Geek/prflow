@@ -608,7 +608,7 @@ and several others stale.** `matcher-probe.yml` fires on
 **the `paths:` filter does not narrow that to the pushed commit**: on a `pull_request`
 event GitHub evaluates `paths:` against the three-dot base…head diff — the files changed
 in the *whole PR* — so once a PR touches `matcher-probe.yml` at all, **every subsequent
-push re-fires all 12 paid probe jobs**, including the commit that records a verdict. Two
+push re-fires every paid probe job in the workflow**, including the commit that records a verdict. Two
 consequences. A recorded head goes stale the moment another push lands, so a verdict is
 transcribed from a specific run id and head rather than from "the PR". And a PR that
 edits that workflow is expensive by construction — which is why a docs-only change

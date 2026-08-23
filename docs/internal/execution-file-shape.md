@@ -25,6 +25,13 @@ reader mirrors this doc's three-encoding tolerance (object / array / JSONL); bec
 dated observation and not a contract, it is a preference-ordered tolerant parser, never a brittle
 single-shape one. See [`docs/internal/efficiency-trace.md`](efficiency-trace.md)'s **Layer 4**.
 
+**Also consumed by (issue #1528).** The file's `{"type":"system","subtype":"init"}` record's
+`claude_code_version` is now read in-job on every live run by
+`scripts/surface-execution-diagnostics.sh`, which value-publishes it (alongside
+`permission_denials_count`) with an `unavailable` fallback and an `::notice::` read-back — no
+dependency on the uploaded artifact. Every other init field stays type-only behind the redaction
+boundary above. See [`docs/internal/execution-diagnostics.md`](execution-diagnostics.md).
+
 **How each field is recorded (issue #437 AC3/AC4).** For every field, exactly one of:
 
 - `present` — observed in the parsed execution file.

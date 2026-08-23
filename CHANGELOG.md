@@ -4,6 +4,301 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.33.60] — 2026-08-21
+
+### Added
+- **Add an out-of-band, report-only stall observer for in-flight implement runs.** A new scheduled workflow (`.github/workflows/stall-observer.yml`) and pure decision helper (`scripts/stall-observer-scan.py`) read each open PRFlow issue's workpad `**Last updated:**` time against an advisory staleness threshold and surface "silent for N minutes; last checkpoint X" as a job annotation + step summary — the in-job stall backstop runs only after the agent step returns, so it structurally cannot observe a still-running job. The observer never kills or re-dispatches a run (so it cannot race the backstop's resume arm); the threshold is advisory-only and configurable via `prflow_implement.stall_observer.advisory_threshold_minutes` (default 90, provisional), and the observer is gated by `prflow_implement.stall_observer.enabled`. Plugin-internal in this release (not shipped to consumer repos). (#1783)
+- **Added a Skill-tool body-delivery probe for the two cloud tiers.** Two sibling jobs in
+  `.github/workflows/matcher-probe.yml` (`skill-body-load-review-probe`,
+  `skill-body-load-implement-probe`) load the real plugin and invoke the Skill tool once per
+  engine root under `show_full_output: true`, and a new unit-tested helper
+  `scripts/skill-body-load-probe-verdict.py` derives a per-root delivered-whole /
+  short-delivery / unestablished verdict from the Skill `tool_result` in the execution file —
+  never model text. `docs/internal/skill-body-load-delivery.md` gains a session-B record whose
+  four cloud verdicts are `unestablished` until a maintainer dispatches the jobs. No
+  `skills/**` or `agents/**` file changes, so consumers receive nothing. (#1618)
+
+## [2.33.59] — 2026-08-21
+
+### Changed
+`lib/fetch-pr-context.sh` now recognises four bot-authored review-verdict shapes its
+`Verdict:`-on-a-heading fallback missed, through a third rung consulted only when the
+producer marker and that heading grammar both yield nothing. The rung reads only a
+`[bot]` author's first 30 lines, skips commented-out, fenced and quoted lines, requires a
+verdict anchor on the line it reads or on the heading immediately above it, and
+contributes at most one verdict. The emitted
+bundle also gains `review_verdict_unparsed_count`, the number of scanned artifacts that
+yielded no verdict yet carry an `APPROVE`/`REJECT` token in that window, so an empty
+`review_verdicts` no longer means both "no review happened" and "a verdict was posted in a
+shape the extractor does not read". The count feeds nothing; `review_reject_outstanding`
+is still derived from `review_verdicts` alone.
+
+## [2.33.58] — 2026-08-21
+
+### Added
+- **Added `scripts/review-context-eval.py`, a maintainer-only instrument that measures what entering the review engine costs.** It walks a saved Claude Code transcript directory and reports, per run, how many times each engine file (`skills/review/**`, `skills/review-and-fix/**`) was read, attributes every read to the context that made it (distinguishing a main-thread read from a subagent read), and gives the peak accumulated context of each context that read one — reported as `unestablished` for a context no turn of which carried a usable residency measurement, so an unmeasured peak is never collapsed onto a real-looking 0. It is the third of DevFlow's transcript-walking context instruments and reuses their streaming, per-record-degradation, symlink-escape and determinism design; no skill, workflow, or suite gate invokes it. (#1887)
+
+## [2.33.57] — 2026-08-21
+
+### Fixed
+- **Sign the credential refresher's JWT without `openssl` process substitution, so long cloud
+  runs keep GitHub write access on non-Linux self-hosted runners.** The refresher signed its
+  App JWT with `openssl dgst -sha256 -sign <(…)`, a `/dev/fd` process-substitution path a
+  native-Windows `openssl` cannot open, so a run outliving the App token's hour silently lost
+  both write credentials. Signing now runs through a standard-library Python signer
+  (`scripts/sign-jwt-rs256.py`, RSASSA-PKCS1-v1_5, key read only on stdin) that works across the
+  runners `runs-on` can select and whose output is byte-equal to `openssl`. Each writer
+  workflow's Start step now runs a synchronous pre-launch self-test that fails the job
+  immediately on a signing fault; the clock read and the teardown's log read fail closed on a
+  missing tool; and the refresher's token file, pidfile and log are job-scoped so the loop
+  retires itself once its job is gone and a cross-job reaper retires an orphaned refresher
+  whose identity it can confirm. (#1884)
+
+## [2.33.56] — 2026-08-21
+
+### Changed
+- **The fix loop's Step 1 engine-subagent return is now checked for Phase-3 roster coverage, symmetric with the Step 2.6 shadow entry.** `/prflow:review-and-fix`'s Step 1 previously accepted a `fanned-out` return whose required fields were merely present, so a subagent that under-fanned Phase 3 and returned a self-consistent `phase3_dispatched` read as well-formed on the primary merge-gating verdict path. The parent now computes the expected Phase-3 roster from the **returned** `diff_profile` (never the loop's last-iter profile) and treats a `phase3_dispatched` short of it as a not-well-formed return, which falls back to the existing inline path and runs the engine in the parent. No return field, status value, or config key is added, and the shadow's tripwire, 1:1 join, and `expected_reviewers` persistence remain shadow-only. (#1883)
+
+## [2.33.55] — 2026-08-21
+
+### Changed
+- **The fix loop now dispatches the review engine as a subagent at both its engine entries.** `/prflow:review-and-fix`'s Step 1 and the Step 2.6 shadow pass each dispatch the review engine into an Agent-tool subagent that runs Phases 0 through 4.3 and fans out the Phase 3 roster from its own context, returning `dispatch_mode: fanned-out` with its results handed back by a file path; when the subagent holds no delegation tool it returns `dispatch_mode: unavailable` and the parent runs the engine inline exactly as before. This keeps the engine's instruction text out of the orchestrator's resident prefix on `/prflow:implement` runs, cutting the per-turn cache-read cost, with no change to review coverage. The fix loop stays the sole writer of `iter-<N>.json`. (#1883)
+
+## [2.33.54] — 2026-08-21
+
+### Changed
+- **Phase 3's mid-phase re-anchor now restores its step position from a compact resume-point record instead of re-reading every phase reference file.** `/prflow:implement` records its resume point on the workpad before invoking a nested skill — through `scripts/workpad.py`'s new `--record-resume-point` write flag and `resume-point` read-back subcommand, a keyed-checkpoint namespace read by no verdict or gate — and after the return re-reads only the one member of the phase's reference set that holds it, re-reading any other member when it reaches that member. The displacement defence is kept, because the file the run resumes from is still read fresh. (#1880)
+
+## [2.33.53] — 2026-08-21
+
+### Fixed
+- **Reframe the nested-subagent-dispatch constraint as cross-harness portability.** The shadow-review and docs-verify prose previously stated that a subagent cannot dispatch its own subagents as a fixed harness property; nested dispatch is in fact available on some harnesses and withheld on others. The shipped `skills/**` bodies now name the failure mode as silent flattening to a single-agent self-check; the internal docs single-home the cross-harness portability rationale, the harness capability table, and the version facts. (#1879)
+
+## [2.33.52] — 2026-08-20
+
+### Added
+- **`/prflow:init` now advises enabling VS Code Copilot's nested-subagent setting.** When the run is under a VS Code Copilot harness, init recommends turning on `chat.subagents.allowInvocationsFromSubagents` (off by default) so a subagent can dispatch its own subagents, giving review agents better context isolation; with it off a subagent silently does that work inline instead of erroring. (#1877)
+
+## [2.33.51] — 2026-08-20
+
+### Fixed
+- **Comment-triggered light commands (`/prflow:review`, `/prflow:review-and-fix`,
+  `/prflow:pr-description`) now address the thread they were posted on, ignoring any trailing
+  number in the command text.** `scripts/resolve-command-trigger.sh` previously preferred the
+  typed number, so the workflow's PR-ness guard and the number its steps acted on could diverge
+  since #1858 — silently withholding the verdict-reach record (#1156) and the superseded-REJECT
+  dismissal net (#1175) from pull requests that really were reviewed. The resolver now emits the
+  event's own thread number and writes a run-log line naming any discarded number. (#1874)
+
+## [2.33.50] — 2026-08-20
+
+### Fixed
+- **Weekly retrospective Step-9 "Analyzed PRs" digest now includes analyst-graded clean PRs.** The
+  Step-9 filter is extracted to `lib/analyzed-digest.jq` and widened to select analyst-graded clean
+  entries — those with a populated `categories`, `descriptors`, or `suggested_interventions` field —
+  alongside `imperfect` and `blocked`, while still excluding gate-skipped clean entries (whose
+  analysis fields are empty, from `lib/clean-entry.jq`). Previously an analyst-graded clean PR cost a
+  Stage A LLM call and was counted in `analyzed_count` yet was dropped from the digest, so the
+  "Analyzed PRs" list under-reported. `lib/compute-patterns.jq` and its own `imperfect`-or-`blocked`
+  pattern-occurrence select are left unchanged (AC2). (#1873)
+
+## [2.33.49] — 2026-08-20
+
+### Changed
+- **Let the Stage A retrospective analyst grade an analyzed PR `clean`.** `skills/retrospective/SKILL.md` widens the Stage A verdict vocabulary from `imperfect`/`blocked` to `clean`/`imperfect`/`blocked`: `clean` is the grade when every mechanical signal is spotless (`post_bot_commits` 0, `ci_failures_during_pr` 0, `review_comments_count` 0, `review_reject_outstanding` false, `ci_status_unknown` false, `workpad_final_status` `Complete`) and the analysis finds no shipped defect, and the neither-fits default now resolves to `clean` under those spotless signals and to `imperfect` otherwise. The analysis still runs and records its learnings, so the verdict becomes an outcome measure again instead of a self-report. The cheap gate, `lib/compute-patterns.jq` (analyst-graded `clean` entries still contribute no pattern occurrences), and `lib/clean-entry.jq` are unchanged. (#1865)
+
+## [2.33.48] — 2026-08-20
+
+### Fixed
+- **`check-verified-premises.py` grades only real premise quotations and stops reporting clean passes it did not earn.** Text inside backtick code spans is no longer scanned for the premise quotation, so a backticked command's double-quoted argument is not matched as the premise; a blockquote-prefixed `> Verified:` line is now surfaced in the `UNGRADED_CLAIMS` output instead of vanishing into a byte-identical `total=0`; a quotation truncated at an internal `"` is graded `unestablished` with the delimiter rule named rather than `refuted` against the fragment; and a quotation-shape refusal `detail=` (a cited path with no usable premise quotation, and the new truncated-quotation refusal) now states the delimiter-and-floor rule it applied, the eight-character minimum quotation length included. The create-issue premises quality group is updated to match the recognizer and to state that a `Verified:` premise asserts a present-tense fact, with a post-change claim written as an acceptance criterion instead. (#1872)
+
+## [2.33.47] — 2026-08-20
+
+### Changed
+- **Tighten the create-issue audit's per-finding recommended-edit bar.** The audit prompt
+  template's per-finding bar (and its restatement in the no-finding-cap paragraph) now requires
+  each finding's recommended edit to be directly applicable without drafter authorship: the full
+  replacement text written out verbatim, and where the remedy is a command the complete runnable
+  command, never more than one branch and never a placeholder for a value the auditor established
+  during its own verification; a finding whose replacement the auditor cannot supply states that
+  inability explicitly in the recommendation slot. This stops audit rounds that attack text the
+  drafter authored from an underspecified recommendation. (#1846)
+
+## [2.33.46] — 2026-08-20
+
+### Fixed
+- **`create-issue`: report `latest_revision_landed` three-way (`yes`/`no`/`unestablished`) instead of collapsing cannot-prove onto `no`.** `issue-audit-state.py`'s `latest_revision_landed` predicate now returns `no` only when a recorded write-failure proves the latest revision did not land, and `unestablished` when the recorded state proves neither landing nor failure (the common `basis=resolution` terminal path, or a revision with no recorded stdin digest) — so `query-draft-binding` no longer shows a false-alarm `no` on a healthy run, and its `--help` enumerates the three tokens. (#1868)
+
+## [2.33.45] — 2026-08-20
+
+### Removed
+- **Delete the unwired `terminal-result` classifier (issue #1273 dead code).** The classifier `scripts/terminal-result-class.sh`, its generated total table `lib/terminal-result-table.tsv`, that table's generator `lib/generate-terminal-result-table.py`, and the focused suite module `lib/test/modules/terminal-result-class.sh` (with its `.inventory.md`) were shipped by PR #1792 but never wired to any workflow, skill, or script, and the follow-up family that would have wired them is closed. This removes them along with their suite registration (the flight-recorder registry, the `lib/test/run.sh` dispatch, the `run-shard.sh` and `ci.yml` module lists, the coverage-map entries, the `regenerate-artifacts.py` drift row, and the audited-population lists and count in the pin-corpus census). (#1862)
+
+## [2.33.44] — 2026-08-20
+
+### Fixed
+- **Forbid `/prflow:create-issue`'s closing step from starting implementation inline.** Step 4 sub-step 6 of `skills/create-issue/references/step-4-present-create.md` specified only the trigger-comment post mechanism and never stated what the run must not do instead, so a spent-context run could offer to implement inline. The offered and withheld arms now both state that the closing offer is only ever to post the trigger comment and that the run never starts implementation itself (because implement must begin in a fresh-context agent); the *cloud implement tier disabled or unconfigured* withheld arm additionally tells the user to start `/prflow:implement` in a fresh session; and invariant 5 of the non-degradable invariants block in `skills/create-issue/SKILL.md` carries the same rule so it survives context compaction. (#1867)
+
+## [2.33.43] — 2026-08-20
+
+### Removed
+- **Remove the orphaned review-verdict handoff importer.** With the trusted-emitter
+  orchestration (#1385) closed as not planned, the handoff importer script added by #1314
+  Part 1 and its focused test guarded a contract nothing invoked, so they read as live
+  security infrastructure while being dead code. Deletes the importer script and its test,
+  and unwires the suite block, coverage-map entry, test-file enumeration, and the suite-grant
+  token (in `.prflow/config.json` and its coupled `matcher-probe.yml` mirror) that existed
+  only for them. The importer is recoverable from git history if a trusted-emitter design is
+  revived. (#1864)
+
+## [2.33.42] — 2026-08-20
+
+### Fixed
+- **Record the review outcome against the reviewed PR, not the commented-on one.** Three `command`-job steps in `.github/workflows/devflow.yml` — the review stall backstop, the Phase 4.4 verdict-emitter reach record, and the superseded-REJECT dismissal net — read their pull-request number straight from the triggering event, so a `/prflow:review <n>` typed on a different thread resumed, recorded, or dismissed against the commented-on PR rather than the reviewed one. Each step now derives the number from the resolved command's trailing number and falls back to the event's only when the command carries none — the same bash-builtins-only derivation the dead-run flip step already performs. (#1858)
+
+## [2.33.41] — 2026-08-20
+
+### Fixed
+- **Drop non-consumer-resolvable probe-row and run-id citations from the shipped `review-and-fix` loop-exit reference.** The *Completion-evidence check* paragraph in `skills/review-and-fix/references/loop-exit.md` justified treating the completion-evidence validator's review-tier permitted-ness as unrecorded by citing this repository's own matcher-probe row ordinals and a GitHub Actions run id — pointers a consumer repo (which receives the file verbatim) cannot consult. The paragraph now states each surviving instruction by naming the thing rather than the ordinal, preserving all four instructions. (#1857)
+
+## [2.33.40] — 2026-08-20
+
+### Changed
+- **Shrink the create-issue audit state owner's call protocol.** An `issue-audit-state.py`
+  subcommand that prints a `next_call=` line now also prints a `summary-block` line — a compact
+  fixed subset of the `query-summary` fields, enumerated in the tool's `--help` — between its
+  decided answer line and the final `next_call=` line, so a caller reads post-mutation state from
+  the call it just made. `record-finding-evidence` gains a `--finding-evidence-records-file` form
+  that records a whole round's finding evidence from one JSON file (each entry keeping its own
+  completeness verdict). The audit references' clean path drops the standalone `query-summary`
+  read its enriched output now carries, lowering the per-run mandated state-owner call count. (#1807)
+
+## [2.33.39] — 2026-08-20
+
+### Changed
+- **One provenance signature, one switch, across `/prflow:implement` and `/prflow:create-issue`.** `scripts/render-pr-provenance-line.py` now takes the command name as a required `--command` argument and returns the finished line in Markdown italics, so both commands paste one set of bytes: a draft pull request opened by `/prflow:implement` and an issue created by `/prflow:create-issue` each end with `_Generated via <command> (v<version>[, <model>][, <effort>])_`. The switch that gates the model and effort clause moves from `prflow_implement.publish_model_effort` to `prflow.publish_model_effort`, so one key now governs the clause for every command that emits the line. The old `prflow_implement.publish_model_effort` spelling is read by nothing after this change and nothing reports it as stale, so a repository that had set it to the JSON boolean `false` has its model and effort clause re-enabled with no message — on pull requests as before, and now on issues too — from the first run after the upgrade; move the key to `prflow` to keep it off. (#1810)
+
+## [2.33.38] — 2026-08-19
+
+### Changed
+- **`/prflow:create-issue` Step 1 now starts with the shallow arm and reaches the deep arm only by escalation.** The pre-dispatch arm-selection judgement is removed: every dispatching run surveys the union of the two legs with one peer, and the deep two-peer split runs only when the shallow report's existing escalation triggers (a doc-reliability `UNRELIABLE`/`ABSENT`, an unestablished duty, or a judged-not-engaged duty whose bearing observation is not `none-observed`) fire. This makes one agent the default cost where the deep arm — the effective default on a substantive topic, since its pre-dispatch judgement almost always read full-floor — paid for two, with unchanged verification coverage. (#1805)
+
+## [2.33.37] — 2026-08-19
+
+### Changed
+Restructure the create-issue Step 4 question flow: the former sub-steps 3a/3b/3c (audit-round offer, file-anyway election, approve-and-assign) collapse into one combined decision question whose mutually exclusive options are run-a-fresh-context-audit-round, create-it-as-is (which is the explicit approval, and carries any file-anyway election as a named ground when a gate refuses the bytes), and change-something-first. Self-assignment moves after creation: issues are always created unassigned, and the assignment question is asked once in sub-step 6's single post-creation pause — alongside the implement offer when its gate holds, alone when it is withheld — assigning best-effort via REST on an explicit yes and never stalling on silence.
+
+## [2.33.36] — 2026-08-19
+
+### Changed
+- **create-issue clarification now selects for the simplest reliable mechanism at every decision point.** The solution-space rule weighs mechanism strength over two axes — the guarantee it enforces and the long-term cost it leaves behind — while still surfacing the strongest viable candidate. A single simplest-reliable rule makes the simplest mechanism that reliably solves the problem a mandatory menu/answer entry and the selection rule for decisions a run may settle without asking, and the implementation-approach recommendation now defaults to the weakest mechanism class whose single-failure consequence the problem tolerates (pricing the strongest passed-over candidate, overridable by a consumer extension's own policy, and not reopened by later steelman/audit passes except on a verified must-revise defect). The approach question opens with the run's problem framing and a passed-over-candidate trace line rides into the investigation record. (#1802)
+
+## [2.33.35] — 2026-08-19
+
+### Added
+- **Cloud tier `providers` map gains an AWS Bedrock route.** A provider entry may now set
+  `auth: bedrock_api_key` to route that section to Amazon Bedrock with a long-lived Bedrock API
+  key stored in the existing `DEVFLOW_PROVIDER_API_KEY` secret. Such an entry needs no `base_url`,
+  takes its AWS region from the entry's `env` map (`AWS_REGION`, required), exports the key as
+  `AWS_BEARER_TOKEN_BEDROCK`, and passes the action's `use_bedrock` input — no second secret and no
+  AWS role setup. The existing `bearer` and `api_key` auth arms and the Anthropic default path keep
+  their prior job-environment variables and action inputs, pinned by the existing `#313` regression
+  fixtures. (#1778)
+
+## [2.33.34] — 2026-08-19
+
+### Fixed
+- **Give the fix loop's in-flight dispatch discriminator a durable operand.** The
+  `pending_dispatch` stamp now records an `issued_by` field (the stamping reference's own
+  `current_step`), so the fix loop's always-resident re-read rule decides its firing predicate
+  and its absent-operand arm from the run-scoped `iter-<N>.json` alone rather than from the
+  orchestrator's live context. A record written before this change (no `issued_by`) fails
+  closed rather than reading as loop-issued. (#1788)
+
+## [2.33.33] — 2026-08-19
+
+### Fixed
+- **Detect a `deferred` reflection that no channel filed.** A `--reflection-kind deferred`
+  reflection renders as an actionable ("⚠️ Action required") deferral, but files no follow-up
+  itself, so an implement run could report a finding as handled-by-deferral while its work went
+  untracked. A new `scripts/workpad.py deferred-reflection-audit` backstop, wired into implement
+  Phase 4.0.6, surfaces a `deferred` reflection that no scope-decision-deferred record backs,
+  instead of letting the run silently pass completion. The reflection-kind routing rule now
+  reserves `deferred` for a punt already tracked by a scope-decision-deferred record — the one
+  channel a `deferred` reflection pairs with; an untracked punt uses `dropped-failed`. (#1787)
+
+## [2.33.32] — 2026-08-19
+
+### Fixed
+- **`create-issue` no longer pauses a second time for a final-byte audit offer once a run has already converged.** When the drafter's own self-verified resolutions closed every finding from a steering-established round (the run converged `basis=resolution`), `issue-audit-state.py`'s `query-final-byte` now reports `final_byte_trigger=not-hold` with `final_byte_reason=resolution-settled`, so Step 4 sub-step 3a makes no redundant final-byte offer. The coverage axis still reports the bytes `uncovered` truthfully — only the offer is withheld — and the offer still fires whenever the round's independence was not established or findings remain unresolved. (#1782)
+
+## [2.33.31] — 2026-08-19
+
+### Changed
+- **`/prflow:implement`'s acceptance-criteria gate now defines a universal criterion and gates it on a surfaces-examined ledger.** A universal criterion — one whose claim ranges over the units of a named surface rather than naming specific sites — is ticked only after a surfaces-examined ledger is recorded through the workpad `--note` path, stating per surface the units examined and a one-clause retention reason for each left unchanged; where the ledger states a size figure it uses the `prompt-surface-growth.py` byte figure, never a line count or diff stat, and a ledger that cannot be completed takes the gate's Blocked or deferral path instead of a tick. A paragraph in the fix loop's engine-resolution reference is trimmed of design narrative under the same instruction-plus-consequence prose rule, and two dense review-engine reference paragraphs are split into sub-bullets for legibility with their content unchanged. (#1790)
+
+## [2.33.30] — 2026-08-19
+
+### Added
+- **Bounded terminal-result classifier for autonomous workflow actions.** Adds
+  `scripts/terminal-result-class.sh`, a pure classifier that reconciles an autonomous
+  action's outcome into a bounded terminal class: the implement tier maps the workpad
+  status class plus job status to `complete`/`blocked`/`incomplete` (only the canonical
+  `complete`/`blocked` words map through, a cancelled job maps to `incomplete` even over a
+  stale terminal token, and every other token falls closed to `incomplete`); the review tier
+  maps the six exact `POSTED review|comment REQUEST_CHANGES|APPROVE|COMMENT` producer
+  outcomes to `verdict-posted` and everything else — including a `REACHED`-prefixed
+  compatibility wrapper — to `incomplete`; and a conclusion mode maps `complete`/`verdict-posted`
+  to `success` and the rest to `non-success`. A generated total mapping table
+  (`lib/terminal-result-table.tsv`, produced by the independent Python oracle
+  `lib/generate-terminal-result-table.py`) enumerates the closed input cross-product and is
+  cross-checked against the classifier by a focused test module, so a divergence between the two
+  implementations turns the suite red. This is the foundational slice
+  of the terminal-outcome enforcement
+  work; the guard, observer, admission-controller, bootstrap, and workflow wiring are tracked
+  in follow-up issues. (#1792)
+
+## [2.33.29] — 2026-08-19
+
+### Fixed
+- **The review engine's consumer prompt-extension load now reports its status.**
+  `scripts/load-prompt-extension.sh`, in whole-file mode, emits a
+  `load-prompt-extension.sh: PROMPT-EXTENSION-STATUS: content-present|present-empty` line on
+  stderr (reusing `scripts/render-prompt-extension.sh`'s status vocabulary), so an absent or
+  empty consumer extension is distinguishable from a harness refusal — which produces no
+  output at all — instead of being silently indistinguishable from it. The `/prflow:review`
+  and `/prflow:review-and-fix` engine ladders now report that token as the extension's
+  resolved status, and treat a total absence of the token as `unestablished`, never collapsed
+  onto `present-empty`. stdout stays byte-verbatim, so the forwarded extension text is
+  unchanged and the phase-3 reviewer's stdout-based classification is preserved by the
+  diagnostic `load-prompt-extension.sh: ` prefix. (#1793)
+
+## [2.33.28] — 2026-08-19
+
+### Added
+- **Every live run now publishes its `claude_code_version` from the execution file's `system/init` record.** `scripts/surface-execution-diagnostics.sh` reuses `lib/probe-observation.sh`'s `devflow_probe_cli_version` to read the CLI build directly in-job — no 7-day transcript artifact and no `execution_transcript_artifact_enabled` opt-in — rendering it into the diagnostics block (including the incomplete-run branch that carries an init record but no result event), publishing `claude_code_version` to `GITHUB_OUTPUT`, and emitting a `::notice::` naming the resolved version so a live run records the build it actually ran on. An absent or unreadable init record resolves to the literal `unavailable` — never an empty or zero value — and a `GITHUB_OUTPUT` write failure leaves a stderr breadcrumb rather than a silent empty output, mirroring the sibling `permission_denials_count` channel. Among the init fields only this low-sensitivity version scalar is value-published; the others stay type-only behind `scripts/extract-execution-shape.sh`'s redaction boundary, which is unchanged. (#1786)
+
+## [2.33.27] — 2026-08-19
+
+### Changed
+- **A gated reference the reader can only deliver in pages now loads instead of failing the boundary gate.** Each boundary contract gains a paged-read recovery step: it pages a partial-view / `offset`-`limit` delivery forward to the whole document, then runs the marker checks over the assembled result. A read that cannot be completed, a gap in the page sequence, and a genuinely damaged file each still take the gate's existing fail-closed or degrade outcome. (#1784)
+
+## [2.33.26] — 2026-08-19
+
+### Fixed
+- **`/prflow:implement`'s Terminal-status self-check now binds every turn boundary, not only the run's final message.** A local, interactive run could end a turn part-way through the pipeline with a progress note and wait for a human reply, because the rule was written against the run-final message and the skill defined neither term against a turn boundary. The self-check is rewritten to read the live workpad `Status` before ending any turn once the workpad exists, to name the four grounds on which a turn may end, to name their complement as forbidden, to state what governs the pre-workpad window, and to route a refused status read to a retry rather than to a stop. Where the injected engine-ground-truth block is present, its rule that ending a turn ends the process leaves no non-final ground usable, so no cloud run reads the new set as a licence to stop. (#1774)
+- **The two implement-bundle dispatch barriers that bound a dispatch to that injected block now also tell a run whose prompt carries no such block what to do**, matching the arm the Phase 2.1 and Phase 4.1 barriers already carried. (#1774)
+
+## [2.33.25] — 2026-08-19
+
+### Fixed
+- **Corrected a misleading comment in the `#1604` deferral-drafter pin block of `lib/test/run.sh`.** The block's header comment attributed the agent's write-literal and dispatch prohibitions to `lint-shipped-pruned-path.py`, which audits path/citation references in `skills/**`/`agents/**` and enforces no such thing. The comment now states the wrong change it prevents (do not relax the write-literal absence pins as redundant) and names the real runtime enforcer — the agent's `tools:` frontmatter pinned in that same block. Comment prose only; no assertion or pin changed. (#1779)
+
+## [2.33.24] — 2026-08-19
+
+### Changed
+- **Name the search-tool ranking at the codebase-search instructions in the affected skill files.** In `receiving-code-review`, `docs-sync-internal`, and the implement stranded-dependents sweep, each instruction that tells an agent to search the codebase now names the existing Grep-tool-first ranking instead of a bare "grep" (single-named-file and verification probes are left unchanged); `docs-bootstrap-internal`'s three recursive `find` pipelines are replaced with Glob-tool directives that skip dependency and build directories; and `CLAUDE.md`'s coupled-site sweep sentence now lists the three search tools in ranking order. (#1777)
+
 ## [2.33.23] — 2026-08-19
 
 ### Changed
