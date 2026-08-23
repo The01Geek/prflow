@@ -645,6 +645,12 @@ def _resolve_effort_supported(cli_value):
     Anthropic path). Fail OPEN, not closed: an absent var preserves today's
     behavior, and an env value that is neither 'true' nor 'false' falls back to
     'true' WITH a warning rather than a silent coercion.
+
+    Failing open is safe only because the actual `--effort` flag is dropped
+    independently by each workflow's `cargs` step, which reads
+    `steps.provider.outputs.effort_supported` itself; this value governs only the
+    in-session per-agent effort reporting/fallback. Folding that flag-drop in here
+    would turn this fail-open into a real pass-unsupported-flag path.
     """
     if cli_value is not None:
         return cli_value == "true", None

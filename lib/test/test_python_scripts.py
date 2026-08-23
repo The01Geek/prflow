@@ -5559,11 +5559,9 @@ try:
 finally:
     _os.unlink(_e554_cfg)
 
-# --effort-supported ENV fallback (issue #1772): with the CLI flag omitted, the
-# resolver reads the routed provider's capability from the PRFLOW_EFFORT_SUPPORTED
-# env var the cloud workflows export from their already-resolved provider decision
-# — the caller-wiring the #554 flag lacked. Absent/unrecognized falls back to
-# "true" (today's Anthropic-path behavior); an explicit CLI flag still wins.
+# --effort-supported ENV fallback (issue #1772): with the CLI flag omitted the
+# resolver reads PRFLOW_EFFORT_SUPPORTED; absent/unrecognized falls back to "true"
+# (the Anthropic path) and an explicit CLI flag still wins.
 with _tempfile.NamedTemporaryFile('w', suffix='.json', delete=False) as _e1772f:
     _e1772f.write('{"prflow_review":{"agent_overrides":'
                   '{"devflow:code-reviewer":{"effort":"low"}}}}')
@@ -5610,10 +5608,9 @@ try:
         _base_argv_1772 + ["--effort-supported", "false"], "true")
     assert_eq("main(#1772): explicit --effort-supported false overrides env true",
               True, "::warning::" in _e_ff and "effort_supported" in _e_ff)
-    # unrecognized env value → fall back to true (benign notice) AND a warning
-    # naming the var, never a silent coercion; the provider-capability ::warning::
-    # (which carries the lowercase 'effort_supported') must be ABSENT, making the
-    # "fell back to true" claim explicit rather than implied by the notice alone.
+    # unrecognized env value → true + a warning naming the var, never silent coercion.
+    # The provider-capability ::warning:: (carrying lowercase 'effort_supported') must be
+    # ABSENT, or "fell back to true" is only implied by the notice.
     _rc_u, _o_u, _e_u = _run_1772(_base_argv_1772, "yes")
     assert_eq("main(#1772): unrecognized env value falls back to true with a warning",
               True, "::notice::" in _e_u and "PRFLOW_EFFORT_SUPPORTED" in _e_u
@@ -5635,6 +5632,19 @@ try:
     _rc_ct, _o_ct, _e_ct = _run_1772(_base_argv_1772, " TRUE ")
     assert_eq("main(#1772): ' TRUE ' normalizes to true → benign ::notice::",
               True, "::notice::" in _e_ct and "::warning::" not in _e_ct)
+    # The --effort-json observability branch consumes the SAME resolved local; a regression
+    # re-deriving it from args.effort_supported (now None by default) would read false on
+    # every env-absent run, so pin both directions through that branch.
+    _json_argv_1772 = _base_argv_1772 + ["--effort-json"]
+    _rc_jf, _o_jf, _e_jf = _run_1772(_json_argv_1772, "false")
+    assert_eq("main(#1772): --effort-json exits 0 with env false", 0, _rc_jf)
+    assert_eq("main(#1772): --effort-json env false → provider capability fallback_reason",
+              True, "effort_supported is false"
+              in json.loads(_o_jf)["devflow:code-reviewer"]["fallback_reason"])
+    _rc_ja, _o_ja, _e_ja = _run_1772(_json_argv_1772, None)
+    assert_eq("main(#1772): --effort-json env absent → no-seam reason, not the provider one",
+              True, "effort_supported is false"
+              not in json.loads(_o_ja)["devflow:code-reviewer"]["fallback_reason"])
 finally:
     if _prev_env_1772 is None:
         _os.environ.pop("PRFLOW_EFFORT_SUPPORTED", None)
