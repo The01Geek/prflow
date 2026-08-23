@@ -32470,7 +32470,12 @@ print(next(s["run"] for j in d["jobs"].values() for s in j.get("steps",[]) if s.
     # env-map KEY-NAME deny list (issue #1773): a key whose NAME is harmful is refused (exit 1,
     # ::error:: naming it, no $GITHUB_ENV write) — see the workflow SECURITY comment for which
     # names and why. Per key: exit 1, the ::error:: names the key, and no top-level env var written.
-    for R1773_KEY in PATH GITHUB_TOKEN GH_TOKEN GITHUB_ENV GITHUB_OUTPUT GITHUB_PATH ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN CLAUDE_CODE_OAUTH_TOKEN AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_BEARER_TOKEN_BEDROCK BASH_ENV ENV LD_PRELOAD LD_LIBRARY_PATH DYLD_INSERT_LIBRARIES NODE_OPTIONS PYTHONPATH CLAUDE_CODE_SUBAGENT_MODEL; do
+    # Do not re-list the denied names here: read them out of the extracted step body, so a name
+    # ADDED to the guard's IN(...) is covered by this loop instead of shipping untested.
+    R1773_KEYS="$(printf '%s\n' "$R313_INJ_BODY" | sed -n 's/.*ascii_upcase | IN(\([^)]*\)).*/\1/p' | tr ',' '\n' | tr -d '"' | tr -d ' ')"
+    assert_eq "#1773 inject-body: the denied-key population was extracted from the guard (loop is not vacuous)" "yes" \
+      "$([ -n "$R1773_KEYS" ] && printf '%s\n' "$R1773_KEYS" | grep -qxF 'CLAUDE_CODE_SUBAGENT_MODEL' && echo yes || echo no)"
+    for R1773_KEY in $R1773_KEYS; do
       R313_RC=0
       R313_OUT="$( export DECISION="{\"env\":{\"$R1773_KEY\":\"x\"}}" AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" 2>&1 )" || R313_RC=$?
       assert_eq "#1773 inject-body: forbidden env-map key $R1773_KEY fails loud (exit 1, deny-list guard)" "1" "$R313_RC"
@@ -32479,9 +32484,8 @@ print(next(s["run"] for j in d["jobs"].values() for s in j.get("steps",[]) if s.
       # dynamic key echo. Do not name a denied key literally in that message.
       assert_eq "#1773 inject-body: forbidden key $R1773_KEY emits ::error:: naming the key + refusing" "yes" \
         "$(printf '%s' "$R313_OUT" | grep -qF '::error::' && printf '%s' "$R313_OUT" | grep -qF "$R1773_KEY" && printf '%s' "$R313_OUT" | grep -qiF 'refusing to run' && echo yes || echo no)"
-      R313_TOPKEYS="$(gh_topkeys "$R313_GENV")"
       assert_eq "#1773 inject-body: forbidden key $R1773_KEY writes NO top-level env var (guard fired before emit)" "yes" \
-        "$([ -z "$R313_TOPKEYS" ] && echo yes || echo no)"
+        "$([ ! -s "$R313_GENV" ] && echo yes || echo no)"
       : > "$R313_GENV"
     done
     # Case-insensitive: a lower/mixed-case spelling of a denied name is also refused.
