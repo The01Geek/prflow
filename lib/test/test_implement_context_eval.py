@@ -365,15 +365,25 @@ class BoundaryTest(_SingleSessionMixin, unittest.TestCase):
         self.assertEqual(runs[0]["peak_context"], 50)
         self.assertEqual(runs[0]["usage_missing_turns"], 1)
 
-    def test_usage_present_all_null_subfields_is_a_real_zero(self):
-        # A usage OBJECT present with all-null sub-fields is a legitimate measured 0 (not
-        # a missing measurement): it appends 0 and is NOT tallied as usage-missing.
+    def test_usage_present_all_null_subfields_is_an_unmeasured_turn(self):
+        # Issue #1899 overturns the prior "present-but-all-null dict is a real 0": a usage
+        # object that establishes NO residency sub-field measured nothing, so it is an
+        # unmeasured turn (peak UNESTABLISHED, tallied) — never a real-looking 0.
         runs, _ = self._run_one([
             '{"type":"assistant","attributionSkill":"prflow:implement",'
             '"message":{"usage":{"input_tokens":null}}}',
         ])
-        self.assertEqual(runs[0]["peak_context"], 0)
-        self.assertEqual(runs[0]["usage_missing_turns"], 0)
+        self.assertEqual(runs[0]["peak_context"], ICE.UNESTABLISHED)
+        self.assertEqual(runs[0]["usage_missing_turns"], 1)
+
+    def test_usage_present_but_empty_dict_is_an_unmeasured_turn(self):
+        # A present-but-empty usage object established no residency either.
+        runs, _ = self._run_one([
+            '{"type":"assistant","attributionSkill":"prflow:implement",'
+            '"message":{"usage":{}}}',
+        ])
+        self.assertEqual(runs[0]["peak_context"], ICE.UNESTABLISHED)
+        self.assertEqual(runs[0]["usage_missing_turns"], 1)
 
 
 class ToolCallAndGapBoundaryTest(_SingleSessionMixin, unittest.TestCase):
@@ -1109,6 +1119,53 @@ class NoAutoInvocationTest(unittest.TestCase):
         self.assertEqual(sorted(offenders), [],
                          "unexpected reference(s) to the maintainer-only script: "
                          "{}".format(sorted(offenders)))
+
+
+class UnmeasuredTurnContractTest(_SingleSessionMixin, unittest.TestCase):
+    """Issue #1899: an unmeasured turn yields the None sentinel from _context_tokens
+    (never 0) across all five shapes, and a non-finite count never raises OverflowError.
+    """
+
+    def test_context_tokens_is_none_for_every_unmeasured_shape(self):
+        inf = json.loads('{"input_tokens": Infinity}')
+        nan = json.loads('{"input_tokens": NaN}')
+        for usage in (None, "not-a-dict", {}, {"input_tokens": None}, inf, nan):
+            self.assertIsNone(ICE._context_tokens(usage), repr(usage))
+
+    def test_established_subfield_still_sums(self):
+        # A present dict with at least one established sub-field is measured, not missing:
+        # the established values sum and the unestablished ones are dropped (not summed 0).
+        self.assertEqual(
+            ICE._context_tokens({"input_tokens": None, "cache_read_input_tokens": 7}), 7)
+        self.assertEqual(ICE._context_tokens({"input_tokens": 10}), 10)
+
+    def test_non_finite_count_is_unmeasured_not_a_crash(self):
+        # The record is NOT dropped: its residency is unmeasured (tallied) while the
+        # measured turn keeps the peak. Bare Infinity reaches the instrument from real
+        # JSON, so this must not raise OverflowError.
+        runs, _ = self._run_one([
+            '{"type":"assistant","attributionSkill":"prflow:implement",'
+            '"message":{"usage":{"input_tokens":Infinity}}}',
+            '{"type":"assistant","attributionSkill":"prflow:implement",'
+            '"message":{"usage":{"input_tokens":50}}}',
+        ])
+        self.assertEqual(runs[0]["peak_context"], 50)
+        self.assertEqual(runs[0]["usage_missing_turns"], 1)
+
+    def test_infinity_corpus_exits_zero_and_prints_a_report(self):
+        out, err = io.StringIO(), io.StringIO()
+        saved_out, saved_err = sys.stdout, sys.stderr
+        sys.stdout, sys.stderr = out, err
+        try:
+            with tempfile.TemporaryDirectory() as d:
+                _write(d, "s.jsonl", [
+                    '{"type":"assistant","attributionSkill":"prflow:implement",'
+                    '"message":{"usage":{"input_tokens":Infinity}}}'])
+                rc = ICE.main([d])
+        finally:
+            sys.stdout, sys.stderr = saved_out, saved_err
+        self.assertEqual(rc, 0)
+        self.assertIn("context eval", out.getvalue())
 
 
 if __name__ == "__main__":

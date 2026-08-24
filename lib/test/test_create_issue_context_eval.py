@@ -161,6 +161,8 @@ class HappyPathTest(unittest.TestCase):
         summary = CICE.aggregate(runs)
         self.assertEqual(summary, {
             "run_count": 3,
+            # Every fixture turn carries well-formed usage, so no turn is unmeasured.
+            "total_usage_missing_turns": 0,
             "median_peak_context": 64000,
             "max_peak_context": 250000,
             "runs_over_200k": 1,
@@ -2933,6 +2935,160 @@ class LegacyCliCompatibilityTest(unittest.TestCase):
             "finding_count",
         })
         self.assertEqual(err.getvalue(), "")
+
+
+class UnmeasuredTurnContractTest(_SingleSessionMixin, unittest.TestCase):
+    """Issue #1899: the residency axis reports an unmeasured turn as unestablished, never
+    a real-looking 0, and a non-finite token count never raises OverflowError. The SPEND
+    axis (_auditor_cost, total_output_tokens) is unchanged for well-formed usage (AC6).
+    """
+
+    def test_context_tokens_is_none_for_every_unmeasured_shape(self):
+        inf = json.loads('{"input_tokens": Infinity}')
+        nan = json.loads('{"input_tokens": NaN}')
+        for usage in (None, "not-a-dict", {}, {"input_tokens": None}, inf, nan):
+            self.assertIsNone(CICE._context_tokens(usage), repr(usage))
+
+    def test_established_subfield_still_sums(self):
+        self.assertEqual(
+            CICE._context_tokens({"input_tokens": None, "cache_read_input_tokens": 7}), 7)
+        self.assertEqual(CICE._context_tokens({"input_tokens": 10}), 10)
+
+    def test_median_empty_population_raises(self):
+        # AC4: matches both siblings — an empty population refuses rather than returning 0.
+        with self.assertRaises(ValueError):
+            CICE._median([])
+        self.assertEqual(CICE._median_or_unestablished([]), CICE.UNESTABLISHED)
+
+    def test_all_unmeasured_corpus_reports_unestablished_peak_and_final(self):
+        # AC3: a run whose every attributed turn is unmeasured reports peak AND final as
+        # the sentinel (never 0), and the missing turns are tallied (AC2).
+        runs, _ = self._run_one([
+            '{"type":"assistant","attributionSkill":"devflow:create-issue","message":{}}',
+            '{"type":"assistant","attributionSkill":"devflow:create-issue",'
+            '"message":{"usage":{"input_tokens":null}}}',
+        ])
+        self.assertEqual(len(runs), 1)
+        self.assertEqual(runs[0]["peak_context"], CICE.UNESTABLISHED)
+        self.assertEqual(runs[0]["final_context"], CICE.UNESTABLISHED)
+        self.assertEqual(runs[0]["usage_missing_turns"], 2)
+
+    def test_partial_unmeasured_keeps_measured_peak(self):
+        runs, _ = self._run_one([
+            '{"type":"assistant","attributionSkill":"devflow:create-issue","message":{}}',
+            '{"type":"assistant","attributionSkill":"devflow:create-issue",'
+            '"message":{"usage":{"input_tokens":42}}}',
+        ])
+        self.assertEqual(runs[0]["peak_context"], 42)
+        self.assertEqual(runs[0]["final_context"], 42)
+        self.assertEqual(runs[0]["usage_missing_turns"], 1)
+
+    def test_corpus_wide_total_usage_missing_turns(self):
+        # AC2: the corpus-wide total is on the aggregate summary.
+        with tempfile.TemporaryDirectory() as d:
+            _write(d, "a.jsonl", [
+                '{"type":"assistant","attributionSkill":"devflow:create-issue","message":{}}'])
+            _write(d, "b.jsonl", [
+                '{"type":"assistant","attributionSkill":"devflow:create-issue",'
+                '"message":{"usage":{"input_tokens":5}}}',
+                '{"type":"assistant","attributionSkill":"devflow:create-issue","message":{}}'])
+            report = CICE.build_report(d)
+        summary = report["summary"]
+        self.assertEqual(summary["total_usage_missing_turns"], 2)
+        self.assertEqual(summary["run_count"], 2)
+        # Cardinality-sensitive: run "a" (all-unmeasured, peak UNESTABLISHED) is excluded
+        # from the corpus peak population — only run "b"'s measured 5 remains, never a 0.
+        self.assertEqual(summary["median_peak_context"], 5)
+        self.assertEqual(summary["max_peak_context"], 5)
+
+    def test_over_threshold_buckets_exclude_unmeasured_residency_runs(self):
+        # The `runs_over_*` bucket COUNTS are derived from the same filtered `peaks`
+        # population: an all-unmeasured run must not be counted as an under-threshold
+        # run, and a corpus with no measured peak reports UNESTABLISHED, never 0.
+        unmeasured = {"peak_context": CICE.UNESTABLISHED, "usage_missing_turns": 3}
+        measured = {"peak_context": CICE.BUCKET_200K + 1, "usage_missing_turns": 0}
+
+        def _run(fields):
+            base = {"repeated_read_count": 0, "reemission_count": 0,
+                    "attributed_auditor_cost": 0, "unrounded_auditor_cost": 0,
+                    "sidechain_records_seen": 0, "sidechain_records_attributed": 0,
+                    "record_reopen_count": 0, "round_auditor_cost": {},
+                    "dispatch_rounds": {}}
+            base.update(fields)
+            return base
+
+        both = CICE.aggregate([_run(unmeasured), _run(measured)])
+        self.assertEqual(both["runs_over_200k"], 1)
+        self.assertEqual(both["runs_over_400k"], 0)
+        self.assertEqual(both["total_usage_missing_turns"], 3)
+
+        none_measured = CICE.aggregate([_run(unmeasured)])
+        self.assertEqual(none_measured["runs_over_200k"], CICE.UNESTABLISHED)
+        self.assertEqual(none_measured["runs_over_400k"], CICE.UNESTABLISHED)
+        self.assertEqual(none_measured["max_peak_context"], CICE.UNESTABLISHED)
+
+    def test_empty_corpus_total_usage_missing_is_unestablished(self):
+        summary = CICE.aggregate([])
+        self.assertEqual(summary["total_usage_missing_turns"], CICE.UNESTABLISHED)
+
+    def test_infinity_token_count_is_unmeasured_not_a_crash(self):
+        runs, _ = self._run_one([
+            '{"type":"assistant","attributionSkill":"devflow:create-issue",'
+            '"message":{"usage":{"input_tokens":Infinity}}}',
+            '{"type":"assistant","attributionSkill":"devflow:create-issue",'
+            '"message":{"usage":{"input_tokens":70}}}',
+        ])
+        self.assertEqual(runs[0]["peak_context"], 70)
+        self.assertEqual(runs[0]["usage_missing_turns"], 1)
+
+    def test_infinity_corpus_exits_zero_and_prints_a_report(self):
+        out, err = io.StringIO(), io.StringIO()
+        with tempfile.TemporaryDirectory() as d:
+            _write(d, "s.jsonl", [
+                '{"type":"assistant","attributionSkill":"devflow:create-issue",'
+                '"message":{"usage":{"input_tokens":Infinity}}}'])
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                rc = CICE.main([d])
+        self.assertEqual(rc, 0)
+        self.assertIn("context eval", out.getvalue())
+
+    def test_spend_axis_returns_summable_zero_for_unmeasured_usage(self):
+        # The spend axis (_residency_spend / _auditor_cost) must never return None or raise
+        # on an unmeasured usage object, so the auditor-cost arithmetic stays whole while the
+        # residency axis reports unestablished (issue #1899's file-scoped entanglement).
+        for usage in (None, "not-a-dict", {}, {"input_tokens": None},
+                      json.loads('{"input_tokens": Infinity}'),
+                      json.loads('{"input_tokens": NaN}')):
+            self.assertEqual(CICE._residency_spend(usage), 0, repr(usage))
+            self.assertEqual(CICE._auditor_cost(usage), 0, repr(usage))
+
+    def test_infinity_on_sidechain_record_does_not_detonate(self):
+        # A non-finite count on an auditor (isSidechain) record flows through the SPEND axis
+        # (_auditor_cost). Pre-fix that raised OverflowError — not in eval_corpus's per-record
+        # backstop tuple — and aborted the whole corpus walk (issue #1899).
+        runs, skipped = self._run_one([
+            '{"type":"assistant","attributionSkill":"devflow:create-issue",'
+            '"message":{"usage":{"input_tokens":5}}}',
+            '{"type":"assistant","isSidechain":true,'
+            '"attributionSkill":"devflow:create-issue",'
+            '"message":{"usage":{"input_tokens":Infinity,"output_tokens":3}}}',
+        ])
+        self.assertEqual(len(runs), 1)
+        self.assertEqual(skipped["malformed_record"], 0)
+
+    def test_auditor_cost_and_output_total_unchanged_for_well_formed_usage(self):
+        # AC6: the SPEND axis is untouched by the residency-axis fix. Auditor cost sums the
+        # three residency sub-fields plus output; total_output_tokens sums output only.
+        usage = {"input_tokens": 100, "cache_read_input_tokens": 20,
+                 "cache_creation_input_tokens": 5, "output_tokens": 8}
+        self.assertEqual(CICE._auditor_cost(usage), 133)  # 100+20+5 + 8
+        runs, _ = self._run_one([
+            '{"type":"assistant","attributionSkill":"devflow:create-issue",'
+            '"message":{"usage":{"input_tokens":100,"cache_read_input_tokens":20,'
+            '"cache_creation_input_tokens":5,"output_tokens":8}}}',
+        ])
+        self.assertEqual(runs[0]["total_output_tokens"], 8)
+        self.assertEqual(runs[0]["peak_context"], 125)  # residency excludes output
 
 
 if __name__ == "__main__":
