@@ -248,7 +248,10 @@ def _pairs_for_root(skill_name, pairs):
     longer name that merely contains this one cannot claim this root's load. The quote marks
     are the boundary because `collect_skill_pairs` serialises the whole recorded input to
     JSON rather than reading a named field, so a complete string value inside it is
-    quote-delimited whatever its field is called.
+    quote-delimited whatever its field is called. Do not narrow this to a named field: one
+    committed transcript records one, but that is a dated observation of one runner version,
+    and a field-keyed read fails open — every real reading answers `unestablished` if the
+    name ever differs, while every fixture built on the assumption stays green.
 
     Every match is returned rather than the first, because keeping one of several silently
     discards a real ambiguity; the caller decides on the count."""
