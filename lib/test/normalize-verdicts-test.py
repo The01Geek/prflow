@@ -320,5 +320,32 @@ check("containment control: helper defect is not routed to the verifier-retry ch
 check("containment control: mutant writes a real traceback to stderr",
       "Traceback" in _r2.stderr and "helper defect" in _r2.stderr, repr(_r2.stderr[:120]))
 
+# --- issue_acceptance is never normalization-eligible ----------------------------
+o,_=run("category-issue-acceptance.json")
+r=res0(o)
+check("issue_acceptance FAIL is not normalized",
+      not r["normalized"] and r["verdict"]=="FAIL" and r["raw_verdict"]=="FAIL", str(r))
+check("issue_acceptance is not a field-defect fail", o["counts"]["field_defect_fail_count"]==0)
+check("issue_acceptance normalized_count is 0", o["counts"]["normalized_count"]==0)
+
+o,_=run("category-non-acceptance.json")
+r=res0(o)
+check("non-acceptance category still normalizes",
+      r["normalized"] and r["verdict"]=="PASS" and r["raw_verdict"]=="FAIL", str(r))
+
+# The guard belongs in real_blockers, not field_defect_blockers: an issue_acceptance
+# item carrying an aux defect must stay off both the field-defect tally and the
+# auxiliary re-ask, which a field_defect_blockers placement would silently restore.
+o,_=run("category-issue-acceptance-aux-defect.json")
+r=res0(o)
+check("issue_acceptance + aux defect not normalized",
+      not r["normalized"] and r["verdict"]=="FAIL" and r["raw_verdict"]=="FAIL", str(r))
+check("issue_acceptance + aux defect is not a field-defect fail",
+      o["counts"]["field_defect_fail_count"]==0, str(o["counts"]))
+check("issue_acceptance + aux defect is not re-dispatched",
+      not o["needs_retry"], str(o["needs_retry"]))
+check("issue_acceptance + aux defect still stamps the auxiliary defect",
+      r.get("defect")=="aux:property_proven" and r.get("defect_class")=="auxiliary", str(r))
+
 print("\nFAILURES:", fails if fails else "NONE")
 sys.exit(1 if fails else 0)

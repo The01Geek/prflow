@@ -1,0 +1,8 @@
+{
+  "pairs": [
+    {
+      "item": {"id": "VC-A", "category": "issue_acceptance", "verification_mode": "agent", "claim_provenance": "generated_paraphrase"},
+      "response_text": "Here is my verdict.\n```json\n{\"id\": \"VC-A\", \"verdict\": \"FAIL\", \"evidence\": \"criterion not satisfied at the named site\", \"file_checked\": \"a.py\", \"property_proven\": true, \"inaccuracy_scope\": \"generated_claim_text\"}\n```"
+    }
+  ]
+}
