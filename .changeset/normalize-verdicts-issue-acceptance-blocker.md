@@ -1,0 +1,11 @@
+---
+bump: patch
+---
+
+Harden `scripts/normalize-verdicts.py`: an item whose `category` is `issue_acceptance` is now
+a real-value normalization blocker, so a raw `FAIL` on an acceptance criterion is never stored
+as a `PASS`. Such items satisfy the first two normalization conjuncts structurally — the
+checklist generator defaults them to `claim_provenance: generated_paraphrase` and they are
+never `lite`-eligible, so they always run in `agent` mode — which left only the verifier's own
+self-reported `property_proven` / `inaccuracy_scope` fields between a failing acceptance
+criterion and a silently stored pass that Phase 4.2 rule 1 would never see.

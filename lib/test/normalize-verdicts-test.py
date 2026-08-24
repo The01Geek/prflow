@@ -320,5 +320,21 @@ check("containment control: helper defect is not routed to the verifier-retry ch
 check("containment control: mutant writes a real traceback to stderr",
       "Traceback" in _r2.stderr and "helper defect" in _r2.stderr, repr(_r2.stderr[:120]))
 
+# --- issue_acceptance is never normalization-eligible ----------------------------
+# An issue_acceptance item satisfies conjuncts 1 and 2 structurally (agent mode,
+# generated_paraphrase provenance), so only the verifier's self-reported aux fields
+# would stand between a raw FAIL on an acceptance criterion and a stored PASS.
+o,_=run("category-issue-acceptance.json")
+r=res0(o)
+check("issue_acceptance FAIL is not normalized",
+      not r["normalized"] and r["verdict"]=="FAIL" and r["raw_verdict"]=="FAIL", str(r))
+check("issue_acceptance is not a field-defect fail", o["counts"]["field_defect_fail_count"]==0)
+check("issue_acceptance normalized_count is 0", o["counts"]["normalized_count"]==0)
+
+o,_=run("category-non-acceptance.json")
+r=res0(o)
+check("non-acceptance category still normalizes",
+      r["normalized"] and r["verdict"]=="PASS" and r["raw_verdict"]=="FAIL", str(r))
+
 print("\nFAILURES:", fails if fails else "NONE")
 sys.exit(1 if fails else 0)
