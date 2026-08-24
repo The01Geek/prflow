@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1917",
+  "generated_at": "2026-08-24T23:22:48Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.7",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 14.848403399999997,
+    "tokens": {
+      "input_tokens": 76,
+      "output_tokens": 48188,
+      "cache_read_input_tokens": 6872217,
+      "cache_creation_input_tokens": 277798,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 137,
+        "outputTokens": 78326,
+        "cacheReadInputTokens": 8698139,
+        "cacheCreationInputTokens": 765780,
+        "webSearchRequests": 0,
+        "costUSD": 12.135772000000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 180,
+        "outputTokens": 24551,
+        "cacheReadInputTokens": 4016157,
+        "cacheCreationInputTokens": 665412,
+        "webSearchRequests": 0,
+        "costUSD": 2.7126314000000007,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 67,
+    "duration_ms": 829941
+  },
+  "permission_denials": {
+    "count": 18,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---RUNENV---\"; echo \"run_id=${GITHUB_RUN_ID:-<none>} attempt=${GITHUB_RUN_ATTEMPT:-<none>}\"; echo \"---BASE---\"; .prflow/vendor/prflow/scripts/config-get.sh .base_branch main",
+      "grep '^diff --git' .prflow/tmp/review/pr-1917/32787906477-1/diff.patch; echo \"---STATS---\"; git diff --stat \"$(git merge-base origin/main 9591af678f6251cb5655a1db5ebdc342a57bad05)\" 9591af678f6251cb5655a1db5ebdc342a57bad05 2>/dev/null | tail -20",
+      "git show 9591af678f6251cb5655a1db5ebdc342a57bad05:scripts/check-completion-evidence.py > /tmp/cce.py 2>&1; wc -l /tmp/cce.py; git show 9591af678f6251cb5655a1db5ebdc342a57bad05:scripts/workpad.py > /tmp/workpad.py 2>&1; wc -l /tmp/workpad.py",
+      "git show 9591af678f6251cb5655a1db5ebdc342a57bad05:scripts/check-completion-evidence.py > /tmp/cce.py; wc -l /tmp/cce.py",
+      "git show 9591af678f6251cb5655a1db5ebdc342a57bad05:scripts/workpad.py > /tmp/workpad.py; wc -l /tmp/workpad.py",
+      "git show 9591af678f6251cb5655a1db5ebdc342a57bad05:scripts/check-completion-evidence.py > /tmp/cce.py",
+      "git show 9591af678f6251cb5655a1db5ebdc342a57bad05:scripts/workpad.py > /tmp/workpad.py",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/vc3 && git show 9591af678f6251cb5655a1db5ebdc342a57bad05:scripts/check-completion-evidence.py > /home/runner/work/prflow/prflow/.prflow/tmp/vc3/cce.py && git show 9591af678f6251cb5655a1db5ebdc342a57bad05:scripts/workpad.py > /home/runner/work/prflow/prflow/.prflow/tmp/vc3/workpad.py && wc -l /home/runner/work/prflow/prflow/.prflow/tmp/vc3/cce.py /home/runner/work/prflow/prflow/.prflow/tmp/vc3/workpad.py",
+      "git show 9591af678f6251cb5655a1db5ebdc342a57bad05:scripts/check-completion-evidence.py > .prflow/tmp/vc3/cce.py",
+      "git show 9591af678f6251cb5655a1db5ebdc342a57bad05:scripts/workpad.py > .prflow/tmp/vc3/workpad.py",
+      "git show 9591af678f6251cb5655a1db5ebdc342a57bad05:scripts/check-completion-evidence.py > .prflow/tmp/vc3/cce.py 2>&1; echo done",
+      "mkdir -p .prflow/tmp/review/pr-1917/32787906477-1/verdicts/iter-1\ncat > .prflow/tmp/review/pr-1917/32787906477-1/verdicts/iter-1/VC-9-d5j2.json << 'EOF'\n{\"id\":\"VC-9\",\"verdict\":\"PASS\",\"evidence\":\"scripts/check-completion-evidence.py ORDERED_TOKENS is byte-identical between base ea0d4a1 and head 9591af6 (both 8-member tuples: TOK_PASS, TOK_MISSING, TOK_STALE, TOK_NOT_PASS, TOK_SKIPPED, TOK_UNDISCHARGED, TOK_NON_DURABLE, TOK_UNVERIFIABLE). lib/test/test_python_scripts.py's _EXPECTED_TOKENS_1898 (li …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1917/32787906477-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1917/32787906477-1/verdicts/iter-1/VC-10-e8k6.json << 'EOF'\n{\"id\":\"VC-10\",\"verdict\":\"PASS\",\"evidence\":\"scripts/check-completion-evidence.py _validate (lines ~708-719, at head 9591af6) contains an explicit comment: 'The skipped-checks class is scoped OUT of the CI route (issue #1898): do not re-add a _check_skipped_checks call for the CI bra …[per-command-truncated]",
+      "git grep -n \"_required_checks\" $(git rev-parse HEAD) -- 2>/dev/null; grep -rln \"_required_checks\" . 2>/dev/null | grep -v .git",
+      "mkdir -p \"/home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1917/32787906477-1/verdicts/iter-1\"\ncat > \"/home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1917/32787906477-1/verdicts/iter-1/VC-12-g7p4.json\" << 'EOF'\n{\"id\":\"VC-12\",\"verdict\":\"PASS\",\"evidence\":\"scripts/workpad.py:6440-6461 defines --record-completion-evidence-ci with nargs=3, metavar=('HEAD_SHA','TIER','RUN_URL'), and --completion-ci-check with nargs=2, action='append', metavar=('NAME','CONCLUSION'). In _apply_mutations (line …[per-command-truncated]",
+      "mkdir -p \"/home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1917/32787906477-1/verdicts/iter-1\"\ncat > \"/home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1917/32787906477-1/verdicts/iter-1/VC-14-j9t3.json\" << 'EOF'\n{\"id\":\"VC-14\",\"verdict\":\"PASS\",\"evidence\":\"lib/test/test_python_scripts.py:31968-31975 _CI_YML defines two jobs each with a '# prflow:required-check' marker line immediately followed by a 'name: %s' line using _CI_REQUIRED_A/'lib + python tests' and _CI_REQUIRED_B/'lint (shellc …[per-command-truncated]",
+      "mkdir -p .prflow/tmp/review/pr-1917/32787906477-1/verdicts/iter-1\ncat > .prflow/tmp/review/pr-1917/32787906477-1/verdicts/iter-1/VC-15-m4x7.json << 'EOF'\n{\"id\":\"VC-15\",\"verdict\":\"PASS\",\"evidence\":\"scripts/check-completion-evidence.py build_parser (lines 1079-1134) defines --context-mode with choices ('loop','direct','implement') and --ci-record accepting a JSON CI-derived completion record. .prflow/prompt-extensions/receiving-code-review.md lines 119-120 instruct discharging via 'check-completio …[per-command-truncated]",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before\ntest -f .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before"
+    ],
+    "total": 18,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
