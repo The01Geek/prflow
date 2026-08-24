@@ -419,8 +419,8 @@ carries two sibling jobs — `skill-body-load-review-probe` and `skill-body-load
 modelled on its `placeholder-probe` job: a `claude-code-action` session with
 `show_full_output: true`, verdict derived from the execution file by
 `scripts/skill-body-load-probe-verdict.py` rather than from the model's own account. Each loads the
-real plugin and invokes the Skill tool once per engine root in a *main* session, measuring the Skill
-`tool_result` directly — which, once a maintainer dispatches it, removes two of this page's limits:
+real plugin and invokes the Skill tool once per engine root in a *main* session, measuring the body
+record that follows the Skill `tool_result` — which, once a maintainer dispatches it, removes two of this page's limits:
 both cloud tiers become observed, and the model's testimony stops being an operand of the verdict.
 The four session-B verdicts are `unestablished` only because a headless implementing run cannot
 suspend to await the probe it added; the mechanism itself is built, and the *Re-run procedure* under
@@ -520,12 +520,12 @@ this approximation is close, but it is not the tier's own workflow — a row mus
 3. Transcribe each root's verdict into the row above under a new observation date, and record the
    runner `ImageVersion` and the resolved `claude-code-action` version from the job log.
 
-**What falsifies a `delivered-whole` verdict**, any one of: the Skill `tool_result` for that root
+**What falsifies a `delivered-whole` verdict**, any one of: the body record delivered for that root
 lacks the file's last non-empty line (tail lost); it lacks the distinctive interior control (an
 interior loss); or it carries a truncation/cap notice (`showing lines X-Y of Z`, `cap 25000`). Any
 of these makes the verdict `short-delivery`. A row stays `unestablished` when no Skill `tool_use`
-for that root was recorded, its load returned an error, or the execution file was unreadable or of
-the wrong shape.
+for that root was recorded, its load returned an error, no following body record named that root's
+own directory, or the execution file was unreadable or of the wrong shape.
 
 ### Delivery geometry this probe can and cannot distinguish (AC)
 

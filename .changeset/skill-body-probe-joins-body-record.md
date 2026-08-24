@@ -8,5 +8,8 @@ every verdict it could ever produce was `short-delivery`. The helper now joins e
 tool_use to the body-bearing user-role record that follows it, matching that record's
 `Base directory for this skill: <dir>` line against the root's own directory. It also tolerates the
 leading `#` caveat line that `scripts/scrub-transcript.sh` prepends to the published execution
-transcript, which previously made that artifact unparseable. `docs/internal/skill-body-load-delivery.md`
-records the corrected reading.
+transcript, which previously made that artifact unparseable. The now-dead capture of the launch
+stub's own content is removed, and the module docstring, the suite block's header comment and
+`docs/internal/skill-body-load-delivery.md`'s live re-run procedure no longer describe the
+`tool_result` as the measured operand. `docs/internal/skill-body-load-delivery.md` records the
+corrected reading.

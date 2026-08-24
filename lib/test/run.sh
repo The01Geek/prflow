@@ -24893,21 +24893,24 @@ rm -rf "$PPV_TMP"
 echo "#1618 skill-body-load-probe verdict deriver"
 # ────────────────────────────────────────────────────────────────────────────
 # scripts/skill-body-load-probe-verdict.py derives, per engine root, whether the Skill
-# tool delivered that root's SKILL.md body WHOLE — from the Skill tool_result in a
-# claude-code-action execution file, never model text. Its verdict is what a maintainer
+# tool delivered that root's SKILL.md body WHOLE — from the body record that FOLLOWS the
+# Skill tool_result in a claude-code-action execution file, never model text. Its verdict is what a maintainer
 # transcribes into docs/internal/skill-body-load-delivery.md, so every arm is driven here
 # rather than left to a paid probe run. Same treatment as the #1264 sibling above:
 # unmodularized, no focused_test, driven inline from run.sh.
 SBL="$LIB/../scripts/skill-body-load-probe-verdict.py"
 SBL_REVIEW="$LIB/../skills/review/SKILL.md"
+SBL_IMPLEMENT="$LIB/../skills/implement/SKILL.md"
 SBL_TMP="$(mktemp -d)"
 sbl_build() {  # $1 scenario -> writes $SBL_TMP/exec.jsonl; rc 0 AND non-empty on success
-  python3 - "$SBL_TMP/exec.jsonl" "$1" "$SBL_REVIEW" <<'PY_SBL'
+  python3 - "$SBL_TMP/exec.jsonl" "$1" "$SBL_REVIEW" "$SBL_IMPLEMENT" <<'PY_SBL'
 import json, os, sys
-out, scen, path = sys.argv[1], sys.argv[2], sys.argv[3]
+out, scen, path, impl_path = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 body = open(path, encoding="utf-8").read()
+impl_body = open(impl_path, encoding="utf-8").read()
 tail = [ln.strip() for ln in body.splitlines() if ln.strip()][-1]
 review_dir = os.path.dirname(path)
+impl_dir = os.path.dirname(impl_path)
 other_dir = os.path.join(os.path.dirname(review_dir), "implement")
 PREFIX = "Base directory for this skill: "
 # These fixtures reproduce the RECORD LAYOUT of a real claude-code-action transcript: the
@@ -24960,6 +24963,20 @@ scenarios = {
     "no_result":   [skill_use()],
     # Parses cleanly but records no tool_use of any kind.
     "wrong_shape": [{"type": "system", "note": "no tool uses here"}],
+    # TWO Skill loads in one transcript, each with its OWN body. Do not collapse this to a
+    # single load: it is the only fixture that closes the position window's upper bound, and
+    # a window narrowed by one drops the FIRST load's body while every single-load arm stays green.
+    "two_skill_loads": [skill_use("prflow:review", "su1"), stub("su1"), body_rec(body),
+                        skill_use("prflow:implement", "su2"),
+                        stub("su2", content="Launching skill: prflow:implement"),
+                        body_rec(impl_body, base=impl_dir)],
+    # The review body arrives AFTER a LATER Skill tool_use. Do not move it before that tool_use:
+    # its position is what proves the window STOPS there, so a window widened to the end of the
+    # transcript mis-credits this body to the earlier load and reports a delivery it cannot attribute.
+    "late_body":   [skill_use("prflow:review", "su1"), stub("su1"),
+                    skill_use("prflow:implement", "su2"),
+                    stub("su2", content="Launching skill: prflow:implement"),
+                    body_rec(body)],
 }
 if scen == "unparseable":
     open(out, "w", encoding="utf-8").write("{ not json at all\n")
@@ -25077,6 +25094,27 @@ assert_eq "#1618 skill-body: multi-root audit emits a delivered-whole for the pr
   "$(sbl_build whole >/dev/null 2>&1; python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" --root "prflow:implement=/definitely/not/here/SKILL.md" 2>/dev/null | grep -c 'VERDICT: delivered-whole')"
 assert_eq "#1618 skill-body: multi-root audit emits an unestablished for the absent root" "1" \
   "$(sbl_build whole >/dev/null 2>&1; python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" --root "prflow:implement=/definitely/not/here/SKILL.md" 2>/dev/null | grep -c 'VERDICT: unestablished')"
+
+# MULTI-LOAD ATTRIBUTION — the position window (stop = use_positions[n+1]) claims every body
+# record between one Skill tool_use and the NEXT. Both bounds are driven here, because every
+# other fixture carries a single load and leaves an off-by-one or an unbounded window green.
+# Upper bound: two loads, each with its own body — narrowing the window by one drops the first
+# load's body and this count falls to 1.
+assert_eq "#1618 skill-body: two Skill loads in one transcript -> each root delivered-whole" "2" \
+  "$(sbl_build two_skill_loads >/dev/null 2>&1; python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" --root "prflow:implement=$SBL_IMPLEMENT" 2>/dev/null | grep -c 'VERDICT: delivered-whole')"
+# Stop bound: a body arriving after a LATER tool_use belongs to neither load — the earlier load's
+# window has closed and the later load's own window holds a body naming another skill's directory.
+# An unbounded window credits it to the earlier load and this count rises to 1.
+assert_eq "#1618 skill-body: a body after a later Skill tool_use is credited to neither load" "0" \
+  "$(sbl_build late_body >/dev/null 2>&1; python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" --root "prflow:implement=$SBL_IMPLEMENT" 2>/dev/null | grep -c 'VERDICT: delivered-whole')"
+# ATTRIBUTED REJECTION: the review root must be refused by the no-following-body arm specifically,
+# not by an unrelated precondition (never-loaded / no-result / error) upstream of it.
+assert_eq "#1618 skill-body: the late body is refused by the no-following-body arm" "yes" \
+  "$(sbl_build late_body >/dev/null 2>&1; python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" 2>/dev/null | grep -q 'no following body record naming its own' && echo yes || echo no)"
+# POSITIVE CONTROL on that same fixture: both loads WERE recorded and paired, so the refusal above
+# is the window closing rather than a fixture the helper could not read.
+assert_eq "#1618 skill-body: the late-body fixture still records both Skill loads" "yes" \
+  "$(sbl_build late_body >/dev/null 2>&1; python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" 2>/dev/null | grep -q 'recorded Skill tool_use pairs: 2' && echo yes || echo no)"
 
 # Empty selection MUST fail rather than report a clean pass — an audit that audited nothing
 # reading as an audit that found nothing is this defect one level up. No --root -> exit !=0,

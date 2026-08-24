@@ -4,8 +4,8 @@
 tool delivered that root's `SKILL.md` body WHOLE from a `claude-code-action`
 execution file (issue #1618).
 
-WHY A HELPER, NOT INLINE YAML. The verdict is derived from the Skill `tool_result`
-recorded in the execution file — never the model's own account of what it received
+WHY A HELPER, NOT INLINE YAML. The verdict is derived from the body record the
+execution file itself carries — never the model's own account of what it received
 — and that derivation is a branch-selecting core (delivered-whole vs short-delivery
 vs unestablished per root). Inline in matcher-probe.yml it could not be unit-tested,
 so a regressed arm would silently misfire while the workflow still "runs" — the same
@@ -137,7 +137,7 @@ def dirs_match(a, b):
 def collect_skill_pairs(parsed):
     """Return the recorded Skill loads, each joined to the body record that follows it.
 
-    Each pair is a dict: {input_text, result_text, is_error, has_result, bodies}. tool_use
+    Each pair is a dict: {input_text, is_error, has_result, bodies}. tool_use
     and tool_result are joined on the id/tool_use_id — that pairing establishes only that a
     load happened and whether it errored, since the tool_result is a launch stub. `bodies`
     is the ordered list of {base_dir, text} body records appearing after this Skill tool_use
@@ -146,24 +146,6 @@ def collect_skill_pairs(parsed):
     invocation was recorded but nothing came back) is kept with has_result=False, so it
     reads as unestablished rather than being silently dropped."""
     events = []  # ordered ("use"|"result"|"body", payload) in document order
-
-    def content_text(content):
-        if isinstance(content, str):
-            return content
-        # claude-code-action records a tool_result's content as a list of blocks, e.g.
-        # [{"type": "text", "text": "<body>"}]. Reconstruct the delivered text by joining the
-        # text blocks so the raw on-disk controls substring-match the delivered body — a
-        # json.dumps of the list would JSON-escape the body and a control line carrying a
-        # quote/backslash/newline would then fail to match a genuinely-whole delivery. Fall
-        # back to a JSON dump only for a shape carrying no text blocks.
-        if isinstance(content, list):
-            texts = [
-                b["text"] for b in content
-                if isinstance(b, dict) and b.get("type") == "text" and isinstance(b.get("text"), str)
-            ]
-            if texts:
-                return "".join(texts)
-        return json.dumps(content)
 
     def walk(o, role):
         if isinstance(o, dict):
@@ -175,10 +157,10 @@ def collect_skill_pairs(parsed):
             elif t == "tool_result":
                 tid = o.get("tool_use_id")
                 if tid is not None:
-                    events.append(
-                        ("result", (tid, bool(o.get("is_error")),
-                                    content_text(o.get("content"))))
-                    )
+                    # Record the result's PRESENCE and error flag only. Capturing its content
+                    # would reintroduce the launch stub as a measurable operand — the defect
+                    # this helper exists to fix.
+                    events.append(("result", (tid, bool(o.get("is_error")))))
             elif (t == "text" and role == "user" and isinstance(o.get("text"), str)
                     and o["text"].startswith(_BODY_PREFIX)):
                 # Role-gated: an assistant message quoting the prefix is not a delivery.
@@ -194,7 +176,7 @@ def collect_skill_pairs(parsed):
     results = {}
     for kind, payload in events:
         if kind == "result":
-            results[payload[0]] = (payload[1], payload[2])
+            results[payload[0]] = payload[1]
 
     use_positions = [i for i, (kind, _) in enumerate(events) if kind == "use"]
     pairs = []
@@ -205,12 +187,10 @@ def collect_skill_pairs(parsed):
             {"base_dir": payload[0], "text": payload[1]}
             for kind, payload in events[pos + 1:stop] if kind == "body"
         ]
-        is_error, content = results.get(uid, (False, None))
         pairs.append(
             {"input_text": input_text,
-             "result_text": content if content is not None else "",
-             "is_error": is_error if content is not None else False,
-             "has_result": content is not None,
+             "is_error": results.get(uid, False),
+             "has_result": uid in results,
              "bodies": bodies}
         )
     return pairs
