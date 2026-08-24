@@ -1,0 +1,77 @@
+{
+  "dispatch_mode": "fanned-out",
+  "verdict": "REJECT",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": false
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Important",
+      "description": "Two canonical internal docs still describe the pre-#1898 CLI form of --record-completion-evidence-ci (old 4-operand '<head-sha> <check-name> <conclusion> <run-url>', 'four operands', 'every field is a nonempty string ... the conclusion is a success'). The same change made these false against HEAD (nargs=3 HEAD_SHA/TIER/RUN_URL + repeatable --completion-ci-check NAME CONCLUSION, plus a checks list and required-set coverage). CLAUDE.md line 60 routes readers to implement-skill.md as the canonical 'full mechanism' disclosure, so a reader is sent straight to the stale form. Coupled-invariant discipline requires updating both in the same change.",
+      "defect_signature": {"file": "docs/internal/implement-skill.md", "line_range": [1145, 1147], "kind": "documented_falsehood"},
+      "fix_decision": "fix",
+      "corroborated_by": ["prflow:code-reviewer (related merge-gate doc drift)"]
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Important",
+      "description": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md:436 still describes the CI-derived completion record as accepting '<head-sha> <check-name> <conclusion> <run-url>' and passing only when 'every field is a nonempty string ... and the conclusion is a success' — now false against HEAD (there is a tier operand and a checks[] list, not a single check-name/conclusion). Reconcile in the same change.",
+      "defect_signature": {"file": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md", "line_range": [436, 436], "kind": "documented_falsehood"},
+      "fix_decision": "fix"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "The coverage floor now requires BOTH 'lib + python tests' and 'lint (shellcheck + actionlint + ruff)' (both jobs marked # prflow:required-check), but CLAUDE.md's tier-1 read procedure (lines ~28-32: 'find lib + python tests in the rollup by name', 'The pass condition is that lib + python tests is itself present and passing') and its top-line 'required status check is lib + python tests' definition were NOT reconciled. A local run that faithfully follows the documented procedure reads/records only 'lib + python tests', then is refused at record time with missing-evidence naming the lint check. docs/internal/workflow-triggers.md:157 ('lint is not a required status check') and DEVFLOW_SYSTEM_OVERVIEW.md:977 (singular required check) reinforce the terminology collision. Marking lint required for the coverage floor is the intended #1898 fix, but the coupled procedure/definition prose owes reconciliation (or a note distinguishing the merge-gate required check from the completion-evidence coverage set) in the same change.",
+      "defect_signature": {"file": ".github/workflows/ci.yml", "line_range": [276, 277], "kind": "logic_error"},
+      "fix_decision": "fix",
+      "corroborated_by": ["prflow:requesting-code-review", "prflow:silent-failure-hunter"]
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "_required_checks() drops a required check with no error on any marker placement/decoration other than 'marker line then immediately name:' (exact-equality marker match; first non-blank line after must startswith name: else break). A decorated marker or a reordered job (name: below runs-on:) silently shrinks the required set, un-gating coverage vacuously — the fail-open the coverage floor exists to prevent. Consider matching the marker as a trailing token / scanning the job block for name:, or failing loud (_Internal) when a marker is found but no name: follows. Also add a regression asserting _required_checks over the REAL tracked ci.yml returns the two intended names.",
+      "defect_signature": {"file": "scripts/check-completion-evidence.py", "line_range": [908, 935], "kind": "logic_error"},
+      "fix_decision": "consider",
+      "corroborated_by": ["prflow:code-reviewer", "prflow:pr-test-analyzer", "prflow:requesting-code-review"]
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "Test gaps in the _required_checks ci.yml parser (a best-effort parser over a human-mutable file, per the project's adversarial-input-shape-matrix convention): the marker-followed-by-non-name: branch, the blank-line-skip branch, the quoted-name-strip branch, the OSError->_Internal branch, and no test parses the real repository ci.yml. Also no positive test that a record carrying EXTRA/superset checks beyond the required set still passes, and no test pinning that --ci-record is inert on --context-mode implement.",
+      "defect_signature": {"file": "lib/test/test_python_scripts.py", "line_range": null, "kind": "test_gap"},
+      "fix_decision": "consider"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "Added comment blocks in check-completion-evidence.py (_validate intro 5 lines; the 2/3/4 currency block 4 lines) and workpad.py _apply_mutations (4 lines) exceed the three-physical-line prevention-only comment cap; parts are explanatory/restatement rather than a <=3-line statement of the specific wrong change prevented.",
+      "defect_signature": {"file": "scripts/check-completion-evidence.py", "line_range": [671, 679], "kind": "style"},
+      "fix_decision": "consider"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Absent-ci.yml -> empty required set is fail-open on repo_root misresolution (wrong cwd, nested git root per the CLAUDE.md --show-toplevel limitation), not only on legitimate consumer repos, turning this repo's own local-tier gate vacuous with no signal. Consider distinguishing 'declared-no-required-checks' from 'expected-workflow-file-missing', or document the tradeoff at the call site.",
+      "defect_signature": {"file": "scripts/check-completion-evidence.py", "line_range": [908, 916], "kind": "logic_error"},
+      "fix_decision": "consider"
+    }
+  ],
+  "report": "# PRFlow Review — PR #1917 (issue #1898)\n\n**Verdict: REJECT** (fix-loop iteration 1) — two Important coupled-documentation defects to reconcile; the code itself is correct and well-tested.\n\n## Diff profile\nsmall_diff=false, config_only=false, has_new_types=false, engine_self_modifying=false, checklist_skipped=false. Roster dispatched: code-reviewer, silent-failure-hunter, comment-analyzer, pr-test-analyzer (test files + testable logic changed), requesting-code-review final pass. type-design-analyzer skipped (has_new_types=false).\n\n## What the change does\nHardens the CI-derived completion-evidence record in scripts/check-completion-evidence.py: adds a `tier` operand (only `local` accepted; `cloud`/absent/other refused), widens the single check into a non-empty `checks[]` list validated against a required-check set read by the new `_required_checks(repo_root)` from `.github/workflows/ci.yml` `# prflow:required-check` markers, and routes `--context-mode direct`/`loop` to that validation via a new `--ci-record` operand while still running undischarged-findings and deferral-durability checks. workpad.py's `--record-completion-evidence-ci` moves from nargs=4 to nargs=3 + repeatable `--completion-ci-check NAME CONCLUSION`. ci.yml marks the test and lint jobs.\n\n## Assessment of the code (sound)\nAll agents concur: no Critical, no correctness bug. Fail-closed behaviors verified — empty/short/malformed checks lists are refused before PATCH; `vrecord` is only dereferenced under `ci_record is None` guards; first-failing-class order preserved (missing -> stale -> not-pass); `_required_checks` fails closed (_Internal) on an unreadable ci.yml; validator/internal errors convert to a no-PATCH _UpdateError. ORDERED_TOKENS/ALL_TOKENS pinned to a literal tuple (satisfies the no-verdict-token AC). Producer (workpad.py) and consumer (validator) shapes match; arity re-checked for programmatic callers. Headline ACs (tier refusals naming the tier, missing-required-check naming the member, per-check non-success sweep, direct/loop routes reaching CI validation, undischarged/deferral still firing) are all covered and correct.\n\n## Important findings (drive the REJECT)\n1. **Stale canonical docs for the CLI contract.** docs/internal/implement-skill.md:1145 and docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md:436 still document the pre-#1898 form `--record-completion-evidence-ci <head-sha> <check-name> <conclusion> <run-url>` (\"four operands\"; \"every field is a nonempty string ... the conclusion is a success\") — false against HEAD's nargs=3 + `--completion-ci-check` shape. CLAUDE.md line 60 routes readers to implement-skill.md as the canonical mechanism, so the stale form is reached first. Coupled-invariant discipline requires updating these in the same change.\n2. **Coverage floor now requires `lint`, but the documented read procedure was not reconciled.** Both the test and lint jobs are marked `# prflow:required-check`, so a record must cover both. But CLAUDE.md's tier-1 procedure still instructs runs to read/record only `lib + python tests` ('find lib + python tests in the rollup by name'; 'pass condition is that lib + python tests is itself present and passing'), and the top-line definition still calls `lib + python tests` THE required status check; workflow-triggers.md:157 says lint is not a required status check. A run following the documented steps records one check and is refused (missing-evidence naming lint). Requiring both checks is the intended #1898 fix (PR 1888's escaped red-lint bug), so the remedy is to reconcile the procedure/definition prose (or add a note distinguishing the merge-gate required check from the completion-evidence coverage set) in the same change.\n\n## Suggestions (non-blocking)\n- `_required_checks` is positionally fragile: a decorated marker or a job whose `name:` is not the first non-blank line after the marker silently drops that required check (fail-open). Consider a block scan / fail-loud, and add a regression over the real tracked ci.yml.\n- Test gaps in the ci.yml parser branches (non-name: next line, blank-line skip, quoted-name strip, OSError->_Internal), plus a positive superset-checks-still-pass test and an implement-route `--ci-record`-inert test.\n- Absent-ci.yml -> empty required set is fail-open on repo_root misresolution; distinguish or document.\n- Three added comment blocks exceed the 3-line prevention-only cap.\n\nAll five Phase-3 agents returned results (no failed agents)."
+}

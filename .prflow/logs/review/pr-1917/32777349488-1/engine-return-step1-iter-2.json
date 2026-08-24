@@ -1,0 +1,31 @@
+{
+  "dispatch_mode": "fanned-out",
+  "verdict": "APPROVE",
+  "phase3_dispatched": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:pr-test-analyzer", "prflow:comment-analyzer"],
+  "diff_profile": "python + tests + prose + one workflow yaml; scope: scripts/check-completion-evidence.py, scripts/workpad.py, .github/workflows/ci.yml, lib/test/{test_python_scripts.py,run.sh}, docs/internal/{implement-skill,DEVFLOW_SYSTEM_OVERVIEW}.md, CLAUDE.md, .prflow/prompt-extensions/receiving-code-review.md, .changeset. No new types (type-design-analyzer gated out).",
+  "cap_drops": ["comment-analyzer stale-narrative-comment demoted to Suggestion (behavior-inert prose, Phase 4.1.5)", "silent-failure-hunter _required_checks empty-set fail-open demoted to Suggestion (intended/documented design; markers present in live tree; hardening not correctness)"],
+  "phase3_findings": [
+    {
+      "severity": "Suggestion",
+      "agent": "comment-analyzer",
+      "file": "scripts/check-completion-evidence.py",
+      "line": 857,
+      "summary": "Module narrative comment says the CI decision is a function of the record fields, git rev-parse HEAD, and git status --porcelain 'alone' — now stale: _validate_ci_record also reads .github/workflows/ci.yml via _required_checks. Behavior-inert prose (capped at Suggestion) but a genuine factual error a fix loop could cheaply correct; also omits the new tier and required-check-coverage refusal classes."
+    },
+    {
+      "severity": "Suggestion",
+      "agent": "silent-failure-hunter",
+      "file": "scripts/check-completion-evidence.py",
+      "line": 908,
+      "summary": "_required_checks returns an empty frozenset when ci.yml is absent/unmarked, making coverage vacuous; nothing pins that the live .github/workflows/ci.yml still carries the two # prflow:required-check markers (tests only exercise a fixture). A future ordinary workflow edit that drops a marker or moves name: off the immediately-following line would silently shrink the floor. Intended/documented design and markers are present now (ci.yml:246,276), so hardening not a correctness defect; recommend a live-tree non-empty/expected-set pin."
+    },
+    {
+      "severity": "Suggestion",
+      "agent": "pr-test-analyzer",
+      "file": "lib/test/test_python_scripts.py",
+      "line": 32347,
+      "summary": "AC8 (skipped-checks class scoped OUT of the CI route) has no direct test — a regression re-adding _check_skipped_checks to the CI branch would still pass. AC1 tier refusals on the direct/loop CLI routes test only the cloud tier, not absent/non-local. Shared-code mitigated; coverage gaps, not defects."
+    }
+  ],
+  "report": "APPROVE. Issue #1898 hardens the CI-derived completion-evidence record and opens it to the reception/fix-loop routes. Verified: (1) tier guard — cloud/absent/non-local all fail closed as missing-evidence before any value compare; (2) checks list must be a non-empty list of {name,conclusion} objects with every entry well-formed, else missing-evidence; (3) required-check coverage read from the single declared source (.github/workflows/ci.yml # prflow:required-check markers via _required_checks), missing member named; (4) any non-success conclusion -> verification-not-pass; (5) first-failing-class order preserved (missing -> stale -> not-pass); (6) _validate correctly guards every vrecord use behind `ci_record is None`, no unbound-name path; (7) workpad.py nargs 4->3 + repeatable --completion-ci-check with programmatic-caller arity re-check; (8) undischarged-findings and deferral-durability still run on the CI route (tested). Prior iteration-1 Important findings confirmed fixed: docs (implement-skill.md, DEVFLOW_SYSTEM_OVERVIEW.md) describe the new operand shape; CLAUDE.md rung-1 reads/requires the full required-check set while preserving `lib + python tests` as the GitHub merge-gate. Vendored .prflow/vendor/prflow copy is gitignored/untracked (refreshed separately) — not a coupled site. No verdict token added/removed (pinned against literal expected set). Three Suggestion-level findings remain (stale narrative comment at line 857; no live-tree pin on _required_checks; two AC-coverage gaps) — none blocks merge; a fix-loop pass may optionally address the line-857 comment and add a live-tree required-check pin."
+}
