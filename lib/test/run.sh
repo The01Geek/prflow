@@ -32252,6 +32252,7 @@ import sys, yaml
 files = sys.argv[1:]
 names = ["Resolve model provider",
          "Inject provider endpoint (provider-routed sections only)",
+         "Export provider effort capability to job env",
          "Build claude_args head (model + conditional effort)"]
 bodies = {n: [] for n in names}
 for f in files:
@@ -32267,7 +32268,46 @@ for n in names:
 print(",".join(out))
 PY
 )"
-  assert_eq "#313 single-sourced: Resolve/Inject/cargs run: bodies byte-identical across the 3 workflows" "yes,yes,yes" "$R313_BODY_IDENT"
+  assert_eq "#313 single-sourced: Resolve/Inject/export-effort/cargs run: bodies byte-identical across the 3 workflows" "yes,yes,yes,yes" "$R313_BODY_IDENT"
+
+  # #1772: the byte-identity pin above compares only each step's `run:` body, so a workflow
+  # with an omitted/mistyped env block, a hardcoded value, or a late-moved export stays
+  # identical and green while exporting nothing the resolver reads. Assert the wiring.
+  R1772_EXPORT_ENV="$(python3 - "$IMPL_WF" "$RUNNER_WF" "$LIGHT_WF" "$REPO_ROOT/scripts/resolve-review-overrides.py" <<'PY'
+import sys, re, yaml
+files = sys.argv[1:4]
+want = "${{ steps.provider.outputs.effort_supported }}"
+# Derive the exported env-var KEY from the resolver's OWN constant so the workflow writer and
+# the in-session reader stay coupled: a rename on either side that is not mirrored fails RED.
+m = re.search(r'_EFFORT_SUPPORTED_ENV\s*=\s*"([^"]+)"', open(sys.argv[4]).read())
+key = m.group(1) if m else None
+env_ok, run_ok, pos_ok = [], [], []
+for f in files:
+    doc = yaml.safe_load(open(f))
+    for job in doc["jobs"].values():
+        steps = job.get("steps", [])
+        ei = [i for i, s in enumerate(steps)
+              if s.get("name") == "Export provider effort capability to job env"]
+        if not ei:
+            continue
+        st, body = steps[ei[0]], (steps[ei[0]].get("run") or "")
+        # env: the value SOURCE; run: the resolver's KEY, the env var as the written VALUE, and
+        # the $GITHUB_ENV SINK. Drop any one and a green pass is compatible with dead wiring:
+        # a uniform hardcode, or a write redirected to $GITHUB_OUTPUT/stdout the resolver never reads.
+        env_ok.append((st.get("env") or {}).get("EFFORT_SUPPORTED") == want)
+        run_ok.append(key is not None and (key + "=") in body and '"$EFFORT_SUPPORTED"' in body
+                      and "$GITHUB_ENV" in body)
+        # $GITHUB_ENV reaches only LATER steps: an export moved after the session step writes
+        # too late, so the resolver reads an absent var and fails open to `true` — green.
+        ai = [i for i, s in enumerate(steps) if "claude-code-action" in str(s.get("uses", ""))]
+        pos_ok.append(bool(ai) and ei[0] < min(ai))
+ok = (key is not None and len(env_ok) == 3 and all(env_ok)
+      and len(run_ok) == 3 and all(run_ok)
+      and len(pos_ok) == 3 and all(pos_ok))
+print("yes" if ok else "no")
+PY
+)"
+  assert_eq "#1772: effort-export step sources the provider output, writes the resolver's PRFLOW_EFFORT_SUPPORTED key from that env var into GITHUB_ENV, and precedes the session step in all 3 workflows" "yes" "$R1772_EXPORT_ENV"
 
   # gh_kv normalizes a $GITHUB_ENV/$GITHUB_OUTPUT file written in GitHub's newline-safe
   # multiline-heredoc form (KEY<<DELIM\nvalue\nDELIM — the form this PR now uses everywhere)

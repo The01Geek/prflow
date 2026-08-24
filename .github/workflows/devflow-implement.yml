@@ -997,6 +997,16 @@ jobs:
           edelim="ENV_EOF_$(date +%s%N)_$$"
           printf '%s' "$DECISION" | jq -r --arg d "$edelim" '.env | to_entries[] | "\(.key)<<\($d)", "\(.value)", $d' >> "$GITHUB_ENV"
 
+      # Export the routed provider's effort capability to the JOB env for the
+      # in-session resolve-review-overrides.py. Keep it ungated: a `provider != ''`
+      # gate leaves the default path relying on the resolver's fail-open (#1772).
+      - name: Export provider effort capability to job env
+        env:
+          EFFORT_SUPPORTED: ${{ steps.provider.outputs.effort_supported }}
+        run: |
+          set -euo pipefail
+          printf 'PRFLOW_EFFORT_SUPPORTED=%s\n' "$EFFORT_SUPPORTED" >> "$GITHUB_ENV"
+
       # Compute the claude_args head so --model is always present and --effort is
       # dropped only for a provider whose effort_supported is false (AC 7). The
       # Anthropic default path resolves effort_supported=true, so effort is

@@ -19,7 +19,7 @@
     "scripts/reception_identity.py": "983565c531961be7d47c083feb2d34e67f261a21efda5a825f2b4b6a42924f94",
     "scripts/render-prompt-extension.sh": "4613404b649c945bc9759a1061e067303132822c22fab2342d3080d336a05c85",
     "scripts/resolve-existing-pr.sh": "372452a8bf310f96700375550380389df0e8e3c852ebd9e89b978841d62db478",
-    "scripts/resolve-review-overrides.py": "9816b0945fd3acb1a276fdde2fc2777d7ccafc6f834e392b8e68c218f64a2180",
+    "scripts/resolve-review-overrides.py": "e52d484bb9038251f7a14dfd8b8d012572d0c87e906b128999a7f74581329032",
     "scripts/run-jq.sh": "1bcf3697f7fb24a50cbc246ef42ab9503be8fef4478103da0d183dcd971ad1fd",
     "scripts/section_parse.py": "9333d432e81365eb92e44709bf4317d4d0f37046098b0c0f0d866eb11cd33108",
     "scripts/stale-prose-lint.py": "28ae9e650b69ce2a922857e93c1ec61ba8167eac5b64b0866aec580b0fdd8a90",
