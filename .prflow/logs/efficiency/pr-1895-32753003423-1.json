@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1895",
+  "generated_at": "2026-08-24T16:59:13Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.61",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 5.045846400000001,
+    "tokens": {
+      "input_tokens": 38,
+      "output_tokens": 25349,
+      "cache_read_input_tokens": 2596815,
+      "cache_creation_input_tokens": 174734,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 38,
+        "outputTokens": 25349,
+        "cacheReadInputTokens": 2596815,
+        "cacheCreationInputTokens": 174734,
+        "webSearchRequests": 0,
+        "costUSD": 3.6796625,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 56,
+        "outputTokens": 38552,
+        "cacheReadInputTokens": 1509572,
+        "cacheCreationInputTokens": 271455,
+        "webSearchRequests": 0,
+        "costUSD": 1.3661838999999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 27,
+    "duration_ms": 524520
+  },
+  "permission_denials": {
+    "count": "unavailable",
+    "tool_names": [],
+    "commands_state": "zero",
+    "commands": [],
+    "total": 0,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": false,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
