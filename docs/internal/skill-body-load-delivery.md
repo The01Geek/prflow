@@ -251,9 +251,9 @@ this run could check directly, and it is 61,039 bytes.
 ## What this settles, in bytes
 
 **Expressed in the same unit as the two numbers already in play** — raw on-disk file bytes,
-`len(read_bytes())`, which is exactly the instrument `lib/test/lint-reference-size.py` applies **on
-the unmerged `worktree-issue-1595` branch** — it is not in this tree; see the guard's status below —
-and exactly the unit `scripts/prompt-surface-growth.py` reports here (it reads the git blob size,
+`len(read_bytes())`, which is exactly the instrument `lib/test/lint-reference-size.py` applies —
+now shipped and driven by the suite; see the guard's status below — and exactly the unit
+`scripts/prompt-surface-growth.py` reports here (it reads the git blob size,
 the same quantity from the committed tree). No conversion is involved anywhere on this page.
 
 - **No initial-load ceiling was found at or below the largest body carried whole** — 83,427 file
@@ -279,23 +279,20 @@ the same quantity from the committed tree). No conversion is involved anywhere o
 **Both numbers must be described accurately, because neither is what issue #1596 says it is.**
 Verified at revision `efd37b8b2`, against `origin/main` at `c42816123`:
 
-- The **61,750-byte guard has not shipped.** `gh issue view 1595` reports `state: OPEN`, and
-  `git log origin/main -- lib/test/lint-reference-size.py` returns nothing — that second check is
-  the shipped/not-shipped discriminator, and it is the one to re-run. The guard exists only as
-  unmerged work on branch `worktree-issue-1595`, which acquired an open pull request, #1599, at
-  2026-08-11T18:26:54Z — while this record was being written, and about a minute after the revision
-  above. So the guard is in review rather than absent, and the branch has moved past the commits
-  this page cites. Issue #1596's statement that "#1595 has shipped" was false when it was written
-  and remains false while #1599 is open; a reader re-running these checks after #1599 merges should
-  expect the `git log` check to start returning a commit, at which point this bullet is superseded
-  rather than wrong.
+- The **61,750-byte guard has shipped.** `git log origin/main -- lib/test/lint-reference-size.py`
+  now returns commits — that check is the shipped/not-shipped discriminator, and it is the one to
+  re-run — and `test -f lib/test/lint-reference-size.py` confirms the guard is present in this tree
+  and driven by the test suite. #1595's work merged (via PR #1599, which was open while this record
+  was first written), so issue #1596's statement that "#1595 has shipped" — false when this page was
+  first authored, when the guard existed only as unmerged work on branch `worktree-issue-1595` — is
+  now true. This bullet records the earlier not-shipped state as superseded, not as the current one.
 - The **55,000-byte authoring target is published nowhere tracked.** `grep -rn "55,000\|55000\|authoring target"`
   over `CLAUDE.md`, `CONTRIBUTING.md`, `docs/`, and `.prflow/prompt-extensions/` returns no match.
   It is stated by issue #1596 and by the acceptance criteria derived from it, and nowhere else.
 
 Neither correction changes the measurement. Both change how the measurement may be cited: this page
-compares against 61,750 as a *proposed* guard and 55,000 as an *issue-stated* target, never as
-conventions the repository carries.
+compares against 61,750 as the guard's ceiling (now shipped in `lib/test/lint-reference-size.py`) and
+55,000 as an *issue-stated* target that is published nowhere tracked.
 
 ### The 66,044-character figure is testimony
 
@@ -564,6 +561,70 @@ Expressed in the ceiling's own unit — raw on-disk file bytes, `len(read_bytes(
   `delivered-whole` at or above its on-disk size would make it vacuous there too. Until then it is
   `unestablished` on both cloud tiers, and this record says so
   rather than importing session A's local adjudication onto tiers it did not observe.
+
+## Observation — session C (extended probe verdict; verdicts unestablished)
+
+**Status: PROBE EXTENDED, VERDICTS UNESTABLISHED.** Issue #1893 extended
+`scripts/skill-body-load-probe-verdict.py` so each per-root report now names the *cause* of a short
+delivery rather than only its fact. Extending the probe does **not** dispatch it: a headless
+implementing run cannot suspend to await a probe it added, so every row below is recorded
+**`unestablished`** with that condition — exactly as sessions A and B record theirs. The existing
+session-A and session-B figures are untouched; this block adds a new record, it re-keys nothing.
+
+What the extended probe now reports per root, beyond the bare verdict:
+
+- the delivered body's character **LENGTH** (counted from the Skill `tool_result`, not derived from
+  the file);
+- the **FIRST-DIVERGENCE** character offset — the longest-common-prefix boundary between the
+  delivered body and the on-disk `SKILL.md` with YAML frontmatter stripped and the prepended
+  `Base directory for this skill:` line skipped;
+- a **TAIL-CONTROL** present/absent result (the file's last non-empty line);
+- an **INTERIOR-CONTROL** present/absent result (a distinctive interior line);
+- a **COPY** comparison outcome — `identical` | `differing` | `unreadable` — of the `SKILL.md` at the
+  delivered body's `Base directory for this skill:` line against the checkout file.
+
+**The verdict vocabulary is now exactly four values: `delivered-whole`, `short-delivery`, `no-body`,
+`unestablished`.** A new `no-body` arm sits ahead of the tail-loss arm, so a result carrying *neither*
+control — including the documented already-loaded short note — returns `no-body` rather than
+`short-delivery`; `short-delivery` is now reserved for a result that carried a body but lost part of
+it, and its cause is read from the fields above.
+
+| `SKILL.md` | Tier | Channel | Operand | Verdict | Condition | Session |
+|---|---|---|---|---|---|---|
+| `skills/review/SKILL.md` | cloud review (`devflow.yml`) | Skill tool | Skill `tool_result` (would be observation) | **unestablished** | extended probe not yet dispatched | 2026-08-24 / C |
+| `skills/implement/SKILL.md` | cloud review (`devflow.yml`) | Skill tool | Skill `tool_result` (would be observation) | **unestablished** | extended probe not yet dispatched | 2026-08-24 / C |
+| `skills/review/SKILL.md` | cloud implement (`devflow-implement.yml`) | Skill tool | Skill `tool_result` (would be observation) | **unestablished** | extended probe not yet dispatched | 2026-08-24 / C |
+| `skills/implement/SKILL.md` | cloud implement (`devflow-implement.yml`) | Skill tool | Skill `tool_result` (would be observation) | **unestablished** | extended probe not yet dispatched | 2026-08-24 / C |
+
+**Observation conditions — session C, 2026-08-24.** Tier: cloud review (`devflow.yml`) and cloud
+implement (`devflow-implement.yml`), each approximated by a `matcher-probe.yml` job as in session B.
+Action version: `anthropics/claude-code-action@v1`. Date: 2026-08-24 (record authored; the four
+verdicts are unestablished, so no observation date exists yet). The approximation limit session B
+states applies unchanged — a row must not be upgraded past `unestablished` on the strength of the
+matcher-probe approximation alone.
+
+### Re-run procedure (session C)
+
+1. Dispatch `matcher-probe.yml` via `workflow_dispatch` (available on the default branch after
+   merge), or push an edit to `.github/workflows/matcher-probe.yml` to trigger its `pull_request`
+   path. Either launches the two `skill-body-load-*-probe` jobs (one paid session each).
+2. Read each job's `Compute skill-body-load verdict` step. For each root the extended helper prints,
+   alongside the `VERDICT:` line, the delivered-body character **LENGTH**, the **FIRST-DIVERGENCE**
+   character offset, the **TAIL-CONTROL** present/absent result, the **INTERIOR-CONTROL**
+   present/absent result, and the **COPY** comparison outcome (`identical` | `differing` |
+   `unreadable`).
+3. Transcribe each root's verdict — one of `delivered-whole`, `short-delivery`, `no-body`,
+   `unestablished` — into the row above under a new observation date, recording the five reported
+   fields so a `short-delivery` or `no-body` verdict carries its named cause rather than only its
+   fact, and record the runner `ImageVersion` and resolved `claude-code-action` version from the job
+   log.
+
+**How the five fields name the cause.** A `short-delivery` with the TAIL-CONTROL absent and a
+FIRST-DIVERGENCE offset short of the delivered LENGTH is a tail loss; one with the TAIL-CONTROL
+present but the INTERIOR-CONTROL absent is an interior loss; a `no-body` verdict is a result that
+carried neither control (a refused or already-loaded-short delivery); and a `differing` or
+`unreadable` COPY outcome flags that the checkout file at the delivered base-directory line does not
+match the body the probe measured against, so the divergence figures are read against a moved target.
 
 ## What this measurement does NOT establish
 
