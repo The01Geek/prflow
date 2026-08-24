@@ -24903,35 +24903,59 @@ SBL_REVIEW="$LIB/../skills/review/SKILL.md"
 SBL_TMP="$(mktemp -d)"
 sbl_build() {  # $1 scenario -> writes $SBL_TMP/exec.jsonl; rc 0 AND non-empty on success
   python3 - "$SBL_TMP/exec.jsonl" "$1" "$SBL_REVIEW" <<'PY_SBL'
-import json, sys
+import json, os, sys
 out, scen, path = sys.argv[1], sys.argv[2], sys.argv[3]
 body = open(path, encoding="utf-8").read()
 tail = [ln.strip() for ln in body.splitlines() if ln.strip()][-1]
+review_dir = os.path.dirname(path)
+other_dir = os.path.join(os.path.dirname(review_dir), "implement")
+PREFIX = "Base directory for this skill: "
+# These fixtures reproduce the RECORD LAYOUT of a real claude-code-action transcript: the
+# Skill tool_result is a ~30-byte launch STUB and the rendered body arrives in the NEXT,
+# user-role record. Writing the body into the tool_result instead would mirror the helper's
+# own (wrong) assumption and make every assertion below vacuous.
 def skill_use(name="prflow:review", uid="su1"):
-    return {"type": "tool_use", "name": "Skill", "id": uid, "input": {"skill": name}}
-def result(content, uid="su1", is_error=False):
-    return {"type": "tool_result", "tool_use_id": uid, "content": content, "is_error": is_error}
+    return {"type": "assistant", "message": {"role": "assistant", "content": [
+        {"type": "tool_use", "name": "Skill", "id": uid, "input": {"skill": name}}]}}
+def stub(uid="su1", is_error=False, content=None):
+    if content is None:
+        content = "Launching skill: prflow:review"
+    return {"type": "user", "message": {"role": "user", "content": [
+        {"type": "tool_result", "tool_use_id": uid, "content": content,
+         "is_error": is_error}]}}
+def body_rec(text, base=None, role="user"):
+    base = review_dir if base is None else base
+    return {"type": role, "message": {"role": role, "content": [
+        {"type": "text", "text": PREFIX + base + "\n\n" + text}]}}
 # Each scenario maps to a list of records, EXCEPT the fixture-free ones (absent/unparseable),
 # which are handled by the caller. An unrecognised scenario raises, so the build fails rather
 # than leaving an empty fixture the helper would read as unparseable and pass for the wrong reason.
 scenarios = {
-    "whole":       [skill_use(), result(body)],
-    # The REAL claude-code-action shape: tool_result content is a list of text blocks, not a
-    # plain string. content_text must reconstruct the body from the blocks (join text fields),
-    # or a quote/newline in a control line would fail to match a JSON-escaped serialization.
+    "whole":       [skill_use(), stub(), body_rec(body)],
+    # tool_result content as a list of text blocks — the other real stub serialization.
     "whole_blocks":[skill_use(),
-                    {"type": "tool_result", "tool_use_id": "su1",
-                     "content": [{"type": "text", "text": body}], "is_error": False}],
+                    stub(content=[{"type": "text", "text": "Launching skill: prflow:review"}]),
+                    body_rec(body)],
     # Body missing its final line: the tail control cannot be found.
-    "short_tail":  [skill_use(), result(body.rsplit("\n", 2)[0])],
+    "short_tail":  [skill_use(), stub(), body_rec(body.rsplit("\n", 2)[0])],
     # Only the tail line survives: tail present, a real interior line absent.
-    "mid_gap":     [skill_use(), result(tail)],
+    "mid_gap":     [skill_use(), stub(), body_rec(tail)],
     # A whole body that ALSO carries a cap notice — the marker arm fires before the tail check.
-    "trunc_marker":[skill_use(), result(body + "\nshowing lines 1-10 of 343 (cap 25000)")],
+    "trunc_marker":[skill_use(), stub(), body_rec(body + "\nshowing lines 1-10 of 343 (cap 25000)")],
+    # The load happened but NO body record followed — measuring the stub alone must not
+    # adjudicate anything, so this is unestablished rather than a short delivery.
+    "stub_only":   [skill_use(), stub()],
+    # A body record naming a DIFFERENT skill's directory: another root's body must not be
+    # adjudicated as this one's.
+    "wrong_dir_body":[skill_use(), stub(), body_rec(body, base=other_dir)],
+    # The prefix in an ASSISTANT record is the model talking about a delivery, not one.
+    "assistant_body":[skill_use(), stub(), body_rec(body, role="assistant")],
     # No Skill tool_use at all — the body was never loaded by this channel.
-    "no_skill":    [{"type": "tool_use", "name": "Bash", "id": "b1", "input": {"command": "true"}}],
+    "no_skill":    [{"type": "assistant", "message": {"role": "assistant", "content": [
+                        {"type": "tool_use", "name": "Bash", "id": "b1",
+                         "input": {"command": "true"}}]}}],
     # A Skill load that returned an error (refused/aborted) — the abort mode, not truncation.
-    "err_result":  [skill_use(), result("permission denied", is_error=True)],
+    "err_result":  [skill_use(), stub(is_error=True, content="permission denied")],
     # A Skill tool_use recorded with NO paired result — nothing was delivered to measure.
     "no_result":   [skill_use()],
     # Parses cleanly but records no tool_use of any kind.
@@ -24939,6 +24963,12 @@ scenarios = {
 }
 if scen == "unparseable":
     open(out, "w", encoding="utf-8").write("{ not json at all\n")
+elif scen == "leading_comment":
+    # The PUBLISHED artifact shape: scripts/scrub-transcript.sh prepends one `#` caveat line
+    # to the pretty-printed array, which strict json.loads rejects.
+    open(out, "w", encoding="utf-8").write(
+        "# DEVFLOW SCRUB CAVEAT: best-effort blocklist redaction. Treat as sensitive.\n"
+        + json.dumps(scenarios["whole"], indent=2) + "\n")
 elif scen == "whole_json":
     # A single whole-file JSON document (not JSONL) — exercises parse_execution_file's
     # json.loads(raw) success path, which the line-by-line fixtures never reach.
@@ -24978,8 +25008,10 @@ assert_eq "#1618 skill-body: an unrecognised fixture scenario fails the build" "
 assert_eq "#1618 skill-body: a recognised fixture scenario still builds" "built" \
   "$(sbl_build whole 2>/dev/null && echo built || echo failed)"
 
-# The two real measurements: a body delivered whole, and a tail loss.
-assert_eq "#1618 skill-body: whole body (tail+mid present) -> delivered-whole" \
+# The two real measurements: a body delivered whole, and a tail loss. The whole-body arm is
+# the regression guard for the wrong-record defect — the body lives in the record AFTER the
+# Skill tool_result, so a helper measuring the ~30-byte launch stub reads short-delivery here.
+assert_eq "#1618 skill-body: whole body in the following record -> delivered-whole" \
   "delivered-whole" "$(sbl whole)"
 assert_eq "#1618 skill-body: tail line missing -> short-delivery (tail lost)" \
   "short-delivery" "$(sbl short_tail)"
@@ -25000,16 +25032,26 @@ assert_eq "#1618 skill-body: Skill call with no paired result -> unestablished" 
   "unestablished" "$(sbl no_result)"
 assert_eq "#1618 skill-body: well-formed JSON of the wrong shape -> unestablished" \
   "unestablished" "$(sbl wrong_shape)"
+assert_eq "#1618 skill-body: launch stub with no body record -> unestablished" \
+  "unestablished" "$(sbl stub_only)"
+assert_eq "#1618 skill-body: body record naming another skill's directory -> unestablished" \
+  "unestablished" "$(sbl wrong_dir_body)"
+assert_eq "#1618 skill-body: the prefix in an assistant record is not a delivery" \
+  "unestablished" "$(sbl assistant_body)"
 assert_eq "#1618 skill-body: unparseable execution file -> unestablished" \
   "unestablished" "$(sbl unparseable)"
 assert_eq "#1618 skill-body: an absent execution file -> unestablished" \
   "unestablished" \
   "$(_o="$(python3 "$SBL" "$SBL_TMP/definitely-not-here.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" 2>/dev/null)"; case "$_o" in *'VERDICT: '*) _v="${_o#*'VERDICT: '}"; printf '%s' "${_v%%$'\n'*}" ;; *) printf 'NO_VERDICT' ;; esac)"
 
-# The real claude-code-action content shape (a list of text blocks) reconstructs to the body,
-# so a whole delivery still reads delivered-whole rather than failing the disk-control match.
+# A tool_result whose content is a list of text blocks is still only the launch stub; the
+# following body record is what carries the delivery.
 assert_eq "#1618 skill-body: tool_result content as a list of text blocks -> delivered-whole" \
   "delivered-whole" "$(sbl whole_blocks)"
+# The PUBLISHED transcript artifact carries one leading `#` caveat line, which strict JSON
+# rejects; without comment tolerance every line falls to the JSONL path and is dropped.
+assert_eq "#1618 skill-body: published artifact (leading # caveat) -> delivered-whole" \
+  "delivered-whole" "$(sbl leading_comment)"
 # A single whole-file JSON document (not JSONL) still resolves — the whole-file json.loads path.
 assert_eq "#1618 skill-body: whole-file JSON (not JSONL) -> delivered-whole" \
   "delivered-whole" "$(sbl whole_json)"
@@ -25017,12 +25059,15 @@ assert_eq "#1618 skill-body: whole-file JSON (not JSONL) -> delivered-whole" \
 # Skill pair must NOT be adjudicated as delivered-whole when the file could not be read cleanly.
 assert_eq "#1618 skill-body: partially-corrupt execution file -> unestablished (not a clean read)" \
   "unestablished" "$(sbl partial_corrupt)"
-# The on-disk control file is unreadable (a Skill pair is present, but the --root path does not
-# exist): read_controls fails, so the delivered body cannot be checked -> unestablished, never
-# collapsed onto delivered-whole. Exercised with a real Skill pair and a bogus control path.
+# The on-disk control file is unreadable: read_controls fails, so the delivered body cannot be
+# checked -> unestablished, never collapsed onto delivered-whole. The bogus --root names a
+# MISSING FILE INSIDE the delivered body's own directory; a path in another directory would be
+# refused one arm earlier by the base-directory match and never reach read_controls.
 assert_eq "#1618 skill-body: unreadable on-disk control file -> unestablished" \
   "unestablished" \
-  "$(sbl_build whole >/dev/null 2>&1; _o="$(python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=/definitely/not/here/SKILL.md" 2>/dev/null)"; case "$_o" in *'VERDICT: '*) _v="${_o#*'VERDICT: '}"; printf '%s' "${_v%%$'\n'*}" ;; *) printf 'NO_VERDICT' ;; esac)"
+  "$(sbl_build whole >/dev/null 2>&1; _o="$(python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$LIB/../skills/review/DEFINITELY-NOT-HERE.md" 2>/dev/null)"; case "$_o" in *'VERDICT: '*) _v="${_o#*'VERDICT: '}"; printf '%s' "${_v%%$'\n'*}" ;; *) printf 'NO_VERDICT' ;; esac)"
+assert_eq "#1618 skill-body: the control-file arm is reached, not the missing-body arm" "yes" \
+  "$(sbl_build whole >/dev/null 2>&1; python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$LIB/../skills/review/DEFINITELY-NOT-HERE.md" 2>/dev/null | grep -q 'could not be read for controls' && echo yes || echo no)"
 # Multi-root audit (the shape both workflow jobs actually use): two --root operands emit two
 # per-root VERDICT lines. The `whole` fixture carries a prflow:review pair only, so review reads
 # delivered-whole and implement (no pair) reads unestablished — proving the loop runs per root
