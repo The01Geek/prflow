@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1917",
+  "generated_at": "2026-08-24T23:00:49Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.6",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 7.1154375000000005,
+    "tokens": {
+      "input_tokens": 94,
+      "output_tokens": 35965,
+      "cache_read_input_tokens": 8488185,
+      "cache_creation_input_tokens": 197175,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 94,
+        "outputTokens": 35965,
+        "cacheReadInputTokens": 8488185,
+        "cacheCreationInputTokens": 197175,
+        "webSearchRequests": 0,
+        "costUSD": 7.1154375000000005,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 71,
+    "duration_ms": 1677532
+  },
+  "permission_denials": {
+    "count": 2,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "printf 'GITHUB_ACTIONS=%s\\n' \"${GITHUB_ACTIONS:-<empty>}\"; printf 'RUN_ID=%s\\n' \"${GITHUB_RUN_ID:-<empty>}\"; git rev-parse --show-toplevel; git branch --show-current",
+      "lib/test/regenerate-artifacts.py --with-floors 2>&1 | tail -40; echo \"EXIT=${PIPESTATUS[0]}\""
+    ],
+    "total": 2,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
