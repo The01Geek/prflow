@@ -54,8 +54,11 @@ if ! printf 'x\n' | sed -E 's/x/x/' >/dev/null 2>&1; then
   exit 3
 fi
 
-# The blocklist. Identical rule set to devflow-runner.yml's historical inline scrub
-# (issue #409 item 4 for the two Authorization forms), now single-sourced here.
+# The blocklist, single-sourced here (originally devflow-runner.yml's inline scrub, issue
+# #409 item 4 for the two Authorization forms; the Authorization rules have since diverged).
+# Never list `\` inside the two Authorization bracket expressions and never relax `{4,}`
+# back to `+`: a POSIX bracket expression takes `\` as a set member, so the token match
+# swallows a following JSON escape backslash, and `+` matches a bare `//` as a token.
 if ! sed -E \
   -e 's/gh[pousr]_[A-Za-z0-9_]{20,}/[REDACTED-GH-TOKEN]/g' \
   -e 's/github_pat_[A-Za-z0-9_]{20,}/[REDACTED-GH-PAT]/g' \

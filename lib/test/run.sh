@@ -18304,9 +18304,9 @@ assert_eq "scrub-credentials: redacts a gh token" \
 assert_eq "scrub-credentials: --shapes names four shapes" \
   "yes" "$(bash "$SCR" --shapes | grep -qF 'GitHub tokens/PATs' && echo yes || echo no)"
 
-# ── #1915 round trip: neither Authorization bracket expression may list `\` as a set
-# member, and neither may relax `{4,}` back to `+`: `\` made the token match swallow a
-# following JSON escape backslash, and `+` matched a bare `//` as a token.
+# ── #1915 round trip: keep all four shapes in one document and keep the trailing-slash
+# case — narrowing either fixture lets the Authorization bracket expressions regress to
+# corrupting the bytes around a token while this block still reports green.
 _SCRUB_RAW='tok ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ012345 pat github_pat_ABCDEFGHIJKLMNOPQRSTUV ant sk-ant-ABCDEFGHIJKLMNOPQRSTUV hdr "AUTHORIZATION: basic T0xENEM=" and "Authorization: Bearer abc.def-ghi~jkl+mno/pqr=" end'
 _SCRUB_WANT='tok [REDACTED-GH-TOKEN] pat [REDACTED-GH-PAT] ant [REDACTED-ANTHROPIC-KEY] hdr "AUTHORIZATION: basic [REDACTED]" and "Authorization: Bearer [REDACTED]" end'
 _SCRUB_IN="$("$DEN_JQ" -n -c --arg v "$_SCRUB_RAW" '{note:$v}')"
