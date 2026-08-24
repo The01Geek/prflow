@@ -1603,12 +1603,26 @@ The per-entry field reference — `base_url`, `auth`, `timeout_ms`,
 `providers`, which is the single source for those fields. Two operational
 notes the schema does not carry:
 
-- **The `env` map is exported unfiltered** into the job environment. It is read
+- **The `env` map is name-filtered before export** into the job environment. It is read
   only from maintainer-controlled config (base-ref for the runner, the trusted
-  default-branch checkout for the command workflows), so do not name a
-  runtime-sensitive variable there (`PATH`, `GITHUB_TOKEN`, `ANTHROPIC_API_KEY`,
-  …) — a stray such key would shadow the environment of every later step in the
-  job, not just the action step.
+  default-branch checkout for the command workflows). Beyond the env-var-name *shape*
+  guard, the inject step **refuses the run** (fail loud, `::error::` naming the offending
+  key, before any `$GITHUB_ENV` write) when a key's name is a credential
+  (`ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN`, `AWS_ACCESS_KEY_ID`,
+  `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `AWS_BEARER_TOKEN_BEDROCK` — set the provider
+  credential via the `DEVFLOW_PROVIDER_API_KEY` secret, never in committed config), a name that
+  would shadow the environment of every later job step or its Actions plumbing (`PATH`,
+  `GITHUB_TOKEN`, `GH_TOKEN`, `GITHUB_ENV`, `GITHUB_OUTPUT`, `GITHUB_PATH`), an interpreter or
+  loader hook that can make every later step load code you did not intend (`BASH_ENV`, `ENV`, `LD_PRELOAD`,
+  `LD_LIBRARY_PATH`, `DYLD_INSERT_LIBRARIES`, `NODE_OPTIONS`, `PYTHONPATH`), or
+  `CLAUDE_CODE_SUBAGENT_MODEL` (it overrides the model of every subagent — both the one a
+  dispatch requests and the one the agent definition declares — flattening the
+  `agent_overrides` review roster to one model; use
+  `ANTHROPIC_DEFAULT_HAIKU_MODEL` to map only the background model). The match is
+  case-insensitive; any other valid env-var name is still exported verbatim. An accepted key is
+  written *after* the step's own exports, so it wins over `ANTHROPIC_BASE_URL` and
+  `API_TIMEOUT_MS` — neither is denied, and an `env` map naming one silently overrides the
+  value the step resolved from `base_url` / `timeout_ms` (issue #1892).
 - **The empty-secret guard.** If a section names a provider while
   `DEVFLOW_PROVIDER_API_KEY` is empty at run time, the job fails loud with an
   `::error::` naming the section and provider, before the action runs. (The secret
