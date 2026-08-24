@@ -100,5 +100,76 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.3",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 45.481648000000014,
+    "tokens": {
+      "input_tokens": 294,
+      "output_tokens": 115490,
+      "cache_read_input_tokens": 47574794,
+      "cache_creation_input_tokens": 491913,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 457,
+        "outputTokens": 195557,
+        "cacheReadInputTokens": 52622399,
+        "cacheCreationInputTokens": 1639755,
+        "webSearchRequests": 0,
+        "costUSD": 43.295552,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 136,
+        "outputTokens": 22123,
+        "cacheReadInputTokens": 3033745,
+        "cacheCreationInputTokens": 543138,
+        "webSearchRequests": 0,
+        "costUSD": 2.186096,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 181,
+    "duration_ms": 3717856
+  },
+  "permission_denials": {
+    "count": 11,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-<empty>}\"; echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-<empty>}\"; echo \"GITHUB_REPOSITORY=${GITHUB_REPOSITORY:-<empty>}\"; git branch --show-current; git status --porcelain | head; ls .prflow/vendor/prflow/scripts/workpad.py 2>&1",
+      "git fetch origin \"+refs/heads/main:refs/remotes/origin/main\" || { echo \"FETCH_FAILED\" >&2; exit 1; }",
+      "git diff --no-index -U0 /dev/null .changeset/issue-1905-embedded-jq-lint-surfaces.md | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree; echo \"RC=$?\"",
+      "echo \"===actionlint in ci.yml===\"; grep -n \"actionlint\\|SHELLCHECK_OPTS\\|shellcheck\" .github/workflows/ci.yml | head -20\necho \"===reduce/test in fetch-pr-context===\"; grep -n \"reduce\\|test(\" lib/fetch-pr-context.sh | head -20\necho \"===write diff===\"; git diff origin/main...HEAD > .prflow/tmp/review/pr-1913/32774031562-1/diff.patch && wc -l .prflow/tmp/review/pr-1913/32774031562-1/diff.patch",
+      "command -v jq && jq --version; echo '---test1---'; echo '[\"abc\",\"xyz\"]' | jq -c 'reduce .[] as $l ({acc:\"zzz\", out:[]}; .out += [($l | test(\"a\"))])'; echo '---test2 field in test---'; echo '[\"abc\",\"xyz\"]' | jq -c 'reduce .[] as $l ({acc:\"a\", out:[]}; .out += [test(.acc)] )' 2>&1 | head",
+      "cat /home/runner/work/prflow/prflow/.changeset/issue-1905-embedded-jq-lint-surfaces.md; echo ---; git -C /home/runner/work/prflow/prflow log --oneline -3",
+      "echo \"=== growth helper ===\" && scripts/prompt-surface-growth.py 2>&1 | head -40",
+      "scripts/prompt-surface-growth.py 2>&1 | head -40",
+      "scripts/prompt-surface-growth.py",
+      "PR_NUMBER=$(gh pr view 1913 --json number --jq '.number'); [ -z \"$PR_NUMBER\" ] && { echo \"EMPTY PR NUMBER\"; exit 1; }; gh api --method PATCH \"repos/{owner}/{repo}/pulls/$PR_NUMBER\" -F body=@/home/runner/work/prflow/prflow/.prflow/tmp/pr-1913-body.md --jq '.number'",
+      "lib/test/run-parallel.sh 2>&1 | tail -40; echo \"suite-rc=${PIPESTATUS[0]}\""
+    ],
+    "total": 11,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
