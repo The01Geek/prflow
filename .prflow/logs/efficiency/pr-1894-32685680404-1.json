@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1894",
+  "generated_at": "2026-08-24T03:27:28Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.60",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 10.305339999999998,
+    "tokens": {
+      "input_tokens": 58,
+      "output_tokens": 39717,
+      "cache_read_input_tokens": 4788926,
+      "cache_creation_input_tokens": 234130,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 116,
+        "outputTokens": 77798,
+        "cacheReadInputTokens": 6364120,
+        "cacheCreationInputTokens": 687962,
+        "webSearchRequests": 0,
+        "costUSD": 10.305339999999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 46,
+    "duration_ms": 776816
+  },
+  "permission_denials": {
+    "count": 4,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---RUNID---\"; echo \"run=${GITHUB_RUN_ID:-none} attempt=${GITHUB_RUN_ATTEMPT:-none}\"",
+      "mkdir -p .prflow/tmp\nif rm -f \".prflow/tmp/review-dirty-tree-before\" \".prflow/tmp/review-dirty-tree-disabled\" 2>/dev/null &&\n   git status --porcelain -z > \".prflow/tmp/review-dirty-tree-before\" &&\n   [ -f \".prflow/tmp/review-dirty-tree-before\" ] &&\n   [ ! -L \".prflow/tmp/review-dirty-tree-before\" ] &&\n   git hash-object \".prflow/tmp/review-dirty-tree-before\"; then\n  :\nelse\n  echo \"SNAPSHOT_FAILED\" >&2\n  rm -f \".prflow/tmp/review-dirty-tree-before\" 2>/dev/null\n  printf '%s\\n' disabled > \".prflow …[per-command-truncated]",
+      "git status --porcelain -z > .prflow/tmp/review-dirty-tree-before; git hash-object .prflow/tmp/review-dirty-tree-before",
+      "cd /home/runner/work/prflow/prflow; for f in $(git ls-files 'skills/**/phases/*.md' 'skills/**/SKILL.md'); do s=$(wc -c < \"$f\"); h=$((61750 - s)); if [ \"$h\" -lt 3000 ] && [ \"$h\" -gt 0 ]; then echo \"$h  $s  $f\"; fi; done | sort -n | head"
+    ],
+    "total": 4,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
