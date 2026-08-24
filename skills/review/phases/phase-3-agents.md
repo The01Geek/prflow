@@ -76,7 +76,7 @@ Place this field on each finding alongside severity and description. If your nor
 
 Truthfulness contract (file it, do not soften it): a diff-added or diff-modified doc line, code comment, example, or command-form whose claim is false against HEAD MUST be filed with `kind: documented_falsehood` — never as a clarity or cosmetic Suggestion. The discriminator is: false against HEAD is a truthfulness defect (a self-contradicting diff — non-demotable REJECT); true but awkwardly worded is a clarity Suggestion (demotable). That REJECT is the orchestrator's to make, not yours, and it is conditional: at the verdict stage the behavior-inert prose cap (Phase 4.1.5) caps the finding at Suggestion when the prose is behavior-inert under its two limbs. File the finding unsoftened regardless — never pre-judge inertness or lower the grade yourself. Verify the claim against the shipped code (read the named symbol, command surface, or code path) before you grade it.
 
-**Displaced-path routing.** For every path the run's displaced-path list marks as displaced — read that list directly from the Phase 0.1.5 scratch file `.prflow/tmp/displaced-paths.txt` at the start of your review (you receive this contract, not the orchestrator's engine-ground-truth block) — the working-tree copy is trusted base-ref or fail-closed-stub bytes — NOT the reviewed head — so verify the claim against `git show <head>:<path>` and the Phase 0.2 cached diff, never a working-tree read. Bind `<head>` to a resolved, non-empty commit id per mode (PR-number standalone mode: the Phase 0.2 `headRefOid`; fix-loop `head_override = local` mode: the local `HEAD` it already resolves; no-argument current-branch mode: the literal `HEAD`) — an empty head never reaches the command, since `git show :<path>` is an index read that exits 0 with staged bytes, the silent wrong-bytes shape this routing exists to prevent. A base-state claim about a listed path routes the same way through `git show $PR_BASE_SHA:<path>`. If the routed `git show` errors and the cached diff does not evidence the path as deleted at head, probe with `git cat-file -e <head>:<path>` and grade the claim INCONCLUSIVE with the displacement attribution — never fall back to the working-tree read, never attempt `git fetch` (it is not granted on the review tier; a local tier whose allowlist permits it may fetch-then-retry before the INCONCLUSIVE). Listed paths remain fully in review scope: the displacement changes the read channel, never the depth of review, and a claim about a listed path is graded INCONCLUSIVE only through the stated fail direction, never because the routed channel is extra effort. A missing or empty list file means no displaced paths — this routing is then inert and you review every file from the working tree.
+**Displaced-path routing.** For every path the run's displaced-path list marks as displaced — read that list directly from the Phase 0.1.5 scratch file `.prflow/tmp/displaced-paths.txt` at the start of your review (you receive this contract, not the orchestrator's engine-ground-truth block) — the working-tree copy is trusted base-ref or fail-closed-stub bytes — NOT the reviewed head — so verify the claim against `git show <head>:<path>` and the Phase 0.2 cached diff, never a working-tree read. Bind `<head>` to a resolved, non-empty commit id per mode (PR-number standalone mode: the Phase 0.2 `headRefOid`; fix-loop `head_override = local` mode: the local `HEAD` it already resolves; no-argument current-branch mode: the literal `HEAD`) — an empty head never reaches the command, since `git show :<path>` is an index read that exits 0 with staged bytes, the silent wrong-bytes shape this routing exists to prevent. A base-state claim about a listed path routes the same way through `git show $PR_BASE_SHA:<path>`. If the routed `git show` errors and the cached diff does not evidence the path as deleted at head, probe with `git cat-file -e <head>:<path>` and grade the claim INCONCLUSIVE with the displacement attribution — never fall back to the working-tree read, never attempt `git fetch` (ungranted on the review profile, granted on the cloud command profile, and used by this routing on neither cloud tier; a local run whose allowlist permits it may fetch-then-retry before the INCONCLUSIVE). Listed paths remain fully in review scope: the displacement changes the read channel, never the depth of review, and a claim about a listed path is graded INCONCLUSIVE only through the stated fail direction, never because the routed channel is extra effort. **Diff-touched arm (standalone PR-number mode).** Independently of the displaced list, when the review was entered with a PR number and no `head_override`, a claim about a path the Phase 0.2 cached diff touches is verified the same way — `git show <PR_HEAD_SHA>:<path>`, a base-state claim `git show <PR_BASE_SHA>:<path>`, the resolved head/base commit id substituted as a literal (the command-tier matcher denies argument-position parameter expansion) — never the working-tree file, while a path the cached diff does not touch returns the checkout's bytes rather than the head's. This arm reuses the empty-head guard, the `git cat-file -e <PR_HEAD_SHA>:<path>` → INCONCLUSIVE fail direction, and the no-`git fetch` rule above, and binds the head and base to the dispatch prompt's Head SHA / Base SHA lines; a same-repo head resolves locally under the workflow's full-history checkout, and a fork head that does not resolve takes that INCONCLUSIVE fail direction, never a working-tree fallback. A missing or empty list file means no displaced paths — the displaced-list arm is then inert; the diff-touched arm still governs a standalone PR-number review, and for a path outside both arms you review from the working tree.
 ```
 
 Agents to launch:
@@ -85,12 +85,18 @@ Agents to launch:
 ```
 Review the code changes in this PR. Read the cached diff at `{DIFF_PATH}`. Read CLAUDE.md for project conventions. Focus on CLAUDE.md compliance, bugs, and code quality. Only report issues with confidence >= 80. Per the shared `defect_signature` contract below, a diff-added/modified doc line, comment, example, or command-form whose claim is false against HEAD is a `documented_falsehood`, never a clarity Suggestion — watch for the five recurring shapes: a documented symbol or base class the code lacks; a documented command invocation the skill/CLI does not accept; a "known limitation" the same diff already fixed; an "apply this pattern to X" claim the code does not bear out; and an absolute claim (a universal — "every", "never", "always", "cannot", "is caught by the same rule") that the same diff contradicts by adding or retaining a limitation note about the same symbol it did not actually close.
 
+Head SHA: {standalone PR-number mode: $PR_HEAD_SHA (headRefOid), substituted as a literal; omitted in other modes}
+Base SHA: {standalone PR-number mode: $PR_BASE_SHA (baseRefOid), substituted as a literal; omitted in other modes}
+
 {paste the defect_signature paragraph above}
 ```
 
 **prflow:silent-failure-hunter** — prompt:
 ```
 Review the error handling in the code changes. Read the cached diff at `{DIFF_PATH}`. Read the full changed files. Check for silent failures, inadequate error handling, and inappropriate fallback behavior.
+
+Head SHA: {standalone PR-number mode: $PR_HEAD_SHA (headRefOid), substituted as a literal; omitted in other modes}
+Base SHA: {standalone PR-number mode: $PR_BASE_SHA (baseRefOid), substituted as a literal; omitted in other modes}
 
 {paste the defect_signature paragraph above}
 ```
@@ -99,6 +105,9 @@ Review the error handling in the code changes. Read the cached diff at `{DIFF_PA
 ```
 Analyze the code comments in the changes. Read the cached diff at `{DIFF_PATH}`. Check that docstrings and comments are accurate, helpful, and not misleading. Per the shared `defect_signature` contract below, a diff-added/modified doc line, comment, example, or command-form whose claim is false against HEAD is a `documented_falsehood`, never a clarity Suggestion — watch for the five recurring shapes: a documented symbol or base class the code lacks; a documented command invocation the skill/CLI does not accept; a "known limitation" the same diff already fixed; an "apply this pattern to X" claim the code does not bear out; and an absolute claim (a universal — "every", "never", "always", "cannot", "is caught by the same rule") that the same diff contradicts by adding or retaining a limitation note about the same symbol it did not actually close. Separately, apply the prevention-only comment standard, scoped to the four populations that rule binds — inline comments in library and script source, test files, module docstrings and contract headers, and workflow and YAML files — and to nothing else, so a skill or agent prose body is never a finding under it: an added comment block exceeding three physical source lines, or one whose content is derivation, provenance, or a worked example rather than the specific wrong change a competent agent would otherwise make, is a finding graded `Suggestion`. That rule's three carve-outs bind here too, so never raise this finding against a comment a tool, a licence, or a policy requires present, against a contract-header docstring's specification statement, or against a comment whose load-bearing status the diff leaves undecidable. State the grade only — issue no instruction about the verdict, which the orchestrator and the resolved severity threshold compute.
 
+Head SHA: {standalone PR-number mode: $PR_HEAD_SHA (headRefOid), substituted as a literal; omitted in other modes}
+Base SHA: {standalone PR-number mode: $PR_BASE_SHA (baseRefOid), substituted as a literal; omitted in other modes}
+
 {paste the defect_signature paragraph above}
 ```
 
@@ -106,12 +115,18 @@ Analyze the code comments in the changes. Read the cached diff at `{DIFF_PATH}`.
 ```
 Analyze test coverage for the changes. Read the cached diff at `{DIFF_PATH}`. Check if tests adequately cover new functionality and edge cases.
 
+Head SHA: {standalone PR-number mode: $PR_HEAD_SHA (headRefOid), substituted as a literal; omitted in other modes}
+Base SHA: {standalone PR-number mode: $PR_BASE_SHA (baseRefOid), substituted as a literal; omitted in other modes}
+
 {paste the defect_signature paragraph above}
 ```
 
 **prflow:type-design-analyzer** — *launched only when the `has_new_types` gate is true (see Phase 3.1 gates below), on every diff profile including `engine_self_modifying`; skipped otherwise* — prompt:
 ```
 Analyze the type design in the code changes. Read the cached diff at `{DIFF_PATH}`. Evaluate the types actually introduced or modified in this diff for encapsulation, invariant expression, usefulness, and enforcement. Do not report on pre-existing types the diff does not touch.
+
+Head SHA: {standalone PR-number mode: $PR_HEAD_SHA (headRefOid), substituted as a literal; omitted in other modes}
+Base SHA: {standalone PR-number mode: $PR_BASE_SHA (baseRefOid), substituted as a literal; omitted in other modes}
 
 {paste the defect_signature paragraph above}
 ```
