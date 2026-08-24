@@ -4235,7 +4235,7 @@ printf '{}' > "$LR_CLEAN/.prflow/logs/efficiency/pr-80-run-n.json"
 # assertion below cover that path, and turns RED if the evidence-shape arm is ever
 # widened past `.synthesized == true` "for symmetry" and starts warning on every
 # ordinary iteration that ran the gate.
-printf '%s' '{"iter":1,"started_at":"t","fix_commit_sha":"abc","fix_files":[],"loop_role":"fix","sweep_defs_read":[],"sweep_evidence":{"status":"not-run","reason":"no fixes applied"},"reference_reads":{"fix_delta":{"status":"verified","outcome":"clean","reason":null}},"checklist":[],"phase3_dispatched":3,"dispatched_effort":[],"diff_profile":"x","phase3_findings":[],"fix_decisions":[],"convergence_inputs":{},"cap_drops":[],"telemetry":{}}' \
+printf '%s' '{"iter":1,"started_at":"t","fix_commit_sha":"abc","fix_files":[],"loop_role":"fix","sweep_defs_read":[],"sweep_evidence":{"status":"not-run","reason":"no fixes applied"},"reference_reads":{"fix_delta":{"status":"verified","outcome":"clean","reason":null}},"checklist":[],"phase3_dispatched":3,"expected_reviewers":[],"dispatched_effort":[],"diff_profile":"x","phase3_findings":[],"fix_decisions":[],"convergence_inputs":{},"cap_drops":[],"telemetry":{}}' \
   > "$LR_CLEAN_RUN/iter-1.json"
 LR_CLEAN_OUT="$( ( cd "$LR_CLEAN" && bash "$LIB/efficiency-trace.sh" --self-check --workpad-dir "$LR_CLEAN_RUN" --slug pr-80 ) 2>&1 )"; LR_CLEAN_RC=$?
 assert_eq "loop_role #177: --self-check exits 0 on a complete iter (all fields present)" "0" "$LR_CLEAN_RC"
@@ -4254,6 +4254,14 @@ for _f541r in sweep_defs_read sweep_evidence; do
   assert_eq "#541 consumer (real record): --self-check flags an ordinary iter missing $_f541r" "yes" \
     "$(printf '%s\n' "$LR_MISS_OUT" | grep -qF "iter-2.json' is missing expected field '$_f541r'" && echo yes || echo no)"
 done
+# #1904 CONSUMER cell: expected_reviewers is unconditional (mirrors phase3_dispatched),
+# so an ordinary (non-synthesized) iter record omitting it must draw a missing-field
+# warning. Reuse the complete fixture with exactly that one field deleted, so the run is
+# otherwise valid and the warning can only be attributed to its absence.
+jq 'del(.expected_reviewers)' "$LR_CLEAN_RUN/iter-1.json" > "$LR_CLEAN_RUN/iter-3.json" 2>/dev/null
+LR_MISS_ER_OUT="$( ( cd "$LR_CLEAN" && bash "$LIB/efficiency-trace.sh" --self-check --workpad-dir "$LR_CLEAN_RUN" --slug pr-80 ) 2>&1 )"
+assert_eq "#1904 consumer (real record): --self-check flags an ordinary iter missing expected_reviewers" "yes" \
+  "$(printf '%s\n' "$LR_MISS_ER_OUT" | grep -qF "iter-3.json' is missing expected field 'expected_reviewers'" && echo yes || echo no)"
 rm -rf "$LR_CLEAN"
 
 # (12) Mid-chain promotion: two consecutive promotions (iter-1 promotes, iter-2
