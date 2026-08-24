@@ -4,6 +4,14 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.6] — 2026-08-24
+
+### Changed
+- **Widen the implement silent-failure sweep to reach a default read of an unmeasured value.** The Phase 2.3.6 sweep's opening site list now also names a default-valued read of an absent, empty, or never-measured operand feeding a value the change measures, aggregates, or reports — a read that raises no error and skips no failing op, so the error-handling constructs the list already named never reached it. The section's existing fail-open and report-the-unverifiable rules then govern the newly-reachable site. (#1912)
+
+### Fixed
+- **Correct the embedded-`jq` gotcha in `CLAUDE.md`.** The bullet no longer claims the lint never reaches inline `jq` in workflow files: it now names shellcheck (over `.sh` files) and `actionlint` (over workflow `run:` blocks) as the two surfaces the apostrophe check reaches, keeps the still-uncaught warning about string ops on a possibly-non-string field and its `(.x | strings)` guard, and adds the `reduce`/`test()` trap where a field resolves against the line being tested rather than the accumulator unless it is bound to a variable first. (#1913)
+
 ## [2.34.5] — 2026-08-24
 
 ### Changed
