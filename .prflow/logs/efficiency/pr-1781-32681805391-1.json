@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1781",
+  "generated_at": "2026-08-24T02:18:01Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.60",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 7.7957745,
+    "tokens": {
+      "input_tokens": 54,
+      "output_tokens": 27597,
+      "cache_read_input_tokens": 4096454,
+      "cache_creation_input_tokens": 196847,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 100,
+        "outputTokens": 55369,
+        "cacheReadInputTokens": 5355384,
+        "cacheCreationInputTokens": 479229,
+        "webSearchRequests": 0,
+        "costUSD": 7.7957745,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 37,
+    "duration_ms": 730339
+  },
+  "permission_denials": {
+    "count": 4,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-<unset>} ATTEMPT=${GITHUB_RUN_ATTEMPT:-<unset>}\"",
+      "mkdir -p .prflow/tmp/review/pr-1781/local\ngh pr diff 1781 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1781/local/diff.patch | grep -c '^diff --git'; echo \"diff-rc=${PIPESTATUS[0]}\"",
+      "git show pr-1781-head:.github/workflows/devflow.yml | sed -n '/SECURITY (issue #1773)/,/Refusing to run.\\\"$/p' > .prflow/tmp/review/pr-1781/local/g-devflow.txt\ngit show pr-1781-head:.github/workflows/devflow-implement.yml | sed -n '/SECURITY (issue #1773)/,/Refusing to run.\\\"$/p' > .prflow/tmp/review/pr-1781/local/g-implement.txt\ngit show pr-1781-head:.github/workflows/devflow-runner.yml | sed -n '/SECURITY (issue #1773)/,/Refusing to run.\\\"$/p' > .prflow/tmp/review/pr-1781/local/g-runner.txt\ncm …[per-command-truncated]",
+      "for f in devflow devflow-implement devflow-runner; do echo \"===== $f =====\"; git show pr-1781-head:.github/workflows/$f.yml | grep -n 'denied_env_keys' ; done"
+    ],
+    "total": 4,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
