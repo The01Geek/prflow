@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1781",
+  "generated_at": "2026-08-24T02:00:59Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.60",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 6.976338500000001,
+    "tokens": {
+      "input_tokens": 40,
+      "output_tokens": 26637,
+      "cache_read_input_tokens": 2837837,
+      "cache_creation_input_tokens": 193485,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 76,
+        "outputTokens": 48298,
+        "cacheReadInputTokens": 3794517,
+        "cacheCreationInputTokens": 503309,
+        "webSearchRequests": 0,
+        "costUSD": 6.976338500000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 30,
+    "duration_ms": 474493
+  },
+  "permission_denials": {
+    "count": 2,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"CLAUDE_SKILL_DIR=${CLAUDE_SKILL_DIR:-<unset>}\"; echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-<unset>}\"; echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-<unset>}\"",
+      "grep -n 'denied_env_keys' .github/workflows/devflow.yml .github/workflows/devflow-implement.yml .github/workflows/devflow-runner.yml | head; echo \"===count of guard blocks per file===\"; for f in devflow.yml devflow-implement.yml devflow-runner.yml; do printf '%s: ' \"$f\"; grep -c 'contains forbidden key(s)' .github/workflows/$f; done"
+    ],
+    "total": 2,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
