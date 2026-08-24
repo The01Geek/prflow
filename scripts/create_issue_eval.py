@@ -69,7 +69,7 @@ Per-record token usage is read from `message.usage.{input_tokens,
 cache_read_input_tokens, cache_creation_input_tokens, output_tokens}`. Per-turn
 main-thread context (the RESIDENCY axis) is `input_tokens + cache_read_input_tokens +
 cache_creation_input_tokens`; a turn establishing none of those residency sub-fields (no
-usage object, an empty or all-null one, or a non-finite count) is an unmeasured turn —
+usage object, or one carrying only absent, null, or non-finite counts) is an unmeasured turn —
 tallied in `usage_missing_turns` and excluded from the peak, never folded in as a
 real-looking 0 (issue #1899). The auditor's per-round cost is the full token total
 (context sub-fields + output) on the SPEND axis, where an unmeasured sub-field stays a
@@ -961,7 +961,7 @@ class RunAccumulator:
         self.turn_count = 0
         self.per_turn_context = []
         # Attributed main-thread turns whose residency was never established (no usage
-        # object, an empty/all-null one, or a non-finite count). Tallied rather than
+        # object, or one carrying only null/non-finite counts). Tallied rather than
         # folded into per_turn_context as a 0, which would drag the peak down (issue #1899).
         self.usage_missing_turns = 0
         self.total_output_tokens = 0

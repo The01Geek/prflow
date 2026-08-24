@@ -67,8 +67,8 @@ reported as its own run (cross-session merging is out of scope, a disclosed prox
 
 Per-record token usage is read from `message.usage.{input_tokens,
 cache_read_input_tokens, cache_creation_input_tokens}`. A turn establishing none of
-those (no usage object, an empty or all-null one, or a non-finite count) is an unmeasured
-turn: it is tallied in `usage_missing_turns` and excluded from the peak, never folded in
+those (no usage object, or one carrying only absent, null, or non-finite counts) is an
+unmeasured turn: it is tallied in `usage_missing_turns` and excluded from the peak, never folded in
 as a real-looking 0 (issue #1899). Compaction is observed as `type == "system",
 subtype == "compact_boundary"` and only counted.
 
@@ -498,8 +498,8 @@ class RunAccumulator:
             message = {}
         tokens = _context_tokens(message.get("usage"))
         if tokens is None:
-            # Residency was never established for this turn — no usage object, an empty or
-            # all-null one, or a non-finite count. Tally it instead of folding a 0 into the
+            # Residency was never established for this turn — no usage object, or one
+            # carrying only null/non-finite counts. Tally it instead of folding a 0 into the
             # peak, which would report an unmeasured turn as a real value (issue #1899).
             self.usage_missing_turns += 1
         else:
