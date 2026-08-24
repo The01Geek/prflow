@@ -1,0 +1,53 @@
+{
+  "dispatch_mode": "fanned-out",
+  "verdict": "APPROVE",
+  "diff_profile": {
+    "engine_self_modifying": true,
+    "config_only": true,
+    "has_new_types": false,
+    "summary": "Prose-only edits to 5 shipped skill/phase bodies + 1 changeset; generalizes the #1230 self-assessed-budget refusal."
+  },
+  "reviewers_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "shadow-review.md is ~60,076 bytes, ~1,674 bytes under the 61,750-byte reference-size ceiling (lib/test/lint-reference-size.py). Not a defect in this change; flagged for headroom awareness since a future prose addition is likely to trip the lint.",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/shadow-review.md",
+        "line_range": [88, 88],
+        "kind": "other"
+      }
+    }
+  ],
+  "phase2_fails": [],
+  "per_reviewer_assessments": {
+    "prflow:code-reviewer": {
+      "assessment": "No issues at or above confidence 80. Verified the changeset's five-surface enumeration maps exactly onto the five edited files; no residual stale 'budget exhaustion'/'budget or turns exhausted' wording remains under skills/; the 'different, sanctioned mechanism' contrast (pr-test-analyzer predicate, iterations: first-only) holds against HEAD. No documented_falsehood, comment-drift, or convention violations. The code meets standards.",
+      "finding_signatures": []
+    },
+    "prflow:silent-failure-hunter": {
+      "assessment": "No defects found. Every added guard is fail-closed: it removes an exit (self-assessed budget) rather than adding a silent skip, and directs the agent to perform the step or halt with a named cause. Guard paragraphs sit before the dispatch they gate (no ordered-after-exit issue). Truthfulness verified: the changeset's five-surface claim is true against the diff. Retained 'budget' mentions in review/SKILL.md describe harness command-denial budget consumption (an establishable condition), distinct from a self-assessed budget belief, so no contradiction. Retained example cause 'permission denials exhausted the run' remains valid.",
+      "finding_signatures": []
+    },
+    "prflow:comment-analyzer": {
+      "assessment": "No findings. Displaced-paths list absent, reviewed against working tree. Changeset five-surface claim borne out against HEAD (not a documented falsehood). review/SKILL.md no-verdict arm correctly removed 'budget or turns exhausted' and retains only the establishable permission-denials example; internally consistent. phase-3-fix-loop.md dropped 'budget exhaustion or whatever else' to 'what prevented the fan-out'; no stale duplicate survives. Prevention-only comment standard does not apply: every hunk is skill/prompt prose (skills/** bodies) plus changeset markdown, none in the four bound populations.",
+      "finding_signatures": []
+    },
+    "prflow:requesting-code-review": {
+      "assessment": "EXTENSION-STATUS: loaded-empty resolved-root=unset. All acceptance criteria (AC1-AC6) verify as satisfied against the shipped tree: AC1 the repo-agnostic 'remaining context' sentence is present and names no external path; AC2 the refusal is generalized beyond the shadow across the two dispatch-deciding references, shadow-review, and fix-loop, each binding local and cloud identically; AC3 the legal exit (perform the step, or stop at non-terminal/Blocked naming the step) accompanies each refusal; AC4 the prohibition is resident in both phase-2-verification.md and phase-3-agents.md as each phase's application at its own decision point; AC5 review/SKILL.md's terminal-error cause list corrected ('budget or turns exhausted' removed) and a broader skills/**+agents/** sweep found no other offering site; AC6 the #530/#539 failure-map shadow-review pin targets an untouched failure-map table row and stays green with no re-anchor needed. Changeset present and correctly formatted. One Suggestion raised for reference-size headroom on shadow-review.md; no correctness, consistency, or documented-falsehood defects.",
+      "finding_signatures": [
+        {
+          "file": "skills/review-and-fix/references/shadow-review.md",
+          "line_range": [88, 88],
+          "kind": "other"
+        }
+      ]
+    }
+  }
+}
