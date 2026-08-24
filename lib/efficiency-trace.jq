@@ -77,6 +77,20 @@
 # The agent identifier for a single phase3_findings entry.
 def finding_agent: .agent;
 
+# The defect-kind label for a single phase3_findings entry (issue #1903). A
+# well-formed signature is an object carrying a non-empty string `kind`; an
+# absent or malformed signature (a non-object, or a missing/empty/non-string
+# kind) renders explicitly as "unknown" rather than dropping the finding from
+# the recurrence count. The object type-guard is load-bearing: indexing a
+# non-object with `.kind` would abort the whole filter.
+def finding_kind:
+  (.defect_signature) as $sig
+  | if ($sig | type) == "object"
+    then (($sig.kind) as $k
+          | if ($k | type) == "string" and ($k | length) > 0 then $k else "unknown" end)
+    else "unknown"
+    end;
+
 # Human-readable Phase 0.5 diff-profile label for the trace.
 def diff_profile_label($dp):
   if $dp == null then "not recorded"
@@ -191,6 +205,15 @@ def iter_view:
   # dispatched_effort agents), never the resolver map: an agent with no entry
   # still gets an all-null session-inheritance block below.
   | (($dispatched + ($de | map(.agent))) | unique) as $effort_roster
+  # Defect-kind recurrence inputs (issue #1903). Only object findings are read:
+  # `defect_signature_present` is whether ANY finding in this iteration carries
+  # the `defect_signature` key at all — the run-level "unestablished" trigger
+  # keys on this being false everywhere, distinct from a finding that carries a
+  # malformed signature (present-but-wrong, rendered as the "unknown" kind).
+  # `defect_kinds` is this iteration's distinct kind labels.
+  | ([$findings[] | select(type == "object")]) as $obj_findings
+  | ($obj_findings | map(has("defect_signature")) | any) as $defect_signature_present
+  | ($obj_findings | map(finding_kind) | unique) as $defect_kinds
   | {
       iter: ($it.iter // null),
       phase3_dispatched: $dispatched,
@@ -263,7 +286,11 @@ def iter_view:
       # a malformed non-boolean value (e.g. the string "yes") all become false, so a
       # malformed producer value can never over-classify the next iter as promoted.
       loop_role_persisted: (($it.loop_role) | if (type == "string" and (length > 0)) then . else null end),
-      shadow_promoted: ((($it.shadow | objects | .promoted_to_iter_next) // false) == true)
+      shadow_promoted: ((($it.shadow | objects | .promoted_to_iter_next) // false) == true),
+      # Defect-kind recurrence inputs (issue #1903), carried for the run-level
+      # derivation resolved in the top-level pass below.
+      defect_signature_present: $defect_signature_present,
+      defect_kinds: $defect_kinds
     };
 
 # ── Build the ordered per-iteration array ───────────────────────────────────
@@ -286,6 +313,25 @@ def iter_view:
          else "fix"
          end)
    ]) as $iters
+
+# ── Derive recurring defect kinds per run (issue #1903) ─────────────────────
+# A recurring kind is a defect_signature.kind value appearing in the
+# phase3_findings of three separate iterations of the run. When no iteration
+# record carries a defect_signature at all, the recurrence signal cannot be
+# read from what the producer emitted, so the field renders as the explicit
+# "unestablished" sentinel rather than an empty set (the repo's rule that a
+# check must not silently read an operand its producer never emitted). A
+# malformed-but-present signature is "established" and counts under the
+# "unknown" kind, so it is not the unestablished case.
+| ($iters | map(.defect_signature_present) | any) as $defect_signature_established
+| (if ($defect_signature_established | not) then "unestablished"
+   else
+     ( [ $iters[] | .iter as $i | .defect_kinds[] | {kind: ., iter: $i} ]
+       | group_by(.kind)
+       | map({ kind: (.[0].kind), iterations: (map(.iter) | unique) })
+       | map(select((.iterations | length) >= 3))
+       | sort_by(.kind) )
+   end) as $recurring_defect_kinds
 
 # ── record mode: the single per-run JSON record ─────────────────────────────
 # With zero readable iterations (catastrophic early failure) emit nothing, not a
@@ -322,6 +368,11 @@ def iter_view:
       # cross-run analyzer keys on to weight a reconstructed record differently.
       synthesized: ($iters | any(.synthesized == true)),
       cut_candidate_min_dispatch: $cut_candidate_min_dispatch,
+      # Every defect_signature.kind that appeared in three separate iterations of
+      # this run, each with the sorted list of iterations it appeared in (issue
+      # #1903) — or the "unestablished" sentinel when no iteration carried a
+      # defect_signature to read. A kind that never repeated that often is absent.
+      recurring_defect_kinds: $recurring_defect_kinds,
       iterations: ($iters | length),
       per_iteration: ($iters | map({
         iter: .iter,
@@ -392,6 +443,17 @@ def iter_view:
             ) | add)
           end
         )
+      # Recurring defect kinds (issue #1903): a kind seen across 3+ iterations is
+      # the signal to model the artifact rather than extend an enumeration.
+      + (if $recurring_defect_kinds == "unestablished" then
+           ["### Recurring defect kinds", "- _Unestablished — no iteration record carried a defect_signature to read._", ""]
+         elif ($recurring_defect_kinds | length) == 0 then
+           []
+         else
+           ["### Recurring defect kinds (3+ iterations — model the artifact, do not extend an enumeration)"]
+           + ($recurring_defect_kinds | map("- \(.kind) - iterations \(.iterations | map(tostring) | join(", "))"))
+           + [""]
+         end)
     ) | join("\n")
 
   else
