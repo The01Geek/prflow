@@ -1619,7 +1619,10 @@ notes the schema does not carry:
   dispatch requests and the one the agent definition declares — flattening the
   `agent_overrides` review roster to one model; use
   `ANTHROPIC_DEFAULT_HAIKU_MODEL` to map only the background model). The match is
-  case-insensitive; any other valid env-var name is still exported verbatim.
+  case-insensitive; any other valid env-var name is still exported verbatim. An accepted key is
+  written *after* the step's own exports, so it wins over `ANTHROPIC_BASE_URL` and
+  `API_TIMEOUT_MS` — neither is denied, and an `env` map naming one silently overrides the
+  value the step resolved from `base_url` / `timeout_ms` (issue #1892).
 - **The empty-secret guard.** If a section names a provider while
   `DEVFLOW_PROVIDER_API_KEY` is empty at run time, the job fails loud with an
   `::error::` naming the section and provider, before the action runs. (The secret
