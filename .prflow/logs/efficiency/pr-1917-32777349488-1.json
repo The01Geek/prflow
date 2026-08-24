@@ -219,5 +219,84 @@
         }
       }
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.3",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 51.76266765000001,
+    "tokens": {
+      "input_tokens": 244,
+      "output_tokens": 137830,
+      "cache_read_input_tokens": 39932825,
+      "cache_creation_input_tokens": 474495,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 678,
+        "outputTokens": 295649,
+        "cacheReadInputTokens": 53049024,
+        "cacheCreationInputTokens": 2313958,
+        "webSearchRequests": 0,
+        "costUSD": 50.160720750000024,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 124,
+        "outputTokens": 21473,
+        "cacheReadInputTokens": 3989257,
+        "cacheCreationInputTokens": 235647,
+        "webSearchRequests": 0,
+        "costUSD": 1.6019469000000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 151,
+    "duration_ms": 5148355
+  },
+  "permission_denials": {
+    "count": 19,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=$GITHUB_ACTIONS\"; echo \"RUN_ID=$GITHUB_RUN_ID\"; echo \"REPO=$GITHUB_REPOSITORY\"; git branch --show-current; git status --porcelain | head; git rev-parse HEAD",
+      "HEAD_REF=\"issue-1898-make-the-ci-completion-evidence-record-safe-to\"\nCO_ERR=$( { git fetch origin \"$HEAD_REF\" && git checkout \"$HEAD_REF\"; } 2>&1 1>/dev/null ) || true\nLANDED=no; [ -n \"$HEAD_REF\" ] && [ \"$(git rev-parse --abbrev-ref HEAD 2>/dev/null)\" = \"$HEAD_REF\" ] && LANDED=yes\necho \"CO_ERR=$CO_ERR\"\necho \"LANDED=$LANDED\"\ngit rev-parse --abbrev-ref HEAD",
+      "RUN_URL=\"https://github.com/The01Geek/prflow/actions/runs/32777349488\"\nPR_BODY=$(gh api \"repos/The01Geek/prflow/pulls/1917\" --jq '.body' 2>/dev/null)\nif [ -z \"$PR_BODY\" ]; then\n  echo \"READ_FAIL\"\nelif [[ \"$PR_BODY\" == *\"[View run](\"* ]]; then\n  echo \"HAS_LINK\"\nelse\n  echo \"NO_LINK\"\nfi",
+      "gh api repos/The01Geek/prflow/pulls/1917 --jq '.body' > /tmp/pr1917body.txt 2>/tmp/pr1917err.txt; echo \"rc=$?\"; wc -c /tmp/pr1917body.txt",
+      "gh api repos/The01Geek/prflow/pulls/1917 --jq '.body' > /tmp/pr1917body.txt",
+      "gh api repos/The01Geek/prflow/pulls/1917 --jq '.body' > .prflow/tmp/pr1917body.txt",
+      "git push -u origin HEAD 2>&1 | tail -3; echo \"EXIT=${PIPESTATUS[0]}\"",
+      "mkdir -p .prflow/tmp/review/pr-1917/32777349488-1 && git diff main...HEAD > .prflow/tmp/review/pr-1917/32777349488-1/diff.patch && wc -l .prflow/tmp/review/pr-1917/32777349488-1/diff.patch && git diff --stat main...HEAD",
+      "cp /home/runner/.claude/projects/-home-runner-work-prflow-prflow/e1229c4e-9231-43a6-a4a2-ddbcba3d3847/tool-results/bdvm72q8j.txt .prflow/tmp/review/pr-1917/32777349488-1/diff.patch && wc -l .prflow/tmp/review/pr-1917/32777349488-1/diff.patch",
+      "git diff main...HEAD > .prflow/tmp/review/pr-1917/32777349488-1/diff.patch && wc -l .prflow/tmp/review/pr-1917/32777349488-1/diff.patch",
+      "git diff main...HEAD > .prflow/tmp/review/pr-1917/32777349488-1/diff.patch && wc -l .prflow/tmp/review/pr-1917/32777349488-1/diff.patch && echo \"---SCRIPTS DIFF---\" && git diff main...HEAD -- scripts/check-completion-evidence.py scripts/workpad.py .github/workflows/ci.yml",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1917\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1917/32777349488-1/engine-return-shadow-iter-2.json <<'EOF'\n{\n  \"dispatch_mode\": \"fanned-out\",\n  \"verdict\": \"APPROVE\",\n  \"reviewers_dispatched\": [\n    \"prflow:code-reviewer\",\n    \"prflow:silent-failure-hunter\",\n    \"prflow:pr-test-analyzer\",\n    \"prflow:comment-analyzer\",\n    \"prflow:type-design-analyzer\",\n    \"final-pass:requesting-code-review (general-purpose)\"\n  ],\n  …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/verification-flights\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/vf-desc-1898.json <<'EOF'\n{\"command\": \"lib/test/test_python_scripts.py\", \"candidate_identity\": \"ac-gate-1898\", \"checkout_fingerprint\": {\"checkout_id\": \"/home/runner/work/prflow/prflow/.git\", \"head\": \"b4e0b59c589775878b15b2873ee3aeaf43882408\"}}\nEOF\npython3 /home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/verification-flight.py descriptor --input-file /home/runne …[per-command-truncated]",
+      "python3 - <<'PYEOF'\nimport json\nd = {\"command\": \"lib/test/test_python_scripts.py\", \"candidate_identity\": \"ac-gate-1898\",\n     \"checkout_fingerprint\": {\"checkout_id\": \"/home/runner/work/prflow/prflow/.git\",\n                               \"head\": \"b4e0b59c589775878b15b2873ee3aeaf43882408\"}}\nwith open(\"/home/runner/work/prflow/prflow/.prflow/tmp/vf-desc-1898.json\", \"w\") as f:\n    json.dump(d, f)\nPYEOF\ncat /home/runner/work/prflow/prflow/.prflow/tmp/vf-desc-1898.json",
+      "python3 /home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/checkout-fingerprint.py > /home/runner/work/prflow/prflow/.prflow/tmp/vf-checkout-1898.json\ncat /home/runner/work/prflow/prflow/.prflow/tmp/vf-checkout-1898.json",
+      "python3 -c \"\nimport json\nopen('/home/runner/work/prflow/prflow/.prflow/tmp/vf-summary-1898.json', 'w').write(json.dumps(dict(exit_status=0, passed=5619, failed=0, note='lib/test/test_python_scripts.py full run for #1898 AC verification')))\n\"\nFLIGHT=a022865f2bcae4d4aacc470fb61e9b85d0a479c67930d639ef8aea01b4e320dd\nTOKEN=1e69939f5df9b80d85fe019be270c6cb507b3eca5ff4e9352032f1c746ae44bc\npython3 /home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/verification-flight.py finish --flight $FLIGH …[per-command-truncated]",
+      ".prflow/vendor/prflow/scripts/load-prompt-extension.sh docs; echo \"---rc=$?---\"; echo \"INTERNAL=\"$(.prflow/vendor/prflow/scripts/config-get.sh .docs.internal_enabled true); echo \"EXTERNAL=\"$(.prflow/vendor/prflow/scripts/config-get.sh .docs.external_enabled true)",
+      ".prflow/vendor/prflow/scripts/prompt-surface-growth.py 2>&1 || scripts/prompt-surface-growth.py 2>&1",
+      "lib/test/run-parallel.sh 2>&1 | tail -30; echo \"SUITE_EXIT=${PIPESTATUS[0]}\""
+    ],
+    "total": 19,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
