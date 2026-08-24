@@ -1,0 +1,195 @@
+{
+  "pr": 1920,
+  "issue": 1897,
+  "run_id": "local-20260824T215005Z-1",
+  "iteration": 2,
+  "head_override": "local",
+  "head_sha": "27452c0d4b4c35c0d84859b17e2803e690129b6e",
+  "base_sha": "6816a5a75d27ceecd7e433e03d0239fd78d93295",
+  "pr_api_head_sha": "27452c0d4b4c35c0d84859b17e2803e690129b6e",
+  "progress_surface": "workpad",
+  "dispatch_mode": "fanned-out",
+  "prompt_extension_status": "content-present",
+  "acceptance_criteria_source": "workpad",
+  "acceptance_criteria_divergence": "none",
+  "verdict": "APPROVE with notes",
+  "verdict_threshold": "critical",
+  "verdict_reason": "18/18 checklist items PASS (no FAIL, no INCONCLUSIVE); no finding at or above the configured `critical` threshold after the Phase 4.1.5 behavior-inert prose cap; the one demonstrated diff-added falsehood (FI-3) is covered by that cap and is therefore outside the Phase 4.2 self-contradicting-diff carve-out. Rule 6 applies: only findings below threshold.",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "detect_all_audit": true,
+    "checklist_skipped": null
+  },
+  "checklist_skipped": null,
+  "cap_drops": {"count": 0, "by_category": {}},
+  "checklist_results": {
+    "total": 18, "passed": 18, "failed": 0, "inconclusive": 0,
+    "lite": 0, "agent": 18, "normalized": 0, "field_defect_fail_count": 0,
+    "reused_from_iter_1": 0,
+    "reuse_note": "Phase 2.0.5 narrow reuse produced 0 reuses: the iteration-1 engine return retained only a checklist SUMMARY (counts plus the three failure records), no per-item claim_signature array, so precondition 1 of the reuse rule could not be established for any item. Every item verified fresh.",
+    "failures": []
+  },
+  "phase3_dispatched": [
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_gated_out": [
+    {"agent": "prflow:type-design-analyzer", "reason": "has_new_types is false"},
+    {"agent": "prflow:code-reviewer", "reason": "resolved override carries iterations: \"first-only\"; this is fix-loop iteration 2, so it is dropped from the roster, from phase3_dispatched, and from the expected-roster accounting"}
+  ],
+  "phase3_failed_agents": [],
+  "phase3_agents_returning": 4,
+  "phase3_findings": [
+    {
+      "id": "FI-1",
+      "severity": "Important",
+      "agent": "prflow:silent-failure-hunter",
+      "corroborated_by": ["prflow:comment-analyzer", "prflow:requesting-code-review"],
+      "corroboration_count": 3,
+      "corroboration_basis": "text-based agreement heuristic — the three agents agree on file and overlapping line range but assigned different defect_signature.kind values (logic_error / documented_falsehood / test_gap), so mechanical corroboration under the Phase 3.2 rule is 1 each; flagged per that rule",
+      "description": "`sbl_says` re-introduces `2>/dev/null` on its `sbl_run` invocation, so a helper crash (unhandled exception, argparse usage error, missing interpreter) produces no stdout, `grep -q` fails, and `sbl_says` returns `no`. `sbl_denies` inverts that `no` into `yes` — the expected value of the assertion `#1618/#1897 skill-body: the twice-recorded root is not refused by the error arm`. That assertion therefore passes green against a helper that never ran. It is the same inversion hazard iteration 1's F-6 closed on the fixture-build channel (`FIXTURE_BUILD_FAILED`), reopened on the helper-crash channel. Remedy: drop the `2>/dev/null` from `sbl_says` and gate on `sbl_run`'s exit status before the grep, printing a distinct non-yes/no token (e.g. `HELPER_FAILED`) that `sbl_denies`' pass-through arm carries.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [25082, 25093], "kind": "logic_error"},
+      "contributed_to_verdict": false,
+      "over_grade_flag": null,
+      "cap_applied": false
+    },
+    {
+      "id": "FI-2",
+      "severity": "Suggestion",
+      "agent": "prflow:comment-analyzer",
+      "corroboration_count": 1,
+      "description": "The diff-added `sbl_run` comment (\"Do not discard stderr here: callers capture stdout alone, so a helper traceback would vanish and a crash would read as a bare NO_VERDICT\") reads as a run-wide guarantee that `sbl_says` does not honour. The prose half of FI-1. Filed by comment-analyzer as a Critical `documented_falsehood`.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [25068, 25071], "kind": "documented_falsehood"},
+      "truthfulness_sweep_result": "NOT promoted — the sweep promotes only on demonstrated falsity. The comment's prohibition is scoped by the word `here` (inside `sbl_run`) and its stated rationale (`callers capture stdout alone`) is true of `sbl`, `sbl_rel` and the inline sites; it asserts no universal about every caller's redirection. Independently, the Phase 4.1.5 behavior-inert prose cap covers this surface on the same evidence recorded for FI-3, so it is capped at Suggestion either way and is outside the Phase 4.2 carve-out.",
+      "contributed_to_verdict": false,
+      "cap_applied": true
+    },
+    {
+      "id": "FI-3",
+      "severity": "Suggestion",
+      "severity_as_filed": "Critical",
+      "agent": "prflow:comment-analyzer",
+      "corroboration_count": 1,
+      "description": "The diff-added comment at lib/test/run.sh:25244-25245 reads \"The no-following-body reason names the DIRECTORY that was compared, not the SKILL.md path its own sentence claims to name.\" Against HEAD the helper's sentence is `...no following body record naming its own directory (%r)...` interpolating `root_dir_for(path)` — it claims to name the directory and does. The trailing clause describes the pre-fix state this same diff removed, so it is false against HEAD.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [25244, 25245], "kind": "documented_falsehood"},
+      "truthfulness_sweep_result": "PROMOTED as a demonstrated falsehood, then routed to the Phase 4.1.5 behavior-inert prose cap, which covers it — so it is NOT a Phase 4.2 self-contradicting-diff carve-out finding and carries no carve-out marker.",
+      "cap_applied": true,
+      "cap_evidence": {
+        "subject": "the sentence itself, not a coverage gap of any mechanism — the mechanism under discussion is the helper's no-following-body reason string, whose covered set is fully enumerated as the single interpolation `root_dir_for(path)`; making the comment true rather than false would change no output, no branch taken, and no set the mechanism covers",
+        "limb_one": "HOLDS — enumerated the surface's readers: a repository-wide search for the literal across lib/, scripts/ and .github/ found no consumer; the comment is a plain `#` line, not a member of this repository's declaration-marker family (`# structural-pin-ok:`, `# raw-guard-ok:`, `# tree-walk-ok:`, `# argjson-ok:`, `# pruned-path-ok:`, `# glob-ok:`), and no lint, parser or codegen sentinel reads it to decide behaviour",
+        "limb_two": "HOLDS — enumerated what ships the surface: `.github/actions/vendor-plugin/vendor-slice.sh` prunes `$stage/lib/test` explicitly, and `install.sh` copies no `lib/test` path, so lib/test/run.sh reaches no consumer checkout, no published doc, no release note and no user-facing string"
+      },
+      "contributed_to_verdict": false
+    },
+    {
+      "id": "FI-4",
+      "severity": "Suggestion",
+      "agent": "prflow:comment-analyzer",
+      "corroboration_count": 1,
+      "description": "The helper docstring's \"A body delivered whole carries both\" (and the two matching claims in docs/internal/skill-body-load-delivery.md — the unconditional interior-control falsifier and \"The verdict rests on two controls read from disk\") state the two-control claim as universal, while this diff's F-13 fix surfaced the one-control path in the delivered-whole reason (`mid is None` → \"the file offered no distinctive interior line, so only the tail was checked\"). Suggested one-pass qualifier at all three sites.",
+      "defect_signature": {"file": "scripts/skill-body-load-probe-verdict.py", "line_range": [32, 33], "kind": "comment_drift"},
+      "truthfulness_sweep_result": "NOT a sweep subject — the line is diff CONTEXT, not diff-added or diff-modified (confirmed against the base-to-head diff of that file), and the underlying `mid is not None` guard predates the merge base. Outside the Phase 4.2 carve-out, which is scoped to artifacts the diff added or modified.",
+      "contributed_to_verdict": false,
+      "cap_applied": false
+    },
+    {
+      "id": "FI-5",
+      "severity": "Important",
+      "agent": "prflow:pr-test-analyzer",
+      "corroboration_count": 1,
+      "description": "The relocated empty-operand guard in `dirs_match` (the F-10 fix: test emptiness BEFORE `normpath`) has no regression backstop. The analyzer demonstrated the discriminating mutation: with the guard restored to its pre-diff position, `dirs_match(\"\", \".\")` returns True, and `.` is exactly what `root_dir_for()` returns for a bare-filename `--root`, so the fail-open is reachable from production code. `sbl_dirs_match_both_modules` is called three times and every call passes a non-empty absolute directory against a hardcoded `skills/review` comparand, so reverting the fix leaves the suite green. Cheapest remedy: give the helper a second parameter for the comparand and assert `\"False False\"` for an empty base dir against `.`.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [25264, 25290], "kind": "test_gap"},
+      "contributed_to_verdict": false,
+      "cap_applied": false
+    },
+    {
+      "id": "FI-6",
+      "severity": "Suggestion",
+      "agent": "prflow:pr-test-analyzer",
+      "corroborated_by": ["phase-3.1.5-completeness-critic"],
+      "corroboration_count": 2,
+      "description": "The `mid is None` arm of the `delivered-whole` reason — added by this diff as the F-13 fix — has no fixture. Every positive fixture points `--root` at a real `skills/**/SKILL.md`, all of which yield a non-None `mid`, so both the `else` string and the `mid is not None and` short-circuit above it are dark. Dropping the conditional and restoring the unconditional \"and a distinctive interior line\" wording would reinstate the exact overclaim this PR fixes with no test going RED. A fixture whose `--root` is a scratch file of short lines, asserting the reason carries `only the tail was checked`, closes it.",
+      "defect_signature": {"file": "scripts/skill-body-load-probe-verdict.py", "line_range": [342, 349], "kind": "test_gap"},
+      "contributed_to_verdict": false,
+      "cap_applied": false
+    },
+    {
+      "id": "FI-7",
+      "severity": "Suggestion",
+      "agent": "prflow:requesting-code-review",
+      "corroboration_count": 1,
+      "description": "`raf_body = open(raf_path…) if scen.startswith(\"contains_name_\") else \"\"` couples fixture correctness to a scenario-name prefix: a future scenario using `raf_body` silently receives an empty body unless its name carries that prefix, for the saving of one small file read per build. The comment beside it states a rationale rather than a wrong change prevented, which is the shape the prevention-only comment standard excludes. Fails closed if tripped (an empty body reads short-delivery), hence Suggestion.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [24917, 24920], "kind": "style"},
+      "contributed_to_verdict": false,
+      "cap_applied": false
+    },
+    {
+      "id": "FI-8",
+      "severity": "Suggestion",
+      "agent": "prflow:requesting-code-review",
+      "corroboration_count": 1,
+      "description": "The committed fixture header preserves the scrub caveat's \"Treat this artifact as sensitive\" (correctly — the helper's leading-comment tolerance is under test) while the surrounding provenance block never states that the three retained records were inspected and carry no credential. A reader cannot tell whether the sensitivity label still applies to what survived the extraction. One sentence in the header resolves it.",
+      "defect_signature": {"file": "lib/test/fixtures/skill-body-load-transcript.observed.json", "line_range": [21, 25], "kind": "documented_falsehood"},
+      "truthfulness_sweep_result": "NOT promoted — the finding is an omission (the header does not state that the records were checked), not a claim demonstrably false against HEAD. The sweep never promotes on suspicion.",
+      "contributed_to_verdict": false,
+      "cap_applied": false
+    }
+  ],
+  "phase_3_1_5_completeness_critic": {
+    "ran": true,
+    "trigger": "detect_all_audit set at Phase 0.5 — the diff edits an audit whose coverage-map note asserts it drives \"each VERDICT value ... and each reason arm enumerated in the helper's module docstring\", and the helper docstring itself asserts its arms are \"complete by construction\"",
+    "population_and_property": "Population: every outcome the helper can return for a root (each verdict value and each reason arm). Property asserted: the run.sh block drives every one of them, and the docstring's six unestablished arms are complete by construction.",
+    "independent_signal": "Enumerated the helper's outcome sites directly from its source by grepping every `return \"unestablished\"` / `return \"short-delivery\"` / `return \"delivered-whole\"` statement and the `AUDIT: NO-ROOTS` emit — 12 sites — rather than from the docstring enumeration or the assertion names the audit itself uses.",
+    "result": "The audit's matched set is a superset of the independent enumeration at the outcome-site granularity: all 7 unestablished sites, all 3 short-delivery sites, the delivered-whole site and the NO-ROOTS exit are each driven by at least one assertion. One member of a FINER independent enumeration is uncovered: the delivered-whole reason has two sub-branches (mid present / mid absent) and only the mid-present branch is driven — filed as FI-6.",
+    "note": "This asserts only that the audit is a superset of a genuinely independent enumeration; it is not a proof of exhaustiveness."
+  },
+  "over_grade_annotation": "1 finding capped by the Phase 4.1.5 behavior-inert prose cap (FI-3, filed Critical, capped to Suggestion — cap evidence recorded on the finding, both limbs established and enumerated); FI-2 covered by the same cap on the same evidence. No shape 1 or shape 3 advisory flag raised.",
+  "truthfulness_sweep": "1 finding promoted as a demonstrated falsehood (FI-3), then routed to the Phase 4.1.5 cap, which covers it — so it drives no REJECT and carries no carve-out marker. FI-2, FI-4 and FI-8 examined and not promoted (scoped-not-universal claim; diff-context not diff-added; an omission rather than a falsehood).",
+  "intra_diff_contradiction_scan": "no contradiction found — the diff's added absolute claims (\"Every child spawned below carries NO_COLOR/PYTHON_COLORS\", \"the helper spawns through one sbl_run invocation point\", \"The arms, complete by construction\", \"exactly these six\") were each cross-producted against the diff's added and retained limitation notes about the same symbol; no limitation note contradicts a universal about the symbol it names.",
+  "prompt_surface_edit_routing_gate": {
+    "applies": false,
+    "reason": "the reviewed diff touches none of the trigger globs (skills/*/SKILL.md, skills/implement/phases/*.md, skills/implement/references/*.md, skills/review/phases/*.md, skills/review-and-fix/references/*.md, .prflow/prompt-extensions/*.md) — no finding drawn"
+  },
+  "verification_evidence_marker_advisory": {
+    "fired": false,
+    "tier_classification": "local/interactive (the issue-1897 workpad carries no `prflow:checkpoint gha:` or `devflow:checkpoint gha:` row)",
+    "reason": "the linked issue's workpad carries a `Verification evidence:` marker, so the clause is silent"
+  },
+  "shipped_prose_cost_audit": {
+    "applies": false,
+    "reason": "the diff adds or grows no prose under skills/** or agents/**"
+  },
+  "wording_only_pin_policy": "clean — the two new grep-based assertions read the helper's RENDERED STDOUT (executable behaviour), not source or prose text, and the one that names a SKILL.md token carries the required `# raw-guard-ok:` declaration with a nonempty rationale. No new wording-only, secondary-prose, documentation-presence, advisory-heading or comment-presence pin is added.",
+  "deferrals": {
+    "block_present": false,
+    "honored": [],
+    "rejected_deferrals": [],
+    "note": "PR #1920's body carries no Scope-Acknowledged Findings block; all findings flow through intact and the report omits the `## Deferrals` section."
+  },
+  "dirty_tree_backstop": {
+    "before_snapshot_oid": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+    "cmp_rc": 0,
+    "result": "clean — the Phase 3.1 dispatch left the working tree byte-identical; nothing restored, no finding"
+  },
+  "phase_0_6_stale_prose": "not loaded — `prflow_review.stale_prose.enabled` resolves to false, so the gate is unmet",
+  "phase_4_1_7": "not loaded — no Phase 0.6 STALE findings exist to adjudicate",
+  "phase_4_4": "skipped (fix-loop path)",
+  "extension_load_states": {
+    "review_engine": "content-present, re-invoked at every phase entry (Phase 0, 1, 2, 3, 4) — five loads, all exit 0",
+    "requesting_code_review": "loaded-empty resolved-root=unset; the orchestrator resolved no trusted root either (local tier), so the resolved-root cross-check writes nothing and no notice is produced"
+  },
+  "report_path": ".prflow/tmp/review/pr-1920/local-20260824T215005Z-1/engine-return-step1-iter-2.json",
+  "report": {
+    "verdict_line": "## Verdict: APPROVE with notes (18/18 checklist items pass; no finding at or above the `critical` threshold after the behavior-inert prose cap; two Important notes worth taking before merge)",
+    "issue_compliance": "Reviewed against issue #1897: skill-body-load probe root/name binding — criteria from the `/prflow:implement` workpad comment; scope unchanged. Requirement-based checklist items are included in the verification results. Criteria came from the `/prflow:implement` workpad comment — this run's authoritative set, possibly narrowed from the issue. No divergence between the workpad's criteria and the issue body's.",
+    "verification_checklist_results": "18 passed, 0 failed, 0 inconclusive — 0 via lite probe, 18 via agent. Normalized (wording-only): 0; ineligible-on-field-defect FAILs: 0. All ten acceptance criteria verified against the shipped code, several by execution: AC5 by loading the module and swapping `os.path` to `ntpath` and `posixpath`; AC8 by running the documented re-derivation recipe verbatim from a scratch directory at head 668a789, which printed `VERDICT: delivered-whole`.",
+    "code_review_findings_summary": "No Critical. Important: FI-1 (sbl_says' stderr suppression lets sbl_denies pass on a helper crash), FI-5 (the relocated dirs_match empty-operand guard has no regression backstop). Suggestion: FI-2, FI-3 (filed Critical, capped by the behavior-inert prose cap), FI-4, FI-6, FI-7, FI-8.",
+    "verdict_criteria_applied": "Rules 1 and 2 do not fire (no FAIL, no INCONCLUSIVE). The threshold-independent self-contradicting-diff carve-out does not fire: its one candidate, FI-3, is prose the Phase 4.1.5 behavior-inert prose cap covers, which the carve-out explicitly excludes. Rule 3 does not fire at the configured `critical` threshold — no finding sits at or above Critical after the cap. Rule 4a/4b inert (the checklist ran in full under the `engine_self_modifying` override). Rule 5 inert (0 agents failed). Rule 6 selects: only findings below the threshold are present → APPROVE with notes."
+  },
+  "fix_route": "The loop's `fix_severity_threshold` is `suggestion`, so every finding above routes to the fixer even though none drives a REJECT. FI-1 is the one to take first: it is a live fail-open in a NEW negative assertion, and the one-token fix is already justified by a comment three lines above it."
+}

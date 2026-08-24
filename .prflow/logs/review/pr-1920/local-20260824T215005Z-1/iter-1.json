@@ -1,0 +1,210 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-24T21:50:05Z",
+  "fix_commit_sha": "27452c0d4b4c35c0d84859b17e2803e690129b6e",
+  "fix_files": [
+    ".changeset/issue-1897-skill-body-load-probe-binding.md",
+    "docs/internal/skill-body-load-delivery.md",
+    "lib/test/fixtures/skill-body-load-transcript.observed.json",
+    "lib/test/modules/coverage-map.json",
+    "lib/test/run.sh",
+    "scripts/skill-body-load-probe-verdict.py"
+  ],
+  "loop_role": "fix",
+  "current_step": "3.5",
+  "current_substep": null,
+  "pending_dispatch": null,
+  "dispatch_mode": "fanned-out",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "checklist_summary": {
+    "total": 22,
+    "passed": 19,
+    "failed": 3,
+    "inconclusive": 0,
+    "lite": 1,
+    "agent": 21
+  },
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "27452c0d4b4c35c0d84859b17e2803e690129b6e",
+      "evidence": "the fixture header pointed at a delivery-record section that did not exist; it now carries the re-derivation commands itself, executed and observed to print delivered-whole"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "27452c0d4b4c35c0d84859b17e2803e690129b6e",
+      "evidence": "AC7: the delivery record's unestablished-reason sentence named four causes where the helper takes six arms; replaced with the six-arm enumeration in evaluation order, the ambiguity given its own home"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "27452c0d4b4c35c0d84859b17e2803e690129b6e",
+      "evidence": "AC8: added a session-C re-derivation section naming the committed fixture and the exact commands, and corrected the now-false re-derivable-set claim that omitted it"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "27452c0d4b4c35c0d84859b17e2803e690129b6e",
+      "evidence": "the sbl_run comment's universal was false — three heredoc spawns bypass it; reworded to the prohibition it implies, scoped to helper spawns"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "applied",
+      "commit": "27452c0d4b4c35c0d84859b17e2803e690129b6e",
+      "evidence": "the changeset implied one corrected comment per probe job; reworded to what shipped"
+    },
+    {
+      "finding_id": "F-6",
+      "decision": "applied",
+      "commit": "27452c0d4b4c35c0d84859b17e2803e690129b6e",
+      "evidence": "sbl_says now prints FIXTURE_BUILD_FAILED on a build failure and sbl_denies passes any non-yes/no token through, so a broken fixture can no longer be inverted into the expected yes"
+    },
+    {
+      "finding_id": "F-7",
+      "decision": "applied",
+      "commit": "27452c0d4b4c35c0d84859b17e2803e690129b6e",
+      "evidence": "sbl_run no longer discards stderr; callers capture stdout alone, so a helper traceback now reaches the suite log"
+    },
+    {
+      "finding_id": "F-8",
+      "decision": "applied",
+      "commit": "27452c0d4b4c35c0d84859b17e2803e690129b6e",
+      "evidence": "restored the negative assertion's own sbl_build boundary_dir, removing its dependence on statement adjacency"
+    },
+    {
+      "finding_id": "F-9",
+      "decision": "applied",
+      "commit": "27452c0d4b4c35c0d84859b17e2803e690129b6e",
+      "evidence": "the docstring's 'fails open' contradicted the file's fail-closed vocabulary; reworded to name the real hazard, an unfalsifiable fixture/production divergence"
+    },
+    {
+      "finding_id": "F-10",
+      "decision": "applied",
+      "commit": "27452c0d4b4c35c0d84859b17e2803e690129b6e",
+      "evidence": "the empty-operand guard was unreachable because normpath maps '' to '.'; the emptiness test now runs before normalising, verified returning False for an empty base dir under both path modules"
+    },
+    {
+      "finding_id": "F-11",
+      "decision": "applied",
+      "commit": "27452c0d4b4c35c0d84859b17e2803e690129b6e",
+      "evidence": "the never-loaded reason's cause list omitted the shape the narrowed binding adds; widened, and it now reports the total recorded load count so a bound-none case is distinguishable from a nothing-recorded one"
+    },
+    {
+      "finding_id": "F-12",
+      "decision": "pushed_back",
+      "source_file": "scripts/skill-body-load-probe-verdict.py",
+      "claim_text": "a run in which every root is unestablished exits 0 and reads as a green probe job",
+      "skip_category": "claim-quality",
+      "evidence": "the finding's own stated remedy is already satisfied: the module docstring states the contract explicitly — 'The process exits 0 on every execution-file outcome (a red verdict on a degraded run is exactly what this probe exists to characterize); only the no-roots usage error exits non-zero.' The behaviour is pre-existing, unchanged by this diff, and changing the exit code would alter the contract both matcher-probe.yml jobs consume.",
+      "parking_evidence": {
+        "basis": "the docstring already resolves the two cases differently and says why, which is the finding's own alternative remedy",
+        "failing_input": "an unreadable transcript yielding every root unestablished at exit 0",
+        "source": "scripts/skill-body-load-probe-verdict.py module docstring, the 'exits 0 on every execution-file outcome' sentence",
+        "finding_ref": {
+          "iter": 1,
+          "index": 11
+        }
+      }
+    },
+    {
+      "finding_id": "F-13",
+      "decision": "applied",
+      "commit": "27452c0d4b4c35c0d84859b17e2803e690129b6e",
+      "evidence": "the delivered-whole reason asserted an interior control even when read_controls found none; it is now conditional on mid being present and says so when only the tail was checked"
+    },
+    {
+      "finding_id": "F-14",
+      "decision": "applied",
+      "commit": "27452c0d4b4c35c0d84859b17e2803e690129b6e",
+      "evidence": "'Both runners' sent a reader looking for a second file; reworded to every child the block spawns, naming the single sbl_run invocation point"
+    },
+    {
+      "finding_id": "F-15",
+      "decision": "applied",
+      "commit": "27452c0d4b4c35c0d84859b17e2803e690129b6e",
+      "evidence": "dropped the hand-transcribed 39KB figure, keeping the prohibition"
+    },
+    {
+      "finding_id": "F-16",
+      "decision": "applied",
+      "commit": "27452c0d4b4c35c0d84859b17e2803e690129b6e",
+      "evidence": "added a third dirs_match probe with a backslash-bearing runner directory, the form a real Windows runner records; it went RED (False True) against a wrongly-escaped literal and GREEN once the literal was corrected, and it is the only input that reaches the separator normalisation on the ntpath side"
+    },
+    {
+      "finding_id": "F-17",
+      "decision": "advisory",
+      "source_file": "docs/internal/skill-body-load-delivery.md",
+      "claim_text": "neither surface carries a Verification evidence: marker",
+      "skip_category": "advisory-parked",
+      "evidence": "non-blocking advisory, and already discharged after the engine snapshotted its inputs: the issue-1897 workpad now carries a Verification evidence: marker recording the CI reading for pushed head f5beb5276 (required check 'lib + python tests' pass)",
+      "parking_evidence": {
+        "basis": "the marker was recorded on the workpad during this same phase, after the engine read its inputs",
+        "failing_input": "the workpad and PR body as they stood when the engine fetched them",
+        "source": "issue 1897 workpad, Devflow Reflection note beginning 'Verification evidence: CI reading for the commit this run pushed'",
+        "finding_ref": {
+          "iter": 1,
+          "index": 16
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 15,
+    "fix_diff_lines": 148,
+    "new_corroborated_critical_count": 0
+  },
+  "verification_evidence": {
+    "focused_selection": "scripts/skill-body-load-probe-verdict.py and lib/test/run.sh are both marked unmodularized with no focused_test in lib/test/modules/coverage-map.json, so the run.sh-resident monolith shard is the covering instrument; lib/test/run-shard.sh monolith, 9919 passed / 0 failed / 1 skipped (the expected dirty-tree #434 blocking-gate skip), rc 0. Lint: shellcheck 0.11.0 and ruff both clean.",
+    "ci_reading": "head f5beb5276edaf263e6c544be66f8a7cdd41a3861, required check 'lib + python tests' pass, run 32781512289"
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "refixed",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "dispatch_mode": null,
+    "ran_at": null,
+    "reviewed_sha": null,
+    "verdict": null,
+    "coverage": null,
+    "prompt_addenda": null,
+    "reviewers_dispatched": [],
+    "expected_reviewers": [],
+    "reason": "REJECT verdict — the loop is still fixing, so no convergence-time shadow was triggered this iteration",
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

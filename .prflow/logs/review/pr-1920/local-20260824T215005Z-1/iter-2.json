@@ -1,0 +1,129 @@
+{
+  "iter": 2,
+  "started_at": "2026-08-24T22:20:00Z",
+  "fix_commit_sha": "213e137f17695f7a08240c894c2255dfbf17a504",
+  "fix_files": [
+    "lib/test/run.sh",
+    "scripts/skill-body-load-probe-verdict.py",
+    "lib/test/fixtures/skill-body-load-transcript.observed.json",
+    "docs/internal/skill-body-load-delivery.md"
+  ],
+  "loop_role": "fix",
+  "current_step": "3.5",
+  "current_substep": null,
+  "pending_dispatch": null,
+  "dispatch_mode": "fanned-out",
+  "phase3_dispatched": [
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "checklist_summary": {
+    "total": 18,
+    "passed": 18,
+    "failed": 0,
+    "inconclusive": 0
+  },
+  "fix_decisions": [
+    {
+      "finding_id": "G-1",
+      "decision": "applied",
+      "commit": "213e137f17695f7a08240c894c2255dfbf17a504",
+      "evidence": "sbl_says had re-introduced 2>/dev/null, reopening iteration 1's F-6 inversion hazard on the helper-crash channel; it now gates on sbl_run's exit status before the grep and prints HELPER_FAILED, which sbl_denies' pass-through arm carries"
+    },
+    {
+      "finding_id": "G-2",
+      "decision": "applied",
+      "commit": "213e137f17695f7a08240c894c2255dfbf17a504",
+      "evidence": "the sbl_run comment claimed a run-wide guarantee sbl_says did not honour; reworded, and G-1 makes the claim true"
+    },
+    {
+      "finding_id": "G-3",
+      "decision": "applied",
+      "commit": "213e137f17695f7a08240c894c2255dfbf17a504",
+      "evidence": "the comment's trailing clause described the pre-fix state this same diff removed; rewritten as the prohibition it implies"
+    },
+    {
+      "finding_id": "G-4",
+      "decision": "applied",
+      "commit": "213e137f17695f7a08240c894c2255dfbf17a504",
+      "evidence": "the two-control claim was stated as universal at three sites while the mid-is-None path exists; qualified in the helper docstring and both delivery-record sentences"
+    },
+    {
+      "finding_id": "G-5",
+      "decision": "applied",
+      "commit": "213e137f17695f7a08240c894c2255dfbf17a504",
+      "evidence": "the relocated empty-operand guard had no backstop; sbl_dirs_match_both_modules takes a comparand parameter and a new assertion pins dirs_match('', '.') False under both path modules — '.' is what root_dir_for returns for a bare-filename root, so the fail-open was reachable. Verified False False."
+    },
+    {
+      "finding_id": "G-6",
+      "decision": "applied",
+      "commit": "213e137f17695f7a08240c894c2255dfbf17a504",
+      "evidence": "the mid-is-None delivered-whole arm had no fixture; added one whose root is a scratch SKILL.md of short lines, asserting the reason carries 'only the tail was checked', with a delivered-whole positive control. Executed and observed."
+    },
+    {
+      "finding_id": "G-7",
+      "decision": "applied",
+      "commit": "213e137f17695f7a08240c894c2255dfbf17a504",
+      "evidence": "the lazy raf_body read coupled fixture correctness to a scenario-name prefix for one small file read; reverted to an unconditional read, which also removes a comment stating rationale rather than a prevented wrong change"
+    },
+    {
+      "finding_id": "G-8",
+      "decision": "applied",
+      "commit": "213e137f17695f7a08240c894c2255dfbf17a504",
+      "evidence": "the fixture header kept the scrub caveat's sensitivity label without saying what the three retained records carry; the provenance block now states they were read in full and carry no token, key or Authorization header"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 8,
+    "fix_diff_lines": 96,
+    "new_corroborated_critical_count": 0
+  },
+  "verification_evidence": {
+    "focused_selection": "lib/test/run-shard.sh monolith (both touched surfaces are unmodularized with no focused_test): 9922 passed, 0 failed, 1 skipped (the expected dirty-tree #434 blocking-gate skip), rc 0 — three assertions more than the previous run, matching the three added. shellcheck 0.11.0 and ruff clean.",
+    "ci_reading": "head 27452c0d4 required check 'lib + python tests' pass after a re-run on the identical commit; the earlier single python-pool red did not reproduce"
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "refixed",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "dispatch_mode": null,
+    "ran_at": null,
+    "reviewed_sha": null,
+    "verdict": null,
+    "coverage": null,
+    "prompt_addenda": null,
+    "reviewers_dispatched": [],
+    "expected_reviewers": [],
+    "reason": "the iteration-2 verdict was APPROVE with notes, but every finding sat at or above the resolved fix_severity_threshold of suggestion, so Step 2 routed to the fixer rather than to the convergence-time shadow",
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

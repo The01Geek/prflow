@@ -1,0 +1,207 @@
+{
+  "pr": 1920,
+  "issue": 1897,
+  "run_id": "local-20260824T215005Z-1",
+  "head_override": "local",
+  "head_sha": "f5beb5276edaf263e6c544be66f8a7cdd41a3861",
+  "base_sha": "a7f45239f3f0d1fdd3cd63fde4ed87c06010b4e1",
+  "progress_surface": "workpad",
+  "acceptance_criteria_source": "workpad",
+  "acceptance_criteria_divergence": "none",
+  "verdict": "REJECT",
+  "verdict_threshold": "critical",
+  "verdict_reason": "Phase 4.2 rule 1 — three verification-checklist items FAIL (VC-7, VC-8, VC-13). Two of them are acceptance criteria that rest entirely on docs/internal/skill-body-load-delivery.md, which this PR does not touch; the third is a diff-added comment in lib/test/run.sh whose universal claim is false against HEAD.",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "detect_all_audit": false,
+    "changed_files": 6,
+    "changed_lines": 416,
+    "announcement": "Diff classification: engine_self_modifying (overrides other flags' checklist) -> running full checklist. Phase 3 roster gated by Phase 3.1 applicability (has_new_types / test-relevance predicate) on every profile."
+  },
+  "checklist_skipped": null,
+  "cap_drops": {"count": 0, "by_category": {}},
+  "checklist_results": {
+    "total": 22,
+    "passed": 19,
+    "failed": 3,
+    "inconclusive": 0,
+    "lite": 1,
+    "agent": 21,
+    "normalized": 0,
+    "failures": [
+      {"id": "VC-7", "verdict": "FAIL", "claim": "AC7 — docs/internal/skill-body-load-delivery.md's unestablished-reason list names the six arms the code can take", "evidence": "The doc is untouched by this PR. Its enumeration (around line 526) still names four causes: no Skill tool_use recorded, load returned an error, no following body record, execution file unreadable/wrong shape. It omits the no-paired-result arm, the controls-unreadable arm, and the multiple-match ambiguity cause this PR introduces.", "file": "docs/internal/skill-body-load-delivery.md"},
+      {"id": "VC-8", "verdict": "FAIL", "claim": "AC8 — the recorded delivered-whole measurement is re-derivable from bytes committed to this repository", "evidence": "The committed fixture makes the bytes available and the helper re-derives delivered-whole from it, but the doc never names the fixture, contains no code fence and no re-derivation section, its session-C Operand column still cites only the 7-day-retention artifact of run 32674854779, and line 313 still asserts a re-derivable set that excludes the transcript. The fixture header's claim that the doc 'states the commands' is false.", "file": "docs/internal/skill-body-load-delivery.md"},
+      {"id": "VC-13", "verdict": "FAIL", "claim": "The run.sh comment asserting every spawn goes through sbl_run so the colour neutralisation cannot be omitted later", "evidence": "Three python3 spawns in the same #1618/#1897 block bypass sbl_run and repeat the NO_COLOR/PYTHON_COLORS prefix themselves: sbl_build (run.sh:24912), sbl_dirs_match_both_modules (run.sh:25264) and the PY_SBL_COUPLED heredoc (run.sh:25318). Nothing mechanically enforces the funnel.", "file": "lib/test/run.sh"}
+    ]
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_gated_out": ["prflow:type-design-analyzer (has_new_types false)"],
+  "phase3_failed_agents": 0,
+  "phase3_findings": [
+    {
+      "agent": "prflow:requesting-code-review + prflow:code-reviewer + prflow:comment-analyzer + checklist VC-8",
+      "severity": "Important",
+      "corroboration_count": 4,
+      "description": "The new fixture header (lib/test/fixtures/skill-body-load-transcript.observed.json, around lines 11-17) states 'the delivery record's own re-derivation section states the commands'. docs/internal/skill-body-load-delivery.md has no such section, contains no code fence at all, and never names this fixture. The fixture exists precisely because the source artifact expires in 7 days, so its stated recovery path is unusable. Diff-added prose false against HEAD -> documented_falsehood. The Phase 4.1.5 behavior-inert prose cap was evaluated: limb one holds (no tool parses this comment for behavior; strip_leading_comments discards it), limb two holds (lib/test/** is copied by neither vendor-slice.sh nor install.sh, so no consumer outside the repository reads it), so the finding is capped at Suggestion and carries no self-contradicting-diff carve-out marker. It nonetheless drives REJECT through checklist rule 1 via VC-8.",
+      "defect_signature": {"file": "lib/test/fixtures/skill-body-load-transcript.observed.json", "line_range": [11, 17], "kind": "documented_falsehood"},
+      "contributed_to_verdict": true,
+      "capped_by_4_1_5": true
+    },
+    {
+      "agent": "prflow:requesting-code-review + checklist VC-7",
+      "severity": "Important",
+      "corroboration_count": 2,
+      "description": "AC7 unmet. The delivery record's unestablished-reason sentence is phrased as a complete condition but names four causes where the helper now takes six arms — omitting the no-paired-result arm, the controls-unreadable arm, and the multiple-match ambiguity this PR adds. A reader is told the new ambiguity unestablished has no home in the enumeration. The doc is untouched by this PR.",
+      "defect_signature": {"file": "docs/internal/skill-body-load-delivery.md", "line_range": [524, 530], "kind": "documented_falsehood"},
+      "contributed_to_verdict": true
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Important",
+      "corroboration_count": 1,
+      "description": "AC8 unmet as recorded. The session-C row's Operand column cites only the published transcript of run 32674854779 (7-day retention); the doc never names lib/test/fixtures/skill-body-load-transcript.observed.json, and its line 313 still asserts that only the byte columns, the frontmatter split, the disable-model-invocation fact and the two git/gh status checks are re-derivable from this checkout — now false, since the transcript bytes are committed. The bytes exist and re-derive delivered-whole; the fix is a doc edit.",
+      "defect_signature": {"file": "docs/internal/skill-body-load-delivery.md", "line_range": [591, 607], "kind": "documented_falsehood"},
+      "contributed_to_verdict": true
+    },
+    {
+      "agent": "checklist VC-13 (verifier) + prflow:requesting-code-review context",
+      "severity": "Important",
+      "corroboration_count": 1,
+      "description": "The diff-added sbl_run comment asserts 'Every spawn goes through here, so the colour neutralisation above cannot be omitted by a site added later — a per-site prefix has no such enforcement.' Three spawns in the same block do not go through sbl_run and each carries its own per-site prefix, so the universal is false against HEAD. Same 4.1.5 cap analysis as the fixture header (not tool-read, not shipped) -> capped at Suggestion, but VC-13 FAIL drives REJECT through rule 1.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [25067, 25071], "kind": "documented_falsehood"},
+      "contributed_to_verdict": true,
+      "capped_by_4_1_5": true
+    },
+    {
+      "agent": "prflow:pr-test-analyzer + prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "corroboration_count": 2,
+      "description": "The changeset says 'the module docstring and the two matcher-probe.yml job comments no longer describe the Skill tool_result as the verdict operand'. The diff edits one shared section header above both probe jobs plus one inline comment inside the review-tier job only; the implement-tier twin carries no such comment. The phrasing implies one corrected comment per job.",
+      "defect_signature": {"file": ".changeset/issue-1897-skill-body-load-probe-binding.md", "line_range": [21, 23], "kind": "documented_falsehood"},
+      "contributed_to_verdict": false
+    },
+    {
+      "agent": "prflow:pr-test-analyzer + prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "corroboration_count": 2,
+      "description": "sbl_denies fails open on a fixture-build failure: sbl_says returns 'no' when sbl_build fails and sbl_denies inverts that to 'yes', which is exactly the expected value at its sole call site (the 'twice-recorded root is not refused by the error arm' assertion). A broken retry_after_error fixture would turn that assertion green while asserting nothing. Every other helper in the block fails loudly (FIXTURE_BUILD_FAILED / NO_VERDICT / grep -c). Give the build failure its own distinguishable token in both helpers.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [25081, 25089], "kind": "test_gap"},
+      "contributed_to_verdict": false
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "corroboration_count": 1,
+      "description": "sbl_run centralises a blanket 2>/dev/null, so a helper crash (TypeError from a new fixture shape, an unhandled OSError) surfaces only as NO_VERDICT with the traceback discarded. Because every spawn in the block now routes through this one function, capturing stderr to a retained file instead of discarding it restores diagnostics for the whole block in one line.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [25067, 25071], "kind": "test_gap"},
+      "contributed_to_verdict": false
+    },
+    {
+      "agent": "prflow:requesting-code-review + prflow:code-reviewer",
+      "severity": "Suggestion",
+      "corroboration_count": 2,
+      "description": "The '#1618/#1897 skill-body: that reason no longer names the SKILL.md file path' negative assertion reuses the exec.jsonl built by the immediately preceding assertion instead of running its own sbl_build boundary_dir. Its only guard against vacuity is statement adjacency; any later assertion interposed that rebuilds the shared exec.jsonl leaves it green while proving nothing.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [25238, 25246], "kind": "test_gap"},
+      "contributed_to_verdict": false
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "corroboration_count": 1,
+      "description": "The _pairs_for_root docstring says a field-keyed read 'fails open — every real reading answers unestablished if the name ever differs'. Answering unestablished is this helper's own fail-CLOSED direction (the module docstring: 'Each is unknown, not whole'), and the run.sh null_input comment uses 'fail-closed' for exactly that outcome. The real hazard described is an unfalsifiable fixture/production divergence, not a fail-open. As written the sentence contradicts the file's own vocabulary.",
+      "defect_signature": {"file": "scripts/skill-body-load-probe-verdict.py", "line_range": [244, 253], "kind": "comment_drift"},
+      "contributed_to_verdict": false
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "corroboration_count": 1,
+      "description": "dirs_match's empty-operand guard is unreachable: os.path.normpath('') returns '.', so `if not a or not b: return False` can never fire and a body record with a blank Base-directory value matches a bare `SKILL.md` root. PRE-EXISTING, not introduced here — the pre-change ordering (replace-then-normpath) has the same property, verified. Fixing it means testing emptiness before normalising. Recorded as pre-existing under Phase 4.2 rule 3's in-scope qualifier.",
+      "defect_signature": {"file": "scripts/skill-body-load-probe-verdict.py", "line_range": [146, 150], "kind": "logic_error"},
+      "contributed_to_verdict": false,
+      "pre_existing": true
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "corroboration_count": 1,
+      "description": "The never-loaded reason's cause list is now incomplete. Narrowing binding to the quoted JSON form adds a third way to reach that arm — a runner recording the Skill input as a string rather than an object — which the arm's own text ('skill not invoked, or refused before any body returned') excludes, so a transcript-format drift is reported as 'the skill was never invoked'. Widen the reason and distinguish 'no Skill tool_use at all' from 'loads recorded but none bound this name'.",
+      "defect_signature": {"file": "scripts/skill-body-load-probe-verdict.py", "line_range": [285, 289], "kind": "logic_error"},
+      "contributed_to_verdict": false
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "corroboration_count": 1,
+      "description": "A run in which every root is unestablished exits 0 and reads as a green probe job. The docstring states the principle for the empty-selection case ('an audit that audited nothing must not read as an audit that found nothing') and exits 2 there, but an unreadable transcript or a show_full_output regression yields the same nothing-measured outcome at exit 0. Either exit non-zero when no root reached a measured verdict, or state in the docstring why the two cases are resolved differently. PRE-EXISTING behaviour the diff does not change.",
+      "defect_signature": {"file": "scripts/skill-body-load-probe-verdict.py", "line_range": [346, 369], "kind": "logic_error"},
+      "contributed_to_verdict": false,
+      "pre_existing": true
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "corroboration_count": 1,
+      "description": "The delivered-whole reason asserts 'contained both the file's last non-empty line and a distinctive interior line' even when read_controls found no mid control and only the tail was checked. Unreachable against the real engine roots today, but it is a verdict reason asserting evidence that was not collected. PRE-EXISTING.",
+      "defect_signature": {"file": "scripts/skill-body-load-probe-verdict.py", "line_range": [334, 343], "kind": "documented_falsehood"},
+      "contributed_to_verdict": false,
+      "pre_existing": true
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "corroboration_count": 1,
+      "description": "The coverage-map note says 'Both runners neutralise terminal colour', but lib/test/run.sh is the only file in the tree that spawns this helper; 'both runners' appears to mean the two heredoc spawn shapes inside it. The wording sends a maintainer looking for a second runner.",
+      "defect_signature": {"file": "lib/test/modules/coverage-map.json", "line_range": [751, 751], "kind": "comment_drift"},
+      "contributed_to_verdict": false
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "corroboration_count": 1,
+      "description": "The raf_body lazy-read comment carries a hand-transcribed '39KB' figure for a file that grows with every edit (currently accurate at 39,461 bytes). Under the prevention-only comment standard the load-bearing half is the prohibition, not the measurement — drop the figure and keep 'read only for the two containment scenarios'.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [24915, 24918], "kind": "style"},
+      "contributed_to_verdict": false
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "corroboration_count": 1,
+      "description": "sbl_dirs_match_both_modules is only ever called with a POSIX-form base dir, so the backslash-bearing string a real Windows runner records never goes through the changed line. The causal branch is already reached, so this is completeness rather than a required addition.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [25259, 25283], "kind": "test_gap"},
+      "contributed_to_verdict": false
+    },
+    {
+      "agent": "engine (review prompt extension — verification-evidence advisory)",
+      "severity": "Informational",
+      "corroboration_count": 1,
+      "description": "ADVISORY, NON-BLOCKING. Neither the issue-1897 workpad nor the PR description carries a `Verification evidence:` marker. Tier classification: local/interactive (the workpad's ## Progress section carries no prflow:checkpoint gha: row). This never raises the verdict on its own.",
+      "defect_signature": {"file": "docs/internal/skill-body-load-delivery.md", "line_range": null, "kind": "other"},
+      "contributed_to_verdict": false
+    }
+  ],
+  "prompt_surface_edit_routing_gate": "no finding — the diff touches none of the trigger globs (skills/*/SKILL.md, skills/implement/phases/*.md, skills/implement/references/*.md, skills/review/phases/*.md, skills/review-and-fix/references/*.md, .prflow/prompt-extensions/*.md)",
+  "shipped_prose_cost_audit": "not applicable — the diff adds no prose under skills/** or agents/**",
+  "over_grade_annotation": "two findings capped by the Phase 4.1.5 behavior-inert prose cap (the fixture header and the run.sh sbl_run comment); both limbs established and recorded on each finding",
+  "truthfulness_sweep": "promoted nothing beyond what the agents filed; the two diff-added falsehoods were routed through the 4.1.5 cap rather than the carve-out",
+  "intra_diff_contradiction_scan": "one contradicting pair found and already filed — the sbl_run comment's universal ('every spawn goes through here', 'cannot be omitted') against the three same-block spawns that bypass it; filed capped at Suggestion per 4.1.5 applied at the point of filing",
+  "deferrals": "no Scope-Acknowledged Findings block in the PR body; all findings intact",
+  "dirty_tree_backstop": "clean — before/after snapshots identical, no agent mutated the working tree",
+  "prompt_extension_status": "PROMPT-EXTENSION-STATUS: content-present (review); requesting-code-review reported EXTENSION-STATUS: loaded-empty resolved-root=unset",
+  "report_path": "inline (this file)",
+  "fix_route": [
+    "Apply the two docs/internal/skill-body-load-delivery.md edits the branch's own docs brief specifies: widen the unestablished-reason enumeration to the six arms the helper's docstring names (AC7), and re-key the session-C delivered-whole record to the committed fixture with a re-derivation section stating the commands, correcting line 313's re-derivable set (AC8).",
+    "Then either make the fixture header's pointer true (it will be, once the re-derivation section exists) or inline the two commands there.",
+    "Correct the run.sh sbl_run comment so it no longer claims a funnel three same-block spawns bypass.",
+    "Optional in this iteration: the changeset's 'two job comments' wording, sbl_denies' fail-open token, sbl_run's discarded stderr, the adjacency-dependent negative assertion, the _pairs_for_root 'fails open' wording, and the coverage-map 'Both runners' wording."
+  ]
+}
