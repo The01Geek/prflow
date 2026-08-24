@@ -309,9 +309,11 @@ boundary of any kind. It is one reported successful load on a cloud tier this pa
 The same discipline applies reflexively. **Any figure on this page that cannot be re-derived by the
 procedure below is testimony too.** Concretely, the *Verdict* and *Control* columns rest on what
 each loading session reported about its own tool result — a transcript observation, not something a
-later reader can recompute from repository bytes. Only the byte columns, the frontmatter split, the
+later reader can recompute from repository bytes. The byte columns, the frontmatter split, the
 `disable-model-invocation` fact, and the two `git`/`gh` status checks above are re-derivable from
-this checkout.
+this checkout — and, since issue #1897, so is session C's `delivered-whole` cell, whose transcript
+bytes are committed at `lib/test/fixtures/skill-body-load-transcript.observed.json` (see *Re-deriving
+session C's measurement* below). Every other session's *Verdict* and *Control* column is not.
 
 ---
 
@@ -523,9 +525,19 @@ this approximation is close, but it is not the tier's own workflow — a row mus
 **What falsifies a `delivered-whole` verdict**, any one of: the body record delivered for that root
 lacks the file's last non-empty line (tail lost); it lacks the distinctive interior control (an
 interior loss); or it carries a truncation/cap notice (`showing lines X-Y of Z`, `cap 25000`). Any
-of these makes the verdict `short-delivery`. A row stays `unestablished` when no Skill `tool_use`
-for that root was recorded, its load returned an error, no following body record named that root's
-own directory, or the execution file was unreadable or of the wrong shape.
+of these makes the verdict `short-delivery`.
+
+**What makes a row `unestablished`**, in the order the helper evaluates them — exactly these six
+arms, complete by construction:
+
+1. the execution transcript was unreadable, unparseable, or only partly parseable;
+2. the root did not resolve to exactly one recorded `Skill` load — either none matched its name or
+   several did, and the printed reason says which (one arm, two causes: the ambiguity has a home in
+   this enumeration rather than sharing the never-loaded reason);
+3. the matching load had no paired `tool_result`, so nothing was delivered to measure;
+4. the load returned an error `tool_result` — the abort mode, not a truncation;
+5. no body record following that load named the root's own directory;
+6. the on-disk controls could not be read, so the delivered body could not be checked against them.
 
 ### Delivery geometry this probe can and cannot distinguish (AC)
 
@@ -605,6 +617,34 @@ carries both the on-disk tail control and the interior control, with no truncati
 "probably whole": their probe verdicts were invalid and no corrected reading exists for them. An
 invalid verdict is unknown, never a pass — the same *unknown-is-not-zero* rule the rest of this page
 applies. Establishing any of them needs its own re-derived transcript.
+
+### Re-deriving session C's measurement (AC8)
+
+Run `32674854779`'s published transcript is kept **7 days**
+(`.github/workflows/devflow.yml`'s `retention-days`), so the artifact the cell above cites has
+expired or will. The three records that carry the reading — the `prflow:review` Skill `tool_use`, its
+launch-stub `tool_result`, and the following body record — are therefore committed verbatim, under a
+provenance header, at **`lib/test/fixtures/skill-body-load-transcript.observed.json`** (issue #1897).
+The cell is re-derivable from repository bytes alone, with no surviving artifact:
+
+```
+mkdir -p <scratch>/skills/review
+git show 668a78990c810b0318d7fdbf5de8a95c043eda71:skills/review/SKILL.md > <scratch>/skills/review/SKILL.md
+cd <scratch>
+python3 <repo>/scripts/skill-body-load-probe-verdict.py \
+  <repo>/lib/test/fixtures/skill-body-load-transcript.observed.json \
+  --tier review --root prflow:review=skills/review/SKILL.md
+```
+
+Two constraints, both load-bearing. The controls must come from `skills/review/SKILL.md` **at that
+head** — the current file is a different body and would measure a different thing. And the `--root`
+must be repo-relative from a directory laid out as `skills/review/`, because the comparison is a
+component-boundary suffix against the absolute runner directory the transcript records; pointing the
+root at the extracted file in place resolves nothing. Observed on re-derivation:
+`VERDICT: delivered-whole`.
+
+This makes the cell re-derivable; it does not re-open the frozen table, and it establishes nothing
+about the three `unestablished` cells, which still have no transcript of their own.
 
 **What this does not move.** The byte-ceiling adjudication in *What session B means for the
 skill-root half of the byte ceiling* is unchanged. That question turns on `retrospective-weekly`,

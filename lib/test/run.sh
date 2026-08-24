@@ -24914,8 +24914,8 @@ import json, os, sys
 out, scen, path, impl_path, raf_path = sys.argv[1:6]
 body = open(path, encoding="utf-8").read()
 impl_body = open(impl_path, encoding="utf-8").read()
-# Read lazily: only the two containment scenarios reference it, and every other build would
-# otherwise pay a 39KB read it never uses.
+# Read lazily: only the two containment scenarios reference it, so every other build would
+# otherwise pay a whole-file read it never uses.
 raf_body = open(raf_path, encoding="utf-8").read() if scen.startswith("contains_name_") else ""
 tail = [ln.strip() for ln in body.splitlines() if ln.strip()][-1]
 review_dir = os.path.dirname(path)
@@ -25064,10 +25064,11 @@ PY_SBL
   _sbl_rc=$?
   [ "$_sbl_rc" -eq 0 ] && [ -s "$SBL_TMP/exec.jsonl" ]
 }
-sbl_run() {  # the SINGLE child-invocation point for this block: audit args -> the helper's stdout
-  # Every spawn goes through here, so the colour neutralisation above cannot be omitted by a
-  # site added later — a per-site prefix has no such enforcement.
-  NO_COLOR=1 PYTHON_COLORS=0 python3 "$SBL" "$@" 2>/dev/null
+sbl_run() {  # the single invocation point for spawning THE HELPER: audit args -> its stdout
+  # Route every helper spawn through this one point, or an audit site added later omits the
+  # colour neutralisation. Do not discard stderr here: callers capture stdout alone, so a
+  # helper traceback would vanish and a crash would read as a bare NO_VERDICT.
+  NO_COLOR=1 PYTHON_COLORS=0 python3 "$SBL" "$@"
 }
 sbl_verdict_token() {  # $1 the helper's stdout -> the FIRST per-root VERDICT token
   # Pure parameter expansion (CLAUDE.md guard-class 2: no tr/sed/cut, which would fail OPEN).
@@ -25079,13 +25080,17 @@ sbl_verdict_token() {  # $1 the helper's stdout -> the FIRST per-root VERDICT to
   esac
 }
 sbl_says() {  # $1 scenario, $2 pattern -> yes|no, whether the review root's report carries $2
-  if ! sbl_build "$1"; then printf 'no'; return 0; fi
-  sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" \
+  # A build failure prints its OWN token, never 'no': inverted by sbl_denies, a 'no' would
+  # become the expected 'yes' and turn a broken fixture into a green assertion.
+  if ! sbl_build "$1"; then printf 'FIXTURE_BUILD_FAILED'; return 0; fi
+  sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" 2>/dev/null \
     | grep -q "$2" && printf 'yes' || printf 'no'
 }
 sbl_denies() {  # the NEGATED sbl_says. A separate name, never an inverted echo pair inline:
                 # a reader must not have to spot `echo no || echo yes` to see the inversion.
-  if [ "$(sbl_says "$1" "$2")" = "yes" ]; then printf 'no'; else printf 'yes'; fi
+  local _r
+  _r="$(sbl_says "$1" "$2")"
+  case "$_r" in yes) printf 'no' ;; no) printf 'yes' ;; *) printf '%s' "$_r" ;; esac
 }
 sbl() {  # $1 scenario -> the first per-root VERDICT token (single-root fixtures)
   if ! sbl_build "$1"; then printf 'FIXTURE_BUILD_FAILED'; return 0; fi
@@ -25230,7 +25235,7 @@ assert_eq "#1618/#1897 skill-body: the twice-recorded root is not refused by the
 assert_eq "#1618/#1897 skill-body: a Skill tool_use with no input -> unestablished" "unestablished" \
   "$(sbl null_input)"
 assert_eq "#1618/#1897 skill-body: the no-input load is refused by the never-loaded arm" "yes" \
-  "$(sbl_says null_input 'no Skill tool_use naming prflow:review was recorded')"
+  "$(sbl_says null_input 'no recorded Skill tool_use names prflow:review')"
 # The same --root supplied TWICE: argparse append accepts it with no uniqueness check, so the
 # audit reports that root once per operand. Two identical operands must not read as two roots
 # measured, nor make either reading disagree with the single-operand one.
@@ -25241,7 +25246,7 @@ assert_eq "#1618/#1897 skill-body: a duplicated --root emits one verdict per ope
 assert_eq "#1618/#1897 skill-body: the no-following-body reason names the compared directory" "yes" \
   "$(sbl_build boundary_dir >/dev/null 2>&1; (cd "$LIB/.." && sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=skills/review/SKILL.md") | grep -q "directory ('skills/review')" && echo yes || echo no)"
 assert_eq "#1618/#1897 skill-body: that reason no longer names the SKILL.md file path" "yes" \
-  "$( (cd "$LIB/.." && sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=skills/review/SKILL.md") | grep -q "directory ('skills/review/SKILL.md')" && echo no || echo yes)"  # raw-guard-ok: the grep reads the helper's rendered stdout, not a SKILL file's text; the SKILL.md token is the operand under test
+  "$(sbl_build boundary_dir >/dev/null 2>&1; (cd "$LIB/.." && sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=skills/review/SKILL.md" 2>/dev/null) | grep -q "directory ('skills/review/SKILL.md')" && echo no || echo yes)"  # raw-guard-ok: the grep reads the helper's rendered stdout, not a SKILL file's text; the SKILL.md token is the operand under test
 # Do not rebuild this fixture from the builder above: it is a REAL captured transcript, and a
 # fixture built from the instrument's own assumptions cannot contradict the instrument — which
 # is how this file's defect family survived a green suite. Provenance is in the fixture header.
@@ -25258,8 +25263,8 @@ assert_eq "#1618/#1897 skill-body: the real transcript binds the review root and
 # separator cleanup was undone by normpath, so every root read unestablished.
 sbl_dirs_match_both_modules() {  # $1 body base dir -> "<posixpath result> <ntpath result>"
   # dirs_match reads the module-level os.path, so swapping it is what exercises the Windows
-  # reading on a POSIX host. Keep the two call sites below as two assertions: one spawn each
-  # buys a per-case label a fused four-value print would cost.
+  # reading on a POSIX host. Keep each call site below its own assertion: one spawn each buys
+  # a per-case label that a fused multi-value print would cost.
   NO_COLOR=1 PYTHON_COLORS=0 python3 - "$SBL" "$1" <<'PY_SBL_NT'
 import importlib.util, ntpath, posixpath, sys
 spec = importlib.util.spec_from_file_location("sbl", sys.argv[1])
@@ -25278,6 +25283,11 @@ assert_eq "#1618/#1897 skill-body: dirs_match resolves identically under posixpa
 # `os.path` can resolve to, or the ntpath repair resolves `myskills/review` against `skills/review`.
 assert_eq "#1618/#1897 skill-body: the component-boundary guard holds under both path modules" "False False" \
   "$(sbl_dirs_match_both_modules /home/runner/work/prflow/prflow/myskills/review)"
+# A BACKSLASH-bearing base dir is the form a real Windows runner records, and it is the only
+# input that reaches the separator normalisation on the ntpath side; a forward-slash probe
+# alone leaves the changed line unexercised for the host it was changed for.
+assert_eq "#1618/#1897 skill-body: a backslash-bearing runner directory resolves under both modules" "True True" \
+  "$(sbl_dirs_match_both_modules 'C:\runners\work\prflow\prflow\skills\review')"
 
 # DIRECTORY MATCH — every fixture above builds the body's base dir from the same on-disk path
 # the --root spec names, so they drive dirs_match's equality branch only. Production never takes

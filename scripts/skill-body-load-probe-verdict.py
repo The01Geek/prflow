@@ -143,10 +143,12 @@ def dirs_match(a, b):
     Separators are normalised AFTER `normpath`, never before: on a host whose `os.path` is
     `ntpath`, `normpath` re-inserts the backslashes an earlier cleanup removed, so the
     suffix test below could not match and every root read `unestablished` there."""
+    # Test emptiness BEFORE normalising: normpath maps "" to ".", so a guard placed after it
+    # can never fire and a body record with a blank base directory matches a bare root.
+    if not a.strip() or not b.strip():
+        return False
     a = os.path.normpath(a).replace("\\", "/").rstrip("/")
     b = os.path.normpath(b).replace("\\", "/").rstrip("/")
-    if not a or not b:
-        return False
     return a == b or a.endswith("/" + b) or b.endswith("/" + a)
 
 
@@ -250,8 +252,9 @@ def _pairs_for_root(skill_name, pairs):
     JSON rather than reading a named field, so a complete string value inside it is
     quote-delimited whatever its field is called. Do not narrow this to a named field: one
     committed transcript records one, but that is a dated observation of one runner version,
-    and a field-keyed read fails open — every real reading answers `unestablished` if the
-    name ever differs, while every fixture built on the assumption stays green.
+    and a field-keyed read silently stops measuring if the name ever differs — every real
+    reading answers `unestablished` while every fixture built on the assumed name stays
+    green, so the divergence is unfalsifiable from inside the suite.
 
     Every match is returned rather than the first, because keeping one of several silently
     discards a real ambiguity; the caller decides on the count."""
@@ -284,8 +287,10 @@ def verdict_for_root(skill_name, path, pairs, note_top):
     matches = _pairs_for_root(skill_name, pairs)
     if not matches:
         return "unestablished", (
-            "no Skill tool_use naming %s was recorded — the body was never loaded by "
-            "this channel (skill not invoked, or refused before any body returned)" % skill_name
+            "no recorded Skill tool_use names %s, so nothing bound this root — the skill was "
+            "not invoked, it was refused before any body returned, or a load was recorded in "
+            "a shape this match cannot read (an input carrying the name outside a JSON string "
+            "value). %d Skill load(s) were recorded in total" % (skill_name, len(pairs))
         )
     if len(matches) > 1:
         return "unestablished", (
@@ -337,9 +342,12 @@ def verdict_for_root(skill_name, path, pairs, note_top):
             "%s lost content before its final line" % skill_name
         )
     return "delivered-whole", (
-        "the delivered Skill body record for %s contained both the file's last non-empty "
-        "line and a distinctive interior line; no truncation/cap notice was present. This "
-        "detects a lost tail and one interior point, NOT an arbitrary middle elision" % skill_name
+        "the delivered Skill body record for %s contained the file's last non-empty line %s; "
+        "no truncation/cap notice was present. This detects a lost tail and one interior "
+        "point, NOT an arbitrary middle elision"
+        % (skill_name,
+           "and a distinctive interior line" if mid is not None
+           else "(the file offered no distinctive interior line, so only the tail was checked)")
     )
 
 

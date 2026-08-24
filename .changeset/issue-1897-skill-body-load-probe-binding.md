@@ -13,5 +13,5 @@ which also stops a retried load from being answered from its errored first attem
 `dirs_match` normalises separators after `normpath` rather than before, so the
 component-boundary suffix comparison resolves on a Windows host as it does on a POSIX one;
 the no-following-body reason now names the directory it actually compared rather than the
-`SKILL.md` path; and the module docstring and the two `matcher-probe.yml` job comments no
-longer describe the `Skill` tool_result as the verdict operand.
+`SKILL.md` path; and the module docstring and the `matcher-probe.yml` comments that described
+the `Skill` tool_result as the verdict operand now name the body record following it.

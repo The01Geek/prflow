@@ -10,10 +10,19 @@
 #
 # Committed deliberately: the source artifact is kept for 7 days
 # (.github/workflows/devflow.yml `retention-days`), after which that recorded measurement
-# would be impossible to re-derive — a verdict with no surviving evidence. Re-derive it by
-# laying skills/review/SKILL.md AT THAT HEAD out under a scratch `skills/review/` directory
-# and running the helper from that directory with the repo-relative root; the delivery
-# record's own re-derivation section states the commands.
+# would be impossible to re-derive — a verdict with no surviving evidence. Re-derive it with,
+# from any scratch directory <D>:
+#
+#   mkdir -p <D>/skills/review
+#   git show 668a78990c810b0318d7fdbf5de8a95c043eda71:skills/review/SKILL.md > <D>/skills/review/SKILL.md
+#   cd <D>
+#   python3 <repo>/scripts/skill-body-load-probe-verdict.py \
+#     <repo>/lib/test/fixtures/skill-body-load-transcript.observed.json \
+#     --tier review --root prflow:review=skills/review/SKILL.md
+#
+# The controls must come from that head's SKILL.md, and the root must be repo-relative from a
+# directory laid out as skills/review/, because the comparison is a component-boundary suffix
+# against the absolute runner directory these records carry. Observed: delivered-whole.
 #
 # The leading `#` line below is the scrub caveat scripts/scrub-transcript.sh prepends,
 # preserved because the helper's leading-comment tolerance is part of what this fixture
