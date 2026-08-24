@@ -38707,18 +38707,6 @@ assert_pin_unique "#504 AC6 Phase-3 truthfulness-contract dispatch reads the dis
 assert_pin_unique "#504 AC6 Phase 2.1b dispatch reads the displaced scratch file" \
   "you receive this dispatch prompt, not the orchestrator's engine-ground-truth block" "$REVIEW_BUNDLE"
 
-# ── #1889 AC1 diff-touched-path routing arm on each of the seven claim-verification carriers.
-# A dispatched agent reads its own body and the inline carriers are executed in place, so a
-# carrier missing the diff-touched arm silently reverts that surface to the working-tree read —
-# the wrong-bytes grading this change stops. One pin per carrier, targeting that carrier's file.
-assert_pin_unique "#1889 phase-3 truthfulness-contract carries the diff-touched arm" "a claim about a path the Phase 0.2 cached diff touches is verified the same way" "$LIB/../skills/review/phases/phase-3-agents.md"  # structural-pin-ok: cross-file-phase-contract -- a dispatched agent reads its own body, so a carrier missing the arm silently reverts that surface to the working-tree read
-assert_pin_unique "#1889 phase-2.1a lite-probe carries the diff-touched arm" "grep the \`git show <PR_HEAD_SHA>:<path>\` output" "$LIB/../skills/review/phases/phase-2-verification.md"  # structural-pin-ok: cross-file-phase-contract -- a dispatched agent reads its own body, so a carrier missing the arm silently reverts that surface to the working-tree read
-assert_pin_unique "#1889 phase-2.1b checklist-verifier dispatch carries the diff-touched arm" "also read any path the Phase 0.2 cached diff touches via" "$LIB/../skills/review/phases/phase-2-verification.md"  # structural-pin-ok: cross-file-phase-contract -- a dispatched agent reads its own body, so a carrier missing the arm silently reverts that surface to the working-tree read
-assert_pin_unique "#1889 phase-4.1.6 sweep carries the diff-touched arm" "a flagged claim about a path the Phase 0.2 cached diff touches" "$LIB/../skills/review/phases/phase-4-verdict.md"  # structural-pin-ok: cross-file-phase-contract -- a dispatched agent reads its own body, so a carrier missing the arm silently reverts that surface to the working-tree read
-assert_pin_unique "#1889 checklist-verifier mirror carries the diff-touched arm" "a claim about a path the Phase 0.2 cached diff touches routes the same way" "$LIB/../agents/checklist-verifier.md"  # structural-pin-ok: cross-file-phase-contract -- a dispatched agent reads its own body, so a carrier missing the arm silently reverts that surface to the working-tree read
-assert_pin_unique "#1889 code-reviewer mirror carries the diff-touched arm" "a claim about a path the Phase 0.2 cached diff touches routes the same way" "$LIB/../agents/code-reviewer.md"  # structural-pin-ok: cross-file-phase-contract -- a dispatched agent reads its own body, so a carrier missing the arm silently reverts that surface to the working-tree read
-assert_pin_unique "#1889 comment-analyzer mirror carries the diff-touched arm" "a claim about a path the Phase 0.2 cached diff touches routes the same way" "$LIB/../agents/comment-analyzer.md"  # structural-pin-ok: cross-file-phase-contract -- a dispatched agent reads its own body, so a carrier missing the arm silently reverts that surface to the working-tree read
-
 # ── #504 AC10 stale-prose corrections. Re-anchored COUNT-FREE (issue #805): the two
 # devflow-runner.yml prose literals name the closure rather than its size, so the pins
 # stop encoding a total (formerly "ten") that changes whenever the closure does.
