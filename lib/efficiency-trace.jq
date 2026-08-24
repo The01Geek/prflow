@@ -326,10 +326,20 @@ def iter_view:
 | ($iters | map(.defect_signature_present) | any) as $defect_signature_established
 | (if ($defect_signature_established | not) then "unestablished"
    else
-     ( [ $iters[] | .iter as $i | .defect_kinds[] | {kind: ., iter: $i} ]
+     # Each $iters element is one iteration record, so distinctness keys on the
+     # element POSITION, not the `.iter` value — the loop_role pass above abandons
+     # `.iter` as best-effort for the same reason, and a null/duplicate `.iter`
+     # would otherwise collapse two separate records and undercount. The reported
+     # `iterations` list still carries the `.iter` values for legibility.
+     ( [ range(0; ($iters | length)) as $i
+         | ($iters[$i].iter) as $label
+         | $iters[$i].defect_kinds[] | {kind: ., pos: $i, iter: $label} ]
        | group_by(.kind)
-       | map({ kind: (.[0].kind), iterations: (map(.iter) | unique) })
-       | map(select((.iterations | length) >= 3))
+       | map({ kind: (.[0].kind),
+               iterations: ([.[].iter] | unique),
+               _positions: ([.[].pos] | unique | length) })
+       | map(select(._positions >= 3))
+       | map(del(._positions))
        | sort_by(.kind) )
    end) as $recurring_defect_kinds
 
