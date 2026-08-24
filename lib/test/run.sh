@@ -18349,13 +18349,13 @@ assert_eq "scrub-credentials (#1915): a two-unit Bearer run is below the floor a
 assert_eq "scrub-credentials (#1915): a four-unit Bearer token is at the floor and redacted" \
   'Authorization: Bearer [REDACTED]' \
   "$(printf '%s\n' 'Authorization: Bearer abc=' | bash "$SCR")"
-# The auth scheme keyword is matched case-insensitively per letter, as the header name is: an
-# uppercase AUTHORIZATION: BASIC header is what actions/checkout persists, and matching only its
-# first letter let that whole credential through into a published transcript.
-assert_eq "scrub-credentials (#1915): an uppercase BASIC scheme keyword is still redacted" \
+# Match the scheme keyword per letter, as the header name already is: narrowing it back to a
+# case-sensitive tail lets a third-party emitter's uppercase scheme carry a whole credential
+# through into a published transcript.
+assert_eq "scrub-credentials (#1915): an uppercase BASIC scheme keyword is redacted" \
   'AUTHORIZATION: basic [REDACTED]' \
   "$(printf '%s\n' 'AUTHORIZATION: BASIC dXNlcjpwYXNz' | bash "$SCR")"
-assert_eq "scrub-credentials (#1915): an uppercase BEARER scheme keyword is still redacted" \
+assert_eq "scrub-credentials (#1915): an uppercase BEARER scheme keyword is redacted" \
   'AUTHORIZATION: Bearer [REDACTED]' \
   "$(printf '%s\n' 'AUTHORIZATION: BEARER abcdefghijklmnop' | bash "$SCR")"
 

@@ -14,6 +14,6 @@ type: Fixed
   `sed 's/AUTHORIZATION: basic //'` is no longer taken for a token; a run shorter than four units
   after the scheme keyword is left alone, which is a deliberate narrowing of what the two
   `Authorization` rules redact. Each now matches its scheme keyword
-  case-insensitively per letter, as they already matched the header name, so an uppercase
-  `AUTHORIZATION: BASIC` header is redacted instead of passing through; the scheme keyword is
+  case-insensitively per letter, as they already matched the header name, so a third-party
+  emitter's `AUTHORIZATION: BASIC` is redacted rather than passing through; the scheme keyword is
   rewritten to its canonical casing alongside the token, as before. (#1921)
