@@ -140,7 +140,7 @@ Three outcomes:
 
 Non-optional emit, fused to the pass's termination. Writing this `shadow` block (with its `step_2_6` telemetry) is mandatory on every shadow pass regardless of how the loop was executed — and it is anchored to the moment the pass *terminates*, whichever path that is: **the Parse-and-compare completion for a full fan-out, and the honest-degradation fail-safe for an outcome-3 pass that dies mid-fan-out**. This carries the same force as the `iter-<N>.json` Layer-1 fused emit (see Lifecycle → "Iter N end"): author it with the Write tool, never a shell `>`/heredoc redirect (a shell redirect into `.prflow/tmp` is not dependable from this loop's profile); the `lib/efficiency-trace.sh --persist` shadow synthesis floor is a *floor* that recovers only a dropped-but-*promoted* block from surviving promotion evidence — never license to skip this emit.
 
-After Step 2.6 completes (regardless of outcome), append a `shadow` block to the last iter's workpad file (`iter-<N>.json`). Capture `reviewed_sha` as `git rev-parse HEAD` here. The Loop Exit *post-shadow edit gate* compares it against HEAD-at-exit to catch any edit committed afterward that the shadow never reviewed.
+After Step 2.6 completes (regardless of outcome), append a `shadow` block to the last iter's workpad file (`iter-<N>.json`). Capture `reviewed_sha` as `git rev-parse HEAD` here. Record this entry's own `dispatch_mode` on that block, `null` when it was not established and never `fanned-out`. The Loop Exit *post-shadow edit gate* compares it against HEAD-at-exit to catch any edit committed afterward that the shadow never reviewed.
 
 ```json
 "shadow": {
