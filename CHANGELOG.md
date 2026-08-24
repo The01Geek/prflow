@@ -4,6 +4,17 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.33.61] — 2026-08-24
+
+### Fixed
+- **A provider's declared `effort_supported: false` now reaches the in-session per-agent effort
+  decision.** The cloud workflows export their already-resolved provider capability to the review
+  job's environment as `PRFLOW_EFFORT_SUPPORTED`, and `resolve-review-overrides.py` reads that
+  variable by default (an explicit `--effort-supported` flag still wins; an absent or unrecognized
+  value falls back to `true`, the Anthropic path). Previously the resolver defaulted to `true`
+  regardless of the routed provider, so a capability-restricted provider's per-agent effort fell
+  back as if the provider accepted it. (#1772)
+
 ## [2.33.60] — 2026-08-21
 
 ### Added
