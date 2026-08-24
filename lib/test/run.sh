@@ -32467,35 +32467,38 @@ print(next(s["run"] for j in d["jobs"].values() for s in j.get("steps",[]) if s.
     ( export DECISION='{"env":{"K<<X":"x"}}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" ) >/dev/null 2>&1 || R313_RC=$?
     assert_eq "#313 inject-body: an env-map key containing '<<' fails loud (exit 1, key-validation guard)" "1" "$R313_RC"
     : > "$R313_GENV"
-    # env-map KEY-NAME deny list (issue #1773): a key whose NAME is harmful is refused (exit 1,
-    # ::error:: naming it, no $GITHUB_ENV write) — see the workflow SECURITY comment for which
-    # names and why. Per key: exit 1, the ::error:: names the key, and no top-level env var written.
     # Do not re-list the denied names here: read them out of the extracted step body, so a name
     # ADDED to the guard's IN(...) is covered by this loop instead of shipping untested.
     R1773_KEYS="$(printf '%s\n' "$R313_INJ_BODY" | sed -n 's/.*ascii_upcase | IN(\([^)]*\)).*/\1/p' | tr ',' '\n' | tr -d '"' | tr -d ' ')"
-    assert_eq "#1773 inject-body: the denied-key population was extracted from the guard (loop is not vacuous)" "yes" \
-      "$([ -n "$R1773_KEYS" ] && printf '%s\n' "$R1773_KEYS" | grep -qxF 'CLAUDE_CODE_SUBAGENT_MODEL' && echo yes || echo no)"
+    # The loop below tests whatever the guard denies, so a name DELETED from IN(...) would shrink
+    # the population and still pass. Raise this floor only to match a deliberate removal; adding a
+    # denied name keeps it satisfied, which is what lets a new name be covered with no edit here.
+    R1773_KEY_COUNT="$(printf '%s\n' "$R1773_KEYS" | grep -c '[^[:space:]]')"
+    assert_eq "#1773 inject-body: the guard still denies at least the 21 names this block was written against (a deletion goes RED)" "yes" \
+      "$([ "$R1773_KEY_COUNT" -ge 21 ] && echo yes || echo no)"
+    # One representative per hazard class the guard claims to cover, so a same-count swap that
+    # drops a whole class is RED too.
+    assert_eq "#1773 inject-body: the extracted population covers every hazard class (credential, plumbing shadow, loader hook, roster override)" "yes" \
+      "$(printf '%s\n' "$R1773_KEYS" | grep -qxF 'ANTHROPIC_API_KEY' && printf '%s\n' "$R1773_KEYS" | grep -qxF 'GITHUB_TOKEN' && printf '%s\n' "$R1773_KEYS" | grep -qxF 'LD_PRELOAD' && printf '%s\n' "$R1773_KEYS" | grep -qxF 'CLAUDE_CODE_SUBAGENT_MODEL' && echo yes || echo no)"
     for R1773_KEY in $R1773_KEYS; do
       R313_RC=0
       R313_OUT="$( export DECISION="{\"env\":{\"$R1773_KEY\":\"x\"}}" AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" 2>&1 )" || R313_RC=$?
       assert_eq "#1773 inject-body: forbidden env-map key $R1773_KEY fails loud (exit 1, deny-list guard)" "1" "$R313_RC"
-      # Honest only while no denied name is a substring of the ::error::'s STATIC text (whose
-      # sole literal today is DEVFLOW_PROVIDER_API_KEY): the match must come from the guard's
-      # dynamic key echo. Do not name a denied key literally in that message.
+      # Do not name a denied key literally in the workflow's ::error:: text: this assertion
+      # would then pass without the guard's dynamic key echo.
       assert_eq "#1773 inject-body: forbidden key $R1773_KEY emits ::error:: naming the key + refusing" "yes" \
-        "$(printf '%s' "$R313_OUT" | grep -qF '::error::' && printf '%s' "$R313_OUT" | grep -qF "$R1773_KEY" && printf '%s' "$R313_OUT" | grep -qiF 'refusing to run' && echo yes || echo no)"
+        "$(printf '%s' "$R313_OUT" | grep -qF 'contains forbidden key(s):' && printf '%s' "$R313_OUT" | grep -qF "$R1773_KEY" && printf '%s' "$R313_OUT" | grep -qiF 'refusing to run' && echo yes || echo no)"
       assert_eq "#1773 inject-body: forbidden key $R1773_KEY writes NO top-level env var (guard fired before emit)" "yes" \
         "$([ ! -s "$R313_GENV" ] && echo yes || echo no)"
       : > "$R313_GENV"
     done
-    # Case-insensitive: a lower/mixed-case spelling of a denied name is also refused.
     R313_RC=0
     R313_OUT="$( export DECISION='{"env":{"github_token":"x"}}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" 2>&1 )" || R313_RC=$?
     assert_eq "#1773 inject-body: a case-variant denied key (github_token) is also refused (exit 1)" "1" "$R313_RC"
     # Do not reduce this to an exit-code-only assertion: exit 1 alone cannot distinguish the
     # deny-list guard from the shape guard or any later failure.
     assert_eq "#1773 inject-body: the case-variant refusal is the deny-list guard (::error:: names github_token)" "yes" \
-      "$(printf '%s' "$R313_OUT" | grep -qF '::error::' && printf '%s' "$R313_OUT" | grep -qF 'github_token' && printf '%s' "$R313_OUT" | grep -qiF 'refusing to run' && echo yes || echo no)"
+      "$(printf '%s' "$R313_OUT" | grep -qF 'contains forbidden key(s):' && printf '%s' "$R313_OUT" | grep -qF 'github_token' && printf '%s' "$R313_OUT" | grep -qiF 'refusing to run' && echo yes || echo no)"
     : > "$R313_GENV"
     # Do not delete this positive control: without it the refusal above is not attributable to
     # the denied NAME rather than to the key being lower-case.
@@ -32512,8 +32515,6 @@ print(next(s["run"] for j in d["jobs"].values() for s in j.get("steps",[]) if s.
     assert_eq "#1773 inject-body: the ::error:: names BOTH denied keys (join collects all, not just the first)" "yes" \
       "$(printf '%s' "$R313_OUT" | grep -qF 'PATH' && printf '%s' "$R313_OUT" | grep -qF 'ANTHROPIC_API_KEY' && echo yes || echo no)"
     : > "$R313_GENV"
-    # Exact-match boundary: a NON-denied key that is a near-miss superstring of a denied name is
-    # still exported (not refused) — pins IN() exact membership against a contains/prefix regression.
     ( export DECISION='{"env":{"GITHUB_TOKEN_ID":"z"}}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" ) >/dev/null 2>&1
     gh_kv "$R313_GENV" > "$R313_GENV.kv"
     assert_eq "#1773 inject-body: a near-miss non-denied key (GITHUB_TOKEN_ID) is still exported (IN() is exact-match)" "yes" \

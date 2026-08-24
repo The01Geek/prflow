@@ -25,17 +25,19 @@ The `env` map is exported into the environment of the whole job, not just the mo
 name that means something to the runner does more than add a variable. Before exporting anything,
 the job checks every key against a fixed list of names and **fails with an error naming the key**
 if it finds one. Nothing is exported on that run. Matching ignores case, so a lowercase spelling
-is refused too. Any name not on the list is exported exactly as written.
+is refused too. Any other valid environment-variable name is exported exactly as written.
 
 | Refused because | Names |
 | --- | --- |
 | It is a credential, and this file is committed to your repository | `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `AWS_BEARER_TOKEN_BEDROCK` |
 | It would shadow the job's own environment or GitHub's plumbing | `PATH`, `GITHUB_TOKEN`, `GH_TOKEN`, `GITHUB_ENV`, `GITHUB_OUTPUT`, `GITHUB_PATH` |
-| It is an interpreter or loader hook, so it would run code in every later step | `BASH_ENV`, `ENV`, `LD_PRELOAD`, `LD_LIBRARY_PATH`, `DYLD_INSERT_LIBRARIES`, `NODE_OPTIONS`, `PYTHONPATH` |
-| It overrides the model for every subagent, collapsing your review roster to one model | `CLAUDE_CODE_SUBAGENT_MODEL` |
+| It is an interpreter or loader hook, so it can make later steps load code you did not intend | `BASH_ENV`, `ENV`, `LD_PRELOAD`, `LD_LIBRARY_PATH`, `DYLD_INSERT_LIBRARIES`, `NODE_OPTIONS`, `PYTHONPATH` |
+| It overrides the model of every subagent — both the one a dispatch asks for and the one the agent defines — collapsing your review roster to one model | `CLAUDE_CODE_SUBAGENT_MODEL` |
 
 To supply the provider credential, set the `DEVFLOW_PROVIDER_API_KEY` secret instead. To change
-only the background model, use `ANTHROPIC_DEFAULT_HAIKU_MODEL`, which is not refused.
+only the background model, use `ANTHROPIC_DEFAULT_HAIKU_MODEL`, which is not refused. The
+remaining names have no alternative and must be removed from the map — including `NODE_OPTIONS`
+and `PYTHONPATH`, which are refused even where your intended use is benign.
 
 ## Section Routing Settings
 

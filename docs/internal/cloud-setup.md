@@ -1613,10 +1613,11 @@ notes the schema does not carry:
   credential via the `DEVFLOW_PROVIDER_API_KEY` secret, never in committed config), a name that
   would shadow the environment of every later job step or its Actions plumbing (`PATH`,
   `GITHUB_TOKEN`, `GH_TOKEN`, `GITHUB_ENV`, `GITHUB_OUTPUT`, `GITHUB_PATH`), an interpreter or
-  loader hook that would run code in every later step (`BASH_ENV`, `ENV`, `LD_PRELOAD`,
+  loader hook that can make every later step load code you did not intend (`BASH_ENV`, `ENV`, `LD_PRELOAD`,
   `LD_LIBRARY_PATH`, `DYLD_INSERT_LIBRARIES`, `NODE_OPTIONS`, `PYTHONPATH`), or
-  `CLAUDE_CODE_SUBAGENT_MODEL` (it overrides both the per-invocation and per-subagent model
-  and flattens the `agent_overrides` review roster to one model — use
+  `CLAUDE_CODE_SUBAGENT_MODEL` (it overrides the model of every subagent — both the one a
+  dispatch requests and the one the agent definition declares — flattening the
+  `agent_overrides` review roster to one model; use
   `ANTHROPIC_DEFAULT_HAIKU_MODEL` to map only the background model). The match is
   case-insensitive; any other valid env-var name is still exported verbatim.
 - **The empty-secret guard.** If a section names a provider while

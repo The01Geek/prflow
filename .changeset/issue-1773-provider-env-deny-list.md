@@ -10,10 +10,10 @@ type: Security
   `CLAUDE_CODE_OAUTH_TOKEN`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`,
   `AWS_BEARER_TOKEN_BEDROCK`), a name that would shadow the job environment or its Actions
   plumbing (`PATH`, `GITHUB_TOKEN`, `GH_TOKEN`, `GITHUB_ENV`, `GITHUB_OUTPUT`, `GITHUB_PATH`),
-  an interpreter or loader hook that would run code in every later job step (`BASH_ENV`, `ENV`,
+  an interpreter or loader hook that can make every later job step load code you did not intend (`BASH_ENV`, `ENV`,
   `LD_PRELOAD`, `LD_LIBRARY_PATH`, `DYLD_INSERT_LIBRARIES`, `NODE_OPTIONS`, `PYTHONPATH`), or
-  `CLAUDE_CODE_SUBAGENT_MODEL` (which flattens the `agent_overrides` review roster to one
-  model). The match is case-insensitive. The config schema no longer suggests
+  `CLAUDE_CODE_SUBAGENT_MODEL` (which overrides the model of every subagent and so flattens the
+  `agent_overrides` review roster to one model). The match is case-insensitive. The config schema no longer suggests
   `CLAUDE_CODE_SUBAGENT_MODEL` as an example key. **Action required on upgrade:** a
   `providers.<name>.env` map naming any of the above — including `CLAUDE_CODE_SUBAGENT_MODEL`,
   which the schema recommended until this release — now fails the run until the key is removed;

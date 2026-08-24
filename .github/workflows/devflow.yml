@@ -1401,7 +1401,7 @@ jobs:
           # CLAUDE_CODE_SUBAGENT_MODEL is exported into every later step of the job.
           denied_env_keys="$(printf '%s' "$DECISION" | jq -r '[.env // {} | keys[] | select(ascii_upcase | IN("PATH","GITHUB_TOKEN","GH_TOKEN","GITHUB_ENV","GITHUB_OUTPUT","GITHUB_PATH","ANTHROPIC_API_KEY","ANTHROPIC_AUTH_TOKEN","CLAUDE_CODE_OAUTH_TOKEN","AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY","AWS_SESSION_TOKEN","AWS_BEARER_TOKEN_BEDROCK","BASH_ENV","ENV","LD_PRELOAD","LD_LIBRARY_PATH","DYLD_INSERT_LIBRARIES","NODE_OPTIONS","PYTHONPATH","CLAUDE_CODE_SUBAGENT_MODEL"))] | join(" ")')"
           if [ -n "$denied_env_keys" ]; then
-            echo "::error::.prflow/config.json section '$SECTION' provider '$PROVIDER' env map contains forbidden key(s): $denied_env_keys — a credential name, a variable that would shadow the job environment or its Actions plumbing, an interpreter/loader hook that would run code in every later step, or the subagent-model override that flattens the review roster. Set credentials via the DEVFLOW_PROVIDER_API_KEY repository secret, and remove these keys from providers.$PROVIDER.env. Refusing to run."
+            echo "::error::.prflow/config.json section '$SECTION' provider '$PROVIDER' env map contains forbidden key(s): $denied_env_keys — a credential name, a variable that would shadow the job environment or its Actions plumbing, an interpreter/loader hook that can make every later step load code you did not intend, or the subagent-model override that flattens the review roster. Set credentials via the DEVFLOW_PROVIDER_API_KEY repository secret, and remove these keys from providers.$PROVIDER.env. Refusing to run."
             exit 1
           fi
           # Every $GITHUB_ENV write below uses GitHub's newline-safe multiline (heredoc) form —
@@ -1435,9 +1435,8 @@ jobs:
           fi
           # API_TIMEOUT_MS applies to either arm, so write it once after the branch.
           if [ -n "$TIMEOUT_MS" ]; then genv API_TIMEOUT_MS "$TIMEOUT_MS"; fi
-          # Every key of the provider env map that survived the deny list above (the background
-          # model mapping, the beta/attribution toggles, …) verbatim, each as a heredoc block. These are
-          # non-secret model/config values (only the API key above is a masked secret).
+          # Do not describe these as filtered: a denied key aborts the whole run above, so nothing
+          # is ever dropped and exported alongside. Only the API key above is a masked secret.
           edelim="ENV_EOF_$(date +%s%N)_$$"
           printf '%s' "$DECISION" | jq -r --arg d "$edelim" '.env | to_entries[] | "\(.key)<<\($d)", "\(.value)", $d' >> "$GITHUB_ENV"
 
