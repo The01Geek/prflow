@@ -800,11 +800,14 @@ jobs:
           # fetch-depth: 0 (all history) — matches devflow-implement.yml and
           # ci.yml. Two requirements, and the second is the binding one
           # (issue #1219):
-          #  1. Diff base. /prflow:review and /prflow:pr-description read the
-          #     diff via three-dot notation against `origin/main` (`git diff
-          #     origin/main...HEAD`), which computes a merge-base — an ancestor
-          #     walk on both sides. A bounded depth (this was `fetch-depth: 50`)
-          #     covers that for a typical PR.
+          #  1. Diff base. /prflow:pr-description (and /prflow:review-and-fix's
+          #     head-override diff) reads the diff via three-dot notation against
+          #     the base (a `git diff <base>...HEAD` merge-base — an ancestor walk
+          #     on both sides). Standalone /prflow:review's diff is API-sourced
+          #     (`gh pr diff`), NOT this three-dot diff; its claim verification
+          #     reads reviewed-head bytes via `git show <PR_HEAD_SHA>:<path>` for
+          #     diff-touched paths, so a same-repo PR head must resolve locally.
+          #     A bounded depth (this was `fetch-depth: 50`) covers neither.
           #  2. Historical baseline. This job also hosts /prflow:review-and-fix,
           #     whose in-env verification runs the project's own test suite under
           #     the same no-skip accounting as the implement tier, so leaving
@@ -881,9 +884,11 @@ jobs:
       # `/prflow:review-and-fix`'s Step 0.5 branch sync runs `gh pr checkout` and moves
       # the tree to the PR head BEFORE the review engine loads `review` and before
       # Phase 3.1 loads `requesting-code-review`, so those two reads land on PR content.
-      # Standalone `/prflow:review` never moves the tree at all (it reads the PR through
-      # `gh pr diff` / `gh pr view`), so it was already reading trusted bytes; the
-      # closure costs it nothing and covers the branch-synced review-and-fix path.
+      # Standalone `/prflow:review` never moves the tree at all: it reads the PR diff and
+      # metadata through `gh pr diff` / `gh pr view`, and verifies claims about diff-touched
+      # paths against the reviewed head's bytes through `git show <PR_HEAD_SHA>:<path>` — the
+      # tree stays on the trusted default branch throughout, so it was already reading trusted
+      # bytes; the closure costs it nothing and covers the branch-synced review-and-fix path.
       #
       # UNCONDITIONAL closure + export, CONDITIONAL population — the #874 shape. The
       # closure directory and the variable are established outside every branch, so

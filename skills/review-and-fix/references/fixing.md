@@ -27,6 +27,8 @@ Reuse a disposable verification rig across iterations — but only while it stil
 
 3. Fix one issue at a time — then fix its whole class, not just the reported instance. After each fix, verify the surrounding code still makes sense. Then generalize the finding to its `defect_signature.kind` and scan the changed surface (the files/hunks in this PR's diff, plus any file your fix just touched) for other instances of the same class; fix every sibling in this same iteration, applying item 2's severity triage to each. Bound the sweep to the PR's own changed surface — never to pre-existing untouched code (that is what the `out-of-scope` skip and the Loop Exit widens-surface guard are for); a sibling you deliberately choose not to fix is recorded through the same pushback flow as any skip (item 5). The pre-shadow parked-class sweep handles the complementary no-fix convergence shape.
 
+When a defect kind reaches the run's efficiency trace as a recurring kind — it has appeared across three separate iterations — stop extending the enumeration the fix keeps patching and model the artifact the rule is written against instead. Another member added to that list will miss in a new way, and the same kind returns next iteration.
+
 Dispatch barrier. Every subagent dispatch described here is bound by the dispatch-collection requirement in the engine-ground-truth block injected into this run's prompt — read it there (if your prompt carries no such block, collect every dispatch before the turn ends anyway).
 
 ##### 3a. Mechanism re-sweep

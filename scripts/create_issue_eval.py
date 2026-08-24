@@ -67,10 +67,14 @@ as an attribution failure.
 
 Per-record token usage is read from `message.usage.{input_tokens,
 cache_read_input_tokens, cache_creation_input_tokens, output_tokens}`. Per-turn
-main-thread context is `input_tokens + cache_read_input_tokens +
-cache_creation_input_tokens`; the auditor's per-round cost is the full token total
-(context sub-fields + output). Compaction is observed as
-`type == "system", subtype == "compact_boundary"` and only counted.
+main-thread context (the RESIDENCY axis) is `input_tokens + cache_read_input_tokens +
+cache_creation_input_tokens`; a turn establishing none of those residency sub-fields (no
+usage object, or one carrying only absent, null, or non-finite counts) is an unmeasured turn —
+tallied in `usage_missing_turns` and excluded from the peak, never folded in as a
+real-looking 0 (issue #1899). The auditor's per-round cost is the full token total
+(context sub-fields + output) on the SPEND axis, where an unmeasured sub-field stays a
+summable 0 so the cost arithmetic is never handed an unestablished value. Compaction is
+observed as `type == "system", subtype == "compact_boundary"` and only counted.
 
 Two redundant-addition metrics are also reported (pre-#889, retained): repeated-Read
 (a `Read` re-fetching bytes already resident for that path — fail-closed on a
@@ -106,6 +110,7 @@ import difflib
 import hashlib
 import importlib.util
 import json
+import math
 import os
 import re
 import sys
@@ -790,9 +795,14 @@ def quality_gate(baseline_grade, candidate_grade):
 
 
 def _median(values):
-    """Deterministic median of a list of numbers (empty -> 0)."""
+    """Deterministic median of a NON-EMPTY list of numbers.
+
+    Refuses an empty population rather than returning 0 (issue #1899), matching both
+    sibling instruments: an unestablished measurement is never collapsed onto a real
+    value. Call `_median_or_unestablished` for a possibly-empty population.
+    """
     if not values:
-        return 0
+        raise ValueError("median of an empty population")
     ordered = sorted(values)
     n = len(ordered)
     mid = n // 2
@@ -824,40 +834,88 @@ def _median_or_unestablished(values):
     return _median(values) if values else UNESTABLISHED
 
 
-def _usage_field(usage, key):
-    """Read one usage sub-field, treating null/missing/non-numeric as 0."""
+def _sum_or_unestablished(values):
+    """The sum of a non-empty list, else the UNESTABLISHED sentinel.
+
+    The "empty population -> UNESTABLISHED, never 0" invariant is load-bearing (a real
+    `0` and "no runs" must never be the same output), so the corpus-wide SUM fields go
+    through this helper rather than an inline `sum(...) if runs else UNESTABLISHED`
+    ternary repeated per field — a per-field ternary is where a future edit reintroduces
+    a `0` default on one field only. The `runs_over_*` bucket COUNTS deliberately do NOT
+    route through it: they guard on a different population (see `aggregate`).
+    """
+    return sum(values) if values else UNESTABLISHED
+
+
+RESIDENCY_KEYS = ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")
+
+
+def _usage_value(usage, key):
+    """One usage sub-field's ESTABLISHED token count on the RESIDENCY axis, or None.
+
+    None covers absent, null, bool, non-numeric and non-finite values — the residency
+    axis reports an unmeasured field as unestablished, never a spurious 0 (issue #1899).
+    The single source of the sub-field validity guard; `_usage_field` reads the SAME fields
+    on the spend axis, coalescing this reader's None to a summable 0.
+    """
     if not isinstance(usage, dict):
-        return 0
+        return None
     val = usage.get(key)
     if isinstance(val, bool):  # bool is an int subclass; never a token count
-        return 0
+        return None
     if isinstance(val, (int, float)):
+        # json.loads accepts bare Infinity/NaN and int(inf) raises OverflowError, so guard
+        # non-finite here rather than in eval_corpus's per-record backstop tuple (#1899).
+        if isinstance(val, float) and not math.isfinite(val):
+            return None
         return int(val)
-    return 0
+    return None
+
+
+def _usage_field(usage, key):
+    """Read one usage sub-field on the SPEND axis: an unmeasured field is a summable 0.
+
+    Always a number: the spend axis (`_auditor_cost`, `total_output_tokens`) sums these,
+    so it must never see None. Shares `_usage_value`'s validity guard (issue #1899) — the
+    two axes differ only in how they report an unmeasured field (0 here, None there), never
+    in which fields they establish.
+    """
+    val = _usage_value(usage, key)
+    return 0 if val is None else val
 
 
 def _context_tokens(usage):
-    """Residency tokens = input + cache_read + cache_creation (no output).
+    """Main-thread residency = input + cache_read + cache_creation (no output), or None.
 
-    The main-thread/sidechain distinction belongs to the callers: `observe_assistant`
-    reads this as the ORCHESTRATOR's main-thread context, `_auditor_cost` reads it as
-    the inner term of a sidechain turn's total spend.
+    None when NO residency sub-field carried an established count: an empty, all-null, or
+    otherwise unusable `usage` object measured nothing, and folding its 0 into the peak
+    would report an unmeasured turn as a real-looking 0 (issue #1899). This is the
+    RESIDENCY axis (`observe_assistant`); the spend axis is `_auditor_cost`.
     """
-    return (
-        _usage_field(usage, "input_tokens")
-        + _usage_field(usage, "cache_read_input_tokens")
-        + _usage_field(usage, "cache_creation_input_tokens")
-    )
+    established = [v for v in (_usage_value(usage, k) for k in RESIDENCY_KEYS)
+                   if v is not None]
+    return sum(established) if established else None
+
+
+def _residency_spend(usage):
+    """The three residency sub-fields summed on the SPEND axis (each unmeasured -> 0).
+
+    The inner residency term of `_auditor_cost`. It stays a number even for an unmeasured
+    turn, so the spend axis is never handed a None — keeping auditor cost whole while the
+    residency axis reports unestablished (issue #1899's file-scoped entanglement).
+    """
+    return sum(_usage_field(usage, key) for key in RESIDENCY_KEYS)
 
 
 def _auditor_cost(usage):
     """The auditor's per-turn cost = every token the sidechain turn consumed.
 
-    Distinct from `_context_tokens`: the auditor's own output is part of the cost
-    #793 buys down, so output_tokens is included here (it is excluded from the
-    main-thread *context* axis, which measures residency, not spend).
+    A SPEND measurement: the auditor's own output is part of the cost #793 buys down, so
+    output_tokens is included here (it is excluded from the main-thread residency axis).
+    Sums via `_residency_spend`, never `_context_tokens`, because the residency reader can
+    return None (issue #1899) and this axis must stay arithmetic.
     """
-    return _context_tokens(usage) + _usage_field(usage, "output_tokens")
+    return _residency_spend(usage) + _usage_field(usage, "output_tokens")
 
 
 def _tool_result_text(block):
@@ -915,6 +973,10 @@ class RunAccumulator:
         self.large_block_chars = large_block_chars
         self.turn_count = 0
         self.per_turn_context = []
+        # Attributed main-thread turns whose residency was never established (no usage
+        # object, or one carrying only null/non-finite counts). Tallied rather than
+        # folded into per_turn_context as a 0, which would drag the peak down (issue #1899).
+        self.usage_missing_turns = 0
         self.total_output_tokens = 0
         self.compact_boundary_count = 0
         self.repeated_read_count = 0
@@ -1037,7 +1099,13 @@ class RunAccumulator:
         if not isinstance(message, dict):
             message = {}
         usage = message.get("usage")
-        self.per_turn_context.append(_context_tokens(usage))
+        residency = _context_tokens(usage)
+        if residency is None:
+            # Residency was never established for this turn — tally it rather than folding
+            # a 0 into the peak, which would report an unmeasured turn as a real value.
+            self.usage_missing_turns += 1
+        else:
+            self.per_turn_context.append(residency)
         self.total_output_tokens += _usage_field(usage, "output_tokens")
 
         content = message.get("content")
@@ -1081,8 +1149,10 @@ class RunAccumulator:
         reads both defensively (`.get`), because a run record taken straight from this
         method has not been through the join.
         """
-        peak = max(self.per_turn_context) if self.per_turn_context else 0
-        final = self.per_turn_context[-1] if self.per_turn_context else 0
+        # UNESTABLISHED (never 0) when no turn established residency: a real-looking 0
+        # here is the unknown-onto-zero collapse this instrument guards against (#1899).
+        peak = max(self.per_turn_context) if self.per_turn_context else UNESTABLISHED
+        final = self.per_turn_context[-1] if self.per_turn_context else UNESTABLISHED
         round_cost = {n: self.round_auditor_cost[n]
                       for n in sorted(self.round_auditor_cost)}
         return {
@@ -1092,6 +1162,8 @@ class RunAccumulator:
             # basis of the reduction claim).
             "peak_context": peak,
             "final_context": final,
+            # Attributed turns whose residency was never established (issue #1899).
+            "usage_missing_turns": self.usage_missing_turns,
             "total_output_tokens": self.total_output_tokens,
             "compact_boundary_count": self.compact_boundary_count,
             "repeated_read_count": self.repeated_read_count,
@@ -1560,7 +1632,10 @@ def aggregate(runs, state=None):
     iterates it) covers them too, and so `state_established` is DERIVED from the
     sentinel rather than re-answered from the same operand a second way.
     """
-    peaks = [r["peak_context"] for r in runs]
+    # Exclude UNESTABLISHED peaks (unmeasured-residency runs) from the peak population —
+    # never coerce them to 0, and never let the sentinel string reach max()/_median()/the
+    # over-threshold comparisons, which would raise on a mixed int/str list (issue #1899).
+    peaks = [r["peak_context"] for r in runs if r["peak_context"] != UNESTABLISHED]
     medians = per_kind_medians(runs, state)
     escape = scope_escape_proxy(state)
     finding_count = _finding_count(state)
@@ -1571,6 +1646,11 @@ def aggregate(runs, state=None):
         "state_established": finding_count is not UNESTABLISHED,
         # Total ledger entries across the state's rounds (state-derived axis).
         "finding_count": finding_count,
+        # Attributed turns across the corpus whose residency was never established
+        # (issue #1899). UNESTABLISHED on an empty run population, like every run-derived
+        # figure here — never a real-looking 0 about a corpus that was never measured.
+        "total_usage_missing_turns": _sum_or_unestablished(
+            [r["usage_missing_turns"] for r in runs]),
         # Secondary residency axis.
         "median_peak_context": _median_or_unestablished(peaks),
         "max_peak_context": max(peaks) if peaks else UNESTABLISHED,
@@ -1596,22 +1676,22 @@ def aggregate(runs, state=None):
         # fraction from a median-vs-sum pairing.
         "median_unrounded_auditor_cost": _median_or_unestablished(
             [r["unrounded_auditor_cost"] for r in runs]),
-        "total_unrounded_auditor_cost": (sum(
-            r["unrounded_auditor_cost"] for r in runs) if runs else UNESTABLISHED),
+        "total_unrounded_auditor_cost": _sum_or_unestablished(
+            [r["unrounded_auditor_cost"] for r in runs]),
         "median_auditor_cost_discovery": medians["discovery"],
         "median_auditor_cost_targeted": medians["targeted"],
         # The falsifiability operands for the docstring's unverified assumption that the
         # harness stamps `attributionSkill` on a sidechain record. `0 attributed` beside
         # a non-zero `total_record_reopen` or a non-empty per-run `dispatch_rounds` is
         # evidence the assumption failed, NOT a measurement of a free audit.
-        "total_sidechain_records_seen": (sum(
-            r["sidechain_records_seen"] for r in runs) if runs else UNESTABLISHED),
-        "total_sidechain_records_attributed": (sum(
-            r["sidechain_records_attributed"] for r in runs) if runs else UNESTABLISHED),
+        "total_sidechain_records_seen": _sum_or_unestablished(
+            [r["sidechain_records_seen"] for r in runs]),
+        "total_sidechain_records_attributed": _sum_or_unestablished(
+            [r["sidechain_records_attributed"] for r in runs]),
         # Escaped-defect axis proxies. Flattened into two scalars so every summary field
         # renders as a scalar in the text report rather than one raw dict repr.
-        "total_record_reopen": (sum(r["record_reopen_count"] for r in runs)
-                                if runs else UNESTABLISHED),
+        "total_record_reopen": _sum_or_unestablished(
+            [r["record_reopen_count"] for r in runs]),
         "scope_escape_count": escape["count"],
         "scope_escape_unattributable": escape["unattributable"],
         # A declared post-filing class the instrument reports unestablished, never a

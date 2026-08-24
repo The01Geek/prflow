@@ -4,6 +4,33 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.7] — 2026-08-24
+
+### Added
+- **The review-and-fix efficiency trace now reports recurring defect kinds.** For each run, the
+  trace names every `defect_signature.kind` that appeared in the findings of three separate
+  iterations, together with the iterations it appeared in — surfacing a fix loop stuck patching
+  the same defect shape. A finding whose signature is absent or malformed is rendered under an
+  explicit `unknown` label rather than dropped, and a run whose iteration records carry no
+  signature at all renders the field as `unestablished` rather than an empty set. The fix-loop
+  guidance points the fixer at that report as a signal to model the artifact rather than extend
+  an enumeration. (#1903)
+
+### Changed
+- **A run's self-assessed budget or context state is now stated as an unestablished measurement, and may not narrow a mandated verification step.** The #1230 refusal — previously scoped to the Step 2.6 shadow pass — is generalized: a run cannot establish its own remaining context on any tier, so a self-assessed budget or context state is never a reason to skip, narrow, defer, or degrade any mandated verification step (the reviewer roster, the checklist steps, the bounded re-review, or the shadow). The prohibition and its legal exit (perform the step, or stop at a non-terminal/`Blocked` status naming the step not performed) now sit at the review engine's two dispatch-deciding phase references, the shadow-review reference, the implement fix-loop exit, and the review engine's no-verdict terminal arm, binding local and cloud runs identically. (#1908)
+
+### Fixed
+- **Standalone cloud review now grades the reviewed PR head, not the default branch.** On the shipped `devflow.yml` review tier every checkout is pinned to the default branch, so claim verification read default-branch bytes. A claim about a line the pull request added could be reported as a false FAIL (the added line reads as "missing"). A claim about content the pull request removed could silently PASS. Either way the merge-gating verdict graded the wrong code. The displaced-path routing contract is generalized to a diff-touched arm: in standalone PR-number mode a claim about a path the reviewed diff touches is now verified against the reviewed head's bytes through `git show $PR_HEAD_SHA:<path>` (a base-state claim through `$PR_BASE_SHA`), the working tree never moves, and a path the diff does not touch keeps its working-tree read; a routed read of an unresolvable (e.g. fork) head grades INCONCLUSIVE rather than falling back to the wrong bytes. Phase 0 additionally records whether the working tree matched the reviewed head. The change ships zero new tool grants. (#1910)
+- **Context instruments report an unmeasured turn as unestablished, not zero.**
+  `scripts/create_issue_eval.py` and `scripts/implement-context-eval.py` no longer record a
+  real `0` for a turn whose usage object established no residency sub-field (absent, empty,
+  all-null, or all-non-finite), which had dragged the reported peak and median below the
+  true context used. Such a turn is now tallied in `usage_missing_turns` and excluded from the
+  peak population, matching the `scripts/review-context-eval.py` reference. A bare `Infinity`
+  token count — which the JSON reader accepts — is treated as an unmeasured turn rather than
+  raising `OverflowError` and aborting the whole measurement, and `create_issue_eval.py`'s
+  `_median` now refuses an empty population like both siblings. (#1918)
+
 ## [2.34.6] — 2026-08-24
 
 ### Changed
