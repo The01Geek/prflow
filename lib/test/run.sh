@@ -32861,6 +32861,23 @@ CLAUDE_CODE_SUBAGENT_MODEL'
     R313_TOPKEYS="$(gh_topkeys "$R313_GENV")"
     assert_eq "#1911 inject-body: a non-object .env still fails closed as today, warn block adds no new failure (AC 8)" "yes" \
       "$([ "$R313_RC" -ne 0 ] && [ -z "$R313_TOPKEYS" ] && echo yes || echo no)"
+    : > "$R313_GENV"
+    # AC 5 + deny-before-warn ordering: a denied key alongside a watched key refuses first
+    # (::error::, non-zero) and no ::warning:: leaks — guards a future reorder that put the warn
+    # block above the deny guard, which would warn on a run that is about to refuse.
+    R313_RC=0
+    R313_OUT="$( export DECISION='{"env":{"github_token":"x","HOME":"y"}}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" 2>&1 )" || R313_RC=$?
+    assert_eq "#1911 inject-body: a denied key beside a watched key refuses first (::error::, non-zero) with no ::warning:: leaking (AC 5 + deny-before-warn ordering)" "yes" \
+      "$([ "$R313_RC" -ne 0 ] && printf '%s' "$R313_OUT" | grep -qF '::error::' && ! printf '%s' "$R313_OUT" | grep -qF '::warning::' && echo yes || echo no)"
+    : > "$R313_GENV"
+    # AC 1/AC 2 valid-falsy: a watched key with an empty-string value still warns and is still
+    # written (jq keys[] is value-agnostic; the valid-falsy row CLAUDE.md's config matrix calls
+    # load-bearing, mirroring #1770's empty-string AWS_REGION case).
+    R313_RC=0
+    R313_OUT="$( export DECISION='{"env":{"HOME":""}}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" 2>&1 )" || R313_RC=$?
+    R313_TOPKEYS="$(gh_topkeys "$R313_GENV")"
+    assert_eq "#1911 inject-body: a watched key with an empty-string value still warns and is still written (AC 1/AC 2 — valid-falsy)" "yes" \
+      "$([ "$R313_RC" -eq 0 ] && r1911_warns_key "$R313_OUT" 'HOME' && printf '%s\n' "$R313_TOPKEYS" | grep -qxF 'HOME' && echo yes || echo no)"
     rm -f "$R313_GENV" "$R313_GENV.kv"
   else
     echo "  SKIP  #313 inject-body behavioral checks (no writable temp / body extraction failed)"
