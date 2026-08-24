@@ -60,8 +60,8 @@ if ! sed -E \
   -e 's/gh[pousr]_[A-Za-z0-9_]{20,}/[REDACTED-GH-TOKEN]/g' \
   -e 's/github_pat_[A-Za-z0-9_]{20,}/[REDACTED-GH-PAT]/g' \
   -e 's/sk-ant-[A-Za-z0-9_-]{20,}/[REDACTED-ANTHROPIC-KEY]/g' \
-  -e 's/([Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn][":[:space:]]*)[Bb]earer [A-Za-z0-9._~+\/=-]+/\1Bearer [REDACTED]/g' \
-  -e 's/([Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn][":[:space:]]*)[Bb]asic [A-Za-z0-9+\/=]+/\1basic [REDACTED]/g'; then
+  -e 's/([Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn][":[:space:]]*)[Bb]earer [A-Za-z0-9._~+/=-]{4,}/\1Bearer [REDACTED]/g' \
+  -e 's/([Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn][":[:space:]]*)[Bb]asic [A-Za-z0-9+/=]{4,}/\1basic [REDACTED]/g'; then
   echo "devflow: scrub-credentials.sh: sed exited non-zero on the input — emitting nothing (fail-closed)" >&2
   exit 4
 fi

@@ -18304,6 +18304,22 @@ assert_eq "scrub-credentials: redacts a gh token" \
 assert_eq "scrub-credentials: --shapes names four shapes" \
   "yes" "$(bash "$SCR" --shapes | grep -qF 'GitHub tokens/PATs' && echo yes || echo no)"
 
+# ── #1915 round trip: neither Authorization bracket expression may list `\` as a set
+# member, and neither may relax `{4,}` back to `+`: `\` made the token match swallow a
+# following JSON escape backslash, and `+` matched a bare `//` as a token.
+_SCRUB_RAW='tok ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ012345 pat github_pat_ABCDEFGHIJKLMNOPQRSTUV ant sk-ant-ABCDEFGHIJKLMNOPQRSTUV hdr "AUTHORIZATION: basic T0xENEM=" and "Authorization: Bearer abc.def-ghi~jkl+mno/pqr=" end'
+_SCRUB_WANT='tok [REDACTED-GH-TOKEN] pat [REDACTED-GH-PAT] ant [REDACTED-ANTHROPIC-KEY] hdr "AUTHORIZATION: basic [REDACTED]" and "Authorization: Bearer [REDACTED]" end'
+_SCRUB_IN="$("$DEN_JQ" -n -c --arg v "$_SCRUB_RAW" '{note:$v}')"
+_SCRUB_EXPECT="$("$DEN_JQ" -n -c --arg v "$_SCRUB_WANT" '{note:$v}')"
+_SCRUB_OUT="$(printf '%s\n' "$_SCRUB_IN" | bash "$SCR")"
+assert_eq "scrub-credentials (#1915): scrubbed JSON carrying all four shapes still parses" \
+  "yes" "$(printf '%s\n' "$_SCRUB_OUT" | "$DEN_JQ" -e . >/dev/null 2>&1 && echo yes || echo no)"
+assert_eq "scrub-credentials (#1915): only the credential tokens changed, every other byte identical" \
+  "$_SCRUB_EXPECT" "$_SCRUB_OUT"
+assert_eq "scrub-credentials (#1915): a recorded sed command keeps its trailing slashes" \
+  "run: sed 's/AUTHORIZATION: basic //' file" \
+  "$(printf '%s\n' "run: sed 's/AUTHORIZATION: basic //' file" | bash "$SCR")"
+
 # ── AC6: the default-on key's off-switch decision (the workflow's builtin `case`). The
 # decision is `false → off; everything else → on`. Drive config-get.sh over each shape
 # and apply the SAME case, asserting exit 0 + the enabled/disabled result. `0`/`""` are
