@@ -123,5 +123,72 @@
       "iter": 5,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.60",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 16.73074655,
+    "tokens": {
+      "input_tokens": 68,
+      "output_tokens": 44863,
+      "cache_read_input_tokens": 6196782,
+      "cache_creation_input_tokens": 268826,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 155,
+        "outputTokens": 83209,
+        "cacheReadInputTokens": 9178586,
+        "cacheCreationInputTokens": 762783,
+        "webSearchRequests": 0,
+        "costUSD": 12.44578425,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 286,
+        "outputTokens": 44300,
+        "cacheReadInputTokens": 6517639,
+        "cacheCreationInputTokens": 1015145,
+        "webSearchRequests": 0,
+        "costUSD": 4.284962300000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 73,
+    "duration_ms": 859115
+  },
+  "permission_denials": {
+    "count": 7,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "gh pr diff 1781 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1781/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}/diff.patch; echo \"---DIFF-RC=$?\"",
+      "mkdir -p .prflow/tmp/review/pr-1781/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}; echo \"run-id=${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}\"; echo \"RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT:-1}\"",
+      "for f in devflow.yml devflow-implement.yml devflow-runner.yml; do\n  echo \"=== $f ===\"\n  awk '/name: Inject provider endpoint/{flag=1} flag{print} flag && /^      - name:/ && !/Inject provider endpoint/{exit}' .github/workflows/$f | md5sum\ndone",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1781/32682354687-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1781/32682354687-1/verdicts/iter-1/VC-5-v2b8.json <<'EOF'\n{\"id\":\"VC-5\",\"verdict\":\"PASS\",\"evidence\":\"In .github/workflows/devflow.yml the key-shape guard (lines 1395-1397) that exits 1 with '::error::...has an env-map key that is not a valid environment variable name...' runs before the denied_env_keys deny block (lines 1402-1405) that exits …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1781/32682354687-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1781/32682354687-1/verdicts/iter-1/VC-13-e2m9.json << 'EOF'\n{\"id\":\"VC-13\",\"verdict\":\"PASS\",\"evidence\":\"lib/test/modules/coverage-map.json's run_sh_blocks object contains a valid '1773' entry: {\\\"note\\\": \\\"issue #1773 provider env-map key-name deny list; run.sh-resident, driven from the R313_INJ_BODY inject-step extraction beside the #313 as …[per-command-truncated]",
+      "for f in devflow.yml devflow-implement.yml devflow-runner.yml; do echo \"=== $f ===\"; grep -n \"denied_env_keys=\" .github/workflows/$f; done",
+      "jq empty /home/runner/work/prflow/prflow/.prflow/config.schema.json && echo \"schema OK\"; jq -r '.jobs//empty|type' /dev/null 2>/dev/null; python3 -c \"import yaml,sys; [yaml.safe_load(open('.github/workflows/'+f)) for f in ['devflow.yml','devflow-implement.yml','devflow-runner.yml']]; print('yaml OK')\""
+    ],
+    "total": 7,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
