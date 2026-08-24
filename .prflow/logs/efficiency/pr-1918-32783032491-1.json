@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1918",
+  "generated_at": "2026-08-24T22:16:50Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.6",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 9.094676,
+    "tokens": {
+      "input_tokens": 42,
+      "output_tokens": 26956,
+      "cache_read_input_tokens": 3045941,
+      "cache_creation_input_tokens": 204046,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 132,
+        "outputTokens": 64887,
+        "cacheReadInputTokens": 5661437,
+        "cacheCreationInputTokens": 620152,
+        "webSearchRequests": 0,
+        "costUSD": 9.094676,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 44,
+    "duration_ms": 510927
+  },
+  "permission_denials": {
+    "count": 4,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"CLAUDE_SKILL_DIR=${CLAUDE_SKILL_DIR:-<unset>}\"",
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-<none>} ATTEMPT=${GITHUB_RUN_ATTEMPT:-<none>}\"",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before\n: > .prflow/tmp/displaced-paths.txt\necho \"displaced-file-created\"",
+      "git status --porcelain -z > .prflow/tmp/review-dirty-tree-before"
+    ],
+    "total": 4,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
