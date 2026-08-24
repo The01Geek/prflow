@@ -18319,15 +18319,21 @@ assert_eq "scrub-credentials (#1915): only the credential tokens changed, every 
 assert_eq "scrub-credentials (#1915): a recorded sed command keeps its trailing slashes" \
   "run: sed 's/AUTHORIZATION: basic //' file" \
   "$(printf '%s\n' "run: sed 's/AUTHORIZATION: basic //' file" | bash "$SCR")"
-# A token carrying an escaped slash or an escaped backslash stays fully redacted: the escape
-# unit is part of the token, so narrowing the group to plain class members would truncate the
-# match and emit the tail of a live credential.
-assert_eq "scrub-credentials (#1915): a token carrying an escaped slash is fully redacted" \
+# Both escape units belong to the token, in BOTH rules: narrowing either group to plain class
+# members truncates the match at the escape and emits the rest of a live credential. Each fixture
+# leads with four class members so the pre-fix behaviour is that truncation, not a whole no-match.
+assert_eq "scrub-credentials (#1915): Bearer token with an escaped slash is fully redacted" \
   'Authorization: Bearer [REDACTED]' \
-  "$(printf '%s\n' 'Authorization: Bearer ab\/cdefghijklmnop0123456789' | bash "$SCR")"
-assert_eq "scrub-credentials (#1915): a token carrying an escaped backslash is fully redacted" \
+  "$(printf '%s\n' 'Authorization: Bearer AAAABBBB\/SECRETTAIL9999' | bash "$SCR")"
+assert_eq "scrub-credentials (#1915): basic token with an escaped slash is fully redacted" \
+  'AUTHORIZATION: basic [REDACTED]' \
+  "$(printf '%s\n' 'AUTHORIZATION: basic AAAABBBB\/SECRETTAIL9999' | bash "$SCR")"
+assert_eq "scrub-credentials (#1915): Bearer token with an escaped backslash is fully redacted" \
   'Authorization: Bearer [REDACTED]' \
-  "$(printf '%s\n' 'Authorization: Bearer ab\\/cdefghijklmnop0123456789' | bash "$SCR")"
+  "$(printf '%s\n' 'Authorization: Bearer AAAABBBB\\SECRETTAIL9999' | bash "$SCR")"
+assert_eq "scrub-credentials (#1915): basic token with an escaped backslash is fully redacted" \
+  'AUTHORIZATION: basic [REDACTED]' \
+  "$(printf '%s\n' 'AUTHORIZATION: basic AAAABBBB\\SECRETTAIL9999' | bash "$SCR")"
 # The four-unit floor is the redaction boundary; a shorter run is left alone, which is what
 # keeps a recorded `//` from being read as a token. Widening the floor would start leaking
 # short credentials, narrowing it would resume eating recorded commands.
