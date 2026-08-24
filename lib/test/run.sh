@@ -25050,6 +25050,12 @@ assert_eq "#1618 skill-body: unparseable execution file -> unestablished" \
 assert_eq "#1618 skill-body: an absent execution file -> unestablished" \
   "unestablished" \
   "$(_o="$(python3 "$SBL" "$SBL_TMP/definitely-not-here.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" 2>/dev/null)"; case "$_o" in *'VERDICT: '*) _v="${_o#*'VERDICT: '}"; printf '%s' "${_v%%$'\n'*}" ;; *) printf 'NO_VERDICT' ;; esac)"
+# An EMPTY (zero-byte) execution file (issue #1893 malformed-shape matrix floor): the
+# empty-content parse path must fail closed to unestablished, not fall open to a real verdict.
+: > "$SBL_TMP/empty-exec.jsonl"
+assert_eq "#1618 skill-body: an empty execution file -> unestablished" \
+  "unestablished" \
+  "$(_o="$(python3 "$SBL" "$SBL_TMP/empty-exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" 2>/dev/null)"; case "$_o" in *'VERDICT: '*) _v="${_o#*'VERDICT: '}"; printf '%s' "${_v%%$'\n'*}" ;; *) printf 'NO_VERDICT' ;; esac)"
 
 # The real claude-code-action content shape (a list of text blocks) reconstructs to the body,
 # so a whole delivery still reads delivered-whole rather than failing the disk-control match.
