@@ -25074,6 +25074,12 @@ assert_eq "#1618 skill-body: partially-corrupt execution file -> unestablished (
 assert_eq "#1618 skill-body: unreadable on-disk control file -> unestablished" \
   "unestablished" \
   "$(sbl_build whole >/dev/null 2>&1; _o="$(python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=/definitely/not/here/SKILL.md" 2>/dev/null)"; case "$_o" in *'VERDICT: '*) _v="${_o#*'VERDICT: '}"; printf '%s' "${_v%%$'\n'*}" ;; *) printf 'NO_VERDICT' ;; esac)"
+# Regression guard (#1893): on the on-disk-unreadable arm the verdict is unestablished but a body
+# WAS delivered, so length and the copy comparison are computed BEFORE the early return and must
+# still print — moving that computation below the return would silently drop them while the
+# VERDICT-only check above stayed green. Assert LENGTH carries a real char count on this arm.
+assert_eq "#1618 skill-body: unreadable on-disk control file still prints a real LENGTH field" "yes" \
+  "$(sbl_build whole >/dev/null 2>&1; python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=/definitely/not/here/SKILL.md" 2>/dev/null | grep -qE 'LENGTH : [0-9]+ chars' && echo yes || echo no)"
 # Multi-root audit (the shape both workflow jobs actually use): two --root operands emit two
 # per-root VERDICT lines. The `whole` fixture carries a prflow:review pair only, so review reads
 # delivered-whole and implement (no pair) reads unestablished — proving the loop runs per root
