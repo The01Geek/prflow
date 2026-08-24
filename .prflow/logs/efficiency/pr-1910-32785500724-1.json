@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1910",
+  "generated_at": "2026-08-24T22:49:51Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.6",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 8.740503,
+    "tokens": {
+      "input_tokens": 46,
+      "output_tokens": 38228,
+      "cache_read_input_tokens": 3391107,
+      "cache_creation_input_tokens": 212450,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 110,
+        "outputTokens": 74090,
+        "cacheReadInputTokens": 5426131,
+        "cacheCreationInputTokens": 540472,
+        "webSearchRequests": 0,
+        "costUSD": 8.740503,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 34,
+    "duration_ms": 692878
+  },
+  "permission_denials": {
+    "count": 2,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---ENV---\"; echo \"run_id=${GITHUB_RUN_ID:-EMPTY} attempt=${GITHUB_RUN_ATTEMPT:-EMPTY} actions=${GITHUB_ACTIONS:-EMPTY}\"",
+      "git show ca47eadf3909cd8eda0a70db4f5da69e4bcab056:lib/capability-profiles.json | python3 -c \"\nimport json,sys\nd=json.load(sys.stdin)\ngroups=d['groups']\ntgt=['Bash(git show:*)','Bash(git cat-file:*)','Bash(git rev-parse:*)']\n# find which groups contain them\ngcontain={t:[g for g,toks in groups.items() if t in toks] for t in tgt}\nprint('groups per token:',json.dumps(gcontain))\nfor pname,p in d['profiles'].items():\n    print('PROFILE',pname, 'keys',list(p.keys()) if isinstance(p,dict) else type(p))\n …[per-command-truncated]"
+    ],
+    "total": 2,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
