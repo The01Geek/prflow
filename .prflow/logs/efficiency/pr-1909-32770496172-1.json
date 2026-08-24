@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1909",
+  "generated_at": "2026-08-24T21:28:16Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.2",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 63.0897483,
+    "tokens": {
+      "input_tokens": 388,
+      "output_tokens": 199962,
+      "cache_read_input_tokens": 78969353,
+      "cache_creation_input_tokens": 612948,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 514,
+        "outputTokens": 264895,
+        "cacheReadInputTokens": 82525647,
+        "cacheCreationInputTokens": 1623886,
+        "webSearchRequests": 0,
+        "costUSD": 60.33561100000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 172,
+        "outputTokens": 43004,
+        "cacheReadInputTokens": 5918579,
+        "cacheCreationInputTokens": 456015,
+        "webSearchRequests": 0,
+        "costUSD": 2.7541372999999996,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 250,
+    "duration_ms": 5756175
+  },
+  "permission_denials": {
+    "count": 42,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"ACTIONS=$GITHUB_ACTIONS RUNID=$GITHUB_RUN_ID ATTEMPT=$GITHUB_RUN_ATTEMPT REPO=$GITHUB_REPOSITORY\"; git branch --show-current; git status --porcelain | head; git log --oneline -3",
+      "cd /home/runner/work/prflow/prflow\nBRANCH=$(.prflow/vendor/prflow/scripts/branch-for-issue.py 1826 --title-file .prflow/tmp/devflow-issue-1826-title.txt) || { echo \"FAIL branch-for-issue.py\"; exit 1; }\n[ -n \"$BRANCH\" ] || { echo \"FAIL empty branch\"; exit 1; }\necho \"BRANCH=$BRANCH\"\ngit checkout -b \"$BRANCH\" \"origin/main\"",
+      "cd /home/runner/work/prflow/prflow\n.prflow/vendor/prflow/scripts/branch-for-issue.py 1826 --title-file .prflow/tmp/devflow-issue-1826-title.txt > .prflow/tmp/branch-name-1826.txt\ncat .prflow/tmp/branch-name-1826.txt",
+      "git push -u origin HEAD 2>&1 | tail -5; echo \"rc=${PIPESTATUS[0]}\"",
+      "git ls-tree -r --name-only origin/devflow-telemetry -- .devflow/logs/efficiency/ 2>&1 | wc -l; git ls-tree -r --name-only origin/prflow-telemetry -- .prflow/logs/efficiency/ 2>&1 | wc -l",
+      "git ls-tree -r --name-only origin/devflow-telemetry -- .devflow/logs/efficiency/ | wc -l",
+      "git ls-tree -r --name-only origin/prflow-telemetry -- .prflow/logs/efficiency/ | wc -l",
+      "git ls-tree -r --name-only origin/devflow-telemetry -- .devflow/logs/efficiency/ > /tmp/dt.txt; wc -l /tmp/dt.txt",
+      "git ls-tree -r --name-only origin/prflow-telemetry -- .prflow/logs/efficiency/ > /tmp/pt.txt; wc -l /tmp/pt.txt",
+      "git ls-tree -r --name-only origin/devflow-telemetry -- .devflow/logs/efficiency/ > /tmp/dt.txt",
+      "git ls-tree -r --name-only origin/prflow-telemetry -- .prflow/logs/efficiency/ > /tmp/pt.txt",
+      "git ls-tree -r --name-only origin/devflow-telemetry -- .devflow/logs/efficiency/ > .prflow/tmp/dt.txt",
+      "git ls-tree -r --name-only origin/prflow-telemetry -- .prflow/logs/efficiency/ > .prflow/tmp/pt.txt",
+      "git ls-tree -r --name-only origin/devflow-telemetry -- .devflow/logs/efficiency/ | wc -l",
+      "git ls-tree -r --name-only origin/prflow-telemetry -- .prflow/logs/efficiency/ | wc -l",
+      "git ls-tree -r --name-only origin/devflow-telemetry -- .devflow/logs/efficiency/",
+      "git ls-tree -r --name-only origin/devflow-telemetry -- .devflow/logs/efficiency/ | wc -l",
+      "git ls-tree -r --name-only origin/prflow-telemetry -- .prflow/logs/efficiency/ | wc -l",
+      "git ls-tree -r --name-only origin/prflow-telemetry 2>&1 | grep -c '^\\.devflow/' 2>&1",
+      "git ls-tree -r --name-only origin/prflow-telemetry",
+      "git ls-tree -r --name-only origin/prflow-telemetry -- .devflow",
+      "python3 - <<'PY'\nimport importlib.util, sys\nspec = importlib.util.spec_from_file_location(\"bxr\", \"scripts/build-experiment-records.py\")\nm = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)\nef = m._efficiency_entry\n# AC1: non-empty per_iteration carried verbatim + cut_candidate_min_dispatch\nrec = {\"slug\":\"pr-1\",\"per_iteration\":[{\"iter\":1,\"diff_profile\":\"x\",\"agent_verdicts\":{}}],\"cut_candidate_min_dispatch\":3}\ne = ef(rec, None)\nprint(\"AC1 per_iteration verbatim:\", e[\"per_iteration …[per-command-truncated]",
+      "cp scripts/build-experiment-records.py .prflow/tmp/mutated-1826.py\n# Plant the omission: drop the \"iter\" key from each per_iteration object in the join.\npython3 - <<'PY'\nimport re\np=\".prflow/tmp/mutated-1826.py\"\ns=open(p).read()\ns=s.replace(\n'        \"per_iteration\": (record.get(\"per_iteration\")\\n                          if isinstance(record.get(\"per_iteration\"), list) else []),',\n'        \"per_iteration\": ([{k: v for k, v in it.items() if k != \"iter\"} if isinstance(it, dict) else it\\n          …[per-command-truncated]",
+      "ls .changeset/ 2>/dev/null | head; echo \"=== example ===\"; cat \"$(ls .changeset/*.md 2>/dev/null | grep -v -i readme | head -1)\" 2>/dev/null || echo \"(no example changeset present)\"",
+      "git diff --no-index -U0 /dev/null .changeset/issue-1826-per-iteration-efficiency-join.md | python3 scripts/stale-prose-lint.py --worktree 2>&1 | tail -6; echo \"rc=$?\"",
+      "git diff --no-index -U0 /dev/null .changeset/issue-1826-per-iteration-efficiency-join.md | tee .prflow/tmp/cs-diff-1826.txt >/dev/null; python3 scripts/stale-prose-lint.py --worktree < .prflow/tmp/cs-diff-1826.txt 2>&1 | tail -6; rm -f .prflow/tmp/cs-diff-1826.txt",
+      "HEAD_LOCAL=$(git rev-parse HEAD); HEAD_PR=$(gh pr view 1909 --json headRefOid --jq '.headRefOid'); BR=$(git branch --show-current); HEADREF=$(gh pr view 1909 --json headRefName --jq '.headRefName'); echo \"local=$HEAD_LOCAL pr=$HEAD_PR match=$([ \"$HEAD_LOCAL\" = \"$HEAD_PR\" ] && echo yes || echo no)\"; echo \"branch=$BR headref=$HEADREF match=$([ \"$BR\" = \"$HEADREF\" ] && echo yes || echo no)\"",
+      "cat > .prflow/tmp/flight-decl-1826.json <<'EOF'\n{\n  \"schema_version\": 1,\n  \"profile\": {\n    \"profile_version\": 1,\n    \"argv\": [\"lib/test/run-module.sh\", \"experiment-records\"],\n    \"cwd\": \"/home/runner/work/prflow/prflow\",\n    \"environment\": {},\n    \"toolchain\": {},\n    \"dependencies\": {}\n  },\n  \"checkout\": {\n    \"checkout_id\": \"/home/runner/work/prflow/prflow/.git\",\n    \"head\": \"43ff1f6859f64c8a4eca3da35a02b6296c2b4d34\",\n    \"index_digest\": \"c64d7385e8f744dfbe80de41a917ba07f3118712\",\n    \"tracke …[per-command-truncated]",
+      "python3 - <<'PYEOF'\nimport json\ndecl = {\n  \"schema_version\": 1,\n  \"profile\": {\n    \"profile_version\": 1,\n    \"argv\": [\"lib/test/run-module.sh\", \"experiment-records\"],\n    \"cwd\": \"/home/runner/work/prflow/prflow\",\n    \"environment\": {},\n    \"toolchain\": {},\n    \"dependencies\": {}\n  },\n  \"checkout\": {\n    \"checkout_id\": \"/home/runner/work/prflow/prflow/.git\",\n    \"head\": \"43ff1f6859f64c8a4eca3da35a02b6296c2b4d34\",\n    \"index_digest\": \"c64d7385e8f744dfbe80de41a917ba07f3118712\",\n    \"tracked_digest\" …[per-command-truncated]",
+      "B64='eyJzY2hlbWFfdmVyc2lvbiI6IDEsICJwcm9maWxlIjogeyJwcm9maWxlX3ZlcnNpb24iOiAxLCAiYXJndiI6IFsibGliL3Rlc3QvcnVuLW1vZHVsZS5zaCIsICJleHBlcmltZW50LXJlY29yZHMiXSwgImN3ZCI6ICIvaG9tZS9ydW5uZXIvd29yay9wcmZsb3cvcHJmbG93IiwgImVudmlyb25tZW50Ijoge30sICJ0b29sY2hhaW4iOiB7fSwgImRlcGVuZGVuY2llcyI6IHt9fSwgImNoZWNrb3V0IjogeyJjaGVja291dF9pZCI6ICIvaG9tZS9ydW5uZXIvd29yay9wcmZsb3cvcHJmbG93Ly5naXQiLCAiaGVhZCI6ICI0M2ZmMWY2ODU5ZjY0YzhhNGVjYTNkYTM1YTAyYjYyOTZjMmI0ZDM0IiwgImluZGV4X2RpZ2VzdCI6ICJjNjRkNzM4NWU4Zjc0NGRmYmU4MGR …[per-command-truncated]",
+      "pwd\nB64='eyJzY2hlbWFfdmVyc2lvbiI6IDEsICJwcm9maWxlIjogeyJwcm9maWxlX3ZlcnNpb24iOiAxLCAiYXJndiI6IFsibGliL3Rlc3QvcnVuLW1vZHVsZS5zaCIsICJleHBlcmltZW50LXJlY29yZHMiXSwgImN3ZCI6ICIvaG9tZS9ydW5uZXIvd29yay9wcmZsb3cvcHJmbG93IiwgImVudmlyb25tZW50Ijoge30sICJ0b29sY2hhaW4iOiB7fSwgImRlcGVuZGVuY2llcyI6IHt9fSwgImNoZWNrb3V0IjogeyJjaGVja291dF9pZCI6ICIvaG9tZS9ydW5uZXIvd29yay9wcmZsb3cvcHJmbG93Ly5naXQiLCAiaGVhZCI6ICI0M2ZmMWY2ODU5ZjY0YzhhNGVjYTNkYTM1YTAyYjYyOTZjMmI0ZDM0IiwgImluZGV4X2RpZ2VzdCI6ICJjNjRkNzM4NWU4Zjc0NGRmYmU …[per-command-truncated]",
+      "python3 .prflow/vendor/prflow/scripts/checkout-fingerprint.py > /tmp/fp.json 2>&1; cat /tmp/fp.json",
+      "jq -n --argjson checkout \"$(cat .prflow/tmp/checkout-fp-1826.json)\" '{schema_version:1, profile:{profile_version:1, argv:[\"lib/test/run-module.sh\",\"experiment-records\"], cwd:\"/home/runner/work/prflow/prflow\", environment:{}, toolchain:{}, dependencies:{}, output_roots:[], external_services:\"none\"}, checkout:$checkout, candidate_identity:\"ac-verifier-1826-experiment-records\"}' | tee .prflow/tmp/flight-decl-1826.json",
+      "jq -n --arg flight 9a3ba976b38f95e759e634c95caf6e314516cf2ce02f8fbe52ddd5987394283d --arg head 43ff1f6859f64c8a4eca3da35a02b6296c2b4d34 '{flight_key:$flight, result:\"passed\", exit_status:0, head:$head, modules:{\"experiment-records\":\"165 passed, 0 failed\",\"efficiency-trace-telemetry\":\"944 passed, 0 failed\"}}' | tee .prflow/tmp/ac-flight-1826.json",
+      "jq -n --arg flight 9a3ba976b38f95e759e634c95caf6e314516cf2ce02f8fbe52ddd5987394283d --arg head 43ff1f6859f64c8a4eca3da35a02b6296c2b4d34 '{flight_key:$flight, result:\"passed\", exit_status:0, head:$head, modules:{\"experiment-records\":\"165 passed, 0 failed\",\"efficiency-trace-telemetry\":\"944 passed, 0 failed\"}}' > .prflow/tmp/ac-flight-1826.json\ncat .prflow/tmp/ac-flight-1826.json",
+      "jq -n --arg flight 9a3ba976b38f95e759e634c95caf6e314516cf2ce02f8fbe52ddd5987394283d --arg head 43ff1f6859f64c8a4eca3da35a02b6296c2b4d34 '{flight_key:$flight, result:\"passed\", exit_status:0, head:$head, modules:{\"experiment-records\":\"165 passed, 0 failed\",\"efficiency-trace-telemetry\":\"944 passed, 0 failed\"}}' | tee .prflow/tmp/ac-flight-1826.json > /dev/null\ncat .prflow/tmp/ac-flight-1826.json",
+      "jq -n --arg flight 9a3ba976b38f95e759e634c95caf6e314516cf2ce02f8fbe52ddd5987394283d --arg head 43ff1f6859f64c8a4eca3da35a02b6296c2b4d34 '{flight_key:$flight, result:\"passed\", exit_status:0, head:$head, modules:{\"experiment-records\":\"165 passed, 0 failed\",\"efficiency-trace-telemetry\":\"944 passed, 0 failed\"}}' | tee .prflow/tmp/ac-flight-1826.json",
+      ".prflow/vendor/prflow/scripts/reconcile-ac-verifiers.py --evidence-file .prflow/tmp/ac-evidence-1826.json --claim-file .prflow/tmp/ac-claim-1826.json > .prflow/tmp/ac-dispositions-1826.md 2>&1; head -c 200 .prflow/tmp/ac-dispositions-1826.md; echo; wc -l .prflow/tmp/ac-dispositions-1826.md",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/skills/docs/../../scripts/load-prompt-extension.sh docs 2>&1; echo \"---EXIT:$?---\"",
+      "cd /home/runner/work/prflow/prflow; sed -n '/_efficiency_entry/,/^def /p' scripts/build-experiment-records.py | head -120"
+    ],
+    "total": 42,
+    "truncated": true,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
