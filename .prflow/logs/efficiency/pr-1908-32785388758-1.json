@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1908",
+  "generated_at": "2026-08-24T22:47:09Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.6",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 7.6648805,
+    "tokens": {
+      "input_tokens": 46,
+      "output_tokens": 33730,
+      "cache_read_input_tokens": 3373240,
+      "cache_creation_input_tokens": 207822,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 94,
+        "outputTokens": 60857,
+        "cacheReadInputTokens": 4698506,
+        "cacheCreationInputTokens": 482304,
+        "webSearchRequests": 0,
+        "costUSD": 7.6648805,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 35,
+    "duration_ms": 616145
+  },
+  "permission_denials": {
+    "count": 2,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"run_id=${GITHUB_RUN_ID:-unset} attempt=${GITHUB_RUN_ATTEMPT:-unset}\"; mkdir -p .prflow/tmp/review/pr-1908/\"${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}\"",
+      "mkdir -p .prflow/tmp; rm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled; git status --porcelain -z > .prflow/tmp/review-dirty-tree-before; git hash-object .prflow/tmp/review-dirty-tree-before"
+    ],
+    "total": 2,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
