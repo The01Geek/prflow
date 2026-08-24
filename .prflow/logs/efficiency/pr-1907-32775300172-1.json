@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1907",
+  "generated_at": "2026-08-24T20:48:03Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.3",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 5.426769000000001,
+    "tokens": {
+      "input_tokens": 30,
+      "output_tokens": 12969,
+      "cache_read_input_tokens": 1833348,
+      "cache_creation_input_tokens": 150216,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 74,
+        "outputTokens": 30650,
+        "cacheReadInputTokens": 2809978,
+        "cacheCreationInputTokens": 430696,
+        "webSearchRequests": 0,
+        "costUSD": 5.426769000000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 23,
+    "duration_ms": 306278
+  },
+  "permission_denials": {
+    "count": 1,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "ls /home/runner/work/prflow/prflow/.changeset/ 2>/dev/null; echo \"---example---\"; find /home/runner/work/prflow/prflow/.changeset -name '*.md' ! -name 'README*' | head -3 | while read f; do echo \"== $f ==\"; cat \"$f\"; done"
+    ],
+    "total": 1,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
