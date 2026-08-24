@@ -1,0 +1,150 @@
+{
+  "iter": 2,
+  "started_at": "2026-08-24T21:05:00Z",
+  "fix_commit_sha": "8efb21149",
+  "fix_files": [
+    "scripts/create_issue_eval.py",
+    "scripts/implement-context-eval.py",
+    ".changeset/issue-1899-unmeasured-turn-context-instruments.md"
+  ],
+  "loop_role": "promoted",
+  "promotion_provenance": "shadow",
+  "current_step": "loop-exit",
+  "dispatch_mode": "fanned-out",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": false
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter;prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "module docstrings/changeset enumerate 'a non-finite count' as an unmeasured shape, which reads as 'any non-finite field ⇒ unmeasured'; a turn is unmeasured only when NO residency sub-field is established",
+      "defect_signature": {
+        "file": "scripts/create_issue_eval.py",
+        "line_range": [
+          72,
+          72
+        ],
+        "kind": "doc_accuracy"
+      },
+      "corroboration_count": 2,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "pre-existing test name test_missing_token_field_treated_as_zero predates #1899 semantics; body correct and falsifying",
+      "defect_signature": {
+        "file": "lib/test/test_review_context_eval.py",
+        "line_range": [
+          0,
+          0
+        ],
+        "kind": "style"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "deferred"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "S-1",
+      "decision": "applied",
+      "commit": "8efb21149"
+    },
+    {
+      "finding_id": "S-2",
+      "decision": "deferred",
+      "source_file": "lib/test/test_review_context_eval.py",
+      "claim_text": "stale test name test_missing_token_field_treated_as_zero",
+      "skip_category": "out-of-scope",
+      "evidence": "pre-existing test this PR's diff does not touch; its body correctly asserts partial-measurement and is falsifying",
+      "parking_evidence": {
+        "basis": "the flagged test name is pre-existing code the diff does not modify",
+        "failing_input": "the stale-name nit on a pre-existing, correct test",
+        "source": "lib/test/test_review_context_eval.py (unchanged by this PR)",
+        "finding_ref": {
+          "iter": 2,
+          "index": 1
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 1,
+    "fix_diff_lines": 7,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "shadow": {
+    "dispatch_mode": "fanned-out",
+    "ran_at": "2026-08-24T21:00:00Z",
+    "reviewed_sha": "61ed653ed",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer"
+    ],
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Suggestion",
+        "description": "prose imprecision on unmeasured-shape enumeration",
+        "defect_signature": {
+          "file": "scripts/create_issue_eval.py",
+          "line_range": [
+            72,
+            72
+          ],
+          "kind": "doc_accuracy"
+        }
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Suggestion",
+        "description": "stale pre-existing test name",
+        "defect_signature": {
+          "file": "lib/test/test_review_context_eval.py",
+          "line_range": [
+            0,
+            0
+          ],
+          "kind": "style"
+        }
+      }
+    ],
+    "comparison": {
+      "shadow_total": 2,
+      "overlap_with_iter_N": 0,
+      "new": 2,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": true
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

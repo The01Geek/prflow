@@ -1,0 +1,77 @@
+{
+  "pr": 1918,
+  "run_id": "32774026407-1",
+  "issue_override": 1899,
+  "reviewed_head": "b4670d601bc2bb9ac8558cf5535b1a82d2b2d846",
+  "base": "origin/main",
+  "verdict": "APPROVE WITH ADVISORY NOTES",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": false
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_gates": {
+    "type-design-analyzer": "skipped (has_new_types=false; no new classes/types, only new module-level functions and a RESIDENCY_KEYS constant)",
+    "pr-test-analyzer": "dispatched (three test files changed)"
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The shared _usage_value non-finite guard now also protects the create_issue SPEND/sidechain path (_auditor_cost -> _residency_spend), but no test drives a non-finite or all-null usage on an isSidechain (auditor) record; every new unmeasured-shape test exercises only main-thread residency. Pre-change a sidechain Infinity usage would OverflowError and detonate the corpus walk exactly like the main-thread case, yet that path is now guarded without a regression test.",
+      "defect_signature": {"file": "lib/test/test_create_issue_context_eval.py", "line_range": null, "kind": "test_gap"},
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:requesting-code-review; prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "In _expected_from_fixture the new residency loop `for key in (...)` reuses the name `key` already bound as the per-record context accumulator key. Harmless (key is unconditionally rebound at the top of each record iteration before reuse) but avoidable shadowing; rename to subkey.",
+      "defect_signature": {"file": "lib/test/test_review_context_eval.py", "line_range": [107, 114], "kind": "style"},
+      "corroboration_count": 2
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "The added comment block in the review test's fixture-mirror runs 5 physical lines (over the 3-line prevention-only cap) and its last two lines are provenance/derivation about the prior `(x or 0)` form rather than the specific wrong change prevented. Trim to prohibition-plus-consequence.",
+      "defect_signature": {"file": "lib/test/test_review_context_eval.py", "line_range": [101, 105], "kind": "style"},
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "create_issue_eval.py aggregate() computes total_usage_missing_turns with an inline `sum(...) if runs else UNESTABLISHED`, whereas the implement sibling routes the identical empty->UNESTABLISHED concept through the _sum_or_unestablished helper introduced to single-source that invariant. Correct as written; a consistency nit only.",
+      "defect_signature": {"file": "scripts/create_issue_eval.py", "line_range": [1639, 1640], "kind": "style"},
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "No direct unit assertion that _auditor_cost({})/_auditor_cost({'input_tokens': None})/_residency_spend({}) each return a summable 0 (never None, never raise); the spend-axis-never-None invariant the docstrings call load-bearing is asserted only implicitly via well-formed inputs.",
+      "defect_signature": {"file": "scripts/create_issue_eval.py", "line_range": [884, 903], "kind": "test_gap"},
+      "corroboration_count": 1
+    }
+  ],
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "correctness_verification": {
+    "context_tokens_none_callers_guarded": true,
+    "median_empty_callers_guarded": true,
+    "peak_unestablished_filtered_before_arithmetic": true,
+    "overflow_error_guarded_both_axes": true,
+    "spend_axis_stays_arithmetic": true,
+    "review_context_eval_unmodified": true,
+    "notes": "Only real _context_tokens caller (observe_assistant) branches on None; _auditor_cost re-routed to numeric _residency_spend. Direct _median calls in create_issue_eval.py (lines 2255-2256 paired mode, 2415 delta) are guarded by the 2-configuration identity gate and by _degraded respectively; every other median routes through _median_or_unestablished. aggregate() filters `!= UNESTABLISHED` before max/median/BUCKET comparisons; paired-delta guards via peaks_numeric/_all_numeric/_is_numeric. math.isfinite guard precedes every int(val); OverflowError is NOT in the per-record backstop except-tuple, so the guard is genuinely load-bearing (verified). Tests falsify: implement test flips prior 'real zero' assertion to UNESTABLISHED; create_issue tests assert cardinality-sensitive corpus peak exclusion, _median([]) raise, Infinity corpus main() rc=0, and spend-axis-unchanged."
+  },
+  "report": "# PRFlow Review — PR #1918 (issue #1899)\n\n**Reviewed HEAD:** b4670d601bc2bb9ac8558cf5535b1a82d2b2d846\n**Base:** origin/main\n**Verdict:** APPROVE WITH ADVISORY NOTES\n\n## Diff profile\nsmall_diff=false, config_only=false, has_new_types=false, engine_self_modifying=false, checklist_skipped=false. 6 files, +333/-59. Two maintainer instruments + three focused tests + one changeset. type-design-analyzer skipped (no new types); pr-test-analyzer dispatched (test files changed).\n\n## What the change does\nMirrors scripts/review-context-eval.py's issue-#1899 contract into its two sibling instruments (scripts/create_issue_eval.py, scripts/implement-context-eval.py): an unmeasured turn — a usage object establishing no residency sub-field (absent / empty / all-null / non-finite) — now reports `unestablished` on the RESIDENCY axis rather than a real-looking 0. `_usage_value` becomes the single None-returning validity guard (with a math.isfinite non-finite guard); `_context_tokens` returns None when nothing is established; `_median` now raises on an empty population; the peak aggregate filters out UNESTABLISHED; a new `_residency_spend` keeps the SPEND axis (`_auditor_cost`, `total_output_tokens`) arithmetic. review-context-eval.py itself is correctly left unmodified.\n\n## Correctness verification (all passed)\n- **None-vs-0 split sound.** The only real `_context_tokens` caller (`observe_assistant`) branches on None and tallies `usage_missing_turns`; `_auditor_cost` is re-routed to the numeric `_residency_spend`, so None never reaches spend arithmetic. A genuinely measured 0 (`input_tokens: 0`) stays a measured 0 (non-empty `established` list), correctly distinguished from unmeasured.\n- **`_median` empty-raise safe at every call site.** Empty-tolerant paths route through `_median_or_unestablished`. The three direct `_median` calls in create_issue_eval.py are guarded: the paired-mode calls (2255-2256) run only after the exactly-2-configurations identity gate guarantees non-empty per-side populations; the delta call (2415) is gated behind `_degraded` (empty runs → UNESTABLISHED before the lambda runs).\n- **UNESTABLISHED never reaches arithmetic.** `aggregate` filters `!= UNESTABLISHED` before max/median and the `runs_over_200k/400k` comparisons; `_paired_delta`/`_manifest_comparison` guard via `peaks_numeric`/`_all_numeric`/`_is_numeric`.\n- **OverflowError genuinely avoided.** `math.isfinite` guards before every `int(val)`. Confirmed load-bearing: `OverflowError` is NOT in the per-record backstop except-tuple `(AttributeError, TypeError, ValueError, KeyError)`, so without the guard a bare `Infinity` (which json.loads accepts) would detonate the whole corpus walk rather than being tallied.\n- **Tests falsify, not merely confirm.** The implement test flips the prior `_is_a_real_zero` assertion to expect UNESTABLISHED; create_issue tests assert cardinality-sensitive corpus-peak exclusion, `_median([])` raising, Infinity-corpus `main()` rc=0, and the spend axis unchanged (`_auditor_cost==133`, `peak==125`). The review test's independent fixture-mirror was correctly re-derived to drop the buggy `(x or 0)` oracle.\n\n## Findings (all Suggestion severity)\n1. **[pr-test-analyzer] test_gap** — create_issue sidechain/auditor SPEND path now protected by the shared non-finite guard, but no test drives a non-finite/all-null usage on an `isSidechain` record; only main-thread residency is exercised.\n2. **[requesting-code-review + code-reviewer, corroborated x2] style** — loop variable `key` in `_expected_from_fixture` shadows the context key; harmless, rename to `subkey`.\n3. **[comment-analyzer] style** — the review-test fixture-mirror comment (lines 101-105) exceeds the 3-line prevention-only cap with provenance narrative; trim.\n4. **[silent-failure-hunter] style** — create_issue aggregate uses an inline `sum(...) if runs else UNESTABLISHED` where the implement sibling single-sources via `_sum_or_unestablished`; correct, consistency nit.\n5. **[pr-test-analyzer] test_gap** — no direct unit assertion that `_auditor_cost`/`_residency_spend` return a summable 0 for an unmeasured usage object.\n\n## Verdict\n**APPROVE WITH ADVISORY NOTES.** No Critical or Important findings survived verification across the five-agent roster; the residency/spend split, empty-median guards, peak-population filter, and OverflowError avoidance are all correct, and the tests genuinely falsify the pre-change behavior. The advisory notes (two test-gap Suggestions on the sidechain SPEND path, three cosmetic style nits) are non-blocking and may be addressed in follow-up."
+}
