@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1918",
+  "generated_at": "2026-08-24T22:49:01Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.6",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 7.534862499999999,
+    "tokens": {
+      "input_tokens": 52,
+      "output_tokens": 23891,
+      "cache_read_input_tokens": 3617361,
+      "cache_creation_input_tokens": 161772,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 126,
+        "outputTokens": 53299,
+        "cacheReadInputTokens": 5822575,
+        "cacheCreationInputTokens": 429412,
+        "webSearchRequests": 0,
+        "costUSD": 7.534862499999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 34,
+    "duration_ms": 459702
+  },
+  "permission_denials": {
+    "count": 1,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "for f in lib/test/fixtures/review-eval/corpus/*.jsonl lib/test/fixtures/review-eval/no-engine-reads/*.jsonl; do echo \"== $f ==\"; grep -c 'usage' \"$f\"; grep -o '\"usage\":{[^}]*}' \"$f\" | head -20; done"
+    ],
+    "total": 1,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
