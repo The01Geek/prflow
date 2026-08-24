@@ -40,8 +40,12 @@ is a workflow-authoring error, so it exits non-zero rather than printing an all-
 an audit that audited nothing must not read as an audit that found nothing.
 
 Degraded arms come FIRST and every per-root degraded outcome is `unestablished`, never
-`delivered-whole`: a body that was never loaded, a load that errored, an unreadable or
-wrong-shape execution file are each unknown, not whole. The process exits 0 on every
+`delivered-whole`. The arms, complete by construction, in evaluation order: the execution
+file unreadable, unparseable or only partly parseable; the root not resolving to exactly
+one recorded load (none matched its name, or several did — one arm, two causes, and the
+reason says which); a matching load with no paired result; a load that returned an error;
+no following body record naming the root's own directory; and the on-disk controls
+unreadable. Each is unknown, not whole. The process exits 0 on every
 execution-file outcome (a red verdict on a degraded run is exactly what this probe
 exists to characterize); only the no-roots usage error exits non-zero.
 """
