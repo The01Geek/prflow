@@ -4814,20 +4814,28 @@ assert_eq "tb(#442 Imp-1): the reader still degrades to the legacy archive (best
 rm -rf "$TB_GX_REPO"
 rm -rf "$TB_MB_REPO"
 
-# ── #1003: the UNMIGRATED-telemetry-branch detection arm ─────────────────────
+# ── #1003/#1826: the stranded-superseded-telemetry-branch detection arm ──────
 # The branch renamed devflow-telemetry -> prflow-telemetry and, unlike the state
-# directory, is NOT migrated automatically and is NOT dual-read: a repo that still
-# carries only the superseded ref is told so loudly, because the alternative is a
-# measured-looking absence that silently drops every cost row on it. That arm is
-# the second `rev-parse` probe, and its comparand (`rc_s == 0`) is reachable only
-# when the FIRST probe returned exactly 1 — so a fail-open in either probe ships
-# green. Drive all three combinations of the two refs against one fixture shape.
-tb_unmigrated_warn() {   # $1 = repo root -> yes|no
+# directory, is NOT migrated automatically and is NOT dual-read. Since issue #1826
+# the detection fires whether the canonical branch is present or absent, keyed on
+# the superseded branch carrying efficiency records under the path THAT branch uses
+# (`.devflow/logs/efficiency/`, its pre-rename spelling — never `.prflow/`). The
+# remedy differs by canonical presence: a fast-forward rename push when the
+# canonical branch is absent, a divergent-safe copy-across when it is present.
+# `tb_seed_superseded` commits one `.devflow/` record onto the superseded ref.
+tb_absent_canonical_warn() {   # $1 = repo root -> yes|no (the absent-canonical report)
   DEVFLOW_CONFIG_FILE="$1/no-such-config.json" python3 -c 'import importlib.util,sys
 s=importlib.util.spec_from_file_location("e",sys.argv[1]);m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
 m._index_efficiency(sys.argv[2]+"/.prflow/logs/efficiency", sys.argv[2])' \
     "$LIB/../scripts/build-experiment-records.py" "$1" 2>&1 >/dev/null \
     | grep -qF 'is absent but the superseded' && echo yes || echo no
+}
+tb_stranded_warn() {   # $1 = repo root -> yes|no (any stranded-record report fired)
+  DEVFLOW_CONFIG_FILE="$1/no-such-config.json" python3 -c 'import importlib.util,sys
+s=importlib.util.spec_from_file_location("e",sys.argv[1]);m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
+m._index_efficiency(sys.argv[2]+"/.prflow/logs/efficiency", sys.argv[2])' \
+    "$LIB/../scripts/build-experiment-records.py" "$1" 2>&1 >/dev/null \
+    | grep -qF 'superseded devflow-telemetry branch is present' && echo yes || echo no
 }
 tb_seed_telemetry_repo() {   # $1 = repo root; seeds a committed repo + a legacy record
   git init -q "$1"
@@ -4836,13 +4844,26 @@ tb_seed_telemetry_repo() {   # $1 = repo root; seeds a committed repo + a legacy
   mkdir -p "$1/.prflow/logs/efficiency"
   printf '{"slug":"pr-9","iterations":4}' > "$1/.prflow/logs/efficiency/pr-9-legacy.json"
 }
+# Commit ONE .devflow/logs/efficiency/ record onto the superseded ref, without touching
+# the working tree (plumbing on an isolated index), so the count-based detection fires.
+tb_seed_superseded() {   # $1 = repo root
+  local blob idx tree commit
+  blob="$(printf '{"slug":"pr-old","iterations":2}' | git -C "$1" hash-object -w --stdin)"
+  idx="$1/.git/tb-sup-idx"; rm -f "$idx"
+  GIT_INDEX_FILE="$idx" git -C "$1" update-index --add --cacheinfo "100644,${blob},.devflow/logs/efficiency/pr-old-run.json"
+  tree="$(GIT_INDEX_FILE="$idx" git -C "$1" write-tree)"
+  commit="$(git -C "$1" commit-tree "$tree" -m superseded)"
+  git -C "$1" update-ref refs/heads/devflow-telemetry "$commit"
+  rm -f "$idx"
+}
 
-# (a) POSITIVE: only the superseded ref exists -> the operator is warned.
+# (a) POSITIVE: only the superseded ref exists, carrying a .devflow/ record -> the
+#     operator is warned with the fast-forward rename remedy.
 TB_UM_A="$(git_sandbox "tb unmigrated telemetry branch")"
 tb_seed_telemetry_repo "$TB_UM_A"
-git -C "$TB_UM_A" update-ref refs/heads/devflow-telemetry "$(git -C "$TB_UM_A" rev-parse HEAD)"
+tb_seed_superseded "$TB_UM_A"
 assert_eq "tb(#1003): superseded-only telemetry branch is reported, never read as a measured absence" "yes" \
-  "$(tb_unmigrated_warn "$TB_UM_A")"
+  "$(tb_absent_canonical_warn "$TB_UM_A")"
 # The warning has to be actionable, so it carries the exact one-shot rename.
 TB_UM_A_ERR="$(DEVFLOW_CONFIG_FILE="$TB_UM_A/no-such-config.json" python3 -c 'import importlib.util,sys
 s=importlib.util.spec_from_file_location("e",sys.argv[1]);m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
@@ -4860,23 +4881,40 @@ print(sorted((e["run_id"],e["iterations"]) for v in idx.values() for e in v))' \
 assert_eq "tb(#1003): detection is not a read-through (superseded rows stay unread)" "[('legacy', 4)]" "$TB_UM_A_OUT"
 rm -rf "$TB_UM_A"
 
-# (b) NEGATIVE: the current ref exists too -> nothing to migrate, no warning.
-#     This is the arm that would fail open if the FIRST probe stopped returning 1
-#     for a present branch, so it is what makes (a) a measurement.
+# (b) NEGATIVE: both refs present but the superseded ref carries NO stranded record
+#     under .devflow/logs/efficiency/ -> nothing stranded, no report. (The both-present
+#     case WITH stranded records is (d) below.)
 TB_UM_B="$(git_sandbox "tb migrated telemetry branch")"
 tb_seed_telemetry_repo "$TB_UM_B"
 git -C "$TB_UM_B" update-ref refs/heads/devflow-telemetry "$(git -C "$TB_UM_B" rev-parse HEAD)"
 git -C "$TB_UM_B" update-ref refs/heads/prflow-telemetry "$(git -C "$TB_UM_B" rev-parse HEAD)"
-assert_eq "tb(#1003): a repo carrying BOTH refs is already migrated → no warning" "no" \
-  "$(tb_unmigrated_warn "$TB_UM_B")"
+assert_eq "tb(#1826): both refs present but superseded carries no .devflow/ record → no report" "no" \
+  "$(tb_stranded_warn "$TB_UM_B")"
 rm -rf "$TB_UM_B"
 
-# (c) NEGATIVE: neither ref exists -> a genuine absence, not an unmigrated store.
+# (c) NEGATIVE: neither ref exists -> a genuine absence, no report.
 TB_UM_C="$(git_sandbox "tb no telemetry branch")"
 tb_seed_telemetry_repo "$TB_UM_C"
-assert_eq "tb(#1003): no telemetry ref at all is a genuine absence → no unmigrated warning" "no" \
-  "$(tb_unmigrated_warn "$TB_UM_C")"
+assert_eq "tb(#1003): no telemetry ref at all is a genuine absence → no report" "no" \
+  "$(tb_stranded_warn "$TB_UM_C")"
 rm -rf "$TB_UM_C"
+
+# (d) POSITIVE (#1826): both refs present AND the superseded ref carries stranded
+#     .devflow/ records -> warn with the divergent-safe copy-across remedy, never a
+#     destructive force-push of the superseded ref onto the canonical one.
+TB_UM_D="$(git_sandbox "tb both refs stranded records")"
+tb_seed_telemetry_repo "$TB_UM_D"
+tb_seed_superseded "$TB_UM_D"
+git -C "$TB_UM_D" update-ref refs/heads/prflow-telemetry "$(git -C "$TB_UM_D" rev-parse HEAD)"
+assert_eq "tb(#1826): both refs present, superseded carries a stranded record → warned" "yes" \
+  "$(tb_stranded_warn "$TB_UM_D")"
+TB_UM_D_ERR="$(DEVFLOW_CONFIG_FILE="$TB_UM_D/no-such-config.json" python3 -c 'import importlib.util,sys
+s=importlib.util.spec_from_file_location("e",sys.argv[1]);m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
+m._index_efficiency(sys.argv[2]+"/.prflow/logs/efficiency", sys.argv[2])' \
+  "$LIB/../scripts/build-experiment-records.py" "$TB_UM_D" 2>&1 >/dev/null)"
+assert_eq "tb(#1826): the both-present remedy is divergent-safe (copy across, not a force-push)" "yes" \
+  "$(printf '%s' "$TB_UM_D_ERR" | grep -qF 'Do NOT force-push' && echo yes || echo no)"
+rm -rf "$TB_UM_D"
 
 # Grep pins (AC1/AC19/AC22): the SKILL mirrors + workflows + docs carry the new
 # telemetry-branch contract; a revert turns the suite RED.

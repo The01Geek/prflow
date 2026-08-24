@@ -1680,6 +1680,205 @@ PY
   assert_eq "#431 Tfail: all-candidates-failed batch exits non-zero (2), not a silent success" "yes" \
     "$([ $? -eq 0 ] && echo yes || echo no)"
 
+  # ── T1826 per-iteration pass-through + superseded-branch detection (issue #1826) ──
+  # j1826.py drives _efficiency_entry directly (the unit boundary) so the join half is
+  # asserted per-AC without a gh stub. The producer's full per_iteration key set (from
+  # lib/efficiency-trace.jq) is the fixture, so a dropped key is a visible failure.
+  cat > "$EXP/j1826.py" <<'PY'
+import copy, importlib.util, json, sys
+spec = importlib.util.spec_from_file_location("ber", sys.argv[1])
+ber = importlib.util.module_from_spec(spec); spec.loader.exec_module(ber)
+ef = ber._efficiency_entry
+# The producer's per_iteration object (lib/efficiency-trace.jq record mode) — full key set.
+SRC = [
+    {"iter": 1, "loop_role": "detect", "synthesized": False, "phase3_dispatched": ["code-reviewer"],
+     "phase3_dispatched_count": 1, "phase3_dispatched_present": True, "dispatched_effort_present": True,
+     "agent_effort": {"code-reviewer": "high"}, "diff_profile": "engine_self_modifying",
+     "verification_posture": "full", "checklist_lite_count": 2, "checklist_agent_count": 1,
+     "fixes_applied": 0, "added_nothing": True, "agent_verdicts": {"code-reviewer": "applied-important"}},
+    {"iter": 2, "loop_role": "fix", "synthesized": False, "phase3_dispatched": [],
+     "phase3_dispatched_count": 0, "phase3_dispatched_present": True, "dispatched_effort_present": False,
+     "agent_effort": {}, "diff_profile": None, "verification_posture": "narrow",
+     "checklist_lite_count": 0, "checklist_agent_count": 0, "fixes_applied": 1, "added_nothing": False,
+     "agent_verdicts": {}},
+]
+check = sys.argv[2]
+if check == "verbatim":
+    print("yes" if ef({"slug": "s", "per_iteration": SRC}, None)["per_iteration"] == SRC else "no")
+elif check == "keyset":
+    e = ef({"slug": "s", "per_iteration": SRC}, None)["per_iteration"]
+    print("yes" if len(e) == len(SRC) and all(set(o) == set(s) for o, s in zip(e, SRC)) else "no")
+elif check == "cut":
+    print(json.dumps(ef({"slug": "s", "cut_candidate_min_dispatch": 4}, None)["cut_candidate_min_dispatch"]))
+elif check == "cut-missing":
+    print(json.dumps(ef({"slug": "s"}, None)["cut_candidate_min_dispatch"]))
+elif check == "empty":
+    print(json.dumps(ef({"slug": "s", "per_iteration": []}, None)["per_iteration"]))
+elif check == "missing":
+    print(json.dumps(ef({"slug": "s"}, None)["per_iteration"]))
+elif check == "fieldloss":
+    # The guard is deep-equality of the joined array to the source. Prove it PASSES on the
+    # shipped join AND FIRES when ANY single per-iteration key is dropped (a non-vacuous guard).
+    e = ef({"slug": "s", "per_iteration": SRC}, None)["per_iteration"]
+    if e != SRC:
+        print("no"); sys.exit(0)
+    fires = True
+    for k in list(SRC[0]):
+        mut = copy.deepcopy(e); del mut[0][k]
+        if mut == SRC:  # dropping k must break the equality the guard checks
+            fires = False
+    print("yes" if fires else "no")
+elif check == "adversarial":
+    # Every off-contract shape yields a defined list and no traceback (one bad record must
+    # not detonate the whole store rewrite). object/scalar/false/missing -> []; a list is
+    # carried verbatim whatever its members.
+    ok = True
+    for c in ({"a": 1}, 5, False, [1, 2], [{"iter": 1}]):
+        try:
+            v = ef({"slug": "s", "per_iteration": c}, None)["per_iteration"]
+            if not isinstance(v, list):
+                ok = False
+        except Exception:
+            ok = False
+    for bad in ({"a": 1}, 5, False):
+        if ef({"slug": "s", "per_iteration": bad}, None)["per_iteration"] != []:
+            ok = False
+    print("yes" if ok else "no")
+elif check == "realshape":
+    # A real-world per_iteration object whose checklist_skipped carries a value outside its
+    # documented vocabulary is carried through UNCHANGED (the pass-through claims no cleanup).
+    src = [{"iter": 1, "checklist_skipped": "budget-truncated-inline-review",
+            "agent_verdicts": {"code-reviewer": "applied-important"}}]
+    print("yes" if ef({"slug": "s", "per_iteration": src}, None)["per_iteration"] == src else "no")
+PY
+  assert_eq "#1826 AC1: per_iteration carried through the join VERBATIM" "yes" "$(python3 "$EXP/j1826.py" "$BXR" verbatim)"
+  assert_eq "#1826 AC1: each per_iteration object keeps the source key set" "yes" "$(python3 "$EXP/j1826.py" "$BXR" keyset)"
+  assert_eq "#1826 AC2: cut_candidate_min_dispatch carried through" "4" "$(python3 "$EXP/j1826.py" "$BXR" cut)"
+  assert_eq "#1826 AC2: cut_candidate_min_dispatch absent -> null" "null" "$(python3 "$EXP/j1826.py" "$BXR" cut-missing)"
+  assert_eq "#1826 AC3: empty per_iteration -> empty array" "[]" "$(python3 "$EXP/j1826.py" "$BXR" empty)"
+  assert_eq "#1826 AC3: missing per_iteration key -> empty array" "[]" "$(python3 "$EXP/j1826.py" "$BXR" missing)"
+  assert_eq "#1826 AC4: field-loss guard passes shipped + fires on ANY dropped key" "yes" "$(python3 "$EXP/j1826.py" "$BXR" fieldloss)"
+  assert_eq "#1826 join: adversarial per_iteration shapes yield [] / verbatim, never a traceback" "yes" "$(python3 "$EXP/j1826.py" "$BXR" adversarial)"
+  assert_eq "#1826 join: a real out-of-vocabulary per_iteration value is carried unchanged" "yes" "$(python3 "$EXP/j1826.py" "$BXR" realshape)"
+
+  # ── T1826 integration: per_iteration + cut reach the store; other lines stay stable ──
+  RJ="$EXP/rjoin"
+  mkdir -p "$RJ/.prflow/learnings" "$RJ/.prflow/logs/efficiency"
+  cat > "$RJ/.prflow/learnings/retrospectives.jsonl" <<'EOF'
+{"schema_version":2,"kind":"implementation","pr":1826,"issue":1825,"merged_at":"2026-08-01T00:00:00Z","branch":"issue-1826-x","head_sha":"h1826","merge_commit_sha":"m1826"}
+{"schema_version":2,"kind":"implementation","pr":1820,"issue":1819,"merged_at":"2026-07-30T00:00:00Z","branch":"issue-1820-x","head_sha":"h1820","merge_commit_sha":"m1820"}
+EOF
+  cat > "$RJ/.prflow/logs/efficiency/pr-1826-run1.json" <<'EOF'
+{"schema_version":1,"slug":"pr-1826","synthesized":false,"iterations":2,"config_fingerprint":null,"cut_candidate_min_dispatch":3,"telemetry":[{"iter":1,"phases":{"p3":{"tokens":10}}}],"per_iteration":[{"iter":1,"diff_profile":"engine_self_modifying","agent_verdicts":{"code-reviewer":"applied-important"}},{"iter":2,"diff_profile":null,"agent_verdicts":{}}]}
+EOF
+  cat > "$RJ/.prflow/logs/efficiency/pr-1820-run1.json" <<'EOF'
+{"schema_version":1,"slug":"pr-1820","synthesized":false,"iterations":1,"config_fingerprint":null,"cut_candidate_min_dispatch":null,"telemetry":[{"iter":1,"phases":{"p3":{"tokens":5}}}],"per_iteration":[]}
+EOF
+  STJ="$RJ/.prflow/learnings/experiment-records.jsonl"
+  # First assemble both PRs, then simulate an "old" store whose 1820 line has NO per_iteration
+  # in its efficiency_runs entry (re-canonicalized so a carried-verbatim rewrite is byte-equal).
+  GITHUB_REPOSITORY=owner/repo DEVFLOW_GH="$EXP/gh" \
+    python3 "$BXR" --repo-root "$RJ" --prs 1826,1820 >/dev/null 2>&1
+  assert_eq "#1826 AC1(int): per_iteration reaches the store entry" "yes" \
+    "$([ "$(exp_field "$STJ" 1826 efficiency_runs.0.per_iteration.0.diff_profile)" = "engine_self_modifying" ] && echo yes || echo no)"
+  assert_eq "#1826 AC2(int): cut_candidate_min_dispatch reaches the store entry" "3" \
+    "$(exp_field "$STJ" 1826 efficiency_runs.0.cut_candidate_min_dispatch)"
+  python3 - "$STJ" <<'PY'
+import json, sys
+p = sys.argv[1]
+lines = [json.loads(l) for l in open(p) if l.strip()]
+out = []
+for rec in lines:
+    if rec.get("pr") == 1820:
+        for e in rec.get("efficiency_runs", []):
+            e.pop("per_iteration", None)
+    out.append(json.dumps(rec, sort_keys=True, separators=(",", ":")))
+open(p, "w").write("\n".join(out) + "\n")
+PY
+  BEFORE1820="$(python3 "$EXP/get.py" "$STJ" 1820 "")"
+  # Reprocess ONLY 1826; 1820 is already stored (not a candidate) so its line must not change.
+  GITHUB_REPOSITORY=owner/repo DEVFLOW_GH="$EXP/gh" \
+    python3 "$BXR" --repo-root "$RJ" --prs 1826 >/dev/null 2>&1
+  assert_eq "#1826 AC5: a stored line with no per_iteration data is left byte-identical" "yes" \
+    "$([ "$BEFORE1820" = "$(python3 "$EXP/get.py" "$STJ" 1820 "")" ] && echo yes || echo no)"
+  WHOLE_AFTER="$(cat "$STJ")"
+  # AC6 idempotence: run again over the same inputs; the second run is byte-identical.
+  GITHUB_REPOSITORY=owner/repo DEVFLOW_GH="$EXP/gh" \
+    python3 "$BXR" --repo-root "$RJ" --prs 1826 >/dev/null 2>&1
+  assert_eq "#1826 AC6: a second assembler run is byte-identical to the first" "yes" \
+    "$([ "$WHOLE_AFTER" = "$(cat "$STJ")" ] && echo yes || echo no)"
+
+  # ── T1826 reader half: superseded-branch detection over real git orphan branches ──
+  # Build a git repo, add telemetry records as orphan-branch commits (divergent by
+  # construction — orphans share no ancestor), and read the assembler's stderr warning.
+  mk_git_repo() {
+    local repo="$1"
+    mkdir -p "$repo/.prflow/learnings"
+    printf '%s\n' '{"schema_version":2,"kind":"implementation","pr":1899,"issue":1898,"merged_at":"2026-08-01T00:00:00Z","branch":"b","head_sha":"h","merge_commit_sha":"m"}' \
+      > "$repo/.prflow/learnings/retrospectives.jsonl"
+    git -C "$repo" init -q
+    git -C "$repo" config user.email t@e; git -C "$repo" config user.name t
+    git -C "$repo" add -A; git -C "$repo" commit -qm init
+    git -C "$repo" branch -M main
+  }
+  # $1 repo $2 branch $3 path-prefix $4.. record filenames (each seeded as a tiny record)
+  seed_branch() {
+    local repo="$1" branch="$2" prefix="$3"; shift 3
+    git -C "$repo" checkout -q --orphan "$branch"
+    git -C "$repo" rm -rqf --cached . >/dev/null 2>&1 || true
+    find "$repo" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+    mkdir -p "$repo/$prefix"
+    local f
+    for f in "$@"; do printf '{"schema_version":1,"slug":"%s"}\n' "${f%.json}" > "$repo/$prefix/$f"; done
+    git -C "$repo" add -A; git -C "$repo" commit -qm "$branch"
+    git -C "$repo" checkout -qf main
+  }
+
+  # Fixture: two divergent refs present; the superseded ref holds 2 records under
+  # .devflow/ and a DECOY under .prflow/ (which the check must NOT count).
+  RBP="$EXP/rbp"; mk_git_repo "$RBP"
+  seed_branch "$RBP" prflow-telemetry .prflow/logs/efficiency canon-1.json
+  seed_branch "$RBP" devflow-telemetry .devflow/logs/efficiency old-1.json old-2.json
+  git -C "$RBP" checkout -q devflow-telemetry
+  mkdir -p "$RBP/.prflow/logs/efficiency"; printf '{"slug":"decoy"}\n' > "$RBP/.prflow/logs/efficiency/decoy.json"
+  git -C "$RBP" add -A; git -C "$RBP" commit -qm decoy; git -C "$RBP" checkout -qf main
+  SUP_BEFORE="$(git -C "$RBP" rev-parse devflow-telemetry)"
+  CANON_BEFORE="$(git -C "$RBP" rev-parse prflow-telemetry)"
+  ERRBP="$EXP/errbp"
+  GITHUB_REPOSITORY=owner/repo DEVFLOW_GH="$EXP/gh" \
+    python3 "$BXR" --repo-root "$RBP" --prs 1899 2>"$ERRBP" >/dev/null
+  assert_eq "#1826 AC9/AC11: both-present report names the superseded branch + its .devflow/ record count (decoy under .prflow/ ignored)" "yes" \
+    "$(grep -q 'devflow-telemetry' "$ERRBP" && grep -q '2 efficiency records under .devflow/logs/efficiency/' "$ERRBP" && echo yes || echo no)"
+  assert_eq "#1826 AC12: the both-present remedy is divergent-safe (copy across, never force-push the superseded ref onto the canonical one)" "yes" \
+    "$(grep -qi 'Do NOT force-push' "$ERRBP" && grep -q 'copy the record files' "$ERRBP" && echo yes || echo no)"
+  assert_eq "#1826 AC14: detection mutates no ref (superseded tip unchanged)" "$SUP_BEFORE" "$(git -C "$RBP" rev-parse devflow-telemetry)"
+  assert_eq "#1826 AC14: detection mutates no ref (canonical tip unchanged)" "$CANON_BEFORE" "$(git -C "$RBP" rev-parse prflow-telemetry)"
+  # AC14: the superseded records are NOT unioned into the index — the canonical branch has
+  # exactly one record, so a run that ingested the superseded branch too would over-count.
+  assert_eq "#1826 AC14: records ingested from exactly one branch (superseded not unioned)" "1" \
+    "$(git -C "$RBP" ls-tree -r --name-only prflow-telemetry -- .prflow/logs/efficiency/ | grep -c '\.json$')"
+
+  # Absent-canonical fixture: the superseded ref exists with the canonical one absent —
+  # the pre-#1826 report keeps firing, now with the count and the fast-forward rename remedy.
+  RAC="$EXP/rac"; mk_git_repo "$RAC"
+  seed_branch "$RAC" devflow-telemetry .devflow/logs/efficiency a.json b.json c.json
+  ERRAC="$EXP/errac"
+  GITHUB_REPOSITORY=owner/repo DEVFLOW_GH="$EXP/gh" \
+    python3 "$BXR" --repo-root "$RAC" --prs 1899 2>"$ERRAC" >/dev/null
+  assert_eq "#1826 AC10: absent-canonical report still fires and names the count" "yes" \
+    "$(grep -q '3 efficiency records under .devflow/logs/efficiency/' "$ERRAC" && echo yes || echo no)"
+  assert_eq "#1826 AC10: absent-canonical remedy is the fast-forward rename push" "yes" \
+    "$(grep -q 'git push origin devflow-telemetry:prflow-telemetry' "$ERRAC" && echo yes || echo no)"
+
+  # Superseded absent: no report at all (output unchanged from today's).
+  RSA="$EXP/rsa"; mk_git_repo "$RSA"
+  seed_branch "$RSA" prflow-telemetry .prflow/logs/efficiency only.json
+  ERRSA="$EXP/errsa"
+  GITHUB_REPOSITORY=owner/repo DEVFLOW_GH="$EXP/gh" \
+    python3 "$BXR" --repo-root "$RSA" --prs 1899 2>"$ERRSA" >/dev/null
+  assert_eq "#1826 AC13: with the superseded branch absent, no stranded-record report is emitted" "yes" \
+    "$(grep -qi 'devflow-telemetry' "$ERRSA" && echo no || echo yes)"
+
   rm -rf "$EXP"
 fi
 

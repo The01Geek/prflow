@@ -623,6 +623,12 @@ def _efficiency_entry(record, run_id):
         # deleted `Devflow Review` check-run summary line). `None` when the record carries
         # no denial data.
         "permission_denials": record.get("permission_denials"),
+        # Per-reviewer/loop-position forensics (issue #1826): the whole `per_iteration`
+        # array passes through VERBATIM, normalized to `[]` when missing/non-list so a
+        # floor/synthesis run or one malformed record yields an empty array, never None.
+        "per_iteration": (record.get("per_iteration")
+                          if isinstance(record.get("per_iteration"), list) else []),
+        "cut_candidate_min_dispatch": record.get("cut_candidate_min_dispatch"),
     }
 
 
@@ -630,6 +636,28 @@ def _run_id_from_stem(stem, slug):
     """run_id = filename stem with the `<slug>-` prefix stripped (else the whole
     stem)."""
     return stem[len(slug) + 1:] if stem.startswith(slug + "-") else stem
+
+
+def _count_superseded_efficiency(repo_root):
+    """Count efficiency records stranded on the superseded telemetry branch, read under
+    the path THAT branch uses — `.devflow/logs/efficiency/`, the pre-#1003 spelling the
+    current writer never writes, never the canonical `.prflow/` path which is empty on
+    that branch (issue #1826). Returns (present, count): present is False when the ref is
+    absent; count is the number of `.json` blobs, or None when the ref exists but its
+    tree could not be read — an UNESTABLISHED count, never silently zero."""
+    rc_s, _, _ = _run([GIT, "-C", str(repo_root), "rev-parse", "--verify",
+                       "--quiet", f"{_TELEMETRY_BRANCH_SUPERSEDED}^{{commit}}"])
+    if rc_s != 0:
+        return False, None
+    rc_l, out_l, err_l = _run([GIT, "-C", str(repo_root), "ls-tree", "-r", "--name-only",
+                               _TELEMETRY_BRANCH_SUPERSEDED, "--",
+                               ".devflow/logs/efficiency/"])
+    if rc_l != 0:
+        _warn(f"the superseded {_TELEMETRY_BRANCH_SUPERSEDED} branch is present but its "
+              f".devflow/logs/efficiency/ tree could not be read (ls-tree rc={rc_l}): "
+              f"{(err_l or '').strip()[:160]} — cannot establish how many records are stranded")
+        return True, None
+    return True, sum(1 for p in out_l.splitlines() if p.strip().endswith(".json"))
 
 
 def _index_efficiency(eff_dir, repo_root=None, branch=None):
@@ -709,26 +737,42 @@ def _index_efficiency(eff_dir, repo_root=None, branch=None):
             _warn(f"could not establish whether telemetry branch {br} exists "
                   f"(git rev-parse rc={rc_v}): {(err_v or '').strip()[:160]} — telemetry-branch "
                   f"cost rows unestablished for this run")
-        if rc_v == 1 and br == _TELEMETRY_BRANCH_DEFAULT:
-            # DETECTION, not a read-through (issue #1003). The branch renamed
-            # devflow-telemetry -> prflow-telemetry, and unlike the state directory
-            # this store is NOT migrated automatically: the branch is a single
-            # orphan ref whose whole content is JSON records, so one push renames it
-            # with every byte preserved, and a silent dual-read would entrench the
-            # superseded name permanently (the same ruling issue #988 made for the
-            # config keys). A repository that still carries the superseded ref while
-            # the current one is absent is therefore told so, loudly, with the exact
-            # command -- never left to read as a measured absence.
-            rc_s, _, _ = _run([GIT, "-C", str(repo_root), "rev-parse", "--verify",
-                               "--quiet", f"{_TELEMETRY_BRANCH_SUPERSEDED}^{{commit}}"])
-            if rc_s == 0:
-                _warn(f"telemetry branch {br} is absent but the superseded "
-                      f"{_TELEMETRY_BRANCH_SUPERSEDED} branch is present: this repository's "
-                      f"telemetry records have not been moved, so every cost row on that "
-                      f"branch is invisible to this run. Rename the branch once "
-                      f"(git push origin {_TELEMETRY_BRANCH_SUPERSEDED}:{br} && "
-                      f"git push origin --delete {_TELEMETRY_BRANCH_SUPERSEDED}), or set "
-                      f"telemetry.branch to keep the superseded name")
+        # Stranded-record DETECTION, not a read-through (issue #1826/#1003): the assembler
+        # still ingests from exactly one branch and mutates no ref — it only reports records
+        # stranded on the pre-rename devflow-telemetry branch, so a reader is never told a
+        # run's telemetry is a measured absence when it is merely unread. Fires whether the
+        # canonical branch is present or absent (the old gate silently skipped the
+        # both-present state). Skip only when the resolved branch IS the superseded one.
+        if br != _TELEMETRY_BRANCH_SUPERSEDED:
+            sup_present, sup_count = _count_superseded_efficiency(repo_root)
+            if sup_present and sup_count:
+                plural = "" if sup_count == 1 else "s"
+                if rc_v == 1 and br == _TELEMETRY_BRANCH_DEFAULT:
+                    # Canonical absent: the one-push rename is a FAST-FORWARD (nothing to
+                    # overwrite), so it stays the remedy the absent-canonical case has always
+                    # emitted (a silent dual-read would entrench the superseded name — #988).
+                    _warn(f"telemetry branch {br} is absent but the superseded "
+                          f"{_TELEMETRY_BRANCH_SUPERSEDED} branch is present with {sup_count} "
+                          f"efficiency record{plural} under .devflow/logs/efficiency/: this "
+                          f"repository's telemetry records have not been moved, so every cost "
+                          f"row on that branch is invisible to this run. Rename the branch once "
+                          f"(git push origin {_TELEMETRY_BRANCH_SUPERSEDED}:{br} && "
+                          f"git push origin --delete {_TELEMETRY_BRANCH_SUPERSEDED}), or set "
+                          f"telemetry.branch to keep the superseded name")
+                else:
+                    # Canonical present (or unestablished): the two are independent orphan refs,
+                    # so force-pushing the superseded one onto the canonical one would DISCARD
+                    # every canonical record — name a copy-across remedy that mutates no ref.
+                    _warn(f"the superseded {_TELEMETRY_BRANCH_SUPERSEDED} branch is present "
+                          f"with {sup_count} efficiency record{plural} under "
+                          f".devflow/logs/efficiency/ that this run does not read: the canonical "
+                          f"{br} branch is present, so these are stranded on a divergent branch "
+                          f"and every cost row on it is invisible to this run. Do NOT force-push "
+                          f"{_TELEMETRY_BRANCH_SUPERSEDED} onto {br} — the branches are divergent "
+                          f"and that discards {br}'s records. Instead, on a checkout of {br}, copy "
+                          f"the record files from {_TELEMETRY_BRANCH_SUPERSEDED}:.devflow/logs/"
+                          f"efficiency/ into .prflow/logs/efficiency/, commit and push, then "
+                          f"delete the superseded branch")
         if rc_v == 0:
             rc, out, err = _run([GIT, "-C", str(repo_root), "ls-tree", "-r", "--name-only",
                                  br, "--", ".prflow/logs/efficiency/"])

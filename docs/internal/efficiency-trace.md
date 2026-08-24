@@ -900,10 +900,20 @@ joined fields:
 - **`efficiency_runs[]`** — **all** matching efficiency records for the PR as a per-run list with
   per-run `cost` (never newest-wins, since discarding earlier runs' cost corrupts a cost-vs-outcome
   experiment). Both slug families are resolved: `pr-<N>` directly, and the branch slug from the
-  retrospective entry's `branch` field (with a `gh` lookup fallback). Each entry also carries
-  `synthesized`, `iterations`, `run_id`, `config_fingerprint`, `telemetry_complete`, and
+  retrospective entry's `branch` field (with a `gh` lookup fallback). Each entry carries the full
+  key set `_efficiency_entry` emits: `slug`, `run_id`, `source`, `iterations`, `synthesized`, `cost`,
+  `telemetry_complete`, `config_fingerprint`,
   `harness_cost` (issue #475 — the Layer-4 floor's whole-job cost, passed through verbatim by
-  `_efficiency_entry`; `null` when the run has none, and deliberately NOT summed into `cost`).
+  `_efficiency_entry`; `null` when the run has none, and deliberately NOT summed into `cost`),
+  `permission_denials` (issue #1064 D2 — the denial-forensics object, passed through verbatim; `null`
+  when the run has none), and — since issue #1826 — the producer's whole `per_iteration` array and the
+  run-level `cut_candidate_min_dispatch`, both passed through verbatim so the cross-run roster analyzer
+  reads per-reviewer outcome by diff shape and loop position from the tracked store rather than
+  hand-querying a telemetry branch. `per_iteration` is normalized to `[]` when the record's value is
+  missing or not a list (a floor/synthesis run writes a reduced set — an empty array is an ordinary,
+  expected input), and `cut_candidate_min_dispatch` is `null` when the record has none. Older stored
+  lines predate these two keys and are left untouched; the store is a mixed file by design, and no
+  reader compares an entry's key set.
 - **`telemetry_complete`** (per efficiency run) — `true` **only** when the record is not synthesized,
   every iteration carries non-null token telemetry, and no degradation breadcrumb is present. Analyses
   exclude degraded records **by this flag** rather than silently averaging them in.
