@@ -15,9 +15,29 @@ Each key under `providers` is a provider name.
 | `providers.<name>.auth` | Required `bearer`, `api_key`, or `bedrock_api_key` | None; a routed job fails if invalid | Cloud only. All three use the fixed `DEVFLOW_PROVIDER_API_KEY` secret. `bedrock_api_key` treats it as an Amazon Bedrock API key (exported as `AWS_BEARER_TOKEN_BEDROCK`, with `use_bedrock`) and requires `AWS_REGION` in `env`. | `"auth": "bearer"` |
 | `providers.<name>.timeout_ms` | Optional integer milliseconds | Action or client default | Cloud only. Use a positive value supported by the endpoint. | `"timeout_ms": 3000000` |
 | `providers.<name>.effort_supported` | Boolean | `false` | Cloud only. False removes `--effort` to avoid gateway rejection. | `"effort_supported": false` |
-| `providers.<name>.env` | Object with environment-variable names and string values | Empty object | Cloud only. Values are exported into the job environment. Do not override `PATH`, GitHub tokens or model credentials. | `"env": {"CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS": "1"}` |
+| `providers.<name>.env` | Object with environment-variable names and string values | Empty object | Cloud only. Values are exported into the job environment. Some names are refused outright — see *Refused `env` names* below. | `"env": {"CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS": "1"}` |
 
 **Warning:** `.prflow/config.json` is committed repository content. Never place tokens, passwords, private keys or other secret values in `providers.<name>.env`. Store credentials in GitHub Actions secrets and reference only supported secret-backed inputs.
+
+### Refused `env` names
+
+The `env` map is exported into the environment of the whole job, not just the model step, so a
+name that means something to the runner does more than add a variable. Before exporting anything,
+the job checks every key against a fixed list of names and **fails with an error naming the key**
+if it finds one. Nothing is exported on that run. Matching ignores case, so a lowercase spelling
+is refused too. Any other valid environment-variable name is exported exactly as written.
+
+| Refused because | Names |
+| --- | --- |
+| It is a credential, and this file is committed to your repository | `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `AWS_BEARER_TOKEN_BEDROCK` |
+| It would shadow the job's own environment or GitHub's plumbing | `PATH`, `GITHUB_TOKEN`, `GH_TOKEN`, `GITHUB_ENV`, `GITHUB_OUTPUT`, `GITHUB_PATH` |
+| It is an interpreter or loader hook, so it can make later steps load code you did not intend | `BASH_ENV`, `ENV`, `LD_PRELOAD`, `LD_LIBRARY_PATH`, `DYLD_INSERT_LIBRARIES`, `NODE_OPTIONS`, `PYTHONPATH` |
+| It overrides the model of every subagent — both the one a dispatch asks for and the one the agent defines — collapsing your review roster to one model | `CLAUDE_CODE_SUBAGENT_MODEL` |
+
+To supply the provider credential, set the `DEVFLOW_PROVIDER_API_KEY` secret instead. To change
+only the background model, use `ANTHROPIC_DEFAULT_HAIKU_MODEL`, which is not refused. The
+remaining names have no alternative and must be removed from the map — including `NODE_OPTIONS`
+and `PYTHONPATH`, which are refused even where your intended use is benign.
 
 ## Section Routing Settings
 
@@ -86,4 +106,4 @@ Set `auth` to `bedrock_api_key` to reach Amazon Bedrock instead of an HTTP gatew
 
 A `bedrock_api_key` job whose `env` map sets no `AWS_REGION` fails before the model action starts, with an error naming the section and provider. A `bedrock_api_key` entry that also carries a `base_url` runs, but the `base_url` is ignored with a warning.
 
-A selected provider with a missing secret, undefined entry, empty URL (on the `bearer`/`api_key` arms), invalid auth value or invalid environment-variable name fails before the model action starts.
+A selected provider with a missing secret, undefined entry, empty URL (on the `bearer`/`api_key` arms), invalid auth value, invalid environment-variable name, or a refused `env` name fails before the model action starts.
