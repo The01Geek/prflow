@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1781",
+  "generated_at": "2026-08-24T16:30:14Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.61",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 9.068577250000004,
+    "tokens": {
+      "input_tokens": 34,
+      "output_tokens": 22151,
+      "cache_read_input_tokens": 2491327,
+      "cache_creation_input_tokens": 227632,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 108,
+        "outputTokens": 65383,
+        "cacheReadInputTokens": 5067597,
+        "cacheCreationInputTokens": 647367,
+        "webSearchRequests": 0,
+        "costUSD": 9.068577250000004,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 28,
+    "duration_ms": 582897
+  },
+  "permission_denials": {
+    "count": 6,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---ENV---\"; echo \"run_id=${GITHUB_RUN_ID:-EMPTY} attempt=${GITHUB_RUN_ATTEMPT:-EMPTY}\"",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before\ngit hash-object .prflow/tmp/review-dirty-tree-before",
+      "cd /tmp && python3 -c '\nimport yaml\nd=yaml.safe_load(open(\"/home/runner/work/prflow/prflow/.github/workflows/devflow-implement.yml\"))\nbody=next(s[\"run\"] for j in d[\"jobs\"].values() for s in j.get(\"steps\",[]) if s.get(\"name\")==\"Inject provider endpoint (provider-routed sections only)\")\nopen(\"/tmp/inj_orig.sh\",\"w\").write(body)\n# mutation: add || true to the denied_env_keys assignment (defeat bare-assignment property)\nmut=body.replace(\"\\\")\\\"\\n\", \"\\\")\\\" || true\\n\",1) if False else body\n' \necho \"---  …[per-command-truncated]",
+      "cd /tmp && python3 extract_body.py 2>/dev/null; cat > /tmp/extract_body.py <<'PY'\nimport yaml\nd=yaml.safe_load(open(\"/home/runner/work/prflow/prflow/.github/workflows/devflow-implement.yml\"))\nbody=next(s[\"run\"] for j in d[\"jobs\"].values() for s in j.get(\"steps\",[]) if s.get(\"name\")==\"Inject provider endpoint (provider-routed sections only)\")\nopen(\"/tmp/inj_orig.sh\",\"w\").write(body)\n# mutation: append \" || true\" to the denied_env_keys command-substitution assignment\nlines=body.splitlines(keepends …[per-command-truncated]",
+      "cat > /tmp/extract_body.py <<'PY'\nimport yaml\nd=yaml.safe_load(open(\"/home/runner/work/prflow/prflow/.github/workflows/devflow-implement.yml\"))\nbody=next(s[\"run\"] for j in d[\"jobs\"].values() for s in j.get(\"steps\",[]) if s.get(\"name\")==\"Inject provider endpoint (provider-routed sections only)\")\nopen(\"/tmp/inj_orig.sh\",\"w\").write(body)\nout=[]\nfor ln in body.splitlines(keepends=True):\n    if ln.strip().startswith(\"denied_env_keys=\") and ln.rstrip().endswith('\\')\"'):\n        ln=ln.rstrip(\"\\n\")+\" || …[per-command-truncated]",
+      "D=/home/runner/work/prflow/prflow/.prflow/tmp/r1773chk; mkdir -p \"$D\"; cat > \"$D/extract_body.py\" <<'PY'\nimport yaml\nd=yaml.safe_load(open(\"/home/runner/work/prflow/prflow/.github/workflows/devflow-implement.yml\"))\nbody=next(s[\"run\"] for j in d[\"jobs\"].values() for s in j.get(\"steps\",[]) if s.get(\"name\")==\"Inject provider endpoint (provider-routed sections only)\")\nimport os\nD=\"/home/runner/work/prflow/prflow/.prflow/tmp/r1773chk\"\nopen(D+\"/inj_orig.sh\",\"w\").write(body)\nout=[]\nfor ln in body.split …[per-command-truncated]"
+    ],
+    "total": 6,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
