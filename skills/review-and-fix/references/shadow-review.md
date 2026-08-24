@@ -144,6 +144,7 @@ After Step 2.6 completes (regardless of outcome), append a `shadow` block to the
 
 ```json
 "shadow": {
+  "dispatch_mode": "fanned-out",                         /* how this shadow entry ran: "fanned-out" | "unavailable", or null when not established — never read an absent value as fanned-out */
   "ran_at": "2026-05-17T12:34:00Z",
   "reviewed_sha": "abc1234",                             /* git rev-parse HEAD captured when this shadow pass ran — the commit the shadow actually reviewed; the Loop Exit post-shadow edit gate asserts HEAD still equals it */
   "verdict": "APPROVE",                                  /* the in-memory shadow_verdict; null on a not_verified (outcome 3) block */
