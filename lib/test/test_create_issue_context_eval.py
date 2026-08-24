@@ -3026,6 +3026,30 @@ class UnmeasuredTurnContractTest(_SingleSessionMixin, unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertIn("context eval", out.getvalue())
 
+    def test_spend_axis_returns_summable_zero_for_unmeasured_usage(self):
+        # The spend axis (_residency_spend / _auditor_cost) must never return None or raise
+        # on an unmeasured usage object, so the auditor-cost arithmetic stays whole while the
+        # residency axis reports unestablished (issue #1899's file-scoped entanglement).
+        for usage in (None, "not-a-dict", {}, {"input_tokens": None},
+                      json.loads('{"input_tokens": Infinity}'),
+                      json.loads('{"input_tokens": NaN}')):
+            self.assertEqual(CICE._residency_spend(usage), 0, repr(usage))
+            self.assertEqual(CICE._auditor_cost(usage), 0, repr(usage))
+
+    def test_infinity_on_sidechain_record_does_not_detonate(self):
+        # A non-finite count on an auditor (isSidechain) record flows through the SPEND axis
+        # (_auditor_cost). Pre-fix that raised OverflowError — not in eval_corpus's per-record
+        # backstop tuple — and aborted the whole corpus walk (issue #1899).
+        runs, skipped = self._run_one([
+            '{"type":"assistant","attributionSkill":"devflow:create-issue",'
+            '"message":{"usage":{"input_tokens":5}}}',
+            '{"type":"assistant","isSidechain":true,'
+            '"attributionSkill":"devflow:create-issue",'
+            '"message":{"usage":{"input_tokens":Infinity,"output_tokens":3}}}',
+        ])
+        self.assertEqual(len(runs), 1)
+        self.assertEqual(skipped["malformed_record"], 0)
+
     def test_auditor_cost_and_output_total_unchanged_for_well_formed_usage(self):
         # AC6: the SPEND axis is untouched by the residency-axis fix. Auditor cost sums the
         # three residency sub-fields plus output; total_output_tokens sums output only.

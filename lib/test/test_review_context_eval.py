@@ -98,16 +98,14 @@ def _expected_from_fixture(corpus_root):
                     key, {"context": key, "is_subagent": is_sub, "peak": None,
                           "engine_reads": {}})
                 usage = rec["message"].get("usage")
-                # Mirror the module's residency contract independently (issue #1899): a
-                # sub-field is established only when it is a finite, non-bool number, and a
-                # turn establishing none is unmeasured — never folding a 0 into the peak.
-                # The prior `(x or 0)` form computed an empty/all-null usage dict as a real
-                # 0, disagreeing with the module it checks (no fixture exercised the shape).
+                # Mirror the module's residency contract independently (issue #1899): a turn
+                # establishing no finite non-bool sub-field is unmeasured — do not fold a 0
+                # into the peak, or this re-derivation disagrees with the module it checks.
                 established = []
                 if isinstance(usage, dict):
-                    for key in ("input_tokens", "cache_read_input_tokens",
-                                "cache_creation_input_tokens"):
-                        val = usage.get(key)
+                    for subkey in ("input_tokens", "cache_read_input_tokens",
+                                   "cache_creation_input_tokens"):
+                        val = usage.get(subkey)
                         if isinstance(val, bool) or not isinstance(val, (int, float)):
                             continue
                         if isinstance(val, float) and not math.isfinite(val):
