@@ -1,0 +1,415 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-24T22:44:36Z",
+  "fix_commit_sha": "3c89c22aacd0dc9747b5719169da21929af007e6",
+  "fix_files": [
+    "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+    "docs/internal/shadow-review.md",
+    "skills/implement/phases/phase-3-fix-loop.md",
+    "skills/review-and-fix/references/loop-control.md"
+  ],
+  "loop_role": "fix",
+  "current_step": "3",
+  "current_substep": null,
+  "pending_dispatch": null,
+  "dispatch_mode": "fanned-out",
+  "sweep_defs_read": [
+    {
+      "path": "../implement/phases/phase-2-implement.md",
+      "read": "whole",
+      "sweeps": [
+        "2.0",
+        "2.2.4",
+        "2.2.5",
+        "2.2.6",
+        "2.2.7"
+      ]
+    },
+    {
+      "path": "../implement/phases/phase-2-sweeps-contract.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0",
+        "2.3.0a",
+        "2.3.0b",
+        "2.3.0c",
+        "2.3.0d"
+      ]
+    },
+    {
+      "path": "../implement/phases/phase-2-sweeps-quality.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.1",
+        "2.3.2",
+        "2.3.3",
+        "2.3.4",
+        "2.3.4a",
+        "2.3.4b",
+        "2.3.5",
+        "2.3.6",
+        "2.3.7"
+      ]
+    },
+    {
+      "path": "../implement/references/sweep-2-3-0-changed-contract.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0"
+      ]
+    },
+    {
+      "path": "../implement/references/sweep-2-3-0a-peer-checkpoint.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0a"
+      ]
+    },
+    {
+      "path": "../implement/references/sweep-2-3-0b-enum-enumeration.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0b"
+      ]
+    },
+    {
+      "path": "../implement/references/sweep-2-3-0c-operand-trace.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0c"
+      ]
+    }
+  ],
+  "sweep_evidence": {
+    "status": "run",
+    "delta_shape": "prose-only, add-and-modify, 4 files (2 shipped prompt surfaces + 2 internal docs), no code, no deletion",
+    "fired": [
+      "2.3.0",
+      "2.3.0a",
+      "2.3.0b",
+      "2.3.0c",
+      "2.3.3",
+      "2.3.4",
+      "2.3.4a",
+      "2.3.4b",
+      "2.3.5",
+      "2.3.6"
+    ],
+    "not_fired": [
+      "2.3.1",
+      "2.3.2",
+      "2.3.7"
+    ],
+    "notes": "2.3.0 re-run after the Checkpoint-3 base merge (UPDATED 38): the base brought no engine-resolution change and no newly-arrived line cites the superseded predicate wording. 2.3.4b re-run: 5 CU rows, exit 0, no STALE rows."
+  },
+  "checklist": [],
+  "checklist_note": "Phase 1+2 ran inside the Step 1 engine subagent (22 items, 6 FAIL); per loop-control Step 1 the checklist array is produced inside the subagent and is not returned, so cross-iteration reuse degrades to its documented fallback.",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "Step 3 states the completeness condition but supplies no procedure establishing it on the single-read path; the predicate collapses to the superseded returned-a-body test",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/loop-control.md",
+        "line_range": [
+          174,
+          174
+        ],
+        "kind": "unsatisfiable_predicate"
+      },
+      "corroboration_count": 3,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "Step 3's ordered scan instructs the fall-through Step 4 forbids, and runs first",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/loop-control.md",
+        "line_range": [
+          174,
+          177
+        ],
+        "kind": "contradictory_instruction"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "Two incompatible dispositions for the same condition on the shadow entry: Step 1 forbids an APPROVE-family verdict while shadow outcome 3 legitimately proceeds with one",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/loop-control.md",
+        "line_range": [
+          175,
+          179
+        ],
+        "kind": "contradictory_instruction"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "The implement-tier stop is an unwired Phase 3 exit naming no recording surface",
+      "defect_signature": {
+        "file": "skills/implement/phases/phase-3-fix-loop.md",
+        "line_range": [
+          39,
+          39
+        ],
+        "kind": "unrecorded_terminal"
+      },
+      "corroboration_count": 3,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "The new terminal records nothing durable, unlike sibling terminals which pair with a blocked reflection",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/loop-control.md",
+        "line_range": [
+          177,
+          177
+        ],
+        "kind": "unrecorded_terminal"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Important",
+      "description": "Internal-doc mirrors of the predicate and the shadow trigger lists left unreconciled, against the same-change coupled-invariant rule",
+      "defect_signature": {
+        "file": "docs/internal/shadow-review.md",
+        "line_range": [
+          307,
+          346
+        ],
+        "kind": "stale_mirror"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "'A read you cannot complete' is unscoped, so an absent candidate 1 (the ordinary consumer shape) can reach the new terminal",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/loop-control.md",
+        "line_range": [
+          174,
+          174
+        ],
+        "kind": "unscoped_predicate"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Important",
+      "description": "The paged-read recovery is a further copy of an idiom whose required-copy declaration names only two sites",
+      "defect_signature": {
+        "file": "skills/review/SKILL.md",
+        "line_range": [
+          322,
+          322
+        ],
+        "kind": "unregistered_copy"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "pushed_back"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "An empty or whitespace-only root body falls between Step 4's two arms",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/loop-control.md",
+        "line_range": [
+          176,
+          177
+        ],
+        "kind": "uncovered_input_shape"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "The terminal could be laundered by the Step-1 subagent well-formedness fallback",
+      "defect_signature": {
+        "file": "skills/review-and-fix/references/loop-control.md",
+        "line_range": [
+          163,
+          163
+        ],
+        "kind": "fallback_launder"
+      },
+      "corroboration_count": 2,
+      "step25_classification": "codebase",
+      "fix_decision": "pushed_back"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "3c89c22aacd0dc9747b5719169da21929af007e6"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "3c89c22aacd0dc9747b5719169da21929af007e6"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "3c89c22aacd0dc9747b5719169da21929af007e6"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "applied",
+      "commit": "3c89c22aacd0dc9747b5719169da21929af007e6"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "applied",
+      "commit": "3c89c22aacd0dc9747b5719169da21929af007e6"
+    },
+    {
+      "finding_id": "F-6",
+      "decision": "applied",
+      "commit": "3c89c22aacd0dc9747b5719169da21929af007e6"
+    },
+    {
+      "finding_id": "F-7",
+      "decision": "applied",
+      "commit": "3c89c22aacd0dc9747b5719169da21929af007e6"
+    },
+    {
+      "finding_id": "F-9",
+      "decision": "applied",
+      "commit": "3c89c22aacd0dc9747b5719169da21929af007e6"
+    },
+    {
+      "finding_id": "F-8",
+      "decision": "pushed_back",
+      "source_file": "skills/review/SKILL.md",
+      "claim_text": "the paged-read recovery is a third/fourth copy under a required-copy declaration naming only two sites",
+      "skip_category": "out-of-scope",
+      "evidence": "The declaration lives in skills/review/SKILL.md, which this PR's acceptance criteria forbid editing (AC6 requires it byte-identical to the merge base; verified identical at 57775 bytes). The declaration scopes what its two named sites must keep identical; it does not forbid a third site. Reducing this copy would re-open the finding the same review graded most material, since the engine root is markerless and the sibling copies hand off to a boundary-marker table this site cannot use.",
+      "parking_evidence": {
+        "basis": "the cited declaration is in a file this PR must not edit, and the copy it would require removing is what the review's own material finding required adding",
+        "failing_input": "a paged read of the markerless engine root",
+        "source": "skills/review/SKILL.md:322 (unmodified; byte-identical to merge base 084b47a)",
+        "finding_ref": {
+          "iter": 1,
+          "index": 7
+        }
+      }
+    },
+    {
+      "finding_id": "F-10",
+      "decision": "pushed_back",
+      "source_file": "skills/review-and-fix/references/loop-control.md",
+      "claim_text": "the engine-root: incomplete terminal could be laundered by the Step-1 subagent well-formedness fallback",
+      "skip_category": "claim-quality",
+      "evidence": "The fallback re-derives the terminal rather than laundering it: a subagent that stops at engine-root: incomplete returns no well-formed result, the loop falls back to the inline path, and the inline path applies the same predicate to the same file and reaches the same terminal. The condition is a property of the file, not of the dispatch, so it survives the fallback.",
+      "parking_evidence": {
+        "basis": "the fallback path re-applies the identical predicate to the identical file, so the terminal is re-derived rather than suppressed",
+        "failing_input": "an engine root whose completeness cannot be established, read inside a dispatched engine subagent",
+        "source": "skills/review-and-fix/references/loop-control.md:163 (the well-formedness fallback) read against steps 3-4",
+        "finding_ref": {
+          "iter": 1,
+          "index": 9
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 8,
+    "fix_diff_lines": 17,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "base_checkpoint": {
+    "token": "UPDATED",
+    "behind_by": 38
+  },
+  "stale_prose_check": {
+    "invocation": "git diff origin/main...HEAD | scripts/stale-prose-lint.py --rev HEAD",
+    "exit": 0,
+    "stale_rows": 0,
+    "rows": "5 UNRESOLVABLE/CU rows (informational, never gating): DEVFLOW_SYSTEM_OVERVIEW.md:458 'each reference's path'; loop-control.md:165 'every other describing site', :174 'whole file', :176 'No candidate path', :179 'both arms'"
+  },
+  "verification_evidence": {
+    "command": "lib/test/run-module.sh review-and-fix-contract; lib/test/run-module.sh installer-wiring; lib/test/lint-reference-size.py; lib/test/lint-shipped-pruned-path.py; lib/test/regenerate-artifacts.py",
+    "result": "pass",
+    "duration_s": null,
+    "skipped_checks": [],
+    "note": "Narrowest covering targets for the changed surfaces, per the honesty floor. The whole-suite obligation is Phase 4.3's, not this loop's, because this run is implement-driven (review-and-fix extension: every Phase 4 commit makes a Phase 3 flight stale, so the pass is owned exactly once by Phase 4.3).",
+    "focused_selection": {
+      "single_flight_consulted": false,
+      "surfaces": [
+        {
+          "surface": "skills/review-and-fix/references/loop-control.md",
+          "exemption_ground": "no coverage-map entry: the map covers lib/ and scripts/ only"
+        },
+        {
+          "surface": "skills/implement/phases/phase-3-fix-loop.md",
+          "exemption_ground": "no coverage-map entry: the map covers lib/ and scripts/ only"
+        },
+        {
+          "surface": "docs/internal/shadow-review.md",
+          "exemption_ground": "no coverage-map entry: documentation surface"
+        },
+        {
+          "surface": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+          "exemption_ground": "no coverage-map entry: documentation surface"
+        }
+      ]
+    }
+  },
+  "test_first_gate": [
+    {
+      "decision": "model-context RED/GREEN micro-test (the fix changes prose entering a model's context as instruction, so a dry-trace does not discharge it)",
+      "command": "fresh-context subagent RED / GREEN / no-guidance control on D1, D2, D5",
+      "result": "pass",
+      "evidence": "D1 RED (clean whole single-read body, pre-fix text): 3/3 reps concluded UNESTABLISHED - the pre-fix predicate was UNSATISFIABLE, one rep noting no candidate could ever satisfy step 3, so every invocation would reach engine-root: incomplete and the loop could never run. D1 GREEN 2/2 established. D2 RED (consumer checkout, candidate 1 absent): 5/5 reps did NOT hard-stop - each read step 4's second arm as requiring a body to have been yielded and advanced to candidate 2, so D2 was a latent ambiguity the fix makes explicit rather than a demonstrated consumer hard-stop; the no-guidance control behaved the same. D2 GREEN 2/2 advance-to-next via the explicit absence clause. D5 GREEN: empty body correctly unestablished with no fall-through."
+    }
+  ],
+  "telemetry": "unavailable",
+  "synthesized": false
+}

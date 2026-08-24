@@ -1,0 +1,15 @@
+{
+  "canonical_root": "skills/review/SKILL.md",
+  "root_hash": "13c46f4eb63fc0b7a2fc510d989b3fdd1765fe9e",
+  "references": [
+    {"path": "skills/review/phases/phase-0-setup.md", "hash": "abca6791304fb3c1aabf6a2f4269274bcda39e0e"},
+    {"path": "skills/review/phases/phase-0-3-6-blocker-recheck.md", "hash": "58e654b922fd3044f5b951f1891acf9687eb0e87"},
+    {"path": "skills/review/phases/phase-0-6-stale-prose-lint.md", "hash": "63e15bef4b885445280560b7154232ec4e6cd74d"},
+    {"path": "skills/review/phases/phase-1-checklist.md", "hash": "a6f46362a949c82d59cff7a00c5a8c12b40b1e80"},
+    {"path": "skills/review/phases/phase-2-verification.md", "hash": "21d2cceaedb27dedb561ffe9d68f3c5b85559f68"},
+    {"path": "skills/review/phases/phase-3-agents.md", "hash": "f3b49ad4d13d53d1a77a85818488323d4ec08b6e"},
+    {"path": "skills/review/phases/phase-4-verdict.md", "hash": "7bcbffd28f07d0ed7eefe7ab515b6f8e3e38d3ce"},
+    {"path": "skills/review/phases/phase-4-1-7-stale-adjudication.md", "hash": "a06bbec1e7b2786ff31a8ce531f02f6dd1b17c38"},
+    {"path": "skills/review/phases/phase-4-4-github-post.md", "hash": "af4035d854ab80f177ad4dd06b7b85821d0f74f3"}
+  ]
+}

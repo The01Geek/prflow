@@ -1,0 +1,155 @@
+{
+  "dispatch_mode": "fanned-out",
+  "verdict": "REJECT",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null,
+    "detect_all_audit": false
+  },
+  "cap_drops": {"count": 0, "by_category": {}},
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "checklist": {
+    "total": 22, "passed": 16, "failed": 6, "inconclusive": 0,
+    "lite": 2, "agent": 20,
+    "normalized_count": 0, "field_defect_fail_count": 0,
+    "failed_ids": ["VC-9", "VC-10", "VC-13", "VC-15", "VC-16", "VC-17"]
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "important",
+      "description": "Resolution step 3 states the completeness condition but supplies no procedure that can establish it. Its only operational branch is the paged case ('page forward ... and judge the assembled whole') plus three negative shapes; nothing says what an agent observes to establish completeness when the reader returns the body in one page with no continuation notice - the normal case here (skills/review/SKILL.md is 57,559 bytes, under the reader's cap). The borrowed source (skills/review/SKILL.md's paged-read recovery) is explicitly a prelude handing off to its boundary-marker row table, and the engine root carries no such markers, so the hand-off target was dropped with nothing put in its place. The predicate therefore either collapses to the superseded 'returned a body' test on the single-read path - exactly what AC1 rules out - or admits no positive evidence and deadlocks every run.",
+      "defect_signature": {"file": "skills/review-and-fix/references/loop-control.md", "line_range": [174, 174], "kind": "logic_error"},
+      "corroboration_count": 3,
+      "step25_classification": "not-classified (engine entry; Step 2.5 is the caller's gate)",
+      "fix_decision": "fix — name the positive discriminator for the single-read path, or state plainly that absence of a truncation notice is what establishes completeness"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "important",
+      "description": "Step 3's selection rule instructs the exact fall-through Step 4 forbids, and it runs first. Step 3 is an ordered scan whose exit condition is 'completeness is established', so a candidate returning a body of unestablished completeness is simply not the first that passes and the scan continues to candidate 2. Step 4's second arm forbids that ('do not fall through to a later candidate') but is reachable only after the loop concludes, so an agent executing the prose in order has already read the next candidate before the ban is presented. This is the single case the change exists to close.",
+      "defect_signature": {"file": "skills/review-and-fix/references/loop-control.md", "line_range": [174, 177], "kind": "logic_error"},
+      "corroboration_count": 2,
+      "step25_classification": "self-contradicting-diff carve-out (intra-diff contradiction scan pair 2)",
+      "fix_decision": "fix — move the stop into Step 3 at the point of decision, leaving Step 4 as the routing statement"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "important",
+      "description": "The new terminal and the shadow's structural-failure routing give two incompatible dispositions for the same condition. loop-control.md:177 says stop at 'engine-root: incomplete' and never an APPROVE-family verdict, and line 165 states the Step 2.6 shadow is a separate engine entry resolving through those same steps. The same diff adds that condition to shadow-review.md:86 and :134, whose outcome 3 records coverage not_verified and proceeds to Loop Exit with the loop's tentative verdict, which loop-exit.md renders as an APPROVE-family verdict labelled 'not independently audited'. An agent hitting an incomplete root on the shadow entry has no deterministic route, and the more specific text selects the fail-open one.",
+      "defect_signature": {"file": "skills/review-and-fix/references/loop-control.md", "line_range": [175, 179], "kind": "logic_error"},
+      "corroboration_count": 2,
+      "step25_classification": "self-contradicting-diff carve-out (intra-diff contradiction scan pair 1)",
+      "fix_decision": "fix — scope Step 4's terminal to the Step 1 engine entry and defer the shadow entry to shadow-review.md outcome 3"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "important",
+      "description": "The implement tier's new stop is an unwired Phase 3 exit. phase-3-fix-loop.md:39 says a root whose completeness could not be established 'stops here - report engine-root: incomplete naming that file', but names no recording surface. That phase carries two obligations scoped to every Phase 3 exit - stamp the coverage record (line 222) and tick the three Review extension rows (line 231) - each a closed branch list the new terminal is absent from, and the one terminal that writes a status (the Blocked path, line 255) is scoped to a genuine unresolved Critical or an unparseable verdict. An implement run taking this exit stops with the workpad at Reviewing, no reflection, no status, no outcome reaction. Phase 4.3 still refuses Status: Complete without a coverage record, so it fails closed rather than open, but it is an unlabelled stall.",
+      "defect_signature": {"file": "skills/implement/phases/phase-3-fix-loop.md", "line_range": [39, 39], "kind": "logic_error"},
+      "corroboration_count": 3,
+      "step25_classification": "not-classified (engine entry)",
+      "fix_decision": "fix — route the new terminal into the Blocked path by name and add it to the two 'every Phase 3 exit' enumerations in the same change"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "important",
+      "description": "The new terminal records nothing durable and names only one of the two caller shapes. Every other loop terminal in this skill pairs 'report non-convergence' with 'Record a blocked reflection' (skills/review-and-fix/SKILL.md rows 331/333/337), and shadow-review.md:88 already states the two-arm rule for a fail-closed stop - a caller that maintains a workpad stops at Blocked naming the cause; a caller with no workpad reports non-convergence. Line 177 states the workpad-less arm only, so on an implement-driven inline run the workpad receives no status and no reason and the stop exists only in chat.",
+      "defect_signature": {"file": "skills/review-and-fix/references/loop-control.md", "line_range": [177, 177], "kind": "logic_error"},
+      "corroboration_count": 1,
+      "step25_classification": "single-source — flagged for extra scrutiny, not treated as wrong",
+      "fix_decision": "fix — conform to the sibling terminal shape (blocked reflection plus both caller arms)"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "important",
+      "description": "The internal-doc mirrors of the reconciled enumerations were not updated in the same change. docs/internal/shadow-review.md:307 and :346 carry the shadow's structural-failure list in both its forms and still name only 'the engine SKILL.md is unreadable'; docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md:458 still describes the file-read resolution as having a single stop naming /prflow:init. Neither states anything now false, so this is incompleteness rather than contradiction - but the diff-modified line at loop-control.md:165 retains the absolute 'every other describing site mirrors it', which covers them, and the project's coupled-invariant rule requires every mirror to move in the same change.",
+      "defect_signature": {"file": "docs/internal/shadow-review.md", "line_range": [307, 346], "kind": "comment_drift"},
+      "corroboration_count": 2,
+      "step25_classification": "not-classified (engine entry)",
+      "fix_decision": "fix — reconcile both internal pages in this change, or narrow the absolute at loop-control.md:165 to the shipped surface"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "important",
+      "description": "'A read you cannot complete' is unscoped, so an absent or denied candidate can take the new terminal. The unestablished-trigger sentence carries no qualifier that a body was returned at all, yet the ordinary consumer shape is that candidate 1 (<repo-root>/skills/review) does not exist. Classified as 'a read you cannot complete', Step 4's second arm fires and the run hard-stops on the majority consumer path, where the correct behaviour is to move to the vendored candidate. Step 4's own wording ('A candidate yielded a body') and error-handling.md:16 ('yields a body at all') recover the intent, but the classification happens at Step 3, where the qualifier is absent.",
+      "defect_signature": {"file": "skills/review-and-fix/references/loop-control.md", "line_range": [174, 174], "kind": "logic_error"},
+      "corroboration_count": 1,
+      "step25_classification": "single-source — flagged for extra scrutiny, not treated as wrong",
+      "fix_decision": "fix — scope the sentence to a candidate that returned a body; a candidate returning no body at all moves to the next candidate"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "important",
+      "description": "The paged-read recovery is now a third and fourth copy of a passage under an explicit required-copy declaration that names only two sites. skills/review/SKILL.md:322 declares the recovery is mirrored in skills/implement/SKILL.md and that both are edited in the same change. This change adds a near-verbatim copy at loop-control.md:174 and an abbreviated one at phase-3-fix-loop.md:39 without extending that declaration, so editing the recovery wording now requires four edits and two of the sites are invisible to anyone reading the declaration. Corroborated by checklist item VC-16 (FAIL).",
+      "defect_signature": {"file": "skills/review/SKILL.md", "line_range": [322, 322], "kind": "comment_drift"},
+      "corroboration_count": 1,
+      "step25_classification": "single-source, corroborated by a Phase-2 checklist FAIL (VC-16)",
+      "fix_decision": "fix — point Step 3 at the review root's recovery, or extend the required-copy declaration to name all four sites"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "suggestion",
+      "description": "The implement-tier parenthetical restates one of the canonical predicate's three unestablished triggers and drops the other two (a gap in the page sequence, an unclassifiable reader message), so a run following that file alone applies a laxer predicate than the canonical one. The sibling site at shadow-review.md:39 handles this better by pointing only.",
+      "defect_signature": {"file": "skills/implement/phases/phase-3-fix-loop.md", "line_range": [39, 39], "kind": "comment_drift"},
+      "corroboration_count": 3,
+      "step25_classification": "not-classified (engine entry)",
+      "fix_decision": "fix — drop the parenthetical enumeration and keep the pointer alone"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "suggestion",
+      "description": "The new terminal is laundered by the Step 1 engine-subagent well-formedness fallback: a subagent that stopped at engine-root: incomplete wrote no return file, so the parent classifies it as not-well-formed and re-runs the engine inline. The parent hits the same terminal, so the outcome is safe, but the terminal is re-derived rather than propagated and nothing records that a half-delivered root was seen.",
+      "defect_signature": {"file": "skills/review-and-fix/references/loop-control.md", "line_range": [162, 163], "kind": "api_misuse"},
+      "corroboration_count": 2,
+      "step25_classification": "not-classified (engine entry)",
+      "fix_decision": "defer — one clause exempting the new terminal from the fallback so the parent reports what the subagent found"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "suggestion",
+      "description": "An empty or whitespace-only root falls between Step 4's two arms: it is arguably 'a body at all' so it misses the fatal arm, and it matches none of Step 3's three unestablished shapes. The contract this borrows from enumerates it as its own row (skills/review/SKILL.md row 2, 'empty') for exactly this reason. Both candidate terminals are non-executing so nothing unsafe ships, but they present different remedies to the user.",
+      "defect_signature": {"file": "skills/review-and-fix/references/error-handling.md", "line_range": [16, 16], "kind": "logic_error"},
+      "corroboration_count": 1,
+      "step25_classification": "single-source — flagged for extra scrutiny",
+      "fix_decision": "fix — one clause naming the empty body in Step 4's first arm"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "suggestion",
+      "description": "Prose economy: 'A merely-readable body does not satisfy the condition.' restates the preceding clause ('the first candidate whose returned body's completeness is established'), which already excludes a merely-readable body, and carries no instruction the sentence before it does not.",
+      "defect_signature": {"file": "skills/review-and-fix/references/loop-control.md", "line_range": [174, 174], "kind": "style"},
+      "corroboration_count": 1,
+      "step25_classification": "single-source",
+      "fix_decision": "defer — subsumed by the finding-1 rewrite of step 3"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "suggestion",
+      "description": "loop-control.md:165 retains the absolute 'every other describing site mirrors it' while two internal-doc describing sites now omit the new arm. Either reconcile those pages in this change or narrow the absolute to the shipped surface it actually governs.",
+      "defect_signature": {"file": "skills/review-and-fix/references/loop-control.md", "line_range": [165, 165], "kind": "comment_drift"},
+      "corroboration_count": 1,
+      "step25_classification": "single-source, same defect family as important finding 6",
+      "fix_decision": "fix — together with the internal-doc reconciliation"
+    },
+    {
+      "agent": "orchestrator (review prompt extension, verification-evidence clause)",
+      "severity": "suggestion",
+      "description": "Advisory, non-blocking: no 'Verification evidence:' marker is present on either durable surface (the issue workpad or the PR description). Tier classification: local/interactive - the workpad carries no prflow:checkpoint gha: row. CI itself is green for the pushed head 8ecb6fbacdd72e9b5510e7dd1c26b612fb3276b5 (run 32786013562, lib + python tests pass), so this is a missing record rather than a missing run, and it never raises the verdict on its own. Corroborated by checklist item VC-9 (FAIL).",
+      "defect_signature": {"file": "skills/review-and-fix/references/loop-control.md", "line_range": null, "kind": "other"},
+      "corroboration_count": 1,
+      "step25_classification": "advisory clause, non-blocking by construction",
+      "fix_decision": "fix — record the CI reading via workpad.py --record-completion-evidence-ci before the completion gate"
+    }
+  ],
+  "report": "See the full Phase 4.1 report in the engine's returned text. Summary: Verdict REJECT. Rule 1 fires on six verification-checklist FAILs (VC-9, VC-10, VC-13, VC-15, VC-16, VC-17), none normalizable (normalize-verdicts.py reported normalized_count 0, field_defect_fail_count 0, needs_retry empty). The threshold-independent self-contradicting-diff carve-out fires independently on two intra-diff contradiction pairs found by the Phase 4.1.6 diff scan. The Phase 4.1.5 behavior-inert prose cap covers nothing here: limb one holds (the readers of these files are lint-reference-size.py, lint-shipped-pruned-path.py, lint-tree-enumeration.py, lint-worktree-fence-shapes.py and the review-and-fix-contract module, each asserting the prose itself rather than deciding program behavior) but limb two fails, because skills/** bodies are copied verbatim into consumer repositories by install.sh's vendor slice and read there by the consumer's runtime agent. Eight Important and six Suggestion findings; per-criterion AC outcomes, coverage, and the method caveat are in the returned text.",
+  "report_note": "The full markdown report could not be written to a sibling .md file (harness guard on report files); it is delivered as the engine's returned text and summarized in the report field above."
+}
