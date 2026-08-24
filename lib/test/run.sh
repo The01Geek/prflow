@@ -18319,6 +18319,24 @@ assert_eq "scrub-credentials (#1915): only the credential tokens changed, every 
 assert_eq "scrub-credentials (#1915): a recorded sed command keeps its trailing slashes" \
   "run: sed 's/AUTHORIZATION: basic //' file" \
   "$(printf '%s\n' "run: sed 's/AUTHORIZATION: basic //' file" | bash "$SCR")"
+# A token carrying an escaped slash or an escaped backslash stays fully redacted: the escape
+# unit is part of the token, so narrowing the group to plain class members would truncate the
+# match and emit the tail of a live credential.
+assert_eq "scrub-credentials (#1915): a token carrying an escaped slash is fully redacted" \
+  'Authorization: Bearer [REDACTED]' \
+  "$(printf '%s\n' 'Authorization: Bearer ab\/cdefghijklmnop0123456789' | bash "$SCR")"
+assert_eq "scrub-credentials (#1915): a token carrying an escaped backslash is fully redacted" \
+  'Authorization: Bearer [REDACTED]' \
+  "$(printf '%s\n' 'Authorization: Bearer ab\\/cdefghijklmnop0123456789' | bash "$SCR")"
+# The four-unit floor is the redaction boundary; a shorter run is left alone, which is what
+# keeps a recorded `//` from being read as a token. Widening the floor would start leaking
+# short credentials, narrowing it would resume eating recorded commands.
+assert_eq "scrub-credentials (#1915): a three-unit run is below the floor and left alone" \
+  'AUTHORIZATION: basic ab=' \
+  "$(printf '%s\n' 'AUTHORIZATION: basic ab=' | bash "$SCR")"
+assert_eq "scrub-credentials (#1915): a four-unit token is at the floor and redacted" \
+  'AUTHORIZATION: basic [REDACTED]' \
+  "$(printf '%s\n' 'AUTHORIZATION: basic abc=' | bash "$SCR")"
 
 # ── AC6: the default-on key's off-switch decision (the workflow's builtin `case`). The
 # decision is `false → off; everything else → on`. Drive config-get.sh over each shape

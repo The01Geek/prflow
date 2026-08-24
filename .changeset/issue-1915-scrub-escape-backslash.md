@@ -3,12 +3,15 @@ bump: patch
 type: Fixed
 ---
 
-- **The credential scrub no longer corrupts the text around a redacted token.** In
+- **The credential scrub no longer eats the JSON escape backslash after a redacted token.** In
   `scripts/scrub-credentials.sh`, the `Bearer` `Authorization` rule and the `basic`
   `Authorization` rule listed a literal `\` as a member of their token character class, so a
-  credential followed by a JSON escape backslash had that backslash swallowed and the
-  published execution-transcript artifact stopped parsing. The same two classes also accepted
-  a bare `//` as a token, eating the trailing slashes of a recorded
-  `sed 's/AUTHORIZATION: basic //'`. Both classes are now `\`-free and carry a four-character
-  minimum, so only the credential token is replaced and the bytes around it survive. The
-  redacted shapes are unchanged. (#1921)
+  credential followed by a JSON escape backslash had that backslash swallowed, ending the string
+  early and leaving the published execution-transcript artifact unparseable. A token is now
+  matched as a run of class members plus the two escape units `\/` and `\\`, so an escaped slash
+  inside a token is still redacted while an escape that belongs to the surrounding document
+  survives. A four-unit floor replaces the old `+`, so the bare `//` of a recorded
+  `sed 's/AUTHORIZATION: basic //'` is no longer taken for a token; a run shorter than four units
+  after the header keyword is left alone, which is a deliberate narrowing of what the two
+  `Authorization` rules redact. The four redacted shapes are unchanged, and — as before — the
+  header keyword itself is rewritten to its canonical casing alongside the token. (#1921)
