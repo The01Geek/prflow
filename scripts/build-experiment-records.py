@@ -737,12 +737,9 @@ def _index_efficiency(eff_dir, repo_root=None, branch=None):
             _warn(f"could not establish whether telemetry branch {br} exists "
                   f"(git rev-parse rc={rc_v}): {(err_v or '').strip()[:160]} — telemetry-branch "
                   f"cost rows unestablished for this run")
-        # Stranded-record DETECTION, not a read-through (issue #1826/#1003): the assembler
-        # still ingests from exactly one branch and mutates no ref — it only reports records
-        # stranded on the pre-rename devflow-telemetry branch, so a reader is never told a
-        # run's telemetry is a measured absence when it is merely unread. Fires whether the
-        # canonical branch is present or absent (the old gate silently skipped the
-        # both-present state). Skip only when the resolved branch IS the superseded one.
+        # Stranded-record DETECTION only (issue #1826/#1003) — reports records stranded on the
+        # pre-rename devflow-telemetry branch; still ingests from exactly one branch and mutates
+        # no ref. Skip only when the resolved branch IS the superseded one (else it self-reports).
         if br != _TELEMETRY_BRANCH_SUPERSEDED:
             sup_count = _count_superseded_efficiency(repo_root)
             if sup_count:

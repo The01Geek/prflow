@@ -4814,15 +4814,9 @@ assert_eq "tb(#442 Imp-1): the reader still degrades to the legacy archive (best
 rm -rf "$TB_GX_REPO"
 rm -rf "$TB_MB_REPO"
 
-# ── #1003/#1826: the stranded-superseded-telemetry-branch detection arm ──────
-# The branch renamed devflow-telemetry -> prflow-telemetry and, unlike the state
-# directory, is NOT migrated automatically and is NOT dual-read. Since issue #1826
-# the detection fires whether the canonical branch is present or absent, keyed on
-# the superseded branch carrying efficiency records under the path THAT branch uses
-# (`.devflow/logs/efficiency/`, its pre-rename spelling — never `.prflow/`). The
-# remedy differs by canonical presence: a fast-forward rename push when the
-# canonical branch is absent, a divergent-safe copy-across when it is present.
-# `tb_seed_superseded` commits one `.devflow/` record onto the superseded ref.
+# #1826 stranded-superseded-branch detection: fires whether the canonical branch is present or
+# absent, keyed on records under the superseded branch's pre-rename `.devflow/logs/efficiency/`
+# path. Cases below: (a) absent-canonical (rename remedy), (b/c) no report, (d) both-present.
 # $1 = repo root, $2 = grep needle selecting which report to detect -> yes|no. Callers pass
 # 'is absent but the superseded' for the absent-canonical report, or 'superseded
 # devflow-telemetry branch is present' for any stranded-record report.
