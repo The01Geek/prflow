@@ -4255,9 +4255,8 @@ for _f541r in sweep_defs_read sweep_evidence; do
     "$(printf '%s\n' "$LR_MISS_OUT" | grep -qF "iter-2.json' is missing expected field '$_f541r'" && echo yes || echo no)"
 done
 # #1904 CONSUMER cell: expected_reviewers is unconditional (mirrors phase3_dispatched),
-# so an ordinary (non-synthesized) iter record omitting it must draw a missing-field
-# warning. Reuse the complete fixture with exactly that one field deleted, so the run is
-# otherwise valid and the warning can only be attributed to its absence.
+# so --self-check must warn when an ordinary iter omits it. Reuse the complete fixture
+# with exactly that field deleted so the warning can only be its absence.
 jq 'del(.expected_reviewers)' "$LR_CLEAN_RUN/iter-1.json" > "$LR_CLEAN_RUN/iter-3.json" 2>/dev/null
 LR_MISS_ER_OUT="$( ( cd "$LR_CLEAN" && bash "$LIB/efficiency-trace.sh" --self-check --workpad-dir "$LR_CLEAN_RUN" --slug pr-80 ) 2>&1 )"
 assert_eq "#1904 consumer (real record): --self-check flags an ordinary iter missing expected_reviewers" "yes" \
