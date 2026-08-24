@@ -4823,19 +4823,15 @@ rm -rf "$TB_MB_REPO"
 # remedy differs by canonical presence: a fast-forward rename push when the
 # canonical branch is absent, a divergent-safe copy-across when it is present.
 # `tb_seed_superseded` commits one `.devflow/` record onto the superseded ref.
-tb_absent_canonical_warn() {   # $1 = repo root -> yes|no (the absent-canonical report)
+# $1 = repo root, $2 = grep needle selecting which report to detect -> yes|no. Callers pass
+# 'is absent but the superseded' for the absent-canonical report, or 'superseded
+# devflow-telemetry branch is present' for any stranded-record report.
+tb_report_warn() {
   DEVFLOW_CONFIG_FILE="$1/no-such-config.json" python3 -c 'import importlib.util,sys
 s=importlib.util.spec_from_file_location("e",sys.argv[1]);m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
 m._index_efficiency(sys.argv[2]+"/.prflow/logs/efficiency", sys.argv[2])' \
     "$LIB/../scripts/build-experiment-records.py" "$1" 2>&1 >/dev/null \
-    | grep -qF 'is absent but the superseded' && echo yes || echo no
-}
-tb_stranded_warn() {   # $1 = repo root -> yes|no (any stranded-record report fired)
-  DEVFLOW_CONFIG_FILE="$1/no-such-config.json" python3 -c 'import importlib.util,sys
-s=importlib.util.spec_from_file_location("e",sys.argv[1]);m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
-m._index_efficiency(sys.argv[2]+"/.prflow/logs/efficiency", sys.argv[2])' \
-    "$LIB/../scripts/build-experiment-records.py" "$1" 2>&1 >/dev/null \
-    | grep -qF 'superseded devflow-telemetry branch is present' && echo yes || echo no
+    | grep -qF "$2" && echo yes || echo no
 }
 tb_seed_telemetry_repo() {   # $1 = repo root; seeds a committed repo + a legacy record
   git init -q "$1"
@@ -4863,7 +4859,7 @@ TB_UM_A="$(git_sandbox "tb unmigrated telemetry branch")"
 tb_seed_telemetry_repo "$TB_UM_A"
 tb_seed_superseded "$TB_UM_A"
 assert_eq "tb(#1003): superseded-only telemetry branch is reported, never read as a measured absence" "yes" \
-  "$(tb_absent_canonical_warn "$TB_UM_A")"
+  "$(tb_report_warn "$TB_UM_A" 'is absent but the superseded')"
 # The warning has to be actionable, so it carries the exact one-shot rename.
 TB_UM_A_ERR="$(DEVFLOW_CONFIG_FILE="$TB_UM_A/no-such-config.json" python3 -c 'import importlib.util,sys
 s=importlib.util.spec_from_file_location("e",sys.argv[1]);m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
@@ -4889,14 +4885,14 @@ tb_seed_telemetry_repo "$TB_UM_B"
 git -C "$TB_UM_B" update-ref refs/heads/devflow-telemetry "$(git -C "$TB_UM_B" rev-parse HEAD)"
 git -C "$TB_UM_B" update-ref refs/heads/prflow-telemetry "$(git -C "$TB_UM_B" rev-parse HEAD)"
 assert_eq "tb(#1826): both refs present but superseded carries no .devflow/ record → no report" "no" \
-  "$(tb_stranded_warn "$TB_UM_B")"
+  "$(tb_report_warn "$TB_UM_B" 'superseded devflow-telemetry branch is present')"
 rm -rf "$TB_UM_B"
 
 # (c) NEGATIVE: neither ref exists -> a genuine absence, no report.
 TB_UM_C="$(git_sandbox "tb no telemetry branch")"
 tb_seed_telemetry_repo "$TB_UM_C"
 assert_eq "tb(#1003): no telemetry ref at all is a genuine absence → no report" "no" \
-  "$(tb_stranded_warn "$TB_UM_C")"
+  "$(tb_report_warn "$TB_UM_C" 'superseded devflow-telemetry branch is present')"
 rm -rf "$TB_UM_C"
 
 # (d) POSITIVE (#1826): both refs present AND the superseded ref carries stranded
@@ -4907,7 +4903,7 @@ tb_seed_telemetry_repo "$TB_UM_D"
 tb_seed_superseded "$TB_UM_D"
 git -C "$TB_UM_D" update-ref refs/heads/prflow-telemetry "$(git -C "$TB_UM_D" rev-parse HEAD)"
 assert_eq "tb(#1826): both refs present, superseded carries a stranded record → warned" "yes" \
-  "$(tb_stranded_warn "$TB_UM_D")"
+  "$(tb_report_warn "$TB_UM_D" 'superseded devflow-telemetry branch is present')"
 TB_UM_D_ERR="$(DEVFLOW_CONFIG_FILE="$TB_UM_D/no-such-config.json" python3 -c 'import importlib.util,sys
 s=importlib.util.spec_from_file_location("e",sys.argv[1]);m=importlib.util.module_from_spec(s);s.loader.exec_module(m)
 m._index_efficiency(sys.argv[2]+"/.prflow/logs/efficiency", sys.argv[2])' \

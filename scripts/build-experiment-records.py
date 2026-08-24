@@ -601,6 +601,7 @@ def _efficiency_entry(record, run_id):
     slug = record.get("slug")
     if not isinstance(slug, str):
         return None
+    per_iteration = record.get("per_iteration")
     return {
         "slug": slug,
         "run_id": run_id,
@@ -626,8 +627,7 @@ def _efficiency_entry(record, run_id):
         # Per-reviewer/loop-position forensics (issue #1826): the whole `per_iteration`
         # array passes through VERBATIM, normalized to `[]` when missing/non-list so a
         # floor/synthesis run or one malformed record yields an empty array, never None.
-        "per_iteration": (record.get("per_iteration")
-                          if isinstance(record.get("per_iteration"), list) else []),
+        "per_iteration": per_iteration if isinstance(per_iteration, list) else [],
         "cut_candidate_min_dispatch": record.get("cut_candidate_min_dispatch"),
     }
 
@@ -642,13 +642,13 @@ def _count_superseded_efficiency(repo_root):
     """Count efficiency records stranded on the superseded telemetry branch, read under
     the path THAT branch uses — `.devflow/logs/efficiency/`, the pre-#1003 spelling the
     current writer never writes, never the canonical `.prflow/` path which is empty on
-    that branch (issue #1826). Returns (present, count): present is False when the ref is
-    absent; count is the number of `.json` blobs, or None when the ref exists but its
-    tree could not be read — an UNESTABLISHED count, never silently zero."""
+    that branch (issue #1826). Returns the number of `.json` blobs, or None when the ref
+    is absent OR exists but its tree could not be read (an UNESTABLISHED count that is
+    warned about here and never silently zero); a positive int is the only report trigger."""
     rc_s, _, _ = _run([GIT, "-C", str(repo_root), "rev-parse", "--verify",
                        "--quiet", f"{_TELEMETRY_BRANCH_SUPERSEDED}^{{commit}}"])
     if rc_s != 0:
-        return False, None
+        return None
     rc_l, out_l, err_l = _run([GIT, "-C", str(repo_root), "ls-tree", "-r", "--name-only",
                                _TELEMETRY_BRANCH_SUPERSEDED, "--",
                                ".devflow/logs/efficiency/"])
@@ -656,8 +656,8 @@ def _count_superseded_efficiency(repo_root):
         _warn(f"the superseded {_TELEMETRY_BRANCH_SUPERSEDED} branch is present but its "
               f".devflow/logs/efficiency/ tree could not be read (ls-tree rc={rc_l}): "
               f"{(err_l or '').strip()[:160]} — cannot establish how many records are stranded")
-        return True, None
-    return True, sum(1 for p in out_l.splitlines() if p.strip().endswith(".json"))
+        return None
+    return sum(1 for p in out_l.splitlines() if p.strip().endswith(".json"))
 
 
 def _index_efficiency(eff_dir, repo_root=None, branch=None):
@@ -744,8 +744,8 @@ def _index_efficiency(eff_dir, repo_root=None, branch=None):
         # canonical branch is present or absent (the old gate silently skipped the
         # both-present state). Skip only when the resolved branch IS the superseded one.
         if br != _TELEMETRY_BRANCH_SUPERSEDED:
-            sup_present, sup_count = _count_superseded_efficiency(repo_root)
-            if sup_present and sup_count:
+            sup_count = _count_superseded_efficiency(repo_root)
+            if sup_count:
                 plural = "" if sup_count == 1 else "s"
                 if rc_v == 1 and br == _TELEMETRY_BRANCH_DEFAULT:
                     # Canonical absent: the one-push rename is a FAST-FORWARD (nothing to
