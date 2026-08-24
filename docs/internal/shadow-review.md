@@ -333,6 +333,19 @@ should not refresh them. Enforcement at the
 terminal-status boundary is a separate concern tracked by #1453; the rule here is stated on the prompt
 surfaces and asserts no terminal-status routing of its own.
 
+**The refusal is no longer shadow-scoped (issue #1489).** #1230 stated it only for the Step 2.6
+shadow pass, but a run cannot establish its own remaining context on **any** tier, so a self-assessed
+budget or context state is an *unestablished measurement*, never a fact, and never a basis for a
+verification decision. The prohibition now binds **every** mandated verification step of the fix loop
+and of implement Phase 3 — the reviewer roster, the checklist generate/dedupe/verify steps, the
+bounded re-review, and the shadow — with no tier-specific carve-out: none may be skipped, narrowed,
+deferred or degraded on a self-assessed budget premise. The legal exit is unchanged and stated where
+each refusal lives: perform the step, or stop at a non-terminal/`Blocked` status naming the step not
+performed. Because the reduction is *chosen* inside the dispatch-deciding phase references
+(`skills/review/phases/phase-2-verification.md` for the checklist, `phase-3-agents.md` for the
+roster), each states this application of the general rule at its own decision point, so the rule is
+loaded where a run elects the reduction rather than in a phase it has already left.
+
 One bounded exception applies before outcome 3 is recorded (Step 2.6's *Transient vs. structural*
 rule): a **single** dispatched reviewer that returned garbage / empty while the rest of the roster
 returned cleanly gets **exactly one** targeted re-dispatch first; only if that retry also fails (or
