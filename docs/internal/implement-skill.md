@@ -1142,20 +1142,25 @@ running a suite the ladder does not gate on or misdescribing what it verified. T
   above, unchanged in shape and strictness. This is what the cloud implement tier produces, and its
   path is byte-for-byte as before.
 - **CI-derived reading** (`completion-ci:<payload>`) — recorded with `workpad.py update <issue>
-  --record-completion-evidence-ci <head-sha> <check-name> <conclusion> <run-url>`, whose four operands
-  are exactly enough for a later reader to re-audit the reading against GitHub. The payload is a
-  base64url-unpadded JSON object riding the **same** keyed-checkpoint marker family under a distinct
-  `completion-ci:` key namespace (no third marker family is minted), so a reader tells an in-env suite
-  pass from a CI reading without inspecting any command string. `workpad.py`'s `_validate_ci_evidence`
-  validates it through the sibling `check-completion-evidence.py`'s importable
-  `validate_implement_completion_ci` — **offline and deterministic: no network call and no `gh`
-  invocation.** The record passes only when every field is a nonempty string, the `head_sha` is exactly
-  40 lowercase hex characters equal to `git rev-parse HEAD` over a clean `git status --porcelain`, and
-  the `conclusion` is `success`. It mints **no ninth token**: a missing or malformed field is
-  `missing-evidence`, a SHA that does not match the current head or a dirty tree is `stale-candidate`,
-  and a non-success conclusion is `verification-not-pass` — the same closed eight-token vocabulary and
-  first-failing-class order the flight context uses. The flight ledger is untouched, so a CI reading is
-  never laundered into a reusable flight.
+  --record-completion-evidence-ci <head-sha> <tier> <run-url> --completion-ci-check <name> <conclusion>
+  …` (issue #1898 replaced the single `<check-name> <conclusion>` pair with a `<tier>` operand and a
+  repeatable `--completion-ci-check` set), whose operands are exactly enough for a later reader to
+  re-audit the reading against GitHub. The payload is a base64url-unpadded JSON object riding the
+  **same** keyed-checkpoint marker family under a distinct `completion-ci:` key namespace (no third
+  marker family is minted), so a reader tells an in-env suite pass from a CI reading without inspecting
+  any command string. `workpad.py`'s `_validate_ci_evidence` validates it through the sibling
+  `check-completion-evidence.py`'s importable `validate_implement_completion_ci` — **offline and
+  deterministic: no network call and no `gh` invocation.** The record passes only when its `tier` is
+  `local` (a `cloud` tier is refused — a cloud run owes an in-environment result), the `head_sha` is
+  exactly 40 lowercase hex characters equal to `git rev-parse HEAD` over a clean `git status
+  --porcelain`, its recorded checks cover the required-check set declared by the `# prflow:required-check`
+  markers in `.github/workflows/ci.yml` (the single declared source), and every recorded `conclusion` is
+  `success`. It mints **no ninth token**: a missing or malformed field — an absent or non-`local` tier,
+  or a recorded set that omits a required check — is `missing-evidence`, a SHA that does not match the
+  current head or a dirty tree is `stale-candidate`, and a non-success conclusion is
+  `verification-not-pass` — the same closed eight-token vocabulary and first-failing-class order the
+  flight context uses. The flight ledger is untouched, so a CI reading is never laundered into a reusable
+  flight.
 
 `_completion_evidence_verdict` collects markers from **both** families and keeps its refuse-unless-exactly-one
 rule over the combined count, dispatching the single marker to the validator its family owns — so a run
