@@ -32511,13 +32511,22 @@ print(next(s["run"] for j in d["jobs"].values() for s in j.get("steps",[]) if s.
     # ADDED to the guard's IN(...) is covered by this loop instead of shipping untested.
     R1773_KEYS="$(printf '%s\n' "$R313_INJ_BODY" | sed -n 's/.*ascii_upcase | IN(\([^)]*\)).*/\1/p' | tr ',' '\n' | tr -d '"' | tr -d ' ')"
     # Assert extracted-is-a-SUPERSET of this list, never a count: a rename or typo inside IN(...)
-    # keeps the count at 21 while dropping a real name, and the loop then tests the misspelling.
-    # Adding a denied name keeps this green, which is what lets a new name need no edit here.
+    # leaves the extracted count unchanged while dropping a real name, and the loop then tests the
+    # misspelling. Adding a denied name keeps this green, so a new name needs no edit here.
     R1773_EXPECTED='PATH GITHUB_TOKEN GH_TOKEN GITHUB_ENV GITHUB_OUTPUT GITHUB_PATH
 ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN CLAUDE_CODE_OAUTH_TOKEN AWS_ACCESS_KEY_ID
 AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_BEARER_TOKEN_BEDROCK BASH_ENV ENV
 LD_PRELOAD LD_LIBRARY_PATH DYLD_INSERT_LIBRARIES NODE_OPTIONS PYTHONPATH
 CLAUDE_CODE_SUBAGENT_MODEL'
+    # Do not match a key anywhere in the output: a bare substring search passes on a short name the
+    # static prose happens to contain, so it would not attribute the refusal to the guard's dynamic
+    # echo. Match only inside the ::error::'s "forbidden key(s): <names>" segment, word-anchored.
+    r1773_names_key() {  # <output> <key> -> rc 0 iff the forbidden-key segment names <key>
+      case "$1" in *'contains forbidden key(s): '*) : ;; *) return 1 ;; esac
+      R1773_SEG="${1#*contains forbidden key(s): }"
+      R1773_SEG="${R1773_SEG%% —*}"
+      printf '%s' "$R1773_SEG" | grep -qE "(^| )$2( |$)"
+    }
     R1773_MISSING=""
     for R1773_EXP_KEY in $R1773_EXPECTED; do
       printf '%s\n' "$R1773_KEYS" | grep -qxF "$R1773_EXP_KEY" || R1773_MISSING="$R1773_MISSING $R1773_EXP_KEY"
@@ -32530,7 +32539,7 @@ CLAUDE_CODE_SUBAGENT_MODEL'
       # Do not name a denied key literally in the workflow's ::error:: text: this assertion
       # would then pass without the guard's dynamic key echo.
       assert_eq "#1773 inject-body: forbidden key $R1773_KEY emits ::error:: naming the key + refusing" "yes" \
-        "$(printf '%s' "$R313_OUT" | grep -qF 'contains forbidden key(s):' && printf '%s' "$R313_OUT" | grep -qF "$R1773_KEY" && printf '%s' "$R313_OUT" | grep -qiF 'refusing to run' && echo yes || echo no)"
+        "$(r1773_names_key "$R313_OUT" "$R1773_KEY" && printf '%s' "$R313_OUT" | grep -qiF 'refusing to run' && echo yes || echo no)"
       assert_eq "#1773 inject-body: forbidden key $R1773_KEY writes NO top-level env var (guard fired before emit)" "yes" \
         "$([ ! -s "$R313_GENV" ] && echo yes || echo no)"
       : > "$R313_GENV"
@@ -32541,7 +32550,7 @@ CLAUDE_CODE_SUBAGENT_MODEL'
     # Do not reduce this to an exit-code-only assertion: exit 1 alone cannot distinguish the
     # deny-list guard from the shape guard or any later failure.
     assert_eq "#1773 inject-body: the case-variant refusal is the deny-list guard (::error:: names github_token)" "yes" \
-      "$(printf '%s' "$R313_OUT" | grep -qF 'contains forbidden key(s):' && printf '%s' "$R313_OUT" | grep -qF 'github_token' && printf '%s' "$R313_OUT" | grep -qiF 'refusing to run' && echo yes || echo no)"
+      "$(r1773_names_key "$R313_OUT" 'github_token' && printf '%s' "$R313_OUT" | grep -qiF 'refusing to run' && echo yes || echo no)"
     : > "$R313_GENV"
     # Do not delete this positive control: without it the refusal above is not attributable to
     # the denied NAME rather than to the key being lower-case.
@@ -32550,13 +32559,13 @@ CLAUDE_CODE_SUBAGENT_MODEL'
     assert_eq "#1773 inject-body: a lower-case non-denied key (github_token_id) is still exported (lower case alone is not the refusal)" "yes" \
       "$(grep -qxF 'github_token_id=z' "$R313_GENV.kv" && echo yes || echo no)"
     rm -f "$R313_GENV.kv"; : > "$R313_GENV"
-    # Multiple denied keys in one map: fail loud (exit 1) AND the ::error:: names BOTH — exercises
-    # the guard's [ .env|keys[]|select ]|join(" ") collection, not just a single-element match.
+    # Do not reduce this to a single denied key: it is what exercises the guard's
+    # [ .env|keys[]|select ]|join(" ") collection rather than a single-element match.
     R313_RC=0
     R313_OUT="$( export DECISION='{"env":{"PATH":"x","ANTHROPIC_API_KEY":"y"}}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" 2>&1 )" || R313_RC=$?
     assert_eq "#1773 inject-body: two denied keys in one map fail loud (exit 1)" "1" "$R313_RC"
     assert_eq "#1773 inject-body: the ::error:: names BOTH denied keys (join collects all, not just the first)" "yes" \
-      "$(printf '%s' "$R313_OUT" | grep -qF 'PATH' && printf '%s' "$R313_OUT" | grep -qF 'ANTHROPIC_API_KEY' && echo yes || echo no)"
+      "$(r1773_names_key "$R313_OUT" 'PATH' && r1773_names_key "$R313_OUT" 'ANTHROPIC_API_KEY' && echo yes || echo no)"
     : > "$R313_GENV"
     ( export DECISION='{"env":{"GITHUB_TOKEN_ID":"z"}}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" ) >/dev/null 2>&1
     gh_kv "$R313_GENV" > "$R313_GENV.kv"
