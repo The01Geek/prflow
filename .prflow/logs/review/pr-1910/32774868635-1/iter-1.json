@@ -1,0 +1,401 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-24T20:40:00Z",
+  "fix_commit_sha": null,
+  "fix_files": [],
+  "loop_role": "fix",
+  "current_step": "2.6",
+  "current_substep": "run_shadow_fanout",
+  "pending_dispatch": null,
+  "dispatch_mode": "fanned-out",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "checklist": [
+    {
+      "id": "VC-1",
+      "verdict": "PASS",
+      "file": "lib/capability-profiles.json"
+    },
+    {
+      "id": "VC-2",
+      "verdict": "PASS",
+      "file": "skills/review/phases/phase-3-agents.md"
+    },
+    {
+      "id": "VC-3",
+      "verdict": "PASS",
+      "file": "skills/review/phases/phase-0-setup.md"
+    },
+    {
+      "id": "VC-4",
+      "verdict": "PASS",
+      "file": ".github/workflows/devflow.yml"
+    },
+    {
+      "id": "VC-5",
+      "verdict": "PASS",
+      "file": "skills/review/phases/phase-3-agents.md"
+    }
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "checklist-verifier.md references 'this dispatch's Head SHA / Base SHA lines' but its Phase 2.1b dispatch prompt labels that line 'Reviewed head/base for routing'; behavior-inert cross-surface label mismatch.",
+      "defect_signature": {
+        "file": "agents/checklist-verifier.md",
+        "line_range": [
+          61,
+          61
+        ],
+        "kind": "comment_drift"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "behavior-inert prose (Phase 4.1.5 cap)",
+      "fix_decision": "below-threshold"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Untouched-path read still returns default-branch working-tree bytes on the shipped cloud command tier; pre-existing residual scoped out by the changeset.",
+      "defect_signature": {
+        "file": "skills/review/phases/phase-3-agents.md",
+        "line_range": [
+          188,
+          188
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "documentation-clarity residual, behavior-inert",
+      "fix_decision": "below-threshold"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Phase 2.1b verifier dispatch states the empty-head guard by delegation to the pasted truthfulness contract rather than inline.",
+      "defect_signature": {
+        "file": "skills/review/phases/phase-2-verification.md",
+        "line_range": [
+          174,
+          175
+        ],
+        "kind": "other"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "documentation-clarity refinement, behavior-inert",
+      "fix_decision": "below-threshold"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "devflow.yml:803-810 checkout-rationale comment exceeds the 3-line prevention-only cap but falls under the undecidable-load-bearing/continuous-convention carve-out.",
+      "defect_signature": {
+        "file": ".github/workflows/devflow.yml",
+        "line_range": [
+          803,
+          810
+        ],
+        "kind": "style"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "prevention-only comment carve-out applies; no action",
+      "fix_decision": "below-threshold"
+    },
+    {
+      "agent": "parked-class-sweep",
+      "severity": "Suggestion",
+      "description": "DEVFLOW_SYSTEM_OVERVIEW.md item 7 clause 'so verdicts grade the reviewed head even when the displaced list is empty' over-reads: only diff-touched paths route through git show; untouched paths still read default-branch bytes. Sibling of F-2.",
+      "defect_signature": {
+        "file": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+        "line_range": [
+          515,
+          515
+        ],
+        "kind": "documented_falsehood"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "documentation-clarity residual, behavior-inert",
+      "fix_decision": "below-threshold-sibling"
+    },
+    {
+      "agent": "parked-class-sweep",
+      "severity": "Suggestion",
+      "description": "Second modified multi-line devflow.yml comment (~5 lines, the 'Standalone /prflow:review never moves the tree' block) exceeds the 3-line prevention-only cap without a carve-out. Sibling of F-4.",
+      "defect_signature": {
+        "file": ".github/workflows/devflow.yml",
+        "line_range": [
+          887,
+          891
+        ],
+        "kind": "style"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "prevention-only comment carve-out plausibly applies; behavior-inert",
+      "fix_decision": "below-threshold-sibling"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "below-threshold",
+      "source_file": "agents/checklist-verifier.md",
+      "claim_text": "checklist-verifier label mismatch",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "below-threshold",
+      "source_file": "skills/review/phases/phase-3-agents.md",
+      "claim_text": "untouched-path read residual",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "below-threshold",
+      "source_file": "skills/review/phases/phase-2-verification.md",
+      "claim_text": "empty-head guard stated by delegation",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "below-threshold",
+      "source_file": ".github/workflows/devflow.yml",
+      "claim_text": "checkout-rationale comment length carve-out",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    },
+    {
+      "finding_id": "S-1",
+      "decision": "advisory",
+      "source_file": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+      "claim_text": "coverage over-read sibling (item 7)",
+      "skip_category": "advisory-parked",
+      "evidence": "parked-sibling: class-sweep",
+      "parking_evidence": {
+        "basis": "parked by the parked-class sweep registration as a below-threshold sibling of class documented_falsehood",
+        "failing_input": null,
+        "source": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md:515",
+        "finding_ref": {
+          "iter": 1,
+          "index": 4
+        }
+      }
+    },
+    {
+      "finding_id": "S-2",
+      "decision": "advisory",
+      "source_file": ".github/workflows/devflow.yml",
+      "claim_text": "over-cap workflow comment sibling",
+      "skip_category": "advisory-parked",
+      "evidence": "parked-sibling: class-sweep",
+      "parking_evidence": {
+        "basis": "parked by the parked-class sweep registration as a below-threshold sibling of class style",
+        "failing_input": null,
+        "source": ".github/workflows/devflow.yml:887-891",
+        "finding_ref": {
+          "iter": 1,
+          "index": 5
+        }
+      }
+    }
+  ],
+  "parked_class_sweep": {
+    "classes": [
+      {
+        "source_finding_ids": [
+          "F-1"
+        ],
+        "kind_literal": "comment_drift",
+        "sites_examined": [
+          "agents/checklist-verifier.md",
+          "agents/code-reviewer.md",
+          "agents/comment-analyzer.md"
+        ],
+        "new_siblings": []
+      },
+      {
+        "source_finding_ids": [
+          "F-2"
+        ],
+        "kind_literal": "documented_falsehood",
+        "sites_examined": [
+          "skills/review/phases/*.md",
+          "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md",
+          "docs/internal/cloud-setup.md"
+        ],
+        "new_siblings": [
+          {
+            "finding_id": "S-1",
+            "site": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md:515",
+            "severity": "Suggestion",
+            "disposition": "advisory",
+            "marker": "parked-sibling: class-sweep",
+            "parking_evidence": {
+              "basis": "parked-class sweep registration, below-threshold sibling of documented_falsehood",
+              "failing_input": null,
+              "source": "docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md:515",
+              "finding_ref": {
+                "iter": 1,
+                "index": 4
+              }
+            }
+          }
+        ]
+      },
+      {
+        "source_finding_ids": [
+          "F-3"
+        ],
+        "kind_literal": "other",
+        "sites_examined": [
+          "skills/review/phases/phase-2-verification.md",
+          "skills/review/phases/phase-4-verdict.md",
+          "agents/*.md"
+        ],
+        "new_siblings": []
+      },
+      {
+        "source_finding_ids": [
+          "F-4"
+        ],
+        "kind_literal": "style",
+        "sites_examined": [
+          ".github/workflows/devflow.yml"
+        ],
+        "new_siblings": [
+          {
+            "finding_id": "S-2",
+            "site": ".github/workflows/devflow.yml:887-891",
+            "severity": "Suggestion",
+            "disposition": "advisory",
+            "marker": "parked-sibling: class-sweep",
+            "parking_evidence": {
+              "basis": "parked-class sweep registration, below-threshold sibling of style",
+              "failing_input": null,
+              "source": ".github/workflows/devflow.yml:887-891",
+              "finding_ref": {
+                "iter": 1,
+                "index": 5
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "truncation": null,
+    "dispatch": "verified"
+  },
+  "convergence_inputs": {
+    "fixes_applied": 0,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 1
+  },
+  "engine_verdict": "APPROVE with notes",
+  "tentative_verdict": "APPROVE WITH ADVISORY NOTES",
+  "shadow": {
+    "dispatch_mode": "fanned-out",
+    "ran_at": "2026-08-24T20:55:00Z",
+    "reviewed_sha": "d1de1075f23f17d4dffdaa4bbb7f1a44362c1448",
+    "verdict": "REJECT",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:code-reviewer",
+        "severity": "Critical",
+        "description": "Diff-touched arm's Head SHA / Base SHA operand never delivered to the five first-party Phase-3 dispatch templates; routing undeliverable for code-reviewer/comment-analyzer, working-tree fallback forbidden -> INCONCLUSIVE or silent default-branch read. Defeats AC1 for Phase-3 carriers.",
+        "defect_signature": {
+          "file": "skills/review/phases/phase-3-agents.md",
+          "line_range": [
+            79,
+            117
+          ],
+          "kind": "broken_operand_plumbing"
+        }
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "High",
+        "description": "Missing-operand delivery has no fail-closed pin; a Phase-3 agent may silently read default-branch working-tree bytes.",
+        "defect_signature": {
+          "file": "skills/review/phases/phase-3-agents.md",
+          "line_range": [
+            84,
+            103
+          ],
+          "kind": "silent-wrong-bytes-fallback"
+        }
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "severity": "Important",
+        "description": "Prose asserts head/base come from dispatch Head SHA/Base SHA lines that exist only in the final-pass dispatch; unresolvable for first-party agents.",
+        "defect_signature": {
+          "file": "skills/review/phases/phase-3-agents.md",
+          "line_range": [
+            79,
+            79
+          ],
+          "kind": "documented_falsehood"
+        }
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "severity": "Major",
+        "description": "Diff-touched arm cannot function for the five Phase-3 specialist agents; Head SHA/Base SHA lines never emitted into their dispatch prompts.",
+        "defect_signature": {
+          "file": "skills/review/phases/phase-3-agents.md",
+          "line_range": [
+            84,
+            127
+          ],
+          "kind": "broken_operand_plumbing"
+        }
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 5,
+      "overlap_with_iter_N": 1,
+      "new": 4,
+      "new_critical": 1,
+      "new_important": 3
+    },
+    "promoted_to_iter_next": true
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

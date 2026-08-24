@@ -1,0 +1,118 @@
+{
+  "dispatch_mode": "fanned-out",
+  "verdict": "REJECT",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": false
+  },
+  "reviewers_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "per_reviewer": {
+    "prflow:code-reviewer": {
+      "assessment": "REJECT. One Critical finding: the diff-touched arm's head/base SHA operand is never delivered to the five first-party Phase-3 agent dispatch templates. AC8/AC9/AC7/AC4/AC10 verified satisfied; rest internally consistent.",
+      "findings": [
+        {
+          "severity": "Critical",
+          "description": "The amended defect_signature routing paragraph (phase-3-agents.md:79, pasted verbatim into every Phase-3 agent) and the agent bodies code-reviewer.md:74 / comment-analyzer.md instruct binding head/base 'from this dispatch's Head SHA / Base SHA lines', but only the requesting-code-review final-pass template (lines 129-130) carries those lines. The five first-party agent templates (code-reviewer 84-89, silent-failure-hunter 91-96, comment-analyzer 98-103, pr-test-analyzer 105-110, type-design-analyzer 112-117) hand the agent only {DIFF_PATH}+defect_signature. The operand is absent, so the diff-touched arm is undeliverable for the primary merge-gating review agents; with working-tree fallback forbidden they either grade INCONCLUSIVE or silently read default-branch bytes (the exact bug this PR fixes). Contrast phase-2-verification.md:175 which correctly injects a 'Reviewed head/base for routing' line for the checklist-verifier dispatch. Defeats AC1's requirement for the Phase-3 truthfulness-contract and code-reviewer.md/comment-analyzer.md carriers.",
+          "defect_signature": {
+            "file": "skills/review/phases/phase-3-agents.md",
+            "line_range": "79 (defect_signature) vs 84-117 (agent templates)",
+            "kind": "broken_operand_plumbing"
+          }
+        }
+      ]
+    },
+    "prflow:silent-failure-hunter": {
+      "assessment": "One HIGH finding: first-party Phase-3 agent dispatches reference a Head SHA / Base SHA operand never delivered to them, reachably causing a silent fall-back to default-branch working-tree bytes. Other arms' INCONCLUSIVE fail-direction verified correct where the operand is delivered (Phase 2.1a, 2.1b, 4.1.6, Phase 0.3.7).",
+      "findings": [
+        {
+          "severity": "High",
+          "description": "code-reviewer.md:74 and comment-analyzer.md:86, and the shared defect_signature contract (phase-3-agents.md:188), bind the substitution operand to 'this dispatch's Head SHA / Base SHA lines', but the first-party agent dispatch templates contain no such lines (only requesting-code-review does, 129-130). No 'append to every Phase-3 dispatch' rule injects them the way line 65 injects the defect_signature paragraph. The prose does not pin a fail-closed behavior for the absent-SHA-line case: the empty-head guard covers only an empty variable reaching the command, not a wholly absent line, so an agent may silently read the default-branch working tree and grade a merge-gating claim against wrong bytes (false FAIL on added lines, false PASS on removed content). Fix: mirror phase-2-verification.md:175 into each per-agent template, and pin 'no Head SHA line -> INCONCLUSIVE, never working tree'.",
+          "defect_signature": {
+            "file": "skills/review/phases/phase-3-agents.md",
+            "line_range": "84-103 (templates) + 188 (contract)",
+            "kind": "missing-operand-delivery / silent-wrong-bytes-fallback"
+          }
+        }
+      ]
+    },
+    "prflow:comment-analyzer": {
+      "assessment": "One Important finding (missing-operand delivery, filed as documented_falsehood since the prose asserts dispatch lines that do not exist), plus one Suggestion (checklist-verifier label mismatch). Grant claims, devflow.yml comments, overview §7/§15, cloud-setup.md, Phase 0.3.7, and fetch-clause prose all verified accurate; no repo-agnostic violation.",
+      "findings": [
+        {
+          "severity": "Important",
+          "description": "The diff-touched arm asserts head/base are bound 'from this dispatch's Head SHA / Base SHA lines' (phase-3-agents.md:79; agents/code-reviewer.md:74; agents/comment-analyzer.md:87), but the orchestrator injects Base SHA/Head SHA lines only into the requesting-code-review final-pass dispatch (129-130). The first-party review-agent prompts receive only {DIFF_PATH}+contract, so the instruction is unresolvable and the routing cannot execute for the agents whose bodies were amended to depend on it. False against HEAD. Fix: inject the resolved Head/Base SHA lines into every first-party Phase-3 dispatch (as done for the final pass), or scope the binding to fall back to the per-mode <head> the displaced-list arm already uses.",
+          "defect_signature": {
+            "file": "skills/review/phases/phase-3-agents.md",
+            "line_range": "79",
+            "kind": "documented_falsehood"
+          }
+        },
+        {
+          "severity": "Suggestion",
+          "description": "Label mismatch: agents/checklist-verifier.md:61 tells the agent to read head/base 'from this dispatch's Head SHA / Base SHA lines', but its dispatch prompt (phase-2-verification.md:175) labels the injected line 'Reviewed head/base for routing'. Values are present and resolvable, but the label wording diverges. Align the two labels.",
+          "defect_signature": {
+            "file": "agents/checklist-verifier.md",
+            "line_range": "61",
+            "kind": "comment_drift"
+          }
+        }
+      ]
+    },
+    "prflow:requesting-code-review": {
+      "assessment": "REJECT. 9 of 10 ACs met and the prose is careful, but one genuine end-to-end break: the diff-touched arm cannot function for the five Phase-3 specialist agents because the Head SHA / Base SHA lines it binds to are never emitted into their dispatch prompts. No run.sh prose-pin regression. AC2-AC10 verified correct.",
+      "findings": [
+        {
+          "severity": "Major",
+          "description": "The defect_signature block (65-79), pasted into every Phase-3 agent, ends '...binds the head and base to the dispatch prompt's Head SHA / Base SHA lines', instructing each agent to substitute PR_HEAD_SHA/PR_BASE_SHA as a literal read from those lines. The five specialist templates (code-reviewer 84, silent-failure-hunter 91, comment-analyzer 98, pr-test-analyzer 105, type-design-analyzer 112) contain no such lines; only requesting-code-review (129-130) does. The author added the delivery line for the checklist-verifier dispatch (phase-2-verification.md:175) but omitted the equivalent for the Phase-3 specialists. On a standalone cloud /prflow:review (tree pinned to default branch), code-reviewer/comment-analyzer verify a diff-touched-path claim with no literal SHA and cannot use $PR_HEAD_SHA expansion (argument-position expansion denied); a compliant agent grades INCONCLUSIVE, a less-literal one reads the default-branch working tree = the wrong-bytes false-FAIL/false-PASS bug the PR set out to eliminate. AC1's promise is unmet for carriers 6 and 7. Remedy: add a standalone-mode Head SHA/Base SHA literal line to each Phase-3 specialist template.",
+          "defect_signature": {
+            "file": "skills/review/phases/phase-3-agents.md",
+            "line_range": "84-127 vs 79",
+            "kind": "broken_operand_plumbing"
+          }
+        }
+      ]
+    }
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Critical",
+      "description": "Diff-touched arm's Head SHA / Base SHA operand is never delivered to the five first-party Phase-3 agent dispatch templates (only requesting-code-review 129-130 and checklist-verifier dispatch phase-2-verification.md:175 carry it). code-reviewer.md/comment-analyzer.md bodies + shared defect_signature contract instruct binding from absent lines; routing undeliverable, working-tree fallback forbidden -> INCONCLUSIVE or silent default-branch read. Defeats AC1 for Phase-3 carriers.",
+      "defect_signature": {"file": "skills/review/phases/phase-3-agents.md", "line_range": "79 vs 84-117", "kind": "broken_operand_plumbing"}
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "High",
+      "description": "Missing-operand delivery has no fail-closed pin: the empty-head guard covers only an empty variable, not a wholly absent Head SHA line, so a Phase-3 agent may silently read default-branch working-tree bytes and grade a merge-gating claim against wrong bytes. Fix: mirror phase-2-verification.md:175 into each per-agent template and pin 'no SHA line -> INCONCLUSIVE'.",
+      "defect_signature": {"file": "skills/review/phases/phase-3-agents.md", "line_range": "84-103 + 188", "kind": "silent-wrong-bytes-fallback"}
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Important",
+      "description": "Prose asserts head/base come 'from this dispatch's Head SHA / Base SHA lines' (phase-3-agents.md:79; code-reviewer.md:74; comment-analyzer.md:87) but those lines exist only in the final-pass dispatch. Instruction unresolvable for first-party agents; false against HEAD.",
+      "defect_signature": {"file": "skills/review/phases/phase-3-agents.md", "line_range": "79", "kind": "documented_falsehood"}
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "Label mismatch: checklist-verifier.md:61 says 'Head SHA / Base SHA lines' but its dispatch prompt (phase-2-verification.md:175) labels the line 'Reviewed head/base for routing'. Resolvable but divergent; align the labels.",
+      "defect_signature": {"file": "agents/checklist-verifier.md", "line_range": "61", "kind": "comment_drift"}
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Major",
+      "description": "Diff-touched arm cannot function for the five Phase-3 specialist agents; Head SHA/Base SHA lines never emitted into their dispatch prompts while delivered to checklist-verifier (phase-2-verification.md:175) and requesting-code-review (129-130). End-to-end break of the mechanism the PR delivers. Remedy: add standalone-mode Head/Base SHA literal lines to each specialist template.",
+      "defect_signature": {"file": "skills/review/phases/phase-3-agents.md", "line_range": "84-127 vs 79", "kind": "broken_operand_plumbing"}
+    }
+  ],
+  "phase2_fails": [],
+  "report": "# PRFlow Shadow Review — PR #1910 (issue #1889)\n\n**Verdict: REJECT**\n\n**Reviewed HEAD:** d1de1075f23f17d4dffdaa4bbb7f1a44362c1448  \n**Dispatch mode:** fanned-out (blinded shadow)  \n**Diff profile:** engine_self_modifying=true, config_only=false, has_new_types=false, small_diff=false, checklist_skipped=false\n\n## Summary\n\nThe change generalizes the review engine's displaced-path routing into a standalone \"diff-touched arm\": in standalone PR-number mode a claim about a diff-touched path is verified against the reviewed head's bytes via `git show $PR_HEAD_SHA:<path>` (base via `$PR_BASE_SHA`) rather than the default-branch working tree. The diff is entirely agent-executed prompt prose, workflow comments, internal docs, and a changeset — no executable code. Nine of ten acceptance criteria are satisfied and the prose is careful, but there is one genuine end-to-end break in the exact mechanism the PR exists to deliver.\n\n## Blocking finding (all four Phase-3 reviewers converged independently)\n\n**The diff-touched arm's Head SHA / Base SHA operand is never delivered to the five first-party Phase-3 agent dispatch templates.**\n\n- The shared `defect_signature` contract (`skills/review/phases/phase-3-agents.md:79`, pasted verbatim into every Phase-3 dispatch) and the amended agent bodies `agents/code-reviewer.md:74` and `agents/comment-analyzer.md:87` instruct each agent to route a diff-touched-path claim through `git show <PR_HEAD_SHA>:<path>`, substituting the commit id \"as a literal from this dispatch's Head SHA / Base SHA lines.\"\n- But of the six Phase-3 dispatch templates, only the `requesting-code-review` final-pass prompt (lines 129-130) actually carries `Head SHA:` / `Base SHA:` lines. The five first-party templates — `code-reviewer` (84-89), `silent-failure-hunter` (91-96), `comment-analyzer` (98-103), `pr-test-analyzer` (105-110), `type-design-analyzer` (112-117) — receive only `{DIFF_PATH}` plus the pasted contract. No instruction (analogous to the line-65 defect_signature paste rule) injects the SHA lines into them.\n- The author demonstrably knew the delivery line was required: the sibling Phase 2.1b checklist-verifier dispatch was amended correctly, adding `phase-2-verification.md:175` — \"Reviewed head/base for routing (standalone PR-number mode only): {the orchestrator substitutes the resolved $PR_HEAD_SHA and $PR_BASE_SHA as literals}.\" The equivalent was omitted from the Phase-3 specialist templates.\n- **Failure scenario:** a standalone cloud `/prflow:review` on `devflow.yml` (tree pinned to the default branch). `code-reviewer` or `comment-analyzer` — the two carriers AC1 names by agent body — verifies a documented-falsehood claim about a diff-touched path. It has the `<PR_HEAD_SHA>` placeholder but no literal SHA, and cannot use `$PR_HEAD_SHA` shell expansion (the command-tier matcher denies argument-position expansion, as the arm itself states). Working-tree fallback is forbidden, so a compliant agent grades every such claim INCONCLUSIVE; a less-literal agent silently reads the default-branch working tree — the exact false-FAIL/false-PASS wrong-bytes corruption this PR set out to eliminate. Either way AC1's promise (\"route diff-touched-path claims via git show head\") is unmet for two of its seven carriers, and the §7/§15/changeset claim that all seven carriers route even when the displaced list is empty is true in letter but inert-or-unsafe for those two surfaces.\n- **Remedy:** add a standalone-mode `Head SHA:` / `Base SHA:` literal line to each first-party Phase-3 dispatch template (mirroring `phase-2-verification.md:175` and the final-pass lines 129-130), or add a single \"append the Head SHA / Base SHA lines to every Phase-3 dispatch prompt\" rule; additionally pin the missing-line case fail-closed in the agent bodies (\"no Head SHA line -> INCONCLUSIVE, never the working tree\").\n\nThis matches CLAUDE.md's `unverified-assumption` bug class: a guard (the routing) reads an operand (the dispatch's Head/Base SHA lines) the producer (the per-agent dispatch template) does not emit, so it fails open exactly where it claims to fail closed.\n\n## Secondary finding (Suggestion)\n\n**checklist-verifier label mismatch.** `agents/checklist-verifier.md:61` tells the agent to read head/base from \"this dispatch's Head SHA / Base SHA lines,\" but the checklist-verifier dispatch prompt (`phase-2-verification.md:175`) labels the injected line \"Reviewed head/base for routing.\" The values are present and resolvable, so this is non-blocking, but the labels should be aligned.\n\n## Verified correct (no findings)\n\n- **AC2** routed-read error -> `git cat-file -e` probe -> INCONCLUSIVE, no working-tree/fetch fallback: present in all carriers.\n- **AC3** untouched path keeps working-tree read, prose states it: present in every carrier.\n- **AC4** new `phase-0-setup.md` §0.3.7 records equal/divergent/unestablished via `git rev-parse HEAD` vs `$PR_API_HEAD_SHA`, read-only, non-verdict-changing, non-stopping.\n- **AC5** displaced-list arm text retained unchanged; diff-touched arm appended independently.\n- **AC6/AC9** grants verified against `lib/capability-profiles.json`: `git show`/`git cat-file`/`git rev-parse` on both cloud profiles (zero new grants); `git fetch` ungranted on `review`, granted on `command`, matching the reworded fetch clause.\n- **AC7/AC8** `devflow.yml` checkout-rationale + trusted-closure comments and `DEVFLOW_SYSTEM_OVERVIEW.md` §7/§15 + `cloud-setup.md` reworded to head-bytes-via-`git show`, tree-never-moves; the \"PR read only via gh pr diff/gh pr view\" and \"git diff origin/main...HEAD for standalone\" implications removed.\n- **AC10** changeset present and accurate.\n- **run.sh prose pins:** no regression — the reworded `devflow.yml`/overview sentences are not pinned; the `origin/main...HEAD` hits in `lib/test/run.sh` are behavioral fixtures (scenarios #503/#511), not prose pins on the reworded comment; the #504 AC6 pins (phase-2.1a `grep the \\`git show <head>:<path>\\` output`, phase-2.1b `displaced-path routing: for any referenced file`, the three agent-mirror `.prflow/tmp/displaced-paths.txt` pins) still match unchanged literals.\n\n## Disposition\n\nOne small, mechanical omission from correct. Adding the head/base literal lines to the five first-party Phase-3 dispatch templates would clear the REJECT."
+}

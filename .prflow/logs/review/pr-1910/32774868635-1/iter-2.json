@@ -1,0 +1,144 @@
+{
+  "iter": 2,
+  "started_at": "2026-08-24T20:58:00Z",
+  "fix_commit_sha": "ae468b00c",
+  "fix_files": [
+    "skills/review/phases/phase-3-agents.md"
+  ],
+  "loop_role": "promoted",
+  "promotion_provenance": "shadow",
+  "current_step": "3.5",
+  "current_substep": "fix_delta_gate",
+  "pending_dispatch": null,
+  "dispatch_mode": null,
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Critical",
+      "description": "Diff-touched arm's Head SHA / Base SHA operand never delivered to the five first-party Phase-3 dispatch templates.",
+      "defect_signature": {
+        "file": "skills/review/phases/phase-3-agents.md",
+        "line_range": [
+          79,
+          117
+        ],
+        "kind": "broken_operand_plumbing"
+      },
+      "corroboration_count": 4,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "SH-1",
+      "decision": "applied",
+      "commit": "ae468b00c",
+      "source_file": "skills/review/phases/phase-3-agents.md",
+      "claim_text": "Head SHA/Base SHA operand undelivered to first-party Phase-3 dispatch templates",
+      "evidence": "Added a Head SHA:/Base SHA: delivery line pair to each of the 5 first-party templates (code-reviewer, silent-failure-hunter, comment-analyzer, pr-test-analyzer, type-design-analyzer), mirroring the final-pass template lines 129-130 and phase-2-verification.md:175, so the shared contract's 'the dispatch prompt's Head SHA / Base SHA lines' now resolves for every Phase-3 agent."
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 1,
+    "fix_diff_lines": 15,
+    "new_corroborated_critical_count": 0
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": null
+    }
+  },
+  "shadow": {
+    "dispatch_mode": "fanned-out",
+    "ran_at": "2026-08-24T21:08:00Z",
+    "reviewed_sha": "ae468b00c",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:comment-analyzer",
+        "severity": "Suggestion",
+        "description": "checklist-verifier.md:61 label mismatch ('Head SHA / Base SHA lines' vs Phase 2.1b dispatch label 'Reviewed head/base for routing'); behavior-inert. Overlaps parked F-1.",
+        "defect_signature": {
+          "file": "agents/checklist-verifier.md",
+          "line_range": [
+            61,
+            61
+          ],
+          "kind": "comment_drift"
+        }
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Suggestion",
+        "description": "phase-0-setup.md:45-47 head resolution guards on exit code only, not empty headRefOid; pre-existing status-quo (not this PR's diff), rare malformed-API edge; downgraded from Important. NEW advisory.",
+        "defect_signature": {
+          "file": "skills/review/phases/phase-0-setup.md",
+          "line_range": [
+            45,
+            47
+          ],
+          "kind": "other"
+        }
+      },
+      {
+        "agent": "prflow:code-reviewer",
+        "severity": "Suggestion",
+        "description": "phase-3-agents.md:144-145 final-pass delivers Head/Base SHA in every mode vs presence-based first-party templates; consistency nit, harm bounded. NEW advisory.",
+        "defect_signature": {
+          "file": "skills/review/phases/phase-3-agents.md",
+          "line_range": [
+            144,
+            145
+          ],
+          "kind": "style"
+        }
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 3,
+      "overlap_with_iter_N": 1,
+      "new": 2,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "park_calibration": {
+    "evidence_comparisons": [
+      {
+        "parked_finding_ref": {
+          "iter": 1,
+          "index": 0
+        },
+        "parked_finding_id": "F-1",
+        "shadow_finding_index": 0,
+        "relation": "equivalent",
+        "rationale": "convergence shadow re-raises the checklist-verifier label mismatch at Suggestion (same severity), same evidentiary basis, no new failing input",
+        "operands_present": true,
+        "disposition": "preserved"
+      }
+    ]
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

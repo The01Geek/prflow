@@ -1,0 +1,89 @@
+{
+  "dispatch_mode": "fanned-out",
+  "verdict": "APPROVE",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": false
+  },
+  "reviewers_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "per_reviewer": {
+    "prflow:code-reviewer": {
+      "assessment": "Satisfies all stated acceptance criteria. All seven routing carriers carry the diff-touched arm; Phase 0.3.7 records tree vs API head; fetch-clause profile-accuracy and zero-new-grants claims verified against lib/capability-profiles.json; workflow checkout-rationale comment corrected. No documented_falsehood, no Critical/Important. One low-severity cross-reference inconsistency.",
+      "findings": [
+        {
+          "severity": "Suggestion",
+          "description": "agents/checklist-verifier.md added clause says the head/base literal is substituted 'from this dispatch's Head SHA / Base SHA lines', but the checklist-verifier is dispatched from phase-2-verification.md 2.1b whose delivery line is labeled 'Reviewed head/base for routing', not 'Head SHA:'/'Base SHA:'. Accurate for code-reviewer/comment-analyzer (real Phase-3 templates) but not for the verifier. Behavior-inert.",
+          "defect_signature": {"file": "agents/checklist-verifier.md", "line_range": [61, 61], "kind": "comment_drift"}
+        }
+      ]
+    },
+    "prflow:silent-failure-hunter": {
+      "assessment": "Core operand delivery to the five Phase-3 templates is sound; the arm correctly reuses the empty-head/git-show-index guard, fork-head INCONCLUSIVE fail direction, and no-git-fetch rule. Raised one empty-head fail-open concern (graded down to Suggestion/PLAUSIBLE by the orchestrator: not a regression) plus a final-pass-reviewer operand-uniformity Suggestion.",
+      "findings": [
+        {
+          "severity": "Suggestion",
+          "description": "Standalone-mode head operand can be empty-but-exit-0: Phase 0.2 (phase-0-setup.md:45-47) stops only on non-zero exit of `gh pr view`, not on an empty/null headRefOid. An empty $PR_HEAD_SHA yields an empty 'Head SHA:' line indistinguishable from the 'omitted in other modes' case, so agents treat the run as non-standalone and the diff-touched arm collapses to the working-tree (default-branch) read. VERIFICATION: confirmed line 47 guards exit-code only. Downgraded from Important because this reproduces the exact pre-PR behavior (working-tree read on that rare edge) rather than introducing a new wrong-bytes hazard, and requires a malformed/partial API response; a fail-closed empty-head guard in Phase 0.2 would harden it.",
+          "defect_signature": {"file": "skills/review/phases/phase-0-setup.md", "line_range": [45, 47], "kind": "logic_error"}
+        },
+        {
+          "severity": "Suggestion",
+          "description": "The requesting-code-review final-pass reviewer receives populated Head/Base SHA lines in every mode (phase-3-agents.md:144-145), unlike the five first-party templates whose SHA-line presence is the sole standalone-mode signal. In current-branch/head_override mode this reviewer could read populated SHA lines as 'standalone' and verify via git show <HEAD>:<path>. Harm bounded (git show HEAD ~ working tree minus uncommitted edits); consistency/ambiguity nit.",
+          "defect_signature": {"file": "skills/review/phases/phase-3-agents.md", "line_range": [144, 145], "kind": "api_misuse"}
+        }
+      ]
+    },
+    "prflow:comment-analyzer": {
+      "assessment": "Truthfulness-sensitive prose accurate against HEAD: corrected devflow.yml checkout-rationale comment no longer cites git diff origin/main...HEAD; section 7/15/base-ref-trust-boundary accounts and cloud-setup.md accurately describe head-byte reads while the tree stays on the default branch; zero-new-grants holds; no documented_falsehood. One label-consistency Suggestion.",
+      "findings": [
+        {
+          "severity": "Suggestion",
+          "description": "agents/checklist-verifier.md:61 references 'this dispatch's Head SHA / Base SHA lines' but its dispatch (phase-2-verification.md:69/175) delivers the operand under 'Reviewed head/base for routing'. Cross-file wording mismatch introduced by this change; value is recoverable, low risk.",
+          "defect_signature": {"file": "agents/checklist-verifier.md", "line_range": [61, 61], "kind": "cross_file_label_mismatch"}
+        }
+      ]
+    },
+    "prflow:requesting-code-review": {
+      "assessment": "Ready to proceed. Change is well-formed and satisfies the specification. The specific fix under review (Head SHA/Base SHA lines on the five first-party Phase-3 dispatch templates) is correctly and consistently applied to all five agents, which is exactly the set that receives the diff-touched routing through the shared defect_signature paragraph. Final-pass reviewer's own head/base context present and consistent. Grant/profile claims independently verified against the manifest. No carrier missing the arm. Only a low-severity label-consistency nit on checklist-verifier.",
+      "findings": [
+        {
+          "severity": "Suggestion",
+          "description": "checklist-verifier.md operand-label mismatch: body says 'Head SHA / Base SHA lines' while phase-2-verification.md:69 delivers under 'Reviewed head/base for routing'. Operand still delivered (line 69 also says 'Bind <head>/<base> to these'); wording-consistency nit, not a functional gap.",
+          "defect_signature": {"file": "agents/checklist-verifier.md", "line_range": [61, 61], "kind": "comment_drift"}
+        }
+      ]
+    }
+  },
+  "phase3_findings": [
+    {
+      "severity": "Suggestion",
+      "corroboration": 3,
+      "verdict": "CONFIRMED",
+      "description": "agents/checklist-verifier.md:61 references 'this dispatch's Head SHA / Base SHA lines', but the checklist-verifier's dispatch (phase-2-verification.md 2.1b, line 69/175) delivers the head/base operand under the label 'Reviewed head/base for routing (standalone PR-number mode only)', not literal 'Head SHA:'/'Base SHA:' lines. Raised independently by code-reviewer, comment-analyzer, and requesting-code-review. Behavior-inert (operand is delivered and explicitly bound on the same dispatch line); demotable to Suggestion under the Phase 4.1.5 behavior-inert prose cap. Fix: reword the verifier body to 'this dispatch's Reviewed head/base for routing line', or relabel the 2.1b dispatch to emit matching Head SHA:/Base SHA: lines.",
+      "defect_signature": {"file": "agents/checklist-verifier.md", "line_range": [61, 61], "kind": "comment_drift"}
+    },
+    {
+      "severity": "Suggestion",
+      "corroboration": 1,
+      "verdict": "PLAUSIBLE",
+      "description": "Empty-but-exit-0 headRefOid: Phase 0.2 (phase-0-setup.md:45-47) guards only on non-zero exit of gh pr view, not on empty/null headRefOid. An empty $PR_HEAD_SHA produces an empty 'Head SHA:' line indistinguishable from the omitted-in-other-modes case, collapsing the standalone diff-touched arm to the working-tree (default-branch) read. Confirmed against the source that line 47 checks exit code only. Non-blocking: reproduces the pre-PR status-quo working-tree read on that rare malformed-API edge rather than introducing a new wrong-bytes hazard; hardening would be a fail-closed empty-head guard in Phase 0.2.",
+      "defect_signature": {"file": "skills/review/phases/phase-0-setup.md", "line_range": [45, 47], "kind": "logic_error"}
+    },
+    {
+      "severity": "Suggestion",
+      "corroboration": 1,
+      "verdict": "PLAUSIBLE",
+      "description": "Non-uniform SHA-line delivery: requesting-code-review final-pass reviewer receives populated Head/Base SHA lines in every mode (phase-3-agents.md:144-145), whereas the five first-party templates use SHA-line presence as the sole standalone-mode signal. Consistency/ambiguity nit; harm bounded.",
+      "defect_signature": {"file": "skills/review/phases/phase-3-agents.md", "line_range": [144, 145], "kind": "api_misuse"}
+    }
+  ],
+  "phase2_fails": [],
+  "report": "## Shadow re-review (convergence-time) — PR #1910 / issue #1889\n\n**Verdict: APPROVE** (blinded, structurally-independent full re-review of HEAD ae468b00c)\n\n### Diff profile\nengine_self_modifying = true (review-engine phase files + first-party agent bodies). config_only = false; has_new_types = false; small_diff = false. Phase-3 roster fanned out: code-reviewer, silent-failure-hunter, comment-analyzer, requesting-code-review. type-design-analyzer gated out (no new types); pr-test-analyzer gated out (no test-file change, config/prose-only added logic).\n\n### The change\nGeneralizes the review engine's displaced-path routing into a standalone-mode diff-touched arm: a claim about a path the Phase 0.2 cached diff touches is verified via `git show $PR_HEAD_SHA:<path>` (base-state `$PR_BASE_SHA`), the tree never moves, and an unresolvable (fork) head grades INCONCLUSIVE. The commit under review (ae468b00c) delivers the routing operand by adding `Head SHA:`/`Base SHA:` lines to the five first-party Phase-3 dispatch templates in skills/review/phases/phase-3-agents.md.\n\n### Verification of the fix and acceptance criteria\n- All seven routing carriers carry the diff-touched arm (phase-2-verification.md 2.1a/2.1b, phase-3-agents.md truthfulness contract, phase-4-verdict.md 4.1.6 sweep, and agent bodies checklist-verifier/code-reviewer/comment-analyzer). No extra carrier touched. AC#1 met.\n- The five first-party Phase-3 templates now carry Head SHA:/Base SHA: operand lines; the diff-touched routing reaches all five via the shared defect_signature paragraph, so delivery is complete and consistent. The prior review's gap (operand undelivered) is closed.\n- INCONCLUSIVE-via-git-cat-file-e fail direction, no working-tree/fetch fallback, untouched-paths keep working-tree read, tree-never-moves, and displaced-list-unchanged all preserved (AC#2/#3/#5/#6).\n- Phase 0.3.7 records git rev-parse HEAD vs $PR_API_HEAD_SHA as equal/divergent(both ids)/unestablished, divergence changing no verdict (AC#4). $PR_API_HEAD_SHA is a real Phase 0.2 variable.\n- 'zero new tool grants' independently verified against lib/capability-profiles.json: git show / git cat-file / git rev-parse are granted on both review and command profiles; git fetch is on command but not review — matching the fetch clause exactly (AC#9).\n- devflow.yml checkout-rationale comment no longer cites git diff origin/main...HEAD; trusted-closure comment + DEVFLOW_SYSTEM_OVERVIEW section 7/15 + cloud-setup.md accurately state head-byte reads via git show while the tree stays on the default branch (AC#7/#8). Changeset present (AC#10).\n- truthfulness sweep: no finding promoted (no documented_falsehood against HEAD).\n\n### Findings (all Suggestion; none blocking)\n1. [CONFIRMED, 3-way] agents/checklist-verifier.md:61 references 'this dispatch's Head SHA / Base SHA lines', but its 2.1b dispatch delivers the operand under 'Reviewed head/base for routing'. Behavior-inert cross-file label mismatch introduced by this PR; operand is still delivered and bound. Capped at Suggestion by the Phase 4.1.5 behavior-inert prose cap.\n2. [PLAUSIBLE] phase-0-setup.md:45-47 guards Phase 0.2 head resolution on exit code only, not on empty headRefOid; an empty $PR_HEAD_SHA would collapse the standalone arm to the default-branch working-tree read. Non-regression (reproduces pre-PR behavior on a rare malformed-API edge); a fail-closed empty-head guard would harden it.\n3. [PLAUSIBLE] phase-3-agents.md:144-145 delivers Head/Base SHA to the final-pass reviewer in every mode, unlike the presence-based standalone signal the five first-party templates use. Consistency nit; harm bounded.\n\n### Conclusion\nThe fix is correct and complete against the specification. No Critical or Important defect survives verification. APPROVE with three non-blocking Suggestions for optional hardening/consistency."
+}

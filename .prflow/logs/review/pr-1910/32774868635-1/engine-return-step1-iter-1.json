@@ -1,0 +1,113 @@
+{
+  "dispatch_mode": "fanned-out",
+  "verdict": "APPROVE with notes",
+  "pr_number": 1910,
+  "issue": 1889,
+  "reviewed_head": "d1de1075f23f17d4dffdaa4bbb7f1a44362c1448",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "diff_profile_note": "engine_self_modifying (overrides other flags' checklist -> full Phase 1+2 checklist). config_only also set: Phase 3.1 skips type-design-analyzer (has_new_types false) and pr-test-analyzer (config-only, no test file, no non-config added code). small_diff false (11 changed files > 3).",
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "checklist-verifier.md's added sentence points the verifier at 'this dispatch's Head SHA / Base SHA lines', but checklist-verifier is dispatched from Phase 2.1b, whose dispatch prompt (phase-2-verification.md:175) supplies the literals under the label 'Reviewed head/base for routing (standalone PR-number mode only)'. There is no line literally titled 'Head SHA'/'Base SHA' in that prompt. The identical phrase IS accurate for code-reviewer.md and comment-analyzer.md, which receive the Phase-3 dispatch prompt carrying literal Head SHA:/Base SHA: lines (phase-3-agents.md:129-130). Cross-surface label inconsistency; the verifier still receives the resolved literals, so it is behavior-inert.",
+      "defect_signature": {"file": "agents/checklist-verifier.md", "line_range": [61, 61], "kind": "comment_drift"},
+      "corroboration_count": 1,
+      "step25_classification": "behavior-inert prose (Phase 4.1.5 cap applies -> capped at Suggestion, drives no REJECT at the critical threshold; excluded from the self-contradicting-diff carve-out per Phase 4.0/4.2 scope exclusion)",
+      "fix_decision": "optional — a one-line relabel of the phase-2.1b routing line to 'Head SHA / Base SHA' (or reword checklist-verifier.md to name its own prompt's line) would resolve it; non-blocking"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Untouched-path read still returns default-branch working-tree bytes on the shipped cloud command tier (the diff-touched arm routes only diff-touched paths through git show). For a claim about a path this PR does not touch, the default-branch tree may have advanced past the PR base, so such a cross-reference claim can be graded against non-head bytes. Pre-existing residual, explicitly scoped out by the changeset; worth one sentence in the overview residual list so 'verdicts grade the reviewed head' is not read as covering untouched paths.",
+      "defect_signature": {"file": "skills/review/phases/phase-3-agents.md", "line_range": [188, 188], "kind": "documented_falsehood"},
+      "corroboration_count": 1,
+      "step25_classification": "documentation-clarity residual, not a fail-open defect; behavior-inert and explicitly scoped by the changeset (fails toward INCONCLUSIVE/false-grade on cross-reference claims, not data loss)",
+      "fix_decision": "optional — add one residual-list sentence; non-blocking"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Phase 2.1b verifier dispatch prompt states the empty-head guard only by delegation (via the pasted defect_signature truthfulness-contract block), not inline like the lite-probe path one block above. Adding the same four-word 'full fail direction live in the truthfulness-contract routing' deferral to the dispatch prompt would make the empty-head guard's reachability self-evident on that surface.",
+      "defect_signature": {"file": "skills/review/phases/phase-2-verification.md", "line_range": [174, 175], "kind": "other"},
+      "corroboration_count": 1,
+      "step25_classification": "documentation-clarity refinement; guard is reachable via the pasted contract, so behavior-inert",
+      "fix_decision": "optional; non-blocking"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "devflow.yml lines 803-810 checkout-rationale comment is an ~8-line derivation block exceeding the 3-line prevention-only cap for the bound workflow-comment population, but it is a modification refreshing an already-verbose pre-existing rationale comment and names the concrete wrong change it prevents (bounded depth breaking both the three-dot diff base and the git show head read). Falls under the undecidable-load-bearing/continuous-with-existing-convention carve-out. Flagged for awareness; no change required.",
+      "defect_signature": {"file": ".github/workflows/devflow.yml", "line_range": [803, 810], "kind": "style"},
+      "corroboration_count": 1,
+      "step25_classification": "prevention-only comment carve-out applies; no action",
+      "fix_decision": "no action — carve-out applies"
+    }
+  ],
+  "phase3_agent_results": {
+    "prflow:code-reviewer": "no Critical/Important; 1 Suggestion (checklist-verifier label mismatch). All four load-bearing claims verified true against HEAD.",
+    "prflow:silent-failure-hunter": "APPROVE; no fail-open hazard. Empty-head index-read guard, fork-head INCONCLUSIVE, and base-state arms all specified fail-closed across all surfaces. 2 doc-clarity Suggestions.",
+    "prflow:comment-analyzer": "No blocking findings; stale-wording enumeration confirms every prior phrasing was updated; 2 Suggestions (both carve-out/no-action).",
+    "prflow:requesting-code-review": "APPROVE; no fileable findings. Zero new grants confirmed, $PR_API_HEAD_SHA comparand correct, routing internally consistent across all six edited surfaces."
+  },
+  "checklist": [
+    {
+      "id": "VC-1",
+      "claim": "The change ships zero new tool grants; git show, git cat-file, and git rev-parse are already granted on both cloud review profiles (review and command).",
+      "file": "lib/capability-profiles.json",
+      "verification_mode": "orchestrator-grep",
+      "verdict": "PASS",
+      "evidence": "review profile: Bash(git show:*) L75, Bash(git rev-parse:*) L78, Bash(git cat-file:*) L81; command profile: L285/L287/L297. No manifest_version or grant change in the diff. lib/review-profile.tokens lock unchanged."
+    },
+    {
+      "id": "VC-2",
+      "claim": "The diff-touched arm binds head/base to 'the dispatch prompt's Head SHA / Base SHA lines' — those lines exist in the Phase 3 dispatch prompt.",
+      "file": "skills/review/phases/phase-3-agents.md",
+      "verification_mode": "orchestrator-grep",
+      "verdict": "PASS",
+      "evidence": "phase-3-agents.md:129 '- Base SHA: {...}' and :130 '- Head SHA: {PR_HEAD_SHA or current HEAD}'. (checklist-verifier is instead dispatched from Phase 2.1b's 'Reviewed head/base for routing' line — see phase3_findings[0], behavior-inert label mismatch.)"
+    },
+    {
+      "id": "VC-3",
+      "claim": "New Phase 0.3.7 compares the working-tree commit against $PR_API_HEAD_SHA, which Phase 0.2 resolves and the head-override path never rewrites.",
+      "file": "skills/review/phases/phase-0-setup.md",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "evidence": "phase-0-setup.md:49 retains headRefOid as $PR_API_HEAD_SHA (never rewritten by head-override); §0.3.7 correctly compares git rev-parse HEAD to the pushed API head rather than the head-override-rewritable $PR_HEAD_SHA."
+    },
+    {
+      "id": "VC-4",
+      "claim": "A same-repo PR head resolves locally under the workflow's full-history checkout; a fork head that does not resolve grades INCONCLUSIVE rather than falling back to working-tree bytes.",
+      "file": ".github/workflows/devflow.yml",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "evidence": "devflow.yml checkout is ref: default_branch with fetch-depth: 0 (full history incl. same-repo branch commits), so git show $PR_HEAD_SHA:<path> resolves for a same-repo head and fails for a fork head -> INCONCLUSIVE. Comment at devflow.yml:803-810 and the phase-3 arm consistent."
+    },
+    {
+      "id": "VC-5",
+      "claim": "The routing rule (diff-touched arm) is internally consistent across all six edited engine surfaces and reuses the empty-head guard, git cat-file -e -> INCONCLUSIVE fail direction, and no-git-fetch rule.",
+      "file": "skills/review/phases/phase-3-agents.md",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "evidence": "Canonical arm in phase-3-agents.md; mirrored/delegated in phase-2-verification.md (lite-probe + verifier dispatch), phase-4-verdict.md sweep, and the three agent bodies; docs (DEVFLOW_SYSTEM_OVERVIEW §7 + base-ref-trust + Stop-hook floor; cloud-setup.md new para) match. Corroborated by all four Phase-3 agents."
+    }
+  ],
+  "checklist_summary": "5 passed, 0 failed, 0 inconclusive (2 via orchestrator lite-grep, 3 via agent reasoning). Full Phase 1+2 checklist run per engine_self_modifying override; prose-only diff yielded a small, high-value verifiable-claim set.",
+  "report": "## Verdict: APPROVE with notes (prose-only generalization of the review engine's displaced-path routing into a standalone-mode diff-touched arm; internally consistent and truthful against HEAD, with only behavior-inert Suggestion-level notes)\n\n## Issue Compliance\nReviewed against issue #1889: route standalone review claim verification against the reviewed head — criteria from the caller-supplied --issue override; scope unchanged. Requirement-based checklist items are included in the verification results below.\n\nThe change satisfies its specification: in standalone PR-number mode a claim about a diff-touched path is verified against the reviewed head via `git show $PR_HEAD_SHA:<path>` (base-state via `$PR_BASE_SHA`); the working tree is never moved (new Phase 0.3.7 only reads and records equal/divergent/unestablished); an unresolvable (fork) head grades INCONCLUSIVE with no working-tree fallback; and the change ships zero new tool grants (git show/cat-file/rev-parse already on both cloud profiles).\n\n## Verification Checklist Results\n5 passed, 0 failed, 0 inconclusive — 2 via lite probe, 3 via agent.\n\n<details><summary>Passed items (5 of 5) — click to expand</summary>\n\n- VC-1: zero new tool grants; git show/cat-file/rev-parse already on both cloud profiles [lib/capability-profiles.json]\n- VC-2: diff-touched arm's 'Head SHA / Base SHA lines' exist in the Phase-3 dispatch prompt [skills/review/phases/phase-3-agents.md:129-130]\n- VC-3: Phase 0.3.7 compares against the never-rewritten $PR_API_HEAD_SHA [skills/review/phases/phase-0-setup.md:49]\n- VC-4: same-repo head resolves / fork head -> INCONCLUSIVE under fetch-depth:0 default-branch checkout [.github/workflows/devflow.yml]\n- VC-5: routing rule internally consistent across all six edited surfaces [skills/review/phases/phase-3-agents.md]\n\n</details>\n\n## Code Review Findings\n\n### 🟡 Suggestion / Minor\n1. checklist-verifier.md's added sentence references 'this dispatch's Head SHA / Base SHA lines', but its actual Phase 2.1b dispatch prompt labels that line 'Reviewed head/base for routing'; the phrase is accurate for the two Phase-3 agent bodies (code-reviewer, comment-analyzer) that do receive literal Head SHA:/Base SHA: lines. Behavior-inert — the verifier still receives the resolved literals (raised by 1/4 agents).\n2. On the shipped cloud command tier, a claim about a path this PR does not touch still reads default-branch working-tree bytes (the diff-touched arm routes only diff-touched paths); a pre-existing residual explicitly scoped out by the changeset — worth one residual-list sentence (raised by 1/4 agents).\n3. Phase 2.1b verifier dispatch prompt states the empty-head guard by delegation to the pasted truthfulness contract rather than inline; a four-word deferral pointer would make its reachability self-evident (raised by 1/4 agents).\n4. devflow.yml:803-810 checkout-rationale comment exceeds the 3-line prevention-only cap but falls under the undecidable-load-bearing/continuous-convention carve-out — no action (raised by 1/4 agents).\n\n## Verdict Criteria\n- No FAIL or INCONCLUSIVE checklist items.\n- No self-contradicting-diff finding (the one comment_drift note is behavior-inert prose covered by the Phase 4.1.5 cap, so it is excluded from the carve-out and capped at Suggestion).\n- No review-agent finding at or above the configured verdict threshold (critical). Only findings below threshold -> APPROVE with notes.\n\nAll four Phase-3 agents (code-reviewer, silent-failure-hunter, comment-analyzer, requesting-code-review final pass) returned APPROVE-equivalent with no Critical/Important findings. The four notes above are documentation-clarity refinements, none blocking."
+}
