@@ -305,7 +305,8 @@ A degraded pass must **never** clear a PR with a clean verdict. The guard is the
   missing block.
 
 When the fan-out cannot complete — the `Agent` tool is unavailable, the engine SKILL.md is
-unreadable, the shadow's Phase 0.5 can't classify the diff, a reviewer returned nothing / garbage /
+unreadable or its completeness is unestablished per Step 1, the shadow's Phase 0.5 can't classify the
+diff, a reviewer returned nothing / garbage /
 evidence-empty, or the dispatched roster falls short for any reason — the parent does **not** fall
 back to a single-agent pass and does **not** report a clean verdict. It records
 `coverage: "not_verified"` with a `reason` naming what was missing and takes **outcome 3** of
@@ -343,7 +344,8 @@ dispatch, not a reviewer retry. (A forced checklist re-audit that cannot complet
 it surfaces as a Phase-2 INCONCLUSIVE, which drives the shadow's verdict to REJECT per the engine's
 verdict mapping, which the loop promotes into another iteration — so a degraded re-audit never reads
 clean.) **Structural** failures (the `Agent` tool unavailable,
-the engine SKILL.md unreadable, Phase 0.5 unable to classify) and any **multi-reviewer** failure are
+the engine SKILL.md unreadable or its completeness unestablished per Step 1, Phase 0.5 unable to
+classify) and any **multi-reviewer** failure are
 immediate `not_verified` with no retry — they will not recover on a re-run. This is a single bounded
 retry, not a fall-back to the lenient "treat as inconclusive and proceed" path.
 
