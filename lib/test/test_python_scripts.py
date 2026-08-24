@@ -32107,6 +32107,14 @@ assert_eq("#1898 _required_checks reads the marked job names from ci.yml",
 # An absent ci.yml declares no required checks (empty set; coverage is then vacuous).
 assert_eq("#1898 _required_checks over a root with no ci.yml → empty set",
           frozenset(), cce._required_checks(_tmp1087.mkdtemp()))
+# Marker-drift guard: a dropped `# prflow:required-check` marker on the REAL repo ci.yml
+# silently shrinks the required set and re-opens the #1888 fail-open, which the fixture
+# tests above cannot catch. Pin that the live tree still declares both known-critical
+# checks (subset, so adding a future required check does not falsely fail this).
+_REAL_ROOT_1898 = str(Path(__file__).resolve().parents[2])
+assert_eq("#1898 the real repo ci.yml still declares both required checks (marker-drift guard)",
+          {_CI_REQUIRED_A, _CI_REQUIRED_B},
+          {_CI_REQUIRED_A, _CI_REQUIRED_B} & set(cce._required_checks(_REAL_ROOT_1898)))
 
 # internal git-read failure propagates as _Internal (never a verdict): a well-formed
 # record over a NON-git repo_root makes _ci_git_read raise, and the entry point catches
