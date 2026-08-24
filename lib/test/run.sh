@@ -32470,16 +32470,19 @@ print(next(s["run"] for j in d["jobs"].values() for s in j.get("steps",[]) if s.
     # Do not re-list the denied names here: read them out of the extracted step body, so a name
     # ADDED to the guard's IN(...) is covered by this loop instead of shipping untested.
     R1773_KEYS="$(printf '%s\n' "$R313_INJ_BODY" | sed -n 's/.*ascii_upcase | IN(\([^)]*\)).*/\1/p' | tr ',' '\n' | tr -d '"' | tr -d ' ')"
-    # The loop below tests whatever the guard denies, so a name DELETED from IN(...) would shrink
-    # the population and still pass. Raise this floor only to match a deliberate removal; adding a
-    # denied name keeps it satisfied, which is what lets a new name be covered with no edit here.
-    R1773_KEY_COUNT="$(printf '%s\n' "$R1773_KEYS" | grep -c '[^[:space:]]')"
-    assert_eq "#1773 inject-body: the guard still denies at least the 21 names this block was written against (a deletion goes RED)" "yes" \
-      "$([ "$R1773_KEY_COUNT" -ge 21 ] && echo yes || echo no)"
-    # One representative per hazard class the guard claims to cover, so a same-count swap that
-    # drops a whole class is RED too.
-    assert_eq "#1773 inject-body: the extracted population covers every hazard class (credential, plumbing shadow, loader hook, roster override)" "yes" \
-      "$(printf '%s\n' "$R1773_KEYS" | grep -qxF 'ANTHROPIC_API_KEY' && printf '%s\n' "$R1773_KEYS" | grep -qxF 'GITHUB_TOKEN' && printf '%s\n' "$R1773_KEYS" | grep -qxF 'LD_PRELOAD' && printf '%s\n' "$R1773_KEYS" | grep -qxF 'CLAUDE_CODE_SUBAGENT_MODEL' && echo yes || echo no)"
+    # Assert extracted-is-a-SUPERSET of this list, never a count: a rename or typo inside IN(...)
+    # keeps the count at 21 while dropping a real name, and the loop then tests the misspelling.
+    # Adding a denied name keeps this green, which is what lets a new name need no edit here.
+    R1773_EXPECTED='PATH GITHUB_TOKEN GH_TOKEN GITHUB_ENV GITHUB_OUTPUT GITHUB_PATH
+ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN CLAUDE_CODE_OAUTH_TOKEN AWS_ACCESS_KEY_ID
+AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_BEARER_TOKEN_BEDROCK BASH_ENV ENV
+LD_PRELOAD LD_LIBRARY_PATH DYLD_INSERT_LIBRARIES NODE_OPTIONS PYTHONPATH
+CLAUDE_CODE_SUBAGENT_MODEL'
+    R1773_MISSING=""
+    for R1773_EXP_KEY in $R1773_EXPECTED; do
+      printf '%s\n' "$R1773_KEYS" | grep -qxF "$R1773_EXP_KEY" || R1773_MISSING="$R1773_MISSING $R1773_EXP_KEY"
+    done
+    assert_eq "#1773 inject-body: the guard still denies every name this block was written against (a deletion, rename or typo goes RED)" "" "$R1773_MISSING"
     for R1773_KEY in $R1773_KEYS; do
       R313_RC=0
       R313_OUT="$( export DECISION="{\"env\":{\"$R1773_KEY\":\"x\"}}" AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" 2>&1 )" || R313_RC=$?
