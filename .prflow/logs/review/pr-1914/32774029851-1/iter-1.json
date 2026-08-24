@@ -1,0 +1,140 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-24T21:00:00Z",
+  "fix_commit_sha": "a56e41636",
+  "fix_files": [
+    "lib/efficiency-trace.jq",
+    "lib/test/modules/efficiency-trace-telemetry.sh"
+  ],
+  "loop_role": "fix",
+  "source": "review-and-fix",
+  "sweep_defs_read": [],
+  "sweep_evidence": {
+    "status": "run",
+    "note": "fix delta is a comment tightening + test additions; no mechanism/contract/coverage-claim change"
+  },
+  "checklist": [],
+  "dispatched_effort": [],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "positional-distinctness (dup/null .iter) untested",
+      "defect_signature": {
+        "file": "lib/efficiency-trace.jq",
+        "line_range": [
+          95,
+          101
+        ],
+        "kind": "guard-untested-on-input-it-was-written-for"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "trace render branch uncovered for recurring_defect_kinds",
+      "defect_signature": {
+        "file": "lib/efficiency-trace.jq",
+        "line_range": [
+          443,
+          466
+        ],
+        "kind": "rendering-branch-uncovered"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "finding_kind comment over-generalized: null does not abort",
+      "defect_signature": {
+        "file": "lib/efficiency-trace.jq",
+        "line_range": [
+          80,
+          85
+        ],
+        "kind": "comment-precision"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "a56e41636"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "a56e41636"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "a56e41636"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 3,
+    "fix_diff_lines": 50,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "shadow": {
+    "dispatch_mode": null,
+    "ran_at": "2026-08-24T21:10:00Z",
+    "reviewed_sha": "a56e41636",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer"
+    ],
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "telemetry": {
+    "phase_3": {
+      "calls": 4,
+      "tokens": 240000,
+      "wall_clock_s": 152
+    },
+    "step_2_6": {
+      "calls": 1,
+      "tokens": 58000,
+      "wall_clock_s": 125
+    }
+  },
+  "synthesized": false
+}
