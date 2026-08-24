@@ -738,10 +738,14 @@ published implement transcripts fail `json.loads` mid-file: `32680042115` (12,31
 `Expecting ',' delimiter: line 15609 column 3586254 (char 5657553)`, and `32675761235`
 (33,929,425 bytes) at `Expecting ',' delimiter: line 15954 column 3576627 (char 5357035)`. Both end
 with a well-formed `}]`, so this is not end-truncation, and the two smaller transcripts — 811,072
-and 1,388,549 bytes — parse cleanly. Root cause is **not** diagnosed: there are no raw control
-characters, no `REDACTED` marker and no U+FFFD near the reported offset, and the reported offset is
-where the decoder noticed rather than necessarily where the corruption is. Cell 4's *two parseable
-implement transcripts* is this defect's consequence.
+and 1,388,549 bytes — parse cleanly. Root cause is diagnosed and filed as issue #1915: `scripts/scrub-credentials.sh`
+matches credential tokens with `[A-Za-z0-9+\/=]+`, and in a POSIX bracket expression `\` is a
+literal member of the set rather than an escape, so the `+` swallows the JSON escape backslash
+before a closing quote and the replacement drops it, ending the string early. The reported offset is
+where the decoder noticed, not where the corruption is — which is why an inspection at that offset
+finds nothing wrong. The two smaller transcripts are clean because they carry no credential-shaped
+text for a rule to fire on, so this is a content effect and not a size effect. Cell 4's *two
+parseable implement transcripts* is this defect's consequence.
 
 ## What this measurement does NOT establish
 
