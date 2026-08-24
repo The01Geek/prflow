@@ -5955,7 +5955,7 @@ assert_eq "#1348 CLI: the resumed-run refusal made NO PATCH" "yes" \
 # completion-ci marker and finalizes in one --record-completion-evidence-ci call.
 S1611_ROOT="$(mktemp -d)"
 git -C "$S1611_ROOT" init -q -b main
-# A ci.yml declaring the two required checks (issue #1898) — the single declared source
+# A ci.yml declaring the required checks (issue #1898) — the single declared source
 # _required_checks reads. Committed so the tree is clean for the validator's own check.
 mkdir -p "$S1611_ROOT/.github/workflows"
 printf 'jobs:\n  test:\n    # prflow:required-check\n    name: lib + python tests\n  lint:\n    # prflow:required-check\n    name: lint (shellcheck + actionlint + ruff)\n' \

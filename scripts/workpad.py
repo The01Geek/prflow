@@ -4559,8 +4559,9 @@ def _completion_evidence_verdict(args, progress_content: str) -> None:
             "verification flight with `workpad.py update <issue> "
             "--record-completion-evidence <flight-key>`, or (local/interactive tier, "
             "issue #1611) a CI reading with `workpad.py update <issue> "
-            "--record-completion-evidence-ci <head-sha> <check-name> <conclusion> "
-            "<run-url>`, after the run's verification is established. No PATCH was made."
+            "--record-completion-evidence-ci <head-sha> <tier> <run-url> "
+            "--completion-ci-check <name> <conclusion> ...`, after the run's "
+            "verification is established. No PATCH was made."
         )
     if total > 1:
         raise _UpdateError(

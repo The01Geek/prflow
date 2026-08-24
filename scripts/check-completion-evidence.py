@@ -705,13 +705,10 @@ def _validate(args) -> "tuple[str, str]":
     else:
         ledger = findings_inventory
 
-    # 2/3/4) currency + pass + skips. On the CI route these three classes are decided
-    # from the CI record by _validate_ci_record (issue #1898): stale-candidate (head vs
-    # git HEAD over a clean tree) and verification-not-pass (every recorded conclusion a
-    # success) map directly. The skipped-checks class is NOT APPLICABLE on the CI route —
-    # a CI rollup carries no skip population this record could describe — so it is
-    # deliberately not re-checked here; do not re-add a _check_skipped_checks call for the
-    # CI branch, which has nothing to read.
+    # 2/3/4) currency + pass + skips. The skipped-checks class is scoped OUT of the CI
+    # route (issue #1898): do not re-add a _check_skipped_checks call for the CI branch
+    # below. Its stale-candidate and verification-not-pass classes come from
+    # _validate_ci_record.
     if ci_record is None:
         # Claim-time identity — re-derived (or pinned) — needed for the stale compare.
         claim_identity = _claim_time_identity(args.claim_identity, args.repo_root)
@@ -874,8 +871,7 @@ CI_CLOUD_TIER = "cloud"
 # non-empty `checks` list of {name, conclusion} objects, validated below.
 _CI_REQUIRED_FIELDS = ("head_sha", "tier", "run_url")
 # The single declared source of the required-check set is `.github/workflows/ci.yml`: the
-# `name:` of every job marked with this line. The check-name literal lives only in ci.yml,
-# so no second file restates the set (issue #1898).
+# `name:` of every job marked with this line, read by _required_checks (issue #1898).
 _REQUIRED_CHECK_MARKER = "# prflow:required-check"
 
 

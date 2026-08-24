@@ -31960,7 +31960,7 @@ print("issue #1611: CI-derived completion-evidence gate")
 # The CI validator does REAL git reads (rev-parse HEAD + status --porcelain) against
 # a repo_root — no mock of subprocess/git, per the issue's testing strategy. Build a
 # real temporary repository with one commit.
-# The two required checks the fixture ci.yml declares — the single-declared-source that
+# The required checks the fixture ci.yml declares — the single declared source that
 # _required_checks reads (issue #1898). The fixture repo carries a real ci.yml so the
 # coverage check runs against a genuine declared set, not a stubbed constant.
 _CI_REQUIRED_A = 'lib + python tests'
@@ -32338,8 +32338,7 @@ _ci_record_path = _write_json_1898(_ci_rec())
 _ident_path = _write_json_1898({'claim_context_token': 'tok'})
 _fi_direct_path = _write_json_1898({'claim_context_token': 'tok',
                                     'findings': [{'finding_id': 'f1'}]})
-# Loop needs only the findings inventory; no finding is routed into the fix set, so the
-# undischarged check passes with no fix_decisions rows.
+# Loop needs only the findings inventory; this fixture routes no finding into the fix set.
 _fi_loop_path = _write_json_1898({'claim_context_token': 'tok', 'findings': []})
 
 # AC7: a --context-mode direct invocation with a valid CI record reaches `pass`.
