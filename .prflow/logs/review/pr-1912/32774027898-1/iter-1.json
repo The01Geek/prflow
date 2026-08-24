@@ -1,0 +1,109 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-24T20:40:00Z",
+  "fix_commit_sha": null,
+  "fix_files": [],
+  "loop_role": "fix",
+  "current_step": "2.6",
+  "current_substep": "decide",
+  "pending_dispatch": null,
+  "sweep_evidence": {
+    "status": "not-applicable-no-fix"
+  },
+  "checklist": [],
+  "dispatch_mode": "fanned-out",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [],
+  "fix_decisions": [],
+  "convergence_inputs": {
+    "fixes_applied": 0,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "not-applicable",
+      "outcome": "clean",
+      "reason": "no-fix iteration"
+    }
+  },
+  "shadow": {
+    "dispatch_mode": "fanned-out",
+    "ran_at": "2026-08-24T20:52:00Z",
+    "reviewed_sha": "5e6fe6b5c",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "park_calibration": {
+    "evidence_comparisons": []
+  },
+  "telemetry": {
+    "phase_0": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 1
+    },
+    "phase_1": {
+      "calls": 1,
+      "tokens": 0,
+      "wall_clock_s": 30
+    },
+    "phase_2": {
+      "calls": 1,
+      "tokens": 0,
+      "wall_clock_s": 20
+    },
+    "phase_3": {
+      "calls": 4,
+      "tokens": 0,
+      "wall_clock_s": 300
+    },
+    "step_2_6": {
+      "calls": 4,
+      "tokens": 0,
+      "wall_clock_s": 165
+    }
+  },
+  "synthesized": false
+}
