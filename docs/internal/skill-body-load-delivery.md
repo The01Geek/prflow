@@ -419,8 +419,8 @@ carries two sibling jobs — `skill-body-load-review-probe` and `skill-body-load
 modelled on its `placeholder-probe` job: a `claude-code-action` session with
 `show_full_output: true`, verdict derived from the execution file by
 `scripts/skill-body-load-probe-verdict.py` rather than from the model's own account. Each loads the
-real plugin and invokes the Skill tool once per engine root in a *main* session, measuring the Skill
-`tool_result` directly — which, once a maintainer dispatches it, removes two of this page's limits:
+real plugin and invokes the Skill tool once per engine root in a *main* session, measuring the body
+record that follows the Skill `tool_result` — which, once a maintainer dispatches it, removes two of this page's limits:
 both cloud tiers become observed, and the model's testimony stops being an operand of the verdict.
 The four session-B verdicts are `unestablished` only because a headless implementing run cannot
 suspend to await the probe it added; the mechanism itself is built, and the *Re-run procedure* under
@@ -476,6 +476,10 @@ condition that prevents them — exactly as `skills/init/SKILL.md` is above.
 | `skills/review/SKILL.md` | cloud implement (`devflow-implement.yml`) | Skill tool | Skill `tool_result` (would be observation) | **unestablished** | probe built, not yet dispatched | 2026-08-19 / B |
 | `skills/implement/SKILL.md` | cloud implement (`devflow-implement.yml`) | Skill tool | Skill `tool_result` (would be observation) | **unestablished** | probe built, not yet dispatched | 2026-08-19 / B |
 
+**Superseded in part.** The probe was later dispatched and its verdicts were invalid — see
+*Observation — session C* below, which corrects the first row to `delivered-whole` and leaves the
+other three `unestablished` on a new condition. The table above is session B's own frozen record.
+
 **Channel (AC).** Every row above is the **Skill tool** channel — the tool call that renders
 the body into context — *not* the slash-command expansion by which a real `/prflow:implement`
 run delivers `skills/implement/SKILL.md` (session A's `implement` row). A cloud row must never
@@ -516,12 +520,12 @@ this approximation is close, but it is not the tier's own workflow — a row mus
 3. Transcribe each root's verdict into the row above under a new observation date, and record the
    runner `ImageVersion` and the resolved `claude-code-action` version from the job log.
 
-**What falsifies a `delivered-whole` verdict**, any one of: the Skill `tool_result` for that root
+**What falsifies a `delivered-whole` verdict**, any one of: the body record delivered for that root
 lacks the file's last non-empty line (tail lost); it lacks the distinctive interior control (an
 interior loss); or it carries a truncation/cap notice (`showing lines X-Y of Z`, `cap 25000`). Any
 of these makes the verdict `short-delivery`. A row stays `unestablished` when no Skill `tool_use`
-for that root was recorded, its load returned an error, or the execution file was unreadable or of
-the wrong shape.
+for that root was recorded, its load returned an error, no following body record named that root's
+own directory, or the execution file was unreadable or of the wrong shape.
 
 ### Delivery geometry this probe can and cannot distinguish (AC)
 
@@ -564,6 +568,48 @@ Expressed in the ceiling's own unit — raw on-disk file bytes, `len(read_bytes(
   `delivered-whole` at or above its on-disk size would make it vacuous there too. Until then it is
   `unestablished` on both cloud tiers, and this record says so
   rather than importing session A's local adjudication onto tiers it did not observe.
+
+## Observation — session C (the probe's recorded verdicts were invalid; one cell corrected)
+
+**Status: ONE CELL CORRECTED TO `delivered-whole`; THE OTHER THREE STAY `unestablished`.**
+Session B's four cells were `unestablished` because the probe had not been dispatched. Verdicts
+were subsequently recorded — and every one of them was `short-delivery`, produced by a defect in
+`scripts/skill-body-load-probe-verdict.py`, not by any loader behaviour.
+
+**The defect.** The helper joined each `Skill` `tool_use` to its paired **`tool_result`** and
+measured that content as the delivered body. On a real `claude-code-action` transcript the
+`tool_result` is a launch stub — the literal string `Launching skill: prflow:review`, 30 bytes —
+and the rendered body arrives in the **next** record, a user-role text block opening with
+`Base directory for this skill: <dir>`. A tail-absence test applied to a 30-byte stub can return
+nothing but `short-delivery`, whatever the loader did. **No recorded `short-delivery` verdict from
+before that fix is evidence of a short delivery**, and none should be cited as one. A second,
+narrower defect made the *published* transcript artifact unreadable: `scrub-transcript.sh` prepends
+one `#` caveat line, which strict JSON rejects, so the parser fell through to its JSONL path and
+dropped every line — yielding `unestablished`. Both are fixed; the fixtures that formerly encoded
+the wrong record layout were rebuilt around the real one.
+
+**The corrected reading.** Re-deriving with the fixed helper over the published execution
+transcript of run `32674854779` — a real `devflow.yml` cloud **review** run at head
+`668a78990c810b0318d7fdbf5de8a95c043eda71`, not a matcher-probe approximation — the single `Skill`
+load in that session (`prflow:review`, `tool_use` at record 6, body at record 8, 57,017 bytes)
+carries both the on-disk tail control and the interior control, with no truncation notice.
+
+| `SKILL.md` | Tier | Channel | Operand | Verdict | Condition | Session |
+|---|---|---|---|---|---|---|
+| `skills/review/SKILL.md` | cloud review (`devflow.yml`) | Skill tool | body record following the Skill `tool_result`, in the published execution transcript of run `32674854779` | **delivered-whole** | re-derived with the fixed helper; the tier's own workflow, not an approximation | 2026-08-24 / C |
+| `skills/implement/SKILL.md` | cloud review (`devflow.yml`) | Skill tool | — | **unestablished** | no `Skill` load of this root in the transcript; its earlier probe verdict is invalid | 2026-08-24 / C |
+| `skills/review/SKILL.md` | cloud implement (`devflow-implement.yml`) | Skill tool | — | **unestablished** | no re-derived transcript for this tier; its earlier probe verdict is invalid | 2026-08-24 / C |
+| `skills/implement/SKILL.md` | cloud implement (`devflow-implement.yml`) | Skill tool | — | **unestablished** | no re-derived transcript for this tier; its earlier probe verdict is invalid | 2026-08-24 / C |
+
+**One root on one tier is all that has been measured.** The three `unestablished` cells are not
+"probably whole": their probe verdicts were invalid and no corrected reading exists for them. An
+invalid verdict is unknown, never a pass — the same *unknown-is-not-zero* rule the rest of this page
+applies. Establishing any of them needs its own re-derived transcript.
+
+**What this does not move.** The byte-ceiling adjudication in *What session B means for the
+skill-root half of the byte ceiling* is unchanged. That question turns on `retrospective-weekly`,
+which no cloud session has loaded, and a `delivered-whole` at 57,017 bytes is **below** the
+61,750-byte ceiling — so it neither makes that exemption real nor vacuous on either cloud tier.
 
 ## What this measurement does NOT establish
 

@@ -4,19 +4,23 @@
 tool delivered that root's `SKILL.md` body WHOLE from a `claude-code-action`
 execution file (issue #1618).
 
-WHY A HELPER, NOT INLINE YAML. The verdict is derived from the Skill `tool_result`
-recorded in the execution file — never the model's own account of what it received
+WHY A HELPER, NOT INLINE YAML. The verdict is derived from the body record the
+execution file itself carries — never the model's own account of what it received
 — and that derivation is a branch-selecting core (delivered-whole vs short-delivery
 vs unestablished per root). Inline in matcher-probe.yml it could not be unit-tested,
 so a regressed arm would silently misfire while the workflow still "runs" — the same
 rationale as scripts/placeholder-probe-verdict.py (#1264) and its siblings.
 
 THE OPERAND. A `claude-code-action` session with `show_full_output: true` records
-each `Skill` tool_use and its paired tool_result. When the loaded skill is an engine
-root, the tool_result content is the rendered body — the file minus its YAML
-frontmatter, with a `Base directory for this skill:` line prepended (the transformation
-docs/internal/skill-body-load-delivery.md records). Reading that content and checking
-it against controls read FROM DISK at verdict time is an observation, not testimony.
+each `Skill` tool_use, its paired tool_result, and — in the NEXT record — the body.
+The tool_result is a launch stub (`Launching skill: <name>`, ~30 bytes) and is NOT the
+body; the rendered body arrives as the following user-role text block, which opens with
+a `Base directory for this skill: <dir>` line and continues with the file minus its YAML
+frontmatter (the transformation docs/internal/skill-body-load-delivery.md records). This
+helper therefore joins each Skill tool_use to that following body record, matching `<dir>`
+against the root's own directory so a session loading several skills is disambiguated.
+Reading that body and checking it against controls read FROM DISK at verdict time is an
+observation, not testimony. Measuring the stub instead can only ever yield short-delivery.
 
 THE CONTROLS ARE READ FROM DISK, so the helper cannot drift from the shipped file. Two
 controls per root: the file's last non-empty line (tail) and a distinctive interior
@@ -55,6 +59,23 @@ def _force_utf8_streams():
 _TRUNCATION_MARKERS = ("showing lines ", "cap 25000", "… (truncated)", "[truncated]")
 
 
+def strip_leading_comments(raw):
+    """Drop a LEADING run of blank and `#`-prefixed lines, returning the remainder.
+
+    The published `claude-execution-transcript-*` artifact is the in-workflow execution
+    file with one `# DEVFLOW SCRUB CAVEAT:` line prepended by scripts/scrub-transcript.sh,
+    which breaks strict JSON. Only the leading run is stripped, so a `#` inside the JSON
+    payload — or at the start of a JSONL record — is left untouched."""
+    lines = raw.splitlines(True)
+    idx = 0
+    while idx < len(lines):
+        s = lines[idx].strip()
+        if s and not s.startswith("#"):
+            break
+        idx += 1
+    return "".join(lines[idx:])
+
+
 def parse_execution_file(exec_file):
     """Return (parsed, note_top). parsed is a JSON value — an empty list on every
     failure path, so callers need no None-guard — and note_top is a non-empty
@@ -67,6 +88,9 @@ def parse_execution_file(exec_file):
             raw = fh.read()
     except OSError as e:
         return [], "execution file present but unreadable (%s)" % e.__class__.__name__
+    # Upstream of BOTH parse paths: moving this inside the json.loads branch leaves the
+    # published artifact's caveat line on every JSONL record and drops the whole file.
+    raw = strip_leading_comments(raw)
     try:
         return json.loads(raw), ""
     except Exception:
@@ -90,64 +114,87 @@ def parse_execution_file(exec_file):
     return parsed, ""
 
 
+_BODY_PREFIX = "Base directory for this skill: "
+
+
+def body_base_dir(text):
+    """The `<dir>` of a body record's opening `Base directory for this skill: <dir>` line."""
+    return text.split("\n", 1)[0][len(_BODY_PREFIX):].strip()
+
+
+def dirs_match(a, b):
+    """True when two directory paths name the same skill directory.
+
+    A body record carries the runner's ABSOLUTE base directory while `--root` is normally
+    repo-relative, so equality alone would never match; the comparison is therefore a
+    component-boundary suffix in either direction. Matching on a bare suffix without the
+    separator would let a `.../myskills/review` directory satisfy a `skills/review` root."""
+    a = os.path.normpath(a.replace("\\", "/")).rstrip("/")
+    b = os.path.normpath(b.replace("\\", "/")).rstrip("/")
+    if not a or not b:
+        return False
+    return a == b or a.endswith("/" + b) or b.endswith("/" + a)
+
+
 def collect_skill_pairs(parsed):
-    """Return the recorded Skill tool_use→tool_result pairs.
+    """Return the recorded Skill loads, each joined to the body record that follows it.
 
-    Each pair is a dict: {input_text, result_text, is_error, has_result}. tool_use and
-    tool_result are joined on the id/tool_use_id. A Skill tool_use with no paired
-    result (the invocation was recorded but nothing came back) is kept with
-    has_result=False, so it reads as unestablished rather than being silently dropped."""
-    uses = {}   # id -> input_text
-    results = {}  # tool_use_id -> (is_error, content_text)
+    Each pair is a dict: {input_text, is_error, has_result, bodies}. tool_use
+    and tool_result are joined on the id/tool_use_id — that pairing establishes only that a
+    load happened and whether it errored, since the tool_result is a launch stub. `bodies`
+    is the ordered list of {base_dir, text} body records appearing after this Skill tool_use
+    and before the next one, which is where the rendered body actually arrives; the caller
+    selects among them by base directory. A Skill tool_use with no paired result (the
+    invocation was recorded but nothing came back) is kept with has_result=False, so it
+    reads as unestablished rather than being silently dropped."""
+    events = []  # ordered ("use"|"result"|"body", payload) in document order
 
-    def content_text(content):
-        if isinstance(content, str):
-            return content
-        # claude-code-action records a tool_result's content as a list of blocks, e.g.
-        # [{"type": "text", "text": "<body>"}]. Reconstruct the delivered text by joining the
-        # text blocks so the raw on-disk controls substring-match the delivered body — a
-        # json.dumps of the list would JSON-escape the body and a control line carrying a
-        # quote/backslash/newline would then fail to match a genuinely-whole delivery. Fall
-        # back to a JSON dump only for a shape carrying no text blocks.
-        if isinstance(content, list):
-            texts = [
-                b["text"] for b in content
-                if isinstance(b, dict) and b.get("type") == "text" and isinstance(b.get("text"), str)
-            ]
-            if texts:
-                return "".join(texts)
-        return json.dumps(content)
-
-    def walk(o):
+    def walk(o, role):
         if isinstance(o, dict):
+            if isinstance(o.get("role"), str):
+                role = o["role"]
             t = o.get("type")
             if t == "tool_use" and o.get("name") == "Skill":
-                uses[o.get("id")] = json.dumps(o.get("input"))
+                events.append(("use", (o.get("id"), json.dumps(o.get("input")))))
             elif t == "tool_result":
                 tid = o.get("tool_use_id")
                 if tid is not None:
-                    results[tid] = (bool(o.get("is_error")), content_text(o.get("content")))
+                    # Record the result's PRESENCE and error flag only. Capturing its content
+                    # would reintroduce the launch stub as a measurable operand — the defect
+                    # this helper exists to fix.
+                    events.append(("result", (tid, bool(o.get("is_error")))))
+            elif (t == "text" and role == "user" and isinstance(o.get("text"), str)
+                    and o["text"].startswith(_BODY_PREFIX)):
+                # Role-gated: an assistant message quoting the prefix is not a delivery.
+                events.append(("body", (body_base_dir(o["text"]), o["text"])))
             for v in o.values():
-                walk(v)
+                walk(v, role)
         elif isinstance(o, list):
             for it in o:
-                walk(it)
+                walk(it, role)
 
-    walk(parsed)
+    walk(parsed, None)
 
+    results = {}
+    for kind, payload in events:
+        if kind == "result":
+            results[payload[0]] = payload[1]
+
+    use_positions = [i for i, (kind, _) in enumerate(events) if kind == "use"]
     pairs = []
-    for uid, input_text in uses.items():
-        if uid in results:
-            is_error, content = results[uid]
-            pairs.append(
-                {"input_text": input_text, "result_text": content,
-                 "is_error": is_error, "has_result": True}
-            )
-        else:
-            pairs.append(
-                {"input_text": input_text, "result_text": "",
-                 "is_error": False, "has_result": False}
-            )
+    for n, pos in enumerate(use_positions):
+        uid, input_text = events[pos][1]
+        stop = use_positions[n + 1] if n + 1 < len(use_positions) else len(events)
+        bodies = [
+            {"base_dir": payload[0], "text": payload[1]}
+            for kind, payload in events[pos + 1:stop] if kind == "body"
+        ]
+        pairs.append(
+            {"input_text": input_text,
+             "is_error": results.get(uid, False),
+             "has_result": uid in results,
+             "bodies": bodies}
+        )
     return pairs
 
 
@@ -188,6 +235,18 @@ def _pair_for_root(skill_name, pairs):
     return None
 
 
+def _body_for_root(pair, path):
+    """The body record delivered for this root's SKILL.md, or None.
+
+    Selected by base directory rather than by position, so a session that loaded several
+    skills cannot have another skill's body adjudicated as this root's."""
+    root_dir = os.path.dirname(path) or "."
+    for b in pair["bodies"]:
+        if dirs_match(b["base_dir"], root_dir):
+            return b
+    return None
+
+
 def verdict_for_root(skill_name, path, pairs, note_top):
     """Return (verdict, reason) for one engine root. Degraded arms first."""
     if note_top:
@@ -208,7 +267,14 @@ def verdict_for_root(skill_name, path, pairs, note_top):
             "the Skill load of %s returned an error tool_result (refused or aborted), so "
             "no body was delivered — the abort mode, not a truncation" % skill_name
         )
-    body = pair["result_text"]
+    body_rec = _body_for_root(pair, path)
+    if body_rec is None:
+        return "unestablished", (
+            "the Skill load of %s was recorded but no following body record naming its own "
+            "directory (%r) was found, so no delivered body could be located to measure — "
+            "the paired tool_result is a launch stub, not the body" % (skill_name, path)
+        )
+    body = body_rec["text"]
     tail, mid = read_controls(path)
     if tail is None:
         return "unestablished", (
@@ -233,7 +299,7 @@ def verdict_for_root(skill_name, path, pairs, note_top):
             "%s lost content before its final line" % skill_name
         )
     return "delivered-whole", (
-        "the delivered Skill tool_result for %s contained both the file's last non-empty "
+        "the delivered Skill body record for %s contained both the file's last non-empty "
         "line and a distinctive interior line; no truncation/cap notice was present. This "
         "detects a lost tail and one interior point, NOT an arbitrary middle elision" % skill_name
     )
