@@ -312,7 +312,7 @@ each loading session reported about its own tool result — a transcript observa
 later reader can recompute from repository bytes. The byte columns, the frontmatter split, the
 `disable-model-invocation` fact, and the two `git`/`gh` status checks above are re-derivable from
 this checkout — and, since issue #1897, so is session C's `delivered-whole` cell, whose transcript
-bytes are committed at `lib/test/fixtures/skill-body-load-transcript.observed.json` (see *Re-deriving
+bytes are committed at `lib/test/fixtures/skill-body-load-transcript.observed.txt` (see *Re-deriving
 session C's measurement* below). Every other session's *Verdict* and *Control* column is not.
 
 ---
@@ -625,7 +625,7 @@ Run `32674854779`'s published transcript is kept **7 days**
 (`.github/workflows/devflow.yml`'s `retention-days`), so the artifact the cell above cites has
 expired or will. The three records that carry the reading — the `prflow:review` Skill `tool_use`, its
 launch-stub `tool_result`, and the following body record — are therefore committed verbatim, under a
-provenance header, at **`lib/test/fixtures/skill-body-load-transcript.observed.json`** (issue #1897).
+provenance header, at **`lib/test/fixtures/skill-body-load-transcript.observed.txt`** (issue #1897).
 The cell is re-derivable from repository bytes alone, with no surviving artifact:
 
 ```
@@ -633,13 +633,13 @@ mkdir -p <scratch>/skills/review
 git show 668a78990c810b0318d7fdbf5de8a95c043eda71:skills/review/SKILL.md > <scratch>/skills/review/SKILL.md
 cd <scratch>
 python3 <repo>/scripts/skill-body-load-probe-verdict.py \
-  <repo>/lib/test/fixtures/skill-body-load-transcript.observed.json \
+  <repo>/lib/test/fixtures/skill-body-load-transcript.observed.txt \
   --tier review --root prflow:review=skills/review/SKILL.md
 ```
 
 Two constraints, both load-bearing. The controls must come from `skills/review/SKILL.md` **at that
-head** — the file is unchanged since, so today the two coincide, and the recipe names the head so
-that it keeps re-deriving the recorded reading once it does change. And the `--root`
+head**, which is why the recipe pins the commit rather than reading the working tree: the reading is
+of that body, and the file changes over time. And the `--root`
 must be repo-relative from a directory laid out as `skills/review/`, because the comparison is a
 component-boundary suffix against the absolute runner directory the transcript records; pointing the
 root at the extracted file in place resolves nothing. Observed on re-derivation:

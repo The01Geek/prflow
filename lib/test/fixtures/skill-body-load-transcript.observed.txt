@@ -17,7 +17,7 @@
 #   git show 668a78990c810b0318d7fdbf5de8a95c043eda71:skills/review/SKILL.md > <D>/skills/review/SKILL.md
 #   cd <D>
 #   python3 <repo>/scripts/skill-body-load-probe-verdict.py \
-#     <repo>/lib/test/fixtures/skill-body-load-transcript.observed.json \
+#     <repo>/lib/test/fixtures/skill-body-load-transcript.observed.txt \
 #     --tier review --root prflow:review=skills/review/SKILL.md
 #
 # The controls must come from that head's SKILL.md, and the root must be repo-relative from a
@@ -29,6 +29,9 @@
 # exercises. Its "treat as sensitive" wording describes the 774-record artifact it was written
 # for; the three records retained here were read in full before committing and carry a skill
 # name, a launch stub and one SKILL.md body — no token, key or Authorization header.
+# The extension is `.txt`, not `.json`: the leading `#` header makes a plain json.load of this
+# path fail, and only the helper's leading-comment tolerance reads it. The sibling observed
+# artifact lib/test/fixtures/execution-file-shape.observed.txt uses the same convention.
 # This is a DATED OBSERVATION OF ONE RUNNER VERSION, not a schema contract.
 # DEVFLOW SCRUB CAVEAT: best-effort blocklist redacted GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers. This blocklist is INCOMPLETE — other third-party credential shapes may remain. Treat this artifact as sensitive.
 [

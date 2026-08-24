@@ -24909,6 +24909,10 @@ SBL_TMP="$(mktemp -d)"
 # docs/internal/test-suite-probe-conventions.md: without them an escape sequence from a
 # colour-forcing host lands inside a matched token and the match silently fails.
 sbl_build() {  # $1 scenario -> writes $SBL_TMP/exec.jsonl; rc 0 AND non-empty on success
+  # Truncate FIRST. The builder writes in place, so without this a failed build leaves the
+  # previous scenario's fixture on disk and the next assertion measures that one instead —
+  # green, against a fixture it never built.
+  rm -f "$SBL_TMP/exec.jsonl"
   NO_COLOR=1 PYTHON_COLORS=0 python3 - "$SBL_TMP/exec.jsonl" "$1" "$SBL_REVIEW" "$SBL_IMPLEMENT" "$SBL_RAF" <<'PY_SBL'
 import json, os, sys
 out, scen, path, impl_path, raf_path = sys.argv[1:6]
@@ -25020,6 +25024,13 @@ scenarios = {
     "retry_after_error": [skill_use("prflow:review", "su1"),
                           stub("su1", is_error=True, content="permission denied"),
                           skill_use("prflow:review", "su2"), stub("su2"), body_rec(body)],
+    # THREE recorded loads of which TWO match, so the ambiguity reason's count operand is
+    # distinguishable from the total: swap it for len(pairs) and the digit renders 3, not 2.
+    "ambiguous_among_three": [skill_use("prflow:review", "su1"), stub("su1"), body_rec(body),
+                              skill_use("prflow:implement", "su2"),
+                              stub("su2", content="Launching skill: prflow:implement"),
+                              body_rec(impl_body, base=impl_dir),
+                              skill_use("prflow:review", "su3"), stub("su3"), body_rec(body)],
     # A Skill tool_use carrying NO input at all.
     "null_input":  [skill_use("prflow:review", "su1", input_obj=None), stub("su1"),
                     body_rec(body)],
@@ -25063,9 +25074,10 @@ PY_SBL
   [ "$_sbl_rc" -eq 0 ] && [ -s "$SBL_TMP/exec.jsonl" ]
 }
 sbl_run() {  # the single invocation point for spawning THE HELPER: audit args -> its stdout
-  # Route every helper spawn through this one point, or an audit site added later omits the
-  # colour neutralisation. Do not discard stderr in a caller either: callers capture stdout
-  # alone, so a helper traceback would vanish and a crash would read as a plain grep miss.
+  # Route every helper spawn IN THIS FILE through this one point, or an audit site added later
+  # omits the colour neutralisation. Do not discard stderr in a caller that reads stdout: that
+  # caller captures stdout alone, so a traceback would vanish and a crash read as a grep miss.
+  # A caller measuring the exit status ALONE may discard both (the empty-selection sites below).
   NO_COLOR=1 PYTHON_COLORS=0 python3 "$SBL" "$@"
 }
 sbl_verdict_token() {  # $1 the helper's stdout -> the FIRST per-root VERDICT token
@@ -25240,6 +25252,13 @@ assert_eq "#1618/#1897 skill-body: a root recorded twice -> unestablished" "unes
   "$(sbl retry_after_error)"
 assert_eq "#1618/#1897 skill-body: the twice-recorded root's reason names the ambiguity" "yes" \
   "$(sbl_says retry_after_error 'recorded Skill loads name prflow:review')"
+# The ambiguity reason counts the loads that MATCHED, not the transcript's total. This fixture
+# records three loads of which two match, so swapping the operand for len(pairs) renders 3 here
+# and goes RED — on retry_after_error the two counts coincide and the swap is invisible.
+assert_eq "#1618/#1897 skill-body: the ambiguity reason counts the matching loads, not the total" "yes" \
+  "$(sbl_says ambiguous_among_three '2 recorded Skill loads name prflow:review')"
+assert_eq "#1618/#1897 skill-body: that fixture records three loads in total" "yes" \
+  "$(sbl_says ambiguous_among_three 'recorded Skill tool_use pairs: 3')"
 # ATTRIBUTED REJECTION: the refusal is the ambiguity arm, not the error arm one step above it.
 assert_eq "#1618/#1897 skill-body: the twice-recorded root is not refused by the error arm" "yes" \
   "$(sbl_denies retry_after_error 'returned an error tool_result')"
@@ -25270,18 +25289,18 @@ assert_eq "#1618/#1897 skill-body: that reason no longer names the SKILL.md file
 # Do not rebuild this fixture from the builder above: it is a REAL captured transcript, and a
 # fixture built from the instrument's own assumptions cannot contradict the instrument — which
 # is how this file's defect family survived a green suite. Provenance is in the fixture header.
-SBL_OBS="$LIB/test/fixtures/skill-body-load-transcript.observed.json"
+SBL_OBS="$LIB/test/fixtures/skill-body-load-transcript.observed.txt"
 assert_eq "#1618/#1897 skill-body: the committed real transcript records exactly one Skill load" "yes" \
   "$(sbl_run "$SBL_OBS" --tier review --root "prflow:review=$SBL_REVIEW" | grep -q 'recorded Skill tool_use pairs: 1' && echo yes || echo no)"
-# Do not point this at a path outside the matching directory: the controls arm is reached only
-# after the name binding and the directory selection both resolve, so a root elsewhere would be
-# refused upstream and prove neither.
 # AC8's promise is that the recorded measurement is re-derivable from committed bytes, so drive
 # the documented recipe: the review body AT THE MEASURED HEAD, laid out as skills/review/, must
 # still read delivered-whole. A shallow clone lacking that blob prints its own token rather than
 # a silent pass.
 assert_eq "#1618/#1897 skill-body: the committed transcript re-derives delivered-whole at the measured head" "delivered-whole" \
   "$(mkdir -p "$SBL_TMP/rederive/skills/review" && git -C "$LIB/.." show 668a78990c810b0318d7fdbf5de8a95c043eda71:skills/review/SKILL.md > "$SBL_TMP/rederive/skills/review/SKILL.md" 2>/dev/null || { printf 'GIT_OBJECT_MISSING'; false; } && sbl_verdict_token "$(cd "$SBL_TMP/rederive" && sbl_run "$SBL_OBS" --tier review --root "prflow:review=skills/review/SKILL.md")")"
+# Do not point this at a path outside the matching directory: the controls arm is reached only
+# after the name binding and the directory selection both resolve, so a root elsewhere would be
+# refused upstream and prove neither.
 assert_eq "#1618/#1897 skill-body: the real transcript binds the review root and selects its body" "yes" \
   "$(cd "$LIB/.." && sbl_run "$SBL_OBS" --tier review --root "prflow:review=skills/review/DEFINITELY-NOT-HERE.md" | grep -q 'could not be read for controls' && echo yes || echo no)"
 # ONE-CONTROL ARM. read_controls finds no interior control when every non-tail line is under 20
@@ -25338,9 +25357,9 @@ assert_eq "#1618/#1897 skill-body: dirs_match resolves identically under posixpa
 # `os.path` can resolve to, or the ntpath repair resolves `myskills/review` against `skills/review`.
 assert_eq "#1618/#1897 skill-body: the component-boundary guard holds under both path modules" "False False" \
   "$(sbl_dirs_match_both_modules /home/runner/work/prflow/prflow/myskills/review)"
-# A BACKSLASH-bearing base dir is the form a real Windows runner records, and it is the only
-# input that reaches the separator normalisation on the ntpath side; a forward-slash probe
-# alone leaves the changed line unexercised for the host it was changed for.
+# A backslash-bearing base dir is the form a real Windows runner records. Keep it alongside the
+# forward-slash probe rather than in place of it: that one reaches the same normalisation via
+# ntpath.normpath, while this one pins the input shape production actually sees.
 assert_eq "#1618/#1897 skill-body: a backslash-bearing runner directory resolves under both modules" "True True" \
   "$(sbl_dirs_match_both_modules 'C:\runners\work\prflow\prflow\skills\review')"
 # EMPTY-OPERAND GUARD. `.` is what root_dir_for returns for a bare-filename --root, so a blank
@@ -25377,8 +25396,11 @@ assert_eq "#1618 skill-body: empty selection (no --root) exits non-zero" "nonzer
   "$(sbl_run "$SBL_TMP/exec.jsonl" >/dev/null 2>&1 && echo zero || echo nonzero)"
 assert_eq "#1618 skill-body: empty selection prints NO-ROOTS, not a clean pass" "yes" \
   "$(sbl_run "$SBL_TMP/exec.jsonl" | grep -q 'AUDIT: NO-ROOTS' && echo yes || echo no)"
-assert_eq "#1618 skill-body: empty selection prints no delivered-whole verdict" "yes" \
-  "$(sbl_run "$SBL_TMP/exec.jsonl" | grep -q 'VERDICT: delivered-whole' && echo no || echo yes)"
+# Exit-status gating is unavailable here (the no-roots path deliberately exits 2), so require the
+# header PRESENT and the verdict line ABSENT from ONE capture: a traceback prints neither, so it
+# fails the present half rather than passing on the absent one.
+assert_eq "#1618 skill-body: empty selection prints NO-ROOTS and no delivered-whole verdict" "yes" \
+  "$(_o="$(sbl_run "$SBL_TMP/exec.jsonl" 2>/dev/null)"; case "$_o" in *'AUDIT: NO-ROOTS'*) case "$_o" in *'VERDICT: delivered-whole'*) echo no ;; *) echo yes ;; esac ;; *) echo no ;; esac)"
 
 # COUPLED SITES: the two workflow jobs and the helper are one contract. Each job must load
 # the prflow plugin, capture the full output, invoke the helper, and audit BOTH engine roots
