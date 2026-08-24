@@ -16,6 +16,7 @@ Driven serially from lib/test/run.sh.
 import importlib.util
 import io
 import json
+import math
 import os
 import re
 import sys
@@ -97,10 +98,23 @@ def _expected_from_fixture(corpus_root):
                     key, {"context": key, "is_subagent": is_sub, "peak": None,
                           "engine_reads": {}})
                 usage = rec["message"].get("usage")
+                # Mirror the module's residency contract independently (issue #1899): a
+                # sub-field is established only when it is a finite, non-bool number, and a
+                # turn establishing none is unmeasured — never folding a 0 into the peak.
+                # The prior `(x or 0)` form computed an empty/all-null usage dict as a real
+                # 0, disagreeing with the module it checks (no fixture exercised the shape).
+                established = []
                 if isinstance(usage, dict):
-                    tot = ((usage.get("input_tokens") or 0)
-                           + (usage.get("cache_read_input_tokens") or 0)
-                           + (usage.get("cache_creation_input_tokens") or 0))
+                    for key in ("input_tokens", "cache_read_input_tokens",
+                                "cache_creation_input_tokens"):
+                        val = usage.get(key)
+                        if isinstance(val, bool) or not isinstance(val, (int, float)):
+                            continue
+                        if isinstance(val, float) and not math.isfinite(val):
+                            continue
+                        established.append(int(val))
+                if established:
+                    tot = sum(established)
                     c["peak"] = tot if c["peak"] is None else max(c["peak"], tot)
                 for block in rec["message"].get("content") or []:
                     if block.get("type") != "tool_use" or block.get("name") != "Read":

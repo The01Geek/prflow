@@ -66,8 +66,11 @@ assistant record yields one run; a run that RESUMES into a separate session file
 reported as its own run (cross-session merging is out of scope, a disclosed proxy).
 
 Per-record token usage is read from `message.usage.{input_tokens,
-cache_read_input_tokens, cache_creation_input_tokens}`. Compaction is observed as
-`type == "system", subtype == "compact_boundary"` and only counted.
+cache_read_input_tokens, cache_creation_input_tokens}`. A turn establishing none of
+those (no usage object, an empty or all-null one, or a non-finite count) is an unmeasured
+turn: it is tallied in `usage_missing_turns` and excluded from the peak, never folded in
+as a real-looking 0 (issue #1899). Compaction is observed as `type == "system",
+subtype == "compact_boundary"` and only counted.
 
 A phase-file read is a `Read` tool_use block whose `input.file_path` BASENAME is one of
 the four phase file names. Matching on the basename (not a full path) is deliberate: the
@@ -93,6 +96,7 @@ import argparse
 import datetime
 import importlib.util
 import json
+import math
 import os
 import sys
 
@@ -396,25 +400,39 @@ def _gap_stats(times):
     }
 
 
-def _usage_field(usage, key):
-    """Read one usage sub-field, treating null/missing/non-numeric as 0."""
+RESIDENCY_KEYS = ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")
+
+
+def _usage_value(usage, key):
+    """One usage sub-field's ESTABLISHED token count, or None when it carries none.
+
+    None covers absent, null, bool (an int subclass, never a token count), non-numeric
+    and non-finite values. `json.loads` accepts bare Infinity/NaN and `int(inf)` raises
+    OverflowError, so the non-finite guard here (not a caught exception) is what keeps a
+    non-finite count from detonating the corpus walk (issue #1899).
+    """
     if not isinstance(usage, dict):
-        return 0
+        return None
     val = usage.get(key)
-    if isinstance(val, bool):  # bool is an int subclass; never a token count
-        return 0
+    if isinstance(val, bool):
+        return None
     if isinstance(val, (int, float)):
+        if isinstance(val, float) and not math.isfinite(val):
+            return None
         return int(val)
-    return 0
+    return None
 
 
 def _context_tokens(usage):
-    """Residency tokens = input + cache_read + cache_creation (no output)."""
-    return (
-        _usage_field(usage, "input_tokens")
-        + _usage_field(usage, "cache_read_input_tokens")
-        + _usage_field(usage, "cache_creation_input_tokens")
-    )
+    """Residency tokens = input + cache_read + cache_creation (no output), or None.
+
+    None when NO residency sub-field carried an established count: an empty, all-null, or
+    otherwise unusable `usage` object measured nothing, and folding its 0 into a peak
+    would report an unmeasured turn as a real-looking 0 (issue #1899).
+    """
+    established = [v for v in (_usage_value(usage, k) for k in RESIDENCY_KEYS)
+                   if v is not None]
+    return sum(established) if established else None
 
 
 class RunAccumulator:
@@ -478,16 +496,14 @@ class RunAccumulator:
         message = record.get("message")
         if not isinstance(message, dict):
             message = {}
-        usage = message.get("usage")
-        if isinstance(usage, dict):
-            # A usage object is present: sum its residency sub-fields (an absent SUB-field
-            # is a legitimate 0 — see _usage_field).
-            self.per_turn_context.append(_context_tokens(usage))
-        else:
-            # No usage object at all on an attributed turn: residency was never recorded.
-            # Tally it instead of appending a 0, so an all-usage-absent run reports an
-            # UNESTABLISHED peak (see result()) rather than a real-looking 0.
+        tokens = _context_tokens(message.get("usage"))
+        if tokens is None:
+            # Residency was never established for this turn — no usage object, an empty or
+            # all-null one, or a non-finite count. Tally it instead of folding a 0 into the
+            # peak, which would report an unmeasured turn as a real value (issue #1899).
             self.usage_missing_turns += 1
+        else:
+            self.per_turn_context.append(tokens)
 
         content = message.get("content")
         if not isinstance(content, list):
