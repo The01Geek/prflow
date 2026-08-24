@@ -82,7 +82,8 @@ def finding_agent: .agent;
 # absent or malformed signature (a non-object, or a missing/empty/non-string
 # kind) renders explicitly as "unknown" rather than dropping the finding from
 # the recurrence count. The object type-guard is load-bearing: indexing a
-# non-object with `.kind` would abort the whole filter.
+# present-but-non-object signature (a string/number/array/boolean) with `.kind`
+# would abort the whole filter.
 def finding_kind:
   (.defect_signature) as $sig
   | if ($sig | type) == "object"
