@@ -611,6 +611,138 @@ skill-root half of the byte ceiling* is unchanged. That question turns on `retro
 which no cloud session has loaded, and a `delivered-whole` at 57,017 bytes is **below** the
 61,750-byte ceiling — so it neither makes that exemption real nor vacuous on either cloud tier.
 
+## Observation — session D (both engine roots re-derived from real tier runs; three cells resolved)
+
+**Status: TWO CELLS `delivered-whole` AND BYTE-EXACT; THE OTHER TWO RECLASSIFIED AS STRUCTURALLY
+UNREACHABLE.** Session C corrected one of its four cells and left three `unestablished` for want of
+a re-derived transcript. Session D re-derives from five real tier runs rather than from a probe: it
+independently re-confirms session C's corrected cell from three *different* cloud review runs,
+establishes the implement root on the cloud implement tier, and shows the remaining two cells are
+not merely unmeasured but **unreachable through this channel** — no run on either tier loads the
+other tier's root with the Skill tool. **Session D supersedes nothing in sessions A, B or C.**
+Session C's table stays its own frozen record and no figure in it is edited here.
+
+**Past-time snapshot.** Every figure in this section is an exempt checked-in literal under the
+*Status: past-time snapshot* rationale at the head of this page: it records what was read on
+2026-08-24 and is never machine-refreshed.
+
+**One respect in which session D is stronger than every earlier cell: the comparison is
+byte-exact.** Sessions A–C compared controls — a tail line, later a tail plus one interior anchor.
+Session D reconstructs the whole expected payload — the on-disk `SKILL.md` minus its YAML
+frontmatter, with `$ARGUMENTS` substituted by the run's own issue or PR number — and compares it
+against the delivered body for equality. Read *What byte-exactness does and does not close* below
+before citing that against limitation 7.
+
+| `SKILL.md` | Tier | Channel | Operand | Verdict | Condition | Session |
+|---|---|---|---|---|---|---|
+| `skills/review/SKILL.md` | cloud review (`devflow.yml`) | Skill tool | body record following the Skill `tool_result`, in the published execution transcripts of runs `32762197303`, `32771351120`, `32760483488` | **delivered-whole, byte-exact** | delivered body 56,627 chars in all three; fixed-helper verdict `delivered-whole` on `32762197303`, head `8e8bc0faf5b95513a4ebc259c98489e58e56fd6c` | 2026-08-24 / D |
+| `skills/implement/SKILL.md` | cloud implement (`devflow-implement.yml`) | Skill tool | body record following the Skill `tool_result`, in the published execution transcripts of runs `32683589722`, `32768168672` | **delivered-whole, byte-exact** | delivered body 59,847 chars in both; fixed-helper verdict `delivered-whole` on `32683589722`, head `668a78990c810b0318d7fdbf5de8a95c043eda71`, plugin 2.33.60 | 2026-08-24 / D |
+| `skills/implement/SKILL.md` | cloud review (`devflow.yml`) | Skill tool | — | **structurally unreachable** | across three review transcripts the only Skill `tool_use` recorded is `prflow:review`; the helper returns `unestablished`, reason `no Skill tool_use naming prflow:implement was recorded` | 2026-08-24 / D |
+| `skills/review/SKILL.md` | cloud implement (`devflow-implement.yml`) | Skill tool | — | **structurally unreachable through this channel** | across two parseable implement transcripts the Skill `tool_use` set is `prflow:implement`, `prflow:docs`, `prflow:pr-description`; the implement tier reaches the review engine by file read, not by the Skill tool | 2026-08-24 / D |
+
+**`structurally unreachable` is a different verdict from `unestablished`, and the distinction is the
+point.** Session C's three `unestablished` cells said *no corrected reading exists*. Two of them are
+now something narrower: the load never happens, so there is no delivery to measure. That is a claim
+about which roots each tier loads through this channel — never a claim about what the loader would
+do if it did. It leaves the *unknown-is-not-zero* handling elsewhere on this page untouched.
+
+**The byte-exact comparison, per cell.** Both delivered figures are counted from the body record
+after dropping its prepended `Base directory for this skill: <dir>` line and stripping leading and
+trailing newlines — the transformation *One observed transformation* records — and compared against
+the on-disk file minus frontmatter, stripped the same way, with `$ARGUMENTS` substituted:
+
+- `skills/review/SKILL.md`: on-disk minus frontmatter is 56,560 chars and carries `$ARGUMENTS`
+  twice; substituting `1895` gives 56,548 chars, identical to the delivered 56,548. It holds
+  against both the run's own head and today's `main` — the file is unchanged between them.
+- `skills/implement/SKILL.md`: on-disk minus frontmatter is 59,761 chars and carries `$ARGUMENTS`
+  three times; substituting `1893` gives 59,743 chars, identical to the delivered 59,743. It holds
+  against both the run's own head and today's `main`.
+
+**No served-vs-checkout mismatch.** Equality against the checkout copy means the vendored copy the
+runner served was byte-identical to the tree's, so that ambiguity is ruled out for these runs and is
+not a candidate cause for any delivery anomaly reported from them.
+
+**Observation conditions — session D, 2026-08-24.** Tiers: cloud review (`devflow.yml`) and cloud
+implement (`devflow-implement.yml`), each its **own** workflow rather than the matcher-probe
+approximation session B records, so session B's approximation limit does not apply to these rows.
+Method: re-derivation from published `claude-execution-transcript-*` artifacts with the `#1895`-fixed
+`scripts/skill-body-load-probe-verdict.py`; no probe job was dispatched and no paid session was
+spent, and every artifact was unexpired when read. Plugin version is recorded per row where the
+transcript carried it. Observed served directory on the cloud implement tier:
+`/home/runner/work/prflow/prflow/.prflow/vendor/prflow/skills/implement`. Record layout is the
+`#1891` shape session C describes: the Skill `tool_use` at record N, the launch stub
+`Launching skill: prflow:implement` (30 bytes) as the paired `tool_result` at N+1, and the rendered
+body at N+2 as a user-role text block opening `Base directory for this skill: <dir>`.
+
+**Current on-disk byte sizes are unchanged at `af4b57de6`** from the 2026-08-21 re-measurement under
+*What session B means for the skill-root half of the byte ceiling*; that section carries the
+figures and this one does not restate them.
+
+### Re-run procedure and falsifier (session D)
+
+1. `gh run download <run> -n claude-execution-transcript-<run>-1`.
+2. **Convert the artifact to JSONL before parsing it.** The published artifact is a pretty-printed
+   JSON array behind one `# DEVFLOW SCRUB CAVEAT:` comment line, while the helper's parser expects
+   JSONL — strip the leading `#` lines, `json.loads` the remainder, and re-emit one record per line.
+   Skip this and the parse yields nothing, which reads as `unestablished` rather than as a parse
+   failure.
+3. **Run the helper from the repo root with repo-relative `--root` paths.** `dirs_match` matches on a
+   component-boundary suffix rule, so an absolute `--root` path does not match the runner's absolute
+   served directory and the cell reads `unestablished` while the body was in fact delivered whole —
+   a wrong verdict this exact trap produced once during session D:
+
+   `python3 scripts/skill-body-load-probe-verdict.py --root prflow:review=skills/review/SKILL.md --root prflow:implement=skills/implement/SKILL.md <exec.jsonl>`
+4. For the byte-exact check, which the helper does not perform: take the delivered body record, drop
+   its leading `Base directory for this skill: <dir>` line and strip leading and trailing newlines;
+   take the on-disk `SKILL.md` minus its YAML frontmatter, strip the same way, substitute
+   `$ARGUMENTS` with the run's issue or PR number, and compare the two for equality.
+
+**What falsifies a session D `delivered-whole, byte-exact` verdict**, any one of: the reconstructed
+payload differing from the delivered body at any byte; a truncation, cap or `showing lines X-Y of Z`
+notice in the body record; the fixed helper returning anything other than `delivered-whole` for that
+root; or the body record's served directory naming a root other than the one being compared.
+
+**What falsifies a `structurally unreachable` verdict**: one transcript from that tier recording a
+Skill `tool_use` naming that root. That reopens the cell as `unestablished`, and it is measured from
+there.
+
+### What byte-exactness does and does not close
+
+Limitation 7 below states that these checks detect tail truncation only, because a control is a
+file's final line. **Session D's comparison is stronger than that for the deliveries it covers** —
+equality over the whole payload leaves no room for a mid-body elision in them, and the delivered
+length agreed across all five runs. It is **not** stronger as a property of the checks.
+`scripts/skill-body-load-probe-verdict.py`, the shipped instrument a re-run reaches for first, still
+compares two controls and still cannot see a mid-body elision; the byte-exact step above is a hand
+comparison performed outside it. **Limitation 7 therefore stands unamended**, and nothing here may
+be cited as having closed it. Cite session D as *no mid-body elision in the deliveries compared
+here*, never as *mid-body elision is detected*.
+
+### What session D does not establish
+
+- **No ceiling.** The largest body measured here is 59,847 chars, and nothing here bears on a body
+  above that on either tier. It is a smaller figure than session A's local floor and does not move
+  it; the two are different tiers.
+- **Nothing about the local/interactive tier**, the abort mode (#1446), or post-compaction
+  re-attachment.
+- **Nothing about the file-read path** — which is where cell 4 shows the implement tier actually
+  reaches the review engine. That path carries its own delivery question and this page measures none
+  of it.
+- **The byte-ceiling adjudication is unmoved**, for the reason session C gives: that question turns
+  on `retrospective-weekly`, which no cloud session has loaded.
+
+### A transcript-parsing defect observed alongside — not part of session D's verdicts
+
+Recorded because it bounds what a re-run can read, not because it bears on any cell. Two of the four
+published implement transcripts fail `json.loads` mid-file: `32680042115` (12,314,807 bytes) at
+`Expecting ',' delimiter: line 15609 column 3586254 (char 5657553)`, and `32675761235`
+(33,929,425 bytes) at `Expecting ',' delimiter: line 15954 column 3576627 (char 5357035)`. Both end
+with a well-formed `}]`, so this is not end-truncation, and the two smaller transcripts — 811,072
+and 1,388,549 bytes — parse cleanly. Root cause is **not** diagnosed: there are no raw control
+characters, no `REDACTED` marker and no U+FFFD near the reported offset, and the reported offset is
+where the decoder noticed rather than necessarily where the corruption is. Cell 4's *two parseable
+implement transcripts* is this defect's consequence.
+
 ## What this measurement does NOT establish
 
 Hard limits on what may be cited from this page.
