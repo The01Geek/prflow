@@ -81,7 +81,7 @@
     },
     "experiment-records": {
       "path": "lib/test/modules/experiment-records.sh",
-      "minimum_assertions": 164,
+      "minimum_assertions": 165,
       "assertion_floor_policy": "exact",
       "description": "Focused #431 build-experiment-records.py unified-experiment-record join: the DEVFLOW_GH-stubbed assembler driven over fixture stores with per-scenario repo roots, the joined record fields, and the config_fingerprint stamp with its partial-flag, None and canonical-hash arms"
     },

@@ -41446,7 +41446,7 @@ echo "#431 build-experiment-records.py — the unified experiment record (join)"
 # module header and its .inventory.md carry the rationale and the resulting
 # coverage-map decision; do not restate it here, so the two cannot drift.
 if ! devflow_run_full_suite_module "$LIB/test/modules/experiment-records.sh" \
-  "experiment-records" 164; then
+  "experiment-records" 165; then
   printf 'ERROR: experiment-records boundary could not record its result\n'
   exit 1
 fi

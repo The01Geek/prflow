@@ -1879,6 +1879,30 @@ PY
   assert_eq "#1826 AC13: with the superseded branch absent, no stranded-record report is emitted" "yes" \
     "$(grep -qi 'devflow-telemetry' "$ERRSA" && echo no || echo yes)"
 
+  # Fail-closed arm: the superseded ref is present but its tree cannot be read. The count must
+  # WARN and return None (unestablished) — never a fabricated 0 that suppresses a real report.
+  # Driven by monkeypatching _run (rev-parse present, ls-tree fails) since a genuinely corrupt
+  # tree is impractical to fixture.
+  python3 - "$BXR" <<'PY'
+import contextlib, importlib.util, io, sys
+spec = importlib.util.spec_from_file_location("ber", sys.argv[1])
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+def fake_run(cmd):
+    if "ls-tree" in cmd:
+        return 128, "", "fatal: not a tree object"
+    return 0, "", ""  # rev-parse --verify --quiet -> superseded ref present
+m._run = fake_run
+err = io.StringIO()
+with contextlib.redirect_stderr(err):
+    result = m._count_superseded_efficiency("/nonexistent")
+ok = (result is None
+      and "could not be read" in err.getvalue()
+      and "cannot establish how many records are stranded" in err.getvalue())
+sys.exit(0 if ok else 1)
+PY
+  assert_eq "#1826: unreadable superseded tree warns + returns None (never a fabricated zero)" "yes" \
+    "$([ $? -eq 0 ] && echo yes || echo no)"
+
   rm -rf "$EXP"
 fi
 
