@@ -834,6 +834,19 @@ def _median_or_unestablished(values):
     return _median(values) if values else UNESTABLISHED
 
 
+def _sum_or_unestablished(values):
+    """The sum of a non-empty list, else the UNESTABLISHED sentinel.
+
+    The "empty population -> UNESTABLISHED, never 0" invariant is load-bearing (a real
+    `0` and "no runs" must never be the same output), so the corpus-wide SUM fields go
+    through this helper rather than an inline `sum(...) if runs else UNESTABLISHED`
+    ternary repeated per field — a per-field ternary is where a future edit reintroduces
+    a `0` default on one field only. The `runs_over_*` bucket COUNTS deliberately do NOT
+    route through it: they guard on a different population (see `aggregate`).
+    """
+    return sum(values) if values else UNESTABLISHED
+
+
 RESIDENCY_KEYS = ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")
 
 
@@ -1636,8 +1649,8 @@ def aggregate(runs, state=None):
         # Attributed turns across the corpus whose residency was never established
         # (issue #1899). UNESTABLISHED on an empty run population, like every run-derived
         # figure here — never a real-looking 0 about a corpus that was never measured.
-        "total_usage_missing_turns": (sum(r["usage_missing_turns"] for r in runs)
-                                      if runs else UNESTABLISHED),
+        "total_usage_missing_turns": _sum_or_unestablished(
+            [r["usage_missing_turns"] for r in runs]),
         # Secondary residency axis.
         "median_peak_context": _median_or_unestablished(peaks),
         "max_peak_context": max(peaks) if peaks else UNESTABLISHED,
@@ -1663,22 +1676,22 @@ def aggregate(runs, state=None):
         # fraction from a median-vs-sum pairing.
         "median_unrounded_auditor_cost": _median_or_unestablished(
             [r["unrounded_auditor_cost"] for r in runs]),
-        "total_unrounded_auditor_cost": (sum(
-            r["unrounded_auditor_cost"] for r in runs) if runs else UNESTABLISHED),
+        "total_unrounded_auditor_cost": _sum_or_unestablished(
+            [r["unrounded_auditor_cost"] for r in runs]),
         "median_auditor_cost_discovery": medians["discovery"],
         "median_auditor_cost_targeted": medians["targeted"],
         # The falsifiability operands for the docstring's unverified assumption that the
         # harness stamps `attributionSkill` on a sidechain record. `0 attributed` beside
         # a non-zero `total_record_reopen` or a non-empty per-run `dispatch_rounds` is
         # evidence the assumption failed, NOT a measurement of a free audit.
-        "total_sidechain_records_seen": (sum(
-            r["sidechain_records_seen"] for r in runs) if runs else UNESTABLISHED),
-        "total_sidechain_records_attributed": (sum(
-            r["sidechain_records_attributed"] for r in runs) if runs else UNESTABLISHED),
+        "total_sidechain_records_seen": _sum_or_unestablished(
+            [r["sidechain_records_seen"] for r in runs]),
+        "total_sidechain_records_attributed": _sum_or_unestablished(
+            [r["sidechain_records_attributed"] for r in runs]),
         # Escaped-defect axis proxies. Flattened into two scalars so every summary field
         # renders as a scalar in the text report rather than one raw dict repr.
-        "total_record_reopen": (sum(r["record_reopen_count"] for r in runs)
-                                if runs else UNESTABLISHED),
+        "total_record_reopen": _sum_or_unestablished(
+            [r["record_reopen_count"] for r in runs]),
         "scope_escape_count": escape["count"],
         "scope_escape_unattributable": escape["unattributable"],
         # A declared post-filing class the instrument reports unestablished, never a

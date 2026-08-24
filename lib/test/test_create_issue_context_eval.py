@@ -3001,6 +3001,32 @@ class UnmeasuredTurnContractTest(_SingleSessionMixin, unittest.TestCase):
         self.assertEqual(summary["median_peak_context"], 5)
         self.assertEqual(summary["max_peak_context"], 5)
 
+    def test_over_threshold_buckets_exclude_unmeasured_residency_runs(self):
+        # The `runs_over_*` bucket COUNTS are derived from the same filtered `peaks`
+        # population: an all-unmeasured run must not be counted as an under-threshold
+        # run, and a corpus with no measured peak reports UNESTABLISHED, never 0.
+        unmeasured = {"peak_context": CICE.UNESTABLISHED, "usage_missing_turns": 3}
+        measured = {"peak_context": CICE.BUCKET_200K + 1, "usage_missing_turns": 0}
+
+        def _run(fields):
+            base = {"repeated_read_count": 0, "reemission_count": 0,
+                    "attributed_auditor_cost": 0, "unrounded_auditor_cost": 0,
+                    "sidechain_records_seen": 0, "sidechain_records_attributed": 0,
+                    "record_reopen_count": 0, "round_auditor_cost": {},
+                    "dispatch_rounds": {}}
+            base.update(fields)
+            return base
+
+        both = CICE.aggregate([_run(unmeasured), _run(measured)])
+        self.assertEqual(both["runs_over_200k"], 1)
+        self.assertEqual(both["runs_over_400k"], 0)
+        self.assertEqual(both["total_usage_missing_turns"], 3)
+
+        none_measured = CICE.aggregate([_run(unmeasured)])
+        self.assertEqual(none_measured["runs_over_200k"], CICE.UNESTABLISHED)
+        self.assertEqual(none_measured["runs_over_400k"], CICE.UNESTABLISHED)
+        self.assertEqual(none_measured["max_peak_context"], CICE.UNESTABLISHED)
+
     def test_empty_corpus_total_usage_missing_is_unestablished(self):
         summary = CICE.aggregate([])
         self.assertEqual(summary["total_usage_missing_turns"], CICE.UNESTABLISHED)
