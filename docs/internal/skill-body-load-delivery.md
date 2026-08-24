@@ -136,8 +136,10 @@ rows under its own session letter and this block stays true.
 
 **Tiers left unobserved, named rather than omitted:**
 
-- **The cloud implement tier** (`devflow-implement.yml`) — unobserved. No probe was run there.
-- **The cloud review tier** (`devflow.yml`) — unobserved. No probe was run there.
+- **The cloud implement tier** (`devflow-implement.yml`) — unobserved as of session A. The probe
+  mechanism now exists (session B below); its verdict is `unestablished` until a maintainer runs it.
+- **The cloud review tier** (`devflow.yml`) — unobserved as of session A. Same as above: probe built
+  in session B, verdict `unestablished` until dispatched.
 - **The local main-session Skill-tool channel for a body in the census size range** — unobserved.
   The Skill-tool rows above were each observed from a *dispatched local subagent*, because the
   `/prflow:implement` orchestrator that produced this page is barred by its own exclusionary Skill
@@ -412,19 +414,20 @@ re-vendor path stated — and `receiving-code-review` likewise sits above the st
 
 ## How to re-run this
 
-**A stronger mechanism exists and was not built here.** `.github/workflows/matcher-probe.yml`
-already runs a `claude-code-action` session that invokes the Skill tool and captures what that load
-returned — its `placeholder-probe` job, built for a different measurement (render-time `` !`cmd` ``
-placeholder substitution), which sets `show_full_output: true` to capture the result and whose
-`scripts/placeholder-probe-verdict.py` derives its verdict from the execution file rather than from
-the model's own account. A sibling
-`skill-body-load-probe` job would run on the cloud tier in a *main* session and measure the Skill
-`tool_result` directly, which removes three of this page's limits at once: both cloud tiers become
-observed, the main-session channel becomes observed, and the model's testimony stops being an
-operand of the verdict. That is the better successor to the hand protocol below, and it is left as
-follow-up work rather than built here.
+**A stronger mechanism now exists (issue #1618, session B above).** `.github/workflows/matcher-probe.yml`
+carries two sibling jobs — `skill-body-load-review-probe` and `skill-body-load-implement-probe` —
+modelled on its `placeholder-probe` job: a `claude-code-action` session with
+`show_full_output: true`, verdict derived from the execution file by
+`scripts/skill-body-load-probe-verdict.py` rather than from the model's own account. Each loads the
+real plugin and invokes the Skill tool once per engine root in a *main* session, measuring the body
+record that follows the Skill `tool_result` — which, once a maintainer dispatches it, removes two of this page's limits:
+both cloud tiers become observed, and the model's testimony stops being an operand of the verdict.
+The four session-B verdicts are `unestablished` only because a headless implementing run cannot
+suspend to await the probe it added; the mechanism itself is built, and the *Re-run procedure* under
+session B is how to fill those rows.
 
-Until then, per body, in a **fresh session that has not read the target file**:
+The hand protocol below remains the fallback for a body the probe cannot reach (e.g. a
+`disable-model-invocation` root). Per body, in a **fresh session that has not read the target file**:
 
 1. Take **two** controls, extracted by someone other than the session that will load the skill: the
    file's literal final line (`tail -n 1 <path>`) — or its final two lines where the last alone is
@@ -452,6 +455,161 @@ must be measured but carries `disable-model-invocation` cannot be measured this 
 it unestablished, as `init` is above.
 
 ---
+
+## Observation — session B (cloud probe mechanism built; verdicts unestablished)
+
+**Status: MECHANISM BUILT, VERDICTS UNESTABLISHED.** Issue #1618 built the
+`skill-body-load-probe` mechanism session A named and left unbuilt: two sibling jobs in
+`.github/workflows/matcher-probe.yml` — `skill-body-load-review-probe` and
+`skill-body-load-implement-probe` — each loading the real `prflow@devflow-marketplace`
+plugin, invoking the **Skill tool** once per engine root under `show_full_output: true`,
+and deriving a per-root verdict from the Skill `tool_result` in the execution file through
+`scripts/skill-body-load-probe-verdict.py` (never model text). The jobs are
+maintainer-dispatched; a headless implementing run cannot suspend to await a probe it
+dispatched, so the four cloud verdicts below are recorded **`unestablished`** with the
+condition that prevents them — exactly as `skills/init/SKILL.md` is above.
+
+| `SKILL.md` | Tier | Channel | Operand | Verdict | Condition | Session |
+|---|---|---|---|---|---|---|
+| `skills/review/SKILL.md` | cloud review (`devflow.yml`) | Skill tool | Skill `tool_result` (would be observation) | **unestablished** | probe built, not yet dispatched | 2026-08-19 / B |
+| `skills/implement/SKILL.md` | cloud review (`devflow.yml`) | Skill tool | Skill `tool_result` (would be observation) | **unestablished** | probe built, not yet dispatched | 2026-08-19 / B |
+| `skills/review/SKILL.md` | cloud implement (`devflow-implement.yml`) | Skill tool | Skill `tool_result` (would be observation) | **unestablished** | probe built, not yet dispatched | 2026-08-19 / B |
+| `skills/implement/SKILL.md` | cloud implement (`devflow-implement.yml`) | Skill tool | Skill `tool_result` (would be observation) | **unestablished** | probe built, not yet dispatched | 2026-08-19 / B |
+
+**Superseded in part.** The probe was later dispatched and its verdicts were invalid — see
+*Observation — session C* below, which corrects the first row to `delivered-whole` and leaves the
+other three `unestablished` on a new condition. The table above is session B's own frozen record.
+
+**Channel (AC).** Every row above is the **Skill tool** channel — the tool call that renders
+the body into context — *not* the slash-command expansion by which a real `/prflow:implement`
+run delivers `skills/implement/SKILL.md` (session A's `implement` row). A cloud row must never
+be compared with session A's slash-command `implement` row as if they measured the same channel.
+
+**Operand, and why it will be observation not testimony (AC).** When a job runs, the verdict is
+derived from the Skill `tool_result` recorded in the execution file — the rendered body itself —
+checked against controls read **from disk** at verdict time. That is an observation a later reader
+recomputes from repository bytes and the captured execution file, not the model's account of what
+it received. Until a job runs, the operand does not exist and the row stays `unestablished`; a row
+filled from a model's own report of what it saw would be **testimony**, and must be labelled so,
+under the same standard session A applies to its Verdict column.
+
+**Observation conditions — session B, 2026-08-19.** Tier: cloud review (`devflow.yml`) and cloud
+implement (`devflow-implement.yml`), each approximated by a matcher-probe job (see the
+approximation limit below). Host runner image: `ubuntu-latest` — the exact `ImageOS`/`ImageVersion`
+is captured by the job when it runs and transcribed into the row then. Action version:
+`anthropics/claude-code-action@v1`. Date: 2026-08-19 (record authored; the four verdicts are
+unestablished, so no observation date exists yet).
+
+**The approximation limit (why a cloud row can be `unestablished` and still honest).** A
+matcher-probe job runs under `matcher-probe.yml`'s own harness, not under `devflow.yml` or
+`devflow-implement.yml`, so it **approximates** each cloud tier's delivery conditions rather than
+reproducing them byte-for-byte. The two jobs are separate sessions labelled by tier so a maintainer
+dispatches and records each independently. Because delivery is allowlist-independent (the `Skill`
+grant loads the body; the loaded engine's helper grants do not bear on whether it arrived whole),
+this approximation is close, but it is not the tier's own workflow — a row must not be upgraded past
+`unestablished` on the strength of the approximation alone.
+
+### Re-run procedure and falsifier (AC)
+
+1. On this branch, dispatch `matcher-probe.yml` via `workflow_dispatch` (available on the default
+   branch after merge), or push an edit to `.github/workflows/matcher-probe.yml` to trigger its
+   `pull_request` path from the branch. Either launches the two `skill-body-load-*-probe` jobs (one
+   paid session each).
+2. Read each job's `Compute skill-body-load verdict` step. The helper prints one `VERDICT:` line per
+   root: `delivered-whole`, `short-delivery`, or `unestablished`.
+3. Transcribe each root's verdict into the row above under a new observation date, and record the
+   runner `ImageVersion` and the resolved `claude-code-action` version from the job log.
+
+**What falsifies a `delivered-whole` verdict**, any one of: the body record delivered for that root
+lacks the file's last non-empty line (tail lost); it lacks the distinctive interior control (an
+interior loss); or it carries a truncation/cap notice (`showing lines X-Y of Z`, `cap 25000`). Any
+of these makes the verdict `short-delivery`. A row stays `unestablished` when no Skill `tool_use`
+for that root was recorded, its load returned an error, no following body record named that root's
+own directory, or the execution file was unreadable or of the wrong shape.
+
+### Delivery geometry this probe can and cannot distinguish (AC)
+
+The verdict rests on **two** controls read from disk: the file's last non-empty line (tail) and one
+distinctive interior line (mid). This detects a **lost tail** and **one interior point** — it does
+**not** exclude an arbitrary middle elision that spares both controls. A `delivered-whole` verdict
+here therefore means "the tail and one interior anchor arrived", never "every byte between them
+arrived". This is the same failure-geometry limit session A discloses for its single tail control,
+narrowed by one interior anchor and no further.
+
+### What session B means for the skill-root half of the byte ceiling (AC)
+
+Expressed in the ceiling's own unit — raw on-disk file bytes, `len(read_bytes())`, the instrument
+`lib/test/lint-reference-size.py` applies:
+
+- Measured 2026-08-19 at this branch's then-merge-base, `skills/review/SKILL.md` is **56,526 bytes**
+  and `skills/implement/SKILL.md` is **57,124 bytes** — both **under** the 61,750-byte ceiling, and
+  **neither carries an exemption row**. `lib/test/reference-size-exemptions.json` exempts exactly one
+  skill root, `skills/retrospective-weekly/SKILL.md` (recorded at 83,427 bytes in that file's frozen
+  snapshot; 71,331 bytes on disk at that snapshot, still above the 61,750-byte ceiling — the recorded
+  and the on-disk figure are different numbers, and only the on-disk one is the deliverable size).
+  (Session A's own figures — `review` at 65,822 bytes — predate the trims that brought both roots
+  under the ceiling; issue #1618's premise cited the older 65,970-byte size, corrected on this run.)
+- **Re-measured 2026-08-21 at merge base `1bcc25bca`,** when this branch was brought up to date:
+  `skills/review/SKILL.md` **57,559 bytes**, `skills/implement/SKILL.md` **60,656 bytes**,
+  `skills/retrospective-weekly/SKILL.md` **71,268 bytes**. The conclusions below are unchanged — both
+  engine roots remain under the ceiling with no exemption row, and `retrospective-weekly` remains the
+  sole skill-root exemption. What moved is *which* root sits closest to the line: `implement` now has
+  1,094 bytes of headroom and is reported by the `#1614` near-full advisory, so the delivery question
+  this probe answers has migrated from the review root to the implement root rather than lapsing.
+- So the skill-root half of the ceiling currently carries **one** exemption, and it is **not** either
+  root measured here. The two engine roots are compliant on file bytes with no exemption to classify.
+- Because the four cloud verdicts are `unestablished`, session B **cannot yet** say whether the loader
+  on either cloud tier shares the byte ceiling's premise. Session A settled that for the local tier
+  (the Skill tool carried that body whole at its then-recorded 83,427 bytes, 35% above the ceiling),
+  making the ceiling the wrong instrument for the *loader* there and the sole `retrospective-weekly`
+  skill-root exemption **vacuous as a delivery obligation** on the local tier. Whether that exemption
+  is a **real** delivery obligation or **vacuous** on the two cloud tiers waits on a cloud verdict: a
+  cloud `short-delivery` below the file's on-disk size would make it real there; a cloud
+  `delivered-whole` at or above its on-disk size would make it vacuous there too. Until then it is
+  `unestablished` on both cloud tiers, and this record says so
+  rather than importing session A's local adjudication onto tiers it did not observe.
+
+## Observation — session C (the probe's recorded verdicts were invalid; one cell corrected)
+
+**Status: ONE CELL CORRECTED TO `delivered-whole`; THE OTHER THREE STAY `unestablished`.**
+Session B's four cells were `unestablished` because the probe had not been dispatched. Verdicts
+were subsequently recorded — and every one of them was `short-delivery`, produced by a defect in
+`scripts/skill-body-load-probe-verdict.py`, not by any loader behaviour.
+
+**The defect.** The helper joined each `Skill` `tool_use` to its paired **`tool_result`** and
+measured that content as the delivered body. On a real `claude-code-action` transcript the
+`tool_result` is a launch stub — the literal string `Launching skill: prflow:review`, 30 bytes —
+and the rendered body arrives in the **next** record, a user-role text block opening with
+`Base directory for this skill: <dir>`. A tail-absence test applied to a 30-byte stub can return
+nothing but `short-delivery`, whatever the loader did. **No recorded `short-delivery` verdict from
+before that fix is evidence of a short delivery**, and none should be cited as one. A second,
+narrower defect made the *published* transcript artifact unreadable: `scrub-transcript.sh` prepends
+one `#` caveat line, which strict JSON rejects, so the parser fell through to its JSONL path and
+dropped every line — yielding `unestablished`. Both are fixed; the fixtures that formerly encoded
+the wrong record layout were rebuilt around the real one.
+
+**The corrected reading.** Re-deriving with the fixed helper over the published execution
+transcript of run `32674854779` — a real `devflow.yml` cloud **review** run at head
+`668a78990c810b0318d7fdbf5de8a95c043eda71`, not a matcher-probe approximation — the single `Skill`
+load in that session (`prflow:review`, `tool_use` at record 6, body at record 8, 57,017 bytes)
+carries both the on-disk tail control and the interior control, with no truncation notice.
+
+| `SKILL.md` | Tier | Channel | Operand | Verdict | Condition | Session |
+|---|---|---|---|---|---|---|
+| `skills/review/SKILL.md` | cloud review (`devflow.yml`) | Skill tool | body record following the Skill `tool_result`, in the published execution transcript of run `32674854779` | **delivered-whole** | re-derived with the fixed helper; the tier's own workflow, not an approximation | 2026-08-24 / C |
+| `skills/implement/SKILL.md` | cloud review (`devflow.yml`) | Skill tool | — | **unestablished** | no `Skill` load of this root in the transcript; its earlier probe verdict is invalid | 2026-08-24 / C |
+| `skills/review/SKILL.md` | cloud implement (`devflow-implement.yml`) | Skill tool | — | **unestablished** | no re-derived transcript for this tier; its earlier probe verdict is invalid | 2026-08-24 / C |
+| `skills/implement/SKILL.md` | cloud implement (`devflow-implement.yml`) | Skill tool | — | **unestablished** | no re-derived transcript for this tier; its earlier probe verdict is invalid | 2026-08-24 / C |
+
+**One root on one tier is all that has been measured.** The three `unestablished` cells are not
+"probably whole": their probe verdicts were invalid and no corrected reading exists for them. An
+invalid verdict is unknown, never a pass — the same *unknown-is-not-zero* rule the rest of this page
+applies. Establishing any of them needs its own re-derived transcript.
+
+**What this does not move.** The byte-ceiling adjudication in *What session B means for the
+skill-root half of the byte ceiling* is unchanged. That question turns on `retrospective-weekly`,
+which no cloud session has loaded, and a `delivered-whole` at 57,017 bytes is **below** the
+61,750-byte ceiling — so it neither makes that exemption real nor vacuous on either cloud tier.
 
 ## What this measurement does NOT establish
 

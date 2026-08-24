@@ -66,7 +66,7 @@ Tier-agnostic invocation procedure (the conditional form — do not classify you
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/load-prompt-extension.sh review
 ```
 
-Every extension-state failure arm below fires unconditionally. If the invocation fails because the helper path does not exist (`No such file`, exit 127, or the platform equivalent) on every form above, that is the anchor-resolution failure above — report it in the review output; fix the anchor, don't report a missing extension. If instead the harness refuses the command outright — a permission denial rather than a missing file — the extension's state is **unestablished**: report that in the review output and never treat it as a clean policy pass (*unknown is not zero*). Otherwise, if the helper exits non-zero, a consumer extension exists but could not be loaded — surface its stderr message, don't silently proceed as if none existed. If it exits 0 and prints text on stdout, treat that text as instructions appended to the end of this skill's own prompt for this run. If it exits 0 and prints nothing on stdout, proceed unchanged. A stderr breadcrumb naming the resolved extension directory is diagnostic output, never extension content — it never makes an empty extension count as printed text.
+Every extension-state failure arm below fires unconditionally. If the invocation fails because the helper path does not exist (`No such file`, exit 127, or the platform equivalent) on every form above, that is the anchor-resolution failure above — report it in the review output; fix the anchor, don't report a missing extension. If instead the harness refuses the command outright — a permission denial rather than a missing file — the extension's state is **unestablished**: report that in the review output and never treat it as a clean policy pass (*unknown is not zero*). Otherwise, if the helper exits non-zero, a consumer extension exists but could not be loaded — surface its stderr message, don't silently proceed as if none existed. On exit 0 the helper prints a `PROMPT-EXTENSION-STATUS: content-present` or `PROMPT-EXTENSION-STATUS: present-empty` line on stderr; report that token verbatim in the review output as the extension's resolved status. On `content-present`, append the stdout text as instructions to the end of this skill's own prompt for this run; on `present-empty`, proceed unchanged. If no `PROMPT-EXTENSION-STATUS` line appeared at all — the command produced no output (a harness refusal) or exited non-zero (undeliverable) — the state is **unestablished**: report unestablished, never collapse it onto `present-empty` (*unknown is not zero*). A stderr breadcrumb naming the resolved extension directory is diagnostic output, never extension content — it never makes an empty extension count as printed text.
 
 ## When NOT to use
 
@@ -303,6 +303,8 @@ Each reference carries these as its literal first and last lines:
 <!-- prflow:review-ref phase=<id> file=skills/review/phases/<name>.md end -->
 ```
 
+Paged-read recovery (before the counting below). A reader that returns the file in pages — a partial-view notice carrying an `offset`/`limit` continuation — has not damaged it: page forward until no continuation is offered or a page adds nothing new, then run the checks below over the **assembled whole document**, and report the file and page count. A read you cannot complete, a gap in the page sequence, or a reader message you cannot classify as that notice is row 1 (`denied`).
+
 After the `Read`: quote the body's literal first and last lines, and let `S` and `E` count the lines matching the expected `start` and `end` markers — expected meaning bearing this phase's id and the reference's own bundle-relative path exactly as written in the marker — the path the run resolved and read the file from is not compared, so a marker naming a different phase or file matches nothing here and a mis-routed read fails closed. Decide rows 6 and 7 from those two quoted lines, never from an impression the markers *look* right. Test the rows in order; the first that fires is the attributed shape:
 
 | # | Shape | Fires when | Stop label |
@@ -317,7 +319,7 @@ After the `Read`: quote the body's literal first and last lines, and let `S` and
 
 On any identity or boundary row: stop that phase, report the label with the phase id and reference path, and do not act on the body, improvise the phase from its orientation text, or repair the file. A body can read as complete and correct and still fail these checks: a defective boundary or identity means what you hold is not the bundle this engine was built against, so its plausibility is worth nothing.
 
-Required copy. Rows 1–7 are mirrored in `skills/implement/SKILL.md`'s *Phase-reference boundary contract*; edit both in the same change.
+Required copy. Rows 1–7 and the paged-read recovery above are mirrored in `skills/implement/SKILL.md`'s *Phase-reference boundary contract*; edit both in the same change. That copy adds the rows `misrouted` and `set-incomplete` this one omits.
 
 ### Phase routing
 

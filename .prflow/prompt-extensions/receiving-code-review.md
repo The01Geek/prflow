@@ -102,6 +102,19 @@ while silently reverting whatever a concurrent PR added. This rule hardcodes no 
 command: both are read from `--list` at runtime, so the rule and the registry structurally cannot
 drift.
 
+## Do not run the suite locally — push and read CI
+
+A reception pass in this repository does not run the test suite locally to satisfy the base
+skill's Verification Gate. Commit the fixes, push them, and read CI for the pushed commit as the
+verification evidence, per `CLAUDE.md`'s local/interactive tier rung 1. A local full-suite run
+here is non-reproducible under this repository's worktree concurrency and disagrees with the
+merge-gating signal in both directions, so a green local aggregate is not evidence the fixes hold.
+
+A focused module or focused Python test is still the right instrument for *iterating* on a fix
+you are actively writing, and mutation-checking a new test still runs that one target locally —
+neither discharges the completion gate, which stays the CI reading for the commit this pass
+pushed.
+
 ## Focused test modules in direct reception passes
 
 A reception pass iterates on a focused module only after recording the selected module ID: find a candidate in `lib/test/modules/coverage-map.json`, confirm it in `scripts/workflow-flight-recorder-registry.json`.

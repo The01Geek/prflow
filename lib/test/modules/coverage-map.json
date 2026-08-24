@@ -7,6 +7,10 @@
       "note": "issue #788 retrospective issue-closure lifecycle",
       "owner": "retrospective-lifecycle"
     },
+    "lib/analyzed-digest.jq": {
+      "note": "issue #1870 Step-9 Analyzed PRs digest filter",
+      "owner": "retrospective-lifecycle"
+    },
     "lib/audit-bundle-selection.sh": {
       "note": "issue #894 Stage B occurrence-bundle cap validation + most-recent-N selection",
       "owner": "retrospective-lifecycle"
@@ -121,6 +125,10 @@
     },
     "lib/recurring-targets.sh": {
       "note": "",
+      "owner": "unmodularized"
+    },
+    "lib/refresher-sign.sh": {
+      "note": "issue #1882 shared openssl-free JWT-signing call (devflow_sign_jwt) for the mint and self-test; exercised via the mint in the #1882 arms of the #487 run.sh block and directly by the refresher-selftest arms there",
       "owner": "unmodularized"
     },
     "lib/render-report.sh": {
@@ -470,11 +478,6 @@
       "note": "issue #1209 implement runtime-context eval; maintainer-only instrument, tested directly by lib/test/test_implement_context_eval.py (serial)",
       "owner": "unmodularized"
     },
-    "scripts/import-review-verdict-handoff.py": {
-      "focused_test": "lib/test/test_import_review_verdict_handoff.py",
-      "note": "issue #1314 trusted-emitter review-verdict handoff importer (the untrusted-input validation trust boundary); accepted shape + full rejection matrix driven by lib/test/test_import_review_verdict_handoff.py",
-      "owner": "unmodularized"
-    },
     "scripts/import-workflow-transcript.py": {
       "focused_test": "lib/test/test_workflow_flight_recorder.py",
       "note": "",
@@ -632,6 +635,10 @@
       "note": "",
       "owner": "unmodularized"
     },
+    "scripts/refresher-selftest.sh": {
+      "note": "issue #1882 pre-launch credential-refresher self-test (3-arm signer gate); driven by the #1882 arms in the #487 run.sh block",
+      "owner": "unmodularized"
+    },
     "scripts/render-audit-prompt.py": {
       "note": "issue #600 create-issue Step 3.6 audit-prompt renderer; driven by lib/test/test_render_audit_prompt.py + the #600 block in the harness-python-guards module",
       "owner": "harness-python-guards"
@@ -646,7 +653,7 @@
     },
     "scripts/render-pr-provenance-line.py": {
       "focused_test": "lib/test/test_python_scripts.py",
-      "note": "issue #1655 draft-PR provenance-line renderer; always exits 0, prints one backtick-free line (version from the beside-helper manifest, model from the session transcript's most-recent assistant record never resolvedModel, effort from CLAUDE_EFFORT, model+effort gated by prflow_implement.publish_model_effort). Driven directly in lib/test/test_python_scripts.py over rendering, the config six-shape matrix, the transcript JSON-Lines matrix, and the phase-file lint/profile contract assertions",
+      "note": "issue #1655/#1809 shared provenance-line renderer; takes the command name via a required --command argument and prints one backtick-free italic line naming it (version from the beside-helper manifest, model from the session transcript's most-recent assistant record never resolvedModel, effort from CLAUDE_EFFORT, model+effort gated by prflow.publish_model_effort). Exits 0 in every case except a missing required --command argument, which is an argparse usage error (usage to stderr, nothing to stdout, non-zero exit). Driven directly in lib/test/test_python_scripts.py over rendering for both command values, the config six-shape matrix, the transcript JSON-Lines matrix, and the phase-file lint/profile contract assertions",
       "owner": "unmodularized"
     },
     "scripts/render-prompt-extension.sh": {
@@ -694,6 +701,11 @@
       "note": "issue #671 bounded-retry/backoff wrapper extracted from ci.yml's CLI install step",
       "owner": "unmodularized"
     },
+    "scripts/review-context-eval.py": {
+      "focused_test": "lib/test/test_review_context_eval.py",
+      "note": "issue #1852 review-engine per-context read eval; maintainer-only instrument, tested directly by lib/test/test_review_context_eval.py (serial)",
+      "owner": "unmodularized"
+    },
     "scripts/route-guard-counts-outcome.sh": {
       "note": "issue #908 review Important #2: RGC_RC/FIRED -> counts outcome routing out of devflow-runner.yml's guard step",
       "owner": "unmodularized"
@@ -730,6 +742,15 @@
       "note": "review live-progress seed find-or-create helper; driven per PER-ARM refusal token by the #857/#871 run_sh_blocks block, whose grounded-coverage row derives the emitted token set from this file's source",
       "owner": "unmodularized"
     },
+    "scripts/sign-jwt-rs256.py": {
+      "focused_test": "lib/test/test_python_scripts.py",
+      "note": "issue #1882 openssl-free RSASSA-PKCS1-v1_5 JWT signer for the credential refresher; byte-equality against openssl + malformed-input matrix in the #1882 arms of the #487 run.sh block and unit arms in test_python_scripts.py",
+      "owner": "unmodularized"
+    },
+    "scripts/skill-body-load-probe-verdict.py": {
+      "note": "issue #1618 Skill-tool body-delivery probe verdict helper (delivered-whole/short-delivery/unestablished per engine root). Pure function over a parsed execution file — asserted inline from lib/test/run.sh (the #1618 block), matching the agents-seam/background-tasks/env-propagation/subagent-write/placeholder probe-verdict precedents; no `focused_test`, which routes a change to it to the full suite rather than to a focused module. The block drives every verdict arm (whole, tail-lost, interior-lost, truncation-marker short deliveries; the never-loaded/error/no-result/wrong-shape/unparseable/absent-file unestablished arms), the build negative control, the empty-selection non-zero exit, and a coupling assertion binding the two matcher-probe.yml jobs (show_full_output, prflow plugin, both --root specs at their real on-disk paths, --tier) to the helper. Fixtures reproduce the REAL transcript record layout — a ~30-byte `Launching skill:` stub in the tool_result and the rendered body in the FOLLOWING user-role record — plus the stub-with-no-body, wrong-directory-body, assistant-role-body and published-artifact (leading `#` caveat line) arms. A two-load fixture pair (`two_skill_loads`, `late_body`) closes both bounds of the position window that attributes each body record to its own Skill load. A directory-match pair (`abs_suffix_dir`, `boundary_dir`) drives `dirs_match`'s production suffix branch — an absolute runner base directory against a repo-relative `--root` — and its component-boundary guard, which every same-path fixture leaves on the equality branch.",
+      "owner": "unmodularized"
+    },
     "scripts/stage-draft-write.py": {
       "note": "#705 helper unit tests: lib/test/test_python_scripts.py (stage/emit/apply modes) driven by run.sh",
       "owner": "unmodularized"
@@ -741,6 +762,11 @@
     },
     "scripts/stall-backstop-decide.sh": {
       "note": "",
+      "owner": "unmodularized"
+    },
+    "scripts/stall-observer-scan.py": {
+      "focused_test": "lib/test/test_python_scripts.py",
+      "note": "issue #1027 out-of-band stall observer decision core (reports, never kills)",
       "owner": "unmodularized"
     },
     "scripts/stop-hook-probe.sh": {
@@ -1109,6 +1135,10 @@
       "note": "",
       "owner": "parallel-suite-runner"
     },
+    "1299": {
+      "note": "",
+      "owner": "prompt-extension-reader"
+    },
     "1309": {
       "note": "",
       "owner": "unmodularized"
@@ -1189,6 +1219,10 @@
       "note": "",
       "owner": "unmodularized"
     },
+    "1443": {
+      "note": "",
+      "owner": "unmodularized"
+    },
     "1457": {
       "note": "",
       "owner": "regenerate-artifacts"
@@ -1223,6 +1257,10 @@
     },
     "1526": {
       "note": "the widened audited population of lint-ungranted-helper-spelling.py: the prompt-extension prefix and the two exact auto-loaded paths are reported like a skills/ path, the exact-path half is not a docs/internal/ prefix, every declared population member (exact paths and prefixes alike) is reachable by the default index enumeration, and the empty-audited floor message names the widened members",
+      "owner": "unmodularized"
+    },
+    "1528": {
+      "note": "run.sh #1528 block: surface-execution-diagnostics.sh publishes claude_code_version from the execution-file init record (publish/::notice:: read-back, unavailable fallback, builtins-only, redaction posture, no-result-event + partial-deployment + append-failure arms)",
       "owner": "unmodularized"
     },
     "1536": {
@@ -1287,6 +1325,10 @@
     },
     "1614": {
       "note": "the near-full advisory over lint-reference-size.py's --print-near-full: the derived near-full band stated by --print-threshold, the report's membership/headroom/ascending-order/equal-headroom-tie-break for files inside the band, the exclusion of files just outside the band and of over-ceiling files, the empty-report and exit-0 advisory contract, the positive control that an over-ceiling file still fails the ceiling gate, and the real-tree advisory that never emits the reserved NOTE shape",
+      "owner": "unmodularized"
+    },
+    "1618": {
+      "note": "Inline run.sh assertions driving every VERDICT arm of scripts/skill-body-load-probe-verdict.py (the issue-1618 Skill-tool body-delivery probe), unmodularized like its probe-verdict siblings. Driven: the delivered-whole / short-delivery (tail lost, interior lost, truncation-marker) measurements; the unestablished degraded arms (no Skill tool_use, error result, unpaired result, wrong-shape JSON, unparseable file, absent file); the build negative control; the empty-selection non-zero exit that must not read as a clean pass; and the coupling assertion binding the two matcher-probe.yml jobs (show_full_output, prflow plugin load, both --root specs at real on-disk paths, --tier) to the helper. Fixtures reproduce the REAL transcript record layout — a ~30-byte `Launching skill:` stub in the tool_result and the rendered body in the FOLLOWING user-role record — plus the stub-with-no-body, wrong-directory-body, assistant-role-body and published-artifact (leading `#` caveat line) arms. A two-load fixture pair (`two_skill_loads`, `late_body`) closes both bounds of the position window that attributes each body record to its own Skill load. A directory-match pair (`abs_suffix_dir`, `boundary_dir`) drives `dirs_match`'s production suffix branch — an absolute runner base directory against a repo-relative `--root` — and its component-boundary guard, which every same-path fixture leaves on the equality branch.",
       "owner": "unmodularized"
     },
     "1621": {
@@ -1389,6 +1431,22 @@
       "note": "",
       "owner": "efficiency-trace-telemetry"
     },
+    "1770": {
+      "note": "",
+      "owner": "unmodularized"
+    },
+    "1772": {
+      "note": "",
+      "owner": "unmodularized"
+    },
+    "1773": {
+      "note": "issue #1773 provider env-map key-name deny list; run.sh-resident, driven from the R313_INJ_BODY inject-step extraction beside the #313 assertions (the monolith shard covers them)",
+      "owner": "unmodularized"
+    },
+    "1803": {
+      "note": "",
+      "owner": "issue-audit-state"
+    },
     "181": {
       "note": "",
       "owner": "unmodularized"
@@ -1401,15 +1459,43 @@
       "note": "",
       "owner": "unmodularized"
     },
+    "1841": {
+      "note": "",
+      "owner": "issue-audit-state"
+    },
     "185": {
       "note": "",
       "owner": "unmodularized"
+    },
+    "1850": {
+      "note": "",
+      "owner": "efficiency-trace-telemetry"
+    },
+    "1852": {
+      "note": "",
+      "owner": "unmodularized"
+    },
+    "1858": {
+      "note": "",
+      "owner": "review-stall-backstop"
     },
     "186": {
       "note": "",
       "owner": "unmodularized"
     },
+    "1863": {
+      "note": "",
+      "owner": "review-trigger-helpers"
+    },
     "187": {
+      "note": "",
+      "owner": "unmodularized"
+    },
+    "1870": {
+      "note": "",
+      "owner": "retrospective-lifecycle"
+    },
+    "1882": {
       "note": "",
       "owner": "unmodularized"
     },

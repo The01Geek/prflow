@@ -4505,40 +4505,19 @@ assert_eq "F1: misregistration guard detects an injected SKILL.md (find non-empt
   "$([ -z "$(find "$_f1_skilldir" -name SKILL.md 2>/dev/null)" ] && echo yes || echo no)"
 rm -rf "$_f1_skilldir"
 # ── end issue #218 structural assertions ──
-# ── issue #232: terminal-status self-check (SKILL.md orchestrator) + Phase 4.1 post-subagent
-# re-anchor (phase-4-documentation.md) — two halves of one guard family against a run that
-# stops before Phase 4 finalization (workpad frozen at an in-progress Status, un-described
-# draft PR). Coupled to the skill clauses: removing either clause turns the suite RED.
-# Presence is checked via assert_pin_unique (exactly once).
+# ── issue #232: the Phase 4.1 post-subagent re-anchor (phase-4-documentation.md), guarding
+# against a run that stops before Phase 4 finalization (workpad frozen at an in-progress
+# Status, un-described draft PR). Coupled to the skill clause: removing it turns the suite
+# RED.
 # (P4_FILE is the shared phase-file path hoisted next to IMPL_PHASES_DIR above.)
-# (1) SKILL.md terminal-status self-check — AC1 (must not end on an in-progress Status) +
-#     AC2 (keyed on workpad Status, explicitly not PR draft state).
-assert_pin_unique "#232: SKILL self-check forbids ending on an in-progress Status (operative)" \
-  'the run is not finished — return to the phase that owns the remaining work' "$IMPL_ORCH"
-assert_pin_unique "#232: SKILL self-check keys on workpad Status, not PR draft state (AC2)" \
-  'keys on the workpad `Status`, not on PR draft state' "$IMPL_ORCH"
-# (2) phase-4-documentation.md Phase 4.1 post-subagent re-anchor scope. Issue #362
-#     reworded the scope clause from
-#     "the Phase 4.1 docs subagent return only" to "**subagent** returns", because a
-#     Skill-tool return is now covered by the orchestrator's generalized mid-phase
-#     re-anchor instead. Issue #1577 added a SECOND subagent-return re-anchor (§4.2's
-#     PR-description subagent, before §4.3); that note is worded "fires on a
-#     **subagent** return only" so this grandfathered, adjudicated literal stays
-#     unique to the §4.1 note (per CLAUDE.md #843/#876 the §4.2 re-anchor is
-#     agent-executed prompt prose that owes no new prose pin — the review pass is its
-#     control).
+# Do not re-point this pin at §4.2's re-anchor or widen its literal: the literal is
+# grandfathered as unique to the §4.1 note, and §4.2's counterpart is agent-executed prose
+# that owes no pin (CLAUDE.md #843/#876). Provenance: docs/internal/implement-skill.md.
 assert_pin_unique "#232/#362: phase-4 re-anchor scoped to **subagent** returns (AC4, reworded)" \
   'scoped to **subagent** returns' "$P4_FILE"
-# AC1 operative: the normative prohibition sentence (not only its corrective consequence).
-assert_pin_unique "#232: SKILL self-check keeps the run-final-message prohibition (operative)" \
-  'Do not emit your run-final message while the workpad' "$IMPL_ORCH"
-# review iter-1 (silent-failure-hunter F1/F2): the two robustness hardenings — the self-check
-# binds EVERY termination path (not only a deliberate wrap-up), and the Phase 4.1 re-anchor
-# TRIGGER is repeated in the always-loaded orchestrator so a subagent-return eviction cannot
-# remove it. Pin both so a later edit cannot silently drop the hardening.
-assert_pin_unique "#232: SKILL self-check binds every termination path (SFH F1)" \
-  'This guard binds **every** way the run can end' "$IMPL_ORCH"
-# review iter-2 (shadow pr-test-analyzer): pin the operative re-read instruction directly.
+# review iter-2 (shadow pr-test-analyzer): pin the operative re-read instruction directly —
+# the Phase 4.1 re-anchor TRIGGER is repeated in the always-loaded orchestrator so a
+# subagent-return eviction cannot remove it, and dropping the pin drops that hardening.
 assert_pin_unique "#232: orchestrator keeps the OPERATIVE always-loaded re-Read directive (SFH F2)" \
   'the phase file before continuing to §4.2 (resume from §4.2' "$IMPL_ORCH"
 # AC4 scope constraint is mirrored in the always-loaded orchestrator too; pin that copy so the
@@ -4632,10 +4611,10 @@ assert_eq "#362: the vendored requesting-code-review skill is still present and 
   "$([ -f "$LIB/../skills/requesting-code-review/SKILL.md" ] && echo yes || echo no)"
 
 # ── issue #366: guard /devflow:implement against a nested-Skill tail-call early-stop.
-# Four prose contracts in the always-resident orchestrator ($IMPL_ORCH) — the completion
-# re-anchor, the exclusionary Skill rule, the carve-out's SKILL.md sentence, and the
-# terminal-status self-check — one of which (the carve-out) is a coupled pair whose other
-# half is a CLAUDE.md Conventions bullet pinned against the CLAUDE.md path.
+# Three prose contracts in the always-resident orchestrator ($IMPL_ORCH) — the completion
+# re-anchor, the exclusionary Skill rule, and the carve-out's SKILL.md sentence — one of
+# which (the carve-out) is a coupled pair whose other half is a CLAUDE.md Conventions
+# bullet pinned against the CLAUDE.md path.
 # Each operative sentence is pinned with assert_pin_unique (exactly-once)
 # at the owning file boundary via assert_pin_unique.
 # (a) Skill-completion re-anchor trigger — completion-anchored, never re-invoke, orchestrator-resident.
@@ -4661,17 +4640,9 @@ assert_pin_unique "#366: SKILL carve-out is widened to cover the issue's own ACs
   'whether by a Phase-3 review finding **or by the issue' "$IMPL_ORCH"
 assert_pin_unique "#366: CLAUDE.md carve-out bullet carries the same AC4 widening arm (coupled)" \
   'whether by a Phase-3 review finding **or by the issue' "$LIB/../CLAUDE.md"
-# (d) Terminal-status self-check: read Status immediately before run-final message + accurate backstop citation.
-assert_pin_unique "#366: SKILL self-check reads Status immediately before any run-final message (operative)" \
-  'read the workpad `Status` line immediately before emitting any run-final message' "$IMPL_ORCH"
-# The backstop-accuracy clause must track what the backstop actually does. Since #356 it
-# re-dispatches AND, on a fail-loud exit taken after a genuinely interim Status read, flips
-# the workpad to the terminal `Failed` (💥) status — so the old clause ("it never writes a
-# terminal `Status`") is false, and pinning it would enforce the falsehood. What stays true,
-# and is the load-bearing point for the self-check, is that the backstop never drives a run
-# to `Complete`: only the run itself can do that.
-assert_pin_unique "#366/#356: SKILL self-check cites the cloud Stall backstop as re-dispatch + a dead-run Failed flip, never a Complete (operative)" \
-  're-dispatches (bounded auto-resume, honest-red on cap exhaustion) and, on a fail-loud exit, flips the workpad to the terminal `Failed` (💥) status — it never drives a run to `Complete`' "$IMPL_ORCH"
+# Do not reintroduce a wording pin over the SKILL.md terminal-status self-check: issue #1768
+# retired the status-read and stall-backstop-citation pins that stood here, and a
+# replacement re-freezes wording that criterion released (CLAUDE.md prose-pin policy).
 # ── issue #254: Phase 4.0.5 deferrals-manifest discovery must search BOTH the pr-<N>
 # slug dir and the sanitized-current-branch slug dir — a current-branch-mode
 # /devflow:review-and-fix run writes its manifest under the branch slug, so a
@@ -12888,7 +12859,7 @@ echo "load-prompt-extension.sh (consumer prompt-extension reader)"
 # module owns the whole former in-file section; see its .inventory.md for the
 # coverage map back to this location.
 if ! devflow_run_full_suite_module "$LIB/test/modules/prompt-extension-reader.sh" \
-  "prompt-extension-reader" 158; then
+  "prompt-extension-reader" 177; then
   printf 'ERROR: prompt-extension-reader boundary could not record its result\n'
   exit 1
 fi
@@ -13019,9 +12990,11 @@ assert_eq "#295 AC10: config-get git-root-no-.prflow returns the default" "FALLB
   "$(cd "$SIL295/a/b/c" && bash "$CG" .docs.internal FALLBACK 2>/dev/null)"
 assert_eq "#295 AC10: config-get git-root-no-.prflow stays SILENT (empty stderr)" "" \
   "$(cd "$SIL295/a/b/c" && bash "$CG" .docs.internal FALLBACK 2>&1 >/dev/null)"
-# loader: no-op (prints nothing) AND empty stderr.
-assert_eq "#295 AC10: loader git-root-no-.prflow stays SILENT (empty stderr)" "" \
-  "$(cd "$SIL295/a/b/c" && bash "$LPE" implement 2>&1 >/dev/null)"
+# loader: no-op with empty STDOUT. Since issue #1299 the whole-file no-op arm emits a
+# `PROMPT-EXTENSION-STATUS: present-empty` stderr line, so this AC10 guard checks the ABSENCE
+# of the #295 could-not-resolve breadcrumb (the regression it protects) rather than empty stderr.
+assert_eq "#295 AC10: loader git-root-no-.prflow emits no could-not-resolve breadcrumb" "yes" \
+  "$(cd "$SIL295/a/b/c" && bash "$LPE" implement 2>&1 >/dev/null | grep -qF 'could not resolve' && echo no || echo yes)"
 # workpad marker: default marker AND empty stderr (pop the env override so the read
 # reaches the config path).
 assert_eq "#295 AC10: workpad marker git-root-no-.prflow stays SILENT (empty stderr)" "" \
@@ -14360,6 +14333,251 @@ assert_eq "#1030 union: a devflow:review-verdict spelling is not a marker" "" \
 # A non-string body still skips the entry rather than aborting the marker filter.
 assert_eq "#1030 union: a non-string body skips without aborting the marker scan" "REJECT" \
   "$(_uv '[]' "$(jq -nc --arg b "$UVM_REJECT" '[{state:"COMMENTED",body:5,submitted_at:"2026-01-01T00:00:00Z"},{state:"COMMENTED",body:$b,submitted_at:"2026-01-02T00:00:00Z"}]')" | _uv_verds)"
+# ── #1443: the bot-only third rung + the unparsed-artifact count ─────────────
+# Four verdict shapes measured in this repository's own merged pull requests that
+# rungs 1 and 2 both miss, plus the count that names what still gets missed. Every
+# assertion runs the REAL producer through the stub.
+_uv_unparsed() { jq -r '.review_verdict_unparsed_count'; }
+_uv_shape()    { jq -r '"\(.review_verdicts | length) \(.review_verdict_unparsed_count)"'; }
+# $1 = body → a one-artifact comments / reviews payload authored by a [bot] login.
+_uv_botc() { jq -nc --arg b "$1" '[{user:{login:"github-actions[bot]"},body:$b,created_at:"2026-01-01T00:00:00Z"}]'; }
+_uv_botr() { jq -nc --arg b "$1" '[{user:{login:"github-actions[bot]"},state:"COMMENTED",body:$b,submitted_at:"2026-01-01T00:00:00Z"}]'; }
+UV3_S1='## ✅ Devflow Review — APPROVE'
+UV3_S2='**Devflow Review: APPROVE** ✅'
+UV3_S3='## Verdict'$'\n\n''**APPROVE** ✅'
+UV3_S4='**Verdict: ✅ REJECT**'
+# The closed four-shape set, through the comment leg and the review leg alike.
+assert_eq "#1443 rung3: heading with no Verdict: literal (comment leg)" "APPROVE" \
+  "$(_uv "$(_uv_botc "$UV3_S1")" '[]' | _uv_verds)"
+assert_eq "#1443 rung3: heading with no Verdict: literal (review leg)" "APPROVE" \
+  "$(_uv '[]' "$(_uv_botr "$UV3_S1")" | _uv_verds)"
+assert_eq "#1443 rung3: bold non-heading verdict line (comment leg)" "APPROVE" \
+  "$(_uv "$(_uv_botc "$UV3_S2")" '[]' | _uv_verds)"
+assert_eq "#1443 rung3: bold non-heading verdict line (review leg)" "APPROVE" \
+  "$(_uv '[]' "$(_uv_botr "$UV3_S2")" | _uv_verds)"
+assert_eq "#1443 rung3: Verdict heading, token on a later line (comment leg)" "APPROVE" \
+  "$(_uv "$(_uv_botc "$UV3_S3")" '[]' | _uv_verds)"
+assert_eq "#1443 rung3: Verdict heading, token on a later line (review leg)" "APPROVE" \
+  "$(_uv '[]' "$(_uv_botr "$UV3_S3")" | _uv_verds)"
+assert_eq "#1443 rung3: emoji between Verdict: and the token (comment leg)" "REJECT" \
+  "$(_uv "$(_uv_botc "$UV3_S4")" '[]' | _uv_verds)"
+assert_eq "#1443 rung3: emoji between Verdict: and the token (review leg)" "REJECT" \
+  "$(_uv '[]' "$(_uv_botr "$UV3_S4")" | _uv_verds)"
+# The login gate: a non-[bot] author never reaches the new rung, whatever the shape.
+assert_eq "#1443 rung3: a non-bot login contributes nothing through the new rung" "0 1" \
+  "$(_uv "$(jq -nc --arg b "$UV3_S1" '[{user:{login:"octocat"},body:$b,created_at:"2026-01-01T00:00:00Z"}]')" '[]' | _uv_shape)"
+# Rung 1 wins outright: a marked body carrying an opposite-verdict shape below it
+# contributes the MARKER's verdict once, and the new rung is not consulted.
+assert_eq "#1443 rung3: a valid marker pre-empts the new rung (opposite shape below)" "1-APPROVE" \
+  "$(_uv '[]' "$(_uv_botr "$UVM_APPROVE"$'\n'"$UV3_S4")" | jq -r '"\(.review_verdicts | length)-\(.review_verdicts[0].verdict)"')"
+# The count: 0 with nothing to scan, 0 when everything parsed, 1 for one miss.
+assert_eq "#1443 count: no comments and no reviews → 0" "0" \
+  "$(_uv '[]' '[]' | _uv_unparsed)"
+assert_eq "#1443 count: every verdict-bearing artifact parsed → 0" "0" \
+  "$(_uv "$(_uv_botc "$UV3_S1")" '[]' | _uv_unparsed)"
+assert_eq "#1443 count: exactly one unparsed verdict-bearing artifact → 1" "0 1" \
+  "$(_uv "$(_uv_botc "APPROVE"$'\n'"REJECT"$'\n'"third")" '[]' | _uv_shape)"
+# The tally aggregates across both legs, so a single-artifact case cannot exercise it.
+assert_eq "#1443 count: two unparsed artifacts, one per leg → 2" "0 2" \
+  "$(_uv "$(_uv_botc "APPROVE"$'\n'"REJECT"$'\n'"third")" "$(_uv_botr "APPROVE"$'\n'"REJECT"$'\n'"third")" | _uv_shape)"
+# The closed malformed-payload set: the filter keeps running and the bundle is emitted.
+assert_eq "#1443 malformed: comments payload is a JSON object" "0 0" \
+  "$(_uv '{"a":1}' '[]' | _uv_shape)"
+assert_eq "#1443 malformed: comments payload is a JSON string" "0 0" \
+  "$(_uv '"hello"' '[]' | _uv_shape)"
+assert_eq "#1443 malformed: body is null" "0 0" \
+  "$(_uv '[{"user":{"login":"x[bot]"},"body":null,"created_at":"2026-01-01T00:00:00Z"}]' '[]' | _uv_shape)"
+assert_eq "#1443 malformed: body is a number" "0 0" \
+  "$(_uv '[{"user":{"login":"x[bot]"},"body":5,"created_at":"2026-01-01T00:00:00Z"}]' '[]' | _uv_shape)"
+assert_eq "#1443 malformed: no body key" "0 0" \
+  "$(_uv '[{"user":{"login":"x[bot]"},"created_at":"2026-01-01T00:00:00Z"}]' '[]' | _uv_shape)"
+assert_eq "#1443 malformed: no user key" "0 0" \
+  "$(_uv '[{"body":"nothing to read here","created_at":"2026-01-01T00:00:00Z"}]' '[]' | _uv_shape)"
+assert_eq "#1443 malformed: user is null" "0 0" \
+  "$(_uv '[{"user":null,"body":"nothing to read here","created_at":"2026-01-01T00:00:00Z"}]' '[]' | _uv_shape)"
+assert_eq "#1443 malformed: user.login is an empty string" "0 0" \
+  "$(_uv '[{"user":{"login":""},"body":"nothing to read here","created_at":"2026-01-01T00:00:00Z"}]' '[]' | _uv_shape)"
+# A non-object `user` is the shape that indexes as a string: every reader of .user.login
+# must survive it, or one malformed artifact aborts the whole bundle under set -e.
+assert_eq "#1443 malformed: user is a string (comment leg)" "0 0" \
+  "$(_uv '[{"user":"octocat","body":"nothing to read here","created_at":"2026-01-01T00:00:00Z"}]' '[]' | _uv_shape)"
+assert_eq "#1443 malformed: user is a string (review leg)" "0 0" \
+  "$(_uv '[]' '[{"user":"octocat","state":"COMMENTED","body":"nothing to read here","submitted_at":"2026-01-01T00:00:00Z"}]' | _uv_shape)"
+# `// ""` replaces null and false but not a number, so a non-string login survives into
+# `author` as a non-string. Coverage for the AC7 shape family, not a regression pin: no
+# consumer of a comment or review `author` applies a string operation to it.
+assert_eq "#1443 malformed: user.login is a number (comment leg)" "0 0" \
+  "$(_uv '[{"user":{"login":123},"body":"nothing to read here","created_at":"2026-01-01T00:00:00Z"}]' '[]' | _uv_shape)"
+assert_eq "#1443 malformed: user.login is an object (review leg)" "0 0" \
+  "$(_uv '[]' '[{"user":{"login":{}},"state":"COMMENTED","body":"nothing to read here","submitted_at":"2026-01-01T00:00:00Z"}]' | _uv_shape)"
+# The pages normalizer drops non-object ELEMENTS as well as coercing a non-array page;
+# without that half a mixed-element page aborts every later .[] read.
+assert_eq "#1443 malformed: a page carrying non-object elements still yields the surviving verdict" "REJECT" \
+  "$(_uv '[]' "$(jq -nc --arg b "**Verdict: ✅ REJECT**" '[null,"x",{user:{login:"b[bot]"},state:"COMMENTED",body:$b,submitted_at:"2026-01-01T00:00:00Z"}]')" | _uv_verds)"
+# The entry key set is unchanged, and the count feeds nothing: a rung-3 REJECT still
+# drives review_reject_outstanding through review_verdicts alone.
+assert_eq "#1443 entries still carry EXACTLY verdict/createdAt/source" "true" \
+  "$(_uv "$(_uv_botc "$UV3_S4")" '[]' | jq -r 'all(.review_verdicts[]; (keys | sort) == ["createdAt","source","verdict"])')"
+assert_eq "#1443 a rung-3 REJECT sets review_reject_outstanding=true" "true" \
+  "$(_uv "$(_uv_botc "$UV3_S4")" '[]' | _uv_rro)"
+assert_eq "#1443 an unparsed artifact alone never sets review_reject_outstanding" "false" \
+  "$(_uv "$(_uv_botc "APPROVE"$'\n'"REJECT"$'\n'"third")" '[]' | _uv_rro)"
+# The superseded devflow: spelling is accepted nowhere — not by rung 1, and not by
+# the new rung reading the token out of the marker comment line.
+assert_eq "#1443 a devflow:review-verdict line is not a verdict, even for a bot" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "<!-- devflow:review-verdict head=$UVM_HEAD verdict=REJECT -->")" | _uv_shape)"
+# Adversarial: the new grammar quoted inside a finding, below the scanned window.
+assert_eq "#1443 rung3: the grammar quoted below line 30 contributes nothing" "0 0" \
+  "$(_uv '[]' "$(_uv_botr "$(jq -nr '[range(30)|"filler"] + ["```","## Verdict","APPROVE","```","> **Verdict: REJECT**"] | join("\n")')")" | _uv_shape)"
+# Boundary: the scan window is the first 30 lines, inclusive. The probe line carries
+# no `Verdict:` literal, so rung 2 — which scans every line — cannot answer for it, and
+# the padding is blank so the line stays inside sub-rung 2's first-three-non-blank set.
+assert_eq "#1443 rung3: a token on line 30 is read" "APPROVE" \
+  "$(_uv '[]' "$(_uv_botr "$(jq -nr '[range(29)|""] + ["## ✅ Devflow Review — APPROVE"] | join("\n")')")" | _uv_verds)"
+assert_eq "#1443 rung3: the same token on line 31 is neither read nor counted" "0 0" \
+  "$(_uv '[]' "$(_uv_botr "$(jq -nr '[range(30)|""] + ["## ✅ Devflow Review — APPROVE"] | join("\n")')")" | _uv_shape)"
+# Boundary: the heading lookahead skips blank lines but stops at another heading.
+assert_eq "#1443 rung3: Verdict heading resolves across blank lines" "APPROVE" \
+  "$(_uv '[]' "$(_uv_botr "one"$'\n'"two"$'\n'"three"$'\n\n'"## Verdict"$'\n\n\n\n'"**APPROVE** ✅")" | _uv_verds)"
+assert_eq "#1443 rung3: Verdict heading followed by another heading does not resolve" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "one"$'\n'"two"$'\n'"three"$'\n\n'"## Verdict"$'\n\n'"## Findings"$'\n'"APPROVE")" | _uv_shape)"
+# Multiplicity and ordering: two artifacts matching different sub-rungs, timestamp
+# order preserved, and an untimestamped entry appended after the partition.
+assert_eq "#1443 rung3: two artifacts, different sub-rungs → timestamp order" "APPROVE REJECT" \
+  "$(_uv '[]' "$(jq -nc --arg a "$UV3_S1" --arg r "$UV3_S4" '[{user:{login:"b[bot]"},state:"COMMENTED",body:$a,submitted_at:"2026-01-01T00:00:00Z"},{user:{login:"b[bot]"},state:"COMMENTED",body:$r,submitted_at:"2026-01-02T00:00:00Z"}]')" | _uv_verds)"
+assert_eq "#1443 rung3: an untimestamped entry lands after the timestamped partition" "REJECT APPROVE" \
+  "$(_uv '[]' "$(jq -nc --arg a "$UV3_S1" --arg r "$UV3_S4" '[{user:{login:"b[bot]"},state:"COMMENTED",body:$a,submitted_at:null},{user:{login:"b[bot]"},state:"COMMENTED",body:$r,submitted_at:"2026-01-02T00:00:00Z"}]')" | _uv_verds)"
+# Absence: an empty body and a blank-only body each contribute nothing and count nothing.
+assert_eq "#1443 rung3: an empty body contributes nothing and raises no count" "0 0" \
+  "$(_uv '[]' "$(_uv_botr "")" | _uv_shape)"
+assert_eq "#1443 rung3: a blank-only body contributes nothing and raises no count" "0 0" \
+  "$(_uv '[]' "$(_uv_botr $'\n\n\n')" | _uv_shape)"
+# Negative controls INSIDE the scan window: rung 3 must not mint a verdict from
+# ordinary bot prose, a substring, a quoted line, or commented-out text.
+assert_eq "#1443 rung3: incidental token in bot prose is not a verdict" "0 1" \
+  "$(_uv "$(_uv_botc "Claude finished addressing the REJECT findings."$'\n\n'"All fixed.")" '[]' | _uv_shape)"
+assert_eq "#1443 rung3: a token in prose BELOW an anchored headline is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "### /prflow:review-and-fix"$'\n\n'"Addressed every REJECT finding from the last review.")" | _uv_shape)"
+# The same-line case: the anchor and the token share one line, so no other rung-3
+# constraint applies — only sub-rung 2's own whole-line shape rejects it.
+assert_eq "#1443 rung3: a token in prose ON an anchored headline is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "## Review: addressed the REJECT findings"$'\n\n'"Done.")" | _uv_shape)"
+# The escalation guard needs a body sub-rung 2 WOULD otherwise answer, or it stays green
+# with the guard deleted.
+assert_eq "#1443 rung3: a non-resolving Verdict: line does not escalate to a looser sub-rung" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Verdict: pending"$'\n\n'"Devflow Review: APPROVE")" | _uv_shape)"
+assert_eq "#1443 rung3: a mid-sentence Verdict: mention is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "See the prior Verdict: REJECT here."$'\n\n'"Nothing new.")" | _uv_shape)"
+assert_eq "#1443 rung3: a sentence whose words collapse to a headline is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Do not review. REJECT."$'\n\n'"Explained above.")" | _uv_shape)"
+assert_eq "#1443 rung3: a tilde-fenced rung-3 shape is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Quoting the contract:"$'\n\n'"~~~"$'\n'"## ✅ Devflow Review — APPROVE"$'\n'"~~~")" | _uv_shape)"
+# A structural prefix is not decoration: a list marker, an ordinal, a table pipe, a
+# strikethrough run and a code indent each mark the line as something other than a
+# verdict headline — most often a recap QUOTING a superseded verdict.
+assert_eq "#1443 rung3: a list-item Verdict: line is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "## /prflow:review-and-fix"$'\n\n'"- [ ] Verdict: REJECT")" | _uv_shape)"
+assert_eq "#1443 rung3: an ordinal-listed Verdict: line is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Starting from:"$'\n\n'"1. Verdict: REJECT")" | _uv_shape)"
+assert_eq "#1443 rung3: a table-cell Verdict: line is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Summary:"$'\n\n'"| Verdict: REJECT |")" | _uv_shape)"
+assert_eq "#1443 rung3: a struck-through Verdict: line is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "~~Verdict: REJECT~~"$'\n\n'"Superseded.")" | _uv_shape)"
+assert_eq "#1443 rung3: an indented-code Verdict: line is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Example:"$'\n\n'"    Verdict: REJECT")" | _uv_shape)"
+assert_eq "#1443 rung3: a table-row Review headline is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Summary:"$'\n\n'"| Review | REJECT |")" | _uv_shape)"
+assert_eq "#1443 rung3: a bulleted option under a Verdict heading is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "## Verdict"$'\n\n'"- APPROVE")" | _uv_shape)"
+# Sub-rung 1 matches its token case-sensitively, as sub-rung 2 does.
+assert_eq "#1443 rung3: a lowercase verdict token is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "verdict: reject"$'\n\n'"Explained above.")" | _uv_shape)"
+# The three anchors the previous pass shipped uncovered.
+assert_eq "#1443 rung3: trailing prose after the token is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Verdict: REJECT was superseded by a later APPROVE."$'\n\n'"Done.")" | _uv_shape)"
+assert_eq "#1443 rung3: trailing prose after a Verdict heading token is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "## Verdict"$'\n\n'"APPROVE after the fixes landed.")" | _uv_shape)"
+assert_eq "#1443 count: a lowercase token still raises the residual count" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "the reviewer said approve"$'\n\n'"Nothing else.")" | _uv_shape)"
+# A star bullet is a list marker as much as a dash is, and a typographic quote marks a
+# recap of someone else's verdict — neither is emphasis.
+assert_eq "#1443 rung3: a star-bulleted Verdict: line is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Summary:"$'\n\n'"* Verdict: REJECT")" | _uv_shape)"
+assert_eq "#1443 rung3: a curly-quoted Verdict: line is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "The earlier review said:"$'\n\n''“Verdict: REJECT”')" | _uv_shape)"
+assert_eq "#1443 rung3: a bullet-glyph Verdict: line is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Summary:"$'\n\n'"• Verdict: REJECT")" | _uv_shape)"
+assert_eq "#1443 rung3: an em-dash-prefixed Verdict: line is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Summary:"$'\n\n'"— Verdict: REJECT")" | _uv_shape)"
+# Trailing prose is prose in every script, not only in Latin letters.
+assert_eq "#1443 rung3: non-Latin trailing prose after the token is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Verdict: REJECT — 已被后续的批准取代"$'\n\n'"Done.")" | _uv_shape)"
+# The leading word is script-agnostic: one word plus the anchor plus the token is the same
+# headline whatever script the word is in, so this resolves exactly as an English one does.
+assert_eq "#1443 rung3: a non-Latin leading word makes the same headline" "REJECT" \
+  "$(_uv '[]' "$(_uv_botr "结论 Verdict: REJECT"$'\n\n'"Done.")" | _uv_verds)"
+# Stripping a line must not pull a later line into sub-rung 2's three-line window.
+assert_eq "#1443 rung3: stripping an indented block does not widen the three-line window" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Example:"$'\n\n'"    quoted line one"$'\n'"    quoted line two"$'\n\n'"Devflow Review: REJECT")" | _uv_shape)"
+# A fence closes only on its own marker, so a tilde line inside a backtick block is content.
+# No preamble: the shape must sit inside sub-rung 2's window, or the fence rule is never
+# the deciding factor and the assertion cannot fail under its own named regression.
+assert_eq "#1443 rung3: a tilde line does not close a backtick fence" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "\`\`\`"$'\n'"~~~"$'\n'"## ✅ Devflow Review — APPROVE"$'\n'"\`\`\`")" | _uv_shape)"
+# Stripping a line must not close the gap between a Verdict heading and a later token:
+# the line ADJACENT to the heading is a list item, so the heading resolves to nothing.
+assert_eq "#1443 rung3: a stripped block does not make a later token adjacent to a heading" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "## Verdict"$'\n\n'"- an item"$'\n'"- another"$'\n\n'"**REJECT**")" | _uv_shape)"
+# A stripped line stays stripped even when an identical string survives elsewhere.
+assert_eq "#1443 rung3: a fenced line is not re-admitted by an identical later line" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "\`\`\`"$'\n'"Devflow Review: REJECT"$'\n'"\`\`\`"$'\n'"padding one"$'\n'"padding two"$'\n'"Devflow Review: REJECT")" | _uv_shape)"
+# Dingbat bullets and heavy quotation marks are not emoji decoration.
+assert_eq "#1443 rung3: a dingbat-bulleted Verdict: line is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Earlier:"$'\n\n'"➤ Verdict: REJECT")" | _uv_shape)"
+assert_eq "#1443 rung3: a ballot-box Verdict: line is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Earlier:"$'\n\n'"☑ Verdict: REJECT")" | _uv_shape)"
+assert_eq "#1443 rung3: a heavy-quoted Verdict: line is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Earlier:"$'\n\n'"❝ Verdict: REJECT ❞")" | _uv_shape)"
+# The emoji planes hold speech-bubble and pointer glyphs too, so the allow-list has to
+# reach them as well as the dingbats — this case is separable from the dingbat siblings.
+assert_eq "#1443 rung3: a speech-bubble Verdict: line is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Earlier:"$'\n\n'"🗨 Verdict: REJECT")" | _uv_shape)"
+assert_eq "#1443 rung3: a pointer-glyph Verdict: line is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Earlier:"$'\n\n'"👉 Verdict: REJECT")" | _uv_shape)"
+# The verdict glyphs the corpus actually uses stay legal prefixes.
+assert_eq "#1443 rung3: a red-circle verdict headline still resolves" "REJECT" \
+  "$(_uv '[]' "$(_uv_botr "🔴 Devflow Review — REJECT"$'\n\n'"Done.")" | _uv_verds)"
+# A table row is a table row whether or not it opens with a pipe.
+assert_eq "#1443 rung3: a pipe-bearing Verdict: line is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Summary:"$'\n\n'"what | Verdict: REJECT |")" | _uv_shape)"
+# The comment-region strip needs a body whose commented-out line a rung WOULD read.
+assert_eq "#1443 rung3: a rung-3 shape inside a multi-line HTML comment is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "<!--"$'\n'"## Devflow Review — APPROVE"$'\n'"-->"$'\n'"Some review text.")" | _uv_shape)"
+# APPROVED yields no verdict, but still RAISES the residual count: the counter's operand
+# stays wider than the verdict tokenizer, or an unread artifact vanishes from both.
+assert_eq "#1443 rung3: APPROVED is not the APPROVE token but still counts as unread" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "This PR was APPROVED by the maintainer."$'\n\n'"Nothing else to say.")" | _uv_shape)"
+assert_eq "#1443 count: a rung-3 shape carrying a past-tense token still counts as unread" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "## Devflow Review — APPROVED"$'\n\n'"Done.")" | _uv_shape)"
+assert_eq "#1443 rung3: a blockquoted verdict inside the window is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Addressing the review:"$'\n\n'"> **Verdict: REJECT**"$'\n\n'"Fixed now.")" | _uv_shape)"
+# The fenced shape must carry no rung-2 `Verdict:` heading: rung 2 scans every line with
+# no window, so such a heading is read by rung 2 and never reaches rung 3.
+assert_eq "#1443 rung3: a fenced rung-3 shape inside the window is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "Quoting the contract:"$'\n\n'"\`\`\`"$'\n'"## ✅ Devflow Review — APPROVE"$'\n'"\`\`\`")" | _uv_shape)"
+assert_eq "#1443 rung3: a MULTI-LINE HTML comment carrying a marker is not a verdict" "0 1" \
+  "$(_uv '[]' "$(_uv_botr "<!--"$'\n'"devflow:review-verdict head=$UVM_HEAD verdict=REJECT"$'\n'"-->"$'\n'"Some review text.")" | _uv_shape)"
+# The at-most-one contract, asserted rather than only stated.
+assert_eq "#1443 rung3: two rung-3 verdict lines contribute exactly one entry" "1-APPROVE" \
+  "$(_uv '[]' "$(_uv_botr "**Verdict: APPROVE**"$'\n\n'"later"$'\n\n'"**Verdict: ❌ REJECT**")" | jq -r '"\(.review_verdicts | length)-\(.review_verdicts[0].verdict)"')"
+# Rung 2 still pre-empts rung 3, as rung 1 does. The two rungs must disagree and the
+# rung-3 shape must come FIRST, or the assertion stays green with rung 2 disabled.
+assert_eq "#1443 rung3: the rung-2 heading grammar pre-empts the new rung" "APPROVE" \
+  "$(_uv '[]' "$(_uv_botr "**Devflow Review: REJECT** ✅"$'\n\n'"## Verdict: APPROVE (looks good)")" | _uv_verds)"
+# Idempotency: two runs over identical payloads emit byte-identical results.
+UV3_RUN1="$(_uv "$(_uv_botc "$UV3_S3")" "$(_uv_botr "$UV3_S4")" | jq -c '{review_verdicts, review_verdict_unparsed_count}')"
+UV3_RUN2="$(_uv "$(_uv_botc "$UV3_S3")" "$(_uv_botr "$UV3_S4")" | jq -c '{review_verdicts, review_verdict_unparsed_count}')"
+assert_eq "#1443 rung3: the extraction is idempotent over identical payloads" "$UV3_RUN1" "$UV3_RUN2"
 rm -rf "$F895"
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -15842,11 +16060,9 @@ CI_SKILL_256="$CREATE_ISSUE_BUNDLE"   # #614: content-survival target — the sp
 assert_eq "#256 AC1: create-issue removed the goes-quiet disengagement trigger" "yes" \
   "$(! grep -qF 'goes quiet' "$CI_SKILL_256" && echo yes || echo no)"  # raw-guard-ok: absence pin — the removed trigger literal must be GONE
 # ── #272: create-issue gains UI-change visual-specification awareness ──
-# Retain the template section heading.
-CI_TEMPLATE_272="$LIB/../skills/create-issue/references/issue-template.md"
-# AC6: the template carries the new Visual Specification section heading …
-assert_pin_unique "#272 AC6: issue-template has the Visual Specification section heading" \
-  '## Visual Specification' "$CI_TEMPLATE_272"
+# RETIRED by #1759: #272 AC6 "issue-template has the Visual Specification section heading"; its
+# CI_TEMPLATE_272 sole-reader variable is removed with it to avoid an SC2034 unused-assignment.
+# Disposition: docs/internal/pin-corpus-issue-1759-sweep.md
 
 # ── #446: executable config-reader and implement-offer-gate boundaries ──
 CI446_TMPL="$LIB/../skills/create-issue/references/issue-template.md"
@@ -16231,8 +16447,7 @@ assert_pin_unique "#275 pin (P3-live): phase-3 carries the live --persist backst
   "$PORTABLE_ANCHOR_LITERAL"'lib/efficiency-trace.sh --persist' "$LIB/../skills/implement/phases/phase-3-fix-loop.md"
 assert_pin_unique "#275 pin (P3-live): the gated §4.0.5 reference carries a live file-deferrals.py invocation via the portable anchor" \
   "$PORTABLE_ANCHOR_LITERAL"'scripts/file-deferrals.py' "$LIB/../skills/implement/references/deferred-review-findings.md"  # structural-pin-ok: helper-contract -- the filing helper's invocation must resolve through the portable anchor; a bare or absolute spelling is refused on every runner this anchor exists for
-assert_pin_unique "#275 pin (P4-ci): create-issue preamble carries the never-capture operative sentence" \
-  'Never capture the anchor into a shell variable that a later statement reads' "$LIB/../skills/create-issue/SKILL.md"
+# RETIRED by #1759: #275 pin (P4-ci) "create-issue preamble carries the never-capture operative sentence". Disposition: docs/internal/pin-corpus-issue-1759-sweep.md
 # ────────────────────────────────────────────────────────────────────────────
 echo "#332: resolve-main-root.sh (main-worktree root) + create-issue draft-path"
 # ────────────────────────────────────────────────────────────────────────────
@@ -16359,7 +16574,10 @@ assert_eq "#795: the registered subcommand count was established" "1" \
 # normal clean run elects nothing and the whole round-conducting set moved to _CONDITIONAL,
 # while record-override (a declined run always records the user-decline) moved into the
 # unconditional sequence.
-ALC_795_EXPECT=13
+# Issue #1803 lowered it to 12: every mutation/query now prints a summary-block line carrying
+# the compact query-summary subset, so the clean-path standalone query-summary read at Step 4
+# sub-step 3 is dropped (its answer is read from the preceding call's block).
+ALC_795_EXPECT=12
 assert_eq "#795: the per-round unconditional state-owner call count is $ALC_795_EXPECT" \
   "$ALC_795_EXPECT" "$ALC_795_CALLS"
 printf '  MEASURE  #795 create-issue Step 3.6: unconditional_call_count=%s registered_subcommand_count=%s\n' \
@@ -16484,12 +16702,13 @@ assert_eq "#332 gotcha: Step 2 derivation artifact stays cwd-relative (not main-
 # real skill dir, as on Claude Code) as a command head and assert the resolved helper is
 # actually reached — catching a quoting/expansion defect in the literal (a moved quote, a
 # glob-active placeholder char) that would break all 22 files in lockstep while every
-# static pin stayed GREEN. load-prompt-extension.sh with a bogus skill name exits 0 and
-# prints nothing (the repo tracks only docs.md.example, no live docs.md), so a
-# clean rc-0 no-op IS the observable.
+# static pin stayed GREEN. The repo tracks only docs.md.example (no live docs.md), so the
+# helper takes its whole-file no-op arm; since issue #1299 that arm emits a
+# `PROMPT-EXTENSION-STATUS: present-empty` line, which is the positive reached-the-helper observable.
 PA_BEHAV_CMD="$PORTABLE_ANCHOR_LITERAL"'scripts/load-prompt-extension.sh docs'
 PA_BEHAV_OUT="$(cd "$LIB/.." && CLAUDE_SKILL_DIR="$PWD/skills/docs" bash -c "$PA_BEHAV_CMD" 2>&1)"; PA_BEHAV_RC=$?
-assert_eq "#275 behavioral: the no-extension helper run prints nothing (clean no-op observable)" "" "$PA_BEHAV_OUT"
+assert_eq "#275 behavioral: the no-extension helper run reaches the helper (present-empty token, clean no-op)" "yes" \
+  "$(case "$PA_BEHAV_OUT" in *'PROMPT-EXTENSION-STATUS: present-empty'*) echo yes ;; *) echo no ;; esac)"
 assert_eq "#275 behavioral: the canonical anchor literal executes and reaches the helper (CLAUDE_SKILL_DIR set)" "0" "$PA_BEHAV_RC"
 # And with the var EMPTY the same literal must fail (the placeholder is not a real path) —
 # proving the fallback text is inert as a path, not accidentally resolvable.
@@ -17819,7 +18038,7 @@ echo "review/implement trigger helpers (derive-review-verdict.sh … resolve-com
 # together, or test_module_runner.py's tranche test goes RED.
 # See the module's .inventory.md for the coverage map back to these locations.
 if ! devflow_run_full_suite_module "$LIB/test/modules/review-trigger-helpers.sh" \
-  "review-trigger-helpers" 829; then
+  "review-trigger-helpers" 844; then
   printf 'ERROR: review-trigger-helpers boundary could not record its result\n'
   exit 1
 fi
@@ -18875,7 +19094,7 @@ assert_eq "#936/#582: install.sh's workflow copy loop ships exactly devflow + de
 assert_eq "#936/#582: the withheld auto-review tier is absent from install.sh's copy loop" \
   "absent" "$(case " $_582_SHIPPED " in *" devflow-review "*|*" devflow-runner "*|*" telemetry-push "*) echo present ;; *) echo absent ;; esac)"
 _582_RETAINED="devflow-runner telemetry-push"
-_582_INTERNAL="ci matcher-probe version-consolidate agents-seam-probe"
+_582_INTERNAL="ci matcher-probe version-consolidate agents-seam-probe stall-observer"
 # Exhaustive-and-disjoint: compare the on-disk basename set against the three lists
 # concatenated. A duplicate across lists makes the concatenated count exceed the
 # deduplicated count; a missing file makes the sorted sets differ. Both are asserted.
@@ -19400,7 +19619,7 @@ assert_eq "app-token: overview §15 positively documents the optional App (DEVFL
 # The registry and this full-suite call share the same lower-bound contract;
 # test_module_runner.py parses this operand and rejects any coupling drift.
 if ! devflow_run_full_suite_module "$LIB/test/modules/efficiency-trace-telemetry.sh" \
-  "efficiency-trace-telemetry" 938; then
+  "efficiency-trace-telemetry" 942; then
   printf 'ERROR: efficiency-trace-telemetry boundary could not record its result\n'
   exit 1
 fi
@@ -24383,7 +24602,11 @@ assert_eq "#858 matcher-probe: Task is absent from the capability manifest (the 
 # provenance claim, so pin the form the jobs actually pass.
 # structural-pin-ok: machine-sentinel-provenance -- the recorded ref/commit IS the record's
 # provenance key; a wrong value makes the committed evidence unre-verifiable after merge.
-assert_eq "#858 matcher-probe: both verdict steps pass the PR head ref/sha, not the merge ref/sha" "2" \
+# All verdict steps that record a ref use the PR HEAD ref/sha, never the merge ref/sha: the
+# two subagent-write jobs (#858) plus the two skill-body-load jobs (#1618) added the same
+# idiom, so this count is 4. Any verdict step reverting to the merge-commit GITHUB_SHA is
+# caught by the sibling assertion just below.
+assert_eq "#858 matcher-probe: every ref-recording verdict step passes the PR head ref/sha, not the merge ref/sha" "4" \
   "$(grep -cF -- '--ref "${PROBE_REF}"' "$LIB/../.github/workflows/matcher-probe.yml" || true)"
 assert_eq "#858 matcher-probe: neither verdict step reverted to the merge-commit GITHUB_SHA" "0" \
   "$(grep -cF -- '--head-commit "${GITHUB_SHA}"' "$LIB/../.github/workflows/matcher-probe.yml" || true)"
@@ -24665,6 +24888,343 @@ print("coupled")
 PY_PPV_COUPLED
 )"
 rm -rf "$PPV_TMP"
+
+# ────────────────────────────────────────────────────────────────────────────
+echo "#1618 skill-body-load-probe verdict deriver"
+# ────────────────────────────────────────────────────────────────────────────
+# scripts/skill-body-load-probe-verdict.py derives, per engine root, whether the Skill
+# tool delivered that root's SKILL.md body WHOLE — from the body record that FOLLOWS the
+# Skill tool_result in a claude-code-action execution file, never model text. Its verdict is what a maintainer
+# transcribes into docs/internal/skill-body-load-delivery.md, so every arm is driven here
+# rather than left to a paid probe run. Same treatment as the #1264 sibling above:
+# unmodularized, no focused_test, driven inline from run.sh.
+SBL="$LIB/../scripts/skill-body-load-probe-verdict.py"
+SBL_REVIEW="$LIB/../skills/review/SKILL.md"
+SBL_IMPLEMENT="$LIB/../skills/implement/SKILL.md"
+SBL_TMP="$(mktemp -d)"
+sbl_build() {  # $1 scenario -> writes $SBL_TMP/exec.jsonl; rc 0 AND non-empty on success
+  python3 - "$SBL_TMP/exec.jsonl" "$1" "$SBL_REVIEW" "$SBL_IMPLEMENT" <<'PY_SBL'
+import json, os, sys
+out, scen, path, impl_path = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+body = open(path, encoding="utf-8").read()
+impl_body = open(impl_path, encoding="utf-8").read()
+tail = [ln.strip() for ln in body.splitlines() if ln.strip()][-1]
+review_dir = os.path.dirname(path)
+impl_dir = os.path.dirname(impl_path)
+other_dir = os.path.join(os.path.dirname(review_dir), "implement")
+# The runner's own ABSOLUTE base directory, as a real transcript records it. Do not rewrite
+# these to on-disk paths: an identical pair on both sides drives only dirs_match's equality
+# branch, leaving the suffix branch every production reading takes unexercised.
+runner_dir = "/home/runner/work/prflow/prflow/skills/review"
+boundary_dir = "/home/runner/work/prflow/prflow/myskills/review"
+PREFIX = "Base directory for this skill: "
+# These fixtures reproduce the RECORD LAYOUT of a real claude-code-action transcript: the
+# Skill tool_result is a ~30-byte launch STUB and the body arrives in the NEXT, user-role
+# record. Writing the body into the tool_result would make every assertion below vacuous.
+def skill_use(name="prflow:review", uid="su1"):
+    return {"type": "assistant", "message": {"role": "assistant", "content": [
+        {"type": "tool_use", "name": "Skill", "id": uid, "input": {"skill": name}}]}}
+def stub(uid="su1", is_error=False, content=None):
+    if content is None:
+        content = "Launching skill: prflow:review"
+    return {"type": "user", "message": {"role": "user", "content": [
+        {"type": "tool_result", "tool_use_id": uid, "content": content,
+         "is_error": is_error}]}}
+def body_rec(text, base=None, role="user"):
+    base = review_dir if base is None else base
+    return {"type": role, "message": {"role": role, "content": [
+        {"type": "text", "text": PREFIX + base + "\n\n" + text}]}}
+# Each scenario maps to a list of records, EXCEPT the fixture-free ones (absent/unparseable),
+# which are handled by the caller. An unrecognised scenario raises, so the build fails rather
+# than leaving an empty fixture the helper would read as unparseable and pass for the wrong reason.
+scenarios = {
+    "whole":       [skill_use(), stub(), body_rec(body)],
+    # tool_result content as a list of text blocks — the other real stub serialization.
+    "whole_blocks":[skill_use(),
+                    stub(content=[{"type": "text", "text": "Launching skill: prflow:review"}]),
+                    body_rec(body)],
+    # Body missing its final line: the tail control cannot be found.
+    "short_tail":  [skill_use(), stub(), body_rec(body.rsplit("\n", 2)[0])],
+    # Only the tail line survives: tail present, a real interior line absent.
+    "mid_gap":     [skill_use(), stub(), body_rec(tail)],
+    # A whole body that ALSO carries a cap notice — the marker arm fires before the tail check.
+    "trunc_marker":[skill_use(), stub(), body_rec(body + "\nshowing lines 1-10 of 343 (cap 25000)")],
+    # The load happened but NO body record followed — measuring the stub alone must not
+    # adjudicate anything, so this is unestablished rather than a short delivery.
+    "stub_only":   [skill_use(), stub()],
+    # A body record naming a DIFFERENT skill's directory: another root's body must not be
+    # adjudicated as this one's.
+    "wrong_dir_body":[skill_use(), stub(), body_rec(body, base=other_dir)],
+    # PRODUCTION DIRECTORY SHAPE: an absolute runner base dir against a repo-relative --root,
+    # which only dirs_match's SUFFIX branch resolves.
+    "abs_suffix_dir":[skill_use(), stub(), body_rec(body, base=runner_dir)],
+    # SEPARATOR BOUNDARY: `myskills/review` is a bare suffix of `skills/review` but not a
+    # component-boundary one. Do not swap in a non-suffix directory — the refusal would then
+    # come from the directory differing at all, and the `/` guard would go unpinned.
+    "boundary_dir": [skill_use(), stub(), body_rec(body, base=boundary_dir)],
+    # The prefix in an ASSISTANT record is the model talking about a delivery, not one.
+    "assistant_body":[skill_use(), stub(), body_rec(body, role="assistant")],
+    # No Skill tool_use at all — the body was never loaded by this channel.
+    "no_skill":    [{"type": "assistant", "message": {"role": "assistant", "content": [
+                        {"type": "tool_use", "name": "Bash", "id": "b1",
+                         "input": {"command": "true"}}]}}],
+    # A Skill load that returned an error (refused/aborted) — the abort mode, not truncation.
+    "err_result":  [skill_use(), stub(is_error=True, content="permission denied")],
+    # A Skill tool_use recorded with NO paired result — nothing was delivered to measure.
+    "no_result":   [skill_use()],
+    # Parses cleanly but records no tool_use of any kind.
+    "wrong_shape": [{"type": "system", "note": "no tool uses here"}],
+    # TWO Skill loads in one transcript, each with its OWN body. Do not collapse this to a
+    # single load: it is the only fixture that closes the position window's upper bound, and
+    # a window narrowed by one drops the FIRST load's body while every single-load arm stays green.
+    "two_skill_loads": [skill_use("prflow:review", "su1"), stub("su1"), body_rec(body),
+                        skill_use("prflow:implement", "su2"),
+                        stub("su2", content="Launching skill: prflow:implement"),
+                        body_rec(impl_body, base=impl_dir)],
+    # The review body arrives AFTER a LATER Skill tool_use. Do not move it before that tool_use:
+    # its position is what proves the window STOPS there, so a window widened to the end of the
+    # transcript mis-credits this body to the earlier load and reports a delivery it cannot attribute.
+    "late_body":   [skill_use("prflow:review", "su1"), stub("su1"),
+                    skill_use("prflow:implement", "su2"),
+                    stub("su2", content="Launching skill: prflow:implement"),
+                    body_rec(body)],
+}
+if scen == "unparseable":
+    open(out, "w", encoding="utf-8").write("{ not json at all\n")
+elif scen == "leading_comment":
+    # The PUBLISHED artifact shape: scripts/scrub-transcript.sh prepends one `#` caveat line
+    # to the pretty-printed array, which strict json.loads rejects.
+    open(out, "w", encoding="utf-8").write(
+        "# DEVFLOW SCRUB CAVEAT: best-effort blocklist redaction. Treat as sensitive.\n"
+        + json.dumps(scenarios["whole"], indent=2) + "\n")
+elif scen == "interior_comment":
+    # Only the LEADING blank/`#` run is stripped. Do not move the trailing `#` line to the top:
+    # its position is what proves an interior `#` still counts as unparseable, and a stripper
+    # that dropped every `#` line would hide the corruption and report a clean read.
+    with open(out, "w", encoding="utf-8") as fh:
+        fh.write("# DEVFLOW SCRUB CAVEAT: best-effort blocklist redaction.\n\n")
+        for r in scenarios["whole"]:
+            fh.write(json.dumps(r) + "\n")
+        fh.write("# not a record\n")
+elif scen == "whole_json":
+    # A single whole-file JSON document (not JSONL) — exercises parse_execution_file's
+    # json.loads(raw) success path, which the line-by-line fixtures never reach.
+    open(out, "w", encoding="utf-8").write(json.dumps(scenarios["whole"]))
+elif scen == "partial_corrupt":
+    # Some lines parse, one does not: parse_execution_file returns a non-empty note_top, which
+    # forces every root to unestablished even though a valid Skill pair was recovered.
+    with open(out, "w", encoding="utf-8") as fh:
+        for r in scenarios["whole"]:
+            fh.write(json.dumps(r) + "\n")
+        fh.write("{ this line is not valid json\n")
+elif scen in scenarios:
+    with open(out, "w", encoding="utf-8") as fh:
+        for r in scenarios[scen]:
+            fh.write(json.dumps(r) + "\n")
+else:
+    raise SystemExit("unrecognised scenario: %s" % scen)
+PY_SBL
+  _sbl_rc=$?
+  [ "$_sbl_rc" -eq 0 ] && [ -s "$SBL_TMP/exec.jsonl" ]
+}
+sbl() {  # $1 scenario -> the first per-root VERDICT token (single-root fixtures)
+  if ! sbl_build "$1"; then printf 'FIXTURE_BUILD_FAILED'; return 0; fi
+  local _out
+  _out="$(python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" 2>/dev/null)"
+  # Pure parameter expansion (CLAUDE.md guard-class 2: no tr/sed/cut, which would fail OPEN).
+  # The audit summary line is `AUDIT: …` (not `AUDIT VERDICT:`), so the first `VERDICT: `
+  # match is a per-root verdict, never the summary.
+  case "$_out" in
+    *'VERDICT: '*) local _v="${_out#*'VERDICT: '}"; printf '%s' "${_v%%$'\n'*}" ;;
+    *) printf 'NO_VERDICT' ;;
+  esac
+}
+sbl_rel() {  # $1 scenario -> first VERDICT token, run from the repo root with a REPO-RELATIVE
+             # --root. Do not switch this to an absolute --root: the relative form is what makes
+             # dirs_match take its production suffix branch instead of the equality branch.
+  if ! sbl_build "$1"; then printf 'FIXTURE_BUILD_FAILED'; return 0; fi
+  local _out
+  _out="$(cd "$LIB/.." && python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=skills/review/SKILL.md" 2>/dev/null)"
+  case "$_out" in
+    *'VERDICT: '*) local _v="${_out#*'VERDICT: '}"; printf '%s' "${_v%%$'\n'*}" ;;
+    *) printf 'NO_VERDICT' ;;
+  esac
+}
+# NEGATIVE CONTROL — an unrecognised scenario must FAIL the build, or the sweep is vacuous.
+assert_eq "#1618 skill-body: an unrecognised fixture scenario fails the build" "failed" \
+  "$(sbl_build __no_such_scenario__ 2>/dev/null && echo built || echo failed)"
+assert_eq "#1618 skill-body: a recognised fixture scenario still builds" "built" \
+  "$(sbl_build whole 2>/dev/null && echo built || echo failed)"
+
+# The two real measurements: a body delivered whole, and a tail loss. The whole-body arm is
+# the regression guard for the wrong-record defect — the body lives in the record AFTER the
+# Skill tool_result, so a helper measuring the ~30-byte launch stub reads short-delivery here.
+assert_eq "#1618 skill-body: whole body in the following record -> delivered-whole" \
+  "delivered-whole" "$(sbl whole)"
+assert_eq "#1618 skill-body: tail line missing -> short-delivery (tail lost)" \
+  "short-delivery" "$(sbl short_tail)"
+assert_eq "#1618 skill-body: tail present but interior gone -> short-delivery" \
+  "short-delivery" "$(sbl mid_gap)"
+assert_eq "#1618 skill-body: a cap/truncation notice in the body -> short-delivery" \
+  "short-delivery" "$(sbl trunc_marker)"
+
+# Every degraded arm is `unestablished`, never `delivered-whole`: a body that was never
+# loaded, a load that errored, an unpaired call, or a wrong-shape/unreadable file is
+# unknown — not whole. Collapsing any of them onto delivered-whole is the fail-open the
+# arm ordering exists to prevent.
+assert_eq "#1618 skill-body: no Skill tool_use -> unestablished (never loaded)" \
+  "unestablished" "$(sbl no_skill)"
+assert_eq "#1618 skill-body: Skill load returned an error -> unestablished (abort mode)" \
+  "unestablished" "$(sbl err_result)"
+assert_eq "#1618 skill-body: Skill call with no paired result -> unestablished" \
+  "unestablished" "$(sbl no_result)"
+assert_eq "#1618 skill-body: well-formed JSON of the wrong shape -> unestablished" \
+  "unestablished" "$(sbl wrong_shape)"
+assert_eq "#1618 skill-body: launch stub with no body record -> unestablished" \
+  "unestablished" "$(sbl stub_only)"
+assert_eq "#1618 skill-body: body record naming another skill's directory -> unestablished" \
+  "unestablished" "$(sbl wrong_dir_body)"
+assert_eq "#1618 skill-body: the prefix in an assistant record is not a delivery" \
+  "unestablished" "$(sbl assistant_body)"
+assert_eq "#1618 skill-body: unparseable execution file -> unestablished" \
+  "unestablished" "$(sbl unparseable)"
+assert_eq "#1618 skill-body: an absent execution file -> unestablished" \
+  "unestablished" \
+  "$(_o="$(python3 "$SBL" "$SBL_TMP/definitely-not-here.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" 2>/dev/null)"; case "$_o" in *'VERDICT: '*) _v="${_o#*'VERDICT: '}"; printf '%s' "${_v%%$'\n'*}" ;; *) printf 'NO_VERDICT' ;; esac)"
+
+# A tool_result whose content is a list of text blocks is still only the launch stub; the
+# following body record is what carries the delivery.
+assert_eq "#1618 skill-body: tool_result content as a list of text blocks -> delivered-whole" \
+  "delivered-whole" "$(sbl whole_blocks)"
+# The PUBLISHED transcript artifact carries one leading `#` caveat line, which strict JSON
+# rejects; without comment tolerance every line falls to the JSONL path and is dropped.
+assert_eq "#1618 skill-body: published artifact (leading # caveat) -> delivered-whole" \
+  "delivered-whole" "$(sbl leading_comment)"
+# A single whole-file JSON document (not JSONL) still resolves — the whole-file json.loads path.
+assert_eq "#1618 skill-body: whole-file JSON (not JSONL) -> delivered-whole" \
+  "delivered-whole" "$(sbl whole_json)"
+# A partially-corrupt file (some lines parse, one does not) forces unestablished — a recovered
+# Skill pair must NOT be adjudicated as delivered-whole when the file could not be read cleanly.
+assert_eq "#1618 skill-body: partially-corrupt execution file -> unestablished (not a clean read)" \
+  "unestablished" "$(sbl partial_corrupt)"
+# The on-disk control file is unreadable: read_controls fails, so the delivered body cannot be
+# checked -> unestablished, never collapsed onto delivered-whole. The bogus --root names a
+# MISSING FILE INSIDE the delivered body's own directory; a path in another directory would be
+# refused one arm earlier by the base-directory match and never reach read_controls.
+assert_eq "#1618 skill-body: unreadable on-disk control file -> unestablished" \
+  "unestablished" \
+  "$(sbl_build whole >/dev/null 2>&1; _o="$(python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$LIB/../skills/review/DEFINITELY-NOT-HERE.md" 2>/dev/null)"; case "$_o" in *'VERDICT: '*) _v="${_o#*'VERDICT: '}"; printf '%s' "${_v%%$'\n'*}" ;; *) printf 'NO_VERDICT' ;; esac)"
+assert_eq "#1618 skill-body: the control-file arm is reached, not the missing-body arm" "yes" \
+  "$(sbl_build whole >/dev/null 2>&1; python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$LIB/../skills/review/DEFINITELY-NOT-HERE.md" 2>/dev/null | grep -q 'could not be read for controls' && echo yes || echo no)"
+# Multi-root audit (the shape both workflow jobs actually use): two --root operands emit two
+# per-root VERDICT lines. The `whole` fixture carries a prflow:review pair only, so review reads
+# delivered-whole and implement (no pair) reads unestablished — proving the loop runs per root
+# rather than short-circuiting on the first. Counted with grep -c (a missing count fails the
+# assert loudly), never a selection-determining tr/sed pipeline.
+assert_eq "#1618 skill-body: multi-root audit emits a delivered-whole for the present root" "1" \
+  "$(sbl_build whole >/dev/null 2>&1; python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" --root "prflow:implement=/definitely/not/here/SKILL.md" 2>/dev/null | grep -c 'VERDICT: delivered-whole')"
+assert_eq "#1618 skill-body: multi-root audit emits an unestablished for the absent root" "1" \
+  "$(sbl_build whole >/dev/null 2>&1; python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" --root "prflow:implement=/definitely/not/here/SKILL.md" 2>/dev/null | grep -c 'VERDICT: unestablished')"
+
+# MULTI-LOAD ATTRIBUTION — the position window (stop = use_positions[n+1]) claims every body
+# record between one Skill tool_use and the NEXT. Both bounds are driven here: every other
+# fixture carries a single load and leaves an off-by-one or an unbounded window green.
+assert_eq "#1618 skill-body: two Skill loads in one transcript -> each root delivered-whole" "2" \
+  "$(sbl_build two_skill_loads >/dev/null 2>&1; python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" --root "prflow:implement=$SBL_IMPLEMENT" 2>/dev/null | grep -c 'VERDICT: delivered-whole')"
+# Stop bound: a body arriving after a LATER tool_use belongs to neither load — the earlier load's
+# window has closed and the later load's own window holds a body naming another skill's directory.
+# An unbounded window credits it to the earlier load and this count rises to 1.
+assert_eq "#1618 skill-body: a body after a later Skill tool_use is credited to neither load" "0" \
+  "$(sbl_build late_body >/dev/null 2>&1; python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" --root "prflow:implement=$SBL_IMPLEMENT" 2>/dev/null | grep -c 'VERDICT: delivered-whole')"
+# ATTRIBUTED REJECTION: the review root must be refused by the no-following-body arm specifically,
+# not by an unrelated precondition (never-loaded / no-result / error) upstream of it.
+assert_eq "#1618 skill-body: the late body is refused by the no-following-body arm" "yes" \
+  "$(sbl_build late_body >/dev/null 2>&1; python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" 2>/dev/null | grep -q 'no following body record naming its own' && echo yes || echo no)"
+# POSITIVE CONTROL on that same fixture: both loads WERE recorded and paired, so the refusal above
+# is the window closing rather than a fixture the helper could not read.
+assert_eq "#1618 skill-body: the late-body fixture still records both Skill loads" "yes" \
+  "$(sbl_build late_body >/dev/null 2>&1; python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" 2>/dev/null | grep -q 'recorded Skill tool_use pairs: 2' && echo yes || echo no)"
+
+# DIRECTORY MATCH — every fixture above builds the body's base dir from the same on-disk path
+# the --root spec names, so they drive dirs_match's equality branch only. Production never takes
+# it: the transcript carries an absolute runner dir while --root is repo-relative.
+assert_eq "#1618 skill-body: absolute runner base dir vs repo-relative root -> delivered-whole" \
+  "delivered-whole" "$(sbl_rel abs_suffix_dir)"
+# Separator boundary: a bare-suffix directory (`myskills/review`) is not a component-boundary
+# suffix of `skills/review`, so it must NOT be adjudicated as this root's body.
+assert_eq "#1618 skill-body: a bare-suffix directory does not satisfy the root -> unestablished" \
+  "unestablished" "$(sbl_rel boundary_dir)"
+# ATTRIBUTED REJECTION: the refusal must come from the directory-match arm, not an upstream
+# precondition. abs_suffix_dir is the same fixture shape one directory component apart and it
+# resolves, so it is the positive control proving the `/` guard is what refused this one.
+assert_eq "#1618 skill-body: the bare-suffix body is refused by the no-following-body arm" "yes" \
+  "$(sbl_build boundary_dir >/dev/null 2>&1; (cd "$LIB/.." && python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=skills/review/SKILL.md" 2>/dev/null) | grep -q 'no following body record naming its own' && echo yes || echo no)"
+
+# Only the LEADING blank/`#` run is stripped: the caveat line and the blank after it go, while a
+# `#` line INSIDE the file stays unparseable and forces unestablished. A stripper that dropped
+# every `#` line would hide that corruption and report a clean read.
+assert_eq "#1618 skill-body: a # line inside the file is not stripped -> unestablished" \
+  "unestablished" "$(sbl interior_comment)"
+
+# Empty selection MUST fail rather than report a clean pass — an audit that audited nothing
+# reading as an audit that found nothing is this defect one level up. No --root -> exit !=0,
+# NO-ROOTS, and never a delivered-whole line.
+assert_eq "#1618 skill-body: empty selection (no --root) exits non-zero" "nonzero" \
+  "$(python3 "$SBL" "$SBL_TMP/exec.jsonl" >/dev/null 2>&1 && echo zero || echo nonzero)"
+assert_eq "#1618 skill-body: empty selection prints NO-ROOTS, not a clean pass" "yes" \
+  "$(python3 "$SBL" "$SBL_TMP/exec.jsonl" 2>/dev/null | grep -q 'AUDIT: NO-ROOTS' && echo yes || echo no)"
+assert_eq "#1618 skill-body: empty selection prints no delivered-whole verdict" "yes" \
+  "$(python3 "$SBL" "$SBL_TMP/exec.jsonl" 2>/dev/null | grep -q 'VERDICT: delivered-whole' && echo no || echo yes)"
+
+# COUPLED SITES: the two workflow jobs and the helper are one contract. Each job must load
+# the prflow plugin, capture the full output, invoke the helper, and audit BOTH engine roots
+# at their real on-disk paths — a job that dropped a --root would silently measure nothing
+# for that root while the suite stayed green.
+assert_eq "#1618 skill-body: matcher-probe jobs and helper are coupled" "coupled" \
+  "$(python3 - "$LIB/../.github/workflows/matcher-probe.yml" <<'PY_SBL_COUPLED'
+import sys, yaml
+wf_path = sys.argv[1]
+jobs = yaml.safe_load(open(wf_path, encoding="utf-8"))["jobs"] or {}
+roots = {"prflow:review": "skills/review/SKILL.md", "prflow:implement": "skills/implement/SKILL.md"}
+for job_name, tier in (("skill-body-load-review-probe", "review"),
+                       ("skill-body-load-implement-probe", "implement")):
+    job = jobs.get(job_name)
+    if not job:
+        print("matcher-probe.yml has no %s job" % job_name); sys.exit(0)
+    steps = job.get("steps") or []
+    claude = [s for s in steps if isinstance(s.get("with"), dict) and "claude_args" in s["with"]]
+    if not claude:
+        print("%s has no claude-code-action step" % job_name); sys.exit(0)
+    with_ = claude[0]["with"]
+    if with_.get("show_full_output") is not True:
+        print("%s does not set show_full_output: true — the tool_result is not captured" % job_name)
+        sys.exit(0)
+    plugins = str(with_.get("plugins", ""))
+    if "prflow@" not in plugins:
+        print("%s does not load the prflow plugin, so the engine roots never load" % job_name)
+        sys.exit(0)
+    verdict_steps = [s for s in steps if "skill-body-load-probe-verdict.py" in str(s.get("run", ""))]
+    if not verdict_steps:
+        print("%s never invokes the verdict helper" % job_name); sys.exit(0)
+    run = str(verdict_steps[0]["run"])
+    for name, path in roots.items():
+        if ("%s=%s" % (name, path)) not in run:
+            print("%s verdict step does not audit root %s at %s" % (job_name, name, path))
+            sys.exit(0)
+    if ("--tier %s" % tier) not in run and ("--tier=%s" % tier) not in run:
+        print("%s verdict step does not name its tier %s" % (job_name, tier)); sys.exit(0)
+# The audited paths must be real files, or the on-disk control read is vacuous. Derive the
+# repo root from the (normalized) workflow path: .github/workflows/matcher-probe.yml is three
+# levels below the root.
+import os
+base = os.path.dirname(os.path.dirname(os.path.dirname(os.path.normpath(wf_path))))
+for path in roots.values():
+    if not os.path.isfile(os.path.join(base, path)):
+        print("audited root path does not exist on disk: %s" % path); sys.exit(0)
+print("coupled")
+PY_SBL_COUPLED
+)"
+rm -rf "$SBL_TMP"
 
 # ────────────────────────────────────────────────────────────────────────────
 echo "docs per-step toggles (docs.internal_enabled / docs.external_enabled)"
@@ -31616,9 +32176,9 @@ assert_eq "#313 resolver: default (no providers, no section provider) → Anthro
   "$(echo '{"claude_model":"claude-opus-4-8","prflow_implement":{}}' | r313 prflow_implement)"
 # ACs 3/4: implement-section decision carries openrouter fields; the runner
 # section stays default in the SAME config (per-section isolation).
-R313_CFG='{"claude_model":"m","providers":{"openrouter":{"base_url":"https://openrouter.ai/api","auth":"bearer","timeout_ms":3000000,"env":{"CLAUDE_CODE_SUBAGENT_MODEL":"z-ai/glm-5.2"}}},"prflow_implement":{"provider":"openrouter","claude_model":"z-ai/glm-5.2"}}'
+R313_CFG='{"claude_model":"m","providers":{"openrouter":{"base_url":"https://openrouter.ai/api","auth":"bearer","timeout_ms":3000000,"env":{"ANTHROPIC_DEFAULT_HAIKU_MODEL":"z-ai/glm-4.7"}}},"prflow_implement":{"provider":"openrouter","claude_model":"z-ai/glm-5.2"}}'
 assert_eq "#313 resolver: section provider selects openrouter (base_url/auth/model/env)" \
-  '{"provider":"openrouter","base_url":"https://openrouter.ai/api","auth":"bearer","timeout_ms":3000000,"effort_supported":false,"model":"z-ai/glm-5.2","env":{"CLAUDE_CODE_SUBAGENT_MODEL":"z-ai/glm-5.2"}}' \
+  '{"provider":"openrouter","base_url":"https://openrouter.ai/api","auth":"bearer","timeout_ms":3000000,"effort_supported":false,"model":"z-ai/glm-5.2","env":{"ANTHROPIC_DEFAULT_HAIKU_MODEL":"z-ai/glm-4.7"}}' \
   "$(echo "$R313_CFG" | r313 prflow_implement)"
 assert_eq "#313 resolver: unrelated section stays Anthropic-default in the same provider config (AC 4 isolation)" \
   '{"provider":"","base_url":"","auth":"","timeout_ms":"","effort_supported":true,"model":"m","env":{}}' \
@@ -31645,10 +32205,27 @@ assert_eq "#313 resolver: effort_supported true when provider sets it (keep --ef
 # truthiness (a mutation to `(… // false)` would flip this GREEN→behavior on a gateway).
 assert_eq "#313 resolver: effort_supported non-boolean (string) → false (strict == true)" "false" \
   "$(echo '{"claude_model":"m","providers":{"p":{"base_url":"u","auth":"api_key","effort_supported":"true"}},"prflow_implement":{"provider":"p"}}' | r313 prflow_implement | jq -r .effort_supported)"
-# AC 4: the provider env map (haiku/subagent/betas keys) survives intact.
+# AC 4: the provider env map (background-model/attribution/betas keys) survives intact.
+# Keep every key here off the inject step's deny list (issue #1773): the resolver does no name
+# filtering, so a denied key would pass here while encoding a config the inject step refuses.
 assert_eq "#313 resolver: provider env map survives into the decision intact" \
-  '{"ANTHROPIC_DEFAULT_HAIKU_MODEL":"z-ai/glm-4.7","CLAUDE_CODE_SUBAGENT_MODEL":"z-ai/glm-5.2","CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS":"1"}' \
-  "$(echo '{"claude_model":"m","providers":{"p":{"base_url":"u","auth":"bearer","env":{"ANTHROPIC_DEFAULT_HAIKU_MODEL":"z-ai/glm-4.7","CLAUDE_CODE_SUBAGENT_MODEL":"z-ai/glm-5.2","CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS":"1"}}},"prflow_implement":{"provider":"p"}}' | r313 prflow_implement | jq -c .env)"
+  '{"ANTHROPIC_DEFAULT_HAIKU_MODEL":"z-ai/glm-4.7","CLAUDE_CODE_ATTRIBUTION_HEADER":"0","CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS":"1"}' \
+  "$(echo '{"claude_model":"m","providers":{"p":{"base_url":"u","auth":"bearer","env":{"ANTHROPIC_DEFAULT_HAIKU_MODEL":"z-ai/glm-4.7","CLAUDE_CODE_ATTRIBUTION_HEADER":"0","CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS":"1"}}},"prflow_implement":{"provider":"p"}}' | r313 prflow_implement | jq -c .env)"
+
+# AC 1 (#1770): a bedrock_api_key entry with NO base_url resolves to an ACTIVE provider
+# decision (not an incomplete_provider error) — base_url is optional on this arm, default "".
+assert_eq "#313/#1770 resolver: bedrock_api_key entry without base_url → active decision (base_url empty)" \
+  '{"provider":"bed","base_url":"","auth":"bedrock_api_key","timeout_ms":"","effort_supported":false,"model":"us.anthropic.claude-x","env":{"AWS_REGION":"us-east-1"}}' \
+  "$(echo '{"claude_model":"m","providers":{"bed":{"auth":"bedrock_api_key","env":{"AWS_REGION":"us-east-1"}}},"prflow_implement":{"provider":"bed","claude_model":"us.anthropic.claude-x"}}' | r313 prflow_implement)"
+# #1770: a bedrock_api_key entry MAY still carry a base_url — the resolver keeps it in the
+# decision (the inject step ignores it and warns); the arm stays active, not an error.
+assert_eq "#313/#1770 resolver: bedrock_api_key entry carrying base_url → decision retains it (inject warns)" \
+  '{"provider":"bed","base_url":"https://x","auth":"bedrock_api_key","timeout_ms":"","effort_supported":false,"model":"m","env":{"AWS_REGION":"us-east-1"}}' \
+  "$(echo '{"claude_model":"m","providers":{"bed":{"auth":"bedrock_api_key","base_url":"https://x","env":{"AWS_REGION":"us-east-1"}}},"prflow_implement":{"provider":"bed"}}' | r313 prflow_implement)"
+# #1770 six-shape matrix (base_url on the bedrock arm): a wrong-type base_url coerces to ""
+# rather than crashing or erroring — base_url is not required nor validated on this arm.
+assert_eq "#313/#1770 resolver: bedrock_api_key entry with wrong-type base_url → base_url coerced to empty" "" \
+  "$(echo '{"claude_model":"m","providers":{"bed":{"auth":"bedrock_api_key","base_url":{"x":1},"env":{"AWS_REGION":"us-east-1"}}},"prflow_implement":{"provider":"bed"}}' | r313 prflow_implement | jq -r .base_url)"
 
 # AC 9: adversarial input-shape matrix — each malformed shape yields exit-0 plus its
 # SPECIFIC (not generic) documented decision/error marker. The resolver type-guards every
@@ -31660,11 +32237,12 @@ assert_eq "#313 matrix: providers wrong-type (string) → undefined_provider mar
   '{"error":"undefined_provider","section":"prflow_implement","provider":"openrouter","detail":"provider is not defined in the providers map"}' \
   "$(echo '{"claude_model":"m","providers":"nope","prflow_implement":{"provider":"openrouter"}}' | r313 prflow_implement)"
 # Provider PRESENT but incomplete → FAIL-LOUD error marker (not a silent default with an
-# empty base_url/auth): a provider-active decision must never reach the inject step with an
-# empty ANTHROPIC_BASE_URL / a non-{bearer,api_key} auth (review C1/sfh — the old fail-open).
-assert_eq "#313 matrix: provider entry present but missing base_url → incomplete_provider marker (fail-loud)" \
+# empty base_url/auth): a bearer/api_key provider-active decision must never reach the inject
+# step with an empty ANTHROPIC_BASE_URL, and the resolver rejects an auth value outside
+# {bearer,api_key,bedrock_api_key} before the inject step (review C1/sfh — the old fail-open).
+assert_eq "#313 matrix: provider entry present (bearer) but missing base_url → incomplete_provider marker (fail-loud)" \
   '{"error":"incomplete_provider","section":"prflow_implement","provider":"p","detail":"provider entry has no base_url"}' \
-  "$(echo '{"claude_model":"m","providers":{"p":{}},"prflow_implement":{"provider":"p"}}' | r313 prflow_implement)"
+  "$(echo '{"claude_model":"m","providers":{"p":{"auth":"bearer"}},"prflow_implement":{"provider":"p"}}' | r313 prflow_implement)"
 # The EMPTY-STRING base_url disjunct (distinct from the missing/wrong-type one above): a
 # present but empty base_url is also fail-loud. Pins the `== ""` half of the guard so a
 # mutation dropping it (reintroducing the empty-ANTHROPIC_BASE_URL fail-open) goes RED.
@@ -31672,10 +32250,10 @@ assert_eq "#313 matrix: provider entry with EMPTY base_url → incomplete_provid
   '{"error":"incomplete_provider","section":"prflow_implement","provider":"p","detail":"provider entry has no base_url"}' \
   "$(echo '{"claude_model":"m","providers":{"p":{"base_url":"","auth":"bearer"}},"prflow_implement":{"provider":"p"}}' | r313 prflow_implement)"
 assert_eq "#313 matrix: provider entry present but missing auth → incomplete_provider marker" \
-  '{"error":"incomplete_provider","section":"prflow_implement","provider":"p","detail":"provider auth must be bearer or api_key"}' \
+  '{"error":"incomplete_provider","section":"prflow_implement","provider":"p","detail":"provider auth must be one of bearer, api_key, bedrock_api_key"}' \
   "$(echo '{"claude_model":"m","providers":{"p":{"base_url":"u"}},"prflow_implement":{"provider":"p"}}' | r313 prflow_implement)"
-assert_eq "#313 matrix: provider auth outside {bearer,api_key} (e.g. Bearer) → incomplete_provider marker" \
-  '{"error":"incomplete_provider","section":"prflow_implement","provider":"p","detail":"provider auth must be bearer or api_key"}' \
+assert_eq "#313 matrix: provider auth outside {bearer,api_key,bedrock_api_key} (e.g. Bearer) → incomplete_provider marker" \
+  '{"error":"incomplete_provider","section":"prflow_implement","provider":"p","detail":"provider auth must be one of bearer, api_key, bedrock_api_key"}' \
   "$(echo '{"claude_model":"m","providers":{"p":{"base_url":"u","auth":"Bearer"}},"prflow_implement":{"provider":"p"}}' | r313 prflow_implement)"
 assert_eq "#313 matrix: empty-string section provider → Anthropic-default decision" \
   '{"provider":"","base_url":"","auth":"","timeout_ms":"","effort_supported":true,"model":"m","env":{}}' \
@@ -31730,9 +32308,17 @@ for R313_WF in "$IMPL_WF" "$RUNNER_WF" "$LIGHT_WF"; do
   # claude_code_oauth_token stays under the empty-decision (no-provider) condition.
   assert_pin_unique "#313 defaults: $R313_TAG passes OAuth token only on the no-provider path" \
     "steps.provider.outputs.provider == '' && secrets.CLAUDE_CODE_OAUTH_TOKEN" "$R313_WF"
-  # anthropic_api_key rides only on the provider-active path.
-  assert_pin_unique "#313 defaults: $R313_TAG passes anthropic_api_key only on the provider path" \
-    "steps.provider.outputs.provider != '' && secrets.DEVFLOW_PROVIDER_API_KEY" "$R313_WF"
+  # structural-pin-ok: routing-dispatch-contract -- the use_bedrock action input is the
+  # dispatch contract selecting Amazon Bedrock at the action layer (#1770 AC 2/3), an
+  # expression the runner evaluates and no executed step body writes.
+  assert_pin_unique "#313/#1770 AC2/3: $R313_TAG passes use_bedrock 'true' only on the bedrock_api_key arm ('' otherwise)" \
+    "steps.provider.outputs.auth == 'bedrock_api_key' && 'true' || ''" "$R313_WF"
+  # anthropic_api_key rides on the bearer/api_key arms: provider-active AND not the bedrock
+  # arm (#1770 AC 6 narrows it so bedrock passes '' here).
+  # structural-pin-ok: routing-dispatch-contract -- the anthropic_api_key action input is a
+  # runner-evaluated credential-routing expression, unreachable by executing the step bodies.
+  assert_pin_unique "#313 defaults: $R313_TAG passes anthropic_api_key only on the non-bedrock provider path" \
+    "steps.provider.outputs.provider != '' && steps.provider.outputs.auth != 'bedrock_api_key' && secrets.DEVFLOW_PROVIDER_API_KEY" "$R313_WF"
   # AC 6 empty-secret guard: the inject step's run body is byte-identical across the three,
   # so a UNIFORM removal keeps the body-identity check GREEN — this per-file presence pin is
   # what makes dropping the fail-loud guard from all three go RED (assert_pin_unique proves
@@ -31799,6 +32385,7 @@ import sys, yaml
 files = sys.argv[1:]
 names = ["Resolve model provider",
          "Inject provider endpoint (provider-routed sections only)",
+         "Export provider effort capability to job env",
          "Build claude_args head (model + conditional effort)"]
 bodies = {n: [] for n in names}
 for f in files:
@@ -31814,7 +32401,46 @@ for n in names:
 print(",".join(out))
 PY
 )"
-  assert_eq "#313 single-sourced: Resolve/Inject/cargs run: bodies byte-identical across the 3 workflows" "yes,yes,yes" "$R313_BODY_IDENT"
+  assert_eq "#313 single-sourced: Resolve/Inject/export-effort/cargs run: bodies byte-identical across the 3 workflows" "yes,yes,yes,yes" "$R313_BODY_IDENT"
+
+  # #1772: the byte-identity pin above compares only each step's `run:` body, so a workflow
+  # with an omitted/mistyped env block, a hardcoded value, or a late-moved export stays
+  # identical and green while exporting nothing the resolver reads. Assert the wiring.
+  R1772_EXPORT_ENV="$(python3 - "$IMPL_WF" "$RUNNER_WF" "$LIGHT_WF" "$REPO_ROOT/scripts/resolve-review-overrides.py" <<'PY'
+import sys, re, yaml
+files = sys.argv[1:4]
+want = "${{ steps.provider.outputs.effort_supported }}"
+# Derive the exported env-var KEY from the resolver's OWN constant so the workflow writer and
+# the in-session reader stay coupled: a rename on either side that is not mirrored fails RED.
+m = re.search(r'_EFFORT_SUPPORTED_ENV\s*=\s*"([^"]+)"', open(sys.argv[4]).read())
+key = m.group(1) if m else None
+env_ok, run_ok, pos_ok = [], [], []
+for f in files:
+    doc = yaml.safe_load(open(f))
+    for job in doc["jobs"].values():
+        steps = job.get("steps", [])
+        ei = [i for i, s in enumerate(steps)
+              if s.get("name") == "Export provider effort capability to job env"]
+        if not ei:
+            continue
+        st, body = steps[ei[0]], (steps[ei[0]].get("run") or "")
+        # env: the value SOURCE; run: the resolver's KEY, the env var as the written VALUE, and
+        # the $GITHUB_ENV SINK. Drop any one and a green pass is compatible with dead wiring:
+        # a uniform hardcode, or a write redirected to $GITHUB_OUTPUT/stdout the resolver never reads.
+        env_ok.append((st.get("env") or {}).get("EFFORT_SUPPORTED") == want)
+        run_ok.append(key is not None and (key + "=") in body and '"$EFFORT_SUPPORTED"' in body
+                      and "$GITHUB_ENV" in body)
+        # $GITHUB_ENV reaches only LATER steps: an export moved after the session step writes
+        # too late, so the resolver reads an absent var and fails open to `true` — green.
+        ai = [i for i, s in enumerate(steps) if "claude-code-action" in str(s.get("uses", ""))]
+        pos_ok.append(bool(ai) and ei[0] < min(ai))
+ok = (key is not None and len(env_ok) == 3 and all(env_ok)
+      and len(run_ok) == 3 and all(run_ok)
+      and len(pos_ok) == 3 and all(pos_ok))
+print("yes" if ok else "no")
+PY
+)"
+  assert_eq "#1772: effort-export step sources the provider output, writes the resolver's PRFLOW_EFFORT_SUPPORTED key from that env var into GITHUB_ENV, and precedes the session step in all 3 workflows" "yes" "$R1772_EXPORT_ENV"
 
   # gh_kv normalizes a $GITHUB_ENV/$GITHUB_OUTPUT file written in GitHub's newline-safe
   # multiline-heredoc form (KEY<<DELIM\nvalue\nDELIM — the form this PR now uses everywhere)
@@ -31910,6 +32536,15 @@ print(next(s["run"] for j in d["jobs"].values() for s in j.get("steps",[]) if s.
     assert_eq "#313 resolve-body: undefined provider fails loud (exit 1)" "1" "$R313_RC"
     assert_eq "#313 resolve-body: undefined provider emits ::error:: naming the section + provider" "yes" \
       "$(printf '%s' "$R313_OUT" | grep -qF '::error::' && printf '%s' "$R313_OUT" | grep -qF 'prflow_implement' && printf '%s' "$R313_OUT" | grep -qF "'nope'" && echo yes || echo no)"
+    : > "$R313_GOUT0"
+    # #1770 AC 13: an auth value OUTSIDE the three-value set fails loud, and the refusal names
+    # all three legal values while NOT instructing the reader to supply base_url (the wrapper no
+    # longer carries the "base_url + auth: bearer|api_key" remediation hint).
+    R313_RC=0
+    R313_OUT="$( export CONFIG_JSON='{"claude_model":"m","providers":{"p":{"auth":"xyz"}},"prflow_implement":{"provider":"p"}}' SECTION=prflow_implement GITHUB_OUTPUT="$R313_GOUT0"; bash -c "$R313_RES_BODY" 2>&1 )" || R313_RC=$?
+    assert_eq "#313/#1770 resolve-body: out-of-set auth fails loud (exit 1, AC 13)" "1" "$R313_RC"
+    assert_eq "#313/#1770 resolve-body: the out-of-set-auth refusal names all three legal values and does NOT instruct base_url (AC 13)" "yes" \
+      "$(printf '%s' "$R313_OUT" | grep -qF 'bearer' && printf '%s' "$R313_OUT" | grep -qF 'bedrock_api_key' && ! printf '%s' "$R313_OUT" | grep -qF 'base_url' && echo yes || echo no)"
     # Provider-active path (review Suggestion #7): the resolve body was executed only for
     # default + error configs, never a provider-active one — so a mutation in the scalar-emit
     # jq for a real provider stayed uncovered here (caught only transitively). Drive a
@@ -31950,10 +32585,12 @@ print(next(s["run"] for j in d["jobs"].values() for s in j.get("steps",[]) if s.
   if [ -n "$R313_INJ_BODY" ] && [ -n "$R313_GENV" ]; then
     # bearer → ANTHROPIC_BASE_URL + API_TIMEOUT_MS + ANTHROPIC_AUTH_TOKEN(secret) + env map, each
     # written via the newline-safe heredoc form (normalized back to KEY=VALUE by gh_kv).
-    ( export DECISION='{"env":{"CLAUDE_CODE_SUBAGENT_MODEL":"z-ai/glm-5.2"}}' AUTH=bearer BASE_URL=https://openrouter.ai/api TIMEOUT_MS=3000000 PROVIDER=openrouter PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" ) >/dev/null 2>&1
+    ( export DECISION='{"env":{"ANTHROPIC_DEFAULT_HAIKU_MODEL":"z-ai/glm-4.7"}}' AUTH=bearer BASE_URL=https://openrouter.ai/api TIMEOUT_MS=3000000 PROVIDER=openrouter PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" ) >/dev/null 2>&1
     gh_kv "$R313_GENV" > "$R313_GENV.kv"
+    # Do not use a deny-listed key name here (issue #1773): this assertion proves the env map
+    # IS written, so a denied key would exit 1 before the emit and make it vacuous.
     assert_eq "#313 inject-body: bearer exports BASE_URL + API_TIMEOUT_MS + ANTHROPIC_AUTH_TOKEN + env map" "yes" \
-      "$(grep -qxF 'ANTHROPIC_BASE_URL=https://openrouter.ai/api' "$R313_GENV.kv" && grep -qxF 'API_TIMEOUT_MS=3000000' "$R313_GENV.kv" && grep -qxF 'ANTHROPIC_AUTH_TOKEN=sekret' "$R313_GENV.kv" && grep -qxF 'CLAUDE_CODE_SUBAGENT_MODEL=z-ai/glm-5.2' "$R313_GENV.kv" && echo yes || echo no)"
+      "$(grep -qxF 'ANTHROPIC_BASE_URL=https://openrouter.ai/api' "$R313_GENV.kv" && grep -qxF 'API_TIMEOUT_MS=3000000' "$R313_GENV.kv" && grep -qxF 'ANTHROPIC_AUTH_TOKEN=sekret' "$R313_GENV.kv" && grep -qxF 'ANTHROPIC_DEFAULT_HAIKU_MODEL=z-ai/glm-4.7' "$R313_GENV.kv" && echo yes || echo no)"
     : > "$R313_GENV"
     # api_key → base_url written, but NO ANTHROPIC_AUTH_TOKEN (key rides the action input only);
     # and with TIMEOUT_MS="" NO API_TIMEOUT_MS line either — a mutation writing it unconditionally
@@ -32003,11 +32640,144 @@ print(next(s["run"] for j in d["jobs"].values() for s in j.get("steps",[]) if s.
     ( export DECISION='{"env":{"K<<X":"x"}}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" ) >/dev/null 2>&1 || R313_RC=$?
     assert_eq "#313 inject-body: an env-map key containing '<<' fails loud (exit 1, key-validation guard)" "1" "$R313_RC"
     : > "$R313_GENV"
+    # Do not re-list the denied names here: read them out of the extracted step body, so a name
+    # ADDED to the guard's IN(...) is covered by this loop instead of shipping untested.
+    R1773_KEYS="$(printf '%s\n' "$R313_INJ_BODY" | sed -n 's/.*ascii_upcase | IN(\([^)]*\)).*/\1/p' | tr ',' '\n' | tr -d '"' | tr -d ' ')"
+    # Assert extracted-is-a-SUPERSET of this list, never a count: a rename or typo inside IN(...)
+    # leaves the extracted count unchanged while dropping a real name, and the loop then tests the
+    # misspelling. Adding a denied name keeps this green, so a new name needs no edit here.
+    R1773_EXPECTED='PATH GITHUB_TOKEN GH_TOKEN GITHUB_ENV GITHUB_OUTPUT GITHUB_PATH
+ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN CLAUDE_CODE_OAUTH_TOKEN AWS_ACCESS_KEY_ID
+AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN AWS_BEARER_TOKEN_BEDROCK BASH_ENV ENV
+LD_PRELOAD LD_LIBRARY_PATH DYLD_INSERT_LIBRARIES NODE_OPTIONS PYTHONPATH
+CLAUDE_CODE_SUBAGENT_MODEL'
+    # Do not match a key anywhere in the output: a bare substring search passes on a short name the
+    # static prose happens to contain, so it would not attribute the refusal to the guard's dynamic
+    # echo. Match only inside the ::error::'s "forbidden key(s): <names>" segment, word-anchored.
+    r1773_names_key() {  # <output> <key> -> rc 0 iff the forbidden-key segment names <key>
+      case "$1" in *'contains forbidden key(s): '*) : ;; *) return 1 ;; esac
+      R1773_SEG="${1#*contains forbidden key(s): }"
+      R1773_SEG="${R1773_SEG%% —*}"
+      printf '%s' "$R1773_SEG" | grep -qE "(^| )$2( |$)"
+    }
+    R1773_MISSING=""
+    for R1773_EXP_KEY in $R1773_EXPECTED; do
+      printf '%s\n' "$R1773_KEYS" | grep -qxF "$R1773_EXP_KEY" || R1773_MISSING="$R1773_MISSING $R1773_EXP_KEY"
+    done
+    assert_eq "#1773 inject-body: the guard still denies every name this block was written against (a deletion, rename or typo goes RED)" "" "$R1773_MISSING"
+    for R1773_KEY in $R1773_KEYS; do
+      R313_RC=0
+      R313_OUT="$( export DECISION="{\"env\":{\"$R1773_KEY\":\"x\"}}" AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" 2>&1 )" || R313_RC=$?
+      assert_eq "#1773 inject-body: forbidden env-map key $R1773_KEY fails loud (exit 1, deny-list guard)" "1" "$R313_RC"
+      # Do not name a denied key literally in the workflow's ::error:: text: this assertion
+      # would then pass without the guard's dynamic key echo.
+      assert_eq "#1773 inject-body: forbidden key $R1773_KEY emits ::error:: naming the key + refusing" "yes" \
+        "$(r1773_names_key "$R313_OUT" "$R1773_KEY" && printf '%s' "$R313_OUT" | grep -qiF 'refusing to run' && echo yes || echo no)"
+      assert_eq "#1773 inject-body: forbidden key $R1773_KEY writes NO top-level env var (guard fired before emit)" "yes" \
+        "$([ ! -s "$R313_GENV" ] && echo yes || echo no)"
+      : > "$R313_GENV"
+    done
+    R313_RC=0
+    R313_OUT="$( export DECISION='{"env":{"github_token":"x"}}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" 2>&1 )" || R313_RC=$?
+    assert_eq "#1773 inject-body: a case-variant denied key (github_token) is also refused (exit 1)" "1" "$R313_RC"
+    # Do not reduce this to an exit-code-only assertion: exit 1 alone cannot distinguish the
+    # deny-list guard from the shape guard or any later failure.
+    assert_eq "#1773 inject-body: the case-variant refusal is the deny-list guard (::error:: names github_token)" "yes" \
+      "$(r1773_names_key "$R313_OUT" 'github_token' && printf '%s' "$R313_OUT" | grep -qiF 'refusing to run' && echo yes || echo no)"
+    : > "$R313_GENV"
+    # Do not delete this positive control: without it the refusal above is not attributable to
+    # the denied NAME rather than to the key being lower-case.
+    ( export DECISION='{"env":{"github_token_id":"z"}}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" ) >/dev/null 2>&1
+    gh_kv "$R313_GENV" > "$R313_GENV.kv"
+    assert_eq "#1773 inject-body: a lower-case non-denied key (github_token_id) is still exported (lower case alone is not the refusal)" "yes" \
+      "$(grep -qxF 'github_token_id=z' "$R313_GENV.kv" && echo yes || echo no)"
+    rm -f "$R313_GENV.kv"; : > "$R313_GENV"
+    # Do not reduce this to a single denied key: it is what exercises the guard's
+    # [ .env|keys[]|select ]|join(" ") collection rather than a single-element match.
+    R313_RC=0
+    R313_OUT="$( export DECISION='{"env":{"PATH":"x","ANTHROPIC_API_KEY":"y"}}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" 2>&1 )" || R313_RC=$?
+    assert_eq "#1773 inject-body: two denied keys in one map fail loud (exit 1)" "1" "$R313_RC"
+    assert_eq "#1773 inject-body: the ::error:: names BOTH denied keys (join collects all, not just the first)" "yes" \
+      "$(r1773_names_key "$R313_OUT" 'PATH' && r1773_names_key "$R313_OUT" 'ANTHROPIC_API_KEY' && echo yes || echo no)"
+    : > "$R313_GENV"
+    ( export DECISION='{"env":{"GITHUB_TOKEN_ID":"z"}}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" ) >/dev/null 2>&1
+    gh_kv "$R313_GENV" > "$R313_GENV.kv"
+    assert_eq "#1773 inject-body: a near-miss non-denied key (GITHUB_TOKEN_ID) is still exported (IN() is exact-match)" "yes" \
+      "$(grep -qxF 'GITHUB_TOKEN_ID=z' "$R313_GENV.kv" && echo yes || echo no)"
+    rm -f "$R313_GENV.kv"; : > "$R313_GENV"
+    # Do not prefix the denied_env_keys assignment with local/export or append `|| true`: the
+    # bare form takes the jq exit status, and only that makes a malformed .env abort under
+    # set -e instead of yielding an empty key list the guard reads as "nothing denied".
+    R313_RC=0
+    ( export DECISION='{"env":"oops"}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" ) >/dev/null 2>&1 || R313_RC=$?
+    R313_TOPKEYS="$(gh_topkeys "$R313_GENV")"
+    assert_eq "#1773 inject-body: a non-object .env fails closed (non-zero exit, no env var written)" "yes" \
+      "$([ "$R313_RC" -ne 0 ] && [ -z "$R313_TOPKEYS" ] && echo yes || echo no)"
+    : > "$R313_GENV"
     # A well-formed env-map key still passes (no false fire on the documented keys).
     ( export DECISION='{"env":{"ANTHROPIC_DEFAULT_HAIKU_MODEL":"glm-4.7"}}' AUTH=api_key BASE_URL=u TIMEOUT_MS="" PROVIDER=p PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" ) >/dev/null 2>&1
     gh_kv "$R313_GENV" > "$R313_GENV.kv"
     assert_eq "#313 inject-body: a valid env-map key passes the key-validation guard (no false fire)" "yes" \
       "$(grep -qxF 'ANTHROPIC_DEFAULT_HAIKU_MODEL=glm-4.7' "$R313_GENV.kv" && echo yes || echo no)"
+    : > "$R313_GENV"
+    # #1770 AC 4/5: the bedrock_api_key arm exports the secret as AWS_BEARER_TOKEN_BEDROCK and
+    # writes NEITHER ANTHROPIC_BASE_URL NOR ANTHROPIC_AUTH_TOKEN; the env map (AWS_REGION) still
+    # rides via the shared passthrough. A mutation exporting ANTHROPIC_BASE_URL here goes RED.
+    ( export DECISION='{"env":{"AWS_REGION":"us-east-1"}}' AUTH=bedrock_api_key BASE_URL="" TIMEOUT_MS="" PROVIDER=bed PROVIDER_API_KEY=awskey SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" ) >/dev/null 2>&1
+    gh_kv "$R313_GENV" > "$R313_GENV.kv"
+    assert_eq "#313/#1770 inject-body: bedrock arm exports AWS_BEARER_TOKEN_BEDROCK + AWS_REGION, NOT ANTHROPIC_BASE_URL/ANTHROPIC_AUTH_TOKEN (AC 4/5)" "yes" \
+      "$(grep -qxF 'AWS_BEARER_TOKEN_BEDROCK=awskey' "$R313_GENV.kv" && grep -qxF 'AWS_REGION=us-east-1' "$R313_GENV.kv" && ! grep -q 'ANTHROPIC_BASE_URL' "$R313_GENV.kv" && ! grep -q 'ANTHROPIC_AUTH_TOKEN' "$R313_GENV.kv" && echo yes || echo no)"
+    : > "$R313_GENV"
+    # #1770: API_TIMEOUT_MS is hoisted to a single post-branch write, so it applies to the bedrock
+    # arm too. Pin it on the bedrock arm — a mutation moving it back inside the bearer/api_key else
+    # branch would silently drop API_TIMEOUT_MS on the bedrock arm while staying GREEN elsewhere.
+    ( export DECISION='{"env":{"AWS_REGION":"us-east-1"}}' AUTH=bedrock_api_key BASE_URL="" TIMEOUT_MS=600000 PROVIDER=bed PROVIDER_API_KEY=awskey SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" ) >/dev/null 2>&1
+    gh_kv "$R313_GENV" > "$R313_GENV.kv"
+    assert_eq "#313/#1770 inject-body: bedrock arm writes API_TIMEOUT_MS (hoisted post-branch write applies to the bedrock arm)" "yes" \
+      "$(grep -qxF 'API_TIMEOUT_MS=600000' "$R313_GENV.kv" && grep -qxF 'AWS_BEARER_TOKEN_BEDROCK=awskey' "$R313_GENV.kv" && echo yes || echo no)"
+    : > "$R313_GENV"
+    # #1770 AC 7: the bedrock arm fails loud (exit 1) when its env map sets no AWS_REGION, and the
+    # error names the section and provider.
+    R313_RC=0
+    R313_OUT="$( export DECISION='{"env":{}}' AUTH=bedrock_api_key BASE_URL="" TIMEOUT_MS="" PROVIDER=bed PROVIDER_API_KEY=awskey SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" 2>&1 )" || R313_RC=$?
+    assert_eq "#313/#1770 inject-body: bedrock arm with no AWS_REGION fails loud (exit 1, AC 7)" "1" "$R313_RC"
+    assert_eq "#313/#1770 inject-body: the missing-region error names the section + provider + AWS_REGION (AC 7)" "yes" \
+      "$(printf '%s' "$R313_OUT" | grep -qF '::error::' && printf '%s' "$R313_OUT" | grep -qF 'prflow_implement' && printf '%s' "$R313_OUT" | grep -qF "'bed'" && printf '%s' "$R313_OUT" | grep -qF 'AWS_REGION' && echo yes || echo no)"
+    : > "$R313_GENV"
+    # #1770 valid-falsy row: an EMPTY-STRING AWS_REGION is treated as absent (strings|select),
+    # so the region guard still fails loud rather than exporting an empty region variable.
+    R313_RC=0
+    ( export DECISION='{"env":{"AWS_REGION":""}}' AUTH=bedrock_api_key BASE_URL="" TIMEOUT_MS="" PROVIDER=bed PROVIDER_API_KEY=awskey SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" ) >/dev/null 2>&1 || R313_RC=$?
+    assert_eq "#313/#1770 inject-body: bedrock arm with EMPTY-string AWS_REGION fails loud (valid-falsy → absent, exit 1)" "1" "$R313_RC"
+    : > "$R313_GENV"
+    # #1770 wrong-type rows (number, object): a non-string AWS_REGION is filtered out by the
+    # `strings` guard and treated as absent, so the region check fails loud. Pins `strings` — a
+    # mutation dropping it would let a non-string region pass, then the run authenticates and dies.
+    R313_RC=0
+    ( export DECISION='{"env":{"AWS_REGION":123}}' AUTH=bedrock_api_key BASE_URL="" TIMEOUT_MS="" PROVIDER=bed PROVIDER_API_KEY=awskey SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" ) >/dev/null 2>&1 || R313_RC=$?
+    assert_eq "#313/#1770 inject-body: bedrock arm with NUMBER AWS_REGION fails loud (wrong-type → absent via strings, exit 1)" "1" "$R313_RC"
+    : > "$R313_GENV"
+    R313_RC=0
+    ( export DECISION='{"env":{"AWS_REGION":{"x":1}}}' AUTH=bedrock_api_key BASE_URL="" TIMEOUT_MS="" PROVIDER=bed PROVIDER_API_KEY=awskey SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" ) >/dev/null 2>&1 || R313_RC=$?
+    assert_eq "#313/#1770 inject-body: bedrock arm with OBJECT AWS_REGION fails loud (wrong-type → absent via strings, exit 1)" "1" "$R313_RC"
+    : > "$R313_GENV"
+    # #1770 AC 8: a bedrock entry that ALSO carries base_url CONTINUES (exit 0), warns naming the
+    # section/provider/base_url, and still writes NO ANTHROPIC_BASE_URL. This fixture pins the
+    # suppression by supplying the very input whose export the arm drops.
+    R313_RC=0
+    R313_OUT="$( export DECISION='{"env":{"AWS_REGION":"us-east-1"}}' AUTH=bedrock_api_key BASE_URL="https://x" TIMEOUT_MS="" PROVIDER=bed PROVIDER_API_KEY=awskey SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" 2>&1 )" || R313_RC=$?
+    assert_eq "#313/#1770 inject-body: bedrock arm carrying base_url continues (exit 0, AC 8)" "0" "$R313_RC"
+    gh_kv "$R313_GENV" > "$R313_GENV.kv"
+    assert_eq "#313/#1770 inject-body: bedrock+base_url warns naming section/provider/base_url AND writes no ANTHROPIC_BASE_URL (AC 8)" "yes" \
+      "$(printf '%s' "$R313_OUT" | grep -qF '::warning::' && printf '%s' "$R313_OUT" | grep -qF 'prflow_implement' && printf '%s' "$R313_OUT" | grep -qF "'bed'" && printf '%s' "$R313_OUT" | grep -qF 'base_url' && ! grep -q 'ANTHROPIC_BASE_URL' "$R313_GENV.kv" && echo yes || echo no)"
+    : > "$R313_GENV"
+    # #1770 AC 9: a BEARER entry whose env map carries AWS_REGION runs exactly as before — base_url
+    # + auth token + the AWS_REGION passthrough, no bedrock token, and NO warning (a stray AWS_REGION
+    # in a gateway entry's env map must not trip the bedrock path or emit a warning).
+    R313_OUT="$( export DECISION='{"env":{"AWS_REGION":"us-east-1"}}' AUTH=bearer BASE_URL=https://g TIMEOUT_MS="" PROVIDER=g PROVIDER_API_KEY=sekret SECTION=prflow_implement GITHUB_ENV="$R313_GENV"; bash -c "$R313_INJ_BODY" 2>&1 )"
+    gh_kv "$R313_GENV" > "$R313_GENV.kv"
+    assert_eq "#313/#1770 inject-body: bearer arm with AWS_REGION in env map runs unchanged, no bedrock token, NO warning (AC 9)" "yes" \
+      "$(grep -qxF 'ANTHROPIC_BASE_URL=https://g' "$R313_GENV.kv" && grep -qxF 'ANTHROPIC_AUTH_TOKEN=sekret' "$R313_GENV.kv" && grep -qxF 'AWS_REGION=us-east-1' "$R313_GENV.kv" && ! grep -q 'AWS_BEARER_TOKEN_BEDROCK' "$R313_GENV.kv" && ! printf '%s' "$R313_OUT" | grep -qF '::warning::' && echo yes || echo no)"
     rm -f "$R313_GENV" "$R313_GENV.kv"
   else
     echo "  SKIP  #313 inject-body behavioral checks (no writable temp / body extraction failed)"
@@ -32239,16 +33009,32 @@ fi
 
 # Matrix completeness (review PTA-2): the {field}×{wrong-type/empty} sweep pins base_url
 # both missing and empty-string, but auth only missing + wrong-value ('Bearer'); add the
-# empty-string auth cell so the `($a != "bearer" and $a != "api_key")` disjunct is pinned
+# empty-string auth cell so the three-value auth disjunct is pinned
 # on an EMPTY value too (a real input shape a future guard rewrite could regress).
 assert_eq "#313 matrix: provider entry with EMPTY auth ('') → incomplete_provider marker (auth-disjunct completeness)" \
-  '{"error":"incomplete_provider","section":"prflow_implement","provider":"p","detail":"provider auth must be bearer or api_key"}' \
+  '{"error":"incomplete_provider","section":"prflow_implement","provider":"p","detail":"provider auth must be one of bearer, api_key, bedrock_api_key"}' \
   "$(echo '{"claude_model":"m","providers":{"p":{"base_url":"u","auth":""}},"prflow_implement":{"provider":"p"}}' | r313 prflow_implement)"
 # AC 8 (review PTA-3): the runner's dead `model` workflow_call input was removed. Pin the
 # reference absence so a re-introduced `inputs.model` (a merge-revert of the threading) goes
 # RED — the removal becomes a conscious future change rather than a silent regression.
 assert_eq "#313 AC8: devflow-runner.yml carries no reference to the removed dead 'model' workflow_call input" "0" \
   "$(pin_count 'inputs.model' "$RUNNER_WF")"
+
+# #1770 provider-schema vocabulary (config.schema.json): the auth enum and the base_url
+# conditional are typed config-vocabulary boundaries the resolver's runtime checks mirror.
+# structural-pin-ok: schema-config-vocabulary -- the provider entry auth enum + required set
+# is a typed config vocabulary; AC 12 pins it to exactly three values and AC 15 pins the
+# entry's closed-field guard.
+R1770_SCHEMA="$LIB/../.prflow/config.schema.json"
+assert_eq "#1770 AC12: providers entry auth enum accepts exactly bearer/api_key/bedrock_api_key" \
+  '["bearer","api_key","bedrock_api_key"]' \
+  "$(jq -c '.properties.providers.additionalProperties.properties.auth.enum' "$R1770_SCHEMA")"
+assert_eq "#1770 AC15: providers entry still refuses unknown fields (additionalProperties:false)" "false" \
+  "$(jq -c '.properties.providers.additionalProperties.additionalProperties' "$R1770_SCHEMA")"
+assert_eq "#1770: providers entry no longer lists base_url in its top-level required set" "false" \
+  "$(jq -c '(.properties.providers.additionalProperties.required // []) | any(. == "base_url")' "$R1770_SCHEMA")"
+assert_eq "#1770: providers entry conditionally requires base_url for bearer/api_key (allOf if/then)" "yes" \
+  "$(jq -e '.properties.providers.additionalProperties.allOf | any((.if.properties.auth.enum == ["bearer","api_key"]) and (.then.required == ["base_url"]))' "$R1770_SCHEMA" >/dev/null 2>&1 && echo yes || echo no)"
 
 unset RESOLVER
 
@@ -33555,7 +34341,7 @@ echo "#408 cloud review no-verdict auto-resume backstop + #414 post-and-annotate
 # module re-derives REPO_ROOT and rebuilds the review-engine bundle itself;
 # see its .inventory.md for the coverage map back to this location.
 if ! devflow_run_full_suite_module "$LIB/test/modules/review-stall-backstop.sh" \
-  "review-stall-backstop" 450; then
+  "review-stall-backstop" 462; then
   printf 'ERROR: review-stall-backstop boundary could not record its result\n'
   exit 1
 fi
@@ -34779,7 +35565,6 @@ CI_MOD_VARS=(
   --var "CI_TMPL_AUDIT=skills/create-issue/references/audit-prompt-template.md"
   --var "CI_TMPL=skills/create-issue/references/issue-template.md"
   --var "CI_EXT=.prflow/prompt-extensions/create-issue.md"
-  --var "CI_CLAUDE=CLAUDE.md"
   --var "CI_INVENTORY=lib/test/modules/create-issue-contract.inventory.md"
   # CI_ROOT lets the meta-guard resolve the module's own `$CI_ROOT/…` assignments
   # (including CI_DV) and inline `$CI_ROOT/…` pin targets; without
@@ -36317,9 +37102,9 @@ assert_eq "#815 the flight-recorder registry carries a reference load_class row 
 # reference kept its write literals); the agent gets its own pins here. The agent performs NO
 # GitHub write and dispatches nothing, so the writes and the one-subagent-layer constraint both
 # rest on the orchestrator. RED against a stub agent carrying any write literal or an Agent
-# dispatch. This is a machine-consumed capability boundary (lint-shipped-pruned-path audits the
-# agents/** population), not prose — a permitted target under #1604's AC that no run.sh pin names
-# the agent for prose text.
+# dispatch. Do not relax the write-literal absence pins below as redundant: their runtime
+# enforcer is the agent's `tools:` frontmatter, pinned further down, and #1604's AC7
+# mandates the body-text checks too.
 echo "#1604 deferral-drafter composition agent"
 DEFDRAFTER="$LIB/../agents/deferral-drafter.md"
 _issue1515_deferred_projection_route() {
@@ -37211,6 +37996,142 @@ assert_eq "#363 diagnostics publishes the gathered denial count when the count f
 # Absent GITHUB_OUTPUT (standalone/local run) must not break the always-exit-0 contract.
 assert_eq "#363 diagnostics exits 0 with no GITHUB_OUTPUT set (standalone run)" "0" \
   "$(printf '%s' "$_D_HOT" > "$D363/exec.json"; ( unset GITHUB_OUTPUT; bash "$SED_SH" "$D363/exec.json" >/dev/null 2>&1 ); echo $?)"
+
+# ────────────────────────────────────────────────────────────────────────────
+echo "#1528 observability: claude_code_version published from the init record + read back"
+# ────────────────────────────────────────────────────────────────────────────
+# The execution file's system/init record carries claude_code_version; surface-
+# execution-diagnostics.sh now publishes it (reusing lib/probe-observation.sh's
+# devflow_probe_cli_version) so a live run's own CLI build is recorded in-job, with
+# no 7-day artifact and no execution_transcript_artifact_enabled opt-in (issue #1528).
+_D_INIT='[{"type":"system","subtype":"init","claude_code_version":"2.1.226"},{"type":"result","is_error":false,"num_turns":3,"permission_denials_count":0}]'
+
+# AC1: the version is published to GITHUB_OUTPUT from the init record.
+assert_eq "#1528 diagnostics publishes claude_code_version=<v> from the init record" "yes" \
+  "$(_diag_run "$_D_INIT" >/dev/null; grep -qxF 'claude_code_version=2.1.226' "$D363/out" && echo yes || echo no)"
+# AC2: a consumer reads the published value back — the in-job ::notice:: naming it.
+assert_eq "#1528 diagnostics emits a ::notice:: naming the resolved version (the read-back consumer)" "yes" \
+  "$(_o=$(_diag_run "$_D_INIT"); printf '%s' "$_o" | grep -qF '::notice::DevFlow: claude-code CLI version 2.1.226' && echo yes || echo no)"
+# Human + machine agree: the rendered block carries the same value the output publishes.
+assert_eq "#1528 diagnostics renders claude_code_version into the block (human+machine agree)" "yes" \
+  "$(_o=$(_diag_run "$_D_INIT"); printf '%s' "$_o" | grep -qxF -e '- claude_code_version: 2.1.226' && echo yes || echo no)"
+
+# AC1: an init record lacking the field publishes the literal `unavailable` (never empty/0)
+# and raises no notice — unknown is not a version.
+assert_eq "#1528 diagnostics publishes 'unavailable' (never empty/0) when the init record lacks the version" "yes" \
+  "$(_diag_run "$_D_COLD" >/dev/null; grep -qxF 'claude_code_version=unavailable' "$D363/out" && echo yes || echo no)"
+assert_eq "#1528 diagnostics emits NO ::notice:: when the version is unavailable" "no" \
+  "$(_o=$(_diag_run "$_D_COLD"); printf '%s' "$_o" | grep -qF '::notice::DevFlow: claude-code CLI version' && echo yes || echo no)"
+# An unparseable execution file is also `unavailable`, never a forged value.
+assert_eq "#1528 diagnostics publishes 'unavailable' on an unparseable execution file" "yes" \
+  "$(_diag_run 'not json' >/dev/null; grep -qxF 'claude_code_version=unavailable' "$D363/out" && echo yes || echo no)"
+
+# Attribute the absent-file rejection to the absent-file branch's OWN breadcrumb: the
+# value assertions on that branch below cannot tell it from the jq-parse-error exit, which
+# publishes the same `unavailable` from the same `$_NO_DIAG` block.
+assert_eq "#1528 the absent-file 'unavailable' comes from the absent-file branch, not the jq-error branch" "crumb" \
+  "$(_nf=$(mktemp -d); \
+     _err=$( ( GITHUB_OUTPUT="$_nf/out" bash "$SED_SH" "$_nf/missing.json" >/dev/null ) 2>&1 ); \
+     printf '%s' "$_err" | grep -qF 'execution file absent or empty' && _c=crumb || _c=nocrumb; \
+     rm -rf "$_nf"; echo "$_c")"
+# A version outside the version alphabet (an injected step-summary payload) sanitizes to
+# `unavailable` rather than being echoed — the reused reader fails CLOSED.
+_D_BADVER='[{"type":"system","subtype":"init","claude_code_version":"2.1.226 <script>alert(1)</script>"},{"type":"result","is_error":false}]'
+assert_eq "#1528 diagnostics sanitizes a non-version-alphabet claude_code_version to 'unavailable'" "yes" \
+  "$(_diag_run "$_D_BADVER" >/dev/null; grep -qxF 'claude_code_version=unavailable' "$D363/out" && echo yes || echo no)"
+
+# The value must be derived with bash builtins — `tr`/`sed`/`cut`/`head` are NOT
+# preflight prerequisites (see lib/preflight.sh), so a missing one would silently
+# yield an empty value and publish a fail-open blank (the guard-class-2 rule).
+assert_eq "#1528 diagnostics derives the published version with bash builtins, not sed/head/grep/awk/cut/tr" "0" \
+  "$(python3 - "$SED_SH" <<'PY'
+import re, sys
+src = open(sys.argv[1], encoding="utf-8").read()
+body = src[src.index("_publish_claude_code_version() {"):src.index("\n}", src.index("_publish_claude_code_version() {"))]
+print(len(re.findall(r"(^|[|;&(]|\$\()\s*(sed|head|grep|awk|cut|tr)\s", body, re.M)))
+PY
+)"
+assert_eq "#1528 diagnostics still publishes the version when sed is absent from PATH" "2.1.226" \
+  "$(_sedless=$(mktemp -d); mkdir -p "$_sedless/bin"; \
+     for _c in bash printf echo cat rm mktemp grep head tr wc cut date dirname basename env test jq python3 type; do \
+       _p=$(command -v "$_c" 2>/dev/null) && ln -sf "$_p" "$_sedless/bin/$_c" 2>/dev/null; done; \
+     printf '%s' "$_D_INIT" > "$_sedless/exec.json"; \
+     ( PATH="$_sedless/bin" GITHUB_OUTPUT="$_sedless/out" bash "$SED_SH" "$_sedless/exec.json" >/dev/null 2>&1 ); \
+     sed -n 's/^claude_code_version=//p' "$_sedless/out"; rm -rf "$_sedless")"
+assert_eq "#1528 diagnostics still exits 0 with a version present and GITHUB_OUTPUT set" "0" \
+  "$(_diag_run "$_D_INIT" >/dev/null 2>&1; echo $?)"
+
+# AC3 (redaction posture): among the init fields, ONLY claude_code_version — a
+# low-sensitivity scalar — is value-published. The others (model/tools/agents/skills/
+# plugins/mcp_servers/permissionMode/capabilities/slash_commands) stay type-only via
+# extract-execution-shape.sh's redaction boundary (unchanged), because a resolved tools
+# list carries consumer-specific paths and the job log is public.
+_D_INITFULL='[{"type":"system","subtype":"init","claude_code_version":"2.1.226","model":"claude-opus-4","tools":["Bash","Read"],"agents":["a"],"skills":["s"],"plugins":["p"],"mcp_servers":[],"permissionMode":"default","capabilities":[],"slash_commands":[]},{"type":"result","is_error":false,"permission_denials_count":0}]'
+assert_eq "#1528 diagnostics value-publishes NO init field other than claude_code_version to GITHUB_OUTPUT (redaction posture)" "0" \
+  "$(_diag_run "$_D_INITFULL" >/dev/null; grep -cE '^(model|tools|agents|skills|plugins|mcp_servers|permissionMode|capabilities|slash_commands)=' "$D363/out")"
+
+# The version lives in the system/init record independent of a result event, so an
+# incomplete run (init present, no result — the stalled-run case this diagnostic exists
+# for) still publishes and renders it, rather than discarding a resolved version.
+_D_INITONLY='[{"type":"system","subtype":"init","claude_code_version":"2.1.226"}]'
+assert_eq "#1528 diagnostics publishes the version on an init-but-no-result-event run" "yes" \
+  "$(_diag_run "$_D_INITONLY" >/dev/null; grep -qxF 'claude_code_version=2.1.226' "$D363/out" && echo yes || echo no)"
+assert_eq "#1528 diagnostics renders the version into the no-result-event block" "yes" \
+  "$(_o=$(_diag_run "$_D_INITONLY"); printf '%s' "$_o" | grep -qxF -e '- claude_code_version: 2.1.226' && echo yes || echo no)"
+# The ::notice:: read-back fires on the incomplete-run path too — the feature's headline use
+# case is a stalled init-but-no-result run, so the consumer read-back must reach it.
+assert_eq "#1528 diagnostics emits the ::notice:: on an init-but-no-result-event run" "yes" \
+  "$(_o=$(_diag_run "$_D_INITONLY"); printf '%s' "$_o" | grep -qF '::notice::DevFlow: claude-code CLI version 2.1.226' && echo yes || echo no)"
+
+# Partial deployment: the sibling lib/probe-observation.sh is absent, so the reused reader
+# is not defined. The type-guard must degrade CCVER to `unavailable` with a breadcrumb and
+# still exit 0 — never a set -u abort (the guarded-source design's central resilience claim).
+assert_eq "#1528 diagnostics degrades to 'unavailable' + exit 0 with a breadcrumb when probe-observation.sh is not sourced" "unavailable-0-crumb" \
+  "$(_pd=$(mktemp -d); mkdir -p "$_pd/scripts" "$_pd/lib"; \
+     cp "$SED_SH" "$_pd/scripts/surface-execution-diagnostics.sh"; \
+     cp "$LIB/../lib/resolve-jq.sh" "$_pd/lib/resolve-jq.sh"; \
+     printf '%s' "$_D_INIT" > "$_pd/exec.json"; \
+     _err=$( ( GITHUB_OUTPUT="$_pd/out" bash "$_pd/scripts/surface-execution-diagnostics.sh" "$_pd/exec.json" >/dev/null ) 2>&1 ); _rc=$?; \
+     _v=$(sed -n 's/^claude_code_version=//p' "$_pd/out"); \
+     printf '%s' "$_err" | grep -qF 'devflow_probe_cli_version unavailable' && _c=crumb || _c=nocrumb; \
+     rm -rf "$_pd"; echo "${_v}-${_rc}-${_c}")"
+
+# The absent/empty-file guard exits before the version resolver runs, so all three of its
+# arms must still publish the `unavailable` sentinel: an empty or forged value there would
+# tell a consumer the CLI build was observed on a run whose execution file never existed.
+assert_eq "#1528 diagnostics publishes 'unavailable' on every absent/empty-execution-file arm (no arg, missing path, zero-byte)" "unavailable|unavailable|unavailable" \
+  "$(: > "$D363/out"; ( GITHUB_OUTPUT="$D363/out" bash "$SED_SH" >/dev/null 2>&1 ); \
+     _noarg=$(sed -n 's/^claude_code_version=//p' "$D363/out"); \
+     : > "$D363/out"; ( GITHUB_OUTPUT="$D363/out" bash "$SED_SH" "$D363/no-such-exec.json" >/dev/null 2>&1 ); \
+     _gone=$(sed -n 's/^claude_code_version=//p' "$D363/out"); \
+     : > "$D363/out"; : > "$D363/zero.json"; \
+     ( GITHUB_OUTPUT="$D363/out" bash "$SED_SH" "$D363/zero.json" >/dev/null 2>&1 ); \
+     _zero=$(sed -n 's/^claude_code_version=//p' "$D363/out"); rm -f "$D363/zero.json"; \
+     echo "${_noarg}|${_gone}|${_zero}")"
+assert_eq "#1528 diagnostics raises no ::notice:: and still exits 0 when the execution file is absent" "nonotice-0" \
+  "$(: > "$D363/out"; \
+     _o=$( ( GITHUB_OUTPUT="$D363/out" bash "$SED_SH" "$D363/no-such-exec.json" ) 2>&1 ); _rc=$?; \
+     printf '%s' "$_o" | grep -qF '::notice::DevFlow: claude-code CLI version' && _n=notice || _n=nonotice; \
+     echo "${_n}-${_rc}")"
+
+# Standalone/local run: with GITHUB_OUTPUT unset the append is skipped, but the ::notice::
+# read-back must still fire and the skip must stay silent — a breadcrumb on the normal
+# local path would train a maintainer to ignore the real append-failure breadcrumb below.
+assert_eq "#1528 diagnostics emits the ::notice:: with no GITHUB_OUTPUT set and breadcrumbs nothing" "notice-nocrumb-0" \
+  "$(printf '%s' "$_D_INIT" > "$D363/exec.json"; \
+     _out=$( ( unset GITHUB_OUTPUT; bash "$SED_SH" "$D363/exec.json" ) 2>/dev/null ); \
+     _err=$( ( unset GITHUB_OUTPUT; bash "$SED_SH" "$D363/exec.json" 2>&1 >/dev/null ) ); _rc=$?; \
+     printf '%s' "$_out" | grep -qF '::notice::DevFlow: claude-code CLI version 2.1.226' && _n=notice || _n=nonotice; \
+     [ -z "$_err" ] && _c=nocrumb || _c=crumb; \
+     echo "${_n}-${_c}-${_rc}")"
+
+# A GITHUB_OUTPUT write failure (here: the var points at a directory, so the append
+# redirect fails) leaves a stderr breadcrumb and still exits 0 — never a silent stall.
+assert_eq "#1528 diagnostics breadcrumbs + exits 0 when the GITHUB_OUTPUT append fails" "crumb-0" \
+  "$(_af=$(mktemp -d); printf '%s' "$_D_INIT" > "$_af/exec.json"; mkdir -p "$_af/outdir"; \
+     _err=$( ( GITHUB_OUTPUT="$_af/outdir" bash "$SED_SH" "$_af/exec.json" >/dev/null ) 2>&1 ); _rc=$?; \
+     printf '%s' "$_err" | grep -qF 'could not append claude_code_version to GITHUB_OUTPUT' && _c=crumb || _c=nocrumb; \
+     rm -rf "$_af"; echo "${_c}-${_rc}")"
 
 # ── Workflow plumbing: the runner exposes the count, defaulting to 0, and the
 # ── review workflow's finalize_check consumes it and raises an ::error:: on a
@@ -39180,7 +40101,7 @@ assert_eq "#423 T9 schema: severity default important" "important" "$(jq -r "$SP
 assert_eq "#423 T9 schema: severity enum is exactly the three values" '["critical","important","suggestion"]' "$(jq -c "$SP_PROP.properties.severity.enum" "$SP_SCHEMA")"
 assert_eq "#423 T9 example: enabled scaffolds false (consumer default off)" "false" "$(jq -r '.prflow_review.stale_prose.enabled' "$SP_EXAMPLE")"
 assert_eq "#423 T9 example: severity matches schema default" "important" "$(jq -r '.prflow_review.stale_prose.severity' "$SP_EXAMPLE")"
-assert_eq "#423 T9 tracked config carries stale_prose.enabled explicitly" "true" "$(jq -r '.prflow_review.stale_prose.enabled' "$SP_CONFIG")"
+assert_eq "#423 T9 tracked config carries stale_prose.enabled explicitly" "false" "$(jq -r '.prflow_review.stale_prose.enabled' "$SP_CONFIG")"
 assert_eq "#423 T9 tracked config carries stale_prose.severity explicitly" "suggestion" "$(jq -r '.prflow_review.stale_prose.severity' "$SP_CONFIG")"
 # scaffold-config.sh scaffolds config.json FROM config.example.json (cp + deep-merge
 # backfill), so the block flows into the scaffolder's output — proven end-to-end.
@@ -46613,10 +47534,12 @@ assert_eq "#466 mla-extension-pins: review-and-fix carries the config-derivation
 
 # ────────────────────────────────────────────────────────────────────────────
 # Long-run credential refresh (issue #487): the refresher + gh wrapper. Drives the
-# nine arms the "Suite coverage" AC enumerates — gh-stubbed, no network, no real
-# key. The mint honors the verbatim, never-probed DEVFLOW_REFRESH_MINT override
-# (the lib/resolve-bin.sh DEVFLOW_<TOOL> stub contract), and the credential-surface
-# targets + sleep are overridable, so every arm runs at the desk.
+# arms the "Suite coverage" AC enumerates plus the issue-#1882 openssl-free-signer,
+# pre-launch self-test, job-scoping and fail-closed-guard arms below — gh-stubbed, no
+# network, no real key. The mint honors the verbatim, never-probed DEVFLOW_REFRESH_MINT
+# override (the lib/resolve-bin.sh DEVFLOW_<TOOL> stub contract), and the credential-
+# surface targets + sleep are overridable, so the arms run at the desk with no network
+# and no real key.
 # ────────────────────────────────────────────────────────────────────────────
 REFRESH_SH="$LIB/../scripts/refresh-app-credentials.sh"
 GHFRESH_SH="$LIB/../scripts/gh-fresh.sh"
@@ -47072,8 +47995,8 @@ assert_eq "#487 arm23d: access-token POST failure warns 'access-token POST faile
 assert_eq "#491 arm23d: previous credential intact after this failure arm (PREV23B)" "AUTHORIZATION: basic PREV23B" \
   "$(git config --file "$CFG23B" --get 'http.https://github.com/.extraheader' 2>/dev/null)"
 
-# 23e — JWT signing fails: feed a BOGUS (non-PEM) key on stdin so `openssl dgst -sign`
-# cannot load it. No curl is reached (signing precedes the API calls).
+# 23e — JWT signing fails: feed a BOGUS (non-PEM) key on stdin so the openssl-free
+# signer refuses it (issue #1882). No curl is reached (signing precedes the API calls).
 _a23e_err="$(printf 'NOT-A-VALID-PEM-KEY' | env DEVFLOW_APP_ID=APPID23E \
   GITHUB_REPOSITORY="owner/myrepo23e" DEVFLOW_REFRESH_CONFIG_FILE="$CFG23B" \
   DEVFLOW_REFRESH_TOKEN_FILE="$D487/tok23e" GITHUB_SERVER_URL="https://github.com" \
@@ -47392,6 +48315,272 @@ assert_eq "#491 arm20b: the divergence case does NOT emit the generic both-surfa
   "$(printf '%s' "$_s20b" | grep -qF 'git push / gh calls past ~60 min may have used a stale token' && echo yes || echo no)"
 assert_eq "#491 arm20b: stop-refresher still exits 0 on the divergence arm" "0" "$_s20b_rc"
 
+# ── Issue #1882: the JWT is signed WITHOUT openssl (sign-jwt-rs256.py), a
+# synchronous pre-launch self-test, job-scoped loop lifetime/state, and fail-closed
+# clock/text-tool guards. RSAKEY22 (a real PKCS#1 key), D487, CFG23B and STOP_SH are
+# reused; the arms run at the desk with no network and no real credential.
+SIGNER_1882="$LIB/../scripts/sign-jwt-rs256.py"
+_realssl_1882="$(command -v openssl)"
+
+# 1882a (AC1) — an openssl stub that exits NON-ZERO for every `dgst` still yields a
+# full cycle (the extraheader and token-file surfaces rewritten + the `cycle OK` line),
+# proving the SIGNING path calls no openssl; `openssl base64` for surface 1 delegates.
+BIN1882A="$D487/bin1882a"; mkdir -p "$BIN1882A"
+cat > "$BIN1882A/openssl" <<EOF1882A
+#!/usr/bin/env bash
+[ "\$1" = "dgst" ] && { echo "stub: dgst refused" >&2; exit 1; }
+exec "$_realssl_1882" "\$@"
+EOF1882A
+chmod +x "$BIN1882A/openssl"
+cat > "$BIN1882A/curl" <<'EOF1882AC'
+#!/usr/bin/env bash
+case "$*" in *access_tokens*) printf '{"token":"MINTED1882A"}' ;; *installation*) printf '{"id":9999}' ;; esac
+EOF1882AC
+chmod +x "$BIN1882A/curl"
+CFG1882A="$D487/cred1882a.config"
+git config --file "$CFG1882A" "http.https://github.com/.extraheader" "AUTHORIZATION: basic OLD1882A"
+_o1882a="$(printf '%s' "$RSAKEY22" | env "PATH=$BIN1882A:$PATH" DEVFLOW_APP_ID=APPID1882A \
+  GITHUB_REPOSITORY="owner/r1882a" DEVFLOW_REFRESH_CONFIG_FILE="$CFG1882A" \
+  DEVFLOW_REFRESH_TOKEN_FILE="$D487/tok1882a" GITHUB_SERVER_URL="https://github.com" \
+  bash "$REFRESH_SH" cycle 2>&1)"
+assert_eq "#1882 arm1882a (AC1): openssl-dgst-failing stub still reports the cycle OK success line" "yes" \
+  "$(printf '%s' "$_o1882a" | grep -qF 'cycle OK (credentials refreshed)' && echo yes || echo no)"
+assert_eq "#1882 arm1882a (AC1): surface 1 (extraheader) rewritten to the fresh token despite the openssl-dgst stub" "x-access-token:MINTED1882A" \
+  "$(git config --file "$CFG1882A" --get 'http.https://github.com/.extraheader' | sed 's/AUTHORIZATION: basic //' | openssl base64 -d -A 2>/dev/null)"
+assert_eq "#1882 arm1882a (AC1): surface 2 (token file) written despite the openssl-dgst stub" "MINTED1882A" \
+  "$(cat "$D487/tok1882a" 2>/dev/null)"
+
+# 1882b/c/d (AC2) — byte-equality of the signer against openssl for a PKCS#1 key, a
+# PKCS#8 key, and a 4096-bit key. RSASSA-PKCS1-v1_5 is deterministic, so equality is a
+# TOTAL check of the pair. The PASSING assertion carries BOTH compared values in its
+# label, so a green run is the evidence.
+_k1_1882="$D487/k1.pem"; _k8_1882="$D487/k8.pem"; _k4_1882="$D487/k4.pem"
+printf '%s' "$RSAKEY22" > "$_k1_1882"
+openssl pkcs8 -topk8 -nocrypt -in "$_k1_1882" -out "$_k8_1882" 2>/dev/null
+openssl genrsa 4096 > "$_k4_1882" 2>/dev/null
+for _kd in "PKCS#1:$_k1_1882" "PKCS#8:$_k8_1882" "4096-bit:$_k4_1882"; do
+  _lbl="${_kd%%:*}"; _kf="${_kd#*:}"
+  _tok1882="$(python3 "$SIGNER_1882" issx 1700000000 1700000540 < "$_kf")"
+  _si1882="${_tok1882%.*}"; _so1882="${_tok1882##*.}"
+  _sr1882="$(printf '%s' "$_si1882" | openssl dgst -sha256 -sign "$_kf" -binary | openssl base64 -A | tr '+/' '-_' | tr -d '=')"
+  # Non-vacuity precondition: a fixture whose generation failed leaves BOTH sides empty,
+  # and the equality below would then pass while comparing nothing.
+  assert_eq "#1882 arm1882b (AC2) $_lbl: both signatures are non-empty (non-vacuity precondition)" "yes yes" \
+    "$([ -n "$_so1882" ] && echo yes || echo no) $([ -n "$_sr1882" ] && echo yes || echo no)"
+  assert_eq "#1882 arm1882b (AC2) byte-equality $_lbl [signer=$_so1882 openssl=$_sr1882]" "$_sr1882" "$_so1882"
+done
+
+# 1882e/f — the interpreter resolver failure arms STOP the mint (previous credential
+# left in place): rc 1 names the too-old version, rc 3 names the resolver by path.
+_o1882e="$(printf '%s' "$RSAKEY22" | env DEVFLOW_APP_ID=APPID1882E GITHUB_REPOSITORY="owner/r" \
+  DEVFLOW_REFRESH_CONFIG_FILE="$CFG23B" DEVFLOW_REFRESH_TOKEN_FILE="$D487/tok1882e" \
+  DEVFLOW_REFRESH_PYTHON='echo python3; exit 1' bash "$REFRESH_SH" cycle 2>&1 >/dev/null)"
+assert_eq "#1882 arm1882e: a too-old interpreter stops the mint naming the required version 3.11" "yes" \
+  "$(printf '%s' "$_o1882e" | grep -qF 'older than the required version 3.11' && echo yes || echo no)"
+assert_eq "#1882 arm1882e: previous credential intact after the too-old-interpreter arm (PREV23B)" "AUTHORIZATION: basic PREV23B" \
+  "$(git config --file "$CFG23B" --get 'http.https://github.com/.extraheader' 2>/dev/null)"
+_o1882f="$(printf '%s' "$RSAKEY22" | env DEVFLOW_APP_ID=APPID1882F GITHUB_REPOSITORY="owner/r" \
+  DEVFLOW_REFRESH_CONFIG_FILE="$CFG23B" DEVFLOW_REFRESH_TOKEN_FILE="$D487/tok1882f" \
+  DEVFLOW_REFRESH_PYTHON='exit 3' bash "$REFRESH_SH" cycle 2>&1 >/dev/null)"
+assert_eq "#1882 arm1882f: no interpreter stops the mint naming the resolver lib/resolve-python.sh by path" "yes" \
+  "$(printf '%s' "$_o1882f" | grep -qF 'resolver lib/resolve-python.sh' && echo yes || echo no)"
+assert_eq "#1882 arm1882f: previous credential intact after the no-interpreter arm (PREV23B)" "AUTHORIZATION: basic PREV23B" \
+  "$(git config --file "$CFG23B" --get 'http.https://github.com/.extraheader' 2>/dev/null)"
+# 1882f-empty — rc 0 with an EMPTY spec is a resolver contract breach, not a pass: it is
+# the one rc arm that would fail OPEN, running the signer through its shebang and silently
+# bypassing the 3.11 version gate the other arms enforce.
+_o1882fe="$(printf '%s' "$RSAKEY22" | env DEVFLOW_APP_ID=APPID1882FE GITHUB_REPOSITORY="owner/r" \
+  DEVFLOW_REFRESH_CONFIG_FILE="$CFG23B" DEVFLOW_REFRESH_TOKEN_FILE="$D487/tok1882fe" \
+  DEVFLOW_REFRESH_PYTHON='exit 0' bash "$REFRESH_SH" cycle 2>&1 >/dev/null)"
+assert_eq "#1882 arm1882f-empty: rc 0 with an empty spec stops the mint naming the resolver breach" "yes" \
+  "$(printf '%s' "$_o1882fe" | grep -qF 'returned success but no interpreter' && echo yes || echo no)"
+assert_eq "#1882 arm1882f-empty: previous credential intact after the empty-spec arm (PREV23B)" "AUTHORIZATION: basic PREV23B" \
+  "$(git config --file "$CFG23B" --get 'http.https://github.com/.extraheader' 2>/dev/null)"
+
+# 1882g — clock read fail-closed: an unavailable `date` STOPS the mint naming the command.
+DATEDIR1882="$D487/nodate1882"; mkdir -p "$DATEDIR1882"
+printf '#!/usr/bin/env bash\nexit 1\n' > "$DATEDIR1882/date"; chmod +x "$DATEDIR1882/date"
+_o1882g="$(printf '%s' "$RSAKEY22" | env "PATH=$DATEDIR1882:$PATH" DEVFLOW_APP_ID=APPID1882G \
+  GITHUB_REPOSITORY="owner/r" DEVFLOW_REFRESH_CONFIG_FILE="$CFG23B" DEVFLOW_REFRESH_TOKEN_FILE="$D487/tok1882g" \
+  bash "$REFRESH_SH" cycle 2>&1 >/dev/null)"
+assert_eq "#1882 arm1882g: an unavailable clock (date) stops the mint naming the command" "yes" \
+  "$(printf '%s' "$_o1882g" | grep -qF "the 'date' command produced no timestamp" && echo yes || echo no)"
+
+# 1882h/i — the loop retires itself once its job is superseded (a mid-run pointer
+# change), and runs to MAX_CYCLES when the pointer keeps naming its job (never a
+# launcher-PID early exit).
+CFG1882H="$D487/cred1882h.config"; git config --file "$CFG1882H" "http.https://github.com/.extraheader" "AUTHORIZATION: basic OLD1882H"
+printf 'JOB_A' > "$D487/ptr1882h"
+SLEEPDIR1882="$D487/sleep1882"; mkdir -p "$SLEEPDIR1882"
+printf '#!/usr/bin/env bash\nprintf JOB_B > "%s"\n' "$D487/ptr1882h" > "$SLEEPDIR1882/s"; chmod +x "$SLEEPDIR1882/s"
+_o1882h="$(printf '%s' "$RSAKEY22" | env DEVFLOW_APP_ID=x GITHUB_REPOSITORY="o/r" \
+  DEVFLOW_REFRESH_MINT='printf TOK1882H' DEVFLOW_REFRESH_CONFIG_FILE="$CFG1882H" DEVFLOW_REFRESH_TOKEN_FILE="$D487/tok1882h" \
+  DEVFLOW_REFRESH_SLEEP="$SLEEPDIR1882/s" DEVFLOW_REFRESH_JOB_ID=JOB_A DEVFLOW_REFRESH_JOB_POINTER="$D487/ptr1882h" \
+  DEVFLOW_REFRESH_MAX_CYCLES=10 bash "$REFRESH_SH" loop 2>&1)"
+assert_eq "#1882 arm1882h: the loop retires itself once its job is superseded (mid-run pointer change)" "yes" \
+  "$(printf '%s' "$_o1882h" | grep -qF 'retiring itself' && echo yes || echo no)"
+assert_eq "#1882 arm1882h: the superseded loop ran exactly one cycle before retiring" "1" \
+  "$(printf '%s' "$_o1882h" | grep -cF 'cycle OK')"
+printf 'JOB_A' > "$D487/ptr1882i"
+_o1882i="$(printf '%s' "$RSAKEY22" | env DEVFLOW_APP_ID=x GITHUB_REPOSITORY="o/r" \
+  DEVFLOW_REFRESH_MINT='printf TOK1882I' DEVFLOW_REFRESH_CONFIG_FILE="$CFG1882H" DEVFLOW_REFRESH_TOKEN_FILE="$D487/tok1882i" \
+  DEVFLOW_REFRESH_SLEEP=true DEVFLOW_REFRESH_JOB_ID=JOB_A DEVFLOW_REFRESH_JOB_POINTER="$D487/ptr1882i" \
+  DEVFLOW_REFRESH_MAX_CYCLES=3 bash "$REFRESH_SH" loop 2>&1)"
+assert_eq "#1882 arm1882i: a never-superseded loop runs to MAX_CYCLES (no launcher-PID early exit)" "3" \
+  "$(printf '%s' "$_o1882i" | grep -cF 'cycle OK')"
+assert_eq "#1882 arm1882i: a never-superseded loop never emits the retiring-itself line" "no" \
+  "$(printf '%s' "$_o1882i" | grep -qF 'retiring itself' && echo yes || echo no)"
+
+# 1882j — the teardown attributes a self-test failure to the SIGNING FAULT, not a
+# never-started / stale-token defeat.
+printf 'refusing to sign — passphrase-protected PEM' > "$D487/stmark1882"
+_s1882j="$(DEVFLOW_REFRESH_SELFTEST_FAILED="$D487/stmark1882" DEVFLOW_REFRESH_PIDFILE="$D487/none1882.pid" \
+  DEVFLOW_REFRESH_STARTED=failure DEVFLOW_REFRESH_REAP_GLOB="$D487/noreapj-*.pid" bash "$STOP_SH" 2>&1)"
+assert_eq "#1882 arm1882j: teardown names the self-test signing fault" "yes" \
+  "$(printf '%s' "$_s1882j" | grep -qF 'self-test failed the job' && echo yes || echo no)"
+assert_eq "#1882 arm1882j: teardown does NOT emit the did-not-start defeat on the self-test arm" "no" \
+  "$(printf '%s' "$_s1882j" | grep -qF 'did not start or crashed' && echo yes || echo no)"
+
+# 1882k — fail-closed when grep/tail are unavailable: defeated + warn, never silent.
+MINBIN1882="$D487/minbin1882"; mkdir -p "$MINBIN1882"
+for _t1882 in bash cat mktemp dirname sleep kill; do _p1882="$(command -v "$_t1882" || true)"; [ -n "$_p1882" ] && ln -sf "$_p1882" "$MINBIN1882/$_t1882"; done
+printf 'refresh-app-credentials: cycle OK\n' > "$D487/log1882k"
+_s1882k="$(env "PATH=$MINBIN1882" DEVFLOW_REFRESH_PIDFILE="$D487/dead1882.pid" DEVFLOW_REFRESH_STARTED=skipped \
+  DEVFLOW_REFRESH_LOG="$D487/log1882k" DEVFLOW_REFRESH_REAP_GLOB="$D487/noreapk-*.pid" bash "$STOP_SH" 2>&1)"
+assert_eq "#1882 arm1882k: unavailable grep/tail fails closed (defeated + warn, not silent)" "yes" \
+  "$(printf '%s' "$_s1882k" | grep -qF 'grep/tail) are unavailable' && echo yes || echo no)"
+
+# 1882l — the cross-job reaper retires an orphaned refresher (a LIVE process whose
+# /proc command line names refresh-app-credentials.sh) from a prior job, and gates
+# the kill on process IDENTITY so a recycled/unrelated pid is never signalled.
+STUBREF1882="$D487/refresh-app-credentials.sh"   # stand-in whose bash cmdline matches
+printf '#!/usr/bin/env bash\nsleep 30\n' > "$STUBREF1882"; chmod +x "$STUBREF1882"
+bash "$STUBREF1882" & _orp1882=$!; printf '%s' "$_orp1882" > "$D487/devflow-refresh-JOBOLD.pid"
+_s1882l="$(DEVFLOW_REFRESH_PIDFILE="$D487/devflow-refresh-JOBNEW.pid" DEVFLOW_REFRESH_STARTED=skipped \
+  DEVFLOW_REFRESH_REAP_GLOB="$D487/devflow-refresh-JOBOLD.pid" bash "$STOP_SH" 2>&1)"
+assert_eq "#1882 arm1882l: the cross-job reaper retires an identity-confirmed orphaned refresher" "yes" \
+  "$(printf '%s' "$_s1882l" | grep -qF 'reaped an orphaned credential refresher' && echo yes || echo no)"
+sleep 0.5 2>/dev/null || true
+assert_eq "#1882 arm1882l: the reaped orphan is no longer alive" "no" \
+  "$(kill -0 "$_orp1882" 2>/dev/null && echo yes || echo no)"
+assert_eq "#1882 arm1882l: the reaped orphan's pidfile is unlinked" "yes" \
+  "$([ ! -e "$D487/devflow-refresh-JOBOLD.pid" ] && echo yes || echo no)"
+kill "$_orp1882" 2>/dev/null || true
+# 1882l-neg — a LIVE pid whose command line is NOT a refresher (a recycled pid) is
+# SKIPPED, never killed: fail-safe against pid reuse on a long-lived runner.
+sleep 30 & _nonref1882=$!; printf '%s' "$_nonref1882" > "$D487/devflow-refresh-JOBREUSE.pid"
+_s1882ln="$(DEVFLOW_REFRESH_PIDFILE="$D487/devflow-refresh-JOBNEW2.pid" DEVFLOW_REFRESH_STARTED=skipped \
+  DEVFLOW_REFRESH_REAP_GLOB="$D487/devflow-refresh-JOBREUSE.pid" bash "$STOP_SH" 2>&1)"
+assert_eq "#1882 arm1882l-neg: a non-refresher (pid-reuse) live process is NOT reaped" "yes" \
+  "$(printf '%s' "$_s1882ln" | grep -qF 'is not a credential refresher' && echo yes || echo no)"
+sleep 0.2 2>/dev/null || true
+assert_eq "#1882 arm1882l-neg: the unrelated live process stays alive (fail-safe)" "yes" \
+  "$(kill -0 "$_nonref1882" 2>/dev/null && echo yes || echo no)"
+kill "$_nonref1882" 2>/dev/null || true
+# 1882l-stale — a pidfile whose pid is dead is UNLINKED so no later teardown re-reads it.
+printf '%s' "2147480000" > "$D487/devflow-refresh-JOBDEAD.pid"
+DEVFLOW_REFRESH_PIDFILE="$D487/devflow-refresh-JOBNEW3.pid" DEVFLOW_REFRESH_STARTED=skipped \
+  DEVFLOW_REFRESH_REAP_GLOB="$D487/devflow-refresh-JOBDEAD.pid" bash "$STOP_SH" >/dev/null 2>&1
+assert_eq "#1882 arm1882l-stale: a dead-pid pidfile is unlinked by the reaper" "yes" \
+  "$([ ! -e "$D487/devflow-refresh-JOBDEAD.pid" ] && echo yes || echo no)"
+# 1882l-ps — the PORTABLE `ps` identity fallback, forced. CI runs on Linux, where
+# /proc is always readable, so the macOS/BSD arm this PR ships is otherwise never
+# executed by any test and could regress unnoticed.
+bash "$STUBREF1882" & _orpps1882=$!; printf '%s' "$_orpps1882" > "$D487/devflow-refresh-JOBPS.pid"
+_s1882lps="$(DEVFLOW_REFRESH_PIDFILE="$D487/devflow-refresh-JOBNEW4.pid" DEVFLOW_REFRESH_STARTED=skipped \
+  DEVFLOW_REFRESH_IDENTITY_SOURCE=ps \
+  DEVFLOW_REFRESH_REAP_GLOB="$D487/devflow-refresh-JOBPS.pid" bash "$STOP_SH" 2>&1)"
+assert_eq "#1882 arm1882l-ps: the ps identity fallback confirms and reaps an orphan" "yes" \
+  "$(printf '%s' "$_s1882lps" | grep -qF 'reaped an orphaned credential refresher' && echo yes || echo no)"
+sleep 0.5 2>/dev/null || true
+assert_eq "#1882 arm1882l-ps: the ps-confirmed orphan is no longer alive" "no" \
+  "$(kill -0 "$_orpps1882" 2>/dev/null && echo yes || echo no)"
+kill "$_orpps1882" 2>/dev/null || true
+# 1882l-unverifiable — a host that can establish NEITHER identity source must SKIP,
+# never signal: the fail-safe arm that stops a pid-reuse kill on an unverifiable host.
+bash "$STUBREF1882" & _orpnone1882=$!; printf '%s' "$_orpnone1882" > "$D487/devflow-refresh-JOBNONE.pid"
+_s1882lun="$(DEVFLOW_REFRESH_PIDFILE="$D487/devflow-refresh-JOBNEW5.pid" DEVFLOW_REFRESH_STARTED=skipped \
+  DEVFLOW_REFRESH_IDENTITY_SOURCE=none \
+  DEVFLOW_REFRESH_REAP_GLOB="$D487/devflow-refresh-JOBNONE.pid" bash "$STOP_SH" 2>&1)"
+assert_eq "#1882 arm1882l-unverifiable: an unestablishable command line is skipped, naming the reason" "yes" \
+  "$(printf '%s' "$_s1882lun" | grep -qF 'cannot be confirmed a refresher' && echo yes || echo no)"
+sleep 0.2 2>/dev/null || true
+assert_eq "#1882 arm1882l-unverifiable: the unverifiable orphan is NOT signalled (fail-safe)" "yes" \
+  "$(kill -0 "$_orpnone1882" 2>/dev/null && echo yes || echo no)"
+assert_eq "#1882 arm1882l-unverifiable: its pidfile is retained for a later teardown" "yes" \
+  "$([ -e "$D487/devflow-refresh-JOBNONE.pid" ] && echo yes || echo no)"
+kill "$_orpnone1882" 2>/dev/null || true
+# 1882l-selftest — the reaper runs even when the self-test marker short-circuits the
+# teardown: a job whose self-test failed still shares the runner with a prior job's
+# orphan, and skipping the reap leaves it holding a live repository-write token.
+bash "$STUBREF1882" & _orpst1882=$!; printf '%s' "$_orpst1882" > "$D487/devflow-refresh-JOBST.pid"
+printf 'signing fault\n' > "$D487/stmark1882st"
+_s1882lst="$(DEVFLOW_REFRESH_SELFTEST_FAILED="$D487/stmark1882st" \
+  DEVFLOW_REFRESH_PIDFILE="$D487/devflow-refresh-JOBNEW6.pid" DEVFLOW_REFRESH_STARTED=failure \
+  DEVFLOW_REFRESH_REAP_GLOB="$D487/devflow-refresh-JOBST.pid" bash "$STOP_SH" 2>&1)"
+assert_eq "#1882 arm1882l-selftest: the reaper still runs on the self-test-failure path" "yes" \
+  "$(printf '%s' "$_s1882lst" | grep -qF 'reaped an orphaned credential refresher' && echo yes || echo no)"
+assert_eq "#1882 arm1882l-selftest: the signing-fault attribution is still emitted" "yes" \
+  "$(printf '%s' "$_s1882lst" | grep -qF 'this is a signing fault, not a stale-credential defeat' && echo yes || echo no)"
+sleep 0.5 2>/dev/null || true
+assert_eq "#1882 arm1882l-selftest: the orphan is retired on that path" "no" \
+  "$(kill -0 "$_orpst1882" 2>/dev/null && echo yes || echo no)"
+kill "$_orpst1882" 2>/dev/null || true
+
+# 1882m (AC5) — the signer refuses every non-(PKCS#1|PKCS#8-RSA) input BY NAME,
+# emitting no signature. Malformed-input matrix.
+_enc1882="$D487/enc.pem"; openssl rsa -in "$_k1_1882" -aes128 -passout pass:x -out "$_enc1882" 2>/dev/null
+_der1882="$D487/raw.der"; openssl rsa -in "$_k1_1882" -outform DER -out "$_der1882" 2>/dev/null
+_ec1882="$D487/ec.pem"; openssl ecparam -name prime256v1 -genkey -noout -out "$_ec1882" 2>/dev/null
+openssl pkcs8 -topk8 -nocrypt -in "$_ec1882" -out "$D487/ec8.pem" 2>/dev/null
+printf -- '-----BEGIN OPENSSH PRIVATE KEY-----\nAAAA\n-----END OPENSSH PRIVATE KEY-----\n' > "$D487/ossh.pem"
+head -c 100 "$_k1_1882" > "$D487/trunc1882.pem"
+: > "$D487/empty1882"
+for _mc1882 in "passphrase|$_enc1882|passphrase-protected" "openssh|$D487/ossh.pem|OpenSSH" \
+               "rawder|$_der1882|raw DER" "empty|$D487/empty1882|empty standard input" \
+               "truncated|$D487/trunc1882.pem|truncated PEM" "ec|$_ec1882|EC private key" \
+               "pkcs8-non-rsa|$D487/ec8.pem|not RSA"; do
+  _mlbl1882="${_mc1882%%|*}"; _mrest1882="${_mc1882#*|}"; _mkf1882="${_mrest1882%%|*}"; _mmsg1882="${_mrest1882#*|}"
+  _mout1882="$(python3 "$SIGNER_1882" iss 1 2 < "$_mkf1882" 2>"$D487/merr1882")"; _mrc1882=$?
+  assert_eq "#1882 arm1882m ($_mlbl1882): refused non-zero with NO signature emitted" "yes" \
+    "$([ "$_mrc1882" -ne 0 ] && [ -z "$_mout1882" ] && echo yes || echo no)"
+  assert_eq "#1882 arm1882m ($_mlbl1882): diagnostic names the detected encoding" "yes" \
+    "$(grep -qF "$_mmsg1882" "$D487/merr1882" && echo yes || echo no)"
+done
+
+# 1882n — the pre-launch self-test itself (refresher-selftest.sh), driven DIRECTLY:
+# PASS on a real key, JOB-FAULT (exit 3 + marker written) on a refusing key, JOB-FAULT
+# naming the version on a too-old interpreter, and WARN-CONTINUE (exit 0 + ::warning::)
+# on an absent signer helper — the mechanism that makes an unsignable host loud, which
+# arm1882j only tested downstream (it fed stop-refresher a PRE-written marker).
+SELFTEST_1882="$LIB/../scripts/refresher-selftest.sh"
+_stp1882="$(printf '%s' "$RSAKEY22" | bash "$SELFTEST_1882" 2>&1)"; _stp1882_rc=$?
+assert_eq "#1882 arm1882n: self-test PASS arm (real key) exits 0 and reports passed" "0 yes" \
+  "$_stp1882_rc $(printf '%s' "$_stp1882" | grep -qF 'self-test passed' && echo yes || echo no)"
+_stf1882="$(printf 'NOT-A-PEM' | env DEVFLOW_REFRESH_SELFTEST_FAILED="$D487/stmarkn1882" bash "$SELFTEST_1882" 2>&1)"; _stf1882_rc=$?
+assert_eq "#1882 arm1882n: self-test JOB-FAULT arm (refusing key) exits 3 and writes the marker" "3 yes" \
+  "$_stf1882_rc $([ -s "$D487/stmarkn1882" ] && echo yes || echo no)"
+_sto1882="$(printf '%s' "$RSAKEY22" | env DEVFLOW_REFRESH_PYTHON='echo python3; exit 1' bash "$SELFTEST_1882" 2>&1)"; _sto1882_rc=$?
+assert_eq "#1882 arm1882n: self-test JOB-FAULT arm (too-old interpreter) exits 3 naming the version" "3 yes" \
+  "$_sto1882_rc $(printf '%s' "$_sto1882" | grep -qF 'older than the required version 3.11' && echo yes || echo no)"
+_stoe1882="$(printf '%s' "$RSAKEY22" | env DEVFLOW_REFRESH_PYTHON='exit 0' bash "$SELFTEST_1882" 2>&1)"; _stoe1882_rc=$?
+assert_eq "#1882 arm1882n: self-test JOB-FAULT arm (rc 0 + empty spec) exits 3 naming the resolver breach" "3 yes" \
+  "$_stoe1882_rc $(printf '%s' "$_stoe1882" | grep -qF 'returned success but no interpreter' && echo yes || echo no)"
+_stw1882="$(printf '%s' "$RSAKEY22" | env DEVFLOW_REFRESH_SIGNER="$D487/absent-signer-n.py" bash "$SELFTEST_1882" 2>&1)"; _stw1882_rc=$?
+assert_eq "#1882 arm1882n: self-test WARN-CONTINUE arm (absent signer) exits 0 with a ::warning::" "0 yes" \
+  "$_stw1882_rc $(printf '%s' "$_stw1882" | grep -qF '::warning::refresher-selftest' && echo yes || echo no)"
+
+# 1882o — the assembled JWT's header and payload decode to the EXPECTED JSON (not the
+# self-referential byte-equality check), and an iss carrying a double-quote is
+# JSON-escaped — pinning sign_jwt's header/claims assembly and the iss escaping.
+_jtok1882="$(python3 "$SIGNER_1882" 'app"q' 111 222 < "$_k1_1882")"
+_jh1882="${_jtok1882%%.*}"; _jrest1882="${_jtok1882#*.}"; _jp1882="${_jrest1882%%.*}"
+_pad1882() { local s="$1"; case $(( ${#s} % 4 )) in 2) s="$s==";; 3) s="$s=";; esac; printf '%s' "$s" | tr '_-' '/+'; }
+assert_eq "#1882 arm1882o: assembled JWT header decodes to the RS256 alg" '{"alg":"RS256","typ":"JWT"}' \
+  "$(_pad1882 "$_jh1882" | openssl base64 -d -A 2>/dev/null)"
+assert_eq "#1882 arm1882o: assembled JWT payload carries iat/exp and the JSON-escaped iss" '{"iat":111,"exp":222,"iss":"app\"q"}' \
+  "$(_pad1882 "$_jp1882" | openssl base64 -d -A 2>/dev/null)"
+
 rm -rf "$D487"
 
 # ── Workflow wiring (issue #487): both writer jobs gain the refresher + wrapper
@@ -47409,7 +48598,7 @@ rm -rf "$D487"
 # hand-edited workflow — driven end to end and joined to the shipped workflow's own
 # trigger-time guard.
 if ! devflow_run_full_suite_module "$LIB/test/modules/installer-wiring.sh" \
-  "installer-wiring" 277; then
+  "installer-wiring" 287; then
   printf 'ERROR: installer-wiring boundary could not record its result\n'
   exit 1
 fi
@@ -47443,7 +48632,7 @@ fi
 # The registry and this full-suite call share the same lower-bound contract;
 # test_module_runner.py parses this operand and rejects any coupling drift.
 if ! devflow_run_full_suite_module "$LIB/test/modules/create-issue-contract.sh" \
-  "create-issue-contract" 418; then
+  "create-issue-contract" 397; then
   printf 'ERROR: create-issue-contract boundary could not record its result\n'
   exit 1
 fi
@@ -48280,15 +49469,17 @@ ICE_TEST_RC=$?
 assert_eq "issue #1209: implement context eval focused tests pass" "0" "$ICE_TEST_RC"
 [ "$ICE_TEST_RC" -eq 0 ] || while IFS= read -r _ice_line || [ -n "$_ice_line" ]; do printf '    %s\n' "$_ice_line"; done <<< "$ICE_TEST_OUT"
 
-# issue #1314: the trusted-emitter review-verdict handoff importer is the trust
-# boundary between the untrusted review producer and the trusted emitter — its
-# focused tests drive the accepted shape and every documented rejection class
-# (AC5), and the security-critical invariant that a rejection publishes NO output
-# artifact. A non-zero exit surfaces the unittest output here.
-IRVH_TEST_OUT="$(python3 "$LIB/test/test_import_review_verdict_handoff.py" 2>&1)"
-IRVH_TEST_RC=$?
-assert_eq "issue #1314: review-verdict handoff importer focused tests pass" "0" "$IRVH_TEST_RC"
-[ "$IRVH_TEST_RC" -eq 0 ] || while IFS= read -r _irvh_line || [ -n "$_irvh_line" ]; do printf '    %s\n' "$_irvh_line"; done <<< "$IRVH_TEST_OUT"
+# review-context-eval parser coverage (issue #1852): the third transcript-walking context
+# instrument (scripts/review-context-eval.py), which measures per-context review-engine
+# read cost. The focused test asserts the engine-subtree recognizer, per-context
+# attribution with the main-thread/subagent distinction, per-context peak, the
+# no-engine-read/empty/missing-corpus arms, malformed-record degradation, the
+# symlink-escape guard, determinism, the no-owner-id scan with its planted positive
+# control, and the no-auto-invocation search. This block INVOKES the test, not the script.
+RCE_TEST_OUT="$(python3 "$LIB/test/test_review_context_eval.py" 2>&1)"
+RCE_TEST_RC=$?
+assert_eq "issue #1852: review context eval focused tests pass" "0" "$RCE_TEST_RC"
+[ "$RCE_TEST_RC" -eq 0 ] || while IFS= read -r _rce_line || [ -n "$_rce_line" ]; do printf '    %s\n' "$_rce_line"; done <<< "$RCE_TEST_OUT"
 
 # harness-python-guards contract coverage (issue #707: extracted from this file's
 # #600 / #527 / #528 / #668 / #798 / #810 / #591 Python guard blocks into a focused
@@ -48306,7 +49497,7 @@ fi
 # and this full-suite call share the same lower-bound contract; test_module_runner.py
 # parses this operand and rejects any coupling drift.
 if ! devflow_run_full_suite_module "$LIB/test/modules/issue-audit-state.sh" \
-  "issue-audit-state" 261; then
+  "issue-audit-state" 286; then
   printf 'ERROR: issue-audit-state boundary could not record its result\n'
   exit 1
 fi
@@ -51966,7 +53157,7 @@ assert_eq "#1402/#1423 lint: an empty DEVFLOW_WITHHELD_TIER does not refuse (the
 # The print flag exits before the slice and schema reads, so a query about the workflow set
 # cannot be refused by — or misdiagnosed against — a source it never consults.
 assert_eq "#1402 lint: --print-never-shipped-set is independent of the slice and schema sources" \
-  "rc=0|agents-seam-probe ci devflow-runner matcher-probe telemetry-push version-consolidate" \
+  "rc=0|agents-seam-probe ci devflow-runner matcher-probe stall-observer telemetry-push version-consolidate" \
   "$(cd "$LIB/.." && sp_encode --print-never-shipped-set --slice-source /dev/null --schema-source /dev/null)"
 # Selection collects every candidate before choosing, so ambiguity refuses rather than
 # resolving by position. Both conjuncts say nothing about a loop's DIRECTION — the fixture's
@@ -52000,7 +53191,7 @@ assert_eq "#1402 lint: --print-never-shipped-set joins the mutually exclusive pr
 # copy loop, turns this RED rather than silently widening or narrowing the audit.
 SP_NEVER_REAL="$(cd "$LIB/.." && python3 "$SP_LINT" --print-never-shipped-set | python3 -c 'import sys; print(" ".join(sys.stdin.read().split()))')"
 assert_eq "#1402 lint: the real never-shipped set matches the checked-in expectation" \
-  "agents-seam-probe ci devflow-runner matcher-probe telemetry-push version-consolidate" "$SP_NEVER_REAL"
+  "agents-seam-probe ci devflow-runner matcher-probe stall-observer telemetry-push version-consolidate" "$SP_NEVER_REAL"
 # The #582 partition names this same group from its own transcribed literals: everything the
 # copy loop does NOT install, i.e. the plugin-internal group PLUS the retained-but-unshipped
 # withheld tier (issue #1423 — a withheld name reaches no fresh consumer, so it is forbidden
@@ -53148,12 +54339,9 @@ assert_eq "public site guard: a page navigated twice fails completeness" "no" \
   "$(public_docs_pages_are_navigated_once "$PUBLIC_DUPE_FIXTURE")"
 
 # ── #1595 reference-size ceiling (lib/test/lint-reference-size.py) ──
-# A boundary-gated reference larger than the reader can return in one call yields its
-# start marker and no end marker — the `truncated` shape `/prflow:implement`, `/prflow:review`,
-# `/prflow:review-and-fix` and `/prflow:docs-verify` treat as fail-closed, and that
-# `/prflow:create-issue` degrades best-effort on — with the file intact on disk. The lint measures bytes against a
-# ceiling derived from the reader's token cap; these assertions drive its executable
-# boundary (exit code + emitted verdict lines).
+# Do not relax or exempt this ceiling on the grounds that the boundary gate now pages an
+# over-budget reference whole: paging still costs every loader extra reads, and a smaller
+# reader budget may not complete it. Drive the lint's exit code and verdict lines, not its prose.
 echo "#1595 reference-size ceiling: gated references and skill roots stay under the reader's Read cap"
 RSZ_LINT="$LIB/test/lint-reference-size.py"
 

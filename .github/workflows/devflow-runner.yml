@@ -1237,13 +1237,13 @@ jobs:
               (if (($cfg.providers) | type) == "object" then $cfg.providers else {} end) as $provs
               | if (($provs[$praw]) | type) != "object" then
                   {error:"undefined_provider", section:$section, provider:$praw, detail:"provider is not defined in the providers map"}
-                elif ((($provs[$praw].base_url) | type) != "string" or ($provs[$praw].base_url == "")) then
+                elif (($provs[$praw].auth) as $a | ($a != "bearer" and $a != "api_key" and $a != "bedrock_api_key")) then
+                  {error:"incomplete_provider", section:$section, provider:$praw, detail:"provider auth must be one of bearer, api_key, bedrock_api_key"}
+                elif (($provs[$praw].auth) as $a | (($a == "bearer" or $a == "api_key") and ((($provs[$praw].base_url) | type) != "string" or ($provs[$praw].base_url == "")))) then
                   {error:"incomplete_provider", section:$section, provider:$praw, detail:"provider entry has no base_url"}
-                elif (($provs[$praw].auth) as $a | ($a != "bearer" and $a != "api_key")) then
-                  {error:"incomplete_provider", section:$section, provider:$praw, detail:"provider auth must be bearer or api_key"}
                 else
                   ($provs[$praw]) as $p
-                  | {provider:$praw, base_url:$p.base_url, auth:$p.auth, timeout_ms:($p.timeout_ms // ""), effort_supported:(($p.effort_supported // false) == true), model:$model, env:(if (($p.env) | type) == "object" then $p.env else {} end)}
+                  | {provider:$praw, base_url:(if (($p.base_url) | type) == "string" then $p.base_url else "" end), auth:$p.auth, timeout_ms:($p.timeout_ms // ""), effort_supported:(($p.effort_supported // false) == true), model:$model, env:(if (($p.env) | type) == "object" then $p.env else {} end)}
                 end
             end
           '
@@ -1260,7 +1260,7 @@ jobs:
           if [ "$(printf '%s' "$DECISION" | jq -r '.error // ""')" != "" ]; then
             PNAME=$(printf '%s' "$DECISION" | jq -r '.provider // ""')
             DETAIL=$(printf '%s' "$DECISION" | jq -r '.detail // "provider configuration is invalid"')
-            echo "::error::.prflow/config.json section '$SECTION' provider '$PNAME': $DETAIL. Fix the providers.$PNAME entry (base_url + auth: bearer|api_key) or remove the section provider key. Refusing to run."
+            echo "::error::.prflow/config.json section '$SECTION' provider '$PNAME': $DETAIL. Fix the providers.$PNAME entry or remove the section provider key. Refusing to run."
             exit 1
           fi
           # One jq pass emits every scalar decision field to the step output, each as a
@@ -1305,6 +1305,16 @@ jobs:
             fi
             exit 1
           fi
+
+      # Export the routed provider's effort capability to the JOB env for the
+      # in-session resolve-review-overrides.py. Keep it ungated: a `provider != ''`
+      # gate leaves the default path relying on the resolver's fail-open (#1772).
+      - name: Export provider effort capability to job env
+        env:
+          EFFORT_SUPPORTED: ${{ steps.provider.outputs.effort_supported }}
+        run: |
+          set -euo pipefail
+          printf 'PRFLOW_EFFORT_SUPPORTED=%s\n' "$EFFORT_SUPPORTED" >> "$GITHUB_ENV"
 
       # Compute the claude_args head so --model is always present and --effort is
       # dropped only for a provider whose effort_supported is false (AC 7). The
@@ -2161,23 +2171,47 @@ jobs:
             echo "::error::.prflow/config.json section '$SECTION' provider '$PROVIDER' has an env-map key that is not a valid environment variable name ([A-Za-z_][A-Za-z0-9_]*). Fix the providers.$PROVIDER.env keys. Refusing to run."
             exit 1
           fi
+          # SECURITY (issue #1773): the shape guard above accepts any valid env-var NAME — do not
+          # drop this guard, and keep the assignment bare: a local/declare prefix or an if/&&/||
+          # context makes set -e swallow a jq failure, and a denied key is then exported job-wide.
+          denied_env_keys="$(printf '%s' "$DECISION" | jq -r '[.env // {} | keys[] | select(ascii_upcase | IN("PATH","GITHUB_TOKEN","GH_TOKEN","GITHUB_ENV","GITHUB_OUTPUT","GITHUB_PATH","ANTHROPIC_API_KEY","ANTHROPIC_AUTH_TOKEN","CLAUDE_CODE_OAUTH_TOKEN","AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY","AWS_SESSION_TOKEN","AWS_BEARER_TOKEN_BEDROCK","BASH_ENV","ENV","LD_PRELOAD","LD_LIBRARY_PATH","DYLD_INSERT_LIBRARIES","NODE_OPTIONS","PYTHONPATH","CLAUDE_CODE_SUBAGENT_MODEL"))] | join(" ")')"
+          if [ -n "$denied_env_keys" ]; then
+            echo "::error::.prflow/config.json section '$SECTION' provider '$PROVIDER' env map contains forbidden key(s): $denied_env_keys — a credential name, a variable that would shadow the job environment or its Actions plumbing, an interpreter/loader hook that can make every later step load code you did not intend, or the subagent-model override that flattens the review roster. Set credentials via the DEVFLOW_PROVIDER_API_KEY repository secret, and remove these keys from providers.$PROVIDER.env. Refusing to run."
+            exit 1
+          fi
           # Every $GITHUB_ENV write below uses GitHub's newline-safe multiline (heredoc) form —
           # the scalar endpoint values via genv(), the provider env map via the inline jq heredoc
           # emit at the end — so a config-sourced value carrying an embedded newline cannot split
           # a plain KEY=VALUE line and inject/forge a further job env var. Mirrors the resolver's
           # decision<< output; the timestamped+PID delimiter makes value collision negligible.
           genv() { local d; d="ENV_EOF_$(date +%s%N)_$$"; { printf '%s<<%s\n' "$1" "$d"; printf '%s\n' "$2"; printf '%s\n' "$d"; } >> "$GITHUB_ENV"; }
-          # base_url is guaranteed non-empty by the resolver (a provider-active decision
-          # fails loud on an empty base_url), so write it unconditionally.
-          genv ANTHROPIC_BASE_URL "$BASE_URL"
+          # base_url is guaranteed non-empty by the resolver for bearer/api_key; the
+          # bedrock_api_key arm needs none and reaches Bedrock via AWS_REGION instead.
+          if [ "$AUTH" = "bedrock_api_key" ]; then
+            # AWS region is required and travels in the env map (passthrough below); fail
+            # loud when absent/empty so the run does not authenticate then die on every
+            # model call. A non-string region reads as absent (strings|select) — fail closed.
+            if ! printf '%s' "$DECISION" | jq -e '.env.AWS_REGION | strings | select(. != "")' >/dev/null 2>&1; then
+              echo "::error::.prflow/config.json section '$SECTION' provider '$PROVIDER' uses bedrock_api_key auth but its env map sets no AWS_REGION. Add AWS_REGION to providers.$PROVIDER.env (the Bedrock client requires a region). Refusing to run."
+              exit 1
+            fi
+            # base_url is unused here; warn (never fail) if one was set, and export NO
+            # ANTHROPIC_BASE_URL/ANTHROPIC_AUTH_TOKEN on this arm.
+            if [ -n "$BASE_URL" ]; then
+              echo "::warning::.prflow/config.json section '$SECTION' provider '$PROVIDER' uses bedrock_api_key auth; its base_url is ignored (Bedrock is reached via AWS_REGION, not base_url). Remove base_url from providers.$PROVIDER."
+            fi
+            genv AWS_BEARER_TOKEN_BEDROCK "$PROVIDER_API_KEY"
+          else
+            genv ANTHROPIC_BASE_URL "$BASE_URL"
+            # Bearer-token gateways read Authorization from ANTHROPIC_AUTH_TOKEN; the
+            # same key also rides as the anthropic_api_key action input below (the
+            # documented two-slot recipe). auth: api_key passes it via the input only.
+            if [ "$AUTH" = "bearer" ]; then genv ANTHROPIC_AUTH_TOKEN "$PROVIDER_API_KEY"; fi
+          fi
+          # API_TIMEOUT_MS applies to either arm, so write it once after the branch.
           if [ -n "$TIMEOUT_MS" ]; then genv API_TIMEOUT_MS "$TIMEOUT_MS"; fi
-          # Bearer-token gateways read Authorization from ANTHROPIC_AUTH_TOKEN; the
-          # same key also rides as the anthropic_api_key action input below (the
-          # documented two-slot recipe). auth: api_key passes it via the input only.
-          if [ "$AUTH" = "bearer" ]; then genv ANTHROPIC_AUTH_TOKEN "$PROVIDER_API_KEY"; fi
-          # Every key of the provider env map (haiku/subagent model mappings, the
-          # beta/attribution toggles, …) verbatim, each as a heredoc block. These are
-          # non-secret model/config values (only the API key above is a masked secret).
+          # Do not describe these as filtered: a denied key aborts the whole run above, so nothing
+          # is ever dropped and exported alongside. Only the API key above is a masked secret.
           edelim="ENV_EOF_$(date +%s%N)_$$"
           printf '%s' "$DECISION" | jq -r --arg d "$edelim" '.env | to_entries[] | "\(.key)<<\($d)", "\(.value)", $d' >> "$GITHUB_ENV"
 
@@ -2415,7 +2449,13 @@ jobs:
           # from devflow-review.yml via `secrets: inherit`) satisfies the action's
           # launch check and, for bearer auth, is ALSO exported as ANTHROPIC_AUTH_TOKEN
           # by the inject step. Empty on the default path.
-          anthropic_api_key: ${{ steps.provider.outputs.provider != '' && secrets.DEVFLOW_PROVIDER_API_KEY || '' }}
+          # use_bedrock selects Amazon Bedrock at the action layer; it must travel as this
+          # input (not a job-env export) because the action's step-level env overrides the
+          # job env, blanking a job-env CLAUDE_CODE_USE_BEDROCK. Empty off the Bedrock arm.
+          use_bedrock: ${{ steps.provider.outputs.auth == 'bedrock_api_key' && 'true' || '' }}
+          # anthropic_api_key rides on the bearer/api_key arms; the bedrock_api_key arm
+          # passes '' here and authenticates via AWS_BEARER_TOKEN_BEDROCK.
+          anthropic_api_key: ${{ steps.provider.outputs.provider != '' && steps.provider.outputs.auth != 'bedrock_api_key' && secrets.DEVFLOW_PROVIDER_API_KEY || '' }}
           # Pass an explicit token so the action skips its OIDC → app-token
           # exchange, which 401s for jobs running inside a reusable
           # workflow_call from pull_request_target (anthropics/

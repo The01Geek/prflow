@@ -112,9 +112,9 @@ writes changes into your repository, so download it, read it, then run the file 
 read:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.33.23/install.sh -o devflow-install.sh
+curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.34.2/install.sh -o devflow-install.sh
 # review devflow-install.sh, then:
-DEVFLOW_REF=v2.33.23 bash devflow-install.sh
+DEVFLOW_REF=v2.34.2 bash devflow-install.sh
 ```
 
 Both refs are pinned to the same **release tag**, so the install is reproducible.
@@ -406,6 +406,9 @@ Before pointing `DEVFLOW_RUNNER` at a self-hosted runner:
 
 - Install `git`, `gh`, `jq`, and a POSIX **bash** on the runner. `defaults: run:
   shell: bash` requires **Git Bash** (or equivalent) on the runner's PATH.
+- Install `openssl`, `curl`, and `nohup` on the runner — the credential refresher
+  hard-requires all three (`openssl` for the push-credential base64 encode, `curl` for
+  the token mint, `nohup` to detach the loop), and none is guaranteed by `preflight.sh`.
 - On a **Windows / Git-Bash** runner, make `python3` resolve via the existing
   `scripts/provision-python3-shim.sh --apply` (a one-time runner-provisioning step,
   not a workflow change).
@@ -906,8 +909,9 @@ installation token and rewrites the two repo-controlled credential surfaces in p
    substitutes the refreshed token where the ambient (expiring) one would be used.
 
 **Key handling.** The App's PEM private key is piped to the refresher's **stdin** — it
-is never passed as a process argument and never written to disk (the JWT is signed with
-the key handed to `openssl` over a file descriptor). The workflow's Start step exports
+is never passed as a process argument and never written to disk (the JWT is signed by the
+resolved `python3` interpreter, which reads the key on its own standard input rather than
+being handed to `openssl` over a file descriptor). The workflow's Start step exports
 the key as a step-level env var only so that short-lived launcher shell can pipe it; the
 **detached refresher is launched with `env -u DEVFLOW_APP_PRIVATE_KEY`**, so the raw PEM
 is absent from the long-lived refresher's exec-time environment and therefore never
@@ -920,8 +924,15 @@ that vector). The key then lives only in the refresher's shell memory.
 (`repositories: [<repo>]`), matching the job-start token's default scope rather than
 minting an installation-wide token across every repo the App is installed on.
 
-**Loud degrade.** The refresher is best-effort and never fails the job: a failed cycle
-emits a per-arm `::warning::` naming what failed and warns-and-continues. Almost every
+**Loud degrade.** The refresher's detached loop is best-effort and never fails the job: a
+failed cycle emits a per-arm `::warning::` naming what failed and warns-and-continues. The
+**one** arm that now fails the job is the Start step's synchronous pre-launch self-test
+(`scripts/refresher-selftest.sh`): before the agent launches it signs a throwaway input
+with the real key, and a **signing fault** — the signer refusing the key, or a Python
+interpreter the resolver cannot resolve or reports as older than the required version —
+fails the job outright, because no retry clears a host-level signing fault. (An absent
+signer helper — an older vendored slice that predates it — is warn-and-continue, not a
+job failure.) Almost every
 failure arm leaves the previous credential in place, with one disclosed exception — if
 the push credential (surface 1, the checkout extraheader) has already been rewritten to
 the fresh token and only the gh token file (surface 2) then fails to write, the two
@@ -1570,11 +1581,14 @@ By default every cloud workflow authenticates to Anthropic with
 `CLAUDE_CODE_OAUTH_TOKEN` and runs a Claude model. Each of the three
 model-running workflow sections — the light command path (`devflow`),
 `/prflow:implement` (`prflow_implement`), and the automated reviewer
-(`prflow_runner`) — can instead be routed through an **Anthropic-compatible**
-endpoint via a `providers` map in `.prflow/config.json` plus one fixed repo
-secret, `DEVFLOW_PROVIDER_API_KEY`. Each section picks its own provider and model
-independently; with no provider configured the cloud tier matches the
-Anthropic-OAuth default (unchanged for a given `claude_model`).
+(`prflow_runner`) — can instead be routed through a named entry in a `providers`
+map in `.prflow/config.json` plus one fixed repo secret, `DEVFLOW_PROVIDER_API_KEY`.
+A provider entry is either an **Anthropic-compatible** HTTP endpoint (a hosted
+gateway or self-run proxy, `auth: bearer` or `auth: api_key`) or, with
+`auth: bedrock_api_key`, **Amazon Bedrock** reached with a long-lived Bedrock API
+key. Each section picks its own provider and model independently; with no provider
+configured the cloud tier matches the Anthropic-OAuth default (unchanged for a
+given `claude_model`).
 
 > **Anthropic does not support routing Claude Code to non-Claude models, so this
 > integration is best-effort.** It relies on the officially documented
@@ -1583,30 +1597,58 @@ Anthropic-OAuth default (unchanged for a given `claude_model`).
 > gateway or model update can break a run at any time. Keep the review/runner path
 > on Claude if review quality matters (this repo does).
 
-**No provider-by-provider setup walkthrough ships in this release.** The
-per-entry field reference — `base_url`, `auth`, `timeout_ms`, `effort_supported`,
-and the `env` map — lives in [`.prflow/config.schema.json`](../../.prflow/config.schema.json)
-under `providers`, which is the single source for those fields. Two operational
+The per-entry field reference — `base_url`, `auth`, `timeout_ms`,
+`effort_supported`, and the `env` map — lives in
+[`.prflow/config.schema.json`](../../.prflow/config.schema.json) under
+`providers`, which is the single source for those fields. Two operational
 notes the schema does not carry:
 
-- **The `env` map is exported unfiltered** into the job environment. It is read
+- **The `env` map is name-filtered before export** into the job environment. It is read
   only from maintainer-controlled config (base-ref for the runner, the trusted
-  default-branch checkout for the command workflows), so do not name a
-  runtime-sensitive variable there (`PATH`, `GITHUB_TOKEN`, `ANTHROPIC_API_KEY`,
-  …) — a stray such key would shadow the environment of every later step in the
-  job, not just the action step.
+  default-branch checkout for the command workflows). Beyond the env-var-name *shape*
+  guard, the inject step **refuses the run** (fail loud, `::error::` naming the offending
+  key, before any `$GITHUB_ENV` write) when a key's name is a credential
+  (`ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN`, `AWS_ACCESS_KEY_ID`,
+  `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `AWS_BEARER_TOKEN_BEDROCK` — set the provider
+  credential via the `DEVFLOW_PROVIDER_API_KEY` secret, never in committed config), a name that
+  would shadow the environment of every later job step or its Actions plumbing (`PATH`,
+  `GITHUB_TOKEN`, `GH_TOKEN`, `GITHUB_ENV`, `GITHUB_OUTPUT`, `GITHUB_PATH`), an interpreter or
+  loader hook that can make every later step load code you did not intend (`BASH_ENV`, `ENV`, `LD_PRELOAD`,
+  `LD_LIBRARY_PATH`, `DYLD_INSERT_LIBRARIES`, `NODE_OPTIONS`, `PYTHONPATH`), or
+  `CLAUDE_CODE_SUBAGENT_MODEL` (it overrides the model of every subagent — both the one a
+  dispatch requests and the one the agent definition declares — flattening the
+  `agent_overrides` review roster to one model; use
+  `ANTHROPIC_DEFAULT_HAIKU_MODEL` to map only the background model). The match is
+  case-insensitive; any other valid env-var name is still exported verbatim. An accepted key is
+  written *after* the step's own exports, so it wins over `ANTHROPIC_BASE_URL` and
+  `API_TIMEOUT_MS` — neither is denied, and an `env` map naming one silently overrides the
+  value the step resolved from `base_url` / `timeout_ms` (issue #1892).
 - **The empty-secret guard.** If a section names a provider while
   `DEVFLOW_PROVIDER_API_KEY` is empty at run time, the job fails loud with an
   `::error::` naming the section and provider, before the action runs. (The secret
   name is a fixed literal on purpose — dynamic secret indexing resolves a missing
   key silently to an empty string, which would fail *open*.)
+- **The Amazon Bedrock arm (`auth: bedrock_api_key`).** A provider entry may route
+  its section to Amazon Bedrock instead of an HTTP gateway. Store a long-lived
+  Bedrock API key in the same `DEVFLOW_PROVIDER_API_KEY` secret (no second secret,
+  no AWS role setup); the inject step exports it as `AWS_BEARER_TOKEN_BEDROCK` and
+  the action step passes `use_bedrock: true`. On this arm `base_url` is **not**
+  required (it is ignored, and a stray one warns), and the entry **must** carry
+  `AWS_REGION` in its `env` map — the inject step fails loud naming the section and
+  provider when it is absent or empty, so the run cannot authenticate and then die
+  on every model call. Set that section's `claude_model` to a Bedrock-form model
+  identifier (e.g. `us.anthropic.claude-...-v1:0`); the shipped default names a
+  Claude model Bedrock does not serve. A `bedrock_api_key` run exports no
+  `ANTHROPIC_BASE_URL` / `ANTHROPIC_AUTH_TOKEN` and passes an empty
+  `anthropic_api_key` action input.
 
-**Not to be confused with the `provision-auto-mode` provider detection.** The
+**The `provision-auto-mode` provider detection is a different mechanism.** The
 `CLAUDE_CODE_USE_BEDROCK` / `_VERTEX` / `_FOUNDRY` "provider detection" mentioned
 under *Install* and in `scripts/provision-auto-mode.sh` is a **local-tier**
 concern — it only gates whether the selectable `auto` permission mode is offered
-on those first-party clouds. The config `providers` map here is a **cloud-tier**
-model-routing feature and is unrelated to that detection.
+on those first-party clouds. It is distinct from (and not a prerequisite for) the
+cloud-tier `bedrock_api_key` provider route above: the two reach Bedrock through
+different layers and neither reads the other's signal.
 
 ## Workflow inventory
 

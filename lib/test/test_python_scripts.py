@@ -244,6 +244,8 @@ def make_args(**overrides):
         record_review_coverage=None, review_coverage_disposition=[],
         # issue #1462 prompt-extension row reconciliation — read on every call.
         reconcile_extension_rows=False,
+        # issue #1876 mid-phase resume-point record — read on every call.
+        record_resume_point=None,
         print_body=False,
     )
     base.update(overrides)
@@ -5557,6 +5559,99 @@ try:
 finally:
     _os.unlink(_e554_cfg)
 
+# --effort-supported ENV fallback (issue #1772): with the CLI flag omitted the
+# resolver reads PRFLOW_EFFORT_SUPPORTED; absent/unrecognized falls back to "true"
+# (the Anthropic path) and an explicit CLI flag still wins.
+with _tempfile.NamedTemporaryFile('w', suffix='.json', delete=False) as _e1772f:
+    _e1772f.write('{"prflow_review":{"agent_overrides":'
+                  '{"devflow:code-reviewer":{"effort":"low"}}}}')
+    _e1772_cfg = _e1772f.name
+_prev_env_1772 = _os.environ.get("PRFLOW_EFFORT_SUPPORTED")
+
+
+def _run_1772(argv, env_val):
+    if env_val is None:
+        _os.environ.pop("PRFLOW_EFFORT_SUPPORTED", None)
+    else:
+        _os.environ["PRFLOW_EFFORT_SUPPORTED"] = env_val
+    _o, _e = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(_o), contextlib.redirect_stderr(_e):
+        _rc = _rro.main(argv)
+    return _rc, _o.getvalue(), _e.getvalue()
+
+
+try:
+    _base_argv_1772 = ["devflow:code-reviewer", "--config", _e1772_cfg]
+    # env false, no CLI flag → capability ::warning:: naming the provider (#1772 wiring).
+    _rc_f, _o_f, _e_f = _run_1772(_base_argv_1772, "false")
+    assert_eq("main(#1772): PRFLOW_EFFORT_SUPPORTED=false exits 0", 0, _rc_f)
+    assert_eq("main(#1772): env false → provider ::warning:: with no CLI flag",
+              True, "::warning::" in _e_f and "effort_supported" in _e_f)
+    assert_eq("main(#1772): env false keeps stdout pure JSON",
+              {"devflow:code-reviewer": {"effort": "low"}}, json.loads(_o_f))
+    # env true → benign ::notice::, no provider warning.
+    _rc_t, _o_t, _e_t = _run_1772(_base_argv_1772, "true")
+    assert_eq("main(#1772): env true → benign ::notice::, no provider ::warning::",
+              True, "::notice::" in _e_t and "::warning::" not in _e_t)
+    # env absent → defaults to true (benign notice), preserving today's behavior.
+    _rc_a, _o_a, _e_a = _run_1772(_base_argv_1772, None)
+    assert_eq("main(#1772): env absent defaults to effort supported (benign notice)",
+              True, "::notice::" in _e_a and "::warning::" not in _e_a)
+    # explicit --effort-supported true WINS over env false (flag precedence).
+    _rc_o, _o_o, _e_o = _run_1772(
+        _base_argv_1772 + ["--effort-supported", "true"], "false")
+    assert_eq("main(#1772): explicit --effort-supported true overrides env false",
+              True, "::notice::" in _e_o and "::warning::" not in _e_o)
+    # symmetric precedence: explicit --effort-supported false WINS over env true →
+    # provider ::warning::, pinning that the CLI flag governs in both directions.
+    _rc_ff, _o_ff, _e_ff = _run_1772(
+        _base_argv_1772 + ["--effort-supported", "false"], "true")
+    assert_eq("main(#1772): explicit --effort-supported false overrides env true",
+              True, "::warning::" in _e_ff and "effort_supported" in _e_ff)
+    # unrecognized env value → true + a warning naming the var, never silent coercion.
+    # The provider-capability ::warning:: (carrying lowercase 'effort_supported') must be
+    # ABSENT, or "fell back to true" is only implied by the notice.
+    _rc_u, _o_u, _e_u = _run_1772(_base_argv_1772, "yes")
+    assert_eq("main(#1772): unrecognized env value falls back to true with a warning",
+              True, "::notice::" in _e_u and "PRFLOW_EFFORT_SUPPORTED" in _e_u
+              and "effort_supported" not in _e_u)
+    # a present-but-empty env value is a defensive input (the provider step normally exports
+    # 'true'/'false', but a skipped/output-less provider step would export empty): treated as
+    # absent → benign ::notice::, no warning, NOT the unrecognized-value branch.
+    _rc_e, _o_e, _e_e = _run_1772(_base_argv_1772, "")
+    assert_eq("main(#1772): empty env value → benign ::notice::, no warning",
+              True, "::notice::" in _e_e and "::warning::" not in _e_e)
+    _rc_ws, _o_ws, _e_ws = _run_1772(_base_argv_1772, "   ")
+    assert_eq("main(#1772): whitespace-only env value → benign ::notice::, no warning",
+              True, "::notice::" in _e_ws and "::warning::" not in _e_ws)
+    # case/whitespace normalization (strip().lower()): ' False ' → false → provider
+    # ::warning:: — a regression dropping .strip()/.lower() would silently fail this open.
+    _rc_c, _o_c, _e_c = _run_1772(_base_argv_1772, " False ")
+    assert_eq("main(#1772): ' False ' normalizes to false → provider ::warning::",
+              True, "::warning::" in _e_c and "effort_supported" in _e_c)
+    _rc_ct, _o_ct, _e_ct = _run_1772(_base_argv_1772, " TRUE ")
+    assert_eq("main(#1772): ' TRUE ' normalizes to true → benign ::notice::",
+              True, "::notice::" in _e_ct and "::warning::" not in _e_ct)
+    # The --effort-json observability branch consumes the SAME resolved local; a regression
+    # re-deriving it from args.effort_supported (now None by default) would read false on
+    # every env-absent run, so pin both directions through that branch.
+    _json_argv_1772 = _base_argv_1772 + ["--effort-json"]
+    _rc_jf, _o_jf, _e_jf = _run_1772(_json_argv_1772, "false")
+    assert_eq("main(#1772): --effort-json exits 0 with env false", 0, _rc_jf)
+    assert_eq("main(#1772): --effort-json env false → provider capability fallback_reason",
+              True, "effort_supported is false"
+              in json.loads(_o_jf)["devflow:code-reviewer"]["fallback_reason"])
+    _rc_ja, _o_ja, _e_ja = _run_1772(_json_argv_1772, None)
+    assert_eq("main(#1772): --effort-json env absent → no-seam reason, not the provider one",
+              True, "effort_supported is false"
+              not in json.loads(_o_ja)["devflow:code-reviewer"]["fallback_reason"])
+finally:
+    if _prev_env_1772 is None:
+        _os.environ.pop("PRFLOW_EFFORT_SUPPORTED", None)
+    else:
+        _os.environ["PRFLOW_EFFORT_SUPPORTED"] = _prev_env_1772
+    _os.unlink(_e1772_cfg)
+
 # A non-object `default` on the real read_raw path: the warning must name the real
 # consequence (no fallback for no-entry agents), NOT the nonsensical "default still
 # applies" phrasing meaningful only for a real agent key.
@@ -7716,39 +7811,42 @@ assert_eq("#562 post_revision_write_failure_rows (control): a clean round with n
               issue_audit_state.evaluate_eligibility(
                   _state([_round(1, 'file', 'FILE', 'D1')]), 'approve', 'D1')))
 
-# latest_revision_landed — the clearing predicate over recorded facts.
-assert_eq("#562 latest_revision_landed: no revisions -> vacuously landed",
-          True, issue_audit_state.latest_revision_landed(_state([_round(1, 'file', 'FILE')])))
-# A revision carrying a stdin_digest that no later file-arm dispatch digest matches: not landed.
+# latest_revision_landed — the clearing predicate over recorded facts. Since #1841 it
+# reports one of three tokens ('yes'/'no'/'unestablished') instead of a boolean, so the
+# proven-failed arm ('no') and the cannot-prove arm ('unestablished') no longer share 'no'.
+assert_eq("#562/#1841 latest_revision_landed: no revisions -> vacuously landed ('yes')",
+          'yes', issue_audit_state.latest_revision_landed(_state([_round(1, 'file', 'FILE')])))
+# _unlanded fixture (revision digest D2, only a predating round 1): landing is unprovable,
+# so the predicate reports 'unestablished' (not the proven-failed 'no').
 _unlanded = _state([_round(1, 'file', 'FILE', 'D1')])
 _unlanded['revisions'] = [{'ordinal': 1, 'after_round': 1, 'floor_round': 1,
                            'stdin_digest': 'D2'}]
-assert_eq("#562 latest_revision_landed: a revision whose stdin_digest matches no later "
-          "landed dispatch digest -> not landed",
-          False, issue_audit_state.latest_revision_landed(_unlanded))
-# ... and once a later file-arm dispatch records that digest, it counts as landed.
+assert_eq("#562/#1841 latest_revision_landed: a revision whose stdin_digest matches no "
+          "later landed dispatch digest -> cannot prove landing ('unestablished')",
+          'unestablished', issue_audit_state.latest_revision_landed(_unlanded))
+# ... and once a later file-arm dispatch records that digest, it counts as landed ('yes').
 _landed = _state([_round(1, 'file', 'FILE', 'D1'), _round(2, 'file', 'FILE', 'D2')])
 _landed['revisions'] = [{'ordinal': 1, 'after_round': 1, 'floor_round': 1,
                          'stdin_digest': 'D2'}]
-assert_eq("#562 latest_revision_landed: a later landed dispatch digest equal to the "
-          "revision's stdin_digest -> landed (the clearing predicate)",
-          True, issue_audit_state.latest_revision_landed(_landed))
-# A revision with no stdin_digest (legacy/embed epoch) fails closed to not-landed.
+assert_eq("#562/#1841 latest_revision_landed: a later landed dispatch digest equal to the "
+          "revision's stdin_digest -> landed ('yes', the clearing predicate)",
+          'yes', issue_audit_state.latest_revision_landed(_landed))
+# A revision with no stdin_digest (legacy/embed epoch) cannot be proven landed -> 'unestablished'.
 _nodigest = _state([_round(1, 'file', 'FILE', 'D1')], revisions=(1,))
-assert_eq("#562 latest_revision_landed: a revision with no recorded stdin_digest fails "
-          "closed to not landed",
-          False, issue_audit_state.latest_revision_landed(_nodigest))
+assert_eq("#562/#1841 latest_revision_landed: a revision with no recorded stdin_digest "
+          "cannot be proven landed -> 'unestablished'",
+          'unestablished', issue_audit_state.latest_revision_landed(_nodigest))
 # write_failures wiring: a recorded overwrite failure for the latest revision's ordinal
-# makes it NOT landed even when its stdin_digest coincidentally equals a later dispatch
-# digest (the user revised back to bytes a round already saw).
+# proves it did NOT land -> 'no', even when its stdin_digest coincidentally equals a later
+# dispatch digest (the user revised back to bytes a round already saw).
 _wf_notlanded = _state([_round(1, 'file', 'FILE', 'D1'), _round(2, 'file', 'FILE', 'D2')])
 _wf_notlanded['revisions'] = [{'ordinal': 1, 'after_round': 1, 'floor_round': 1,
                                'stdin_digest': 'D2'}]
 _wf_notlanded['write_failures'] = [1]
-assert_eq("#562 latest_revision_landed: a recorded write-failure for the latest "
-          "revision's ordinal reports NOT landed even when the digest matches a later "
+assert_eq("#562/#1841 latest_revision_landed: a recorded write-failure for the latest "
+          "revision's ordinal proves NOT landed ('no') even when the digest matches a later "
           "dispatch (the write-failure log and the predicate are wired together)",
-          False, issue_audit_state.latest_revision_landed(_wf_notlanded))
+          'no', issue_audit_state.latest_revision_landed(_wf_notlanded))
 # Two-revision keying: `len(revs) in write_failures` targets the LATEST ordinal, not any
 # recorded one. Rounds 1-3 (round 3 lands DB, matching revision 2's stdin_digest); two
 # revisions (ordinals 1, 2). A write-failure on the EARLIER ordinal (1) must NOT report the
@@ -7760,23 +7858,25 @@ _wf_earlier = _state([_round(1, 'file', 'FILE', 'D1'), _round(2, 'file', 'FILE',
                       _round(3, 'file', 'FILE', 'DB')])
 _wf_earlier['revisions'] = [dict(r) for r in _two_revs]
 _wf_earlier['write_failures'] = [1]
-assert_eq("#562 latest_revision_landed: a write-failure on an EARLIER revision's ordinal "
-          "does not block the latest (len(revs)=2 not in [1]; round 3 lands DB) -> landed",
-          True, issue_audit_state.latest_revision_landed(_wf_earlier))
+assert_eq("#562/#1841 latest_revision_landed: a write-failure on an EARLIER revision's ordinal "
+          "does not block the latest (len(revs)=2 not in [1]; round 3 lands DB) -> landed ('yes')",
+          'yes', issue_audit_state.latest_revision_landed(_wf_earlier))
 _wf_latest = _state([_round(1, 'file', 'FILE', 'D1'), _round(2, 'file', 'FILE', 'D2'),
                      _round(3, 'file', 'FILE', 'DB')])
 _wf_latest['revisions'] = [dict(r) for r in _two_revs]
 _wf_latest['write_failures'] = [2]
-assert_eq("#562 latest_revision_landed: a write-failure on the LATEST ordinal (len(revs)=2) "
-          "reports NOT landed even with a subsequent matching dispatch (keys on the latest)",
-          False, issue_audit_state.latest_revision_landed(_wf_latest))
-# Ordering: a PREDATING file-arm dispatch that shares the digest does not count as landed.
+assert_eq("#562/#1841 latest_revision_landed: a write-failure on the LATEST ordinal (len(revs)=2) "
+          "proves NOT landed ('no') even with a subsequent matching dispatch (keys on the latest)",
+          'no', issue_audit_state.latest_revision_landed(_wf_latest))
+# Ordering: a PREDATING file-arm dispatch that shares the digest cannot prove landing, so the
+# predicate reports 'unestablished' (not 'no' — nothing proves the write failed either).
 _pre = _state([_round(1, 'file', 'FILE', 'D2')])
 _pre['revisions'] = [{'ordinal': 1, 'after_round': 1, 'floor_round': 1,
                       'stdin_digest': 'D2'}]
-assert_eq("#562 latest_revision_landed: a file-arm dispatch that PREDATES the revision "
-          "(round <= after_round) does not satisfy the subsequent-write clearing predicate",
-          False, issue_audit_state.latest_revision_landed(_pre))
+assert_eq("#562/#1841 latest_revision_landed: a file-arm dispatch that PREDATES the revision "
+          "(round <= after_round) does not satisfy the subsequent-write clearing predicate "
+          "-> 'unestablished'",
+          'unestablished', issue_audit_state.latest_revision_landed(_pre))
 
 # summary_fields — the bound root + tier surface the display marker derives from.
 _bound_wt = dict(_state([_round(1, 'file', 'FILE', 'D1')]),
@@ -7788,6 +7888,222 @@ assert_eq("#562 summary_fields: a worktree-root binding surfaces bound_root + bo
 _sf_none = issue_audit_state.summary_fields(_state([_round(1, 'file', 'FILE', 'D1')]), 'D1')
 assert_eq("#562 summary_fields: an unbound run surfaces bound_root=None bound_tier=None",
           (None, None), (_sf_none['bound_root'], _sf_none['bound_tier']))
+
+# issue #1803: the summary-block compact subset + the batched finding-evidence ingester.
+# (1) Do not enumerate the block's fields in `--help` or the renderer independently of
+#     `_SUMMARY_BLOCK_FIELDS` — a second list drifts from the emitted surface.
+_bp_desc = issue_audit_state.build_parser().description
+assert_eq("#1803 summary_block: the --help description enumerates exactly _SUMMARY_BLOCK_FIELDS",
+          True, ', '.join(issue_audit_state._SUMMARY_BLOCK_FIELDS) in _bp_desc)
+_blk1 = issue_audit_state._summary_block_line(
+    issue_audit_state.summary_fields(_state([_round(1, 'file', 'FILE', 'D1')]), 'D1'))
+_blk_fields = tuple(tok.split('=', 1)[0]
+                    for tok in _blk1[len('summary-block '):].split(' '))
+assert_eq("#1803 summary_block: the emitted block's field set equals _SUMMARY_BLOCK_FIELDS",
+          issue_audit_state._SUMMARY_BLOCK_FIELDS, _blk_fields)
+# (2) State currency: the block reflects the state it is derived from.
+_blk0 = issue_audit_state._summary_block_line(
+    issue_audit_state.summary_fields(_state([]), None))
+assert_eq("#1803 summary_block: a zero-round state renders rounds_run=0", True,
+          'rounds_run=0' in _blk0)
+assert_eq("#1803 summary_block: a one-round FILE state renders rounds_run=1", True,
+          'rounds_run=1' in _blk1)
+assert_eq("#1803 summary_block: a None state renders the unestablished shape", True,
+          'state=unestablished' in issue_audit_state._summary_block_line(
+              issue_audit_state.summary_fields(None)))
+# (3) Do not relax the ingester into accepting a malformed records file, and do not tighten
+#     it into refusing an entry that merely OMITS content fields — that entry must ingest and
+#     be recorded `incomplete` downstream, never rejected.
+with tempfile.TemporaryDirectory() as _fe_dir:
+    def _fe(content):
+        p = os.path.join(_fe_dir, 'fe.json')
+        with open(p, 'w', encoding='utf-8') as fh:
+            fh.write(content)
+        return p
+    _ing = issue_audit_state._ingest_finding_evidence_records
+    _recs = _ing(_fe('[{"finding_id":1,"locator":"a","command":"c","observed":"o",'
+                     '"baseline_revision":"r","baseline_identity":"bi"},{"finding_id":2}]'))
+    assert_eq("#1803 fe_records: the optional baseline_identity is carried through, not dropped",
+              ('bi', None), (_recs[0]['baseline_identity'], _recs[1]['baseline_identity']))
+    assert_eq("#1803 fe_records: a valid file yields one record per finding, in file order",
+              [1, 2], [r['finding_id'] for r in _recs])
+    assert_eq("#1803 fe_records: an entry omitting content fields ingests them None "
+              "(recorded incomplete downstream, not refused here)",
+              (None, None, None),
+              (_recs[1]['locator'], _recs[1]['command'], _recs[1]['observed']))
+    assert_raises("#1803 fe_records: a not-JSON file is refused",
+                  SystemExit, lambda: _ing(_fe('not json')))
+    assert_raises("#1803 fe_records: a non-array top level is refused",
+                  SystemExit, lambda: _ing(_fe('{"finding_id":1}')))
+    assert_raises("#1803 fe_records: an empty array is refused",
+                  SystemExit, lambda: _ing(_fe('[]')))
+    assert_raises("#1803 fe_records: an entry missing finding_id is refused",
+                  SystemExit, lambda: _ing(_fe('[{"locator":"a"}]')))
+    assert_raises("#1803 fe_records: a non-int finding_id is refused",
+                  SystemExit, lambda: _ing(_fe('[{"finding_id":"1"}]')))
+    assert_raises("#1803 fe_records: a bool finding_id is refused (not read as id 1)",
+                  SystemExit, lambda: _ing(_fe('[{"finding_id":true}]')))
+    assert_raises("#1803 fe_records: a negative finding_id is refused",
+                  SystemExit, lambda: _ing(_fe('[{"finding_id":-1}]')))
+    assert_raises("#1803 fe_records: a wrong-type field is refused",
+                  SystemExit, lambda: _ing(_fe('[{"finding_id":1,"locator":5}]')))
+    assert_raises("#1803 fe_records: a non-object entry is refused",
+                  SystemExit, lambda: _ing(_fe('[5]')))
+    assert_raises("#1803 fe_records: a duplicate finding_id is refused",
+                  SystemExit, lambda: _ing(_fe('[{"finding_id":1},{"finding_id":1}]')))
+    assert_raises("#1803 fe_records: an unreadable records-file path is refused",
+                  SystemExit, lambda: _ing(os.path.join(_fe_dir, 'does-not-exist.json')))
+    # Do not move the UTF-8 decode after `json.loads`, and do not drop it: every fixture
+    # above is written through a text file, so only a raw-bytes fixture reaches this arm.
+    def _fe_bytes(payload):
+        q = os.path.join(_fe_dir, 'fe-bytes.json')
+        with open(q, 'wb') as fh:
+            fh.write(payload)
+        return q
+    _und_err = io.StringIO()
+    with contextlib.redirect_stderr(_und_err):
+        assert_raises("#1803 fe_records: an undecodable (non-UTF-8) records file is refused",
+                      SystemExit, lambda: _ing(_fe_bytes(b'[{"finding_id":1,"locator":"\xff\xfe"}]')))
+    assert_eq("#1803 fe_records: ... attributed to the decode guard, not the JSON parser",
+              (True, False),
+              ('finding-evidence-records-undecodable' in _und_err.getvalue(),
+               'finding-evidence-records-not-json' in _und_err.getvalue()))
+    # Positive control on the same fixture shape: the identical record as valid UTF-8 ingests,
+    # so the refusal above is attributable to the bytes and not to the record's own shape.
+    assert_eq("#1803 fe_records positive control: the same record as valid UTF-8 ingests",
+              [1], [r['finding_id'] for r in _ing(_fe_bytes(
+                  '[{"finding_id":1,"locator":"\u00ff\u00fe"}]'.encode('utf-8')))])
+# (4) Do not render a shared field differently in `_summary_block_line` and `query-summary`
+#     — the two surfaces are contracted to agree token-for-token on the shared subset.
+with tempfile.TemporaryDirectory() as _xr_dir:
+    _xr_root = Path(_xr_dir)
+    _xr_state = _state([_round(1, 'file', 'FILE', 'D1')])
+    issue_audit_state.save_state(_xr_state, 's', root=_xr_root)
+    _xr_orig = issue_audit_state._repo_root
+    try:
+        issue_audit_state._repo_root = lambda: _xr_root
+        _qs_buf = io.StringIO()
+        with contextlib.redirect_stdout(_qs_buf), contextlib.redirect_stderr(io.StringIO()):
+            issue_audit_state.cmd_query_summary(argparse.Namespace(
+                cmd='query-summary', slug='s', nonce=_xr_state['nonce'], draft_file=None))
+    finally:
+        issue_audit_state._repo_root = _xr_orig
+    _qs_tok = dict(t.split('=', 1) for t in _qs_buf.getvalue().split('\n')[0].split(' '))
+    _blk_tok = dict(t.split('=', 1) for t in issue_audit_state._summary_block_line(
+        issue_audit_state.summary_fields(_xr_state))[len('summary-block '):].split(' '))
+    _blk_sub = {f: _blk_tok.get(f) for f in issue_audit_state._SUMMARY_BLOCK_FIELDS}
+    _qs_sub = {f: _qs_tok.get(f) for f in issue_audit_state._SUMMARY_BLOCK_FIELDS}
+    assert_eq("#1803 cross-render: every summary-block token equals query-summary's for the "
+              "shared subset", _qs_sub, _blk_sub)
+# (5) Do not edit one copy of the duplicated `effective_unresolved`/`markers` renderers: the
+#     cross-render state above resolves both to their None arm, so only these rows catch it.
+_bf = dict(issue_audit_state.summary_fields(None))
+_bf['effective_unresolved'] = 2
+_bf['adjudicated_verdict'] = 'REVISE'
+_bf['markers'] = ['file-unreadable', 'write-failed']
+_bln = issue_audit_state._summary_block_line(_bf)
+assert_eq("#1803 summary_block: a live effective_unresolved renders its count (non-None arm)",
+          True, ' effective_unresolved=2 ' in _bln)
+assert_eq("#1803 summary_block: non-empty markers render comma-joined (non-None arm)",
+          True, ' markers=file-unreadable,write-failed ' in _bln)
+# (6) Do not move `_save_or_fail` inside the batch loop: a prior-call overwrite conflict fires
+# PARTWAY through it, and a per-record save would persist the earlier records. The in-batch
+# duplicate-id rows above reject before any mutation, so they cannot catch that.
+with tempfile.TemporaryDirectory() as _ba_dir:
+    _ba_root = Path(_ba_dir)
+
+    def _ba_run(colliding_entry):
+        _ba_state = _state([_round(1, 'file', 'FILE', 'D1')])
+        _ba_state['finding_evidence'] = {'1:7': {
+            'locator': 'L0', 'command': 'C0', 'observed': 'O0',
+            'baseline_revision': 'R0', 'completeness': 'complete'}}
+        issue_audit_state.save_state(_ba_state, 's', root=_ba_root)
+        _ba_path = os.path.join(_ba_dir, 'batch.json')
+        with open(_ba_path, 'w', encoding='utf-8') as fh:
+            json.dump([{'finding_id': 5, 'locator': 'L5', 'command': 'C5',
+                        'observed': 'O5', 'baseline_revision': 'R5'},
+                       colliding_entry], fh)
+        _ba_orig = issue_audit_state._repo_root
+        _ba_err = io.StringIO()
+        try:
+            issue_audit_state._repo_root = lambda: _ba_root
+            with contextlib.redirect_stdout(io.StringIO()), \
+                    contextlib.redirect_stderr(_ba_err):
+                try:
+                    issue_audit_state.cmd_record_finding_evidence(argparse.Namespace(
+                        cmd='record-finding-evidence', slug='s', nonce='n0', round=1,
+                        finding_id=None, locator=None, command=None, observed_stdin=False,
+                        baseline_revision=None, baseline_identity=None,
+                        finding_evidence_records_file=_ba_path))
+                    _ba_exit = None
+                except SystemExit as exc:
+                    _ba_exit = exc
+            _ba_keys = sorted(issue_audit_state.load_state('s', root=_ba_root)
+                              .get('finding_evidence', {}))
+        finally:
+            issue_audit_state._repo_root = _ba_orig
+        return _ba_exit, _ba_err.getvalue(), _ba_keys
+
+    _ba_exit, _ba_msg, _ba_keys = _ba_run(
+        {'finding_id': 7, 'locator': 'L1', 'command': 'C1', 'observed': 'O1',
+         'baseline_revision': 'R1'})
+    assert_eq("#1803 batch atomicity: a record colliding with PRIOR-call evidence refuses "
+              "the batch", True, _ba_exit is not None)
+    assert_eq("#1803 batch atomicity: the refusal is attributed to the overwrite guard, not "
+              "a precondition", True, 'evidence-overwrite-differs' in _ba_msg)
+    assert_eq("#1803 batch atomicity: the earlier record in the same batch is NOT persisted "
+              "(one save, after the loop)", ['1:7'], _ba_keys)
+    # Positive control on the same fixture: only the colliding entry's disagreement changes.
+    _pc_exit, _pc_msg, _pc_keys = _ba_run(
+        {'finding_id': 7, 'locator': 'L0', 'command': 'C0', 'observed': 'O0',
+         'baseline_revision': 'R0'})
+    assert_eq("#1803 batch atomicity positive control: an idempotent replay of the colliding "
+              "entry lands the whole batch", (None, ['1:5', '1:7']), (_pc_exit, _pc_keys))
+# (7) Do not restore the summary-block guard to a silent swallow: a `summary_fields` data-shape
+# bug would drop the block for every caller with no signal, and only the breadcrumb tells that
+# loss apart from a subcommand that legitimately emits none. The primary next_call= must survive.
+_sw_orig = issue_audit_state._summary_block_line
+_sw_out, _sw_err = io.StringIO(), io.StringIO()
+try:
+    def _sw_boom(_fields):
+        raise ValueError('rendered nothing')
+    issue_audit_state._summary_block_line = _sw_boom
+    with contextlib.redirect_stdout(_sw_out), contextlib.redirect_stderr(_sw_err):
+        issue_audit_state._emit_next_call('record-degraded', argparse.Namespace(
+            cmd='record-degraded', slug='no-such-slug-1803', nonce='n0', round=None,
+            draft_file=None), {})
+finally:
+    issue_audit_state._summary_block_line = _sw_orig
+assert_eq("#1803 summary_block guard: a non-AssertionError render failure names itself on stderr",
+          True, 'summary-block render failed' in _sw_err.getvalue()
+          and 'ValueError' in _sw_err.getvalue())
+assert_eq("#1803 summary_block guard: the primary next_call= line still prints (no block)",
+          (True, False), (_sw_out.getvalue().startswith('next_call='),
+                          'summary-block' in _sw_out.getvalue()))
+# Positive control for the `except AssertionError: raise` arm above: do not widen the swallow
+# to cover AssertionError — a self-check failure is a TOOL defect main() must name as a contract
+# violation, not one more environment hiccup on stderr.
+_ae_orig = issue_audit_state._summary_block_line
+_ae_out, _ae_err = io.StringIO(), io.StringIO()
+try:
+    def _ae_boom(_fields):
+        raise AssertionError('self-check tripped')
+    issue_audit_state._summary_block_line = _ae_boom
+    with contextlib.redirect_stdout(_ae_out), contextlib.redirect_stderr(_ae_err):
+        try:
+            issue_audit_state._emit_next_call('record-degraded', argparse.Namespace(
+                cmd='record-degraded', slug='no-such-slug-1803', nonce='n0', round=None,
+                draft_file=None), {})
+            _ae_raised = None
+        except AssertionError as exc:
+            _ae_raised = str(exc)
+finally:
+    issue_audit_state._summary_block_line = _ae_orig
+assert_eq("#1803 summary_block guard: an AssertionError propagates rather than being swallowed",
+          'self-check tripped', _ae_raised)
+assert_eq("#1803 summary_block guard: ... and it is NOT reported as the render-failed swallow",
+          (False, False), ('summary-block render failed' in _ae_err.getvalue(),
+                           _ae_out.getvalue().startswith('next_call=')))
 # _binding_line — the query answer shape, incl. the fail-closed unbound token.
 assert_eq("#562 _binding_line: unbound state answers the fail-closed bound=none token",
           'bound=none tier=none non_bound_root=none latest_revision_landed=yes',
@@ -7796,6 +8112,20 @@ assert_eq("#562 _binding_line: a bound run answers bound path + tier + non-bound
           'bound=/wt/root tier=worktree-root non_bound_root=/main/root '
           'latest_revision_landed=yes',
           issue_audit_state._binding_line(_bound_wt))
+# #1841: the full query-draft-binding line on a state shaped like the common basis=resolution
+# terminal path — bound, one clean file-arm round on D1, a recorded revision whose stdin_digest
+# matches D1 (it landed) but with NO subsequent round-initiating dispatch to prove it — reports
+# the cannot-prove token 'unestablished', not the false-alarm 'no'.
+_bound_unlanded = dict(_state([_round(1, 'file', 'FILE', 'D1')], revisions=(1,)),
+                       draft_binding={'path': '/wt/root', 'tier': 'worktree-root',
+                                      'non_bound_root': '/main/root'})
+_bound_unlanded['revisions'] = [{'ordinal': 1, 'after_round': 1, 'floor_round': 1,
+                                 'stdin_digest': 'D1'}]
+assert_eq("#1841 _binding_line: a bound run whose latest revision cannot be proven landed "
+          "answers latest_revision_landed=unestablished (the basis=resolution terminal path)",
+          'bound=/wt/root tier=worktree-root non_bound_root=/main/root '
+          'latest_revision_landed=unestablished',
+          issue_audit_state._binding_line(_bound_unlanded))
 # _bound_draft_file — the readers join the fixed draft subpath onto the bound root, so a
 # drifted --draft-file cannot redirect them; unbound derives None (fall back to caller).
 assert_eq("#562 _bound_draft_file: joins .prflow/tmp/issue-draft-<slug>.md onto the "
@@ -22218,24 +22548,32 @@ class _Run792(_Run709):
                   (0, True), (ret.returncode, f'outcome={verdict}' in ret.stdout))
         return ret
 
-    def clean_round(self):
-        """One dispatch/return round that ESTABLISHES steering — the `covered` precondition."""
-        self.generate()
-        d = self.dispatch()
-        assert d.returncode == 0, f'#792 harness: dispatch failed: {d.stderr!r}'
-        return self.ret(instructions_oid=self.oid(self.instr), extra='no')
+    def clean_round(self, verdict='FILE', findings=0):
+        """One dispatch/return round that ESTABLISHES steering — the `covered` precondition.
 
-    def uncovered_round(self):
-        """One round that quotes NO instruction oid — the `uncovered` precondition.
-
-        The mirror of `clean_round`, factored because eight rows below open with it: if the
-        steering-unestablished shape ever changes, a row left behind would silently become a
-        COVERED run whose negative assertions then pass vacuously.
+        `verdict`/`findings` default to the clean FILE round; #1771 reuses this same
+        steering-establishing shape for a REVISE round so a future change to how
+        steering-establishment is recorded cannot silently leave a hand-inlined copy behind.
         """
         self.generate()
         d = self.dispatch()
         assert d.returncode == 0, f'#792 harness: dispatch failed: {d.stderr!r}'
-        return self.ret(instructions_oid=None, extra='no')
+        return self.ret(instructions_oid=self.oid(self.instr), extra='no',
+                        verdict=verdict, findings=findings)
+
+    def uncovered_round(self, verdict='FILE', findings=0):
+        """One round that quotes NO instruction oid — the `uncovered` precondition.
+
+        The mirror of `clean_round`, factored because eight rows below open with it: if the
+        steering-unestablished shape ever changes, a row left behind would silently become a
+        COVERED run whose negative assertions then pass vacuously. `verdict`/`findings` default
+        to the clean FILE round; #1771 reuses the same steering-unestablished shape for a REVISE
+        round rather than re-inlining it.
+        """
+        self.generate()
+        d = self.dispatch()
+        assert d.returncode == 0, f'#792 harness: dispatch failed: {d.stderr!r}'
+        return self.ret(instructions_oid=None, extra='no', verdict=verdict, findings=findings)
 
 
 def _with_run792(fn, **kw):
@@ -22307,6 +22645,106 @@ def _row792_revise_revokes(r):
 
 
 _with_run792(_row792_revise_revokes)
+
+
+# issue #1771 — the final-byte OFFER is suppressed (trigger not-hold, reason
+# resolution-settled) when the drafter's own self-verified resolutions closed every finding
+# from a steering-established round, i.e. the run converged basis=resolution with zero
+# effective unresolved. The coverage axis still reports the bytes `uncovered` truthfully —
+# only the offer is withheld — so a converged run does not pause a second time. Breaking the
+# `_final_byte_resolution_settled` suppression (or its steering / basis / converged terms)
+# reopens the offer and turns the not-hold assertion RED; the pre-resolution control below
+# is what proves the suppression is conditional, not a blanket disabling of the ground.
+def _row1771_resolution_settled_suppresses(r):
+    # A file-arm REVISE round whose steering-absence IS established (clean_round quotes the
+    # correct instruction oid), so the final-byte selector picks it and coverage is
+    # uncovered/latest-verdict-revise — the exact state issue #1771 reports. Reuse the
+    # centralized steering-establishing harness so a change to that shape cannot silently make
+    # this row's negative assertions pass against the wrong state.
+    r.clean_round(verdict='REVISE', findings=1)
+    _pre = r.fb()
+    assert_eq("#1771 control: an as-yet-unresolved REVISE round still fires the final-byte "
+              "offer — the run has not converged, so the suppression does not apply",
+              'hold', _field704(_pre, 'final_byte_trigger='))
+    assert_eq("#1771 control: ... on the uncovered/latest-verdict-revise coverage state",
+              ('uncovered', 'latest-verdict-revise'),
+              (_field704(_pre, 'final_byte_coverage='), _field704(_pre, 'final_byte_reason=')))
+    # Adjudicate the round REVISE with a one-entry ledger, then settle that entry by a
+    # self-verified resolution against the recorded revision — the basis=resolution path.
+    r.adjudicate(1, 'REVISE', 1, '1', 'unresolved: finding A\n')
+    r('record-revision', r.slug, '--after-round', '1', '--stdin-digest',
+      stdin='revised bytes\n', nonce=True)
+    r('record-resolution', r.slug, '--round', '1', '--revision-ordinal', '1',
+      '--resolved-ids', '1', nonce=True)
+    assert_eq("#1771 precondition: the run converged on a resolution basis with zero "
+              "effective unresolved must-revise findings",
+              'converged=yes reason= basis=resolution unledgered_revise=none',
+              decided(r('query-convergence', r.slug, nonce=True).stdout))
+    _line = r.fb()
+    assert_eq("#1771: a steering-established REVISE round whose findings were all resolved "
+              "SUPPRESSES the final-byte offer — the trigger does not hold",
+              'not-hold', _field704(_line, 'final_byte_trigger='))
+    assert_eq("#1771: ... naming resolution-settled as the trigger reason",
+              'resolution-settled', _field704(_line, 'final_byte_reason='))
+    assert_eq("#1771: ... while the coverage axis still reports the bytes uncovered — the "
+              "offer is withheld, the factual coverage is not overwritten",
+              'uncovered', _field704(_line, 'final_byte_coverage='))
+
+
+_with_run792(_row1771_resolution_settled_suppresses)
+
+
+# issue #1771 control — the suppression's STEERING-ESTABLISHED term. A non-FILE round whose
+# steering-absence was NOT established, driven to converged basis=resolution, must still FIRE
+# the offer: deleting `if not _steering_established(rnd): return False` would wrongly suppress
+# the offer for a round whose independence was never established (the state the offer exists to
+# catch), and this row goes RED on that mutation.
+def _row1771_steering_unestablished_still_fires(r):
+    r.uncovered_round(verdict='REVISE', findings=1)
+    r.adjudicate(1, 'REVISE', 1, '1', 'unresolved: finding A\n')
+    r('record-revision', r.slug, '--after-round', '1', '--stdin-digest',
+      stdin='revised bytes\n', nonce=True)
+    r('record-resolution', r.slug, '--round', '1', '--revision-ordinal', '1',
+      '--resolved-ids', '1', nonce=True)
+    assert_eq("#1771 control: the round converged on a resolution basis",
+              'converged=yes reason= basis=resolution unledgered_revise=none',
+              decided(r('query-convergence', r.slug, nonce=True).stdout))
+    assert_eq("#1771 control: ... but its steering-absence was NOT established",
+              'not-established',
+              _field704(decided(r('query-summary', r.slug, nonce=True).stdout), 'steering='))
+    assert_eq("#1771: a converged basis=resolution round whose steering was NOT established "
+              "still FIRES the final-byte offer — the steering-established term withholds "
+              "suppression",
+              'hold', _field704(r.fb(), 'final_byte_trigger='))
+
+
+_with_run792(_row1771_steering_unestablished_still_fires)
+
+
+# issue #1771 control — the suppression's exact basis=='resolution' term. A steering-established
+# non-FILE round settled by resolution, then a LATER revision postdating that verification, so
+# convergence reports basis=resolution-stale. The suppression admits only exact 'resolution', so
+# the offer must still fire; widening the term to accept resolution-stale would wrongly suppress
+# over stale-verified bytes, and this row goes RED on that mutation.
+def _row1771_resolution_stale_still_fires(r):
+    r.clean_round(verdict='REVISE', findings=1)
+    r.adjudicate(1, 'REVISE', 1, '1', 'unresolved: finding A\n')
+    r('record-revision', r.slug, '--after-round', '1', '--stdin-digest',
+      stdin='rev one\n', nonce=True)
+    r('record-resolution', r.slug, '--round', '1', '--revision-ordinal', '1',
+      '--resolved-ids', '1', nonce=True)
+    r('record-revision', r.slug, '--after-round', '1', '--stdin-digest',
+      stdin='rev two\n', nonce=True)
+    assert_eq("#1771 control: a later revision postdates the resolution's verification, so the "
+              "run converges on basis=resolution-stale",
+              'converged=yes reason= basis=resolution-stale unledgered_revise=none',
+              decided(r('query-convergence', r.slug, nonce=True).stdout))
+    assert_eq("#1771: a converged basis=resolution-STALE round still FIRES the final-byte offer "
+              "— the suppression admits only exact basis=resolution",
+              'hold', _field704(r.fb(), 'final_byte_trigger='))
+
+
+_with_run792(_row1771_resolution_stale_still_fires)
 
 
 # AC87 sibling — the `_final_byte_revoked` TRUE branch, which no other row reaches. The
@@ -23772,6 +24210,302 @@ assert_eq("#815 --mark-deferred-filed takes a value (it is not a bare flag)",
           True, 'NORMALIZED_TEXT' in _dp_update_help)
 assert_eq("#815 deferred-presence is registered as a subcommand",
           True, 'deferred-presence' in _dp_help(['--help']))
+
+
+# ── #1876 workpad.py resume-point: mid-phase re-anchor navigation record ────────
+print("#1876 workpad resume-point record + read-back")
+
+_RP_BODY = """<!-- devflow:workpad -->
+# Workpad
+
+**Status:** 🚀 Reviewing
+**Last updated:** 2026-01-01T00:00:00Z
+
+## Progress
+- [ ] **Review**
+"""
+
+# AC4 write path: one --record-resume-point call writes exactly one marker row.
+_rp_body1 = apply_mut(_RP_BODY, make_args(record_resume_point="phase-3-fix-loop.md 3.3.2"))
+assert_eq("#1876 a resume-point record writes exactly one resume-point marker",
+          1, _rp_body1.count('resume-point:'))
+# a standalone --record-resume-point is a mutation (it PATCHes, never a no-op).
+assert_eq("#1876 a standalone --record-resume-point is a non-checkpoint mutation",
+          True, workpad._has_non_checkpoint_mutation(make_args(record_resume_point="x")))
+
+# AC3/AC4 round trip: the recorded point reads back verbatim through the subcommand.
+assert_eq("#1876 round trip: the recorded resume point reads back verbatim",
+          (0, "phase-3-fix-loop.md 3.3.2\n"),
+          _dp_cli(['resume-point', '1876'], _rp_body1))
+
+# replay: a second record replaces the first; the read-back returns the LATER one.
+_rp_body2 = apply_mut(_rp_body1, make_args(record_resume_point="phase-3-ac-gate.md 3.4"))
+assert_eq("#1876 a second resume-point record leaves exactly one marker row",
+          1, _rp_body2.count('resume-point:'))
+assert_eq("#1876 replay reads back the later resume point",
+          (0, "phase-3-ac-gate.md 3.4\n"),
+          _dp_cli(['resume-point', '1876'], _rp_body2))
+
+# AC4 reserved-namespace refusal: a generic --checkpoint naming resume-point: is refused.
+assert_raises("#1876 a generic --checkpoint naming resume-point: is refused",
+              workpad._UpdateError,
+              lambda: apply_mut(_RP_BODY, make_args(checkpoint=[['resume-point:x', 'text']])))
+
+# a malformed payload (decodes to invalid UTF-8) reads as absent (exit 1), not a crash.
+_rp_malformed = _RP_BODY.replace(
+    '- [ ] **Review**',
+    '- [ ] **Review**\n  - 00:00:00 — mid-phase resume point '
+    '<!-- prflow:checkpoint resume-point:_w -->')
+assert_eq("#1876 a malformed resume-point payload reads as absent (exit 1)",
+          1, _dp_cli(['resume-point', '1876'], _rp_malformed)[0])
+
+# #1003 dual-spelling: a superseded `devflow:` resume-point marker reads back too
+# (the family rides _MARKER_NS_RE's (?:pr|dev)flow alternation — guard it so a regex
+# edit dropping `dev` cannot pass silently).
+_rp_devflow = _RP_BODY.replace(
+    '- [ ] **Review**',
+    '- [ ] **Review**\n  - 00:00:00 — mid-phase resume point '
+    '<!-- devflow:checkpoint resume-point:'
+    + workpad._encode_resume_point('phase-3-ac-gate.md 3.4') + ' -->')
+assert_eq("#1876 a superseded devflow: resume-point marker reads back (dual-spelling #1003)",
+          (0, "phase-3-ac-gate.md 3.4\n"),
+          _dp_cli(['resume-point', '1876'], _rp_devflow))
+
+# a body with no resume-point marker reads back empty (exit 1).
+assert_eq("#1876 a body with no resume-point marker reads back empty (exit 1)",
+          1, _dp_cli(['resume-point', '1876'], _RP_BODY)[0])
+
+# a duplicated ## Progress section is unestablished (exit 2), never a confident absent —
+# the fail-closed guard cmd_resume_point relies on _progress_content_or_none for.
+_rp_dup = _RP_BODY + "\n## Progress\n- [ ] second progress section\n"
+assert_eq("#1876 a duplicated ## Progress section answers unestablished (exit 2)",
+          2, _dp_cli(['resume-point', '1876'], _rp_dup)[0])
+
+# marker-injection safety: base64url encoding neutralizes the marker terminator (` -->`),
+# a comment opener (`<!--`) and a newline in the resume-point text, so a hazardous payload
+# still writes exactly one intact row and round-trips verbatim.
+_rp_hazard = "phase-3-fix-loop.md --> 3.3 <!-- x\nnext line"
+_rp_body_hz = apply_mut(_RP_BODY, make_args(record_resume_point=_rp_hazard))
+assert_eq("#1876 a hazardous resume-point payload still writes exactly one marker row",
+          1, _rp_body_hz.count('resume-point:'))
+assert_eq("#1876 a marker-terminator/comment/newline payload round-trips intact",
+          (0, _rp_hazard + "\n"), _dp_cli(['resume-point', '1876'], _rp_body_hz))
+
+# defensive last-wins: with two co-resident valid markers (as if a strip left both), the
+# reader returns the later payload via texts[-1].
+_rp_two = _RP_BODY.replace(
+    '- [ ] **Review**',
+    '- [ ] **Review**'
+    '\n  - 00:00:01 — mid-phase resume point <!-- prflow:checkpoint resume-point:'
+    + workpad._encode_resume_point('earlier point') + ' -->'
+    '\n  - 00:00:02 — mid-phase resume point <!-- prflow:checkpoint resume-point:'
+    + workpad._encode_resume_point('later point') + ' -->')
+assert_eq("#1876 with two co-resident resume-point markers the later payload wins",
+          (0, "later point\n"), _dp_cli(['resume-point', '1876'], _rp_two))
+
+# an empty --record-resume-point TEXT is a documented no-op (navigation-only design): it
+# writes no marker and does not register as a mutation, falling safe to a full re-read.
+assert_eq("#1876 an empty --record-resume-point writes no marker (no-op)",
+          0, apply_mut(_RP_BODY, make_args(record_resume_point="")).count('resume-point:'))
+assert_eq("#1876 an empty --record-resume-point is not a non-checkpoint mutation",
+          False, workpad._has_non_checkpoint_mutation(make_args(record_resume_point="")))
+
+# an unresolvable workpad is unestablished (exit 2), never a confident absent.
+assert_eq("#1876 an unresolvable workpad answers unestablished (exit 2)",
+          2, _dp_cli(['resume-point', '1876'], _RP_BODY, comment=False)[0])
+
+# AC5: navigation-only — no verdict/gate reader counts the resume-point record.
+_rp_progress = workpad._progress_content_or_none(_rp_body1)
+assert_eq("#1876 AC5: a resume-point marker is not read as CI completion evidence",
+          [], workpad._completion_ci_marker_payloads(_rp_progress))
+assert_eq("#1876 AC5: a resume-point marker is not read as flight completion evidence",
+          [], workpad._completion_marker_keys(_rp_progress))
+assert_eq("#1876 AC5: a resume-point marker is not read as a review-coverage record",
+          [], workpad._review_coverage_payloads(_rp_progress))
+
+# subcommand + flag registration through the real parser.
+assert_eq("#1876 resume-point is registered as a subcommand",
+          True, 'resume-point' in _dp_help(['--help']))
+assert_eq("#1876 --record-resume-point is registered on the update subcommand",
+          True, '--record-resume-point' in _dp_help(['update', '--help']))
+
+# ── #1513 workpad.py `deferred-reflection-audit`: is every deferred reflection backed? ──
+# A `--reflection-kind deferred` bullet renders under `### ⚠️ Action required` and reads
+# as a tracked deferral, but nothing files a reflection — the two channels that file a
+# follow-up issue are the scope-decision-deferred records and the review-and-fix
+# manifest. This backstop makes an UNBACKED deferred reflection detectable at Phase 4.0.6
+# instead of silently passing completion.
+print()
+print("#1513 workpad deferred-reflection-audit backstop")
+
+_DRA_GLYPH, _DRA_LABEL, _DRA_SUB = workpad._REFLECTION_KINDS['deferred']
+
+
+def _dra_refl(text):
+    """One rendered `deferred` reflection bullet, shaped exactly as
+    `_insert_reflection_bullet` writes it (single-sourced from _REFLECTION_KINDS)."""
+    return f"- {_DRA_GLYPH} **{_DRA_LABEL}:** {text}\n"
+
+
+def _dra_texts(body):
+    """Drive _deferred_reflection_texts the way cmd_deferred_reflection_audit does —
+    split the body once and hand it the sections list."""
+    return workpad._deferred_reflection_texts(workpad._split_sections(body)[1])
+
+
+# --- the reader in isolation ---
+assert_eq("#1513 _deferred_reflection_texts extracts each deferred bullet's trailing text",
+          ['advisory one', 'advisory two'],
+          _dra_texts(
+              _dp_body(reflection_extra=_dra_refl('advisory one') + _dra_refl('advisory two'))))
+assert_eq("#1513 it ignores non-deferred reflection bullets (blocked/dropped-failed/note)",
+          [],
+          _dra_texts(_dp_body(reflection_extra=(
+              "- ⛔ **Blocked:** b\n- ❗ **Dropped/Failed:** f\n- ℹ️ a note\n"))))
+assert_eq("#1513 a present reflection section with no deferred bullet is an empty list, not None",
+          [], _dra_texts(_dp_body()))
+# Round-trip against the REAL writer: a bullet _insert_reflection_bullet actually writes
+# for kind='deferred' must read back through the reader — guards against silent drift if
+# the deferred kind's render shape (glyph/label) ever changes.
+assert_eq("#1513 a deferred bullet from the real writer reads back through the reader",
+          ['written advisory'],
+          _dra_texts(
+              apply_mut(_dp_body(), make_args(reflection=['written advisory'],
+                                              reflection_kind='deferred'))))
+assert_eq("#1513 an ABSENT ## Devflow Reflection section reads as None (unestablished)",
+          None,
+          _dra_texts(
+              _dp_body().replace('## Devflow Reflection', '## Retro')))
+assert_eq("#1513 a DUPLICATED ## Devflow Reflection section reads as None (unestablished)",
+          None,
+          _dra_texts(
+              _dp_body(reflection_extra=_dra_refl('x'))
+              + "\n## Devflow Reflection\n<details>\n</details>\n"))
+
+# --- the un-guaranteed-PATH-tool guard, extended to the audit decision path ---
+_dra_decision_src = '\n'.join(
+    tok for f in (workpad._deferred_reflection_texts,
+                  workpad._bound_deferred_records,
+                  workpad._single_section_content,
+                  workpad._split_sections,
+                  workpad._progress_content_or_none,
+                  workpad._whole_body_deferred_count,
+                  workpad._print_unestablished,
+                  workpad.cmd_deferred_reflection_audit)
+    for tok in _dp_executable_tokens(f))
+assert_eq("#1513 the audit decision path shells out to no un-guaranteed PATH tool",
+          [],
+          [t for t in ('grep', 'tr', 'sed', 'wc', 'cut', 'head')
+           if re.search(r'\b%s\b' % t, _dra_decision_src)])
+
+
+# --- the three-state routing, driven through the subcommand (the exit code Phase 4 reads) ---
+def _dra_run(body, pr=42, comment=True):
+    real_find, real_repo = workpad._find_workpad_comment, workpad._repo_full
+    workpad._repo_full = lambda *a, **k: 'o/r'
+    workpad._find_workpad_comment = (
+        (lambda *a, **k: {'id': 1, 'body': body}) if comment else (lambda *a, **k: None))
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(io.StringIO()):
+            workpad.cmd_deferred_reflection_audit(
+                argparse.Namespace(issue=1513, pr=pr, marker=None))
+        code = 0
+    except SystemExit as e:
+        code = e.code
+    finally:
+        workpad._find_workpad_comment, workpad._repo_full = real_find, real_repo
+    return code, buf.getvalue()
+
+
+# No deferred reflection at all → backed:0, exit 0 (nothing to audit; never a false positive).
+assert_eq("#1513 zero deferred reflections is a decided backed:0 (exit 0)",
+          (0, "backed: 0\n"), _dra_run(_dp_body()))
+# One deferred reflection + one bound scope-decision record → backed (the auditor's
+# capability-blocked-AC case, which MUST NOT false-positive).
+assert_eq("#1513 a deferred reflection backed by a bound scope-decision record exits 0",
+          (0, "backed: 1\n"),
+          _dra_run(_dp_body(
+              reflection_extra=_dra_refl('workflow-resident AC deferred'),
+              progress_extra=_dp_note(_dp_rec(42, 'deferred', DP_CRIT)))))
+# One reflection under two bound records is backed (excess-count safe direction).
+assert_eq("#1513 one reflection under two bound records is backed",
+          (0, "backed: 1\n"),
+          _dra_run(_dp_body(
+              reflection_extra=_dra_refl('one'),
+              progress_extra=_dp_note(_dp_rec(42, 'deferred', DP_CRIT))
+              + _dp_note(_dp_rec(42, 'deferred', DP_CRIT + ' two')))))
+# The #1513 shape: a deferred reflection with NO backing record → unbacked, exit 1.
+assert_eq("#1513 a deferred reflection with no backing record exits 1 and prints its text",
+          (1, "unbacked: 1\ntext: an unfiled advisory\n"),
+          _dra_run(_dp_body(reflection_extra=_dra_refl('an unfiled advisory'))))
+assert_eq("#1513 two unbacked reflections print both texts and the excess count",
+          (1, "unbacked: 2\ntext: one\ntext: two\n"),
+          _dra_run(_dp_body(reflection_extra=_dra_refl('one') + _dra_refl('two'))))
+# Reflections present + an unreliable backing count (unbound record) → unestablished,
+# NEVER a false unbacked.
+assert_eq("#1513 an unbound backing record makes the audit unestablished, not unbacked",
+          (2, "unestablished: reason=unbound-records unbound=1 corrupted=0\n"),
+          _dra_run(_dp_body(
+              reflection_extra=_dra_refl('adv'),
+              progress_extra=_dp_note(_dp_rec('pending', 'deferred', DP_CRIT)))))
+# A corrupted (undecodable text=) bound record is equally unreliable → corrupted-records,
+# never a false backed/unbacked. (This command routes corrupted inline, distinctly from
+# cmd_deferred_presence, so the #815 corrupted test does not cover this arm.)
+assert_eq("#1513 a corrupted bound record makes the audit unestablished (corrupted-records)",
+          (2, "unestablished: reason=corrupted-records unbound=0 corrupted=1\n"),
+          _dra_run(_dp_body(
+              reflection_extra=_dra_refl('adv'),
+              progress_extra=_dp_note('<!-- devflow:scope-decision pr=42 kind=deferred text=a -->'))))
+# A kind=deferred record the whole-body reader sees but no isolated ## Progress bullet
+# carries → reader-divergence (the backing count is unreliable), never a confident answer.
+_dra_div = _dp_body(reflection_extra=_dra_refl('adv')).replace(
+    '## Acceptance Criteria\n',
+    '## Notes\n' + _dp_rec(42, 'deferred', DP_CRIT) + '\n\n## Acceptance Criteria\n')
+assert_eq("#1513 a record only the whole-body reader can see exits 2 (reader-divergence)",
+          (2, "unestablished: reason=reader-divergence unbound=0 corrupted=0\n"),
+          _dra_run(_dra_div))
+# Partial backing: two deferred reflections over ONE bound record → unbacked by the EXCESS
+# (1), while every reflection text is printed. This is the one spot where the excess count
+# and the print-all-texts behavior diverge.
+assert_eq("#1513 two reflections over one bound record → unbacked:1, both texts printed",
+          (1, "unbacked: 1\ntext: one\ntext: two\n"),
+          _dra_run(_dp_body(
+              reflection_extra=_dra_refl('one') + _dra_refl('two'),
+              progress_extra=_dp_note(_dp_rec(42, 'deferred', DP_CRIT)))))
+assert_eq("#1513 an unresolvable workpad exits 2 and names the workpad operand",
+          (2, "unestablished: reason=workpad-unresolved unbound=0 corrupted=0\n"),
+          _dra_run(_dp_body(reflection_extra=_dra_refl('adv')), comment=False))
+assert_eq("#1513 an absent ## Devflow Reflection section exits 2 (reflection-section-unreadable)",
+          (2, "unestablished: reason=reflection-section-unreadable unbound=0 corrupted=0\n"),
+          _dra_run(_dp_body().replace('## Devflow Reflection', '## Retro')))
+# With deferred reflections present but ## Progress unreadable, the backing records
+# cannot be read → unestablished, not a confident unbacked.
+assert_eq("#1513 an unreadable ## Progress section with reflections present exits 2",
+          (2, "unestablished: reason=progress-section-unreadable unbound=0 corrupted=0\n"),
+          _dra_run(_dp_body(reflection_extra=_dra_refl('adv')).replace('## Progress\n', '## Steps\n')))
+# The bounded predicate never prints the workpad body.
+assert_eq("#1513 no arm prints the workpad body",
+          [],
+          [c for c, o in (_dra_run(_dp_body(reflection_extra=_dra_refl('adv'))),
+                          _dra_run(_dp_body()))
+           if '## Progress' in o])
+
+
+# --- the argv surface: subcommand name + positional order (issue then pr) ---
+assert_eq("#1513 the CLI drives the unbacked arm through main() as `<issue> <pr>`",
+          (1, "unbacked: 1\ntext: adv\n"),
+          _dp_cli(['deferred-reflection-audit', '1513', '42'],
+                  _dp_body(reflection_extra=_dra_refl('adv'))))
+assert_eq("#1513 the CLI drives the backed arm through main()",
+          (0, "backed: 1\n"),
+          _dp_cli(['deferred-reflection-audit', '1513', '42'],
+                  _dp_body(reflection_extra=_dra_refl('adv'),
+                           progress_extra=_dp_note(_dp_rec(42, 'deferred', DP_CRIT)))))
+assert_eq("#1513 a missing PR operand exits 2 (argparse usage, the fail-closed arm)",
+          2, _dp_cli(['deferred-reflection-audit', '1513'], _dp_body())[0])
+assert_eq("#1513 deferred-reflection-audit is registered as a subcommand",
+          True, 'deferred-reflection-audit' in _dp_help(['--help']))
 
 # ── #815 the --mark-deferred-filed no-match breadcrumb ─────────────────────────
 # The guard exists to catch one documented slip — passing the 2.2.5 note's
@@ -27275,20 +28009,23 @@ assert_eq("#1634 helper: the summary reports a nonzero ungraded count when detec
           True, 'UNGRADED_CLAIMS total=1' in _cvp_out)
 
 # --- test_adjudicated_output_byte_identical ---------------------------------
-# The issue-1441 snapshot, adjudicated against the tree at this commit: the
-# ungraded pass appends its own lines and changes NO adjudicated line, tally, or
-# exit code. This baseline was captured from the pre-change helper.
+# Re-captured after #1866: bullets 1/2/4 quote their premise inside a backtick
+# span the recognizer no longer scans, so they are honest `unestablished` — do not
+# re-capture as `holds`. `_cvp_path_detail` reads the live constant to stay drift-proof.
+_cvp_path_detail = (
+    'cited path present but the bullet carries no quotation to re-derive the '
+    'premise from (' + check_verified_premises._QUOTE_RULE + ')')
 _CVP_1441_BASELINE = (
-    'bullet=1 handle=path-quote state=holds detail=every quoted sentence resolves in '
-    'lib/fetch-pr-context.sh\n'
-    'bullet=2 handle=path-quote state=holds detail=every quoted sentence resolves in '
-    'lib/fetch-pr-context.sh\n'
+    'bullet=1 handle=path state=unestablished detail=' + _cvp_path_detail
+    + ': lib/fetch-pr-context.sh\n'
+    'bullet=2 handle=path state=unestablished detail=' + _cvp_path_detail
+    + ': lib/fetch-pr-context.sh\n'
     'bullet=3 handle=path-quote state=refuted detail=quoted sentence no longer occurs in '
     'scripts/build-experiment-records.py: Paginate: /commits/{sha}/check-runs serves only '
     'the first 30 check-runs per page\n'
-    'bullet=4 handle=path-quote state=holds detail=every quoted sentence resolves in '
-    'lib/cheap-gate.jq\n'
-    'VERIFIED_PREMISES total=4 holds=3 refuted=1 unestablished=0')
+    'bullet=4 handle=path state=unestablished detail=' + _cvp_path_detail
+    + ': lib/cheap-gate.jq\n'
+    'VERIFIED_PREMISES total=4 holds=0 refuted=1 unestablished=3')
 _cvp_rc, _cvp_out = _cvp_run_real(_CVP_1441_FIXTURE)
 assert_eq("#1634 helper: the adjudicated output for the issue-1441 snapshot is byte-identical "
           "to the pre-change output — the ungraded pass adds lines and moves no verdict "
@@ -27575,6 +28312,169 @@ assert_eq("#1634 helper: an emission failure reports UNGRADED_CLAIMS unavailable
           True, 'UNGRADED_CLAIMS unavailable reason=internal-error detail=' in _cvp_emit_out
           and 'UNGRADED_CLAIMS total=' not in _cvp_emit_out
           and 'emission boom' in _cvp_emit_err)
+
+# issue #1866 — recognizer stops earning unverified clean passes; four defects, same CLI boundary
+
+# --- AC1: text inside a backtick code span is invisible to quote detection ---
+# The backticked command carries a double-quoted string that would otherwise be
+# matched as the premise quotation and refuted against the cited file; the real
+# quotation sits OUTSIDE the backticks and resolves, so the bullet holds.
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    '**Verified:** `grep -c "not-a-real-premise-string" docs/notes.md` proves it; '
+    '`docs/notes.md` — "exited 2 with exactly that"\n')
+assert_eq("#1866 helper: a double-quoted string inside a backticked command is not "
+          "matched as the premise quotation — the real quotation outside it grades holds",
+          True, 'state=holds' in _cvp_out and 'state=refuted' not in _cvp_out)
+
+# Move 2 — two backticked spans with the real premise quotation between them still holds.
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    '**Verified:** `grep "x" f` — "exited 2 with exactly that" — `docs/notes.md`\n')
+assert_eq("#1866 helper: the real quotation between two backticked spans still grades holds",
+          True, 'state=holds' in _cvp_out)
+
+# Move 2 (adversarial) — an unpaired backtick leaves the span unstripped and still grades,
+# never detonating into an internal error.
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    '**Verified:** `docs/notes.md` — "exited 2 with exactly that" and a stray ` tick\n')
+assert_eq("#1866 helper: an unpaired backtick still grades (does not detonate)",
+          True, 'bullet=1' in _cvp_out and 'reason=internal-error' not in _cvp_out
+          and 'state=holds' in _cvp_out)
+
+# --- AC2: a blockquote-prefixed `> Verified:` line is reported in UNGRADED_CLAIMS ---
+# Section-independent: no premise section here at all, yet the line is surfaced.
+_cvp_rc, _cvp_out = _cvp_run(
+    'Some intro text.\n\n'
+    '> Verified: `docs/notes.md` "exited 2 with exactly that"\n')
+assert_eq("#1866 helper: a blockquote-prefixed `> Verified:` line is reported in "
+          "UNGRADED_CLAIMS, not silently counted as a clean total=0 pass",
+          True, len(_cvp_ungraded_lines(_cvp_out)) >= 1
+          and any('Verified' in line for line in _cvp_ungraded_lines(_cvp_out))
+          and 'UNGRADED_CLAIMS total=0' not in _cvp_out)
+
+# Move 2 — a body mixing one recognized bullet and one blockquoted line: total=1 + one ungraded.
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    '**Verified:** `docs/notes.md` — "exited 2 with exactly that"\n\n'
+    '> Verified: `config.json` "some other premise text"\n')
+assert_eq("#1866 helper: a recognized bullet plus a blockquoted line reports "
+          "VERIFIED_PREMISES total=1 and exactly one ungraded claim",
+          True, 'VERIFIED_PREMISES total=1 ' in _cvp_out
+          and len(_cvp_ungraded_lines(_cvp_out)) == 1)
+
+# --- AC3: a quotation truncated at an internal `"` is unestablished, never refuted ---
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    '**Verified:** `docs/notes.md` — '
+    '"zzq unique prefix that never occurs "here and stops"\n')
+assert_eq("#1866 helper: a quotation carrying an internal double quote is graded "
+          "unestablished with the delimiter rule named, never refuted against the fragment",
+          True, 'state=unestablished' in _cvp_out and 'state=refuted' not in _cvp_out
+          and 'double-quote' in _cvp_out)
+assert_eq("#1866 helper: the truncated-quotation bullet does not exit with the refutation code",
+          0, _cvp_rc)
+
+# --- AC4: a shape refusal states the eight-character minimum quotation length ---
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    '**Verified:** `docs/notes.md` — "1234567"\n')
+assert_eq("#1866 helper: the seven-character-quotation shape refusal names the eight-character floor",
+          True, 'handle=path' in _cvp_out and 'state=unestablished' in _cvp_out
+          and 'eight' in _cvp_out)
+
+# --- AC7: untouched surfaces keep their current outputs ---
+_cvp_rc, _cvp_out = _cvp_run('## Current Behavior\n\nNothing verifiable is asserted here.\n')
+assert_eq("#1866 helper: a body with no verification-shaped text still reports the clean total=0 pair",
+          True, 'VERIFIED_PREMISES total=0 holds=0 refuted=0 unestablished=0' in _cvp_out
+          and 'UNGRADED_CLAIMS total=0' in _cvp_out and _cvp_rc == 0)
+_cvp_rc, _cvp_out = _cvp_run('   \n\n  \n')
+assert_eq("#1866 helper: the empty body still reports reason=body-empty",
+          True, 'reason=body-empty' in _cvp_out and _cvp_rc == 3)
+
+# --- Review follow-up: a bolded `> **Verified:**` blockquote is graded once by
+# _MARKER arm A, never ALSO reported in UNGRADED_CLAIMS (the `[ \t>]*` class
+# excludes `*`, so the blockquote regex does not match it) ---
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    '> **Verified:** `docs/notes.md` — "exited 2 with exactly that"\n')
+assert_eq("#1866 helper: a bolded `> **Verified:**` blockquote is graded exactly once "
+          "and not double-counted as an ungraded claim",
+          True, 'VERIFIED_PREMISES total=1 ' in _cvp_out
+          and len(_cvp_ungraded_lines(_cvp_out)) == 0)
+
+# --- Review follow-up: mixed ungraded detections are numbered in document order —
+# a blockquote line BEFORE a collocation phrase yields claims 1 (blockquote) then 2 ---
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    '> Verified: `config.json` "some real premise text"\n\n'
+    'The fixture was verified against main.\n')
+_u_lines = _cvp_ungraded_lines(_cvp_out)
+assert_eq("#1866 helper: a blockquote line before a collocation phrase yields two "
+          "ungraded claims numbered in document order (blockquote first)",
+          True, len(_u_lines) == 2
+          and 'ungraded_claim=1 region=blockquote ' in _u_lines[0]
+          and 'ungraded_claim=2 region=Current Behavior ' in _u_lines[1])
+
+# --- Review follow-up: the truncated-quotation reroute counts TYPOGRAPHIC delimiters
+# too (not only ASCII), and the count trips with more than one matched quotation ---
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    '**Verified:** `docs/notes.md` — '
+    '“zzq unique absent prefix” and a stray “ mark\n')
+assert_eq("#1866 helper: a truncated typographic quotation is graded unestablished "
+          "(the typographic delimiters are counted), never refuted",
+          True, 'state=unestablished' in _cvp_out and 'state=refuted' not in _cvp_out
+          and 'double-quote' in _cvp_out)
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    '**Verified:** `docs/notes.md` — '
+    '"real quote alpha here" and "real quote beta here" plus a stray " mark\n')
+assert_eq("#1866 helper: the truncation count trips with more than one matched "
+          "quotation (quote_delims > 2*len(quotes)) — unestablished, not refuted",
+          True, 'state=unestablished' in _cvp_out and 'state=refuted' not in _cvp_out)
+
+# --- Review follow-up: recheck strips backtick spans before counting delimiters, so a
+# backticked command's internal `"` does not inflate quote_delims (mutation `stripped =
+# span` at the count site would flip a genuinely-stale premise off refuted) ---
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    '**Verified:** `docs/notes.md` cited, `grep "x" here` — '
+    '"genuinely absent quote text"\n')
+assert_eq("#1866 helper: a backticked command's internal double quote does not inflate "
+          "the truncation count — a genuinely-stale premise on a strong path still refutes",
+          True, 'state=refuted' in _cvp_out)
+
+# --- Review follow-up: a `> Verified:` line inside a fenced code block is excluded
+# (the graded/code exclusion set covers fenced lines), so it is NOT surfaced as ungraded ---
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\nSome text.\n\n'
+    '```\n> Verified: `docs/notes.md` "exited 2 with exactly that"\n```\n\nmore text.\n')
+assert_eq("#1866 helper: a `> Verified:` line inside a code fence is not reported as an "
+          "ungraded claim",
+          True, len(_cvp_ungraded_lines(_cvp_out)) == 0
+          and 'VERIFIED_PREMISES total=0 ' in _cvp_out)
+
+# --- Review follow-up (shadow): AC3's fail-toward-unestablished direction is pinned — a
+# genuinely-stale premise on a strong path whose span ALSO carries a stray unbalanced `"`
+# has double-quote chars beyond the matched pair, so it refuses (unestablished), never refutes ---
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    '**Verified:** `docs/notes.md` — '
+    '"genuinely absent premise text here" (see the 3" measurement)\n')
+assert_eq("#1866 helper: an extra unbalanced double quote in the span refuses a stale "
+          "premise to unestablished (AC3), never refuted against the matched pair",
+          True, 'state=unestablished' in _cvp_out and 'state=refuted' not in _cvp_out)
+
+# --- Review follow-up (shadow): the 2*len(quotes) accounting accepts two genuinely-balanced
+# quotations (quote_delims == 2*len(quotes)) as NOT truncated — both resolve, so it holds ---
+_cvp_rc, _cvp_out = _cvp_run(
+    '## Current Behavior\n\n'
+    '**Verified:** `docs/notes.md` — "exited 2 with" and "exactly that message"\n')
+assert_eq("#1866 helper: two balanced resolving quotations are not misread as a truncated "
+          "quotation — the bullet still grades holds",
+          True, 'state=holds' in _cvp_out)
 
 print()
 print("issue-audit-state: tool-owned round kinds (issue #793)")
@@ -33336,8 +34236,10 @@ def _prov_transcript(*, model=None, resolved_model=None, extra=()):
 
 def _prov_run(*, version="9.9.9", config=_PROV_UNSET, effort=_PROV_UNSET,
               session_id=_PROV_UNSET, transcript=None, write_transcript=True,
-              config_dir=_PROV_UNSET, prflow_version=None):
-    """Drive a fixture copy of the helper; return (stdout_stripped, stderr, rc)."""
+              config_dir=_PROV_UNSET, prflow_version=None, command="/prflow:implement"):
+    """Drive a fixture copy of the helper; return (stdout_stripped, stderr, rc).
+    command names the value passed to the now-required --command flag; command=None
+    omits the flag entirely (the missing-required-argument case)."""
     d = tempfile.mkdtemp(prefix="prov1655-")
     try:
         scripts_dir = os.path.join(d, "scripts")
@@ -33367,6 +34269,8 @@ def _prov_run(*, version="9.9.9", config=_PROV_UNSET, effort=_PROV_UNSET,
             Path(os.path.join(proj, f"{sid}.jsonl")).write_text(
                 "\n".join(transcript), encoding="utf-8")
         argv = [sys.executable, helper]
+        if command is not None:
+            argv += ["--command", command]
         if config is not _PROV_UNSET:
             cfg = os.path.join(d, "cfg.json")
             body = config if isinstance(config, str) else json.dumps(config)
@@ -33380,37 +34284,107 @@ def _prov_run(*, version="9.9.9", config=_PROV_UNSET, effort=_PROV_UNSET,
 
 
 _PB = "Generated via /prflow:implement"
+_PB_CI = "Generated via /prflow:create-issue"
+
+
+def _pl(inner):
+    """The renderer wraps the whole provenance line in single-underscore italics."""
+    return f"_{inner}_"
+
 
 # Full line — version, model, effort all established.
 _o, _e, _rc = _prov_run(version="2.32.58", effort="high",
                         transcript=_prov_transcript(model="claude-opus-5"))
-assert_eq("#1655 full line names version, model, effort", f"{_PB} (v2.32.58, claude-opus-5, high)", _o)
+assert_eq("#1655 full line names version, model, effort", _pl(f"{_PB} (v2.32.58, claude-opus-5, high)"), _o)
 assert_eq("#1655 full line exits 0", 0, _rc)
 assert_eq("#1655 rendered line carries no backtick", False, "`" in _o)
 
 # Guarantee class: neither model nor effort — version alone, no empty punctuation, breadcrumbs name each.
 _o, _e, _rc = _prov_run(version="2.32.58", write_transcript=False)
-assert_eq("#1655 only version established -> version alone", f"{_PB} (v2.32.58)", _o)
+assert_eq("#1655 only version established -> version alone", _pl(f"{_PB} (v2.32.58)"), _o)
 assert_eq("#1655 version-alone exits 0", 0, _rc)
 assert_eq("#1655 breadcrumb names omitted effort", True, "effort unestablished" in _e)
 assert_eq("#1655 breadcrumb names omitted model", True, "model unestablished" in _e)
 
 # Effort unset, model readable -> version + model only.
 _o, _e, _rc = _prov_run(version="2.32.58", transcript=_prov_transcript(model="claude-opus-5"))
-assert_eq("#1655 effort unset -> version + model only", f"{_PB} (v2.32.58, claude-opus-5)", _o)
+assert_eq("#1655 effort unset -> version + model only", _pl(f"{_PB} (v2.32.58, claude-opus-5)"), _o)
 
 # Model unavailable, effort set -> version + effort only.
 _o, _e, _rc = _prov_run(version="2.32.58", effort="max", write_transcript=False)
-assert_eq("#1655 no model, effort set -> version + effort only", f"{_PB} (v2.32.58, max)", _o)
+assert_eq("#1655 no model, effort set -> version + effort only", _pl(f"{_PB} (v2.32.58, max)"), _o)
 
 # CLAUDE_EFFORT whitespace-only is unestablished.
 _o, _e, _rc = _prov_run(version="2.32.58", effort="   ", write_transcript=False)
-assert_eq("#1655 whitespace-only CLAUDE_EFFORT is unestablished", f"{_PB} (v2.32.58)", _o)
+assert_eq("#1655 whitespace-only CLAUDE_EFFORT is unestablished", _pl(f"{_PB} (v2.32.58)"), _o)
+
+# --command names the command in the printed line; the value passed is echoed verbatim (AC1, AC2).
+_o, _e, _rc = _prov_run(version="7.7.7", write_transcript=False, command="/prflow:create-issue")
+assert_eq("#1655 --command /prflow:create-issue version-only line", _pl(f"{_PB_CI} (v7.7.7)"), _o)
+assert_eq("#1655 --command create-issue version-only exits 0", 0, _rc)
+_o, _e, _rc = _prov_run(version="7.7.7", write_transcript=False, command="/prflow:implement")
+assert_eq("#1655 --command /prflow:implement version-only line", _pl(f"{_PB} (v7.7.7)"), _o)
+# The command name in the printed line is exactly the value passed to --command.
+_o, _e, _rc = _prov_run(version="2.32.58", effort="high",
+                        transcript=_prov_transcript(model="claude-opus-5"),
+                        command="/prflow:create-issue")
+assert_eq("#1655 create-issue full line names version, model, effort",
+          _pl(f"{_PB_CI} (v2.32.58, claude-opus-5, high)"), _o)
+
+# --command omitted entirely: nothing on stdout, usage to stderr, exit non-zero (AC3).
+_o, _e, _rc = _prov_run(version="2.32.58", write_transcript=False, command=None)
+assert_eq("#1655 missing --command prints nothing on stdout", "", _o)
+assert_eq("#1655 missing --command exits non-zero", True, _rc != 0)
+assert_eq("#1655 missing --command writes a usage message to stderr",
+          True, "usage" in _e.lower() and "--command" in _e)
+
+# A --command value carrying a shell-active or control char: nothing on stdout, reason on
+# stderr, exit 0 (AC13 — the five classes: backtick, dollar, backslash, double-quote, control).
+for _cmdval, _lbl in (
+    ("/prflow:c`id`", "backtick"),
+    ("/prflow:c$(id)", "dollar"),
+    ("/prflow:c\\x", "backslash"),
+    ('/prflow:c"x', "double-quote"),
+    ("/prflow:c\tx", "control-tab"),
+    ("/prflow:c\nx", "control-newline"),
+    # The control class runs \x00-\x1f AND \x7f; \x7f is the isolated upper end, so a
+    # regex edit dropping it would go unnoticed without this row. \x00 cannot be tested
+    # here: an embedded null byte raises ValueError before execve, so no argv can carry it.
+    ("/prflow:c\x7fx", "control-del"),
+):
+    _o, _e, _rc = _prov_run(version="2.32.58", write_transcript=False, command=_cmdval)
+    assert_eq(f"#1655 shell-active --command ({_lbl}) prints nothing on stdout", "", _o)
+    assert_eq(f"#1655 shell-active --command ({_lbl}) exits 0", 0, _rc)
+    # Assert the drop names the COMMAND specifically — a generic non-empty check would pass
+    # if an unrelated value (model/effort) had been the thing dropped.
+    assert_eq(f"#1655 shell-active --command ({_lbl}) stderr names the command drop",
+              True, "command omitted" in _e)
+
+# A blank / whitespace-only --command value: nothing on stdout, a NAMED breadcrumb (not a
+# silent drop), exit 0 — argparse only checks presence, so this present-but-blank case is
+# between the missing-argument and shell-active cases.
+for _blank in ("", "   "):
+    _o, _e, _rc = _prov_run(version="2.32.58", write_transcript=False, command=_blank)
+    assert_eq("#1655 blank --command prints nothing on stdout", "", _o)
+    assert_eq("#1655 blank --command exits 0", 0, _rc)
+    assert_eq("#1655 blank --command breadcrumbs the blank drop (not silent)",
+              True, "command omitted (blank" in _e)
+
+# An inert --command value the helper has never heard of renders verbatim: the helper
+# carries no command allowlist, so adding one would break every non-canonical caller.
+_o, _e, _rc = _prov_run(version="2.32.58", write_transcript=False, command="/prflow:foo")
+assert_eq("#1655 non-canonical inert --command renders verbatim (no allowlist)",
+          _pl("Generated via /prflow:foo (v2.32.58)"), _o)
+assert_eq("#1655 non-canonical inert --command exits 0", 0, _rc)
+
+# Case variant: a --command value with a leading slash renders unchanged.
+_o, _e, _rc = _prov_run(version="2.32.58", write_transcript=False, command="/prflow:implement")
+assert_eq("#1655 leading-slash --command value is preserved", _pl(f"{_PB} (v2.32.58)"), _o)
 
 # Beside-the-helper manifest wins over a config prflow_version that differs.
 _o, _e, _rc = _prov_run(version="1.1.1", write_transcript=False,
-                        config={"prflow_version": "2.2.2", "prflow_implement": {}})
-assert_eq("#1655 names the beside-the-helper manifest version", f"{_PB} (v1.1.1)", _o)
+                        config={"prflow_version": "2.2.2", "prflow": {}})
+assert_eq("#1655 names the beside-the-helper manifest version", _pl(f"{_PB} (v1.1.1)"), _o)
 assert_eq("#1655 does NOT name the config prflow_version", False, "2.2.2" in _o)
 
 # resolvedModel is never a source; the bare assistant model wins.
@@ -33418,109 +34392,133 @@ _o, _e, _rc = _prov_run(version="2.32.58",
                         transcript=_prov_transcript(resolved_model="claude-opus-5[1m]",
                                                     model="claude-sonnet-5"))
 assert_eq("#1655 names the assistant message.model, not resolvedModel",
-          f"{_PB} (v2.32.58, claude-sonnet-5)", _o)
+          _pl(f"{_PB} (v2.32.58, claude-sonnet-5)"), _o)
 assert_eq("#1655 the marked resolvedModel id is never emitted", False, "[1m]" in _o)
 
 # Most-recent assistant record wins.
 _o, _e, _rc = _prov_run(version="2.32.58",
                         transcript=_prov_transcript(model="claude-old") +
                         _prov_transcript(model="claude-new"))
-assert_eq("#1655 names the MOST RECENT assistant model", f"{_PB} (v2.32.58, claude-new)", _o)
+assert_eq("#1655 names the MOST RECENT assistant model", _pl(f"{_PB} (v2.32.58, claude-new)"), _o)
 
 # Truncated final record -> last complete assistant record still read.
 _trunc = _prov_transcript(model="claude-opus-5") + ['{"type": "assistant", "message": {"mod']
 _o, _e, _rc = _prov_run(version="2.32.58", transcript=_trunc)
 assert_eq("#1655 truncated final record -> last complete record wins",
-          f"{_PB} (v2.32.58, claude-opus-5)", _o)
+          _pl(f"{_PB} (v2.32.58, claude-opus-5)"), _o)
 assert_eq("#1655 truncated-record run exits 0", 0, _rc)
 
-# Config off-switch: explicit false suppresses the model+effort clause; version stays.
+# Config off-switch: explicit false in the prflow section suppresses the clause; version stays.
 _o, _e, _rc = _prov_run(version="2.32.58", effort="high",
                         transcript=_prov_transcript(model="claude-opus-5"),
-                        config={"prflow_implement": {"publish_model_effort": False}})
-assert_eq("#1655 explicit false suppresses model+effort clause", f"{_PB} (v2.32.58)", _o)
+                        config={"prflow": {"publish_model_effort": False}})
+assert_eq("#1655 explicit false suppresses model+effort clause", _pl(f"{_PB} (v2.32.58)"), _o)
 assert_eq("#1655 suppression breadcrumb emitted", True, "suppressed" in _e)
 assert_eq("#1655 suppressed run exits 0", 0, _rc)
 
-# Config six-shape adversarial matrix for publish_model_effort (a config-JSON consumer).
+# Config six-shape adversarial matrix for prflow.publish_model_effort (a config-JSON consumer).
 _shapes = [
-    ("object", {"prflow_implement": {"publish_model_effort": {"x": 1}}}, True),
-    ("array", {"prflow_implement": {"publish_model_effort": [False]}}, True),
-    ("scalar-true", {"prflow_implement": {"publish_model_effort": True}}, True),
-    ("valid-falsy-false", {"prflow_implement": {"publish_model_effort": False}}, False),
-    ("missing", {"prflow_implement": {}}, True),
-    ("wrong-type-string-false", {"prflow_implement": {"publish_model_effort": "false"}}, True),
+    ("object", {"prflow": {"publish_model_effort": {"x": 1}}}, True),
+    ("array", {"prflow": {"publish_model_effort": [False]}}, True),
+    ("scalar-true", {"prflow": {"publish_model_effort": True}}, True),
+    ("valid-falsy-false", {"prflow": {"publish_model_effort": False}}, False),
+    ("missing", {"prflow": {}}, True),
+    ("wrong-type-string-false", {"prflow": {"publish_model_effort": "false"}}, True),
 ]
 for _name, _cfg, _permits in _shapes:
     _o, _e, _rc = _prov_run(version="2.32.58", effort="high",
                             transcript=_prov_transcript(model="claude-opus-5"), config=_cfg)
-    _expect = f"{_PB} (v2.32.58, claude-opus-5, high)" if _permits else f"{_PB} (v2.32.58)"
+    _expect = _pl(f"{_PB} (v2.32.58, claude-opus-5, high)") if _permits else _pl(f"{_PB} (v2.32.58)")
     assert_eq(f"#1655 config shape '{_name}' renders correctly", _expect, _o)
     assert_eq(f"#1655 config shape '{_name}' exits 0", 0, _rc)
+
+# The superseded section is read by nothing: the same six shapes there all leave the clause
+# enabled, and nothing is written to stderr about the stale key. The section name is held in a
+# variable so AC6's `git grep publish_model_effort` finds no occurrence co-located with the
+# superseded-section literal, while AC17 still drives the legacy fixture.
+_LEGACY_SECTION = "prflow_implement"
+for _name, _cfg, _ in _shapes:
+    _legacy = {_LEGACY_SECTION: _cfg["prflow"]}
+    _o, _e, _rc = _prov_run(version="2.32.58", effort="high",
+                            transcript=_prov_transcript(model="claude-opus-5"), config=_legacy)
+    assert_eq(f"#1655 legacy superseded-section shape '{_name}' does not suppress",
+              _pl(f"{_PB} (v2.32.58, claude-opus-5, high)"), _o)
+    assert_eq(f"#1655 legacy superseded-section shape '{_name}' says nothing about the stale key",
+              True, _LEGACY_SECTION not in _e and "publish_model_effort" not in _e)
+
+# Stale-key AC17: only the superseded section's key set to false, no prflow key -> model and
+# effort still printed, and stderr carries nothing about the superseded key.
+_o, _e, _rc = _prov_run(version="2.32.58", effort="high",
+                        transcript=_prov_transcript(model="claude-opus-5"),
+                        config={_LEGACY_SECTION: {"publish_model_effort": False}})
+assert_eq("#1655 stale superseded-section false still prints model+effort",
+          _pl(f"{_PB} (v2.32.58, claude-opus-5, high)"), _o)
+assert_eq("#1655 stale key run says nothing about the superseded key on stderr",
+          True, _LEGACY_SECTION not in _e and "publish_model_effort" not in _e)
 
 # The string "false" is NOT the boolean false — a truthy-default read must not coerce it.
 _o, _e, _rc = _prov_run(version="2.32.58", effort="high",
                         transcript=_prov_transcript(model="claude-opus-5"),
-                        config={"prflow_implement": {"publish_model_effort": "false"}})
+                        config={"prflow": {"publish_model_effort": "false"}})
 assert_eq("#1655 string 'false' does not suppress (raw JSON, not string-coerced)",
-          f"{_PB} (v2.32.58, claude-opus-5, high)", _o)
+          _pl(f"{_PB} (v2.32.58, claude-opus-5, high)"), _o)
 
 # Malformed config JSON -> clause left enabled, breadcrumb, exit 0.
 _o, _e, _rc = _prov_run(version="2.32.58", effort="high",
                         transcript=_prov_transcript(model="claude-opus-5"),
                         config="{not valid json")
-assert_eq("#1655 malformed config -> clause enabled", f"{_PB} (v2.32.58, claude-opus-5, high)", _o)
+assert_eq("#1655 malformed config -> clause enabled", _pl(f"{_PB} (v2.32.58, claude-opus-5, high)"), _o)
 assert_eq("#1655 malformed config exits 0", 0, _rc)
 
 # Transcript JSON-Lines matrix — each shape exits 0 and renders version alone (no model).
 _o, _e, _rc = _prov_run(version="2.32.58", transcript=[])  # empty file
-assert_eq("#1655 empty transcript -> version alone", f"{_PB} (v2.32.58)", _o)
+assert_eq("#1655 empty transcript -> version alone", _pl(f"{_PB} (v2.32.58)"), _o)
 assert_eq("#1655 empty transcript exits 0", 0, _rc)
 
 _o, _e, _rc = _prov_run(version="2.32.58",
                         transcript=[json.dumps({"type": "user", "message": {"model": "x"}})])
-assert_eq("#1655 no assistant record -> version alone", f"{_PB} (v2.32.58)", _o)
+assert_eq("#1655 no assistant record -> version alone", _pl(f"{_PB} (v2.32.58)"), _o)
 assert_eq("#1655 no-assistant-record run exits 0", 0, _rc)
 
 _o, _e, _rc = _prov_run(version="2.32.58", transcript=["{ this is not json"])
-assert_eq("#1655 malformed transcript JSON -> version alone", f"{_PB} (v2.32.58)", _o)
+assert_eq("#1655 malformed transcript JSON -> version alone", _pl(f"{_PB} (v2.32.58)"), _o)
 assert_eq("#1655 malformed transcript exits 0", 0, _rc)
 
 _o, _e, _rc = _prov_run(version="2.32.58",
                         transcript=[json.dumps({"type": "assistant", "message": {"model": 123}})])
-assert_eq("#1655 wrong-typed message.model -> version alone", f"{_PB} (v2.32.58)", _o)
+assert_eq("#1655 wrong-typed message.model -> version alone", _pl(f"{_PB} (v2.32.58)"), _o)
 assert_eq("#1655 wrong-typed field exits 0", 0, _rc)
 
 # Session id set but the derived transcript is missing: version alone + breadcrumb naming the path tried.
 _o, _e, _rc = _prov_run(version="2.32.58", write_transcript=False)
-assert_eq("#1655 absent transcript -> version alone", f"{_PB} (v2.32.58)", _o)
+assert_eq("#1655 absent transcript -> version alone", _pl(f"{_PB} (v2.32.58)"), _o)
 assert_eq("#1655 absent-transcript breadcrumb names the derived path tried",
           True, "no transcript at derived path" in _e)
 
 # No session id at all -> model unestablished naming the missing session id.
 _o, _e, _rc = _prov_run(version="2.32.58", session_id=None, write_transcript=False)
-assert_eq("#1655 no session id -> version alone", f"{_PB} (v2.32.58)", _o)
+assert_eq("#1655 no session id -> version alone", _pl(f"{_PB} (v2.32.58)"), _o)
 assert_eq("#1655 missing-session-id breadcrumb names CLAUDE_CODE_SESSION_ID",
           True, "CLAUDE_CODE_SESSION_ID" in _e)
 
 # Default config dir with a missing transcript store: version alone, exit 0.
 _o, _e, _rc = _prov_run(version="2.32.58", config_dir=None, write_transcript=False,
                         session_id="sess-1655-nostore-unique")
-assert_eq("#1655 no transcript store -> version alone (default dir branch)", f"{_PB} (v2.32.58)", _o)
+assert_eq("#1655 no transcript store -> version alone (default dir branch)", _pl(f"{_PB} (v2.32.58)"), _o)
 assert_eq("#1655 no-store run exits 0", 0, _rc)
 
 # Wrong-typed manifest .version (non-string) -> version omitted, established values still named.
 _o, _e, _rc = _prov_run(version={"version": 123}, effort="high",
                         transcript=_prov_transcript(model="claude-opus-5"))
 assert_eq("#1655 wrong-typed manifest .version -> version omitted",
-          f"{_PB} (claude-opus-5, high)", _o)
+          _pl(f"{_PB} (claude-opus-5, high)"), _o)
 assert_eq("#1655 wrong-typed .version breadcrumb names version", True, "version unestablished" in _e)
 
 # No manifest beside the helper -> version omitted, established values still named.
 _o, _e, _rc = _prov_run(version=None, effort="high",
                         transcript=_prov_transcript(model="claude-opus-5"))
 assert_eq("#1655 no manifest -> version omitted, model+effort named",
-          f"{_PB} (claude-opus-5, high)", _o)
+          _pl(f"{_PB} (claude-opus-5, high)"), _o)
 assert_eq("#1655 no-manifest breadcrumb names version", True, "version unestablished" in _e)
 assert_eq("#1655 no-manifest run exits 0", 0, _rc)
 
@@ -33528,41 +34526,41 @@ assert_eq("#1655 no-manifest run exits 0", 0, _rc)
 # shipped), so the "no backtick / no shell-active construct" guarantee holds by construction.
 _o, _e, _rc = _prov_run(version="2.32.58", effort="high",
                         transcript=_prov_transcript(model="claude`whoami`5"))
-assert_eq("#1655 model carrying a backtick is dropped, not shipped", f"{_PB} (v2.32.58, high)", _o)
+assert_eq("#1655 model carrying a backtick is dropped, not shipped", _pl(f"{_PB} (v2.32.58, high)"), _o)
 assert_eq("#1655 dropped-for-backtick line carries no backtick", False, "`" in _o)
 assert_eq("#1655 shell-active drop emits a breadcrumb", True, "shell-active" in _e)
 
 _o, _e, _rc = _prov_run(version="2.32.58", effort="high",
                         transcript=_prov_transcript(model="claude$(id)5"))
-assert_eq("#1655 model carrying a $-substitution is dropped", f"{_PB} (v2.32.58, high)", _o)
+assert_eq("#1655 model carrying a $-substitution is dropped", _pl(f"{_PB} (v2.32.58, high)"), _o)
 assert_eq("#1655 dropped-for-dollar line carries no dollar", False, "$" in _o)
 
 _o, _e, _rc = _prov_run(version="2.32.58\n9.9.9", write_transcript=False)
-assert_eq("#1655 version carrying a newline is dropped", _PB, _o)
+assert_eq("#1655 version carrying a newline is dropped", _pl(_PB), _o)
 
 # Config matrix — the section/top-level dimensions of model_effort_permitted's guards.
 _o, _e, _rc = _prov_run(version="2.32.58", effort="high",
                         transcript=_prov_transcript(model="claude-opus-5"), config=[1, 2, 3])
 assert_eq("#1655 top-level config not an object -> clause enabled",
-          f"{_PB} (v2.32.58, claude-opus-5, high)", _o)
+          _pl(f"{_PB} (v2.32.58, claude-opus-5, high)"), _o)
 _o, _e, _rc = _prov_run(version="2.32.58", effort="high",
                         transcript=_prov_transcript(model="claude-opus-5"),
-                        config={"prflow_implement": [False]})
-assert_eq("#1655 prflow_implement section as an array -> clause enabled",
-          f"{_PB} (v2.32.58, claude-opus-5, high)", _o)
+                        config={"prflow": [False]})
+assert_eq("#1655 prflow section as an array -> clause enabled",
+          _pl(f"{_PB} (v2.32.58, claude-opus-5, high)"), _o)
 _o, _e, _rc = _prov_run(version="2.32.58", effort="high",
                         transcript=_prov_transcript(model="claude-opus-5"),
-                        config={"prflow_implement": "off"})
-assert_eq("#1655 prflow_implement section as a scalar -> clause enabled",
-          f"{_PB} (v2.32.58, claude-opus-5, high)", _o)
+                        config={"prflow": "off"})
+assert_eq("#1655 prflow section as a scalar -> clause enabled",
+          _pl(f"{_PB} (v2.32.58, claude-opus-5, high)"), _o)
 
 # valid-falsy non-coercion: JSON 0 and "" are not the boolean false and must not suppress.
 for _fv, _lbl in ((0, "zero"), ("", "empty-string")):
     _o, _e, _rc = _prov_run(version="2.32.58", effort="high",
                             transcript=_prov_transcript(model="claude-opus-5"),
-                            config={"prflow_implement": {"publish_model_effort": _fv}})
+                            config={"prflow": {"publish_model_effort": _fv}})
     assert_eq(f"#1655 config value {_lbl} does not suppress (only JSON false does)",
-              f"{_PB} (v2.32.58, claude-opus-5, high)", _o)
+              _pl(f"{_PB} (v2.32.58, claude-opus-5, high)"), _o)
 
 # read_model most-recent semantics: a valid earlier record then a wrong-typed later one
 # falls back to the last COMPLETE assistant model, not to no model.
@@ -33570,7 +34568,7 @@ _o, _e, _rc = _prov_run(version="2.32.58",
                         transcript=_prov_transcript(model="claude-good") +
                         [json.dumps({"type": "assistant", "message": {"model": 123}})])
 assert_eq("#1655 wrong-typed later record falls back to the last valid model",
-          f"{_PB} (v2.32.58, claude-good)", _o)
+          _pl(f"{_PB} (v2.32.58, claude-good)"), _o)
 
 # Contract assertions tied to acceptance criteria: the phase-file lints and the profile
 # drift check pass over the real tree after the change.
@@ -34014,6 +35012,294 @@ assert_eq("#1560: the template with external_services != \"none\" is refused (no
           True, _descriptor_rc_1560(_decl1560.replace('"none"', '"github"')) != 0)
 assert_eq("#1560: the template with an object-id field off the 40/64-hex shape is refused",
           True, _descriptor_rc_1560(_decl1560.replace("1111111111111111111111111111111111111111", "nothex")) != 0)
+
+# ── issue #1882: the openssl-free JWT signer refuses every non-(PKCS#1|PKCS#8-RSA)
+# input BY NAME and never emits a signature. Byte-equality against openssl and the
+# happy-path sign are covered by the #1882 arms in the #487 run.sh block (which has
+# openssl to generate keys and a reference signature); these unit arms drive the
+# encoding-detection refusals directly, which need no valid key.
+_signer1882 = _load('sign_jwt_rs256', SCRIPTS / 'sign-jwt-rs256.py')
+
+
+def _signer_refuses_1882(name, pem, needle):
+    try:
+        _signer1882.load_rsa_private_key(pem)
+    except _signer1882.SignerError as exc:
+        assert_eq(f"#1882 signer refuses {name} naming the encoding", True, needle in str(exc))
+        return
+    assert_eq(f"#1882 signer refuses {name} (raised SignerError)", True, False)
+
+
+_signer_refuses_1882("empty stdin", b"", "empty standard input")
+_signer_refuses_1882("raw DER (no PEM armor)", b"\x30\x82\x01\x00\x02\x01\x00", "raw DER")
+_signer_refuses_1882("OpenSSH key", b"-----BEGIN OPENSSH PRIVATE KEY-----\nAAAA\n-----END OPENSSH PRIVATE KEY-----\n", "OpenSSH")
+_signer_refuses_1882("EC key", b"-----BEGIN EC PRIVATE KEY-----\nMHQ=\n-----END EC PRIVATE KEY-----\n", "EC private key")
+_signer_refuses_1882("passphrase-protected PEM", b"-----BEGIN RSA PRIVATE KEY-----\nProc-Type: 4,ENCRYPTED\nDEK-Info: AES-128-CBC,0\n\nAAAA\n-----END RSA PRIVATE KEY-----\n", "passphrase-protected")
+_signer_refuses_1882("truncated PEM (no END)", b"-----BEGIN RSA PRIVATE KEY-----\nMIICXQIBAAKBgQ\n", "truncated PEM")
+_notseq_1882 = ("-----BEGIN RSA PRIVATE KEY-----\n"
+                + _signer1882.base64.b64encode(b"\x02\x01\x00").decode()
+                + "\n-----END RSA PRIVATE KEY-----\n")
+_signer_refuses_1882("PEM body that is not an RSA key structure", _notseq_1882.encode(), "not a valid RSA private key structure")
+
+assert_eq("#1882 signer _b64url strips padding and uses the URL-safe alphabet", b"__8", _signer1882._b64url(b"\xff\xff"))
+assert_eq("#1882 signer carries the RFC 8017 SHA-256 DigestInfo prefix", "3031300d060960864801650304020105000420", _signer1882._SHA256_DIGESTINFO.hex())
+assert_raises("#1882 signer rejects a non-integer iat/exp before any signature", _signer1882.SignerError,
+              lambda: _signer1882.sign_jwt("iss", "notanint", "2", b"-----BEGIN RSA PRIVATE KEY-----\nAA\n-----END RSA PRIVATE KEY-----\n"))
+
+_signer_refuses_1882("DSA key", b"-----BEGIN DSA PRIVATE KEY-----\nMHQ=\n-----END DSA PRIVATE KEY-----\n", "DSA private key")
+_signer_refuses_1882("unrecognized PEM type", b"-----BEGIN CERTIFICATE-----\nMHQ=\n-----END CERTIFICATE-----\n", "unrecognized PEM type")
+_signer_refuses_1882("undecodable base64 body", b"-----BEGIN RSA PRIVATE KEY-----\n!!!!\n-----END RSA PRIVATE KEY-----\n", "undecodable base64 body")
+
+
+# The `len(t) + 11 > k` minimum-modulus guard in sign_jwt: a modulus too small to hold
+# the EMSA-PKCS1-v1_5 encoding must be refused BY NAME rather than producing a short or
+# malformed signature. Production App keys (2048/4096-bit) never reach it, so only a
+# synthetic key exercises it — hence the hand-built DER below rather than a real fixture.
+def _der_len_1882(size):
+    """DER length octets: short form under 128, else long form. A 1024-bit modulus needs
+    the long form, so a short-form-only encoder would build a fixture the parser refuses
+    for the wrong reason and the guard under test would never be reached."""
+    if size < 0x80:
+        return size.to_bytes(1, "big")
+    raw = size.to_bytes((size.bit_length() + 7) // 8, "big")
+    return (0x80 | len(raw)).to_bytes(1, "big") + raw
+
+
+def _der_int_1882(value):
+    raw = value.to_bytes(max(1, (value.bit_length() + 7) // 8), "big")
+    if raw[0] & 0x80:
+        raw = b"\x00" + raw
+    return b"\x02" + _der_len_1882(len(raw)) + raw
+
+
+def _pkcs1_pem_1882(n, d):
+    """Hand-build a PKCS#1 RSAPrivateKey PEM carrying the given modulus/exponent."""
+    body = _der_int_1882(0) + _der_int_1882(n) + _der_int_1882(65537) + _der_int_1882(d)
+    seq = b"\x30" + _der_len_1882(len(body)) + body
+    b64 = _signer1882.base64.b64encode(seq).decode()
+    return ("-----BEGIN RSA PRIVATE KEY-----\n" + b64 + "\n-----END RSA PRIVATE KEY-----\n").encode()
+
+
+# 256-bit modulus: k = 32, and len(t) + 11 = 62 > 32, so the guard fires.
+_small_n_1882 = (1 << 255) | 1
+_small_pem_1882 = _pkcs1_pem_1882(_small_n_1882, 3)
+assert_eq("#1882 signer parses the hand-built small-modulus PEM (positive control: the fixture is otherwise valid)",
+          (_small_n_1882, 3), _signer1882.load_rsa_private_key(_small_pem_1882))
+try:
+    _signer1882.sign_jwt("iss", "1", "2", _small_pem_1882)
+    assert_eq("#1882 signer refuses a too-small RSA modulus (raised SignerError)", True, False)
+except _signer1882.SignerError as _exc_1882:
+    # Attribute the refusal to THIS guard: several other refusals raise SignerError too.
+    assert_eq("#1882 signer refuses a too-small RSA modulus naming the modulus",
+              True, "modulus too small" in str(_exc_1882))
+
+# Positive control on the same builder: a 1024-bit modulus clears the guard and signs.
+_big_pem_1882 = _pkcs1_pem_1882((1 << 1023) | 1, 3)
+assert_eq("#1882 signer signs with a modulus large enough for the PKCS#1 v1.5 encoding",
+          3, len(_signer1882.sign_jwt("iss", "1", "2", _big_pem_1882).split(b".")))
+
+# SignerError's docstring promises "its message never carries key bytes". Execute that
+# invariant rather than trusting per-raise-site discipline: feed each refusal path a
+# body carrying a recognizable marker and assert the marker never reaches the message.
+_KEYMARK_1882 = "SUPERSECRETKEYBODYMARKER"
+_keymark_b64_1882 = _signer1882.base64.b64encode(_KEYMARK_1882.encode()).decode()
+for _label_1882, _pem_1882 in (
+    ("PKCS#1 body that is not a key structure",
+     f"-----BEGIN RSA PRIVATE KEY-----\n{_keymark_b64_1882}\n-----END RSA PRIVATE KEY-----\n"),
+    ("PKCS#8 body that is not a key structure",
+     f"-----BEGIN PRIVATE KEY-----\n{_keymark_b64_1882}\n-----END PRIVATE KEY-----\n"),
+    ("undecodable body",
+     f"-----BEGIN RSA PRIVATE KEY-----\n{_KEYMARK_1882}!!\n-----END RSA PRIVATE KEY-----\n"),
+    ("unrecognized PEM type",
+     f"-----BEGIN {_KEYMARK_1882}-----\n{_keymark_b64_1882}\n-----END {_KEYMARK_1882}-----\n"),
+    ("truncated PEM",
+     f"-----BEGIN RSA PRIVATE KEY-----\n{_keymark_b64_1882}\n"),
+):
+    try:
+        _signer1882.load_rsa_private_key(_pem_1882.encode())
+        _msg_1882 = ""
+    except _signer1882.SignerError as _kexc_1882:
+        _msg_1882 = str(_kexc_1882)
+    assert_eq(f"#1882 SignerError message carries no key bytes ({_label_1882})",
+              True,
+              _KEYMARK_1882 not in _msg_1882 and _keymark_b64_1882 not in _msg_1882)
+
+# ── issue #1027: out-of-band stall observer (reports, never kills) ───────────
+import json as _json1027  # noqa: E402
+import subprocess as _sp1027  # noqa: E402
+from datetime import datetime as _dt1027, timezone as _tz1027  # noqa: E402
+
+stall_observer = _load('stall_observer', SCRIPTS / 'stall-observer-scan.py')
+
+
+def _wp1027(status="\U0001F680 Setup", updated="2026-08-19 07:28 UTC",
+            checkpoint="gha:1:1:phase1-hydrated", extra=""):
+    cp = f"\n  - 07:28:11 — note <!-- prflow:checkpoint {checkpoint} -->" if checkpoint else ""
+    return (
+        "<!-- prflow:workpad -->\n# PRFlow Workpad — Issue #1027\n\n"
+        f"**Status:** {status}\n**Branch:** x\n**Last updated:** {updated}\n\n"
+        f"## Progress{cp}\n{extra}\n"
+    )
+
+
+_now1027 = _dt1027(2026, 8, 19, 9, 0, tzinfo=_tz1027.utc)  # 92 min after 07:28
+
+# parse_workpad — the happy path.
+_f1027 = stall_observer.parse_workpad(_wp1027())
+assert_eq("#1027 parse: status class interim", "interim", _f1027.status_class)
+assert_eq("#1027 parse: last_updated parsed",
+          _dt1027(2026, 8, 19, 7, 28, tzinfo=_tz1027.utc), _f1027.last_updated)
+assert_eq("#1027 parse: last checkpoint key", "gha:1:1:phase1-hydrated", _f1027.last_checkpoint)
+
+# The report-only invariant: the vocabulary carries NO kill/resume/fail token (AC2/AC3).
+assert_eq("#1027 tokens: decision vocabulary is report-only (no kill/resume/fail)", True,
+          stall_observer.DECISION_TOKENS.isdisjoint(
+              {"kill", "resume", "fail", "fail-exhausted", "fail-blocked",
+               "fail-unreadable", "fail-auth", "flip-cancelled"}))
+
+# decide — threshold honoured both directions (advisory-only, configurable).
+assert_eq("#1027 decide: 92min >= 90 threshold -> stale-advisory",
+          "stale-advisory", stall_observer.decide(_f1027, _now1027, 90, "true").token)
+assert_eq("#1027 decide: silence minutes computed", 92,
+          stall_observer.decide(_f1027, _now1027, 90, "true").minutes)
+assert_eq("#1027 decide: message names the last checkpoint on stale", True,
+          "last checkpoint: gha:1:1:phase1-hydrated"
+          in stall_observer.decide(_f1027, _now1027, 90, "true").message)
+assert_eq("#1027 decide: 92min < 120 threshold -> fresh",
+          "fresh", stall_observer.decide(_f1027, _now1027, 120, "true").token)
+
+# decide — enabled=false disables (only the exact string "false").
+assert_eq("#1027 decide: enabled='false' -> disabled",
+          "disabled", stall_observer.decide(_f1027, _now1027, 90, "false").token)
+assert_eq("#1027 decide: enabled='' -> not disabled (safe default)",
+          "stale-advisory", stall_observer.decide(_f1027, _now1027, 90, "").token)
+
+# decide — a terminal workpad is not an in-flight stall candidate.
+for _glyph, _word, _cls in [("\U0001F389", "Complete", "complete"),
+                            ("\U0001F44E", "Blocked", "blocked"),
+                            ("\U0001F4A5", "Failed", "failed"),
+                            ("\U0001F6D1", "Cancelled", "cancelled")]:
+    _ft = stall_observer.parse_workpad(_wp1027(status=f"{_glyph} {_word}"))
+    assert_eq(f"#1027 decide: terminal {_cls} -> not-candidate",
+              "not-candidate", stall_observer.decide(_ft, _now1027, 90, "true").token)
+
+# Adversarial markdown matrix — every malformed shape degrades, never raises.
+_bad = _wp1027().replace("**Last updated:** 2026-08-19 07:28 UTC\n", "")
+_fb = stall_observer.parse_workpad(_bad)
+assert_eq("#1027 parse: missing Last-updated line -> None", None, _fb.last_updated)
+assert_eq("#1027 decide: interim + no last_updated -> unreadable",
+          "unreadable", stall_observer.decide(_fb, _now1027, 90, "true").token)
+
+_fm = stall_observer.parse_workpad(_wp1027(updated="not a date"))
+assert_eq("#1027 parse: malformed date -> None", None, _fm.last_updated)
+
+_fu = stall_observer.parse_workpad(_wp1027(status="❓ Bogus"))
+assert_eq("#1027 decide: unknown status glyph -> unreadable",
+          "unreadable", stall_observer.decide(_fu, _now1027, 90, "true").token)
+
+_fe = stall_observer.parse_workpad("")
+assert_eq("#1027 parse: empty body -> status unknown", "unknown", _fe.status_class)
+assert_eq("#1027 parse: empty body -> last_updated None", None, _fe.last_updated)
+assert_eq("#1027 decide: empty body -> unreadable",
+          "unreadable", stall_observer.decide(_fe, _now1027, 90, "true").token)
+
+_fn = stall_observer.parse_workpad(_wp1027(checkpoint=""))
+assert_eq("#1027 parse: no checkpoint marker -> None", None, _fn.last_checkpoint)
+
+_fmm = stall_observer.parse_workpad(
+    _wp1027(extra="  - 08:00 — later <!-- prflow:checkpoint gha:1:1:phase2 -->"))
+assert_eq("#1027 parse: most-recent of several checkpoints wins",
+          "gha:1:1:phase2", _fmm.last_checkpoint)
+
+# Both marker spellings resolve (a workpad mutated across the devflow->prflow rename).
+_fdf = stall_observer.parse_workpad(_wp1027(checkpoint="", extra="  - 07:30 — legacy <!-- devflow:checkpoint gha:1:1:legacy -->"))
+assert_eq("#1027 parse: legacy devflow:checkpoint spelling still resolves",
+          "gha:1:1:legacy", _fdf.last_checkpoint)
+
+# Clock skew: now before last_updated never reports negative silence.
+_early1027 = _dt1027(2026, 8, 19, 7, 0, tzinfo=_tz1027.utc)
+assert_eq("#1027 decide: clock skew (now < last_updated) -> fresh, floored to 0",
+          "fresh", stall_observer.decide(_f1027, _early1027, 90, "true").token)
+
+
+def _cli1027(body, now, threshold, enabled, fmt=None):
+    with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False) as _fh:
+        _fh.write(body)
+        _p = _fh.name
+    try:
+        _args = [sys.executable, str(SCRIPTS / 'stall-observer-scan.py'), 'decide',
+                 '--body-file', _p, '--now', now, '--threshold', str(threshold), '--enabled', enabled]
+        if fmt:
+            _args += ['--format', fmt]
+        return _sp1027.run(_args, capture_output=True, text=True)
+    finally:
+        os.unlink(_p)
+
+
+_r1027 = _cli1027(_wp1027(), "2026-08-19 09:00 UTC", 90, "true")
+assert_eq("#1027 CLI: exit 0", 0, _r1027.returncode)
+assert_eq("#1027 CLI: stale-advisory token on stdout line 1",
+          "stale-advisory", _r1027.stdout.strip().splitlines()[0])
+_rj1027 = _cli1027(_wp1027(), "2026-08-19 09:00 UTC", 90, "true", fmt="json")
+assert_eq("#1027 CLI --format json: decision field", "stale-advisory",
+          _json1027.loads(_rj1027.stdout)["decision"])
+
+# CLI error-exit paths — the workflow's per-issue `|| continue` depends on these rc-2 exits.
+_rbad1027 = _sp1027.run([sys.executable, str(SCRIPTS / 'stall-observer-scan.py'), 'decide',
+                         '--body-file', '/nonexistent/definitely/missing-1027.md',
+                         '--now', '2026-08-19 09:00 UTC', '--threshold', '90'],
+                        capture_output=True, text=True)
+assert_eq("#1027 CLI: unreadable --body-file exits 2", 2, _rbad1027.returncode)
+assert_eq("#1027 CLI: unparseable --now exits 2", 2, _cli1027(_wp1027(), "not-a-timestamp", 90, "true").returncode)
+
+# parse_dt ISO 8601 branch (a documented accepted format), including the naive->UTC backfill.
+assert_eq("#1027 parse_dt: ISO 8601 with Z suffix",
+          _dt1027(2026, 8, 19, 7, 28, tzinfo=_tz1027.utc), stall_observer.parse_dt("2026-08-19T07:28:00Z"))
+assert_eq("#1027 parse_dt: naive ISO 8601 is assumed UTC",
+          _dt1027(2026, 8, 19, 7, 28, tzinfo=_tz1027.utc), stall_observer.parse_dt("2026-08-19T07:28:00"))
+
+# Word fallback: an un-glyphed status word still classifies via _WORD_CLASS.
+_fwf1027 = stall_observer.parse_workpad("**Status:** Implementing\n**Last updated:** 2026-08-19 07:28 UTC\n")
+assert_eq("#1027 parse: un-glyphed status word classifies via _WORD_CLASS", "interim", _fwf1027.status_class)
+
+# Cross-file coupling: the workflow's TOKEN comparison literal must be a real DECISION_TOKENS
+# member, or a rename on either side silently makes the workflow match nothing (fail-open).
+_wf1027 = (SCRIPTS.parent / ".github" / "workflows" / "stall-observer.yml").read_text(encoding="utf-8")
+_wftok1027 = re.findall(r'\[ "\$TOKEN" = "([^"]+)" \]', _wf1027)
+assert_eq("#1027 coupling: every workflow TOKEN comparison uses a real DECISION_TOKENS member", True,
+          len(_wftok1027) >= 2 and all(t in stall_observer.DECISION_TOKENS for t in _wftok1027))
+
+# Exact-threshold boundary: minutes == threshold is stale-advisory (decide uses `minutes < threshold`).
+_bnd1027 = _dt1027(2026, 8, 19, 8, 58, tzinfo=_tz1027.utc)  # exactly 90 min after 07:28
+assert_eq("#1027 decide: minutes == threshold -> stale-advisory (boundary)",
+          "stale-advisory", stall_observer.decide(_f1027, _bnd1027, 90, "true").token)
+assert_eq("#1027 decide: minutes == threshold reports that exact minute count",
+          90, stall_observer.decide(_f1027, _bnd1027, 90, "true").minutes)
+
+# minutes is None on every non-fresh/non-stale token (never a spurious silence figure).
+assert_eq("#1027 decide: disabled carries minutes None",
+          None, stall_observer.decide(_f1027, _now1027, 90, "false").minutes)
+assert_eq("#1027 decide: not-candidate carries minutes None",
+          None, stall_observer.decide(stall_observer.parse_workpad(_wp1027(status="🎉 Complete")), _now1027, 90, "true").minutes)
+assert_eq("#1027 decide: unreadable carries minutes None",
+          None, stall_observer.decide(_fb, _now1027, 90, "true").minutes)
+
+# Coupled invariant: the advisory-threshold default lives in the schema, the example, and the
+# workflow's shell fallback — a retune that moves one and not the others silently ships a config
+# whose omitted-key behaviour disagrees with the schema's advertised default.
+_schema1027 = _json1027.loads((SCRIPTS.parent / ".prflow" / "config.schema.json").read_text(encoding="utf-8"))
+_schdef1027 = _schema1027["properties"]["prflow_implement"]["properties"]["stall_observer"]["properties"]["advisory_threshold_minutes"]["default"]
+_exdef1027 = _json1027.loads((SCRIPTS.parent / ".prflow" / "config.example.json").read_text(encoding="utf-8"))["prflow_implement"]["stall_observer"]["advisory_threshold_minutes"]
+_wfdef1027 = re.findall(r'THRESHOLD=(\d+)', _wf1027)
+assert_eq("#1027 coupling: threshold default is one value across schema, example, and workflow fallback",
+          True, _schdef1027 == _exdef1027 and _wfdef1027 == [str(_schdef1027)] * len(_wfdef1027) and len(_wfdef1027) >= 1)
+
+# stale-advisory on a workpad with no checkpoint yet (an early-silence stall): the message omits
+# the checkpoint clause rather than interpolating None.
+_dnc1027 = stall_observer.decide(stall_observer.parse_workpad(_wp1027(checkpoint="")), _now1027, 90, "true")
+assert_eq("#1027 decide: stale-advisory with no checkpoint -> stale-advisory", "stale-advisory", _dnc1027.token)
+assert_eq("#1027 decide: stale-advisory with no checkpoint omits the checkpoint clause",
+          True, "last checkpoint" not in _dnc1027.message)
 
 print()
 print(f"{PASS} passed, {FAIL} failed")

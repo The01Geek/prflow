@@ -185,6 +185,13 @@ _QUOTED = re.compile(r'["“]([^"“”]{8,})["”]')
 # against any file.
 _MIN_FRAGMENT = 8
 
+# The quotation-shape rule, single-sourced so the shape refusals that quote it
+# state one delimiter-and-floor rule a drafter reads the remedy from (#1866).
+_QUOTE_RULE = (
+    'a premise quotation is a matching pair of double quotes (ASCII " or '
+    'typographic “ ”) enclosing at least eight characters that contain no '
+    'double-quote character; text inside a backtick code span is not scanned')
+
 # A file extension, used only as the WEAK arm of path detection — see
 # `_path_strength`.
 _EXTENSION = re.compile(r'\.[A-Za-z0-9]{1,6}$')
@@ -257,6 +264,11 @@ _FENCE_RE = re.compile(r'^[ \t]*(?:`{3,}|~{3,})')
 # An inline code span. The issue that DEFINES the collocation family as data
 # would otherwise trip its own detector — this exclusion is load-bearing.
 _INLINE_CODE_RE = re.compile(r'`[^`\n]+`')
+
+# A blockquote-prefixed `Verified:` line, which no `_MARKER` arm recognizes (the
+# leading `>` breaks arms B/C's line anchor). `[ \t>]*` does not match `*`, so a
+# bolded `> **Verified:**` stays with arm A and is not double-counted (#1866).
+_BLOCKQUOTE_VERIFIED = re.compile(r'(?m)^[ \t]*>[ \t>]*Verified\b[ \t]*:')
 
 
 def normalize(text: str) -> str:
@@ -449,7 +461,10 @@ def classify(span: str) -> tuple:
         if strength != 'no':
             bare, suffix = _split_locator(backticked)
             paths.append(CitedPath(strength, bare, suffix))
-    quotes = _QUOTED.findall(span)
+    # Text inside a backtick span is not the premise quotation: a backticked
+    # command's double-quoted args would otherwise match. An unpaired backtick
+    # matches nothing, so the span survives the strip rather than detonating.
+    quotes = _QUOTED.findall(_BACKTICKED.sub(' ', span))
     if paths and quotes:
         handle = 'path-quote'
     elif paths:
@@ -463,7 +478,8 @@ def classify(span: str) -> tuple:
     return handle, paths, quotes
 
 
-def recheck(handle: str, paths: list, quotes: list, root: Path) -> tuple:
+def recheck(handle: str, paths: list, quotes: list, root: Path,
+            span: str) -> tuple:
     """Adjudicate one bullet against the tree. Returns `(state, detail)`."""
     if handle in _UNDECIDABLE_REASONS:
         # No domain to read, or a handle this helper declines to execute. The
@@ -510,7 +526,8 @@ def recheck(handle: str, paths: list, quotes: list, root: Path) -> tuple:
         # run would otherwise have done.
         return 'unestablished', (
             'cited path present but the bullet carries no quotation to '
-            're-derive the premise from: ' + ','.join(p.bare for p in paths))
+            're-derive the premise from (' + _QUOTE_RULE + '): '
+            + ','.join(p.bare for p in paths))
 
     readable, skipped, unread = {}, [], []
     for cited in paths:
@@ -639,6 +656,20 @@ def recheck(handle: str, paths: list, quotes: list, root: Path) -> tuple:
     # weak-path, unread-file and elision arms all exist to close.
     adjudicated_strong = [p.bare for p in paths
                           if p.strength == 'strong' and p.bare in readable]
+    # Extra double-quote delimiters beyond the matched pair(s) (backtick spans
+    # excluded) mean a quotation could not be delimited whole (a truncation, or a
+    # stray quote), so a miss must refuse rather than refute — AC3 (#1866).
+    stripped = _BACKTICKED.sub(' ', span)
+    quote_delims = sum(stripped.count(ch) for ch in ('"', '“', '”'))
+    truncated_quote = quote_delims > 2 * len(quotes)
+    if adjudicated_strong and truncated_quote:
+        # The matched quotation is a truncated fragment, not the premise, so a
+        # miss on it must not assert a stale-premise verdict — refuse (#1866).
+        return 'unestablished', (
+            'a quoted premise could not be delimited whole — the span carries a '
+            'double-quote character inside the quotation, so the match is a '
+            'fragment, not the premise (' + _QUOTE_RULE + '): '
+            + ' | '.join(unresolved))
     if adjudicated_strong:
         detail = ('quoted sentence no longer occurs in ' + ','.join(readable)
                   + ': ' + ' | '.join(unresolved))
@@ -793,11 +824,22 @@ def find_ungraded_claims(body: str) -> list:
             continue
         if any(low <= start < high for low, high in excluded):
             continue
-        detections.append((region[index], match.group(0),
+        detections.append((start, region[index], match.group(0),
                            content_lines[index].strip()))
+    for match in _BLOCKQUOTE_VERIFIED.finditer(body):
+        start = match.start()
+        # A blockquoted `Verified:` already inside a graded span or code is not
+        # ungraded; every other is reported regardless of section (#1866).
+        if any(low <= start < high for low, high in excluded):
+            continue
+        index = bisect.bisect_right(line_offset, start) - 1
+        detections.append((start, 'blockquote', 'Verified:',
+                           content_lines[index].strip()))
+    detections.sort(key=lambda detection: detection[0])
     return ['ungraded_claim={} region={} phrase={} detail={}'.format(
         number, label, phrase, sentence)
-        for number, (label, phrase, sentence) in enumerate(detections, start=1)]
+        for number, (_start, label, phrase, sentence)
+        in enumerate(detections, start=1)]
 
 
 class _ArgParser(argparse.ArgumentParser):
@@ -907,7 +949,7 @@ def _run(args) -> int:
     tally = {'holds': 0, 'refuted': 0, 'unestablished': 0}
     for index, span in enumerate(parse_bullets(body), start=1):
         handle, paths, quotes = classify(span)
-        state, detail = recheck(handle, paths, quotes, root)
+        state, detail = recheck(handle, paths, quotes, root, span)
         tally[state] += 1
         print(f'bullet={index} handle={handle} state={state} detail={detail}')
 

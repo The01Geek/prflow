@@ -267,6 +267,40 @@ Record a bundle entry for each of these, in addition to the generic axes:
   post-merge follow-up.
 - **Measurement-command naming.** The authoritative quantitative-criterion contract and its motivating GNU/BSD `wc -w` portability fact live in the Acceptance Criteria section of `skills/create-issue/references/issue-template.md`; apply that shipped rule here without maintaining a second copy.
 
+## Simplicity patterns
+
+This repository's learned failure patterns for the Step 2 mechanism menu, the `(Recommended)`
+grading, and every decision the run settles itself. Each pattern names the wrong change it prevents
+and what it cost when it shipped; count them wherever a candidate mechanism is priced.
+
+- **Pin accretion.** Prevents adding a test or pin that asserts prose presence or wording as
+  "coverage" for a rule. Pinned prose made every later edit a pin-conformance exercise: skill files
+  became nearly unmodifiable and cost hundreds of hours of cleanup and re-optimization. A behavioral
+  test at an executable boundary is the only test class worth proposing, and only when a change
+  introduces a failure that needs it.
+- **Addition over refactor.** Prevents appending a new rule, paragraph, or section where amending an
+  existing sentence carries the same decision. Every PR that appended instead of refactoring
+  compounded into bloated prose that later had to be trimmed under a byte ceiling; a
+  prose-neutral-delta edit is the default shape.
+- **Every mirror is a standing tax.** Prevents introducing a second copy of a fact, contract
+  sentence, or value (a mirror, an example twin, a restated rule) where a single home plus a
+  pointer suffices. Each copy binds every future edit to a same-change multi-file sweep and a
+  reconciliation test, forever.
+- **New infrastructure has a fan-out cost.** Prevents minting a new delivery mechanism (a section
+  hook, a config key, a reference file, a subagent, a gate) when an existing channel already
+  carries the content. One proposed extension hook priced out at a third loader-failure arm, a
+  scaffold stub, an example mirror, and a heading joining a fourteen-carrier pin family — the plain
+  existing channel cost nothing.
+- **Fewer tests by default.** Prevents adding a test without a clear, important behavioral benefit.
+  The suite's carrying cost grows per test forever, and prose-only tests are the documented worst
+  case.
+- **Guardrails must name the wrong change they prevent.** Prevents adding a guard, comment, or rule
+  justified only by general caution. A guard that names no preventable mistake is weight with no
+  brake; if the wrong change cannot be named, the guard is not built.
+
+When grading `(Recommended)` and pricing a passed-over stronger candidate, count these patterns as
+part of that candidate's carrying cost.
+
 ## Two questions to ask before you finish
 
 **Deliberately repeated across four surfaces** — `CLAUDE.md` and the `create-issue`, `implement`, and `review` prompt extensions carry this block byte-identically, against the usual no-duplication rule, because both questions are cheap to skip and expensive to miss. Edit all four together.
