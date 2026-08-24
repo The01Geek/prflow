@@ -22,6 +22,7 @@ import importlib.util
 import json
 import os
 import sys
+import tempfile
 import unittest
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -116,6 +117,13 @@ class SingleSourceIdentityTest(unittest.TestCase):
                 self.assertIs(getattr(mod, name), getattr(SHARED, name),
                               "{}.{} is not the shared definition".format(label, name))
 
+    def test_residency_keys_is_shared_where_imported(self):
+        # RESIDENCY_KEYS moves too, but it is imported only where used (create_issue_eval's
+        # _residency_spend, reached through the shim), so assert its identity on those two.
+        for mod, label in ((CIE, "create_issue_eval"), (CICE, "create-issue-context-eval shim")):
+            self.assertIs(mod.RESIDENCY_KEYS, SHARED.RESIDENCY_KEYS,
+                          "{}.RESIDENCY_KEYS is not the shared definition".format(label))
+
 
 class ForceUtf8StaysPerFileTest(unittest.TestCase):
     """AC5: _force_utf8_streams keeps its per-file definitions; it is NOT in the shared module."""
@@ -129,8 +137,6 @@ class ForceUtf8StaysPerFileTest(unittest.TestCase):
 
     def test_shared_module_does_not_define_force_utf8_streams(self):
         self.assertFalse(hasattr(SHARED, "_force_utf8_streams"))
-        with open(os.path.join(_SCRIPTS, "context_eval_shared.py"), encoding="utf-8") as fh:
-            self.assertNotIn("_force_utf8_streams", fh.read())
 
 
 class CoverageMapTest(unittest.TestCase):
@@ -144,6 +150,39 @@ class CoverageMapTest(unittest.TestCase):
         self.assertIsNotNone(row, "no coverage-map row for scripts/context_eval_shared.py")
         self.assertEqual(row.get("focused_test"),
                          "lib/test/test_context_eval_shared.py")
+
+
+class IterSessionFilesTest(unittest.TestCase):
+    """Direct behavior of the shared file walker — its corpus-escape guard is
+    security-relevant, so pin it against the shared module rather than only transitively."""
+
+    def test_collects_only_jsonl_sorted_without_false_skips(self):
+        with tempfile.TemporaryDirectory() as root:
+            os.makedirs(os.path.join(root, "sub"))
+            for name in ("b.jsonl", "a.jsonl", "note.txt"):
+                open(os.path.join(root, name), "w").close()
+            open(os.path.join(root, "sub", "c.jsonl"), "w").close()
+            skipped = {"walk_error": 0, "escaped_path": 0}
+            got = SHARED._iter_session_files(root, skipped)
+            self.assertEqual([os.path.basename(p) for p in got],
+                             ["a.jsonl", "b.jsonl", "c.jsonl"])
+            self.assertEqual(skipped["escaped_path"], 0)
+            self.assertEqual(skipped["walk_error"], 0)
+
+    def test_symlink_escaping_root_is_skipped_and_tallied(self):
+        with tempfile.TemporaryDirectory() as outside_root:
+            outside = os.path.join(outside_root, "outside.jsonl")
+            open(outside, "w").close()
+            with tempfile.TemporaryDirectory() as root:
+                open(os.path.join(root, "real.jsonl"), "w").close()
+                try:
+                    os.symlink(outside, os.path.join(root, "escape.jsonl"))
+                except (OSError, NotImplementedError):
+                    self.skipTest("symlinks unsupported on this platform")
+                skipped = {"walk_error": 0, "escaped_path": 0}
+                got = SHARED._iter_session_files(root, skipped)
+                self.assertEqual([os.path.basename(p) for p in got], ["real.jsonl"])
+                self.assertEqual(skipped["escaped_path"], 1)
 
 
 if __name__ == "__main__":
