@@ -4,6 +4,11 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.3] — 2026-08-24
+
+### Added
+- **Spike doc: grading a universal acceptance criterion against the surface at HEAD.** Added `docs/internal/universal-criteria-grading-spike.md`, an investigation-and-design document for how the review engine should grade an `issue_acceptance` criterion that quantifies over every unit of a named surface. It measures how often such criteria occur and how large the named surfaces are, decides whether a new `criterion_scope` checklist-item field is needed, specifies an opt-in advisory channel and config gate, and records a live normalization hazard on the existing `issue_acceptance` path. No engine file changes. (#1500)
+
 ## [2.34.2] — 2026-08-24
 
 ### Changed
