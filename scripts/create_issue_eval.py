@@ -799,7 +799,7 @@ def _median(values):
 
     Refuses an empty population rather than returning 0 (issue #1899), matching both
     sibling instruments: an unestablished measurement is never collapsed onto a real
-    value. `_median_or_unestablished` is the only sanctioned empty-tolerant entry point.
+    value. Call `_median_or_unestablished` for a possibly-empty population.
     """
     if not values:
         raise ValueError("median of an empty population")

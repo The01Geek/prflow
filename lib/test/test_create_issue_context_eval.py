@@ -2993,8 +2993,13 @@ class UnmeasuredTurnContractTest(_SingleSessionMixin, unittest.TestCase):
                 '"message":{"usage":{"input_tokens":5}}}',
                 '{"type":"assistant","attributionSkill":"devflow:create-issue","message":{}}'])
             report = CICE.build_report(d)
-        self.assertEqual(report["summary"]["total_usage_missing_turns"], 2)
-        self.assertEqual(report["summary"]["run_count"], 2)
+        summary = report["summary"]
+        self.assertEqual(summary["total_usage_missing_turns"], 2)
+        self.assertEqual(summary["run_count"], 2)
+        # Cardinality-sensitive: run "a" (all-unmeasured, peak UNESTABLISHED) is excluded
+        # from the corpus peak population — only run "b"'s measured 5 remains, never a 0.
+        self.assertEqual(summary["median_peak_context"], 5)
+        self.assertEqual(summary["max_peak_context"], 5)
 
     def test_empty_corpus_total_usage_missing_is_unestablished(self):
         summary = CICE.aggregate([])
