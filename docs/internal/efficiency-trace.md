@@ -212,9 +212,26 @@ git push origin devflow-telemetry:prflow-telemetry
 git push origin --delete devflow-telemetry
 ```
 
-The unmigrated state is **detected, never silent**: when the current branch is absent and the
-superseded one is present, `scripts/build-experiment-records.py` warns naming both refs and the
-command above, rather than reading the absence as "no telemetry". Setting `telemetry.branch` to
+Records stranded on the superseded branch are **detected, never silent** — and since issue #1826
+the detection fires **whether or not the canonical branch is present**, because the superseded
+branch stores its records under the pre-rename path `.devflow/logs/efficiency/` (the canonical
+`.prflow/logs/efficiency/` is empty on it), and `scripts/build-experiment-records.py` reads that
+branch under the path it actually uses. The reader still ingests from **exactly one** branch and
+mutates no ref — this is detection only; recovering the stranded records stays an operator action.
+The remedy the warning names depends on the branch state, because the two are independent orphan
+refs:
+
+- **Canonical branch absent** (the unmigrated case) — the one-push rename above is a fast-forward
+  with nothing to overwrite, so the warning names both refs and that command, rather than reading
+  the absence as "no telemetry".
+- **Canonical branch present** (this repository's actual state, where the two branches have
+  diverged) — force-pushing the superseded ref onto the canonical one would **discard every
+  canonical record**, so the warning explicitly says *do not* do that and instead names a
+  copy-across remedy that mutates no ref: on a checkout of the canonical branch, copy the record
+  files from `devflow-telemetry:.devflow/logs/efficiency/` into `.prflow/logs/efficiency/`, commit
+  and push, then delete the superseded branch.
+
+Setting `telemetry.branch` to
 `devflow-telemetry` keeps the old name indefinitely and is equally supported. The persist step (`lib/efficiency-trace.sh --persist`) writes each run's
 artifacts to that branch **through git plumbing** — hashing them into the object store,
 assembling a tree against a temporary index, `git commit-tree`, and a compare-and-swap
