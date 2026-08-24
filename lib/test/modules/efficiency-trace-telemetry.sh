@@ -238,6 +238,121 @@ assert_eq "et: absent diff_profile → posture from raw counts (agent-only)" "ag
   "$(echo "$ET_NOPROF_REC" | jq -r '.per_iteration[0].verification_posture')"
 rm -rf "$ET_PROF" "$ET_NOPROF"
 
+# ── Recurring defect kinds across iterations (issue #1903) ───────────────────
+# A recurring kind is a defect_signature.kind appearing in the phase3_findings
+# of three separate iterations. Each expected value is written literally, never
+# derived from the filter's own logic.
+ET_REC1903="$(mktemp -d)"
+cat > "$ET_REC1903/iter-1.json" <<'EOF'
+{"iter":1,"phase3_dispatched":["a"],"phase3_findings":[
+  {"agent":"a","fix_decision":"applied","defect_signature":{"kind":"text-matching"}},
+  {"agent":"a","fix_decision":"applied","defect_signature":{"kind":"pair-in-two"}}
+],"convergence_inputs":{"fixes_applied":2},"telemetry":null}
+EOF
+cat > "$ET_REC1903/iter-2.json" <<'EOF'
+{"iter":2,"phase3_dispatched":["a"],"phase3_findings":[
+  {"agent":"a","fix_decision":"pushed_back","defect_signature":{"kind":"text-matching"}},
+  {"agent":"a","fix_decision":"applied","defect_signature":{"kind":"pair-in-two"}}
+],"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+cat > "$ET_REC1903/iter-3.json" <<'EOF'
+{"iter":3,"phase3_dispatched":["a"],"phase3_findings":[
+  {"agent":"a","fix_decision":"applied","defect_signature":{"kind":"text-matching"}},
+  {"agent":"a","fix_decision":"applied","defect_signature":{"kind":"appears-once"}}
+],"convergence_inputs":{"fixes_applied":2},"telemetry":null}
+EOF
+ET_REC1903_OUT="$(bash "$LIB/efficiency-trace.sh" --workpad-dir "$ET_REC1903" --slug pr-1903 --mode record)"
+# text-matching recurs across all three iterations; pair-in-two appears in only
+# two (the boundary that pins <3 as NOT recurring); appears-once appears in one.
+assert_eq "et(#1903): exactly the kind recurring across 3 iterations is reported, with its iterations" \
+  '[{"kind":"text-matching","iterations":[1,2,3]}]' \
+  "$(echo "$ET_REC1903_OUT" | jq -c '.recurring_defect_kinds')"
+rm -rf "$ET_REC1903"
+
+# No defect_signature anywhere → the field is the explicit "unestablished"
+# sentinel, never an empty set (the producer emitted no operand to read).
+ET_NOSIG1903="$(mktemp -d)"
+cat > "$ET_NOSIG1903/iter-1.json" <<'EOF'
+{"iter":1,"phase3_dispatched":["a"],"phase3_findings":[{"agent":"a","fix_decision":"applied"}],"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+cat > "$ET_NOSIG1903/iter-2.json" <<'EOF'
+{"iter":2,"phase3_dispatched":["a"],"phase3_findings":[{"agent":"a","fix_decision":"pushed_back"}],"convergence_inputs":{"fixes_applied":0},"telemetry":null}
+EOF
+cat > "$ET_NOSIG1903/iter-3.json" <<'EOF'
+{"iter":3,"phase3_dispatched":["a"],"phase3_findings":[{"agent":"a","fix_decision":"applied"}],"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+ET_NOSIG1903_OUT="$(bash "$LIB/efficiency-trace.sh" --workpad-dir "$ET_NOSIG1903" --slug pr-1903 --mode record)"
+assert_eq "et(#1903): no defect_signature at all → unestablished (not an empty set)" \
+  '"unestablished"' \
+  "$(echo "$ET_NOSIG1903_OUT" | jq -c '.recurring_defect_kinds')"
+rm -rf "$ET_NOSIG1903"
+
+# A malformed defect_signature (present but non-object / kind-less / non-string
+# kind) is rendered under the explicit "unknown" label rather than dropped.
+ET_MAL1903="$(mktemp -d)"
+cat > "$ET_MAL1903/iter-1.json" <<'EOF'
+{"iter":1,"phase3_dispatched":["a"],"phase3_findings":[{"agent":"a","fix_decision":"applied","defect_signature":"oops"}],"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+cat > "$ET_MAL1903/iter-2.json" <<'EOF'
+{"iter":2,"phase3_dispatched":["a"],"phase3_findings":[{"agent":"a","fix_decision":"applied","defect_signature":{}}],"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+cat > "$ET_MAL1903/iter-3.json" <<'EOF'
+{"iter":3,"phase3_dispatched":["a"],"phase3_findings":[{"agent":"a","fix_decision":"applied","defect_signature":{"kind":123}}],"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+ET_MAL1903_OUT="$(bash "$LIB/efficiency-trace.sh" --workpad-dir "$ET_MAL1903" --slug pr-1903 --mode record)"
+assert_eq "et(#1903): malformed defect_signature rendered under the explicit unknown-kind label" \
+  '[{"kind":"unknown","iterations":[1,2,3]}]' \
+  "$(echo "$ET_MAL1903_OUT" | jq -c '.recurring_defect_kinds')"
+rm -rf "$ET_MAL1903"
+
+# Distinctness keys on the iteration RECORD (element position), not the `.iter`
+# value: three separate records carrying a duplicate/null `.iter` still count as
+# three iterations. Keying on `.iter` value would collapse them and undercount —
+# the exact run this feature exists to surface. iter-1/iter-2 share iter value 1,
+# iter-3 is value 2; the kind is present in all three records, so it is recurring
+# with the value-deduped iterations list [1,2].
+ET_POS1903="$(mktemp -d)"
+cat > "$ET_POS1903/iter-1.json" <<'EOF'
+{"iter":1,"phase3_dispatched":["a"],"phase3_findings":[{"agent":"a","fix_decision":"applied","defect_signature":{"kind":"dup-iter"}}],"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+cat > "$ET_POS1903/iter-2.json" <<'EOF'
+{"iter":1,"phase3_dispatched":["a"],"phase3_findings":[{"agent":"a","fix_decision":"applied","defect_signature":{"kind":"dup-iter"}}],"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+cat > "$ET_POS1903/iter-3.json" <<'EOF'
+{"iter":2,"phase3_dispatched":["a"],"phase3_findings":[{"agent":"a","fix_decision":"applied","defect_signature":{"kind":"dup-iter"}}],"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+ET_POS1903_OUT="$(bash "$LIB/efficiency-trace.sh" --workpad-dir "$ET_POS1903" --slug pr-1903 --mode record)"
+assert_eq "et(#1903): recurrence counts distinct iteration RECORDS, not distinct .iter values (no undercount)" \
+  '[{"kind":"dup-iter","iterations":[1,2]}]' \
+  "$(echo "$ET_POS1903_OUT" | jq -c '.recurring_defect_kinds')"
+rm -rf "$ET_POS1903"
+
+# The trace (Markdown) render surface, not just the --mode record JSON above: a
+# recurring kind renders one bullet naming the kind and its iterations, and a
+# no-signature run renders the explicit unestablished line rather than nothing.
+ET_TR1903="$(mktemp -d)"
+cat > "$ET_TR1903/iter-1.json" <<'EOF'
+{"iter":1,"phase3_dispatched":["a"],"phase3_findings":[{"agent":"a","fix_decision":"applied","defect_signature":{"kind":"text-matching"}}],"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+cat > "$ET_TR1903/iter-2.json" <<'EOF'
+{"iter":2,"phase3_dispatched":["a"],"phase3_findings":[{"agent":"a","fix_decision":"applied","defect_signature":{"kind":"text-matching"}}],"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+cat > "$ET_TR1903/iter-3.json" <<'EOF'
+{"iter":3,"phase3_dispatched":["a"],"phase3_findings":[{"agent":"a","fix_decision":"applied","defect_signature":{"kind":"text-matching"}}],"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+ET_TR1903_OUT="$(bash "$LIB/efficiency-trace.sh" --workpad-dir "$ET_TR1903" --slug pr-1903 --mode trace)"
+assert_eq "et(#1903): trace renders the recurring-kind bullet with its iterations" "true" \
+  "$(echo "$ET_TR1903_OUT" | grep -qF 'text-matching - iterations 1, 2, 3' && echo true || echo false)"
+rm -rf "$ET_TR1903"
+ET_TRU1903="$(mktemp -d)"
+cat > "$ET_TRU1903/iter-1.json" <<'EOF'
+{"iter":1,"phase3_dispatched":["a"],"phase3_findings":[{"agent":"a","fix_decision":"applied"}],"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+ET_TRU1903_OUT="$(bash "$LIB/efficiency-trace.sh" --workpad-dir "$ET_TRU1903" --slug pr-1903 --mode trace)"
+assert_eq "et(#1903): trace renders the explicit unestablished recurring-kinds line" "true" \
+  "$(echo "$ET_TRU1903_OUT" | grep -q 'Unestablished — no iteration record carried a defect_signature' && echo true || echo false)"
+rm -rf "$ET_TRU1903"
+
 # Engine-PR analyzer gating (issue #52): the gating change is prose in
 # skills/review/SKILL.md; its observable contract is the phase3_dispatched
 # roster the orchestrator writes. Assert the roster flows through the trace so
