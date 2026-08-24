@@ -248,18 +248,11 @@ def read_controls(path):
 def _pairs_for_root(skill_name, pairs):
     """Every Skill pair whose recorded tool_use input names this skill.
 
-    Matched on the name's JSON string form — the surrounding quote marks included — so a
-    longer name that merely contains this one cannot claim this root's load. The quote marks
-    are the boundary because `collect_skill_pairs` serialises the whole recorded input to
-    JSON rather than reading a named field, so a complete string value inside it is
-    quote-delimited whatever its field is called. Do not narrow this to a named field: one
-    committed transcript records one, but that is a dated observation of one runner version,
-    and a field-keyed read silently stops measuring if the name ever differs — every real
-    reading answers `unestablished` while every fixture built on the assumed name stays
-    green, so the divergence is unfalsifiable from inside the suite.
-
-    Every match is returned rather than the first, because keeping one of several silently
-    discards a real ambiguity; the caller decides on the count."""
+    Matched on the name's JSON string form, quote marks included, so a longer name containing
+    this one cannot claim this root's load; every match is returned and the caller decides on
+    the count. Do not narrow this to a named input field — a field-keyed read stops measuring
+    silently if that name ever differs, and no fixture built on the assumed name would say so.
+    """
     needle = json.dumps(skill_name)
     return [p for p in pairs if needle in p["input_text"]]
 
@@ -314,8 +307,8 @@ def verdict_for_root(skill_name, path, pairs, note_top):
     body_rec = _body_for_root(pair, path)
     if body_rec is None:
         return "unestablished", (
-            "the Skill load of %s was recorded but no following body record naming its own "
-            "directory (%r) was found, so no delivered body could be located to measure — "
+            "the recorded Skill load bound to %s carried no following body record naming its own "
+            "directory (%r), so no delivered body could be located to measure — "
             "the paired tool_result is a launch stub, not the body"
             % (skill_name, root_dir_for(path))
         )

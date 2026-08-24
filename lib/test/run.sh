@@ -25095,6 +25095,16 @@ sbl_denies() {  # the NEGATED sbl_says. A separate name, never an inverted echo 
   _r="$(sbl_says "$1" "$2")"
   case "$_r" in yes) printf 'no' ;; no) printf 'yes' ;; *) printf '%s' "$_r" ;; esac
 }
+sbl_rel_denies() {  # $1 scenario, $2 pattern -> yes when the REPO-RELATIVE-root report lacks $2
+  # Never `grep -q … && echo no || echo yes` inline: that expects grep's FAILURE arm, so a helper
+  # crash greps as a miss and passes the assertion green. Gate on the exit status first.
+  if ! sbl_build "$1"; then printf 'FIXTURE_BUILD_FAILED'; return 0; fi
+  local _out
+  if ! _out="$(cd "$LIB/.." && sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=skills/review/SKILL.md")"; then
+    printf 'HELPER_FAILED'; return 0
+  fi
+  printf '%s' "$_out" | grep -q "$2" && printf 'no' || printf 'yes'
+}
 sbl() {  # $1 scenario -> the first per-root VERDICT token (single-root fixtures)
   if ! sbl_build "$1"; then printf 'FIXTURE_BUILD_FAILED'; return 0; fi
   sbl_verdict_token "$(sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW")"
@@ -25239,6 +25249,13 @@ assert_eq "#1618/#1897 skill-body: a Skill tool_use with no input -> unestablish
   "$(sbl null_input)"
 assert_eq "#1618/#1897 skill-body: the no-input load is refused by the never-loaded arm" "yes" \
   "$(sbl_says null_input 'no recorded Skill tool_use names prflow:review')"
+# The never-loaded reason carries the TOTAL recorded load count, which is what separates a
+# transcript that recorded nothing from one whose loads all bound another name. Swap the operand
+# for the match count and both assertions below go RED.
+assert_eq "#1618/#1897 skill-body: the never-loaded reason reports one recorded load for null_input" "yes" \
+  "$(sbl_says null_input '1 Skill load(s) were recorded in total')"
+assert_eq "#1618/#1897 skill-body: the never-loaded reason reports zero recorded loads for no_skill" "yes" \
+  "$(sbl_says no_skill '0 Skill load(s) were recorded in total')"
 # The same --root supplied TWICE: argparse append accepts it with no uniqueness check, so the
 # audit reports that root once per operand. Two identical operands must not read as two roots
 # measured, nor make either reading disagree with the single-operand one.
@@ -25249,7 +25266,7 @@ assert_eq "#1618/#1897 skill-body: a duplicated --root emits one verdict per ope
 assert_eq "#1618/#1897 skill-body: the no-following-body reason names the compared directory" "yes" \
   "$(sbl_build boundary_dir >/dev/null 2>&1; (cd "$LIB/.." && sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=skills/review/SKILL.md") | grep -q "directory ('skills/review')" && echo yes || echo no)"
 assert_eq "#1618/#1897 skill-body: that reason no longer names the SKILL.md file path" "yes" \
-  "$(sbl_build boundary_dir >/dev/null 2>&1; (cd "$LIB/.." && sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=skills/review/SKILL.md" 2>/dev/null) | grep -q "directory ('skills/review/SKILL.md')" && echo no || echo yes)"  # raw-guard-ok: the grep reads the helper's rendered stdout, not a SKILL file's text; the SKILL.md token is the operand under test
+  "$(sbl_rel_denies boundary_dir "directory ('skills/review/SKILL.md')")"  # raw-guard-ok: sbl_rel_denies greps the helper's rendered stdout, not a SKILL file's text; the SKILL.md token is the operand under test
 # Do not rebuild this fixture from the builder above: it is a REAL captured transcript, and a
 # fixture built from the instrument's own assumptions cannot contradict the instrument — which
 # is how this file's defect family survived a green suite. Provenance is in the fixture header.
@@ -25259,6 +25276,12 @@ assert_eq "#1618/#1897 skill-body: the committed real transcript records exactly
 # Do not point this at a path outside the matching directory: the controls arm is reached only
 # after the name binding and the directory selection both resolve, so a root elsewhere would be
 # refused upstream and prove neither.
+# AC8's promise is that the recorded measurement is re-derivable from committed bytes, so drive
+# the documented recipe: the review body AT THE MEASURED HEAD, laid out as skills/review/, must
+# still read delivered-whole. A shallow clone lacking that blob prints its own token rather than
+# a silent pass.
+assert_eq "#1618/#1897 skill-body: the committed transcript re-derives delivered-whole at the measured head" "delivered-whole" \
+  "$(mkdir -p "$SBL_TMP/rederive/skills/review" && git -C "$LIB/.." show 668a78990c810b0318d7fdbf5de8a95c043eda71:skills/review/SKILL.md > "$SBL_TMP/rederive/skills/review/SKILL.md" 2>/dev/null || { printf 'GIT_OBJECT_MISSING'; false; } && sbl_verdict_token "$(cd "$SBL_TMP/rederive" && sbl_run "$SBL_OBS" --tier review --root "prflow:review=skills/review/SKILL.md")")"
 assert_eq "#1618/#1897 skill-body: the real transcript binds the review root and selects its body" "yes" \
   "$(cd "$LIB/.." && sbl_run "$SBL_OBS" --tier review --root "prflow:review=skills/review/DEFINITELY-NOT-HERE.md" | grep -q 'could not be read for controls' && echo yes || echo no)"
 # ONE-CONTROL ARM. read_controls finds no interior control when every non-tail line is under 20
@@ -25267,7 +25290,7 @@ assert_eq "#1618/#1897 skill-body: the real transcript binds the review root and
 # long interior line. The scratch root lives beside the fixture's own base directory so the
 # directory match resolves.
 assert_eq "#1618/#1897 skill-body: a root with no interior control says only the tail was checked" "yes" \
-  "$(mkdir -p "$SBL_TMP/skills/review" && printf 'a\nb\nc\n' > "$SBL_TMP/skills/review/SKILL.md" && python3 - "$SBL_TMP" <<'PY_SBL_ONE'
+  "$(mkdir -p "$SBL_TMP/skills/review" && printf 'a\nb\nTHE FINAL LINE OF THE ONE-CONTROL FIXTURE\n' > "$SBL_TMP/skills/review/SKILL.md" && NO_COLOR=1 PYTHON_COLORS=0 python3 - "$SBL_TMP" <<'PY_SBL_ONE'
 import json, os, sys
 root = sys.argv[1]
 body = open(os.path.join(root, "skills", "review", "SKILL.md"), encoding="utf-8").read()

@@ -638,7 +638,8 @@ python3 <repo>/scripts/skill-body-load-probe-verdict.py \
 ```
 
 Two constraints, both load-bearing. The controls must come from `skills/review/SKILL.md` **at that
-head** — the current file is a different body and would measure a different thing. And the `--root`
+head** — the file is unchanged since, so today the two coincide, and the recipe names the head so
+that it keeps re-deriving the recorded reading once it does change. And the `--root`
 must be repo-relative from a directory laid out as `skills/review/`, because the comparison is a
 component-boundary suffix against the absolute runner directory the transcript records; pointing the
 root at the extracted file in place resolves nothing. Observed on re-derivation:
