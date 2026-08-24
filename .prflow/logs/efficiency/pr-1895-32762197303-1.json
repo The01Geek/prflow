@@ -113,5 +113,71 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.1",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 13.324264599999998,
+    "tokens": {
+      "input_tokens": 86,
+      "output_tokens": 46999,
+      "cache_read_input_tokens": 8099264,
+      "cache_creation_input_tokens": 259600,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 121,
+        "outputTokens": 74791,
+        "cacheReadInputTokens": 8812305,
+        "cacheCreationInputTokens": 683486,
+        "webSearchRequests": 0,
+        "costUSD": 11.521819999999996,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 100,
+        "outputTokens": 13993,
+        "cacheReadInputTokens": 2123423,
+        "cacheCreationInputTokens": 495052,
+        "webSearchRequests": 0,
+        "costUSD": 1.8024445999999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 70,
+    "duration_ms": 859044
+  },
+  "permission_denials": {
+    "count": 6,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---METADATA---\"; gh pr view 1895 --json headRefName,baseRefName,baseRefOid,headRefOid,body,title,url,state --jq '.'; echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-<empty>} ATTEMPT=${GITHUB_RUN_ATTEMPT:-<empty>}\"",
+      "git show fa5f93cec111ca6ef33cc0c91463bd40fab9bc11:lib/test/run.sh > /tmp/run.sh\ngrep -n \"stub_only\\|wrong_dir_body\\|assistant_body\\|leading_comment\\|two_skill_loads\\|late_body\\|abs_suffix_dir\\|boundary_dir\" /tmp/run.sh",
+      "git show fa5f93cec111ca6ef33cc0c91463bd40fab9bc11:lib/test/run.sh > /tmp/run.sh; grep -n \"stub_only\\|wrong_dir_body\\|assistant_body\\|leading_comment\\|two_skill_loads\\|late_body\\|abs_suffix_dir\\|boundary_dir\" /tmp/run.sh",
+      "git show fa5f93cec111ca6ef33cc0c91463bd40fab9bc11:lib/test/run.sh > /tmp/run.sh",
+      "git show fa5f93cec111ca6ef33cc0c91463bd40fab9bc11:lib/test/run.sh > /home/runner/work/prflow/prflow/tmp_run.sh\nwc -l /home/runner/work/prflow/prflow/tmp_run.sh",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before\ngit hash-object .prflow/tmp/review-dirty-tree-before"
+    ],
+    "total": 6,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
