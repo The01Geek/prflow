@@ -32289,11 +32289,12 @@ for f in files:
         if not ei:
             continue
         st, body = steps[ei[0]], (steps[ei[0]].get("run") or "")
-        # env: the value SOURCE; run: the resolver's KEY AND the env var as the written VALUE.
-        # Without the value check a uniform hardcode (printf 'KEY=false') passes green with
-        # the env wiring dead; the #313 body-identity pin keeps the three consistent, not live.
+        # env: the value SOURCE; run: the resolver's KEY, the env var as the written VALUE, and
+        # the $GITHUB_ENV SINK. Drop any one and a green pass is compatible with dead wiring:
+        # a uniform hardcode, or a write redirected to $GITHUB_OUTPUT/stdout the resolver never reads.
         env_ok.append((st.get("env") or {}).get("EFFORT_SUPPORTED") == want)
-        run_ok.append(key is not None and (key + "=") in body and '"$EFFORT_SUPPORTED"' in body)
+        run_ok.append(key is not None and (key + "=") in body and '"$EFFORT_SUPPORTED"' in body
+                      and "$GITHUB_ENV" in body)
         # $GITHUB_ENV reaches only LATER steps: an export moved after the session step writes
         # too late, so the resolver reads an absent var and fails open to `true` — green.
         ai = [i for i, s in enumerate(steps) if "claude-code-action" in str(s.get("uses", ""))]
@@ -32304,7 +32305,7 @@ ok = (key is not None and len(env_ok) == 3 and all(env_ok)
 print("yes" if ok else "no")
 PY
 )"
-  assert_eq "#1772: effort-export step sources the provider output, writes the resolver's PRFLOW_EFFORT_SUPPORTED key from that env var, and precedes the session step in all 3 workflows" "yes" "$R1772_EXPORT_ENV"
+  assert_eq "#1772: effort-export step sources the provider output, writes the resolver's PRFLOW_EFFORT_SUPPORTED key from that env var into GITHUB_ENV, and precedes the session step in all 3 workflows" "yes" "$R1772_EXPORT_ENV"
 
   # gh_kv normalizes a $GITHUB_ENV/$GITHUB_OUTPUT file written in GitHub's newline-safe
   # multiline-heredoc form (KEY<<DELIM\nvalue\nDELIM — the form this PR now uses everywhere)
