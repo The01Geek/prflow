@@ -88,6 +88,8 @@ def parse_execution_file(exec_file):
             raw = fh.read()
     except OSError as e:
         return [], "execution file present but unreadable (%s)" % e.__class__.__name__
+    # Upstream of BOTH parse paths: moving this inside the json.loads branch leaves the
+    # published artifact's caveat line on every JSONL record and drops the whole file.
     raw = strip_leading_comments(raw)
     try:
         return json.loads(raw), ""
@@ -126,7 +128,7 @@ def dirs_match(a, b):
     A body record carries the runner's ABSOLUTE base directory while `--root` is normally
     repo-relative, so equality alone would never match; the comparison is therefore a
     component-boundary suffix in either direction. Matching on a bare suffix without the
-    separator would let `skills/preview` satisfy a `skills/review` root."""
+    separator would let a `.../myskills/review` directory satisfy a `skills/review` root."""
     a = os.path.normpath(a.replace("\\", "/")).rstrip("/")
     b = os.path.normpath(b.replace("\\", "/")).rstrip("/")
     if not a or not b:

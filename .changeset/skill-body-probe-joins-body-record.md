@@ -12,4 +12,7 @@ transcript, which previously made that artifact unparseable. The now-dead captur
 stub's own content is removed, and the module docstring, the suite block's header comment and
 `docs/internal/skill-body-load-delivery.md`'s live re-run procedure no longer describe the
 `tool_result` as the measured operand. `docs/internal/skill-body-load-delivery.md` records the
-corrected reading.
+corrected reading. The suite drives the directory match on the shape production actually takes —
+an absolute runner base directory against a repo-relative `--root`, which only the suffix branch
+resolves — together with its component-boundary guard and the leading-comment stripper's
+interior-`#` contract.

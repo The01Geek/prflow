@@ -24912,11 +24912,15 @@ tail = [ln.strip() for ln in body.splitlines() if ln.strip()][-1]
 review_dir = os.path.dirname(path)
 impl_dir = os.path.dirname(impl_path)
 other_dir = os.path.join(os.path.dirname(review_dir), "implement")
+# The runner's own ABSOLUTE base directory, as a real transcript records it. Do not rewrite
+# these to on-disk paths: an identical pair on both sides drives only dirs_match's equality
+# branch, leaving the suffix branch every production reading takes unexercised.
+runner_dir = "/home/runner/work/prflow/prflow/skills/review"
+boundary_dir = "/home/runner/work/prflow/prflow/myskills/review"
 PREFIX = "Base directory for this skill: "
 # These fixtures reproduce the RECORD LAYOUT of a real claude-code-action transcript: the
-# Skill tool_result is a ~30-byte launch STUB and the rendered body arrives in the NEXT,
-# user-role record. Writing the body into the tool_result instead would mirror the helper's
-# own (wrong) assumption and make every assertion below vacuous.
+# Skill tool_result is a ~30-byte launch STUB and the body arrives in the NEXT, user-role
+# record. Writing the body into the tool_result would make every assertion below vacuous.
 def skill_use(name="prflow:review", uid="su1"):
     return {"type": "assistant", "message": {"role": "assistant", "content": [
         {"type": "tool_use", "name": "Skill", "id": uid, "input": {"skill": name}}]}}
@@ -24951,6 +24955,13 @@ scenarios = {
     # A body record naming a DIFFERENT skill's directory: another root's body must not be
     # adjudicated as this one's.
     "wrong_dir_body":[skill_use(), stub(), body_rec(body, base=other_dir)],
+    # PRODUCTION DIRECTORY SHAPE: an absolute runner base dir against a repo-relative --root,
+    # which only dirs_match's SUFFIX branch resolves.
+    "abs_suffix_dir":[skill_use(), stub(), body_rec(body, base=runner_dir)],
+    # SEPARATOR BOUNDARY: `myskills/review` is a bare suffix of `skills/review` but not a
+    # component-boundary one. Do not swap in a non-suffix directory — the refusal would then
+    # come from the directory differing at all, and the `/` guard would go unpinned.
+    "boundary_dir": [skill_use(), stub(), body_rec(body, base=boundary_dir)],
     # The prefix in an ASSISTANT record is the model talking about a delivery, not one.
     "assistant_body":[skill_use(), stub(), body_rec(body, role="assistant")],
     # No Skill tool_use at all — the body was never loaded by this channel.
@@ -24986,6 +24997,15 @@ elif scen == "leading_comment":
     open(out, "w", encoding="utf-8").write(
         "# DEVFLOW SCRUB CAVEAT: best-effort blocklist redaction. Treat as sensitive.\n"
         + json.dumps(scenarios["whole"], indent=2) + "\n")
+elif scen == "interior_comment":
+    # Only the LEADING blank/`#` run is stripped. Do not move the trailing `#` line to the top:
+    # its position is what proves an interior `#` still counts as unparseable, and a stripper
+    # that dropped every `#` line would hide the corruption and report a clean read.
+    with open(out, "w", encoding="utf-8") as fh:
+        fh.write("# DEVFLOW SCRUB CAVEAT: best-effort blocklist redaction.\n\n")
+        for r in scenarios["whole"]:
+            fh.write(json.dumps(r) + "\n")
+        fh.write("# not a record\n")
 elif scen == "whole_json":
     # A single whole-file JSON document (not JSONL) — exercises parse_execution_file's
     # json.loads(raw) success path, which the line-by-line fixtures never reach.
@@ -25014,6 +25034,17 @@ sbl() {  # $1 scenario -> the first per-root VERDICT token (single-root fixtures
   # Pure parameter expansion (CLAUDE.md guard-class 2: no tr/sed/cut, which would fail OPEN).
   # The audit summary line is `AUDIT: …` (not `AUDIT VERDICT:`), so the first `VERDICT: `
   # match is a per-root verdict, never the summary.
+  case "$_out" in
+    *'VERDICT: '*) local _v="${_out#*'VERDICT: '}"; printf '%s' "${_v%%$'\n'*}" ;;
+    *) printf 'NO_VERDICT' ;;
+  esac
+}
+sbl_rel() {  # $1 scenario -> first VERDICT token, run from the repo root with a REPO-RELATIVE
+             # --root. Do not switch this to an absolute --root: the relative form is what makes
+             # dirs_match take its production suffix branch instead of the equality branch.
+  if ! sbl_build "$1"; then printf 'FIXTURE_BUILD_FAILED'; return 0; fi
+  local _out
+  _out="$(cd "$LIB/.." && python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=skills/review/SKILL.md" 2>/dev/null)"
   case "$_out" in
     *'VERDICT: '*) local _v="${_out#*'VERDICT: '}"; printf '%s' "${_v%%$'\n'*}" ;;
     *) printf 'NO_VERDICT' ;;
@@ -25096,10 +25127,8 @@ assert_eq "#1618 skill-body: multi-root audit emits an unestablished for the abs
   "$(sbl_build whole >/dev/null 2>&1; python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" --root "prflow:implement=/definitely/not/here/SKILL.md" 2>/dev/null | grep -c 'VERDICT: unestablished')"
 
 # MULTI-LOAD ATTRIBUTION — the position window (stop = use_positions[n+1]) claims every body
-# record between one Skill tool_use and the NEXT. Both bounds are driven here, because every
-# other fixture carries a single load and leaves an off-by-one or an unbounded window green.
-# Upper bound: two loads, each with its own body — narrowing the window by one drops the first
-# load's body and this count falls to 1.
+# record between one Skill tool_use and the NEXT. Both bounds are driven here: every other
+# fixture carries a single load and leaves an off-by-one or an unbounded window green.
 assert_eq "#1618 skill-body: two Skill loads in one transcript -> each root delivered-whole" "2" \
   "$(sbl_build two_skill_loads >/dev/null 2>&1; python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" --root "prflow:implement=$SBL_IMPLEMENT" 2>/dev/null | grep -c 'VERDICT: delivered-whole')"
 # Stop bound: a body arriving after a LATER tool_use belongs to neither load — the earlier load's
@@ -25115,6 +25144,27 @@ assert_eq "#1618 skill-body: the late body is refused by the no-following-body a
 # is the window closing rather than a fixture the helper could not read.
 assert_eq "#1618 skill-body: the late-body fixture still records both Skill loads" "yes" \
   "$(sbl_build late_body >/dev/null 2>&1; python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" 2>/dev/null | grep -q 'recorded Skill tool_use pairs: 2' && echo yes || echo no)"
+
+# DIRECTORY MATCH — every fixture above builds the body's base dir from the same on-disk path
+# the --root spec names, so they drive dirs_match's equality branch only. Production never takes
+# it: the transcript carries an absolute runner dir while --root is repo-relative.
+assert_eq "#1618 skill-body: absolute runner base dir vs repo-relative root -> delivered-whole" \
+  "delivered-whole" "$(sbl_rel abs_suffix_dir)"
+# Separator boundary: a bare-suffix directory (`myskills/review`) is not a component-boundary
+# suffix of `skills/review`, so it must NOT be adjudicated as this root's body.
+assert_eq "#1618 skill-body: a bare-suffix directory does not satisfy the root -> unestablished" \
+  "unestablished" "$(sbl_rel boundary_dir)"
+# ATTRIBUTED REJECTION: the refusal must come from the directory-match arm, not an upstream
+# precondition. abs_suffix_dir is the same fixture shape one directory component apart and it
+# resolves, so it is the positive control proving the `/` guard is what refused this one.
+assert_eq "#1618 skill-body: the bare-suffix body is refused by the no-following-body arm" "yes" \
+  "$(sbl_build boundary_dir >/dev/null 2>&1; (cd "$LIB/.." && python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=skills/review/SKILL.md" 2>/dev/null) | grep -q 'no following body record naming its own' && echo yes || echo no)"
+
+# Only the LEADING blank/`#` run is stripped: the caveat line and the blank after it go, while a
+# `#` line INSIDE the file stays unparseable and forces unestablished. A stripper that dropped
+# every `#` line would hide that corruption and report a clean read.
+assert_eq "#1618 skill-body: a # line inside the file is not stripped -> unestablished" \
+  "unestablished" "$(sbl interior_comment)"
 
 # Empty selection MUST fail rather than report a clean pass — an audit that audited nothing
 # reading as an audit that found nothing is this defect one level up. No --root -> exit !=0,
