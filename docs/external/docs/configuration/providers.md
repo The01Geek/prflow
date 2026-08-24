@@ -39,6 +39,25 @@ only the background model, use `ANTHROPIC_DEFAULT_HAIKU_MODEL`, which is not ref
 remaining names have no alternative and must be removed from the map — including `NODE_OPTIONS`
 and `PYTHONPATH`, which are refused even where your intended use is benign.
 
+### Warned `env` names
+
+Separately from the refused names above — which stop the run — four names are **warned but not
+refused**. If your `env` map sets any of them, the job prints a warning naming every one it found
+and then **keeps running**; the value you set still takes effect. These are:
+
+| Name | What setting it does |
+| --- | --- |
+| `ANTHROPIC_BASE_URL` | Overrides the endpoint the provider's own `base_url` field resolved. |
+| `API_TIMEOUT_MS` | Overrides the request timeout the provider's own `timeout_ms` field resolved. |
+| `HOME` | Moves where later steps in the job read and write their home-directory files. |
+| `RUNNER_TEMP` | Moves where later steps in the job read and write their temporary files. |
+
+Because the `env` map is applied last, a value you set for one of these wins over the dedicated
+field or the job's own setting. The warning exists so this override is visible in the run log
+rather than surprising you. Matching ignores case and is whole-name, the same rule the refused
+list uses: `home` warns exactly as `HOME` does, while `HOMEDIR` produces no warning. A map that
+names none of the four warned names logs nothing new.
+
 ## Section Routing Settings
 
 | **Setting** | **Type and accepted values** | **Fallback** | **Tier and security note** | **Example** |
