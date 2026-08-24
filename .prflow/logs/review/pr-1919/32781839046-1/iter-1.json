@@ -1,0 +1,264 @@
+{
+  "iter": 1,
+  "fix_commit_sha": "f46a70e0990f9f5acdc839b3781333299cb78573",
+  "fix_files": [
+    "lib/test/run.sh"
+  ],
+  "loop_role": "fix",
+  "current_step": "3.5",
+  "sweep_defs_read": [
+    {
+      "path": "../implement/phases/phase-2-implement.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0",
+        "2.3.0b",
+        "2.3.4b"
+      ]
+    },
+    {
+      "path": "../implement/phases/phase-2-sweeps-contract.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.0a",
+        "2.3.3",
+        "2.3.4",
+        "2.3.4a"
+      ]
+    },
+    {
+      "path": "../implement/phases/phase-2-sweeps-quality.md",
+      "read": "whole",
+      "sweeps": [
+        "2.3.5",
+        "2.3.6"
+      ]
+    }
+  ],
+  "sweep_evidence": {
+    "status": "run",
+    "note": "fix delta is two additive regression tests in lib/test/run.sh #1911 block; test-only, no new product behavior, no config-derivation, no new .py/.sh, no prompt-surface trigger glob touched; portable bash builtins + granted heads (grep/gh_topkeys/r1911_warns_key). No sweep surfaced a finding."
+  },
+  "checklist": [
+    {
+      "id": "VC-1",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:devflow.yml:four-watched-keys-warn-exit0",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-2",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:devflow.yml:env-map-value-still-wins",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-3",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:devflow.yml:case-fold-whole-name-match",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-4",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:devflow.yml:none-matched-no-warning",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-5",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:devflow.yml:deny-guard-unchanged",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-6",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "raw_verdict": "FAIL",
+      "normalized": false,
+      "claim_signature": "issue_acceptance:devflow.yml:three-way-body-identity",
+      "evidence": "verifier FAIL refuted by orchestrator: lib/test/run.sh R313_BODY_IDENT (names[] includes the inject step) asserts b0==b1==b2; AC6 satisfied",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-7",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:run.sh:refusal-loop-deny-only",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-8",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "issue_acceptance:devflow.yml:absent-and-nonobject-env-unchanged",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-9",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "dependency_interaction:devflow.yml:decision-var-source",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-10",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "dependency_interaction:devflow.yml:bare-assignment-set-e",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-11",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "data_format_assumption:issue-1911-warn-provider-env-map-keys.md:changeset-schema",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-12",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "claim_signature": "data_format_assumption:coverage-map.json:1911-entry-shape",
+      "reused_from_iter_prev": false
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "detect_all_audit": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "Combined denied-key + watched-key in one env map untested (deny-before-warn ordering guard).",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          32785,
+          32878
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "Watched key with a valid-falsy (empty-string) value untested.",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          32828,
+          32837
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "Warn message's $SECTION/$PROVIDER naming not asserted (deliberate: operator-facing prose carries no pin).",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          32831,
+          32833
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "codebase",
+      "fix_decision": "pushed_back"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "f46a70e0990f9f5acdc839b3781333299cb78573"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "f46a70e0990f9f5acdc839b3781333299cb78573"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "pushed_back",
+      "source_file": "lib/test/run.sh",
+      "claim_text": "Warn message's section/provider naming not asserted",
+      "skip_category": "claim-quality",
+      "evidence": "Asserting the ::warning:: names $SECTION/$PROVIDER is a wording-only/operator-facing-prose pin, which the repo's wording-only pin review policy (.prflow/prompt-extensions/review-and-fix.md) discourages; the reviewer itself flagged this as a deliberate note, not a recommendation. The dynamic KEY echo (the load-bearing behavior) is asserted; the static section/provider prose is not pinned by policy.",
+      "parking_evidence": {
+        "basis": "operator-facing prose pin discouraged by the repo's wording-only pin review policy",
+        "failing_input": "the static $SECTION/$PROVIDER interpolation in the ::warning:: message",
+        "source": ".prflow/prompt-extensions/review-and-fix.md (Wording-only pin review policy)",
+        "finding_ref": {
+          "iter": 1,
+          "index": 2
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 2,
+    "fix_diff_lines": 18,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "base_checkpoint": {
+    "token": "UP_TO_DATE",
+    "behind_by": null
+  },
+  "verification_evidence": {
+    "command": "lib/test/run-shard.sh monolith",
+    "result": "pass",
+    "duration_s": null,
+    "skipped_checks": [
+      {
+        "check": "#434 stale-prose self-scan",
+        "kind": "blocking-gate",
+        "reason": "working tree dirty at run time (mid-iteration; committed after)"
+      }
+    ]
+  },
+  "test_first_gate": [
+    {
+      "decision": "regression-test-for-shipped-behavior",
+      "command": "lib/test/run-shard.sh monolith",
+      "result": "pass",
+      "evidence": "Two additive tests exercise already-shipped warn-block behavior (deny-before-warn ordering; valid-falsy env value). Mutation reasoning: test A goes RED if the warn block is reordered above the deny guard; test B goes RED if the warn block mishandles an empty value. Both GREEN against current HEAD (9915 passed)."
+    }
+  ],
+  "telemetry": "unavailable",
+  "stale_prose_check": {
+    "result": "no STALE rows",
+    "note": "stale-prose-lint.py over origin/main...HEAD exited 0 (Phase 0.6); post-fix delta is test-only"
+  },
+  "synthesized": false
+}
