@@ -837,44 +837,38 @@ def _median_or_unestablished(values):
 RESIDENCY_KEYS = ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")
 
 
-def _usage_field(usage, key):
-    """Read one usage sub-field on the SPEND axis, null/missing/non-numeric/non-finite -> 0.
-
-    Always a number: the spend axis (`_auditor_cost`, `total_output_tokens`) sums these,
-    so it must never see None. The non-finite guard keeps `int(float("inf"))` — which
-    `json.loads` can feed here from a bare `Infinity` — from raising OverflowError
-    (issue #1899); a non-finite spend field contributes 0 rather than detonating the walk.
-    """
-    if not isinstance(usage, dict):
-        return 0
-    val = usage.get(key)
-    if isinstance(val, bool):  # bool is an int subclass; never a token count
-        return 0
-    if isinstance(val, (int, float)):
-        if isinstance(val, float) and not math.isfinite(val):
-            return 0
-        return int(val)
-    return 0
-
-
 def _usage_value(usage, key):
     """One usage sub-field's ESTABLISHED token count on the RESIDENCY axis, or None.
 
     None covers absent, null, bool, non-numeric and non-finite values — the residency
     axis reports an unmeasured field as unestablished, never a spurious 0 (issue #1899).
-    Distinct from `_usage_field`, which reports the same fields on the spend axis where an
-    unmeasured field is a summable 0.
+    The single source of the sub-field validity guard; `_usage_field` reads the SAME fields
+    on the spend axis, coalescing this reader's None to a summable 0.
     """
     if not isinstance(usage, dict):
         return None
     val = usage.get(key)
-    if isinstance(val, bool):
+    if isinstance(val, bool):  # bool is an int subclass; never a token count
         return None
     if isinstance(val, (int, float)):
+        # json.loads accepts bare Infinity/NaN and int(inf) raises OverflowError, so guard
+        # non-finite here rather than in eval_corpus's per-record backstop tuple (#1899).
         if isinstance(val, float) and not math.isfinite(val):
             return None
         return int(val)
     return None
+
+
+def _usage_field(usage, key):
+    """Read one usage sub-field on the SPEND axis: an unmeasured field is a summable 0.
+
+    Always a number: the spend axis (`_auditor_cost`, `total_output_tokens`) sums these,
+    so it must never see None. Shares `_usage_value`'s validity guard (issue #1899) — the
+    two axes differ only in how they report an unmeasured field (0 here, None there), never
+    in which fields they establish.
+    """
+    val = _usage_value(usage, key)
+    return 0 if val is None else val
 
 
 def _context_tokens(usage):
