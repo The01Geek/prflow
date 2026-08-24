@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1780",
+  "generated_at": "2026-08-24T00:04:41Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.60",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 11.769177349999998,
+    "tokens": {
+      "input_tokens": 52,
+      "output_tokens": 36488,
+      "cache_read_input_tokens": 4093610,
+      "cache_creation_input_tokens": 250254,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 99,
+        "outputTokens": 58835,
+        "cacheReadInputTokens": 5143982,
+        "cacheCreationInputTokens": 605541,
+        "webSearchRequests": 0,
+        "costUSD": 8.766444749999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 208,
+        "outputTokens": 23590,
+        "cacheReadInputTokens": 4631583,
+        "cacheCreationInputTokens": 736040,
+        "webSearchRequests": 0,
+        "costUSD": 3.0027326,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 52,
+    "duration_ms": 675759
+  },
+  "permission_denials": {
+    "count": 36,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "mkdir -p .prflow/tmp/review/pr-1780/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}\ngh pr diff 1780 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1780/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}/diff.patch | grep -c '^diff --git'",
+      "for f in .github/workflows/devflow-implement.yml .github/workflows/devflow-runner.yml .github/workflows/devflow.yml; do echo \"=== $f ===\"; git show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:$f | grep -n \"Export provider effort\\|claude-code-action\" ; done",
+      "for f in .github/workflows/devflow-runner.yml .github/workflows/devflow.yml; do echo \"=== $f ===\"; git show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:$f | grep -n \"Export provider effort\\|uses: anthropics/claude-code-action\"; done",
+      "git show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow-runner.yml > /tmp/runner.yml; git show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow.yml > /tmp/devflow.yml; wc -l /tmp/runner.yml /tmp/devflow.yml",
+      "git show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow-runner.yml > /tmp/runner.yml",
+      "git show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow.yml > /tmp/devflow.yml",
+      "git show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow-runner.yml > .prflow/tmp/runner.yml",
+      "git show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow.yml > .prflow/tmp/devflow.yml",
+      "for f in .github/workflows/devflow-implement.yml .github/workflows/devflow-review.yml .github/workflows/devflow.yml .github/workflows/devflow-runner.yml; do echo \"=== $f ===\"; git show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:$f 2>&1 | grep -n \"effort_supported\\|PRFLOW_EFFORT_SUPPORTED\"; done",
+      "git show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow-review.yml 2>&1 | grep -n \"effort_supported\\|PRFLOW_EFFORT_SUPPORTED\"\necho \"---runner---\"\ngit show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow-runner.yml 2>&1 | grep -n \"effort_supported\\|PRFLOW_EFFORT_SUPPORTED\"\necho \"---devflow---\"\ngit show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow.yml 2>&1 | grep -n \"effort_supported\\|PRFLOW_EFFORT_SUPPORTED\"\necho \"---list workflows---\"\n …[per-command-truncated]",
+      "git ls-tree -r --name-only 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96 -- .github/workflows/",
+      "git ls-tree -r --name-only 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96 -- .github/workflows",
+      "git show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow.yml > /tmp/devflow.yml 2>&1\ngrep -n \"effort_supported\\|PRFLOW_EFFORT_SUPPORTED\" /tmp/devflow.yml\necho \"---runner---\"\ngit show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow-runner.yml > /tmp/runner.yml 2>&1\ngrep -n \"effort_supported\\|PRFLOW_EFFORT_SUPPORTED\" /tmp/runner.yml",
+      "git show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow.yml > /tmp/devflow_wf.yml",
+      "git show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow.yml > /home/runner/work/prflow/prflow/tmp_devflow_wf.yml\ngrep -n \"effort_supported\\|PRFLOW_EFFORT_SUPPORTED\" /home/runner/work/prflow/prflow/tmp_devflow_wf.yml",
+      "git show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow.yml > .prflow/tmp/devflow_wf.yml",
+      "for f in .github/workflows/devflow-implement.yml .github/workflows/devflow-runner.yml .github/workflows/devflow.yml; do\necho \"=== $f ===\"\ngit show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:$f | grep -n -A8 \"Export provider effort capability to job env\"\necho \"--- claude-code-action line ---\"\ngit show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:$f | grep -n \"claude-code-action\"\ndone\ngit show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:scripts/resolve-review-overrides.py | grep -n \"_EFFORT_SUPPORTED_ENV\"",
+      "git show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow-implement.yml > /tmp/impl.yml\ngit show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow-runner.yml > /tmp/runner.yml\ngit show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow.yml > /tmp/light.yml\ngit show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:scripts/resolve-review-overrides.py > /tmp/resolve.py\ngrep -n \"_EFFORT_SUPPORTED_ENV\" /tmp/resolve.py",
+      "git show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow-implement.yml > /tmp/impl.yml",
+      "git show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow-runner.yml > /tmp/runner.yml",
+      "git show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow.yml > /tmp/light.yml",
+      "git show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:scripts/resolve-review-overrides.py > /tmp/resolve.py",
+      "cd /tmp && for f in devflow-implement devflow-runner devflow; do git show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/$f.yml > $f.yml; done\npython3 - <<'PY'\nimport yaml\nnames = [\"Resolve model provider\",\n         \"Inject provider endpoint (provider-routed sections only)\",\n         \"Export provider effort capability to job env\",\n         \"Build claude_args head (model + conditional effort)\"]\nfiles = [\"devflow-implement.yml\",\"devflow-runner.yml\",\"devflow.yml\"]\nbodies = {n: [] for n  …[per-command-truncated]",
+      "mkdir -p /tmp/vc15 && cd /tmp/vc15 && git show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow-implement.yml > devflow-implement.yml\ngit show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow-runner.yml > devflow-runner.yml\ngit show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow.yml > devflow.yml\nls -la",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp\ngit show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow-implement.yml > /home/runner/work/prflow/prflow/.prflow/tmp/impl.yml\ngit show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow-runner.yml > /home/runner/work/prflow/prflow/.prflow/tmp/runner.yml\ngit show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow.yml > /home/runner/work/prflow/prflow/.prflow/tmp/light.yml\ngit show 7022e3f0d8c8e …[per-command-truncated]",
+      "git show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow-implement.yml > /home/runner/work/prflow/prflow/.prflow/tmp/impl.yml",
+      "mkdir -p /tmp/vc15\ngit show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow-implement.yml > /tmp/vc15/devflow-implement.yml\ngit show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow-runner.yml > /tmp/vc15/devflow-runner.yml\ngit show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow.yml > /tmp/vc15/devflow.yml\nls -la /tmp/vc15",
+      "mkdir -p /tmp/vc15",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/vc15\ngit show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow-implement.yml > /home/runner/work/prflow/prflow/.prflow/tmp/vc15/devflow-implement.yml\ngit show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow-runner.yml > /home/runner/work/prflow/prflow/.prflow/tmp/vc15/devflow-runner.yml\ngit show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow.yml > /home/runner/work/prflow/prflow/.prflow/ …[per-command-truncated]",
+      "git show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow-implement.yml > /home/runner/work/prflow/prflow/.prflow/tmp/vc15/devflow-implement.yml",
+      "git show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow-implement.yml > /home/runner/work/prflow/prflow/vc15-devflow-implement.yml\ngit show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow-runner.yml > /home/runner/work/prflow/prflow/vc15-devflow-runner.yml\ngit show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow.yml > /home/runner/work/prflow/prflow/vc15-devflow.yml\nls -la /home/runner/work/prflow/prflow/vc15-*",
+      "git show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/devflow-implement.yml > /home/runner/work/prflow/prflow/vc15-devflow-implement.yml",
+      "for f in devflow-implement.yml devflow-runner.yml devflow.yml; do\necho \"=== $f ===\"\ngit show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/$f | grep -n \"claude-code-action\\|Export provider effort\"\ndone",
+      "git status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before",
+      "for f in devflow-implement devflow-runner devflow; do echo \"=== $f ===\"; git show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/$f.yml | grep -nE \"id: provider|effort_supported|Export provider effort|uses: .*claude-code-action|name: Export|anthropics/claude-code\" | head -30; done",
+      "for f in devflow-implement devflow-runner devflow; do echo \"=== $f ===\"; git show 7022e3f0d8c8edfb5c14d5b5a64220b4e109ab96:.github/workflows/$f.yml | grep -nE \"id: provider|effort_supported|name: Export provider|claude-code-action\" | head -40; done"
+    ],
+    "total": 36,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
