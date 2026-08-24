@@ -1,0 +1,24 @@
+{
+  "iter": 4,
+  "fix_commit_sha": "b6a0358b0d2bc1dcc127e61ba71f0d75b5d2fb92",
+  "fix_files": [
+    "lib/test/run.sh"
+  ],
+  "loop_role": "fix",
+  "synthesized": true,
+  "sweep_defs_read": {
+    "status": "unrecoverable",
+    "reason": "fix-commit-only synthesis: no iteration record was found for this run, and a fix commit carries no trace of which sweep definitions were read"
+  },
+  "sweep_evidence": {
+    "status": "unrecoverable",
+    "reason": "fix-commit-only synthesis: no iteration record was found for this run, and a fix commit carries no trace of the sweep outcomes"
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "unrecoverable",
+      "reason": "fix-commit-only synthesis: no iteration record was found for this run, and a fix commit carries no trace of whether the Step 3.5 fix-delta gate ran"
+    }
+  },
+  "telemetry": "unavailable"
+}
