@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1789",
+  "generated_at": "2026-08-24T20:06:55Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.2",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 3.88088875,
+    "tokens": {
+      "input_tokens": 36,
+      "output_tokens": 16088,
+      "cache_read_input_tokens": 2188185,
+      "cache_creation_input_tokens": 140423,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 54,
+        "outputTokens": 22516,
+        "cacheReadInputTokens": 2766015,
+        "cacheCreationInputTokens": 225300,
+        "webSearchRequests": 0,
+        "costUSD": 3.88088875,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 27,
+    "duration_ms": 332856
+  },
+  "permission_denials": {
+    "count": 2,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "gh pr diff 1789 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1789/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}/diff.patch 2>/dev/null; mkdir -p .prflow/tmp/review/pr-1789/${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}",
+      "echo \"${GITHUB_RUN_ID:-none}-${GITHUB_RUN_ATTEMPT:-1}\""
+    ],
+    "total": 2,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
