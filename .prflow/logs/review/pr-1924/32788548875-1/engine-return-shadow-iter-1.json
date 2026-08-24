@@ -1,0 +1,80 @@
+{
+  "run_id": "32788548875-1",
+  "slug": "pr-1924",
+  "pr_number": 1924,
+  "issue": 1902,
+  "head": "16ef0f812e488c56e925d5cd0f64c803e9947736",
+  "base": "main",
+  "dispatch_mode": "fanned-out",
+  "shadow_pass": true,
+  "prior_findings_handoff": "none",
+  "verdict": "APPROVE",
+  "verdict_rationale": "Two advisory findings (one Medium, one Low), both below this repository's prflow_review.verdict_severity_threshold of 'critical'. No Critical/Major finding; all six acceptance criteria satisfied against the shipped tree; the one mechanical check (lib/test/lint-reference-size.py) passes and the file (46400 bytes) is well under the reference-size ceiling.",
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": true,
+    "engine_self_modifying": true,
+    "has_new_types": false,
+    "test_change": false,
+    "checklist_skipped": false,
+    "notes": "engine_self_modifying forces the full checklist (checklist NOT skipped). Diff is two .md files only (skills/implement/phases/phase-2-sweeps-quality.md prose edit + a new .changeset/*.md); all changed extensions are .md (config_only set)."
+  },
+  "reviewers_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "roster_match": true,
+  "gated_out": {
+    "prflow:type-design-analyzer": "has_new_types=false",
+    "prflow:pr-test-analyzer": "test-relevance predicate does not match: no test file changed and no non-config_only added line (all changed paths are .md, in the config_only extension set)"
+  },
+  "per_reviewer_assessment": {
+    "prflow:code-reviewer": "The one-line prose edit satisfies all six ACs. AC1: new normal-path clause applies the §2.3 counting procedure to every comment the change adds or changes. AC2: log records line count beside disposition, explicitly on the clean path. AC3: cap and procedure cited by pointer, not restated (confirmed §2.3 preamble line 64 is the single definition). AC4: carve-out exemption resolves against line 66's three absolute carve-outs. AC5: 46400 bytes, well under ceiling. AC6: changeset present and accurate. No prose-code divergence, no unclosed coverage universal. Non-blocking observation: changeset body cites (#1924) while filename references 1902 — benign. No findings at or above threshold.",
+    "prflow:silent-failure-hunter": "Added normal-path clause is well specified for detection (points at §2.3's procedure and carve-out set rather than restating). 'Rather than shipped' precludes the fail-open ship-anyway path, so no silent-ship hazard. One substantive gap: disposition asymmetry — unlike the sibling 'unreachable location' clause which names an explicit remedy (compress to §2.3 three-line cap or delete), the new clause names only the outcome ('caught rather than shipped') and leaves the remedy for an over-cap comment that genuinely prevents a wrong change unspecified, risking wholesale deletion of a genuine guard rather than compression. Severity bounded because the intended remedy is inferable from the adjacent sibling clause.",
+    "prflow:comment-analyzer": "New clause pointers are accurate against HEAD (§2.3 line 64 defines the procedure/cap; line 66 enumerates exactly three carve-outs). Operand wording 'the change adds or changes' matches surrounding usage. Changeset accurately describes the diff and naming 'three-line cap' there is acceptable (changesets never ship into consumer repos). New count clause and pre-existing unreachable-location clause govern disjoint paths and do not contradict. One genuine issue: the new clause asserts 'restating neither here' yet the unchanged sibling sentence names 'the §2.3 three-line cap' (embedding the number three); if 'here' is scoped to item 7 as a whole the claim is inaccurate and residual drift-rot remains. Behavior-inert clarity/consistency nit, not a truthfulness defect against shipped code.",
+    "prflow:requesting-code-review": "Tightly-scoped, correct one-line prose edit plus a conforming changeset. Verified each AC against the shipped tree: AC1 satisfied (procedure runs on normal path), AC2 satisfied (line count logged beside disposition on clean path), AC3 satisfied (cited by pointer, not restated; §2.3 preamble is single definition), AC4 satisfied (three carve-outs unchanged/binding, exemption added), AC5 satisfied (46400 bytes, lint rc=0), AC6 satisfied (changeset present, type Changed / bump patch). Ships verbatim into consumer repos: item 7 references only §2.3 and the [[INTERNAL_DOC_LOCATION]] placeholder — no repo-private path or issue number in the shipped skill body (changeset legitimately carries #1924). Merge-ready; no merge-blocking or advisory defects."
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Medium",
+      "description": "The new normal-path clause in §2.3.4a item 7 detects an over-cap comment that DOES prevent a wrong change ('caught rather than shipped') but specifies no disposition/remedy for it. The parallel 'unreachable location' clause in the same item gives an explicit remedy ('compress the comment to the §2.3 three-line cap or delete it — never silently keep it at length'); the new clause omits any equivalent. Because the remedy is unstated, an agent could resolve the over-cap detection by deleting a comment item 7's own first sentence says must be KEPT (it names a wrong change it prevents), silently losing a genuine guard, rather than compressing it to the cap. Suggested fix: name the same disposition the sibling clause uses (compress to the §2.3 cap; delete only if it cannot be brought under the cap without losing the prevention).",
+      "defect_signature": "underspecified-remedy-for-detected-over-cap-prevention-comment-risks-silent-guard-deletion"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Low",
+      "description": "In §2.3.4a item 7, the newly added clause claims it is 'restating neither here' (neither procedure nor cap value), yet the next unchanged sentence in the same item reads 'compress the comment to the §2.3 three-line cap', naming the number three. If 'here' is scoped to item 7 as a whole rather than narrowly to the new clause, 'restating neither here' is inaccurate, and the unchanged '§2.3 three-line cap' phrase still rots if §2.3's cap value ever changes. Suggested fix: scope 'here' unambiguously to the new clause, or convert the sibling 'the §2.3 three-line cap' to a numberless pointer ('the §2.3 cap', as step 8 already writes) so the whole item is number-free and genuinely single-sourced. Behavior-inert prose nit.",
+      "defect_signature": "self-introduced-restating-neither-here-inconsistency-vs-unchanged-sibling-naming-three-line-cap"
+    }
+  ],
+  "phase2_fails": [],
+  "cap_drops": [],
+  "phase_4_1_report": {
+    "verdict": "APPROVE",
+    "summary": "PR #1924 is a tightly-scoped, correct one-line prose edit to §2.3.4a item 7 of skills/implement/phases/phase-2-sweeps-quality.md (agent-executed prompt prose that ships verbatim into consumer repos), plus a conforming changeset. It makes the Prevention sweep apply the §2.3 line-count procedure on its normal path and log each comment's line count beside its disposition. All six acceptance criteria for issue #1902 are satisfied against the shipped tree, the reference-size lint passes, and the shipped skill body names no repo-private path or issue number.",
+    "acceptance_criteria_status": {
+      "AC1_normal_path_applies_counting_procedure": "satisfied",
+      "AC2_log_records_line_count_beside_disposition_incl_clean_path": "satisfied",
+      "AC3_cites_cap_by_pointer_restates_neither": "satisfied",
+      "AC4_three_carve_outs_binding_and_exempt_from_count": "satisfied",
+      "AC5_under_reference_size_ceiling": "satisfied (46400 bytes; lint-reference-size.py rc=0)",
+      "AC6_changeset_present": "satisfied"
+    },
+    "findings_count": 2,
+    "findings_by_severity": {"Critical": 0, "Major": 0, "Medium": 1, "Low": 1},
+    "verdict_threshold": "critical",
+    "advisory_notes": [
+      "Medium (silent-failure-hunter): new normal-path clause underspecifies the remedy for an over-cap comment that legitimately prevents a wrong change — consider naming 'compress to the §2.3 cap' as the sibling clause does. Below the critical verdict threshold; advisory. Note issue #1902 explicitly scoped item 7's existing prevention question and unreachable-location clause to stay 'as they are', so this is a design-tradeoff observation rather than a defect the PR failed to deliver.",
+      "Low (comment-analyzer): 'restating neither here' sits beside an unchanged sibling sentence that names 'three-line cap'; a numberless '§2.3 cap' would make the whole item single-sourced. Behavior-inert prose nit."
+    ]
+  }
+}
