@@ -212,9 +212,26 @@ git push origin devflow-telemetry:prflow-telemetry
 git push origin --delete devflow-telemetry
 ```
 
-The unmigrated state is **detected, never silent**: when the current branch is absent and the
-superseded one is present, `scripts/build-experiment-records.py` warns naming both refs and the
-command above, rather than reading the absence as "no telemetry". Setting `telemetry.branch` to
+Records stranded on the superseded branch are **detected, never silent** — and since issue #1826
+the detection fires **whether or not the canonical branch is present**, because the superseded
+branch stores its records under the pre-rename path `.devflow/logs/efficiency/` (the canonical
+`.prflow/logs/efficiency/` is empty on it), and `scripts/build-experiment-records.py` reads that
+branch under the path it actually uses. The reader still ingests from **exactly one** branch and
+mutates no ref — this is detection only; recovering the stranded records stays an operator action.
+The remedy the warning names depends on the branch state, because the two are independent orphan
+refs:
+
+- **Canonical branch absent** (the unmigrated case) — the one-push rename above is a fast-forward
+  with nothing to overwrite, so the warning names both refs and that command, rather than reading
+  the absence as "no telemetry".
+- **Canonical branch present** (this repository's actual state, where the two branches have
+  diverged) — force-pushing the superseded ref onto the canonical one would **discard every
+  canonical record**, so the warning explicitly says *do not* do that and instead names a
+  copy-across remedy that mutates no ref: on a checkout of the canonical branch, copy the record
+  files from `devflow-telemetry:.devflow/logs/efficiency/` into `.prflow/logs/efficiency/`, commit
+  and push, then delete the superseded branch.
+
+Setting `telemetry.branch` to
 `devflow-telemetry` keeps the old name indefinitely and is equally supported. The persist step (`lib/efficiency-trace.sh --persist`) writes each run's
 artifacts to that branch **through git plumbing** — hashing them into the object store,
 assembling a tree against a temporary index, `git commit-tree`, and a compare-and-swap
@@ -900,10 +917,20 @@ joined fields:
 - **`efficiency_runs[]`** — **all** matching efficiency records for the PR as a per-run list with
   per-run `cost` (never newest-wins, since discarding earlier runs' cost corrupts a cost-vs-outcome
   experiment). Both slug families are resolved: `pr-<N>` directly, and the branch slug from the
-  retrospective entry's `branch` field (with a `gh` lookup fallback). Each entry also carries
-  `synthesized`, `iterations`, `run_id`, `config_fingerprint`, `telemetry_complete`, and
+  retrospective entry's `branch` field (with a `gh` lookup fallback). Each entry carries the full
+  key set `_efficiency_entry` emits: `slug`, `run_id`, `source`, `iterations`, `synthesized`, `cost`,
+  `telemetry_complete`, `config_fingerprint`,
   `harness_cost` (issue #475 — the Layer-4 floor's whole-job cost, passed through verbatim by
-  `_efficiency_entry`; `null` when the run has none, and deliberately NOT summed into `cost`).
+  `_efficiency_entry`; `null` when the run has none, and deliberately NOT summed into `cost`),
+  `permission_denials` (issue #1064 D2 — the denial-forensics object, passed through verbatim; `null`
+  when the run has none), and — since issue #1826 — the producer's whole `per_iteration` array and the
+  run-level `cut_candidate_min_dispatch`, both passed through verbatim so the cross-run roster analyzer
+  reads per-reviewer outcome by diff shape and loop position from the tracked store rather than
+  hand-querying a telemetry branch. `per_iteration` is normalized to `[]` when the record's value is
+  missing or not a list (a floor/synthesis run writes a reduced set — an empty array is an ordinary,
+  expected input), and `cut_candidate_min_dispatch` is `null` when the record has none. Older stored
+  lines predate these two keys and are left untouched; the store is a mixed file by design, and no
+  reader compares an entry's key set.
 - **`telemetry_complete`** (per efficiency run) — `true` **only** when the record is not synthesized,
   every iteration carries non-null token telemetry, and no degradation breadcrumb is present. Analyses
   exclude degraded records **by this flag** rather than silently averaging them in.
