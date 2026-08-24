@@ -202,16 +202,6 @@ def _controls_from_lines(lines):
     return tail, mid
 
 
-def read_controls(path):
-    """Return (tail, mid) controls from the on-disk file, or (None, None) if unreadable.
-    Read at verdict time, so the controls track the shipped file rather than a hardcoded
-    literal."""
-    text = _read_text(path)
-    if text is None:
-        return None, None
-    return _controls_from_lines(text.split("\n"))
-
-
 def _strip_frontmatter(text):
     """Return text with a leading YAML frontmatter block (a `---` line, its keys, a closing
     `---` line) removed. The delivered body carries no frontmatter, so the on-disk file is
@@ -225,54 +215,31 @@ def _strip_frontmatter(text):
     return text  # no closing marker — treat as no frontmatter rather than eating the body
 
 
-def _base_dir_from_body(body):
-    """Return the directory named on the delivered body's first-non-empty
-    `Base directory for this skill:` line, or None when that line is absent.
+def _split_base_dir_line(body):
+    """Scan the delivered body to its first non-empty line. When that line is the prepended
+    `Base directory for this skill:` line, return (its directory, the body with that line
+    removed); otherwise (None, the body unchanged).
 
     First-non-empty-line only: an engine root's own prose quotes the phrase (the portable
     helper-anchor rule), so scanning the whole body would match that prose, not the prepended
     line the Skill tool actually served."""
-    for ln in body.split("\n"):
+    lines = body.split("\n")
+    for i, ln in enumerate(lines):
         s = ln.strip()
         if not s:
             continue
         if s.startswith(_BASE_DIR_PREFIX):
-            return s[len(_BASE_DIR_PREFIX):].strip()
-        return None
-    return None
+            return s[len(_BASE_DIR_PREFIX):].strip(), "\n".join(lines[i + 1:])
+        return None, body
+    return None, body
 
 
-def _skip_base_dir_line(body):
-    """Return the delivered body with its prepended base-directory line removed, so the
-    offset scan compares like against like (the on-disk text has no such line)."""
-    lines = body.split("\n")
-    for i, ln in enumerate(lines):
-        if not ln.strip():
-            continue
-        if ln.strip().startswith(_BASE_DIR_PREFIX):
-            return "\n".join(lines[i + 1:])
-        return body
-    return body
-
-
-def _lcp_len(a, b):
-    """Length of the longest common prefix of a and b — the first position at which they
-    diverge. Two identical strings return their shared length, so a whole delivery reports an
-    offset equal to the delivered text's length rather than a false divergence."""
-    n = min(len(a), len(b))
-    i = 0
-    while i < n and a[i] == b[i]:
-        i += 1
-    return i
-
-
-def _copy_comparison(body, checkout_path):
+def _copy_comparison(base_dir, checkout_path):
     """Return (outcome, reason) comparing the SKILL.md the Skill tool served (at the delivered
     body's base-directory line) against the checkout file the controls were read from. Outcomes
     are exactly identical | differing | unreadable, complete by construction. Reads the served
     copy from the base-directory line — never the checkout file twice — so a copy mismatch is
     what this comparison is able to detect."""
-    base_dir = _base_dir_from_body(body)
     if base_dir is None:
         return "unreadable", (
             "the delivered body carried no '%s' line, so the directory the Skill tool served "
@@ -322,7 +289,9 @@ def _pair_for_root(skill_name, pairs):
 
 
 def _unestablished_report(reason):
-    """A per-root report whose every measured field is unknown (no body to measure)."""
+    """A per-root report with every diagnostic field defaulted to unknown. A caller on an arm
+    that had already measured a field before a later failure (the on-disk-unreadable arm, which
+    still knows length and the copy comparison) fills those back in on the returned dict."""
     return {
         "verdict": "unestablished",
         "reason": reason,
@@ -361,10 +330,12 @@ def report_for_root(skill_name, path, pairs, note_top):
 
     # Compute length and the copy comparison BEFORE the on-disk-unreadable early return below —
     # moving them after it would drop both fields on that arm, and the report must still carry
-    # every field there (issue #1893).
+    # every field there (issue #1893). The single base-dir scan feeds both the copy comparison
+    # (the served directory) and the offset scan (the body with that line removed).
     body = pair["result_text"]
     length = len(body)
-    copy_outcome, copy_reason = _copy_comparison(body, path)
+    base_dir, delivered_body = _split_base_dir_line(body)
+    copy_outcome, copy_reason = _copy_comparison(base_dir, path)
 
     disk_text = _read_text(path)
     tail, mid = (None, None) if disk_text is None else _controls_from_lines(disk_text.split("\n"))
@@ -378,9 +349,10 @@ def report_for_root(skill_name, path, pairs, note_top):
         rep["copy_reason"] = copy_reason
         return rep
 
-    delivered_body = _skip_base_dir_line(body)
     disk_body = _strip_frontmatter(disk_text)
-    first_divergence = _lcp_len(delivered_body, disk_body)
+    # os.path.commonprefix works character-wise, so its length is the first-divergence offset;
+    # two identical strings return their shared length (a whole delivery is not a false divergence).
+    first_divergence = len(os.path.commonprefix([delivered_body, disk_body]))
     tail_present = tail in body
     interior_present = mid is not None and mid in body
 

@@ -25053,7 +25053,7 @@ assert_eq "#1618 skill-body: whole-file JSON (not JSONL) -> delivered-whole" \
 assert_eq "#1618 skill-body: partially-corrupt execution file -> unestablished (not a clean read)" \
   "unestablished" "$(sbl partial_corrupt)"
 # The on-disk control file is unreadable (a Skill pair is present, but the --root path does not
-# exist): read_controls fails, so the delivered body cannot be checked -> unestablished, never
+# exist): the on-disk control read fails, so the delivered body cannot be checked -> unestablished, never
 # collapsed onto delivered-whole. Exercised with a real Skill pair and a bogus control path.
 assert_eq "#1618 skill-body: unreadable on-disk control file -> unestablished" \
   "unestablished" \
