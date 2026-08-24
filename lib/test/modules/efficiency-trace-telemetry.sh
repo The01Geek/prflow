@@ -3937,7 +3937,7 @@ LR_CONST="$(grep -E '^ITER_EXPECTED_FIELDS=' "$LIB/efficiency-trace.sh" | sed -E
 # `shadow`, `promotion_provenance`, `parked_class_sweep`, and `park_calibration`
 # subtracted with nothing to catch their deletion. Deriving both from one list makes that
 # skew impossible by construction and makes the next conditional field a one-token edit.
-LR_CONDITIONAL_FIELDS="shadow promotion_provenance parked_class_sweep park_calibration current_step current_substep pending_dispatch reference_reads"
+LR_CONDITIONAL_FIELDS="shadow promotion_provenance parked_class_sweep park_calibration current_step current_substep pending_dispatch reference_reads dispatch_mode"
 # Built with bash parameter expansion, never `tr`: this value DECIDES which fields are
 # subtracted, and the repo's guard-class-2 rule bars deriving a selection through a
 # PATH tool the preflight does not guarantee (a missing `tr` would empty the alternation).
@@ -3991,6 +3991,16 @@ for _condf in $LR_CONDITIONAL_FIELDS; do
   assert_eq "#530/#539/#541 conditional field: $_condf present in the ### Schema block (its -Ev exclusion cannot catch a drop)" "yes" \
     "$(printf '%s\n' "$LR_SCHEMA_ALL" | grep -qx "$_condf" && echo yes || echo no)"
 done
+
+# (5c) The Step 2.6 shadow entry records its own `dispatch_mode` NESTED inside the
+#      `shadow` block, one level below the 2-space keys LR_SCHEMA_ALL extracts — so the
+#      presence loop above cannot see it, and a drop there would leave the shadow
+#      entry's dispatch provenance unrecorded with every assertion above still green.
+LR_SHADOW_KEYS="$(sed -n '/^### Schema$/,/^```$/p' "$MAXI_SKILL" | sed -n '/^  "shadow": {$/,/^  },$/p' | grep -E '^    "[A-Za-z0-9_]+":' | sed -E 's/^    "([A-Za-z0-9_]+)":.*/\1/' | sort -u)"
+assert_eq "#1850 control: LR_SHADOW_KEYS extraction is non-vacuous (carries verdict)" "yes" \
+  "$(printf '%s\n' "$LR_SHADOW_KEYS" | grep -qx 'verdict' && echo yes || echo no)"
+assert_eq "#1850: the shadow block carries its own dispatch_mode (Step 2.6 entry separately readable)" "yes" \
+  "$(printf '%s\n' "$LR_SHADOW_KEYS" | grep -qx 'dispatch_mode' && echo yes || echo no)"
 
 # (6) --self-check NEVER ABORTS on an unparseable iter file (issue #170 AC: every
 #     new path exits 0 on an unparseable iter-N.json). The script runs under
