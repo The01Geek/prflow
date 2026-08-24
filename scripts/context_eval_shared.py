@@ -14,10 +14,8 @@ while the third reported it unestablished.
 
 `_usage_value`, `_context_tokens` and `_median` keep issue #1899's strict discipline: an
 unmeasured turn, an empty population, and a non-finite number are reported unestablished
-(or raise), never collapsed onto a real 0. `RESIDENCY_KEYS` travels with `_context_tokens`
-as the
-residency-axis field set that function ranges over — it is the constant the shared
-function requires, not a sixth shared helper.
+(or raise), never collapsed onto a real 0. `RESIDENCY_KEYS` moves too, as the field set the
+shared `_context_tokens` ranges over.
 """
 
 import math
