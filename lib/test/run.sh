@@ -19619,7 +19619,7 @@ assert_eq "app-token: overview §15 positively documents the optional App (DEVFL
 # The registry and this full-suite call share the same lower-bound contract;
 # test_module_runner.py parses this operand and rejects any coupling drift.
 if ! devflow_run_full_suite_module "$LIB/test/modules/efficiency-trace-telemetry.sh" \
-  "efficiency-trace-telemetry" 942; then
+  "efficiency-trace-telemetry" 944; then
   printf 'ERROR: efficiency-trace-telemetry boundary could not record its result\n'
   exit 1
 fi
@@ -41446,7 +41446,7 @@ echo "#431 build-experiment-records.py — the unified experiment record (join)"
 # module header and its .inventory.md carry the rationale and the resulting
 # coverage-map decision; do not restate it here, so the two cannot drift.
 if ! devflow_run_full_suite_module "$LIB/test/modules/experiment-records.sh" \
-  "experiment-records" 143; then
+  "experiment-records" 165; then
   printf 'ERROR: experiment-records boundary could not record its result\n'
   exit 1
 fi

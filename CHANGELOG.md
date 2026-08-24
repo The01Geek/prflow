@@ -4,6 +4,41 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.6] — 2026-08-24
+
+### Changed
+- **Widen the implement silent-failure sweep to reach a default read of an unmeasured value.** The Phase 2.3.6 sweep's opening site list now also names a default-valued read of an absent, empty, or never-measured operand feeding a value the change measures, aggregates, or reports — a read that raises no error and skips no failing op, so the error-handling constructs the list already named never reached it. The section's existing fail-open and report-the-unverifiable rules then govern the newly-reachable site. (#1912)
+
+### Fixed
+- **Correct the embedded-`jq` gotcha in `CLAUDE.md`.** The bullet no longer claims the lint never reaches inline `jq` in workflow files: it now names shellcheck (over `.sh` files) and `actionlint` (over workflow `run:` blocks) as the two surfaces the apostrophe check reaches, keeps the still-uncaught warning about string ops on a possibly-non-string field and its `(.x | strings)` guard, and adds the `reduce`/`test()` trap where a field resolves against the line being tested rather than the accumulator unless it is bound to a variable first. (#1913)
+
+## [2.34.5] — 2026-08-24
+
+### Changed
+- **The experiment-record join now carries each run's `per_iteration` array and
+  `cut_candidate_min_dispatch` through verbatim, and reports efficiency records stranded on the
+  superseded telemetry branch.** `build-experiment-records.py`'s `_efficiency_entry` shaper passed
+  neither field into `efficiency_runs[]`, so per-reviewer/loop-position forensics never reached the
+  tracked store; the shaper now passes both through unchanged (a missing or non-list `per_iteration`
+  normalizes to `[]`). The reader's stranded-record detection previously fired only when the
+  canonical `prflow-telemetry` branch was absent and looked under the wrong path; it now fires
+  whether the canonical branch is present or absent, counts records under the pre-rename
+  `.devflow/logs/efficiency/` path the superseded branch actually uses, and names a divergent-safe
+  remedy (a copy-across, never a destructive force-push) when both branches are present. Detection
+  only — the assembler still ingests from exactly one branch and mutates no ref. (#1909)
+
+## [2.34.4] — 2026-08-24
+
+### Fixed
+- **A raw `FAIL` on an issue acceptance criterion is never stored as a `PASS`.**
+  `scripts/normalize-verdicts.py` now treats an item whose `category` is `issue_acceptance`
+  as a real-value normalization blocker. Such items satisfy the first two normalization
+  conjuncts structurally — the checklist generator defaults them to
+  `claim_provenance: generated_paraphrase` and they are never `lite`-eligible, so they always
+  run in `agent` mode — which left only the verifier's own self-reported `property_proven` /
+  `inaccuracy_scope` fields between a failing acceptance criterion and a silently stored pass
+  that Phase 4.2 rule 1 would never see. (#1907)
+
 ## [2.34.3] — 2026-08-24
 
 ### Added
