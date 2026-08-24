@@ -12,6 +12,8 @@ type: Fixed
   inside a token is still redacted while a lone `\` before a closing quote is left to the document
   it belongs to. A four-unit floor replaces the old `+`, so the bare `//` of a recorded
   `sed 's/AUTHORIZATION: basic //'` is no longer taken for a token; a run shorter than four units
-  after the header keyword is left alone, which is a deliberate narrowing of what the two
-  `Authorization` rules redact. The four redacted shapes are unchanged, and — as before — the
-  header keyword itself is rewritten to its canonical casing alongside the token. (#1921)
+  after the scheme keyword is left alone, which is a deliberate narrowing of what the two
+  `Authorization` rules redact. Each now matches its scheme keyword
+  case-insensitively per letter, as they already matched the header name, so an uppercase
+  `AUTHORIZATION: BASIC` header is redacted instead of passing through; the scheme keyword is
+  rewritten to its canonical casing alongside the token, as before. (#1921)
