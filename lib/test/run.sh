@@ -24903,10 +24903,23 @@ SBL_REVIEW="$LIB/../skills/review/SKILL.md"
 SBL_TMP="$(mktemp -d)"
 sbl_build() {  # $1 scenario -> writes $SBL_TMP/exec.jsonl; rc 0 AND non-empty on success
   python3 - "$SBL_TMP/exec.jsonl" "$1" "$SBL_REVIEW" <<'PY_SBL'
-import json, sys
+import json, os, sys
 out, scen, path = sys.argv[1], sys.argv[2], sys.argv[3]
 body = open(path, encoding="utf-8").read()
 tail = [ln.strip() for ln in body.splitlines() if ln.strip()][-1]
+# The delivered body in the wild is the file minus its YAML frontmatter with a
+# `Base directory for this skill:` line (the served dir) prepended (issue #1893). Build that
+# transform here so the offset/copy fixtures mirror the real shape rather than raw file bytes.
+review_dir = os.path.dirname(path)
+impl_dir = os.path.join(os.path.dirname(review_dir), "implement")
+def strip_fm(text):
+    lines = text.split("\n")
+    if lines and lines[0].strip() == "---":
+        for i in range(1, len(lines)):
+            if lines[i].strip() == "---":
+                return "\n".join(lines[i + 1:])
+    return text
+disk_body = strip_fm(body)
 def skill_use(name="prflow:review", uid="su1"):
     return {"type": "tool_use", "name": "Skill", "id": uid, "input": {"skill": name}}
 def result(content, uid="su1", is_error=False):
@@ -24936,6 +24949,24 @@ scenarios = {
     "no_result":   [skill_use()],
     # Parses cleanly but records no tool_use of any kind.
     "wrong_shape": [{"type": "system", "note": "no tool uses here"}],
+    # issue #1893 — a body-less result (the documented already-loaded short note): it carries
+    # NEITHER control, so it must read no-body, not a lost tail. The no-body arm is ordered
+    # ahead of the tail-loss arm precisely so this is not misreported as short-delivery.
+    "no_body":     [skill_use(), result('Skill "prflow:review" is already loaded.')],
+    # A whole delivery in the REAL transform shape: the file minus its YAML frontmatter with a
+    # `Base directory for this skill:` line (the served dir) prepended. The copy comparison reads
+    # that dir's SKILL.md — here the real review dir, so it is byte-identical to the control.
+    "whole_basedir":  [skill_use(),
+                       result("Base directory for this skill: %s\n%s" % (review_dir, disk_body))],
+    # A whole delivery with NO base-dir line, delivered byte-for-byte equal to the on-disk file
+    # minus frontmatter: the first-divergence offset must equal the delivered length (no false
+    # divergence), and the copy comparison is unreadable (no base-dir line names a served dir).
+    "whole_identical":[skill_use(), result(disk_body)],
+    # A whole delivery whose base-dir line names a DIFFERENT skill dir (implement), whose SKILL.md
+    # differs from the review control: the copy comparison must report `differing`, proving it
+    # reads the served copy rather than the checkout control twice.
+    "differing_copy": [skill_use(),
+                       result("Base directory for this skill: %s\n%s" % (impl_dir, disk_body))],
 }
 if scen == "unparseable":
     open(out, "w", encoding="utf-8").write("{ not json at all\n")
@@ -24971,6 +25002,10 @@ sbl() {  # $1 scenario -> the first per-root VERDICT token (single-root fixtures
     *'VERDICT: '*) local _v="${_out#*'VERDICT: '}"; printf '%s' "${_v%%$'\n'*}" ;;
     *) printf 'NO_VERDICT' ;;
   esac
+}
+sbl_out() {  # $1 scenario -> the helper's full stdout for the single review root (issue #1893)
+  if ! sbl_build "$1"; then printf 'FIXTURE_BUILD_FAILED'; return 0; fi
+  python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" 2>/dev/null
 }
 # NEGATIVE CONTROL — an unrecognised scenario must FAIL the build, or the sweep is vacuous.
 assert_eq "#1618 skill-body: an unrecognised fixture scenario fails the build" "failed" \
@@ -25042,6 +25077,53 @@ assert_eq "#1618 skill-body: empty selection prints NO-ROOTS, not a clean pass" 
   "$(python3 "$SBL" "$SBL_TMP/exec.jsonl" 2>/dev/null | grep -q 'AUDIT: NO-ROOTS' && echo yes || echo no)"
 assert_eq "#1618 skill-body: empty selection prints no delivered-whole verdict" "yes" \
   "$(python3 "$SBL" "$SBL_TMP/exec.jsonl" 2>/dev/null | grep -q 'VERDICT: delivered-whole' && echo no || echo yes)"
+
+# issue #1893 — the no-body verdict arm and the per-root diagnostic fields.
+# A body-less result (neither control present) is `no-body`, NOT a lost tail — the bug this
+# arm fixes. short_tail above (tail absent, interior PRESENT) still reads short-delivery, so
+# the new arm does not swallow a genuine tail loss.
+assert_eq "#1618 skill-body: body-less result (neither control) -> no-body" \
+  "no-body" "$(sbl no_body)"
+# The four-value vocabulary is complete: delivered-whole / short-delivery / no-body /
+# unestablished are each exercised across the arms above and here.
+
+# Per-root diagnostic fields print for every root (issue #1893). A whole delivery prints each.
+assert_eq "#1618 skill-body: a delivery prints the LENGTH field" "yes" \
+  "$(sbl_out whole | grep -q '^LENGTH : [0-9]* chars' && echo yes || echo no)"
+assert_eq "#1618 skill-body: a delivery prints the FIRST-DIVERGENCE field" "yes" \
+  "$(sbl_out whole | grep -q '^FIRST-DIVERGENCE: offset [0-9]*' && echo yes || echo no)"
+assert_eq "#1618 skill-body: a delivery prints the TAIL-CONTROL field" "yes" \
+  "$(sbl_out whole | grep -q '^TAIL-CONTROL: present' && echo yes || echo no)"
+assert_eq "#1618 skill-body: a delivery prints the INTERIOR-CONTROL field" "yes" \
+  "$(sbl_out whole | grep -q '^INTERIOR-CONTROL: present' && echo yes || echo no)"
+
+# The copy comparison — identical | differing | unreadable, complete by construction.
+# whole_basedir names the REAL review dir, so the served copy is byte-identical to the control.
+assert_eq "#1618 skill-body: base-dir names the real served dir -> COPY identical" "yes" \
+  "$(sbl_out whole_basedir | grep -q '^COPY   : identical' && echo yes || echo no)"
+# differing_copy names a DIFFERENT skill dir whose SKILL.md differs — proving the comparison
+# reads the served copy rather than the checkout control twice.
+assert_eq "#1618 skill-body: base-dir names a differing SKILL.md -> COPY differing" "yes" \
+  "$(sbl_out differing_copy | grep -q '^COPY   : differing' && echo yes || echo no)"
+# whole_identical carries NO base-dir line: the copy comparison is unreadable, and — per the AC
+# — every OTHER field still prints for that root.
+assert_eq "#1618 skill-body: no base-dir line -> COPY unreadable" "yes" \
+  "$(sbl_out whole_identical | grep -q '^COPY   : unreadable' && echo yes || echo no)"
+assert_eq "#1618 skill-body: no base-dir line still prints LENGTH+offset+both controls" "yes" \
+  "$(_o="$(sbl_out whole_identical)"; \
+    echo "$_o" | grep -q '^LENGTH : [0-9]* chars' \
+    && echo "$_o" | grep -q '^FIRST-DIVERGENCE: offset [0-9]*' \
+    && echo "$_o" | grep -q '^TAIL-CONTROL: present' \
+    && echo "$_o" | grep -q '^INTERIOR-CONTROL: present' \
+    && echo yes || echo no)"
+# A body byte-identical to the on-disk transformed text reports a first-divergence offset
+# EQUAL to its delivered length — a whole delivery is not a false divergence. Both numbers are
+# extracted with pure parameter expansion (no tr/sed/cut, per CLAUDE.md guard-class 2).
+assert_eq "#1618 skill-body: identical body -> first-divergence offset == delivered length" "yes" \
+  "$(_o="$(sbl_out whole_identical)"; \
+    _len="${_o#*$'\nLENGTH : '}"; _len="${_len%% chars*}"; \
+    _off="${_o#*$'\nFIRST-DIVERGENCE: offset '}"; _off="${_off%%$'\n'*}"; \
+    [ -n "$_len" ] && [ "$_len" = "$_off" ] && echo yes || echo no)"
 
 # COUPLED SITES: the two workflow jobs and the helper are one contract. Each job must load
 # the prflow plugin, capture the full output, invoke the helper, and audit BOTH engine roots
