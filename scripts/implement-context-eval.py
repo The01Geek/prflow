@@ -96,9 +96,20 @@ import argparse
 import datetime
 import importlib.util
 import json
-import math
 import os
 import sys
+
+# _iter_session_files/_median/_context_tokens/_usage_value/UNESTABLISHED are single-sourced
+# in scripts/context_eval_shared.py (issue #1900). Keep the sys.path insert: this file is
+# loaded by path (its test, no package parent), so the sibling import fails without it.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from context_eval_shared import (  # noqa: E402,F401
+    UNESTABLISHED,
+    _context_tokens,
+    _iter_session_files,
+    _median,
+    _usage_value,
+)
 
 # A run is bounded by `attributionSkill`, which carries the LIVE plugin namespace. That
 # namespace is renameable, and historical census rows keep whatever namespace was live
@@ -274,33 +285,6 @@ GAP_DECIMALS = 3
 # The peak-context bucket thresholds the aggregate summary reports on.
 BUCKET_200K = 200_000
 BUCKET_400K = 400_000
-# The sentinel a run-derived figure carries when the run population is empty. It is
-# NEVER a number and NEVER 0 — an unestablished measurement collapsed onto a real value
-# is the bug this instrument (like its create-issue sibling) guards against.
-UNESTABLISHED = "unestablished"
-
-
-def _median(values):
-    """Deterministic median of a NON-EMPTY list of numbers.
-
-    Refuses an empty population rather than returning 0: this module's central
-    discipline is that an unestablished measurement is never collapsed onto a real
-    value, and a primitive that answers `0` for "nothing was measured" is exactly that
-    collapse one call away from every future caller. `_median_or_unestablished` is the
-    only sanctioned empty-tolerant entry point.
-    """
-    if not values:
-        raise ValueError("median of an empty population")
-    ordered = sorted(values)
-    n = len(ordered)
-    mid = n // 2
-    if n % 2 == 1:
-        return ordered[mid]
-    # Even count: mean of the two central values. Keep an int when it divides evenly so
-    # the output stays byte-stable across runs.
-    lo, hi = ordered[mid - 1], ordered[mid]
-    total = lo + hi
-    return total // 2 if total % 2 == 0 else total / 2
 
 
 def _median_or_unestablished(values):
@@ -398,41 +382,6 @@ def _gap_stats(times):
         "max_seconds": _max_or_unestablished(gaps),
         "total_seconds": (round(sum(gaps), GAP_DECIMALS) if gaps else UNESTABLISHED),
     }
-
-
-RESIDENCY_KEYS = ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")
-
-
-def _usage_value(usage, key):
-    """One usage sub-field's ESTABLISHED token count, or None when it carries none.
-
-    None covers absent, null, bool (an int subclass, never a token count), non-numeric
-    and non-finite values. `json.loads` accepts bare Infinity/NaN and `int(inf)` raises
-    OverflowError, so the non-finite guard here (not a caught exception) is what keeps a
-    non-finite count from detonating the corpus walk (issue #1899).
-    """
-    if not isinstance(usage, dict):
-        return None
-    val = usage.get(key)
-    if isinstance(val, bool):
-        return None
-    if isinstance(val, (int, float)):
-        if isinstance(val, float) and not math.isfinite(val):
-            return None
-        return int(val)
-    return None
-
-
-def _context_tokens(usage):
-    """Residency tokens = input + cache_read + cache_creation (no output), or None.
-
-    None when NO residency sub-field carried an established count: an empty, all-null, or
-    otherwise unusable `usage` object measured nothing, and folding its 0 into a peak
-    would report an unmeasured turn as a real-looking 0 (issue #1899).
-    """
-    established = [v for v in (_usage_value(usage, k) for k in RESIDENCY_KEYS)
-                   if v is not None]
-    return sum(established) if established else None
 
 
 class RunAccumulator:
@@ -615,44 +564,6 @@ def new_skip_tally():
         # than silently reading as "not a phase file".
         "unresolvable_read_path": 0,
     }
-
-
-def _iter_session_files(corpus_root, skipped):
-    """Yield JSONL session file paths under the corpus root, deterministically.
-
-    Skips any entry whose real path escapes the corpus root (a symlink out), so the
-    eval never reads outside the supplied directory. Sorted for determinism. Both
-    walk-level drops are TALLIED and breadcrumbed, never silent.
-    """
-    root_real = os.path.realpath(corpus_root)
-    collected = []
-
-    def _on_walk_error(exc):
-        skipped["walk_error"] += 1
-        sys.stderr.write(
-            "warning: skipping unwalkable corpus directory {}: {}\n".format(
-                getattr(exc, "filename", "?"), exc
-            )
-        )
-
-    for dirpath, dirnames, filenames in os.walk(corpus_root, onerror=_on_walk_error):
-        dirnames.sort()
-        for name in sorted(filenames):
-            if not name.endswith(".jsonl"):
-                continue
-            full = os.path.join(dirpath, name)
-            real = os.path.realpath(full)
-            if real != root_real and not real.startswith(root_real + os.sep):
-                skipped["escaped_path"] += 1
-                sys.stderr.write(
-                    "warning: skipping session file escaping corpus root {}\n".format(
-                        full
-                    )
-                )
-                continue
-            collected.append(full)
-    collected.sort()
-    return collected
 
 
 def eval_corpus(corpus_root):
