@@ -30,7 +30,9 @@ silently-kept first match is the failure this ordering exists to prevent.
 
 THE CONTROLS ARE READ FROM DISK, so the helper cannot drift from the shipped file. Two
 controls per root: the file's last non-empty line (tail) and a distinctive interior
-line (mid). A body delivered whole carries both. Tail absent → the tail was lost; tail
+line (mid), where the file offers one — a file whose every non-tail line is short offers
+no mid, and the verdict reason then says only the tail was checked. A body delivered
+whole carries every control that was collected. Tail absent → the tail was lost; tail
 present but mid absent → an interior loss; a truncation/cap notice in the content →
 short delivery. This detects a lost tail and one interior point, NOT an arbitrary
 middle elision — the same failure-geometry limit the delivery record discloses.

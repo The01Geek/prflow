@@ -24914,9 +24914,7 @@ import json, os, sys
 out, scen, path, impl_path, raf_path = sys.argv[1:6]
 body = open(path, encoding="utf-8").read()
 impl_body = open(impl_path, encoding="utf-8").read()
-# Read lazily: only the two containment scenarios reference it, so every other build would
-# otherwise pay a whole-file read it never uses.
-raf_body = open(raf_path, encoding="utf-8").read() if scen.startswith("contains_name_") else ""
+raf_body = open(raf_path, encoding="utf-8").read()
 tail = [ln.strip() for ln in body.splitlines() if ln.strip()][-1]
 review_dir = os.path.dirname(path)
 impl_dir = os.path.dirname(impl_path)
@@ -25066,8 +25064,8 @@ PY_SBL
 }
 sbl_run() {  # the single invocation point for spawning THE HELPER: audit args -> its stdout
   # Route every helper spawn through this one point, or an audit site added later omits the
-  # colour neutralisation. Do not discard stderr here: callers capture stdout alone, so a
-  # helper traceback would vanish and a crash would read as a bare NO_VERDICT.
+  # colour neutralisation. Do not discard stderr in a caller either: callers capture stdout
+  # alone, so a helper traceback would vanish and a crash would read as a plain grep miss.
   NO_COLOR=1 PYTHON_COLORS=0 python3 "$SBL" "$@"
 }
 sbl_verdict_token() {  # $1 the helper's stdout -> the FIRST per-root VERDICT token
@@ -25080,11 +25078,16 @@ sbl_verdict_token() {  # $1 the helper's stdout -> the FIRST per-root VERDICT to
   esac
 }
 sbl_says() {  # $1 scenario, $2 pattern -> yes|no, whether the review root's report carries $2
-  # A build failure prints its OWN token, never 'no': inverted by sbl_denies, a 'no' would
-  # become the expected 'yes' and turn a broken fixture into a green assertion.
+  # A build OR helper failure prints its OWN token, never 'no': inverted by sbl_denies, a 'no'
+  # would become the expected 'yes' and turn a fixture or a crash into a green assertion. Gate
+  # on the helper's exit status BEFORE the grep — a crash produces no stdout, which greps as a
+  # plain miss.
   if ! sbl_build "$1"; then printf 'FIXTURE_BUILD_FAILED'; return 0; fi
-  sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" 2>/dev/null \
-    | grep -q "$2" && printf 'yes' || printf 'no'
+  local _out
+  if ! _out="$(sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW")"; then
+    printf 'HELPER_FAILED'; return 0
+  fi
+  printf '%s' "$_out" | grep -q "$2" && printf 'yes' || printf 'no'
 }
 sbl_denies() {  # the NEGATED sbl_says. A separate name, never an inverted echo pair inline:
                 # a reader must not have to spot `echo no || echo yes` to see the inversion.
@@ -25241,8 +25244,8 @@ assert_eq "#1618/#1897 skill-body: the no-input load is refused by the never-loa
 # measured, nor make either reading disagree with the single-operand one.
 assert_eq "#1618/#1897 skill-body: a duplicated --root emits one verdict per operand" "2" \
   "$(sbl_build whole >/dev/null 2>&1; sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" --root "prflow:review=$SBL_REVIEW" | grep -c 'VERDICT: delivered-whole')"
-# The no-following-body reason names the DIRECTORY that was compared, not the SKILL.md path its
-# own sentence claims to name.
+# The no-following-body reason names the DIRECTORY it compared. Do not revert the operand to the
+# --root path: the sentence says directory, and the pair below pins that it is one.
 assert_eq "#1618/#1897 skill-body: the no-following-body reason names the compared directory" "yes" \
   "$(sbl_build boundary_dir >/dev/null 2>&1; (cd "$LIB/.." && sbl_run "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=skills/review/SKILL.md") | grep -q "directory ('skills/review')" && echo yes || echo no)"
 assert_eq "#1618/#1897 skill-body: that reason no longer names the SKILL.md file path" "yes" \
@@ -25258,14 +25261,43 @@ assert_eq "#1618/#1897 skill-body: the committed real transcript records exactly
 # refused upstream and prove neither.
 assert_eq "#1618/#1897 skill-body: the real transcript binds the review root and selects its body" "yes" \
   "$(cd "$LIB/.." && sbl_run "$SBL_OBS" --tier review --root "prflow:review=skills/review/DEFINITELY-NOT-HERE.md" | grep -q 'could not be read for controls' && echo yes || echo no)"
+# ONE-CONTROL ARM. read_controls finds no interior control when every non-tail line is under 20
+# characters, so the delivered-whole reason must say only the tail was checked. Drop the
+# conditional and this goes RED — nothing else reaches that arm, since every engine root has a
+# long interior line. The scratch root lives beside the fixture's own base directory so the
+# directory match resolves.
+assert_eq "#1618/#1897 skill-body: a root with no interior control says only the tail was checked" "yes" \
+  "$(mkdir -p "$SBL_TMP/skills/review" && printf 'a\nb\nc\n' > "$SBL_TMP/skills/review/SKILL.md" && python3 - "$SBL_TMP" <<'PY_SBL_ONE'
+import json, os, sys
+root = sys.argv[1]
+body = open(os.path.join(root, "skills", "review", "SKILL.md"), encoding="utf-8").read()
+PREFIX = "Base directory for this skill: "
+recs = [
+    {"type": "assistant", "message": {"role": "assistant", "content": [
+        {"type": "tool_use", "name": "Skill", "id": "s1", "input": {"skill": "prflow:review"}}]}},
+    {"type": "user", "message": {"role": "user", "content": [
+        {"type": "tool_result", "tool_use_id": "s1", "content": "Launching skill: prflow:review"}]}},
+    {"type": "user", "message": {"role": "user", "content": [
+        {"type": "text", "text": PREFIX + os.path.join(root, "skills", "review") + "\n\n" + body}]}},
+]
+with open(os.path.join(root, "one-control.jsonl"), "w", encoding="utf-8") as fh:
+    for r in recs:
+        fh.write(json.dumps(r) + "\n")
+PY_SBL_ONE
+sbl_run "$SBL_TMP/one-control.jsonl" --tier review --root "prflow:review=$SBL_TMP/skills/review/SKILL.md" | grep -q 'only the tail was checked' && echo yes || echo no)"
+# POSITIVE CONTROL: that same fixture reaches delivered-whole, so the assertion above is the
+# one-control wording rather than a fixture the helper could not read.
+assert_eq "#1618/#1897 skill-body: the one-control fixture still reads delivered-whole" "1" \
+  "$(sbl_run "$SBL_TMP/one-control.jsonl" --tier review --root "prflow:review=$SBL_TMP/skills/review/SKILL.md" | grep -c 'VERDICT: delivered-whole')"
 # dirs_match under the WINDOWS path module. Every fixture above runs under the host's own
 # os.path, so a POSIX-only host leaves the ntpath reading unexercised — and there the
 # separator cleanup was undone by normpath, so every root read unestablished.
-sbl_dirs_match_both_modules() {  # $1 body base dir -> "<posixpath result> <ntpath result>"
+sbl_dirs_match_both_modules() {  # $1 body base dir, $2 root dir (default skills/review)
+                                 #   -> "<posixpath result> <ntpath result>"
   # dirs_match reads the module-level os.path, so swapping it is what exercises the Windows
   # reading on a POSIX host. Keep each call site below its own assertion: one spawn each buys
   # a per-case label that a fused multi-value print would cost.
-  NO_COLOR=1 PYTHON_COLORS=0 python3 - "$SBL" "$1" <<'PY_SBL_NT'
+  NO_COLOR=1 PYTHON_COLORS=0 python3 - "$SBL" "$1" "${2:-skills/review}" <<'PY_SBL_NT'
 import importlib.util, ntpath, posixpath, sys
 spec = importlib.util.spec_from_file_location("sbl", sys.argv[1])
 m = importlib.util.module_from_spec(spec)
@@ -25273,7 +25305,7 @@ spec.loader.exec_module(m)
 out = []
 for mod in (posixpath, ntpath):
     m.os.path = mod
-    out.append(str(m.dirs_match(sys.argv[2], "skills/review")))
+    out.append(str(m.dirs_match(sys.argv[2], sys.argv[3])))
 print(" ".join(out))
 PY_SBL_NT
 }
@@ -25288,6 +25320,11 @@ assert_eq "#1618/#1897 skill-body: the component-boundary guard holds under both
 # alone leaves the changed line unexercised for the host it was changed for.
 assert_eq "#1618/#1897 skill-body: a backslash-bearing runner directory resolves under both modules" "True True" \
   "$(sbl_dirs_match_both_modules 'C:\runners\work\prflow\prflow\skills\review')"
+# EMPTY-OPERAND GUARD. `.` is what root_dir_for returns for a bare-filename --root, so a blank
+# base directory against it is reachable from production. Move the emptiness test back after
+# normpath and this returns True — normpath maps "" to "." — crediting an unrelated body.
+assert_eq "#1618/#1897 skill-body: a blank base directory matches no root under either module" "False False" \
+  "$(sbl_dirs_match_both_modules '' '.')"
 
 # DIRECTORY MATCH — every fixture above builds the body's base dir from the same on-disk path
 # the --root spec names, so they drive dirs_match's equality branch only. Production never takes

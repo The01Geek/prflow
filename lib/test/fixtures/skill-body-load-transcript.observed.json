@@ -26,7 +26,10 @@
 #
 # The leading `#` line below is the scrub caveat scripts/scrub-transcript.sh prepends,
 # preserved because the helper's leading-comment tolerance is part of what this fixture
-# exercises. This is a DATED OBSERVATION OF ONE RUNNER VERSION, not a schema contract.
+# exercises. Its "treat as sensitive" wording describes the 774-record artifact it was written
+# for; the three records retained here were read in full before committing and carry a skill
+# name, a launch stub and one SKILL.md body — no token, key or Authorization header.
+# This is a DATED OBSERVATION OF ONE RUNNER VERSION, not a schema contract.
 # DEVFLOW SCRUB CAVEAT: best-effort blocklist redacted GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers. This blocklist is INCOMPLETE — other third-party credential shapes may remain. Treat this artifact as sensitive.
 [
   {

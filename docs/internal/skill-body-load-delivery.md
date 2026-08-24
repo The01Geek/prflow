@@ -523,8 +523,8 @@ this approximation is close, but it is not the tier's own workflow — a row mus
    runner `ImageVersion` and the resolved `claude-code-action` version from the job log.
 
 **What falsifies a `delivered-whole` verdict**, any one of: the body record delivered for that root
-lacks the file's last non-empty line (tail lost); it lacks the distinctive interior control (an
-interior loss); or it carries a truncation/cap notice (`showing lines X-Y of Z`, `cap 25000`). Any
+lacks the file's last non-empty line (tail lost); it lacks the distinctive interior control, where the file
+offered one (an interior loss); or it carries a truncation/cap notice (`showing lines X-Y of Z`, `cap 25000`). Any
 of these makes the verdict `short-delivery`.
 
 **What makes a row `unestablished`**, in the order the helper evaluates them — exactly these six
@@ -541,8 +541,9 @@ arms, complete by construction:
 
 ### Delivery geometry this probe can and cannot distinguish (AC)
 
-The verdict rests on **two** controls read from disk: the file's last non-empty line (tail) and one
-distinctive interior line (mid). This detects a **lost tail** and **one interior point** — it does
+The verdict rests on up to **two** controls read from disk: the file's last non-empty line (tail)
+and one distinctive interior line (mid), where the file offers one — a file whose every non-tail
+line is short offers no mid, and the verdict reason then records that only the tail was checked. This detects a **lost tail** and **one interior point** — it does
 **not** exclude an arbitrary middle elision that spares both controls. A `delivered-whole` verdict
 here therefore means "the tail and one interior anchor arrived", never "every byte between them
 arrived". This is the same failure-geometry limit session A discloses for its single tail control,
