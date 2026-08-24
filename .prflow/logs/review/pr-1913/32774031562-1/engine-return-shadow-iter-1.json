@@ -1,0 +1,49 @@
+{
+  "dispatch_mode": "fanned-out",
+  "verdict": "APPROVE",
+  "report": "Shadow re-review of PR #1913 (issue #1905). Documentation-only diff: one rewritten embedded-jq gotcha bullet in CLAUDE.md plus one new .changeset/issue-1905-embedded-jq-lint-surfaces.md; no executable code. Diff profile: docs/config-only, no new types, no test files. Phase 0.4 resolved 6 acceptance criteria from issue #1905; all six code-verifiable criteria are satisfied by the diff. Both load-bearing factual claims in the rewritten bullet were verified independently against the tree: (1) .github/workflows/ci.yml (lines 413-420) contains the raven-actions/actionlint@v2 step running shellcheck over workflow run: blocks with SHELLCHECK_OPTS excluding only SC2034, so the apostrophe-terminated-string checks (SC1073/SC1011/SC1112) fire in inline jq inside a workflow — the old 'lint never reaches the workflow YAMLs' claim is correctly retired; (2) lib/fetch-pr-context.sh (lines 573-589) holds the live reduce ($lines[0:30][]) as $l (...) using the bind-before-test pattern ($l | test(...), .fence as $f), exactly the fix the new test() trap clause names. The bullet retains the string-op-aborts-whole-filter warning and its (.x | strings) guard. No documented_falsehood introduced; the diff corrects a prior false claim rather than adding one. Phase 2 checklist verification: no failing claims. Phase 3 roster: 4 always-on agents dispatched and all returned; type-design-analyzer and pr-test-analyzer gated out (has_new_types false; no test file and docs/config-only diff). One Suggestion-level finding from the final-pass reviewer (an asserted-but-unpinned behavioral claim about actionlint coverage), below any REJECT threshold and not demotable to a defect here. Verdict: APPROVE.",
+  "phase3_findings": [
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "The claim that actionlint's bundled shellcheck catches an apostrophe-terminated single-quoted jq string in a workflow run: block is an empirical behavioral claim asserted without an in-repo pin or worked example. It is technically plausible and consistent with the pre-existing ci.yml:413 comment, so low risk, but a reader could over-rely on it as guaranteed coverage if a future config disabled run:-block shellcheck. Optional hardening only.",
+      "defect_signature": {
+        "file": "CLAUDE.md",
+        "line_range": [146, 146],
+        "kind": "other"
+      }
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "reviewers_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "per_reviewer_assessment": {
+    "prflow:code-reviewer": "APPROVE — diff is clean. All code-verifiable ACs hold; both factual claims verified against ci.yml and lib/fetch-pr-context.sh; no false-against-HEAD prose. No findings at confidence >= 80.",
+    "prflow:silent-failure-hunter": "APPROVE — documentation-only diff with no executable error-handling surface. Both new factual claims verified against ci.yml and jq semantics; the change corrects a previously false statement rather than introducing one. No silent-failure, fallback, or inert-guard concerns. No open findings (one traceability-only note that the diff resolves a prior documented_falsehood).",
+    "prflow:comment-analyzer": "APPROVE — rewritten bullet and changeset are accurate, helpful, non-misleading. Both key factual claims plus the underlying jq reduce/test() semantics verified (including an empirical jq check). No documented falsehoods. Prevention-only comment standard correctly not raised against CLAUDE.md prose.",
+    "prflow:requesting-code-review": "APPROVE — change accurately corrects the gotcha; names both real surfaces, retains the non-string-field warning and (.x | strings) guard, adds a correctly-described reduce/test() binding trap faithfully demonstrated by lib/fetch-pr-context.sh. Changeset present. One optional Suggestion: the actionlint-coverage behavioral claim is asserted but unpinned. EXTENSION-STATUS: loaded-empty resolved-root=unset."
+  },
+  "diff_profile": {
+    "classification": "docs_config_only",
+    "engine_self_modifying": false,
+    "has_new_types": false,
+    "test_files_touched": false,
+    "config_only": true,
+    "files_changed": ["CLAUDE.md", ".changeset/issue-1905-embedded-jq-lint-surfaces.md"],
+    "detect_all_audit": false
+  },
+  "phase2_fails": [],
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  }
+}

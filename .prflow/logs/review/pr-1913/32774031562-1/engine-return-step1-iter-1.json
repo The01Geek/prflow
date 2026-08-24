@@ -1,0 +1,37 @@
+{
+  "dispatch_mode": "fanned-out",
+  "verdict": "APPROVE with notes",
+  "report": "## Verdict: APPROVE with notes (accurate documentation correction; one clarity nit on the jq test() phrasing)\n\n## Issue Compliance\nReviewed against issue #1905: Correct CLAUDE.md's claim that the lint never reaches inline jq in workflow files — criteria from the `/prflow:implement` workpad comment; scope unchanged. Requirement-based checklist items are included in the verification results below.\nCriteria came from the `/prflow:implement` workpad comment — this run's authoritative set, possibly narrowed from the issue.\nNo divergence between the workpad's criteria and the issue body's.\n\n## Verification Checklist Results\n9 passed, 0 failed, 0 inconclusive — 0 via lite probe, 9 via agent.\n\n<details><summary>✅ Passed items (9 of 9) — click to expand</summary>\n\n- VC-1: The embedded-jq bullet names both surfaces the apostrophe lint reaches: .sh files through the shellcheck steps, and workflow run: blocks through actionlint. [CLAUDE.md:146]\n- VC-2: The bullet no longer states that the lint fails to reach workflow files carrying inline jq. [CLAUDE.md:146]\n- VC-3: The bullet keeps its string-op warning and names the (.x | strings) guard. [CLAUDE.md:146]\n- VC-4: The bullet names the reduce/test() accumulator-vs-line trap and the bind-before-test fix. [CLAUDE.md:146]\n- VC-5: The CLAUDE.md edit followed the correct process — per CLAUDE.md's issue-#366 autonomous-run carve-out, an implement run edits CLAUDE.md directly and records it in the workpad rather than invoking the maintenance skills mid-run; the issue-1905 workpad records this reconciliation (issue-claim audit). [CLAUDE.md]\n- VC-6: A pending changeset file (.changeset/issue-1905-embedded-jq-lint-surfaces.md) with valid bump/type front matter records the change. [.changeset/issue-1905-embedded-jq-lint-surfaces.md]\n- VC-7: CLAUDE.md's actionlint claim is true against HEAD — ci.yml lines 417-418 carry the raven-actions/actionlint@v2 step running shellcheck over run: blocks. [.github/workflows/ci.yml]\n- VC-8: The 'apostrophe caught too' claim holds — SC1073/SC1011 (severity error) survive ci.yml's --severity=warning floor. [.github/workflows/ci.yml]\n- VC-9: The changeset description matches the actual CLAUDE.md edit. [.changeset/issue-1905-embedded-jq-lint-surfaces.md]\n\n</details>\n\n## Code Review Findings\n### 🟡 Suggestion / Minor\n1. CLAUDE.md:146 — the jq test() resolution is stated more absolutely than the semantics strictly warrant. A field inside test() resolves against test()'s input `.`, which is 'the line being tested' only when the line is piped into test() (the common trap the bullet targets); if the accumulator is test()'s direct input, the field resolves against the accumulator. The claim is accurate and the remedy (bind the field to a variable first) is correct in the intended reduce-over-lines context, so this is a clarity nit, not a falsehood — consider scoping the phrasing, e.g. 'when you pipe the line into test(), a bare .field in the argument resolves against that piped line, not the accumulator.' (raised by 1/4 agents)\n\nover-grade annotation: no finding flagged\ntruthfulness sweep: no finding promoted\nintra-diff contradiction scan: no contradiction found\n\n## Verdict Criteria\n- No verification FAIL or INCONCLUSIVE → rules 1/2 not triggered.\n- Only one finding, a 🟡 Suggestion below the default `critical` threshold → no REJECT (rule 3 not triggered).\n- checklist_skipped is null (engine_self_modifying forced the full Phase 1+2 checklist), so no caveat (rule 4b).\n- Only findings below the verdict threshold present → APPROVE with notes (rule 6).\n\nThis is an accurate documentation-only correction: it replaces a false claim ('the lint never reaches the workflow YAMLs that carry inline jq') with a verified account of the two lint surfaces (shellcheck over .sh files; raven-actions/actionlint over workflow run: blocks — both present in ci.yml at HEAD), retains the valid string-op/(.x | strings) guard, and adds a technically-correct reduce/test() trap. All acceptance criteria are satisfied.",
+  "phase3_findings": [
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "CLAUDE.md:146 — the jq test() field-resolution claim is phrased absolutely ('a field named in a test() call resolves against the line being tested rather than against the accumulator') but is strictly true only when the line is piped into test(); when the accumulator is test()'s input, the field resolves against the accumulator. Accurate in the intended reduce-over-lines context and the stated fix is correct, so a clarity nit, not a falsehood. Suggest scoping the phrasing.",
+      "defect_signature": {
+        "file": "CLAUDE.md",
+        "line_range": [146, 146],
+        "kind": "style"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "not-flagged (Suggestion; over-grade scan weighs only Critical/Important/Major; claim verified true-in-context by code-reviewer and requesting-code-review, so not a documented_falsehood and not promoted by the 4.1.6 truthfulness sweep)",
+      "fix_decision": "none (standalone review — advisory; contributed_to_verdict: false, below the critical threshold)"
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  }
+}

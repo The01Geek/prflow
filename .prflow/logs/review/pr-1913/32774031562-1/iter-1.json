@@ -1,0 +1,190 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-24T20:52:44Z",
+  "fix_commit_sha": null,
+  "fix_files": [],
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "current_substep": null,
+  "dispatch_mode": "fanned-out",
+  "checklist": [
+    {
+      "id": "VC-1",
+      "claim": "bullet names both surfaces the apostrophe lint reaches",
+      "file": "CLAUDE.md",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-2",
+      "claim": "bullet no longer states lint fails to reach workflow files with inline jq",
+      "file": "CLAUDE.md",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-3",
+      "claim": "bullet keeps string-op warning and names (.x | strings) guard",
+      "file": "CLAUDE.md",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-4",
+      "claim": "bullet names reduce/test() trap and bind-before-test fix",
+      "file": "CLAUDE.md",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-5",
+      "claim": "CLAUDE.md edit followed correct process (issue #366 carve-out, recorded)",
+      "file": "CLAUDE.md",
+      "verification_mode": "agent",
+      "verdict": "PASS",
+      "raw_verdict": "INCONCLUSIVE",
+      "normalized": true
+    },
+    {
+      "id": "VC-6",
+      "claim": "pending changeset with valid front matter records the change",
+      "file": ".changeset/issue-1905-embedded-jq-lint-surfaces.md",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-7",
+      "claim": "actionlint claim true against HEAD (ci.yml 413-420)",
+      "file": ".github/workflows/ci.yml",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-8",
+      "claim": "apostrophe-caught-too claim holds (SC1073/SC1011 survive --severity=warning)",
+      "file": ".github/workflows/ci.yml",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    },
+    {
+      "id": "VC-9",
+      "claim": "changeset description matches actual CLAUDE.md edit",
+      "file": ".changeset/issue-1905-embedded-jq-lint-surfaces.md",
+      "verification_mode": "agent",
+      "verdict": "PASS"
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": true,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "CLAUDE.md:146 — jq test() field-resolution phrasing more absolute than the semantics strictly warrant; accurate in the intended reduce-over-lines context and the stated fix is correct (clarity nit, not a falsehood).",
+      "defect_signature": {
+        "file": "CLAUDE.md",
+        "line_range": [
+          146,
+          146
+        ],
+        "kind": "style"
+      },
+      "corroboration_count": 1,
+      "step25_classification": "not-flagged (Suggestion; verified true-in-context)",
+      "fix_decision": "below-threshold"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "below-threshold",
+      "source_file": "CLAUDE.md",
+      "claim_text": "jq test() field-resolution phrasing is more absolute than the semantics strictly warrant",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    }
+  ],
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "parked_class_sweep": {
+    "classes": [
+      {
+        "source_finding_ids": [
+          "F-1"
+        ],
+        "kind_literal": "style",
+        "sites_examined": [
+          "CLAUDE.md:146",
+          ".changeset/issue-1905-embedded-jq-lint-surfaces.md"
+        ],
+        "new_siblings": []
+      }
+    ],
+    "truncation": null,
+    "dispatch": "verified"
+  },
+  "shadow": {
+    "dispatch_mode": "fanned-out",
+    "ran_at": "2026-08-24T20:52:44Z",
+    "reviewed_sha": "83dfc6c7036f448969a2c8afe774466065a9d2c1",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:requesting-code-review",
+        "severity": "Suggestion",
+        "description": "actionlint-coverage claim asserted but unpinned; optional hardening only.",
+        "defect_signature": {
+          "file": "CLAUDE.md",
+          "line_range": [
+            146,
+            146
+          ],
+          "kind": "other"
+        }
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 1,
+      "overlap_with_iter_N": 0,
+      "new": 1,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "park_calibration": {
+    "evidence_comparisons": []
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
