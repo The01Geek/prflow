@@ -59,6 +59,8 @@ Dispatch barrier. Every subagent dispatch described here is bound by the dispatc
 
 Split the *agent* items into batches of up to 8; launch each batch's agents in parallel via multiple Agent tool calls in one message.
 
+A self-assessed budget or context state may not lower the number of items dispatched here. A run cannot establish its own remaining context on any tier, so that belief is an unestablished measurement, never a reason to verify fewer items than the checklist holds: dispatch every agent item. A run that believes it is out of budget performs the dispatch, or stops at a non-terminal/`Blocked` status naming the step it did not perform — never a narrowed pass. This binds the local and cloud tiers identically.
+
 Use the Agent tool with `subagent_type: "prflow:checklist-verifier"` for each item. Resolve overrides for `prflow:checklist-verifier` once per Phase 2 per Per-Subagent Model/Effort Overrides above, applying any resolved `model` to the dispatch's Agent-tool `model` override.
 
 Pass the following prompt for each:

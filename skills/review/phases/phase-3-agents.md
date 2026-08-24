@@ -44,6 +44,8 @@ Resolve overrides for the Phase-3 roster first. After the Phase 3.1 applicabilit
 
 Phase 3 always re-runs on every iteration of the fix loop. NEVER skip Phase 3 on a later iteration because "the fix didn't touch any flagged file".
 
+A self-assessed budget or context state may not drop an agent from this roster or lower the number of agents launched. A run cannot establish its own remaining context on any tier, so that belief is an unestablished measurement, never a reason to launch fewer than the resolved roster: launch every agent the applicability gates selected. A run that believes it is out of budget performs the dispatch, or stops at a non-terminal/`Blocked` status naming the step it did not perform — never a narrowed pass. This binds the local and cloud tiers identically. Reducing the roster by diff shape (the `pr-test-analyzer` predicate) or fix-loop iteration (`iterations: "first-only"`) is a different, sanctioned mechanism; a self-assessed budget is not one.
+
 Prior-findings context (fix-loop callers only). When invoked by `/prflow:review-and-fix` on iteration N≥2, prepend the following block to every Phase 3 agent's prompt (between the standard task description and the `defect_signature` paragraph). The caller supplies iter-(N-1)'s `phase3_findings` from the workpad:
 
 ```
