@@ -1,0 +1,54 @@
+{
+  "iter": 2,
+  "started_at": "2026-08-24T01:56:00Z",
+  "fix_commit_sha": "c0f4d2501a0899cbc02e33c21c4075665acfc668",
+  "fix_files": [
+    "lib/test/run.sh"
+  ],
+  "loop_role": "promoted",
+  "promotion_provenance": "shadow",
+  "current_step": "loop-exit",
+  "current_substep": null,
+  "pending_dispatch": null,
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [],
+  "phase3_findings": [],
+  "fix_decisions": [
+    {
+      "finding_id": "S-1",
+      "decision": "applied",
+      "commit": "c0f4d2501a0899cbc02e33c21c4075665acfc668",
+      "evidence": "added #1618 regression guard asserting the on-disk-unreadable arm still prints a real 'LENGTH : N chars' field; mutation-checked (unestablished verdict + LENGTH 67 chars backfilled; a dropped backfill would print 'unestablished (no body delivered)' and fail the assertion)"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 1,
+    "fix_diff_lines": 8,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "refixed",
+      "reason": "shadow-promoted Important test-gap fixed with a mutation-checked regression guard; test-only delta"
+    }
+  },
+  "telemetry": {
+    "phase_3": {
+      "calls": 0,
+      "tokens": 0,
+      "wall_clock_s": 0
+    }
+  },
+  "synthesized": false
+}
