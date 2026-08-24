@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1780",
+  "generated_at": "2026-08-24T02:08:50Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.33.60",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 4.849392,
+    "tokens": {
+      "input_tokens": 28,
+      "output_tokens": 14711,
+      "cache_read_input_tokens": 1660094,
+      "cache_creation_input_tokens": 133840,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 94,
+        "outputTokens": 32224,
+        "cacheReadInputTokens": 3255944,
+        "cacheCreationInputTokens": 306152,
+        "webSearchRequests": 0,
+        "costUSD": 4.849392,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 24,
+    "duration_ms": 332275
+  },
+  "permission_denials": {
+    "count": "unavailable",
+    "tool_names": [],
+    "commands_state": "zero",
+    "commands": [],
+    "total": 0,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": false,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
