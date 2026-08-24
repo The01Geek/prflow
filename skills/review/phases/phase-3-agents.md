@@ -85,12 +85,18 @@ Agents to launch:
 ```
 Review the code changes in this PR. Read the cached diff at `{DIFF_PATH}`. Read CLAUDE.md for project conventions. Focus on CLAUDE.md compliance, bugs, and code quality. Only report issues with confidence >= 80. Per the shared `defect_signature` contract below, a diff-added/modified doc line, comment, example, or command-form whose claim is false against HEAD is a `documented_falsehood`, never a clarity Suggestion — watch for the five recurring shapes: a documented symbol or base class the code lacks; a documented command invocation the skill/CLI does not accept; a "known limitation" the same diff already fixed; an "apply this pattern to X" claim the code does not bear out; and an absolute claim (a universal — "every", "never", "always", "cannot", "is caught by the same rule") that the same diff contradicts by adding or retaining a limitation note about the same symbol it did not actually close.
 
+Head SHA: {standalone PR-number mode: $PR_HEAD_SHA (headRefOid), substituted as a literal; omitted in other modes}
+Base SHA: {standalone PR-number mode: $PR_BASE_SHA (baseRefOid), substituted as a literal; omitted in other modes}
+
 {paste the defect_signature paragraph above}
 ```
 
 **prflow:silent-failure-hunter** — prompt:
 ```
 Review the error handling in the code changes. Read the cached diff at `{DIFF_PATH}`. Read the full changed files. Check for silent failures, inadequate error handling, and inappropriate fallback behavior.
+
+Head SHA: {standalone PR-number mode: $PR_HEAD_SHA (headRefOid), substituted as a literal; omitted in other modes}
+Base SHA: {standalone PR-number mode: $PR_BASE_SHA (baseRefOid), substituted as a literal; omitted in other modes}
 
 {paste the defect_signature paragraph above}
 ```
@@ -99,6 +105,9 @@ Review the error handling in the code changes. Read the cached diff at `{DIFF_PA
 ```
 Analyze the code comments in the changes. Read the cached diff at `{DIFF_PATH}`. Check that docstrings and comments are accurate, helpful, and not misleading. Per the shared `defect_signature` contract below, a diff-added/modified doc line, comment, example, or command-form whose claim is false against HEAD is a `documented_falsehood`, never a clarity Suggestion — watch for the five recurring shapes: a documented symbol or base class the code lacks; a documented command invocation the skill/CLI does not accept; a "known limitation" the same diff already fixed; an "apply this pattern to X" claim the code does not bear out; and an absolute claim (a universal — "every", "never", "always", "cannot", "is caught by the same rule") that the same diff contradicts by adding or retaining a limitation note about the same symbol it did not actually close. Separately, apply the prevention-only comment standard, scoped to the four populations that rule binds — inline comments in library and script source, test files, module docstrings and contract headers, and workflow and YAML files — and to nothing else, so a skill or agent prose body is never a finding under it: an added comment block exceeding three physical source lines, or one whose content is derivation, provenance, or a worked example rather than the specific wrong change a competent agent would otherwise make, is a finding graded `Suggestion`. That rule's three carve-outs bind here too, so never raise this finding against a comment a tool, a licence, or a policy requires present, against a contract-header docstring's specification statement, or against a comment whose load-bearing status the diff leaves undecidable. State the grade only — issue no instruction about the verdict, which the orchestrator and the resolved severity threshold compute.
 
+Head SHA: {standalone PR-number mode: $PR_HEAD_SHA (headRefOid), substituted as a literal; omitted in other modes}
+Base SHA: {standalone PR-number mode: $PR_BASE_SHA (baseRefOid), substituted as a literal; omitted in other modes}
+
 {paste the defect_signature paragraph above}
 ```
 
@@ -106,12 +115,18 @@ Analyze the code comments in the changes. Read the cached diff at `{DIFF_PATH}`.
 ```
 Analyze test coverage for the changes. Read the cached diff at `{DIFF_PATH}`. Check if tests adequately cover new functionality and edge cases.
 
+Head SHA: {standalone PR-number mode: $PR_HEAD_SHA (headRefOid), substituted as a literal; omitted in other modes}
+Base SHA: {standalone PR-number mode: $PR_BASE_SHA (baseRefOid), substituted as a literal; omitted in other modes}
+
 {paste the defect_signature paragraph above}
 ```
 
 **prflow:type-design-analyzer** — *launched only when the `has_new_types` gate is true (see Phase 3.1 gates below), on every diff profile including `engine_self_modifying`; skipped otherwise* — prompt:
 ```
 Analyze the type design in the code changes. Read the cached diff at `{DIFF_PATH}`. Evaluate the types actually introduced or modified in this diff for encapsulation, invariant expression, usefulness, and enforcement. Do not report on pre-existing types the diff does not touch.
+
+Head SHA: {standalone PR-number mode: $PR_HEAD_SHA (headRefOid), substituted as a literal; omitted in other modes}
+Base SHA: {standalone PR-number mode: $PR_BASE_SHA (baseRefOid), substituted as a literal; omitted in other modes}
 
 {paste the defect_signature paragraph above}
 ```
