@@ -686,6 +686,39 @@ assert_eq "psr output: the complete synthetic log stays readable under the retai
 assert_eq "psr output: every one of the 25 skip entries survives in the retained log" "25" \
   "$(cd "$PSR_T6" && psr_count_matching "$PSR_BULK_LOG" "  SKIP  synthetic-skip-")"
 
+# ── run-shard.sh names the log it retained, on pass AND fail (issue #1923) ────
+# A reader who tail-piped run-shard.sh's echoed log away (CLAUDE.md's `| tail -<n>`)
+# must be able to re-read the full log rather than re-execute the shard. Drive the
+# real run-shard.sh over a synthetic run.sh (a monolith shard runs `bash <dir>/run.sh`)
+# so the shard is fast, and assert the retained-log path is named on BOTH exits.
+PSR_RS_TREE="$(mktemp -d "$PSR_ROOT/rs.XXXXXX")"
+mkdir -p "$PSR_RS_TREE/lib/test"
+cp "$LIB/test/run-shard.sh" "$PSR_RS_TREE/lib/test/run-shard.sh"
+cp "$PSR_TALLY" "$PSR_RS_TREE/lib/test/shard-tally.py"
+chmod +x "$PSR_RS_TREE/lib/test/run-shard.sh"
+cat > "$PSR_RS_TREE/lib/test/run.sh" <<'PSR_EOF'
+#!/usr/bin/env bash
+if [ -n "${PSR_RS_FAIL:-}" ]; then printf '0 passed, 1 failed\n'; exit 1; fi
+printf '1 passed, 0 failed\n'
+PSR_EOF
+chmod +x "$PSR_RS_TREE/lib/test/run.sh"
+
+PSR_RS_TALLY_PASS="$PSR_RS_TREE/tally-pass"
+PSR_RS_OUT_PASS="$(cd "$PSR_RS_TREE" && DEVFLOW_SHARD_TALLY_DIR="$PSR_RS_TALLY_PASS" \
+  bash lib/test/run-shard.sh monolith 2>&1)"
+mkdir -p "$PSR_RS_TALLY_PASS"
+PSR_RS_EXP_PASS="$(cd "$PSR_RS_TALLY_PASS" && pwd -P)/log.txt"
+assert_eq "psr run-shard: a passing shard names its retained log by absolute path" "yes" \
+  "$(case "$PSR_RS_OUT_PASS" in *"retained log: $PSR_RS_EXP_PASS"*) echo yes ;; *) echo no ;; esac)"
+
+PSR_RS_TALLY_FAIL="$PSR_RS_TREE/tally-fail"
+PSR_RS_OUT_FAIL="$(cd "$PSR_RS_TREE" && PSR_RS_FAIL=1 DEVFLOW_SHARD_TALLY_DIR="$PSR_RS_TALLY_FAIL" \
+  bash lib/test/run-shard.sh monolith 2>&1)"
+mkdir -p "$PSR_RS_TALLY_FAIL"
+PSR_RS_EXP_FAIL="$(cd "$PSR_RS_TALLY_FAIL" && pwd -P)/log.txt"
+assert_eq "psr run-shard: a failing shard names its retained log by absolute path" "yes" \
+  "$(case "$PSR_RS_OUT_FAIL" in *"retained log: $PSR_RS_EXP_FAIL"*) echo yes ;; *) echo no ;; esac)"
+
 # ── shard-tally.py --detail-cap, driven directly ─────────────────────────────
 # The coordinator only ever exercises cap 20. CI's aggregator omits the flag entirely,
 # and "CI's output is unchanged" is the guarantee that carries the whole no-regression
