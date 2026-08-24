@@ -24967,6 +24967,16 @@ scenarios = {
     # reads the served copy rather than the checkout control twice.
     "differing_copy": [skill_use(),
                        result("Base directory for this skill: %s\n%s" % (impl_dir, disk_body))],
+    # A base-dir line naming a directory with no SKILL.md: the served copy is unreadable, so the
+    # copy comparison reports `unreadable` (the served-file-missing branch, distinct from the
+    # no-base-dir-line case).
+    "basedir_missing": [skill_use(),
+                        result("Base directory for this skill: /definitely/not/here\n%s" % disk_body)],
+    # A whole delivery that matches the on-disk (frontmatter-stripped) body for its first 200 chars
+    # then DIVERGES: the first-divergence offset must be that 200, strictly less than the delivered
+    # length — a genuine mid-stream divergence, not the identical-body offset==length case.
+    "divergent":    [skill_use(),
+                     result("Base directory for this skill: %s\n%s" % (review_dir, disk_body[:200] + "@@@DIVERGE@@@" + disk_body[200:]))],
 }
 if scen == "unparseable":
     open(out, "w", encoding="utf-8").write("{ not json at all\n")
@@ -25124,6 +25134,45 @@ assert_eq "#1618 skill-body: identical body -> first-divergence offset == delive
     _len="${_o#*$'\nLENGTH : '}"; _len="${_len%% chars*}"; \
     _off="${_o#*$'\nFIRST-DIVERGENCE: offset '}"; _off="${_off%%$'\n'*}"; \
     [ -n "$_len" ] && [ "$_len" = "$_off" ] && echo yes || echo no)"
+
+# issue #1893 — a whole delivery in the realistic transform shape reads delivered-whole, and the
+# base-dir fixtures exercise the copy comparison's served-file branches.
+assert_eq "#1618 skill-body: whole delivery with a base-dir line -> delivered-whole" \
+  "delivered-whole" "$(sbl whole_basedir)"
+# The served directory exists in the base-dir line but holds no SKILL.md -> COPY unreadable (the
+# served-file-missing branch, distinct from the no-base-dir-line case above).
+assert_eq "#1618 skill-body: base-dir names a dir with no SKILL.md -> COPY unreadable" "yes" \
+  "$(sbl_out basedir_missing | grep -q '^COPY   : unreadable' && echo yes || echo no)"
+# A genuine mid-stream divergence: the first-divergence offset is strictly less than the delivered
+# length (the identical-body case above pins offset == length; this pins a real short delivery).
+assert_eq "#1618 skill-body: a mid-stream divergence -> first-divergence offset < delivered length" "yes" \
+  "$(_o="$(sbl_out divergent)"; \
+    _len="${_o#*$'\nLENGTH : '}"; _len="${_len%% chars*}"; \
+    _off="${_o#*$'\nFIRST-DIVERGENCE: offset '}"; _off="${_off%%$'\n'*}"; \
+    [ -n "$_len" ] && [ -n "$_off" ] && [ "$_off" -lt "$_len" ] && echo yes || echo no)"
+# issue #1893 — a whole delivery of an on-disk file with NO distinctive interior line (mid is None)
+# reads delivered-whole, NOT short-delivery: an interior control that does not exist is not a loss.
+# Guards the refactor regression where the `mid is not None` guard on the interior-lost arm was
+# dropped. Built inline against a tiny control file (all lines < 20 chars, so mid=None).
+assert_eq "#1618 skill-body: whole delivery of a file with no interior control -> delivered-whole" \
+  "delivered-whole" \
+  "$(python3 - "$SBL" "$SBL_TMP" <<'PY_MIDNONE'
+import json, os, subprocess, sys
+sbl, tmp = sys.argv[1], sys.argv[2]
+tiny = os.path.join(tmp, "tiny-skill.md")
+open(tiny, "w", encoding="utf-8").write("# T\nshort\ntail line\n")
+body = open(tiny, encoding="utf-8").read()
+exe = os.path.join(tmp, "exec-midnone.jsonl")
+with open(exe, "w", encoding="utf-8") as fh:
+    fh.write(json.dumps({"type": "tool_use", "name": "Skill", "id": "m1", "input": {"skill": "prflow:review"}}) + "\n")
+    fh.write(json.dumps({"type": "tool_result", "tool_use_id": "m1", "content": body, "is_error": False}) + "\n")
+out = subprocess.run([sys.executable, sbl, exe, "--tier", "review", "--root", "prflow:review=" + tiny],
+                     capture_output=True, text=True).stdout
+for ln in out.split("\n"):
+    if ln.startswith("VERDICT: "):
+        print(ln[len("VERDICT: "):].strip()); break
+PY_MIDNONE
+)"
 
 # COUPLED SITES: the two workflow jobs and the helper are one contract. Each job must load
 # the prflow plugin, capture the full output, invoke the helper, and audit BOTH engine roots

@@ -240,10 +240,10 @@ def _copy_comparison(base_dir, checkout_path):
     are exactly identical | differing | unreadable, complete by construction. Reads the served
     copy from the base-directory line — never the checkout file twice — so a copy mismatch is
     what this comparison is able to detect."""
-    if base_dir is None:
+    if not base_dir:
         return "unreadable", (
-            "the delivered body carried no '%s' line, so the directory the Skill tool served "
-            "the body from could not be identified" % _BASE_DIR_PREFIX
+            "the delivered body carried no usable '%s' directory (line absent or empty), so the "
+            "directory the Skill tool served the body from could not be identified" % _BASE_DIR_PREFIX
         )
     served_path = os.path.join(base_dir, "SKILL.md")
     try:
@@ -329,9 +329,7 @@ def report_for_root(skill_name, path, pairs, note_top):
         )
 
     # Compute length and the copy comparison BEFORE the on-disk-unreadable early return below —
-    # moving them after it would drop both fields on that arm, and the report must still carry
-    # every field there (issue #1893). The single base-dir scan feeds both the copy comparison
-    # (the served directory) and the offset scan (the body with that line removed).
+    # moving them after it drops both fields on that arm, which must still carry every field (#1893).
     body = pair["result_text"]
     length = len(body)
     base_dir, delivered_body = _split_base_dir_line(body)
@@ -350,13 +348,14 @@ def report_for_root(skill_name, path, pairs, note_top):
         return rep
 
     disk_body = _strip_frontmatter(disk_text)
-    # os.path.commonprefix works character-wise, so its length is the first-divergence offset;
-    # two identical strings return their shared length (a whole delivery is not a false divergence).
+    # commonprefix compares character-wise (not path components), so its length is the offset.
     first_divergence = len(os.path.commonprefix([delivered_body, disk_body]))
     tail_present = tail in body
-    interior_present = mid is not None and mid in body
+    interior_exists = mid is not None
+    interior_present = interior_exists and mid in body
 
-    verdict, reason = _verdict_from_signals(skill_name, body, tail_present, interior_present)
+    verdict, reason = _verdict_from_signals(
+        skill_name, body, tail_present, interior_exists, interior_present)
     return {
         "verdict": verdict,
         "reason": reason,
@@ -369,17 +368,19 @@ def report_for_root(skill_name, path, pairs, note_top):
     }
 
 
-def _verdict_from_signals(skill_name, body, tail_present, interior_present):
+def _verdict_from_signals(skill_name, body, tail_present, interior_exists, interior_present):
     """Return (verdict, reason) from the control signals. The `no-body` arm is ordered AHEAD
     of the tail-loss arm: a body carrying neither control is a no-body result (e.g. the
-    documented already-loaded short note), not a lost tail."""
+    documented already-loaded short note), not a lost tail. An interior control absent because
+    the on-disk file has none (`interior_exists` false) is never counted as a loss — matching
+    the pre-diff `mid is not None` guard, so a whole delivery of such a file stays delivered-whole."""
     for marker in _TRUNCATION_MARKERS:
         if marker in body:
             return "short-delivery", (
                 "the delivered body carried a truncation/cap notice (%r), so the Skill tool "
                 "clipped %s" % (marker, skill_name)
             )
-    if not tail_present and not interior_present:
+    if not tail_present and interior_exists and not interior_present:
         return "no-body", (
             "the delivered tool_result for %s carried NEITHER the file's last non-empty line "
             "NOR its interior control — this is a body-less result (e.g. the documented "
@@ -391,7 +392,7 @@ def _verdict_from_signals(skill_name, body, tail_present, interior_present):
             "of %s was lost (for the review root the tail is the routing/verdict-emitter "
             "region)" % skill_name
         )
-    if not interior_present:
+    if interior_exists and not interior_present:
         return "short-delivery", (
             "the delivered body contained the tail control but NOT the interior control, so "
             "%s lost content before its final line" % skill_name
