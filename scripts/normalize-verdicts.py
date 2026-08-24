@@ -95,6 +95,11 @@ when ALL hold: (1) ``verification_mode == "agent"``; (2)
 ``inaccuracy_scope == "generated_claim_text"``. No malformed shape of any class
 ever resolves to a stored PASS.
 
+An item whose ``category`` is ``issue_acceptance`` is additionally never
+normalization-eligible: such items satisfy conjuncts (1) and (2) structurally, so
+only the verifier's own self-reported auxiliary fields would stand between a raw
+FAIL on an acceptance criterion and a stored PASS.
+
 Exit codes:
     0  Helper ran (results OR bad-input report printed).
     1  Unsupported Python (< 3.11).
@@ -366,6 +371,8 @@ def _process_pair(pair):
     field_defect_blockers = []
     if mode != "agent":
         real_blockers.append("not agent")
+    if item.get("category") == "issue_acceptance":
+        real_blockers.append("issue_acceptance category")
     if provenance != "generated_paraphrase":
         if provenance == "source_authored":
             real_blockers.append("source_authored provenance")
