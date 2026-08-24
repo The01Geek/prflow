@@ -1,0 +1,41 @@
+{
+  "dispatch_mode": "fanned-out",
+  "verdict": "APPROVE",
+  "reviewers_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase2_fails": [],
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The per-key write-back test for ANTHROPIC_BASE_URL asserts the env-map value is present in $GITHUB_ENV but does not assert the dedicated-field value (BASE_URL via genv) is superseded. The warning's 'overrides the dedicated field' claim is not behaviorally re-verified; last-wins is pre-existing #1770 behavior and the new code is advisory-only, so the presence check is adequate. Optional hardening.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [134, 135], "kind": "test_gap"}
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "All new behavioral cases pass SECTION=prflow_implement; there is no added assertion that a non-provider-routed section reaches neither the warn nor deny path. Mirrors the existing #313/#1773 coverage shape (section-routing exercised elsewhere), not introduced by this PR. Optional.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [99, 195], "kind": "test_gap"}
+    }
+  ],
+  "per_reviewer_assessment": {
+    "prflow:code-reviewer": "No issues at/above the confidence threshold. Verified: watched set disjoint from deny list (AC5/AC7); step runs under set -euo pipefail so the bare-assignment comment is true (not a documented_falsehood); jq select(ascii_upcase|IN(...)) is case-folded/whole-name (AC3); warn block placed after deny guard's exit 1 (AC5 deny-before-warn); sed anchoring disambiguates the two IN(...) lines; warn additions byte-identical across three workflows (AC6). Change meets project standards; tests fail-closed on rename/typo/addition of watched keys.",
+    "prflow:silent-failure-hunter": "No error-handling defects. Bare assignment correctly propagates jq failure under set -e (no silent swallow); on success-with-no-matches join yields '' and [ -n ] suppresses the warning. sed anchoring correctly disambiguated, no key sweep. Tests are behavioral, not prose-presence. Warn-and-continue is appropriate severity with actionable message.",
+    "prflow:comment-analyzer": "No findings. All analyzed comments accurate against shipped code and compliant with the prevention-only standard (within 3-line cap, name the specific wrong change and consequence). No documented_falsehood: changeset and warning prose ('case-folded and whole-name', 'written last, so its value overrides', 'advisory and never refuses') all match the implementation.",
+    "prflow:pr-test-analyzer": "Coverage strong and non-vacuous. Every AC has a behavioral assertion through the real extracted step body under set -euo pipefail; removal of the warn block is caught multiple times. Exact-set assertion goes RED on rename/typo/addition/deletion. Byte-identity of the three workflow files is asserted by the pre-existing #313 three-way body-identity check (lib/test/run.sh:32404), covering the new block by construction. Two optional Suggestion-level hardening observations; no changes required.",
+    "prflow:requesting-code-review": "APPROVE. Every acceptance criterion confirmed against the shipped code (not just the diff): AC1-AC8 each verified with the corresponding assertion. Bare-assignment discipline correctly mirrors the #1773 deny guard; comments are load-bearing; coverage-map entry and changeset consistent; no false claims against shipped behavior. EXTENSION-STATUS: loaded-empty resolved-root=unset (helper ran verbatim, exited 0, present-empty)."
+  },
+  "report": "## Shadow Review (blinded) — PR #1919 (issue #1911)\n\n**Verdict: APPROVE**\n\n### Diff classification\n`engine_self_modifying` (lib/** touched: lib/test/run.sh, lib/test/modules/coverage-map.json) → full Phase 1+2 checklist, `checklist_skipped=null`. small_diff=false (6 files, >100 lines), config_only=false (.sh present), has_new_types=false. Phase 3 roster gated by applicability: four always-on + pr-test-analyzer (run.sh is a test file); type-design-analyzer skipped (has_new_types false).\n\n### The change\nAdds one `::warning::` block (warn, never refuse) to the byte-identical \"Inject provider endpoint\" step in `.github/workflows/{devflow,devflow-implement,devflow-runner}.yml`, firing when a provider `env` map names any of ANTHROPIC_BASE_URL / API_TIMEOUT_MS / HOME / RUNNER_TEMP. Extends the #1773 test block in `lib/test/run.sh` (and re-anchors the R1773_KEYS deny-key sed extraction to `/denied_env_keys=/` so the new second `IN(...)` line is not swept into the deny refusal loop), adds a coverage-map entry and a patch changeset. Schema/docs deferred to implement Phase 4.1 (out of this PR's scope).\n\n### Phase 2 checklist\nNo FAIL/INCONCLUSIVE items. The load-bearing claims were independently confirmed: (a) inject step runs under `set -euo pipefail`, so the bare-assignment discipline propagates a jq failure rather than swallowing it; (b) the warn block is placed strictly after the deny guard's `exit 1` (deny-before-warn); (c) the two `ascii_upcase | IN(...)` lines are disambiguated by address anchoring; (d) the three-workflow byte-identity of the new block is covered by the pre-existing #313 body-identity check.\n\n### Phase 3 findings\nTwo Suggestion-level (test_gap) observations from pr-test-analyzer, both optional hardening — no Critical or Important. No documented_falsehood: the changeset text, the warning message, and the added comments all verified true against HEAD.\n\n1. (Suggestion) ANTHROPIC_BASE_URL write-back test asserts presence but not supersession of the dedicated field; last-wins is pre-existing #1770 behavior and the new code is advisory-only. `lib/test/run.sh` ~L134-135.\n2. (Suggestion) All new cases use SECTION=prflow_implement; no added negative-section assertion. Mirrors existing coverage shape, not introduced here. `lib/test/run.sh` warn block region.\n\n### Consumer review-extension policy\n- No newly-added wording-only / prose-presence / comment-presence pin: the added test assertions are behavioral (drive the real extracted step body under bash -c), and the exact-set assertion reads the watched keys out of the live body. No `# structural-pin-ok:` needed.\n- Guard-class shapes: tr-dependence is cosmetic (key-list splitting, not selection); the vacuous-negative-test check passes (removing the warn block turns the exact-set and per-key assertions RED); probes run under the artifact's real interpreter (set -e/pipefail included in $R313_INJ_BODY).\n- Prompt-surface edit-routing gate: this PR touches none of the trigger globs → no finding.\n\n### Verdict rationale\nAll eight acceptance criteria are met and covered by executable tests that fail-closed on drift. The only findings are two optional Suggestions, below the REJECT threshold. **APPROVE.**"
+}

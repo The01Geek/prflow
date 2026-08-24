@@ -1,0 +1,53 @@
+{
+  "dispatch_mode": "fanned-out",
+  "verdict": "APPROVE with notes",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "detect_all_audit": false,
+    "checklist_skipped": null
+  },
+  "cap_drops": {"count": 0, "by_category": {}},
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "The #313/#1773/#1911 harness runs the extracted step body as `bash -c \"$R313_INJ_BODY\"` without the Actions runner's `-eo pipefail` flags, so the specific set -e silent-failure property the new workflow comment guards against ('a local/declare or if/&&/|| context lets set -e swallow a jq failure and the warning silently never fires') is not actually exercised — a future refactor wrapping the bare assignment in local/declare/if would still pass every #1911 assertion. This is a harness-wide fidelity gap the PR inherits rather than introduces. Remedy: prefix the harness invocations with `set -eo pipefail;`, or add a dedicated jq-failure-under-set-e case.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [32808, 32875], "kind": "test_gap"},
+      "step25_classification": "codebase",
+      "corroboration_count": 1,
+      "over_grade_flag": "shape-3: single-source Important from pr-test-analyzer, uncorroborated, no Phase-2 FAIL — advisory only, does not change verdict",
+      "contributed_to_verdict": true
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "No test exercises the jq-failure path of the warn assignment itself. The one non-object input ({\"env\":\"oops\"}) is intercepted by the deny guard before the warn jq ever runs, so the warn block's own jq never sees a malformed shape. Near-unreachable by construction (any .env shape failing the warn jq is already refused upstream); worth a one-line note in the test rationale rather than new coverage.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [32846, 32851], "kind": "test_gap"},
+      "step25_classification": "codebase",
+      "corroboration_count": 1,
+      "contributed_to_verdict": true
+    }
+  ],
+  "phase3_failed_agents": [],
+  "over_grade_annotations": [
+    "pr-test-analyzer Important (set -e harness fidelity) flagged suspected over-grade shape 3 (single-source, silent-failure/test agent, uncorroborated) — advisory; verdict unchanged."
+  ],
+  "truthfulness_sweep": "no finding promoted",
+  "intra_diff_contradiction_scan": "no contradiction found",
+  "issue_compliance": {
+    "issue": 1911,
+    "acceptance_criteria_source": "supplied-by-caller (changeset/issue summary; resolver not invoked on this local inline tier)",
+    "assessment": "Change satisfies AC1-AC5, AC7, AC8 as verified by code-reviewer and the final-pass reviewer: single ::warning:: naming every matched key via jq join, case-folded + whole-name (ascii_upcase | IN), env-map value still written last (advisory, never refuses), deny-before-warn ordering preserved (warn block after the deny guard's exit 1), watched set disjoint from deny set, absent/non-object .env introduces no new failure mode. Schema/docs deliberately deferred to implement Phase 4.1 (out of scope here). Three workflow copies are byte-identical."
+  },
+  "report": "## Verdict: APPROVE with notes (advisory test-fidelity gap; no blocking findings)\n\n## Issue Compliance\nReviewed against issue #1911: warn (never refuse) when a provider env map names a watched key. Criteria supplied by the caller from the changeset/issue summary (the acceptance-criteria resolver is not invoked on this local inline tier); scope unchanged for this PR (schema/docs deferred to a later implement phase). The change satisfies AC1-AC5, AC7 and AC8: a single ::warning:: names every matched key (jq join), matching is case-folded and whole-name (ascii_upcase | IN, mirroring the deny guard), the env map's value is still written last so it still takes effect (advisory, never refuses), the deny guard runs first (deny-before-warn ordering), the watched set is disjoint from the deny set, and an absent or non-object .env introduces no new failure mode.\n\n## Diff Classification\nengine_self_modifying (lib/test/run.sh + .github/workflows/**) → full checklist profile; Phase 3 roster gated by 3.1 applicability. small_diff=false (130 changed lines), config_only=false (lib/test/run.sh is .sh), has_new_types=false, detect_all_audit=false.\n\n## Code Review Findings\n### 🟠 Important / Major\n1. The #313/#1773/#1911 test harness runs the extracted workflow step body via `bash -c \"$R313_INJ_BODY\"` without the Actions runner's `-eo pipefail` flags, so the exact `set -e` silent-failure property the new workflow comment guards against is not actually exercised — a future refactor wrapping the bare assignment in local/declare/if would still pass every #1911 assertion. Harness-wide fidelity gap the PR inherits rather than introduces; remedy is to prefix invocations with `set -eo pipefail;` or add a jq-failure-under-set-e case. (raised by 1/5 agents) [suspected over-grade: shape 3 — observable fail-direction is a latent, inherited test-fidelity gap that does not affect the shipped warn behavior, milder than the Important label]\n\n### 🟡 Suggestion / Minor\n1. No test exercises the jq-failure path of the warn assignment itself; the one non-object .env input is intercepted by the deny guard before the warn jq runs, so the warn jq never sees a malformed shape. Near-unreachable by construction — worth a one-line rationale note rather than new coverage. (raised by 1/5 agents)\n\nover-grade annotation: 1 finding flagged (shape 3, advisory — verdict unchanged)\ntruthfulness sweep: no finding promoted\nintra-diff contradiction scan: no contradiction found\n\n## Verdict Criteria\nNo verification-checklist FAIL/INCONCLUSIVE; no Critical findings; no self-contradicting-diff carve-out (code-reviewer, comment-analyzer and the final-pass reviewer each confirmed the warn-block prose and the changeset are truthful against HEAD — the 'env map is written last / value overrides' claim matches the actual genv/heredoc emit ordering, and the bare-assignment set -e rationale mirrors the verified deny-guard comment). Only sub-threshold findings present at the default `critical` threshold → APPROVE with notes (rule 6).\n\n## Notes for the author (non-blocking)\n- Consider running the extracted step body under `set -eo pipefail` in the #313/#1773/#1911 harness so the set -e silent-failure invariant the new comment relies on is actually pinned (currently the comment's rationale is unenforced by the harness). This also strengthens the pre-existing #313/#1773 cases.\n- Optionally add a one-line rationale note that the warn-jq malformed-input path is unreachable because the identically-shaped deny-guard jq refuses first."
+}
