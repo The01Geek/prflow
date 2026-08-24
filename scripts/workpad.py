@@ -3936,9 +3936,10 @@ def _strip_completion_marker_rows(content: str) -> str:
 # local run that established a green required check for the commit it pushed records
 # that reading here, in a marker family DISTINCT from `completion-verification:`, so
 # a reader tells an in-env suite pass from a CI reading without inspecting any command
-# string. The payload is a base64url-unpadded JSON object carrying the four re-audit
-# fields (head SHA, check name, conclusion, run URL); it rides the same keyed-checkpoint
-# marker family, validated OFFLINE by the sibling module's `validate_implement_completion_ci`.
+# string. The payload is a base64url-unpadded JSON object carrying the re-audit fields
+# (head SHA, tier, run URL, and a checks list of name/conclusion pairs); it rides the same
+# keyed-checkpoint marker family, validated OFFLINE by the sibling module's
+# `validate_implement_completion_ci`.
 # Both the `prflow:` and superseded `devflow:` spellings are read per record (#1003).
 _COMPLETION_CI_MARKER_KEY_PREFIX = 'completion-ci:'
 # Composed from `_MARKER_NS_RE` (as the review-coverage grammars are) rather than
@@ -5403,14 +5404,24 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     ci_payload = None
     if record_ci:
         _require_arity(
-            '--record-completion-evidence-ci', record_ci, 4,
-            ('HEAD_SHA', 'CHECK_NAME', 'CONCLUSION', 'RUN_URL'))
-        _ci_head, _ci_check, _ci_concl, _ci_url = record_ci
+            '--record-completion-evidence-ci', record_ci, 3,
+            ('HEAD_SHA', 'TIER', 'RUN_URL'))
+        _ci_head, _ci_tier, _ci_url = record_ci
+        # Each --completion-ci-check pair becomes a {name, conclusion} check object; the
+        # validator refuses a record whose checks do not cover the required set or whose
+        # tier is not `local` (issue #1898). argparse's nargs=2 guarantees the pair arity
+        # from the CLI, but a programmatic caller can pass a short list, so re-check it.
+        ci_check_pairs = getattr(args, 'completion_ci_check', None) or []
+        checks = []
+        for _pair in ci_check_pairs:
+            _require_arity(
+                '--completion-ci-check', _pair, 2, ('NAME', 'CONCLUSION'))
+            checks.append({'name': _pair[0], 'conclusion': _pair[1]})
         ci_record = {
             'head_sha': _ci_head,
-            'check_name': _ci_check,
-            'conclusion': _ci_concl,
+            'tier': _ci_tier,
             'run_url': _ci_url,
+            'checks': checks,
         }
         ci_payload = _encode_ci_payload(ci_record)
         _validate_ci_evidence(args, ci_payload)
@@ -6425,23 +6436,34 @@ def main():
                         'written (replacing any prior completion-verification row). A '
                         'non-pass record aborts the whole call before any PATCH. This '
                         'marker is what a later "--status Complete" write requires.')
-    u.add_argument('--record-completion-evidence-ci', nargs=4, default=None,
-                   metavar=('HEAD_SHA', 'CHECK_NAME', 'CONCLUSION', 'RUN_URL'),
+    u.add_argument('--record-completion-evidence-ci', nargs=3, default=None,
+                   metavar=('HEAD_SHA', 'TIER', 'RUN_URL'),
                    help='Record a CI-derived completion-evidence reading (issue '
                         '#1611) — the local/interactive tier evidence family for a '
-                        'run that established a green required check for the commit it '
+                        'run that established green required checks for the commit it '
                         'pushed (issue #1607). HEAD_SHA is the full 40-lowercase-hex '
-                        'head that was read; CHECK_NAME the required check; CONCLUSION '
-                        'its conclusion (must be "success"); RUN_URL the run the '
-                        'conclusion was read from. Validated OFFLINE (no network, no '
-                        'gh): HEAD_SHA must equal git rev-parse HEAD over a clean tree, '
-                        'and CONCLUSION must be a success. Only on a pass is a hidden '
-                        '"<!-- prflow:checkpoint completion-ci:<payload> -->" ## '
-                        'Progress row written (replacing any prior completion-ci row); '
-                        'a non-pass record aborts the whole call before any PATCH. Like '
-                        'the flight marker, this satisfies a later "--status Complete" '
-                        'write — the two families are counted together and exactly one '
-                        'is required.')
+                        'head that was read; TIER must be "local" (a cloud run owes an '
+                        'in-environment result, so "cloud" is refused, issue #1898); '
+                        'RUN_URL the run the conclusions were read from. The checks read '
+                        'are supplied as one or more --completion-ci-check NAME '
+                        'CONCLUSION pairs, which must cover the required-check set '
+                        'declared in .github/workflows/ci.yml. Validated OFFLINE (no '
+                        'network, no gh): HEAD_SHA must equal git rev-parse HEAD over a '
+                        'clean tree, and every CONCLUSION must be a success. Only on a '
+                        'pass is a hidden "<!-- prflow:checkpoint completion-ci:<payload> '
+                        '-->" ## Progress row written (replacing any prior completion-ci '
+                        'row); a non-pass record aborts the whole call before any PATCH. '
+                        'Like the flight marker, this satisfies a later "--status '
+                        'Complete" write — the two families are counted together and '
+                        'exactly one is required.')
+    u.add_argument('--completion-ci-check', nargs=2, action='append', default=None,
+                   metavar=('NAME', 'CONCLUSION'),
+                   help='A required-check reading for --record-completion-evidence-ci '
+                        '(issue #1898). Repeatable: pass one NAME CONCLUSION pair per '
+                        'required check read (e.g. "lib + python tests" success). The '
+                        'recorded set must cover the required-check set declared in '
+                        '.github/workflows/ci.yml, and every CONCLUSION must be a '
+                        'success, or the --status Complete write is refused.')
     u.add_argument('--record-resume-point', default=None, metavar='TEXT',
                    help='Record this run\'s mid-phase re-anchor resume point (issue '
                         '#1876) as a hidden "<!-- prflow:checkpoint '

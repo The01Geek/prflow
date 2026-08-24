@@ -5955,8 +5955,17 @@ assert_eq "#1348 CLI: the resumed-run refusal made NO PATCH" "yes" \
 # completion-ci marker and finalizes in one --record-completion-evidence-ci call.
 S1611_ROOT="$(mktemp -d)"
 git -C "$S1611_ROOT" init -q -b main
-git -C "$S1611_ROOT" -c user.email=t@t -c user.name=t commit --allow-empty -qm init
+# A ci.yml declaring the two required checks (issue #1898) — the single declared source
+# _required_checks reads. Committed so the tree is clean for the validator's own check.
+mkdir -p "$S1611_ROOT/.github/workflows"
+printf 'jobs:\n  test:\n    # prflow:required-check\n    name: lib + python tests\n  lint:\n    # prflow:required-check\n    name: lint (shellcheck + actionlint + ruff)\n' \
+  > "$S1611_ROOT/.github/workflows/ci.yml"
+git -C "$S1611_ROOT" add -A
+git -C "$S1611_ROOT" -c user.email=t@t -c user.name=t commit -qm init
 S1611_HEAD="$(git -C "$S1611_ROOT" rev-parse HEAD)"
+# The covering --completion-ci-check pairs reused across the valid-record assertions.
+S1611_CHECKS=(--completion-ci-check "lib + python tests" success \
+              --completion-ci-check "lint (shellcheck + actionlint + ruff)" success)
 # CI body = the all-ticked shape minus the flight completion-verification marker row.
 # It (and the CLI's out/err/patchlog) live OUTSIDE the repo so its own tree stays
 # clean — the validator's `git status --porcelain` clean-tree check reads that repo.
@@ -5973,7 +5982,8 @@ run1611() {
 
 # (a) A valid CI reading records the marker and finalizes Complete (exit 0, PATCH).
 _c="$(run1611 "$S258/ci-body.md" \
-  --record-completion-evidence-ci "$S1611_HEAD" "lib + python tests" success "https://x/runs/1" \
+  --record-completion-evidence-ci "$S1611_HEAD" local "https://x/runs/1" \
+  "${S1611_CHECKS[@]}" \
   --status Complete)"
 assert_eq "#1611 CLI: a valid CI reading finalizes Complete (exit 0)" "0" "$_c"
 assert_eq "#1611 CLI: the CI finalize PATCHed Status → Complete" "yes" \
@@ -5983,7 +5993,9 @@ assert_eq "#1611 CLI: exactly one completion-ci marker, no flight marker" "yes" 
 
 # (b) A non-success conclusion is refused with NO PATCH, naming verification-not-pass.
 _c="$(run1611 "$S258/ci-body.md" \
-  --record-completion-evidence-ci "$S1611_HEAD" "lib + python tests" failure "https://x/runs/1" \
+  --record-completion-evidence-ci "$S1611_HEAD" local "https://x/runs/1" \
+  --completion-ci-check "lib + python tests" failure \
+  --completion-ci-check "lint (shellcheck + actionlint + ruff)" success \
   --status Complete)"
 assert_eq "#1611 CLI: a failure-conclusion CI record is refused (exit non-zero)" "no" \
   "$([ "$_c" = "0" ] && echo yes || echo no)"
@@ -5994,7 +6006,8 @@ assert_eq "#1611 CLI: the failure refusal names verification-not-pass" "yes" \
 
 # (c) A stale SHA (not the current head) is refused with NO PATCH, naming stale-candidate.
 _c="$(run1611 "$S258/ci-body.md" \
-  --record-completion-evidence-ci "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" "lib + python tests" success "https://x/runs/1" \
+  --record-completion-evidence-ci "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" local "https://x/runs/1" \
+  "${S1611_CHECKS[@]}" \
   --status Complete)"
 assert_eq "#1611 CLI: a stale-SHA CI record is refused (exit non-zero)" "no" \
   "$([ "$_c" = "0" ] && echo yes || echo no)"
