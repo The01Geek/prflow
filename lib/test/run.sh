@@ -24901,16 +24901,21 @@ echo "#1618 skill-body-load-probe verdict deriver"
 SBL="$LIB/../scripts/skill-body-load-probe-verdict.py"
 SBL_REVIEW="$LIB/../skills/review/SKILL.md"
 SBL_IMPLEMENT="$LIB/../skills/implement/SKILL.md"
+# review-and-fix is the root whose NAME PROPERLY CONTAINS prflow:review. Do not swap in a
+# root with an unrelated name: the containment is what arms the binding fixtures below.
+SBL_RAF="$LIB/../skills/review-and-fix/SKILL.md"
 SBL_TMP="$(mktemp -d)"
 sbl_build() {  # $1 scenario -> writes $SBL_TMP/exec.jsonl; rc 0 AND non-empty on success
-  python3 - "$SBL_TMP/exec.jsonl" "$1" "$SBL_REVIEW" "$SBL_IMPLEMENT" <<'PY_SBL'
+  python3 - "$SBL_TMP/exec.jsonl" "$1" "$SBL_REVIEW" "$SBL_IMPLEMENT" "$SBL_RAF" <<'PY_SBL'
 import json, os, sys
-out, scen, path, impl_path = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+out, scen, path, impl_path, raf_path = sys.argv[1:6]
 body = open(path, encoding="utf-8").read()
 impl_body = open(impl_path, encoding="utf-8").read()
+raf_body = open(raf_path, encoding="utf-8").read()
 tail = [ln.strip() for ln in body.splitlines() if ln.strip()][-1]
 review_dir = os.path.dirname(path)
 impl_dir = os.path.dirname(impl_path)
+raf_dir = os.path.dirname(raf_path)
 other_dir = os.path.join(os.path.dirname(review_dir), "implement")
 # The runner's own ABSOLUTE base directory, as a real transcript records it. Do not rewrite
 # these to on-disk paths: an identical pair on both sides drives only dirs_match's equality
@@ -24921,9 +24926,14 @@ PREFIX = "Base directory for this skill: "
 # These fixtures reproduce the RECORD LAYOUT of a real claude-code-action transcript: the
 # Skill tool_result is a ~30-byte launch STUB and the body arrives in the NEXT, user-role
 # record. Writing the body into the tool_result would make every assertion below vacuous.
-def skill_use(name="prflow:review", uid="su1"):
+_UNSET = object()
+def skill_use(name="prflow:review", uid="su1", input_obj=_UNSET):
+    # input_obj overrides the {"skill": name} default so a fixture can record the input
+    # shapes a real transcript can carry — an absent input, or an argument string that
+    # happens to equal another root's name.
+    inp = {"skill": name} if input_obj is _UNSET else input_obj
     return {"type": "assistant", "message": {"role": "assistant", "content": [
-        {"type": "tool_use", "name": "Skill", "id": uid, "input": {"skill": name}}]}}
+        {"type": "tool_use", "name": "Skill", "id": uid, "input": inp}]}}
 def stub(uid="su1", is_error=False, content=None):
     if content is None:
         content = "Launching skill: prflow:review"
@@ -24988,6 +24998,35 @@ scenarios = {
                     skill_use("prflow:implement", "su2"),
                     stub("su2", content="Launching skill: prflow:implement"),
                     body_rec(body)],
+    # NAME CONTAINMENT, containing load FIRST. `prflow:review` occurs inside
+    # `prflow:review-and-fix`, so a bare-substring first-match binds the review root to the
+    # review-and-fix load — whose window holds no review body — and answers unestablished.
+    "contains_name_first": [skill_use("prflow:review-and-fix", "su1"),
+                            stub("su1", content="Launching skill: prflow:review-and-fix"),
+                            body_rec(raf_body, base=raf_dir),
+                            skill_use("prflow:review", "su2"), stub("su2"), body_rec(body)],
+    # The same pair in the OTHER order. Keep both: a match that scanned in reverse, or kept the
+    # LAST match rather than the first, would resolve one order and fail the other.
+    "contains_name_second": [skill_use("prflow:review", "su1"), stub("su1"), body_rec(body),
+                             skill_use("prflow:review-and-fix", "su2"),
+                             stub("su2", content="Launching skill: prflow:review-and-fix"),
+                             body_rec(raf_body, base=raf_dir)],
+    # An ARGUMENT string that is exactly another root's name — the residue the quoted form
+    # alone leaves, since the quote marks bound this value exactly as they bound the skill's.
+    "arg_equals_other_root": [skill_use("prflow:implement", "su1",
+                                        input_obj={"skill": "prflow:implement",
+                                                   "args": "prflow:review"}),
+                              stub("su1", content="Launching skill: prflow:implement"),
+                              body_rec(impl_body, base=impl_dir)],
+    # A root recorded TWICE, the first load errored and the second delivering a whole body —
+    # the retry path. Answering from the first load alone under-reports the tier.
+    "retry_after_error": [skill_use("prflow:review", "su1"),
+                          stub("su1", is_error=True, content="permission denied"),
+                          skill_use("prflow:review", "su2"), stub("su2"), body_rec(body)],
+    # A Skill tool_use carrying NO input at all: json.dumps(None) is the bare literal `null`,
+    # which no quoted name can occur inside, so the fail-closed direction is never-loaded.
+    "null_input":  [skill_use("prflow:review", "su1", input_obj=None), stub("su1"),
+                    body_rec(body)],
 }
 if scen == "unparseable":
     open(out, "w", encoding="utf-8").write("{ not json at all\n")
@@ -25030,7 +25069,10 @@ PY_SBL
 sbl() {  # $1 scenario -> the first per-root VERDICT token (single-root fixtures)
   if ! sbl_build "$1"; then printf 'FIXTURE_BUILD_FAILED'; return 0; fi
   local _out
-  _out="$(python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" 2>/dev/null)"
+  # NO_COLOR/PYTHON_COLORS neutralise terminal colour for the child, per
+  # docs/internal/test-suite-probe-conventions.md: without them an escape sequence from a
+  # colour-forcing host lands inside the matched VERDICT token and the match silently fails.
+  _out="$(NO_COLOR=1 PYTHON_COLORS=0 python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" 2>/dev/null)"
   # Pure parameter expansion (CLAUDE.md guard-class 2: no tr/sed/cut, which would fail OPEN).
   # The audit summary line is `AUDIT: …` (not `AUDIT VERDICT:`), so the first `VERDICT: `
   # match is a per-root verdict, never the summary.
@@ -25044,7 +25086,8 @@ sbl_rel() {  # $1 scenario -> first VERDICT token, run from the repo root with a
              # dirs_match take its production suffix branch instead of the equality branch.
   if ! sbl_build "$1"; then printf 'FIXTURE_BUILD_FAILED'; return 0; fi
   local _out
-  _out="$(cd "$LIB/.." && python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=skills/review/SKILL.md" 2>/dev/null)"
+  # Same colour neutralisation as sbl() above, for the same reason.
+  _out="$(cd "$LIB/.." && NO_COLOR=1 PYTHON_COLORS=0 python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=skills/review/SKILL.md" 2>/dev/null)"
   case "$_out" in
     *'VERDICT: '*) local _v="${_out#*'VERDICT: '}"; printf '%s' "${_v%%$'\n'*}" ;;
     *) printf 'NO_VERDICT' ;;
@@ -25144,6 +25187,106 @@ assert_eq "#1618 skill-body: the late body is refused by the no-following-body a
 # is the window closing rather than a fixture the helper could not read.
 assert_eq "#1618 skill-body: the late-body fixture still records both Skill loads" "yes" \
   "$(sbl_build late_body >/dev/null 2>&1; python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" 2>/dev/null | grep -q 'recorded Skill tool_use pairs: 2' && echo yes || echo no)"
+
+# NAME BINDING (#1897) — a root binds to its OWN recorded load. `prflow:review` occurs inside
+# `prflow:review-and-fix`, so a bare-substring match binds the review root to the wrong load and
+# answers `unestablished`, wearing the costume of an honest non-result. Both roots must resolve,
+# in EITHER order of the two loads.
+for _sbl_order in contains_name_first contains_name_second; do
+  assert_eq "#1618/#1897 skill-body: a containing name does not claim the root's load ($_sbl_order)" "2" \
+    "$(sbl_build "$_sbl_order" >/dev/null 2>&1; NO_COLOR=1 PYTHON_COLORS=0 python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" --root "prflow:review-and-fix=$SBL_RAF" 2>/dev/null | grep -c 'VERDICT: delivered-whole')"
+  # POSITIVE CONTROL: both loads WERE recorded, so a red above is the binding rather than a
+  # fixture the helper could not read.
+  assert_eq "#1618/#1897 skill-body: the $_sbl_order fixture records both Skill loads" "yes" \
+    "$(sbl_build "$_sbl_order" >/dev/null 2>&1; NO_COLOR=1 PYTHON_COLORS=0 python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" 2>/dev/null | grep -q 'recorded Skill tool_use pairs: 2' && echo yes || echo no)"
+done
+# RESIDUE the quoted form does not remove: an argument string equal to another root's name is
+# quote-delimited exactly as the skill name is, so that load still matches the review root. The
+# answer stays honest because the body selection refuses it — do not "fix" this to a non-match
+# by reading a named input field, which no committed recording of a real transcript establishes.
+assert_eq "#1618/#1897 skill-body: an argument equal to another root's name yields no verdict for it" \
+  "unestablished" "$(sbl arg_equals_other_root)"
+assert_eq "#1618/#1897 skill-body: that root is refused by the no-following-body arm" "yes" \
+  "$(sbl_build arg_equals_other_root >/dev/null 2>&1; NO_COLOR=1 PYTHON_COLORS=0 python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" 2>/dev/null | grep -q 'no following body record naming its own' && echo yes || echo no)"
+# POSITIVE CONTROL on that same fixture: the load's OWN root resolves, so the refusal above is
+# the argument string failing to bind rather than a fixture the helper could not read.
+assert_eq "#1618/#1897 skill-body: that fixture's own root still resolves" "1" \
+  "$(sbl_build arg_equals_other_root >/dev/null 2>&1; NO_COLOR=1 PYTHON_COLORS=0 python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:implement=$SBL_IMPLEMENT" 2>/dev/null | grep -c 'VERDICT: delivered-whole')"
+# AMBIGUITY — more than one recorded load matches, so the root resolves to none of them. The
+# reason must NAME the ambiguity: an unestablished that reads like a genuine non-result is the
+# defect class this arm exists to end.
+assert_eq "#1618/#1897 skill-body: a root recorded twice -> unestablished" "unestablished" \
+  "$(sbl retry_after_error)"
+assert_eq "#1618/#1897 skill-body: the twice-recorded root's reason names the ambiguity" "yes" \
+  "$(sbl_build retry_after_error >/dev/null 2>&1; NO_COLOR=1 PYTHON_COLORS=0 python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" 2>/dev/null | grep -q 'recorded Skill loads name prflow:review' && echo yes || echo no)"
+# ATTRIBUTED REJECTION: the refusal is the ambiguity arm, not the error arm one step above it.
+assert_eq "#1618/#1897 skill-body: the twice-recorded root is not refused by the error arm" "yes" \
+  "$(sbl_build retry_after_error >/dev/null 2>&1; NO_COLOR=1 PYTHON_COLORS=0 python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" 2>/dev/null | grep -q 'returned an error tool_result' && echo no || echo yes)"
+# A tool_use with NO input serialises to the bare literal `null`, which no quoted name occurs
+# inside — the fail-closed direction is never-loaded, never a body credited to it.
+assert_eq "#1618/#1897 skill-body: a Skill tool_use with no input -> unestablished" "unestablished" \
+  "$(sbl null_input)"
+assert_eq "#1618/#1897 skill-body: the no-input load is refused by the never-loaded arm" "yes" \
+  "$(sbl_build null_input >/dev/null 2>&1; NO_COLOR=1 PYTHON_COLORS=0 python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" 2>/dev/null | grep -q 'no Skill tool_use naming prflow:review was recorded' && echo yes || echo no)"
+# The same --root supplied TWICE: argparse append accepts it with no uniqueness check, so the
+# audit reports that root once per operand. Two identical operands must not read as two roots
+# measured, nor make either reading disagree with the single-operand one.
+assert_eq "#1618/#1897 skill-body: a duplicated --root emits one verdict per operand" "2" \
+  "$(sbl_build whole >/dev/null 2>&1; NO_COLOR=1 PYTHON_COLORS=0 python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=$SBL_REVIEW" --root "prflow:review=$SBL_REVIEW" 2>/dev/null | grep -c 'VERDICT: delivered-whole')"
+# The no-following-body reason names the DIRECTORY that was compared, not the SKILL.md path its
+# own sentence claims to name.
+assert_eq "#1618/#1897 skill-body: the no-following-body reason names the compared directory" "yes" \
+  "$(sbl_build boundary_dir >/dev/null 2>&1; (cd "$LIB/.." && NO_COLOR=1 PYTHON_COLORS=0 python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=skills/review/SKILL.md" 2>/dev/null) | grep -q "directory ('skills/review')" && echo yes || echo no)"
+assert_eq "#1618/#1897 skill-body: that reason no longer names the SKILL.md file path" "yes" \
+  "$(sbl_build boundary_dir >/dev/null 2>&1; (cd "$LIB/.." && NO_COLOR=1 PYTHON_COLORS=0 python3 "$SBL" "$SBL_TMP/exec.jsonl" --tier review --root "prflow:review=skills/review/SKILL.md" 2>/dev/null) | grep -q "directory ('skills/review/SKILL.md')" && echo no || echo yes)"
+# PRODUCTION-REALISTIC FIXTURE (#1897) — a REAL captured transcript, not a hand-built record
+# layout. lib/test/fixtures/skill-body-load-transcript.observed.json holds the three records
+# that carry the session-C reading in docs/internal/skill-body-load-delivery.md, verbatim from
+# a published artifact: the scrub caveat line, the real `{"skill": …, "args": …}` tool_use
+# input, the launch stub, and the absolute runner base directory. Do not rebuild these from
+# the fixture builder — a fixture built from the instrument's own assumptions cannot
+# contradict the instrument, which is how this file's defect family survived a green suite.
+SBL_OBS="$LIB/fixtures/skill-body-load-transcript.observed.json"
+assert_eq "#1618/#1897 skill-body: the committed real transcript records exactly one Skill load" "yes" \
+  "$(NO_COLOR=1 PYTHON_COLORS=0 python3 "$SBL" "$SBL_OBS" --tier review --root "prflow:review=$SBL_REVIEW" 2>/dev/null | grep -q 'recorded Skill tool_use pairs: 1' && echo yes || echo no)"
+# The review root BINDS to that load and its body is selected by directory — proven by the arm
+# the refusal comes from: a missing control file INSIDE the matching directory reaches the
+# controls arm, which sits downstream of both the name binding and the directory selection.
+# A repo-relative root against the transcript's absolute runner directory is the production
+# shape, so this also drives dirs_match's suffix branch on real bytes.
+assert_eq "#1618/#1897 skill-body: the real transcript binds the review root and selects its body" "yes" \
+  "$(cd "$LIB/.." && NO_COLOR=1 PYTHON_COLORS=0 python3 "$SBL" "$SBL_OBS" --tier review --root "prflow:review=skills/review/DEFINITELY-NOT-HERE.md" 2>/dev/null | grep -q 'could not be read for controls' && echo yes || echo no)"
+# dirs_match under the WINDOWS path module. Every fixture above runs under the host's own
+# os.path, so a POSIX-only host leaves the ntpath reading unexercised — and there the
+# separator cleanup was undone by normpath, so every root read unestablished.
+assert_eq "#1618/#1897 skill-body: dirs_match resolves identically under posixpath and ntpath" "True True" \
+  "$(NO_COLOR=1 PYTHON_COLORS=0 python3 - "$SBL" <<'PY_SBL_NT'
+import importlib.util, ntpath, posixpath, sys
+spec = importlib.util.spec_from_file_location("sbl", sys.argv[1])
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+out = []
+for mod in (posixpath, ntpath):
+    m.os.path = mod
+    out.append(str(m.dirs_match("/home/runner/work/prflow/prflow/skills/review", "skills/review")))
+print(" ".join(out))
+PY_SBL_NT
+)"
+# The component-boundary guard must survive that fix on BOTH path modules, or the ntpath repair
+# would resolve `myskills/review` against a `skills/review` root.
+assert_eq "#1618/#1897 skill-body: the component-boundary guard holds under both path modules" "False False" \
+  "$(NO_COLOR=1 PYTHON_COLORS=0 python3 - "$SBL" <<'PY_SBL_NT_GUARD'
+import importlib.util, ntpath, posixpath, sys
+spec = importlib.util.spec_from_file_location("sbl", sys.argv[1])
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+out = []
+for mod in (posixpath, ntpath):
+    m.os.path = mod
+    out.append(str(m.dirs_match("/home/runner/work/prflow/prflow/myskills/review", "skills/review")))
+print(" ".join(out))
+PY_SBL_NT_GUARD
+)"
 
 # DIRECTORY MATCH — every fixture above builds the body's base dir from the same on-disk path
 # the --root spec names, so they drive dirs_match's equality branch only. Production never takes

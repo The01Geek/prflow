@@ -17,10 +17,16 @@ The tool_result is a launch stub (`Launching skill: <name>`, ~30 bytes) and is N
 body; the rendered body arrives as the following user-role text block, which opens with
 a `Base directory for this skill: <dir>` line and continues with the file minus its YAML
 frontmatter (the transformation docs/internal/skill-body-load-delivery.md records). This
-helper therefore joins each Skill tool_use to that following body record, matching `<dir>`
-against the root's own directory so a session loading several skills is disambiguated.
+helper therefore joins each Skill tool_use to that following body record.
 Reading that body and checking it against controls read FROM DISK at verdict time is an
 observation, not testimony. Measuring the stub instead can only ever yield short-delivery.
+
+DISAMBIGUATION IS TWO-STAGE, and neither stage substitutes for the other. A root is first
+bound to its own recorded LOAD by the name's quoted JSON form, so a longer name containing
+it cannot claim it and a root matching several loads resolves to none of them; the body is
+then selected within that load's window by BASE DIRECTORY, so another skill's body is never
+adjudicated as this root's. Every ambiguity is `unestablished` naming the ambiguity — a
+silently-kept first match is the failure this ordering exists to prevent.
 
 THE CONTROLS ARE READ FROM DISK, so the helper cannot drift from the shipped file. Two
 controls per root: the file's last non-empty line (tail) and a distinctive interior
@@ -128,9 +134,13 @@ def dirs_match(a, b):
     A body record carries the runner's ABSOLUTE base directory while `--root` is normally
     repo-relative, so equality alone would never match; the comparison is therefore a
     component-boundary suffix in either direction. Matching on a bare suffix without the
-    separator would let a `.../myskills/review` directory satisfy a `skills/review` root."""
-    a = os.path.normpath(a.replace("\\", "/")).rstrip("/")
-    b = os.path.normpath(b.replace("\\", "/")).rstrip("/")
+    separator would let a `.../myskills/review` directory satisfy a `skills/review` root.
+
+    Separators are normalised AFTER `normpath`, never before: on a host whose `os.path` is
+    `ntpath`, `normpath` re-inserts the backslashes an earlier cleanup removed, so the
+    suffix test below could not match and every root read `unestablished` there."""
+    a = os.path.normpath(a).replace("\\", "/").rstrip("/")
+    b = os.path.normpath(b).replace("\\", "/").rstrip("/")
     if not a or not b:
         return False
     return a == b or a.endswith("/" + b) or b.endswith("/" + a)
@@ -227,12 +237,25 @@ def read_controls(path):
     return tail, mid
 
 
-def _pair_for_root(skill_name, pairs):
-    """The Skill pair whose tool_use input names this skill, or None."""
-    for p in pairs:
-        if skill_name in p["input_text"]:
-            return p
-    return None
+def _pairs_for_root(skill_name, pairs):
+    """Every Skill pair whose recorded tool_use input names this skill.
+
+    Matched on the name's JSON string form — the surrounding quote marks included — so a
+    longer name that merely contains this one cannot claim this root's load. The quote marks
+    are the boundary because `collect_skill_pairs` serialises the whole recorded input to
+    JSON rather than reading a named field, so a complete string value inside it is
+    quote-delimited whatever its field is called.
+
+    Every match is returned rather than the first, because keeping one of several silently
+    discards a real ambiguity; the caller decides on the count."""
+    needle = json.dumps(skill_name)
+    return [p for p in pairs if needle in p["input_text"]]
+
+
+def root_dir_for(path):
+    """The skill directory a `--root` path names — the value a body record's base dir is
+    compared against, and the value the no-body reason reports."""
+    return os.path.dirname(path) or "."
 
 
 def _body_for_root(pair, path):
@@ -240,7 +263,7 @@ def _body_for_root(pair, path):
 
     Selected by base directory rather than by position, so a session that loaded several
     skills cannot have another skill's body adjudicated as this root's."""
-    root_dir = os.path.dirname(path) or "."
+    root_dir = root_dir_for(path)
     for b in pair["bodies"]:
         if dirs_match(b["base_dir"], root_dir):
             return b
@@ -251,12 +274,19 @@ def verdict_for_root(skill_name, path, pairs, note_top):
     """Return (verdict, reason) for one engine root. Degraded arms first."""
     if note_top:
         return "unestablished", "execution file could not be read cleanly: " + note_top
-    pair = _pair_for_root(skill_name, pairs)
-    if pair is None:
+    matches = _pairs_for_root(skill_name, pairs)
+    if not matches:
         return "unestablished", (
             "no Skill tool_use naming %s was recorded — the body was never loaded by "
             "this channel (skill not invoked, or refused before any body returned)" % skill_name
         )
+    if len(matches) > 1:
+        return "unestablished", (
+            "%d recorded Skill loads name %s, so this root resolves to no single load — the "
+            "ambiguity is what could not be measured, not any one of those loads (a retried "
+            "load, or an argument string equal to this root's name)" % (len(matches), skill_name)
+        )
+    pair = matches[0]
     if not pair["has_result"]:
         return "unestablished", (
             "a Skill tool_use for %s was recorded but no tool_result was paired to it, "
@@ -272,7 +302,8 @@ def verdict_for_root(skill_name, path, pairs, note_top):
         return "unestablished", (
             "the Skill load of %s was recorded but no following body record naming its own "
             "directory (%r) was found, so no delivered body could be located to measure — "
-            "the paired tool_result is a launch stub, not the body" % (skill_name, path)
+            "the paired tool_result is a launch stub, not the body"
+            % (skill_name, root_dir_for(path))
         )
     body = body_rec["text"]
     tail, mid = read_controls(path)
