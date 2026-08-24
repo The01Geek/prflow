@@ -855,8 +855,8 @@ def validate_implement_completion(
 # family: a local run that established a green required check for the commit it
 # pushed records that reading, and this validator accepts it — OFFLINE and
 # DETERMINISTICALLY. It performs no network call and no `gh` invocation: the decision
-# is a function of the record's fields, `git rev-parse HEAD`, and
-# `git status --porcelain` alone. It mints NO ninth token; every refusal maps onto
+# is a function of the record's fields, `git rev-parse HEAD`, `git status --porcelain`,
+# and the required-check set declared in `.github/workflows/ci.yml` alone. It mints NO ninth token; every refusal maps onto
 # the closed ORDERED_TOKENS set in the same first-failing-class order the flight
 # context uses (missing -> stale -> not-pass). A malformed field shape is
 # missing-evidence; a SHA that does not match the current head, or a dirty tree, is
