@@ -247,18 +247,12 @@ trap 'rm -rf "$_JQ_TMP"' EXIT
 # review_comments_count
 REVIEW_COMMENTS_COUNT="$(echo "$REVIEW_COMMENTS" | "$DEVFLOW_JQ" 'length')"
 
-# post_bot_commits: count non-merge commits AFTER the last bot/PR-author commit
-# that are positively human-attributable — author_login or committer_login is a
-# non-blank string (at least one non-whitespace character) that neither ends in
-# [bot] nor equals the [bot]-stripped PR author. Both logins blank, whitespace-
-# only, absent, or non-string are classified agent-side, never
-# human (unknown is not a human): local-tier agent commits carry a git identity
-# GitHub cannot resolve to an account, so their login returns blank and must not
-# read as human rework. The "last bot commit" anchor (below) is unchanged. Pure
-# merge commits (parents_count > 1 — `git merge main` into the PR branch) stay
-# excluded: a human merging in main is branch hygiene, not a fixup of the bot's
-# work. (Trivial *non-merge* human fixups — a one-line typo/lint commit — ARE
-# still counted: a small human correction is a real, if minor, signal.)
+# post_bot_commits: non-merge commits AFTER the last bot/PR-author commit that are
+# positively human-attributable — author_login or committer_login is a non-blank
+# string that neither ends in [bot] nor equals the [bot]-stripped PR author.
+# A blank/whitespace/absent login is classified agent-side, never human: do not
+# count one, or the engine's own local-tier fix-loop pushes read as human rework.
+# Do not drop the parents_count guard: a `git merge main` is branch hygiene.
 POST_BOT_COMMITS="$(echo "$COMMITS" | "$DEVFLOW_JQ" --arg author "$AUTHOR" '
     def ends_bot($l): (($l | type) == "string") and ($l | endswith("[bot]"));
     def is_human($l): (($l | type) == "string") and ($l | test("[^[:space:]]")) and ((ends_bot($l)) | not) and ($l != $author);

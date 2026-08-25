@@ -13703,6 +13703,13 @@ assert_eq "#1440: a post-bot commit by the PR author itself → 0 (self-exclusio
 # Coupled POSTBOT_SHAS carries the identical predicate: keep one OR-arm fixture on it too.
 assert_eq "#1440: POSTBOT_SHAS keeps a human-committer/blank-author SHA" '["A"]' \
   "$(_pbs '[{"author_login":"github-actions[bot]","committer_login":"github-actions[bot]","parents_count":1,"sha":"X"},{"author_login":"","committer_login":"alice","parents_count":1,"sha":"A"}]' someoneelse)"
+# Do not collapse the filtered tail to a boolean or a first match, and do not drop
+# the `+1` from the `[($bot_indices | last)+1:]` slice: the two fixtures below put a
+# human before the anchor and a human author ON it, so either wrong change goes RED.
+assert_eq "#1440: two distinct humans after the anchor → 2 (multiplicity, slice boundary)" "2" \
+  "$(_pbc '[{"author_login":"alice","committer_login":"alice","parents_count":1},{"author_login":"dave","committer_login":"github-actions[bot]","parents_count":1},{"author_login":"bob","committer_login":"bob","parents_count":1},{"author_login":"carol","committer_login":"carol","parents_count":1}]' someoneelse)"
+assert_eq "#1440: POSTBOT_SHAS lists both human SHAs in commit order" '["B","C"]' \
+  "$(_pbs '[{"author_login":"alice","committer_login":"alice","parents_count":1,"sha":"Z"},{"author_login":"dave","committer_login":"github-actions[bot]","parents_count":1,"sha":"Y"},{"author_login":"bob","committer_login":"bob","parents_count":1,"sha":"B"},{"author_login":"carol","committer_login":"carol","parents_count":1,"sha":"C"}]' someoneelse)"
 unset _PBC_START _PBC_PROG _PBS_START _PBS_PROG
 
 # #4 / issue #895: the /review verdict parser is now exercised by EXECUTING the
