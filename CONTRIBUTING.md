@@ -666,7 +666,10 @@ To pick the next subject to extract, run
 `lib/test/run.sh` assertion label by the dominant repository path its assertions
 name, with per-group counts, so modules are extracted subject by subject in
 descending volume rather than by the hottest label or a co-edit cluster (issue
-#1928). Pass `--json` for a machine-readable form.
+#1928). Pass `--json` for a machine-readable form. Read the `lib/test`
+meta-subject's rank skeptically: assertion strings routinely name `lib/test`
+fixture paths, so labels whose real subject is elsewhere can be over-weighted
+into that bucket.
 
 When you extract a cohesive block of `lib/test/run.sh` coverage into a new
 selectable module, complete all of the following in the same PR:

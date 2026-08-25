@@ -50,14 +50,14 @@ MAP_REL = "lib/test/modules/coverage-map.json"
 RUN_SH_REL = "lib/test/run.sh"
 UNMODULARIZED = "unmodularized"
 
-# The label a group carries when none of its assertion lines name a repository path at all.
-# A distinct sentinel keeps those labels visible instead of dropping them silently — the
-# extraction still has to account for every unmodularized label.
+# Group key for a label whose assertion lines name no repository path. Do not drop such
+# labels from the output — the extraction must account for every unmodularized label, and
+# a silently missing label reads as already extracted.
 NO_PATH_KEY = "(no repository path)"
 
-# The recognized top-level directories a repository path can start with. Defaulted to this
-# repository's tracked top-level source/doc directories; passed as a parameter so the unit
-# test drives it against a synthetic fixture without depending on the live tree.
+# The recognized top-level directories a repository path can start with. Do not inline
+# this set into _path_re — it is a parameter so the unit test drives the matcher against
+# a synthetic fixture without depending on the live tree.
 DEFAULT_TOP_DIRS = frozenset(
     {
         "skills",
@@ -286,6 +286,12 @@ def main(argv: "list[str] | None" = None) -> int:
             file=sys.stderr,
         )
         return 2
+    if not tracked:
+        print(
+            f"group_labels_by_subject: git reports no tracked files under {root}; "
+            "bare-basename mentions will not resolve (full-path mentions still group)",
+            file=sys.stderr,
+        )
     basename_index = build_basename_index(tracked)
     groups = group_labels(run_sh_text, restrict=restrict, basename_index=basename_index)
     ordered = _sorted_groups(groups)

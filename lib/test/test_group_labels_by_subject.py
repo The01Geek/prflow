@@ -15,6 +15,7 @@ import contextlib
 import importlib.util
 import io
 import json
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -114,6 +115,44 @@ class DominantSubject(unittest.TestCase):
             g.dominant_subject(["a notworkpad.pyish token"], basename_index=index),
             g.NO_PATH_KEY,
         )
+
+
+class AttributeLines(unittest.TestCase):
+    def test_comment_before_any_assertion_belongs_to_no_label(self):
+        attributed = g.attribute_lines(FIXTURE)
+        line, labels = attributed[0]  # the leading comment naming scripts/workpad.py
+        self.assertTrue(line.lstrip().startswith("#"))
+        self.assertEqual(labels, frozenset())
+
+    def test_comment_inherits_nearest_preceding_assertion_labels(self):
+        text = 'assert_eq "#101 claim" "x" "y"\n# a comment naming scripts/workpad.py'
+        attributed = g.attribute_lines(text)
+        self.assertEqual(attributed[1][1], frozenset({"101"}))
+
+    def test_unlabelled_assertion_resets_the_running_set(self):
+        text = (
+            'assert_eq "#101 claim" "x" "y"\n'
+            'assert_eq "an unlabelled claim" "x" "y"\n'
+            "# a trailing comment"
+        )
+        attributed = g.attribute_lines(text)
+        self.assertEqual(attributed[0][1], frozenset({"101"}))
+        self.assertEqual(attributed[1][1], frozenset())
+        self.assertEqual(attributed[2][1], frozenset())
+
+
+class SentinelDisjointness(unittest.TestCase):
+    def test_sentinel_cannot_be_a_derived_subject(self):
+        # A derived subject always begins with a recognized top dir (a _path_re match
+        # starts "<top-dir>/"), and the sentinel does not — expressing the invariant a
+        # future _path_re relaxation would otherwise erode silently.
+        self.assertFalse(
+            any(
+                g.NO_PATH_KEY == d or g.NO_PATH_KEY.startswith(d + "/")
+                for d in g.DEFAULT_TOP_DIRS
+            )
+        )
+        self.assertIsNone(g._path_re(g.DEFAULT_TOP_DIRS).search(g.NO_PATH_KEY))
 
 
 class BasenameIndex(unittest.TestCase):
@@ -250,6 +289,33 @@ class MainCli(unittest.TestCase):
                 rc = g.main([str(root)])
             self.assertEqual(rc, 2)
             self.assertIn("run_sh_blocks", err.getvalue())
+
+    def test_missing_run_sh_returns_2(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            _build_repo(root, coverage_map=MAIN_COVERAGE_MAP, run_sh=None)
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                rc = g.main([str(root)])
+            self.assertEqual(rc, 2)
+            # attribute the rejection to the run.sh arm, not the coverage-map arm the
+            # same fixture would hit were the map also absent
+            self.assertIn(f"cannot read {g.RUN_SH_REL}", err.getvalue())
+
+    def test_git_enumeration_failure_returns_2(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            _build_repo(root, coverage_map=MAIN_COVERAGE_MAP, run_sh=MAIN_RUN_SH)
+            # Break the repo after both file reads would succeed: a .git FILE naming a
+            # nonexistent gitdir makes `git ls-files` fail deterministically, whatever
+            # repository (if any) encloses the temp dir.
+            shutil.rmtree(root / ".git")
+            (root / ".git").write_text("gitdir: /nonexistent\n", encoding="utf-8")
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                rc = g.main([str(root)])
+            self.assertEqual(rc, 2)
+            self.assertIn("cannot enumerate tracked files", err.getvalue())
 
     def test_unreadable_coverage_map_returns_2(self):
         with tempfile.TemporaryDirectory() as d:
