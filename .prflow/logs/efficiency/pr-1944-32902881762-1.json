@@ -140,5 +140,79 @@
         }
       }
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.29",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 29.555809600000003,
+    "tokens": {
+      "input_tokens": 228,
+      "output_tokens": 92872,
+      "cache_read_input_tokens": 32378925,
+      "cache_creation_input_tokens": 394083,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 368,
+        "outputTokens": 128768,
+        "cacheReadInputTokens": 35959840,
+        "cacheCreationInputTokens": 929249,
+        "webSearchRequests": 0,
+        "costUSD": 28.486577500000003,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 70,
+        "outputTokens": 11846,
+        "cacheReadInputTokens": 2142023,
+        "cacheCreationInputTokens": 208891,
+        "webSearchRequests": 0,
+        "costUSD": 1.0692321000000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 145,
+    "duration_ms": 4176048
+  },
+  "permission_denials": {
+    "count": 14,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-unset}\"; echo \"branch=$(git branch --show-current)\"; git rev-parse HEAD",
+      "git fetch origin main 2>&1 | tail -2\necho \"=== behind/ahead ===\"\ngit rev-list --count HEAD..origin/main\ngit rev-list --count origin/main..HEAD\necho \"=== merge-base ===\"\ngit merge-base HEAD origin/main\necho \"=== actual #1827 changes (diff vs merge-base) ===\"\nMB=$(git merge-base HEAD origin/main)\ngit diff --stat $MB..HEAD",
+      "echo '{\"pr\":42,\"kind\":\"implementation\",\"additions\":120,\"deletions\":34,\"changed_files\":[\"lib/a.sh\",\"lib/b.jq\"],\"signals\":{}}' | jq -c -f lib/clean-entry.jq | jq -c '{sv:.schema_version, add:.additions, del:.deletions, cf:.changed_files, ap:(.analysis_provenance|type)}'\necho \"--- absent ---\"\necho '{\"pr\":42,\"kind\":\"implementation\",\"signals\":{}}' | jq -c -f lib/clean-entry.jq | jq -c '{add:.additions, del:.deletions, cf:.changed_files, hasAdd:(has(\"additions\"))}'\necho \"--- json valid coverage-map -- …[per-command-truncated]",
+      "echo \"RUN_ID_PART=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}\"; echo \"HEAD=$(git rev-parse HEAD)\"; echo \"PRhead:\"; gh pr view 1944 --json headRefName,headRefOid --jq '.headRefName, .headRefOid'",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1944/32902881762-1\ngit diff origin/main...HEAD --stat\necho \"=== full diff to file via git diff (merge-base) ===\"\ngit diff origin/main...HEAD > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1944/32902881762-1/diff.patch 2>&1; echo \"wrote diff rc=$?\"\nwc -l /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1944/32902881762-1/diff.patch",
+      "ls .changeset/ 2>/dev/null; echo \"---\"; head -8 $(ls .changeset/*.md 2>/dev/null | grep -v 1827 | head -1) 2>/dev/null",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/flight-input-1827.json <<'EOF'\n{\"command\": \"lib/test/run-shard.sh monolith\", \"candidate_identity\": \"ac-verifier-1827-monolith\"}\nEOF\ncat /home/runner/work/prflow/prflow/.prflow/tmp/flight-input-1827.json\npython3 /home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/verification-flight.py descriptor --input-file /home/runner/work/prflow/prflow/.prflow/tmp/flight-input-1827.json --state-di …[per-command-truncated]",
+      "python3 - <<'PYEOF'\nimport json, subprocess\nfp = json.loads(subprocess.check_output([\"python3\",\"/home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/checkout-fingerprint.py\"]))\ndecl = {\n  \"schema_version\": 1,\n  \"profile\": {\n    \"profile_version\": 1,\n    \"argv\": [\"lib/test/run-shard.sh\", \"monolith\"],\n    \"cwd\": \"/home/runner/work/prflow/prflow\",\n    \"environment\": {},\n    \"toolchain\": {},\n    \"dependencies\": {},\n    \"output_roots\": [],\n    \"external_services\": \"none\",\n    \"candidate_iden …[per-command-truncated]",
+      "python3 -c \"\nimport json\nopen('/home/runner/work/prflow/prflow/.prflow/tmp/flight-summary-1827.json','w').write(json.dumps(dict(exit_status=0, passed=9855, failed=0, skipped=0, aggregate='CLEAN', command='lib/test/run-shard.sh monolith', retained_log='/home/runner/work/prflow/prflow/.prflow/tmp/shard-tally/monolith/log.txt')))\n\"\ncat /home/runner/work/prflow/prflow/.prflow/tmp/flight-summary-1827.json\nFLIGHT=\"aa809f2faf834e8c7109e72699ec4e72f3803dda76f28586190041c0f2acd589\"\nTOKEN=\"aeb4e09ced53023 …[per-command-truncated]",
+      "cp /home/runner/work/prflow/prflow/.prflow/tmp/verification-flight-1827-dir/*.json /home/runner/work/prflow/prflow/.prflow/tmp/verification-flight-1827.json 2>&1\nls /home/runner/work/prflow/prflow/.prflow/tmp/verification-flight-1827-dir/\npython3 /home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/checkout-fingerprint.py > /home/runner/work/prflow/prflow/.prflow/tmp/current-checkout-1827.json\npython3 /home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/verification-flight.py s …[per-command-truncated]",
+      "python3 /home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/checkout-fingerprint.py > /home/runner/work/prflow/prflow/.prflow/tmp/current-checkout-1827.json",
+      ".prflow/vendor/prflow/scripts/reconcile-ac-verifiers.py --evidence-file .prflow/tmp/ac-evidence-1827.json --claim-file .prflow/tmp/ac-claim-1827.json 2>&1 | tail -50; echo \"reconcile rc=${PIPESTATUS[0]}\"",
+      "cd /home/runner/work/prflow/prflow\necho \"=== prompt-surface-growth ===\"\nscripts/prompt-surface-growth.py 2>&1 || echo \"rc=$?\"\necho \"=== deferrals ===\"\nls .prflow/tmp/review/pr-1944/deferrals.json 2>&1 || echo \"no deferrals file\"\necho \"=== workpad post-merge ===\"\nscripts/workpad.py id 1827 2>&1 || echo \"no workpad id\"",
+      "scripts/prompt-surface-growth.py 2>&1; echo \"rc=$?\""
+    ],
+    "total": 14,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
