@@ -3048,7 +3048,7 @@ def _decode_utf8(raw: bytes, flag: str, path: str) -> str:
     """Decode bytes as UTF-8, converting a `UnicodeDecodeError` (a `ValueError`
     the plain `except OSError` shape would let escape as a raw traceback) into
     the flag's clean `_UpdateError` contract. Single-sourced so the two file
-    readers below (`_read_section_file`, `_read_reflection_payload`) cannot drift
+    readers below (`_read_section_file`, `_read_file_payload`) cannot drift
     the decode-failure message shape apart."""
     try:
         return raw.decode('utf-8')
@@ -3070,27 +3070,29 @@ def _read_section_file(path: str, flag: str) -> str:
     return _decode_utf8(raw, flag, path)
 
 
-def _read_reflection_payload(path: str) -> str:
-    """Read a reflection payload for --reflection-file, bypassing shell
-    interpolation: bytes are read verbatim from a file, or from stdin when
-    `path` is `-`, and decoded via `_decode_utf8` (explicit UTF-8, no ambient
-    codec) so an em-dash or emoji round-trips byte-identical on any host. An
-    empty or whitespace-only payload is a structural failure — a blank reflection
-    bullet carries no signal — so it aborts before any PATCH. All failure modes
-    raise `_UpdateError`, so `_apply_mutations` aborts with no partial workpad
-    write."""
+def _read_file_payload(path: str, flag: str, thing: str) -> str:
+    """Read a `--*-file` bullet payload for `flag` (e.g. `--reflection-file`,
+    `--note-file`), bypassing shell interpolation: bytes are read verbatim from a
+    file, or from stdin when `path` is `-`, and decoded via `_decode_utf8`
+    (explicit UTF-8, no ambient codec) so backticks, `$`, quotes, an em-dash or an
+    emoji round-trip byte-identical on any host. An empty or whitespace-only
+    payload is a structural failure — a blank `thing` bullet carries no signal —
+    so it aborts before any PATCH. All failure modes raise `_UpdateError`, so
+    `_apply_mutations` aborts with no partial workpad write. Shared by both file
+    channels so a future fix to the read/decode/empty-guard contract cannot drift
+    one behind the other."""
     try:
         if path == '-':
             raw = sys.stdin.buffer.read()
         else:
             raw = Path(path).read_bytes()
     except OSError as e:
-        raise _UpdateError(f"--reflection-file: could not read {path!r}: {e}")
-    text = _decode_utf8(raw, '--reflection-file', path)
+        raise _UpdateError(f"{flag}: could not read {path!r}: {e}")
+    text = _decode_utf8(raw, flag, path)
     if not text.strip():
         raise _UpdateError(
-            "--reflection-file: payload is empty or whitespace-only; a "
-            "reflection bullet must carry text")
+            f"{flag}: payload is empty or whitespace-only; a "
+            f"{thing} bullet must carry text")
     return text
 
 
@@ -3103,13 +3105,29 @@ def _reflection_file_payload(args) -> str:
     when the PATCH drops it. The `-`/stdin arm can only be read once — a second read
     returns empty and would raise the empty-payload `_UpdateError` against a payload
     that was in fact fine — so the first read is cached and a later caller is served
-    from that cache. Failure modes are `_read_reflection_payload`'s unchanged
+    from that cache. Failure modes are `_read_file_payload`'s unchanged
     `_UpdateError` contract; only a SUCCESSFUL read is cached, so a caller that
     retries after a failure re-reads rather than seeing a half-populated cache."""
     cached = getattr(args, '_reflection_file_payload_cache', None)
     if cached is None:
-        cached = _read_reflection_payload(args.reflection_file)
+        cached = _read_file_payload(args.reflection_file, '--reflection-file', 'reflection')
         args._reflection_file_payload_cache = cached
+    return cached
+
+
+def _note_file_payload(args) -> str:
+    """Read `--note-file`'s payload at most once per invocation, memoized on
+    `args` — the note twin of `_reflection_file_payload` (both share
+    `_read_file_payload`). Two consumers need the SAME text:
+    `_cmd_update_inner`'s failed-write buffering (which persists the note when a
+    PATCH drops it) and `_apply_mutations`, which renders the bullet. The
+    `-`/stdin arm can only be read once, so the first read is cached and a later
+    caller is served from that cache; only a SUCCESSFUL read is cached, so a
+    caller that retries after a failure re-reads rather than seeing a stale one."""
+    cached = getattr(args, '_note_file_payload_cache', None)
+    if cached is None:
+        cached = _read_file_payload(args.note_file, '--note-file', 'note')
+        args._note_file_payload_cache = cached
     return cached
 
 
@@ -3506,6 +3524,17 @@ def _cmd_update_inner(args):
         # whole call with exit 1 and no PATCH, which is the contract that matters.
         try:
             _own_reflections.append(_reflection_file_payload(args))
+        except _UpdateError as e:
+            sys.stderr.write(f"workpad.py update: {e}\n")
+            sys.exit(1)
+    if getattr(args, 'note_file', None):
+        # A file-sourced note is buffered exactly like an inline --note, so a
+        # PATCH failure preserves it — the note twin of the --reflection-file
+        # rescue above (issue #1813 mirrors #1214). The read is memoized, so
+        # `_apply_mutations` renders from the same text without re-reading, which
+        # also keeps the `-`/stdin arm single-read.
+        try:
+            _own_notes.append(_note_file_payload(args))
         except _UpdateError as e:
             sys.stderr.write(f"workpad.py update: {e}\n")
             sys.exit(1)
@@ -4751,6 +4780,62 @@ def _review_coverage_verdict(progress_content: str) -> None:
             )
 
 
+def _extension_row_verdict(progress_content: str) -> None:
+    """The extension-row half of the terminal gate (issue #1817): a terminal
+    `--status Complete` is refused while any `_EXTENSION_ROWS` `prompt extension
+    resolved:` row is BOTH unticked AND unaccompanied by that row's sanctioned
+    `state not established` note — the same fail-open the unticked-AC hard-fail
+    closes, applied to the extension rows so an unticked row on a Complete workpad
+    means the deliberate "state not established" record issue #1462 intended rather
+    than a silent bookkeeping miss.
+
+    Each row is located in the ## Progress content by its stable substring via
+    `_CHECKBOX_ROW_RE` (the same detector `_reconcile_extension_rows` uses). A row
+    that is absent entirely is tolerated, not refused: a workpad created before the
+    rows existed (pre-#1462, never `--reconcile-extension-rows`'d) carries none of
+    them, matching the gate's existing tolerance for older workpads (an absent AC or
+    Plan section contributes nothing). A ticked row passes. An unticked row passes
+    only when ## Progress carries a note line naming that row's substring together
+    with the phrase `state not established` — keyed on the row name plus that phrase,
+    not a byte-exact match of the free-prose note.
+
+    A PURE READ, structured like `_required_artifact_verdict`: it raises a structural
+    `_UpdateError` (no PATCH — `cmd_update` aborts before the temp-file/PATCH block)
+    and mutates nothing on any path. Returns None on a clean pass."""
+    lines = progress_content.split('\n')
+    offending = []
+    for _phase, text, substr in _EXTENSION_ROWS:
+        row = next(
+            (
+                m for ln in lines
+                if (m := _CHECKBOX_ROW_RE.match(ln))
+                and substr.lower() in m.group(4).lower()
+            ),
+            None,
+        )
+        if row is None:
+            continue  # wholly-absent row → legacy workpad tolerance, never refused
+        if row.group(2) != '[ ]':
+            continue  # ticked → satisfied
+        note_present = any(
+            not _CHECKBOX_ROW_RE.match(ln)
+            and substr.lower() in ln.lower()
+            and 'state not established' in ln.lower()
+            for ln in lines
+        )
+        if not note_present:
+            offending.append(text)
+    if offending:
+        rows = '\n'.join(f'    - [ ] {t}' for t in offending)
+        raise _UpdateError(
+            "refusing to finalize Status: Complete — "
+            f"{len(offending)} prompt-extension row(s) resolved-but-unrecorded: each "
+            "is unticked and carries no `state not established` note (tick it once the "
+            "extension's state was observed, or record that note, before finalizing) "
+            f"[extension-row-unrecorded]:\n{rows}"
+        )
+
+
 def _terminal_complete_gate(sections, args) -> list[str]:
     """Reconcile the workpad self-record on a terminal `--status Complete` write.
 
@@ -4785,7 +4870,13 @@ def _terminal_complete_gate(sections, args) -> list[str]:
     pass ran in full, or a disposition for each gap it records, over a fan-out that
     was actually dispatched. An unestablished record, an undispositioned gap, an
     undispatched pass, or a boilerplate reason is a structural `_UpdateError` (no
-    PATCH), like every other member here."""
+    PATCH), like every other member here.
+
+    Also enforces the extension-row gate (issue #1817): every `_EXTENSION_ROWS`
+    `prompt extension resolved:` row present in ## Progress must be ticked or carry a
+    `state not established` note, so a resolved-but-unrecorded row cannot pass
+    silently. A wholly-absent row set (a pre-#1462 workpad) is tolerated. A violation
+    is a structural `_UpdateError` (no PATCH), like every other member here."""
     # Completion-evidence gate first: it is the strictest precondition and its
     # failure is the one issue #1087 exists to enforce. `args` is REQUIRED (never
     # defaulted) so the gate can never be silently skipped by an argument omission —
@@ -4796,6 +4887,7 @@ def _terminal_complete_gate(sections, args) -> list[str]:
     _completion_evidence_verdict(args, prog_content)
     _required_artifact_verdict(prog_content)
     _review_coverage_verdict(prog_content)
+    _extension_row_verdict(prog_content)
     ac_idx = _find_section(sections, 'Acceptance Criteria')
     if ac_idx is not None:
         ac_content = sections[ac_idx][1]
@@ -5011,6 +5103,7 @@ def _has_non_checkpoint_mutation(args) -> bool:
         args.tick_ac, args.tick_ac_n, args.rewrite_ac,
         args.replace_plan_file, args.replace_acs_file, args.set_reproduction_file,
         args.note, args.reflection, args.reflection_file,
+        getattr(args, 'note_file', None),
         args.record_classification, args.reconcile_reproduction,
         args.scope_decision_deferred, args.scope_decision_rewritten,
         args.bind_scope_decisions, args.mark_deferred_filed,
@@ -5701,7 +5794,7 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         # traceback. A bare string is rejected too (it would `p[1]`-index a character).
         for _pair in args.rewrite_ac:
             _require_arity('--rewrite-ac', _pair, 2, ('OLD', 'NEW'))
-        has_note = any(n.strip() for n in args.note)
+        has_note = any(n.strip() for n in args.note) or bool(getattr(args, 'note_file', None))
         # A multi-line NEW is structurally invalid, and rejecting it here is load-bearing
         # for BOTH guards below (issue #338). `_rewrite_checkbox` writes NEW verbatim into
         # one line, so an embedded line boundary SPLITS that checkbox row in two: it injects
@@ -5855,7 +5948,14 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     for _ckey, _ctext in checkpoint_reqs:
         if f'{_ctext} {_checkpoint_marker(_ckey)}' in body:
             _checkpoint_covered_texts.add(_ctext)
-    _notes = [n for n in args.note if n not in _checkpoint_covered_texts]
+    # A --note-file payload (issue #1813) is an ordinary note appended AFTER the
+    # inline --note bullets, mirroring the --reflection/--reflection-file order.
+    # The read is memoized (see `_note_file_payload`), so this reuses the text
+    # `_cmd_update_inner` already read for buffering rather than re-reading it.
+    _notes_in = list(args.note)
+    if getattr(args, 'note_file', None):
+        _notes_in.append(_note_file_payload(args))
+    _notes = [n for n in _notes_in if n not in _checkpoint_covered_texts]
     progress_notes = _notes + scope_decision_notes + deferred_filed_notes + [
         f'{text} {_checkpoint_marker(key)}' for key, text in checkpoint_inserts
     ]
@@ -6421,6 +6521,17 @@ def main():
                         'Status\'s phase inside ## Progress. May be passed '
                         'multiple times to append several entries (sharing one '
                         'timestamp) in one atomic update.')
+    u.add_argument('--note-file', metavar='PATH', default=None,
+                   help='Append a ## Progress note bullet whose text is read '
+                        'verbatim as UTF-8 from PATH (or from stdin when PATH is '
+                        '"-"), bypassing shell interpolation — use for text '
+                        'containing backticks, $, or double quotes. Compose the '
+                        'payload file with an editor/Write tool, never a shell '
+                        'heredoc or redirect, or the interpolation hazard just '
+                        'moves upstream. Combines with --note; the file bullet '
+                        'appends after any inline --note bullets. An unreadable '
+                        'path, an undecodable (non-UTF-8) payload, or an empty/'
+                        'whitespace-only payload aborts the call before any PATCH.')
     u.add_argument('--reflection', metavar='TEXT', action='append', default=[],
                    help='Append a bullet to Devflow Reflection (no timestamp). '
                         'May be passed multiple times to append several bullets '

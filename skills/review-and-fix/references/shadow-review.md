@@ -94,7 +94,7 @@ Honest-degradation fail-safe. If the parent cannot complete that full fan-out �
 
 #### Parse and compare
 
-When the shadow fan-out completes, aggregate the engine's verdict and findings into `shadow_verdict`, `shadow_phase3_findings`, and `shadow_phase2_fails`. Alongside that aggregation, capture — keyed to each identifier in `reviewers_dispatched` — the per-reviewer assessment/verdict: the assessment or verdict prose that reviewer emitted, plus the `defect_signature` on every finding it raised. Read whatever always-present assessment prose each reviewer returns and never key on a literal `### Assessment` heading, which only the vendored final-pass reviewer emits. An evidence-empty return is not a captured assessment for this purpose, so it keys as dispatched-but-lost rather than covered. This per-reviewer assessment is the operand the 1:1 join reads (held in memory for that join, not persisted as a fourth `shadow`-block key).
+When the shadow fan-out completes, aggregate the engine's verdict and findings into `shadow_verdict`, `shadow_phase3_findings`, and `shadow_phase2_fails`. Alongside that aggregation, capture — keyed to each identifier in `reviewers_dispatched` — the per-reviewer assessment/verdict: the assessment or verdict prose that reviewer emitted, plus the `defect_signature` on every finding it raised. Read whatever always-present assessment prose each reviewer returns and never key on a literal `### Assessment` heading, which only the vendored final-pass reviewer emits. An evidence-empty return is not a captured assessment for this purpose, so it keys as dispatched-but-lost rather than covered. This per-reviewer assessment is the operand the 1:1 join reads and is persisted on the `shadow` block as its `per_reviewer_assessment` key, so a downstream reader can tell a returning reviewer from a lost one.
 
 Compare shadow's findings to the loop's last iter's findings (the workpad's `iter-<N>.json` from the loop's most recent fix iteration — N is the iteration that produced the tentative final verdict, not counting the shadow itself):
 
@@ -157,6 +157,7 @@ After Step 2.6 completes (regardless of outcome), append a `shadow` block to the
   "prompt_addenda": "none",
   "reviewers_dispatched": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:requesting-code-review"],
   "expected_reviewers": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:requesting-code-review"],
+  "per_reviewer_assessment": [{"agent": "prflow:code-reviewer", "returned": true}, {"agent": "prflow:silent-failure-hunter", "returned": true}, {"agent": "prflow:comment-analyzer", "returned": false}, {"agent": "prflow:requesting-code-review", "returned": true}], /* one object per dispatched reviewer, same identifier strings as `reviewers_dispatched`; `returned: false` is the dispatched-but-lost / evidence-empty set */
   "reason": null,
   "checklist_skipped": null,
   "phase3_findings": [/* the parsed array — persists the in-memory shadow_phase3_findings */],
@@ -176,7 +177,7 @@ On a `"not_verified"` block (outcome 3), `reviewers_dispatched` is left as the p
 
 Field-name mapping (persisted ⇄ in-memory). The "Parse and compare" step works in memory with the `shadow_`-prefixed names; this block persists them under unprefixed keys, so a consumer reading the block back must not expect the in-memory names: persisted `verdict` is the in-memory `shadow_verdict`, persisted `phase3_findings` is `shadow_phase3_findings`, and persisted `phase2_fails` is `shadow_phase2_fails`.
 
-On a `not_verified` block, `verdict` is nulled. Outcome 3 sets `verdict: null` (see outcome 3 in "Decide"), so the shadow cannot leave a clean-looking value (e.g. an `"APPROVE"` produced before the coverage shortfall was detected) for any consumer to read at all. Coverage remains the authoritative signal; no consumer may read `verdict` without first gating on `coverage == "full"`. The same gate-on-`coverage` discipline applies to the block's `comparison` counts (`shadow_total` / `overlap_with_iter_N` / `new` / `new_critical` / `new_important`): on a `not_verified` block they may hold stale partials computed before the shortfall was detected, so no consumer reads them without first confirming `coverage == "full"`.
+On a `not_verified` block, `verdict` is nulled. Outcome 3 sets `verdict: null` (see outcome 3 in "Decide"), so the shadow cannot leave a clean-looking value (e.g. an `"APPROVE"` produced before the coverage shortfall was detected) for any consumer to read at all. Coverage remains the authoritative signal; no consumer may read `verdict` without first gating on `coverage == "full"`. The same gate-on-`coverage` discipline applies to the block's `comparison` counts (`shadow_total` / `overlap_with_iter_N` / `new` / `new_critical` / `new_important`) and to `per_reviewer_assessment`: on a `not_verified` block they may hold stale partials captured before the shortfall was detected, so no consumer reads them without first confirming `coverage == "full"`.
 
 #### Park-calibration gate (before any APPROVE-family conclusion)
 

@@ -44,7 +44,7 @@ shard may stand in for the whole suite on a `run.sh`-resident surface via
 
 **Which tiers, per issue #1253's AC1 measurement.** On the cloud implement tier the saving is real
 and measured — the in-run coordinator ran ~10.5 min against ~3.9 min for `monolith` (measured
-2026-08-04 in that run's own environment) — so the instrument applies there. On a local/interactive
+2026-08-04 in that run's own environment; the coordinator has since drifted to ~15m40s, measured 2026-08-19 in Actions run 32289799442, up from ~10m16s on 2026-08-03 in run 30857543531) — so the instrument applies there. On a local/interactive
 host with cores enough to run the five shards concurrently, the whole-suite time sits near the
 slowest-shard bound and the saving is small; that tier was not measurable from the cloud run, so
 the shard is preferred there only where it is the actual saving, not as a default.
@@ -162,8 +162,8 @@ their whole duration — which is why `CLAUDE.md` tells a run to batch into one 
 iteration rather than pushing per edit. That cost is the price of the authoritative signal; it is
 not a reason to re-adopt the local one.
 
-Measured 2026-08-11: CI completes in 6–8 minutes with five shards on separate runners (slowest 7m),
-while locally those same shards contend for one host, and a run that day exceeded the tier's
+Measured 2026-08-19 in Actions run 32294218782: CI completed in ~7m38s with five shards on separate runners (slowest shard `python-pool` at 7m23s),
+while locally those same shards contend for one host; on 2026-08-11 a local run exceeded the tier's
 foreground execution ceiling outright and had to be decomposed shard-by-shard and recombined.
 
 ## Tier-2 extraction, and why a second cycle is the trigger

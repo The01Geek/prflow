@@ -397,5 +397,5 @@ A finding without a `defect_signature` block falls back to a text-based agreemen
 
 A single-source finding is flagged for extra human scrutiny, not treated as wrong.
 
-If an agent fails, note: "[agent-name] did not return results." in the report. Track the count of failed agents. Failed agents do not reduce the denominator for the corroboration count of findings other agents raised.
+If an agent fails, note: "[agent-name] did not return results." in the report. Track the count of failed agents. Failed agents do not reduce the denominator for the corroboration count of findings other agents raised. Also record each non-returning agent's identifier (the same string used in `phase3_dispatched`) in the iteration record's `phase3_failed_agents` array, so it produces a `failed` disposition in the efficiency record instead of collapsing into the `null` (dispatched-but-silent) residual.
 <!-- prflow:review-ref phase=3 file=skills/review/phases/phase-3-agents.md end -->
