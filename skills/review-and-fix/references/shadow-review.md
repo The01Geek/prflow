@@ -2,7 +2,7 @@
 
 ### Step 2.6: Shadow review
 
-Run a structurally-independent re-review using the blinded fan-out below. The pass has two triggers, and both run the *same* fan-out / compare / Decide machinery — only *when* they fire differs:
+Run a structurally-independent re-review using the blinded fan-out below. The pass has two triggers; both run the *same* fan-out / compare / Decide machinery — only *when* they fire differs:
 
 - Convergence-time trigger (all PRs). The shadow runs before declaring convergence, and only when the loop's tentative final verdict is non-REJECT (APPROVE, APPROVE WITH ADVISORY NOTES, APPROVE WITH CAVEAT) — either from Step 2 on the current iteration, or from Step 4.5's early-exit convergence path. REJECT verdicts skip the convergence-time trigger and go straight to Loop Exit. (Per the Step 2 APPROVE-with-notes severity split, an `APPROVE with notes` engine verdict carrying an Important/Major finding is not a tentative final verdict — it routes to Step 2.5 → Step 3 like a REJECT and only reaches the shadow once those findings are fixed or pushed back; a Suggestion/Minor-only `APPROVE with notes` arrives here as `APPROVE WITH CAVEAT`.)
 - Early trigger (`engine_self_modifying` PRs only). On an `engine_self_modifying` diff the shadow *also* runs once after iteration 1, regardless of iteration 1's verdict (including REJECT), feeding any new blinded findings into iteration 2 — see "Early shadow trigger (`engine_self_modifying`, after iteration 1)" below. A non-`engine_self_modifying` PR never runs the early trigger and keeps the convergence-time trigger only.
@@ -30,18 +30,18 @@ Outcome routing (early-trigger variant). The early trigger never concludes the l
 
 Iteration accounting (early trigger). As at convergence time: the early shadow *pass itself* is NOT counted toward the `$MAX_ITERS` cap, and on outcome 2 the promoted iteration 2 it spawns DOES count toward the cap.
 
-`$MAX_ITERS = 1` edge. When the cap is 1 there is no iteration 2 to feed, so the early trigger does not run separately: iteration 1 is the final iteration, and the shadow runs (or is skipped on REJECT) at Loop Exit via the convergence-time trigger.
+`$MAX_ITERS = 1` edge. When the cap is 1 there is no iteration 2 to feed, so the early trigger does not run separately: iteration 1 is final and the shadow runs (or skipped on REJECT) at Loop Exit via the convergence-time trigger.
 
 #### Run the shadow fan-out
 
-Record the shadow-entry event (best-effort; the helper always exits 0 and never blocks):
+Shadow-entry event (best-effort):
 ```bash
 .prflow/vendor/prflow/scripts/verification-flight.py event phase3-shadow-entry
 ```
 
 Dispatch barrier. Every subagent dispatch described here is bound by the dispatch-collection requirement in the engine-ground-truth block injected into this run's prompt — read it there (if your prompt carries no such block, collect every dispatch before the turn ends anyway).
 
-Run the shadow as its own engine subagent under Step 1's capability check — invoke the `/prflow:review` engine inside a fresh **Agent-tool subagent** that resolves the engine directory and `Read`s its `SKILL.md` in full under Step 1's resolution steps 3 and 4 — carried verbatim into that subagent's prompt by the parent, since that fresh context holds none of Step 1 — and runs Phases 0 through 4.3 with the Phase 3 roster fanned out from its own context, so no shadow reviewer receives a prior-findings handoff. On `dispatch_mode: unavailable` the parent instead runs those phases inline — bind the bundle to the located `<engine-dir>`, `Read` its `SKILL.md` in full under Step 1's completeness predicate, and execute its phases with the prior-findings handoff *withheld* (see "Blind every shadow reviewer prompt" below). Either way, do NOT flatten the shadow into one `general-purpose` self-check, which returns a false clean verdict. Stop before Phase 4.4 (no `gh pr review` / `gh pr comment` — the loop posts no verdict to GitHub). Reuse /prflow:review's Phase 3.1 launch list and per-agent prompts verbatim — see the expected-roster rule below.
+Run the shadow as its own engine subagent under Step 1's capability check — invoke the `/prflow:review` engine inside a fresh **Agent-tool subagent** that resolves the engine directory and `Read`s its `SKILL.md` in full under Step 1's resolution steps 3 and 4 — carried verbatim into that subagent's prompt by the parent — and runs Phases 0 through 4.3 with the Phase 3 roster fanned out from its own context, so no shadow reviewer receives a prior-findings handoff. On `dispatch_mode: unavailable` the parent instead runs those phases inline — bind the bundle to the located `<engine-dir>`, `Read` its `SKILL.md` in full under Step 1's completeness predicate, and execute its phases with the prior-findings handoff *withheld* (see "Blind every shadow reviewer prompt" below). Either way, do NOT flatten the shadow into one `general-purpose` self-check, which returns a false clean verdict. Stop before Phase 4.4 (no `gh pr review` / `gh pr comment` — the loop posts no verdict to GitHub). Reuse /prflow:review's Phase 3.1 launch list and per-agent prompts verbatim — see the expected-roster rule below.
 
 On `fanned-out` the subagent returns Step 1's field set — including the shadow's own `diff_profile` and its `expected_reviewers` — plus `reviewers_dispatched` and each reviewer's assessment and `defect_signature`s, in `engine-return-shadow-iter-<N>.json` (by-path, as Step 1); a return lacking any of those is not well-formed: run this shadow inline. The roster-verification, coverage, and Parse-and-compare machinery below stays parent-side and reads that return; read `expected_reviewers` from the return (the shadow engine's own recorded Phase 3.1 gate decisions), never recompute it from `diff_profile` or the loop's last-iter profile, because `diff_profile` cannot express `pr-test-analyzer`'s test-relevance predicate.
 
