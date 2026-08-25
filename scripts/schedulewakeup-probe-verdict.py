@@ -7,8 +7,8 @@ Why a helper rather than inline Python in matcher-probe.yml: this verdict is a
 branch-selecting core (a four-way DENIED/AVAILABLE/REMOVED/INCONCLUSIVE selection
 plus a ship/no-ship decision and an "Unknown is not zero" INCONCLUSIVE floor) that
 gates a real `claude_args` change. Inline-in-YAML it cannot be unit-tested, so a
-regressed arm — the `note_top`-precedence INCONCLUSIVE floor, the REMOVED
-single-control fall-through, or the name match — would silently misfire while the
+regressed arm — the `note_top`-precedence INCONCLUSIVE floor, the positive-denial
+gate on REMOVED, or the name match — would silently misfire while the
 workflow still "runs". Extracting it lets lib/test/run.sh drive every arm and the
 adversarial fail-open matrix directly (issue #415 review, finding #1; same rationale
 as scripts/describe-denial-count.sh, PR #367). The sibling per-shape probe verdict in
@@ -133,16 +133,18 @@ def collect(parsed):
             if isinstance(pd, list):
                 for d in pd:
                     denials.append(json.dumps(d))
-                    # Record the denied tool's NAME field only, so the denial predicate
-                    # (which gates SHIP) keys on the name and not on the token appearing
-                    # anywhere in the serialized record (issue #1527) — the same
-                    # false-positive vector the attempt predicate closes. A non-dict or
-                    # name-field-less entry yields no name and fails safe (no ship).
-                    denial_names.append(
-                        " ".join(str(d.get(k, "")) for k in ("tool", "tool_name", "name"))
-                        if isinstance(d, dict)
-                        else ""
-                    )
+                    # Key the denial predicate (which gates SHIP) on scalar string NAME
+                    # fields only — the token elsewhere in the record (a nested input, a
+                    # non-scalar value) must not admit a false ship (issue #1527).
+                    if isinstance(d, dict):
+                        denial_names.append(
+                            " ".join(
+                                v for k in ("tool", "tool_name", "name")
+                                if isinstance((v := d.get(k)), str)
+                            )
+                        )
+                    else:
+                        denial_names.append("")
             for v in o.values():
                 walk(v)
         elif isinstance(o, list):

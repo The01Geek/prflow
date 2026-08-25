@@ -355,6 +355,16 @@ assert_eq "#415 swv: a denial naming a different tool with the token only in its
 printf '%s' '[{"permission_denials":[{"tool_name":"ScheduleWakeup"}]},{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/hosts"}},{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/os-release"}}]' > "$SWV_F"
 assert_eq "#415 swv: a ScheduleWakeup denial recorded under tool_name (not tool) still reads REMOVED" "yes" \
   "$(swv_has_row "$SWV_F" '| **REMOVED** | yes |')"
+# Arm (issue #1527): the `name` key of the denial-name lookup is also honored.
+printf '%s' '[{"permission_denials":[{"name":"ScheduleWakeup"}]},{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/hosts"}},{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/os-release"}}]' > "$SWV_F"
+assert_eq "#415 swv: a ScheduleWakeup denial recorded under the name key still reads REMOVED" "yes" \
+  "$(swv_has_row "$SWV_F" '| **REMOVED** | yes |')"
+# Arm (issue #1527): the denial-name lookup keys on SCALAR string fields only — a denial
+# whose tool field is a nested OBJECT carrying the token is not a ScheduleWakeup denial, so
+# with no attempt it is INCONCLUSIVE. Flattening the object with str() would read a ship.
+printf '%s' '[{"permission_denials":[{"tool":{"name":"ToolSearch","query":"select:ScheduleWakeup"}}]},{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/hosts"}},{"type":"tool_use","name":"Bash","input":{"command":"grep x /etc/os-release"}}]' > "$SWV_F"
+assert_eq "#415 swv: a denial whose tool field is a nested object with the token is NOT a ship (INCONCLUSIVE)" "yes" \
+  "$(swv_has_row "$SWV_F" '| **INCONCLUSIVE** | no |')"
 # Arm: INCONCLUSIVE — the before control ran but nothing positive (no denial, no attempt).
 # The verdict no longer keys on the controls (issue #1527), so no positive signal means
 # INCONCLUSIVE here, not the shippable REMOVED. "Unknown is not zero."

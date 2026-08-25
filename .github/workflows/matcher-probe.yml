@@ -1432,7 +1432,8 @@ jobs:
         id: claude
         env:
           # The variable under test, set at STEP level (mirroring the background-tasks
-          # probe) so a step-level env cannot shadow it inert (issue #1527).
+          # probe) so it is applied to the claude action's own process rather than only
+          # at job scope, where a step-level env could otherwise override it (issue #1527).
           CLAUDE_CODE_DISABLE_CRON: "1"
         uses: anthropics/claude-code-action@v1
         with:
