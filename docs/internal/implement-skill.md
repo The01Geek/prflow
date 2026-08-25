@@ -998,6 +998,13 @@ Phase 3.3's `review-and-fix` loop runs a verification as its first act, so the j
 owe a verification round when the very next step verifies it — `skills/implement/phases/phase-3-review.md`
 §3.2 states this for the shipped skill.
 
+After `/simplify` completes, Phase 3.2 also writes one machine-findable **outcome record** to the
+workpad — a `## Progress` `--note` opening with the fixed lead phrase `simplify outcome:`, tallying
+findings generated, applied, and skipped as AC conflicts (all zero when `/simplify` reported the
+diff already clean, so a zero-yield run is distinguishable from a run that never wrote the record).
+It gives the weekly retrospective a per-run signal it can grep by lead phrase to measure §3.2's
+yield across runs; `skills/implement/phases/phase-3-review.md` §3.2 states the shipped contract.
+
 The Phase 3.2 tick passes the **host-safe substring** `simplify`, not `/simplify`, while the
 displayed `` `/simplify` `` Progress row keeps its label. A standalone slash-leading argument is
 rewritten by Git Bash/MSYS into a Windows path before native `python3` receives it (see the
