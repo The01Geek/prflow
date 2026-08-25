@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1921",
+  "generated_at": "2026-08-25T01:44:34Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.8",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 9.93605025,
+    "tokens": {
+      "input_tokens": 56,
+      "output_tokens": 54516,
+      "cache_read_input_tokens": 4709596,
+      "cache_creation_input_tokens": 239678,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 119,
+        "outputTokens": 93211,
+        "cacheReadInputTokens": 6320563,
+        "cacheCreationInputTokens": 567377,
+        "webSearchRequests": 0,
+        "costUSD": 9.93605025,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 38,
+    "duration_ms": 911483
+  },
+  "permission_denials": {
+    "count": 18,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "RUN_ID=\"${GITHUB_RUN_ID:-local-$(date -u +%Y%m%dT%H%M%SZ)}-${GITHUB_RUN_ATTEMPT:-1}\"; echo \"RUN_ID=$RUN_ID\"; mkdir -p \".prflow/tmp/review/pr-1921/$RUN_ID\"; gh pr diff 1921 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee \".prflow/tmp/review/pr-1921/$RUN_ID/diff.patch\" | grep -c '^diff --git'",
+      "B='s#([Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn][\":[:space:]]*)[Bb][Ee][Aa][Rr][Ee][Rr] ([A-Za-z0-9._~+/=-]|\\\\\\\\|\\\\/){4,}#\\1Bearer [REDACTED]#g'\nC='s#([Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn][\":[:space:]]*)[Bb][Aa][Ss][Ii][Cc] ([A-Za-z0-9+/=]|\\\\\\\\|\\\\/){4,}#\\1basic [REDACTED]#g'\necho \"== AC1 basic-in-JSON parses (escape backslash preserved) ==\"; printf '%s\\n' '{\"c\":\"x \\\"AUTHORIZATION: basic [REDACTED]\" y\"}' | sed -E -e \"$C\" -e \"$B\"\necho \"== AC2 bearer-in-JSON ==\"; printf '%s\\ …[per-command-truncated]",
+      "printf '%s\\n' 'Authorization: Bearer [REDACTED] and \"Authorization: Bearer [REDACTED]\" end' | bash <(git show a17c764b1c4b0e87dd915420138f9e70ef19e6c0:scripts/scrub-credentials.sh); echo \"---\"; printf '%s\\n' 'AUTHORIZATION: BASIC dXNlcjpwYXNz' | bash <(git show a17c764b1c4b0e87dd915420138f9e70ef19e6c0:scripts/scrub-credentials.sh)",
+      "git show a17c764b1c4b0e87dd915420138f9e70ef19e6c0:scripts/scrub-credentials.sh > /tmp/scrub.sh\nprintf '%s\\n' 'Authorization: Bearer [REDACTED] and \"Authorization: Bearer [REDACTED]\"\" end' | bash /tmp/scrub.sh\necho \"--- lone backslash before quote (should keep tail intact after redaction):\"\nprintf '%s\\n' '\"Authorization: Bearer [REDACTED]\", \"next\":\"val\"' | bash /tmp/scrub.sh\necho \"--- unicode-escaped slash inside token:\"\nprintf '%s\\n' 'Authorization: Bearer [REDACTED]' | bash /tmp/scrub.sh\necho \" …[per-command-truncated]",
+      "printf '%s\\n' '\"Authorization: Bearer [REDACTED]\", \"next\":\"secretval\"' | bash /tmp/scrub.sh",
+      "printf '\"Authorization: Bearer [REDACTED]\", \"next\":\"secretval\"\\n' > /tmp/in1.txt\nsed -E \\\n  -e 's#([Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn][\":[:space:]]*)[Bb][Ee][Aa][Rr][Ee][Rr] ([A-Za-z0-9._~+/=-]|\\\\\\\\|\\\\/){4,}#\\1Bearer [REDACTED]#g' \\\n  -e 's#([Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn][\":[:space:]]*)[Bb][Aa][Ss][Ii][Cc] ([A-Za-z0-9+/=]|\\\\\\\\|\\\\/){4,}#\\1basic [REDACTED]#g' /tmp/in1.txt",
+      "cat > /tmp/t.sh <<'EOF'\nrun() { printf '%s\\n' \"$1\" | bash /tmp/scrub.sh; }\necho \"1 lone-backslash-before-quote:\"; run '\"Authorization: Bearer [REDACTED]\", \"next\":\"secretval\"'\necho \"2 escaped-slash-in-token:\"; run 'Authorization: Bearer [REDACTED]'\necho \"3 uppercase BASIC:\"; run 'AUTHORIZATION: BASIC dXNlcjpwYXNz'\necho \"4 short 3-unit basic:\"; run 'AUTHORIZATION: basic [REDACTED]'\necho \"5 unicode-escaped slash \\\\u002F in token:\"; run 'Authorization: Bearer [REDACTED]'\nEOF\nbash /tmp/t.sh",
+      "bash /tmp/t.sh",
+      "SCR=$(mktemp); git show a17c764b1c4b0e87dd915420138f9e70ef19e6c0:scripts/scrub-credentials.sh > \"$SCR\"\necho \"--- AC3: sed command trailing slashes ---\"\nprintf '%s\\n' \"run: sed 's/AUTHORIZATION: basic [REDACTED]' file\" | bash \"$SCR\"\necho \"--- AC1: basic in JSON string, escaped backslash after token, still parses ---\"\nprintf '%s\\n' '{\"note\":\"AUTHORIZATION: basic [REDACTED]\"}' | bash \"$SCR\"\necho \"--- escaped slash inside token redacted (basic) ---\"\nprintf '%s\\n' 'AUTHORIZATION: basic [REDACTED] …[per-command-truncated]",
+      "SCR=$(mktemp); git show a17c764b1c4b0e87dd915420138f9e70ef19e6c0:scripts/scrub-credentials.sh > \"$SCR\"\nprintf '%s\\n' \"run: sed 's/AUTHORIZATION: basic [REDACTED]' file\" | bash \"$SCR\"\nprintf '%s\\n' '{\"note\":\"AUTHORIZATION: basic [REDACTED]\"}' | bash \"$SCR\"\nprintf '%s\\n' 'AUTHORIZATION: basic [REDACTED]' | bash \"$SCR\"\nprintf '%s\\n' 'Authorization: Bearer [REDACTED]' | bash \"$SCR\"\nprintf '%s\\n' 'AUTHORIZATION: BASIC dXNlcjpwYXNz' | bash \"$SCR\"\nprintf '%s\\n' 'AUTHORIZATION: b …[per-command-truncated]",
+      "bash /tmp/t.sh",
+      "bash /tmp/t.sh",
+      "chmod +x /tmp/t.sh && /tmp/t.sh",
+      "bash /tmp/t.sh 2>&1",
+      "cd /tmp && bash t.sh",
+      "RAW='tok [REDACTED-GH-TOKEN] pat [REDACTED-GH-PAT] ant [REDACTED-ANTHROPIC-KEY] hdr \"AUTHORIZATION: basic [REDACTED]\" and \"Authorization: Bearer [REDACTED]\" end'\necho \"== jq-encoded input document ==\"\njq -n -c --arg v \"$RAW\" '{note:$v}'\necho \"== scrub with OLD (buggy) rules: bare backslash in class, + quantifier ==\"\njq -n -c --arg v \"$RAW\" '{note:$v}' | sed -E \\\n  -e 's/gh[pousr]_[A-Za-z0-9_]{20,}/[REDACTED-GH-TOKEN]/g' \\\n  -e 's/github_pat_[A-Za …[per-command-truncated]",
+      "echo \"== jq-encoded input document (note the token abuts \\\\\\\") ==\"\njq -n -c --arg v 'hdr \"AUTHORIZATION: basic [REDACTED]\" and \"Authorization: Bearer [REDACTED]\" end' '{note:$v}'\necho\necho \"== OLD (buggy) rules output ==\"\njq -n -c --arg v 'hdr \"AUTHORIZATION: basic [REDACTED]\" and \"Authorization: Bearer [REDACTED]\" end' '{note:$v}' | sed -E \\\n  -e 's/([Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn][\":[:space:]]*)[Bb]earer [A-Za-z0-9._~+\\/=-]+/\\1Bearer [REDACTED]/g' \\ …[per-command-truncated]",
+      "jq -n -c --arg v 'hdr \"AUTHORIZATION: basic [REDACTED]\" and \"Authorization: Bearer [REDACTED]\" end' '{note:$v}' | sed -E -e 's/([Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn][\":[:space:]]*)[Bb]asic [A-Za-z0-9+\\/=]+/\\1basic [REDACTED]/g' -e 's/([Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn][\":[:space:]]*)[Bb]earer [A-Za-z0-9._~+\\/=-]+/\\1Bearer [REDACTED]/g'"
+    ],
+    "total": 18,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
