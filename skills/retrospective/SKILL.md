@@ -274,7 +274,7 @@ newlines that break naive serialization).
 
 ```json
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "kind": "implementation",
   "pr": <bundle.pr>,
   "issue": <bundle.issue_number>,
@@ -286,6 +286,7 @@ newlines that break naive serialization).
   "categories": ["...", "..."],
   "descriptors": ["...", "..."],
   "signals": <bundle.signals verbatim>,
+  "analysis_provenance": {"bundle_diff_present": <bool>, "bundle_workpad_body_present": <bool>, "bundle_issue_comments_present": <bool>},
   "summary": "...",
   "suggested_interventions": [{"summary":"...","candidate_targets":[...],"change_type":"...","confidence":"..."}]
 }
@@ -296,6 +297,19 @@ When the consumer prompt-extension file is present but you cannot read it, add
 one optional string key `extension_unreadable` to the object above, naming the path
 and the read failure; the return stays exactly one JSON object with nothing else on
 stdout. Omit the key entirely in every other case.
+
+Required `analysis_provenance` object (evidence the bundle actually carried).
+Every entry a live Stage A run writes carries this object, recording the three
+booleans derived from the bundle it was handed: `bundle_diff_present` (the
+bundle's `diff` is non-null and `diff_truncated` is not true — a diff suppressed
+by `diff_byte_cap` arrives as `diff:null` / `diff_truncated:true` → false),
+`bundle_workpad_body_present` (the bundle's `workpad_body` is non-null), and
+`bundle_issue_comments_present` (the bundle's `.issue.comments` array is present
+and non-empty — `.issue` can be non-null with zero comments → false). These
+field names join the backfill cohort so the two populations segment on the
+field's presence rather than pooling indistinguishably; a live run records only
+what it measured from its own bundle and never fabricates the backfill cohort's
+`cohort`, `analyst`, or `subagent_batching` fields.
 
 `categories` must be drawn from the fixed vocabulary above; `descriptors` is
 free text. Echo `pr`, `issue`, `branch`, `head_sha`, `merge_commit_sha`,
@@ -320,7 +334,7 @@ Example construction:
   --arg summary "$SUMMARY" \
   --argjson suggested_interventions "$SUGGESTED_INTERVENTIONS_JSON" \
   '{
-    schema_version: 2,
+    schema_version: 3,
     kind: "implementation",
     pr: $bundle.pr,
     issue: $bundle.issue_number,
@@ -332,6 +346,11 @@ Example construction:
     categories: $categories,
     descriptors: $descriptors,
     signals: $bundle.signals,
+    analysis_provenance: {
+      bundle_diff_present: ($bundle.diff != null and ($bundle.diff_truncated // false) != true),
+      bundle_workpad_body_present: ($bundle.workpad_body != null),
+      bundle_issue_comments_present: (($bundle.issue.comments // []) | length > 0)
+    },
     summary: $summary,
     suggested_interventions: $suggested_interventions
   }'
