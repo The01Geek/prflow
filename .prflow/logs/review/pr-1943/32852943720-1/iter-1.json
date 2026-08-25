@@ -1,0 +1,350 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-25T13:35:00Z",
+  "fix_commit_sha": null,
+  "fix_files": [],
+  "loop_role": "fix",
+  "current_step": "2.6",
+  "current_substep": "decide",
+  "dispatch_mode": "fanned-out",
+  "sweep_evidence": {
+    "status": "run"
+  },
+  "checklist": [],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "test bypass comment 5 lines over the 3-line cap",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          21,
+          25
+        ],
+        "kind": "style"
+      },
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "next() first-match fail-open on a duplicated extension row (unlikely input; single-sourced rows)",
+      "defect_signature": {
+        "file": "scripts/workpad.py",
+        "line_range": [
+          4727,
+          4738
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "note detection not anchored to the note shape (documented design choice)",
+      "defect_signature": {
+        "file": "scripts/workpad.py",
+        "line_range": [
+          4739,
+          4745
+        ],
+        "kind": "other"
+      },
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "no test for a note outside ## Progress (fails closed)",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          99,
+          105
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "no ordering test vs the AC hard-fail (both refuse anyway)",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          82,
+          96
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1
+    },
+    {
+      "agent": "parked-class-sweep",
+      "severity": "Suggestion",
+      "description": "section-header comment block 5 lines over the cap (sibling of F-1)",
+      "defect_signature": {
+        "file": "lib/test/test_python_scripts.py",
+        "line_range": [
+          14,
+          18
+        ],
+        "kind": "style"
+      },
+      "corroboration_count": 1
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "below-threshold",
+      "source_file": "lib/test/test_python_scripts.py",
+      "claim_text": "test bypass comment over cap",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "below-threshold",
+      "source_file": "scripts/workpad.py",
+      "claim_text": "duplicate-row fail-open",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "below-threshold",
+      "source_file": "scripts/workpad.py",
+      "claim_text": "unanchored note match",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "below-threshold",
+      "source_file": "lib/test/test_python_scripts.py",
+      "claim_text": "no note-outside-Progress test",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "below-threshold",
+      "source_file": "lib/test/test_python_scripts.py",
+      "claim_text": "no ordering test",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    },
+    {
+      "finding_id": "F-6",
+      "decision": "below-threshold",
+      "source_file": "lib/test/test_python_scripts.py",
+      "claim_text": "section-header comment over cap",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-sibling: class-sweep",
+      "parking_evidence": {
+        "basis": "parked by the parked-class sweep registration as a below-threshold sibling of class style",
+        "failing_input": null,
+        "source": "lib/test/test_python_scripts.py:14-18",
+        "finding_ref": {
+          "iter": 1,
+          "index": 5
+        }
+      }
+    }
+  ],
+  "parked_class_sweep": {
+    "classes": [
+      {
+        "source_finding_ids": [
+          "F-1"
+        ],
+        "kind_literal": "style",
+        "sites_examined": [
+          "lib/test/test_python_scripts.py:14-18"
+        ],
+        "new_siblings": [
+          {
+            "finding_id": "F-6",
+            "site": "lib/test/test_python_scripts.py:14-18",
+            "severity": "Suggestion",
+            "disposition": "advisory",
+            "marker": "parked-sibling: class-sweep"
+          }
+        ]
+      },
+      {
+        "source_finding_ids": [
+          "F-2"
+        ],
+        "kind_literal": "logic_error",
+        "sites_examined": [
+          "scripts/workpad.py:4700-4810"
+        ],
+        "new_siblings": []
+      },
+      {
+        "source_finding_ids": [
+          "F-3"
+        ],
+        "kind_literal": "other",
+        "sites_examined": [
+          "scripts/workpad.py:4739-4745"
+        ],
+        "new_siblings": []
+      },
+      {
+        "source_finding_ids": [
+          "F-4",
+          "F-5"
+        ],
+        "kind_literal": "test_gap",
+        "sites_examined": [
+          "lib/test/test_python_scripts.py:12310-12440"
+        ],
+        "new_siblings": []
+      }
+    ],
+    "truncation": null,
+    "dispatch": "verified"
+  },
+  "park_calibration": {
+    "evidence_comparisons": [
+      {
+        "parked_finding_ref": {
+          "iter": 1,
+          "index": 0
+        },
+        "parked_finding_id": "F-1",
+        "shadow_finding_index": 0,
+        "relation": "equivalent",
+        "rationale": "shadow re-raises the same over-cap comment class at Suggestion, no new failing input",
+        "operands_present": true,
+        "disposition": "preserved"
+      },
+      {
+        "parked_finding_ref": {
+          "iter": 1,
+          "index": 1
+        },
+        "parked_finding_id": "F-2",
+        "shadow_finding_index": 1,
+        "relation": "equivalent",
+        "rationale": "shadow re-raises the same rowless/duplicate fail-open at Suggestion and recommends leaving as-is",
+        "operands_present": true,
+        "disposition": "preserved"
+      }
+    ]
+  },
+  "shadow": {
+    "dispatch_mode": "fanned-out",
+    "ran_at": "2026-08-25T13:43:00Z",
+    "reviewed_sha": "b51f1b4f78461572e0edcf6526d4abc767d54059",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Suggestion",
+        "description": "documented inherent fail-open on rowless (pre-#1462) workpad; recommends leaving as-is",
+        "defect_signature": {
+          "file": "scripts/workpad.py",
+          "line_range": [
+            4720,
+            4745
+          ],
+          "kind": "other"
+        }
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "severity": "Suggestion",
+        "description": "prevention-only comment-standard nits in test block/docstring",
+        "defect_signature": {
+          "file": "lib/test/test_python_scripts.py",
+          "line_range": [
+            14,
+            25
+          ],
+          "kind": "style"
+        }
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Suggestion",
+        "description": "AC4 could assert [extension-row-unrecorded] tag; mixed-disposition single-body test readability",
+        "defect_signature": {
+          "file": "lib/test/test_python_scripts.py",
+          "line_range": [
+            82,
+            105
+          ],
+          "kind": "test_gap"
+        }
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 7,
+      "overlap_with_iter_N": 7,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "telemetry": {
+    "phase_3": {
+      "calls": 5,
+      "tokens": 152964,
+      "wall_clock_s": 314
+    },
+    "step_2_6": {
+      "calls": 5,
+      "tokens": 173749,
+      "wall_clock_s": 450
+    }
+  },
+  "synthesized": false
+}

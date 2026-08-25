@@ -1,0 +1,18 @@
+{
+  "status": "complete",
+  "findings": [
+    {
+      "site": "lib/test/test_python_scripts.py ~14-18",
+      "kind_literal": "style",
+      "severity": "Suggestion",
+      "description": "The section-header comment block starting `# ── issue #1817: the terminal --status Complete extension-row gate` spans 5 physical lines (header plus 4 explanation lines) — same class as parked F-1, exceeding the 3-line prevention-comment cap that governs test-file comments. Design-narrative lines beyond the header could be trimmed."
+    }
+  ],
+  "seed_dispositions": [
+    {"finding_id": "F-1", "status": "classified", "kind_literal": "style"},
+    {"finding_id": "F-2", "status": "classified", "kind_literal": "logic_error"},
+    {"finding_id": "F-3", "status": "classified", "kind_literal": "other"},
+    {"finding_id": "F-4", "status": "classified", "kind_literal": "test_gap"},
+    {"finding_id": "F-5", "status": "classified", "kind_literal": "test_gap"}
+  ]
+}
