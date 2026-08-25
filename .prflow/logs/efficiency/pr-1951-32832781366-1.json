@@ -114,5 +114,85 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.14",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 63.55995199999996,
+    "tokens": {
+      "input_tokens": 400,
+      "output_tokens": 201083,
+      "cache_read_input_tokens": 76829644,
+      "cache_creation_input_tokens": 597237,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 600,
+        "outputTokens": 280582,
+        "cacheReadInputTokens": 82389312,
+        "cacheCreationInputTokens": 1758171,
+        "webSearchRequests": 0,
+        "costUSD": 61.440413499999956,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 164,
+        "outputTokens": 28821,
+        "cacheReadInputTokens": 5022315,
+        "cacheCreationInputTokens": 330615,
+        "webSearchRequests": 0,
+        "costUSD": 2.1195385000000004,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 237,
+    "duration_ms": 5453169
+  },
+  "permission_denials": {
+    "count": 20,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GHA=[$GITHUB_ACTIONS] RUNID=[$GITHUB_RUN_ID] REPO=[$GITHUB_REPOSITORY]\"; ls .prflow/vendor/prflow/scripts/ 2>&1 | head -3; git branch --show-current",
+      "WP_BRANCH=\"issue-1510-a-coverage-gap-closed-by-a-later-standalone\"\nPR_JSON=$(gh pr list --head \"$WP_BRANCH\" --state open --json number,headRefName,createdAt,closingIssuesReferences,isCrossRepository) || PR_JSON=''\necho \"byhead=$PR_JSON\"\nif [ \"$PR_JSON\" = \"[]\" ]; then\n  PR_JSON=$(gh pr list --search \"1510 in:body\" --state open --json number,headRefName,createdAt,closingIssuesReferences,isCrossRepository) || PR_JSON=''\n  echo \"bybody=$PR_JSON\"\nfi",
+      "BASE=$(.prflow/vendor/prflow/scripts/config-get.sh .base_branch main) || BASE=\"\"\n[ -n \"$BASE\" ] || BASE=main\necho \"BASE=$BASE\"\nCUR=$(git branch --show-current 2>/dev/null) || CUR=\"\"\necho \"CUR=$CUR\"\nCOMMON_DIR=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || COMMON_DIR=\"\"\nGIT_DIR_PATH=$(git rev-parse --path-format=absolute --git-dir 2>/dev/null) || GIT_DIR_PATH=\"\"\necho \"COMMON_DIR=$COMMON_DIR\"\necho \"GIT_DIR_PATH=$GIT_DIR_PATH\"",
+      ".prflow/vendor/prflow/scripts/workpad.py update 1510 --branch \"$(git branch --show-current)\"",
+      "\"/home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/check-verified-premises.py\" --body-file /home/runner/work/prflow/prflow/.prflow/tmp/issue-body/issue-1510.md --repo-root /home/runner/work/prflow/prflow; echo \"exit=$?\"",
+      "\\\n.prflow/vendor/prflow/scripts/workpad.py update 1510 --note \"issue-claim audit (projection): every Desired Behavior obligation is represented in the resolved acceptance criteria — pass complete\" && \\\n.prflow/vendor/prflow/scripts/workpad.py update 1510 --note \"issue-claim audit (count): no count or enumeration claims found — pass complete\" && \\\n.prflow/vendor/prflow/scripts/workpad.py update 1510 --note \"issue-claim audit (negative-scope): no scope-exclusion claims found — pass complete\" && \\\n …[per-command-truncated]",
+      "ls .changeset/ | head; echo \"=== sample ===\"; f=$(ls .changeset/*.md 2>/dev/null | grep -v README | head -1); echo \"$f\"; cat \"$f\" 2>/dev/null",
+      "git diff --no-index -U0 /dev/null .changeset/issue-1510-review-coverage-anchor.md | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree; echo \"LINT_EXIT=$?\"",
+      "cd /home/runner/work/prflow/prflow\nFP=$(python3 .prflow/vendor/prflow/scripts/checkout-fingerprint.py)\necho \"$FP\"\npython3 - \"$FP\" <<'EOF' > /tmp/ac1510-decl.json\nimport json,sys\nfp = json.loads(sys.argv[1])\ndecl = {\n  \"schema_version\": 1,\n  \"profile\": {\n    \"profile_version\": 1,\n    \"argv\": [\"lib/test/test_python_scripts.py\"],\n    \"cwd\": \"/home/runner/work/prflow/prflow\",\n    \"environment\": {},\n    \"toolchain\": {},\n    \"dependencies\": {},\n    \"output_roots\": [],\n    \"external_services\": \"none\"\n  …[per-command-truncated]",
+      "cat > /tmp/build_decl.py << 'PYEOF'\nimport json, subprocess\nfp = json.loads(subprocess.check_output([\"python3\", \".prflow/vendor/prflow/scripts/checkout-fingerprint.py\"], cwd=\"/home/runner/work/prflow/prflow\"))\ndecl = {\n  \"schema_version\": 1,\n  \"profile\": {\n    \"profile_version\": 1,\n    \"argv\": [\"lib/test/test_python_scripts.py\"],\n    \"cwd\": \"/home/runner/work/prflow/prflow\",\n    \"environment\": {},\n    \"toolchain\": {},\n    \"dependencies\": {},\n    \"output_roots\": [],\n    \"external_services\": \"none …[per-command-truncated]",
+      "cd /home/runner/work/prflow/prflow\nFLIGHT=1f42910776bd0c13c23adf6756882187208ac1af9523cd91e78e46ef5c7fdc71\nTOKEN=a1755d547e7c897456e08d7a70c887e44e13375f822f94f3f83ef22ee71b13a4\npython3 .prflow/vendor/prflow/scripts/verification-flight.py mark-running --flight \"$FLIGHT\" --token \"$TOKEN\" --state-dir /home/runner/work/prflow/prflow/.prflow/tmp/verification-flights",
+      "python3 -c \"\nimport json\nopen('/tmp/ac1510-summary.json','w').write(json.dumps({'exit_status':0,'passed':5644,'failed':0,'skipped':0,'command':'lib/test/test_python_scripts.py'}))\n\"\ncat /tmp/ac1510-summary.json",
+      "cd /home/runner/work/prflow/prflow\nfind .prflow/tmp/verification-flights -type f | head -5\ncp .prflow/tmp/verification-flights/*/1f42910776bd0c13c23adf6756882187208ac1af9523cd91e78e46ef5c7fdc71.json .prflow/tmp/ac-flight-1510.json 2>/dev/null || find .prflow/tmp/verification-flights -name \"*1f429107*\"",
+      "ls /home/runner/work/prflow/prflow/.changeset/*.md 2>/dev/null | grep -v README | head; echo \"---\"; git -C /home/runner/work/prflow/prflow log --oneline -3",
+      "scripts/prompt-surface-growth.py 2>&1; echo \"---EXIT:$?---\"",
+      "PR=1951; F=\".prflow/tmp/review/pr-${PR}/deferrals.json\"; echo \"deferrals exists: $([ -s \"$F\" ] && echo yes || echo no)\"; WID=$(scripts/workpad.py id 1510 2>/dev/null||true); echo \"workpad id: $WID\"; if [ -n \"$WID\" ]; then scripts/workpad.py body \"$WID\" 2>/dev/null | grep -A30 \"## Acceptance Criteria\" | head -40; fi",
+      "scripts/prompt-surface-growth.py",
+      ".prflow/vendor/prflow/scripts/reception-record.py --help 2>&1 | head -20; echo \"=== reception_identity ===\"; ls scripts/reception_identity.py 2>&1; scripts/reception_identity.py 2>&1 | head -5 || echo \"rc=$?\"",
+      "ls scripts/reception_identity.py .prflow/vendor/prflow/scripts/reception_identity.py 2>&1; echo \"---try---\"; scripts/reception_identity.py --help 2>&1 | head -20 || echo \"rc=$?\"",
+      ".prflow/vendor/prflow/scripts/reception_identity.py --help 2>&1 | head -25"
+    ],
+    "total": 20,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
