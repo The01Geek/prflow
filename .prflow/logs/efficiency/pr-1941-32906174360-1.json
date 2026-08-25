@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1941",
+  "generated_at": "2026-08-25T22:38:00Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.29",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 8.939428249999999,
+    "tokens": {
+      "input_tokens": 66,
+      "output_tokens": 36746,
+      "cache_read_input_tokens": 5275028,
+      "cache_creation_input_tokens": 229464,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 106,
+        "outputTokens": 62486,
+        "cacheReadInputTokens": 6079854,
+        "cacheCreationInputTokens": 556213,
+        "webSearchRequests": 0,
+        "costUSD": 8.939428249999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 55,
+    "duration_ms": 574703
+  },
+  "permission_denials": {
+    "count": 7,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "ls /home/runner/work/prflow/prflow/skills/review/../../scripts/ | head; echo \"---\"; echo \"CLAUDE_SKILL_DIR=${CLAUDE_SKILL_DIR:-UNSET}\"",
+      "ls /home/runner/work/prflow/prflow/skills/review/../../scripts/load-prompt-extension.sh; echo \"---skilldir contents---\"; ls /home/runner/work/prflow/prflow/skills/review/phases/",
+      "echo \"run_id=${GITHUB_RUN_ID:-none} attempt=${GITHUB_RUN_ATTEMPT:-none} actions=${GITHUB_ACTIONS:-none}\"",
+      "RID=$(printf '%s' \"${GITHUB_RUN_ID:-none}\"); printf 'run_id=%s attempt=%s\\n' \"$RID\" \"${GITHUB_RUN_ATTEMPT:-1}\"",
+      "/home/runner/work/prflow/prflow/skills/review/../../scripts/compose-run-url.sh",
+      "/home/runner/work/prflow/prflow/skills/review/../../scripts/workpad.py acs-resolve 1440 --pr 1941 ; echo \"acs-rc=$?\"",
+      "echo \"=== VC-12 lite: overview string present (head) ===\"; git show bce1ba392da5ea131f7dfa1dd2380c162e80af2c:docs/internal/DEVFLOW_SYSTEM_OVERVIEW.md | grep -c \"counting only positively human-attributable commits, with blank-login commits classified agent-side\"\necho \"=== VC-5: cheap-gate post_bot_commits>0 arm (head) ===\"; git show bce1ba392da5ea131f7dfa1dd2380c162e80af2c:lib/cheap-gate.jq | grep -n 'post_bot_commits' | grep -v '^\\s*#'\necho \"=== VC-5b: diff to cheap-gate only touches comment lin …[per-command-truncated]"
+    ],
+    "total": 7,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
