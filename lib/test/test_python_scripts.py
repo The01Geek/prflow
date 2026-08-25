@@ -25988,6 +25988,36 @@ assert_eq("#1214 file-reflection: the buffered file payload is replayed into the
 assert_eq("#1214 file-reflection: the buffer is cleared after the replay",
           False, _buf_file4.exists())
 
+# Review finding (PR #1947, issue #1813): the FILE-sourced NOTE is the --note-file
+# feature's motivating case exactly as the file-sourced reflection is #1214's — the
+# worktree-isolated tier records its Writing-skills-evidence / Blocked note through a
+# `--note-file` call whose payload carries backticks. A `--note-file`-only call whose
+# PATCH fails must buffer that note through _cmd_update_inner's `_own_notes` append and
+# replay it into ## Progress, or the one note the channel exists to deliver is the one it
+# silently drops. (_apply_mutations render coverage above never enters _cmd_update_inner.)
+_bufdir5 = tempfile.mkdtemp(prefix='wp1813-buf5-')
+_nf_payload = 'Writing-skills evidence: `skills/review/SKILL.md` mode=subagent skill-loaded=yes'
+_nf_file = Path(_bufdir5) / 'payload.md'
+_nf_file.write_text(_nf_payload + '\n', encoding='utf-8')
+_code, _pb, _n = _run_cmd_update(
+    _update_args(note_file=str(_nf_file)),
+    live_body=_WP1214, patch_fails=True, buffer_dir=_bufdir5)
+_buf_file5 = Path(_bufdir5) / '55512.json'
+assert_eq("#1813 file-note: a PATCH failure still fails loudly (non-zero exit)",
+          True, _code != 0)
+assert_eq("#1813 file-note: the dropped --note-file payload IS buffered (backticks intact)",
+          True, _buf_file5.exists()
+          and _nf_payload in _buf_file5.read_text(encoding='utf-8'))
+# ...and replays into ## Progress on the next successful call (a note, not a reflection).
+_code, _pb, _n = _run_cmd_update(
+    _update_args(status='Reviewing'),
+    live_body=_WP1214, patch_fails=False, buffer_dir=_bufdir5)
+assert_eq("#1813 file-note: the replaying update exits 0", 0, _code)
+assert_eq("#1813 file-note: the buffered file note is replayed into the body",
+          True, _pb is not None and _nf_payload in _pb)
+assert_eq("#1813 file-note: the buffer is cleared after the replay",
+          False, _buf_file5.exists())
+
 # Review finding (PR #1227, finding 2): idempotency must hold ACROSS buffered
 # records, not only against the live body. Two failed calls carrying the same
 # `--note` (a retry during an outage) buffer separate records; deduping only against
