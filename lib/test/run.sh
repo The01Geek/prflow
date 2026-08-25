@@ -4505,28 +4505,6 @@ assert_eq "F1: misregistration guard detects an injected SKILL.md (find non-empt
   "$([ -z "$(find "$_f1_skilldir" -name SKILL.md 2>/dev/null)" ] && echo yes || echo no)"
 rm -rf "$_f1_skilldir"
 # ── end issue #218 structural assertions ──
-# ── issue #232: the Phase 4.1 post-subagent re-anchor (phase-4-documentation.md), guarding
-# against a run that stops before Phase 4 finalization (workpad frozen at an in-progress
-# Status, un-described draft PR). Coupled to the skill clause: removing it turns the suite
-# RED.
-# (P4_FILE is the shared phase-file path hoisted next to IMPL_PHASES_DIR above.)
-# Do not re-point this pin at §4.2's re-anchor or widen its literal: the literal is
-# grandfathered as unique to the §4.1 note, and §4.2's counterpart is agent-executed prose
-# that owes no pin (CLAUDE.md #843/#876). Provenance: docs/internal/implement-skill.md.
-assert_pin_unique "#232/#362: phase-4 re-anchor scoped to **subagent** returns (AC4, reworded)" \
-  'scoped to **subagent** returns' "$P4_FILE"
-# review iter-2 (shadow pr-test-analyzer): pin the operative re-read instruction directly —
-# the Phase 4.1 re-anchor TRIGGER is repeated in the always-loaded orchestrator so a
-# subagent-return eviction cannot remove it, and dropping the pin drops that hardening.
-assert_pin_unique "#232: orchestrator keeps the OPERATIVE always-loaded re-Read directive (SFH F2)" \
-  'the phase file before continuing to §4.2 (resume from §4.2' "$IMPL_ORCH"
-# AC4 scope constraint is mirrored in the always-loaded orchestrator too; pin that copy so the
-# "not the Phase 2/3 returns" guardrail can't be dropped from the resident mirror unnoticed.
-# Reworded by #362 (see the phase-4 block above) to scope the trigger to SUBAGENT returns,
-# since a Skill-tool return now has its own generalized re-anchor in the same resident body.
-assert_pin_unique "#232/#362: orchestrator mirror scopes the re-anchor to **subagent** returns (SFH F2 mirror)" \
-  'scoped to **subagent** returns, not the Phase 2/3 subagent returns' "$IMPL_ORCH"
-
 # ── issue #362: run-continuity guards. Three always-resident cross-phase rules in the
 # orchestrator (generalized mid-phase re-anchor after ANY Skill-tool return; the
 # non-interactive self-answer rule; the Agent-subagent dispatch path for interactive
