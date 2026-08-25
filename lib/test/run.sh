@@ -48661,8 +48661,9 @@ _refresher_scratch_guard() {
   return "$_rsg_rc"
 }
 _stop_sh_guarded() {
-  # These defaults MIRROR scripts/stop-refresher.sh's own; if that helper's default
-  # pidfile/log/reap-glob paths change, update these or the guard checks stale paths.
+  # These defaults MIRROR scripts/stop-refresher.sh's own; do not edit one side alone —
+  # the pin below goes RED, and a drifted mirror would guard stale paths while the
+  # helper's real ones reach a live $RUNNER_TEMP unchecked.
   _ssg_pid="${DEVFLOW_REFRESH_PIDFILE:-${RUNNER_TEMP:-/tmp}/devflow-refresh.pid}"
   _ssg_log="${DEVFLOW_REFRESH_LOG:-${RUNNER_TEMP:-/tmp}/devflow-refresh.log}"
   _ssg_reap="${DEVFLOW_REFRESH_REAP_GLOB:-${RUNNER_TEMP:-/tmp}/devflow-refresh-*.pid}"
@@ -48673,6 +48674,11 @@ _stop_sh_guarded() {
   fi
   bash "$STOP_SH"
 }
+# structural-pin-ok: helper-contract -- _stop_sh_guarded above re-derives stop-refresher.sh's default
+# pidfile/log/reap-glob expressions; this pins the helper's side of that mirror so a default change
+# there turns the suite RED instead of leaving the containment guard validating stale paths.
+assert_eq "#1925 guard mirror: stop-refresher.sh still carries the default pidfile/log/reap expressions _stop_sh_guarded mirrors" "1 1 1 1" \
+  "$(grep -cF 'PIDFILE="${DEVFLOW_REFRESH_PIDFILE:-${RUNNER_TEMP:-/tmp}/devflow-refresh.pid}"' "$STOP_SH") $(grep -cF 'LOG="${DEVFLOW_REFRESH_LOG:-${RUNNER_TEMP:-/tmp}/devflow-refresh.log}"' "$STOP_SH") $(grep -cF '_reap_base="${RUNNER_TEMP:-/tmp}"' "$STOP_SH") $(grep -cF 'REAP_GLOB="$_reap_base/devflow-refresh-*.pid"' "$STOP_SH")"
 assert_eq "#487 stop-refresher exists (extracted from the workflow Stop step)" "yes" \
   "$([ -f "$STOP_SH" ] && echo yes || echo no)"
 
@@ -49041,11 +49047,9 @@ assert_eq "#1882 arm1882o: assembled JWT header decodes to the RS256 alg" '{"alg
 assert_eq "#1882 arm1882o: assembled JWT payload carries iat/exp and the JSON-escaped iss" '{"iat":111,"exp":222,"iss":"app\"q"}' \
   "$(_pad1882 "$_jp1882" | openssl base64 -d -A 2>/dev/null)"
 
-# ── Issue #1925: the reaper establishes (normalizes) its reap scope or reaps nothing, and
-# the whole region is confined to the scratch dir by a guard. STOP_SH / D487 reused.
-# Guard positive controls (AC3, AC4): the guard function is exercised directly so a real
-# violation is asserted without failing the suite (the record_fail wrapper is what the
-# routed arms use).
+# ── Issue #1925: the reaper establishes (normalizes) its reap scope or reaps nothing.
+# AC3/AC4 call _refresher_scratch_guard directly, never through _stop_sh_guarded — routing
+# them would fail the suite on the violations they deliberately plant.
 _g1925_out="$(_refresher_scratch_guard "demo-outside-arm" "$D487" "/var/live/devflow-refresh.pid" 2>&1)"; _g1925_rc=$?
 assert_eq "#1925 AC3: the containment guard fires (rc 1) when an arm resolves a path outside the scratch dir" "1" "$_g1925_rc"
 assert_eq "#1925 AC3: the guard names the offending arm and path" "yes" \
@@ -49131,7 +49135,10 @@ kill "$_orp1925u" 2>/dev/null; wait "$_orp1925u" 2>/dev/null || true
 # resolves and MSYSTEM unset, normalize-path echoes the drive-letter value unchanged and the
 # reaper refuses it — the plain-Linux residual of the fail-closed arm.
 _minb1925="$D487/minbin1925"; mkdir -p "$_minb1925"
-for _t1925b in bash dirname grep tail sleep kill rm cat printf tr uname sed; do _p1925b="$(command -v "$_t1925b" || true)"; [ -n "$_p1925b" ] && ln -sf "$_p1925b" "$_minb1925/$_t1925b"; done
+# `ps` must stay in this minimal PATH: without it the reaper's identity check cannot
+# establish a pid and fail-safe-skips every candidate, which would silently make the
+# drive-relative arm's live-orphan survival control below pass against any mutant.
+for _t1925b in bash dirname grep tail sleep kill rm cat printf tr uname sed ps; do _p1925b="$(command -v "$_t1925b" || true)"; [ -n "$_p1925b" ] && ln -sf "$_p1925b" "$_minb1925/$_t1925b"; done
 _s1925d="$(env -u MSYSTEM "PATH=$_minb1925" RUNNER_TEMP='D:\a\_work\_temp' DEVFLOW_REFRESH_PIDFILE="$D487/ac6b-job.pid" DEVFLOW_REFRESH_STARTED=success bash "$STOP_SH" 2>&1)"; _s1925d_rc=$?
 assert_eq "#1925 AC6: a drive-letter value with no converter/signal fails closed naming the value" "yes" \
   "$(printf '%s' "$_s1925d" | grep -qF 'could not be normalized into a POSIX glob root' && echo yes || echo no)"
@@ -49155,18 +49162,31 @@ assert_eq "#1925 source-failure: the empty-base arm reaps nothing (a live orphan
 assert_eq "#1925 AC13: stop-refresher exits 0 on the source-failure fail-closed arm" "0" "$_s1925sf_rc"
 kill "$_orp1925sf" 2>/dev/null; wait "$_orp1925sf" 2>/dev/null || true
 
-# #1925 (forward-slash & drive-relative fail-closed): a C:/… value and a separator-less C:foo
-# value, with no converter/signal (minbin), each carry a colon-drive an unquoted glob cannot
-# express and are refused by the [A-Za-z]:* case arm — distinctly exercising it (a mutant
-# dropping that arm falls through to *) and composes a relative glob with no breadcrumb).
+# #1925: a C:/… and a separator-less C:foo value, with no converter/signal (minbin), must stay
+# routed to the [A-Za-z]:* refusal arm — dropping that arm falls through to *), which composes a
+# relative glob that sweeps a wrong directory with no breadcrumb.
 _s1925fs="$(env -u MSYSTEM "PATH=$_minb1925" RUNNER_TEMP='C:/nosignal' DEVFLOW_REFRESH_PIDFILE="$D487/fs-job.pid" DEVFLOW_REFRESH_STARTED=success bash "$STOP_SH" 2>&1)"; _s1925fs_rc=$?
 assert_eq "#1925: a forward-slash drive value (C:/…) with no converter/signal fails closed" "yes" \
   "$(printf '%s' "$_s1925fs" | grep -qF 'could not be normalized into a POSIX glob root' && echo yes || echo no)"
 assert_eq "#1925 AC13: stop-refresher exits 0 on the forward-slash-drive fail-closed arm" "0" "$_s1925fs_rc"
-_s1925dr="$(env -u MSYSTEM "PATH=$_minb1925" RUNNER_TEMP='C:norel' DEVFLOW_REFRESH_PIDFILE="$D487/dr-job.pid" DEVFLOW_REFRESH_STARTED=success bash "$STOP_SH" 2>&1)"; _s1925dr_rc=$?
+# The drive-relative arm carries a live-orphan survival control: run from a cwd holding a real
+# `C:norel/` directory with a live orphan pidfile in it, so the relative glob a dropped refusal
+# arm would compose actually MATCHES — the breadcrumb assertion alone cannot tell refusal from
+# a relative sweep that happened to find nothing.
+_drrel1925="$D487/drrel"; mkdir -p "$_drrel1925/C:norel"
+printf '#!/usr/bin/env bash\nsleep 60\n' > "$_drrel1925/refresh-app-credentials.sh"; chmod +x "$_drrel1925/refresh-app-credentials.sh"
+bash "$_drrel1925/refresh-app-credentials.sh" & _orp1925dr=$!
+printf '%s\n' "$_orp1925dr" > "$_drrel1925/C:norel/devflow-refresh-orphan.pid"
+_s1925dr="$(cd "$_drrel1925" && env -u MSYSTEM "PATH=$_minb1925" RUNNER_TEMP='C:norel' DEVFLOW_REFRESH_PIDFILE="$D487/dr-job.pid" DEVFLOW_REFRESH_STARTED=success bash "$STOP_SH" 2>&1)"; _s1925dr_rc=$?
+sleep 0.3
 assert_eq "#1925: a separator-less drive-relative value (C:foo) is refused, not swept as a relative glob" "yes" \
   "$(printf '%s' "$_s1925dr" | grep -qF 'could not be normalized into a POSIX glob root' && echo yes || echo no)"
+assert_eq "#1925: the drive-relative refusal reaps nothing (a live orphan the relative glob would match survives)" "yes" \
+  "$(kill -0 "$_orp1925dr" 2>/dev/null && echo yes || echo no)"
+assert_eq "#1925: the drive-relative refusal emits no reaped-orphan message" "no" \
+  "$(printf '%s' "$_s1925dr" | grep -qF 'reaped an orphaned credential refresher' && echo yes || echo no)"
 assert_eq "#1925 AC13: stop-refresher exits 0 on the drive-relative fail-closed arm" "0" "$_s1925dr_rc"
+kill "$_orp1925dr" 2>/dev/null; wait "$_orp1925dr" 2>/dev/null || true
 
 # AC7: an explicit DEVFLOW_REFRESH_REAP_GLOB is used exactly as given and takes NO conversion —
 # a POSIX explicit glob with an orphan is reaped; an explicit Windows-form glob is used
@@ -49220,7 +49240,7 @@ rm -rf "$D487"
 # hand-edited workflow — driven end to end and joined to the shipped workflow's own
 # trigger-time guard.
 if ! devflow_run_full_suite_module "$LIB/test/modules/installer-wiring.sh" \
-  "installer-wiring" 295; then
+  "installer-wiring" 297; then
   printf 'ERROR: installer-wiring boundary could not record its result\n'
   exit 1
 fi

@@ -248,9 +248,11 @@ _ac10_count533() { [ -r "$1" ] || { printf 'UNREADABLE:%s\n' "$1"; return; }; gr
 # in a file — shell '=' or YAML env ':' form — with whole-line comments stripped.
 _ac10_wf_count533() { [ -r "$1" ] || { printf 'UNREADABLE:%s\n' "$1"; return; }; grep -vE '^[[:space:]]*#' "$1" 2>/dev/null | grep -cE 'DEVFLOW_GH[=:]'; }
 # The AC9 (#1925) counter: the self-test marker path must not be PUBLISHED job-wide into $GITHUB_ENV
-# (the fixture-stub-outranking hazard the DEVFLOW_GH check guards). Count only the publication form
-# (`echo "DEVFLOW_REFRESH_SELFTEST_FAILED=`), comments stripped; fail closed on an unreadable file.
-_ac1925_pub_count() { [ -r "$1" ] || { printf 'UNREADABLE:%s\n' "$1"; return; }; grep -vE '^[[:space:]]*#' "$1" 2>/dev/null | grep -cF 'echo "DEVFLOW_REFRESH_SELFTEST_FAILED='; }
+# (the fixture-stub-outranking hazard the DEVFLOW_GH check guards). Both job-wide publication forms
+# stay counted — the shell `echo "NAME=` redirect AND a YAML `env:` `NAME:` entry: matching only the
+# shell form would leave a re-introduced job-level env: block green, recreating the hazard. Comments
+# stripped; the Stop step's in-body `export NAME=` is not a publication and is not matched.
+_ac1925_pub_count() { [ -r "$1" ] || { printf 'UNREADABLE:%s\n' "$1"; return; }; grep -vE '^[[:space:]]*#' "$1" 2>/dev/null | grep -cE '(echo "DEVFLOW_REFRESH_SELFTEST_FAILED=|^[[:space:]]*DEVFLOW_REFRESH_SELFTEST_FAILED:)'; }
 assert_eq "#533 AC10: install-gh-wrapper.sh writes no bare DEVFLOW_GH= (only DEVFLOW_GH_REAL=)" "0" \
   "$(_ac10_count533 "$INSTALL533")"
 
@@ -306,6 +308,10 @@ rm -f "$_t533k"
 _t1925k="$(probe_tmp '#1925 AC9 self-test-marker publication guard positive control setup')"
 printf '          {\n            echo "DEVFLOW_REFRESH_SELFTEST_FAILED=$STMARK"\n          } >> "$GITHUB_ENV"\n' > "$_t1925k"
 assert_eq "#1925 AC9: the publication recipe fires on a planted DEVFLOW_REFRESH_SELFTEST_FAILED publication" "1" "$(_ac1925_pub_count "$_t1925k")"
+printf 'jobs:\n  claude:\n    env:\n      DEVFLOW_REFRESH_SELFTEST_FAILED: /tmp/leaked\n' > "$_t1925k"
+assert_eq "#1925 AC9: the publication recipe fires on a planted YAML env DEVFLOW_REFRESH_SELFTEST_FAILED: entry" "1" "$(_ac1925_pub_count "$_t1925k")"
+printf '          export DEVFLOW_REFRESH_SELFTEST_FAILED="$RUNNER_TEMP/devflow-refresh-$HANDLE.selftest-failed"\n' > "$_t1925k"
+assert_eq "#1925 AC9: the publication recipe stays 0 on the Stop step in-body export (self-derivation is not publication)" "0" "$(_ac1925_pub_count "$_t1925k")"
 printf '          # echo "DEVFLOW_REFRESH_SELFTEST_FAILED=$STMARK" (retired publication, mentioned only in prose)\n' > "$_t1925k"
 assert_eq "#1925 AC9: the publication recipe stays 0 on a whole-line comment mention" "0" "$(_ac1925_pub_count "$_t1925k")"
 rm -f "$_t1925k"
