@@ -4243,12 +4243,9 @@ _REVIEW_COVERAGE_AXIS_GAP = {s['name']: s['gap'] for s in _REVIEW_COVERAGE_AXIS_
 # table's own order rather than a hand-maintained second one.
 _REVIEW_COVERAGE_GAPS = tuple(
     dict.fromkeys(s['gap'] for s in _REVIEW_COVERAGE_AXIS_SPECS))
-# Shadow-review roster membership (issue #1512). The `roster` axis above carries only a
-# summary token, so a self-reported `complete` cannot distinguish a full fan-out from a
-# narrow one that believes itself full. `--record-roster-member` enumerates the shadow's
-# per-member dispatch outcomes and `_review_roster_incoherence` cross-checks the axis
-# against them at write time and read time, so a `complete` roster with an always-on
-# member undispatched is refused rather than trusted.
+# Shadow-review roster membership (issue #1512): the per-member dispatch enumeration
+# `_review_roster_incoherence` cross-checks the summary `roster` axis against, so a
+# `complete` claim omitting an always-on member is refused rather than self-reported.
 _SHADOW_ALWAYS_ON_MEMBERS = (
     'code-reviewer', 'silent-failure-hunter', 'comment-analyzer',
     'requesting-code-review')
@@ -4383,8 +4380,9 @@ def _review_coverage_incoherence(record: dict) -> str | None:
 def _review_roster_members(progress_content: str) -> dict:
     """The enumerated shadow roster as `{member: status}`, read from the `## Progress`
     content — one `review-roster:<member>:<status>` marker row per member. A member with
-    more than one row maps to `_REVIEW_ROSTER_DUPLICATE`; a malformed payload is skipped, so that
-    member reads as absent and a `complete` claim that needed it is refused. Read back
+    more than one row maps to `_REVIEW_ROSTER_DUPLICATE` (separately refused as a duplicate);
+    a malformed payload (not `<member>:<status>`) is skipped, so that member reads as absent
+    and a `complete` claim that needed it is refused. Read back
     here rather than trusted from the writing call, so an enumeration recorded at the
     Phase 3.3 review exit still reaches the Phase 4.3 finalize call, which repeats no
     coverage flags."""
@@ -4411,6 +4409,8 @@ def _review_roster_incoherence(record: dict, members: dict) -> str | None:
       always-on member absent, `missing`, or `gated-off` refuses it, naming the member.
     - `short` must name at least one `missing` member — a `short` with none is really
       complete, so refusing it keeps the axis honest.
+    - an always-on member is never applicability-gated, so recording one `gated-off` on
+      any measured roster (`complete` or `short`) is incoherent and refused.
     - `complete`/`short` are measured values and require a non-empty enumeration;
       `not-applicable`/`unestablished` measured no roster and must carry none.
     - An unknown member or status, or a duplicated member row, fails closed."""
@@ -4434,6 +4434,12 @@ def _review_roster_incoherence(record: dict, members: dict) -> str | None:
     if measured and not members:
         return (f"roster={roster} is a measured value, so it must enumerate the shadow's "
                 "per-member dispatch outcomes, but no review-roster row is present")
+    if measured:
+        ao_gated = [m for m in _SHADOW_ALWAYS_ON_MEMBERS
+                    if members.get(m) == 'gated-off']
+        if ao_gated:
+            return ("an always-on member is never applicability-gated, so it cannot be "
+                    f"recorded gated-off: {', '.join(ao_gated)}")
     if roster == 'complete':
         bad = [f'{m}={members.get(m) or "not-enumerated"}'
                for m in _SHADOW_ALWAYS_ON_MEMBERS
@@ -5585,11 +5591,9 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
                 f"--record-review-coverage: {incoherent}. No PATCH was made."
             )
         review_coverage_payload = ':'.join(review_coverage)
-    # Shadow-review roster enumeration (issue #1512): the per-member dispatch outcomes
-    # that make the coverage record's roster axis auditable rather than a self-report.
-    # Validated here, before any body mutation, and cross-checked against the roster axis
-    # so a `complete` claim with an undispatched always-on member is refused. Read via
-    # getattr so an older arg shape degrades to "flag absent".
+    # Shadow-review roster enumeration (issue #1512): validated before any body mutation
+    # and cross-checked against the roster axis. Read via getattr so an older arg shape
+    # (no --record-roster-member) degrades to "flag absent" rather than raising.
     roster_member_pairs = list(getattr(args, 'record_roster_member', None) or [])
     roster_members: dict = {}
     if roster_member_pairs and not review_coverage_payload:

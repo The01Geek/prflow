@@ -12070,10 +12070,6 @@ assert_eq("#1453: the canonical trailing-marker bullet IS read (positive control
           workpad._review_coverage_payloads("  - 03:00:00 — recorded " + _MK_RC))
 
 # ── issue #1512: the roster axis is cross-checked against a per-member enumeration ──
-# The roster axis alone is a self-report: a shadow narrower than the expected roster can
-# write roster=complete and nothing downstream sees a roster to contradict it. The record
-# now carries a per-member dispatch enumeration and workpad.py refuses a `complete` axis
-# whose enumeration omits an always-on member.
 _1512_ALWAYS = list(workpad._SHADOW_ALWAYS_ON_MEMBERS)
 
 
@@ -12179,6 +12175,46 @@ except workpad._UpdateError as _e:
     _1512_forge = str(_e)
 assert_eq("#1512: --checkpoint refuses the reserved review-roster key",
           True, _1512_forge is not None and "reserved" in _1512_forge)
+# An always-on member is never applicability-gated, so recording one gated-off on any
+# measured roster is incoherent — refused on both complete and short.
+assert_eq("#1512: an always-on member marked gated-off cannot record complete",
+          True, "never applicability-gated" in (_rc_write(
+              ["full", "attempted", "complete", "complete"],
+              [[_1512_ALWAYS[0], "gated-off"]]
+              + [[m, "dispatched"] for m in _1512_ALWAYS[1:]]) or ""))
+assert_eq("#1512: an always-on member marked gated-off cannot record short either",
+          True, "never applicability-gated" in (_rc_write(
+              ["not-verified", "attempted", "short", "complete"],
+              [[_1512_ALWAYS[0], "missing"], [_1512_ALWAYS[1], "gated-off"]]
+              + [[m, "dispatched"] for m in _1512_ALWAYS[2:]]) or ""))
+# Defense-in-depth: the read-time gate (not only write time) re-validates the enumeration,
+# so a duplicate / unknown-member / unknown-status row planted in a persisted body is
+# refused at the Complete gate.
+assert_eq("#1512: a duplicate roster row is refused at read time",
+          True, "more than once" in (_rc_complete(_rc_row(
+              "full:attempted:complete:complete",
+              members=[(m, "dispatched") for m in _1512_ALWAYS]
+                      + [(_1512_ALWAYS[0], "dispatched")])) or ""))
+assert_eq("#1512: an unknown roster member is refused at read time",
+          True, "unknown member" in (_rc_complete(_rc_row(
+              "full:attempted:complete:complete",
+              members=[(m, "dispatched") for m in _1512_ALWAYS]
+                      + [("nonexistent-agent", "dispatched")])) or ""))
+assert_eq("#1512: an unknown member status is refused at read time",
+          True, "unknown status" in (_rc_complete(_rc_row(
+              "full:attempted:complete:complete",
+              members=[(m, "sent") for m in _1512_ALWAYS])) or ""))
+# A malformed roster payload (not <member>:<status>) is skipped by _review_roster_members,
+# so the member reads absent (fail-closed) rather than crashing the split.
+assert_eq("#1512: a malformed roster payload is skipped, not crashed",
+          {}, workpad._review_roster_members(
+              "## Progress\n  - 03:00:00 — review roster member x "
+              + workpad._checkpoint_marker("review-roster:requesting-code-review") + "\n"))
+# Re-record strips the PRIOR roster enumeration: the superseding short record reads back
+# its own members with no stale/duplicate rows carried over from the replaced complete one.
+assert_eq("#1512: re-recording strips the prior roster enumeration (no stale/duplicate rows)",
+          dict(_rc_members_for("short")),
+          workpad._review_roster_members(_rc_rerecord))
 
 # ── issue #1722: one moment, one call — the combined-mutation call is not rejected ──
 
