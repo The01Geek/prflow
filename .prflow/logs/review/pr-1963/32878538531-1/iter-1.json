@@ -1,0 +1,85 @@
+{
+  "iter": 1,
+  "fix_commit_sha": "f91cdaa8fabc0e4b70047efe6506ec01c06ec623",
+  "fix_files": [
+    ".github/actions/setup-project-env/provision-lint-tools.sh",
+    "scripts/install_state.py",
+    "scripts/lint_provision.py",
+    "lib/test/test_python_scripts.py"
+  ],
+  "loop_role": "fix",
+  "current_step": "3.5",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": true,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:pr-test-analyzer",
+    "prflow:comment-analyzer",
+    "prflow:type-design-analyzer"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:pr-test-analyzer",
+    "prflow:comment-analyzer",
+    "prflow:type-design-analyzer"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "version verification used a substring match (grep -qF): pinned 1.2 would accept reported 1.24.1",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "cache-hit comment overstated cross-run caching; no actions/cache wired",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:type-design-analyzer",
+      "severity": "Important",
+      "description": "Plan status unvalidated + CLI else-is-established fail-open; Readiness/StateResult pairing not enforced",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "digest_bytes/module docstring imprecisions (devflow_digest aside, reader/validator/workflow-templates count)",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "extract-zip path and within-job reuse branch untested; matrix-completeness gaps",
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "plan capture 2>&1 could merge stray stderr into field split (no observed trigger)",
+      "fix_decision": "deferred",
+      "skip_category": "uncategorized",
+      "evidence": "helper forces UTF-8, emits no stderr on the success path; low likelihood, no observed trigger"
+    }
+  ],
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "refixed",
+      "reason": "tests (test_python_scripts.py #1388) + ruff + shellcheck all green after fixes; extract-zip, superset-version, within-job reuse, and type guards each newly covered"
+    }
+  },
+  "sweep_evidence": {
+    "status": "run"
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
