@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1927",
+  "generated_at": "2026-08-25T01:52:39Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.8",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 7.943788,
+    "tokens": {
+      "input_tokens": 42,
+      "output_tokens": 28145,
+      "cache_read_input_tokens": 3095738,
+      "cache_creation_input_tokens": 199129,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 84,
+        "outputTokens": 57637,
+        "cacheReadInputTokens": 4209156,
+        "cacheCreationInputTokens": 584181,
+        "webSearchRequests": 0,
+        "costUSD": 7.943788,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 37,
+    "duration_ms": 605808
+  },
+  "permission_denials": {
+    "count": 2,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---RUNENV---\"; echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-}\"; echo \"GITHUB_RUN_ATTEMPT=${GITHUB_RUN_ATTEMPT:-}\"; echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-}\"",
+      "for f in loop-control shadow-review; do echo \"=== $f ===\"; git show 51d1965491faa7701cea234881eee134b25fa005:skills/review-and-fix/references/$f.md | grep -ni 'from.*diff_profile\\|recompute\\|recomputed' ; done"
+    ],
+    "total": 2,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
