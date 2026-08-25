@@ -13647,24 +13647,33 @@ assert_eq "#356: a 💥 Failed workpad gates non-clean via cheap-gate" "false" \
 assert_eq "#356: a 💥 Failed workpad gates non-clean for the workpad-status reason" "workpad status not Complete" \
   "$(jq -c -f "$LIB/cheap-gate.jq" <<<"$CTXF" | jq -r .reason)"
 
-# #1440: post_bot_commits / POSTBOT_SHAS count only positively HUMAN-attributable
-# non-merge commits after the bot's last commit. A blank/absent login (the
-# local-tier agent identity GitHub can't resolve to an account) is agent-side,
-# never human, and a null login must not abort the filter. A `git merge main` by a
-# human (parents>1) is branch hygiene, not a fixup. Drive the SHIPPED jq blocks
-# (extracted from lib/fetch-pr-context.sh, never a transcribed copy — a copy keeps
-# passing after the shipped filter drifts) against fixture commit arrays.
+# #1440: drive the SHIPPED jq blocks, never a transcribed copy — a copy keeps passing
+# after the shipped filter drifts.
 _PBC_START=$(grep -n 'POST_BOT_COMMITS="$(echo' "$LIB/fetch-pr-context.sh" | head -1 | cut -d: -f1)
 _PBC_PROG=$(sed -n "${_PBC_START},/^')\"$/p" "$LIB/fetch-pr-context.sh")
 _PBS_START=$(grep -n 'POSTBOT_SHAS="$(echo' "$LIB/fetch-pr-context.sh" | head -1 | cut -d: -f1)
 _PBS_PROG=$(sed -n "${_PBS_START},/^    ')\"$/p" "$LIB/fetch-pr-context.sh")
-# Name a failed extraction directly (mirrors the #1347 CP4 guard): every fixture
-# row below already fails RED on an empty/truncated program, so this only turns
-# those into one diagnostic naming the cause.
-assert_eq "#1440: the shipped POST_BOT_COMMITS block extracted cleanly" "yes" \
-  "$(case "$_PBC_PROG" in *POST_BOT_COMMITS=*) echo yes ;; *) echo no ;; esac)"
-assert_eq "#1440: the shipped POSTBOT_SHAS block extracted cleanly" "yes" \
-  "$(case "$_PBS_PROG" in *POSTBOT_SHAS=*) echo yes ;; *) echo no ;; esac)"
+# Pin the END and the LENGTH of each extraction, never its start. The start is inside the
+# sed range and is present however the range ends; and an end-marker check alone still
+# passes when a drifted terminator makes sed run on to the producer's NEXT identical
+# terminator, which `bash -c` then executes for real (hundreds of lines, live side
+# effects). The bounds are ceilings on blocks of 18 and 21 lines, not measurements.
+_PBC_NL=${_PBC_PROG//[!$'\n']/}
+_PBS_NL=${_PBS_PROG//[!$'\n']/}
+assert_eq "#1440: the POST_BOT_COMMITS extraction stopped at its own terminator" "')\"" \
+  "${_PBC_PROG##*$'\n'}"
+assert_eq "#1440: the POST_BOT_COMMITS extraction stayed inside its own block" "in-bounds" \
+  "$(if [ "${#_PBC_NL}" -le 40 ]; then echo in-bounds; else echo "overran:${#_PBC_NL}"; fi)"
+assert_eq "#1440: the POSTBOT_SHAS extraction stopped at its own terminator" "    ')\"" \
+  "${_PBS_PROG##*$'\n'}"
+assert_eq "#1440: the POSTBOT_SHAS extraction stayed inside its own block" "in-bounds" \
+  "$(if [ "${#_PBS_NL}" -le 40 ]; then echo in-bounds; else echo "overran:${#_PBS_NL}"; fi)"
+# The two shipped blocks carry byte-identical `ends_bot`/`is_human` defs; a half-applied
+# edit yields post_bot_commits > 0 beside an empty POSTBOT_SHAS and a null human diff.
+assert_eq "#1440: the coupled ends_bot/is_human defs are byte-identical across both blocks" "same" \
+  "$(_pbdefs_a=$(printf '%s\n' "$_PBC_PROG" | grep -E '^ *def (ends_bot|is_human)\(' | sed -E 's/^ +//')
+     _pbdefs_b=$(printf '%s\n' "$_PBS_PROG" | grep -E '^ *def (ends_bot|is_human)\(' | sed -E 's/^ +//')
+     [ -n "$_pbdefs_a" ] && [ "$_pbdefs_a" = "$_pbdefs_b" ] && echo same || echo differ)"
 _pbc() {  # $1=COMMITS json  $2=PR-author login ; runs the SHIPPED count block
   COMMITS="$1" AUTHOR="$2" DEVFLOW_JQ=jq bash -c "$_PBC_PROG"'; printf %s "$POST_BOT_COMMITS"'
 }
@@ -13687,19 +13696,21 @@ assert_eq "#1440: missing parents_count treated as non-merge (human counted)" "1
   "$(_pbc '[{"author_login":"claude[bot]","committer_login":"web-flow"},{"author_login":"alice","committer_login":"alice"}]' someoneelse)"
 assert_eq "#1440: POSTBOT_SHAS excludes the blank-login SHA, keeps the human SHA" '["A"]' \
   "$(_pbs '[{"author_login":"github-actions[bot]","committer_login":"github-actions[bot]","parents_count":1,"sha":"X"},{"author_login":"","committer_login":"","parents_count":1,"sha":"B"},{"author_login":"alice","committer_login":"alice","parents_count":1,"sha":"A"}]' someoneelse)"
-# is_human's OR is is_human(author) OR is_human(committer); the two one-sided fixtures
-# below each blank one login and set the other to a human, so dropping either OR arm
-# would flip its count and go RED (the other rows all set author==committer).
+# Do not drop either arm of is_human(author) OR is_human(committer): the two one-sided
+# fixtures below blank one login and set the other to a human, so losing an arm flips a count.
 assert_eq "#1440: blank author + human committer → 1 (is_human committer arm)" "1" \
   "$(_pbc '[{"author_login":"github-actions[bot]","committer_login":"github-actions[bot]","parents_count":1},{"author_login":"","committer_login":"alice","parents_count":1}]' someoneelse)"
 assert_eq "#1440: human author + blank committer → 1 (is_human author arm)" "1" \
   "$(_pbc '[{"author_login":"github-actions[bot]","committer_login":"github-actions[bot]","parents_count":1},{"author_login":"alice","committer_login":"","parents_count":1}]' someoneelse)"
-# A tail commit by the PR author itself is not human rework: exercised end-to-end
-# (the anchor select captures a login==author commit, and is_human's `!= $author`
-# clause backs it up), so a fixture whose only post-bot commit is authored by the
-# PR-author login yields 0.
+# Self-exclusion is enforced by the ANCHOR select, which captures any login==author commit
+# and restarts the tail after it; is_human's `!= $author` clause is therefore a backstop no
+# fixture can reach, so do not read these two rows as regression cover for that clause.
 assert_eq "#1440: a post-bot commit by the PR author itself → 0 (self-exclusion)" "0" \
   "$(_pbc '[{"author_login":"github-actions[bot]","committer_login":"github-actions[bot]","parents_count":1},{"author_login":"alice","committer_login":"alice","parents_count":1}]' alice)"
+assert_eq "#1440: a PR-author commit re-anchors, dropping an earlier human → 0" "0" \
+  "$(_pbc '[{"author_login":"github-actions[bot]","committer_login":"github-actions[bot]","parents_count":1},{"author_login":"bob","committer_login":"bob","parents_count":1},{"author_login":"alice","committer_login":"alice","parents_count":1}]' alice)"
+assert_eq "#1440: no bot/PR-author commit at all → 0 (zero-anchor branch)" "0" \
+  "$(_pbc '[{"author_login":"alice","committer_login":"alice","parents_count":1},{"author_login":"bob","committer_login":"bob","parents_count":1}]' someoneelse)"
 # Coupled POSTBOT_SHAS carries the identical predicate: keep one OR-arm fixture on it too.
 assert_eq "#1440: POSTBOT_SHAS keeps a human-committer/blank-author SHA" '["A"]' \
   "$(_pbs '[{"author_login":"github-actions[bot]","committer_login":"github-actions[bot]","parents_count":1,"sha":"X"},{"author_login":"","committer_login":"alice","parents_count":1,"sha":"A"}]' someoneelse)"
@@ -13710,7 +13721,16 @@ assert_eq "#1440: two distinct humans after the anchor → 2 (multiplicity, slic
   "$(_pbc '[{"author_login":"alice","committer_login":"alice","parents_count":1},{"author_login":"dave","committer_login":"github-actions[bot]","parents_count":1},{"author_login":"bob","committer_login":"bob","parents_count":1},{"author_login":"carol","committer_login":"carol","parents_count":1}]' someoneelse)"
 assert_eq "#1440: POSTBOT_SHAS lists both human SHAs in commit order" '["B","C"]' \
   "$(_pbs '[{"author_login":"alice","committer_login":"alice","parents_count":1,"sha":"Z"},{"author_login":"dave","committer_login":"github-actions[bot]","parents_count":1,"sha":"Y"},{"author_login":"bob","committer_login":"bob","parents_count":1,"sha":"B"},{"author_login":"carol","committer_login":"carol","parents_count":1,"sha":"C"}]' someoneelse)"
-unset _PBC_START _PBC_PROG _PBS_START _PBS_PROG
+# The two blocks must agree on ONE input: a half-applied predicate edit surfaces as
+# post_bot_commits > 0 beside a shorter POSTBOT_SHAS, which nulls human_postbot_diff.
+assert_eq "#1440: POST_BOT_COMMITS is 1 on the shared blank+merge+pre-anchor input" "1" \
+  "$(_pbc '[{"author_login":"alice","committer_login":"alice","parents_count":1,"sha":"Z"},{"author_login":"dave","committer_login":"github-actions[bot]","parents_count":1,"sha":"Y"},{"author_login":"","committer_login":"","parents_count":1,"sha":"N"},{"author_login":"bob","committer_login":"bob","parents_count":1,"sha":"B"},{"author_login":"carol","committer_login":"carol","parents_count":2,"sha":"M"}]' someoneelse)"
+assert_eq "#1440: POSTBOT_SHAS is the matching 1-element list on that same input" '["B"]' \
+  "$(_pbs '[{"author_login":"alice","committer_login":"alice","parents_count":1,"sha":"Z"},{"author_login":"dave","committer_login":"github-actions[bot]","parents_count":1,"sha":"Y"},{"author_login":"","committer_login":"","parents_count":1,"sha":"N"},{"author_login":"bob","committer_login":"bob","parents_count":1,"sha":"B"},{"author_login":"carol","committer_login":"carol","parents_count":2,"sha":"M"}]' someoneelse)"
+# `unset -f` too: run.sh runs under `set -u`, so a later caller of _pbc/_pbs after the
+# variables they dereference are gone aborts the whole suite instead of failing one row.
+unset -f _pbc _pbs
+unset _PBC_START _PBC_PROG _PBS_START _PBS_PROG _PBC_NL _PBS_NL
 
 # #4 / issue #895: the /review verdict parser is now exercised by EXECUTING the
 # producer (lib/fetch-pr-context.sh) through a gh stub — never by re-declaring its

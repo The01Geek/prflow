@@ -24,11 +24,14 @@
 #   A single context bundle object as emitted by fetch-pr-context.sh, which
 #   must contain a ".signals" object with these fields:
 #     review_comments_count     <int>    — human review comments left on the PR
-#     post_bot_commits          <int>    — non-merge commits after the last bot
-#                                          push that are positively human-attributable;
-#                                          a blank/absent login is classified
-#                                          agent-side, never human (unknown is not
-#                                          a human), so it is not counted
+#     post_bot_commits          <int>    — non-merge commits after the last
+#                                          bot/PR-author commit that are positively
+#                                          human-attributable: counted when EITHER
+#                                          login is non-blank, does not end in [bot]
+#                                          and is not the PR author. A commit whose
+#                                          two logins are both blank or absent is
+#                                          agent-side, never human (unknown is not a
+#                                          human), so it is not counted
 #     ci_failures_during_pr     <int>    — check-runs on the head SHA, across every
 #                                          page, whose conclusion is a real red
 #                                          signal. Superseded runs (cancelled,
