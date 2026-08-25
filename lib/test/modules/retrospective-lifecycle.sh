@@ -3365,6 +3365,18 @@ assert_eq "#1828 guard: a non-array efficiency_runs does not abort the cost inde
 assert_eq "#1828 guard: a non-object efficiency_runs element does not abort the cost index" "true" \
   "$(cp_guard_intact '{"pr":2,"efficiency_runs":[42]}')"
 
+# A PR whose experiment record carries MULTIPLE efficiency runs contributes that record's
+# mean-iterations as its single per-occurrence value: efficiency_runs [2,6] -> per-PR mean 4,
+# so a pattern with that one covered occurrence reports cost 4.
+CP_MULTI="$(cp_run \
+  '{"schema_version":2,"kind":"implementation","pr":1,"merged_at":"2026-04-01T00:00:00Z","verdict":"imperfect","categories":["incomplete-edit"]}' \
+  '{"schema_version":2,"patterns":{},"dismissed":{}}' \
+  '{"pr":1,"efficiency_runs":[{"iterations":2},{"iterations":6}]}')"
+assert_eq "#1828: a PR with multiple efficiency runs contributes that record's mean iterations (2,6 -> 4)" "4" \
+  "$(printf '%s' "$CP_MULTI" | jq -r '.["incomplete-edit"].cost_mean_iterations')"
+assert_eq "#1828: a PR with multiple efficiency runs still counts as one covered occurrence" "1" \
+  "$(printf '%s' "$CP_MULTI" | jq -r '.["incomplete-edit"].covered_occurrence_count')"
+
 # AC2 + AC3: actionable-patterns.sh ranks covered patterns by descending cost, with a
 # zero-coverage pattern last (still passing the unchanged min_occurrences gate). The
 # experiment records live as a SIBLING of the retrospectives file.
