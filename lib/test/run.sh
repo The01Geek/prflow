@@ -17083,11 +17083,22 @@ CTX_CLEAN='{"pr":42,"kind":"implementation","issue_number":40,"merged_at":"2026-
 E="$(echo "$CTX_CLEAN" | jq -c -f "$LIB/clean-entry.jq")"
 assert_eq "clean-entry verdict=clean"       "clean" "$(echo "$E" | jq -r .verdict)"
 assert_eq "clean-entry pr=42"               "42"    "$(echo "$E" | jq -r .pr)"
-assert_eq "clean-entry schema_version=2"    "2"     "$(echo "$E" | jq -r .schema_version)"
+assert_eq "clean-entry schema_version=3"    "3"     "$(echo "$E" | jq -r .schema_version)"
 assert_eq "clean-entry categories=[]"       "0"     "$(echo "$E" | jq '.categories|length')"
 assert_eq "clean-entry descriptors=[]"      "0"     "$(echo "$E" | jq '.descriptors|length')"
 assert_eq "clean-entry no theme_tags field" "true"  "$(echo "$E" | jq 'has("theme_tags") | not')"
 assert_eq "clean-entry signals carried"     "0"     "$(echo "$E" | jq -r .signals.post_bot_commits)"
+# #1827: diff-size fields (additions/deletions/changed_files) survive cleaning when present,
+# and a bundle lacking them still cleans without error (fields default to null).
+CTX_CLEAN_SZ='{"pr":42,"kind":"implementation","issue_number":40,"merged_at":"2026-05-01T00:00:00Z","branch":"claude/issue-40-x","head_sha":"abc","merge_commit_sha":"def","additions":120,"deletions":34,"changed_files":["lib/a.sh","lib/b.jq"],"signals":{"review_comments_count":0,"post_bot_commits":0,"ci_failures_during_pr":0,"workpad_final_status":"Complete","review_reject_outstanding":false}}'
+ESZ="$(echo "$CTX_CLEAN_SZ" | jq -c -f "$LIB/clean-entry.jq")"
+assert_eq "#1827 clean-entry additions survives"      "120"      "$(echo "$ESZ" | jq -r .additions)"
+assert_eq "#1827 clean-entry deletions survives"      "34"       "$(echo "$ESZ" | jq -r .deletions)"
+assert_eq "#1827 clean-entry changed_files survives"  "2"        "$(echo "$ESZ" | jq '.changed_files|length')"
+# The size-field-less CTX_CLEAN cleans without error and defaults the fields to null.
+assert_eq "#1827 clean-entry additions null when absent"     "null" "$(echo "$E" | jq -r .additions)"
+assert_eq "#1827 clean-entry deletions null when absent"     "null" "$(echo "$E" | jq -r .deletions)"
+assert_eq "#1827 clean-entry changed_files null when absent" "null" "$(echo "$E" | jq -r .changed_files)"
 # #152: audit-entry.jq is pruned along with the audit-intervention path.
 assert_eq "#152: audit-entry.jq is removed" "true" \
   "$([ ! -f "$LIB/audit-entry.jq" ] && echo true || echo false)"
