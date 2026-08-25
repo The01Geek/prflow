@@ -125,5 +125,95 @@
       "iter": 1,
       "phases": "unavailable"
     }
-  ]
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.27",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 12.834402100000002,
+    "tokens": {
+      "input_tokens": 86,
+      "output_tokens": 50604,
+      "cache_read_input_tokens": 7354678,
+      "cache_creation_input_tokens": 237301,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 149,
+        "outputTokens": 79936,
+        "cacheReadInputTokens": 9026724,
+        "cacheCreationInputTokens": 554301,
+        "webSearchRequests": 0,
+        "costUSD": 10.866767000000003,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 134,
+        "outputTokens": 21727,
+        "cacheReadInputTokens": 3070648,
+        "cacheCreationInputTokens": 454387,
+        "webSearchRequests": 0,
+        "costUSD": 1.9676350999999996,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 63,
+    "duration_ms": 957970
+  },
+  "permission_denials": {
+    "count": 30,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-<empty>}  ATTEMPT=${GITHUB_RUN_ATTEMPT:-<empty>}  ACTIONS=${GITHUB_ACTIONS:-<empty>}\"\necho \"---HEAD---\"; git rev-parse HEAD\necho \"---ACS---\"\n.prflow/vendor/prflow/scripts/workpad.py acs-resolve \"1931\" --pr \"1935\" ; echo \"acs-rc=$?\"",
+      "git show 9aadba56a50a31cb92aa1efc676d08c89edfcae4:lib/test/run.sh > /tmp/run.sh.head 2>&1 | head -5; wc -l /tmp/run.sh.head; grep -n \"arm13\\|arm20b\\|arm1882k\" /tmp/run.sh.head | head -50",
+      "git show 9aadba56a50a31cb92aa1efc676d08c89edfcae4:lib/test/run.sh > /tmp/run.sh.head",
+      "git show 9aadba56a50a31cb92aa1efc676d08c89edfcae4:lib/test/run.sh > .prflow/tmp/run.sh.head; wc -l .prflow/tmp/run.sh.head; grep -n \"arm13\\|arm20b\\|arm1882k\" .prflow/tmp/run.sh.head",
+      "gh api repos/$(git remote get-url origin | sed -E 's#.*github.com[:/](.*)\\.git#\\1#')/commits/9aadba56a50a31cb92aa1efc676d08c89edfcae4/check-runs 2>&1 | head -100",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1935/32896109311-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1935/32896109311-1/verdicts/iter-1/VC-4-n4da06.json << 'EOF'\n{\"id\": \"VC-4\", \"verdict\": \"PASS\", \"evidence\": \"gh pr view 1935 confirms headRefOid=9aadba56a50a31cb92aa1efc676d08c89edfcae4. gh pr checks 1935 for this head shows 'lib + python tests' pass (10s) and 'lint (shellcheck + actionlint + ruff)' pass (2m4s), plus all shard jobs pass, run …[per-command-truncated]",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1935/32896109311-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1935/32896109311-1/verdicts/iter-1/VC-5-n5eb17.json << 'EOF'\n{\"id\": \"VC-5\", \"verdict\": \"PASS\", \"evidence\": \"lib/test/run.sh (head 9aadba5) arm13 loop at ~line 47443-47445: break condition is `{ [ \\\"$_lv13\\\" = yes ] && [ -n \\\"${_s13//[[:space:]]/}\\\" ]; } && break`, which only checks pid liveness and output non-emptiness -- it never inspects  …[per-command-truncated]",
+      "git show 9aadba56a50a31cb92aa1efc676d08c89edfcae4:lib/test/run.sh > /tmp/run.sh; sed -n '47420,47460p' /tmp/run.sh; echo ---; sed -n '47520,47548p' /tmp/run.sh",
+      "git show 9aadba56a50a31cb92aa1efc676d08c89edfcae4:lib/test/run.sh > /tmp/run.sh",
+      "git show 9aadba56a50a31cb92aa1efc676d08c89edfcae4:lib/test/run.sh > /home/runner/work/prflow/prflow/.prflow/tmp/run_head.sh; sed -n '47420,47460p' /home/runner/work/prflow/prflow/.prflow/tmp/run_head.sh; echo ---; sed -n '47520,47548p' /home/runner/work/prflow/prflow/.prflow/tmp/run_head.sh",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1935/32896109311-1/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1935/32896109311-1/verdicts/iter-1/VC-8-n8be4a.json << 'EOF'\n{\"id\": \"VC-8\", \"verdict\": \"PASS\", \"evidence\": \"lib/test/run.sh (head 9aadba5) arm13 loop (~line 47438-47448): break test `{ [ \\\"$_lv13\\\" = yes ] && [ -n \\\"${_s13//[[:space:]]/}\\\" ]; } && break` runs BEFORE `kill \\\"$_live13\\\"; wait \\\"$_live13\\\" ...`, so a non-breaking (retry) itera …[per-command-truncated]",
+      "git show 9aadba56a50a31cb92aa1efc676d08c89edfcae4:lib/test/run.sh > /tmp/run_head.sh 2>&1; grep -n \"arm13\\|_live13\\|_stop_sh_guarded\" /tmp/run_head.sh | head -80",
+      "git show 9aadba56a50a31cb92aa1efc676d08c89edfcae4:lib/test/run.sh > /tmp/run_head.sh",
+      "git show 9aadba56a50a31cb92aa1efc676d08c89edfcae4:lib/test/run.sh > /home/runner/work/prflow/prflow/.prflow/tmp/run_head.sh\ngrep -n \"arm13\\|_live13\\|_stop_sh_guarded\" /home/runner/work/prflow/prflow/.prflow/tmp/run_head.sh",
+      "git show 9aadba56a50a31cb92aa1efc676d08c89edfcae4:lib/test/run.sh > .prflow/tmp/run_head.sh; grep -n \"arm13\\|_live13\\|_stop_sh_guarded\" .prflow/tmp/run_head.sh",
+      "git show 9aadba56a50a31cb92aa1efc676d08c89edfcae4:lib/test/run.sh > /tmp/run.sh.head 2>&1; echo EXIT:$?; wc -l /tmp/run.sh.head",
+      "git show 9aadba56a50a31cb92aa1efc676d08c89edfcae4:lib/test/run.sh > /tmp/run_head.sh\necho done",
+      "git show 9aadba56a50a31cb92aa1efc676d08c89edfcae4:lib/test/run.sh > .prflow/tmp/run_head.sh\nwc -l .prflow/tmp/run_head.sh",
+      "git show 9aadba56a50a31cb92aa1efc676d08c89edfcae4:lib/test/run.sh > /tmp/run_head_9aadba.sh\nwc -l /tmp/run_head_9aadba.sh",
+      "git show 9aadba56a50a31cb92aa1efc676d08c89edfcae4:lib/test/run.sh > /tmp/run_head_9aadba.sh",
+      "git show 9aadba56a50a31cb92aa1efc676d08c89edfcae4:lib/test/run.sh > run_head_9aadba.sh\nwc -l run_head_9aadba.sh",
+      "cd /tmp && git -C /home/runner/work/prflow/prflow show 9aadba56a50a31cb92aa1efc676d08c89edfcae4:lib/test/run.sh > /tmp/run_head.sh 2>/dev/null && bash -n /tmp/run_head.sh && echo \"SYNTAX_OK\"; command -v shellcheck >/dev/null && shellcheck --severity=warning -e SC1091 --extended-analysis=false /tmp/run_head.sh 2>&1 | head -30 || echo \"shellcheck not available\"",
+      "git show 9aadba56a50a31cb92aa1efc676d08c89edfcae4:lib/test/run.sh > /tmp/run_head.sh && bash -n /tmp/run_head.sh && echo SYNTAX_OK; command -v shellcheck >/dev/null && shellcheck --version | head -2 || echo \"no shellcheck\"",
+      "git show 9aadba56a50a31cb92aa1efc676d08c89edfcae4:lib/test/run.sh > /tmp/run_head.sh; bash -n /tmp/run_head.sh && echo SYNTAX_OK",
+      "git show 9aadba56a50a31cb92aa1efc676d08c89edfcae4:lib/test/run.sh > /tmp/run_head.sh",
+      "git show 9aadba56a50a31cb92aa1efc676d08c89edfcae4:lib/test/run.sh > /home/runner/work/prflow/prflow/.prflow/tmp/run_head.sh; bash -n /home/runner/work/prflow/prflow/.prflow/tmp/run_head.sh && echo SYNTAX_OK",
+      "git show 9aadba56a50a31cb92aa1efc676d08c89edfcae4:lib/test/run.sh > /home/runner/work/prflow/prflow/.prflow/tmp/run_head.sh",
+      "git show 9aadba56a50a31cb92aa1efc676d08c89edfcae4:lib/test/run.sh | bash -n - && echo SYNTAX_OK",
+      "git show 9aadba56a50a31cb92aa1efc676d08c89edfcae4:lib/test/run.sh | bash -n /dev/stdin; echo \"rc=$?\"",
+      "git show 9aadba56a50a31cb92aa1efc676d08c89edfcae4:lib/test/run.sh | bash -n /dev/stdin"
+    ],
+    "total": 30,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
 }
