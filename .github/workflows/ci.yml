@@ -125,7 +125,10 @@ jobs:
       # The gate stages the SHIPPED PAYLOAD (the tracked index minus
       # .claude-plugin/marketplace.json, whose presence would route the CLI to marketplace
       # mode) and DESCENDS into skills/ and agents/. Both are asserted executably in
-      # lib/test/run.sh rather than by this comment.
+      # lib/test/run.sh rather than by this comment. Do not enumerate the descent arms
+      # here — a count rots on the next arm added, the self-referential-ordinal class
+      # CLAUDE.md names, and lib/test/test_residual_prose_retirement_manifest.py uses
+      # that phrase in this file as its comment-subtraction control.
       #
       # Validation is auth-free, which matters because this job runs arbitrary PR code
       # (see the `on:` comment on why not pull_request_target).
