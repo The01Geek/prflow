@@ -1,0 +1,137 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-25T21:50:00Z",
+  "fix_commit_sha": "a64b426bc74f60c31561c5ba6946da06d6948c96",
+  "fix_files": [
+    "lib/clean-entry.jq",
+    ".changeset/issue-1827-incomplete-edit-size-fields.md"
+  ],
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "checklist": [],
+  "dispatch_mode": "unavailable",
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:type-design-analyzer"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:type-design-analyzer"
+  ],
+  "phase3_failed_agents": [],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": false,
+    "checklist_skipped": "intentional"
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Important",
+      "description": "changeset claimed schema_version bumped to 3 but main already shipped 3 (#1829); PR is purely additive",
+      "defect_signature": {
+        "file": ".changeset/issue-1827-incomplete-edit-size-fields.md",
+        "line_range": [
+          8,
+          8
+        ],
+        "kind": "documented_falsehood"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "clean-entry.jq comment 'defaulting like the reflections line above' imprecise (reflections->[], these->null)",
+      "defect_signature": {
+        "file": "lib/clean-entry.jq",
+        "line_range": [
+          42,
+          43
+        ],
+        "kind": "comment_accuracy"
+      },
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "a64b426bc74f60c31561c5ba6946da06d6948c96"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "a64b426bc74f60c31561c5ba6946da06d6948c96"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 2,
+    "fix_diff_lines": 6,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": "prose-only fixes; shadow full-coverage re-review found no new findings"
+    }
+  },
+  "shadow": {
+    "dispatch_mode": "unavailable",
+    "ran_at": "2026-08-25T21:52:00Z",
+    "reviewed_sha": "a64b426bc74f60c31561c5ba6946da06d6948c96",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer"
+    ],
+    "checklist_skipped": "intentional",
+    "phase3_findings": [],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "verification_evidence": {
+    "focused_selection": "clean-entry.jq owner=unmodularized (no focused_test) -> run.sh-resident; monolith shard 9855 passed/0 failed on merged HEAD cdd97f53c; fix-delta prose-only, no re-run needed"
+  },
+  "telemetry": {
+    "phase_3": {
+      "calls": 5,
+      "tokens": 267815,
+      "wall_clock_s": 260
+    },
+    "step_2_6": {
+      "calls": 3,
+      "tokens": 183938,
+      "wall_clock_s": 100
+    }
+  },
+  "synthesized": false
+}
