@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1950",
+  "generated_at": "2026-08-25T10:07:28Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.14",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 17.3824922,
+    "tokens": {
+      "input_tokens": 186,
+      "output_tokens": 55435,
+      "cache_read_input_tokens": 20527247,
+      "cache_creation_input_tokens": 320657,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 214,
+        "outputTokens": 59220,
+        "cacheReadInputTokens": 21614332,
+        "cacheCreationInputTokens": 452402,
+        "webSearchRequests": 0,
+        "costUSD": 16.3378635,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 76,
+        "outputTokens": 14605,
+        "cacheReadInputTokens": 2063221,
+        "cacheCreationInputTokens": 194313,
+        "webSearchRequests": 0,
+        "costUSD": 1.0446287,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 115,
+    "duration_ms": 2355966
+  },
+  "permission_denials": {
+    "count": 9,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=${GITHUB_ACTIONS:-<unset>}\"; echo \"GITHUB_RUN_ID=${GITHUB_RUN_ID:-<unset>}\"; echo \"BASE_default\"; git rev-parse --abbrev-ref HEAD; ls .prflow/vendor/prflow/scripts/config-get.sh 2>/dev/null && echo vendored-present",
+      "BASE=$(.prflow/vendor/prflow/scripts/config-get.sh .base_branch main) || BASE=\"\"\n[ -n \"$BASE\" ] || BASE=main\nCUR=$(git branch --show-current 2>/dev/null) || CUR=\"\"\necho \"BASE=$BASE CUR=$CUR\"",
+      "CURBR=$(git branch --show-current)\n.prflow/vendor/prflow/scripts/workpad.py update 1829 --branch \"$CURBR\"",
+      "git push -u origin HEAD 2>&1 | tail -5; echo \"rc=${PIPESTATUS[0]}\"",
+      "for f in .prflow/learnings/*.jsonl; do echo \"$f: $(grep -c . \"$f\")\"; done; echo total:; cat .prflow/learnings/*.jsonl | grep -c .",
+      "echo $DEVFLOW_APP_ID; echo \"GITHUB_ACTIONS=$GITHUB_ACTIONS\"",
+      "printf '%s' '{\"pr\":92,\"signals\":{},\"diff\":\"@@x@@\",\"diff_truncated\":false,\"workpad_body\":\"w\",\"issue\":{\"comments\":[{\"a\":1}]}}' | jq -c -f lib/clean-entry.jq | jq -c '{schema_version,ap:.analysis_provenance}'\nprintf '%s' '{\"pr\":93,\"signals\":{},\"diff\":null,\"diff_truncated\":true,\"workpad_body\":null,\"issue\":null}' | jq -c -f lib/clean-entry.jq | jq -c '.analysis_provenance'\nprintf '%s' '{\"pr\":94,\"signals\":{},\"analysis_provenance\":{\"cohort\":\"backfill-2026-08-08\",\"bundle_diff_present\":true}}' | jq -c -f …[per-command-truncated]",
+      "lib/test/regenerate-artifacts.py 2>&1 | tail -20; echo \"rc=${PIPESTATUS[0]}\"",
+      "git diff --no-index -U0 /dev/null .changeset/issue-1829-analysis-provenance.md | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree; echo \"rc=$?\""
+    ],
+    "total": 9,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
