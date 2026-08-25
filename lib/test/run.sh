@@ -25031,6 +25031,21 @@ scenarios = {
                               stub("su2", content="Launching skill: prflow:implement"),
                               body_rec(impl_body, base=impl_dir),
                               skill_use("prflow:review", "su3"), stub("su3"), body_rec(body)],
+    # Two body records in one window, both naming the review directory, the second truncated:
+    # keeping the first answers delivered-whole and keeping the last short-delivery.
+    "two_bodies_one_window": [skill_use("prflow:review", "su1"), stub("su1"),
+                              body_rec(body), body_rec(body.rsplit("\n", 2)[0])],
+    # A successful load plus a load whose argument text mentions this root's name: two matches.
+    "success_plus_arg_mention": [skill_use("prflow:review", "su1"), stub("su1"), body_rec(body),
+                                 skill_use("prflow:implement", "su2",
+                                           input_obj={"skill": "prflow:implement",
+                                                      "args": "prflow:review"}),
+                                 stub("su2", content="Launching skill: prflow:implement")],
+    # A duplicated tool_use_id whose second result is clean: last-write-wins would erase the
+    # first result's error flag.
+    "duplicate_result_id": [skill_use("prflow:review", "su1"),
+                            stub("su1", is_error=True, content="permission denied"),
+                            stub("su1"), body_rec(body)],
     # A Skill tool_use carrying NO input at all.
     "null_input":  [skill_use("prflow:review", "su1", input_obj=None), stub("su1"),
                     body_rec(body)],
@@ -25074,10 +25089,9 @@ PY_SBL
   [ "$_sbl_rc" -eq 0 ] && [ -s "$SBL_TMP/exec.jsonl" ]
 }
 sbl_run() {  # the single invocation point for spawning THE HELPER: audit args -> its stdout
-  # Route every helper spawn IN THIS FILE through this one point, or an audit site added later
-  # omits the colour neutralisation. Do not discard stderr in a caller that reads stdout: that
-  # caller captures stdout alone, so a traceback would vanish and a crash read as a grep miss.
-  # A caller measuring the exit status ALONE may discard both (the empty-selection sites below).
+  # Route helper spawns through this one point so a site added later cannot omit the colour
+  # neutralisation, and do not discard stderr in a caller that reads stdout — a traceback would
+  # vanish and the crash read as a grep miss. A caller reading only the exit status may discard.
   NO_COLOR=1 PYTHON_COLORS=0 python3 "$SBL" "$@"
 }
 sbl_verdict_token() {  # $1 the helper's stdout -> the FIRST per-root VERDICT token
@@ -25262,6 +25276,23 @@ assert_eq "#1618/#1897 skill-body: that fixture records three loads in total" "y
 # ATTRIBUTED REJECTION: the refusal is the ambiguity arm, not the error arm one step above it.
 assert_eq "#1618/#1897 skill-body: the twice-recorded root is not refused by the error arm" "yes" \
   "$(sbl_denies retry_after_error 'returned an error tool_result')"
+# Do not revert either selection half to a first-match: keeping the first of several makes the
+# verdict depend on record order.
+assert_eq "#1618/#1897 skill-body: two bodies naming one directory -> unestablished" "unestablished" \
+  "$(sbl two_bodies_one_window)"
+assert_eq "#1618/#1897 skill-body: that reason names the body-record ambiguity, not a missing body" "yes" \
+  "$(sbl_says two_bodies_one_window '2 body records in the Skill load bound to prflow:review')"
+# The disclosed residue of matching a quoted name against the serialised input: report the
+# collision, never measure one of the colliding loads.
+assert_eq "#1618/#1897 skill-body: a successful load plus an argument mention -> unestablished" "unestablished" \
+  "$(sbl success_plus_arg_mention)"
+assert_eq "#1618/#1897 skill-body: that pair is refused by the ambiguity arm" "yes" \
+  "$(sbl_says success_plus_arg_mention '2 recorded Skill loads name prflow:review')"
+# A duplicated tool_use_id must not let a later clean result erase an earlier error flag.
+assert_eq "#1618/#1897 skill-body: a duplicated tool_use_id keeps the error flag" "unestablished" \
+  "$(sbl duplicate_result_id)"
+assert_eq "#1618/#1897 skill-body: that load is refused by the error arm, not measured" "yes" \
+  "$(sbl_says duplicate_result_id 'returned an error tool_result')"
 # A tool_use with NO input serialises to the bare literal `null`, which no quoted name occurs
 # inside — the fail-closed direction is never-loaded, never a body credited to it.
 assert_eq "#1618/#1897 skill-body: a Skill tool_use with no input -> unestablished" "unestablished" \

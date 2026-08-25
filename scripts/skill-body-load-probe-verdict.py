@@ -23,10 +23,11 @@ observation, not testimony. Measuring the stub instead can only ever yield short
 
 DISAMBIGUATION IS TWO-STAGE, and neither stage substitutes for the other. A root is first
 bound to its own recorded LOAD by the name's quoted JSON form, so a longer name containing
-it cannot claim it and a root matching several loads resolves to none of them; the body is
-then selected within that load's window by BASE DIRECTORY, so another skill's body is never
-adjudicated as this root's. Every ambiguity is `unestablished` naming the ambiguity — a
-silently-kept first match is the failure this ordering exists to prevent.
+it cannot claim it; the body is then selected within that load's window by BASE DIRECTORY, so
+another skill's body is never adjudicated as this root's. BOTH stages collect every match and
+refuse a count above one, because keeping one of several makes the verdict depend on record
+order — a silently-kept first match is the failure this ordering exists to prevent, and it is
+reachable at either stage.
 
 THE CONTROLS ARE READ FROM DISK, so the helper cannot drift from the shipped file. Two
 controls per root: the file's last non-empty line (tail) and a distinctive interior
@@ -196,7 +197,9 @@ def collect_skill_pairs(parsed):
     results = {}
     for kind, payload in events:
         if kind == "result":
-            results[payload[0]] = payload[1]
+            # OR the error flag rather than overwriting: a duplicated tool_use_id whose later
+            # result is clean would otherwise erase an earlier error and read as a delivery.
+            results[payload[0]] = results.get(payload[0], False) or payload[1]
 
     use_positions = [i for i, (kind, _) in enumerate(events) if kind == "use"]
     pairs = []
@@ -263,16 +266,15 @@ def root_dir_for(path):
     return os.path.dirname(path) or "."
 
 
-def _body_for_root(pair, path):
-    """The body record delivered for this root's SKILL.md, or None.
+def _bodies_for_root(pair, path):
+    """Every body record in this load's window naming this root's own directory.
 
-    Selected by base directory rather than by position, so a session that loaded several
-    skills cannot have another skill's body adjudicated as this root's."""
+    Selected by base directory rather than by position, so another skill's body is never
+    adjudicated as this root's. Every match is returned rather than the first, for the reason
+    the name binding collects every match: keeping one of several makes the verdict depend on
+    record order, and two records naming one directory is exactly the ambiguity to report."""
     root_dir = root_dir_for(path)
-    for b in pair["bodies"]:
-        if dirs_match(b["base_dir"], root_dir):
-            return b
-    return None
+    return [b for b in pair["bodies"] if dirs_match(b["base_dir"], root_dir)]
 
 
 def verdict_for_root(skill_name, path, pairs, note_top):
@@ -282,10 +284,11 @@ def verdict_for_root(skill_name, path, pairs, note_top):
     matches = _pairs_for_root(skill_name, pairs)
     if not matches:
         return "unestablished", (
-            "no recorded Skill tool_use names %s, so nothing bound this root — the skill was "
-            "not invoked, it was refused before any body returned, or a load was recorded in "
-            "a shape this match cannot read (an input carrying the name outside a JSON string "
-            "value). %d Skill load(s) were recorded in total" % (skill_name, len(pairs))
+            "no recorded Skill tool_use names %s, so nothing bound this root. %d Skill load(s) "
+            "were recorded in total: a count of zero means the transcript carried no Skill "
+            "tool_use at all — the skill was not invoked, or the file parsed but holds no such "
+            "record — while a non-zero count means every recorded load named some other skill, "
+            "or carried this one outside a JSON string value" % (skill_name, len(pairs))
         )
     if len(matches) > 1:
         return "unestablished", (
@@ -304,20 +307,27 @@ def verdict_for_root(skill_name, path, pairs, note_top):
             "the Skill load of %s returned an error tool_result (refused or aborted), so "
             "no body was delivered — the abort mode, not a truncation" % skill_name
         )
-    body_rec = _body_for_root(pair, path)
-    if body_rec is None:
+    body_recs = _bodies_for_root(pair, path)
+    if not body_recs:
         return "unestablished", (
             "the recorded Skill load bound to %s carried no following body record naming its own "
             "directory (%r), so no delivered body could be located to measure — "
             "the paired tool_result is a launch stub, not the body"
             % (skill_name, root_dir_for(path))
         )
-    body = body_rec["text"]
+    if len(body_recs) > 1:
+        return "unestablished", (
+            "%d body records in the Skill load bound to %s name its own directory (%r), so no "
+            "single delivered body could be selected — measuring one of them would make the "
+            "verdict depend on record order" % (len(body_recs), skill_name, root_dir_for(path))
+        )
+    body = body_recs[0]["text"]
     tail, mid = read_controls(path)
     if tail is None:
         return "unestablished", (
-            "the on-disk file %s could not be read for controls, so the delivered body "
-            "cannot be checked against it" % path
+            "the on-disk file %s could not be read for controls — it is unreadable, or it is "
+            "present but has no non-empty line — so the delivered body cannot be checked "
+            "against it" % path
         )
     for marker in _TRUNCATION_MARKERS:
         if marker in body:
