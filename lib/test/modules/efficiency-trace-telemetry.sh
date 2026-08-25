@@ -224,9 +224,9 @@ EOF
 # dispatched, silent, and covered by NEITHER authoritative channel → unestablished,
 # never silent (the residual-collapse this change exists to prevent).
 cat > "$ET_DISP/iter-5.json" <<'EOF'
-{"iter":5,"phase3_dispatched":["a","g","h"],"phase3_failed_agents":{},
+{"iter":5,"phase3_dispatched":["a","g","h","i"],"phase3_failed_agents":{},
 "phase3_findings":[{"agent":"a","corroboration_count":1,"fix_decision":"applied"}],
-"shadow":{"per_reviewer_assessment":[{"agent":"g","returned":false}]},
+"shadow":{"per_reviewer_assessment":[{"agent":"g","returned":false},{"agent":"i","returned":true}]},
 "convergence_inputs":{"fixes_applied":1},"telemetry":null}
 EOF
 ET_DISP_REC="$(bash "$LIB/efficiency-trace.sh" --workpad-dir "$ET_DISP" --slug pr-1849 --mode record)"
@@ -250,6 +250,11 @@ assert_eq "et(#1849/AC3): roster-absent iter invents no silent/failed agent"    
 assert_eq "et(#1849/AC4): shadow per_reviewer_assessment lost reviewer → failed"  "failed"        "$(ET_disp 4 'f')"
 assert_eq "et(#1849): per-agent establishment — assessment-covered lost reviewer → failed" "failed" "$(ET_disp 5 'g')"
 assert_eq "et(#1849): per-agent establishment — silent agent neither channel covers → unestablished (not silent)" "unestablished" "$(ET_disp 5 'h')"
+# The shadow-channel SILENT arm: an agent the assessment lists returned:true, absent
+# from findings, with no direct sink → silent (established by the assessment). Guards
+# against narrowing $assess_covered to returned==false, which would re-collapse this
+# common case to unestablished — the exact distinction #1849 preserves.
+assert_eq "et(#1849): assessment returned:true agent, not in findings → silent (established via shadow channel)" "silent" "$(ET_disp 5 'i')"
 assert_eq "et(#1849): phase3_failed_agents_present carried into record (present iter)" "true" \
   "$(echo "$ET_DISP_REC" | jq -r '.per_iteration[] | select(.iter==1) | .phase3_failed_agents_present')"
 assert_eq "et(#1849/AC7): phase3_failed_agents_present false on historical iter"   "false" \

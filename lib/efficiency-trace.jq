@@ -257,7 +257,10 @@ def iter_view:
   | (if $failed_direct_present then [$failed_raw[] | strings] else [] end) as $failed_direct
   # Only assessment entries with a boolean `returned` and a string `agent` are
   # authoritative; `$assess_covered` names the agents the assessment can decide,
-  # and its `returned == false` members are the shadow-lost (failed) set.
+  # and its `returned == false` members are the shadow-lost (failed) set. No
+  # `coverage == "full"` gate is needed here: a per-reviewer `returned` boolean is
+  # a per-reviewer fact that holds on a not_verified block too (that gate governs
+  # the aggregate verdict/comparison counts, not each reviewer's own return).
   | (if ($assess_raw | type) == "array"
      then [$assess_raw[] | select(type == "object" and ((.returned) | type) == "boolean" and ((.agent) | type) == "string")]
      else [] end) as $assess_entries
