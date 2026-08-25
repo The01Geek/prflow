@@ -150,11 +150,11 @@ If `$ARGUMENTS` is empty, ask the user to describe their user story, bug report,
 Dispatch `/prflow:docs-verify --report-only` peers on the topic extracted from the user story.
 
 Bind the slug, then clear state — before any dispatch. Bind this run's kebab-case slug here; no
-later step binds one. Run `mkdir -p .prflow/tmp` first, treating any stderr from it as its failure
+later step binds one. Run `mkdir -p .prflow/tmp/create-issue/<slug>` first, treating any stderr from it as its failure
 signal; a write or delete at or under `.prflow/` that fails or is refused routes this evidence
 artifact and this pointer onto `references/fallback-read-only-sandbox.md`'s Step 1 arm.
-Delete any `.prflow/tmp/issue-step1-<slug>.md`, and delete-and-rewrite the
-fixed slug-independent pointer `.prflow/tmp/issue-run-slug` holding this slug.
+Delete any `.prflow/tmp/create-issue/<slug>/issue-step1-<slug>.md`, and delete-and-rewrite the
+fixed slug-independent pointer `.prflow/tmp/create-issue/issue-run-slug` holding this slug.
 Both deletes run on every path including the degraded one; a failed delete leaves a possibly-stale
 leftover and routes to `references/fallback-read-only-sandbox.md`'s distrust-the-on-disk-copy row.
 The pointer, like the evidence artifact, is anchored to the working directory (the worktree cwd),
@@ -205,7 +205,7 @@ unestablished (which escalates) when it is absent or unparseable. That comparand
 report you receive.
 
 Evidence artifact. The orchestrator — never a peer — writes the returned evidence (reconciled, on
-the deep arm) to `.prflow/tmp/issue-step1-<slug>.md`, anchored to the working directory, on both
+the deep arm) to `.prflow/tmp/create-issue/<slug>/issue-step1-<slug>.md`, anchored to the working directory, on both
 arms before Step 1 returns. Peers write nothing.
 Those findings stay resident in your context and durably held in that artifact, so Step 3 draws on
 them by pointer and does not re-quote the findings block into its own output. Step 2's evidence bundle and an escalating deep arm read the artifact.
@@ -228,7 +228,7 @@ Load `references/step-2-clarify.md` per the *Reference routing* rules above and 
 
 ### Step 3: Draft the issue and pass the no-options gate
 
-Precondition — the Step 2 derivation-artifact gate applies here too, unconditionally. Before drafting, confirm `.prflow/tmp/issue-derivation-<slug>.md` exists and holds *this run's*
+Precondition — the Step 2 derivation-artifact gate applies here too, unconditionally. Before drafting, confirm `.prflow/tmp/create-issue/<slug>/issue-derivation-<slug>.md` exists and holds *this run's*
 derivation — or, in a read-only sandbox, rely solely on the visible inline-in-chat stand-in
 re-posted in this turn and do not trust any on-disk file (it can only be a stale leftover).
 If the artifact is missing or you cannot confirm it is this run's, the independent-derivation pass
@@ -241,7 +241,7 @@ Draft the issue from the context you already hold — the documentation findings
 (relevant files, current behavior) and the decisions from Step 2 — doing only targeted
 verification reads where a specific claim needs confirming.
 Do not re-explore the whole codebase; the findings are your map, resident in context and durably
-held in `.prflow/tmp/issue-step1-<slug>.md`, so reference them by pointer and do not re-emit the
+held in `.prflow/tmp/create-issue/<slug>/issue-step1-<slug>.md`, so reference them by pointer and do not re-emit the
 findings block into your drafting output.
 (User-facing decision inputs — the surviving audit findings quoted for the user's Step 3.6/Step 4
 election — are authoritative and exempt.)
@@ -268,8 +268,8 @@ Load `references/step-3-6-audit.md` per the *Reference routing* rules above and 
 ### Step 4: Review with the user, then create
 
 Before the first rendered draft, and not again while iterating on feedback, run one `ls -lL … 2>&1`
-over `.prflow/tmp/issue-run-slug`, `.prflow/tmp/issue-step1-<slug>.md`,
-`.prflow/tmp/issue-derivation-<slug>.md` and `.prflow/tmp/issue-audit-<slug>.md` — exactly those
+over `.prflow/tmp/create-issue/issue-run-slug`, `.prflow/tmp/create-issue/<slug>/issue-step1-<slug>.md`,
+`.prflow/tmp/create-issue/<slug>/issue-derivation-<slug>.md` and `.prflow/tmp/create-issue/<slug>/issue-audit-<slug>.md` — exactly those
 four, each named individually — and show its raw output, error lines included, in the message that
 renders the draft. With the slug unestablished, list
 `.prflow/tmp` itself instead on plain `ls -l` — never `-L` — state that nothing there is
@@ -293,7 +293,7 @@ is trusted and nothing is re-entered. An unestablished path — a directory, say
 rather than a re-entry.
 
 Re-run the producing step for every absent path, then resume at the draft rendering. A Step 1
-re-entry reuses the slug already bound and binds no new one; a zero-byte `.prflow/tmp/issue-run-slug`
+re-entry reuses the slug already bound and binds no new one; a zero-byte `.prflow/tmp/create-issue/issue-run-slug`
 is not a re-run of Step 1 but the slug-unestablished arm above. A missing derivation file re-runs Step 2's independent-derivation pass, not
 Step 2 whole, reporting any genuine clarification deficit in the draft message — and re-runs
 Step 3.5's steelman pass afterwards. The run
