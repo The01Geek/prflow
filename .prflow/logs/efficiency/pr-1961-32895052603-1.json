@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1961",
+  "generated_at": "2026-08-25T20:31:33Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.27",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 5.439700999999999,
+    "tokens": {
+      "input_tokens": 28,
+      "output_tokens": 21445,
+      "cache_read_input_tokens": 1769289,
+      "cache_creation_input_tokens": 153947,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 70,
+        "outputTokens": 37519,
+        "cacheReadInputTokens": 2779537,
+        "cacheCreationInputTokens": 405489,
+        "webSearchRequests": 0,
+        "costUSD": 5.439700999999999,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 26,
+    "duration_ms": 360055
+  },
+  "permission_denials": {
+    "count": 2,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-none} ATTEMPT=${GITHUB_RUN_ATTEMPT:-none}\"; git status --porcelain",
+      "for f in $(git show c30c025e30484f08cf0002a265b7c4ff36ce4a85:skills/implement/phases/ 2>/dev/null); do :; done; git ls-tree -r --name-only c30c025e30484f08cf0002a265b7c4ff36ce4a85 skills/implement/phases/ | while read p; do n=$(git show c30c025e30484f08cf0002a265b7c4ff36ce4a85:\"$p\" | grep -c \"phase2-durability-checkpoint.sh\"); e=$(git show c30c025e30484f08cf0002a265b7c4ff36ce4a85:\"$p\" | grep -c \"event phase2-checkpoint\"); echo \"$p ckpt=$n event=$e\"; done"
+    ],
+    "total": 2,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
