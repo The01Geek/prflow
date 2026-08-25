@@ -36,7 +36,7 @@ Scope boundary (deliberate — mirrors extract-command-heads.py's narrow reach):
 * R1 flags an env-prefix compound (`VAR=v cmd …`) and a computed double-quoted
   literal assignment (`MARKER="…"`), NOT a pure-shell sentinel/counter/status
   capture (`WP=""`, `n=0`, `rc=$?`, `VAR=$'…'`) nor a command-substitution capture
-  (`WP=$(cmd)` / `WP="$(cmd)"` — the proven-PERMITTED form the matcher descends
+  (`WP=$(cmd)` / `WP="$(cmd)"` — the observed-PERMITTED form the matcher descends
   into, real-run evidence: run 29105381021 seeded its progress comment through
   exactly a `WP=$(vendored-path create …)` call).
 
@@ -45,7 +45,8 @@ Rule table (each keyed to a probe row / run — see .github/workflows/matcher-pr
   R1  a fence statement whose leading token is a `VAR=value` assignment —
       env-prefix compound (`M=x printf …`, probe row 2) OR a computed
       double-quoted literal (`MARKER="…"`, run 29105381021 denials). The
-      proven-permitted `VAR=$(cmd)` / `VAR="$(cmd)"` capture is NOT flagged.
+      `VAR=$(cmd)` / `VAR="$(cmd)"` capture is NOT flagged — observed permitted on
+      THIS tier (run 29105381021), which is an observed execution, not a probe row.
   R2  a leading `cd` (probe row 3 — DROPPED as unproven/confounded; treat as denied).
   R3  a `>`/`>>` redirect (stdout or `2>`/`&>` stderr) to a `/tmp/…` target
       (probe rows 1,2,7 — out-of-workspace + `>`-redirect denials), OR a

@@ -4,7 +4,7 @@ Each arm below states the disposition of the artifacts it covers, and the workin
 
 ## Step 1 — the evidence artifact and the run-slug pointer
 
-Step 1's on-entry deletes and its writes of `.prflow/tmp/issue-step1-<slug>.md` and the fixed pointer `.prflow/tmp/issue-run-slug` all fail the same way. Post the returned (or reconciled, or degraded-arm) Step 1 evidence as a visible inline-in-chat block in the current turn — the actual findings, not a bare claim that the pass ran — and re-post it whenever a later turn reaches a check that reads it. Do not trust any on-disk `issue-step1-<slug>.md` or `issue-run-slug`; the visible block is the stand-in. With no readable pointer the slug is **unestablished**, which routes to the title-derived fallback in `references/step-4-present-create.md`; the run reports the reduced durability and continues.
+Step 1's on-entry deletes and its writes of `.prflow/tmp/create-issue/<slug>/issue-step1-<slug>.md` and the fixed pointer `.prflow/tmp/create-issue/issue-run-slug` all fail the same way. Post the returned (or reconciled, or degraded-arm) Step 1 evidence as a visible inline-in-chat block in the current turn — the actual findings, not a bare claim that the pass ran — and re-post it whenever a later turn reaches a check that reads it. Do not trust any on-disk `issue-step1-<slug>.md` or `issue-run-slug`; the visible block is the stand-in. With no readable pointer the slug is **unestablished**, which routes to the title-derived fallback in `references/step-4-present-create.md`; the run reports the reduced durability and continues.
 
 ## Step 2 — the derivation artifact
 
@@ -12,15 +12,15 @@ If the write genuinely fails, say so in chat and record the derivation inline in
 
 ## Step 3.5 — the Steelman record
 
-When the filesystem refuses the append of a `### pass <n>` entry to the `## Steelman record` section of `.prflow/tmp/issue-derivation-<slug>.md`, post the entry as a visible inline-in-chat block in the current turn — the actual per-pass fields, not a bare claim that the steelman ran — and re-post it whenever a later turn reaches the Step 3.6 entry confirmation that reads it. Do not trust any on-disk `## Steelman record` in that artifact; the visible block is the record's sole stand-in, and its in-turn posting is what lets the Step 3.6 entry confirmation proceed on this arm. Filing is never blocked.
+When the filesystem refuses the append of a `### pass <n>` entry to the `## Steelman record` section of `.prflow/tmp/create-issue/<slug>/issue-derivation-<slug>.md`, post the entry as a visible inline-in-chat block in the current turn — the actual per-pass fields, not a bare claim that the steelman ran — and re-post it whenever a later turn reaches the Step 3.6 entry confirmation that reads it. Do not trust any on-disk `## Steelman record` in that artifact; the visible block is the record's sole stand-in, and its in-turn posting is what lets the Step 3.6 entry confirmation proceed on this arm. Filing is never blocked.
 
 ## Revision-delta record
 
-When the filesystem refuses the append of a revision-delta evidence line to the `## Revision-delta record` section of `.prflow/tmp/issue-derivation-<slug>.md`, post that line — naming its anchor — as a visible inline-in-chat block in the current turn, and do not trust any on-disk `## Revision-delta record`. The reduced durability is reported and filing is never blocked.
+When the filesystem refuses the append of a revision-delta evidence line to the `## Revision-delta record` section of `.prflow/tmp/create-issue/<slug>/issue-derivation-<slug>.md`, post that line — naming its anchor — as a visible inline-in-chat block in the current turn, and do not trust any on-disk `## Revision-delta record`. The reduced durability is reported and filing is never blocked.
 
 ## Criterion disposition record
 
-When the filesystem refuses the append of a disposition line to the `## Criterion disposition record` section of `.prflow/tmp/issue-derivation-<slug>.md` (the omit/merge/add grading record `references/issue-template.md` mandates per added criterion), post that line — naming the criterion it dispositions — as a visible inline-in-chat block in the current turn, and re-post it whenever a later turn reaches Step 4's presentation confirmation that reads it, and do not trust any on-disk `## Criterion disposition record`. Step 4's presentation confirmation reads that inline block as the record's sole stand-in. The reduced durability is reported and filing is never blocked.
+When the filesystem refuses the append of a disposition line to the `## Criterion disposition record` section of `.prflow/tmp/create-issue/<slug>/issue-derivation-<slug>.md` (the omit/merge/add grading record `references/issue-template.md` mandates per added criterion), post that line — naming the criterion it dispositions — as a visible inline-in-chat block in the current turn, and re-post it whenever a later turn reaches Step 4's presentation confirmation that reads it, and do not trust any on-disk `## Criterion disposition record`. Step 4's presentation confirmation reads that inline block as the record's sole stand-in. The reduced durability is reported and filing is never blocked.
 
 ## Step 2 / Step 3 — the derivation gate's stand-in
 
@@ -44,7 +44,7 @@ The failed or refused write or delete that put this run on this arm leaves the p
 
 ## Step 4 — the investigation-record artifact
 
-When the filesystem refuses the `.prflow/tmp/issue-record-<slug>.md` write, present the record inline in chat — the actual routed-out content as a visible block — report the reduced durability, and never block filing. Publication is withheld on this arm rather than attempted: `scripts/post-issue-comment.sh` requires its body input from a file, so with no record file there is nothing to post. The inline block is the whole delivery, and the reduced-durability report names the record as unpublished. Do not trust any on-disk `issue-record-<slug>.md`; the visible inline block is the sole stand-in.
+When the filesystem refuses the `.prflow/tmp/create-issue/<slug>/issue-record-<slug>.md` write, present the record inline in chat — the actual routed-out content as a visible block — report the reduced durability, and never block filing. Publication is withheld on this arm rather than attempted: `scripts/post-issue-comment.sh` requires its body input from a file, so with no record file there is nothing to post. The inline block is the whole delivery, and the reduced-durability report names the record as unpublished. Do not trust any on-disk `issue-record-<slug>.md`; the visible inline block is the sole stand-in.
 
 ## Step 3.6 / Step 4 — the staged canonical-draft write
 

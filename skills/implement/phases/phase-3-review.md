@@ -136,24 +136,16 @@ echo "draft PR number: [<pr-number>]"
 
 Then stamp the reserved `PRFlow` provenance label on the PR (best-effort). `PRFlow` is a hardcoded provenance constant (no config key controls it; its superseded `DevFlow` spelling stays selectable on already-labelled history, but new runs stamp only `PRFlow`) — it is the branch-naming-independent signal the weekly retrospective uses to detect DevFlow-authored PRs. Apply it through the shared REST label-apply helper after creation (a PR is an issue, so the same `POST .../issues/{n}/labels` endpoint serves it) so a label hiccup can never block the run.
 
-**Cloud-emission discipline (label helpers): emit each call as a single leading-token statement, and substitute the PR number as a LITERAL — see the *Cloud command-shape discipline* section in `skills/implement/SKILL.md`.** Two rules bind here: the label helpers must never be wrapped in a shell loop or an output capture, and `$PR_NUM` — set in the *previous* fence — does not survive into this separate command, so passing it as a variable applies the label to no issue at all: the helper sees an empty number, refuses at its arg-slip guard, and breadcrumbs `got a non-numeric issue/PR number ''` (unquoted, the empty expansion word-splits away and the *label* is swallowed as the number instead — same refusal). Nothing is ever applied to issue `""`, but nothing is applied to the PR either, and the provenance label is silently lost unless you read that breadcrumb. Read the printed `draft PR number` and substitute the digits:
+**Cloud-emission discipline (label helpers): emit the call as a single leading-token statement, and substitute the PR number as a LITERAL — see the *Cloud command-shape discipline* section in `skills/implement/SKILL.md`.** The helper must never be wrapped in a shell loop or an output capture, and `$PR_NUM` — set in the *previous* fence — does not survive into this separate command, so pass the printed `draft PR number` digits as a literal, never a variable. Read the printed `draft PR number` and substitute the digits below.
+
 Two exits before the apply. If no `draft PR number` line was printed at all, the fence was refused, not answered (a refused command produces no output at all) — do not read it as "empty": record it and apply nothing, noting the workpad `PR` link written in that same refused fence may also be unset — `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 3.1: the draft-PR-number fence produced no output at all (likely a harness denial); the PR carries no PRFlow label and the workpad PR link may be unset."` If the line printed but is empty, the PR number could not be resolved: record it durably and apply nothing — `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 3.1 could not resolve the draft PR number to apply the PRFlow provenance label; the PR carries no PRFlow label, so the retrospective's label-first detection will not see this run."`
 
-This is two separate calls, not one fence split for readability: each helper path must really be its own command's leading token, so they are emitted as two distinct Bash invocations (the three phase-4 label channels do the same). Never merge them into one fence, and never chain them with `&&` or `;` — the second head would no longer lead its command.
-
-Call 1 — ensure the `PRFlow` label exists in the repo (idempotent; creates it if absent):
-```bash
-"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/ensure-label.sh PRFlow
-```
-
-Call 2 — apply it to the draft PR, substituting the digits of the `draft PR number` printed above for `<draft-pr-number>` (a literal, never `$PR_NUM` — see the discipline note above):
+Apply the `PRFlow` label to the draft PR with one call — the helper creates the label itself if absent and applies it via REST `POST .../issues/{n}/labels` (not `gh pr edit --add-label`, which resolves the repo via org-scoped GraphQL and fails under a repo-scoped token). Substitute the digits of the `draft PR number` printed above for `<draft-pr-number>` (a literal, never `$PR_NUM`):
 ```bash
 "${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/apply-labels.sh <draft-pr-number> PRFlow
 ```
 
-Both helpers always exit 0 and need only the `repo` scope: `ensure-label.sh` always breadcrumbs — created / present / a `gh` error — so no output at all from it means the harness refused it; record that (`--reflection-kind dropped-failed`) and continue, and `apply-labels.sh` applies via REST `POST .../issues/{n}/labels` (not `gh pr edit --add-label`, which resolves the repo via org-scoped GraphQL and fails under a repo-scoped token).
-
-Route on the apply's stderr — all four outcomes, not just the failure one. `apply-labels.sh` always breadcrumbs on every path it can take, so a harness refusal is its ONLY silent outcome: `devflow: applied label(s) 'PRFlow' to #N` on success; `devflow: warning: could not apply …` on an API failure; `devflow: warning: apply-labels.sh got a non-numeric issue/PR number …` (or `… got no label content …`) on a caller arg-slip — the breadcrumb says outright that it is *not* a harness denial, and it is the shape a `$PR_NUM` that did not survive into this command produces, so re-emit the call once with the printed digits substituted as a literal before recording anything; and no output at all when the harness refuses the command (a denied command prints nothing). The run continues regardless of the label outcome, but a non-success must not vanish. On a surviving warning line or no output at all, record it durably, naming which outcome it was: `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 3.1 could not apply the PRFlow provenance label to the draft PR — the apply reported an API failure or a caller arg-slip, or produced no output at all (a harness denial); the PR carries no PRFlow label, so the retrospective's label-first detection will not see this run."`
+`apply-labels.sh` always exits 0 and prints exactly one stdout outcome token — `applied | nothing-to-apply | arg-slip | api-failure | config-unreadable`. `applied` means the label landed; the run continues regardless. Any other token, or no output at all — a harness refusal, its only silent outcome — must not vanish: record it durably naming the token and continue — `workpad.py update $ISSUE_NUMBER --reflection-kind dropped-failed --reflection "Phase 3.1 could not apply the PRFlow provenance label to the draft PR — apply-labels.sh reported <token> (or produced no output at all, a harness denial); the PR carries no PRFlow label, so the retrospective's label-first detection will not see this run."` An invocation that failed because the helper path does not exist (`No such file`, exit 127) is an anchor-resolution failure, not a label outcome — resolve the path, not this routing.
 
 Bind the Phase-2 scope-decision records to this PR — here, at the first moment the PR number exists. §2.2.5 and §2.2.6 wrote their scope-decision records carrying the literal `pending`, because no PR existed when they ran, and a record still reading `pr=pending` at review time deliberately covers nothing — the review engine's membership check fails closed on it — so binding is not optional. Substitute the digits of the `draft PR number` printed above for `<draft-pr-number>` (a literal, never `$PR_NUM` — the discipline note above):
 
@@ -191,6 +183,11 @@ The run continues regardless of the assignment outcome — assignment is best-ef
 
 ### 3.2 Self-Review with /simplify
 
+Record the phase-boundary event (best-effort; the helper always exits 0 and never blocks the run):
+```bash
+.prflow/vendor/prflow/scripts/verification-flight.py event phase3-simplify-start
+```
+
 Invoke the Skill tool with `skill: simplify` — this runs the built-in Claude Code `/simplify` slash-command, not a DevFlow plugin skill (so there's no `devflow:` prefix and nothing to install). It ships with Claude Code and is always present; do not treat it as a missing skill or skip this phase.
 
 `/simplify` runs the code-review engine over the current diff in quality-only mode — the reuse / simplification / efficiency / altitude cleanup angles — and applies the fixes directly instead of stopping at a report (skipping any whose fix would change intended behavior). By its own charter it does not hunt for bugs; use `/code-review` for that.
@@ -209,6 +206,11 @@ After the skill completes, commit any fixes and push:
 git add -A
 git commit -m "refactor: address /simplify findings for issue #$ARGUMENTS"
 git push
+```
+
+Record the phase-boundary event (best-effort; the helper always exits 0 and never blocks the run):
+```bash
+.prflow/vendor/prflow/scripts/verification-flight.py event phase3-simplify-end
 ```
 
 If `/simplify` reported the code was already clean and made no changes, skip the commit and continue.

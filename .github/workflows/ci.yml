@@ -172,70 +172,33 @@ jobs:
       - name: Preflight (dependency check)
         run: bash lib/preflight.sh
 
-      # Install the Claude Code CLI so the #671 `claude plugin validate --strict`
-      # gate ARMS instead of self-skipping. Until this step existed the CLI was on no
-      # runner, so that gate took its `blocking-gate` skip branch on every CI run. It
-      # was the only skip in the run cited here (run 30274021296 @ fb5256b7: "12523
-      # passed, 0 failed, 1 skipped") — a dated snapshot, NOT a standing invariant.
-      # A skip does not fail the suite (issue #456), so the gate was disarmed silently
-      # while CI stayed green.
+      # Install the Claude Code CLI so the #671 `claude plugin validate --strict` gate in
+      # lib/test/run.sh ARMS instead of self-skipping: that gate probes `command -v claude`
+      # and with no CLI takes a `blocking-gate` skip, which exits 0.
       #
-      # Arming this gate closes ONE skip, not the skip population — nothing here should be
-      # read as promising a particular total. Measured, not assumed: `main` at 30399500061
-      # reported 2 skips, this gate (#671, CLI absent) and the #434 stale-prose self-scan
-      # ("working tree dirty"). Those have different causes and different fixes. The second
-      # was a tally directory written inside the working tree with no .gitignore rule, and
-      # is closed by that .gitignore entry — not by installing a CLI. Read the skip
-      # population off a run's own NOTE lines rather than from this comment, which is a
-      # dated observation exactly like the figure above.
+      # Do not un-gate this from the `monolith` shard — that shard is the sole CLI consumer
+      # (it runs run.sh, where the gate lives), so the other four would fetch claude.ai for
+      # nothing. What keeps the narrowing safe is lib/test/run-shard.sh: it scans every
+      # shard's log and fails a CI shard whose #671 gate self-skipped for CLI absence, keyed
+      # on the gate's own skip line rather than a shard name.
       #
-      # The gate is not cosmetic. It stages the SHIPPED PAYLOAD — the tracked index minus
+      # The gate stages the SHIPPED PAYLOAD (the tracked index minus
       # .claude-plugin/marketplace.json, whose presence would route the CLI to marketplace
-      # mode instead — so root files are validated too, and the one known root warning is
-      # allowlisted as a withheld path inside a differential pair rather than by filtering
-      # validator output (see the block's own comment in lib/test/run.sh for the arms). And
-      # that validation DESCENDS into the skills/ and agents/ trees rather than stopping
-      # at the manifest: a malformed-YAML, absent, or empty frontmatter block exits 1 —
-      # and so does one that parses cleanly but omits a required key, which is the shape
-      # a validator that stopped at "is it valid YAML" would wave through.
-      # That is asserted executably, not by hand — lib/test/run.sh drives each of those
-      # frontmatter shapes against both component trees, each arm preceded by its own
-      # positive control, so the claim is a test that can fail rather than a comment
-      # that can rot. (Deliberately count-free: an arm count here rots the next time an
-      # arm is added — the self-referential-ordinal class CLAUDE.md names.)
-      # Validation is auth-free. Measured while authoring this step, on a bench, not a
-      # description of this job's configuration: with ANTHROPIC_API_KEY and
-      # CLAUDE_CODE_OAUTH_TOKEN unset and HOME redirected to an empty dir, validation
-      # still exits 0. (This job redirects nothing — this step's last line writes
-      # "$HOME/.local/bin" into GITHUB_PATH.) So the step needs no secret, which matters because this
-      # job runs arbitrary PR code (see the `on:` comment on why we do not use
-      # pull_request_target). Confirmed in situ: the gate passes in a PR-triggered job
-      # that is `contents: read` and carries no secrets.
+      # mode) and DESCENDS into skills/ and agents/. Both are asserted executably in
+      # lib/test/run.sh rather than by this comment. Do not enumerate the descent arms
+      # here — a count rots on the next arm added, the self-referential-ordinal class
+      # CLAUDE.md names, and lib/test/test_residual_prose_retirement_manifest.py uses
+      # that phrase in this file as its comment-subtraction control.
       #
-      # PINNED rather than `stable`/`latest`, for the reason the lint job pins ruff
-      # (an unpinned `pip install ruff` picked up 0.16.0, flagged ~645 pre-existing
-      # findings repo-wide, and turned that job red on every branch at once): here the
-      # CLI *is* the validator, so an unpinned upgrade that adds a new warning would
-      # redden this REQUIRED check on an unrelated PR with no repo change. (The
-      # ShellCheck pin nearby is a FLOOR — 0.9.0 predates `--extended-analysis` — which
-      # is a different argument; ruff's is the one that applies here.) Bump it deliberately, and note the pin is one level shallower than it
-      # looks: install.sh itself is refetched unpinned and unchecksummed each run, so
-      # the version argument pins the CLI, not the installer. The blast radius is
-      # bounded — this job is `contents: read` and holds no secrets — and the verify
-      # step below asserts the version actually landed.
+      # Validation is auth-free, which matters because this job runs arbitrary PR code
+      # (see the `on:` comment on why not pull_request_target).
       #
-      # The gate lives in lib/test/run.sh (the `monolith` shard), but the CLI is
-      # installed on EVERY shard uniformly — like the checkout depth above, though for
-      # a different reason: that one is uniform to keep the checkout config single-form,
-      # this one so a gate that later moves into a module shard does not quietly revert
-      # to self-skipping. That uniformity has a real cost worth stating: it puts one
-      # network install per shard behind a REQUIRED check, so a claude.ai outage can redden
-      # `lib + python tests` via a shard that consumes nothing from the CLI. The retry
-      # below absorbs the transient case; a sustained outage fails the check loudly,
-      # which is the intended direction for a gate whose whole defect class is failing
-      # QUIETLY. Narrow it to `if: matrix.shard == 'monolith'` only if that trade stops
-      # being worth it — accepting the silent-revert exposure it reopens.
+      # Do not replace the pin with `stable`/`latest`: here the CLI *is* the validator, so an
+      # unpinned upgrade that adds a warning reddens this REQUIRED check on an unrelated PR.
+      # The pin is one level shallow — install.sh is refetched unpinned each run — so the
+      # version argument pins the CLI, not the installer.
       - name: Install Claude Code CLI (arms the #671 plugin-validate gate)
+        if: matrix.shard == 'monolith'
         run: |
           # The retry/backoff/terminal-exit logic lives in scripts/retry-with-backoff.sh
           # so the suite can drive each arm; inline, nothing exercised them.
@@ -275,7 +238,12 @@ jobs:
       # separately pins that the env: key carries a version-SHAPED value (not the exact
       # literal, which would trap every deliberate bump) — that pin is what catches the
       # key being dropped OR emptied.
+      # Do not drop the `always() &&` for the plain `if: matrix.shard == …`: that form
+      # carries an implicit success(), which re-couples this step to every earlier step in
+      # the job — the coupling issue #1830 AC2 forbids, since a verify that runs only on an
+      # otherwise-clean job is not gated on the shard alone.
       - name: Verify the claude CLI resolves on PATH at the pinned version
+        if: always() && matrix.shard == 'monolith'
         run: |
           v="$(claude --version)"
           echo "$v"

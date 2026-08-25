@@ -141,6 +141,37 @@ cat "$LOG_FILE" || true
 LOG_FILE_ABS="$(cd "${LOG_FILE%/*}" && pwd -P)/${LOG_FILE##*/}"
 printf 'run-shard.sh: retained log: %s\n' "$LOG_FILE_ABS"
 
+# Detect the #671 plugin-validate gate's CLI-absence self-skip: a skip exits 0, so a disarmed
+# gate would otherwise recombine green (issue #1830). Do not scope this to `monolith` by name,
+# drop the `(NOTE|SKIP)  ` emission anchor, or widen past the #671 keys.
+grep -Eq -- '(NOTE|SKIP)  #671 claude plugin validate --strict.*blocking-gate.*claude CLI not on PATH' "$LOG_FILE"
+cli_skip_rc=$?
+cli_skip_cause=''
+if [ "$cli_skip_rc" -eq 0 ]; then
+  cli_skip_cause="the #671 plugin-validate gate self-skipped for CLI absence on shard $SHARD — the claude CLI must be installed on whichever shard hosts that gate (see .github/workflows/ci.yml)"
+elif [ "$cli_skip_rc" -ne 1 ]; then
+  # A grep rc above 1 is a scan ERROR, not "no match" — do not fold it into the no-match arm,
+  # which would fail this detection open on exactly the unscannable log it exists to catch.
+  cli_skip_cause="could not scan shard $SHARD log $LOG_FILE for the #671 CLI-absence skip (grep exit $cli_skip_rc)"
+fi
+if [ -n "$cli_skip_cause" ]; then
+  # Fail only where the gate IS the merge signal. Do not fail a non-CI host too: `run.sh` on
+  # the same commit exits 0 there (the gate self-skips), so failing here would make two
+  # CLAUDE.md-sanctioned local instruments disagree over one condition (issue #1830 AC3
+  # scopes the required failure to a CI run).
+  if [ -n "${GITHUB_ACTIONS:-}" ]; then
+    printf '::error::run-shard.sh: %s. Failing loudly rather than reverting the gate silently (issue #1830).\n' "$cli_skip_cause" >&2
+    # Append the cause to the log as well: shard-tally.py derives failure_names from
+    # `Failure recap:` bullets, so a cause left on stderr never reaches the recombined
+    # required-check summary and the aggregator reports a generic synthetic failure instead.
+    printf 'Failure recap:\n  - run-shard.sh: %s\n' "$cli_skip_cause" >> "$LOG_FILE" 2>/dev/null || true
+    # Do not clobber a shard rc the dispatch already set — that code is the more specific one.
+    [ "$shard_rc" -ne 0 ] || shard_rc=1
+  else
+    printf 'run-shard.sh: WARNING: %s. Not failing this non-CI run — install the claude CLI to arm the gate at the desk (issue #1830).\n' "$cli_skip_cause" >&2
+  fi
+fi
+
 # Extract the tally. shard-tally.py fails closed: a non-zero shard_rc with no
 # parsed failure still records a failure, so a crashed shard never recombines green.
 python3 "$SCRIPT_DIR/shard-tally.py" extract \

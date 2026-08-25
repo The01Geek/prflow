@@ -4272,6 +4272,26 @@ _REVIEW_COVERAGE_AXIS_GAP = {s['name']: s['gap'] for s in _REVIEW_COVERAGE_AXIS_
 # table's own order rather than a hand-maintained second one.
 _REVIEW_COVERAGE_GAPS = tuple(
     dict.fromkeys(s['gap'] for s in _REVIEW_COVERAGE_AXIS_SPECS))
+# Shadow-review roster membership (issue #1512): the per-member dispatch enumeration
+# `_review_roster_incoherence` cross-checks the summary `roster` axis against, so a
+# `complete` claim omitting an always-on member is refused rather than self-reported.
+_SHADOW_ALWAYS_ON_MEMBERS = (
+    'code-reviewer', 'silent-failure-hunter', 'comment-analyzer',
+    'requesting-code-review')
+_SHADOW_GATED_MEMBERS = ('type-design-analyzer', 'pr-test-analyzer')
+_SHADOW_ROSTER_MEMBERS = _SHADOW_ALWAYS_ON_MEMBERS + _SHADOW_GATED_MEMBERS
+_ROSTER_MEMBER_STATUSES = ('dispatched', 'gated-off', 'missing')
+_REVIEW_ROSTER_KEY_PREFIX = 'review-roster:'
+# Composed from `_MARKER_NS_RE` like the coverage grammars, so the confirmation-gated
+# retirement of the superseded namespace reaches it too. The capture holds
+# `<member>:<status>`; neither token carries a colon, so one split on ':' is unambiguous.
+_REVIEW_ROSTER_MARKER_RE = re.compile(
+    _MARKER_NS_RE + r'checkpoint review-roster:([^\s]+?) -->'
+)
+# A member enumerated twice resolves to this sentinel, whose status is unresolvable, so
+# `_review_roster_incoherence` refuses it — the fail-closed posture
+# `_review_coverage_dispositions` takes for a duplicated gap.
+_REVIEW_ROSTER_DUPLICATE = object()
 # issue #1510: the record's optional as-of anchor — the trailing `<head>:<asof>` fields
 # appended after the axes. Both are colon-free because the payload is re-split on `:`, so a
 # colon-bearing ISO time here would be re-read as an axis field and break the record.
@@ -4312,7 +4332,7 @@ _REVIEW_COVERAGE_BOILERPLATE = frozenset({
 # Either family's marker, in either namespace — the pattern the free-text guard
 # below screens for, so no free-text field can smuggle one into `## Progress`.
 _REVIEW_COVERAGE_ANY_MARKER_RE = re.compile(
-    _MARKER_NS_RE + r'checkpoint review-coverage(?:-disposition)?:'
+    _MARKER_NS_RE + r'checkpoint (?:review-coverage(?:-disposition)?|review-roster):'
 )
 
 
@@ -4431,6 +4451,254 @@ def _review_coverage_incoherence(record: dict) -> str | None:
     return None
 
 
+def _review_roster_members(progress_content: str) -> dict:
+    """The enumerated shadow roster as `{member: status}`, read from the `## Progress`
+    content — one `review-roster:<member>:<status>` marker row per member. A member with
+    more than one row maps to `_REVIEW_ROSTER_DUPLICATE` (separately refused as a duplicate);
+    a malformed payload (not `<member>:<status>`) is skipped, so that member reads as absent
+    and a `complete` claim that needed it is refused. Read back
+    here rather than trusted from the writing call, so an enumeration recorded at the
+    Phase 3.3 review exit still reaches the Phase 4.3 finalize call, which repeats no
+    coverage flags."""
+    out: dict = {}
+    for payload in _review_coverage_marker_rows(
+            progress_content, _REVIEW_ROSTER_MARKER_RE):
+        fields = payload.split(':')
+        if len(fields) != 2:
+            continue
+        member, status = fields
+        out[member] = _REVIEW_ROSTER_DUPLICATE if member in out else status
+    return out
+
+
+def _review_roster_incoherence(record: dict, members: dict) -> str | None:
+    """Why the roster axis value is incoherent with the enumerated members, or None.
+
+    The `roster` axis alone is a self-report (issue #1512): a narrow shadow that believes
+    itself full writes `complete` and nothing downstream sees a roster to contradict it.
+    This cross-checks the axis against the per-member enumeration. It is enforced at write
+    time (a measured record cannot be stamped without a coherent enumeration) and re-run at
+    the read-time `Status: Complete` gate only when an enumeration is present, so a legacy
+    rosterless record — one predating this check — finalizes rather than being re-validated
+    retroactively:
+
+    - `complete` requires every always-on member `dispatched` and no member `missing`; an
+      always-on member absent, `missing`, or `gated-off` refuses it, naming the member.
+    - `short` must name at least one `missing` member — a `short` with none is really
+      complete, so refusing it keeps the axis honest.
+    - an always-on member is never applicability-gated, so recording one `gated-off` on
+      any measured roster (`complete` or `short`) is incoherent and refused.
+    - `complete`/`short` are measured values and require a non-empty enumeration;
+      `not-applicable`/`unestablished` measured no roster and must carry none.
+    - An unknown member or status, or a duplicated member row, fails closed.
+
+    It enforces the always-on floor — no always-on member missing or gated-off on a
+    `complete` roster — not full expected-roster dispatch: a gated analyzer's own
+    dispatch remains self-reported by design (issue #1512 AC3)."""
+    roster = record['roster']
+    dup = sorted(m for m, s in members.items() if s is _REVIEW_ROSTER_DUPLICATE)
+    if dup:
+        return (f"the roster enumeration lists member(s) {', '.join(dup)} more than "
+                "once, so which dispatch outcome applies is unresolvable")
+    for member in sorted(members):
+        if member not in _SHADOW_ROSTER_MEMBERS:
+            return (f"the roster enumeration names unknown member {member!r}; expected "
+                    f"one of {', '.join(_SHADOW_ROSTER_MEMBERS)}")
+        if members[member] not in _ROSTER_MEMBER_STATUSES:
+            return (f"roster member {member!r} carries unknown status "
+                    f"{members[member]!r}; expected one of "
+                    f"{', '.join(_ROSTER_MEMBER_STATUSES)}")
+    measured = roster in ('complete', 'short')
+    if members and not measured:
+        return (f"roster={roster} measured no roster, so it must carry no per-member "
+                f"enumeration, but {len(members)} review-roster row(s) are present")
+    if measured and not members:
+        return (f"roster={roster} is a measured value, so it must enumerate the shadow's "
+                "per-member dispatch outcomes, but no review-roster row is present")
+    if measured:
+        ao_gated = [m for m in _SHADOW_ALWAYS_ON_MEMBERS
+                    if members.get(m) == 'gated-off']
+        if ao_gated:
+            return ("an always-on member is never applicability-gated, so it cannot be "
+                    f"recorded gated-off: {', '.join(ao_gated)}")
+    if roster == 'complete':
+        bad = [f'{m}={members.get(m) or "not-enumerated"}'
+               for m in _SHADOW_ALWAYS_ON_MEMBERS
+               if members.get(m) != 'dispatched']
+        bad += [f'{m}=missing' for m in _SHADOW_GATED_MEMBERS
+                if members.get(m) == 'missing']
+        if bad:
+            return ("roster=complete requires every always-on member "
+                    f"({', '.join(_SHADOW_ALWAYS_ON_MEMBERS)}) dispatched and no member "
+                    f"missing, but {', '.join(bad)}")
+    if roster == 'short' and not any(s == 'missing' for s in members.values()):
+        return ("roster=short must name at least one missing roster member, but the "
+                "enumeration lists none")
+    return None
+
+
+def _review_roster_marker(member: str, status: str) -> str:
+    """The hidden marker a review-roster enumeration row carries."""
+    return _checkpoint_marker(f'{_REVIEW_ROSTER_KEY_PREFIX}{member}:{status}')
+
+
+def _render_review_roster_member(member: str, status: str) -> str:
+    """The roster-member row's visible text, coupled to `_review_roster_members`'
+    read-back."""
+    return f'review roster member {member}={status}'
+
+
+# issue #1509: the diff-profile row that authorizes a `skipped-intentional` checklist
+# skip. These constants MIRROR skills/review/phases/phase-0-setup.md §0.5 (`small_diff`,
+# `config_only`, `engine_self_modifying`); the divergence test in
+# lib/test/test_python_scripts.py reads that file's arms and goes RED if they drift from
+# these. The four prose copies of the engine-source path set stay unrefactored — this is
+# the recomputation's comparand, not a new single source for them.
+_REVIEW_COVERAGE_SMALL_DIFF_LINE_CEILING = 100   # total changed lines strictly below this
+_REVIEW_COVERAGE_SMALL_DIFF_FILE_CEILING = 3     # changed-file count at most this
+_REVIEW_COVERAGE_CONFIG_ONLY_EXTS = frozenset(
+    {'.yml', '.yaml', '.json', '.md', '.toml', '.ini', '.lock', '.txt'})
+# engine_self_modifying arm 1 — DevFlow's own source dirs (this repository's own tree).
+_REVIEW_COVERAGE_ENGINE_SOURCE_PREFIXES = ('skills/', 'agents/', 'lib/')
+# arm 2 — a prompt extension under the DevFlow state directory (any depth), `.md` only.
+_REVIEW_COVERAGE_ENGINE_STATE_DIRS = ('.prflow', '.devflow')
+# arm 3 — the root agent-instruction file (any depth), by basename.
+_REVIEW_COVERAGE_ENGINE_ROOT_AGENT_FILE = 'CLAUDE.md'
+
+
+def _parse_numstat_counts(numstat: str):
+    """(file_count, changed_line_total) from `git diff --numstat` output (issue #1509).
+
+    Sums added+deleted across all rows and counts one file per row: a binary row (`-` in
+    both count columns) contributes 0 lines but 1 file. A row lacking the three
+    tab-separated fields (a truncated line) or whose count column is neither an integer
+    nor `-` is malformed — raise ValueError so the caller routes to an unresolvable
+    measurement rather than trusting a wrong count."""
+    files = 0
+    lines = 0
+    for row in numstat.split('\n'):
+        if not row:
+            continue
+        parts = row.split('\t')
+        if len(parts) < 3:
+            raise ValueError(f'malformed --numstat row {row!r}')
+        for col in (parts[0], parts[1]):
+            if col != '-':
+                lines += int(col)  # ValueError on a non-integer column → unresolvable
+        files += 1
+    return files, lines
+
+
+def _recompute_diff_facts(anchor_head, base_ref, repo_root):
+    """Recompute the reviewed diff's size and paths from git alone (issue #1509).
+
+    Measures the reviewed head (`anchor_head`, the record's as-of anchor) against the PR
+    base (`base_ref`, else the `origin/HEAD` symbolic ref) — the SAME range the Phase 0.5
+    classification measured, never the working tree at write time. Returns
+    {'resolved': bool, 'reason': str, 'lines': int, 'files': int, 'paths': [str]}.
+
+    resolved is False — never a refusal; the caller records the checklist axis
+    `unestablished` — when the reviewed head is unestablished/absent, no base ref can be
+    read, no merge base exists (unrelated histories on a depth-limited checkout), or any
+    git invocation fails (non-zero exit or OSError) or emits a malformed row. Mirrors
+    `_repo_root`'s habit of catching both CalledProcessError and OSError."""
+    def _unresolved(reason):
+        return {'resolved': False, 'reason': reason,
+                'lines': 0, 'files': 0, 'paths': []}
+
+    if not anchor_head or anchor_head == _REVIEW_COVERAGE_ANCHOR_UNESTABLISHED:
+        return _unresolved(
+            'the reviewed head is unestablished, so the diff it was recorded over '
+            'cannot be measured')
+
+    def _git(argv):
+        return subprocess.run(
+            ['git', *argv], cwd=repo_root, check=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding='utf-8').stdout
+
+    try:
+        # `_git` runs check=True, so an unreadable base (origin/HEAD unset) or an
+        # unresolvable merge base (unrelated histories on a depth-limited checkout)
+        # raises here and is caught below as unresolved — no separate empty-value guard
+        # is reachable after it.
+        base = base_ref or _git(
+            ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']).strip()
+        merge_base = _git(['merge-base', anchor_head, base]).strip()
+        files, lines = _parse_numstat_counts(
+            _git(['diff', '--numstat', merge_base, anchor_head]))
+        paths = [p for p in _git(
+            ['diff', '--name-only', '-z', merge_base, anchor_head]).split('\0') if p]
+    except (subprocess.CalledProcessError, OSError, ValueError) as e:
+        return _unresolved(f'the diff measurement did not resolve ({e})')
+    return {'resolved': True, 'reason': '',
+            'lines': lines, 'files': files, 'paths': paths}
+
+
+def _is_engine_own_repo(repo_root) -> bool:
+    """Whether `repo_root` is THIS engine's own repository (issue #1509), decided by
+    repository identity rather than directory names: its `.claude-plugin/plugin.json`
+    names this plugin. A consumer's checkout — whose own `lib/` is unrelated product
+    code — returns False, so the engine-source refusal arm never fires undiagnosably
+    on it, while the classifier's own use of the arms is unchanged."""
+    if not repo_root:
+        return False
+    try:
+        with open(os.path.join(repo_root, '.claude-plugin', 'plugin.json'),
+                  encoding='utf-8') as f:
+            manifest = json.load(f)
+    except (OSError, ValueError):
+        return False
+    # `prflow` is the frozen canonical plugin name (CLAUDE.md rename Tier 1, single-
+    # sourced in lib/rename-map.json and the manifest `name`): do not rename it here in
+    # isolation, or this identity check silently stops recognizing the engine's own repo.
+    return isinstance(manifest, dict) and manifest.get('name') == 'prflow'
+
+
+def _review_coverage_engine_source_paths(paths):
+    """The subset of `paths` in the engine's own source set — the arms of
+    phase-0-setup.md's `engine_self_modifying` (issue #1509)."""
+    hits = []
+    for p in paths:
+        base = p.rsplit('/', 1)[-1]
+        first = p.split('/', 1)[0]
+        if (p.startswith(_REVIEW_COVERAGE_ENGINE_SOURCE_PREFIXES)
+                or (first in _REVIEW_COVERAGE_ENGINE_STATE_DIRS
+                    and base.endswith('.md'))
+                or base == _REVIEW_COVERAGE_ENGINE_ROOT_AGENT_FILE):
+            hits.append(p)
+    return hits
+
+
+def _review_coverage_profile_disproof(facts, repo_root) -> str | None:
+    """Why the recomputed diff does NOT satisfy the profile row that authorizes a
+    `skipped-intentional` skip, naming each failed condition and its measured value —
+    or None when the profile row is confirmed (issue #1509). Assumes facts['resolved'].
+    The engine-source arm applies only in this engine's own repository (AC): on any
+    other repository it is excluded from the refusal predicate."""
+    reasons = []
+    if facts['lines'] >= _REVIEW_COVERAGE_SMALL_DIFF_LINE_CEILING:
+        reasons.append(
+            f"the changed-line total {facts['lines']} is not below the ceiling of "
+            f"{_REVIEW_COVERAGE_SMALL_DIFF_LINE_CEILING}")
+    if facts['files'] > _REVIEW_COVERAGE_SMALL_DIFF_FILE_CEILING:
+        reasons.append(
+            f"the changed-file count {facts['files']} exceeds the ceiling of "
+            f"{_REVIEW_COVERAGE_SMALL_DIFF_FILE_CEILING}")
+    bad_ext = [p for p in facts['paths']
+               if os.path.splitext(p)[1] not in _REVIEW_COVERAGE_CONFIG_ONLY_EXTS]
+    if bad_ext:
+        reasons.append(
+            'these changed paths have a non-config-only extension: '
+            + ', '.join(sorted(bad_ext)))
+    if _is_engine_own_repo(repo_root):
+        engine = _review_coverage_engine_source_paths(facts['paths'])
+        if engine:
+            reasons.append(
+                "these changed paths are in the engine's own source set (the "
+                'checklist is forced on for them): ' + ', '.join(sorted(engine)))
+    return '; '.join(reasons) if reasons else None
+
+
 def _review_coverage_dispositions(progress_content: str) -> dict:
     """The recorded dispositions as `{gap: reason}`, read from the `## Progress`
     content. Each is one row carrying a `review-coverage-disposition:<gap>` marker
@@ -4533,15 +4801,17 @@ def _strip_review_coverage_reflection_bullets(content: str) -> str:
 
 
 def _strip_review_coverage_marker_rows(content: str) -> str:
-    """Remove the `## Progress` review-coverage record row and EVERY disposition row.
+    """Remove the `## Progress` review-coverage record row, EVERY disposition row, and
+    EVERY roster-member enumeration row.
 
-    Called both when a fresh record supersedes the previous one — a surviving
-    disposition would answer for a gap the new record may not report — and by the
-    Phase 1.3 resume strip, because a coverage record describes *this* attempt and a
-    resumed run must not inherit an earlier attempt's answer."""
+    Called both when a fresh record supersedes the previous one — a surviving disposition
+    or roster row would answer for a gap or a member the new record may not report — and
+    by the Phase 1.3 resume strip, because a coverage record describes *this* attempt and
+    a resumed run must not inherit an earlier attempt's answer."""
     kept = [ln for ln in content.splitlines(keepends=True)
             if not _REVIEW_COVERAGE_MARKER_RE.search(ln)
-            and not _REVIEW_COVERAGE_DISPOSITION_MARKER_RE.search(ln)]
+            and not _REVIEW_COVERAGE_DISPOSITION_MARKER_RE.search(ln)
+            and not _REVIEW_ROSTER_MARKER_RE.search(ln)]
     return ''.join(kept)
 
 
@@ -4566,6 +4836,7 @@ def _strip_review_coverage_disposition_rows(content: str, gaps) -> str:
 # any of them, so a family's validation cannot be bypassed through the generic head.
 _RESERVED_CHECKPOINT_KEY_PREFIXES = (
     (_REVIEW_COVERAGE_DISPOSITION_KEY_PREFIX, '`--review-coverage-disposition`'),
+    (_REVIEW_ROSTER_KEY_PREFIX, '`--record-roster-member`'),
     (_REVIEW_COVERAGE_KEY_PREFIX, '`--record-review-coverage`'),
     (_COMPLETION_MARKER_KEY_PREFIX, '`--record-completion-evidence`'),
     (_COMPLETION_CI_MARKER_KEY_PREFIX, '`--record-completion-evidence-ci`'),
@@ -4743,6 +5014,24 @@ def _review_coverage_verdict(progress_content: str) -> None:
             f"{incoherent}, so the run's review coverage is UNESTABLISHED "
             "[review-coverage-unestablished]. Re-stamp it at the Phase 3.3 review "
             "exit. No PATCH was made."
+        )
+    # The roster cross-check is enforced at WRITE time (a `complete`/`short` record
+    # cannot be recorded without a coherent per-member enumeration), so a record that
+    # reaches finalize carrying NO enumeration predates issue #1512 — a legacy workpad,
+    # which the issue does not re-validate retroactively. Re-run the check here only when
+    # an enumeration is present, so a legacy `complete` record still finalizes while a
+    # record whose enumeration IS present stays cross-checked as defense-in-depth.
+    roster_members = _review_roster_members(progress_content)
+    roster_incoherent = (_review_roster_incoherence(record, roster_members)
+                         if roster_members else None)
+    if roster_incoherent:
+        raise _UpdateError(
+            "refusing to finalize Status: Complete — the review-coverage record "
+            f"({_render_review_coverage_state(record)}) is incoherent with the shadow "
+            f"roster enumeration: {roster_incoherent}, so the run's review coverage is "
+            "UNESTABLISHED [review-coverage-unestablished]. Enumerate the shadow's "
+            "per-member dispatch outcomes with `--record-roster-member <member> "
+            "<status>` at the Phase 3.3 review exit. No PATCH was made."
         )
     gaps = _review_coverage_gaps(record)
     if not gaps:
@@ -5587,6 +5876,7 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     # "flag absent" rather than raising AttributeError.
     review_coverage = getattr(args, 'record_review_coverage', None)
     review_coverage_payload = None
+    review_coverage_auto_notes: list[str] = []
     if review_coverage:
         # Arity is guaranteed by argparse's nargs=4 from the CLI, but a programmatic
         # caller (the suite builds `args` directly) can pass a short list, which `zip`
@@ -5621,9 +5911,109 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
                 f"--record-review-coverage-head: {_anchor_head!r} is not a "
                 "lowercase-hex head SHA (or 'unestablished'). No PATCH was made."
             )
+        # issue #1509: a `skipped-intentional` checklist claim is accepted only when the
+        # diff it was recorded over satisfies the profile row that authorizes the skip
+        # (skills/review/phases/phase-0-setup.md §0.5). Recompute the diff from git over
+        # the reviewed head (the anchor above) against the PR base: a resolved-and-
+        # disproved row is a hard refusal (AC3); an unresolvable measurement downgrades
+        # the axis to `unestablished` — never a refusal (AC5); an explicit --override
+        # downgrades to bare `skipped` (non-clean, forces a disposition — AC13); a
+        # confirmed row keeps the value and writes exactly today's record (AC6).
+        # Copy here — after _require_arity above proved it is a real sequence — so the
+        # downgrade never mutates the caller's list and a non-sequence still hits the
+        # arity refusal rather than this list() (issue #1544).
+        review_coverage = list(review_coverage)
+        _checklist_idx = _REVIEW_COVERAGE_AXES.index('checklist')
+        _rc_override = getattr(args, 'record_review_coverage_override', None)
+        if review_coverage[_checklist_idx] == 'skipped-intentional':
+            if _rc_override:
+                review_coverage[_checklist_idx] = 'skipped'
+                review_coverage_auto_notes.append(
+                    'review-coverage recomputation overridden — the '
+                    'skipped-intentional checklist claim is recorded as bare `skipped` '
+                    '(non-clean; a --review-coverage-disposition is required): '
+                    + _rc_override)
+            else:
+                _rc_repo_root = getattr(args, 'repo_root', None) or _repo_root()
+                _rc_facts = _recompute_diff_facts(
+                    _anchor_head, getattr(args, 'record_review_coverage_base', None),
+                    _rc_repo_root)
+                if not _rc_facts['resolved']:
+                    review_coverage[_checklist_idx] = 'unestablished'
+                    review_coverage_auto_notes.append(
+                        'review-coverage checklist recorded `unestablished` — the '
+                        'skipped-intentional diff could not be recomputed: '
+                        + _rc_facts['reason'])
+                else:
+                    _rc_disproof = _review_coverage_profile_disproof(
+                        _rc_facts, _rc_repo_root)
+                    if _rc_disproof:
+                        raise _UpdateError(
+                            "--record-review-coverage: a `skipped-intentional` "
+                            "checklist claim is not authorized by the diff (measured "
+                            f"{_rc_facts['files']} file(s), {_rc_facts['lines']} "
+                            f"line(s)): {_rc_disproof}. No PATCH was made."
+                        )
+                    # AC4: a confirmed write reports the measured values on success.
+                    # The engine-source clause is honest per §2.3.6: it names the arm
+                    # as verified only in this engine's own repo, where the arm was
+                    # actually evaluated; on any other repo the arm is excluded from the
+                    # predicate, so the breadcrumb says so rather than asserting a check
+                    # that did not run.
+                    _rc_engine_note = (
+                        'and non-engine-source: verified'
+                        if _is_engine_own_repo(_rc_repo_root)
+                        else '(engine-source arm not evaluated: not this engine\'s '
+                             'repository)')
+                    sys.stderr.write(
+                        'workpad.py: review-coverage skipped-intentional confirmed — '
+                        f"{_rc_facts['files']} changed file(s), {_rc_facts['lines']} "
+                        f'changed line(s), path-set config-only {_rc_engine_note}\n')
+        elif _rc_override:
+            sys.stderr.write(
+                'workpad.py: --record-review-coverage-override is ignored — it applies '
+                'only to a skipped-intentional checklist, not '
+                f"{review_coverage[_checklist_idx]!r}\n")
         _anchor_asof = _utc_now_compact()
         review_coverage_payload = ':'.join(
             list(review_coverage) + [_anchor_head, _anchor_asof])
+    # Shadow-review roster enumeration (issue #1512): validated before any body mutation
+    # and cross-checked against the roster axis. Read via getattr so an older arg shape
+    # (no --record-roster-member) degrades to "flag absent" rather than raising.
+    roster_member_pairs = list(getattr(args, 'record_roster_member', None) or [])
+    roster_members: dict = {}
+    if roster_member_pairs and not review_coverage_payload:
+        raise _UpdateError(
+            "--record-roster-member must accompany --record-review-coverage, whose "
+            "roster axis it cross-checks. No PATCH was made."
+        )
+    for _pair in roster_member_pairs:
+        _require_arity('--record-roster-member', _pair, 2, ('member', 'status'))
+    for member, status in roster_member_pairs:
+        if member not in _SHADOW_ROSTER_MEMBERS:
+            raise _UpdateError(
+                f"--record-roster-member: unknown member {member!r}; expected one of "
+                f"{', '.join(_SHADOW_ROSTER_MEMBERS)}. No PATCH was made."
+            )
+        if status not in _ROSTER_MEMBER_STATUSES:
+            raise _UpdateError(
+                f"--record-roster-member: unknown status {status!r} for member "
+                f"{member!r}; expected one of {', '.join(_ROSTER_MEMBER_STATUSES)}. "
+                "No PATCH was made."
+            )
+        if member in roster_members:
+            raise _UpdateError(
+                f"--record-roster-member: member {member!r} given more than once; pass "
+                "one status per member. No PATCH was made."
+            )
+        roster_members[member] = status
+    if review_coverage_payload:
+        _roster_incoherent = _review_roster_incoherence(
+            dict(zip(_REVIEW_COVERAGE_AXES, review_coverage)), roster_members)
+        if _roster_incoherent:
+            raise _UpdateError(
+                f"--record-review-coverage: {_roster_incoherent}. No PATCH was made."
+            )
     review_dispositions = list(getattr(args, 'review_coverage_disposition', []) or [])
     _seen_gaps: set[str] = set()
     for _pair in review_dispositions:
@@ -5956,7 +6346,9 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
     if getattr(args, 'note_file', None):
         _notes_in.append(_note_file_payload(args))
     _notes = [n for n in _notes_in if n not in _checkpoint_covered_texts]
-    progress_notes = _notes + scope_decision_notes + deferred_filed_notes + [
+    # issue #1509: a review-coverage downgrade/override records its reason as an ordinary
+    # ## Progress note alongside the (mutated) record row.
+    progress_notes = _notes + review_coverage_auto_notes + scope_decision_notes + deferred_filed_notes + [
         f'{text} {_checkpoint_marker(key)}' for key, text in checkpoint_inserts
     ]
     # Completion-evidence marker (issue #1087): validated above; a later validated key
@@ -6002,6 +6394,11 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
             f'review coverage recorded ({_state}; as of head {_head_disp} '
             f'at {_anchor_asof}) '
             f'{_review_coverage_marker(review_coverage_payload)}'
+        )
+    for _member, _status in roster_members.items():
+        _review_coverage_rows.add(
+            f'{_render_review_roster_member(_member, _status)} '
+            f'{_review_roster_marker(_member, _status)}'
         )
     for _gap, _reason in review_dispositions:
         _review_coverage_rows.add(
@@ -6051,6 +6448,9 @@ def _apply_mutations(body: str, args, failed_ticks) -> str:
         ) + (
             ['review-coverage disposition']
             if _REVIEW_COVERAGE_DISPOSITION_MARKER_RE.search(_joined) else []
+        ) + (
+            ['review-roster enumeration']
+            if _REVIEW_ROSTER_MARKER_RE.search(_joined) else []
         )
         _survivors = _rc_survivors + sorted(
             v for v in _REQUIRED_ARTIFACT_MARKER_VARIANTS
@@ -6675,6 +7075,23 @@ def main():
                           'a clean value. A later "--status Complete" write is refused '
                           'unless this record is complete or every gap it reports '
                           'carries a --review-coverage-disposition.')
+    u.add_argument('--record-roster-member', nargs=2, action='append', default=None,
+                   metavar=('MEMBER', 'STATUS'),
+                   help='Enumerate one shadow-review roster member and its dispatch '
+                        'outcome (issue #1512), as a "<!-- prflow:checkpoint '
+                        'review-roster:<member>:<status> -->" ## Progress row beside the '
+                        '--record-review-coverage record. MEMBER: '
+                        + '|'.join(_SHADOW_ROSTER_MEMBERS)
+                        + '. STATUS: '
+                        + '|'.join(_ROSTER_MEMBER_STATUSES)
+                        + '. Repeatable — one per member; must accompany '
+                          '--record-review-coverage. The roster axis is cross-checked '
+                          'against this enumeration: roster=complete is refused unless '
+                          'every always-on member ('
+                        + '|'.join(_SHADOW_ALWAYS_ON_MEMBERS)
+                        + ') is dispatched and no member is missing, while a member its '
+                          'applicability gate excluded (gated-off) does not block '
+                          'complete; roster=short must name a missing member.')
     u.add_argument('--record-review-coverage-head', default=None, metavar='SHA',
                    help='The reviewed head SHA the review-coverage record is derived '
                         'from (issue #1510), stamped as the record\'s as-of anchor '
@@ -6682,6 +7099,25 @@ def main():
                         'predates a later standalone review from a current one. A '
                         'lowercase-hex SHA; omit it to record the head as '
                         '"unestablished". Only meaningful with --record-review-coverage.')
+    u.add_argument('--record-review-coverage-base', default=None, metavar='REF',
+                   help='The pull request base branch the review-coverage '
+                        'recomputation measures the reviewed head against (issue '
+                        '#1509). A "skipped-intentional" checklist claim is refused '
+                        'when the diff between the base and the reviewed head does not '
+                        'satisfy the profile row that authorizes the skip (changed '
+                        'lines < 100, changed files <= 3, config-only extensions, and '
+                        "in this repository no engine-source path). Falls back to the "
+                        'origin/HEAD symbolic ref when omitted; when the diff cannot be '
+                        'recomputed the checklist axis is recorded "unestablished" '
+                        'rather than refused. Only meaningful with '
+                        '--record-review-coverage.')
+    u.add_argument('--record-review-coverage-override', default=None, metavar='REASON',
+                   help='Override the issue-#1509 recomputation for a '
+                        '"skipped-intentional" checklist claim: record it as bare '
+                        '"skipped" instead (non-clean — it then forces a '
+                        '--review-coverage-disposition exactly as bare skipped does) '
+                        'and note that the override was used. REASON states why. Never '
+                        'yields a clean record.')
     u.add_argument('--review-coverage-disposition', nargs=2, action='append',
                    default=[], metavar=('GAP', 'REASON'),
                    help='Carry a recorded review-coverage gap forward under a stated '

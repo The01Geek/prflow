@@ -137,7 +137,9 @@ _apply_labels() {  # $1 = issue number
     # the repo via org-scoped GraphQL and fail under a repo-scoped token. The helper
     # is best-effort (always exits 0) and leaves its own specific stderr breadcrumb
     # naming the target + labels on failure, mirroring ensure-label.sh's discipline.
-    DEVFLOW_GH="$DEVFLOW_GH" "$HERE/../scripts/apply-labels.sh" "$_num" PRFlow Retrospective || true
+    # Redirect stdout: apply-labels.sh prints a one-word outcome token to stdout, which
+    # would otherwise pollute the issue URL this script emits on its own stdout (Step 3).
+    DEVFLOW_GH="$DEVFLOW_GH" "$HERE/../scripts/apply-labels.sh" "$_num" PRFlow Retrospective >/dev/null || true
 }
 
 # ── Step 1: de-dupe — find or create the issue ──────────────────────────────

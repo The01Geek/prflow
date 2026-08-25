@@ -274,6 +274,11 @@
       "note": "",
       "owner": "unmodularized"
     },
+    "scripts/cleanup-create-issue-run.sh": {
+      "focused_test": "lib/test/test_python_scripts.py",
+      "note": "issue #1811 per-run create-issue scratch reaper; keyed to the recorded slug (never a pattern/age sweep); behavioral cases (valid-slug reap, foreign-pointer skip, empty-handle non-destructive, unsafe-slug traversal refusal, multi-root, idempotent absent-dir) driven via subprocess by the #1811 block in lib/test/test_python_scripts.py",
+      "owner": "unmodularized"
+    },
     "scripts/collect-staged-telemetry.sh": {
       "note": "",
       "owner": "unmodularized"
@@ -932,6 +937,10 @@
       "note": "",
       "owner": "review-trigger-helpers"
     },
+    "1047": {
+      "note": "",
+      "owner": "unmodularized"
+    },
     "1049": {
       "note": "",
       "owner": "unmodularized"
@@ -1248,6 +1257,10 @@
       "note": "",
       "owner": "unmodularized"
     },
+    "1440": {
+      "note": "",
+      "owner": "unmodularized"
+    },
     "1441": {
       "note": "",
       "owner": "unmodularized"
@@ -1492,6 +1505,10 @@
       "note": "",
       "owner": "efficiency-trace-telemetry"
     },
+    "1827": {
+      "note": "",
+      "owner": "unmodularized"
+    },
     "1828": {
       "note": "",
       "owner": "retrospective-lifecycle"
@@ -1501,6 +1518,10 @@
       "owner": "unmodularized"
     },
     "183": {
+      "note": "",
+      "owner": "unmodularized"
+    },
+    "1830": {
       "note": "",
       "owner": "unmodularized"
     },
@@ -1525,6 +1546,10 @@
       "owner": "efficiency-trace-telemetry"
     },
     "1852": {
+      "note": "",
+      "owner": "unmodularized"
+    },
+    "1855": {
       "note": "",
       "owner": "unmodularized"
     },

@@ -1087,34 +1087,28 @@ assert_eq "deferred.labels: missing config file → resolver default DevFlow,Def
   "$("$CG" .deferred.labels DevFlow,Deferred /no/such/config.json)"
 rm -f "$DEF_CFG"
 
-# The SKILL's inline normalization, applied to the resolver output above. Mirrors the
-# exact idiom in the implement skill's Phase 4.0/4.0.5 (phases/phase-4-documentation.md;
-# and Phase 4.1 docs.labels)
-# so the trim / drop-empties / empty-value ACs are exercised, not just asserted in
-# prose. Keep byte-aligned with the SKILL block.
-deferred_labels_normalize() {
-  echo "$1" | tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | grep -v '^$' | tr '\n' ',' | sed 's/,$//'
-}
-assert_eq "deferred.labels normalize: default passed through"        "DevFlow,Deferred" "$(deferred_labels_normalize 'DevFlow,Deferred')"
-assert_eq "deferred.labels normalize: trims interior spaces"         "DevFlow,Deferred" "$(deferred_labels_normalize 'DevFlow, Deferred')"
-assert_eq "deferred.labels normalize: single label"                  "DevFlow"          "$(deferred_labels_normalize 'DevFlow')"
-assert_eq "deferred.labels normalize: drops empty entries"           "A,B"              "$(deferred_labels_normalize 'A, ,B,')"
-assert_eq "deferred.labels normalize: whitespace-only → empty (no labels)" ""           "$(deferred_labels_normalize ' , ')"
-assert_eq "deferred.labels normalize: empty string → empty (no labels)"    ""           "$(deferred_labels_normalize '')"
+# Normalization semantics (split / trim / drop-empties, empty-string→fallback,
+# whitespace/separator-only→no-labels) now live INSIDE scripts/apply-labels.sh's config-driven
+# mode (issue #1855) and are exercised behaviorally in the "#1855 apply-labels" block far BELOW
+# this one in this same file (not above); the hand-copied SKILL-mirror normalizer that used to sit
+# here is retired with the SKILL pipeline it mirrored.
 
-# Drift guards: the label-resolution/apply bash is prompt markdown (not a script), so a
-# SKILL edit could silently drop it. Pin the load-bearing tokens in the real SKILL so a
-# regression fails here instead of shipping deferred issues unlabeled.
+# Drift guards: the label-apply bash is prompt markdown (not a script), so a SKILL edit could
+# silently drop it. Pin the load-bearing token in the real SKILL so a regression fails here
+# instead of shipping deferred issues unlabeled.
 # issue #218: search the whole implement-skill bundle (orchestrator + phase files), not
 # a single file — the deferred.labels idiom these guards pin lives in the Phase 4.0/4.0.5
 # detail that relocated to phases/phase-4-documentation.md.
+# issue #1855: the deferral channels collapsed to a single apply-labels.sh call that names the
+# config key + fallback; the helper reads config and creates each label itself, so the separate
+# config-get read, the per-label ensure-label.sh call, and the tr|sed|grep normalizer are GONE.
 DEF_SKILL="$IMPL_SKILL_BUNDLE"
-assert_eq "deferred.labels: SKILL reads via config-get with the PRFlow,Deferred default" "yes" \
-  "$(grep -qF 'config-get.sh .deferred.labels PRFlow,Deferred' "$DEF_SKILL" && echo yes || echo no)"  # raw-guard-ok: non-unique: token appears in BOTH deferral channels (4.0+4.0.5)
-assert_eq "deferred.labels: SKILL ensures each label exists before applying (agent-level per-label call, #455)" "yes" \
-  "$(grep -qF 'ensure-label.sh "<label>"' "$DEF_SKILL" && echo yes || echo no)"  # raw-guard-ok: non-unique: token appears in BOTH deferral channels (4.0+4.0.5); #455 reworked the piped-while loop into an agent-level single-leading-token call. #480: the label arg is QUOTED — the retired loop passed "$lbl", and dropping the quotes made a multi-word configured label (docs.labels: "Needs Docs") create the WRONG label ('Needs') while breadcrumbing SUCCESS.
-assert_eq "deferred.labels: SKILL applies labels via best-effort REST apply-labels.sh helper (agent-level per-issue call, #455)" "yes" \
-  "$(grep -qF 'apply-labels.sh <filed-issue-number> "<deferred-labels>"' "$DEF_SKILL" && echo yes || echo no)"  # raw-guard-ok: non-unique: token appears in BOTH deferral channels (4.0+4.0.5); #455 reworked the for/while loop + VAR="$(…)" capture into an agent-level single-leading-token call
+assert_eq "deferred.labels: SKILL applies configured labels via one collapsed apply-labels.sh call naming the config key + fallback (#1855, both channels)" "yes" \
+  "$([ "$(grep -cF 'apply-labels.sh <filed-issue-number> --config-key .deferred.labels --config-fallback PRFlow,Deferred' "$DEF_SKILL")" -ge 2 ] && echo yes || echo no)"  # raw-guard-ok: routing-dispatch-contract: count-based (>=2, one per deferral channel) — the granted leading-token helper-invocation shape the implement matcher grants
+assert_eq "deferred.labels: SKILL no longer carries a separate config-get read in the deferral channels (#1855, helper reads config)" "no" \
+  "$(grep -qF 'config-get.sh .deferred.labels PRFlow,Deferred' "$DEF_SKILL" && echo yes || echo no)"  # raw-guard-ok: absence pin: the separate config read is GONE (expected no)
+assert_eq "deferred.labels: the label call sites no longer carry a separate per-label ensure-label.sh call (#1855, helper folds creation)" "0" \
+  "$(cat "$LIB/../skills/implement/phases/phase-4-documentation.md" "$LIB/../skills/implement/references/deferred-ac-followups.md" "$LIB/../skills/implement/references/deferred-review-findings.md" | grep -cF 'ensure-label.sh "<label>"' || true)"  # raw-guard-ok: absence pin scoped to the label CALL-SITE files: the per-label ensure call is GONE (expected 0). #1855 also retired the quoted shape example from SKILL.md's Cloud-command-shape section, so no per-label ensure form remains in the bundle at all.
 # issue #1011: Phase 4.0 registers the parent as a GitHub-native blocked-by dependency of each
 # filed follow-up, immediately after the label stamp — one single-statement, leading-token,
 # per-issue helper call (the same emission discipline the label helpers carry).
@@ -1122,28 +1116,15 @@ assert_eq "#1011: Phase 4.0 stamps native blocked-by deps via apply-issue-depend
   "$(grep -qF 'apply-issue-dependencies.py <filed-issue-number>' "$DEF_SKILL" && echo yes || echo no)"  # raw-guard-ok: routing-dispatch-contract: the cloud-emitted leading-token helper-invocation shape the implement matcher grants; a for/while wrap or VAR="$(…)" capture is a denied shape
 # Both deferral channels must label: Phase 4.0 (no longer "add no --label") and Phase
 # 4.0.5. Require the resolution token to appear at least twice (once per channel).
-assert_eq "deferred.labels: SKILL resolves the labels in BOTH deferral channels (4.0 + 4.0.5)" "yes" \
-  "$([ "$(grep -cF 'config-get.sh .deferred.labels PRFlow,Deferred' "$DEF_SKILL")" -ge 2 ] && echo yes || echo no)"  # raw-guard-ok: count-based: asserts >=2 occurrences (both channels), not single-presence
 assert_eq "deferred.labels: SKILL Phase 4.0 no longer instructs 'add no --label' as a maintainer task" "no" \
   "$(grep -qF 'add **no** `--label` (labeling is handled separately by maintainers)' "$DEF_SKILL" && echo yes || echo no)"  # raw-guard-ok: absence pin: asserts the removed 'add no --label' instruction is GONE (expected no)
-# Pin the normalization pipeline itself (not just the read/ensure/apply tokens): the
-# deferred_labels_normalize() helper above is a hand-copied replica, so without this pin a
-# SKILL edit to the trim/drop-empties pipeline would drift silently while the replica
-# keeps passing. Scope the count to the DEFERRED assignment (`CLEAN_DEFERRED_LABELS=$(echo
-# "$DEFERRED_LABELS" | …`) so it is deferred-unique — the identical pipeline also appears on
-# the Phase 4.1 docs.labels line (CLEAN_LABELS / DOCS_LABELS), so a bare pipeline count would
-# read 3 and a `>= 2` threshold would still pass if ONE deferred channel lost it. Both
-# channels (4.0 + 4.0.5) must carry the exact deferred pipeline → require EXACTLY 2.
-assert_eq "deferred.labels: SKILL keeps the exact normalization pipeline in BOTH channels" "yes" \
-  "$([ "$(grep -cF 'CLEAN_DEFERRED_LABELS=$(echo "$DEFERRED_LABELS" | tr '"'"','"'"' '"'"'\n'"'"' | sed '"'"'s/^[[:space:]]*//; s/[[:space:]]*$//'"'"' | grep -v '"'"'^$'"'"' | tr '"'"'\n'"'"' '"'"','"'"' | sed '"'"'s/,$//'"'"')' "$DEF_SKILL")" -eq 2 ] && echo yes || echo no)"  # raw-guard-ok: count-based: asserts ==2 occurrences (both channels), not single-presence. #480: the tail is `tr | sed`, NOT `paste` — paste is granted in NO allowlist, so a paste tail refuses the whole pipeline and the capture comes back silently empty.
-# Pin the read-failure discrimination: a hard config-get read failure must be attributable,
-# not silently collapsed into the deliberately-empty-value path. Issue #284 moved this to a
-# single-statement `if !` that reads config-get's OWN exit status inline (no captured rc read
-# in a later statement — the inline-bash cross-statement-variable-stripping hazard) and is
-# also `set -e`-exempt. Pin the new idiom in BOTH deferral channels (4.0 + 4.0.5).
-assert_eq "deferred.labels: SKILL discriminates config-get read failure via single-statement if! (both channels)" "yes" \
-  "$([ "$(grep -cF 'if ! DEFERRED_LABELS=$(' "$DEF_SKILL")" -eq 2 ] && echo yes || echo no)"  # raw-guard-ok: count-based: asserts ==2 occurrences (both channels)
-# The old captured-rc recipe must be GONE (its reintroduction is the #284 hazard):
+# issue #1855: the tr|sed|grep normalizer, the `if ! DEFERRED_LABELS=$(…)` config capture, and the
+# captured-rc recipe all moved INTO apply-labels.sh (config-driven mode). Pin each removed idiom
+# absent from the deferral channels so a re-introduction fails here.
+assert_eq "deferred.labels: SKILL no longer carries the tr|sed|grep normalization pipeline (#1855, helper normalizes)" "no" \
+  "$(grep -qF 'CLEAN_DEFERRED_LABELS=$(echo' "$DEF_SKILL" && echo yes || echo no)"  # raw-guard-ok: absence pin: the SKILL-side normalizer is GONE (expected no)
+assert_eq "deferred.labels: SKILL no longer carries the single-statement if! DEFERRED_LABELS config capture (#1855)" "no" \
+  "$(grep -qF 'if ! DEFERRED_LABELS=$(' "$DEF_SKILL" && echo yes || echo no)"  # raw-guard-ok: absence pin: the SKILL-side config capture is GONE (expected no)
 assert_eq "deferred.labels: SKILL no longer carries the old DEFERRED_LABELS_RC capture-then-read recipe" "no" \
   "$(grep -qF 'DEFERRED_LABELS_RC' "$DEF_SKILL" && echo yes || echo no)"  # raw-guard-ok: absence pin: the captured-rc var is GONE (expected no)
 
@@ -4814,9 +4795,9 @@ fi
 # reads any header numeral — it counts the shipped bullets directly, keeping the population
 # guard while the shipped prose carries no count. The region is the routing list between the
 # exits header and the label-apply prose.
-_P4_ROUTING_BULLETS="$(awk '/exits before any label is applied/,/^If the printed/' "$P405_REF" | grep -c '^- \*\*')"
-assert_eq "#555 the §4.0.5 reader-routing list still carries exactly 7 routing bullets (5 exits + 2 qualifiers) — pinned mechanically, not against any shipped header numeral (#1415)" \
-  "7" "$_P4_ROUTING_BULLETS"
+_P4_ROUTING_BULLETS="$(awk '/exits before any label is applied/,/^For each filed issue number/' "$P405_REF" | grep -c '^- \*\*')"
+assert_eq "#555 the §4.0.5 reader-routing list still carries exactly 6 routing bullets (4 exits + 2 qualifiers) — pinned mechanically, not against any shipped header numeral (#1415)" \
+  "6" "$_P4_ROUTING_BULLETS"
 
 # Issue #1188: the docs-rationale/overview MIRROR presence pins that used to sit here
 # (sweep 2.3.6 / 2.3.0a / 2.3.0b keeps-the-rationale-row, and the 2.3.0b overview
@@ -7237,9 +7218,9 @@ _suite_tmp_dir "$E484"
 #     depth-limited checkout its count can be plausible-but-wrong across the graft
 #     boundary (this workflow's own checkout is full-history since #1219, but the
 #     rationale is not conditioned on that — a consumer's installed copy may be older).
-#   mktemp — invoked only from leading VAR=$(…) capture shapes the matcher refuses
-#     regardless of a head grant; granting it would be a no-op greening the guard
-#     on a still-denied path.
+#   mktemp — invoked only from leading VAR=$(…) capture shapes whose status is UNMEASURED
+#     on this tier (implement row I6, the only measured capture, came back DENIED while
+#     confounding three properties); a head grant alone would not establish the shape.
 WITHHELD_IMPL=$'gh pr checkout\ngit rev-list\nmktemp'
 # Shell builtins + extractor parse artifacts (leaked case-arm fragments) emitted
 # alongside real heads. EXACT-match only (grep -xF): a head that merely begins with
@@ -13647,29 +13628,97 @@ assert_eq "#356: a 💥 Failed workpad gates non-clean via cheap-gate" "false" \
 assert_eq "#356: a 💥 Failed workpad gates non-clean for the workpad-status reason" "workpad status not Complete" \
   "$(jq -c -f "$LIB/cheap-gate.jq" <<<"$CTXF" | jq -r .reason)"
 
-# #1: post_bot_commits / human_postbot SHA list count only *substantive* (non-merge)
-# commits after the bot's last commit. A `git merge main` by a human (parents>1)
-# is branch hygiene, not a fixup, and must not be counted.
-_postbot_count() {  # stdin: COMMITS-shaped array; arg1: PR-author login
-  jq --arg author "$1" '
-    to_entries
-    | [.[] | select(
-        (.value.author_login | endswith("[bot]"))
-        or (.value.committer_login | endswith("[bot]"))
-        or (.value.author_login == $author)
-        or (.value.committer_login == $author)
-      ) | .key
-    ] as $bot
-    | if ($bot | length) == 0 then 0
-      else ([.[($bot | last) + 1:][] | select((.value.parents_count // 1) <= 1)] | length)
-      end'
+# #1440: drive the SHIPPED jq blocks, never a transcribed copy — a copy keeps passing
+# after the shipped filter drifts.
+_PBC_START=$(grep -n 'POST_BOT_COMMITS="$(echo' "$LIB/fetch-pr-context.sh" | head -1 | cut -d: -f1)
+_PBC_PROG=$(sed -n "${_PBC_START},/^')\"$/p" "$LIB/fetch-pr-context.sh")
+_PBS_START=$(grep -n 'POSTBOT_SHAS="$(echo' "$LIB/fetch-pr-context.sh" | head -1 | cut -d: -f1)
+_PBS_PROG=$(sed -n "${_PBS_START},/^    ')\"$/p" "$LIB/fetch-pr-context.sh")
+# Classify each extraction, then REFUSE TO RUN a bad one — reporting is not enough, because
+# `bash -c` on an overrun executes the producer's later blocks for real (live writes outside
+# the checkout). Pin the end and the length, never the start: the start is inside the sed
+# range and is present however the range ends, and an end-marker check alone still passes
+# when a drifted terminator makes sed run on to the producer's NEXT identical terminator.
+# 40 is a ceiling over blocks of 18 lines each, not a measurement of them.
+_PBC_NL=${_PBC_PROG//[!$'\n']/}
+_PBS_NL=${_PBS_PROG//[!$'\n']/}
+if   [ -z "$_PBC_PROG" ];                          then _PBC_OK="empty-extraction"
+elif [ "${_PBC_PROG##*$'\n'}" != "')\"" ];         then _PBC_OK="terminator-drift"
+elif [ "${#_PBC_NL}" -gt 40 ];                     then _PBC_OK="overran:${#_PBC_NL}"
+else _PBC_OK=ok; fi
+if   [ -z "$_PBS_PROG" ];                          then _PBS_OK="empty-extraction"
+elif [ "${_PBS_PROG##*$'\n'}" != "    ')\"" ];     then _PBS_OK="terminator-drift"
+elif [ "${#_PBS_NL}" -gt 40 ];                     then _PBS_OK="overran:${#_PBS_NL}"
+else _PBS_OK=ok; fi
+[ "$_PBC_OK" = ok ] || _PBC_PROG=':'
+[ "$_PBS_OK" = ok ] || _PBS_PROG=':'
+assert_eq "#1440: the shipped POST_BOT_COMMITS block extracted whole and in-bounds" "ok" "$_PBC_OK"
+assert_eq "#1440: the shipped POSTBOT_SHAS block extracted whole and in-bounds" "ok" "$_PBS_OK"
+# The two shipped blocks carry the same `ends_bot`/`is_human` defs (they differ only in
+# indentation, which the comparison strips); a half-applied edit yields post_bot_commits > 0
+# beside an empty POSTBOT_SHAS and a null human diff. The `-n` check is what makes a missing
+# grep/sed report `differ` rather than compare two empty strings equal.
+assert_eq "#1440: the coupled ends_bot/is_human defs match across both blocks" "same" \
+  "$(_pbdefs_a=$(printf '%s\n' "$_PBC_PROG" | grep -E '^ *def (ends_bot|is_human)\(' | sed -E 's/^ +//')
+     _pbdefs_b=$(printf '%s\n' "$_PBS_PROG" | grep -E '^ *def (ends_bot|is_human)\(' | sed -E 's/^ +//')
+     [ -n "$_pbdefs_a" ] && [ "$_pbdefs_a" = "$_pbdefs_b" ] && echo same || echo differ)"
+_pbc() {  # $1=COMMITS json  $2=PR-author login ; runs the SHIPPED count block
+  COMMITS="$1" AUTHOR="$2" DEVFLOW_JQ=jq bash -c "$_PBC_PROG"'; printf %s "$POST_BOT_COMMITS"'
 }
-assert_eq "post_bot: merge commit excluded, real fixup counted" "1" \
-  "$(echo '[{"author_login":"claude[bot]","committer_login":"web-flow","parents_count":1},{"author_login":"alice","committer_login":"alice","parents_count":2},{"author_login":"alice","committer_login":"alice","parents_count":1}]' | _postbot_count someoneelse)"
-assert_eq "post_bot: only a human merge after the bot → 0" "0" \
-  "$(echo '[{"author_login":"claude[bot]","committer_login":"web-flow","parents_count":1},{"author_login":"alice","committer_login":"alice","parents_count":2}]' | _postbot_count someoneelse)"
-assert_eq "post_bot: missing parents_count treated as non-merge (counted)" "1" \
-  "$(echo '[{"author_login":"claude[bot]","committer_login":"web-flow"},{"author_login":"alice","committer_login":"alice"}]' | _postbot_count someoneelse)"
+_pbs() {  # $1=COMMITS json  $2=PR-author login ; runs the SHIPPED SHA block, compact
+  COMMITS="$1" AUTHOR="$2" DEVFLOW_JQ=jq bash -c "$_PBS_PROG"'; printf %s "$POSTBOT_SHAS"' | jq -cS .
+}
+assert_eq "#1440: blank-login tail → 0 (agent-side, not human)" "0" \
+  "$(_pbc '[{"author_login":"github-actions[bot]","committer_login":"github-actions[bot]","parents_count":1},{"author_login":"","committer_login":"","parents_count":1}]' someoneelse)"
+assert_eq "#1440: whitespace-only login tail → 0 (blank, not human)" "0" \
+  "$(_pbc '[{"author_login":"github-actions[bot]","committer_login":"github-actions[bot]","parents_count":1},{"author_login":" ","committer_login":"\t","parents_count":1}]' someoneelse)"
+assert_eq "#1440: mixed tail with one named human → 1 (blank not counted)" "1" \
+  "$(_pbc '[{"author_login":"github-actions[bot]","committer_login":"github-actions[bot]","parents_count":1},{"author_login":"","committer_login":"","parents_count":1},{"author_login":"alice","committer_login":"alice","parents_count":1}]' someoneelse)"
+assert_eq "#1440: null login does not abort the filter (human still counted)" "1" \
+  "$(_pbc '[{"author_login":null,"committer_login":null,"parents_count":1},{"author_login":"github-actions[bot]","committer_login":"github-actions[bot]","parents_count":1},{"author_login":"alice","committer_login":"alice","parents_count":1}]' someoneelse)"
+assert_eq "#1440: merge commit excluded, real human fixup counted" "1" \
+  "$(_pbc '[{"author_login":"claude[bot]","committer_login":"web-flow","parents_count":1},{"author_login":"alice","committer_login":"alice","parents_count":2},{"author_login":"alice","committer_login":"alice","parents_count":1}]' someoneelse)"
+assert_eq "#1440: only a human merge after the bot → 0" "0" \
+  "$(_pbc '[{"author_login":"claude[bot]","committer_login":"web-flow","parents_count":1},{"author_login":"alice","committer_login":"alice","parents_count":2}]' someoneelse)"
+assert_eq "#1440: missing parents_count treated as non-merge (human counted)" "1" \
+  "$(_pbc '[{"author_login":"claude[bot]","committer_login":"web-flow"},{"author_login":"alice","committer_login":"alice"}]' someoneelse)"
+assert_eq "#1440: POSTBOT_SHAS excludes the blank-login SHA, keeps the human SHA" '["A"]' \
+  "$(_pbs '[{"author_login":"github-actions[bot]","committer_login":"github-actions[bot]","parents_count":1,"sha":"X"},{"author_login":"","committer_login":"","parents_count":1,"sha":"B"},{"author_login":"alice","committer_login":"alice","parents_count":1,"sha":"A"}]' someoneelse)"
+# Do not drop either arm of is_human(author) OR is_human(committer): the two one-sided
+# fixtures below blank one login and set the other to a human, so losing an arm flips a count.
+assert_eq "#1440: blank author + human committer → 1 (is_human committer arm)" "1" \
+  "$(_pbc '[{"author_login":"github-actions[bot]","committer_login":"github-actions[bot]","parents_count":1},{"author_login":"","committer_login":"alice","parents_count":1}]' someoneelse)"
+assert_eq "#1440: human author + blank committer → 1 (is_human author arm)" "1" \
+  "$(_pbc '[{"author_login":"github-actions[bot]","committer_login":"github-actions[bot]","parents_count":1},{"author_login":"alice","committer_login":"","parents_count":1}]' someoneelse)"
+# Self-exclusion is enforced by the ANCHOR select, which captures any login==author commit
+# and restarts the tail after it; is_human's `!= $author` clause is therefore a backstop no
+# fixture can reach, so do not read these two rows as regression cover for that clause.
+assert_eq "#1440: a post-bot commit by the PR author itself → 0 (self-exclusion)" "0" \
+  "$(_pbc '[{"author_login":"github-actions[bot]","committer_login":"github-actions[bot]","parents_count":1},{"author_login":"alice","committer_login":"alice","parents_count":1}]' alice)"
+assert_eq "#1440: a PR-author commit re-anchors, dropping an earlier human → 0" "0" \
+  "$(_pbc '[{"author_login":"github-actions[bot]","committer_login":"github-actions[bot]","parents_count":1},{"author_login":"bob","committer_login":"bob","parents_count":1},{"author_login":"alice","committer_login":"alice","parents_count":1}]' alice)"
+assert_eq "#1440: no bot/PR-author commit at all → 0 (zero-anchor branch)" "0" \
+  "$(_pbc '[{"author_login":"alice","committer_login":"alice","parents_count":1},{"author_login":"bob","committer_login":"bob","parents_count":1}]' someoneelse)"
+# Coupled POSTBOT_SHAS carries the identical predicate: keep one OR-arm fixture on it too.
+assert_eq "#1440: POSTBOT_SHAS keeps a human-committer/blank-author SHA" '["A"]' \
+  "$(_pbs '[{"author_login":"github-actions[bot]","committer_login":"github-actions[bot]","parents_count":1,"sha":"X"},{"author_login":"","committer_login":"alice","parents_count":1,"sha":"A"}]' someoneelse)"
+# Do not collapse the filtered tail to a boolean or a first match, and do not drop
+# the `+1` from the `[($bot_indices | last)+1:]` slice: the two fixtures below put a
+# human before the anchor and a human author ON it, so either wrong change goes RED.
+assert_eq "#1440: two distinct humans after the anchor → 2 (multiplicity, slice boundary)" "2" \
+  "$(_pbc '[{"author_login":"alice","committer_login":"alice","parents_count":1},{"author_login":"dave","committer_login":"github-actions[bot]","parents_count":1},{"author_login":"bob","committer_login":"bob","parents_count":1},{"author_login":"carol","committer_login":"carol","parents_count":1}]' someoneelse)"
+assert_eq "#1440: POSTBOT_SHAS lists both human SHAs in commit order" '["B","C"]' \
+  "$(_pbs '[{"author_login":"alice","committer_login":"alice","parents_count":1,"sha":"Z"},{"author_login":"dave","committer_login":"github-actions[bot]","parents_count":1,"sha":"Y"},{"author_login":"bob","committer_login":"bob","parents_count":1,"sha":"B"},{"author_login":"carol","committer_login":"carol","parents_count":1,"sha":"C"}]' someoneelse)"
+# The two blocks must agree on ONE input: a half-applied predicate edit surfaces as
+# post_bot_commits > 0 beside a shorter POSTBOT_SHAS, which nulls human_postbot_diff.
+assert_eq "#1440: POST_BOT_COMMITS is 1 on the shared blank+merge+pre-anchor input" "1" \
+  "$(_pbc '[{"author_login":"alice","committer_login":"alice","parents_count":1,"sha":"Z"},{"author_login":"dave","committer_login":"github-actions[bot]","parents_count":1,"sha":"Y"},{"author_login":"","committer_login":"","parents_count":1,"sha":"N"},{"author_login":"bob","committer_login":"bob","parents_count":1,"sha":"B"},{"author_login":"carol","committer_login":"carol","parents_count":2,"sha":"M"}]' someoneelse)"
+assert_eq "#1440: POSTBOT_SHAS is the matching 1-element list on that same input" '["B"]' \
+  "$(_pbs '[{"author_login":"alice","committer_login":"alice","parents_count":1,"sha":"Z"},{"author_login":"dave","committer_login":"github-actions[bot]","parents_count":1,"sha":"Y"},{"author_login":"","committer_login":"","parents_count":1,"sha":"N"},{"author_login":"bob","committer_login":"bob","parents_count":1,"sha":"B"},{"author_login":"carol","committer_login":"carol","parents_count":2,"sha":"M"}]' someoneelse)"
+# Retire the helpers with their program text: a later caller would silently get `:` and an
+# empty result rather than a named failure.
+unset -f _pbc _pbs
+unset _PBC_START _PBC_PROG _PBS_START _PBS_PROG _PBC_NL _PBS_NL _PBC_OK _PBS_OK
 
 # #4 / issue #895: the /review verdict parser is now exercised by EXECUTING the
 # producer (lib/fetch-pr-context.sh) through a gh stub — never by re-declaring its
@@ -14495,6 +14544,133 @@ assert_eq "apply-labels: failure breadcrumb names the target and label(s)" "yes"
 assert_eq "apply-labels: no porcelain fallback on the FAILURE path (no gh issue/pr edit retry)" "yes" \
   "$(! grep -qE 'issue edit|pr edit' "$AL_TMP/fail-args" && echo yes || echo no)"
 rm -rf "$AL_TMP"
+
+# ── #1855: apply-labels.sh outcome token (stdout), config-driven mode, folded ensure ──
+# The helper prints exactly ONE outcome token to stdout on every path it runs — from the closed
+# set {applied, nothing-to-apply, arg-slip, api-failure, config-unreadable}, none of which
+# contains "already exists" — so a call site routes on the token, not on English stderr sentences.
+# `--config-key`/`--config-fallback` mode makes the helper resolve the label list itself through
+# config-get.sh, and both modes fold in label creation (a call site needs no separate
+# ensure-label.sh call). Drive both against a stubbed gh; 2>/dev/null keeps only the stdout token.
+I1855_TMP="$(mktemp -d)"
+cat > "$I1855_TMP/gh_ok" <<'STUB'
+#!/usr/bin/env bash
+echo '[]'; exit 0
+STUB
+chmod +x "$I1855_TMP/gh_ok"
+cat > "$I1855_TMP/gh_fail" <<'STUB'
+#!/usr/bin/env bash
+echo "HTTP 500: server error" >&2; exit 1
+STUB
+chmod +x "$I1855_TMP/gh_fail"
+assert_eq "#1855 apply-labels: positional success emits the 'applied' token on stdout" "applied" \
+  "$(DEVFLOW_GH="$I1855_TMP/gh_ok" bash "$LIB/../scripts/apply-labels.sh" 42 DevFlow 2>/dev/null)"
+assert_eq "#1855 apply-labels: an empty/whitespace label set emits the 'nothing-to-apply' token" "nothing-to-apply" \
+  "$(DEVFLOW_GH="$I1855_TMP/gh_ok" bash "$LIB/../scripts/apply-labels.sh" 42 "  " 2>/dev/null)"
+assert_eq "#1855 apply-labels: a non-numeric number emits the 'arg-slip' token" "arg-slip" \
+  "$(DEVFLOW_GH="$I1855_TMP/gh_ok" bash "$LIB/../scripts/apply-labels.sh" abc DevFlow 2>/dev/null)"
+assert_eq "#1855 apply-labels: an apply POST failure emits the 'api-failure' token" "api-failure" \
+  "$(DEVFLOW_GH="$I1855_TMP/gh_fail" bash "$LIB/../scripts/apply-labels.sh" 42 DevFlow 2>/dev/null)"
+# STDOUT carries ONLY the token (nothing else) on a successful multi-label apply.
+assert_eq "#1855 apply-labels: stdout on success is exactly the single token" "applied" \
+  "$(DEVFLOW_GH="$I1855_TMP/gh_ok" bash "$LIB/../scripts/apply-labels.sh" 42 "DevFlow,Deferred" 2>/dev/null)"
+# No token value contains "already exists" (that phrase is ensure-label.sh's stderr breadcrumb).
+assert_eq "#1855 apply-labels: no stdout outcome carries the 'already exists' phrase" "no" \
+  "$(DEVFLOW_GH="$I1855_TMP/gh_ok" bash "$LIB/../scripts/apply-labels.sh" 42 DevFlow 2>/dev/null | grep -qiF 'already exists' && echo yes || echo no)"
+# Config-driven mode: the helper resolves the list itself via config-get.sh. Use a throwaway git
+# repo so config-get resolves ITS root .prflow/config.json (the SHARED REPO-ROOT CONFIG CONTRACT).
+I1855_CFG="$(mktemp -d)"
+( cd "$I1855_CFG" && git init -q && mkdir -p .prflow )
+printf '%s' '{"docs":{"labels":"Documented,Reviewed"}}' > "$I1855_CFG/.prflow/config.json"
+assert_eq "#1855 apply-labels: config mode resolves labels from config and emits 'applied'" "applied" \
+  "$(cd "$I1855_CFG" && DEVFLOW_GH="$I1855_TMP/gh_ok" bash "$LIB/../scripts/apply-labels.sh" 42 --config-key .docs.labels --config-fallback Documented 2>/dev/null)"
+printf '%s' '{"docs":{"labels":""}}' > "$I1855_CFG/.prflow/config.json"
+assert_eq "#1855 apply-labels: an empty configured value resolves to the caller's fallback (applied)" "applied" \
+  "$(cd "$I1855_CFG" && DEVFLOW_GH="$I1855_TMP/gh_ok" bash "$LIB/../scripts/apply-labels.sh" 42 --config-key .docs.labels --config-fallback Documented 2>/dev/null)"
+printf '%s' '{"docs":{"labels":" , , "}}' > "$I1855_CFG/.prflow/config.json"
+assert_eq "#1855 apply-labels: a whitespace/separator-only configured value emits 'nothing-to-apply'" "nothing-to-apply" \
+  "$(cd "$I1855_CFG" && DEVFLOW_GH="$I1855_TMP/gh_ok" bash "$LIB/../scripts/apply-labels.sh" 42 --config-key .docs.labels --config-fallback Documented 2>/dev/null)"
+printf '%s' '{bad json' > "$I1855_CFG/.prflow/config.json"
+assert_eq "#1855 apply-labels: a corrupt config (config-get rc!=0) emits 'config-unreadable'" "config-unreadable" \
+  "$(cd "$I1855_CFG" && DEVFLOW_GH="$I1855_TMP/gh_ok" bash "$LIB/../scripts/apply-labels.sh" 42 --config-key .docs.labels --config-fallback Documented 2>/dev/null)"
+# Six-shape config adversarial matrix (CLAUDE.md best-effort-parser gotcha + the config-derivation
+# mandate in .prflow/prompt-extensions/{review-and-fix,receiving-code-review}.md): the four rows above
+# cover scalar (applied), valid-falsy empty-string (→fallback), whitespace-only (nothing-to-apply),
+# and corrupt-JSON (config-unreadable). The remaining rows:
+#   * OBJECT (wrong-type) — config-get.sh coerces a dict to the "[object Object]" sentinel and exits 0;
+#     applying it verbatim would create a garbage label reported 'applied', so the helper's wrong-type
+#     guard maps it to config-unreadable instead.
+printf '%s' '{"docs":{"labels":{"a":"b"}}}' > "$I1855_CFG/.prflow/config.json"
+assert_eq "#1855 apply-labels: an object-typed configured value (wrong-type) emits 'config-unreadable', not a garbage label" "config-unreadable" \
+  "$(cd "$I1855_CFG" && DEVFLOW_GH="$I1855_TMP/gh_ok" bash "$LIB/../scripts/apply-labels.sh" 42 --config-key .docs.labels --config-fallback Documented 2>/dev/null)"
+#   * ARRAY — config-get.sh comma-joins the elements, which IS a valid label list, so it applies.
+printf '%s' '{"docs":{"labels":["Documented","Reviewed"]}}' > "$I1855_CFG/.prflow/config.json"
+assert_eq "#1855 apply-labels: an array-typed configured value comma-joins into a valid label list and applies" "applied" \
+  "$(cd "$I1855_CFG" && DEVFLOW_GH="$I1855_TMP/gh_ok" bash "$LIB/../scripts/apply-labels.sh" 42 --config-key .docs.labels --config-fallback Documented 2>/dev/null)"
+# A MIXED array containing a non-scalar (object) element coerces element-wise to
+# "Documented,[object Object]" — not the bare sentinel — so the guard must match the sentinel
+# as a SUBSTRING, else the garbage element slips through and is applied as a label reported 'applied'.
+printf '%s' '{"docs":{"labels":["Documented",{"foo":"bar"}]}}' > "$I1855_CFG/.prflow/config.json"
+assert_eq "#1855 apply-labels: a mixed array with a non-scalar (object) element emits 'config-unreadable' (substring guard)" "config-unreadable" \
+  "$(cd "$I1855_CFG" && DEVFLOW_GH="$I1855_TMP/gh_ok" bash "$LIB/../scripts/apply-labels.sh" 42 --config-key .docs.labels --config-fallback Documented 2>/dev/null)"
+#   * MISSING key — config-get.sh exits 0 with empty stdout, so the caller's fallback is applied.
+printf '%s' '{"other":"x"}' > "$I1855_CFG/.prflow/config.json"
+assert_eq "#1855 apply-labels: a missing config key resolves to the caller's fallback and applies" "applied" \
+  "$(cd "$I1855_CFG" && DEVFLOW_GH="$I1855_TMP/gh_ok" bash "$LIB/../scripts/apply-labels.sh" 42 --config-key .docs.labels --config-fallback Documented 2>/dev/null)"
+# WRITTEN REASON (the sixth matrix row, number/bool scalar): config-get.sh coerces a number to its
+# digits and a bool to lowercase "true"/"false" — each a well-formed single label string, not a
+# garbage sentinel — so a wrong-scalar-type value applies a (oddly-named but valid) label rather
+# than mishandling; no separate guard or assertion is owed for it beyond the scalar row above.
+rm -rf "$I1855_CFG"
+# Interior-space trim (preserves coverage the retired deferred_labels_normalize() helper carried):
+# a comma-separated value with interior spaces normalizes to trimmed labels and applies.
+assert_eq "#1855 apply-labels: interior spaces around a comma-separated positional label list are trimmed and applied" "applied" \
+  "$(DEVFLOW_GH="$I1855_TMP/gh_ok" bash "$LIB/../scripts/apply-labels.sh" 42 "DevFlow, Deferred" 2>/dev/null)"
+# ensure-label.sh classifies already-exists WITHOUT grep (the folded creation path benefits too),
+# so a grep-less host reports the benign already-exists as success. Shadow `grep` with an unusable
+# stub on PATH; the case-match must not depend on it.
+cat > "$I1855_TMP/gh_ae" <<'STUB'
+#!/usr/bin/env bash
+echo '{"message":"Validation Failed","errors":[{"resource":"Label","code":"already_exists","field":"name"}],"status":"422"}' >&2
+echo "gh: Validation Failed (HTTP 422)" >&2; exit 1
+STUB
+chmod +x "$I1855_TMP/gh_ae"
+mkdir -p "$I1855_TMP/nogrep"
+printf '#!/usr/bin/env bash\nexit 127\n' > "$I1855_TMP/nogrep/grep"; chmod +x "$I1855_TMP/nogrep/grep"
+I1855_ELE="$(PATH="$I1855_TMP/nogrep:$PATH" DEVFLOW_GH="$I1855_TMP/gh_ae" bash "$LIB/../scripts/ensure-label.sh" DevFlow 2>&1 >/dev/null)"
+assert_eq "#1855 ensure-label: an already-exists response is reported as success on a grep-less host" "yes" \
+  "$(printf '%s' "$I1855_ELE" | grep -qiF 'already exists' && echo yes || echo no)"
+assert_eq "#1855 ensure-label: a grep-less host does NOT misreport already-exists as a failure" "no" \
+  "$(printf '%s' "$I1855_ELE" | grep -qiF 'could not ensure label' && echo yes || echo no)"
+# The case-match has three arms; the JSON stub above exercises only the `already_exists` code arm.
+# Exercise the other two literal arms so a regression narrowing the case to one pattern is caught.
+cat > "$I1855_TMP/gh_ae_text" <<'STUB'
+#!/usr/bin/env bash
+echo "gh: Validation Failed: Label already exists (HTTP 422)" >&2; exit 1
+STUB
+chmod +x "$I1855_TMP/gh_ae_text"
+I1855_ELE_TEXT="$(DEVFLOW_GH="$I1855_TMP/gh_ae_text" bash "$LIB/../scripts/ensure-label.sh" DevFlow 2>&1 >/dev/null)"
+assert_eq "#1855 ensure-label: the plain-text 'already exists' arm is classified as success" "yes" \
+  "$(printf '%s' "$I1855_ELE_TEXT" | grep -qiF 'already exists' && echo yes || echo no)"
+cat > "$I1855_TMP/gh_ae_taken" <<'STUB'
+#!/usr/bin/env bash
+echo "gh: name has already been taken (HTTP 422)" >&2; exit 1
+STUB
+chmod +x "$I1855_TMP/gh_ae_taken"
+I1855_ELE_TAKEN="$(DEVFLOW_GH="$I1855_TMP/gh_ae_taken" bash "$LIB/../scripts/ensure-label.sh" DevFlow 2>&1 >/dev/null)"
+assert_eq "#1855 ensure-label: the 'already been taken' arm is classified as success (not a failure)" "no" \
+  "$(printf '%s' "$I1855_ELE_TAKEN" | grep -qiF 'could not ensure label' && echo yes || echo no)"
+# Case-insensitivity (matches the retired `grep -qiE`): a differently-cased already-exists body
+# must still classify as success, via `shopt -s nocasematch`, not fall through to the failure arm.
+cat > "$I1855_TMP/gh_ae_cased" <<'STUB'
+#!/usr/bin/env bash
+echo "gh: Validation Failed: Label Already Exists (HTTP 422)" >&2; exit 1
+STUB
+chmod +x "$I1855_TMP/gh_ae_cased"
+I1855_ELE_CASED="$(DEVFLOW_GH="$I1855_TMP/gh_ae_cased" bash "$LIB/../scripts/ensure-label.sh" DevFlow 2>&1 >/dev/null)"
+assert_eq "#1855 ensure-label: a differently-cased 'Already Exists' body is still classified as success (case-insensitive match)" "no" \
+  "$(printf '%s' "$I1855_ELE_CASED" | grep -qiF 'could not ensure label' && echo yes || echo no)"
+rm -rf "$I1855_TMP"
 
 # ── apply-pr-triggerer.sh: best-effort PR assignment to the triggerer (#1165) ──
 # Closed outcome contract: prints exactly ONE `assignment: applied <login>` /
@@ -16240,7 +16416,7 @@ assert_pin_unique "#332 AC4: create-issue resolves the main root via resolve-mai
 assert_pin_unique "#332/#569 AC4: the record-draft-binding --path re-resolves the root inline (self-contained fence)" \
   '--path "$('"$PORTABLE_ANCHOR_LITERAL"'scripts/resolve-main-root.sh)" --tier main-root' "$CI_SKILL_332"
 assert_pin_unique "#332/#569 AC4: create-issue displays the draft at the bound-root ABSOLUTE path" \
-  'Draft also saved to `<bound-root>/.prflow/tmp/issue-draft-<slug>.md` for review.' "$CI_SKILL_332"
+  'Draft also saved to `<bound-root>/.prflow/tmp/create-issue/<slug>/issue-draft-<slug>.md` for review.' "$CI_SKILL_332"  # structural-pin-ok: cross-file-phase-contract -- pins that create-issue's draft-save message names the bound-root ABSOLUTE per-run draft path; a relocation missing this display message would ship a stale draft path silently
 assert_eq "#332 AC4: create-issue no longer shows a bare-relative draft-save note" "no" \
   "$(grep -qF 'Draft also saved to `.prflow/tmp/issue-draft-<slug>.md` for review.' "$CI_SKILL_332" && echo yes || echo no)"  # raw-guard-ok: absence pin (expects no) — the old cwd-relative displayed draft note must be gone
 # The Step 2 derivation gate artifact deliberately STAYS cwd-anchored (internal, not shown
@@ -16273,8 +16449,8 @@ assert_eq "#275 docs: install.md documents the PowerShell UTF-16LE write pitfall
   "$(grep -q 'UTF-16LE' "$LIB/../docs/internal/install.md" && grep -q 'utf8NoBOM' "$LIB/../docs/internal/install.md" && echo yes || echo no)"  # raw-guard-ok: compound doc presence pin (two coupled fragments of one gotcha)
 assert_pin_unique "#275 docs: install.md documents the inline-bash variable-stripping constraint" \
   "reads **empty** in a later statement of the same command" "$LIB/../docs/internal/install.md"  # structural-pin-ok: cross-file-phase-contract -- boundary-adjudicated (literal:1316523, runner_scope_contract): install.md forbids the assign-then-use command shape that erases helper-path variables on the supported runner; the docs/internal move (issue #1188) re-scoped this site into the #810 diff, so the recorded boundary now needs the co-located site tag
-assert_eq "#97 pin: implement applies DevFlow label at PR create via REST helper" "yes" \
-  "$(grep -q 'ensure-label.sh PRFlow' "$IMPL_SKILL_BUNDLE" && grep -qF 'apply-labels.sh <draft-pr-number> PRFlow' "$IMPL_SKILL_BUNDLE" && echo yes || echo no)"  # raw-guard-ok: compound: two greps && on one line (provenance: ensure-label + REST apply-labels); issue #218: bundle (label idiom in phases/phase-3-review.md). #480: the PR number is a substituted LITERAL, not "$PR_NUM" — that variable is set in a previous fence and does not survive into this separate command on the cloud runner, so the old form passed an empty number and the helper refused at its arg-slip guard (the label never landed on the PR).
+assert_eq "#97 pin: implement applies PRFlow label at PR create via REST helper" "yes" \
+  "$(grep -qF 'apply-labels.sh <draft-pr-number> PRFlow' "$IMPL_SKILL_BUNDLE" && echo yes || echo no)"  # raw-guard-ok: routing-dispatch-contract: the granted leading-token apply-labels invocation phase-3 §3.1 stamps the provenance label with; issue #218: bundle (label idiom in phases/phase-3-review.md). #1855: the call collapsed to ONE apply-labels.sh invocation — the helper creates the label itself, so the separate ensure-label.sh PRFlow call is gone. #480: the PR number is a substituted LITERAL, not "$PR_NUM".
 assert_eq "#152 pin: meta-issue.sh ensures+applies DevFlow and Retrospective labels via REST helper" "yes" \
   "$(grep -q 'ensure-label.sh' "$LIB/meta-issue.sh" && grep -qF 'apply-labels.sh' "$LIB/meta-issue.sh" && grep -qF 'PRFlow Retrospective' "$LIB/meta-issue.sh" && echo yes || echo no)"
 assert_eq "#97 pin: init creates the reserved DevFlow provenance label" "yes" \
@@ -16298,7 +16474,7 @@ assert_eq "#228: phase-4 removed the gh issue edit --add-label deferred command"
 assert_eq "#228: phase-4 removed the gh pr edit --add-label docs-label command" "yes" \
   "$(! grep -qF 'gh pr edit --add-label "$CLEAN_LABELS"' "$IMPL_SKILL_BUNDLE" && echo yes || echo no)"  # raw-guard-ok: absence pin — asserts the removed porcelain command literal is GONE (negated grep, not a presence pin)
 assert_eq "#228: phase-4 docs-label routes through apply-labels.sh (symmetric presence pin)" "yes" \
-  "$(grep -qF 'apply-labels.sh <docs-pr-number> "<docs-labels>"' "$IMPL_SKILL_BUNDLE" && echo yes || echo no)"  # raw-guard-ok: presence pin pairs with the docs-label absence pin above so a typo'd new invocation can't pass all phase-4 pins. #480: the PR number and label list are substituted LITERALS, not "$DOCS_PR_NUM"/"$CLEAN_LABELS" — the reworked 4.1 emits a single leading-token call (the old form nested it inside two `if` compounds, a shape no probe row measured).
+  "$(grep -qF 'apply-labels.sh <docs-pr-number> --config-key .docs.labels --config-fallback Documented' "$IMPL_SKILL_BUNDLE" && echo yes || echo no)"  # raw-guard-ok: presence pin pairs with the docs-label absence pin above so a typo'd new invocation can't pass all phase-4 pins. #1855: the reworked 4.1 emits a single leading-token apply-labels.sh call that names the config key + fallback — the helper reads .docs.labels and creates each label itself, so the separate config read and per-label ensure call are gone. The PR number is a substituted LITERAL, not "$DOCS_PR_NUM".
 assert_eq "#228: pr-description edits the body via REST gh api PATCH, not gh pr edit --body" "yes" \
   "$(grep -qF 'api --method PATCH' "$LIB/../skills/pr-description/SKILL.md" && ! grep -qF 'gh pr edit $PR_NUMBER --body' "$LIB/../skills/pr-description/SKILL.md" && echo yes || echo no)"  # raw-guard-ok: compound presence+absence pin (REST PATCH present AND old porcelain gone), not a single target-unique pin
 # Positively pin the migrated body-write SHAPE: `-F body=@-` reads the field literally
@@ -16625,6 +16801,31 @@ assert_eq "clean-entry categories=[]"       "0"     "$(echo "$E" | jq '.categori
 assert_eq "clean-entry descriptors=[]"      "0"     "$(echo "$E" | jq '.descriptors|length')"
 assert_eq "clean-entry no theme_tags field" "true"  "$(echo "$E" | jq 'has("theme_tags") | not')"
 assert_eq "clean-entry signals carried"     "0"     "$(echo "$E" | jq -r .signals.post_bot_commits)"
+# #1827: diff-size fields (additions/deletions/changed_files) survive cleaning when present,
+# and a bundle lacking them still cleans without error (fields default to null).
+CTX_CLEAN_SZ='{"pr":42,"kind":"implementation","issue_number":40,"merged_at":"2026-05-01T00:00:00Z","branch":"claude/issue-40-x","head_sha":"abc","merge_commit_sha":"def","additions":120,"deletions":34,"changed_files":["lib/a.sh","lib/b.jq"],"signals":{"review_comments_count":0,"post_bot_commits":0,"ci_failures_during_pr":0,"workpad_final_status":"Complete","review_reject_outstanding":false}}'
+ESZ="$(echo "$CTX_CLEAN_SZ" | jq -c -f "$LIB/clean-entry.jq")"
+assert_eq "#1827 clean-entry additions survives"      "120"      "$(echo "$ESZ" | jq -r .additions)"
+assert_eq "#1827 clean-entry deletions survives"      "34"       "$(echo "$ESZ" | jq -r .deletions)"
+# changed_files survives verbatim (contents + order), not merely by length — a reorder/dedupe/rewrite must fail.
+assert_eq "#1827 clean-entry changed_files survives verbatim" '["lib/a.sh","lib/b.jq"]' "$(echo "$ESZ" | jq -c '.changed_files')"
+# The size-field-less CTX_CLEAN cleans without error and defaults the fields to null.
+assert_eq "#1827 clean-entry additions null when absent"     "null" "$(echo "$E" | jq -r .additions)"
+assert_eq "#1827 clean-entry deletions null when absent"     "null" "$(echo "$E" | jq -r .deletions)"
+assert_eq "#1827 clean-entry changed_files null when absent" "null" "$(echo "$E" | jq -r .changed_files)"
+# schema_version 3 always emits the keys (present even when null), so a reader can distinguish a v3
+# entry that lacked size data from a v2 entry that never had the fields — has() pins that contract.
+assert_eq "#1827 clean-entry additions key present when absent"     "true" "$(echo "$E" | jq 'has("additions")')"
+assert_eq "#1827 clean-entry deletions key present when absent"     "true" "$(echo "$E" | jq 'has("deletions")')"
+assert_eq "#1827 clean-entry changed_files key present when absent" "true" "$(echo "$E" | jq 'has("changed_files")')"
+# Valid-falsy passthrough: a real 0 / [] must survive (jq's // treats 0 and [] as truthy), so a
+# future naive `if .additions then` rewrite that nulls a real 0 would go RED here.
+CTX_CLEAN_FALSY='{"pr":42,"kind":"implementation","additions":0,"deletions":0,"changed_files":[],"signals":{"review_comments_count":0,"post_bot_commits":0,"ci_failures_during_pr":0,"workpad_final_status":"Complete","review_reject_outstanding":false}}'
+EFALSY="$(echo "$CTX_CLEAN_FALSY" | jq -c -f "$LIB/clean-entry.jq")"
+assert_eq "#1827 clean-entry additions 0 survives (not nulled)"       "0"  "$(echo "$EFALSY" | jq -r .additions)"
+assert_eq "#1827 clean-entry deletions 0 survives (not nulled)"       "0"  "$(echo "$EFALSY" | jq -r .deletions)"
+assert_eq "#1827 clean-entry changed_files [] survives (not nulled)"  "0"  "$(echo "$EFALSY" | jq '.changed_files|length')"
+assert_eq "#1827 clean-entry changed_files [] is an array not null"   "array" "$(echo "$EFALSY" | jq -r '.changed_files|type')"
 
 # ── #1829 clean-entry.jq records analysis_provenance from the bundle ──────────
 # A live Stage A run's gate-skipped entry records what evidence the bundle
@@ -36001,10 +36202,11 @@ assert_eq "#455 AC4: all four label call sites carry a co-located Cloud-emission
   "$(grep -cF 'Cloud-emission discipline (label helpers)' "$IMPL_SKILL_BUNDLE" || true)"  # raw-guard-ok: count-based: asserts ==4 co-located notes (one per label call site), not single-presence
 # BEHAVIORAL (not a source grep — a grep stays green if the echo is moved into a branch that
 # never fires). Drive the helper against a stubbed gh and assert each outcome is what the four
-# call sites' new routing rule reads: success line / failure line / SILENCE on an empty set.
-# The silence case is what makes "no output at all ⇒ the harness refused" a SOUND inference —
-# if an empty label set ever printed a success line, every channel would read a fabricated
-# success; if it printed anything at all, a real denial would be indistinguishable from it.
+# call sites' new routing rule reads: success line / failure line / a breadcrumb on an empty set.
+# The helper WRITES a breadcrumb for an empty label set (it is NOT silent) — see the
+# "NOT a harness denial" assertion below — so a harness refusal, which prints nothing at all, is
+# the ONLY silent outcome and stays distinguishable: "no output at all ⇒ the harness refused" is a
+# SOUND inference precisely because the empty-set path breadcrumbs rather than exiting silently.
 I455_STUB="$E363/ghstub"; mkdir -p "$I455_STUB"
 printf '#!/usr/bin/env bash\nexit 0\n' > "$I455_STUB/gh_ok"; chmod +x "$I455_STUB/gh_ok"
 printf '#!/usr/bin/env bash\necho "HTTP 403" >&2\nexit 1\n' > "$I455_STUB/gh_fail"; chmod +x "$I455_STUB/gh_fail"
@@ -36224,20 +36426,13 @@ assert_eq "#480 phase 3.1 prints the draft PR number sentinel (the comparand its
 # recorded decision that such prose carries no automated regression coverage by design,
 # retirement owes no replacement coverage; the compensating control is the review pass. The
 # two literals above are unchanged legacy sites and stay.
-# The ensure-label quoting pin must be a COUNT, not an existential: `grep -qF` over the bundle is
-# satisfied by ANY one of the three call sites, so unquoting just the docs-label site (whose
-# default `Documented` is one word, but whose configured value need not be) slipped through
-# GREEN — the same vacuity class the arg-slip pins were re-attributed to close (#480 review).
-# #815 split the three sites across two files (4.0 moved to the gated reference; 4.0.5
-# and 4.1 stayed). Kept as a COUNT PER FILE rather than relaxed to an existential or
-# summed over the bundle: either relaxation restores the exact vacuity this pin closed —
-# unquoting one site while another satisfies the check.
-assert_eq "#480/#1374 the phase file's remaining ensure-label call site (4.1) quotes the label arg (a count pin — an existential one missed a single-site regression)" "1" \
-  "$(grep -cF 'ensure-label.sh "<label>"' "$I480_P4" || true)"
-assert_eq "#480/#1374 the relocated phase-4.0.5 ensure-label call site quotes the label arg" "1" \
-  "$(grep -cF 'ensure-label.sh "<label>"' "$I480_REF405" || true)"
-assert_eq "#480/#815 the relocated phase-4.0 ensure-label call site quotes the label arg" "1" \
-  "$(grep -cF 'ensure-label.sh "<label>"' "$I815_REF" || true)"
+# issue #1855: the three per-label `ensure-label.sh "<label>"` call sites (4.0, 4.0.5, 4.1) are
+# RETIRED — apply-labels.sh now creates each label itself, so the deferral/docs channels collapse
+# to a single apply-labels.sh call with no separate per-label ensure. Their quoting-count pins are
+# removed with the idiom; the collapsed-form and per-file absence pins live in the deferred.labels
+# block above (#1855). The unquoted-absence pin stays as a plain absence pin: no
+# `ensure-label.sh <label>` may survive anywhere in the bundle — no quoted or unquoted per-label
+# ensure-label call form remains in the implement bundle at all after the #1855 collapse.
 assert_eq "#480 no UNQUOTED 'ensure-label.sh <label>' survives anywhere in the implement skill bundle" "0" \
   "$(grep -cF 'ensure-label.sh <label>' "$IMPL_SKILL_BUNDLE" || true)"
 
@@ -43541,13 +43736,15 @@ assert_eq "#1219 negative-pattern control: the bare mutated copy lost its fetch-
   "$(devflow_wf_job_has claude 'fetch-depth:[[:space:]]*0[[:space:]]*$' "$_I1219_MUT/bare.yml")"
 unset _I1219_IMPL_YML _I1219_CMD_YML _I1219_MUT
 #
-# ci.yml: the shard job installs the Claude Code CLI, which is what ARMS the #671
-# `claude plugin validate --strict` gate earlier in this file. Same failure class as the
-# fetch-depth: 0 pin above. With no CLI on PATH that gate takes its blocking-gate skip
-# branch, and a skip exits 0, so dropping this step would silently retire the CLI's
-# strict plugin-tree validation while CI stayed green. Scope note: the PyYAML frontmatter
-# and JSON manifest gates sit OUTSIDE that `command -v claude` branch and keep running
-# regardless — only the strict plugin-tree layer is disarmed.
+# ci.yml: the shard job installs the Claude Code CLI on the `monolith` shard, which
+# ARMS the #671 `claude plugin validate --strict` gate earlier in this file. Same
+# failure class as the fetch-depth: 0 pin above. With no CLI on PATH that gate takes its
+# blocking-gate skip branch; the install is monolith-only (issue #1830), and
+# lib/test/run-shard.sh now FAILS any CI shard whose log shows that CLI-absence skip, so
+# dropping this step reddens the shard rather than retiring the validation silently.
+# Scope note: the PyYAML frontmatter and JSON manifest gates sit OUTSIDE that
+# `command -v claude` branch and keep running regardless — only the strict
+# plugin-tree layer is disarmed.
 # Two lines are pinned because they fail independently: the installer fetches the binary,
 # and the GITHUB_PATH append is what actually puts it on PATH for later steps — an
 # install whose PATH export was dropped leaves the gate skipping just as surely. Matching
@@ -43692,6 +43889,165 @@ assert_eq "#671 ci.yml: the install goes through the retry wrapper" "yes" \
 # structural-pin-ok: cross-file-phase-contract -- pipefail is what turns a failed download into a failed step; without it the install reports success and the #671 gate silently self-skips again
 assert_eq "#671 ci.yml: the install command string sets pipefail" "yes" \
   "$(devflow_ci_shard_has 'set -o pipefail')"
+#
+# ── issue #1830: monolith-only CLI install + the fail-loud gate-armed backstop ──
+# Step-scoped variant of devflow_ci_shard_has: matches only the UNCOMMENTED lines of the
+# named step, up to the next step. Do not pin a per-step `if:` with the job-scoped form —
+# it answers yes for a condition carried by ANY step in the job, so moving the gate from
+# the install step to another one keeps the pin green with the gate itself gone.
+devflow_ci_step_has() {  # $1 = step-name literal, $2 = ERE matched inside that step only
+  local _out _f="$LIB/../.github/workflows/ci.yml"
+  [ -s "$_f" ] || { printf 'unreadable'; return; }
+  _out="$(awk -v job='^  shard:[[:space:]]*$' -v s="$1" -v pat="$2" '
+    $0 ~ job {ins=1; next}
+    /^  [A-Za-z_][A-Za-z0-9_-]*:/{ins=0; inb=0}
+    ins && /^      - name:/ {inb = (index($0, s) > 0) ? 1 : 0; next}
+    inb && /^[[:space:]]*#/{next}
+    inb && $0 ~ pat {f=1}
+    END{print (f?"yes":"no")}' "$_f")" || { printf 'awk-failed'; return; }
+  case "$_out" in
+    yes|no) printf '%s' "$_out" ;;
+    *)      printf 'unexpected-output' ;;
+  esac
+}
+E1830_INSTALL_STEP='Install Claude Code CLI (arms the #671 plugin-validate gate)'
+E1830_VERIFY_STEP='Verify the claude CLI resolves on PATH at the pinned version'
+# structural-pin-ok: cross-file-phase-contract -- the install STEP's own `if:` is what confines the CLI install to the one consuming shard; carried by any other step instead, the install reverts to all five shards (issue #1830 AC1)
+assert_eq "#1830 ci.yml: the CLI install step itself carries the monolith-shard gate" "yes" \
+  "$(devflow_ci_step_has "$E1830_INSTALL_STEP" "if: matrix[.]shard == 'monolith'")"
+# structural-pin-ok: cross-file-phase-contract -- the plain `if: matrix.shard == …` carries an implicit success() that re-couples verify to every earlier step in the job; always() is what keeps it gated on the shard alone (issue #1830 AC2)
+assert_eq "#1830 ci.yml: the verify step itself is gated on the shard alone, not on the install outcome" "yes" \
+  "$(devflow_ci_step_has "$E1830_VERIFY_STEP" "if: always[(][)] && matrix[.]shard == 'monolith'")"
+# Two controls, because a `no` is conflated (absent pattern OR unmatched step anchor). The
+# first proves the matcher is not vacuously `yes`; the second proves it is step-SCOPED — the
+# verify step carries `always() && matrix.shard == …`, so the install step's own unprefixed
+# pattern must NOT match there, which is exactly what the job-scoped form got wrong.
+assert_eq "#1830 ci.yml gate control: the install step does NOT carry an unused shard condition" "no" \
+  "$(devflow_ci_step_has "$E1830_INSTALL_STEP" "if: matrix[.]shard == 'no-such-shard'")"
+assert_eq "#1830 ci.yml scope control: the install step's bare condition does NOT match inside the verify step" "no" \
+  "$(devflow_ci_step_has "$E1830_VERIFY_STEP" "if: matrix[.]shard == 'monolith'")"
+# The backstop is driven end-to-end through a fixture tree, so run-shard.sh's own detection
+# decides each exit. Keep every stub log's tally clean (`1 passed, 0 failed`): a fixture that
+# also fails a test would make these assertions pass without the backstop firing at all.
+CGA_TREE="$(mktemp -d)"
+[ -n "$CGA_TREE" ] && [ -d "$CGA_TREE" ] || { printf 'FATAL: mktemp -d failed for the #1830 gate-armed controls\n' >&2; exit 1; }
+mkdir -p "$CGA_TREE/lib/test"
+cp "$LIB/test/run-shard.sh" "$CGA_TREE/lib/test/run-shard.sh"
+cp "$LIB/test/shard-tally.py" "$CGA_TREE/lib/test/shard-tally.py"
+chmod +x "$CGA_TREE/lib/test/run-shard.sh"
+# Stub run.sh: emit the crafted log line its CGA_CASE names, then a clean passing tally.
+cat > "$CGA_TREE/lib/test/run.sh" <<'CGA_EOF'
+#!/usr/bin/env bash
+case "${CGA_CASE:-clean}" in
+  reverted) printf '  SKIP  #671 claude plugin validate --strict (plugin tree + descent matrix) [blocking-gate] — claude CLI not on PATH — not run\n' ;;
+  only434)  printf '  SKIP  #434 stale-prose self-scan [blocking-gate] — working tree dirty (grades committed HEAD)\n' ;;
+  quote)    printf '  info: the #671 claude plugin validate --strict check (blocking-gate kind) mentioned claude CLI not on PATH — a diagnostic line with no NOTE or SKIP emission prefix\n' ;;
+  realnote) cat "${CGA_REAL_PATH:-/dev/null}" ;;
+esac
+printf '1 passed, 0 failed\n'
+CGA_EOF
+chmod +x "$CGA_TREE/lib/test/run.sh"
+# Stub run-module.sh: a MODULE shard runs this, not run.sh, so it needs no CGA_CASE arm — it
+# emits the #671 CLI-absence skip unconditionally, which is what lets the module-shard
+# assertion below prove the backstop is not scoped to `monolith` by name.
+cat > "$CGA_TREE/lib/test/run-module.sh" <<'CGA_EOF'
+#!/usr/bin/env bash
+printf 'Module %s: 1 passed, 0 failed\n' "${1:-stub}"
+printf '  SKIP  #671 claude plugin validate --strict (plugin tree + descent matrix) [blocking-gate] — claude CLI not on PATH — not run\n'
+CGA_EOF
+chmod +x "$CGA_TREE/lib/test/run-module.sh"
+# Drive the REAL skip() rather than hand-authoring its line, so a drift between skip()'s output
+# format and the backstop regex reddens here. Keep SKIPS_FILE redirected to the sink: an
+# unredirected call would add a phantom skip to the suite's own tally.
+( SKIPS_FILE="$CGA_TREE/skips-sink"; skip "#671 claude plugin validate --strict (coupling probe)" blocking-gate "claude CLI not on PATH (coupling probe)" ) > "$CGA_TREE/real-note.txt"
+# Every invocation below pins GITHUB_ACTIONS explicitly. Do not let it default to the host's:
+# run-shard.sh fails only the CI arm, so an unpinned fixture asserts one tier at the desk and
+# the other on CI, and whichever arm the host does not take goes untested there.
+assert_eq "#1830 run-shard: the #671 CLI-absence skip FAILS the monolith shard on CI" "nonzero" \
+  "$(cd "$CGA_TREE" && GITHUB_ACTIONS=true CGA_CASE=reverted DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-rev" bash lib/test/run-shard.sh monolith >/dev/null 2>&1 && echo zero || echo nonzero)"
+assert_eq "#1830 run-shard: an unrelated #434 blocking-gate skip does NOT fail the monolith shard" "zero" \
+  "$(cd "$CGA_TREE" && GITHUB_ACTIONS=true CGA_CASE=only434 DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-434" bash lib/test/run-shard.sh monolith >/dev/null 2>&1 && echo zero || echo nonzero)"
+assert_eq "#1830 run-shard: a clean log passes the monolith shard" "zero" \
+  "$(cd "$CGA_TREE" && GITHUB_ACTIONS=true CGA_CASE=clean DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-clean" bash lib/test/run-shard.sh monolith >/dev/null 2>&1 && echo zero || echo nonzero)"
+# False-positive control: a log line that merely QUOTES the pattern (e.g. a mutation-routing
+# gate finding echoing it) but lacks skip()'s NOTE/SKIP emission prefix must NOT trip the
+# backstop — this is what the `(NOTE|SKIP)  ` anchor in run-shard.sh guards.
+assert_eq "#1830 run-shard: a line quoting the pattern without the NOTE/SKIP prefix does NOT fail the shard" "zero" \
+  "$(cd "$CGA_TREE" && GITHUB_ACTIONS=true CGA_CASE=quote DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-quote" bash lib/test/run-shard.sh monolith >/dev/null 2>&1 && echo zero || echo nonzero)"
+# Migration-detection: the backstop runs on EVERY shard, not just monolith. A MODULE shard
+# whose log carries the #671 CLI-absence skip must ALSO fail — a regression scoping the guard
+# to `monolith` by name would pass every case above while silently reverting this property.
+assert_eq "#1830 run-shard: a non-monolith (module) shard whose log carries the #671 skip ALSO fails" "nonzero" \
+  "$(cd "$CGA_TREE" && GITHUB_ACTIONS=true DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-mig" bash lib/test/run-shard.sh modules-pin >/dev/null 2>&1 && echo zero || echo nonzero)"
+# skip()'s genuine emission (captured above) must trip the backstop — this couples the
+# run-shard.sh regex to run.sh's real skip() format, not to a hand-authored fixture line.
+assert_eq "#1830 run-shard: skip()'s REAL #671 CLI-absence emission trips the backstop" "nonzero" \
+  "$(cd "$CGA_TREE" && GITHUB_ACTIONS=true CGA_CASE=realnote CGA_REAL_PATH="$CGA_TREE/real-note.txt" DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-real" bash lib/test/run-shard.sh monolith >/dev/null 2>&1 && echo zero || echo nonzero)"
+# Tier arms. AC3 requires the FAILURE on a CI run only: `lib/test/run.sh` on this same commit
+# exits 0 on a CLI-less desk (the gate self-skips), so failing the shard there too would make
+# two CLAUDE.md-sanctioned local instruments disagree. The non-CI arm warns and passes.
+assert_eq "#1830 run-shard: the same #671 skip does NOT fail a non-CI run" "zero" \
+  "$(cd "$CGA_TREE" && GITHUB_ACTIONS='' CGA_CASE=reverted DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-local" bash lib/test/run-shard.sh monolith >/dev/null 2>&1 && echo zero || echo nonzero)"
+# ...and it is not silent either: pin the warning, or "passes" and "never noticed" become the
+# same observation and a genuinely disarmed local gate reads as clean.
+assert_eq "#1830 run-shard: the non-CI arm still names the CLI-absence cause on stderr" "yes" \
+  "$(cd "$CGA_TREE" && GITHUB_ACTIONS='' CGA_CASE=reverted DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-local2" bash lib/test/run-shard.sh monolith 2>&1 >/dev/null | grep -q 'WARNING.*self-skipped for CLI absence' && echo yes || echo no)"
+# The CI arm's cause must reach the LOG, not only stderr: shard-tally.py derives failure_names
+# from `Failure recap:` bullets, so a stderr-only cause recombines as a generic synthetic
+# failure and the required check names nothing actionable.
+assert_eq "#1830 run-shard: the CI arm records the cause as a Failure recap bullet in the shard log" "yes" \
+  "$(cd "$CGA_TREE" && GITHUB_ACTIONS=true CGA_CASE=reverted DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-recap" bash lib/test/run-shard.sh monolith >/dev/null 2>&1; grep -q '^  - run-shard.sh: the #671 plugin-validate gate self-skipped' "$CGA_TREE/t-recap/log.txt" && echo yes || echo no)"
+assert_eq "#1830 run-shard: that cause is carried into the shard's extracted failure names" "yes" \
+  "$(grep -q 'self-skipped for CLI absence' "$CGA_TREE/t-recap/names" 2>/dev/null && echo yes || echo no)"
+# Fail-closed arm for an UNSCANNABLE log (log.txt pre-created as a DIRECTORY, so grep reports a
+# scan error). Assert the guard's OWN breadcrumb, never the exit code: the same fixture breaks
+# run-shard.sh's log truncation and dispatch redirect, which fail the shard on their own — an
+# exit-code assertion here stays green with this entire guard deleted.
+mkdir -p "$CGA_TREE/t-unscan/log.txt"
+grep -Eq -- 'x' "$CGA_TREE/t-unscan/log.txt" 2>/dev/null
+CGA_UNSCAN_RC=$?
+if [ "$CGA_UNSCAN_RC" -gt 1 ]; then
+  assert_eq "#1830 run-shard: an unscannable log is reported by the guard, not read as clean" "yes" \
+    "$(cd "$CGA_TREE" && GITHUB_ACTIONS=true CGA_CASE=clean DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-unscan" bash lib/test/run-shard.sh monolith 2>&1 >/dev/null | grep -q 'could not scan shard monolith log' && echo yes || echo no)"
+  # Positive control on the same fixture shape: a SCANNABLE log emits no scan-error breadcrumb,
+  # so the assertion above cannot be satisfied by an unrelated always-on emission.
+  assert_eq "#1830 run-shard control: a scannable log emits no scan-error breadcrumb" "no" \
+    "$(cd "$CGA_TREE" && GITHUB_ACTIONS=true CGA_CASE=clean DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-scan-ok" bash lib/test/run-shard.sh monolith 2>&1 >/dev/null | grep -q 'could not scan shard monolith log' && echo yes || echo no)"
+else
+  skip "#1830 run-shard unscannable-log fail-closed arm" host-capability "this host's grep returns $CGA_UNSCAN_RC (not >1) on an unreadable target, so the scan-error condition is not reproducible here"
+fi
+unset CGA_UNSCAN_RC
+# Do not stop at the probe above: its name/reason are CRAFTED, so it couples the backstop regex
+# to skip()'s FORMAT only, and renaming either real gate call-site would disarm the guard with
+# every assertion here still green. Re-drive the real call-sites' own literals instead.
+# structural-pin-ok: cross-file-phase-contract -- these two `skip` calls are the producers run-shard.sh's backstop regex consumes; a count change means a rename or rewrap the extraction below can no longer drive (issue #1830)
+CGA_SITES="$CGA_TREE/sites.txt"
+grep '^  skip "#671 claude plugin validate --strict' "$LIB/test/run.sh" > "$CGA_SITES" || true
+assert_eq "#1830 coupling: both real #671 CLI-absence gate call-sites are single-line and extractable" "2" \
+  "$(grep -c . "$CGA_SITES" || true)"
+CGA_N=0
+while IFS= read -r _cga_site || [ -n "$_cga_site" ]; do
+  CGA_N=$((CGA_N + 1))
+  # Split `  skip "NAME" KIND "REASON"` with builtins only — a non-preflight PATH tool would
+  # empty these operands silently and stamp the coupling assertions green on nothing.
+  _cga_rest="${_cga_site#*skip \"}"
+  _cga_name="${_cga_rest%%\"*}"
+  _cga_rest="${_cga_rest#*\" }"
+  _cga_kind="${_cga_rest%% *}"
+  _cga_reason="${_cga_rest#* \"}"
+  _cga_reason="${_cga_reason%\"*}"
+  # Both real producers of the scanned log: skip()'s own NOTE line, and the `  SKIP  ` line
+  # lib/test/summary.sh renders for each self-skip at end of run. The backstop regex accepts
+  # both prefixes because a real monolith log carries both, so both are driven here.
+  ( SKIPS_FILE="$CGA_TREE/site-skips-$CGA_N"; skip "$_cga_name" "$_cga_kind" "$_cga_reason" ) > "$CGA_TREE/site-note-$CGA_N.txt"
+  devflow_render_test_summary 1 0 1 "$CGA_TREE/site-skips-$CGA_N" > "$CGA_TREE/site-skip-$CGA_N.txt"
+  assert_eq "#1830 coupling: real gate call-site $CGA_N — skip()'s NOTE emission trips the backstop" "nonzero" \
+    "$(cd "$CGA_TREE" && GITHUB_ACTIONS=true CGA_CASE=realnote CGA_REAL_PATH="$CGA_TREE/site-note-$CGA_N.txt" DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-site-n$CGA_N" bash lib/test/run-shard.sh monolith >/dev/null 2>&1 && echo zero || echo nonzero)"
+  assert_eq "#1830 coupling: real gate call-site $CGA_N — the rendered SKIP summary line trips the backstop" "nonzero" \
+    "$(cd "$CGA_TREE" && GITHUB_ACTIONS=true CGA_CASE=realnote CGA_REAL_PATH="$CGA_TREE/site-skip-$CGA_N.txt" DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-site-s$CGA_N" bash lib/test/run-shard.sh monolith >/dev/null 2>&1 && echo zero || echo nonzero)"
+done < "$CGA_SITES"
+unset _cga_site _cga_rest _cga_name _cga_kind _cga_reason CGA_SITES CGA_N
+rm -rf "$CGA_TREE"
 #
 # ── scripts/assert-cli-version.sh: every arm of the extracted version check ──
 # The decision this helper makes used to be inline workflow shell, which no assertion
@@ -47405,6 +47761,9 @@ assert_eq "#491 arm30: the successful call preserves rc 0" "0" "$_a30_rc"
 # demands a running pid); stop-refresher.sh itself retires it via the pidfile.
 STOP_SH="$LIB/../scripts/stop-refresher.sh"
 _defeat487() { printf '%s' "$1" | grep -qF 'credential refresher may not have kept credentials fresh' && echo yes || echo no; }
+# The #1931 ambient-env isolation (unset SELFTEST_FAILED, contained reap glob) is supplied by the
+# region scratch-containment block above (issue #1925: RUNNER_TEMP=$D487 + the job-wide unsets); do
+# NOT re-export DEVFLOW_REFRESH_REAP_GLOB here — it defeats the #1925 RUNNER_TEMP-derivation arms.
 # Region scratch-containment guard (issue #1925): _refresher_scratch_guard returns 1 (naming the arm
 # and offending path) for a path outside $D487; _stop_sh_guarded guards stop-refresher's effective paths
 # and fails the suite on a violation, so an arm that reaches a live $RUNNER_TEMP is caught, not run silently.
@@ -47445,9 +47804,16 @@ assert_eq "#487 stop-refresher exists (extracted from the workflow Stop step)" "
 # Arm 13 — pidfile present (live process) + last cycle OK → recovered transient → NO
 # defeated warning. The live pid is the positive control the died-mid-run arm 19 needs:
 # same fixture shape, only liveness differs.
-sleep 300 & _live13=$!
-echo "$_live13" > "$D487/pidA"; printf 'refresh-app-credentials: cycle OK (credentials refreshed)\n' > "$D487/logA"
-_s13="$(DEVFLOW_REFRESH_PIDFILE="$D487/pidA" DEVFLOW_REFRESH_LOG="$D487/logA" _stop_sh_guarded arm13 2>&1)"; _s13_rc=$?
+# Bounded retry (issue #1931): widen this liveness assertion's slack under pool saturation — retry only a starved capture (empty output or a dead/failed-fork fixture), never the assertion outcome, so a real defect's deterministic non-empty output is still asserted and goes RED.
+for (( _try13=1; _try13<=40; _try13++ )); do
+  sleep 300 & _live13=$!
+  echo "$_live13" > "$D487/pidA"; printf 'refresh-app-credentials: cycle OK (credentials refreshed)\n' > "$D487/logA"
+  _lv13=no; kill -0 "$_live13" 2>/dev/null && _lv13=yes
+  _s13="$(DEVFLOW_REFRESH_PIDFILE="$D487/pidA" DEVFLOW_REFRESH_LOG="$D487/logA" _stop_sh_guarded arm13 2>&1)"; _s13_rc=$?
+  { [ "$_lv13" = yes ] && [ -n "${_s13//[[:space:]]/}" ]; } && break
+  kill "$_live13" 2>/dev/null; wait "$_live13" 2>/dev/null || true
+  sleep 0.2
+done
 assert_eq "#487 arm13: recovered transient (live pid, last cycle OK) does NOT warn defeated" "no" "$(_defeat487 "$_s13")"
 assert_eq "#487 arm13: stop-refresher always exits 0" "0" "$_s13_rc"
 assert_eq "#487 arm13: a live refresher is signalled (kill by pidfile)" "yes" \
@@ -47529,11 +47895,17 @@ assert_eq "#487 arm20: the warning is attributed to the empty pidfile" "yes" \
 # backoff re-converges), but the impact clause is NARROWED to gh-only rather than the generic
 # "git push may be stale" over-claim (push in fact stayed fresh). Pins stop-refresher's new
 # divergence case arm (removing it drops the last line to the generic ::warning:: arm → RED).
-sleep 300 & _live20b=$!
-echo "$_live20b" > "$D487/pid20b"
-printf 'refresh-app-credentials: cycle OK\n::warning::refresh-app-credentials: cycle: renaming the token file into place failed — push credential (surface 1) IS fresh but the gh token file (surface 2) is now stale\n' > "$D487/log20b"
-_s20b="$(DEVFLOW_REFRESH_PIDFILE="$D487/pid20b" DEVFLOW_REFRESH_LOG="$D487/log20b" _stop_sh_guarded arm20b 2>&1)"; _s20b_rc=$?
-kill "$_live20b" 2>/dev/null || true
+# Bounded retry (issue #1931) — same pool-saturation slack widening as arm13 above.
+for (( _try20b=1; _try20b<=40; _try20b++ )); do
+  sleep 300 & _live20b=$!
+  echo "$_live20b" > "$D487/pid20b"
+  printf 'refresh-app-credentials: cycle OK\n::warning::refresh-app-credentials: cycle: renaming the token file into place failed — push credential (surface 1) IS fresh but the gh token file (surface 2) is now stale\n' > "$D487/log20b"
+  _lv20b=no; kill -0 "$_live20b" 2>/dev/null && _lv20b=yes
+  _s20b="$(DEVFLOW_REFRESH_PIDFILE="$D487/pid20b" DEVFLOW_REFRESH_LOG="$D487/log20b" _stop_sh_guarded arm20b 2>&1)"; _s20b_rc=$?
+  kill "$_live20b" 2>/dev/null; wait "$_live20b" 2>/dev/null || true
+  { [ "$_lv20b" = yes ] && [ -n "${_s20b//[[:space:]]/}" ]; } && break
+  sleep 0.2
+done
 assert_eq "#491 arm20b: surface-2-only divergence still warns defeated (gh surface stale)" "yes" "$(_defeat487 "$_s20b")"
 assert_eq "#491 arm20b: the divergence impact clause narrows to gh-only (git push stayed fresh)" "yes" \
   "$(printf '%s' "$_s20b" | grep -qF 'git push stayed fresh' && echo yes || echo no)"
@@ -47668,11 +48040,17 @@ assert_eq "#1882 arm1882j: teardown does NOT emit the did-not-start defeat on th
   "$(printf '%s' "$_s1882j" | grep -qF 'did not start or crashed' && echo yes || echo no)"
 
 # 1882k — fail-closed when grep/tail are unavailable: defeated + warn, never silent.
-MINBIN1882="$D487/minbin1882"; mkdir -p "$MINBIN1882"
-for _t1882 in bash cat mktemp dirname sleep kill; do _p1882="$(command -v "$_t1882" || true)"; [ -n "$_p1882" ] && ln -sf "$_p1882" "$MINBIN1882/$_t1882"; done
-printf 'refresh-app-credentials: cycle OK\n' > "$D487/log1882k"
-_s1882k="$(env "PATH=$MINBIN1882" DEVFLOW_REFRESH_PIDFILE="$D487/dead1882.pid" DEVFLOW_REFRESH_STARTED=skipped \
-  DEVFLOW_REFRESH_LOG="$D487/log1882k" DEVFLOW_REFRESH_REAP_GLOB="$D487/noreapk-*.pid" bash "$STOP_SH" 2>&1)"
+# Bounded retry (issue #1931) — same pool-saturation slack widening as arm13 (no live fixture here, so retry only on an empty capture).
+MINBIN1882="$D487/minbin1882"
+for (( _try1882k=1; _try1882k<=40; _try1882k++ )); do
+  mkdir -p "$MINBIN1882"
+  for _t1882 in bash cat mktemp dirname sleep kill; do _p1882="$(command -v "$_t1882" || true)"; [ -n "$_p1882" ] && ln -sf "$_p1882" "$MINBIN1882/$_t1882"; done
+  printf 'refresh-app-credentials: cycle OK\n' > "$D487/log1882k"
+  _s1882k="$(env "PATH=$MINBIN1882" DEVFLOW_REFRESH_PIDFILE="$D487/dead1882.pid" DEVFLOW_REFRESH_STARTED=skipped \
+    DEVFLOW_REFRESH_LOG="$D487/log1882k" DEVFLOW_REFRESH_REAP_GLOB="$D487/noreapk-*.pid" bash "$STOP_SH" 2>&1)"
+  [ -n "${_s1882k//[[:space:]]/}" ] && break
+  sleep 0.2
+done
 assert_eq "#1882 arm1882k: unavailable grep/tail fails closed (defeated + warn, not silent)" "yes" \
   "$(printf '%s' "$_s1882k" | grep -qF 'grep/tail) are unavailable' && echo yes || echo no)"
 
@@ -50831,6 +51209,58 @@ assert_eq "#908 AC1: devflow-runner.yml's claude-code-action step carries a sett
   "$(grep -qF 'settings: |' "$_908_RUNNER_YML" && echo yes || echo no)"  # structural-pin-ok: routing-dispatch-contract -- pins the effectiveness channel AC1 requires: the claude-code-action settings input is what registers the PreToolUse hook with the review-tier runner
 assert_eq "#908 AC1: the settings input registers a PreToolUse hook naming the guard script" "yes" \
   "$(grep -qF '/scripts/pretooluse-shape-guard.py\"' "$_908_RUNNER_YML" && grep -qF '"PreToolUse"' "$_908_RUNNER_YML" && echo yes || echo no)"  # structural-pin-ok: routing-dispatch-contract -- pins the JSON hook-command string (trailing escaped quote makes the literal code-only, never a comment mention) so a regression that drops the guard from the hook body — while leaving prose referencing it elsewhere — is caught
+
+# ── #1047: the hook command must fail OPEN when the INTERPRETER is absent ────────────
+# Do NOT swap these for a substring pin on the probe: a probe written AFTER the `exec`
+# satisfies any grep while still exiting 127, and a non-zero PreToolUse exit BLOCKS the
+# call. Why the interpreter can be absent: docs/internal/cloud-allowlist.md, guard section.
+# Do NOT convert the PyYAML arm below into a skip(): PyYAML is a suite REQUIREMENT, not a
+# host capability, so a skip here would manufacture a never-clean-pass where the adjacent
+# #908 extractor fails closed on the same dependency with this same sentinel.
+_1047_hookcmd() {  # $1 = workflow -> the registered guard hook command, or a failing token
+  python3 - "$1" 2>/dev/null <<'PY' || echo extractor-failed
+import json, sys
+try:
+    import yaml
+except Exception:
+    sys.exit(1)
+d = yaml.safe_load(open(sys.argv[1])) or {}
+for job in (d.get("jobs") or {}).values():
+    for st in (job.get("steps") or []):
+        raw = (st.get("with") or {}).get("settings")
+        if not raw:
+            continue
+        for grp in (json.loads(raw).get("hooks") or {}).get("PreToolUse") or []:
+            for h in (grp.get("hooks") or []):
+                if "pretooluse-shape-guard.py" in (h.get("command") or ""):
+                    print(h["command"])
+                    sys.exit(0)
+sys.exit(1)
+PY
+}
+_1047_CMD="$(_1047_hookcmd "$_908_RUNNER_YML")"
+assert_eq "#1047: the registered PreToolUse hook command was extractable (the arms below are not vacuous)" "yes" \
+  "$([ -n "$_1047_CMD" ] && [ "$_1047_CMD" != extractor-failed ] && echo yes || echo no)"
+if [ -n "$_1047_CMD" ] && [ "$_1047_CMD" != extractor-failed ]; then
+  _1047_WS="$(mktemp -d)"
+  mkdir -p "$_1047_WS/scripts" "$_1047_WS/emptybin"
+  printf 'import sys\nsys.exit(9)\n' > "$_1047_WS/scripts/pretooluse-shape-guard.py"
+  # Do NOT drop this `git init`: the hook resolves its root via `git rev-parse` FIRST, so a
+  # TMPDIR nested in any checkout resolves $_g to the real guard and both arms stop testing
+  # the stub. (GIT_CEILING_DIRECTORIES does not fix this — measured, it still resolved the repo.)
+  git init -q "$_1047_WS"
+  # $BASH, not a bare `bash`: a PATH-prefixed assignment applies BEFORE command lookup, so
+  # a bare head would itself be unfindable and the 127 would measure the harness, not the hook.
+  ( cd "$_1047_WS" && CLAUDE_PROJECT_DIR="$_1047_WS" PATH="$_1047_WS/emptybin" "$BASH" -c "$_1047_CMD" ) </dev/null >/dev/null 2>&1
+  _1047_RC_ABSENT=$?
+  assert_eq "#1047: hook command fails OPEN (exit 0) when python3 is absent from PATH" "0" "$_1047_RC_ABSENT"
+  # Anti-overreach only — the arm ABOVE is the regression signal (it alone goes RED on an
+  # unguarded exec). Do not delete that one as redundant with this one; they are not co-equal.
+  ( cd "$_1047_WS" && CLAUDE_PROJECT_DIR="$_1047_WS" "$BASH" -c "$_1047_CMD" ) </dev/null >/dev/null 2>&1
+  _1047_RC_PRESENT=$?
+  assert_eq "#1047: hook command still reaches the guard when python3 IS present" "9" "$_1047_RC_PRESENT"
+  rm -rf "$_1047_WS"
+fi
 # issue #908 review (test_mock_alignment finding): an unanchored whole-file
 # `grep -qE 'settings:|PreToolUse'` is imprecise both directions — an unrelated
 # `settings:` key (this literal is generic YAML, not unique to hook registration)

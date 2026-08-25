@@ -250,7 +250,12 @@ def make_args(**overrides):
         # issue #1453 review-coverage record + dispositions — read on every call.
         # issue #1510 adds the optional as-of anchor head, read via getattr.
         record_review_coverage=None, review_coverage_disposition=[],
+        # issue #1512 shadow-roster per-member enumeration — read on every call.
+        record_roster_member=None,
         record_review_coverage_head=None,
+        # issue #1509 review-coverage diff recomputation — read via getattr on the
+        # write path; a base ref for the range and an explicit override channel.
+        record_review_coverage_base=None, record_review_coverage_override=None,
         # issue #1462 prompt-extension row reconciliation — read on every call.
         reconcile_extension_rows=False,
         # issue #1876 mid-phase resume-point record — read on every call.
@@ -8245,9 +8250,9 @@ assert_eq("#1841 _binding_line: a bound run whose latest revision cannot be prov
           issue_audit_state._binding_line(_bound_unlanded))
 # _bound_draft_file — the readers join the fixed draft subpath onto the bound root, so a
 # drifted --draft-file cannot redirect them; unbound derives None (fall back to caller).
-assert_eq("#562 _bound_draft_file: joins .prflow/tmp/issue-draft-<slug>.md onto the "
+assert_eq("#562 _bound_draft_file: joins .prflow/tmp/create-issue/<slug>/issue-draft-<slug>.md onto the "
           "bound root",
-          '/wt/root/.prflow/tmp/issue-draft-topic.md',
+          '/wt/root/.prflow/tmp/create-issue/topic/issue-draft-topic.md',
           issue_audit_state._bound_draft_file(_bound_wt, 'topic'))
 assert_eq("#562 _bound_draft_file: unbound state derives None (readers fall back to "
           "--draft-file)",
@@ -9414,7 +9419,7 @@ print("issue-audit-state: coverage-gap rows (issue #546, PR #552 review)")
 # persist never leaves a stray temp file in the evidence-bearing tmp directory.
 with tempfile.TemporaryDirectory() as _td:
     _ss_root = Path(_td)
-    (_ss_root / '.prflow' / 'tmp' / 'issue-audit-state-s.json').mkdir(parents=True)
+    (_ss_root / '.prflow' / 'tmp' / 'create-issue' / 's' / 'issue-audit-state-s.json').mkdir(parents=True)
     try:
         issue_audit_state.save_state(_state([]), 's', root=_ss_root)
         assert_eq("#546 save_state_cleanup_rows: a persist the OS refuses raises "
@@ -9425,7 +9430,7 @@ with tempfile.TemporaryDirectory() as _td:
                   True, 'could not persist state' in str(_e))
     assert_eq("#546 save_state_cleanup_rows: ... and no partial .json.tmp survives "
               "the failed persist",
-              [], list((_ss_root / '.prflow' / 'tmp').glob('*.json.tmp')))
+              [], list((_ss_root / '.prflow' / 'tmp' / 'create-issue' / 's').glob('*.json.tmp')))
 
 # ── issue #1040: write-serialization sentinel + per-writer temp path ───────────────
 print()
@@ -9450,9 +9455,9 @@ def _ias1040_capture_stderr(fn):
 # save_state (path.with_suffix('.json.tmp') truncated exactly that path).
 with tempfile.TemporaryDirectory() as _td:
     _R = Path(_td)
-    _tmpdir = _R / '.prflow' / 'tmp'
+    _tmpdir = _R / '.prflow' / 'tmp' / 'create-issue' / 's'
     _tmpdir.mkdir(parents=True)
-    _decoy = _R / '.prflow' / 'tmp' / 'issue-audit-state-s.json.tmp'
+    _decoy = _R / '.prflow' / 'tmp' / 'create-issue' / 's' / 'issue-audit-state-s.json.tmp'
     _decoy.write_bytes(b'DECOY-BYTES')
     issue_audit_state.save_state(_state([]), 's', root=_R)
     assert_eq("#1040 temp_path_is_unique: the decoy at the old fixed temp path is untouched",
@@ -9524,7 +9529,7 @@ with tempfile.TemporaryDirectory() as _td:
 
 with tempfile.TemporaryDirectory() as _td:
     _R = Path(_td)
-    (_R / '.prflow' / 'tmp').mkdir(parents=True)
+    (_R / '.prflow' / 'tmp' / 'create-issue' / 's').mkdir(parents=True)
     _orig_replace = issue_audit_state.os.replace
 
     def _always_fail_replace(src, dst):
@@ -9541,7 +9546,7 @@ with tempfile.TemporaryDirectory() as _td:
                       "persist breadcrumb", True,
                       str(_e).startswith('could not persist state to '))
         assert_eq("#1040 replace_retry_absorbs_permission_error (exhausted): no .json.tmp "
-                  "survives", [], list((_R / '.prflow' / 'tmp').glob('*.json.tmp')))
+                  "survives", [], list((_R / '.prflow' / 'tmp' / 'create-issue' / 's').glob('*.json.tmp')))
     finally:
         issue_audit_state.os.replace = _orig_replace
 
@@ -9580,7 +9585,7 @@ with tempfile.TemporaryDirectory() as _td:
 import threading as _threading1040  # noqa: E402
 with tempfile.TemporaryDirectory() as _td:
     _R = Path(_td)
-    (_R / '.prflow' / 'tmp').mkdir(parents=True)
+    (_R / '.prflow' / 'tmp' / 'create-issue' / 's').mkdir(parents=True)
     _sent = _ias1040_sentinel(_R)
     with open(_sent, 'w') as _fh:
         _fh.write('4242')  # fresh mtime — NOT stale under stale_after_s below
@@ -9614,7 +9619,7 @@ with tempfile.TemporaryDirectory() as _td:
 with tempfile.TemporaryDirectory() as _td:
     _R = Path(_td)
     # Occupy the state path with a directory so save_state raises inside the section.
-    (_R / '.prflow' / 'tmp' / 'issue-audit-state-s.json').mkdir(parents=True)
+    (_R / '.prflow' / 'tmp' / 'create-issue' / 's' / 'issue-audit-state-s.json').mkdir(parents=True)
     try:
         with issue_audit_state._StateSection('s', root=_R):
             issue_audit_state.save_state(_state([]), 's', root=_R)
@@ -9627,7 +9632,7 @@ with tempfile.TemporaryDirectory() as _td:
 # acquires, the breadcrumb names the path, pid and age, and no sentinel remains.
 with tempfile.TemporaryDirectory() as _td:
     _R = Path(_td)
-    (_R / '.prflow' / 'tmp').mkdir(parents=True)
+    (_R / '.prflow' / 'tmp' / 'create-issue' / 's').mkdir(parents=True)
     _sent = _ias1040_sentinel(_R)
     with open(_sent, 'w') as _fh:
         _fh.write('4242')
@@ -9681,7 +9686,7 @@ with tempfile.TemporaryDirectory() as _td:
 # parent raises StateError immediately (well under the acquire window), naming the sentinel.
 with tempfile.TemporaryDirectory() as _td:
     _R = Path(_td)
-    (_R / '.prflow' / 'tmp').mkdir(parents=True)
+    (_R / '.prflow' / 'tmp' / 'create-issue' / 's').mkdir(parents=True)
     _orig_open = issue_audit_state.os.open
 
     def _denied_open(*a, **k):
@@ -9765,7 +9770,7 @@ with tempfile.TemporaryDirectory() as _td:
 # and unlinking, _break_if_stale performs no unlink and returns False (→ ordinary retry).
 with tempfile.TemporaryDirectory() as _td:
     _R = Path(_td)
-    (_R / '.prflow' / 'tmp').mkdir(parents=True)
+    (_R / '.prflow' / 'tmp' / 'create-issue' / 's').mkdir(parents=True)
     _sent = _ias1040_sentinel(_R)
     with open(_sent, 'w') as _fh:
         _fh.write('5555')
@@ -11617,13 +11622,42 @@ _RC_REASONS = {
 }
 
 
-def _rc_row(payload):
-    """A ## Progress body carrying one review-coverage record for `payload`."""
+def _rc_members_for(roster):
+    """Default per-member roster rows coherent with a roster axis value (issue #1512),
+    so existing `complete`/`short` call sites carry an enumeration the gate accepts."""
+    if roster == "complete":
+        return [(m, "dispatched") for m in workpad._SHADOW_ALWAYS_ON_MEMBERS]
+    if roster == "short":
+        return ([(workpad._SHADOW_ALWAYS_ON_MEMBERS[0], "missing")]
+                + [(m, "dispatched") for m in workpad._SHADOW_ALWAYS_ON_MEMBERS[1:]])
+    return []
+
+
+def _rc_roster_rows(members):
+    """The ## Progress roster-member bullets for `members` (a list of (member, status))."""
+    return "".join(
+        "\n  - 03:00:0%d — %s %s" % (
+            i + 1,
+            workpad._render_review_roster_member(m, s),
+            workpad._review_roster_marker(m, s))
+        for i, (m, s) in enumerate(members))
+
+
+def _rc_row(payload, members=None):
+    """A ## Progress body carrying one review-coverage record for `payload`, plus a
+    per-member roster enumeration (issue #1512). `members` defaults to one coherent with
+    the payload's roster axis so existing call sites keep passing; pass `members=[]` to
+    omit the enumeration, or an explicit list to test a specific fan-out."""
+    fields = payload.split(":")
+    roster = fields[2] if len(fields) in (4, 6) else None
+    if members is None:
+        members = _rc_members_for(roster)
     return _RC_BASE.replace(
         "  - 02:00:00 — /devflow:implement run started",
         "  - 02:00:00 — /devflow:implement run started\n"
         "  - 03:00:00 — review coverage recorded "
-        + workpad._review_coverage_marker(payload))
+        + workpad._review_coverage_marker(payload)
+        + _rc_roster_rows(members))
 
 
 def _rc_complete(body, **overrides):
@@ -11720,7 +11754,9 @@ assert_eq("#1453 AC9: the two reason rejections are separately attributable",
 # AC1/AC7: the producer writes exactly one marker-carrying row, and a full record
 # then satisfies the gate through the ordinary call path (the positive control).
 _rc_full = apply_mut(_CP_BODY, make_args(
-    record_review_coverage=["full", "attempted", "complete", "complete"]))
+    record_review_coverage=["full", "attempted", "complete", "complete"],
+    record_roster_member=[[m, "dispatched"]
+                          for m in workpad._SHADOW_ALWAYS_ON_MEMBERS]))
 assert_eq("#1453 AC1: the producer writes exactly one review-coverage record",
           1, len(workpad._review_coverage_payloads(_rc_full)))
 assert_eq("#1453 AC1: the recorded row states every axis in readable form",
@@ -11934,7 +11970,9 @@ for _terminal in ("Blocked", "Failed"):
 assert_eq("#1453: the verdict returns None on a complete record",
           None, workpad._review_coverage_verdict(
               "- 03:00:00 — "
-              + workpad._review_coverage_marker("full:attempted:complete:complete")))
+              + workpad._review_coverage_marker("full:attempted:complete:complete")
+              + _rc_roster_rows(
+                  [(m, "dispatched") for m in workpad._SHADOW_ALWAYS_ON_MEMBERS])))
 assert_raises("#1453: the verdict raises _UpdateError on an absent record",
               workpad._UpdateError,
               lambda: workpad._review_coverage_verdict("- 03:00:00 — nothing here"))
@@ -11992,7 +12030,8 @@ assert_eq("#1453: a planted, well-formed disposition is accepted (positive contr
 # The record REPLACES rather than accumulates — the invariant the "exactly one record"
 # read rests on. Re-record a DIFFERENT payload over an existing one.
 _rc_rerecord = apply_mut(_rc_row("full:attempted:complete:complete"), make_args(
-    record_review_coverage=["not-verified", "attempted", "short", "complete"]))
+    record_review_coverage=["not-verified", "attempted", "short", "complete"],
+    record_roster_member=_rc_members_for("short")))
 assert_eq("#1453: re-recording replaces the prior record rather than accumulating",
           (1, {"coverage": "not-verified", "dispatch": "attempted",
                "roster": "short", "checklist": "complete"}),
@@ -12004,7 +12043,8 @@ assert_eq("#1453: re-recording replaces the prior record rather than accumulatin
 _rc_rerecord2 = apply_mut(
     _planted_disposition("roster", workpad._render_review_coverage_disposition(
         "roster", _RC_REASONS["roster"])),
-    make_args(record_review_coverage=["full", "attempted", "complete", "complete"]))
+    make_args(record_review_coverage=["full", "attempted", "complete", "complete"],
+              record_roster_member=_rc_members_for("complete")))
 assert_eq("#1453: a fresh record strips the superseded dispositions and their bullets",
           ({}, False),
           (workpad._review_coverage_dispositions(_rc_rerecord2),
@@ -12138,7 +12178,8 @@ for _fld, _kw in (
 # ...while the producer's OWN validated rows still write through the same chokepoint.
 assert_eq("#1453: the validated producer's rows are still admitted (positive control)",
           1, len(workpad._review_coverage_payloads(apply_mut(_CP_BODY, make_args(
-              record_review_coverage=["full", "attempted", "complete", "complete"])))))
+              record_review_coverage=["full", "attempted", "complete", "complete"],
+              record_roster_member=_rc_members_for("complete"))))))
 # Read-time isolation: a marker buried mid-sentence, or on a non-bullet line, is not
 # a record. (The producer refuses to write either; this is the defence in depth.)
 _MK_RC = workpad._review_coverage_marker("full:attempted:complete:complete")
@@ -12150,6 +12191,193 @@ assert_eq("#1453: a marker on a non-bullet line is not read as a record",
 assert_eq("#1453: the canonical trailing-marker bullet IS read (positive control)",
           ["full:attempted:complete:complete"],
           workpad._review_coverage_payloads("  - 03:00:00 — recorded " + _MK_RC))
+
+# ── issue #1512: the roster axis is cross-checked against a per-member enumeration ──
+_1512_ALWAYS = list(workpad._SHADOW_ALWAYS_ON_MEMBERS)
+
+
+def _rc_write(coverage, members=None):
+    """Drive a `--record-review-coverage` write, returning the _UpdateError message or
+    None when it applied cleanly."""
+    try:
+        apply_mut(_CP_BODY, make_args(
+            record_review_coverage=coverage, record_roster_member=members), [])
+    except workpad._UpdateError as _e:
+        return str(_e)
+    return None
+
+
+assert_eq("#1512: the always-on roster is exactly the four independent-audit members",
+          ("code-reviewer", "silent-failure-hunter", "comment-analyzer",
+           "requesting-code-review"), workpad._SHADOW_ALWAYS_ON_MEMBERS)
+assert_eq("#1512: the gated members are the two applicability-gated analyzers",
+          ("type-design-analyzer", "pr-test-analyzer"), workpad._SHADOW_GATED_MEMBERS)
+# A complete roster whose enumeration covers every always-on member (all dispatched)
+# writes cleanly AND round-trips through the read-time gate — the positive control.
+_1512_full = [[m, "dispatched"] for m in _1512_ALWAYS]
+assert_eq("#1512: complete + a full always-on enumeration writes cleanly",
+          None, _rc_write(["full", "attempted", "complete", "complete"], _1512_full))
+assert_eq("#1512: ...and round-trips through the read-time Complete gate",
+          None, _rc_complete(_rc_row("full:attempted:complete:complete",
+                                     members=[(m, "dispatched") for m in _1512_ALWAYS])))
+# AC2: a shadow that did not dispatch an always-on member cannot record complete, and the
+# refusal names the missing member — the defect against today's code (accepted before).
+_1512_missing = _rc_write(["full", "attempted", "complete", "complete"],
+                          [[m, "dispatched"] for m in _1512_ALWAYS[:3]])
+assert_eq("#1512 AC2: complete missing an always-on member is refused at write time",
+          True, _1512_missing is not None
+          and "requesting-code-review" in _1512_missing
+          and "roster=complete requires every always-on member" in _1512_missing)
+# ...and equally at read time, over a persisted three-of-four enumeration.
+_1512_missing_read = _rc_complete(_rc_row(
+    "full:attempted:complete:complete",
+    members=[(m, "dispatched") for m in _1512_ALWAYS[:3]]))
+assert_eq("#1512 AC2: complete missing an always-on member is refused at read time",
+          True, _1512_missing_read is not None
+          and "requesting-code-review" in _1512_missing_read
+          and "[review-coverage-unestablished]" in _1512_missing_read)
+# AC2: an always-on member explicitly marked missing is likewise refused, naming it.
+assert_eq("#1512 AC2: an always-on member marked missing refuses complete, naming it",
+          True, (_rc_write(["full", "attempted", "complete", "complete"],
+                           [[_1512_ALWAYS[0], "missing"]]
+                           + [[m, "dispatched"] for m in _1512_ALWAYS[1:]]) or "")
+          .find(_1512_ALWAYS[0]) >= 0)
+# AC3: a member its applicability gate excluded (gated-off) does NOT block complete.
+assert_eq("#1512 AC3: a gated-off analyzer does not prevent roster=complete",
+          None, _rc_write(["full", "attempted", "complete", "complete"],
+                          _1512_full + [["type-design-analyzer", "gated-off"]]))
+# ...but a gated analyzer marked *missing* (its gate was true and it was not dispatched)
+# does block complete.
+assert_eq("#1512 AC3: a gated analyzer marked missing still blocks complete",
+          True, _rc_write(["full", "attempted", "complete", "complete"],
+                          _1512_full + [["type-design-analyzer", "missing"]]) is not None)
+# A `short` axis must name at least one missing member; a `short` with none is incoherent.
+assert_eq("#1512: short naming a missing member writes cleanly",
+          None, _rc_write(["not-verified", "attempted", "short", "complete"],
+                          [[_1512_ALWAYS[0], "missing"]]
+                          + [[m, "dispatched"] for m in _1512_ALWAYS[1:]]))
+assert_eq("#1512: short with no missing member is refused",
+          True, (_rc_write(["not-verified", "attempted", "short", "complete"], _1512_full)
+                 or "").find("at least one missing") >= 0)
+# A measured axis requires an enumeration at WRITE time; a self-reported complete with
+# none is refused there, closing the self-report hole at the source.
+assert_eq("#1512 AC1: roster=complete with no per-member enumeration is refused at write time",
+          True, "no review-roster row is present"
+          in (_rc_write(["full", "attempted", "complete", "complete"], None) or ""))
+# At READ time (finalize) a rosterless complete record is GRANDFATHERED: the write-time
+# gate already enforces the enumeration, so a rosterless record reaching finalize predates
+# issue #1512 and is a legacy workpad, which the issue does not re-validate retroactively.
+assert_eq("#1512 AC1: ...but a rosterless record is grandfathered at read time (legacy "
+          "workpad, not re-validated retroactively)",
+          None, _rc_complete(_rc_row("full:attempted:complete:complete", members=[])))
+# not-applicable/unestablished measured no roster, so they must carry NO enumeration.
+assert_eq("#1512: a member enumeration on a not-applicable roster is refused",
+          True, "measured no roster" in (_rc_write(
+              ["not-applicable", "not-applicable", "not-applicable", "not-applicable"],
+              _1512_full) or ""))
+# Fail-closed shapes: unknown member, unknown status, duplicate, and a roster member
+# with no coverage record.
+assert_eq("#1512: an unknown roster member is refused",
+          True, "unknown member" in (_rc_write(
+              ["full", "attempted", "complete", "complete"],
+              _1512_full + [["nonexistent-agent", "dispatched"]]) or ""))
+assert_eq("#1512: an unknown member status is refused",
+          True, "unknown status" in (_rc_write(
+              ["full", "attempted", "complete", "complete"],
+              [[m, "sent"] for m in _1512_ALWAYS]) or ""))
+assert_eq("#1512: a member enumerated twice is refused",
+          True, "more than once" in (_rc_write(
+              ["full", "attempted", "complete", "complete"],
+              _1512_full + [[_1512_ALWAYS[0], "dispatched"]]) or ""))
+assert_eq("#1512: roster members without a coverage record are refused",
+          True, "must accompany --record-review-coverage" in (
+              _rc_write(None, _1512_full) or ""))
+# The `--checkpoint` head cannot forge a roster row, bypassing the cross-check.
+_1512_forge = None
+try:
+    apply_mut(_RC_BASE, make_args(
+        checkpoint=[["review-roster:code-reviewer:dispatched", "forged"]]), [])
+except workpad._UpdateError as _e:
+    _1512_forge = str(_e)
+assert_eq("#1512: --checkpoint refuses the reserved review-roster key",
+          True, _1512_forge is not None and "reserved" in _1512_forge)
+# An always-on member is never applicability-gated, so recording one gated-off on any
+# measured roster is incoherent — refused on both complete and short.
+assert_eq("#1512: an always-on member marked gated-off cannot record complete",
+          True, "never applicability-gated" in (_rc_write(
+              ["full", "attempted", "complete", "complete"],
+              [[_1512_ALWAYS[0], "gated-off"]]
+              + [[m, "dispatched"] for m in _1512_ALWAYS[1:]]) or ""))
+assert_eq("#1512: an always-on member marked gated-off cannot record short either",
+          True, "never applicability-gated" in (_rc_write(
+              ["not-verified", "attempted", "short", "complete"],
+              [[_1512_ALWAYS[0], "missing"], [_1512_ALWAYS[1], "gated-off"]]
+              + [[m, "dispatched"] for m in _1512_ALWAYS[2:]]) or ""))
+# Defense-in-depth: the read-time gate (not only write time) re-validates the enumeration,
+# so a duplicate / unknown-member / unknown-status row planted in a persisted body is
+# refused at the Complete gate.
+assert_eq("#1512: a duplicate roster row is refused at read time",
+          True, "more than once" in (_rc_complete(_rc_row(
+              "full:attempted:complete:complete",
+              members=[(m, "dispatched") for m in _1512_ALWAYS]
+                      + [(_1512_ALWAYS[0], "dispatched")])) or ""))
+assert_eq("#1512: an unknown roster member is refused at read time",
+          True, "unknown member" in (_rc_complete(_rc_row(
+              "full:attempted:complete:complete",
+              members=[(m, "dispatched") for m in _1512_ALWAYS]
+                      + [("nonexistent-agent", "dispatched")])) or ""))
+assert_eq("#1512: an unknown member status is refused at read time",
+          True, "unknown status" in (_rc_complete(_rc_row(
+              "full:attempted:complete:complete",
+              members=[(m, "sent") for m in _1512_ALWAYS])) or ""))
+# A malformed roster payload (not <member>:<status>) is skipped by _review_roster_members,
+# so the member reads absent (fail-closed) rather than crashing the split.
+assert_eq("#1512: a malformed roster payload is skipped, not crashed",
+          {}, workpad._review_roster_members(
+              "## Progress\n  - 03:00:00 — review roster member x "
+              + workpad._checkpoint_marker("review-roster:requesting-code-review") + "\n"))
+# Re-record strips the PRIOR roster enumeration: the superseding short record reads back
+# its own members with no stale/duplicate rows carried over from the replaced complete one.
+assert_eq("#1512: re-recording strips the prior roster enumeration (no stale/duplicate rows)",
+          dict(_rc_members_for("short")),
+          workpad._review_roster_members(_rc_rerecord))
+# The free-text smuggling guard screens review-roster markers too (issue #1512): a --note
+# ending in a forged roster marker cannot be filed as a genuine dispatch outcome, so
+# dropping the `review-roster` alternation from _REVIEW_COVERAGE_ANY_MARKER_RE fails here.
+_1512_smuggle = None
+try:
+    apply_mut(_RC_BASE, make_args(note=["review pass done "
+        + workpad._review_roster_marker("requesting-code-review", "dispatched")]), [])
+except workpad._UpdateError as _e:
+    _1512_smuggle = str(_e)
+assert_eq("#1512: a --note carrying a forged review-roster marker is refused",
+          True, _1512_smuggle is not None and "reserved review-coverage" in _1512_smuggle)
+# Positive control: a gated analyzer whose gate was TRUE and which WAS dispatched
+# (recorded `dispatched`, not `gated-off`) does not block complete.
+assert_eq("#1512: a gated analyzer recorded dispatched does not block complete",
+          None, _rc_write(["full", "attempted", "complete", "complete"],
+                          _1512_full + [["pr-test-analyzer", "dispatched"]]))
+# Read-time parity: the write-time refusals also fire at the Complete gate, since
+# _review_roster_incoherence runs unconditionally at read time.
+assert_eq("#1512: short with no missing member is refused at read time too",
+          True, "at least one missing" in (_rc_complete(_rc_row(
+              "not-verified:attempted:short:complete",
+              members=[(m, "dispatched") for m in _1512_ALWAYS])) or ""))
+assert_eq("#1512: an always-on member gated-off is refused at read time too",
+          True, "never applicability-gated" in (_rc_complete(_rc_row(
+              "full:attempted:complete:complete",
+              members=[(_1512_ALWAYS[0], "gated-off")]
+                      + [(m, "dispatched") for m in _1512_ALWAYS[1:]])) or ""))
+assert_eq("#1512: a not-applicable roster carrying an enumeration is refused at read time",
+          True, "measured no roster" in (_rc_complete(_rc_row(
+              "not-applicable:not-applicable:not-applicable:not-applicable",
+              members=[(m, "dispatched") for m in _1512_ALWAYS])) or ""))
+# Strip parity: re-recording complete -> not-applicable (the rosterless axis that must
+# carry NO enumeration) strips the prior complete roster rows, leaving none behind.
+_1512_strip_na = apply_mut(_rc_row("full:attempted:complete:complete"),
+                           make_args(record_review_coverage=["not-applicable"] * 4))
+assert_eq("#1512: re-record complete->not-applicable strips the prior roster enumeration",
+          {}, workpad._review_roster_members(_1512_strip_na))
 
 # ── issue #1722: one moment, one call — the combined-mutation call is not rejected ──
 
@@ -12166,6 +12394,7 @@ _MM_BODY = _CP_BODY.replace(
 _mm_code, _, _, _mm_patched = _drive_cmd_update(
     _MM_BODY,
     record_review_coverage=["not-verified", "never", "short", "skipped"],
+    record_roster_member=_rc_members_for("short"),
     status="Blocked",
     tick_progress=[_MM_ROW_A[1], _MM_ROW_B[1]])
 assert_eq("#1722: the combined coverage+Blocked+two-tick call takes the clean exit",
@@ -12371,7 +12600,8 @@ _replay_body = apply_mut(_CP_BODY, make_args(checkpoint=[["some-key", "first"]])
 assert_eq("#1453: a coverage record is not swallowed by the no-op replay path",
           1, len(workpad._review_coverage_payloads(apply_mut(_replay_body, make_args(
               checkpoint=[["some-key", "first"]],
-              record_review_coverage=["full", "attempted", "complete", "complete"])))))
+              record_review_coverage=["full", "attempted", "complete", "complete"],
+              record_roster_member=_rc_members_for("complete"))))))
 
 # The process-level positive twin of AC2's no-PATCH negative: a clean record PATCHes.
 _code, _out, _err, _patched = _drive_cmd_update(
@@ -12427,6 +12657,7 @@ assert_eq("#1453: every dirty axis reports its gap, deduped and in table order",
 _rc_head = "a1b2c3d4e5" * 4  # a 40-char lowercase-hex head
 _rc_anchored = apply_mut(_CP_BODY, make_args(
     record_review_coverage=["full", "attempted", "short", "skipped"],
+    record_roster_member=_rc_members_for("short"),
     record_review_coverage_head=_rc_head))
 _rc_anchored_payloads = workpad._review_coverage_payloads(_rc_anchored)
 assert_eq("#1510 AC1: exactly one anchored review-coverage record is written",
@@ -12454,8 +12685,19 @@ assert_eq("#1510 AC4: a pre-change 4-field anchor-less payload still parses",
           workpad._parse_review_coverage_payload("full:attempted:complete:complete"))
 assert_eq("#1510 AC4: a pre-change payload has no anchor (None), never a parse error",
           None, workpad._parse_review_coverage_anchor("full:attempted:complete:complete"))
-assert_eq("#1510 AC4: a legacy anchor-less full record still satisfies the Complete gate",
+# #1512 cross-checks the `complete` roster against a per-member enumeration at WRITE time;
+# the read-time Complete gate re-runs that check only when an enumeration is present. So a
+# modern anchor-less full record carrying its roster rows still satisfies the gate, and a
+# genuinely-legacy rosterless record (members=[]) is GRANDFATHERED — a pre-#1512 workpad is
+# not re-validated retroactively. The default _rc_row auto-injects a coherent roster (the
+# MODERN record); members=[] omits it to exercise the legacy shape.
+assert_eq("#1510/#1512 AC4: a modern anchor-less full record with its roster enumeration "
+          "satisfies the Complete gate",
           None, _rc_complete(_rc_row("full:attempted:complete:complete")))
+assert_eq("#1512 AC4: a genuinely-legacy rosterless full record still finalizes at the "
+          "read-time Complete gate (grandfathered; the roster check is enforced at write "
+          "time and legacy workpads are not re-validated retroactively)",
+          None, _rc_complete(_rc_row("full:attempted:complete:complete", members=[])))
 
 # AC3/AC2: declare a gap on an anchored record, then a later standalone review closes it.
 # The gap wording is scoped to the run's own review pass at the anchor, and the record
@@ -12463,6 +12705,7 @@ assert_eq("#1510 AC4: a legacy anchor-less full record still satisfies the Compl
 # head never contradicts it.
 _rc_gap = apply_mut(_CP_BODY, make_args(
     record_review_coverage=["not-verified", "attempted", "short", "skipped"],
+    record_roster_member=_rc_members_for("short"),
     record_review_coverage_head=_rc_head,
     review_coverage_disposition=[
         ["shadow-coverage", _RC_REASONS["shadow-coverage"]],
@@ -12492,6 +12735,7 @@ assert_eq("#1510 AC3: the stored record claims nothing about a later review's he
 # being metadata the gate ignores.
 _rc_anchored_gate = apply_mut(_RC_BASE, make_args(
     record_review_coverage=["not-verified", "attempted", "short", "skipped"],
+    record_roster_member=_rc_members_for("short"),
     record_review_coverage_head=_rc_head,
     review_coverage_disposition=[
         ["shadow-coverage", _RC_REASONS["shadow-coverage"]],
@@ -12515,7 +12759,8 @@ assert_eq("#1510: a malformed --record-review-coverage-head is refused at write 
 
 # An omitted head defaults to 'unestablished', round-trips, and the visible row shows it un-truncated.
 _rc_noh = apply_mut(_CP_BODY, make_args(
-    record_review_coverage=["full", "attempted", "complete", "complete"]))
+    record_review_coverage=["full", "attempted", "complete", "complete"],
+    record_roster_member=_rc_members_for("complete")))
 _rc_noh_anchor = workpad._parse_review_coverage_anchor(
     workpad._review_coverage_payloads(_rc_noh)[0])
 assert_eq("#1510: an omitted head records the anchor head as 'unestablished'",
@@ -12560,9 +12805,11 @@ _rc_headA = "a" * 40
 _rc_headB = "c" * 40
 _rc_recA = apply_mut(_CP_BODY, make_args(
     record_review_coverage=["not-verified", "attempted", "short", "skipped"],
+    record_roster_member=_rc_members_for("short"),
     record_review_coverage_head=_rc_headA))
 _rc_recB = apply_mut(_rc_recA, make_args(
     record_review_coverage=["full", "attempted", "complete", "complete"],
+    record_roster_member=_rc_members_for("complete"),
     record_review_coverage_head=_rc_headB))
 assert_eq("#1510 AC3: re-recording at a later reviewed head rebinds the anchor to that head (one record)",
           (_rc_headB, 1),
@@ -12578,12 +12825,379 @@ _rc_old_bullet = _RC_BASE.replace(
     "<summary>Devflow Reflection (click to expand)</summary>\n"
     "- 🔴 review coverage gap carried forward — gap=roster: a stale reason from prior code")
 _rc_stripped_old = apply_mut(_rc_old_bullet, make_args(
-    record_review_coverage=["full", "attempted", "complete", "complete"]))
+    record_review_coverage=["full", "attempted", "complete", "complete"],
+    record_roster_member=_rc_members_for("complete")))
 assert_eq("#1510: a fresh record strips a superseded ('carried forward') reflection bullet too",
           False, "carried forward" in _rc_stripped_old)
 
 # Restore the module-load bypass so any later Complete tests are not gated on the record.
 workpad._review_coverage_verdict = lambda prog_content: None
+
+# ── issue #1509: a `skipped-intentional` checklist claim is refused when the diff
+# ── it was recorded over does not satisfy the profile row that authorizes the skip.
+# The recomputation reads the reviewed head (the record's as-of anchor) against the
+# PR base, measuring the diff from git alone rather than trusting any value the run
+# supplied. Fixtures are real temp git repos with real commits (git is not mocked).
+def _rc_git(args, cwd):
+    return _subprocess.run(
+        ['git', '-c', 'user.email=t@e', '-c', 'user.name=t', *args],
+        cwd=str(cwd), capture_output=True, text=True)
+
+
+def _rc_diff_repo(name, before, after, *, base='main', plugin=False):
+    """Build a temp git repo: commit `before` on `base`, then `after` on a feature
+    branch. Each of `before`/`after` maps relative path -> file text. Returns
+    (repo_path, head_sha). `plugin=True` seeds `.claude-plugin/plugin.json` naming
+    this engine so the engine-source arm fires (repository identity, not dir names)."""
+    d = Path(tempfile.mkdtemp(prefix='rc1509-' + name + '-'))
+    rc = _rc_git(['init', '-q', '-b', base, '.'], d)
+    if rc.returncode != 0:
+        raise AssertionError(
+            '#1509 harness: git init failed (rc=%d): %s' % (rc.returncode, rc.stderr))
+    if plugin:
+        (d / '.claude-plugin').mkdir(parents=True, exist_ok=True)
+        (d / '.claude-plugin' / 'plugin.json').write_text('{"name": "prflow"}\n')
+        _rc_git(['add', '.claude-plugin/plugin.json'], d)
+    for rel, text in before.items():
+        p = d / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(text)
+        _rc_git(['add', '--', rel], d)
+    _rc_git(['commit', '-q', '-m', 'base'], d)
+    _rc_git(['checkout', '-q', '-b', 'feat'], d)
+    for rel, text in after.items():
+        p = d / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(text)
+        _rc_git(['add', '--', rel], d)
+    _rc_git(['commit', '-q', '-m', 'feat'], d)
+    head = _rc_git(['rev-parse', 'HEAD'], d).stdout.strip()
+    return d, head
+
+
+def _rc_intentional_write(repo, head, *, base='main', override=None):
+    """Drive a --record-review-coverage write with checklist=skipped-intentional over
+    `repo`, returning the _UpdateError message or None when the write applied."""
+    ov = {} if override is None else {'record_review_coverage_override': override}
+    try:
+        apply_mut(_CP_BODY, make_args(
+            record_review_coverage=['full', 'attempted', 'complete',
+                                    'skipped-intentional'],
+            record_roster_member=_rc_members_for('complete'),
+            record_review_coverage_head=head,
+            record_review_coverage_base=base,
+            repo_root=str(repo),
+            **ov), [])
+    except workpad._UpdateError as e:
+        return str(e)
+    return None
+
+
+# Reproduction (RED before the fix): the #1504 shape — more changed files than the
+# file ceiling allows, all config-only extensions, under the line ceiling — must be
+# REFUSED, because the profile row is disproved. Today's code accepts it.
+_rc_repro_6f, _rc_repro_6f_head = _rc_diff_repo(
+    '6file',
+    {f'doc{i}.md': 'x\n' for i in range(6)},
+    {f'doc{i}.md': 'x\ny\n' for i in range(6)})
+_rc_repro_6f_msg = _rc_intentional_write(_rc_repro_6f, _rc_repro_6f_head)
+assert_eq("#1509 repro: skipped-intentional over a 6-file diff is refused (was accepted)",
+          True, _rc_repro_6f_msg is not None and "No PATCH was made" in _rc_repro_6f_msg)
+assert_eq("#1509 repro: the 6-file refusal names the file-count condition and measured value",
+          True, (_rc_repro_6f_msg or "").find("6") >= 0
+          and "file" in (_rc_repro_6f_msg or ""))
+
+# Reproduction (RED before the fix): the #1503 shape — within the file ceiling but
+# over the line ceiling on a config-only diff — must be REFUSED.
+_rc_repro_153, _rc_repro_153_head = _rc_diff_repo(
+    '153line',
+    {'a.md': '', 'b.md': '', 'c.md': ''},
+    {'a.md': '\n'.join(f'l{i}' for i in range(60)) + '\n',
+     'b.md': '\n'.join(f'l{i}' for i in range(60)) + '\n',
+     'c.md': '\n'.join(f'l{i}' for i in range(33)) + '\n'})
+_rc_repro_153_msg = _rc_intentional_write(_rc_repro_153, _rc_repro_153_head)
+assert_eq("#1509 repro: skipped-intentional over a 153-line diff is refused (was accepted)",
+          True, _rc_repro_153_msg is not None
+          and "No PATCH was made" in _rc_repro_153_msg
+          and "line" in _rc_repro_153_msg)
+
+
+def _rc_checklist_axis(body):
+    """The stored checklist axis value in the review-coverage record on `body`."""
+    payloads = workpad._review_coverage_payloads(body)
+    rec = workpad._parse_review_coverage_payload(payloads[0]) if payloads else None
+    return (rec or {}).get('checklist')
+
+
+# AC1: the numstat counting rule — sum added+deleted across rows, one file per row, a
+# binary `-` row contributes 0 lines but 1 file; a truncated/non-numeric row is malformed.
+assert_eq("#1509 AC1: numstat sums added+deleted across rows, one file per row",
+          (2, 6), workpad._parse_numstat_counts("1\t2\ta.py\n3\t0\tb.py\n"))
+assert_eq("#1509 AC1: a binary row (dash columns) counts 1 file and 0 lines",
+          (1, 0), workpad._parse_numstat_counts("-\t-\tbin.png\n"))
+assert_eq("#1509 AC1: an empty diff is 0 files and 0 lines",
+          (0, 0), workpad._parse_numstat_counts(""))
+assert_eq("#1509 AC1: a path containing a space is one file (path is the 3rd field)",
+          (1, 3), workpad._parse_numstat_counts("1\t2\tfoo bar.py\n"))
+assert_raises("#1509 AC1: a truncated mid-row numstat line is malformed (ValueError)",
+              ValueError, lambda: workpad._parse_numstat_counts("1\t2\ta.py\n3\t"))
+assert_raises("#1509 AC1: a non-integer count column is malformed (ValueError)",
+              ValueError, lambda: workpad._parse_numstat_counts("x\t2\ta.py\n"))
+
+# AC6/AC4: a confirming small config-only diff writes the skipped-intentional record
+# unchanged and reports the measured values on its success (stderr) output.
+_rc_ok_repo, _rc_ok_head = _rc_diff_repo(
+    '2file-ok', {'a.md': 'x\n', 'b.md': 'y\n'},
+    {'a.md': 'x\nz\n', 'b.md': 'y\nw\n'})
+_rc_ok_buf = io.StringIO()
+with contextlib.redirect_stderr(_rc_ok_buf):
+    _rc_ok_body = apply_mut(_CP_BODY, make_args(
+        record_review_coverage=['full', 'attempted', 'complete', 'skipped-intentional'],
+        record_roster_member=_rc_members_for('complete'),
+        record_review_coverage_head=_rc_ok_head,
+        record_review_coverage_base='main', repo_root=str(_rc_ok_repo)), [])
+assert_eq("#1509 AC6: a confirming diff keeps checklist=skipped-intentional (record unchanged)",
+          "skipped-intentional", _rc_checklist_axis(_rc_ok_body))
+assert_eq("#1509 AC6: the visible row still reads checklist=skipped-intentional",
+          True, "checklist=skipped-intentional" in _rc_ok_body)
+assert_eq("#1509 AC4: a confirmed write reports the measured file and line counts on success output",
+          True, "changed file(s)" in _rc_ok_buf.getvalue()
+          and "changed line(s)" in _rc_ok_buf.getvalue())
+
+# A path containing a double-quote is parsed cleanly (name-only -z, no quoting), so a
+# small config-only diff that includes one is still confirmed rather than mismeasured.
+_rc_q_repo, _rc_q_head = _rc_diff_repo(
+    'quote', {'a.md': 'x\n'}, {'a.md': 'x\ny\n', 'q"x.md': 'hi\n'})
+assert_eq("#1509 AC1: a path containing a quote does not break the recomputation (confirmed)",
+          None, _rc_intentional_write(_rc_q_repo, _rc_q_head))
+
+# AC5: an unresolvable recomputation downgrades the checklist axis to `unestablished`
+# and records the reason — never a refusal. Three unresolvable shapes.
+_rc_noh_body = apply_mut(_CP_BODY, make_args(
+    record_review_coverage=['full', 'attempted', 'complete', 'skipped-intentional'],
+    record_roster_member=_rc_members_for('complete'),
+    record_review_coverage_base='main', repo_root=str(_rc_ok_repo)), [])
+assert_eq("#1509 AC5: an unestablished reviewed head downgrades checklist to unestablished (no refusal)",
+          "unestablished", _rc_checklist_axis(_rc_noh_body))
+assert_eq("#1509 AC5: ...and the downgrade reason is recorded alongside the record",
+          True, "could not be recomputed" in _rc_noh_body)
+# git cannot run at a non-existent repo root (OSError) → unresolvable, not a refusal.
+_rc_oserr_body = apply_mut(_CP_BODY, make_args(
+    record_review_coverage=['full', 'attempted', 'complete', 'skipped-intentional'],
+    record_roster_member=_rc_members_for('complete'),
+    record_review_coverage_head=_rc_ok_head, record_review_coverage_base='main',
+    repo_root='/no/such/repo/path/1509'), [])
+assert_eq("#1509 AC5: a failing git invocation (bad repo root) downgrades to unestablished",
+          "unestablished", _rc_checklist_axis(_rc_oserr_body))
+# A base ref that does not exist → merge-base fails → unresolvable, not a refusal.
+_rc_nobase_body = apply_mut(_CP_BODY, make_args(
+    record_review_coverage=['full', 'attempted', 'complete', 'skipped-intentional'],
+    record_roster_member=_rc_members_for('complete'),
+    record_review_coverage_head=_rc_ok_head,
+    record_review_coverage_base='no-such-base', repo_root=str(_rc_ok_repo)), [])
+assert_eq("#1509 AC5: an unreadable/absent base ref downgrades to unestablished (no refusal)",
+          "unestablished", _rc_checklist_axis(_rc_nobase_body))
+# A depth-limited clone whose merge base is unreachable → unestablished, not refused.
+_rc_shallow = Path(tempfile.mkdtemp(prefix='rc1509-shallow-'))
+_rc_clone = _rc_git(['clone', '-q', '--depth', '1', 'file://' + str(_rc_ok_repo),
+                     str(_rc_shallow / 'c')], _rc_shallow)
+_rc_shallow_repo = _rc_shallow / 'c'
+_rc_shallow_head = _rc_git(['rev-parse', 'HEAD'], _rc_shallow_repo).stdout.strip()
+_rc_shallow_body = apply_mut(_CP_BODY, make_args(
+    record_review_coverage=['full', 'attempted', 'complete', 'skipped-intentional'],
+    record_roster_member=_rc_members_for('complete'),
+    record_review_coverage_head=_rc_shallow_head,
+    record_review_coverage_base='no-such-base', repo_root=str(_rc_shallow_repo)), [])
+assert_eq("#1509 AC5: a depth-limited checkout with no resolvable base is unestablished, not refused",
+          "unestablished", _rc_checklist_axis(_rc_shallow_body))
+
+# AC13: the override channel records a non-clean bare `skipped` and names the override —
+# never a clean value. Confirmed even over a diff the recomputation would otherwise refuse.
+_rc_ovr_body = apply_mut(_CP_BODY, make_args(
+    record_review_coverage=['full', 'attempted', 'complete', 'skipped-intentional'],
+    record_roster_member=_rc_members_for('complete'),
+    record_review_coverage_head=_rc_repro_6f_head, record_review_coverage_base='main',
+    repo_root=str(_rc_repro_6f),
+    record_review_coverage_override='the diff is genuinely config-only; auto-measure misfired'), [])
+assert_eq("#1509 AC13: the override records bare `skipped` (a non-clean value), not skipped-intentional",
+          "skipped", _rc_checklist_axis(_rc_ovr_body))
+assert_eq("#1509 AC13: bare `skipped` is not in the checklist clean set (forces a disposition)",
+          False, "skipped" in workpad._REVIEW_COVERAGE_CLEAN['checklist'])
+assert_eq("#1509 AC13: the record names that the override was used",
+          True, "overridden" in _rc_ovr_body)
+
+# AC3 (engine-source arm) + repository identity: a `lib/**` change in THIS repository is
+# refused (engine source forces the checklist on), but the SAME change on any other
+# repository is confirmed — the engine arm is gated on repository identity, not dir names.
+_rc_eng_repo, _rc_eng_head = _rc_diff_repo(
+    'engine', {'lib/foo.md': 'x\n'}, {'lib/foo.md': 'x\ny\n'}, plugin=True)
+_rc_eng_msg = _rc_intentional_write(_rc_eng_repo, _rc_eng_head)
+assert_eq("#1509 AC3: a lib/** change in this engine's own repo is refused (engine-source arm)",
+          True, _rc_eng_msg is not None
+          and "engine's own source set" in _rc_eng_msg)
+_rc_noneng_repo, _rc_noneng_head = _rc_diff_repo(
+    'nonengine', {'lib/foo.md': 'x\n'}, {'lib/foo.md': 'x\ny\n'}, plugin=False)
+assert_eq("#1509 AC3: the same lib/** change on another repository is confirmed (engine arm excluded)",
+          None, _rc_intentional_write(_rc_noneng_repo, _rc_noneng_head))
+assert_eq("#1509 AC3: repository identity is decided by plugin.json name, not directory names",
+          (True, False),
+          (workpad._is_engine_own_repo(str(_rc_eng_repo)),
+           workpad._is_engine_own_repo(str(_rc_noneng_repo))))
+# A non-config extension (.py) in the diff is refused, naming the offending path.
+_rc_py_repo, _rc_py_head = _rc_diff_repo(
+    'pyext', {'a.md': 'x\n'}, {'a.md': 'x\ny\n', 'b.py': 'z\n'})
+_rc_py_msg = _rc_intentional_write(_rc_py_repo, _rc_py_head)
+assert_eq("#1509 AC3: a non-config extension in the diff is refused, naming the offending path",
+          True, _rc_py_msg is not None and "b.py" in _rc_py_msg
+          and "non-config-only extension" in _rc_py_msg)
+
+
+def _rc_lines(n):
+    return '\n'.join(f'l{i}' for i in range(n)) + '\n'
+
+
+# AC3 ceiling boundaries (</<= off-by-one guards): 99 lines over 3 files is confirmed,
+# 100 lines is refused; 3 files is confirmed, 4 files is refused.
+_rc_99_repo, _rc_99_head = _rc_diff_repo(
+    'lines99', {'a.md': '', 'b.md': '', 'c.md': ''},
+    {'a.md': _rc_lines(33), 'b.md': _rc_lines(33), 'c.md': _rc_lines(33)})
+assert_eq("#1509 AC3: exactly 99 changed lines over 3 files is confirmed (below the 100 ceiling)",
+          None, _rc_intentional_write(_rc_99_repo, _rc_99_head))
+_rc_100_repo, _rc_100_head = _rc_diff_repo(
+    'lines100', {'a.md': '', 'b.md': '', 'c.md': ''},
+    {'a.md': _rc_lines(34), 'b.md': _rc_lines(33), 'c.md': _rc_lines(33)})
+_rc_100_msg = _rc_intentional_write(_rc_100_repo, _rc_100_head)
+assert_eq("#1509 AC3: exactly 100 changed lines is refused (the ceiling is strict <100)",
+          True, _rc_100_msg is not None and "100" in _rc_100_msg
+          and "line" in _rc_100_msg)
+_rc_4f_repo, _rc_4f_head = _rc_diff_repo(
+    '4file', {f'd{i}.md': 'x\n' for i in range(4)},
+    {f'd{i}.md': 'x\ny\n' for i in range(4)})
+_rc_4f_msg = _rc_intentional_write(_rc_4f_repo, _rc_4f_head)
+assert_eq("#1509 AC3: exactly 4 changed files is refused (the file ceiling is <=3)",
+          True, _rc_4f_msg is not None and "4" in _rc_4f_msg and "file" in _rc_4f_msg)
+
+# AC3 engine-source arms 2 (state-dir prompt extension) and 3 (root agent file), in
+# this engine's own repo: each forces the checklist on, so a skipped-intentional over
+# one is refused even though it is small and config-only.
+_rc_arm2_repo, _rc_arm2_head = _rc_diff_repo(
+    'arm2', {'.prflow/prompt-extensions/review.md': 'x\n'},
+    {'.prflow/prompt-extensions/review.md': 'x\ny\n'}, plugin=True)
+_rc_arm2_msg = _rc_intentional_write(_rc_arm2_repo, _rc_arm2_head)
+assert_eq("#1509 AC3: a .prflow/**.md change in this repo is refused (engine-source arm 2)",
+          True, _rc_arm2_msg is not None and "engine's own source set" in _rc_arm2_msg)
+_rc_arm3_repo, _rc_arm3_head = _rc_diff_repo(
+    'arm3', {'CLAUDE.md': 'x\n'}, {'CLAUDE.md': 'x\ny\n'}, plugin=True)
+_rc_arm3_msg = _rc_intentional_write(_rc_arm3_repo, _rc_arm3_head)
+assert_eq("#1509 AC3: a CLAUDE.md change in this repo is refused (engine-source arm 3)",
+          True, _rc_arm3_msg is not None and "engine's own source set" in _rc_arm3_msg)
+# The SAME arm-3 change on another repository is confirmed (engine arm excluded there).
+_rc_arm3c_repo, _rc_arm3c_head = _rc_diff_repo(
+    'arm3-consumer', {'CLAUDE.md': 'x\n'}, {'CLAUDE.md': 'x\ny\n'}, plugin=False)
+assert_eq("#1509 AC3: the same CLAUDE.md change on another repository is confirmed",
+          None, _rc_intentional_write(_rc_arm3c_repo, _rc_arm3c_head))
+
+# An empty diff (reviewed head == base, so merge_base == head) resolves and confirms
+# (0 files, 0 lines): the recomputation resolves rather than downgrading.
+_rc_empty = Path(tempfile.mkdtemp(prefix='rc1509-empty-'))
+_rc_git(['init', '-q', '-b', 'main', '.'], _rc_empty)
+(_rc_empty / 'a.md').write_text('x\n')
+_rc_git(['add', '--', 'a.md'], _rc_empty)
+_rc_git(['commit', '-q', '-m', 'base'], _rc_empty)
+_rc_git(['checkout', '-q', '-b', 'feat'], _rc_empty)  # no commit: feat == main
+_rc_empty_head = _rc_git(['rev-parse', 'HEAD'], _rc_empty).stdout.strip()
+assert_eq("#1509 AC1: an empty reviewed diff (head==base) resolves and confirms the skip",
+          None, _rc_intentional_write(_rc_empty, _rc_empty_head))
+
+# The override is a no-op on a non-skipped-intentional checklist and says so on stderr,
+# leaving the value unchanged (no recomputation runs).
+_rc_ign_buf = io.StringIO()
+with contextlib.redirect_stderr(_rc_ign_buf):
+    _rc_ign_body = apply_mut(_CP_BODY, make_args(
+        record_review_coverage=['full', 'attempted', 'complete', 'complete'],
+        record_roster_member=_rc_members_for('complete'),
+        record_review_coverage_head=_rc_ok_head,
+        record_review_coverage_override='not applicable here',
+        repo_root='/no/such/repo/path/1509'), [])
+assert_eq("#1509 AC13: --override on a non-skipped-intentional checklist is ignored (value unchanged)",
+          "complete", _rc_checklist_axis(_rc_ign_body))
+assert_eq("#1509 AC13: ...and the ignored override is announced on stderr",
+          True, "is ignored" in _rc_ign_buf.getvalue())
+
+# AC7: the bare `skipped` value is written unchanged — no recomputation, no new condition.
+# (A bad repo root would break a recomputation, proving none runs for bare `skipped`.)
+_rc_bare_body = apply_mut(_CP_BODY, make_args(
+    record_review_coverage=['full', 'attempted', 'complete', 'skipped'],
+    record_roster_member=_rc_members_for('complete'),
+    record_review_coverage_head=_rc_ok_head,
+    repo_root='/no/such/repo/path/1509'), [])
+assert_eq("#1509 AC7: a bare `skipped` checklist is written unchanged (no recomputation)",
+          "skipped", _rc_checklist_axis(_rc_bare_body))
+assert_eq("#1509 AC7: a bare `skipped` write adds no unestablished-downgrade note",
+          False, "could not be recomputed" in _rc_bare_body)
+
+# AC8: the non-skipped-intentional axis values are written unchanged, no recomputation.
+for _cval in ('complete', 'not-applicable', 'unestablished'):
+    _other = ['full', 'attempted', 'complete', _cval]
+    if _cval == 'not-applicable':
+        _other = ['not-applicable', 'not-applicable', 'not-applicable', 'not-applicable']
+    _rc_other = apply_mut(_CP_BODY, make_args(
+        record_review_coverage=_other, record_review_coverage_head=_rc_ok_head,
+        record_roster_member=_rc_members_for(_other[2]),
+        repo_root='/no/such/repo/path/1509'), [])
+    assert_eq(f"#1509 AC8: checklist={_cval} is written unchanged (no recomputation)",
+              _cval, _rc_checklist_axis(_rc_other))
+
+# AC9: the axis tuple and its clean tuple are present verbatim, and the validator ran at
+# import (it accepts the shipped table and refuses a fail-open edit).
+assert_eq("#1509 AC9: the checklist axis vocabulary is present verbatim",
+          ('complete', 'not-applicable', 'skipped-intentional', 'skipped', 'unestablished'),
+          workpad._REVIEW_COVERAGE_VOCABULARY['checklist'])
+assert_eq("#1509 AC9: the checklist clean tuple is present verbatim",
+          ('complete', 'not-applicable', 'skipped-intentional'),
+          workpad._REVIEW_COVERAGE_CLEAN['checklist'])
+assert_eq("#1509 AC9: _validate_review_coverage_axis_specs still accepts the shipped table at import",
+          None, workpad._validate_review_coverage_axis_specs(
+              workpad._REVIEW_COVERAGE_AXIS_SPECS))
+
+# AC12: the recomputation's profile-row arm set must not drift from the arms stated in
+# skills/review/phases/phase-0-setup.md §0.5. This test reads that file and compares its
+# arms to the module constants — it goes RED if either drifts. (Non-vacuous: it also
+# asserts the file actually yielded each parsed value.)
+_p05_text = (Path(__file__).resolve().parents[2]
+             / 'skills' / 'review' / 'phases' / 'phase-0-setup.md').read_text()
+_p05_line = re.search(r'changed lines < (\d+)', _p05_text)
+_p05_file = re.search(r'count [≤<]=?\s*(\d+)', _p05_text)
+_p05_exts_m = re.search(r'extension in [^{]*\{([^}]+)\}', _p05_text)
+_p05_exts = (frozenset(x.strip() for x in _p05_exts_m.group(1).split(','))
+             if _p05_exts_m else None)
+_p05_arm1 = re.search(r'`skills/\*\*`\s+OR\s+`agents/\*\*`\s+OR\s+`lib/\*\*`', _p05_text)
+# Arm 2 (state-directory prompt-extension) and arm 3 (root agent-instruction file):
+# AC12 pins the whole engine-source *arm set*, not only arm 1, so a coupled-mirror
+# drift on arm 2 (e.g. retiring the `.devflow/` sub-arm) or arm 3 must turn this RED.
+_p05_arm2 = re.search(
+    r'Arm 2 —.*?(?=\n\s+- Arm 3 —)', _p05_text, re.S)
+_p05_arm2_dirs = (tuple(sorted(set(re.findall(r'`(\.\w+)/`', _p05_arm2.group(0)))))
+                  if _p05_arm2 else None)
+_p05_arm3 = re.search(r'Arm 3 —.*?basename is `CLAUDE\.md`', _p05_text, re.S)
+assert_eq("#1509 AC12: phase-0-setup.md yields each profile-row arm (non-vacuous parse)",
+          True, all(x is not None for x in
+                    (_p05_line, _p05_file, _p05_exts, _p05_arm1, _p05_arm2,
+                     _p05_arm2_dirs, _p05_arm3)))
+assert_eq("#1509 AC12: the line ceiling matches phase-0-setup.md",
+          int(_p05_line.group(1)), workpad._REVIEW_COVERAGE_SMALL_DIFF_LINE_CEILING)
+assert_eq("#1509 AC12: the file ceiling matches phase-0-setup.md",
+          int(_p05_file.group(1)), workpad._REVIEW_COVERAGE_SMALL_DIFF_FILE_CEILING)
+assert_eq("#1509 AC12: the config-only extension set matches phase-0-setup.md",
+          _p05_exts, workpad._REVIEW_COVERAGE_CONFIG_ONLY_EXTS)
+assert_eq("#1509 AC12: the engine-source arm-1 prefixes match phase-0-setup.md",
+          ('skills/', 'agents/', 'lib/'),
+          workpad._REVIEW_COVERAGE_ENGINE_SOURCE_PREFIXES)
+assert_eq("#1509 AC12: the engine-source arm-2 state dirs match phase-0-setup.md",
+          _p05_arm2_dirs, tuple(sorted(workpad._REVIEW_COVERAGE_ENGINE_STATE_DIRS)))
+assert_eq("#1509 AC12: the engine-source arm-3 root agent file matches phase-0-setup.md",
+          True, _p05_arm3 is not None
+          and workpad._REVIEW_COVERAGE_ENGINE_ROOT_AGENT_FILE == 'CLAUDE.md')
 
 # ── issue #1817: the terminal --status Complete extension-row gate ─────────────
 # The gate refuses a Complete write while any `prompt extension resolved:` row is
@@ -20047,7 +20661,7 @@ def _row22(r):
               (reop.returncode, decided(reop.stdout)))
     # `query-findings`' state-unestablished arm: corrupt the state file so `_query_state`
     # answers None, and confirm the query still exits 0 with its decided single line.
-    Path(r.tmp, '.prflow', 'tmp', 'issue-audit-state-s603.json').write_text(
+    Path(r.tmp, '.prflow', 'tmp', 'create-issue', 's603', 'issue-audit-state-s603.json').write_text(
         '{ not json', encoding='utf-8')
     qf = r('query-findings', r.slug, nonce=True)
     assert_eq("#603-22/AC8: query-findings answers state-unestablished at exit 0 over an "
@@ -20304,7 +20918,7 @@ def _row704_16(r):
     _round704(r)
     r.evidence(1, 1, locator='a.py:1', command='c', observed='o\n',
                baseline_revision='rev')
-    sp = Path(r.tmp, '.prflow/tmp/issue-audit-state-s704.json')
+    sp = Path(r.tmp, '.prflow/tmp/create-issue/s704/issue-audit-state-s704.json')
     good = _json.loads(sp.read_text(encoding='utf-8'))
     over = 'x' * (issue_audit_state._EVIDENCE_MAX_CHARS
                   + len(issue_audit_state._EVIDENCE_TRUNCATION_MARK) + 1)
@@ -20372,7 +20986,7 @@ def _row704_18(r):
     read = r('query-finding-evidence', r.slug, '--round', '1', nonce=True)
     assert_eq("#704-18: the truncation is DISCLOSED in the stored bytes, never silent",
               True, 'truncated by issue-audit-state.py' in read.stdout)
-    stored = _json.loads(Path(r.tmp, '.prflow/tmp/issue-audit-state-s704.json')
+    stored = _json.loads(Path(r.tmp, '.prflow/tmp/create-issue/s704/issue-audit-state-s704.json')
                          .read_text(encoding='utf-8'))['finding_evidence']['1:1']['observed']
     assert_eq("#704-18: the stored field is bounded to the cap plus its disclosure",
               cap + len(issue_audit_state._EVIDENCE_TRUNCATION_MARK), len(stored))
@@ -20428,7 +21042,7 @@ def _row704_20(r):
     assert_eq("#704-20: query-finding-evidence refuses a foreign nonce rather than reading "
               "another run",
               (0, 'evidence=none reason=foreign-nonce'), (got.returncode, got.stdout.strip()))
-    Path(r.tmp, '.prflow/tmp/issue-audit-state-s704.json').write_text('{', encoding='utf-8')
+    Path(r.tmp, '.prflow/tmp/create-issue/s704/issue-audit-state-s704.json').write_text('{', encoding='utf-8')
     got = r('query-finding-evidence', r.slug, '--round', '1', nonce=True)
     assert_eq("#704-20: an unestablished state is named, never rendered as an empty store",
               'evidence=none reason=state-unestablished', got.stdout.strip())
@@ -20653,7 +21267,7 @@ _with_run704(_row704_26)
 # differently now.
 def _row704_27(r):
     r.evidence(1, 1, locator='a:1', command='c', baseline_revision='r1', observed='o\n')
-    state = Path(r.tmp, '.prflow/tmp', f'issue-audit-state-{r.slug}.json')
+    state = Path(r.tmp, '.prflow/tmp/create-issue', r.slug, f'issue-audit-state-{r.slug}.json')
     doc = _json.loads(state.read_text())
     # Exactly the shape the pre-fix build wrote: an `unestablished` required field stored
     # alongside the `complete` that build derived for it.
@@ -20674,7 +21288,7 @@ def _row704_27(r):
     # is the assertion that keeps it honest: the classic hand-edit — `complete` stored beside
     # a blanked required field — still reads `incomplete`, because the stored value is never
     # the one consulted. Self-healing relaxed the failure MODE, never the guarantee.
-    state = Path(r.tmp, '.prflow/tmp', f'issue-audit-state-{r.slug}.json')
+    state = Path(r.tmp, '.prflow/tmp/create-issue', r.slug, f'issue-audit-state-{r.slug}.json')
     doc = _json.loads(state.read_text())
     doc['finding_evidence']['1:1'] = dict(doc['finding_evidence']['1:1'],
                                           observed='', completeness='complete')
@@ -21709,7 +22323,7 @@ def _cov_read_boundary(r):
     import glob as _glob
     import json as _json
     path = _glob.glob(str(Path(r.tmp, '.prflow', 'tmp',  # tree-walk-ok: non-recursive glob inside this row's own temp state dir, never the repository tree
-                                'issue-audit-state-*.json')))[0]
+                                'create-issue', '*', 'issue-audit-state-*.json')))[0]
     doc = _json.loads(Path(path).read_text())
     doc['rounds'][0]['coverage'][0]['outcome'] = 'bogus'
     Path(path).write_text(_json.dumps(doc))
@@ -21795,7 +22409,7 @@ def _cov_expected_keys_preconditions(r):
 
     def _state_bytes():
         path = _glob.glob(str(Path(r.tmp, '.prflow', 'tmp',  # tree-walk-ok: this row's own temp state dir, never the repository tree
-                                   'issue-audit-state-*.json')))[0]
+                                   'create-issue', '*', 'issue-audit-state-*.json')))[0]
         return Path(path).read_bytes()
 
     r.open_round(1, 'FILE', 0)
@@ -21918,7 +22532,7 @@ def _cov_1694_empty_coverage_precedes_render(r):
     r.open_round(1, 'FILE', 0)
     r.adjudicate(1, 'FILE', 0, '0')
     statefile = _glob.glob(str(Path(r.tmp, '.prflow', 'tmp',  # tree-walk-ok: this row's own temp state dir, never the repository tree
-                                    'issue-audit-state-*.json')))[0]
+                                    'create-issue', '*', 'issue-audit-state-*.json')))[0]
     doc = _json.loads(Path(statefile).read_text())
     doc['rounds'][0]['coverage_render'] = 'degraded'
     Path(statefile).write_text(_json.dumps(doc))
@@ -21961,7 +22575,7 @@ def _cov_read_boundary_matrix(r):
     def _statefile():
         import glob as _glob
         return _glob.glob(str(Path(r.tmp, '.prflow', 'tmp',  # tree-walk-ok: this row's own temp state dir, never the repository tree
-                                   'issue-audit-state-*.json')))[0]
+                                   'create-issue', '*', 'issue-audit-state-*.json')))[0]
 
     def _corrupt(mutate, label):
         doc = _json.loads(Path(_statefile()).read_text())
@@ -22303,7 +22917,7 @@ def _cov_expected_keys_persisted(r):
         'g:host-os-variance exercised "a quoted line" — a concrete concern\n',
         expected='g:host-os-variance,g:degraded-environments')
     path = _glob.glob(str(Path(r.tmp, '.prflow', 'tmp',  # tree-walk-ok: this row's own temp state dir, never the repository tree
-                               'issue-audit-state-*.json')))[0]
+                               'create-issue', '*', 'issue-audit-state-*.json')))[0]
     doc = _json.loads(Path(path).read_text())
     assert_eq("#708-25: the supplied enumeration is persisted with the round",
               ['g:host-os-variance', 'g:degraded-environments'],
@@ -22333,7 +22947,7 @@ def _write_state705(tmp, slug, nonce, rounds, revisions=None):
     doc = {'schema_version': issue_audit_state.SCHEMA_VERSION,
            'slug': slug, 'nonce': nonce, 'rounds': rounds,
            'revisions': revisions or [], 'overrides': []}
-    p = Path(tmp) / '.prflow' / 'tmp' / f'issue-audit-state-{slug}.json'
+    p = Path(tmp) / '.prflow' / 'tmp' / 'create-issue' / slug / f'issue-audit-state-{slug}.json'
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(json.dumps(doc), encoding='utf-8')
     return p
@@ -23541,7 +24155,7 @@ def _row792_no_double_funding(r):
     assert_eq("#792 AC103: the pass round dispatches, funded by the dedicated slot",
               0, d2.returncode)
     state = _json.loads(Path(r.tmp, '.prflow', 'tmp',
-                            f'issue-audit-state-{r.slug}.json').read_text(encoding='utf-8'))
+                            'create-issue', r.slug, f'issue-audit-state-{r.slug}.json').read_text(encoding='utf-8'))
     assert_eq("#792 AC103/AC104: the automatic counter is UNCHANGED by a final-byte pass",
               0, state.get('automatic_reaudits_used', 0))
     r('record-return', r.slug, '--round', '2', '--verdict', 'FILE', '--findings-count', '0',
@@ -23701,7 +24315,7 @@ def _row792_decline_clears_pending(r):
     r('record-dispatch', '--kind', 'discovery', r.slug, '--round', '2', '--arm', 'file',
       '--draft-file', r.draft, nonce=True)
     _state = _json.loads(Path(r.tmp, '.prflow', 'tmp',
-                              f'issue-audit-state-{r.slug}.json').read_text(encoding='utf-8'))
+                              'create-issue', r.slug, f'issue-audit-state-{r.slug}.json').read_text(encoding='utf-8'))
     assert_eq("#792 iter2: a DECLINE clears the armed grant, so the next ordinary round is NOT "
               "marked as the pass — a stale arm would silently exclude it from the coverage and "
               "calibration selectors and fire a refund on a slot it never drew from",
@@ -23741,7 +24355,7 @@ _with_run792(_row792_decline_retracts_grant)
 # user's exit from the very loop the ceiling exists to bound.
 def _row792_ceiling_still_permits_decline(r):
     r.uncovered_round()
-    _p = Path(r.tmp, '.prflow', 'tmp', f'issue-audit-state-{r.slug}.json')
+    _p = Path(r.tmp, '.prflow', 'tmp', 'create-issue', r.slug, f'issue-audit-state-{r.slug}.json')
     _d = _json.loads(_p.read_text(encoding='utf-8'))
     _d['final_byte_passes_used'] = issue_audit_state._FINAL_BYTE_GRANT_CAP
     _d['final_byte_refunds'] = issue_audit_state._FINAL_BYTE_GRANT_CAP
@@ -23784,7 +24398,7 @@ def _row792_revision_retracts_outstanding_grant(r):
     r('record-dispatch', '--kind', 'discovery', r.slug, '--round', '2', '--arm', 'file',
       '--draft-file', r.draft, nonce=True)
     _state = _json.loads(Path(r.tmp, '.prflow', 'tmp',
-                              f'issue-audit-state-{r.slug}.json').read_text(encoding='utf-8'))
+                              'create-issue', r.slug, f'issue-audit-state-{r.slug}.json').read_text(encoding='utf-8'))
     assert_eq("#792 iter4: the revision retracted the stale grant, so the ordinary round is NOT "
               "stamped as the pass",
               False, bool(_state['rounds'][1].get('final_byte_pass')))
@@ -23814,7 +24428,7 @@ def _row792_grant_ceiling(r):
     # cycle but never GRANT headroom. Recorded directly rather than driven through the full
     # degraded-inline escalation each cycle, which this row does not exercise (the refund's own
     # behavior is `_row792_refund`'s subject).
-    _p = Path(r.tmp, '.prflow', 'tmp', f'issue-audit-state-{r.slug}.json')
+    _p = Path(r.tmp, '.prflow', 'tmp', 'create-issue', r.slug, f'issue-audit-state-{r.slug}.json')
     for i in range(issue_audit_state._FINAL_BYTE_GRANT_CAP):
         assert_eq(f"#792 iter2: grant {i + 1} of the ceiling is accepted",
                   0, r.offer(accepted=True).returncode)
@@ -23879,7 +24493,7 @@ def _state792(r):
     rows do not drive), so those rows patch the recorded document directly rather than
     asserting nothing about the arm.
     """
-    return Path(r.tmp, '.prflow', 'tmp', f'issue-audit-state-{r.slug}.json')
+    return Path(r.tmp, '.prflow', 'tmp', 'create-issue', r.slug, f'issue-audit-state-{r.slug}.json')
 
 
 def _open_pass_round(r, n=2):
@@ -24056,7 +24670,7 @@ _with_run792(_row792_refund_on_embed_arm_degradation)
 # grounds on.
 def _row792_bound_file_wins_for_new_commands(r):
     r.clean_round()
-    _bound_dir = Path(r.tmp, '.prflow', 'tmp')
+    _bound_dir = Path(r.tmp, '.prflow', 'tmp', 'create-issue', r.slug)
     _bound_dir.mkdir(parents=True, exist_ok=True)
     _bound_file = _bound_dir / f'issue-draft-{r.slug}.md'
     _bound_file.write_text(Path(r.draft).read_text(encoding='utf-8'), encoding='utf-8')
@@ -24211,7 +24825,7 @@ for _badd792 in (5, '', True, [], {}):
 # `uncovered` here would have been asserting a state the read boundary makes unreachable.
 def _row792_absent_round_digest(r):
     r.clean_round()
-    _p792 = Path(r.tmp, '.prflow', 'tmp', f'issue-audit-state-{r.slug}.json')
+    _p792 = Path(r.tmp, '.prflow', 'tmp', 'create-issue', r.slug, f'issue-audit-state-{r.slug}.json')
     _s792 = _json.loads(_p792.read_text(encoding='utf-8'))
     _s792['rounds'][0]['attempts'][-1].pop('digest', None)
     _p792.write_text(_json.dumps(_s792), encoding='utf-8')
@@ -26629,7 +27243,7 @@ class _Run795:
         return _ias_run(args, self.tmp, stdin=stdin)
 
     def state_bytes(self):
-        return Path(self.tmp, '.prflow/tmp', f'issue-audit-state-{self.slug}.json').read_bytes()
+        return Path(self.tmp, '.prflow/tmp/create-issue', self.slug, f'issue-audit-state-{self.slug}.json').read_bytes()
 
     def open_round(self, n=1):
         # issue #1104: a fresh file-arm dispatch requires the dispatched bytes in the
@@ -26708,7 +27322,7 @@ _with795(_row795_nonce_recovery)
 # --- even when the file was present-but-corrupt, where a cold start DISCARDS recorded
 # --- state and the condition is squarely Route C.
 def _row795_init_nonce_load_split(r):
-    _state = Path(r.tmp, '.prflow/tmp', f'issue-audit-state-{r.slug}.json')
+    _state = Path(r.tmp, '.prflow/tmp/create-issue', r.slug, f'issue-audit-state-{r.slug}.json')
 
     # (a) present but unparseable -> never recommends the cold start.
     _saved = _state.read_bytes()
@@ -29342,7 +29956,7 @@ def _793_ias(tmp, *argv, stdin=None):
 
 with tempfile.TemporaryDirectory() as _t793b:
     _p793 = _write_state705(_t793b, 's793', 'N793', [_round705(1, 'file')])
-    _base793 = str(Path(_t793b) / '.prflow' / 'tmp' / 'issue-draft-s793.N793.staged.md')
+    _base793 = str(Path(_t793b) / '.prflow' / 'tmp' / 'create-issue' / 's793' / 'issue-draft-s793.N793.staged.md')
     _dA, _pA, _ = _sdw_stage(_base793, b'# T\n\n## A\n\nfirst\n')
     _r = _793_ias(_t793b, 'record-staged-write', 's793', '--nonce', 'N793',
                   '--path', _pA, '--digest', _dA)
@@ -29458,7 +30072,7 @@ assert_eq("#1105: a resolved claim IS enumerated — a scoped round re-checks it
 def _793_state_doc(run):
     return json.loads(
         Path(run.tmp, '.prflow', 'tmp',
-             f'issue-audit-state-{run.slug}.json').read_text(encoding='utf-8'))
+             'create-issue', run.slug, f'issue-audit-state-{run.slug}.json').read_text(encoding='utf-8'))
 
 
 def _793_targeted_run():
@@ -29479,7 +30093,7 @@ def _793_targeted_run():
     # the harness's own autostage filling the gap) would leave a first history entry
     # naming a retired artifact, which the precondition assertion below would then be
     # grading instead of the real one.
-    base = str(Path(td, '.prflow', 'tmp', f'issue-draft-{run.slug}.N.staged.md'))
+    base = str(Path(td, '.prflow', 'tmp', 'create-issue', run.slug, f'issue-draft-{run.slug}.N.staged.md'))
     _d1, _p1, _ = _sdw_stage(base, b'# T\n\n## A\n\nold\n')
     run('record-staged-write', run.slug, '--path', _p1, '--digest', _d1, nonce=True)
     # Round 1: a cold discovery round that finds one defect. `autostage=False` because the
@@ -29778,7 +30392,7 @@ def _793_scoped_round(tmpdir_holder):
         '--findings-count', '1', '--carriage-object-id', dig, nonce=True)
     run.adjudicate(1, 'REVISE', must=1, unresolved='1', ledger='unresolved: a defect\n')
     _d, _p, _ = _sdw_stage(str(Path(td, '.prflow', 'tmp',
-                                    f'issue-draft-{run.slug}.N.staged.md')),
+                                    'create-issue', run.slug, f'issue-draft-{run.slug}.N.staged.md')),
                            b'# T\n\n## A\n\nold\n')
     run('record-staged-write', run.slug, '--path', _p, '--digest', _d, nonce=True)
     draft.write_text('# T\n\n## A\n\nrevised\n', encoding='utf-8')
@@ -29867,7 +30481,7 @@ _r4('record-return', _r4.slug, '--round', '2', '--verdict', 'REVISE',
     '--findings-count', '1', '--carriage-object-id', _dig4,
     '--claim-verdicts', '1.1 not-addressed', nonce=True)
 _doc4 = json.loads(Path(_r4.tmp, '.prflow', 'tmp',
-                        f'issue-audit-state-{_r4.slug}.json').read_text(encoding='utf-8'))
+                        'create-issue', _r4.slug, f'issue-audit-state-{_r4.slug}.json').read_text(encoding='utf-8'))
 assert_eq("#793/AC39: an all-not-addressed targeted round leaves the run-wide effective "
           "unresolved count equal to the discovery round's, not doubled",
           (1, None),
@@ -30079,7 +30693,7 @@ _dig6 = _d6.stdout.split('digest=', 1)[1].split()[0]
 _ret6 = _r6('record-return', _r6.slug, '--round', '2', '--verdict', 'FILE',
             '--findings-count', '0', '--carriage-object-id', _dig6, nonce=True)
 _doc6 = json.loads(Path(_r6.tmp, '.prflow', 'tmp',
-                        f'issue-audit-state-{_r6.slug}.json').read_text(encoding='utf-8'))
+                        'create-issue', _r6.slug, f'issue-audit-state-{_r6.slug}.json').read_text(encoding='utf-8'))
 assert_eq("#793: a targeted return with no per-claim block records outcome FILE and marks "
           "the round UNUSABLE (the precondition the dead end needed)",
           (0, 'FILE', True, {}),
@@ -30095,7 +30709,7 @@ assert_eq("#793: ... and next_action still schedules the confirming whole-draft 
 _d6b = _r6('record-dispatch', '--kind', 'discovery', _r6.slug, '--round', '3',
            '--arm', 'file', '--draft-file', str(_draft6.resolve()), nonce=True)
 _doc6b = json.loads(Path(_r6.tmp, '.prflow', 'tmp',
-                         f'issue-audit-state-{_r6.slug}.json').read_text(encoding='utf-8'))
+                         'create-issue', _r6.slug, f'issue-audit-state-{_r6.slug}.json').read_text(encoding='utf-8'))
 assert_eq("#793: ... and the round next_action scheduled is FUNDED — the confirming "
           "counter is spent for it, so record-dispatch accepts instead of dead-ending "
           "the error-recovery path on `not funded`",
@@ -30136,7 +30750,7 @@ _dig7 = _d7.stdout.split('digest=', 1)[1].split()[0]
 _ret7 = _r7('record-return', _r7.slug, '--round', '2', '--verdict', 'REVISE',
             '--findings-count', '1', '--carriage-object-id', _dig7, nonce=True)
 _doc7 = json.loads(Path(_r7.tmp, '.prflow', 'tmp',
-                        f'issue-audit-state-{_r7.slug}.json').read_text(encoding='utf-8'))
+                        'create-issue', _r7.slug, f'issue-audit-state-{_r7.slug}.json').read_text(encoding='utf-8'))
 assert_eq("#1675: a targeted REVISE return with no per-claim block records outcome REVISE "
           "and marks the round UNUSABLE",
           (0, 'REVISE', True),
@@ -30152,7 +30766,7 @@ assert_eq("#1675: ... and next_action schedules the confirming whole-draft round
 # `final_byte_pass`-funded predecessor produces, since that pass suppresses the derived
 # automatic spend. Seeding it is required: with the pool already spent its own guard masks
 # the wrong-pool selection and the round funds correctly by accident.
-_p7 = Path(_r7.tmp, '.prflow', 'tmp', f'issue-audit-state-{_r7.slug}.json')
+_p7 = Path(_r7.tmp, '.prflow', 'tmp', 'create-issue', _r7.slug, f'issue-audit-state-{_r7.slug}.json')
 _seed7 = json.loads(_p7.read_text(encoding='utf-8'))
 _seed7['automatic_reaudits_used'] = 0
 _seed7['user_rounds_used'] = _seed7.get('user_rounds_used', 0) + 1
@@ -30161,7 +30775,7 @@ _p7.write_text(json.dumps(_seed7), encoding='utf-8')
 _d7b = _r7('record-dispatch', '--kind', 'discovery', _r7.slug, '--round', '3',
            '--arm', 'file', '--draft-file', str(_draft7.resolve()), nonce=True)
 _doc7b = json.loads(Path(_r7.tmp, '.prflow', 'tmp',
-                         f'issue-audit-state-{_r7.slug}.json').read_text(encoding='utf-8'))
+                         'create-issue', _r7.slug, f'issue-audit-state-{_r7.slug}.json').read_text(encoding='utf-8'))
 assert_eq("#1675: ... and that scheduled round is funded from the CONFIRMING pool, leaving "
           "the automatic re-audit budget unspent — otherwise a confirmation round consumes "
           "the automatic pool and the exhaustion -> boundary-election transition is "
@@ -30278,7 +30892,7 @@ for _1675_corrupt_flag in ('true', 1):
 # Exercise the real persisted query path too: a corrupted flag collapses the entire state
 # to unestablished and the always-zero query emits its fail-closed action plus diagnosis.
 _1675_state_path = Path(_r6.tmp, '.prflow', 'tmp',
-                        f'issue-audit-state-{_r6.slug}.json')
+                        'create-issue', _r6.slug, f'issue-audit-state-{_r6.slug}.json')
 _1675_saved_bytes = _1675_state_path.read_bytes()
 try:
     _1675_persisted_corrupt = json.loads(_1675_saved_bytes.decode('utf-8'))
@@ -30404,7 +31018,7 @@ assert_eq("#793/AC18: an UNTAMPERED scope file regenerates to the recorded ident
            'scope-file-unreadable' in _ret7.stdout))
 
 _doc7 = json.loads(Path(_r7.tmp, '.prflow', 'tmp',
-                        f'issue-audit-state-{_r7.slug}.json').read_text(encoding='utf-8'))
+                        'create-issue', _r7.slug, f'issue-audit-state-{_r7.slug}.json').read_text(encoding='utf-8'))
 assert_eq("#793/AC18: ... and the established result is PERSISTED on the round, so a "
           "later reader sees the verified regeneration rather than re-inferring it",
           'established', (_doc7['rounds'][1].get('steering') or {}).get('state'))
@@ -30577,7 +31191,7 @@ with tempfile.TemporaryDirectory() as _t_eab, tempfile.TemporaryDirectory() as _
 
 def _1103_state(run):
     return json.loads(Path(run.tmp, '.prflow', 'tmp',
-                           f'issue-audit-state-{run.slug}.json').read_text(encoding='utf-8'))
+                           'create-issue', run.slug, f'issue-audit-state-{run.slug}.json').read_text(encoding='utf-8'))
 
 
 with tempfile.TemporaryDirectory() as _t_disp:
@@ -30679,7 +31293,7 @@ _1104_ROOT = tempfile.mkdtemp()
 
 def _1104_state(run):
     """The run's persisted state document (the harness's `init` has always written it)."""
-    p = Path(run.tmp, '.prflow', 'tmp', f'issue-audit-state-{run.slug}.json')
+    p = Path(run.tmp, '.prflow', 'tmp', 'create-issue', run.slug, f'issue-audit-state-{run.slug}.json')
     return json.loads(p.read_text(encoding='utf-8'))
 
 
@@ -30695,7 +31309,7 @@ def _1104_run(slug):
 def _1104_stage(run):
     """Record the staged write for the draft bytes, as the shipped call sequence does."""
     base = str(Path(run.tmp, '.prflow', 'tmp',
-                    f'issue-draft-{run.slug}.{run.nonce}.staged.md'))
+                    'create-issue', run.slug, f'issue-draft-{run.slug}.{run.nonce}.staged.md'))
     dig, path, _ = _sdw_stage(base, _1104_DRAFT.encode())
     run('record-staged-write', run.slug, '--path', path, '--digest', dig, nonce=True)
 
@@ -30852,7 +31466,7 @@ def _1104_shape_row(slug, record):
     st = _1104_state(run)
     st['staged_paths'] = [record]
     Path(run.tmp, '.prflow', 'tmp',
-         f'issue-audit-state-{run.slug}.json').write_text(json.dumps(st),
+         'create-issue', run.slug, f'issue-audit-state-{run.slug}.json').write_text(json.dumps(st),
                                                           encoding='utf-8')
     r = _1104_dispatch(run)
     return (r.returncode != 0, 'file-arm-requires-staged-write' in r.stderr,
@@ -36524,6 +37138,159 @@ assert_eq("#1388 installer: publishes the install-state marker via install_state
           'scripts/install_state.py" build' in _INSTALL_1388)
 assert_eq("#1388 installer: validates the manifest before publishing (fail-closed order)", True,  # structural-pin-ok: security-credential-boundary -- publish gated on validation
           'lint-manifest.json did not validate' in _INSTALL_1388)
+
+# ── issue #1811: cleanup-create-issue-run.sh — per-run create-issue scratch reaper ──
+print()
+print("cleanup-create-issue-run.sh: per-run create-issue scratch cleanup (issue #1811)")
+import subprocess as _sp1811  # noqa: E402
+
+_CLEANUP1811 = SCRIPTS / 'cleanup-create-issue-run.sh'
+
+
+def _ci1811_dir(root, slug):
+    return Path(root) / '.prflow' / 'tmp' / 'create-issue' / slug
+
+
+def _ci1811_ptr(root):
+    return Path(root) / '.prflow' / 'tmp' / 'create-issue' / 'issue-run-slug'
+
+
+def _seed1811(root, slug, pointer_slug=None):
+    d = _ci1811_dir(root, slug)
+    d.mkdir(parents=True, exist_ok=True)
+    (d / f'issue-draft-{slug}.md').write_text('draft', encoding='utf-8')
+    if pointer_slug is not None:
+        _ci1811_ptr(root).write_text(pointer_slug + '\n', encoding='utf-8')
+    return d
+
+
+def _cleanup1811(*args):
+    return _sp1811.run(['bash', str(_CLEANUP1811), *args],
+                       capture_output=True, text=True)
+
+
+# A valid slug reaps only its own recorded handle: its run dir and the pointer that
+# still holds its slug go; a concurrent slug's run dir stays (AC: cleanup targets only
+# the recorded directory, never a sweep).
+with tempfile.TemporaryDirectory() as _td1811:
+    _r = Path(_td1811)
+    _mine = _seed1811(_r, 'issue-1811-mine', pointer_slug='issue-1811-mine')
+    _other = _seed1811(_r, 'issue-9999-other')
+    _res = _cleanup1811('--slug', 'issue-1811-mine', '--root', str(_r))
+    assert_eq("#1811 cleanup: valid slug exits 0", 0, _res.returncode)
+    assert_eq("#1811 cleanup: removes the run's own dir", False, _mine.exists())
+    assert_eq("#1811 cleanup: removes the pointer holding this run's slug",
+              False, _ci1811_ptr(_r).exists())
+    assert_eq("#1811 cleanup: leaves another slug's run dir untouched", True, _other.exists())
+
+# A pointer holding a DIFFERENT slug is a concurrent run's rebind — the own dir still
+# reaps, but the foreign pointer stays.
+with tempfile.TemporaryDirectory() as _td1811:
+    _r = Path(_td1811)
+    _mine = _seed1811(_r, 'mine', pointer_slug='someone-else')
+    _cleanup1811('--slug', 'mine', '--root', str(_r))
+    assert_eq("#1811 cleanup: reaps own dir even when the pointer holds another slug",
+              False, _mine.exists())
+    assert_eq("#1811 cleanup: leaves a pointer holding a different slug in place",
+              True, _ci1811_ptr(_r).exists())
+
+# Empty handle (no --slug): the residual-risk case — deletes nothing, exits 0.
+with tempfile.TemporaryDirectory() as _td1811:
+    _r = Path(_td1811)
+    _seed1811(_r, 'stays', pointer_slug='stays')
+    _res = _cleanup1811('--root', str(_r))
+    assert_eq("#1811 cleanup: empty handle exits 0", 0, _res.returncode)
+    assert_eq("#1811 cleanup: empty handle removes nothing (run dir)",
+              True, _ci1811_dir(_r, 'stays').exists())
+    assert_eq("#1811 cleanup: empty handle removes nothing (pointer)",
+              True, _ci1811_ptr(_r).exists())
+
+# Path-unsafe slug refuses (delete nothing, exit 0): the regex guard is what stops a
+# `../`-reaching handle from escaping the create-issue namespace and deleting a sibling.
+with tempfile.TemporaryDirectory() as _td1811:
+    _r = Path(_td1811)
+    _victim = _ci1811_dir(_r, 'victim')
+    _victim.mkdir(parents=True)
+    _res = _cleanup1811('--slug', '../create-issue/victim', '--root', str(_r))
+    assert_eq("#1811 cleanup: unsafe slug exits 0", 0, _res.returncode)
+    assert_eq("#1811 cleanup: unsafe slug deletes nothing (no traversal escape)",
+              True, _victim.exists())
+
+# Multiple roots: each root's own run dir is reaped.
+with tempfile.TemporaryDirectory() as _td1811a, tempfile.TemporaryDirectory() as _td1811b:
+    _r1, _r2 = Path(_td1811a), Path(_td1811b)
+    _d1, _d2 = _seed1811(_r1, 'slug'), _seed1811(_r2, 'slug')
+    _cleanup1811('--slug', 'slug', '--root', str(_r1), '--root', str(_r2))
+    assert_eq("#1811 cleanup: reaps the run dir under the first root", False, _d1.exists())
+    assert_eq("#1811 cleanup: reaps the run dir under the second root", False, _d2.exists())
+
+# Absent run dir: idempotent, exit 0 (a re-run or already-reaped handle).
+with tempfile.TemporaryDirectory() as _td1811:
+    _res = _cleanup1811('--slug', 'never-created', '--root', str(Path(_td1811)))
+    assert_eq("#1811 cleanup: absent run dir exits 0 non-destructively", 0, _res.returncode)
+
+# A trailing valueless flag must terminate — a bare `shift 2` on the last-arg flag
+# exceeds $# and fails without moving it, spinning the arg loop forever; run under a
+# timeout so a regression fails loudly (rc 124) instead of hanging the suite.
+with tempfile.TemporaryDirectory() as _td1811:
+    _r = Path(_td1811)
+    _kept = _seed1811(_r, 'kept', pointer_slug='kept')
+    _res = _sp1811.run(['timeout', '5', 'bash', str(_CLEANUP1811), '--root', str(_r), '--slug'],
+                       capture_output=True, text=True)
+    assert_eq("#1811 cleanup: a trailing valueless --slug terminates (no arg-loop spin)",
+              0, _res.returncode)
+    assert_eq("#1811 cleanup: the valueless-flag empty handle removes nothing",
+              True, _kept.exists())
+
+# Multi-root, present-under-A / absent-under-B: the reaper removes A's run dir and
+# treats B's absent dir as a non-error, with each root's pointer handled on its own.
+with tempfile.TemporaryDirectory() as _td1811a, tempfile.TemporaryDirectory() as _td1811b:
+    _rA, _rB = Path(_td1811a), Path(_td1811b)
+    _dA = _seed1811(_rA, 'slug', pointer_slug='slug')
+    _ci1811_dir(_rB, 'create-issue').parent.mkdir(parents=True, exist_ok=True)  # B has the namespace but no run dir
+    _res = _cleanup1811('--slug', 'slug', '--root', str(_rA), '--root', str(_rB))
+    assert_eq("#1811 cleanup: mixed roots exits 0", 0, _res.returncode)
+    assert_eq("#1811 cleanup: reaps the present run dir under root A", False, _dA.exists())
+    assert_eq("#1811 cleanup: removes root A's own-slug pointer", False, _ci1811_ptr(_rA).exists())
+    assert_eq("#1811 cleanup: absent run dir under root B leaves B's namespace untouched (clean non-error)",
+              True, (_rB / '.prflow' / 'tmp' / 'create-issue').is_dir())
+
+# A pointer written WITHOUT a trailing newline still matches: `read` returns non-zero
+# at EOF after assigning, so blanking the just-read slug on that non-zero would wrongly
+# skip the removal.
+with tempfile.TemporaryDirectory() as _td1811:
+    _r = Path(_td1811)
+    _seed1811(_r, 'nl')
+    _ci1811_ptr(_r).write_text('nl', encoding='utf-8')  # deliberately no trailing newline
+    _cleanup1811('--slug', 'nl', '--root', str(_r))
+    assert_eq("#1811 cleanup: a newline-less own-slug pointer is still removed",
+              False, _ci1811_ptr(_r).exists())
+
+# An interior-slash slug is refused too (the guard rejects any slug that is not a
+# single safe path segment, not only a leading-dot `../` form).
+with tempfile.TemporaryDirectory() as _td1811:
+    _r = Path(_td1811)
+    _victim = _ci1811_dir(_r, 'a')
+    (_victim / 'b').mkdir(parents=True)
+    _res = _cleanup1811('--slug', 'a/b', '--root', str(_r))
+    assert_eq("#1811 cleanup: an interior-slash slug exits 0", 0, _res.returncode)
+    assert_eq("#1811 cleanup: an interior-slash slug deletes nothing", True, (_victim / 'b').exists())
+
+# An empty --root value is skipped (the per-root `[ -n "$root" ]` guard), a non-error.
+with tempfile.TemporaryDirectory() as _td1811:
+    _r = Path(_td1811)
+    _kept = _seed1811(_r, 'slug')
+    _res = _cleanup1811('--slug', 'slug', '--root', '', '--root', str(_r))
+    assert_eq("#1811 cleanup: an empty --root is skipped and the real root still reaped",
+              (0, False, True), (_res.returncode, _kept.exists(), True))
+
+# An unexpected positional argument warns and is skipped, not fatal.
+with tempfile.TemporaryDirectory() as _td1811:
+    _r = Path(_td1811)
+    _mine = _seed1811(_r, 'slug')
+    _res = _cleanup1811('surprise', '--slug', 'slug', '--root', str(_r))
+    assert_eq("#1811 cleanup: an unexpected arg exits 0 and still reaps the run dir",
+              (0, False), (_res.returncode, _mine.exists()))
 
 # ── issue #1740: issue-claim-auditor per-pass disposition validator ──────────────
 # The deterministic consumer that turns a silently-skipped issue-claim pass into a visible

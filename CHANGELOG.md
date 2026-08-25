@@ -4,6 +4,61 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.35] — 2026-08-25
+
+### Fixed
+- **The review-coverage `roster` axis is now cross-checked against a per-member shadow enumeration instead of being a self-report.** `scripts/workpad.py` gains a `--record-roster-member` flag and a `_review_roster_incoherence` validator (checked at write time and at the `Status: Complete` read-time gate): `roster=complete` is refused unless every always-on shadow reviewer is recorded `dispatched` and no member is `missing`, while a member excluded by its applicability gate (`gated-off`) does not block complete, and `roster=short` must name a missing member. The fix loop now records the enumeration alongside the coverage record, and the shipped prose states that the in-loop Phase 3 roster and the shadow roster are separate, non-substitutable obligations. So a shadow narrower than the expected roster can no longer record `roster=complete`. (#1945)
+
+## [2.34.34] — 2026-08-25
+
+### Changed
+- **Fold label config resolution and outcome classification into `apply-labels.sh`.** The helper
+  gains a `--config-key`/`--config-fallback` config-driven mode (it resolves the label list itself
+  through `config-get.sh`), folds per-label creation in (call sites need no separate
+  `ensure-label.sh` call), and prints exactly one stdout outcome token — `applied`,
+  `nothing-to-apply`, `arg-slip`, `api-failure`, or `config-unreadable` — on every path it runs, so
+  call sites route on a token instead of matching English stderr sentences. Every stderr breadcrumb
+  is preserved byte-for-byte. `ensure-label.sh` now classifies an already-exists response with a
+  bash `case` match instead of `grep`, so a host without `grep` reports the benign already-exists as
+  success. The four implement label call sites collapse to a single `apply-labels.sh` invocation
+  each, and two stale sentences in the internal docs plus a stale test comment are corrected. (#1936)
+
+## [2.34.33] — 2026-08-25
+
+### Added
+- **Retrospective Stage A entries now carry `additions`, `deletions`, and `changed_files`,
+  echoed from the context bundle.** The Stage A output schema and `lib/clean-entry.jq` preserve
+  those fields (additive under the existing `schema_version` 3); an entry written by a producer that
+  lacks them still cleans without error. Adds `docs/internal/incomplete-edit-cost-analysis.md`,
+  which analyzes the `incomplete-edit` cohort against `efficiency_runs[].iterations` and finds
+  the current durable records insufficient to decide whether the category is predictable at
+  declare-done. (#1944)
+
+## [2.34.32] — 2026-08-25
+
+### Added
+- **Add a clock-authored `event` subcommand to `scripts/verification-flight.py` and instrument the Phase 2 and Phase 3 boundaries with it.** The subcommand appends a `{"event": …, "recorded_at": …}` record — timestamped from the helper's own clock — to an append-only JSONL log under `.prflow/logs/phase-events/`, and always exits 0 so a failed write only breadcrumbs and never blocks the run. The implement Phase 2 durability-checkpoint boundaries and the Phase 3 `/simplify`, reviewer-dispatch/return, and shadow-entry boundaries now emit one such event, so a long or expensive implement run's interior timeline is reconstructible from disk. (#1961)
+
+## [2.34.31] — 2026-08-25
+
+### Fixed
+- **`post_bot_commits` no longer counts blank-login agent commits as human rework.** The retrospective's `post_bot_commits` field (in `lib/fetch-pr-context.sh`) now counts a non-merge commit after the last bot/PR-author commit only when it is positively human-attributable — its `author_login` or `committer_login` is a non-blank string that neither ends in `[bot]` nor equals the PR author. A commit whose two logins the API returns blank (the local-tier agent identity GitHub cannot resolve to an account) is classified agent-side, never human — unknown is not a human; a commit with one blank and one human login is still counted. The classification is also type-guarded, so a non-string login cannot abort the filter — hardening, not a live fix, since the producer already normalizes an absent login to `""` before the filter sees it. The coupled `POSTBOT_SHAS` block and the field's `lib/cheap-gate.jq` description are updated to match. (#1941)
+
+## [2.34.30] — 2026-08-25
+
+### Fixed
+- **Refuse a `skipped-intentional` review-coverage checklist claim the diff does not authorize.** `workpad.py`'s `--record-review-coverage` now recomputes the reviewed diff from git alone — the reviewed head recorded on the coverage record's as-of anchor measured against the pull request's own base (falling back to `origin/HEAD`) — and refuses a `skipped-intentional` claim whose diff exceeds the profile row that authorizes the skip (changed lines below 100, changed files at most 3, config-only extensions, and, only in this engine's own repository, no engine-source path). An unresolvable recomputation records the axis `unestablished` rather than refusing, a confirmed one writes today's record unchanged and reports the measured values, and a recorded override channel downgrades to a non-clean bare `skipped` that still forces a disposition. `phase-1-checklist.md` now names the `checklist_skipped = "failure"` literal at the generation-failure point. (#1966)
+
+## [2.34.29] — 2026-08-25
+
+### Changed
+- **create-issue now namespaces its scratch under `.prflow/tmp/create-issue/<slug>/` and reaps it on success.** Every run artifact (drafts, staged history, audit files, audit state, emitted body, fetched copies, derivation artifact) is written into a per-run sub-directory instead of as a flat file directly under `.prflow/tmp/`, and a run that creates its issue removes its own run directory as its final step (keyed to the recorded slug — never a pattern or age sweep, so concurrent runs in sibling worktrees are untouched); a run that ends any other way leaves the directory in place as its diagnostic record. Pre-existing flat `issue-*` files are left untouched. (#1957)
+
+## [2.34.28] — 2026-08-25
+
+### Fixed
+- **The `PreToolUse` shape guard's hook command now fails open when `python3` is absent, and the wiring question is recorded as decided.** The registered hook probed for the guard *script* and exited 0 when it was missing, but ended in a bare `exec python3` — which exits 127 on a host with no `python3` on `PATH`, routine on a self-hosted Windows runner. Since a non-zero `PreToolUse` exit blocks the tool call rather than falling through, that turned a missing interpreter into a blocked Bash call on every invocation for a consumer still running the pre-#937 review tier; the command now carries `command -v python3 >/dev/null 2>&1 || exit 0`. Alongside it, issue #1047's wiring question is settled as **retained-but-inert** — the guard stays registered on `devflow-runner.yml` and no live tier registers it — with the rationale, the evidence that would reopen it, and why deletion was refused recorded in `docs/internal/cloud-allowlist.md`. One implement-tier `mktemp` rationale comment in `lib/test/run.sh` is corrected from asserting a *measured* matcher refusal of leading `VAR=$(…)` captures to recording that status as unmeasured on that tier, and two review-tier `R1` comments in `lib/test/extract-command-shapes.py` are changed from "proven-permitted" to "observed-permitted", matching the single observed run that file already cites. (#1047)
+
 ## [2.34.27] — 2026-08-25
 
 ### Changed

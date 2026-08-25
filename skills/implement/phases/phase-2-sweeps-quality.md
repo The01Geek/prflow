@@ -223,6 +223,11 @@ Cloud-tier workflow-edit commit guard (fires the Pass 5 / 2.2.5 backstop here). 
 .prflow/vendor/prflow/scripts/phase2-durability-checkpoint.sh "feat: implement issue #$ARGUMENTS — {short description from issue title}" {every path this run created or modified}
 ```
 
+At this durability-checkpoint boundary also append a `phase2-checkpoint` event (best-effort; the helper always exits 0 and never blocks the run):
+```bash
+.prflow/vendor/prflow/scripts/verification-flight.py event phase2-checkpoint
+```
+
 If the change includes test fixes, name those paths in this same final checkpoint (one commit combining implementation and fixes).
 
 Act on a non-zero helper exit — it is not a crash and must not be ignored. The helper exits non-zero when the checkpoint did not land — a rejected non-fast-forward leaves `HEAD` != `@{u}` (exit 3); an `Everything up-to-date` push is likewise exit 3 only when that comparison still shows the checkpoint commit did not reach the tracked branch — or when a git operation failed (exit 4), or a stage-all token / missing message was refused (exit 2). An unlanded checkpoint leaves the branch's tip unpushed, so Phase 3.1's `gh pr create` later refuses. Two documented ways it fails: running in the cloud, when the App token is not seeded pushes run as `github-actions[bot]`, so a push whose commit touches `.github/workflows/` is rejected; running locally, the permission classifier can refuse the command outright — a refusal, not a crash — and the helper produces no output at all. On any non-zero exit — or no output at all (a harness refusal) — read the helper's stderr breadcrumb, record a `dropped-failed` reflection naming the cause, and resolve it (seed the App token, defer the workflow file via the cloud-tier workflow-edit commit guard above, or rebase/re-run) before advancing to Phase 3; do not tick the implementation gate on an unlanded checkpoint. (The helper's plain `git push` resolves to the upstream Phase 1.5 already set with `git push -u origin HEAD`.)
