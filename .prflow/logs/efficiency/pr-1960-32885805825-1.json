@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1960",
+  "generated_at": "2026-08-25T19:00:07Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.25",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 9.656326150000003,
+    "tokens": {
+      "input_tokens": 58,
+      "output_tokens": 33067,
+      "cache_read_input_tokens": 4336145,
+      "cache_creation_input_tokens": 214871,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 120,
+        "outputTokens": 50917,
+        "cacheReadInputTokens": 5803998,
+        "cacheCreationInputTokens": 567750,
+        "webSearchRequests": 0,
+        "costUSD": 8.529727750000001,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 60,
+        "outputTokens": 9416,
+        "cacheReadInputTokens": 1260092,
+        "cacheCreationInputTokens": 312120,
+        "webSearchRequests": 0,
+        "costUSD": 1.1265983999999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 46,
+    "duration_ms": 628771
+  },
+  "permission_denials": {
+    "count": 11,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-<none>} ATTEMPT=${GITHUB_RUN_ATTEMPT:-<none>}\"; mkdir -p .prflow/tmp/review/pr-1960/local-review; gh pr diff 1960 | awk '/^diff --git/{in_logs=/ [ab]\\/\\.prflow\\/logs\\//} !in_logs' | tee .prflow/tmp/review/pr-1960/local-review/diff.patch | grep -c '^diff --git'",
+      "mkdir -p .prflow/tmp/review/pr-1960/local-review/verdicts/iter-1; rm -f .prflow/tmp/review/pr-1960/local-review/verdicts/iter-1/*.json; .prflow/vendor/prflow/scripts/resolve-review-overrides.py \"prflow:checklist-verifier\"; echo \"rc=$?\"",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1960/local-review/verdicts/iter-1\ncat > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1960/local-review/verdicts/iter-1/VC-1-n7k2q9.json << 'EOF'\n{\"id\":\"VC-1\",\"verdict\":\"PASS\",\"evidence\":\"scripts/dedupe-review-command.sh header at HEAD 6e2f0da0 (git show) 'accepted cost 2' block now explicitly qualifies: 'It holds ONLY for a hosting run that seeds such a live PR progress comment... A host that seeds NO PR comment does not sup …[per-command-truncated]",
+      "mkdir -p .prflow/tmp; rm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled; git status --porcelain -z > .prflow/tmp/review-dirty-tree-before; git hash-object .prflow/tmp/review-dirty-tree-before; .prflow/vendor/prflow/scripts/resolve-review-overrides.py \"prflow:code-reviewer\" \"prflow:silent-failure-hunter\" \"prflow:comment-analyzer\" \"prflow:pr-test-analyzer\" \"prflow:requesting-code-review\"; echo \"rc=$?\"",
+      "cd /home/runner/work/prflow/prflow\ndiff <(git show 8b40a02ca2d95703c5144ac63fee5963f4d3b4ec:scripts/dedupe-review-command.sh | grep -v '^#') <(git show 6e2f0da0cac00d2df0db05bb52ffad270ff359dc:scripts/dedupe-review-command.sh | grep -v '^#') && echo \"NON-COMMENT LINES IDENTICAL\"",
+      "cd /tmp\ngit -C /home/runner/work/prflow/prflow show 8b40a02ca2d95703c5144ac63fee5963f4d3b4ec:scripts/dedupe-review-command.sh | grep -v '^#' > base.sh\ngit -C /home/runner/work/prflow/prflow show 6e2f0da0cac00d2df0db05bb52ffad270ff359dc:scripts/dedupe-review-command.sh | grep -v '^#' > head.sh\ndiff base.sh head.sh && echo \"NON-COMMENT LINES IDENTICAL\"",
+      "git -C /home/runner/work/prflow/prflow show 8b40a02ca2d95703c5144ac63fee5963f4d3b4ec:scripts/dedupe-review-command.sh | grep -v '^#' > /tmp/base.sh; git -C /home/runner/work/prflow/prflow show 6e2f0da0cac00d2df0db05bb52ffad270ff359dc:scripts/dedupe-review-command.sh | grep -v '^#' > /tmp/head.sh; diff /tmp/base.sh /tmp/head.sh && echo \"NON-COMMENT LINES IDENTICAL\"",
+      "git -C /home/runner/work/prflow/prflow show 8b40a02ca2d95703c5144ac63fee5963f4d3b4ec:scripts/dedupe-review-command.sh > /tmp/base_full.sh",
+      "git -C /home/runner/work/prflow/prflow show 6e2f0da0cac00d2df0db05bb52ffad270ff359dc:scripts/dedupe-review-command.sh > /tmp/head_full.sh",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/rev; git -C /home/runner/work/prflow/prflow show 8b40a02ca2d95703c5144ac63fee5963f4d3b4ec:scripts/dedupe-review-command.sh > /home/runner/work/prflow/prflow/.prflow/tmp/rev/base.sh",
+      "git -C /home/runner/work/prflow/prflow show 6e2f0da0cac00d2df0db05bb52ffad270ff359dc:scripts/dedupe-review-command.sh > /home/runner/work/prflow/prflow/.prflow/tmp/rev/head.sh"
+    ],
+    "total": 11,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
