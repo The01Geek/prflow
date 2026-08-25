@@ -33,6 +33,16 @@ final response is one marker line carrying what it read, and the top-level sessi
 that back through its own Bash call. A Bash `tool_use` carrying the hop-two marker is the
 harness-recorded evidence. The model's prose is never the measurement.
 
+HOW HOP ONE IS MADE MEASURABLE (issue #1321). Hop one runs in the orchestrator's own shell,
+so Action 2 (`printf 'ENVPROBE_HOP1 %s\n' "${VAR}"`) prints the shell-EXPANDED value and the
+harness records it as that Bash call's tool_result OUTPUT. The prompt's Action-3 echo-back was
+meant to copy that value into a tool_use input, but it is model-performed and can silently
+degrade (run 30956039324 recorded hop one silent while hop two reported). So `collect` reads
+tool_result OUTPUTS too and hop one is derived from Action 2's recorded output directly. The
+`_OBSERVED` guard is unweakened: the unexpanded instruction text lives only in a tool_use
+input, never in a tool_result output, so widening the read cannot count a commanded-but-unread
+value.
+
 WHAT THIS PROBE DOES NOT ESTABLISH. It measures visibility of a sentinel value, not of
 `DEVFLOW_PROMPT_EXTENSION_ROOT` under a real review run's step ordering, and it rests on
 a cooperative model faithfully reporting what it read — a compliant model reaches the
@@ -121,17 +131,42 @@ def parse_execution_file(exec_file):
     return parsed, ""
 
 
-def collect(parsed):
-    """Walk the parsed structure and return the recorded tool_use entries as text.
+def _tool_result_text(node):
+    """Return a tool_result node's recorded OUTPUT content as text.
 
-    A tool_use node is recorded even when it carries no `input` key, so an input-less
-    entry is not silently dropped."""
-    tool_uses = []
+    Handles the two observed content shapes — a bare string, or a list of
+    `{"type": "text", "text": ...}` blocks (mirroring placeholder-probe-verdict.py's own
+    str/list handling); any other shape yields ''."""
+    content = node.get("content")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "\n".join(
+            b["text"] for b in content
+            if isinstance(b, dict) and isinstance(b.get("text"), str)
+        )
+    return ""
+
+
+def collect(parsed):
+    """Walk the parsed structure and return the recorded entries as text — each
+    tool_use INPUT and each tool_result OUTPUT content.
+
+    Hop one's genuine reading is the shell-EXPANDED value printed by Action 2, recorded in
+    that Bash call's tool_result OUTPUT — never in a tool_use input, which by design carries
+    the variable unexpanded. Reading tool_result output is what makes hop one measurable
+    without depending on the model's manual echo-back (issue #1321); the `_OBSERVED` guard in
+    `_hop_values` still rejects the unexpanded instruction text, which only ever appears in a
+    tool_use input. A tool_use node is recorded even when it carries no `input` key, so an
+    input-less entry is not silently dropped."""
+    entries = []
 
     def walk(o):
         if isinstance(o, dict):
             if o.get("type") == "tool_use":
-                tool_uses.append(json.dumps(o.get("input")) + " NAME=" + str(o.get("name", "")))
+                entries.append(json.dumps(o.get("input")) + " NAME=" + str(o.get("name", "")))
+            elif o.get("type") == "tool_result":
+                entries.append(_tool_result_text(o))
             for v in o.values():
                 walk(v)
         elif isinstance(o, list):
@@ -139,7 +174,7 @@ def collect(parsed):
                 walk(it)
 
     walk(parsed)
-    return tool_uses
+    return entries
 
 
 def compute_verdict(tool_uses, note_top):
@@ -165,7 +200,7 @@ def compute_verdict(tool_uses, note_top):
     if note_top:
         return "INCONCLUSIVE", "the execution file could not be read cleanly: " + note_top, False
     if not tool_uses:
-        return "INCONCLUSIVE", "no tool_use entries were recorded, so nothing was measured", False
+        return "INCONCLUSIVE", "no tool_use or tool_result entries were recorded, so nothing was measured", False
     if not (before and after):
         return (
             "INCONCLUSIVE",
@@ -230,8 +265,8 @@ def render(exec_file):
     out.append(reason + ".")
     out.append("")
     out.append(
-        "Deterministic verdict from the execution file's recorded `tool_use` entries — "
-        "the model's prose is never the measurement. Sentinel: `%s`." % SENTINEL
+        "Deterministic verdict from the execution file's recorded `tool_use` inputs and "
+        "`tool_result` outputs — the model's prose is never the measurement. Sentinel: `%s`." % SENTINEL
     )
     out.append("")
     if record_it:
@@ -245,7 +280,7 @@ def render(exec_file):
             "Re-dispatch the probe."
         )
     out.append("")
-    out.append("### Raw tool_use entries (%d)" % len(tool_uses))
+    out.append("### Raw recorded entries — tool_use inputs + tool_result outputs (%d)" % len(tool_uses))
     out.append("")
     if tool_uses:
         out.append("```")
@@ -253,7 +288,7 @@ def render(exec_file):
             out.append(t[:400])
         out.append("```")
     else:
-        out.append("_No tool_use entries found in the execution file._")
+        out.append("_No tool_use or tool_result entries found in the execution file._")
     return "\n".join(out)
 
 

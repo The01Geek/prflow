@@ -23490,6 +23490,35 @@ assert_eq "#874 env-probe verdict: the echo-backs alongside the instruction text
 EPV_LEAK="$(devflow_epv "$EPV_CB" "$EPV_CA" "ENVPROBE_HOP1 $EPV_SENT" "ENVPROBE_HOP2 UNSET" "a stray mention of $EPV_SENT")"
 assert_eq "#874 env-probe verdict: a stray sentinel elsewhere does not credit the silent hop" "ORCHESTRATOR_ONLY" \
   "$(devflow_epv_verdict "$EPV_LEAK")"
+# ── The tool_result-output arm (issue #1321). A collector reading only tool_use INPUTS
+# misses hop one's genuine reading, which the harness records as Action 2's Bash tool_result
+# OUTPUT (run 30956039324's silent hop one). This fixture is that recorded shape — Action 2's
+# unexpanded tool_use input plus its tool_result output carrying the sentinel, no echo-back —
+# and the SAME entries without that tool_result line (below) must stay silent, so the
+# tool_result output is exactly what discriminates.
+EPV_TRESULT="$(devflow_epv RAW '{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_CONTROL_BEFORE"}}
+{"type":"tool_use","name":"Bash","input":{"command":"printf '"'"'ENVPROBE_HOP1 %s'"'"' \"${DEVFLOW_PROMPT_EXTENSION_ROOT:-UNSET}\""}}
+{"type":"tool_result","tool_use_id":"h1","content":"ENVPROBE_HOP1 DEVFLOW_ENVPROBE_SENTINEL_874\n","is_error":false}
+{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_HOP2 DEVFLOW_ENVPROBE_SENTINEL_874"}}
+{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_CONTROL_AFTER"}}')"
+assert_eq "#1321 env-probe verdict: hop one read from Action 2 tool_result output → BOTH_HOPS" "BOTH_HOPS" \
+  "$(devflow_epv_verdict "$EPV_TRESULT")"
+# Discrimination: the SAME entries WITHOUT the hop-one tool_result line read hop-one-silent,
+# so the tool_result output is what flips the verdict (the pre-fix collector saw only these).
+EPV_TRESULT_NONE="$(devflow_epv RAW '{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_CONTROL_BEFORE"}}
+{"type":"tool_use","name":"Bash","input":{"command":"printf '"'"'ENVPROBE_HOP1 %s'"'"' \"${DEVFLOW_PROMPT_EXTENSION_ROOT:-UNSET}\""}}
+{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_HOP2 DEVFLOW_ENVPROBE_SENTINEL_874"}}
+{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_CONTROL_AFTER"}}')"
+assert_eq "#1321 env-probe verdict: the same entries without that tool_result stay INCONCLUSIVE" "INCONCLUSIVE" \
+  "$(devflow_epv_verdict "$EPV_TRESULT_NONE")"
+# A tool_result output carrying UNSET is a REAL negative (hop looked, nothing propagated) —
+# reported, not silent — so reading tool_result never fabricates propagation.
+EPV_TRESULT_UNSET="$(devflow_epv RAW '{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_CONTROL_BEFORE"}}
+{"type":"tool_result","tool_use_id":"h1","content":"ENVPROBE_HOP1 UNSET\n","is_error":false}
+{"type":"tool_result","tool_use_id":"h2","content":[{"type":"text","text":"ENVPROBE_HOP2 UNSET\n"}],"is_error":false}
+{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_CONTROL_AFTER"}}')"
+assert_eq "#1321 env-probe verdict: tool_result outputs reading UNSET at both hops → NEITHER_HOP" "NEITHER_HOP" \
+  "$(devflow_epv_verdict "$EPV_TRESULT_UNSET")"
 # The helper never raises through its always-exit-0 contract.
 python3 "$EPV" "$EPV_TMP/no-such-file.jsonl" >/dev/null 2>&1
 assert_eq "#874 env-probe verdict: exits 0 even on an absent execution file" "0" "$?"
