@@ -4383,7 +4383,7 @@ def _review_coverage_incoherence(record: dict) -> str | None:
 def _review_roster_members(progress_content: str) -> dict:
     """The enumerated shadow roster as `{member: status}`, read from the `## Progress`
     content — one `review-roster:<member>:<status>` marker row per member. A member with
-    two rows maps to `_REVIEW_ROSTER_DUPLICATE`; a malformed payload is skipped, so that
+    more than one row maps to `_REVIEW_ROSTER_DUPLICATE`; a malformed payload is skipped, so that
     member reads as absent and a `complete` claim that needed it is refused. Read back
     here rather than trusted from the writing call, so an enumeration recorded at the
     Phase 3.3 review exit still reaches the Phase 4.3 finalize call, which repeats no
