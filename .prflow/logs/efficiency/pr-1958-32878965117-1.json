@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1958",
+  "generated_at": "2026-08-25T17:52:32Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.22",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 15.656087250000004,
+    "tokens": {
+      "input_tokens": 42,
+      "output_tokens": 33936,
+      "cache_read_input_tokens": 3316736,
+      "cache_creation_input_tokens": 219154,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 246,
+        "outputTokens": 116689,
+        "cacheReadInputTokens": 12400347,
+        "cacheCreationInputTokens": 914501,
+        "webSearchRequests": 0,
+        "costUSD": 15.656087250000004,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 38,
+    "duration_ms": 783078
+  },
+  "permission_denials": {
+    "count": 14,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"RUN_ID=${GITHUB_RUN_ID:-<unset>} ATTEMPT=${GITHUB_RUN_ATTEMPT:-<unset>} ACTIONS=${GITHUB_ACTIONS:-<unset>}\"; echo \"---headoid---\"; gh pr view 1958 --json headRefOid,baseRefOid,headRefName --jq '.headRefOid + \" base=\" + .baseRefOid + \" headref=\" + .headRefName'",
+      "mkdir -p .prflow/tmp; rm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null; git status --porcelain -z > .prflow/tmp/review-dirty-tree-before && git hash-object .prflow/tmp/review-dirty-tree-before",
+      "for m in review-contract implement-contract workpad-cli; do\necho \"== $m ==\"\ngit show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/modules/$m.sh | grep -c \"assert_eq\"\ndone",
+      "for l in \"#693 scanner\" \"#338(T6)\" \"#1264 placeholder\" \"#1618 skill-body\" \"#1897\"; do\n  c=$(git show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/run.sh | grep -c \"$l\")\n  echo \"run.sh occurrences of [$l]: $c\"\ndone",
+      "git show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/run.sh > /tmp/head_runsh.txt; wc -l /tmp/head_runsh.txt",
+      "git show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/run.sh > /tmp/head_runsh.txt",
+      "git show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/run.sh > .prflow/tmp/head_runsh.txt",
+      "p=.prflow/tmp/review/pr-1958/local-run/diff.patch\necho \"=== added assert_eq per module file ===\"\nawk '/^diff --git/{f=$0} /^\\+.*assert_eq /{print f}' \"$p\" | sort | uniq -c\necho \"=== removed assert_eq total (run.sh) ===\"\ngrep -c '^-.*assert_eq ' \"$p\"\necho \"=== added assert_eq in review-contract.sh region ===\"\nawk '/^\\+\\+\\+ b\\/lib\\/test\\/modules\\/review-contract.sh/{inr=1} /^\\+\\+\\+ b\\/lib\\/test\\/modules\\/workpad-cli.sh/{inr=0} inr && /^\\+.*assert_eq /' \"$p\" | wc -l",
+      "for m in implement-contract review-contract workpad-cli; do echo \"=== $m ===\"; lib/test/run-module.sh $m 2>&1 | tail -4; done",
+      "git worktree add -q /tmp/pr1958 3f193f668f9293d22ce72d7ac21dc4339059124c 2>&1; cd /tmp/pr1958 && for m in implement-contract review-contract workpad-cli; do echo \"=== $m ===\"; lib/test/run-module.sh $m 2>&1 | tail -3; done",
+      "git worktree add -q /tmp/pr1958 3f193f668f9293d22ce72d7ac21dc4339059124c; ls /tmp/pr1958/lib/test/modules/ | grep -E 'implement-contract|review-contract|workpad-cli'",
+      "git worktree add -q /tmp/pr1958 3f193f668f9293d22ce72d7ac21dc4339059124c",
+      "for m in review-contract implement-contract workpad-cli; do\necho \"== $m ==\"\ngit show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/modules/$m.sh | grep -cE \"^[[:space:]]*assert_eq|devflow_module_pin\"\ndone",
+      "for f in review-contract implement-contract workpad-cli; do echo \"===== $f.inventory.md =====\"; git show 3f193f668f9293d22ce72d7ac21dc4339059124c:lib/test/modules/$f.inventory.md; echo; done"
+    ],
+    "total": 14,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
