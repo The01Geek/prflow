@@ -11851,12 +11851,8 @@ assert_eq("#1453: the verdict returns None on a complete record",
           None, workpad._review_coverage_verdict(
               "- 03:00:00 — "
               + workpad._review_coverage_marker("full:attempted:complete:complete")
-              + "".join(
-                  "\n- 03:00:0%d — %s %s" % (
-                      i + 1,
-                      workpad._render_review_roster_member(m, "dispatched"),
-                      workpad._review_roster_marker(m, "dispatched"))
-                  for i, m in enumerate(workpad._SHADOW_ALWAYS_ON_MEMBERS))))
+              + _rc_roster_rows(
+                  [(m, "dispatched") for m in workpad._SHADOW_ALWAYS_ON_MEMBERS])))
 assert_raises("#1453: the verdict raises _UpdateError on an absent record",
               workpad._UpdateError,
               lambda: workpad._review_coverage_verdict("- 03:00:00 — nothing here"))
