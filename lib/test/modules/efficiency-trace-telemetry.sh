@@ -178,6 +178,104 @@ assert_eq "et: cut_candidate_min_dispatch carried into record (default 3)" "3" \
 assert_eq "et: checklist split lite=2" "2" "$(echo "$ET_REC" | jq -r '.per_iteration[] | select(.iter==1) | .checklist_lite_count')"
 assert_eq "et: checklist split agent=1" "1" "$(echo "$ET_REC" | jq -r '.per_iteration[] | select(.iter==1) | .checklist_agent_count')"
 
+# ── Per-agent disposition decomposing the null residual (issue #1849) ─────────
+# The null verdict collapsed opposite states (silent / failed / all-deferred). The
+# producer now emits a per-agent `disposition` (returned | failed | silent |
+# unestablished) and a `fix_decisions` roll-up beside the derived verdict, computed
+# only over an established roster. Operands: the new unconditional `phase3_failed_agents`
+# array (AC5 sink) unioned with the shadow block's `per_reviewer_assessment`
+# lost reviewers (AC4). Each expected value is written literally.
+ET_DISP="$(mktemp -d)"
+# iter-1: roster a,b,c,d; phase3_failed_agents names d. a applied (returned), b
+# deferred-only (returned, verdict null, roll-up ["deferred"] — distinguishable
+# from silence), c dispatched-silent (silent), d failed.
+cat > "$ET_DISP/iter-1.json" <<'EOF'
+{"iter":1,"phase3_dispatched":["a","b","c","d"],"phase3_failed_agents":["d"],
+"phase3_findings":[
+  {"agent":"a","corroboration_count":1,"fix_decision":"applied"},
+  {"agent":"b","corroboration_count":1,"fix_decision":"deferred"}
+],"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+# iter-2: historical arm (AC7) — phase3_failed_agents ABSENT. e is dispatched-silent
+# but its failed-vs-silent split is unestablished, never mapped onto "silent".
+cat > "$ET_DISP/iter-2.json" <<'EOF'
+{"iter":2,"phase3_dispatched":["a","e"],
+"phase3_findings":[{"agent":"a","corroboration_count":1,"fix_decision":"applied"}],
+"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+# iter-3: roster-unestablished arm (AC3) — phase3_dispatched ABSENT. a is
+# establishable from findings (returned); no silent agent is invented.
+cat > "$ET_DISP/iter-3.json" <<'EOF'
+{"iter":3,"phase3_failed_agents":[],
+"phase3_findings":[{"agent":"a","corroboration_count":1,"fix_decision":"applied"}],
+"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+# iter-4: AC4 — the shadow per-reviewer assessment feeds the disposition. f is
+# dispatched, absent from findings, and marked returned:false by the shadow join → failed.
+cat > "$ET_DISP/iter-4.json" <<'EOF'
+{"iter":4,"phase3_dispatched":["a","f"],
+"phase3_findings":[{"agent":"a","corroboration_count":1,"fix_decision":"applied"}],
+"shadow":{"per_reviewer_assessment":[{"agent":"f","returned":false},{"agent":"a","returned":true}]},
+"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+ET_DISP_REC="$(bash "$LIB/efficiency-trace.sh" --workpad-dir "$ET_DISP" --slug pr-1849 --mode record)"
+ET_disp() { echo "$ET_DISP_REC" | jq -r --argjson i "$1" --arg a "$2" '.per_iteration[] | select(.iter==$i) | .agent_verdicts[] | select(.agent==$a) | .disposition'; }
+ET_roll() { echo "$ET_DISP_REC" | jq -c --argjson i "$1" --arg a "$2" '.per_iteration[] | select(.iter==$i) | .agent_verdicts[] | select(.agent==$a) | .fix_decisions'; }
+assert_eq "et(#1849): agent with findings → returned disposition"                 "returned"      "$(ET_disp 1 'a')"
+assert_eq "et(#1849): deferred-only agent → returned disposition"                 "returned"      "$(ET_disp 1 'b')"
+assert_eq "et(#1849): deferred-only agent verdict is still JSON null"             "null" \
+  "$(echo "$ET_DISP_REC" | jq -r '.per_iteration[] | select(.iter==1) | .agent_verdicts[] | select(.agent=="b") | .verdict | type')"
+assert_eq "et(#1849/AC2): fix_decision roll-up distinguishes all-deferred from silence" '["deferred"]' "$(ET_roll 1 'b')"
+assert_eq "et(#1849): dispatched-silent agent (failed set present, unnamed) → silent" "silent"    "$(ET_disp 1 'c')"
+assert_eq "et(#1849): silent agent roll-up is empty (no findings)"                '[]'            "$(ET_roll 1 'c')"
+assert_eq "et(#1849/AC5): agent in phase3_failed_agents → failed disposition"     "failed"        "$(ET_disp 1 'd')"
+assert_eq "et(#1849/AC7): historical iter (failed field absent) silent agent → unestablished" "unestablished" "$(ET_disp 2 'e')"
+assert_eq "et(#1849): returned agent establishable without the failed field"      "returned"      "$(ET_disp 2 'a')"
+assert_eq "et(#1849/AC3): roster-absent iter carries phase3_dispatched_present=false" "false" \
+  "$(echo "$ET_DISP_REC" | jq -r '.per_iteration[] | select(.iter==3) | .phase3_dispatched_present')"
+assert_eq "et(#1849/AC3): roster-absent iter — returned agent still returned"      "returned"     "$(ET_disp 3 'a')"
+assert_eq "et(#1849/AC3): roster-absent iter invents no silent/failed agent"       "0" \
+  "$(echo "$ET_DISP_REC" | jq -r '[.per_iteration[] | select(.iter==3) | .agent_verdicts[] | select(.disposition=="silent" or .disposition=="failed")] | length')"
+assert_eq "et(#1849/AC4): shadow per_reviewer_assessment lost reviewer → failed"  "failed"        "$(ET_disp 4 'f')"
+assert_eq "et(#1849): phase3_failed_agents_present carried into record (present iter)" "true" \
+  "$(echo "$ET_DISP_REC" | jq -r '.per_iteration[] | select(.iter==1) | .phase3_failed_agents_present')"
+assert_eq "et(#1849/AC7): phase3_failed_agents_present false on historical iter"   "false" \
+  "$(echo "$ET_DISP_REC" | jq -r '.per_iteration[] | select(.iter==2) | .phase3_failed_agents_present')"
+
+# Adversarial phase3_failed_agents shapes (agent-mutable input): the filter must
+# never abort, and a non-array value must not establish the failed set — a silent
+# agent then reads unestablished, never silently "silent".
+ET_ADV="$(mktemp -d)"
+cat > "$ET_ADV/iter-1.json" <<'EOF'
+{"iter":1,"phase3_dispatched":["a","z"],"phase3_failed_agents":{},"phase3_findings":[{"agent":"a","fix_decision":"applied","corroboration_count":1}],"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+cat > "$ET_ADV/iter-2.json" <<'EOF'
+{"iter":2,"phase3_dispatched":["a","z"],"phase3_failed_agents":"z","phase3_findings":[{"agent":"a","fix_decision":"applied","corroboration_count":1}],"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+cat > "$ET_ADV/iter-3.json" <<'EOF'
+{"iter":3,"phase3_dispatched":["a","z"],"phase3_failed_agents":false,"phase3_findings":[{"agent":"a","fix_decision":"applied","corroboration_count":1}],"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+cat > "$ET_ADV/iter-4.json" <<'EOF'
+{"iter":4,"phase3_dispatched":["a","z"],"phase3_failed_agents":0,"phase3_findings":[{"agent":"a","fix_decision":"applied","corroboration_count":1}],"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+cat > "$ET_ADV/iter-5.json" <<'EOF'
+{"iter":5,"phase3_dispatched":["a","z"],"phase3_failed_agents":"","phase3_findings":[{"agent":"a","fix_decision":"applied","corroboration_count":1}],"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+cat > "$ET_ADV/iter-6.json" <<'EOF'
+{"iter":6,"phase3_dispatched":["a","z"],"phase3_failed_agents":7,"phase3_findings":[{"agent":"a","fix_decision":"applied","corroboration_count":1}],"convergence_inputs":{"fixes_applied":1},"telemetry":null}
+EOF
+ET_ADV_RC=0; ET_ADV_REC="$(bash "$LIB/efficiency-trace.sh" --workpad-dir "$ET_ADV" --slug pr-adv --mode record)" || ET_ADV_RC=$?
+assert_eq "et(#1849 adversarial): malformed phase3_failed_agents never aborts the filter (exit 0)" "0" "$ET_ADV_RC"
+assert_eq "et(#1849 adversarial): all six malformed shapes still produce iteration records" "6" \
+  "$(echo "$ET_ADV_REC" | jq -r '.iterations')"
+assert_eq "et(#1849 adversarial): object failed field → silent agent unestablished" "unestablished" \
+  "$(echo "$ET_ADV_REC" | jq -r '.per_iteration[] | select(.iter==1) | .agent_verdicts[] | select(.agent=="z") | .disposition')"
+assert_eq "et(#1849 adversarial): scalar-string failed field → silent agent unestablished" "unestablished" \
+  "$(echo "$ET_ADV_REC" | jq -r '.per_iteration[] | select(.iter==2) | .agent_verdicts[] | select(.agent=="z") | .disposition')"
+assert_eq "et(#1849 adversarial): valid-falsy (false) failed field → silent agent unestablished" "unestablished" \
+  "$(echo "$ET_ADV_REC" | jq -r '.per_iteration[] | select(.iter==3) | .agent_verdicts[] | select(.agent=="z") | .disposition')"
+rm -rf "$ET_DISP" "$ET_ADV"
+
 # diff_profile + verification posture: the Phase 0.5 classification is carried
 # into the record (so the cross-run analyzer can segment by diff shape), and the
 # orchestrator's no-subagent cost decision is logged as an explicit posture
