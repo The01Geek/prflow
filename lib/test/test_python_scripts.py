@@ -35581,8 +35581,8 @@ with tempfile.TemporaryDirectory() as _td1811:
     assert_eq("#1811 cleanup: absent run dir exits 0 non-destructively", 0, _res.returncode)
 
 # A trailing valueless flag must terminate — a bare `shift 2` on the last-arg flag
-# spins the arg loop forever under set -u; run under a timeout so a regression fails
-# loudly (rc 124) instead of hanging the suite.
+# exceeds $# and fails without moving it, spinning the arg loop forever; run under a
+# timeout so a regression fails loudly (rc 124) instead of hanging the suite.
 with tempfile.TemporaryDirectory() as _td1811:
     _r = Path(_td1811)
     _kept = _seed1811(_r, 'kept', pointer_slug='kept')
@@ -35605,6 +35605,17 @@ with tempfile.TemporaryDirectory() as _td1811a, tempfile.TemporaryDirectory() as
     assert_eq("#1811 cleanup: removes root A's own-slug pointer", False, _ci1811_ptr(_rA).exists())
     assert_eq("#1811 cleanup: absent run dir under root B leaves B's namespace untouched (clean non-error)",
               True, (_rB / '.prflow' / 'tmp' / 'create-issue').is_dir())
+
+# A pointer written WITHOUT a trailing newline still matches: `read` returns non-zero
+# at EOF after assigning, so blanking the just-read slug on that non-zero would wrongly
+# skip the removal.
+with tempfile.TemporaryDirectory() as _td1811:
+    _r = Path(_td1811)
+    _seed1811(_r, 'nl')
+    _ci1811_ptr(_r).write_text('nl', encoding='utf-8')  # deliberately no trailing newline
+    _cleanup1811('--slug', 'nl', '--root', str(_r))
+    assert_eq("#1811 cleanup: a newline-less own-slug pointer is still removed",
+              False, _ci1811_ptr(_r).exists())
 
 print()
 print(f"{PASS} passed, {FAIL} failed")

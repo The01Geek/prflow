@@ -16,7 +16,7 @@ roots=()
 while [ "$#" -gt 0 ]; do
   case "$1" in
     # `shift; [ … ] && shift` consumes the value only when one is present. A bare
-    # `shift 2` on a trailing valueless flag fails under set -u without moving $#,
+    # `shift 2` on a trailing valueless flag exceeds $# and fails without moving it,
     # spinning this loop forever — breaking the best-effort/never-blocks contract.
     --slug) slug="${2:-}"; shift; [ "$#" -gt 0 ] && shift ;;
     --root) roots+=("${2:-}"); shift; [ "$#" -gt 0 ] && shift ;;
@@ -52,7 +52,12 @@ for root in "${roots[@]:-}"; do
   # builtin, not `tr`/`cut` (non-preflight tools whose absence would silently misread).
   ptr="$base/issue-run-slug"
   if [ -f "$ptr" ]; then
-    IFS= read -r ptr_slug < "$ptr" 2>/dev/null || ptr_slug=""
+    # A pointer written without a trailing newline makes `read` return non-zero at
+    # EOF AFTER assigning the slug — `|| ptr_slug=""` would then blank a good read and
+    # silently skip the removal, so keep the assigned value (`|| :`) and pre-init for
+    # the genuinely-unreadable case.
+    ptr_slug=""
+    IFS= read -r ptr_slug < "$ptr" 2>/dev/null || :
     if [ "$ptr_slug" = "$slug" ]; then
       rm -f -- "$ptr" && printf '%s: removed slug pointer %s\n' "$prog" "$ptr" >&2
     fi
