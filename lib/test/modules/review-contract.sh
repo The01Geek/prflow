@@ -31,8 +31,8 @@ echo "#1264 render-time placeholder probe verdict helper"
 # issue #1264's design (a negative limb sends the work to workflow-side composition
 # instead of the placeholder mechanism), so every arm is driven here rather than left to
 # a paid probe run to exercise. Same treatment, and same rationale, as the #858/#874/#812
-# probe-verdict siblings (extracted into this focused module by issue #1934; those siblings
-# remain inline in run.sh).
+# probe-verdict siblings; this block is extracted into this focused module by issue #1934
+# (#858/#874 remain inline in run.sh; #812 is driven in review-stall-backstop.sh).
 PPV="$LIB/../scripts/placeholder-probe-verdict.py"
 PPV_TMP="$(mktemp -d)"
 ppv_build() {  # $1 scenario -> writes $PPV_TMP/exec.jsonl; rc 0 AND non-empty on success
