@@ -1,0 +1,511 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-25T20:05:00Z",
+  "fix_commit_sha": null,
+  "fix_files": [],
+  "loop_role": "fix",
+  "current_step": "2.6",
+  "current_substep": "pre_shadow",
+  "sweep_defs_read": [],
+  "sweep_evidence": {
+    "status": "not-run",
+    "reason": "no fixes applied"
+  },
+  "checklist": [
+    {
+      "id": "VC-1",
+      "verification_mode": "lite",
+      "verdict": "PASS",
+      "claim_signature": "retry-loop:arm13:break-on-setup-health",
+      "reused_from_iter_prev": false
+    },
+    {
+      "id": "VC-10",
+      "verification_mode": "lite",
+      "verdict": "PASS",
+      "claim_signature": "comment:arm1882k-reap-glob-not-a-contradiction",
+      "reused_from_iter_prev": false
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "dispatched_effort": [],
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "arm13 negative assertion vacuous on empty output; empty-output regression caught only by companion positive assertion at 47451",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          47440,
+          47453
+        ],
+        "kind": "test_gap"
+      },
+      "step25_classification": "codebase",
+      "fix_decision": "severity-calibrated"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "arm13 vacuous-on-empty coupling corroboration",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          47440,
+          47452
+        ],
+        "kind": "test_gap"
+      },
+      "step25_classification": "codebase",
+      "fix_decision": "advisory"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "break accepts any non-empty capture; truncation flake not covered (if real)",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          47445,
+          47445
+        ],
+        "kind": "race"
+      },
+      "step25_classification": "codebase",
+      "fix_decision": "advisory"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "arm1882k rebuilds fixture each iteration; idempotent, harmless",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          47677,
+          47685
+        ],
+        "kind": "style"
+      },
+      "step25_classification": "codebase",
+      "fix_decision": "advisory"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "arm1882k retry latency on its own silent-regression target",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          47676,
+          47687
+        ],
+        "kind": "other"
+      },
+      "step25_classification": "codebase",
+      "fix_decision": "advisory"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "health gate does not validate fixture-file writes succeeded; low risk",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          47441,
+          47445
+        ],
+        "kind": "other"
+      },
+      "step25_classification": "codebase",
+      "fix_decision": "advisory"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "arm13 TOCTOU residual on _lv13; very low probability; died-mid-run capture also caught RED by 47451",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          47440,
+          47448
+        ],
+        "kind": "race"
+      },
+      "step25_classification": "codebase",
+      "fix_decision": "advisory"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "arm13 bounded-retry comment leans rationale-heavy but within 3-line cap",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          47439,
+          47439
+        ],
+        "kind": "style"
+      },
+      "step25_classification": "codebase",
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "severity-calibrated",
+      "source_file": "lib/test/run.sh",
+      "claim_text": "arm13 negative assertion vacuous on empty output",
+      "original_severity": "Important",
+      "calibrated_severity": "Suggestion",
+      "evidence": "over-grade gate shape 1 (fail-closed): arm13's empty-output regression is caught RED by the companion 'a live refresher is signalled' assertion at line 47451, and the AC3 mutation rig (.prflow/tmp/validate-1931.sh) proves arm13 goes RED (signalled=no) against a mutated stop-refresher — the arm as a whole is non-vacuous. Recorded technical evaluation; did not auto-demote."
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "advisory",
+      "source_file": "lib/test/run.sh",
+      "claim_text": "arm13 vacuous-on-empty coupling corroboration",
+      "skip_category": "advisory-parked",
+      "evidence": "advisory: corroborates F-1's over-graded fail-closed finding; no code change (arm mutation-proven non-vacuous)",
+      "parking_evidence": {
+        "basis": "advisory sibling of the over-graded fail-closed F-1; the arm fails closed via 47451",
+        "failing_input": "empty stop-refresher capture",
+        "source": "lib/test/run.sh:47451",
+        "finding_ref": {
+          "iter": 1,
+          "index": 1
+        }
+      }
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "advisory",
+      "source_file": "lib/test/run.sh",
+      "claim_text": "truncation flake not covered by empty-only gate",
+      "skip_category": "advisory-parked",
+      "evidence": "advisory: #1931 reproduction observed the empty-capture (pool-saturation) signature, not truncation; a truncated non-empty capture that lacks the signal still fails RED via the arm's positive assertions",
+      "parking_evidence": {
+        "basis": "the observed flake mode is empty-capture; a truncated wrong capture still fails RED",
+        "failing_input": "truncated stop-refresher capture",
+        "source": "workpad Reproduction section (issue #1931)",
+        "finding_ref": {
+          "iter": 1,
+          "index": 2
+        }
+      }
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "advisory",
+      "source_file": "lib/test/run.sh",
+      "claim_text": "arm1882k rebuilds fixture each retry iteration",
+      "skip_category": "advisory-parked",
+      "evidence": "advisory: idempotent, harmless; /simplify already declined this hoist (in-loop setup provides starvation setup-health recovery, part of AC1's slack budget)",
+      "parking_evidence": {
+        "basis": "idempotent fixture rebuild; deliberate per prior /simplify triage",
+        "failing_input": null,
+        "source": "workpad 04:21:39 /simplify note",
+        "finding_ref": {
+          "iter": 1,
+          "index": 3
+        }
+      }
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "advisory",
+      "source_file": "lib/test/run.sh",
+      "claim_text": "arm1882k retry latency on silent-regression target",
+      "skip_category": "advisory-parked",
+      "evidence": "advisory: correctness preserved (empty -> RED after exhaustion); latency is the intended slack budget under contention",
+      "parking_evidence": {
+        "basis": "latency is the intended AC1 slack budget; correctness preserved",
+        "failing_input": null,
+        "source": "lib/test/run.sh:47677-47687",
+        "finding_ref": {
+          "iter": 1,
+          "index": 4
+        }
+      }
+    },
+    {
+      "finding_id": "F-6",
+      "decision": "advisory",
+      "source_file": "lib/test/run.sh",
+      "claim_text": "health gate does not validate fixture-file writes",
+      "skip_category": "advisory-parked",
+      "evidence": "advisory: disk writes ~never starve; the fork is the flaky element; no change unless disk-pressure flakes appear",
+      "parking_evidence": {
+        "basis": "disk writes do not starve; out of the observed flake mode",
+        "failing_input": null,
+        "source": "lib/test/run.sh:47441-47445",
+        "finding_ref": {
+          "iter": 1,
+          "index": 5
+        }
+      }
+    },
+    {
+      "finding_id": "F-7",
+      "decision": "advisory",
+      "source_file": "lib/test/run.sh",
+      "claim_text": "arm13 TOCTOU residual on _lv13",
+      "skip_category": "advisory-parked",
+      "evidence": "advisory: very low probability for a bare sleep 300; a died-mid-run non-empty 'did not start' capture still fails RED via the 47451 'is signalled' assertion",
+      "parking_evidence": {
+        "basis": "died-mid-run capture is caught RED by 47451; probability negligible",
+        "failing_input": "sleep 300 child reaped before stop-refresher probe",
+        "source": "lib/test/run.sh:47451",
+        "finding_ref": {
+          "iter": 1,
+          "index": 6
+        }
+      }
+    },
+    {
+      "finding_id": "F-8",
+      "decision": "advisory",
+      "source_file": "lib/test/run.sh",
+      "claim_text": "arm13 bounded-retry comment rationale-heavy",
+      "skip_category": "advisory-parked",
+      "evidence": "advisory: within the 3-physical-line comment cap; comment-analyzer rated readability-only",
+      "parking_evidence": {
+        "basis": "within comment-length cap; readability-only note",
+        "failing_input": null,
+        "source": "lib/test/run.sh:47439",
+        "finding_ref": {
+          "iter": 1,
+          "index": 7
+        }
+      }
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 0,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "dispatch_mode": "fanned-out",
+  "verification_evidence": {
+    "command": "lib/test/run-shard.sh (all 5 shards) + shard-tally.py combine",
+    "result": "pass",
+    "duration_s": 1253,
+    "skipped_checks": []
+  },
+  "parked_class_sweep": {
+    "classes": [
+      {
+        "source_finding_ids": [
+          "F-1",
+          "F-2",
+          "F-3",
+          "F-4",
+          "F-5",
+          "F-6",
+          "F-7",
+          "F-8"
+        ],
+        "kind_literal": "test_gap,race,style,other",
+        "sites_examined": [
+          "lib/test/run.sh:47440-47453 (arm13)",
+          "lib/test/run.sh:47531-47546 (arm20b)",
+          "lib/test/run.sh:47677-47687 (arm1882k)"
+        ],
+        "new_siblings": []
+      }
+    ],
+    "truncation": null,
+    "dispatch": "verified"
+  },
+  "shadow": {
+    "dispatch_mode": "fanned-out",
+    "ran_at": "2026-08-25T20:12:00Z",
+    "reviewed_sha": "9aadba56a50a31cb92aa1efc676d08c89edfcae4",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:requesting-code-review",
+      "prflow:pr-test-analyzer"
+    ],
+    "per_reviewer_assessment": [
+      {
+        "agent": "prflow:code-reviewer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "returned": true
+      },
+      {
+        "agent": "prflow:comment-analyzer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "returned": true
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "returned": true
+      }
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Suggestion",
+        "description": "arm13 headline negative assertion inert on empty output; backstopped by sibling signalled assertion",
+        "defect_signature": {
+          "file": "lib/test/run.sh",
+          "line_range": [
+            47440,
+            47452
+          ],
+          "kind": "test_gap"
+        }
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Suggestion",
+        "description": "arm13 primary assertion always-pass on empty-output defect; suggest backstop comment",
+        "defect_signature": {
+          "file": "lib/test/run.sh",
+          "line_range": [
+            47440,
+            47449
+          ],
+          "kind": "test_gap"
+        }
+      },
+      {
+        "agent": "prflow:requesting-code-review",
+        "severity": "Suggestion",
+        "description": "pre-capture liveness sample race window",
+        "defect_signature": {
+          "file": "lib/test/run.sh",
+          "line_range": [
+            47443,
+            47445
+          ],
+          "kind": "race"
+        }
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Suggestion",
+        "description": "break-on-first-non-empty could mask an intermittent real defect; inherent tradeoff, not applicable to deterministic stop-refresher",
+        "defect_signature": {
+          "file": "lib/test/run.sh",
+          "line_range": [
+            47440,
+            47540
+          ],
+          "kind": "test_gap"
+        }
+      },
+      {
+        "agent": "prflow:silent-failure-hunter",
+        "severity": "Suggestion",
+        "description": "arm1882k re-runs fixture setup inside loop; cosmetic",
+        "defect_signature": {
+          "file": "lib/test/run.sh",
+          "line_range": [
+            47669,
+            47677
+          ],
+          "kind": "style"
+        }
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Suggestion",
+        "description": "optional: assert retry did not exhaust so persistent starvation surfaces as a breadcrumb",
+        "defect_signature": {
+          "file": "lib/test/run.sh",
+          "line_range": [
+            47440,
+            47448
+          ],
+          "kind": "test_gap"
+        }
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 6,
+      "overlap_with_iter_N": 6,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "park_calibration": {
+    "evidence_comparisons": [
+      {
+        "parked_finding_ref": {
+          "iter": 1,
+          "index": 0
+        },
+        "parked_finding_id": "F-1",
+        "shadow_finding_index": 0,
+        "relation": "equivalent",
+        "rationale": "shadow re-raises the arm13 vacuous-on-empty test_gap at Suggestion on the same evidentiary basis, adding no new failing input; the arm fails closed via 47451 and is mutation-proven",
+        "operands_present": true,
+        "disposition": "preserved"
+      },
+      {
+        "parked_finding_ref": {
+          "iter": 1,
+          "index": 6
+        },
+        "parked_finding_id": "F-7",
+        "shadow_finding_index": 2,
+        "relation": "equivalent",
+        "rationale": "shadow re-raises the pre-capture liveness race at Suggestion with no new failing input beyond the parked TOCTOU note",
+        "operands_present": true,
+        "disposition": "preserved"
+      }
+    ]
+  },
+  "telemetry": "unavailable",
+  "synthesized": false
+}
