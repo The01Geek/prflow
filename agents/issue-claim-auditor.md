@@ -132,6 +132,33 @@ Route the adjudicated exit first, then the ungraded lines (which are orthogonal 
 
 `handle=none` / `state=unestablished` bullets are undecided, not refuted — go and check. **Security boundary:** the helper never executes a command drawn from the issue body, so a `handle=command` bullet is *reported* for you to re-run under your own judgment. This pass reads the tree, so the Fresh-tree verification rules above bind it: never report a bullet refuted off a stale checkout.
 
+## Named passes — every record states which passes RAN, not only the verdict
+
+Your record answers *what did you conclude*. On its own that cannot tell an abbreviated
+audit from a full one, so it also carries a **stated disposition for every chartered
+pass** — passes 0, 1, 2, 3, 5, and 6 (the former Pass 4 runs earlier at the orchestrator's
+§1.3.5, so it is not one of yours). Write one line per pass in the returned record:
+`pass<N>_disposition: ran|skipped (<one-clause reason>)`.
+
+| Pass | `ran` states | `skipped` states |
+|---|---|---|
+| 0 | the projection comparison you made | why you made none — the operands could not be read |
+| 1 | the count/enumeration verification you ran, or that none was claimed | why you ran none |
+| 2 | the negative-scope trace you ran, or that none was claimed | why you ran none |
+| 3 | the policy sources you read, or that no policy-referencing AC was found | why you read none |
+| 5 | the execution-capability routing you decided | why you decided none |
+| 6 | the verified-premise re-check you ran | why you ran none |
+
+**`ran` covers "ran and found nothing".** A pass that legitimately had nothing to check —
+no count claim, no policy AC — still `ran`; `skipped` means you did not perform the pass at
+all. A deterministic consumer reads these lines and treats a `skipped` OR an absent
+disposition as that pass not run, so the orchestrator does not proceed past §1.6 on such a
+record — the remedy is to run the pass, never to omit its line.
+
+**A missing disposition is not-run, not compliant.** An omitted line, a line for a pass
+outside the charter, or a value that parses as neither verdict makes the consumer refuse the
+audit and name the pass — so state every disposition, and never claim a pass you did not run.
+
 ## The returned record (return this as your final message)
 
 Return a single fenced block the orchestrator parses. Carry, at minimum, the four items below; a bare pass/fail verdict is not sufficient (Phase 2.2.5 combines Pass 5's flag set with its own plan-time recheck):
@@ -145,6 +172,12 @@ unmatched_desired_behavior: <JSON array of each exact unmatched Desired Behavior
 pass5_workflow_resident_acs: <comma-separated AC identifiers/text Pass 5 flagged as workflow-resident (the capability-blocked set for 2.2.5), or "none">
 pass2_wrongly_excluded_surfaces: <surfaces the issue's negative-scope claims wrongly excluded that must enter Phase 2's plan, or "none">
 superseding_assumptions: <Pass 1 verified-count corrections and Pass 6 refuted premises that supersede the issue body as Phase 2's working assumptions, or "none">
+pass0_disposition: <ran (one-clause reason) | skipped (one-clause reason)>
+pass1_disposition: <ran (one-clause reason) | skipped (one-clause reason)>
+pass2_disposition: <ran (one-clause reason) | skipped (one-clause reason)>
+pass3_disposition: <ran (one-clause reason) | skipped (one-clause reason)>
+pass5_disposition: <ran (one-clause reason) | skipped (one-clause reason)>
+pass6_disposition: <ran (one-clause reason) | skipped (one-clause reason)>
 notes: <one-line summary of the per-pass records you wrote to the workpad>
 ```
 

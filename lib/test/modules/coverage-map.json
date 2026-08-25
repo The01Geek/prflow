@@ -807,6 +807,11 @@
       "note": "",
       "owner": "unmodularized"
     },
+    "scripts/validate-issue-claim-audit.py": {
+      "focused_test": "lib/test/test_python_scripts.py",
+      "note": "issue #1740 per-pass disposition validator for the ISSUE-CLAIM-AUDIT RECORD; driven from the #1740 block in test_python_scripts.py",
+      "owner": "unmodularized"
+    },
     "scripts/validate-telemetry-artifact.sh": {
       "note": "",
       "owner": "unmodularized"
@@ -1125,8 +1130,8 @@
       "owner": "review-stall-backstop"
     },
     "1264": {
-      "note": "Inline run.sh assertions driving every VERDICT arm of scripts/placeholder-probe-verdict.py (the issue-1264 render-time placeholder precondition probe), unmodularized like its probe-verdict siblings. Driven: the three real measurements (SUBSTITUTED_ENV_VISIBLE / SUBSTITUTED_ENV_UNSET / NOT_SUBSTITUTED), all six degraded arms resolving INCONCLUSIVE (line-absent, no-marker, missing controls, records-nothing, unparseable, partially-corrupt, absent file), the build negative control, both routing lines a maintainer transcribes into the #1264 thread, and two discrimination guards — the marker in unexpanded template form must not count as a report, and an incidental mention of the placeholder head elsewhere must not forge NOT_SUBSTITUTED. Also driven: the coupling assertion binding the helper's constants to the matcher-probe.yml job env sentinel, the slash-command prompt shape, the probe skill body's markers, and — load-bearing — that the job's --allowed-tools DOES grant the placeholder's own head, read from the skill body so the grant cannot drift from the command it covers. That limb-(c) assertion is inverted from its original form: (c) was answered NEGATIVE by run 31058504896 (`This command requires approval`), and with it settled the grant is the precondition that makes limbs (a) and (b) observable at all. Genuinely undriven: main()'s output formatting beyond the VERDICT and ROUTES TO lines.",
-      "owner": "unmodularized"
+      "note": "Assertions extracted into lib/test/modules/review-contract.sh (issue #1934) driving every VERDICT arm of scripts/placeholder-probe-verdict.py (the issue-1264 render-time placeholder precondition probe); its probe-verdict siblings #858/#874 remain inline in run.sh (#812 is driven in review-stall-backstop.sh). Driven: the three real measurements (SUBSTITUTED_ENV_VISIBLE / SUBSTITUTED_ENV_UNSET / NOT_SUBSTITUTED), all six degraded arms resolving INCONCLUSIVE (line-absent, no-marker, missing controls, records-nothing, unparseable, partially-corrupt, absent file), the build negative control, both routing lines a maintainer transcribes into the #1264 thread, and two discrimination guards — the marker in unexpanded template form must not count as a report, and an incidental mention of the placeholder head elsewhere must not forge NOT_SUBSTITUTED. Also driven: the coupling assertion binding the helper's constants to the matcher-probe.yml job env sentinel, the slash-command prompt shape, the probe skill body's markers, and — load-bearing — that the job's --allowed-tools DOES grant the placeholder's own head, read from the skill body so the grant cannot drift from the command it covers. That limb-(c) assertion is inverted from its original form: (c) was answered NEGATIVE by run 31058504896 (`This command requires approval`), and with it settled the grant is the precondition that makes limbs (a) and (b) observable at all. Genuinely undriven: main()'s output formatting beyond the VERDICT and ROUTES TO lines.",
+      "owner": "review-contract"
     },
     "1267": {
       "note": "",
@@ -1154,6 +1159,10 @@
     },
     "1314": {
       "note": "issue #1314 review-verdict handoff importer focused-test invocation",
+      "owner": "unmodularized"
+    },
+    "1321": {
+      "note": "",
       "owner": "unmodularized"
     },
     "1331": {
@@ -1333,8 +1342,8 @@
       "owner": "unmodularized"
     },
     "1618": {
-      "note": "Inline run.sh assertions driving each VERDICT value of scripts/skill-body-load-probe-verdict.py (delivered-whole, short-delivery, unestablished) and each reason arm enumerated in the helper's module docstring (the issue-1618 Skill-tool body-delivery probe), unmodularized like its probe-verdict siblings. Driven: the delivered-whole / short-delivery (tail lost, interior lost, truncation-marker) measurements; the unestablished degraded arms (no Skill tool_use, error result, unpaired result, wrong-shape JSON, unparseable file, absent file); the build negative control; the empty-selection non-zero exit that must not read as a clean pass; and the coupling assertion binding the two matcher-probe.yml jobs (show_full_output, prflow plugin load, both --root specs at real on-disk paths, --tier) to the helper. Fixtures reproduce the REAL transcript record layout — a ~30-byte `Launching skill:` stub in the tool_result and the rendered body in the FOLLOWING user-role record — plus the stub-with-no-body, wrong-directory-body, assistant-role-body and published-artifact (leading `#` caveat line) arms. A two-load fixture pair (`two_skill_loads`, `late_body`) closes both bounds of the position window that attributes each body record to its own Skill load. A directory-match pair (`abs_suffix_dir`, `boundary_dir`) drives `dirs_match`'s production suffix branch — an absolute runner base directory against a repo-relative `--root` — and its component-boundary guard, which every same-path fixture leaves on the equality branch. Issue #1897 hardened the binding: a root is bound to its own recorded load by the name's QUOTED JSON form (so `prflow:review` is not claimed by a `prflow:review-and-fix` load, in either load order), every match is collected, and more than one match answers `unestablished` NAMING the ambiguity rather than silently keeping the first — which also closes the retried-after-error load. Driven by the `contains_name_first`/`contains_name_second`, `arg_equals_other_root`, `retry_after_error`, `ambiguous_among_three`, `success_plus_arg_mention`, `two_bodies_one_window`, `duplicate_result_id` and `null_input` fixtures with their attributed-rejection and positive-control pairs. The body selection collects every directory-matching record and refuses a count above one for the same reason the name binding does, so neither stage's verdict depends on record order. `dirs_match` is exercised under both stdlib path modules `os.path` can resolve to, `posixpath` and `ntpath` (the separator normalisation moved after `normpath`, without which every root read `unestablished` on a Windows host), the no-following-body reason is asserted to name the compared DIRECTORY rather than the SKILL.md path, a duplicated `--root` operand is driven, and `lib/test/fixtures/skill-body-load-transcript.observed.txt` — a real captured transcript committed so the recorded delivery measurement survives its 7-day source artifact — drives the binding and directory selection on production bytes. Every child the block spawns neutralises terminal colour (`NO_COLOR`/`PYTHON_COLORS`) per docs/internal/test-suite-probe-conventions.md, the helper spawns through one `sbl_run` invocation point.",
-      "owner": "unmodularized"
+      "note": "Assertions extracted into lib/test/modules/review-contract.sh (issue #1934) driving each VERDICT value of scripts/skill-body-load-probe-verdict.py (delivered-whole, short-delivery, unestablished) and each reason arm enumerated in the helper's module docstring (the issue-1618 Skill-tool body-delivery probe); its probe-verdict siblings #858/#874 remain inline in run.sh (#812 is driven in review-stall-backstop.sh). Driven: the delivered-whole / short-delivery (tail lost, interior lost, truncation-marker) measurements; the unestablished degraded arms (no Skill tool_use, error result, unpaired result, wrong-shape JSON, unparseable file, absent file); the build negative control; the empty-selection non-zero exit that must not read as a clean pass; and the coupling assertion binding the two matcher-probe.yml jobs (show_full_output, prflow plugin load, both --root specs at real on-disk paths, --tier) to the helper. Fixtures reproduce the REAL transcript record layout — a ~30-byte `Launching skill:` stub in the tool_result and the rendered body in the FOLLOWING user-role record — plus the stub-with-no-body, wrong-directory-body, assistant-role-body and published-artifact (leading `#` caveat line) arms. A two-load fixture pair (`two_skill_loads`, `late_body`) closes both bounds of the position window that attributes each body record to its own Skill load. A directory-match pair (`abs_suffix_dir`, `boundary_dir`) drives `dirs_match`'s production suffix branch — an absolute runner base directory against a repo-relative `--root` — and its component-boundary guard, which every same-path fixture leaves on the equality branch. Issue #1897 hardened the binding: a root is bound to its own recorded load by the name's QUOTED JSON form (so `prflow:review` is not claimed by a `prflow:review-and-fix` load, in either load order), every match is collected, and more than one match answers `unestablished` NAMING the ambiguity rather than silently keeping the first — which also closes the retried-after-error load. Driven by the `contains_name_first`/`contains_name_second`, `arg_equals_other_root`, `retry_after_error`, `ambiguous_among_three`, `success_plus_arg_mention`, `two_bodies_one_window`, `duplicate_result_id` and `null_input` fixtures with their attributed-rejection and positive-control pairs. The body selection collects every directory-matching record and refuses a count above one for the same reason the name binding does, so neither stage's verdict depends on record order. `dirs_match` is exercised under both stdlib path modules `os.path` can resolve to, `posixpath` and `ntpath` (the separator normalisation moved after `normpath`, without which every root read `unestablished` on a Windows host), the no-following-body reason is asserted to name the compared DIRECTORY rather than the SKILL.md path, a duplicated `--root` operand is driven, and `lib/test/fixtures/skill-body-load-transcript.observed.txt` — a real captured transcript committed so the recorded delivery measurement survives its 7-day source artifact — drives the binding and directory selection on production bytes. Every child the block spawns neutralises terminal colour (`NO_COLOR`/`PYTHON_COLORS`) per docs/internal/test-suite-probe-conventions.md, the helper spawns through one `sbl_run` invocation point.",
+      "owner": "review-contract"
     },
     "1621": {
       "note": "",
@@ -1452,6 +1461,10 @@
       "note": "",
       "owner": "issue-audit-state"
     },
+    "1808": {
+      "note": "",
+      "owner": "parallel-suite-runner"
+    },
     "181": {
       "note": "",
       "owner": "unmodularized"
@@ -1459,6 +1472,14 @@
     "1826": {
       "note": "",
       "owner": "efficiency-trace-telemetry"
+    },
+    "1828": {
+      "note": "",
+      "owner": "retrospective-lifecycle"
+    },
+    "1829": {
+      "note": "",
+      "owner": "unmodularized"
     },
     "183": {
       "note": "",
@@ -1471,6 +1492,10 @@
     "1841": {
       "note": "",
       "owner": "issue-audit-state"
+    },
+    "1849": {
+      "note": "",
+      "owner": "efficiency-trace-telemetry"
     },
     "185": {
       "note": "",
@@ -1513,8 +1538,8 @@
       "owner": "unmodularized"
     },
     "1897": {
-      "note": "Issue #1897 arms of the #1618 skill-body-load block in lib/test/run.sh: a root binds to its OWN recorded Skill load by the name's quoted JSON form (`contains_name_first`/`contains_name_second` in both load orders, each with a recorded-pairs positive control), more than one matching load answers `unestablished` naming the ambiguity (`ambiguous_among_three`, `success_plus_arg_mention`), two body records naming one directory in a single load's window likewise (`two_bodies_one_window`, so neither selection stage's verdict depends on record order), a duplicated tool_use_id keeps its error flag (`duplicate_result_id`) rather than keeping the first (`retry_after_error`, with an attributed rejection proving the refusal is the ambiguity arm and not the error arm above it), an argument string equal to another root's name is the disclosed residue the quoted form leaves and is refused by the no-following-body arm, a load with no input at all falls closed to the never-loaded arm (`null_input`), a duplicated `--root` operand emits one verdict per operand, the no-following-body reason names the compared directory rather than the SKILL.md path, `dirs_match` resolves identically under both stdlib path modules for the absolute-runner-directory, backslash-bearing and boundary forms the probe asserts, with its component-boundary guard holding under each, and lib/test/fixtures/skill-body-load-transcript.observed.txt — a real captured transcript committed so the recorded delivery measurement outlives its 7-day source artifact — drives the binding and directory selection on production bytes.",
-      "owner": "unmodularized"
+      "note": "Issue #1897 arms of the #1618 skill-body-load block (extracted into lib/test/modules/review-contract.sh by issue #1934): a root binds to its OWN recorded Skill load by the name's quoted JSON form (`contains_name_first`/`contains_name_second` in both load orders, each with a recorded-pairs positive control), more than one matching load answers `unestablished` naming the ambiguity (`ambiguous_among_three`, `success_plus_arg_mention`), two body records naming one directory in a single load's window likewise (`two_bodies_one_window`, so neither selection stage's verdict depends on record order), a duplicated tool_use_id keeps its error flag (`duplicate_result_id`) rather than keeping the first (`retry_after_error`, with an attributed rejection proving the refusal is the ambiguity arm and not the error arm above it), an argument string equal to another root's name is the disclosed residue the quoted form leaves and is refused by the no-following-body arm, a load with no input at all falls closed to the never-loaded arm (`null_input`), a duplicated `--root` operand emits one verdict per operand, the no-following-body reason names the compared directory rather than the SKILL.md path, `dirs_match` resolves identically under both stdlib path modules for the absolute-runner-directory, backslash-bearing and boundary forms the probe asserts, with its component-boundary guard holding under each, and lib/test/fixtures/skill-body-load-transcript.observed.txt — a real captured transcript committed so the recorded delivery measurement outlives its 7-day source artifact — drives the binding and directory selection on production bytes.",
+      "owner": "review-contract"
     },
     "190": {
       "note": "",
@@ -1545,6 +1570,14 @@
       "owner": "unmodularized"
     },
     "192": {
+      "note": "",
+      "owner": "unmodularized"
+    },
+    "1925": {
+      "note": "",
+      "owner": "unmodularized"
+    },
+    "1928": {
       "note": "",
       "owner": "unmodularized"
     },
@@ -1774,7 +1807,7 @@
     },
     "338": {
       "note": "",
-      "owner": "unmodularized"
+      "owner": "workpad-cli"
     },
     "340": {
       "note": "",
@@ -2414,7 +2447,7 @@
     },
     "693": {
       "note": "",
-      "owner": "unmodularized"
+      "owner": "implement-contract"
     },
     "702": {
       "note": "",

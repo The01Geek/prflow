@@ -51,7 +51,7 @@
     },
     "installer-wiring": {
       "path": "lib/test/modules/installer-wiring.sh",
-      "minimum_assertions": 287,
+      "minimum_assertions": 297,
       "assertion_floor_policy": "exact",
       "description": "Focused installer and workflow-wiring coverage: the #487/#491 credential-refresher and fresh-gh wrapper workflow wiring, the #533 seven-output install-gh-wrapper.sh validation with its planted-defect controls, the #544 fingerprint-comparison symmetry, the #599 workflow-token and secret-file permission pins, and the #690 Windows mode-probe arms, and the consumer UPGRADE path driven end-to-end over fixture consumer repositories (provenance manifest, non-clobbering preservation, the dry-run preview, the withheld review tier, name-agnostic identifier migration, the stale-config detect-and-route report with its adversarial input-shape matrix, the #970 preserved-artifact sidecar ignore rule driven over a real git index, and the #971 preview language-detection scan root)"
     },
@@ -75,7 +75,7 @@
     },
     "review-stall-backstop": {
       "path": "lib/test/modules/review-stall-backstop.sh",
-      "minimum_assertions": 462,
+      "minimum_assertions": 469,
       "assertion_floor_policy": "exact",
       "description": "Focused cloud-review stall-backstop coverage: the #408 no-verdict auto-resume backstop (request-review-backstop.sh, its devflow.yml wiring and grounding-block coupling), the #414 post-and-annotate helper extraction (post-review-backstop-comment.sh plus the ScheduleWakeup and agents-seam probe verdict readers), the #812 CLAUDE_CODE_DISABLE_BACKGROUND_TASKS harness-floor probe verdict reader (background-tasks-probe-verdict.py) including the #839 additive coverage (denial-side tool-name net, main() side-output arms and EXECUTION_FILE fallback, and the verdict mirror), and the #1156 Phase 4.4 verdict-emitter reach record (the run-scoped receipt post-review-verdict.sh writes on every outcome-emitting path and its isolation from that helper's stdout bytes, line ordering and exit code, check-verdict-post-reached.sh's closed REACHED/NOT-REACHED/UNESTABLISHED vocabulary driven over the full malformed-receipt matrix with two arm-order swaps and two planted-defect controls, describe-verdict-post-gap.sh's five arms with their own arm-order controls and its field validation, and the always() devflow.yml step read out of the parsed workflow), and the #1250 head-reviews classifier (classify-head-reviews.sh over its a–j acceptance arms, plus the #1247 placement precedence in both directions, its arm order, the case-insensitive marker-head comparison and the paginated reviews query the classification rests on) wired into that reach record so the not-reached body stops asserting the reviews API was untouched when the granted gh api posted an unmarked review, and the #1261 empty-branch producer (scripts/record-empty-branch.sh) driven over its NO_COMMIT / HAS_COMMIT / UNESTABLISHED outcomes plus the best-effort write-failure and idempotency arms against a real bare-origin git fixture with a stubbed workpad writer, with the claude-job Stall backstop wiring (producer beside the pure stall-backstop-decide.sh, called only from the two flips, never on the resume path) read out of the parsed workflow"
     },
@@ -87,7 +87,7 @@
     },
     "efficiency-trace-telemetry": {
       "path": "lib/test/modules/efficiency-trace-telemetry.sh",
-      "minimum_assertions": 951,
+      "minimum_assertions": 994,
       "assertion_floor_policy": "exact",
       "description": "Focused efficiency-trace and telemetry-persistence coverage: the efficiency-trace.jq/.sh per-run derivation surface with its degradation and flag-off arms, --persist and --self-check (#80), the #475 harness-side cost floor, the #381 synthesis floor with its shadow-provenance pins, #532 base-ref freshness, #441 telemetry-branch persistence, the #469 push-operand fail-closed/fetch-before-exclusion/degraded-retention contract, the #489 cross-workflow telemetry artifact relay, and the #499 unavailable-telemetry normalization matrix that shares this module's _et_show durable-blob reader"
     },
@@ -96,6 +96,24 @@
       "minimum_assertions": 286,
       "assertion_floor_policy": "exact",
       "description": "Focused drivers for scripts/issue-audit-state.py, the create-issue Step 3.6 audit-lifecycle state owner: the restricted-PATH CLI round trip and its #889 quoted-draft-line findings, the #603 digest filter-mode rows and the stale pre-cutover event log, the query exit contract, re-init/force and foreign-nonce rows, the embed-arm emitter, creation binding, override attestation and preconditions, the next-action and user-round budgets, illegal transitions, shadow and convergence rounds, the iteration-3/4/5/6 hardening, variance and seam rows, the retry-arm deadlock matrix, the #562 draft-binding CLI rows, the #569 write-path cross-check, and the #1803 summary-block three-part output contract + batched finding-evidence records-file rows"
+    },
+    "review-contract": {
+      "path": "lib/test/modules/review-contract.sh",
+      "minimum_assertions": 86,
+      "assertion_floor_policy": "exact",
+      "description": "Focused skills/review render-time probe-verdict helpers (issue #1934): every VERDICT arm of scripts/placeholder-probe-verdict.py (#1264) and scripts/skill-body-load-probe-verdict.py (#1618/#1897), extracted from lib/test/run.sh as self-contained executable probe blocks that build their own fixtures."
+    },
+    "workpad-cli": {
+      "path": "lib/test/modules/workpad-cli.sh",
+      "minimum_assertions": 94,
+      "assertion_floor_policy": "exact",
+      "description": "Focused scripts/workpad.py CLI contract (issue #1934): the #338 update --rewrite-ac (post-merge) retag-requires-note structural-abort guard, driven as a real CLI subprocess against a gh stub with its own fixtures."
+    },
+    "implement-contract": {
+      "path": "lib/test/modules/implement-contract.sh",
+      "minimum_assertions": 14,
+      "assertion_floor_policy": "exact",
+      "description": "Focused skills/implement issue-body cache no-refetch lint (issue #1934): lib/test/lint-issue-body-refetch.py (#693) driven over the real tree and its --files-from fixture arm."
     }
   },
   "workflows": {
