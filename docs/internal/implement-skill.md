@@ -338,8 +338,8 @@ proceed (clean, or a fail-open inconclusive result) or non-zero on a positively-
 drift, in which case you regenerate the artifact(s) under their governing policy and commit
 before launching any shard, rather than paying the full sharded suite to rediscover the drift
 as an ordinary shard-assertion failure. Then enumerate the partition with
-`lib/test/run-shard.sh --list-shards`, run each shard as its own command (CI observes
-1m44s–4m48s per shard, comfortably inside the ceiling), and recombine the run's own tally
+`lib/test/run-shard.sh --list-shards`, run each shard as its own command (CI observed
+2m53s–7m23s per shard on 2026-08-19 in Actions run 32294218782, comfortably inside the ceiling), and recombine the run's own tally
 paths through `lib/test/shard-tally.py combine`, passing `--require-shards` derived from that
 same `--list-shards` population so the recombination is reconciled against the partition **by
 name** (issue #1289) — a missing, unexpected, or duplicated shard fails closed naming the gap.
