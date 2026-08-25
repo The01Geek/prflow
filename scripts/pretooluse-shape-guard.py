@@ -32,6 +32,13 @@ and such a consumer still has the caller this tree lacks, so the guard can be li
 copy. Observed against `origin/main` when this paragraph was written; a caller landing
 later falsifies "unreachable" with no edit here, so re-derive it rather than trust it.
 
+THE WIRING QUESTION IS DECIDED: RETAINED-BUT-INERT (issue #1047). This guard is NOT wired
+onto a live tier, and `devflow.yml` / `devflow-implement.yml` deliberately register no
+`PreToolUse` hook — a property `lib/test/run.sh` pins on both. Do not "finish the wiring"
+by adding one; that reverses a recorded decision. The rationale, what would reopen it, and
+why deletion was refused are in docs/internal/cloud-allowlist.md under the guard's section
+— the single source, of which this paragraph is only a pointer.
+
 DENY SET (arms, not rule ids). The guard denies exactly `R1`, the `/tmp`-target arm of
 R3 (`R3-tmp`), and `R4` — every `lib/test/extract-command-shapes.py` `REVIEW_RULES` arm
 whose rule-table entry cites a probe row OR an observed run denial. `R2` (a leading

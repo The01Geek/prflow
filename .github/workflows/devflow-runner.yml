@@ -2531,6 +2531,9 @@ jobs:
           # `pretooluse-probe` job (AC7) still measures a separate question — whether a
           # settings-input hook actually FIRES and delivers its permissionDecisionReason
           # (tracked in #919); that measurement is unaffected by the scope answer above.
+          # Do NOT drop the `command -v python3` probe from the hook command below: this
+          # hook runs on a CONSUMER's runner, a self-hosted Windows one may carry no
+          # `python3`, and a failed `exec` exits non-zero — which BLOCKS the tool call.
           settings: |
             {
               "hooks": {
@@ -2540,7 +2543,7 @@ jobs:
                     "hooks": [
                       {
                         "type": "command",
-                        "command": "_r=\"$(git rev-parse --show-toplevel 2>/dev/null || printf '%s' \"${CLAUDE_PROJECT_DIR:-.}\")\"; _g=\"$_r/.prflow/vendor/prflow/scripts/pretooluse-shape-guard.py\"; [ -f \"$_g\" ] || _g=\"$_r/scripts/pretooluse-shape-guard.py\"; [ -f \"$_g\" ] || exit 0; exec python3 \"$_g\"",
+                        "command": "_r=\"$(git rev-parse --show-toplevel 2>/dev/null || printf '%s' \"${CLAUDE_PROJECT_DIR:-.}\")\"; _g=\"$_r/.prflow/vendor/prflow/scripts/pretooluse-shape-guard.py\"; [ -f \"$_g\" ] || _g=\"$_r/scripts/pretooluse-shape-guard.py\"; [ -f \"$_g\" ] || exit 0; command -v python3 >/dev/null 2>&1 || exit 0; exec python3 \"$_g\"",
                         "timeout": 10
                       }
                     ]
