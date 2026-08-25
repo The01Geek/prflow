@@ -4219,8 +4219,8 @@ IMPL_DOC="$LIB/../docs/internal/implement-skill.md"
 # phase's load step (which would make the engine improvise that phase from its thin stub).
 IMPL_ORCH="$LIB/../skills/implement/SKILL.md"
 IMPL_PHASES_DIR="$LIB/../skills/implement/phases"
-# Shared phase-file path, colocated with its parent IMPL_PHASES_DIR so the #232 and #230
-# pin blocks below reference one source of truth for the path (not two differently-named locals).
+# Shared phase-file path, colocated with its parent IMPL_PHASES_DIR so the pin blocks
+# below reference one source of truth for the path (not two differently-named locals).
 P4_FILE="$IMPL_PHASES_DIR/phase-4-documentation.md"
 IMPL_REFS_DIR="$LIB/../skills/implement/references"
 # Issue #1374 relocated §4.0.5's filing procedure out of the phase file and behind a
@@ -4505,28 +4505,6 @@ assert_eq "F1: misregistration guard detects an injected SKILL.md (find non-empt
   "$([ -z "$(find "$_f1_skilldir" -name SKILL.md 2>/dev/null)" ] && echo yes || echo no)"
 rm -rf "$_f1_skilldir"
 # ── end issue #218 structural assertions ──
-# ── issue #232: the Phase 4.1 post-subagent re-anchor (phase-4-documentation.md), guarding
-# against a run that stops before Phase 4 finalization (workpad frozen at an in-progress
-# Status, un-described draft PR). Coupled to the skill clause: removing it turns the suite
-# RED.
-# (P4_FILE is the shared phase-file path hoisted next to IMPL_PHASES_DIR above.)
-# Do not re-point this pin at §4.2's re-anchor or widen its literal: the literal is
-# grandfathered as unique to the §4.1 note, and §4.2's counterpart is agent-executed prose
-# that owes no pin (CLAUDE.md #843/#876). Provenance: docs/internal/implement-skill.md.
-assert_pin_unique "#232/#362: phase-4 re-anchor scoped to **subagent** returns (AC4, reworded)" \
-  'scoped to **subagent** returns' "$P4_FILE"
-# review iter-2 (shadow pr-test-analyzer): pin the operative re-read instruction directly —
-# the Phase 4.1 re-anchor TRIGGER is repeated in the always-loaded orchestrator so a
-# subagent-return eviction cannot remove it, and dropping the pin drops that hardening.
-assert_pin_unique "#232: orchestrator keeps the OPERATIVE always-loaded re-Read directive (SFH F2)" \
-  'the phase file before continuing to §4.2 (resume from §4.2' "$IMPL_ORCH"
-# AC4 scope constraint is mirrored in the always-loaded orchestrator too; pin that copy so the
-# "not the Phase 2/3 returns" guardrail can't be dropped from the resident mirror unnoticed.
-# Reworded by #362 (see the phase-4 block above) to scope the trigger to SUBAGENT returns,
-# since a Skill-tool return now has its own generalized re-anchor in the same resident body.
-assert_pin_unique "#232/#362: orchestrator mirror scopes the re-anchor to **subagent** returns (SFH F2 mirror)" \
-  'scoped to **subagent** returns, not the Phase 2/3 subagent returns' "$IMPL_ORCH"
-
 # ── issue #362: run-continuity guards. Three always-resident cross-phase rules in the
 # orchestrator (generalized mid-phase re-anchor after ANY Skill-tool return; the
 # non-interactive self-answer rule; the Agent-subagent dispatch path for interactive
@@ -4538,8 +4516,7 @@ assert_pin_unique "#232/#362: orchestrator mirror scopes the re-anchor to **suba
 # keep each current source boundary observable on every suite execution.
 P362_P1="$IMPL_PHASES_DIR/phase-1-setup.md"
 
-# (1) Generalized mid-phase re-anchor — fires after EVERY Skill-tool return, not just the
-#     Phase 4.1 docs subagent.
+# (1) Generalized mid-phase re-anchor — fires after EVERY Skill-tool return.
 assert_pin_unique "#362: orchestrator re-anchors after every Skill-tool return (trigger)" \
   'after **every** Skill-tool return mid-phase' "$IMPL_ORCH"
 assert_pin_unique "#362: generalized re-anchor carries its operative resume directive" \
@@ -10496,7 +10473,7 @@ assert_eq "#1515 proceed plus unmatched projection is unusable and runs the inli
   "$(_issue1515_projection_route proceed unmatched 'Desired Behavior: exports retain stable ordering')"
 assert_eq "#1515 proceed with missing projection fields is unusable and runs the inline audit fallback" \
   "inline-audit-fallback" "$(_issue1515_projection_route proceed missing missing)"
-# P4_FILE is defined once next to IMPL_PHASES_DIR above (shared by the #232 and #230 blocks).
+# P4_FILE is defined once next to IMPL_PHASES_DIR near the top (shared by pin blocks in this file).
 # AC1's operational prohibition remains covered directly.
 assert_pin_unique "#230: phase-2 §2.1 keeps the operational 'narrow or suppress' prohibition (AC1 meaning)" \
   'narrow or suppress' "$P2_FILE"
