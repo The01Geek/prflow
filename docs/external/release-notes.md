@@ -9,6 +9,10 @@ This page summarizes user-visible PRFlow changes. For a complete change history,
 
 **Legacy review tier:** Entries about automatic pull-request-triggered review apply only to repositories that installed that tier before July 29, 2026. Fresh installations do not receive it. Use a collaborator comment with `/prflow:review` for the supported cloud review path.
 
+## August 25, 2026
+
+- **Fix: a review no longer runs against a partly loaded review engine.** `/prflow:review-and-fix` — and the review step inside `/prflow:implement`, which drives it — reads PRFlow's review engine from your repository as a file, and it used to accept whatever came back as long as it was readable. A file delivered in part was therefore indistinguishable from a whole one, so a run could assess your pull request against review stages that never arrived and still report a result. The run now confirms it reached the end of that file before acting on it, and where it cannot it stops with `engine-root: incomplete` and the path it read, having applied no fixes and produced no verdict. The shadow pass reads the engine the same way and reports the condition as a coverage gap rather than stopping; a review started with `/prflow:review` loads the engine through your client instead of reading it as a file and is unaffected. You get this through the normal plugin update. (#1603)
+
 ## August 19, 2026
 
 - **Fix: two Windows-only failures in PRFlow's Python helpers are closed.** On a Windows host whose default codec is not UTF-8, a first-party helper that printed an em-dash or emoji used to crash with an encoding error; every tracked helper now forces its output to UTF-8 on startup, so that output prints cleanly. Separately, the issue-audit step rejected a Windows drive-letter path (`C:/Users/…` or `C:\Users\…`), blocking `/prflow:create-issue`'s audit on Windows; the path check now accepts the absolute path forms the host actually uses — a leading `/` on Linux and macOS, or a drive-letter (`C:/…`, `C:\…`) or network-share root on Windows — and uses it unchanged. Linux and macOS are unaffected. You get this through the normal plugin update. (#1762)

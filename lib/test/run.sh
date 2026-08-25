@@ -14695,7 +14695,7 @@ assert_eq "#626 consumer: recurring-targets counts the impl entry, skip marker i
   "$(printf '%s\n%s\n%s\n' "$IMPL_ENTRY" "$MRK" "$(echo "$IMPL_ENTRY" | jq -c '.pr=78')" | jq -s -f "$LIB/recurring-targets.jq" | jq -r '.[0].target // "none"')"
 # compute-patterns.jq: a skip marker forms no pattern (selects implementation/audit only).
 assert_eq "#626 consumer: compute-patterns excludes skip markers (empty object)" "0" \
-  "$(printf '%s\n' "$MRK" | jq -s -L "$LIB" -f "$LIB/compute-patterns.jq" --slurpfile overrides <(echo '{}') | jq 'keys | length')"
+  "$(printf '%s\n' "$MRK" | jq -s -L "$LIB" -f "$LIB/compute-patterns.jq" --slurpfile overrides <(echo '{}') --slurpfile experiments <(printf '') | jq 'keys | length')"
 # open-state-pr.sh N counts entries excluding skip markers.
 OSP_TMP="$(mktemp -d)"
 printf '%s\n%s\n' "$IMPL_ENTRY" "$MRK" > "$OSP_TMP/retrospectives.jsonl"
@@ -23495,6 +23495,44 @@ assert_eq "#874 env-probe verdict: the echo-backs alongside the instruction text
 EPV_LEAK="$(devflow_epv "$EPV_CB" "$EPV_CA" "ENVPROBE_HOP1 $EPV_SENT" "ENVPROBE_HOP2 UNSET" "a stray mention of $EPV_SENT")"
 assert_eq "#874 env-probe verdict: a stray sentinel elsewhere does not credit the silent hop" "ORCHESTRATOR_ONLY" \
   "$(devflow_epv_verdict "$EPV_LEAK")"
+# ── The tool_result-output arm (issue #1321). A collector reading only tool_use INPUTS
+# misses hop one's genuine reading, which the harness records as Action 2's Bash tool_result
+# OUTPUT (run 30956039324's silent hop one). This fixture is that recorded shape — Action 2's
+# unexpanded tool_use input plus its tool_result output carrying the sentinel, no echo-back —
+# and the SAME entries without that tool_result line (below) must stay silent, so the
+# tool_result output is exactly what discriminates.
+EPV_TRESULT="$(devflow_epv RAW '{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_CONTROL_BEFORE"}}
+{"type":"tool_use","name":"Bash","input":{"command":"printf '"'"'ENVPROBE_HOP1 %s'"'"' \"${DEVFLOW_PROMPT_EXTENSION_ROOT:-UNSET}\""}}
+{"type":"tool_result","tool_use_id":"h1","content":"ENVPROBE_HOP1 DEVFLOW_ENVPROBE_SENTINEL_874\n","is_error":false}
+{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_HOP2 DEVFLOW_ENVPROBE_SENTINEL_874"}}
+{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_CONTROL_AFTER"}}')"
+assert_eq "#1321 env-probe verdict: hop one read from Action 2 tool_result output → BOTH_HOPS" "BOTH_HOPS" \
+  "$(devflow_epv_verdict "$EPV_TRESULT")"
+# Discrimination: the SAME entries WITHOUT the hop-one tool_result line read hop-one-silent,
+# so the tool_result output is what flips the verdict (the pre-fix collector saw only these).
+EPV_TRESULT_NONE="$(devflow_epv RAW '{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_CONTROL_BEFORE"}}
+{"type":"tool_use","name":"Bash","input":{"command":"printf '"'"'ENVPROBE_HOP1 %s'"'"' \"${DEVFLOW_PROMPT_EXTENSION_ROOT:-UNSET}\""}}
+{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_HOP2 DEVFLOW_ENVPROBE_SENTINEL_874"}}
+{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_CONTROL_AFTER"}}')"
+assert_eq "#1321 env-probe verdict: the same entries without that tool_result stay INCONCLUSIVE" "INCONCLUSIVE" \
+  "$(devflow_epv_verdict "$EPV_TRESULT_NONE")"
+# A tool_result output carrying UNSET is a REAL negative (hop looked, nothing propagated) —
+# reported, not silent — so reading tool_result never fabricates propagation.
+EPV_TRESULT_UNSET="$(devflow_epv RAW '{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_CONTROL_BEFORE"}}
+{"type":"tool_result","tool_use_id":"h1","content":"ENVPROBE_HOP1 UNSET\n","is_error":false}
+{"type":"tool_result","tool_use_id":"h2","content":[{"type":"text","text":"ENVPROBE_HOP2 UNSET\n"}],"is_error":false}
+{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_CONTROL_AFTER"}}')"
+assert_eq "#1321 env-probe verdict: tool_result outputs reading UNSET at both hops → NEITHER_HOP" "NEITHER_HOP" \
+  "$(devflow_epv_verdict "$EPV_TRESULT_UNSET")"
+# A malformed list-content item (a non-dict block, a dict missing "text") must not raise —
+# _tool_result_text skips it and still extracts the valid text block, so the always-exit-0
+# contract holds and the genuine reading is not lost.
+EPV_TRESULT_MALFORMED="$(devflow_epv RAW '{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_CONTROL_BEFORE"}}
+{"type":"tool_result","tool_use_id":"h1","content":[42,{"type":"text"},{"type":"text","text":"ENVPROBE_HOP1 DEVFLOW_ENVPROBE_SENTINEL_874\n"}],"is_error":false}
+{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_HOP2 DEVFLOW_ENVPROBE_SENTINEL_874"}}
+{"type":"tool_use","name":"Bash","input":{"command":"printf ENVPROBE_CONTROL_AFTER"}}')"
+assert_eq "#1321 env-probe verdict: a malformed tool_result list item does not crash; the valid text block still reads → BOTH_HOPS" "BOTH_HOPS" \
+  "$(devflow_epv_verdict "$EPV_TRESULT_MALFORMED")"
 # The helper never raises through its always-exit-0 contract.
 python3 "$EPV" "$EPV_TMP/no-such-file.jsonl" >/dev/null 2>&1
 assert_eq "#874 env-probe verdict: exits 0 even on an absent execution file" "0" "$?"
@@ -32105,16 +32143,15 @@ assert_eq "#247 preflight: jq genuinely absent → \"not installed\" wording (no
 #    longer carries inline SHELL normalization mirrors: Copilot CLI's inline-bash
 #    marshaling drops same-command variable assignments, so the multi-statement
 #    mirror blocks were removed and normalization moved to PROMPT time — the agent
-#    converts a Windows-form runner-reported base directory (one standalone
-#    wslpath/cygpath probe, or the textual drive-letter rules) BEFORE substituting
-#    it into the single-statement invocation. The preamble paraphrases
-#    lib/normalize-path.sh's rules; pin the operative paraphrase fragments so a
-#    trim of the normalization guidance (or of its lib lockstep reference) goes RED.
+#    converts a Windows-form runner-reported base directory with one standalone
+#    wslpath/cygpath probe BEFORE substituting it into the single-statement
+#    invocation (issue #1856 removed the tool-less drive-letter paraphrase, whose
+#    T5b pin retired with it). The preamble's probe mirrors lib/normalize-path.sh's
+#    tool-first tier; pin the probe fragment and that lib lockstep reference so a
+#    trim of either goes RED.
 CI_SKILL="$LIB/../skills/create-issue/SKILL.md"
 assert_pin_unique "#247/#275 T5: create-issue preamble carries the prompt-time wslpath probe guidance" \
   "wslpath -u '<path>'" "$CI_SKILL"
-assert_pin_unique "#247/#275 T5b: create-issue preamble carries the tool-less drive-letter mapping rule" \
-  'map `C:\` to `/mnt/c` on WSL or `/c` on MSYS2' "$CI_SKILL"
 assert_pin_unique "#247/#275 T5c: create-issue preamble names lib/normalize-path.sh as the rules' source (lockstep reference)" \
   'lib/normalize-path.sh' "$CI_SKILL"
 
@@ -32314,8 +32351,10 @@ assert_eq "#247 preflight partial copy: degraded remedy names the override value
 # ── T5d (reshaped by #275) — the SKILL.md shell mirrors are gone (normalization is
 #    prompt-time prose now), so behavioral SKILL↔lib parity is no longer executable.
 #    lib/normalize-path.sh remains the canonical rules source (its own T4* behavioral
-#    tests above still exercise every arm); the prose paraphrase is pinned by
-#    T5/T5b/T5c. Keep the lib-side detection-regex pin so the helper's operative
+#    tests above still exercise every arm); the surviving prompt-time wslpath/cygpath
+#    probe fragment and its lib lockstep reference are pinned by T5/T5c (issue #1856
+#    removed T5b with the tool-less drive-letter paraphrase it guarded). Keep the
+#    lib-side detection-regex pin so the helper's operative
 #    detection line cannot be trimmed while its callers still rely on it. ──
 assert_eq "#247 lockstep: detection regex literal present in lib/normalize-path.sh" "yes" \
   "$(grep -qF '=~ ^[A-Za-z]:[\\/] ]]' "$NORMALIZE_PATH_SH" && echo yes || echo no)"
@@ -34771,7 +34810,7 @@ echo "#408 cloud review no-verdict auto-resume backstop + #414 post-and-annotate
 # module re-derives REPO_ROOT and rebuilds the review-engine bundle itself;
 # see its .inventory.md for the coverage map back to this location.
 if ! devflow_run_full_suite_module "$LIB/test/modules/review-stall-backstop.sh" \
-  "review-stall-backstop" 462; then
+  "review-stall-backstop" 469; then
   printf 'ERROR: review-stall-backstop boundary could not record its result\n'
   exit 1
 fi
