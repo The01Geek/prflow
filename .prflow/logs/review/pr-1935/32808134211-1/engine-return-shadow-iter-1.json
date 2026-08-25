@@ -1,0 +1,45 @@
+{
+  "dispatch_mode": "fanned-out",
+  "verdict": "APPROVE",
+  "diff_profile": "test-only (single file lib/test/run.sh; no engine/prompt-surface paths touched)",
+  "cap_drops": [],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "reviewers_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "gate_notes": "type-design-analyzer skipped (has_new_types=false: diff introduces no new types). pr-test-analyzer dispatched (test-relevance predicate matched: a test file changed). Prompt-surface edit routing evidence gate: NO-OP (reviewed diff touches lib/test/run.sh only, matching no trigger glob). Verification-evidence advisory: shadow posts nothing; not evaluated as a blocking arm.",
+  "phase3_findings": [
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "export DEVFLOW_REFRESH_REAP_GLOB (line ~48645) leaks process-globally to the rest of run.sh with no restore/unset. Verified currently inert: every downstream stop-refresher arm sets its own DEVFLOW_REFRESH_REAP_GLOB inline and the injected glob matches nothing, so no arm's asserted behavior changes. Latent coupling: a future refresher arm relying on the default reap glob would silently inherit this override. Corroborated as an informational observation by pr-test-analyzer and silent-failure-hunter.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [48645, 48645], "kind": "other"}
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "arm13's first assertion (#487 arm13: recovered transient does NOT warn defeated, expects 'no') would false-green on a starved/empty capture in isolation, because _defeat487 \"\" also returns 'no'. Currently fully guarded by the sibling liveness assertion (signalled credential refresher pid) in the same arm, which goes RED on empty output, so non-vacuity (AC3) holds. Fragile coupling worth a note only if that liveness assertion is ever removed. Not an active defect.",
+      "defect_signature": {"file": "lib/test/run.sh", "line_range": [48662, 48665], "kind": "test_gap"}
+    }
+  ],
+  "phase2_fails": [],
+  "per_reviewer_assessment": {
+    "prflow:code-reviewer": "No issues at or above the 80-confidence threshold. Verified comment truthfulness against scripts/stop-refresher.sh (REAP_GLOB default RUNNER_TEMP-based; SELFTEST_FAILED early-exit gate), retry-scope comments, the export leak (contained/inert), and background-process cleanup (no sleep 300 leak). Confirmed change is slack-only (AC1), CLAUDE.md untouched (AC2), non-vacuity preserved (AC3), shapes shellcheck-clean (AC4).",
+    "prflow:silent-failure-hunter": "No CRITICAL/HIGH/MEDIUM findings. Confirmed: exhausting 40 tries does not silently mask failure (each arm has a positive assertion that goes RED on empty/starved capture); breaking on non-empty capture never accepts wrong content (break exits retry only, content-specific assertions still run); env-isolation preamble does not corrupt sibling arms (later arms override inline; non-matching glob is the safe fail direction). One informational note on arm13 first-assertion coupling.",
+    "prflow:comment-analyzer": "APPROVE, no findings. All added comments accurate against HEAD, within the 3-line cap, and each names the wrong change/behavior it prevents rather than reciting derivation. No documented falsehoods, no over-length/derivation Suggestions.",
+    "prflow:pr-test-analyzer": "No defects. AC3 non-vacuity preserved for all three arms (break conditions gate on fixture liveness + non-empty capture, independent of assertion expected values; stop-refresher emits deterministically non-empty output on each arm so a real regression breaks iteration 1 and asserts RED). No background sleep 300 leak (arm13 kills+waits per non-break iteration and post-loop; arm20b kills unconditionally per iteration). arm1882k MINBIN1882 rebuild correct (assignment moved before loop; mkdir -p + ln -sf stay inside, idempotent). One informational note on the unrestored suite-global env mutation.",
+    "prflow:requesting-code-review": "Ready to proceed (APPROVE). One Suggestion S1 (export DEVFLOW_REFRESH_REAP_GLOB leak, verified currently harmless, non-blocking). AC1 slack-only fix confirmed; AC2 CLAUDE.md untouched and this change is an application of its remedy; AC3 non-vacuity confirmed per arm; AC4 suite/shellcheck could not be executed in the read-only review env, deferred to CI, added constructs are bash-clean with no obvious SC warning. No process leaks."
+  },
+  "checklist_skipped": null,
+  "report": "# PRFlow Review (shadow) — PR #1935\n\n**Verdict: APPROVE**\n\n## Diff profile\nTest-only change: single file `lib/test/run.sh`. Three credential-refresher liveness test arms (#487 arm13, #491 arm20b, #1882 arm1882k) gain (a) a shared block env-isolation preamble (`unset DEVFLOW_REFRESH_SELFTEST_FAILED`; `export DEVFLOW_REFRESH_REAP_GLOB` to a non-matching glob), (b) bounded retry loops (<=40 tries, 0.2s backoff) breaking on fixture-live + non-empty capture (arm1882k: non-empty only), and (c) removal of dead pre-init lines. No engine/prompt-surface/CLAUDE.md paths touched.\n\n## Acceptance criteria (issue #1931)\n- AC1 (target arms, slack-only fix) — SATISFIED. Each arm wrapped in a bounded retry adjusting only its own capture slack; retained `assert_eq` lines and expected values unchanged; CLAUDE.md untouched.\n- AC2 (no-known-flake rule + remedy present/unweakened) — SATISFIED. CLAUDE.md is outside the diff; the change is itself an application of its slack-budget remedy.\n- AC3 (non-vacuity: each arm still RED against a mutated stop-refresher) — SATISFIED. Break conditions gate on fixture liveness and non-empty capture, independent of assertion expected values; stop-refresher emits deterministically non-empty output on each arm, so a real regression breaks on iteration 1 and the unchanged assertion runs on the bad capture -> RED. Starvation that never resolves exhausts the loop and surfaces as a RED positive assertion, not a skipped/green check.\n- AC4 (full suite passes + shellcheck clean) — NOT EXECUTED in this read-only shadow pass; the added constructs (C-style `for (( ))`, `${var//[[:space:]]/}`, quoted `kill`/`wait`) are bash-clean with no obvious SC warning. Final confirmation rests with CI / the orchestrator's in-env run.\n\n## Findings\nNo Critical or Important findings.\n\n- Suggestion: `export DEVFLOW_REFRESH_REAP_GLOB` at line ~48645 leaks process-globally with no restore. Verified currently inert (every downstream arm overrides it inline; the glob matches nothing). Latent coupling for any future arm relying on the default reap glob. Corroborated across requesting-code-review (Suggestion), pr-test-analyzer and silent-failure-hunter (informational). Non-blocking.\n- Suggestion/informational: arm13's first assertion would false-green on an empty capture in isolation, but is fully guarded by the sibling liveness assertion; non-vacuity holds. Note only.\n\n## Reviewers\nDispatched roster (5): code-reviewer, silent-failure-hunter, comment-analyzer, pr-test-analyzer, requesting-code-review. type-design-analyzer gated out (no new types). All five returned non-empty assessments.\n\n## Verdict rationale\nAll agents concur the change is a correct, minimal slack-widening wrapper that preserves every assertion's ability to catch a real stop-refresher regression, with no process leaks and no CLAUDE.md weakening. The only surviving finding is a below-threshold Suggestion. Verdict: APPROVE."
+}
