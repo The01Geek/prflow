@@ -4,6 +4,17 @@ All notable changes to PRFlow are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims
 to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.8] — 2026-08-25
+
+### Changed
+- **The Prevention comment sweep now counts comment lines on its normal path.** Section 2.3.4a
+  item 7 of the implement skill applies the section 2.3 line-count procedure to every comment a
+  change adds or changes and logs each comment's line count beside its disposition, so a comment
+  that names a wrong change it prevents but exceeds the three-line cap is caught while it is still
+  being written rather than shipped over the cap. The cap and its counting procedure keep their
+  single definition in the section 2.3 preamble, cited by pointer; the three absolute carve-outs
+  stay binding and a carve-out-covered comment is exempt from the count. (#1924)
+
 ## [2.34.7] — 2026-08-24
 
 ### Added

@@ -1151,9 +1151,9 @@ The plugin install above runs **no installer script** — `install.sh` belongs t
 
 **Cloud tier (optional, from repo root)** — download, read, then run, with both refs pinned to a release tag:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.34.7/install.sh -o devflow-install.sh
+curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.34.8/install.sh -o devflow-install.sh
 # review devflow-install.sh, then:
-DEVFLOW_REF=v2.34.7 bash devflow-install.sh
+DEVFLOW_REF=v2.34.8 bash devflow-install.sh
 ```
 The URL ref fixes which installer bytes you review and run; `DEVFLOW_REF` (default `main`; a tag, SHA, or branch) fixes which ref the installer clones its payload from — pinning the URL alone leaves the payload on `main`. Substitute a newer tag in both places to move the pin; every version is tagged, so the [Tags page](https://github.com/The01Geek/prflow/tags) names the current one, while the [Releases page](https://github.com/The01Geek/prflow/releases) announces the feature releases — see [`docs/internal/install.md`](install.md#pinning-the-installer). Piping the download straight to `bash` works but forfeits the review step. Thin by default (installs workflows, actions, a local marketplace, a config scaffold, and pins `prflow_version`). `DEVFLOW_VENDOR=1` commits the tree instead.
 
