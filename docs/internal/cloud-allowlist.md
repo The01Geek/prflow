@@ -491,10 +491,22 @@ from a silent hop one.
 What this changes is the remedy. The probe most likely needs a **design fix** before it
 can yield a verdict, so a blind re-run would probably return `INCONCLUSIVE` again. What
 is established is only that hop one produced **no reading at all** in the execution file
-the helper reads; *why* — the hop's command never ran, ran and emitted nothing, or ran
-and its output never reached that file — is itself unestablished and is the first thing
-to determine. Diagnosing and repairing the hop-one reporting path (a `matcher-probe.yml`
-change) is the actual next step, not another run.
+the helper reads.
+
+**Cause diagnosed and fixed (issue #1321).** Hop one's genuine reading is the
+shell-EXPANDED value Action 2 prints (`printf 'ENVPROBE_HOP1 %s\n' "${VAR}"`), recorded by
+the harness as that Bash call's `tool_result` **output**. The verdict helper's `collect`
+read only `tool_use` **inputs**, where the variable is unexpanded by design, so hop one was
+reported only if the model-performed Action-3 echo-back copied the value into a later
+`tool_use` input. In run `30956039324` that echo-back did not land (hop two's did, which is
+why only hop two reported). The owning surface was the helper's hop-one derivation, not the
+prompt: `scripts/env-propagation-probe-verdict.py`'s `collect` now also reads Bash
+`tool_result` outputs, so hop one is derived from Action 2's recorded output directly,
+independent of the echo-back. The `_OBSERVED` guard is unweakened — the unexpanded
+instruction text lives only in a `tool_use` input, never in a `tool_result` output. The fix
+is helper-only and touches no workflow, so it spends no probe dispatch; the next batched
+`matcher-probe.yml` dispatch runs the fixed verdict step and can finally yield a real
+verdict.
 
 Until a verdict exists, the claim that a consumer's committed base-ref
 extension keeps working is an **expectation, not a guarantee**. The failure direction
@@ -1015,7 +1027,7 @@ pattern alone under-reports this class by construction, which is why the rows ab
 population rather than pinning a number to it.
 
 **A fourth class evades them too: a target prefixed by a rendered PLACEHOLDER.**
-`> "<main-root>/.prflow/tmp/issue-body-<slug>.md"` in `create-issue/references/issue-template.md`
+`> "<main-root>/.prflow/tmp/create-issue/<slug>/issue-body-<slug>.md"` in `create-issue/references/issue-template.md`
 is a real redirect into the scratch tree, but no pattern anchored at `.prflow/tmp` sees it, because
 the literal begins with `<main-root>/`. Enumerate this population by resolving each redirect
 token's target and testing for `.prflow/tmp` anywhere within it — never by anchoring the pattern at
@@ -1035,7 +1047,7 @@ the start of the target.
 | `skills/retrospective-weekly/SKILL.md` | mixed stdout, append and stderr redirects | **local only** — no workflow dispatches this command | **left unchanged** |
 | `skills/review/phases/phase-3-agents.md` | dirty-tree snapshot/restore fences, enumerated by a complete redirect-operator search of the fence: 2 × stdout capture to a defaulted-expansion target (`> "${GIT_SNAP_BEFORE:-…}"` and the `…AFTER…` equivalent), 4 × `printf … >>` append inside a `while read` loop (literal target, expanded `"$rec"`/`"${rec:3}"` in argument position), 2 × input redirect to a defaulted-expansion target (`done < "${GIT_SNAP_BEFORE:-…}"`, `done < "${GIT_SNAP_AFTER:-…}"`), 3 × input redirect to a literal target (2 × `tr '\0' ' ' < ".prflow/tmp/…"`, 1 × `done < ".prflow/tmp/…"`), 4 × literal-target stdout write with no expansion (the `printf '%s\n' disabled > ".prflow/tmp/review-dirty-tree-disabled"` sentinel, and the 3 `printf '%s' '' > ".prflow/tmp/review-dirty-tree-{before,changed,renamed}-paths"` scratch-init writes guarded on exit status) | cloud | **Recorded — not rewritten (issue #1734).** Cause 1 (`simple_expansion`) dominates; the input-redirect sites and the 4 literal-target stdout writes are newly enumerated. See the per-occurrence adjudication below. |
 | `skills/implement/phases/phase-3-fix-loop.md` | 2 × `--persist` stderr capture to a `$(mktemp)` target — `2>"$PERSIST_ERR"` and `2>>"$PERSIST_ERR"` (the second an append) — each statement additionally led by the unexpanded `${CLAUDE_SKILL_DIR:-…}` anchor | cloud (`/prflow:implement`) | **Recorded — not rewritten (issue #1734).** Cause 2 (the `/tmp` target) **and** the denied anchor leading token. See the per-occurrence adjudication below. |
-| `skills/create-issue/references/issue-template.md` | 1 × stdout redirect to the placeholder-prefixed target `"<main-root>/.prflow/tmp/issue-body-<slug>.md"` | **local only** — no workflow dispatches `/prflow:create-issue` | **left unchanged** |
+| `skills/create-issue/references/issue-template.md` | 1 × stdout redirect to the placeholder-prefixed target `"<main-root>/.prflow/tmp/create-issue/<slug>/issue-body-<slug>.md"` | **local only** — no workflow dispatches `/prflow:create-issue` | **left unchanged** |
 
 #### Per-occurrence adjudication of the three deferred populations (issue #1734)
 
@@ -1505,12 +1517,73 @@ The guard is nevertheless inert on `main` — but the reason is the delivery tie
 registration. `devflow-runner.yml` declares `workflow_call:` as its sole trigger, and its
 only caller, `devflow-review.yml`, was deleted under #936 (which withheld the automatic
 pull-request-triggered review tier), so no workflow in the tree invokes it; the `settings:`
-registration rides on a reusable workflow that nothing calls. Whether to wire the guard
-onto a live tier (`devflow.yml` / `devflow-implement.yml`) or to accept it as
-retained-but-inert alongside the withheld tier is a decision this page does not make;
-#919 records it as lying outside that issue's own scope. Because the tier cannot run,
+registration rides on a reusable workflow that nothing calls. Because the tier cannot run,
 every runtime behavior described below is the guard's implemented contract, not observed
 behavior.
+
+#### Decision (issue #1047): RETAINED-BUT-INERT — the guard is not wired onto a live tier
+
+`#805` registered the guard on the review tier only and called that an explicit *"not
+yet"*, deferring the wiring question; `#919` recorded it as outside its own scope, and
+`#1795` was closed unimplemented naming `#1047` as its home. This is that decision, and it
+selects **option (b)**: the guard stays registered where it is, inert in this repository,
+and no live tier (`devflow.yml`, `devflow-implement.yml`) registers it. Four reasons:
+
+1. **The measured problem gained a live control the guard no longer has to provide alone.**
+   `#805` existed because an agent re-emitting a denied shape had nothing telling it the
+   permitted alternative until the refusal arrived. Since `#1170`, every tier's prompt
+   carries the resolved allowed-command list up front, rendered by
+   `scripts/render-grounding-block.sh` from the same hoisted `TOOLS` output the run's
+   `--allowed-tools` resolves from. That is a weaker control than a deny at the moment of
+   the call, and it is not a substitute — but it moves the guard from *the* mitigation to
+   *an additional* one, which is what makes the cost below decisive rather than marginal.
+2. **Wiring onto the implement tier is new work, not a parameter change.** There is no
+   `_IMPLEMENT_ARM_TABLE`: `lib/test/extract-command-shapes.py`'s `classify_arms()`
+   iterates `_REVIEW_ARM_TABLE` and nothing else, and `find_implement_violations()` is a
+   markdown-fence scanner over a whole file, not the pure statement classifier a hook can
+   call on one Bash payload. Reusing the review deny set is refused outright — it would
+   police that tier by the wrong rules while leaving its own shapes uncovered.
+3. **Two of the five implement arms are deny-INELIGIBLE on their own evidence.** `IR4` (a
+   leading `cd`) is an authoring rule and not a claimed matcher refusal — a leading `cd`
+   was observed *executing* on the review tier (run 30222310785) — and `IR5` rests on a
+   proven-permitted alternative rather than on a measured denial of its own arm. A runtime
+   deny is terminal, so denying either would cost the engine a shape the harness permits:
+   exactly the cost that excluded `R2` and `R3-heredoc` from the review deny set.
+4. **The unknowns that once gated option (a) are answered, and none of them argues the
+   guard is needed.** The hook fires through the `settings:` input (`#919`, run
+   `30956039324`, replicated 8×) and delivers its `permissionDecisionReason` on a `deny`
+   (run `30967680822`, `REASON-DELIVERED`); the input lands at USER scope alongside the
+   base-restored project `.claude/settings.json`, so the three `Stop` hooks keep applying
+   (source read recorded beside `devflow-implement.yml`'s own `settings:` input). Those
+   answers establish that the guard *could* be wired, not that it *should* be.
+
+**Option (a) is closed, not parked.** What would reopen it is evidence, not opinion: a
+sustained non-zero `permission_denials_count` on implement runs after `#1170`'s grounding
+block, or a repeat of the `#805` failure mode (a run re-emitting one denied shape until it
+exhausts its budget) on a tier that runs. Either would be measured through
+`scripts/surface-execution-diagnostics.sh`, which publishes that count — or the literal
+`unavailable` — on every implement run.
+
+**Deletion was considered and refused.** The guard is downstream of the withheld tier, and
+per `CLAUDE.md`'s retention rule the criterion is resolvability from an installed consumer
+copy, not reachability from this tree: a consumer that installed before `#937` still has
+its own `devflow-review.yml` calling `devflow-runner.yml`, and re-running `install.sh` to
+pick up a newer `prflow_version` keeps that workflow while vendoring the plugin it calls
+into. Deleting the guard body would leave that copy calling a file the vendored slice no
+longer carries.
+
+**Consumer-runner caveat for that retained population (recorded with this decision).** The
+registered hook command probes for the guard *script* and exits 0 when it is absent, but
+until this decision it did not probe for the *interpreter*: it ended in `exec python3`,
+which exits 127 on a host with no `python3` on `PATH` — routine on a self-hosted Windows
+runner, which is why this repository ships `scripts/provision-python3-shim.sh` at all. The
+guard's own `main()` records that a non-zero `PreToolUse` exit is a block rather than a
+fall-through, so on such a host the failure was not a quiet no-op. The hook command now
+carries `command -v python3 >/dev/null 2>&1 || exit 0` so a missing interpreter fails open
+the same way a missing script already did. Note the asymmetry this closes is in the *hook
+command*, which reaches a consumer only through `install.sh`'s workflow copy, not through
+the `prflow_version` vendor fetch — so a consumer that upgrades the plugin without
+re-running the installer keeps the unguarded command.
 
 ### The deny set and each arm's permitted alternative (authoritative)
 

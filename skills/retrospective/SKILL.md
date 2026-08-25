@@ -41,7 +41,7 @@ Scope of the anchor rule in this brief. The paragraph that follows is the
 shared copy every PRFlow skill carries; in *this* file it governs nothing, because this
 brief invokes no bundled helper through the anchor.
 
-**Portable helper anchor (single-statement).** The bundled-helper commands in this skill resolve the skill directory inline at each call site via `${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}`. When `$CLAUDE_SKILL_DIR` is set and non-empty (Claude Code), run each command exactly as written. On a runner where it is unset or empty, replace the placeholder with the skill base directory the runner reports in context (e.g. a `Base directory for this skill:` line); if that reported path is Windows-form (`C:\...`), first convert it to this shell's POSIX form with one standalone `wslpath -u '<path>'` (WSL) or `cygpath -u '<path>'` (Git Bash/MSYS2) command and substitute the printed result only if the command succeeds and prints a non-empty path — otherwise fall through to the drive-letter rules exactly as if the tool were absent (lowercase the drive letter, map `C:\` to `/mnt/c` on WSL or `/c` on MSYS2, and turn backslashes into `/`; if the environment is neither WSL nor MSYS2, use the path unchanged and report that it could not be normalized). Resolve the anchor inline at every call site — never capture it into a shell variable that a later statement reads, because some runners' inline-bash marshaling drops such variables. If neither `$CLAUDE_SKILL_DIR` nor a runner-reported base directory is available, stop and report that the helper anchor could not be resolved rather than running a command with a broken path.
+**Portable helper anchor (single-statement).** The bundled-helper commands in this skill resolve the skill directory inline at each call site via `${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}`. When `$CLAUDE_SKILL_DIR` is set and non-empty (Claude Code), run each command exactly as written. Otherwise locate the directory yourself — this text lives in a file inside it, whose sibling `../../scripts/` directory exists — by replacing the placeholder with the skill base directory the runner reports in context (e.g. a `Base directory for this skill:` line) and accepting a candidate only once `ls <candidate>/../../scripts/` succeeds in the same shell the helper commands run in. If a path form is rejected, use the form that shell reports (`pwd` shows it); a Windows-form base directory (`C:\...`) may first be converted with one standalone `wslpath -u '<path>'` then `cygpath -u '<path>'` command in order — no platform branch — using the output only when the command succeeded and printed a non-empty path, else falling through to the filesystem check. Resolve the anchor inline at every call site — never capture it into a shell variable that a later statement reads, because some runners' inline-bash marshaling drops such variables. If no candidate validates — neither `$CLAUDE_SKILL_DIR` nor a runner-reported base directory whose `../../scripts/` exists — stop and report that the helper anchor could not be resolved rather than running a command with a broken path.
 
 Consumer prompt extension (handed to you by path). Before doing this skill's work,
 read the consumer-supplied prompt extension for this skill and honor it — your dispatch
@@ -286,6 +286,7 @@ newlines that break naive serialization).
   "categories": ["...", "..."],
   "descriptors": ["...", "..."],
   "signals": <bundle.signals verbatim>,
+  "analysis_provenance": {"bundle_diff_present": <bool>, "bundle_workpad_body_present": <bool>, "bundle_issue_comments_present": <bool>},
   "additions": <bundle.additions>,
   "deletions": <bundle.deletions>,
   "changed_files": <bundle.changed_files verbatim>,
@@ -299,6 +300,21 @@ When the consumer prompt-extension file is present but you cannot read it, add
 one optional string key `extension_unreadable` to the object above, naming the path
 and the read failure; the return stays exactly one JSON object with nothing else on
 stdout. Omit the key entirely in every other case.
+
+Required `analysis_provenance` object (evidence the bundle actually carried).
+This object is a required field on a live Stage A entry — both the gate-skipped
+clean-path entry (`lib/clean-entry.jq`) and an LLM-judged entry (the construction
+below) emit it — recording the three booleans derived from the bundle it was
+handed: `bundle_diff_present` (the
+bundle's `diff` is non-null and `diff_truncated` is not true — a diff suppressed
+by `diff_byte_cap` arrives as `diff:null` / `diff_truncated:true` → false),
+`bundle_workpad_body_present` (the bundle's `workpad_body` is non-null), and
+`bundle_issue_comments_present` (the bundle's `.issue.comments` array is present
+and non-empty — `.issue` can be non-null with zero comments → false). These
+field names join the backfill cohort so the two populations segment on the
+field's presence rather than pooling indistinguishably; a live run records only
+what it measured from its own bundle and never fabricates the backfill cohort's
+`cohort`, `analyst`, or `subagent_batching` fields.
 
 `categories` must be drawn from the fixed vocabulary above; `descriptors` is
 free text. Echo `pr`, `issue`, `branch`, `head_sha`, `merge_commit_sha`,
@@ -336,6 +352,11 @@ Example construction:
     categories: $categories,
     descriptors: $descriptors,
     signals: $bundle.signals,
+    analysis_provenance: {
+      bundle_diff_present: ($bundle.diff != null and ($bundle.diff_truncated // false) != true),
+      bundle_workpad_body_present: ($bundle.workpad_body != null),
+      bundle_issue_comments_present: (($bundle.issue.comments // []) | length > 0)
+    },
     additions: $bundle.additions,
     deletions: $bundle.deletions,
     changed_files: $bundle.changed_files,

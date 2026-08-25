@@ -150,11 +150,11 @@ If `$ARGUMENTS` is empty, ask the user to describe their user story, bug report,
 Dispatch `/prflow:docs-verify --report-only` peers on the topic extracted from the user story.
 
 Bind the slug, then clear state — before any dispatch. Bind this run's kebab-case slug here; no
-later step binds one. Run `mkdir -p .prflow/tmp` first, treating any stderr from it as its failure
+later step binds one. Run `mkdir -p .prflow/tmp/create-issue/<slug>` first, treating any stderr from it as its failure
 signal; a write or delete at or under `.prflow/` that fails or is refused routes this evidence
 artifact and this pointer onto `references/fallback-read-only-sandbox.md`'s Step 1 arm.
-Delete any `.prflow/tmp/issue-step1-<slug>.md`, and delete-and-rewrite the
-fixed slug-independent pointer `.prflow/tmp/issue-run-slug` holding this slug.
+Delete any `.prflow/tmp/create-issue/<slug>/issue-step1-<slug>.md`, and delete-and-rewrite the
+fixed slug-independent pointer `.prflow/tmp/create-issue/issue-run-slug` holding this slug.
 Both deletes run on every path including the degraded one; a failed delete leaves a possibly-stale
 leftover and routes to `references/fallback-read-only-sandbox.md`'s distrust-the-on-disk-copy row.
 The pointer, like the evidence artifact, is anchored to the working directory (the worktree cwd),
@@ -182,8 +182,10 @@ leg unestablished, never an established absence. A resolver that never ran — r
 assumes `docs/internal/`, says so in your output, and records the leg unestablished when that
 directory holds no tracked files.
 Both enumerate from the index, and each reaches its peer as its docs-verify invocation's
-`--search-space <pathspec>` operand, never as dispatch-prompt prose its own contract overrides.
-The duty floor, not the space's size, bounds each peer.
+`--search-space <pathspec>` operand — write the leg's resolved pathspec verbatim as that operand,
+the invocation string `/prflow:docs-verify --report-only --search-space <pathspec> <topic>` per that
+grammar's order — never as dispatch-prompt prose its own contract overrides. The duty floor, not the
+space's size, bounds each peer.
 
 The orchestrator reconciles both returns. An empty documentation leg is an established absence only
 when the location itself is absent.
@@ -196,6 +198,11 @@ naming the failed leg, never reporting a partial verification as complete.
 An incomplete return — one that succeeds but omits or malforms its duty statuses, or omits a
 bearing observation for a duty it reported `judged-not-engaged` — records that duty unestablished
 with a breadcrumb naming the missing field, never a discharged floor.
+The dispatch also instructs each peer to state, in its return, the `--search-space` operand it
+actually ran under; the orchestrator compares that returned operand against the pathspec that leg
+dispatched, and records the leg unestablished with a breadcrumb — escalating shallow→deep like any
+unestablished duty — when the return omits the operand or its stated value does not match, rather
+than an established result, so a peer that silently defaulted the operand is detected, not trusted.
 
 Escalation shallow→deep is the only entry to the deep arm. Escalate
 on `UNRELIABLE` or `ABSENT`, on an unestablished duty, and on any judged-not-engaged duty whose returned
@@ -205,7 +212,7 @@ unestablished (which escalates) when it is absent or unparseable. That comparand
 report you receive.
 
 Evidence artifact. The orchestrator — never a peer — writes the returned evidence (reconciled, on
-the deep arm) to `.prflow/tmp/issue-step1-<slug>.md`, anchored to the working directory, on both
+the deep arm) to `.prflow/tmp/create-issue/<slug>/issue-step1-<slug>.md`, anchored to the working directory, on both
 arms before Step 1 returns. Peers write nothing.
 Those findings stay resident in your context and durably held in that artifact, so Step 3 draws on
 them by pointer and does not re-quote the findings block into its own output. Step 2's evidence bundle and an escalating deep arm read the artifact.
@@ -215,12 +222,16 @@ degrades to a bounded inline verification with a breadcrumb naming the failure k
 evidence degraded, and writes its own output to the same artifact path. It never terminates the run
 and never presents a half-verification as whole.
 
-Completion-wait discipline (mandatory, mirroring Step 3.6's synchronous dispatch). The docs-verify
-findings report must be complete and captured before the first Step 2 clarification question — and,
-on a run so complete it asks zero clarifying questions, before Step 3 drafting begins.
-When a runner executes `/prflow:docs-verify` as a subagent, that dispatch blocks on the completed
-result, and a launch acknowledgment is never treated as the findings report.
-Never open Step 2 clarification or Step 3 drafting on the strength of "docs-verify is running".
+Completion-wait discipline (mandatory, mirroring Step 3.6's synchronous dispatch). Dispatch each
+peer through the Agent tool (`subagent_type: general-purpose` on Claude Code; the runner's
+equivalent context-isolated subagent tool elsewhere), synchronously — the normative requirement is
+behavioral: the dispatch blocks until the peer's completed findings are in hand, and a launch
+acknowledgment is never the findings report. On Claude Code, `run_in_background: false` is a current
+example of meeting it, not the definition; a background fork is excluded, since it can die on resume
+and lose the verification. The docs-verify findings report must be complete and captured before the
+first Step 2 clarification question — and, on a run so complete it asks zero clarifying questions,
+before Step 3 drafting begins. Never open Step 2 clarification or Step 3 drafting on the strength of
+"docs-verify is running".
 
 ### Step 2: Clarify until the Definition of Ready is met
 
@@ -228,7 +239,7 @@ Load `references/step-2-clarify.md` per the *Reference routing* rules above and 
 
 ### Step 3: Draft the issue and pass the no-options gate
 
-Precondition — the Step 2 derivation-artifact gate applies here too, unconditionally. Before drafting, confirm `.prflow/tmp/issue-derivation-<slug>.md` exists and holds *this run's*
+Precondition — the Step 2 derivation-artifact gate applies here too, unconditionally. Before drafting, confirm `.prflow/tmp/create-issue/<slug>/issue-derivation-<slug>.md` exists and holds *this run's*
 derivation — or, in a read-only sandbox, rely solely on the visible inline-in-chat stand-in
 re-posted in this turn and do not trust any on-disk file (it can only be a stale leftover).
 If the artifact is missing or you cannot confirm it is this run's, the independent-derivation pass
@@ -241,7 +252,7 @@ Draft the issue from the context you already hold — the documentation findings
 (relevant files, current behavior) and the decisions from Step 2 — doing only targeted
 verification reads where a specific claim needs confirming.
 Do not re-explore the whole codebase; the findings are your map, resident in context and durably
-held in `.prflow/tmp/issue-step1-<slug>.md`, so reference them by pointer and do not re-emit the
+held in `.prflow/tmp/create-issue/<slug>/issue-step1-<slug>.md`, so reference them by pointer and do not re-emit the
 findings block into your drafting output.
 (User-facing decision inputs — the surviving audit findings quoted for the user's Step 3.6/Step 4
 election — are authoritative and exempt.)
@@ -268,8 +279,8 @@ Load `references/step-3-6-audit.md` per the *Reference routing* rules above and 
 ### Step 4: Review with the user, then create
 
 Before the first rendered draft, and not again while iterating on feedback, run one `ls -lL … 2>&1`
-over `.prflow/tmp/issue-run-slug`, `.prflow/tmp/issue-step1-<slug>.md`,
-`.prflow/tmp/issue-derivation-<slug>.md` and `.prflow/tmp/issue-audit-<slug>.md` — exactly those
+over `.prflow/tmp/create-issue/issue-run-slug`, `.prflow/tmp/create-issue/<slug>/issue-step1-<slug>.md`,
+`.prflow/tmp/create-issue/<slug>/issue-derivation-<slug>.md` and `.prflow/tmp/create-issue/<slug>/issue-audit-<slug>.md` — exactly those
 four, each named individually — and show its raw output, error lines included, in the message that
 renders the draft. With the slug unestablished, list
 `.prflow/tmp` itself instead on plain `ls -l` — never `-L` — state that nothing there is
@@ -293,7 +304,7 @@ is trusted and nothing is re-entered. An unestablished path — a directory, say
 rather than a re-entry.
 
 Re-run the producing step for every absent path, then resume at the draft rendering. A Step 1
-re-entry reuses the slug already bound and binds no new one; a zero-byte `.prflow/tmp/issue-run-slug`
+re-entry reuses the slug already bound and binds no new one; a zero-byte `.prflow/tmp/create-issue/issue-run-slug`
 is not a re-run of Step 1 but the slug-unestablished arm above. A missing derivation file re-runs Step 2's independent-derivation pass, not
 Step 2 whole, reporting any genuine clarification deficit in the draft message — and re-runs
 Step 3.5's steelman pass afterwards. The run
@@ -322,12 +333,9 @@ Otherwise substitute the base directory this runner reports in context — e.g. 
 this skill:` line. Never capture the anchor into a shell variable that a later statement reads:
 some runners' inline-bash marshaling drops a variable assigned in an earlier statement of the same command.
 
-Normalize a Windows-form base directory before substituting it. Run one standalone `wslpath -u '<path>'` (WSL) or `cygpath -u '<path>'` (Git Bash/MSYS2) and
-use its output only if the command succeeds and prints a non-empty path — otherwise fall through to
-the drive-letter rules exactly as if the tool were absent.
-With neither tool: lowercase the drive letter, map `C:\` to `/mnt/c` on WSL or `/c` on MSYS2, and
-turn backslashes into `/`. Neither WSL nor MSYS2: use the path unchanged and report that it could
-not be normalized. These are `lib/normalize-path.sh`'s rules restated as prompt-time prose.
+Normalize a Windows-form base directory before substituting it: run one standalone `wslpath -u '<path>'` (WSL) or `cygpath -u '<path>'` (Git Bash/MSYS2), in that order, and
+use its output only if the command succeeds and prints a non-empty path — otherwise substitute the
+runner-reported path unchanged. This `wslpath`/`cygpath` probe mirrors the tool-first tier of `lib/normalize-path.sh`.
 
 An unresolvable anchor degrades; it never stops the run — an anchor failure must never block issue creation.
 Proceed and let the underlying "No such file" error surface: a `/prflow:docs-verify` pass whose

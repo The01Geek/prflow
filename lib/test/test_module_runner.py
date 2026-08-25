@@ -1348,12 +1348,15 @@ class ModuleRunnerTests(unittest.TestCase):
                 "efficiency-trace-telemetry",
                 "experiment-records",
                 "harness-python-guards",
+                "implement-contract",
                 "installer-wiring",
                 "issue-audit-state",
                 "prompt-extension-reader",
                 "review-and-fix-contract",
+                "review-contract",
                 "review-stall-backstop",
                 "review-trigger-helpers",
+                "workpad-cli",
             ],
         )
 

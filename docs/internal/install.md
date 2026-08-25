@@ -99,7 +99,7 @@ export DEVFLOW_JQ=jq.exe   # or an absolute path to the working jq
 
 `bash lib/preflight.sh` execution-verifies `jq` through the same resolver and reports a present-but-unrunnable `jq` with this remedy.
 
-Relatedly, PRFlow ships `lib/normalize-path.sh` (`devflow_normalize_path`), a sourced helper that converts a Windows-form path (`C:\...`) to the running shell's POSIX form — `wslpath` when present, else `cygpath`, else an environment-detected translation (`/mnt/c/...` under WSL, `/c/...` under MSYS/Git Bash) — echoing an already-POSIX path through unchanged. Runner-reported Windows-form paths (like a skill's base directory on a non-Claude-Code runner) are normalized with the same chain.
+Relatedly, PRFlow ships `lib/normalize-path.sh` (`devflow_normalize_path`), a sourced helper that converts a Windows-form path (`C:\...`) to the running shell's POSIX form — `wslpath` when present, else `cygpath`, else an environment-detected translation (`/mnt/c/...` under WSL, `/c/...` under MSYS/Git Bash) — echoing an already-POSIX path through unchanged. A runner-reported Windows-form path (like a skill's base directory on a non-Claude-Code runner) is normalized at prompt time with that helper's `wslpath`/`cygpath` probe only — since issue #1856 the skills no longer restate the tool-less drive-letter tier — and the located directory is then validated against the filesystem.
 
 ### Windows: choosing the bash PRFlow runs under (`DEVFLOW_BASH`)
 
@@ -127,7 +127,7 @@ Git Bash and MSYS2 rewrite a **standalone slash-leading argument** — one whose
 
 ### Non-Claude-Code runners (Copilot CLI, Cursor, Codex CLI, Gemini CLI): the skill anchor
 
-Every local-tier skill locates its bundled helpers through a **portable single-statement anchor**: `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/…`. On Claude Code, `$CLAUDE_SKILL_DIR` is exported and the command runs as written. On other runners the variable expands **empty**; the agent substitutes the placeholder with the skill base directory the runner reports in context (Copilot CLI prints a `Base directory for this skill:` line), normalizing a Windows-form path (`C:\...`) to POSIX form first (`wslpath -u` / `cygpath -u`, or the `lib/normalize-path.sh` drive-letter rules). Two constraints make the *single-statement* shape load-bearing rather than stylistic:
+Every local-tier skill locates its bundled helpers through a **portable single-statement anchor**: `"${CLAUDE_SKILL_DIR:-<absolute skill base directory this runner reports in context>}"/../../scripts/…`. On Claude Code, `$CLAUDE_SKILL_DIR` is exported and the command runs as written. On other runners the variable expands **empty**; the agent substitutes the placeholder with the skill base directory the runner reports in context (Copilot CLI prints a `Base directory for this skill:` line), normalizing a Windows-form path (`C:\...`) to POSIX form first with a `wslpath -u` / `cygpath -u` probe (since issue #1856 there is no `lib/normalize-path.sh` drive-letter-rules fallback here), then accepting the located directory only once `ls <candidate>/../../scripts/` validates it. Two constraints make the *single-statement* shape load-bearing rather than stylistic:
 
 - **Inline-bash variable stripping (Copilot CLI, verified on 1.0.68; the empty-`$CLAUDE_SKILL_DIR` observation is a separate fact, confirmed earlier on 1.0.67):** a variable assigned in one statement of an inline `bash -c` command reads **empty** in a later statement of the same command (`bash -c 'v=hi && echo $v'` prints nothing; the same lines in a `.sh` file work). So never rework a skill's helper call into an assign-then-use form (`SKILL_DIR=…; "$SKILL_DIR"/../…`) — resolve the anchor inline in the statement that uses it, every time.
 - **Reported base directory first, `echo` is a refusable fallback (issue #1594).** For the two skills that resolve `<skill-dir>` as a *value* to base their phase-file reads on — `skills/implement/SKILL.md` and `skills/review/SKILL.md` — the resolution order is now inverted: `<skill-dir>` is taken from the base directory the runner reports in context (e.g. a `Base directory for this skill:` line) with **no shell command emitted on that path**, and the `echo "${CLAUDE_SKILL_DIR:-…}"` command is only the **fallback**, emitted when the runner reports no base directory. This closes a gap where a runner refusing that command left the step with no defined behavior — a refusal is where the command never ran, distinct from running and printing nothing. The fallback command's outcome is therefore classified into **exactly three shapes**: a **tool-level refusal** (the runner declined the command, so it never executed and produced no output — the `$CLAUDE_SKILL_DIR` channel is *unestablished*, `unknown is not zero`, reported distinctly from an empty run), a command that **ran and printed empty**, and a command that **ran and printed the placeholder unsubstituted**. (An implement run that resolved `<skill-dir>` from the reported base directory records a `## Devflow Reflection` `note` bullet naming that channel once the workpad exists.)
@@ -156,9 +156,9 @@ PowerShell's double-quote handling can split a `--note`/`--reflection` text argu
 For autonomous GitHub Actions automation, run the installer from your repo root. It is idempotent, so re-running it at a *newer* release tag is also how you update. It writes into your repository — the workflows and composite actions under `.github/`, a local `marketplace.json`, and `.prflow/` templates (config scaffold, schema, ignore file) — so those changes land in version control. **Download it, read it, then run the downloaded file:**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.34.14/install.sh -o devflow-install.sh
+curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.34.29/install.sh -o devflow-install.sh
 # review devflow-install.sh, then:
-DEVFLOW_REF=v2.34.14 bash devflow-install.sh
+DEVFLOW_REF=v2.34.29 bash devflow-install.sh
 ```
 
 <a id="pinning-the-installer"></a>
@@ -177,8 +177,8 @@ Independently of either pin, `install.sh` stamps `.prflow/config.json`'s `prflow
 `curl … | bash` runs the script without giving you a chance to read it. If you accept that, still pin both refs:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.34.14/install.sh \
-  | DEVFLOW_REF=v2.34.14 bash
+curl -fsSL https://raw.githubusercontent.com/The01Geek/prflow/v2.34.29/install.sh \
+  | DEVFLOW_REF=v2.34.29 bash
 ```
 
 </details>

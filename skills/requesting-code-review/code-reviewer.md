@@ -34,6 +34,10 @@ Subagent (general-purpose):
 
     Your review is read-only on this checkout. Do not mutate the working tree, the index, HEAD, or branch state in any way. Use the granted read-only commands `git show`, `git diff`, and `git log` to inspect other revisions without creating another checkout. Do not attempt `git worktree add`, `mktemp`, or a mutation/half-revert: those commands are not available to this reviewer under every execution profile. When mutation evidence would materially strengthen a finding, inspect the existing mutation-sensitive tests and report the verification limitation to the orchestrator instead. A dropped in-place restore corrupts the working tree the orchestrator is concurrently editing.
 
+    ## Review In Multiple Passes Yourself
+
+    Do this whole review yourself, in as many passes over the diff as it takes. Do not dispatch a subagent to review part of the diff, and do not dispatch one for a second opinion on your verdict. A spawned sub-reviewer duplicates a reviewer seat at full cost while its verdict counts for nothing — only the review you return is used — so the spawn pays twice and buys nothing. When the diff is large, split your own attention across passes (correctness, then tests, then edge cases) rather than splitting the work across agents.
+
     ## What to Check
 
     **Plan alignment:**

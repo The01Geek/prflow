@@ -26,6 +26,13 @@
   categories: [],
   descriptors: [],
   signals: .signals,
+  # Keep the `//` fallback: an incoming analysis_provenance is preserved intact;
+  # collapsing to the constructed form alone would drop a bundle's own object.
+  analysis_provenance: (.analysis_provenance // {
+    bundle_diff_present: (.diff != null and (.diff_truncated // false) != true),
+    bundle_workpad_body_present: (.workpad_body != null),
+    bundle_issue_comments_present: ((.issue.comments // []) | length > 0)
+  }),
   # Record the workpad's reflection bullets verbatim (additive field). A PR reaches
   # the clean path with a non-empty `reflections` only when every bullet is an
   # informational `note`-kind (non-friction) one — cheap-gate.jq exempts exactly
