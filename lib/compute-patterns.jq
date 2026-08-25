@@ -230,8 +230,8 @@ def entry_of($entries; $dismissed; $cost_by_pr; $cat; $rec):
      | (.pr | numbers) as $pr
      | ([ (((.efficiency_runs // []) | arrays) // [])[] | objects | (.iterations | numbers) ]) as $iters
      | select(($iters | length) > 0)
-     | {pr: $pr, mean: (($iters | add) / ($iters | length))} ]
-   | reduce .[] as $e ({}; . + { ($e.pr | tostring): $e.mean }) ) as $cost_by_pr
+     | {key: ($pr | tostring), value: (($iters | add) / ($iters | length))} ]
+   | from_entries ) as $cost_by_pr
 # The set of attribution categories some record claims — a corpus category in this
 # set is suppressed (its occurrences are reported by the record's own entry).
 | ([ $records[] | .category ] | unique) as $claimed

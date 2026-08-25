@@ -299,11 +299,12 @@ OUTPUT="$(
     # Cost-weighted ranking (issue #1828): covered patterns first, ordered by descending
     # cost aggregate with occurrence count as the tiebreak; a pattern with zero covered
     # occurrences ranks after every covered pattern, ordered by occurrence count. jq
-    # sort_by is ascending, so the numeric keys are negated for descending order; the
-    # cost key is read only on the covered branch, where it is a number, never null.
+    # sort_by is ascending, so the numeric keys are negated for descending order. An
+    # uncovered pattern has null cost — `// 0` folds it to the same key the covered/
+    # uncovered partition (the first key) already sorts it below every covered pattern by.
     | sort_by(
         (if (.covered_occurrence_count // 0) > 0 then 0 else 1 end),
-        (if (.covered_occurrence_count // 0) > 0 then -(.cost_mean_iterations) else 0 end),
+        -(.cost_mean_iterations // 0),
         -(.occurrence_count)
       )
   '
