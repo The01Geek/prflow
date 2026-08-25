@@ -24,7 +24,7 @@
 #   TARGET_OS          linux | macos | windows
 #   TARGET_ARCH        x86_64 | arm64
 #   SCRIPTS_DIR        directory holding lint_provision.py + install_state.py
-# Optional (overridable so lib/test can drive each fail-closed arm offline):
+# Optional (overridable so lib/test can drive the fail-closed arms offline):
 #   INSTALLER_VERSION  overrides the marker's installer_version (cache-key component);
 #                      derived from the marker after the readiness gate when unset
 #   TOOLS              space-separated tool list (default "shellcheck ruff")

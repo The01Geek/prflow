@@ -224,8 +224,8 @@ def validate_state(data) -> StateResult:
 def build_state(installer_version: str, components: dict, repo_root=".",
                 record_paths=None) -> dict:
     """Build a marker dict from `components` (name → the path DIGESTED, resolved
-    under `repo_root`). Each component's recorded path defaults to the digested
-    path; `record_paths` (name → recorded path) overrides it, so the installer can
+    under `repo_root`). A component's recorded path defaults to the path digested;
+    `record_paths` (name → recorded path) overrides it, so the installer can
     digest a SOURCE-tree file while recording the RUNTIME path a thin consumer will
     verify (the install-channel skew: workflows/manifest ship via install.sh's copy
     loop, helpers via the runtime vendor fetch — identical bytes at the pinned ref).

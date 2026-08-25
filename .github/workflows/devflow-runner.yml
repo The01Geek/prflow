@@ -1416,7 +1416,7 @@ jobs:
             || { echo "::error::could not fetch base ref '$BASE_REF' to harden setup-project-env"; exit 1; }
           dir=".github/actions/setup-project-env"
           mkdir -p "$dir"
-          # Overwrite each action file with its base-ref content. A file ABSENT on
+          # Overwrite the listed action files with their base-ref content. A file ABSENT on
           # the base ref (e.g. provision-lint-tools.sh on a base that predates this
           # change) is REMOVED from the PR-head copy so no PR-authored version can
           # survive. action.yml must exist on the base ref or the action cannot run.

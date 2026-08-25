@@ -16,7 +16,7 @@
     },
     "install-state-reader": {
       "path": "scripts/install_state.py",
-      "digest": "sha256:8772bce1f2670b90a795a0a10c9ec5da0207bebc83af04e4a9a0aee492563392"
+      "digest": "sha256:842d127833914e82fdcc7b44b43fe73667a640607b4458a6c8435f6c07512787"
     },
     "setup-action": {
       "path": ".github/actions/setup-project-env/action.yml",
@@ -24,7 +24,7 @@
     },
     "provision-helper": {
       "path": ".github/actions/setup-project-env/provision-lint-tools.sh",
-      "digest": "sha256:b5d20c4783b5a8a4bf6afcbff10e61c7eb0e76339e20408f71a3fedc23ccc7e4"
+      "digest": "sha256:980291c90d0b8742a902c21e51af40a064e2108772aec04304ada87b6c213e0c"
     },
     "implement-workflow": {
       "path": ".github/workflows/devflow-implement.yml",

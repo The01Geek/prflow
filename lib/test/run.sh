@@ -22350,12 +22350,12 @@ assert_eq "provision: malformed/non-object base config warns + read-only (basepr
 # Trust boundary: the flag and setup block come from the base ref. BASE_REF is
 # sourced from the trusted event payload, fetched from origin, and read out of
 # FETCH_HEAD — never the checked-out PR head.
-# FIVE sites read the trusted BASE_REF from the event payload and fetch it (issue
-# #1388 added the fifth): the baseprovision step, the #458 harden-stop-hooks step,
-# the #874 baseversion step, the #908 harden_guard step, and the #1388 setup-env
-# hardening step (all under the same trusted-source rule — each trusted-copy
-# displacement needs its own independent fetch, for the same reason #874's baseversion
-# step does not rely on another step's FETCH_HEAD surviving).
+# These sites read the trusted BASE_REF from the event payload and fetch it (the
+# assertions below pin the exact count): the baseprovision step, the #458
+# harden-stop-hooks step, the #874 baseversion step, the #908 harden_guard step, and
+# the #1388 setup-env hardening step (all under the same trusted-source rule — each
+# trusted-copy displacement needs its own independent fetch, for the same reason
+# #874's baseversion step does not rely on another step's FETCH_HEAD surviving).
 assert_eq "provision: base ref from trusted event payload (baseprovision + #458 harden + #874 baseversion + #908 harden_guard + #1388 setup-env harden)" "5" \
   "$(grep -c 'github.event.pull_request.base.ref || github.event.repository.default_branch' "$RUNNER" || true)"
 assert_eq "provision: base config fetched from origin BASE_REF (baseprovision + #458 harden + #874 baseversion + #908 harden_guard + #1388 setup-env harden)" "5" \

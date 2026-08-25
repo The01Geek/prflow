@@ -35973,7 +35973,7 @@ assert_eq("#1388 wiring: devflow-implement.yml passes lint_mode: provision", 1, 
           _di1388.count("lint_mode: provision"))
 assert_eq("#1388 wiring: devflow-runner.yml passes lint_mode: none", 1,  # structural-pin-ok: routing-dispatch-contract -- review tier lint mode
           _dr1388.count("lint_mode: none"))
-# The implement tier is the ONLY provision caller; the review tier must never provision.
+# Pinned below: the review tier passes lint_mode: none, never provision (count == 0).
 assert_eq("#1388 wiring: only implement provisions (review never does)", 0,  # structural-pin-ok: security-credential-boundary -- no manifest-derived bytes in the review job
           _dr1388.count("lint_mode: provision"))
 
