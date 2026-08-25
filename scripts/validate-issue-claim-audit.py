@@ -25,6 +25,10 @@ Exit codes:
         unparseable, stated more than once, or a disposition for an unknown pass —
         offenders on stderr
     3 — the record file was unreadable or empty (fail closed)
+
+Callers branch on zero-vs-non-zero, never on 2 specifically: argparse also exits 2 for a
+missing --record-file, so reading 2 as "non-conforming record" would misreport an invocation
+error as a failed audit.
 """
 
 import argparse

@@ -155,11 +155,9 @@ all. A deterministic consumer reads these lines and treats a `skipped` OR an abs
 disposition as that pass not run, so the orchestrator does not proceed past §1.6 on such a
 record — the remedy is to run the pass, never to omit its line.
 
-**A missing disposition is not-run, not compliant.** Carry a line for every chartered pass,
-each written `ran` or `skipped` followed by a one-clause reason in parentheses. A line you
-leave out, a line for a pass outside the charter, or a value that is neither `ran (…)` nor
-`skipped (…)` makes the consumer refuse the audit and name the pass. State the disposition;
-never claim a pass you did not run.
+**A missing disposition is not-run, not compliant.** An omitted line, a line for a pass
+outside the charter, or a value that parses as neither verdict makes the consumer refuse the
+audit and name the pass — so state every disposition, and never claim a pass you did not run.
 
 ## The returned record (return this as your final message)
 

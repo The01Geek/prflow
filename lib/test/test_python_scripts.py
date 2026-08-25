@@ -35596,6 +35596,19 @@ assert_eq("#1740 parse_disposition accepts a comma-boundary reason", ("ran", ", 
           validate_ica.parse_disposition("ran, done"))
 assert_eq("#1740 parse_disposition accepts a colon-boundary reason", ("skipped", ": nothing"),
           validate_ica.parse_disposition("skipped: nothing"))
+# Absent-operand shapes fail CLOSED at both entry points: a non-string disposition value must
+# not reach the regex, and a None/empty record must classify every chartered pass absent rather
+# than vacuously conforming.
+assert_eq("#1740 parse_disposition rejects a non-string value", (None, ""),
+          validate_ica.parse_disposition(None))
+assert_eq("#1740 validate_record(None) is non-conforming", False,
+          validate_ica.validate_record(None)[0])
+assert_eq("#1740 validate_record(None) classifies every chartered pass absent",
+          ["absent"] * len(validate_ica.CHARTERED_PASSES),
+          [validate_ica.validate_record(None)[1]["passes"][_n]
+           for _n in validate_ica.CHARTERED_PASSES])
+assert_eq("#1740 validate_record('') is non-conforming", False,
+          validate_ica.validate_record("")[0])
 
 # Cross-file coupling (cross-file-phase-contract): the validator's CHARTERED_PASSES must equal the
 # pass<N>_disposition fields agents/issue-claim-auditor.md's record schema declares — a coupled
