@@ -47559,8 +47559,8 @@ _d487_sha() {
 }
 
 D487=$(mktemp -d)
-# Region scratch-containment (issue #1925): every refresher helper this region drives
-# must resolve its paths inside $D487, never the live job's $RUNNER_TEMP. Save the ambient
+# Region scratch-containment (issue #1925): keep this region's refresher paths inside
+# $D487, never the live job's $RUNNER_TEMP. Save the ambient
 # RUNNER_TEMP, drop the job-wide refresher paths the Start step publishes into $GITHUB_ENV
 # (so an arm that omits an override cannot inherit a live path), and point RUNNER_TEMP at
 # the scratch dir. Restored just before `rm -rf "$D487"` at the end of the region.
@@ -48225,10 +48225,10 @@ _defeat487() { printf '%s' "$1" | grep -qF 'credential refresher may not have ke
 # Region scratch-containment guard (issue #1925): a stop-refresher arm that resolves any
 # path outside $D487 (e.g. one that omits the reap-pattern override so the default falls
 # back to a live $RUNNER_TEMP) is caught here instead of silently reaching live job state.
-# _refresher_scratch_guard returns 1 and names the arm + offending path when any path is
-# outside <scratch>; _stop_sh_guarded derives stop-refresher's effective paths, runs the
-# guard (failing the suite via record_fail on a violation), then invokes the helper with
-# its stdout and exit code preserved so every arm reads exactly as it did before.
+# _refresher_scratch_guard returns 1 (naming the arm and the offending path) when a path it
+# is given falls outside <scratch>; _stop_sh_guarded derives stop-refresher's effective
+# paths, runs the guard (failing the suite via record_fail on a violation), then invokes the
+# helper with its stdout and exit code passed through, so a routed arm's capture is unchanged.
 _refresher_scratch_guard() {
   _rsg_label="$1"; _rsg_scratch="$2"; shift 2
   _rsg_rc=0
