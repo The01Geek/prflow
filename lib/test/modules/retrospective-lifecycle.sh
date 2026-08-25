@@ -3283,7 +3283,7 @@ assert_eq "#1870 AC2: compute-patterns.jq excludes a clean verdict from occurren
   "$(printf '%s' "$AD_CP_CLEAN" | jq -e '.["tooling-gap"].occurrence_count == 0' >/dev/null 2>&1 && echo true || echo false)"
 
 # ────────────────────────────────────────────────────────────────────────────
-# #1828 cost-weighted ranking: compute-patterns.jq joins each occurrence (by .pr)
+# #1828 cost-weighted ranking: compute-patterns.jq joins occurrences (by .pr)
 # to experiment-records.jsonl efficiency_runs[].iterations, and actionable-patterns.sh
 # ranks the emitted patterns by that cost aggregate.
 # ────────────────────────────────────────────────────────────────────────────
@@ -3329,7 +3329,7 @@ assert_eq "#1828: a malformed/absent efficiency_runs does not abort the filter (
 
 # A partially-covered pattern: one covered occurrence (iterations 4) + one malformed
 # → the mean is the covered value alone (not diluted toward 0 by the uncovered one),
-# and covered_occurrence_count counts only the covered occurrence.
+# and covered_occurrence_count excludes the uncovered occurrence.
 CP_PART="$(cp_run \
   '{"schema_version":2,"kind":"implementation","pr":30,"merged_at":"2026-04-30T00:00:00Z","verdict":"imperfect","categories":["doc-accuracy"]}
 {"schema_version":2,"kind":"implementation","pr":31,"merged_at":"2026-05-01T00:00:00Z","verdict":"imperfect","categories":["doc-accuracy"]}' \

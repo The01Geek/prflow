@@ -115,7 +115,7 @@ fi
 
 # ── Experiment records: the cost source for the #1828 cost-weighted ranking ───
 # The unified experiment record (scripts/build-experiment-records.py) is the sibling
-# of the retrospectives file. compute-patterns.jq joins each occurrence to its PR's
+# of the retrospectives file. compute-patterns.jq joins occurrences to their PR's
 # efficiency_runs[].iterations from it. An absent/empty artifact (a repo that has not
 # built one yet) stubs to an empty stream — every pattern then reads as uncovered and
 # ranks by occurrence count, never aborting the derivation.
@@ -290,7 +290,7 @@ OUTPUT="$(
           occurrences: $v.occurrences,
           descriptors: ($v.descriptors // []),
           # Cost aggregate + the covered-occurrence count it was computed from (issue
-          # #1828). null cost means no covered occurrence — never a fabricated 0.
+          # #1828). null cost signals zero coverage — never a fabricated 0.
           cost_mean_iterations: $v.cost_mean_iterations,
           covered_occurrence_count: ($v.covered_occurrence_count // 0),
           cooldown_active: $cooldown_active
