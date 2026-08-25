@@ -130,7 +130,9 @@ jobs:
       # .claude-plugin/marketplace.json, whose presence would route the CLI to
       # marketplace mode) and DESCENDS into skills/ and agents/: a frontmatter block
       # that is malformed, absent, empty, or valid-but-missing-a-required-key exits 1.
-      # That is asserted executably in lib/test/run.sh, not by this comment.
+      # That is asserted executably in lib/test/run.sh, not by this comment (deliberately
+      # count-free — an arm count here rots on the next arm added, the
+      # self-referential-ordinal class CLAUDE.md names).
       #
       # Validation is auth-free and needs no secret, which matters because this job
       # runs arbitrary PR code (see the `on:` comment on why not pull_request_target).
