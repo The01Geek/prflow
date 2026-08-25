@@ -182,11 +182,10 @@ leg unestablished, never an established absence. A resolver that never ran — r
 assumes `docs/internal/`, says so in your output, and records the leg unestablished when that
 directory holds no tracked files.
 Both enumerate from the index, and each reaches its peer as its docs-verify invocation's
-`--search-space <pathspec>` operand, never as dispatch-prompt prose its own contract overrides. So
-write the leg's resolved pathspec verbatim into the peer's docs-verify invocation arguments — the
-invocation string is `/prflow:docs-verify --report-only --search-space <pathspec> <topic>`, per that
-grammar's order — rather than into the dispatch-prompt narrative, which the peer's own contract
-overrides. The duty floor, not the space's size, bounds each peer.
+`--search-space <pathspec>` operand — write the leg's resolved pathspec verbatim as that operand,
+the invocation string `/prflow:docs-verify --report-only --search-space <pathspec> <topic>` per that
+grammar's order — never as dispatch-prompt prose its own contract overrides. The duty floor, not the
+space's size, bounds each peer.
 
 The orchestrator reconciles both returns. An empty documentation leg is an established absence only
 when the location itself is absent.
