@@ -91,6 +91,17 @@ done
 # whitespace/separator-only value comes back verbatim and normalizes to nothing below.
 if [ "$_CONFIG_MODE" -eq 1 ]; then
     if _CFG_RAW="$("$_APPLY_LABELS_DIR/config-get.sh" "$_CONFIG_KEY" "$_CONFIG_FALLBACK")"; then
+        # Wrong-type guard (the six-shape config matrix's object/array row): config-get.sh
+        # coerces a JSON OBJECT at the key to the sentinel string "[object Object]" and exits 0.
+        # Applying that verbatim would create a garbage label named "[object Object]" and report
+        # `applied` — a silent misconfiguration. A label list is a string or an array (config-get
+        # comma-joins an array, which IS a valid list), never an object, so treat the sentinel as
+        # an unreadable config value rather than a label.
+        if [ "$_CFG_RAW" = "[object Object]" ]; then
+            echo "config-unreadable"
+            echo "devflow: warning: apply-labels.sh: config key '${_CONFIG_KEY}' resolves to a JSON object, not a label string/list; no labels applied. This is NOT a harness denial — fix the config value's shape." >&2
+            exit 0
+        fi
         set -- "$_CFG_RAW"
     else
         echo "config-unreadable"

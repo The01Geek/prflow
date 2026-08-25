@@ -1089,9 +1089,9 @@ rm -f "$DEF_CFG"
 
 # Normalization semantics (split / trim / drop-empties, empty-string→fallback,
 # whitespace/separator-only→no-labels) now live INSIDE scripts/apply-labels.sh's config-driven
-# mode (issue #1855) and are exercised behaviorally in the "#1855 apply-labels" block above; the
-# hand-copied SKILL-mirror normalizer that used to sit here is retired with the SKILL pipeline it
-# mirrored.
+# mode (issue #1855) and are exercised behaviorally in the "#1855 apply-labels" block far BELOW
+# this one in this same file (not above); the hand-copied SKILL-mirror normalizer that used to sit
+# here is retired with the SKILL pipeline it mirrored.
 
 # Drift guards: the label-apply bash is prompt markdown (not a script), so a SKILL edit could
 # silently drop it. Pin the load-bearing token in the real SKILL so a regression fails here
@@ -14988,7 +14988,33 @@ assert_eq "#1855 apply-labels: a whitespace/separator-only configured value emit
 printf '%s' '{bad json' > "$I1855_CFG/.prflow/config.json"
 assert_eq "#1855 apply-labels: a corrupt config (config-get rc!=0) emits 'config-unreadable'" "config-unreadable" \
   "$(cd "$I1855_CFG" && DEVFLOW_GH="$I1855_TMP/gh_ok" bash "$LIB/../scripts/apply-labels.sh" 42 --config-key .docs.labels --config-fallback Documented 2>/dev/null)"
+# Six-shape config adversarial matrix (CLAUDE.md best-effort-parser gotcha + the config-derivation
+# mandate in .prflow/prompt-extensions/{review-and-fix,receiving-code-review}.md): the four rows above
+# cover scalar (applied), valid-falsy empty-string (→fallback), whitespace-only (nothing-to-apply),
+# and corrupt-JSON (config-unreadable). The remaining rows:
+#   * OBJECT (wrong-type) — config-get.sh coerces a dict to the "[object Object]" sentinel and exits 0;
+#     applying it verbatim would create a garbage label reported 'applied', so the helper's wrong-type
+#     guard maps it to config-unreadable instead.
+printf '%s' '{"docs":{"labels":{"a":"b"}}}' > "$I1855_CFG/.prflow/config.json"
+assert_eq "#1855 apply-labels: an object-typed configured value (wrong-type) emits 'config-unreadable', not a garbage label" "config-unreadable" \
+  "$(cd "$I1855_CFG" && DEVFLOW_GH="$I1855_TMP/gh_ok" bash "$LIB/../scripts/apply-labels.sh" 42 --config-key .docs.labels --config-fallback Documented 2>/dev/null)"
+#   * ARRAY — config-get.sh comma-joins the elements, which IS a valid label list, so it applies.
+printf '%s' '{"docs":{"labels":["Documented","Reviewed"]}}' > "$I1855_CFG/.prflow/config.json"
+assert_eq "#1855 apply-labels: an array-typed configured value comma-joins into a valid label list and applies" "applied" \
+  "$(cd "$I1855_CFG" && DEVFLOW_GH="$I1855_TMP/gh_ok" bash "$LIB/../scripts/apply-labels.sh" 42 --config-key .docs.labels --config-fallback Documented 2>/dev/null)"
+#   * MISSING key — config-get.sh exits 0 with empty stdout, so the caller's fallback is applied.
+printf '%s' '{"other":"x"}' > "$I1855_CFG/.prflow/config.json"
+assert_eq "#1855 apply-labels: a missing config key resolves to the caller's fallback and applies" "applied" \
+  "$(cd "$I1855_CFG" && DEVFLOW_GH="$I1855_TMP/gh_ok" bash "$LIB/../scripts/apply-labels.sh" 42 --config-key .docs.labels --config-fallback Documented 2>/dev/null)"
+# WRITTEN REASON (the sixth matrix row, number/bool scalar): config-get.sh coerces a number to its
+# digits and a bool to lowercase "true"/"false" — each a well-formed single label string, not a
+# garbage sentinel — so a wrong-scalar-type value applies a (oddly-named but valid) label rather
+# than mishandling; no separate guard or assertion is owed for it beyond the scalar row above.
 rm -rf "$I1855_CFG"
+# Interior-space trim (preserves coverage the retired deferred_labels_normalize() helper carried):
+# a comma-separated value with interior spaces normalizes to trimmed labels and applies.
+assert_eq "#1855 apply-labels: interior spaces around a comma-separated positional label list are trimmed and applied" "applied" \
+  "$(DEVFLOW_GH="$I1855_TMP/gh_ok" bash "$LIB/../scripts/apply-labels.sh" 42 "DevFlow, Deferred" 2>/dev/null)"
 # ensure-label.sh classifies already-exists WITHOUT grep (the folded creation path benefits too),
 # so a grep-less host reports the benign already-exists as success. Shadow `grep` with an unusable
 # stub on PATH; the case-match must not depend on it.
@@ -15005,6 +15031,24 @@ assert_eq "#1855 ensure-label: an already-exists response is reported as success
   "$(printf '%s' "$I1855_ELE" | grep -qiF 'already exists' && echo yes || echo no)"
 assert_eq "#1855 ensure-label: a grep-less host does NOT misreport already-exists as a failure" "no" \
   "$(printf '%s' "$I1855_ELE" | grep -qiF 'could not ensure label' && echo yes || echo no)"
+# The case-match has three arms; the JSON stub above exercises only the `already_exists` code arm.
+# Exercise the other two literal arms so a regression narrowing the case to one pattern is caught.
+cat > "$I1855_TMP/gh_ae_text" <<'STUB'
+#!/usr/bin/env bash
+echo "gh: Validation Failed: Label already exists (HTTP 422)" >&2; exit 1
+STUB
+chmod +x "$I1855_TMP/gh_ae_text"
+I1855_ELE_TEXT="$(DEVFLOW_GH="$I1855_TMP/gh_ae_text" bash "$LIB/../scripts/ensure-label.sh" DevFlow 2>&1 >/dev/null)"
+assert_eq "#1855 ensure-label: the plain-text 'already exists' arm is classified as success" "yes" \
+  "$(printf '%s' "$I1855_ELE_TEXT" | grep -qiF 'already exists' && echo yes || echo no)"
+cat > "$I1855_TMP/gh_ae_taken" <<'STUB'
+#!/usr/bin/env bash
+echo "gh: name has already been taken (HTTP 422)" >&2; exit 1
+STUB
+chmod +x "$I1855_TMP/gh_ae_taken"
+I1855_ELE_TAKEN="$(DEVFLOW_GH="$I1855_TMP/gh_ae_taken" bash "$LIB/../scripts/ensure-label.sh" DevFlow 2>&1 >/dev/null)"
+assert_eq "#1855 ensure-label: the 'already been taken' arm is classified as success (not a failure)" "no" \
+  "$(printf '%s' "$I1855_ELE_TAKEN" | grep -qiF 'could not ensure label' && echo yes || echo no)"
 rm -rf "$I1855_TMP"
 
 # ── apply-pr-triggerer.sh: best-effort PR assignment to the triggerer (#1165) ──
@@ -37463,8 +37507,9 @@ assert_eq "#480 phase 3.1 prints the draft PR number sentinel (the comparand its
 # RETIRED — apply-labels.sh now creates each label itself, so the deferral/docs channels collapse
 # to a single apply-labels.sh call with no separate per-label ensure. Their quoting-count pins are
 # removed with the idiom; the collapsed-form and per-file absence pins live in the deferred.labels
-# block above (#1855). The unquoted-absence pin stays: no `ensure-label.sh <label>` may survive
-# (the generic SKILL.md example is quoted `ensure-label.sh "<label>"`, so it is not this literal).
+# block above (#1855). The unquoted-absence pin stays as a plain absence pin: no
+# `ensure-label.sh <label>` may survive anywhere in the bundle — no quoted or unquoted per-label
+# ensure-label call form remains in the implement bundle at all after the #1855 collapse.
 assert_eq "#480 no UNQUOTED 'ensure-label.sh <label>' survives anywhere in the implement skill bundle" "0" \
   "$(grep -cF 'ensure-label.sh <label>' "$IMPL_SKILL_BUNDLE" || true)"
 
