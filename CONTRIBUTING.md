@@ -719,7 +719,16 @@ selectable module, complete all of the following in the same PR:
    (it cannot restore a key a resolution dropped); register the JSON-aware merge
    driver or take both sides by hand, and let the CI key-retention check backstop it
    (see *Coverage-map block ownership* under Running the tests for both).
-7. **Module-contract compliance** — the module must satisfy the module contract
+7. **Pin-census registration surfaces** — a module `.sh` file is an audited pin
+   source, so register it in all three coupled pin-census surfaces or the suite
+   goes RED: add its path to `AUDITED_PIN_SOURCES` in
+   `lib/test/pin-corpus-lint.py`, add the same path to the `AUDITED` tuple in
+   `lib/test/test_mutation_pin_census.py`, and bump `EXPECTED_SOURCE_COUNT` in
+   `lib/test/mutation-pin-census.py` to the new source count. The three are one
+   coupled contract — the census raises when `EXPECTED_SOURCE_COUNT` disagrees
+   with `AUDITED_PIN_SOURCES`'s length — so a new module that skips any of them
+   breaks the suite.
+8. **Module-contract compliance** — the module must satisfy the module contract
    documented in `lib/test/module-harness.sh`'s header (private fixture root and
    cleanup, caller-provided `LIB`/`RESULTS_FILE`/`assert_eq`, no self-skip, no
    monolith helper). Comply **by reference** to that header — do not restate its
@@ -727,20 +736,22 @@ selectable module, complete all of the following in the same PR:
    evolves. "No self-skip" bars the raw `skip` helper, not a host that genuinely
    cannot express a condition: declare that through `module_host_capability_skip`
    (issue #838), whose contract the same header documents.
-8. **Focused-runner smoke test** — add a `runs_green_through_the_real_runner` test
-   for the module to `lib/test/test_module_runner.py`, matching the shape the
-   existing module tests use: invoke `lib/test/run-module.sh <module-id>`, read the
-   module's `minimum_assertions` floor from
-   `scripts/workflow-flight-recorder-registry.json`, and assert the emitted summary
-   line equals `Module <module-id>: {floor} passed, 0 failed` (read the floor from
-   the registry, never a second hard-coded copy). This drives the module through its
-   *own* runner — the assertion issue #695 exists to make — so the convention that
-   the existing modules already follow stops being convention by accident (issue
-   #719). When a module's heaviest unit is already run in full by a module shard,
-   this test may pass `--heavy-units smoke` so the shard's execution is not paid a
-   second time here (issue #890); the three requirements above are unchanged by it,
-   and the run still asserts the emitted tally equals the registry floor.
-9. **Routing classification** — when the extraction moves a `lib/test/test_*.py`
+9. **Focused-runner smoke test** — the real-runner coverage is already in the tree;
+   a new module needs no hand-written per-module test. `lib/test/test_module_runner.py`
+   carries a single shared real-runner test,
+   `test_repository_module_runs_green_through_the_real_runner`, hard-wired to the
+   `workflow-flight-recorder` module: it invokes `lib/test/run-module.sh` and asserts a
+   `Module <id>: N passed, 0 failed` summary, which is the one execution proving the
+   runner's environment contract (`LIB`, `RESULTS_FILE`, `assert_eq`, sourced harness) is
+   satisfied end to end. A new module's *own* execution is covered instead by the
+   registry-driven `test_exact_floor_modules_run_green_through_the_real_runner`, which
+   runs every module whose registry entry sets `assertion_floor_policy: "exact"` and
+   asserts its executed tally equals both the registry floor and the `run.sh` call-site
+   literal. So opt an exact-floor module into that coverage by setting
+   `assertion_floor_policy: "exact"` in its registry entry (step 1) — do **not** add a
+   per-module `runs_green_through_the_real_runner` test; the tree carries only the single
+   shared one above.
+10. **Routing classification** — when the extraction moves a `lib/test/test_*.py`
    suite from a `lib/test/run.sh` invocation to a module driver, move its name in
    `lib/test/test_module_runner.py` from `SERIAL_BY_EXCLUSION_SUITES` to
    `MODULE_DRIVEN_SUITES`, and delete the `run.sh` invocation in the same change.

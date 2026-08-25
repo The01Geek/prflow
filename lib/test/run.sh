@@ -49806,6 +49806,14 @@ RCE_TEST_RC=$?
 assert_eq "issue #1852: review context eval focused tests pass" "0" "$RCE_TEST_RC"
 [ "$RCE_TEST_RC" -eq 0 ] || while IFS= read -r _rce_line || [ -n "$_rce_line" ]; do printf '    %s\n' "$_rce_line"; done <<< "$RCE_TEST_OUT"
 
+# subject-grouping helper coverage (issue #1928): runs the focused test for
+# lib/test/group_labels_by_subject.py serially on the main shell. This block INVOKES the
+# test, not the script.
+GLBS_TEST_OUT="$(python3 "$LIB/test/test_group_labels_by_subject.py" 2>&1)"
+GLBS_TEST_RC=$?
+assert_eq "issue #1928: subject-grouping helper focused tests pass" "0" "$GLBS_TEST_RC"
+[ "$GLBS_TEST_RC" -eq 0 ] || while IFS= read -r _glbs_line || [ -n "$_glbs_line" ]; do printf '    %s\n' "$_glbs_line"; done <<< "$GLBS_TEST_OUT"
+
 # harness-python-guards contract coverage (issue #707: extracted from this file's
 # #600 / #527 / #528 / #668 / #798 / #810 / #591 Python guard blocks into a focused
 # module, plus the #985 profiler unit tests added there directly). The registry and
