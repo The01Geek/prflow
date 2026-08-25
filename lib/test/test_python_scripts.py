@@ -35661,6 +35661,137 @@ assert_eq("#1027 decide: stale-advisory with no checkpoint -> stale-advisory", "
 assert_eq("#1027 decide: stale-advisory with no checkpoint omits the checkpoint clause",
           True, "last checkpoint" not in _dnc1027.message)
 
+# ── issue #1388: lint-provisioning helpers (lint_provision.py, install_state.py) ──
+_lint_provision = _load('lint_provision', SCRIPTS / 'lint_provision.py')
+_install_state = _load('install_state', SCRIPTS / 'install_state.py')
+_MANIFEST_1388 = SCRIPTS.parent / '.prflow' / 'lint-manifest.json'
+
+# lint_provision.build_plan — established tuple resolves artifact + trusted URL.
+_p1388 = _lint_provision.build_plan(_MANIFEST_1388, 'shellcheck', 'linux', 'x86_64')
+assert_eq("#1388 plan: linux/x86_64 shellcheck established", "established", _p1388.status)
+assert_eq("#1388 plan: resolves the manifest's pinned digest",
+          "sha256:6c881ab0698e4e6ea235245f22832860544f17ba386442fe7e9d629f8cbea39c", _p1388.digest)
+assert_eq("#1388 plan: trusted URL keyed on version+os+arch (no manifest string)",
+          "https://github.com/koalaman/shellcheck/releases/download/v0.10.0/shellcheck-v0.10.0.linux.x86_64.tar.xz",
+          _p1388.url)
+# Windows shellcheck uses the single per-release zip form.
+assert_eq("#1388 plan: windows shellcheck single-zip URL",
+          "https://github.com/koalaman/shellcheck/releases/download/v0.10.0/shellcheck-v0.10.0.zip",
+          _lint_provision.build_plan(_MANIFEST_1388, 'shellcheck', 'windows', 'x86_64').url)
+# ruff target-triple mapping.
+assert_eq("#1388 plan: ruff macos/arm64 target triple",
+          "https://github.com/astral-sh/ruff/releases/download/0.6.9/ruff-aarch64-apple-darwin.tar.gz",
+          _lint_provision.build_plan(_MANIFEST_1388, 'ruff', 'macos', 'arm64').url)
+
+# unsupported-lint-platform — a VALID manifest declaring no artifact for the tuple.
+_u1388 = _lint_provision.build_plan(_MANIFEST_1388, 'shellcheck', 'windows', 'arm64')
+assert_eq("#1388 plan: unsupported (os,arch) -> unsupported", "unsupported", _u1388.status)
+assert_eq("#1388 plan: unsupported reason literal", "unsupported-lint-platform", _u1388.reason)
+# an unknown tool is likewise unsupported, never a crash.
+assert_eq("#1388 plan: unknown tool -> unsupported",
+          "unsupported", _lint_provision.build_plan(_MANIFEST_1388, 'gcc', 'linux', 'x86_64').status)
+# an unestablished manifest is NOT unsupported — it carries a typed reason.
+_bad1388 = _lint_provision.build_plan(SCRIPTS / 'nope-manifest.json', 'ruff', 'linux', 'x86_64')
+assert_eq("#1388 plan: missing manifest -> unestablished (not unsupported)", "unestablished", _bad1388.status)
+assert_eq("#1388 plan: unestablished carries the manifest reason",
+          True, _bad1388.reason.startswith("missing:"))
+
+# cache_key: field-delimited, digest normalized to its 64-hex body, installer version last.
+assert_eq("#1388 cache_key: {os,arch,tool,version,digest,installer} composed",
+          "lintprov-linux-x86_64-ruff-0.6.9-" + "0" * 62 + "c1-v9",
+          _lint_provision.cache_key('linux', 'x86_64', 'ruff', '0.6.9',
+                                    'sha256:' + '0' * 62 + 'c1', 'v9'))
+
+# install_state.validate_state — six-shape fail-closed matrix.
+def _mk_state(**over):
+    st = {"schema_version": 1, "installer_version": "v0.1.0",
+          "components": {"manifest": {"path": ".prflow/lint-manifest.json",
+                                      "digest": "sha256:" + "a" * 64}}}
+    st.update(over)
+    return st
+
+assert_eq("#1388 state: well-formed establishes", True,
+          _install_state.validate_state(_mk_state()).established)
+assert_eq("#1388 state: top-level scalar -> wrong-type", True,
+          _install_state.validate_state(5).reason.startswith("wrong-type:"))
+assert_eq("#1388 state: bool top level -> wrong-type (valid-falsy)", True,
+          _install_state.validate_state(False).reason.startswith("wrong-type:"))
+assert_eq("#1388 state: unknown field rejected", True,
+          _install_state.validate_state(_mk_state(extra=1)).reason.startswith("unknown-field:"))
+assert_eq("#1388 state: bad schema_version -> unknown-version", True,
+          _install_state.validate_state(_mk_state(schema_version=2)).reason.startswith("unknown-version:"))
+assert_eq("#1388 state: bool schema_version -> wrong-type (valid-falsy)", True,
+          _install_state.validate_state(_mk_state(schema_version=True)).reason.startswith("wrong-type:"))
+assert_eq("#1388 state: installer_version with shell metachar rejected", True,
+          _install_state.validate_state(_mk_state(installer_version="v1; rm -rf /")).reason.startswith("invalid-value:"))
+assert_eq("#1388 state: empty components rejected", True,
+          _install_state.validate_state(_mk_state(components={})).reason.startswith("invalid-value:"))
+assert_eq("#1388 state: absolute component path rejected", True,
+          _install_state.validate_state(_mk_state(components={"m": {"path": "/etc/x", "digest": "sha256:" + "a" * 64}})).reason.startswith("invalid-value:"))
+assert_eq("#1388 state: traversal component path rejected", True,
+          _install_state.validate_state(_mk_state(components={"m": {"path": "../x", "digest": "sha256:" + "a" * 64}})).reason.startswith("invalid-value:"))
+assert_eq("#1388 state: non-sha256 digest rejected", True,
+          _install_state.validate_state(_mk_state(components={"m": {"path": "x", "digest": "md5:abc"}})).reason.startswith("invalid-value:"))
+# parse_state I/O shapes.
+assert_eq("#1388 state: empty bytes -> empty", True,
+          _install_state.parse_state(b"").reason.startswith("empty:"))
+assert_eq("#1388 state: invalid utf-8 -> invalid-utf8", True,
+          _install_state.parse_state(b"\xff\xfe").reason.startswith("invalid-utf8:"))
+assert_eq("#1388 state: malformed json -> malformed-json", True,
+          _install_state.parse_state(b"{not json").reason.startswith("malformed-json:"))
+assert_eq("#1388 state: duplicate key -> duplicate-key", True,
+          _install_state.parse_state(b'{"schema_version":1,"schema_version":1}').reason.startswith("duplicate-key:"))
+assert_eq("#1388 state: load_state missing -> install-state-missing",
+          "install-state-missing", _install_state.load_state(SCRIPTS / 'nope-state.json').reason)
+
+# install_state build + check_readiness — the fail-closed provisioning gate.
+_d1388 = Path(tempfile.mkdtemp())
+try:
+    _root = _d1388 / "repo"
+    (_root / ".prflow").mkdir(parents=True)
+    (_root / "scripts").mkdir()
+    _man = _root / ".prflow" / "lint-manifest.json"
+    _man.write_bytes(_MANIFEST_1388.read_bytes())
+    _hlp = _root / "scripts" / "lint_manifest.py"
+    _hlp.write_text("print('x')\n", encoding="utf-8")
+    _state = _install_state.build_state("v0.1.0",
+        {"manifest": ".prflow/lint-manifest.json", "helper": "scripts/lint_manifest.py"},
+        repo_root=_root)
+    _statef = _root / ".prflow" / "install-state.json"
+    _statef.write_text(json.dumps(_state) + "\n", encoding="utf-8")
+    # first-install: marker present, all digests match, manifest establishes -> READY.
+    assert_eq("#1388 readiness: first-install ready", True,
+              _install_state.check_readiness(_statef, _man, repo_root=_root).ready)
+    # backfill / interrupted-publication: marker absent while components present -> refuse.
+    assert_eq("#1388 readiness: absent marker (backfill/interrupted) -> install-state-missing",
+              "install-state-missing",
+              _install_state.check_readiness(_root / ".prflow" / "nope.json", _man, repo_root=_root).reason)
+    # version-skew (either direction) flips a component digest -> digest-mismatch.
+    _hlp.write_text("print('changed')\n", encoding="utf-8")
+    _vr = _install_state.check_readiness(_statef, _man, repo_root=_root)
+    assert_eq("#1388 readiness: version-skew -> not ready", False, _vr.ready)
+    assert_eq("#1388 readiness: version-skew names the component", "digest-mismatch:helper", _vr.reason)
+    # component removed on disk -> component-missing (distinct from a skew).
+    _hlp.unlink()
+    assert_eq("#1388 readiness: removed component -> component-missing",
+              "component-missing:helper",
+              _install_state.check_readiness(_statef, _man, repo_root=_root).reason)
+    # manifest missing -> manifest-missing.
+    _man.unlink()
+    _hlp.write_text("print('x')\n", encoding="utf-8")  # restore helper so we isolate the manifest arm
+    _state2 = _install_state.build_state("v0.1.0", {"helper": "scripts/lint_manifest.py"}, repo_root=_root)
+    _statef.write_text(json.dumps(_state2) + "\n", encoding="utf-8")
+    assert_eq("#1388 readiness: manifest gone -> manifest-missing",
+              "manifest-missing",
+              _install_state.check_readiness(_statef, _man, repo_root=_root).reason)
+    # build_state fails BEFORE publishing when a component is unreadable.
+    assert_raises("#1388 build_state: unreadable component raises (no marker published)",
+                  ValueError,
+                  lambda: _install_state.build_state("v0.1.0", {"gone": "scripts/nope.py"}, repo_root=_root))
+finally:
+    shutil.rmtree(_d1388, ignore_errors=True)
+
+
 print()
 print(f"{PASS} passed, {FAIL} failed")
 sys.exit(0 if FAIL == 0 else 1)
