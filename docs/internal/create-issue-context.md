@@ -161,7 +161,7 @@ resident copy. Each appended-content class is classified below.
 
 | Class | Canonical durable copy that already holds it | Safely removable here? |
 | --- | --- | --- |
-| **Re-emission (re-quotation) of an already-produced large block** in the orchestrator's own output — an already-produced Step 1 findings block, an already-produced summary | Step 1 findings: the `.prflow/tmp/issue-step1-<slug>.md` artifact; finding-ledger data: the `issue-audit-state-<slug>.json` field reachable via `query-findings`; the Step 3.5 steelman summary: the `## Steelman record` section of `.prflow/tmp/issue-derivation-<slug>.md` | **Yes** — removed (see below). Its content is already resident from an earlier append; removing the re-quote touches neither compaction recovery nor a mutable file, and needs no new mechanism. |
+| **Re-emission (re-quotation) of an already-produced large block** in the orchestrator's own output — an already-produced Step 1 findings block, an already-produced summary | Step 1 findings: the `.prflow/tmp/create-issue/<slug>/issue-step1-<slug>.md` artifact; finding-ledger data: the `issue-audit-state-<slug>.json` field reachable via `query-findings`; the Step 3.5 steelman summary: the `## Steelman record` section of `.prflow/tmp/create-issue/<slug>/issue-derivation-<slug>.md` | **Yes** — removed (see below). Its content is already resident from an earlier append; removing the re-quote touches neither compaction recovery nor a mutable file, and needs no new mechanism. |
 | **Reference-body re-Read on step re-entry** (a large `references/*.md` re-Read "on every entry into this step") | The reference file on disk | **No — deferred.** It is *compaction insurance*: on a smaller-context consumer model a compaction evicts the body and the re-Read is the recovery. A static instruction cannot tell a compacting run from a non-compacting one, so safe removal needs an in-run compaction-detection signal this issue does not build. Filed as a follow-up. |
 
 ### Authoritative (in-thread presence is load-bearing — must NOT be removed)
@@ -180,11 +180,11 @@ rather than re-quoting it**. The edited sites are:
 
 - `skills/create-issue/SKILL.md` — Step 1's evidence-artifact instruction and Step 3's
   drafting rule: the Step 1 findings stay resident and durably held in
-  `.prflow/tmp/issue-step1-<slug>.md`; Step 3 references them by pointer and does not
+  `.prflow/tmp/create-issue/<slug>/issue-step1-<slug>.md`; Step 3 references them by pointer and does not
   re-emit the findings block into its drafting output.
 - `skills/create-issue/references/step-3-6-audit.md` — a runtime-context discipline note
   beside the read-back mandate: consult the `query-findings` read-back and the
-  `.prflow/tmp/issue-audit-<slug>.md` artifact by pointer; do not re-emit an
+  `.prflow/tmp/create-issue/<slug>/issue-audit-<slug>.md` artifact by pointer; do not re-emit an
   already-produced findings block into the orchestrator's own reasoning output. The
   user-facing surfaces (findings quoted verbatim for the user, rendered adjudication
   records) are explicitly exempt — they are authoritative decision inputs.
@@ -206,7 +206,7 @@ weakened**:
 1. **Code-reading obligation (confirmed).** Each removed re-emission's content stays
    resident and reachable from its named durable copy at the point of use:
    - Step 1 findings: `skills/create-issue/SKILL.md` Step 1 states the orchestrator
-     writes the reconciled evidence to `.prflow/tmp/issue-step1-<slug>.md` on **both**
+     writes the reconciled evidence to `.prflow/tmp/create-issue/<slug>/issue-step1-<slug>.md` on **both**
      arms before Step 1 returns (the write-on-every-path contract), so Step 3 always has
      the durable copy to reference. Confirmed by reading that Step 1 producer.
    - Finding-ledger data: `scripts/issue-audit-state.py` remains the ledger owner and
