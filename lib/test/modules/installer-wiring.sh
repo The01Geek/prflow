@@ -283,6 +283,12 @@ for _wf533 in devflow-implement devflow; do
   # structural-pin-ok: cross-file-phase-contract -- the Stop step's self-derivation is the cross-step contract that replaced the retired job-wide publication; it pins a machine-consumed boundary (the env var stop-refresher.sh reads), not prose.
   assert_eq "#1925 AC10: $_wf533.yml Stop step derives DEVFLOW_REFRESH_SELFTEST_FAILED from HANDLE in its own body" "1" \
     "$(printf '%s\n' "$(mint_blk 'Stop credential refresher (optional)' "$WF/$_wf533.yml")" | grep -cF 'export DEVFLOW_REFRESH_SELFTEST_FAILED="$RUNNER_TEMP/devflow-refresh-$HANDLE.selftest-failed"')"
+  # AC10 (#1925): the Stop step now re-derives HANDLE independently, so its marker path diverges
+  # from the Start step's — silently breaking the #1882 signing-fault attribution — if a one-sided
+  # edit changes one HANDLE formula and not the other. Require the identical formula in both steps.
+  # structural-pin-ok: cross-file-phase-contract -- Start<->Stop HANDLE equality is the cross-step contract the retired job-wide publication used to guarantee; a machine-consumed boundary (the derived marker path), not prose.
+  assert_eq "#1925 AC10: $_wf533.yml Start and Stop steps both derive HANDLE with the identical formula" "1 1" \
+    "$(printf '%s\n' "$(mint_blk 'Start credential refresher (optional)' "$WF/$_wf533.yml")" | grep -cF 'HANDLE="${GITHUB_RUN_ID:-0}-${GITHUB_RUN_ATTEMPT:-0}-${GITHUB_JOB:-job}"') $(printf '%s\n' "$(mint_blk 'Stop credential refresher (optional)' "$WF/$_wf533.yml")" | grep -cF 'HANDLE="${GITHUB_RUN_ID:-0}-${GITHUB_RUN_ATTEMPT:-0}-${GITHUB_JOB:-job}"')"
 done
 # Positive controls for the whole-file recipe: a regex typo must not leave the
 # guard green forever. Plant each re-introduction shape in a scratch fixture and

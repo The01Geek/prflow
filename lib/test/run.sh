@@ -47559,9 +47559,9 @@ _d487_sha() {
 }
 
 D487=$(mktemp -d)
-# Region scratch-containment (issue #1925): save the ambient RUNNER_TEMP, drop the job-wide refresher
-# paths the Start step publishes into $GITHUB_ENV, and point RUNNER_TEMP at $D487 — so an arm that omits
-# an override cannot inherit a live path. Restored just before `rm -rf "$D487"` at the region's end.
+# Region scratch-containment (issue #1925): save the ambient RUNNER_TEMP, unset any inherited job-wide
+# refresher paths (a defensive superset of the Start step's publications), and point RUNNER_TEMP at $D487
+# — so an arm that omits an override cannot inherit a live path. Restored before `rm -rf "$D487"`.
 _RT_WAS_SET_1925="${RUNNER_TEMP+set}"; _RT_SAVED_1925="${RUNNER_TEMP:-}"
 unset DEVFLOW_REFRESH_PIDFILE DEVFLOW_REFRESH_LOG DEVFLOW_REFRESH_SELFTEST_FAILED \
       DEVFLOW_REFRESH_REAP_GLOB DEVFLOW_REFRESH_JOB_POINTER DEVFLOW_GH_TOKEN_FILE 2>/dev/null || true
@@ -48795,7 +48795,7 @@ rm -rf "$D487"
 # hand-edited workflow — driven end to end and joined to the shipped workflow's own
 # trigger-time guard.
 if ! devflow_run_full_suite_module "$LIB/test/modules/installer-wiring.sh" \
-  "installer-wiring" 293; then
+  "installer-wiring" 295; then
   printf 'ERROR: installer-wiring boundary could not record its result\n'
   exit 1
 fi
