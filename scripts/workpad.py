@@ -4500,17 +4500,13 @@ def _recompute_diff_facts(anchor_head, base_ref, repo_root):
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding='utf-8').stdout
 
     try:
-        base = base_ref
-        if not base:
-            base = _git(
-                ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']).strip()
-        if not base:
-            return _unresolved(
-                'the pull request base could not be read and origin/HEAD is unset')
+        # `_git` runs check=True, so an unreadable base (origin/HEAD unset) or an
+        # unresolvable merge base (unrelated histories on a depth-limited checkout)
+        # raises here and is caught below as unresolved — no separate empty-value guard
+        # is reachable after it.
+        base = base_ref or _git(
+            ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD']).strip()
         merge_base = _git(['merge-base', anchor_head, base]).strip()
-        if not merge_base:
-            return _unresolved(
-                f'no merge base between {anchor_head[:12]} and {base}')
         files, lines = _parse_numstat_counts(
             _git(['diff', '--numstat', merge_base, anchor_head]))
         paths = [p for p in _git(
@@ -4535,6 +4531,9 @@ def _is_engine_own_repo(repo_root) -> bool:
             manifest = json.load(f)
     except (OSError, ValueError):
         return False
+    # `prflow` is the frozen canonical plugin name (CLAUDE.md rename Tier 1, single-
+    # sourced in lib/rename-map.json and the manifest `name`): do not rename it here in
+    # isolation, or this identity check silently stops recognizing the engine's own repo.
     return isinstance(manifest, dict) and manifest.get('name') == 'prflow'
 
 
