@@ -90,24 +90,33 @@ def validate_record(text):
     """Classify an ISSUE-CLAIM-AUDIT RECORD's per-pass dispositions.
 
     Returns `(conforming, result)`. `result["passes"]` maps each chartered pass to
-    `ran` / `skipped` / `absent` / `malformed`; `result["unknown"]` lists any pass numbers
+    `ran` / `skipped` / `absent` / `malformed` / `duplicate`; `result["unknown"]` lists any pass numbers
     dispositioned outside the charter; `result["offending"]` lists a human clause per
     blocking pass. `conforming` is True only when every chartered pass is `ran` and no
     unknown pass appears — an absent disposition is treated as that pass not run.
     """
+    # Collect every occurrence per pass: a pass stated more than once is ambiguous, not
+    # deduplicated. Last-writer-wins would let a later `ran` line mask an earlier
+    # `skipped`/malformed one — the fail-open this parser must refuse.
     seen = {}
     for line in (text or "").splitlines():
         m = _PASS_LINE_RE.match(line)
         if m:
-            seen[int(m.group(1))] = m.group(2)
+            seen.setdefault(int(m.group(1)), []).append(m.group(2))
     passes = {}
     offending = []
     for n in CHARTERED_PASSES:
-        if n not in seen:
+        vals = seen.get(n, [])
+        if not vals:
             passes[n] = "absent"
             offending.append(f"pass {n} (disposition absent — treated as not run)")
             continue
-        verdict, _reason = parse_disposition(seen[n])
+        if len(vals) > 1:
+            passes[n] = "duplicate"
+            offending.append(
+                f"pass {n} (disposition stated {len(vals)} times — ambiguous, treated as not run)")
+            continue
+        verdict, _reason = parse_disposition(vals[0])
         if verdict is None:
             passes[n] = "malformed"
             offending.append(

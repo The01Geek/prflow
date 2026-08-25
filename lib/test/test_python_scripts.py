@@ -35491,11 +35491,8 @@ assert_eq("#1027 decide: stale-advisory with no checkpoint omits the checkpoint 
           True, "last checkpoint" not in _dnc1027.message)
 
 # ── issue #1740: issue-claim-auditor per-pass disposition validator ──────────────
-# The deterministic consumer that turns a silently-skipped issue-claim pass into a
-# visible §1.6 refusal. Prove: a fully-dispositioned record is accepted, a record
-# missing / skipping / malforming any pass is refused and names it, an unknown pass is
-# refused, and an empty/unreadable record fails closed (exit 3) rather than
-# accepted-by-default.
+# The deterministic consumer that turns a silently-skipped issue-claim pass into a visible
+# §1.6 refusal instead of a wasted implement run. Contract in the module docstring.
 validate_ica = _load('validate_issue_claim_audit', SCRIPTS / 'validate-issue-claim-audit.py')
 
 def _ica_record(overrides=None, drop=()):
@@ -35563,12 +35560,14 @@ assert_eq("#1740 both absent passes are named",
 _unk2_ok, _unk2_res = validate_ica.validate_record(
     _ica_record() + "pass9_disposition: ran (x)\npass4_disposition: ran (y)\n")
 assert_eq("#1740 multiple unknown passes are sorted", [4, 9], _unk2_res["unknown"])
-# A duplicated pass line collapses to one pass (last value wins) — a dup does not
-# double-count, and two `ran` lines for the same pass stay conforming for it.
+# A pass stated more than once is ambiguous and fails CLOSED (no last-writer-wins fail-open):
+# a later `ran` must not mask an earlier `skipped`/malformed line for the same pass.
 _dup_ok, _dup_res = validate_ica.validate_record(
-    _ica_record() + "pass2_disposition: ran (again)\n")
-assert_eq("#1740 a duplicated pass line collapses to one conforming pass",
-          (True, "ran"), (_dup_ok, _dup_res["passes"][2]))
+    _ica_record(overrides={2: "skipped (x)"}) + "pass2_disposition: ran (again)\n")
+assert_eq("#1740 a duplicated pass line is non-conforming (masking direction)",
+          (False, "duplicate"), (_dup_ok, _dup_res["passes"][2]))
+assert_eq("#1740 the duplicated pass is named",
+          True, any("pass 2" in _o for _o in _dup_res["offending"]))
 
 # `parse_disposition` accepts `ran`/`skipped` with a substantive reason and rejects the rest.
 assert_eq("#1740 parse_disposition ran", ("ran", "did it"),
@@ -35592,6 +35591,20 @@ assert_eq("#1740 parse_disposition does not unwrap nested parens", ("ran", "((a)
           validate_ica.parse_disposition("ran ((a))"))
 assert_eq("#1740 parse_disposition rejects an empty skipped reason", (None, ""),
           validate_ica.parse_disposition("skipped ()"))
+# A non-paren boundary char (comma/semicolon/colon/period) after the verdict is accepted.
+assert_eq("#1740 parse_disposition accepts a comma-boundary reason", ("ran", ", done"),
+          validate_ica.parse_disposition("ran, done"))
+assert_eq("#1740 parse_disposition accepts a colon-boundary reason", ("skipped", ": nothing"),
+          validate_ica.parse_disposition("skipped: nothing"))
+
+# Cross-file coupling (cross-file-phase-contract): the validator's CHARTERED_PASSES must equal the
+# pass<N>_disposition fields the agent body's returned-record schema declares — the two are a
+# coupled pair (agents/issue-claim-auditor.md ships the contract the validator enforces), so this
+# guard goes RED if either drifts. Read the agent body and extract its pass<N>_disposition numbers.
+_ica_agent_body = (SCRIPTS.parent / "agents" / "issue-claim-auditor.md").read_text(encoding="utf-8")
+_ica_agent_passes = sorted(int(_m) for _m in re.findall(r"pass(\d+)_disposition:", _ica_agent_body))
+assert_eq("#1740 agent-body record schema declares exactly the validator's chartered passes",  # structural-pin-ok: cross-file-phase-contract -- the validator reads these agent-authored slots; drift silently checks a pass the charter never asks for or misses one
+          sorted(validate_ica.CHARTERED_PASSES), _ica_agent_passes)
 
 # CLI exit-code contract via a real temp file, driving main().
 import tempfile as _tf1740  # noqa: E402
