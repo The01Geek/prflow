@@ -1,0 +1,142 @@
+{
+  "iter": 1,
+  "started_at": null,
+  "fix_commit_sha": null,
+  "fix_files": [],
+  "loop_role": "fix",
+  "current_step": "loop-exit",
+  "current_substep": null,
+  "sweep_defs_read": [],
+  "sweep_evidence": {
+    "status": "not-run-no-fix"
+  },
+  "checklist": [
+    {
+      "id": "VC-1",
+      "claim": "checklist-map core phrase 'explains the \"why\" and names who benefits' present in issue-template.md",
+      "file": "lib/test/create-issue-quality-checklist-map.json",
+      "verification_mode": "lite",
+      "claim_signature": "test_mock_alignment:create-issue-quality-checklist-map.json:core-phrase-substring-present",
+      "verdict": "PASS",
+      "evidence": "grep -c → 1 in issue-template.md line 158; create-issue-contract #1693 AC5 397 passed 0 failed"
+    },
+    {
+      "id": "VC-2",
+      "claim": "changeset bump: patch, type: Changed valid vocabulary",
+      "file": ".changeset/issue-1743-user-story-problem-statement.md",
+      "verification_mode": "lite",
+      "claim_signature": "data_format_assumption:issue-1743-user-story-problem-statement.md:changeset-bump-type-vocab",
+      "verdict": "PASS",
+      "evidence": "frontmatter matches .changeset/README.md schema"
+    },
+    {
+      "id": "VC-3",
+      "claim": "carve-out set enumerates exactly four members matching 'four further surfaces'",
+      "file": "skills/create-issue/references/issue-template.md",
+      "verification_mode": "agent",
+      "claim_signature": "absolute_claim:issue-template.md:carveout-count-matches-four",
+      "verdict": "PASS",
+      "evidence": "four members enumerated at line 12; confirmed by code-reviewer + comment-analyzer + shadow"
+    },
+    {
+      "id": "VC-4",
+      "claim": "Problem Statement guidance mandates user-story sentence on every issue",
+      "file": "skills/create-issue/references/issue-template.md",
+      "verification_mode": "lite",
+      "claim_signature": "issue_acceptance:issue-template.md:problem-statement-user-story-mandate",
+      "verdict": "PASS",
+      "evidence": "line 75"
+    },
+    {
+      "id": "VC-5",
+      "claim": "worked example opens with conforming user-story sentence",
+      "file": "skills/create-issue/references/issue-template.md",
+      "verification_mode": "agent",
+      "claim_signature": "issue_acceptance:issue-template.md:worked-example-conforms-user-story",
+      "verdict": "PASS",
+      "evidence": "line 207"
+    },
+    {
+      "id": "VC-6",
+      "claim": "quality checklist row requires the user-story sentence then explains why/benefits",
+      "file": "skills/create-issue/references/issue-template.md",
+      "verification_mode": "lite",
+      "claim_signature": "issue_acceptance:issue-template.md:checklist-row-user-story-reword",
+      "verdict": "PASS",
+      "evidence": "line 158, still contains fixture substring"
+    }
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "dispatch_mode": null,
+  "diff_profile": {
+    "small_diff": true,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_findings": [],
+  "fix_decisions": [],
+  "convergence_inputs": {
+    "fixes_applied": 0,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "reference_reads": {},
+  "shadow": {
+    "dispatch_mode": null,
+    "ran_at": null,
+    "reviewed_sha": "7a3f0c409a511296a91e2100381ba8838c67e938",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 0,
+      "overlap_with_iter_N": 0,
+      "new": 0,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "park_calibration": {
+    "evidence_comparisons": []
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
