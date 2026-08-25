@@ -25297,7 +25297,7 @@ assert_eq "#1618/#1897 skill-body: the committed real transcript records exactly
 # still read delivered-whole. A shallow clone lacking that blob prints its own token rather than
 # a silent pass.
 assert_eq "#1618/#1897 skill-body: the committed transcript re-derives delivered-whole at the measured head" "delivered-whole" \
-  "$(mkdir -p "$SBL_TMP/rederive/skills/review" && git -C "$LIB/.." show 668a78990c810b0318d7fdbf5de8a95c043eda71:skills/review/SKILL.md > "$SBL_TMP/rederive/skills/review/SKILL.md" 2>/dev/null || { printf 'GIT_OBJECT_MISSING'; false; } && sbl_verdict_token "$(cd "$SBL_TMP/rederive" && sbl_run "$SBL_OBS" --tier review --root "prflow:review=skills/review/SKILL.md")")"
+  "$(mkdir -p "$SBL_TMP/rederive/skills/review" && NO_COLOR=1 PYTHON_COLORS=0 git -C "$LIB/.." show 668a78990c810b0318d7fdbf5de8a95c043eda71:skills/review/SKILL.md > "$SBL_TMP/rederive/skills/review/SKILL.md" 2>/dev/null || { printf 'GIT_OBJECT_MISSING'; false; } && sbl_verdict_token "$(cd "$SBL_TMP/rederive" && sbl_run "$SBL_OBS" --tier review --root "prflow:review=skills/review/SKILL.md")")"
 # Do not point this at a path outside the matching directory: the controls arm is reached only
 # after the name binding and the directory selection both resolve, so a root elsewhere would be
 # refused upstream and prove neither.
