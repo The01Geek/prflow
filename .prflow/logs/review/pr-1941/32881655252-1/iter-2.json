@@ -1,0 +1,130 @@
+{
+  "iter": 2,
+  "started_at": "2026-08-25T18:20:00Z",
+  "fix_commit_sha": null,
+  "fix_files": [],
+  "loop_role": "fix",
+  "current_step": "2.6",
+  "current_substep": null,
+  "dispatch_mode": "fanned-out",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "advisory test-coverage hardening (empty-COMMITS, non-string-login fixtures)",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          14137,
+          14160
+        ],
+        "kind": "test_gap"
+      },
+      "fix_decision": "advisory"
+    }
+  ],
+  "fix_decisions": [],
+  "convergence_inputs": {
+    "fixes_applied": 0,
+    "fix_diff_lines": 0,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": "no fix this iteration (clean re-review)"
+    }
+  },
+  "shadow": {
+    "dispatch_mode": "fanned-out",
+    "ran_at": "2026-08-25T18:26:00Z",
+    "reviewed_sha": "200718b26",
+    "verdict": "APPROVE",
+    "coverage": "full",
+    "prompt_addenda": "none",
+    "reviewers_dispatched": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "expected_reviewers": [
+      "prflow:code-reviewer",
+      "prflow:silent-failure-hunter",
+      "prflow:comment-analyzer",
+      "prflow:pr-test-analyzer",
+      "prflow:requesting-code-review"
+    ],
+    "reason": null,
+    "checklist_skipped": null,
+    "phase3_findings": [
+      {
+        "agent": "prflow:comment-analyzer",
+        "severity": "Minor",
+        "description": "design-narrative prose in the fetch-pr-context.sh block comment",
+        "defect_signature": {
+          "file": "lib/fetch-pr-context.sh",
+          "line_range": [
+            250,
+            262
+          ],
+          "kind": "comment_quality"
+        }
+      },
+      {
+        "agent": "prflow:pr-test-analyzer",
+        "severity": "Minor",
+        "description": "self-exclusion fixture is satisfied by the anchor rather than isolating is_human's != $author clause (matches the accepted defense-in-depth disposition)",
+        "defect_signature": {
+          "file": "lib/test/run.sh",
+          "line_range": [
+            14158,
+            14161
+          ],
+          "kind": "test_gap"
+        }
+      }
+    ],
+    "phase2_fails": [],
+    "comparison": {
+      "shadow_total": 7,
+      "overlap_with_iter_N": 5,
+      "new": 2,
+      "new_critical": 0,
+      "new_important": 0
+    },
+    "promoted_to_iter_next": false
+  },
+  "park_calibration": {
+    "evidence_comparisons": []
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}

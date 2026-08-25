@@ -1,0 +1,46 @@
+{
+  "dispatch_mode": "fanned-out",
+  "root_completeness": "established",
+  "engine_root_path": "/home/runner/work/prflow/prflow/skills/review",
+  "verdict": "APPROVE",
+  "report": "Issue #1440: post_bot_commits (and coupled POSTBOT_SHAS + cheap-gate.jq field comment) narrowed to count only positively human-attributable non-merge post-bot commits; new ends_bot/is_human jq defs are null-safe (type==\"string\" guard before endswith/test) so blank/whitespace/absent/non-string logins are classified agent-side and no longer abort the filter. Both iteration-1 Important test-gaps are FIXED at 200718b26: two one-sided OR-arm fixtures (blank-author/human-committer -> 1; human-author/blank-committer -> 1) that flip RED if either is_human OR arm is dropped, plus a coupled one-sided POSTBOT_SHAS fixture, plus a PR-author self-exclusion fixture. The run.sh harness extracts-and-executes the SHIPPED jq blocks (grep/sed anchored to distinct terminators) rather than transcribing a copy, and fails closed (RED) on empty/truncated extraction via the added extract-cleanly asserts and the fixture rows. Coupled-mirror discipline holds across the three sites; portability sound ([^[:space:]] POSIX class, no GNU-only constructs); adversarial input-shape matrix well covered. Remaining items are all Suggestions/advisory: (1) is_human's `!= $author` clause is structurally anchor-unreachable from the tail (defense-in-depth; the self-exclusion fixture passes via the anchor's `== $author`, which the run.sh comment accurately states as hedged) -- a known, accepted disposition, not a new defect; (2) fetch-pr-context.sh 'anchor unchanged' wording is slightly imprecise since null-safety changed anchor behavior on null logins (behavior-inert); (3) extract-cleanly guards check substring presence only, with a remote theoretical EOF-capture gap (test-harness only). None reach the REJECT threshold.",
+  "phase3_findings": [
+    {
+      "agent": "pr-test-analyzer",
+      "severity": "Suggestion",
+      "category": "test-coverage",
+      "file": "lib/test/run.sh",
+      "line": 14164,
+      "summary": "is_human's `!= $author` clause is structurally unreachable from the tail; the self-exclusion fixture yields 0 via the anchor `== $author`, not via the clause. Comment is accurately hedged (backs it up / defense-in-depth) per comment-analyzer, so this is documentation-of-a-known-disposition, not a new defect. Optional: reword to name the anchor as the enforcing mechanism or drop the redundant clause.",
+      "disposition": "already-considered / accepted"
+    },
+    {
+      "agent": "code-reviewer",
+      "severity": "Suggestion",
+      "category": "comment-accuracy",
+      "file": "lib/fetch-pr-context.sh",
+      "line": 257,
+      "summary": "'The last bot commit anchor (below) is unchanged' is easy to misread: the anchor select lines were rewritten to route through ends_bot(), and null/non-string logins that previously aborted the filter now evaluate false in the anchor too. Behavior-inert wording nit; consider 'anchor definition unchanged (now null-safe)'.",
+      "disposition": "advisory"
+    },
+    {
+      "agent": "silent-failure-hunter",
+      "severity": "Suggestion",
+      "category": "test-robustness",
+      "file": "lib/test/run.sh",
+      "line": 14126,
+      "summary": "extract-cleanly guards check only substring presence (*POST_BOT_COMMITS=*), not well-formedness; a remote terminator-format change could over-capture to EOF and still emit a right value. The coupled fixtures make an actual behavior drift RED, so this is a note; test-harness only.",
+      "disposition": "advisory"
+    }
+  ],
+  "phase3_dispatched": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:pr-test-analyzer", "prflow:comment-analyzer"],
+  "expected_reviewers": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:pr-test-analyzer", "prflow:comment-analyzer"],
+  "diff_profile": {
+    "files_changed": 5,
+    "surfaces": ["shell-jq (lib/fetch-pr-context.sh)", "jq-comment (lib/cheap-gate.jq)", "test (lib/test/run.sh)", "coverage-map-json", "changeset"],
+    "type_surface": false,
+    "type_design_analyzer_gated_out": true,
+    "notes": "Task named 6 files; git diff origin/main...HEAD at 200718b26 shows 5 (changeset, cheap-gate.jq, fetch-pr-context.sh, coverage-map.json, run.sh)."
+  },
+  "cap_drops": {"count": 0, "by_category": {}}
+}

@@ -1,0 +1,57 @@
+{
+  "dispatch_mode": "fanned-out",
+  "root_completeness": "established",
+  "verdict": "APPROVE",
+  "expected_reviewers": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:requesting-code-review", "prflow:pr-test-analyzer"],
+  "reviewers_dispatched": ["prflow:code-reviewer", "prflow:silent-failure-hunter", "prflow:comment-analyzer", "prflow:pr-test-analyzer", "prflow:requesting-code-review"],
+  "diff_profile": {"small_diff": true, "config_only": false, "has_new_types": false, "engine_self_modifying": true, "checklist_skipped": null},
+  "per_reviewer": [
+    {
+      "agent": "prflow:code-reviewer",
+      "assessment": "APPROVE. All five ACs met and correctly tested. Null-safety verified (ends_bot/is_human type-check before endswith/test); embedded-jq rules satisfied (apostrophe-free, guard-before-index); coupled POST_BOT_COMMITS/POSTBOT_SHAS predicates byte-identical; tests extract-and-execute the shipped blocks; no bare jq/gh (routes through $DEVFLOW_JQ). No Critical/Major.",
+      "findings": [
+        {"severity": "Minor", "description": "Block comment (fetch-pr-context.sh ~257-261) carries design narrative ('branch hygiene not a fixup', 'a small human correction is a real signal') that CLAUDE.md comment discipline directs to internal docs rather than inline source; specification core is fine to keep. Advisory, non-blocking.", "defect_signature": {"file": "lib/fetch-pr-context.sh", "line_range": [257, 261], "kind": "comment_discipline"}}
+      ]
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "assessment": "APPROVE. The change REMOVES a silent-failure hazard rather than adding one: previously a null login aborted the jq filter, yielding an empty POST_BOT_COMMITS feeding `[ ... -gt 0 ]` as a malformed integer test. New defs type-check before string ops and jq's and short-circuits. Extraction guard (run.sh) goes RED on empty/truncated program; sed terminators match. parents_count // 1 default correct. All ACs met. No Critical/Major/Minor.",
+      "findings": [
+        {"severity": "Suggestion", "description": "Pre-existing implicit empty-numeric guard: if $COMMITS were malformed, an empty POST_BOT_COMMITS at `[ \"$POST_BOT_COMMITS\" -gt 0 ]` (line ~769) evaluates false silently. This change materially reduces likelihood (null-abort path closed) and does not introduce it; a ${POST_BOT_COMMITS:-0} default would make it explicit. Noted for completeness only.", "defect_signature": {"file": "lib/fetch-pr-context.sh", "line_range": [769, 769], "kind": "implicit-empty-numeric-guard"}}
+      ]
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "assessment": "APPROVE. Added/modified comments are accurate against the code: null-safety, blank/whitespace classification ('at least one non-whitespace character'), merge-commit exclusion, 'unknown is not a human', and precise '[bot]-stripped PR author' all verified. cheap-gate.jq field description correct. No factual inaccuracies, no stale wording, no contradictory restatement. AC4 met. No Critical/Major/Minor.",
+      "findings": [
+        {"severity": "Suggestion", "description": "Inline field-semantics comment (fetch-pr-context.sh ~250-261) runs 12 physical lines and re-enumerates the is_human predicate mechanics in prose, exceeding the CLAUDE.md 2.3 three-line cap; the rationale clauses (why blank=>agent-side, why merges excluded, that trivial fixups are still counted) are load-bearing and worth keeping, the predicate-mirroring prose could be trimmed. Field-semantics specification carve-out applies, so demotable to Suggestion.", "defect_signature": {"file": "lib/fetch-pr-context.sh", "line_range": [250, 261], "kind": "comment_discipline"}}
+      ]
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "assessment": "APPROVE. High-quality test block: executes the SHIPPED jq blocks extracted via grep/sed (not a transcribed copy), so producer drift turns them RED. Extraction terminators correct and distinct; extraction-failure guard present. Every AC has a fixture that flips RED against the old filter; both is_human OR arms isolated; merge-exclusion fixtures genuinely discriminating. Gaps minor/optional, none blocking.",
+      "findings": [
+        {"severity": "Minor", "description": "Self-exclusion fixture (run.sh ~14160-14165) is satisfied by the anchor select(.author_login == $author) capturing the author's commit and emptying the tail, so it does not isolate is_human's `!= $author` clause; the comment concedes this and the anchor already enforces exclusion. Low value.", "defect_signature": {"file": "lib/test/run.sh", "line_range": [14160, 14165], "kind": "non-discriminating-fixture"}},
+        {"severity": "Suggestion", "description": "No fixture for empty COMMITS ([]) exercising the ($bot_indices | length) == 0 branch. Cheap to add.", "defect_signature": {"file": "lib/test/run.sh", "line_range": [14137, 14168], "kind": "missing-edge-case"}},
+        {"severity": "Suggestion", "description": "No fixture for a non-string non-null login (numeric/object author_login). Producer normalizes to strings upstream, so defense-in-depth only.", "defect_signature": {"file": "lib/test/run.sh", "line_range": [14137, 14144], "kind": "missing-edge-case"}},
+        {"severity": "Suggestion", "description": "Extraction guard asserts the extracted program CONTAINS its sentinel (detects wholly-empty) but not a too-early terminator; the executable fixtures are the real backstop for truncation (a too-early terminator errors bash -c and fails RED). Acceptable; noted so a future reader does not over-trust the guard.", "defect_signature": {"file": "lib/test/run.sh", "line_range": [14124, 14130], "kind": "weak-guard"}}
+      ]
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "assessment": "APPROVE. Change correct, well-documented, merge-ready. All 5 ACs met (AC1-AC5 each mapped to fixtures). Test design strong: extract-and-execute shipped blocks, mutation-aware per-OR-arm coverage, null-safety, whitespace-only, merge-vs-fixup, missing parents_count, self-exclusion, coupled POSTBOT_SHAS. coverage-map registers 1440; well-formed changeset. No findings. Non-blocking observation: comment calls comparand '[bot]-stripped PR author' while raw commit logins are unstripped — no functional defect (bots caught by ends_bot; strip is a no-op for non-bot logins).",
+      "findings": []
+    }
+  ],
+  "phase3_findings": [
+    {"agent": "prflow:code-reviewer", "severity": "Minor", "description": "Design-narrative prose in the fetch-pr-context.sh block comment beyond the specification core (comment discipline, advisory).", "defect_signature": {"file": "lib/fetch-pr-context.sh", "line_range": [257, 261], "kind": "comment_discipline"}},
+    {"agent": "prflow:comment-analyzer", "severity": "Suggestion", "description": "12-line inline field-semantics comment exceeds 3-line cap and mirrors predicate mechanics; specification carve-out applies.", "defect_signature": {"file": "lib/fetch-pr-context.sh", "line_range": [250, 261], "kind": "comment_discipline"}},
+    {"agent": "prflow:silent-failure-hunter", "severity": "Suggestion", "description": "Pre-existing implicit empty-numeric guard at the `-gt 0` test; not introduced by this change; a :-0 default would make it explicit.", "defect_signature": {"file": "lib/fetch-pr-context.sh", "line_range": [769, 769], "kind": "implicit-empty-numeric-guard"}},
+    {"agent": "prflow:pr-test-analyzer", "severity": "Minor", "description": "Self-exclusion fixture does not isolate is_human's != $author clause (satisfied by the anchor select).", "defect_signature": {"file": "lib/test/run.sh", "line_range": [14160, 14165], "kind": "non-discriminating-fixture"}},
+    {"agent": "prflow:pr-test-analyzer", "severity": "Suggestion", "description": "No fixture for empty COMMITS array (zero-bot-indices branch).", "defect_signature": {"file": "lib/test/run.sh", "line_range": [14137, 14168], "kind": "missing-edge-case"}},
+    {"agent": "prflow:pr-test-analyzer", "severity": "Suggestion", "description": "No fixture for a non-string non-null login; defense-in-depth only.", "defect_signature": {"file": "lib/test/run.sh", "line_range": [14137, 14144], "kind": "missing-edge-case"}},
+    {"agent": "prflow:pr-test-analyzer", "severity": "Suggestion", "description": "Extraction guard detects wholly-empty but not too-early terminator; executable fixtures are the real backstop.", "defect_signature": {"file": "lib/test/run.sh", "line_range": [14124, 14130], "kind": "weak-guard"}}
+  ],
+  "phase2_fails": [],
+  "prompt_addenda": "none"
+}

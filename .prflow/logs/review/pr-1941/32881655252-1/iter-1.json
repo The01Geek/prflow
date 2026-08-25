@@ -1,0 +1,96 @@
+{
+  "iter": 1,
+  "started_at": "2026-08-25T18:10:00Z",
+  "fix_commit_sha": "200718b26",
+  "fix_files": [
+    "lib/test/run.sh"
+  ],
+  "loop_role": "fix",
+  "current_step": "3.5",
+  "current_substep": null,
+  "dispatch_mode": "fanned-out",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "is_human disjunction (bot-author/human-committer and mirror) never exercised — all fixtures set author_login == committer_login.",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          14137,
+          14152
+        ],
+        "kind": "test_gap"
+      },
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "is_human's `$l != $author` self-exclusion on a tail commit is untested.",
+      "defect_signature": {
+        "file": "lib/test/run.sh",
+        "line_range": [
+          14137,
+          14152
+        ],
+        "kind": "test_gap"
+      },
+      "fix_decision": "applied"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "200718b26"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "200718b26"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 1,
+    "fix_diff_lines": 16,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "reference_reads": {
+    "fix_delta": {
+      "status": "verified",
+      "outcome": "clean",
+      "reason": "additive test-only coverage; monolith shard 10011 passed/0 failed; both new OR-arm fixtures give mutation coverage (each fails RED if its is_human arm is dropped)"
+    }
+  },
+  "verification_evidence": {
+    "focused_selection": "run.sh-resident (unmodularized per coverage-map); ran lib/test/run-shard.sh monolith on 200718b26 = 10011 passed, 0 failed, 0 skipped, rc=0"
+  },
+  "synthesized": false,
+  "telemetry": "unavailable"
+}
