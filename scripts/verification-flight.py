@@ -1207,8 +1207,8 @@ def cmd_event(args) -> int:
     line = json.dumps(record, sort_keys=True, ensure_ascii=False) + "\n"
     try:
         base.mkdir(parents=True, exist_ok=True)
-        # O_APPEND makes each record's write atomically positioned, so concurrent
-        # runs sharing a checkout interleave whole lines rather than corrupting one.
+        # O_APPEND positions each write at EOF atomically, so concurrent runs sharing
+        # a checkout append at distinct offsets rather than overwriting one another.
         fd = os.open(base / PHASE_EVENTS_FILENAME, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
         try:
             os.write(fd, line.encode("utf-8"))
