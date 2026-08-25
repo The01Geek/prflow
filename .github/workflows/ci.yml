@@ -369,6 +369,9 @@ jobs:
             lib/test/modules/efficiency-trace-telemetry.sh \
             lib/test/modules/issue-audit-state.sh \
             lib/test/modules/phase2-durability-checkpoint.sh \
+            lib/test/modules/review-contract.sh \
+            lib/test/modules/workpad-cli.sh \
+            lib/test/modules/implement-contract.sh \
             lib/test/cloud-form-layout-test.sh \
             lib/test/path-portability-test.sh \
             lib/test/warn-ignored-signals.sh
