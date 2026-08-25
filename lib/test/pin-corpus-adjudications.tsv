@@ -204,7 +204,6 @@ literal:4fcea564b4acdc1ac394d836488bbe49f2b17bc83059827e2349878f2e5a1088	boundar
 literal:50f946020a4a1c4253eb2408ae8140375dbcc7ff036833e2a032989377ef21da	boundary	maintainer adjudication: runtime state-vocabulary: Closed state vocabulary prevents a merged prerequisite from being treated as blocked.
 literal:513aa727327d80ddc8442f11947343078e221bbdac76a5e629523b3fa5269134	boundary	maintainer adjudication: declared security or interface boundary
 literal:51702e1dac85465702923d7d4b2122ab4637607c8634805c6e308a78fb24007c	boundary	Retain preflight state boundary: rcv/#545 P-direct-established: only an explicit invocation record establishes direct context fixes a subject, freshness, or authorization decision arm.
-literal:519469fcd7efadc336b96346a0df760d962d4c2d82849be392459c6fec9f152d	boundary	Retain operational boundary: #247/#275 T5b: create-issue preamble carries the tool-less drive-letter mapping rule protects the named executable or safety condition, not prose presentation.
 literal:51c452eb448b2e8c9d9bfbe62391620635b9ba7d48b1a076e012500e51ae329c	boundary	Retain preflight state boundary: rcv/#668 P-rebind-surface: a non-null rebound_from is surfaced in fact 10's value fixes a subject, freshness, or authorization decision arm.
 literal:5214812b76f1fbcb6b2d1a8682cbabfa2c5a9e7e93ab0308fe6048ce16beca8c	boundary	Monotonic verdict-state rule.
 literal:523ef44161e9cb8a64adcc09a310bf61128395b206978b3c896e8500f2c9d45e	boundary	Fast-path phase-routing and cost-accounting contract.
