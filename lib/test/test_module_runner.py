@@ -2116,6 +2116,10 @@ SERIAL_BY_EXCLUSION_SUITES = (
     # main shell (invoked directly by run.sh, like test_implement_context_eval.py
     # above), not through the pool or a full-suite module.
     "test_review_context_eval.py",
+    # issue #1900: the shared context-eval helpers' focused unittest runs serially on
+    # the main shell (invoked directly by run.sh, like test_review_context_eval.py
+    # above), not through the pool or a full-suite module.
+    "test_context_eval_shared.py",
     # The provider-neutral create-issue benchmark runs serially on the main shell
     # because its focused test launches matched local provider subprocesses.
     "test_create_issue_benchmark.py",
