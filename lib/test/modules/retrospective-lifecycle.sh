@@ -3381,11 +3381,17 @@ assert_eq "#1828: the zero-coverage pattern carries null cost, not 0" "true" \
 # (exercises the -(.occurrence_count) covered tiebreak key, which distinct-cost fixtures
 # leave dead), and two ZERO-COVERAGE patterns order among themselves by occurrence count
 # desc (exercises the uncovered ordering with more than one uncovered pattern).
+# Both pairs are chosen so the expected occurrence-count order OPPOSES the alphabetical
+# key order (compute-patterns.jq emits corpus categories `unique`-sorted, and jq sort_by
+# is stable, so an equal-key pair defaults to alphabetical order): the higher-occurrence
+# member of each pair is the alphabetically LATER name, so removing/flipping the
+# -(.occurrence_count) key flips each pair and fails the assertion — a real regression
+# guard, not one coincidentally satisfied by the stable-sort default.
 mkdir -p "$RL_TMP/rank2"
 printf '%s\n' \
   '{"schema_version":2,"kind":"implementation","pr":1,"merged_at":"2026-04-01T00:00:00Z","verdict":"imperfect","categories":["incomplete-edit"]}' \
   '{"schema_version":2,"kind":"implementation","pr":2,"merged_at":"2026-04-02T00:00:00Z","verdict":"imperfect","categories":["incomplete-edit"]}' \
-  '{"schema_version":2,"kind":"implementation","pr":3,"merged_at":"2026-04-03T00:00:00Z","verdict":"imperfect","categories":["incomplete-edit"]}' \
+  '{"schema_version":2,"kind":"implementation","pr":3,"merged_at":"2026-04-03T00:00:00Z","verdict":"imperfect","categories":["unverified-assumption"]}' \
   '{"schema_version":2,"kind":"implementation","pr":4,"merged_at":"2026-04-04T00:00:00Z","verdict":"imperfect","categories":["unverified-assumption"]}' \
   '{"schema_version":2,"kind":"implementation","pr":5,"merged_at":"2026-04-05T00:00:00Z","verdict":"imperfect","categories":["unverified-assumption"]}' \
   '{"schema_version":2,"kind":"implementation","pr":6,"merged_at":"2026-04-06T00:00:00Z","verdict":"imperfect","categories":["lenient-verdict"]}' \
@@ -3394,9 +3400,11 @@ printf '%s\n' \
   '{"schema_version":2,"kind":"implementation","pr":9,"merged_at":"2026-04-09T00:00:00Z","verdict":"imperfect","categories":["doc-accuracy"]}' \
   '{"schema_version":2,"kind":"implementation","pr":10,"merged_at":"2026-04-10T00:00:00Z","verdict":"imperfect","categories":["doc-accuracy"]}' \
   > "$RL_TMP/rank2/retrospectives.jsonl"
-# incomplete-edit: 3 occ, cost 4 (covered). unverified-assumption: 2 occ, cost 4 (covered,
-# EQUAL cost -> ranks below incomplete-edit by occurrence count). lenient-verdict: 3 occ,
-# uncovered. doc-accuracy: 2 occ, uncovered (ranks below lenient-verdict by occurrence count).
+# unverified-assumption: 3 occ, cost 4 (covered; alphabetically LATER than incomplete-edit,
+# so its higher occurrence count opposes the alphabetical default). incomplete-edit: 2 occ,
+# cost 4 (covered, EQUAL cost -> ranks below unverified-assumption by occurrence count).
+# lenient-verdict: 3 occ, uncovered (alphabetically LATER than doc-accuracy). doc-accuracy:
+# 2 occ, uncovered (ranks below lenient-verdict by occurrence count).
 printf '%s\n' \
   '{"pr":1,"efficiency_runs":[{"iterations":4}]}' \
   '{"pr":2,"efficiency_runs":[{"iterations":4}]}' \
@@ -3407,11 +3415,30 @@ printf '%s\n' \
 printf '%s' '{"schema_version":3,"patterns":{},"dismissed":{}}' > "$RL_TMP/rank2/ov.json"
 RL_RANK2="$(DEVFLOW_GH="$RL_TMP/gh-ap.sh" DEVFLOW_CONFIG_FILE="$REPO_ROOT/lib/test/fixtures/config.json" \
   bash "$RL_AP" "$RL_TMP/rank2/retrospectives.jsonl" "$RL_TMP/rank2/ov.json" 2>/dev/null)"
-assert_eq "#1828 AC2 tiebreak: equal-cost covered patterns order by occurrence count desc; multiple zero-coverage order by occurrence count desc" \
-  "incomplete-edit|unverified-assumption|lenient-verdict|doc-accuracy" \
+assert_eq "#1828 AC2 tiebreak: equal-cost covered patterns order by occurrence count desc; multiple zero-coverage order by occurrence count desc (both pairs oppose the alphabetical default)" \
+  "unverified-assumption|incomplete-edit|lenient-verdict|doc-accuracy" \
   "$(printf '%s' "$RL_RANK2" | jq -r '[.[].tag] | join("|")')"
 assert_eq "#1828 AC2 tiebreak: both covered patterns share the equal cost aggregate (4)" "4|4" \
   "$(printf '%s' "$RL_RANK2" | jq -r '[.[] | select(.covered_occurrence_count > 0) | .cost_mean_iterations] | join("|")')"
+
+# A present-but-unparseable experiment-records.jsonl (one malformed line) must NOT abort
+# the weekly derivation: actionable-patterns.sh validates it, warns, and degrades to no
+# coverage (rank by occurrence count) rather than letting the eager --slurpfile read take
+# the whole run down. The cost source is best-effort — it only reorders, never admits.
+mkdir -p "$RL_TMP/rank3"
+printf '%s\n' \
+  '{"schema_version":2,"kind":"implementation","pr":1,"merged_at":"2026-04-01T00:00:00Z","verdict":"imperfect","categories":["incomplete-edit"]}' \
+  '{"schema_version":2,"kind":"implementation","pr":2,"merged_at":"2026-04-02T00:00:00Z","verdict":"imperfect","categories":["incomplete-edit"]}' \
+  > "$RL_TMP/rank3/retrospectives.jsonl"
+printf '%s\n' '{"pr":1,"efficiency_runs":[{"iterations":4}]}' 'this is not json' > "$RL_TMP/rank3/experiment-records.jsonl"
+printf '%s' '{"schema_version":3,"patterns":{},"dismissed":{}}' > "$RL_TMP/rank3/ov.json"
+RL_RANK3="$(DEVFLOW_GH="$RL_TMP/gh-ap.sh" DEVFLOW_CONFIG_FILE="$REPO_ROOT/lib/test/fixtures/config.json" \
+  bash "$RL_AP" "$RL_TMP/rank3/retrospectives.jsonl" "$RL_TMP/rank3/ov.json" 2>"$RL_TMP/rank3.err")"; RL_RANK3_RC=$?
+assert_eq "#1828: a malformed experiment-records.jsonl does not abort the derivation (rc 0)" "0" "$RL_RANK3_RC"
+assert_eq "#1828: a malformed experiment-records.jsonl still emits the pattern (degraded to uncovered)" "true" \
+  "$(printf '%s' "$RL_RANK3" | jq -e 'any(.[]; .tag=="incomplete-edit" and .cost_mean_iterations == null and .covered_occurrence_count == 0)' >/dev/null 2>&1 && echo true || echo false)"
+assert_eq "#1828: a malformed experiment-records.jsonl emits the specific breadcrumb naming the file" "true" \
+  "$(grep -q 'experiment-records.jsonl.*does not parse as JSON' "$RL_TMP/rank3.err" && echo true || echo false)"
 
 rm -rf "$RL_TMP"
 trap - RETURN

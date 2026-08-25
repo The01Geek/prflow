@@ -116,12 +116,20 @@ fi
 # ── Experiment records: the cost source for the #1828 cost-weighted ranking ───
 # The unified experiment record (scripts/build-experiment-records.py) is the sibling
 # of the retrospectives file. compute-patterns.jq joins occurrences to their PR's
-# efficiency_runs[].iterations from it. An absent/empty artifact (a repo that has not
-# built one yet) stubs to an empty stream — every pattern then reads as uncovered and
-# ranks by occurrence count, never aborting the derivation.
+# efficiency_runs[].iterations from it. The cost source is best-effort — it only
+# reorders patterns, never admits or excludes one — so a source it cannot read must
+# degrade to no coverage (rank by occurrence count), never take the weekly derivation
+# down. An absent/empty artifact (a repo that has not built one yet) stubs to an empty
+# stream; a present-but-unparseable one would otherwise abort at the eager --slurpfile
+# read below (there is no breadcrumb on that jq stage), so it is validated here and, on
+# a parse failure, replaced by the same empty stub with a specific ::warning::.
 EXPERIMENTS_FILE="$(dirname "$RETRO_FILE")/experiment-records.jsonl"
 _EXPERIMENTS_ACTUAL="$EXPERIMENTS_FILE"
 if [ ! -f "$EXPERIMENTS_FILE" ] || [ ! -s "$EXPERIMENTS_FILE" ]; then
+    : > "$_JQ_TMP/experiment-records.jsonl"
+    _EXPERIMENTS_ACTUAL="$_JQ_TMP/experiment-records.jsonl"
+elif ! "$DEVFLOW_JQ" '.' "$EXPERIMENTS_FILE" >/dev/null 2>&1; then
+    echo "::warning::actionable-patterns: experiment-records.jsonl at '$EXPERIMENTS_FILE' does not parse as JSON — ignoring the cost source this run (patterns rank by occurrence count only); regenerate it via scripts/build-experiment-records.py or remove it to restore cost-weighted ranking" >&2
     : > "$_JQ_TMP/experiment-records.jsonl"
     _EXPERIMENTS_ACTUAL="$_JQ_TMP/experiment-records.jsonl"
 fi
