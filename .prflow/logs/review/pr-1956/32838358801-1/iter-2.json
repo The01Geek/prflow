@@ -1,0 +1,160 @@
+{
+  "iter": 2,
+  "fix_commit_sha": "ee1460ad9c87a7f9e6ba3d371b7cda7d0b56daac",
+  "fix_files": [
+    "lib/efficiency-trace.jq",
+    "lib/test/modules/efficiency-trace-telemetry.sh"
+  ],
+  "loop_role": "fix",
+  "dispatch_mode": "fanned-out",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "shadow-channel silent arm (returned:true, not in findings, no direct sink) untested and mutation-survivable",
+      "defect_signature": {
+        "file": "lib/test/modules/efficiency-trace-telemetry.sh",
+        "line_range": [
+          0,
+          0
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 2,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "gate the jq per_reviewer_assessment read on coverage==full or comment why safe",
+      "defect_signature": {
+        "file": "lib/efficiency-trace.jq",
+        "line_range": [
+          255,
+          261
+        ],
+        "kind": "clarity"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "union $assess_covered into $roster (benign)",
+      "defect_signature": {
+        "file": "lib/efficiency-trace.jq",
+        "line_range": [
+          0,
+          0
+        ],
+        "kind": "suggestion"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "below-threshold"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "malformed shadow-assessment fixtures + both-channels-union + fix_decisions multi-value fixtures",
+      "defect_signature": {
+        "file": "lib/test/modules/efficiency-trace-telemetry.sh",
+        "line_range": [
+          0,
+          0
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "below-threshold"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "trim denominator-confound narrative in efficiency-trace.jq to a pointer",
+      "defect_signature": {
+        "file": "lib/efficiency-trace.jq",
+        "line_range": [
+          55,
+          75
+        ],
+        "kind": "comment_quality"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "below-threshold"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "ee1460ad9c87a7f9e6ba3d371b7cda7d0b56daac"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "ee1460ad9c87a7f9e6ba3d371b7cda7d0b56daac"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "below-threshold",
+      "source_file": "lib/efficiency-trace.jq",
+      "claim_text": "union assess_covered into roster",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "below-threshold",
+      "source_file": "lib/test/modules/efficiency-trace-telemetry.sh",
+      "claim_text": "additional suggestion-level fixtures",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "below-threshold",
+      "source_file": "lib/efficiency-trace.jq",
+      "claim_text": "trim confound narrative",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 2,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "verification_evidence": {
+    "command": "lib/test/run-module.sh efficiency-trace-telemetry",
+    "result": "pass",
+    "skipped_checks": []
+  },
+  "telemetry": "unavailable",
+  "synthesized": false
+}

@@ -1,0 +1,157 @@
+{
+  "iter": 1,
+  "fix_commit_sha": "e43addbf5b383baf6ed066cbc22e14b803c527a6",
+  "fix_files": [
+    "lib/efficiency-trace.jq",
+    "lib/test/modules/efficiency-trace-telemetry.sh"
+  ],
+  "loop_role": "fix",
+  "dispatch_mode": "fanned-out",
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "$failed_present coarse OR over two non-equivalent channels collapses a non-shadow silent agent to silent instead of unestablished when phase3_failed_agents is malformed but shadow assessment present",
+      "defect_signature": {
+        "file": "lib/efficiency-trace.jq",
+        "line_range": [
+          244,
+          259
+        ],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 2,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "adversarial 0/empty-string/7 failed-field shapes assert only that a record is produced, not the silent-agent disposition arm the issue requires",
+      "defect_signature": {
+        "file": "lib/test/modules/efficiency-trace-telemetry.sh",
+        "line_range": [
+          271,
+          277
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "shadow-channel-only silent path untested",
+      "defect_signature": {
+        "file": "lib/test/modules/efficiency-trace-telemetry.sh",
+        "line_range": [
+          0,
+          0
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "applied"
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "top-of-file Denominator confound block partially duplicates the internal doc",
+      "defect_signature": {
+        "file": "lib/efficiency-trace.jq",
+        "line_range": [
+          55,
+          75
+        ],
+        "kind": "comment_quality"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "below-threshold"
+    },
+    {
+      "agent": "prflow:code-reviewer",
+      "severity": "Suggestion",
+      "description": "verdict-unchanged not asserted for a returning agent; fix_decisions roll-up only single/empty sets; malformed per_reviewer_assessment no adversarial coverage; pre-existing unguarded .agent/.fix_decision index (non-regression)",
+      "defect_signature": {
+        "file": "lib/efficiency-trace.jq",
+        "line_range": [
+          0,
+          0
+        ],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "fix_decision": "below-threshold"
+    }
+  ],
+  "fix_decisions": [
+    {
+      "finding_id": "F-1",
+      "decision": "applied",
+      "commit": "e43addbf5b383baf6ed066cbc22e14b803c527a6"
+    },
+    {
+      "finding_id": "F-2",
+      "decision": "applied",
+      "commit": "e43addbf5b383baf6ed066cbc22e14b803c527a6"
+    },
+    {
+      "finding_id": "F-3",
+      "decision": "applied",
+      "commit": "e43addbf5b383baf6ed066cbc22e14b803c527a6"
+    },
+    {
+      "finding_id": "F-4",
+      "decision": "below-threshold",
+      "source_file": "lib/efficiency-trace.jq",
+      "claim_text": "denominator confound block duplicates internal doc",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    },
+    {
+      "finding_id": "F-5",
+      "decision": "below-threshold",
+      "source_file": "lib/efficiency-trace.jq",
+      "claim_text": "additional suggestion-level test coverage",
+      "skip_category": "below-threshold-parked",
+      "evidence": "parked-origin: below-threshold"
+    }
+  ],
+  "convergence_inputs": {
+    "fixes_applied": 3,
+    "new_corroborated_critical_count": 0
+  },
+  "cap_drops": {
+    "count": 0,
+    "by_category": {}
+  },
+  "verification_evidence": {
+    "command": "lib/test/run-module.sh efficiency-trace-telemetry",
+    "result": "pass",
+    "skipped_checks": []
+  },
+  "telemetry": "unavailable",
+  "synthesized": false
+}

@@ -1,0 +1,113 @@
+{
+  "dispatch_mode": "full",
+  "verdict": "REJECT",
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "diff_profile": {
+    "engine_self_modifying": true,
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false
+  },
+  "cap_drops": [],
+  "phase3_findings": [
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "The `silent` disposition established solely through the shadow `per_reviewer_assessment` channel (a dispatched, finding-less agent that the assessment lists with `returned: true`, with the direct `phase3_failed_agents` sink absent/malformed) is untested. The only `silent` fixture (iter-1 `c`) is established via the direct sink. This shadow-established `silent` arm is a common real-world case (a shadow reviewer that returned successfully but raised nothing) and is mutation-survivable: narrowing `$assess_covered` to only `returned == false` members would pass every current test yet regress a shadow-covered returned:true silent agent from `silent` to `unestablished`, re-collapsing the exact silent-vs-unestablished distinction issue #1849 exists to preserve. Suggested fixture: direct sink absent/malformed, shadow lists one `returned:true` finding-less dispatched agent, assert `silent`.",
+      "defect_signature": {
+        "file": "lib/test/modules/efficiency-trace-telemetry.sh",
+        "line_range": [221, 256],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "fix_decision": null
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "The Phase-3 roster is `dispatched ∪ findings-agents` and does not union `$assess_covered`, so a reviewer the shadow `per_reviewer_assessment` marks `returned:false` but which is absent from both `phase3_dispatched` and `phase3_findings` is never enumerated in `agent_verdicts` and its `failed` disposition is never emitted. Benign in practice (when `phase3_dispatched` is present, shadow reviewers are a subset; when absent, the roster gate makes every disposition `unestablished`), so no misleading `silent`/`failed` is produced — the agent is merely omitted. Consider unioning `$assess_covered` into `$roster`.",
+      "defect_signature": {
+        "file": "lib/efficiency-trace.jq",
+        "line_range": [239, 241],
+        "kind": "logic_error"
+      },
+      "corroboration_count": 1,
+      "fix_decision": null
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "The second failed-set channel `.shadow.per_reviewer_assessment` is equally agent-mutable and type-guarded in the jq, but no test exercises a malformed shadow assessment (non-array, entries lacking `agent`/`returned`, or a non-boolean `returned`). A regression widening or removing those guards would stay green. Corroborates the shadow-channel under-coverage theme with pr-test-analyzer's Important finding.",
+      "defect_signature": {
+        "file": "lib/test/modules/efficiency-trace-telemetry.sh",
+        "line_range": null,
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "fix_decision": null
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "No fixture exercises both failed-set channels well-formed simultaneously (a well-formed `phase3_failed_agents` array AND a well-formed shadow assessment naming a different failed agent), so the `$failed_direct + $assess_failed | unique` union of two authoritative channels is unobserved.",
+      "defect_signature": {
+        "file": "lib/test/modules/efficiency-trace-telemetry.sh",
+        "line_range": [221, 256],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "fix_decision": null
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The `fix_decisions` roll-up is only asserted for the single-value (`[\"deferred\"]`) and empty (`[]`) cases; the sort-unique over multiple distinct values and the `strings` type-guard against a non-string/absent `fix_decision` are untested.",
+      "defect_signature": {
+        "file": "lib/test/modules/efficiency-trace-telemetry.sh",
+        "line_range": [233, 241],
+        "kind": "test_gap"
+      },
+      "corroboration_count": 1,
+      "fix_decision": null
+    },
+    {
+      "agent": "prflow:requesting-code-review",
+      "severity": "Suggestion",
+      "description": "The jq reads `.shadow.per_reviewer_assessment` as a failed-set signal without gating on `coverage == \"full\"`, which shadow-review.md (edited by this PR) mandates for that block's measurement fields. Safe in practice (a mid-fan-out death leaves unprocessed reviewers absent, not `returned:false`), but diverges from the discipline the sibling prose codifies; worth a coverage gate or a one-line comment recording why the failed-subset read is safe ungated.",
+      "defect_signature": {
+        "file": "lib/efficiency-trace.jq",
+        "line_range": null,
+        "kind": "api_misuse"
+      },
+      "corroboration_count": 1,
+      "fix_decision": null
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "The denominator-confound narrative in lib/efficiency-trace.jq lines 68-72 is reader-guidance/design narrative (not the prevention of a specific wrong change at that site) and is fully restated in its canonical home docs/internal/efficiency-trace.md. Under the prevention-only comment standard it could be trimmed to a one-line pointer. May overlap iteration-1's parked comment-verbosity Suggestions.",
+      "defect_signature": {
+        "file": "lib/efficiency-trace.jq",
+        "line_range": [68, 72],
+        "kind": "other"
+      },
+      "corroboration_count": 1,
+      "fix_decision": null
+    }
+  ],
+  "report": "## Review — PR #1956 (issue #1849), fix-loop iteration 2\n\n**Verdict: REJECT** (one Important test-coverage finding; six Suggestions).\n\n### Fix verification\nBoth iteration-1 findings are correctly and completely fixed in e43addbf5, confirmed by direct code inspection and all five Phase-3 agents:\n\n1. **lib/efficiency-trace.jq per-agent establishment (finding 1).** `agent_disposition($returned; $roster_established; $failed_established; $is_failed)` now receives a per-AGENT `$failed_established` = `$failed_direct_present or ($assess_covered | index($agent)) != null`. `$failed_direct_present` (`($failed_raw|type)==\"array\"`) covers all dispatched agents; the shadow `per_reviewer_assessment` (`$assess_covered`) covers only its listed reviewers with a boolean `returned`. An agent neither channel covers reads `unestablished`, never `silent`. The disposition ordering (returned → roster-unestablished → failed → failed-unestablished → silent) is sound, and `$is_failed ⟹ $failed_established` holds (any failed_agents member forces direct-present or assess_covered membership), so `failed` is never reported while establishment is false. All reads are type-guarded (`type==\"array\"`, `objects`, `strings`, boolean/string `select`), so the six adversarial malformed shapes never abort the filter.\n\n2. **Test module (finding 2).** The adversarial 0/\"\"/7 (plus {}/\"z\"/false) shapes now assert the silent agent lands in `unestablished` (not merely that a record is produced), and the iter-5 fixture (malformed direct sink {} + shadow covering only `g`) genuinely exercises per-agent establishment: `g` (shadow returned:false) → failed, `h` (neither channel) → unestablished.\n\nCoupled sites are consistent: `phase3_failed_agents` added to `ITER_EXPECTED_FIELDS` (greppable single-line) and the SKILL.md schema, `--self-check` fixture updated, docs/internal/efficiency-trace.md disposition table and the changeset accurate against HEAD. No documented_falsehood, no stale prose. Covering module GREEN (976 passed, 0 failed).\n\n### Why REJECT\nThe fix's core new mechanism is per-agent establishment across TWO channels. The shadow channel's positive-establishment → `silent` arm — a dispatched, finding-less agent the shadow assessment lists with `returned: true` while the direct sink is absent — is untested and mutation-survivable: narrowing `$assess_covered` to `returned == false` members only would pass every current test yet regress that common case from `silent` to `unestablished`, re-collapsing the exact distinction #1849 exists to preserve. This is corroborated thematically by the final-pass reviewer (malformed shadow-assessment shapes also untested). Grade: Important — the shipped code is correct, but the fix ships its core channel with an untested, regression-prone arm covering a common real-world outcome.\n\n### Suggestions (non-blocking)\n- Union `$assess_covered` into `$roster` so a shadow-attested failed reviewer absent from dispatched+findings is at least enumerated (currently benign — omitted, not mis-labeled).\n- Add fixtures: malformed shadow `per_reviewer_assessment` shapes; both channels well-formed simultaneously (union); `fix_decisions` multi-value + non-string type-guard.\n- Consider gating the jq `per_reviewer_assessment` read on `coverage == \"full\"` (or a one-line comment on why the failed-subset read is safe ungated).\n- Trim the denominator-confound narrative in efficiency-trace.jq lines 68-72 to a pointer at its canonical docs home.\n\nType-design-analyzer was correctly gated out (has_new_types false — no new types introduced). All five dispatched agents returned; none failed."
+}

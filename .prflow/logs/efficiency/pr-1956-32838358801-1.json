@@ -1,0 +1,310 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1956",
+  "generated_at": "2026-08-25T12:21:32Z",
+  "config_fingerprint": {
+    "sha256": "c2dd346fdf78eacf9e402b333f46db8770aa0afa8742a7dc4ac5d1139ba96283",
+    "partial": false,
+    "salient": {
+      "verdict_severity_threshold": "critical",
+      "fix_severity_threshold": "suggestion",
+      "max_iterations": 5
+    }
+  },
+  "source": "review-and-fix",
+  "synthesized": false,
+  "cut_candidate_min_dispatch": 3,
+  "recurring_defect_kinds": [],
+  "iterations": 2,
+  "per_iteration": [
+    {
+      "iter": 1,
+      "loop_role": "fix",
+      "synthesized": false,
+      "phase3_dispatched": [
+        "prflow:code-reviewer",
+        "prflow:silent-failure-hunter",
+        "prflow:comment-analyzer",
+        "prflow:pr-test-analyzer",
+        "prflow:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 5,
+      "phase3_dispatched_present": true,
+      "dispatched_effort_present": false,
+      "agent_effort": [
+        {
+          "agent": "prflow:code-reviewer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:comment-analyzer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:pr-test-analyzer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:requesting-code-review",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:silent-failure-hunter",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        }
+      ],
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 3,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "prflow:code-reviewer",
+          "verdict": null
+        },
+        {
+          "agent": "prflow:comment-analyzer",
+          "verdict": null
+        },
+        {
+          "agent": "prflow:pr-test-analyzer",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "prflow:requesting-code-review",
+          "verdict": null
+        },
+        {
+          "agent": "prflow:silent-failure-hunter",
+          "verdict": "corroborating"
+        }
+      ]
+    },
+    {
+      "iter": 2,
+      "loop_role": "fix",
+      "synthesized": false,
+      "phase3_dispatched": [
+        "prflow:code-reviewer",
+        "prflow:silent-failure-hunter",
+        "prflow:comment-analyzer",
+        "prflow:pr-test-analyzer",
+        "prflow:requesting-code-review"
+      ],
+      "phase3_dispatched_count": 5,
+      "phase3_dispatched_present": true,
+      "dispatched_effort_present": false,
+      "agent_effort": [
+        {
+          "agent": "prflow:code-reviewer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:comment-analyzer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:pr-test-analyzer",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:requesting-code-review",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        },
+        {
+          "agent": "prflow:silent-failure-hunter",
+          "requested": null,
+          "resolved": null,
+          "application_point": "session-inheritance",
+          "effective": null,
+          "fallback_reason": null
+        }
+      ],
+      "diff_profile": {
+        "small_diff": false,
+        "config_only": false,
+        "has_new_types": false,
+        "engine_self_modifying": true,
+        "checklist_skipped": null
+      },
+      "verification_posture": "none-recorded",
+      "checklist_lite_count": 0,
+      "checklist_agent_count": 0,
+      "fixes_applied": 2,
+      "added_nothing": false,
+      "agent_verdicts": [
+        {
+          "agent": "prflow:code-reviewer",
+          "verdict": null
+        },
+        {
+          "agent": "prflow:comment-analyzer",
+          "verdict": null
+        },
+        {
+          "agent": "prflow:pr-test-analyzer",
+          "verdict": "corroborating"
+        },
+        {
+          "agent": "prflow:requesting-code-review",
+          "verdict": "unique-effective"
+        },
+        {
+          "agent": "prflow:silent-failure-hunter",
+          "verdict": null
+        }
+      ]
+    }
+  ],
+  "telemetry": [
+    {
+      "iter": 1,
+      "phases": "unavailable"
+    },
+    {
+      "iter": 2,
+      "phases": "unavailable"
+    }
+  ],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.14",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow-implement.yml@refs/heads/main",
+    "command": "implement",
+    "scope": "whole-job",
+    "cost_usd": 69.42645765000006,
+    "tokens": {
+      "input_tokens": 310,
+      "output_tokens": 154190,
+      "cache_read_input_tokens": 52348108,
+      "cache_creation_input_tokens": 509394,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 858,
+        "outputTokens": 404822,
+        "cacheReadInputTokens": 71171068,
+        "cacheCreationInputTokens": 3307961,
+        "webSearchRequests": 0,
+        "costUSD": 68.29535775000008,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 74,
+        "outputTokens": 14432,
+        "cacheReadInputTokens": 2439122,
+        "cacheCreationInputTokens": 199523,
+        "webSearchRequests": 0,
+        "costUSD": 1.1310999000000002,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 193,
+    "duration_ms": 5999275
+  },
+  "permission_denials": {
+    "count": 37,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "echo \"GITHUB_ACTIONS=$GITHUB_ACTIONS\"; echo \"GITHUB_RUN_ID=$GITHUB_RUN_ID\"; echo \"GITHUB_REPOSITORY=$GITHUB_REPOSITORY\"; echo \"GITHUB_SERVER_URL=$GITHUB_SERVER_URL\"; echo \"GITHUB_RUN_ATTEMPT=$GITHUB_RUN_ATTEMPT\"; git branch --show-current; git status --porcelain | head",
+      "BASE=$(.prflow/vendor/prflow/scripts/config-get.sh .base_branch main) || BASE=\"\"\n[ -n \"$BASE\" ] || BASE=main\nCUR=$(git branch --show-current 2>/dev/null) || CUR=\"\"\nCOMMON_DIR=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || COMMON_DIR=\"\"\nGIT_DIR_PATH=$(git rev-parse --path-format=absolute --git-dir 2>/dev/null) || GIT_DIR_PATH=\"\"\necho \"BASE=$BASE CUR=$CUR COMMON_DIR=$COMMON_DIR GIT_DIR_PATH=$GIT_DIR_PATH\"",
+      "\\\n.prflow/vendor/prflow/scripts/workpad.py update 1849 --note \"issue-claim audit (projection): every Desired Behavior obligation is represented in the resolved acceptance criteria — pass complete\" && \\\n.prflow/vendor/prflow/scripts/workpad.py update 1849 --note \"issue-claim audit (count): no count or enumeration claims about codebase entities found — pass complete\" && \\\n.prflow/vendor/prflow/scripts/workpad.py update 1849 --note \"issue-claim audit (negative-scope): issue excluded 'scripts/build- …[per-command-truncated]",
+      "lib/test/lint-reference-size.py 2>&1 | tail -25; echo \"EXIT=$?\"",
+      "lib/test/lint-reference-size.py; echo \"EXIT=$?\"",
+      "lib/test/lint-reference-size.py",
+      "git diff --merge-base origin/main -U0 | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree 2>&1 | tail -40; echo \"EXIT=${PIPESTATUS[1]}\"",
+      "ls .changeset/ | head; echo \"=== sample ===\"; cat .changeset/$(ls .changeset/ | grep -v '^config\\|README\\|^\\.' | head -1) 2>/dev/null",
+      "git diff --no-index -U0 /dev/null .changeset/issue-1849-null-verdict-decomposition.md | .prflow/vendor/prflow/scripts/stale-prose-lint.py --worktree 2>&1 | tail -8",
+      "mkdir -p /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1956/32838358801-1 && echo \"made\" && git diff 66eec8a8a2aee14677cd27359929722760691fe3...HEAD > /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1956/32838358801-1/full.diff && wc -l /home/runner/work/prflow/prflow/.prflow/tmp/review/pr-1956/32838358801-1/full.diff",
+      "git diff 66eec8a8a2aee14677cd27359929722760691fe3...HEAD | tee .prflow/tmp/review/pr-1956/32838358801-1/diff.patch >/dev/null && wc -l .prflow/tmp/review/pr-1956/32838358801-1/diff.patch && echo \"displaced-none\" && : > .prflow/tmp/displaced-paths.txt 2>/dev/null || echo \"no-displaced-write\"",
+      "git diff 66eec8a8a2aee14677cd27359929722760691fe3...HEAD > .prflow/tmp/review/pr-1956/32838358801-1/diff.patch; wc -l .prflow/tmp/review/pr-1956/32838358801-1/diff.patch",
+      "cp /home/runner/.claude/projects/-home-runner-work-prflow-prflow/4ff7da2b-f3c8-4475-9472-07e34c75cd92/tool-results/b7oz3jqiy.txt .prflow/tmp/review/pr-1956/32838358801-1/diff.patch && wc -l .prflow/tmp/review/pr-1956/32838358801-1/diff.patch",
+      "git diff 66eec8a8a2aee14677cd27359929722760691fe3...HEAD | cat > .prflow/tmp/review/pr-1956/32838358801-1/diff.patch; ls -la .prflow/tmp/review/pr-1956/32838358801-1/",
+      "sed -n '/skills\\/review-and-fix\\/references\\/shadow-review.md/,/phase-3-agents/p' /home/runner/.claude/projects/-home-runner-work-prflow-prflow/4ff7da2b-f3c8-4475-9472-07e34c75cd92/tool-results/blj8wnlm4.txt",
+      "git diff main...HEAD -- lib/efficiency-trace.jq lib/efficiency-trace.sh > .prflow/tmp/review/pr-1956/32838358801-1/diff.patch; git diff main...HEAD > .prflow/tmp/review/pr-1956/32838358801-1/full-diff.patch; wc -l .prflow/tmp/review/pr-1956/32838358801-1/full-diff.patch; cat .prflow/tmp/review/pr-1956/32838358801-1/diff.patch",
+      "git diff main...HEAD > .prflow/tmp/review/pr-1956/32838358801-1/full-diff.patch",
+      "git --no-pager diff main...HEAD",
+      "git --no-pager diff main...HEAD",
+      "git --no-pager diff main..HEAD -- lib/ docs/ .changeset/",
+      "git --no-pager log -1 --format='%H %s' HEAD; git --no-pager diff main..HEAD -- lib/test/modules/efficiency-trace-telemetry.sh",
+      "git --no-pager diff main..HEAD -- lib/test/modules/efficiency-trace-telemetry.sh",
+      "git diff main...HEAD > .prflow/tmp/review/pr-1956/32838358801-1/diff.patch && wc -l .prflow/tmp/review/pr-1956/32838358801-1/diff.patch",
+      "git diff main...HEAD > /home/runner/work/prflow/prflow/review-diff-1956.patch && wc -l /home/runner/work/prflow/prflow/review-diff-1956.patch && head -1 /home/runner/work/prflow/prflow/review-diff-1956.patch",
+      "TD=$(mktemp -d)\ncat > \"$TD/iter-1.json\" <<'EOF'\n{\"iter\":1,\"phase3_dispatched\":[\"a\",\"s\"],\n\"phase3_findings\":[{\"agent\":\"a\",\"corroboration_count\":1,\"fix_decision\":\"applied\"}],\n\"shadow\":{\"per_reviewer_assessment\":[{\"agent\":\"s\",\"returned\":true},{\"agent\":\"a\",\"returned\":true}]},\n\"convergence_inputs\":{\"fixes_applied\":1},\"telemetry\":null}\nEOF\nbash lib/efficiency-trace.sh --workpad-dir \"$TD\" --slug pr-x --mode record | jq -r '.per_iteration[0].agent_verdicts[] | \"\\(.agent) \\(.disposition)\"'\necho \"--- muta …[per-command-truncated]",
+      "TD=$(mktemp -d)\ncat > \"$TD/iter-1.json\" <<'EOF'\n{\"iter\":1,\"phase3_dispatched\":[\"a\",\"s\"],\n\"phase3_findings\":[{\"agent\":\"a\",\"corroboration_count\":1,\"fix_decision\":\"applied\"}],\n\"shadow\":{\"per_reviewer_assessment\":[{\"agent\":\"s\",\"returned\":true},{\"agent\":\"a\",\"returned\":true}]},\n\"convergence_inputs\":{\"fixes_applied\":1},\"telemetry\":null}\nEOF\nbash lib/efficiency-trace.sh --workpad-dir \"$TD\" --slug pr-x --mode record | jq -c '.per_iteration[0].agent_verdicts'\nrm -rf \"$TD\"",
+      "TD=$(mktemp -d); echo \"$TD\"",
+      "\"${CLAUDE_SKILL_DIR:-/home/runner/work/prflow/prflow/.prflow/vendor/prflow/skills/requesting-code-review}\"/../../scripts/load-prompt-extension.sh requesting-code-review; echo \"---EXIT:$?---\"",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review; echo \"---EXIT:$?---\"",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/scripts/load-prompt-extension.sh requesting-code-review",
+      "ls .changeset/ 2>/dev/null; echo \"---\"; for f in $(ls .changeset/*.md 2>/dev/null | grep -v README | head -3); do echo \"== $f ==\"; head -5 \"$f\"; done",
+      "jq -n 'def agent_disposition($returned; $roster_established; $failed_established; $is_failed):\n  if $returned then \"returned\"\n  elif ($roster_established | not) then \"unestablished\"\n  elif $is_failed then \"failed\"\n  elif ($failed_established | not) then \"unestablished\"\n  else \"silent\" end;\n# array-of-objects malformed phase3_failed_agents\n{phase3_failed_agents:[{\"x\":1}]} as $it\n| (($it.phase3_failed_agents)//null) as $fr\n| (($fr|type)==\"array\") as $fdp\n| (if $fdp then [$fr[]|strings] else [] end …[per-command-truncated]",
+      "cat > /tmp/t.jq <<'EOF'\ndef agent_disposition($returned; $roster_established; $failed_established; $is_failed):\n  if $returned then \"returned\"\n  elif ($roster_established | not) then \"unestablished\"\n  elif $is_failed then \"failed\"\n  elif ($failed_established | not) then \"unestablished\"\n  else \"silent\" end;\n{phase3_failed_agents:[{\"x\":1}]} as $it\n| (($it.phase3_failed_agents)//null) as $fr\n| (($fr|type)==\"array\") as $fdp\n| (if $fdp then [$fr[]|strings] else [] end) as $fd\n| {failed_direct_present …[per-command-truncated]",
+      "printf '%s\\n' \\\n'def agent_disposition($returned; $r; $fe; $if):' \\\n'  if $returned then \"returned\"' \\\n'  elif ($r|not) then \"unestablished\"' \\\n'  elif $if then \"failed\"' \\\n'  elif ($fe|not) then \"unestablished\"' \\\n'  else \"silent\" end;' \\\n'(.phase3_failed_agents//null) as $fr' \\\n'| (($fr|type)==\"array\") as $fdp' \\\n'| (if $fdp then [$fr[]|strings] else [] end) as $fd' \\\n'| {fdp:$fdp,fd:$fd,disp:agent_disposition(false;true;$fdp;false)}' > /tmp/t.jq\necho '{\"phase3_failed_agents\":[{\"x\":1}]}' | jq  …[per-command-truncated]",
+      "mkdir -p .prflow/tmp/review/issue-1849/shadow && git diff main...HEAD > .prflow/tmp/review/issue-1849/shadow/diff.patch && wc -l .prflow/tmp/review/issue-1849/shadow/diff.patch && echo \"DIFF READY\"",
+      "git diff main...HEAD > .prflow/tmp/review/issue-1849/shadow/diff.patch && wc -l .prflow/tmp/review/issue-1849/shadow/diff.patch",
+      "/home/runner/work/prflow/prflow/.prflow/vendor/prflow/skills/requesting-code-review/../../scripts/load-prompt-extension.sh requesting-code-review"
+    ],
+    "total": 37,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}

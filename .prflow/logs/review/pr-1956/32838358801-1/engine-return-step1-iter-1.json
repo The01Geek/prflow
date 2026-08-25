@@ -1,0 +1,87 @@
+{
+  "dispatch_mode": "fanned-out",
+  "verdict": "REJECT",
+  "expected_reviewers": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_dispatched": [
+    "prflow:code-reviewer",
+    "prflow:silent-failure-hunter",
+    "prflow:comment-analyzer",
+    "prflow:pr-test-analyzer",
+    "prflow:requesting-code-review"
+  ],
+  "phase3_failed_agents": [],
+  "diff_profile": {
+    "small_diff": false,
+    "config_only": false,
+    "has_new_types": false,
+    "engine_self_modifying": true,
+    "checklist_skipped": null
+  },
+  "cap_drops": { "count": 0, "by_category": {} },
+  "phase3_findings": [
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Important",
+      "description": "$failed_present is a coarse OR across two non-equivalent channels. `((($failed_raw|type)==\"array\") or (($assess_raw|type)==\"array\"))` becomes true when EITHER phase3_failed_agents or shadow.per_reviewer_assessment is a well-formed array, but the primary phase3_failed_agents sink covers ALL dispatched Phase-3 agents while the shadow assessment covers only the shadow subset. On an agent-mutable/hand-corrupted workpad where phase3_failed_agents is malformed (object / false / scalar) yet shadow.per_reviewer_assessment is a well-formed array, $failed_present=true, so a general Phase-3 agent that is dispatched, absent from findings, and not in the shadow set resolves to `silent` (agent_disposition falls past the failed_present!not guard) even though the authoritative sink establishing its failed-vs-silent status was malformed/unestablished. This is exactly the 'collapse an unestablished failed-set onto silent' residual the change exists to prevent, and the in-code comment ('a silent agent under a malformed failed field reads unestablished, never silent') is over-broad for the mixed-channel case.",
+      "defect_signature": { "file": "lib/efficiency-trace.jq", "line_range": [244, 253], "kind": "logic_error" },
+      "corroboration_count": 2,
+      "corroborated_by": ["prflow:silent-failure-hunter", "prflow:requesting-code-review"]
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Important",
+      "description": "Three adversarial phase3_failed_agents shapes (iter-4 `0` numeric-falsy, iter-5 `\"\"` empty-string, iter-6 `7` scalar-number) are constructed and fed through but only aggregate facts (exit 0, .iterations==6) are asserted — the per-agent disposition of silent agent `z` is asserted only for the `{}`, `\"z\"`, and `false` shapes. The issue's AC requires each adversarial shape to 'land in a specific arm'; a future change coercing a numeric-falsy/empty-string/scalar failed field to an empty array (establishing 'no failures') would silently map `z` to silent and these three iters would stay green.",
+      "defect_signature": { "file": "lib/test/modules/efficiency-trace-telemetry.sh", "line_range": [271, 277], "kind": "test_gap" },
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The shadow-channel-only failed-set path (phase3_failed_agents absent, $failed_present established solely via shadow per_reviewer_assessment) is never exercised with a third dispatched-silent agent, so the 'shadow establishes failed_present → silent (not unestablished)' branch is untested; iter-4's roster is only [a returned, f failed].",
+      "defect_signature": { "file": "lib/test/modules/efficiency-trace-telemetry.sh", "line_range": [214, 220], "kind": "test_gap" },
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "Malformed shadow.per_reviewer_assessment (a second agent-mutable producer value feeding the failed set) has no adversarial coverage: non-array shapes and entries missing .agent or with a non-boolean .returned are never asserted to (a) not abort the filter and (b) contribute no spurious failed entries.",
+      "defect_signature": { "file": "lib/test/modules/efficiency-trace-telemetry.sh", "line_range": [214, 220], "kind": "test_gap" },
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "The 'adds no new verdict, perturbs no derivation' claim is verdict-asserted only for the null case (deferred-only agent b). No assertion pins the verdict of a returning findings-bearing agent, even though the diff rewired verdict_for to the new $af binding — a regression on the findings path would be uncaught.",
+      "defect_signature": { "file": "lib/test/modules/efficiency-trace-telemetry.sh", "line_range": [224, 228], "kind": "test_gap" },
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:pr-test-analyzer",
+      "severity": "Suggestion",
+      "description": "fix_decisions roll-up (map(.fix_decision)|map(strings)|unique) is asserted only for single-value ['deferred'] and empty [] sets; the sort-unique of a multi/duplicate set and the strings type-guard dropping a non-string element have no witness.",
+      "defect_signature": { "file": "lib/test/modules/efficiency-trace-telemetry.sh", "line_range": [329, 331], "kind": "test_gap" },
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:comment-analyzer",
+      "severity": "Suggestion",
+      "description": "The top-of-file 'Narrowed null class' / 'Denominator confound' block (lib/efficiency-trace.jq lines 55-71) is design/analysis narrative that restates docs/internal/efficiency-trace.md's Denominator-confound section; it names no specific wrong edit it prevents at that source location and runs well over three physical lines, so it fails the prevention-only comment standard for library-source comments. Belongs in the internal doc where it already exists.",
+      "defect_signature": { "file": "lib/efficiency-trace.jq", "line_range": [55, 71], "kind": "style" },
+      "corroboration_count": 1
+    },
+    {
+      "agent": "prflow:silent-failure-hunter",
+      "severity": "Suggestion",
+      "description": "Pre-existing (NOT introduced by this PR): def finding_agent (.agent) and the new fix_decisions map(.fix_decision) index unguarded on agent-mutable phase3_findings elements, so a scalar element aborts the whole filter — but the pre-existing roster-construction line aborts first on the same input, so the PR changes no observable failure. Noted for the hardening focus area only; finding_kind demonstrates the guarded pattern finding_agent lacks.",
+      "defect_signature": { "file": "lib/efficiency-trace.jq", "line_range": [94, 94], "kind": "unhandled_exception" },
+      "corroboration_count": 1
+    }
+  ],
+  "report": "# PRFlow Review — PR #1956 (issue #1849)\n\n**Verdict: REJECT** — one Important robustness gap against the change's own 'unknown is not zero' invariant (corroborated ×2), plus one Important test-coverage gap on the adversarial matrix the issue requires.\n\n## Diff profile\nengine_self_modifying (touches lib/**, skills/**) -> full checklist; not config_only, not small_diff, has_new_types=false. Phase 3 roster: code-reviewer, silent-failure-hunter, comment-analyzer, pr-test-analyzer (test files touched), requesting-code-review. type-design-analyzer gated out. All 5 returned; phase3_failed_agents=[]. Focused module efficiency-trace-telemetry: 971 passed, 0 failed (includes new #1849 assertions).\n\n## Acceptance criteria\nAll eight ACs implemented and exercised (disposition, fix_decisions roll-up, roster-presence-aware residual, persisted shadow per_reviewer_assessment + prose flip, phase-3-agents.md sink, docstring + denominator confound, historical->unestablished, no roster/model/effort change). jq logic ordering and type-guards correct on all realistic inputs.\n\n## Findings\n### Important\n1. [silent-failure-hunter x2 requesting-code-review] $failed_present ORs two non-equivalent channels (lib/efficiency-trace.jq ~244-253): a malformed phase3_failed_agents sink beside a well-formed shadow per_reviewer_assessment sets $failed_present=true, so a general Phase-3 agent absent from findings and not in the shadow subset reads `silent` instead of `unestablished` — the residual-collapse this change exists to prevent, on agent-mutable input. requesting-code-review frames it as code-vs-contract (jq does not gate the shadow channel on coverage=='full' though the shadow-review.md prose this PR adds says consumers must). Remedy: gate the shadow channel per-covered-agent or on coverage=='full', or narrow the in-code comment so the single-channel guarantee is not stated universally.\n2. [pr-test-analyzer] Adversarial 0/\"\"/7 failed-field shapes assert only that a record is produced, not the disposition arm (efficiency-trace-telemetry.sh ~271-277); the issue requires each shape to land in a specific arm, so a coercion regression stays green.\n\n### Suggestion\n3. Shadow-channel-only failed-set path never exercises a third silent agent (~214-220).\n4. Malformed shadow per_reviewer_assessment has no adversarial coverage (~214-220).\n5. verdict-unchanged asserted only for the null path, not a returning findings-bearing agent (~224-228).\n6. fix_decisions roll-up tested only for single-value/empty sets (~329-331).\n7. Top-of-file Denominator-confound narrative block (lib/efficiency-trace.jq 55-71) duplicates the internal doc and fails the prevention-only comment standard for library source.\n8. Pre-existing (not a regression): unguarded .agent/.fix_decision indexing on agent-mutable phase3_findings elements; roster line aborts first, so this PR changes no observable failure.\n\ncode-reviewer reported no findings at confidence>=80. Coverage: cap_drops 0; no skipped checks."
+}
