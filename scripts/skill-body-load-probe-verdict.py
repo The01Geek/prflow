@@ -17,14 +17,23 @@ The tool_result is a launch stub (`Launching skill: <name>`, ~30 bytes) and is N
 body; the rendered body arrives as the following user-role text block, which opens with
 a `Base directory for this skill: <dir>` line and continues with the file minus its YAML
 frontmatter (the transformation docs/internal/skill-body-load-delivery.md records). This
-helper therefore joins each Skill tool_use to that following body record, matching `<dir>`
-against the root's own directory so a session loading several skills is disambiguated.
+helper therefore joins each Skill tool_use to that following body record.
 Reading that body and checking it against controls read FROM DISK at verdict time is an
 observation, not testimony. Measuring the stub instead can only ever yield short-delivery.
 
+DISAMBIGUATION IS TWO-STAGE, and neither stage substitutes for the other. A root is first
+bound to its own recorded LOAD by the name's quoted JSON form, so a longer name containing
+it cannot claim it; the body is then selected within that load's window by BASE DIRECTORY, so
+another skill's body is never adjudicated as this root's. BOTH stages collect every match and
+refuse a count above one, because keeping one of several makes the verdict depend on record
+order — a silently-kept first match is the failure this ordering exists to prevent, and it is
+reachable at either stage.
+
 THE CONTROLS ARE READ FROM DISK, so the helper cannot drift from the shipped file. Two
 controls per root: the file's last non-empty line (tail) and a distinctive interior
-line (mid). A body delivered whole carries both. Tail absent → the tail was lost; tail
+line (mid), where the file offers one — a file whose every non-tail line is short offers
+no mid, and the verdict reason then says only the tail was checked. A body delivered
+whole carries every control that was collected. Tail absent → the tail was lost; tail
 present but mid absent → an interior loss; a truncation/cap notice in the content →
 short delivery. This detects a lost tail and one interior point, NOT an arbitrary
 middle elision — the same failure-geometry limit the delivery record discloses.
@@ -34,8 +43,13 @@ is a workflow-authoring error, so it exits non-zero rather than printing an all-
 an audit that audited nothing must not read as an audit that found nothing.
 
 Degraded arms come FIRST and every per-root degraded outcome is `unestablished`, never
-`delivered-whole`: a body that was never loaded, a load that errored, an unreadable or
-wrong-shape execution file are each unknown, not whole. The process exits 0 on every
+`delivered-whole`. The arms, complete by construction, in evaluation order: the execution
+file unreadable, unparseable or only partly parseable; the root not resolving to exactly
+one recorded load (none matched its name, or several did — one arm, two causes, and the
+reason says which); a matching load with no paired result; a load that returned an error;
+no following body record naming the root's own directory; more than one such body record,
+the same refusal one stage lower; and the on-disk controls unreadable. Each is unknown,
+not whole. The process exits 0 on every
 execution-file outcome (a red verdict on a degraded run is exactly what this probe
 exists to characterize); only the no-roots usage error exits non-zero.
 """
@@ -128,11 +142,17 @@ def dirs_match(a, b):
     A body record carries the runner's ABSOLUTE base directory while `--root` is normally
     repo-relative, so equality alone would never match; the comparison is therefore a
     component-boundary suffix in either direction. Matching on a bare suffix without the
-    separator would let a `.../myskills/review` directory satisfy a `skills/review` root."""
-    a = os.path.normpath(a.replace("\\", "/")).rstrip("/")
-    b = os.path.normpath(b.replace("\\", "/")).rstrip("/")
-    if not a or not b:
+    separator would let a `.../myskills/review` directory satisfy a `skills/review` root.
+
+    Separators are normalised AFTER `normpath`, never before: on a host whose `os.path` is
+    `ntpath`, `normpath` re-inserts the backslashes an earlier cleanup removed, so the
+    suffix test below could not match and every root read `unestablished` there."""
+    # Test emptiness BEFORE normalising: normpath maps "" to ".", so a guard placed after it
+    # can never fire and a body record with a blank base directory matches a bare root.
+    if not a.strip() or not b.strip():
         return False
+    a = os.path.normpath(a).replace("\\", "/").rstrip("/")
+    b = os.path.normpath(b).replace("\\", "/").rstrip("/")
     return a == b or a.endswith("/" + b) or b.endswith("/" + a)
 
 
@@ -178,7 +198,9 @@ def collect_skill_pairs(parsed):
     results = {}
     for kind, payload in events:
         if kind == "result":
-            results[payload[0]] = payload[1]
+            # OR the error flag rather than overwriting: a duplicated tool_use_id whose later
+            # result is clean would otherwise erase an earlier error and read as a delivery.
+            results[payload[0]] = results.get(payload[0], False) or payload[1]
 
     use_positions = [i for i, (kind, _) in enumerate(events) if kind == "use"]
     pairs = []
@@ -227,36 +249,55 @@ def read_controls(path):
     return tail, mid
 
 
-def _pair_for_root(skill_name, pairs):
-    """The Skill pair whose tool_use input names this skill, or None."""
-    for p in pairs:
-        if skill_name in p["input_text"]:
-            return p
-    return None
+def _pairs_for_root(skill_name, pairs):
+    """Every Skill pair whose recorded tool_use input names this skill.
+
+    Matched on the name's JSON string form, quote marks included, so a longer name containing
+    this one cannot claim this root's load; every match is returned and the caller decides on
+    the count. Do not narrow this to a named input field — a field-keyed read stops measuring
+    silently if that name ever differs, and no fixture built on the assumed name would say so.
+    """
+    needle = json.dumps(skill_name)
+    return [p for p in pairs if needle in p["input_text"]]
 
 
-def _body_for_root(pair, path):
-    """The body record delivered for this root's SKILL.md, or None.
+def root_dir_for(path):
+    """The skill directory a `--root` path names — the value a body record's base dir is
+    compared against, and the value the no-body reason reports."""
+    return os.path.dirname(path) or "."
 
-    Selected by base directory rather than by position, so a session that loaded several
-    skills cannot have another skill's body adjudicated as this root's."""
-    root_dir = os.path.dirname(path) or "."
-    for b in pair["bodies"]:
-        if dirs_match(b["base_dir"], root_dir):
-            return b
-    return None
+
+def _bodies_for_root(pair, path):
+    """Every body record in this load's window naming this root's own directory.
+
+    Selected by base directory rather than by position, so another skill's body is never
+    adjudicated as this root's. Every match is returned rather than the first, for the reason
+    the name binding collects every match: keeping one of several makes the verdict depend on
+    record order, and two records naming one directory is exactly the ambiguity to report."""
+    root_dir = root_dir_for(path)
+    return [b for b in pair["bodies"] if dirs_match(b["base_dir"], root_dir)]
 
 
 def verdict_for_root(skill_name, path, pairs, note_top):
     """Return (verdict, reason) for one engine root. Degraded arms first."""
     if note_top:
         return "unestablished", "execution file could not be read cleanly: " + note_top
-    pair = _pair_for_root(skill_name, pairs)
-    if pair is None:
+    matches = _pairs_for_root(skill_name, pairs)
+    if not matches:
         return "unestablished", (
-            "no Skill tool_use naming %s was recorded — the body was never loaded by "
-            "this channel (skill not invoked, or refused before any body returned)" % skill_name
+            "no recorded Skill tool_use names %s, so nothing bound this root. %d Skill load(s) "
+            "were recorded in total: a count of zero means the transcript carried no Skill "
+            "tool_use at all — the skill was not invoked, or the file parsed but holds no such "
+            "record — while a non-zero count means every recorded load named some other skill, "
+            "or carried this one outside a JSON string value" % (skill_name, len(pairs))
         )
+    if len(matches) > 1:
+        return "unestablished", (
+            "%d recorded Skill loads name %s, so this root resolves to no single load — the "
+            "ambiguity is what could not be measured, not any one of those loads (a retried "
+            "load, or an argument string equal to this root's name)" % (len(matches), skill_name)
+        )
+    pair = matches[0]
     if not pair["has_result"]:
         return "unestablished", (
             "a Skill tool_use for %s was recorded but no tool_result was paired to it, "
@@ -267,19 +308,27 @@ def verdict_for_root(skill_name, path, pairs, note_top):
             "the Skill load of %s returned an error tool_result (refused or aborted), so "
             "no body was delivered — the abort mode, not a truncation" % skill_name
         )
-    body_rec = _body_for_root(pair, path)
-    if body_rec is None:
+    body_recs = _bodies_for_root(pair, path)
+    if not body_recs:
         return "unestablished", (
-            "the Skill load of %s was recorded but no following body record naming its own "
-            "directory (%r) was found, so no delivered body could be located to measure — "
-            "the paired tool_result is a launch stub, not the body" % (skill_name, path)
+            "the recorded Skill load bound to %s carried no following body record naming its own "
+            "directory (%r), so no delivered body could be located to measure — "
+            "the paired tool_result is a launch stub, not the body"
+            % (skill_name, root_dir_for(path))
         )
-    body = body_rec["text"]
+    if len(body_recs) > 1:
+        return "unestablished", (
+            "%d body records in the Skill load bound to %s name its own directory (%r), so no "
+            "single delivered body could be selected — measuring one of them would make the "
+            "verdict depend on record order" % (len(body_recs), skill_name, root_dir_for(path))
+        )
+    body = body_recs[0]["text"]
     tail, mid = read_controls(path)
     if tail is None:
         return "unestablished", (
-            "the on-disk file %s could not be read for controls, so the delivered body "
-            "cannot be checked against it" % path
+            "the on-disk file %s could not be read for controls — it is unreadable, or it is "
+            "present but has no non-empty line — so the delivered body cannot be checked "
+            "against it" % path
         )
     for marker in _TRUNCATION_MARKERS:
         if marker in body:
@@ -299,9 +348,12 @@ def verdict_for_root(skill_name, path, pairs, note_top):
             "%s lost content before its final line" % skill_name
         )
     return "delivered-whole", (
-        "the delivered Skill body record for %s contained both the file's last non-empty "
-        "line and a distinctive interior line; no truncation/cap notice was present. This "
-        "detects a lost tail and one interior point, NOT an arbitrary middle elision" % skill_name
+        "the delivered Skill body record for %s contained the file's last non-empty line %s; "
+        "no truncation/cap notice was present. This detects a lost tail and one interior "
+        "point, NOT an arbitrary middle elision"
+        % (skill_name,
+           "and a distinctive interior line" if mid is not None
+           else "(the file offered no distinctive interior line, so only the tail was checked)")
     )
 
 

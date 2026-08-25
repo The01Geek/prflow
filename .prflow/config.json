@@ -43,6 +43,7 @@
       "Bash(lib/test/test_create_issue_benchmark.py:*)",
       "Bash(lib/test/test_implement_context_eval.py:*)",
       "Bash(lib/test/test_review_context_eval.py:*)",
+      "Bash(lib/test/test_context_eval_shared.py:*)",
       "Bash(lib/test/coverage_map_guard.py:*)",
       "Bash(lib/preflight.sh:*)",
       "Bash(shellcheck:*)",

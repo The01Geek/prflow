@@ -21,7 +21,7 @@ Balance useful cloud-run diagnostics against the sensitivity of prompts, reposit
 - Denial count and tool identifiers are not controlled by the command-text toggle.
 - Effectiveness records are enabled by default.
 
-The transcript and command scrubber is an incomplete blocklist. It covers common GitHub tokens, Anthropic keys and Bearer or basic Authorization headers. Other credential shapes can remain. A scrub failure prevents the affected text from being uploaded or persisted.
+The transcript and command scrubber is an incomplete blocklist. It covers common GitHub tokens, Anthropic keys and Bearer or basic Authorization headers, whose scheme keyword is matched whatever its casing. An Authorization value shorter than four characters is left alone, so a literal command such as `sed 's/AUTHORIZATION: basic //'` is not mistaken for a credential. Other credential shapes can remain. A scrub failure prevents the affected text from being uploaded or persisted.
 
 **Warning:** A successful scrub does not prove that output is secret-free.
 

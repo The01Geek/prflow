@@ -2179,6 +2179,12 @@ jobs:
             echo "::error::.prflow/config.json section '$SECTION' provider '$PROVIDER' env map contains forbidden key(s): $denied_env_keys — a credential name, a variable that would shadow the job environment or its Actions plumbing, an interpreter/loader hook that can make every later step load code you did not intend, or the subagent-model override that flattens the review roster. Set credentials via the DEVFLOW_PROVIDER_API_KEY repository secret, and remove these keys from providers.$PROVIDER.env. Refusing to run."
             exit 1
           fi
+          # Keep the assignment bare, exactly as denied_env_keys above (issue #1911): a local/declare
+          # or an if/&&/|| context lets set -e swallow a jq failure and the warning silently never fires.
+          warned_env_keys="$(printf '%s' "$DECISION" | jq -r '[.env // {} | keys[] | select(ascii_upcase | IN("ANTHROPIC_BASE_URL","API_TIMEOUT_MS","HOME","RUNNER_TEMP"))] | join(" ")')"
+          if [ -n "$warned_env_keys" ]; then
+            echo "::warning::.prflow/config.json section '$SECTION' provider '$PROVIDER' env map sets key(s): $warned_env_keys — the env map is written last, so its value overrides the dedicated provider field (base_url/timeout_ms) or the job's own HOME/RUNNER_TEMP for every later step. The env map's value takes effect; remove these keys from providers.$PROVIDER.env if that override was not intended."
+          fi
           # Every $GITHUB_ENV write below uses GitHub's newline-safe multiline (heredoc) form —
           # the scalar endpoint values via genv(), the provider env map via the inline jq heredoc
           # emit at the end — so a config-sourced value carrying an embedded newline cannot split

@@ -57,19 +57,25 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import os
 import sys
+
+# _iter_session_files/_median/_context_tokens/_usage_value/UNESTABLISHED are single-sourced
+# in scripts/context_eval_shared.py (issue #1900). Keep the sys.path insert: this file is
+# loaded by path (its test, no package parent), so the sibling import fails without it.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from context_eval_shared import (  # noqa: E402,F401
+    UNESTABLISHED,
+    _context_tokens,
+    _iter_session_files,
+    _median,
+    _usage_value,
+)
 
 # The two engine-file subtrees (disjoint — neither prefix contains the other). A subtree
 # rename must be mirrored here in the same change or reads under it silently stop counting;
 # test_prefixes_map_to_real_on_disk_subtrees reconciles these against the on-disk dirs.
 ENGINE_PREFIXES = ("skills/review-and-fix/", "skills/review/")
-
-# The sentinel a residency statistic carries when its population is empty. It is NEVER a
-# number and NEVER 0 — an unestablished measurement collapsed onto a real value is the bug
-# this instrument (like its two siblings) guards against.
-UNESTABLISHED = "unestablished"
 
 
 def _engine_file_key(file_path):
@@ -110,26 +116,6 @@ def _context_identity(record, source):
     return "main:" + ident, False
 
 
-def _median(values):
-    """Deterministic median of a NON-EMPTY list of numbers.
-
-    Refuses an empty population rather than returning 0: this module's central discipline
-    is that an unestablished measurement is never collapsed onto a real value.
-    `_median_or_unestablished` is the only sanctioned empty-tolerant entry point.
-    """
-    if not values:
-        raise ValueError("median of an empty population")
-    ordered = sorted(values)
-    n = len(ordered)
-    mid = n // 2
-    if n % 2 == 1:
-        return ordered[mid]
-    lo, hi = ordered[mid - 1], ordered[mid]
-    total = lo + hi
-    # Keep an int when the two central values divide evenly so output stays byte-stable.
-    return total // 2 if total % 2 == 0 else total / 2
-
-
 def _median_or_unestablished(values):
     """The median of a non-empty list, else the UNESTABLISHED sentinel (never 0)."""
     return _median(values) if values else UNESTABLISHED
@@ -138,42 +124,6 @@ def _median_or_unestablished(values):
 def _max_or_unestablished(values):
     """The max of a non-empty list, else the UNESTABLISHED sentinel (never 0)."""
     return max(values) if values else UNESTABLISHED
-
-
-RESIDENCY_KEYS = ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")
-
-
-def _usage_value(usage, key):
-    """One usage sub-field's ESTABLISHED token count, or None when it carries none.
-
-    None covers absent, null, bool (an int subclass, never a token count), non-numeric and
-    non-finite values. It is the single predicate every residency read shares, so no caller
-    can accept a wider set of values than this one establishes.
-    """
-    if not isinstance(usage, dict):
-        return None
-    val = usage.get(key)
-    if isinstance(val, bool):
-        return None
-    if isinstance(val, (int, float)):
-        # Do not drop the non-finite guard: json.loads accepts bare Infinity/NaN, and
-        # int(inf) raises OverflowError, outside eval_corpus's per-record backstop tuple.
-        if isinstance(val, float) and not math.isfinite(val):
-            return None
-        return int(val)
-    return None
-
-
-def _context_tokens(usage):
-    """Residency tokens = input + cache_read + cache_creation (no output), or None.
-
-    None when NO residency sub-field carried an established count: an empty or wholly
-    unusable `usage` object measured nothing, and folding its 0 into a peak would report an
-    unmeasured turn as a real-looking 0.
-    """
-    established = [v for v in (_usage_value(usage, k) for k in RESIDENCY_KEYS)
-                   if v is not None]
-    return sum(established) if established else None
 
 
 class ContextAccumulator:
@@ -285,42 +235,6 @@ def new_skip_tally():
         # be established, so it is accounted here rather than read as "not an engine file".
         "unresolvable_read_path": 0,
     }
-
-
-def _iter_session_files(corpus_root, skipped):
-    """Yield JSONL session file paths under the corpus root, deterministically.
-
-    Skips any entry whose real path escapes the corpus root (a symlink out), so the eval
-    never reads outside the supplied directory. Sorted for determinism. Both walk-level
-    drops are TALLIED and breadcrumbed, never silent.
-    """
-    root_real = os.path.realpath(corpus_root)
-    collected = []
-
-    def _on_walk_error(exc):
-        skipped["walk_error"] += 1
-        sys.stderr.write(
-            "warning: skipping unwalkable corpus directory {}: {}\n".format(
-                getattr(exc, "filename", "?"), exc
-            )
-        )
-
-    for dirpath, dirnames, filenames in os.walk(corpus_root, onerror=_on_walk_error):
-        dirnames.sort()
-        for name in sorted(filenames):
-            if not name.endswith(".jsonl"):
-                continue
-            full = os.path.join(dirpath, name)
-            real = os.path.realpath(full)
-            if real != root_real and not real.startswith(root_real + os.sep):
-                skipped["escaped_path"] += 1
-                sys.stderr.write(
-                    "warning: skipping session file escaping corpus root {}\n".format(full)
-                )
-                continue
-            collected.append(full)
-    collected.sort()
-    return collected
 
 
 def eval_corpus(corpus_root):
