@@ -43,13 +43,17 @@
 #      off there is no seeded comment, so this fails OPEN (no suppression) — the
 #      direction this job is already contractually required to take. The
 #      absent-signal path still emits a breadcrumb.
-#   2. Cross-class: a /prflow:review-and-fix run seeds the SAME comment, so a
-#      /prflow:review issued during one is suppressed. This is correct — the
-#      review-and-fix run executes the review engine, so the suppressed review
-#      would have been redundant. It holds for as long as the PR's remote head is
-#      the one that run seeded on; once the fix loop PUSHES, the remote head has
+#   2. Cross-class: a /prflow:review-and-fix run that SEEDS a live PR progress
+#      comment seeds the SAME comment this detector reads, so a /prflow:review
+#      issued during one is suppressed. This is correct — the review-and-fix run
+#      executes the review engine, so the suppressed review would have been
+#      redundant. It holds ONLY for a hosting run that seeds such a live PR
+#      progress comment, and only for as long as the PR remote head is the one
+#      that run seeded on; once the fix loop PUSHES, the remote head has
 #      genuinely moved and a request for that new head is a review of a commit
-#      nothing is reviewing, which the commit scope correctly lets through.
+#      nothing is reviewing, which the commit scope correctly lets through. A
+#      host that seeds NO PR comment does not suppress at all — see THE
+#      WORKPAD-SURFACED HOST below.
 #
 # THE PRE-SEED WINDOW (issue #1479). The seeded progress comment this detector
 # reads is published by the review ENGINE at Phase 0.3.5 — inside the peer run's
@@ -76,6 +80,25 @@
 #   TRANSIENT timing exposure that self-heals the instant the peer seeds — NOT a
 #   numbered member of the two standing accepted costs above, whose ordinal "3"
 #   still denotes the pull-request scope retired by issue #1010.
+#
+# THE WORKPAD-SURFACED HOST (issue #1657). Caller-scoped progress routing lets a
+# review-and-fix run choose its progress surface: an implement-hosted fix loop
+# binds progress_surface = workpad and, per the review engine at Phase 0.3.5,
+# seeds NO live PR progress comment at all — the caller issue workpad is the
+# progress surface instead. This detector reads only PR comments, so for such a
+# host there is no seeded comment to find and the cost-2 suppression above does
+# NOT hold: a /prflow:review issued during an implement-hosted review FAILS OPEN
+# for the WHOLE duration of that review, not merely the transient pre-seed window
+# above.
+#   DECIDED behavior (issue #1657): fail open is KEPT, unchanged. No new in-flight
+#   marker is stamped for the workpad-surfaced case — the alternatives are the
+#   same two the #1479 block records and rules out (absence-keyed suppression
+#   carries no updated_at to age out and would wedge every later request behind a
+#   seed that silently failed, and a head-blind thread scope over-suppresses), and
+#   fail-open matches the uniform direction of this helper (below), costing only a
+#   recoverable duplicate run, never a swallowed review. Like the pre-seed window,
+#   this is an accepted fail-open exposure that self-clears when the host review
+#   ends — NOT a numbered member of the two standing accepted costs above.
 #
 # GitHub-native `concurrency` is NOT the mechanism (shared repository doctrine —
 # see scripts/dedupe-implement-run.sh's header):
