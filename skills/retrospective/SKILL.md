@@ -77,7 +77,7 @@ Schema of `.prflow/tmp/pr-<n>.context.json` produced by `fetch-pr-context.sh`:
 | `diffstat` | string | Summary: `"N files changed, +A -D"` |
 | `diff` | string\|null | Full unified diff (null when over byte cap) |
 | `diff_truncated` | boolean | True when diff was over the byte cap |
-| `human_postbot_diff` | string\|null | Combined patch of the non-merge, positively human-attributable commits AFTER the last bot/PR-author commit — the same set `post_bot_commits` counts |
+| `human_postbot_diff` | string\|null | Combined patch of the non-merge, positively human-attributable commits AFTER the last bot/PR-author commit — the commits `post_bot_commits` counts, best-effort: a commit whose patch the API omits is skipped, and the field is null when none is available |
 | `issue_number` | number\|null | Linked issue number (from branch name or body) |
 | `issue` | object\|null | `{title, body, labels[], comments[{author,body,createdAt}]}` |
 | `review_comments` | array | Inline diff comments: `[{author,body,path,line,createdAt}]` |

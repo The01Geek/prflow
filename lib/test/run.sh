@@ -13653,24 +13653,31 @@ _PBC_START=$(grep -n 'POST_BOT_COMMITS="$(echo' "$LIB/fetch-pr-context.sh" | hea
 _PBC_PROG=$(sed -n "${_PBC_START},/^')\"$/p" "$LIB/fetch-pr-context.sh")
 _PBS_START=$(grep -n 'POSTBOT_SHAS="$(echo' "$LIB/fetch-pr-context.sh" | head -1 | cut -d: -f1)
 _PBS_PROG=$(sed -n "${_PBS_START},/^    ')\"$/p" "$LIB/fetch-pr-context.sh")
-# Pin the END and the LENGTH of each extraction, never its start. The start is inside the
-# sed range and is present however the range ends; and an end-marker check alone still
-# passes when a drifted terminator makes sed run on to the producer's NEXT identical
-# terminator, which `bash -c` then executes for real (hundreds of lines, live side
-# effects). The bounds are ceilings on blocks of 18 and 21 lines, not measurements.
+# Classify each extraction, then REFUSE TO RUN a bad one — reporting is not enough, because
+# `bash -c` on an overrun executes the producer's later blocks for real (live writes outside
+# the checkout). Pin the end and the length, never the start: the start is inside the sed
+# range and is present however the range ends, and an end-marker check alone still passes
+# when a drifted terminator makes sed run on to the producer's NEXT identical terminator.
+# 40 is a ceiling over blocks of 18 lines each, not a measurement of them.
 _PBC_NL=${_PBC_PROG//[!$'\n']/}
 _PBS_NL=${_PBS_PROG//[!$'\n']/}
-assert_eq "#1440: the POST_BOT_COMMITS extraction stopped at its own terminator" "')\"" \
-  "${_PBC_PROG##*$'\n'}"
-assert_eq "#1440: the POST_BOT_COMMITS extraction stayed inside its own block" "in-bounds" \
-  "$(if [ "${#_PBC_NL}" -le 40 ]; then echo in-bounds; else echo "overran:${#_PBC_NL}"; fi)"
-assert_eq "#1440: the POSTBOT_SHAS extraction stopped at its own terminator" "    ')\"" \
-  "${_PBS_PROG##*$'\n'}"
-assert_eq "#1440: the POSTBOT_SHAS extraction stayed inside its own block" "in-bounds" \
-  "$(if [ "${#_PBS_NL}" -le 40 ]; then echo in-bounds; else echo "overran:${#_PBS_NL}"; fi)"
-# The two shipped blocks carry byte-identical `ends_bot`/`is_human` defs; a half-applied
-# edit yields post_bot_commits > 0 beside an empty POSTBOT_SHAS and a null human diff.
-assert_eq "#1440: the coupled ends_bot/is_human defs are byte-identical across both blocks" "same" \
+if   [ -z "$_PBC_PROG" ];                          then _PBC_OK="empty-extraction"
+elif [ "${_PBC_PROG##*$'\n'}" != "')\"" ];         then _PBC_OK="terminator-drift"
+elif [ "${#_PBC_NL}" -gt 40 ];                     then _PBC_OK="overran:${#_PBC_NL}"
+else _PBC_OK=ok; fi
+if   [ -z "$_PBS_PROG" ];                          then _PBS_OK="empty-extraction"
+elif [ "${_PBS_PROG##*$'\n'}" != "    ')\"" ];     then _PBS_OK="terminator-drift"
+elif [ "${#_PBS_NL}" -gt 40 ];                     then _PBS_OK="overran:${#_PBS_NL}"
+else _PBS_OK=ok; fi
+[ "$_PBC_OK" = ok ] || _PBC_PROG=':'
+[ "$_PBS_OK" = ok ] || _PBS_PROG=':'
+assert_eq "#1440: the shipped POST_BOT_COMMITS block extracted whole and in-bounds" "ok" "$_PBC_OK"
+assert_eq "#1440: the shipped POSTBOT_SHAS block extracted whole and in-bounds" "ok" "$_PBS_OK"
+# The two shipped blocks carry the same `ends_bot`/`is_human` defs (they differ only in
+# indentation, which the comparison strips); a half-applied edit yields post_bot_commits > 0
+# beside an empty POSTBOT_SHAS and a null human diff. The `-n` check is what makes a missing
+# grep/sed report `differ` rather than compare two empty strings equal.
+assert_eq "#1440: the coupled ends_bot/is_human defs match across both blocks" "same" \
   "$(_pbdefs_a=$(printf '%s\n' "$_PBC_PROG" | grep -E '^ *def (ends_bot|is_human)\(' | sed -E 's/^ +//')
      _pbdefs_b=$(printf '%s\n' "$_PBS_PROG" | grep -E '^ *def (ends_bot|is_human)\(' | sed -E 's/^ +//')
      [ -n "$_pbdefs_a" ] && [ "$_pbdefs_a" = "$_pbdefs_b" ] && echo same || echo differ)"
@@ -13727,10 +13734,10 @@ assert_eq "#1440: POST_BOT_COMMITS is 1 on the shared blank+merge+pre-anchor inp
   "$(_pbc '[{"author_login":"alice","committer_login":"alice","parents_count":1,"sha":"Z"},{"author_login":"dave","committer_login":"github-actions[bot]","parents_count":1,"sha":"Y"},{"author_login":"","committer_login":"","parents_count":1,"sha":"N"},{"author_login":"bob","committer_login":"bob","parents_count":1,"sha":"B"},{"author_login":"carol","committer_login":"carol","parents_count":2,"sha":"M"}]' someoneelse)"
 assert_eq "#1440: POSTBOT_SHAS is the matching 1-element list on that same input" '["B"]' \
   "$(_pbs '[{"author_login":"alice","committer_login":"alice","parents_count":1,"sha":"Z"},{"author_login":"dave","committer_login":"github-actions[bot]","parents_count":1,"sha":"Y"},{"author_login":"","committer_login":"","parents_count":1,"sha":"N"},{"author_login":"bob","committer_login":"bob","parents_count":1,"sha":"B"},{"author_login":"carol","committer_login":"carol","parents_count":2,"sha":"M"}]' someoneelse)"
-# `unset -f` too: run.sh runs under `set -u`, so a later caller of _pbc/_pbs after the
-# variables they dereference are gone aborts the whole suite instead of failing one row.
+# Retire the helpers with their program text: a later caller would silently get `:` and an
+# empty result rather than a named failure.
 unset -f _pbc _pbs
-unset _PBC_START _PBC_PROG _PBS_START _PBS_PROG _PBC_NL _PBS_NL
+unset _PBC_START _PBC_PROG _PBS_START _PBS_PROG _PBC_NL _PBS_NL _PBC_OK _PBS_OK
 
 # #4 / issue #895: the /review verdict parser is now exercised by EXECUTING the
 # producer (lib/fetch-pr-context.sh) through a gh stub — never by re-declaring its
