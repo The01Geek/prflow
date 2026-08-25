@@ -17,8 +17,10 @@
 # reused only after re-passing that version check. Every failure fails CLOSED,
 # naming the tool, BEFORE the
 # model runs — a missing installer primitive, a checksum mismatch, an archive
-# that will not extract, the wrong version, a network failure, an unwritable
-# target, or an unsupported platform tuple.
+# that will not extract, the wrong version, a network failure, or an
+# unwritable target. An unsupported platform tuple degrades instead: it
+# reuses a version-matching tool already on PATH (the runner image), else
+# warns and continues unprovisioned.
 #
 # Required environment:
 #   LINT_MANIFEST      path to .prflow/lint-manifest.json
@@ -35,6 +37,9 @@
 #   LINTPROV_CURL      downloader; called as "$LINTPROV_CURL" -fsSL -o OUT URL (default curl)
 #   LINTPROV_TAR       tar extractor (default tar)
 #   LINTPROV_UNZIP     zip extractor (default unzip)
+#   LINTPROV_SKIP_PATH_REUSE  set to 1 to skip the pre-provisioned-runner PATH
+#                      reuse check on an established plan, forcing the download
+#                      path (the unsupported-plan PATH check is unaffected)
 # ============================================================================
 set -euo pipefail
 
@@ -105,7 +110,21 @@ _provision_one() {
   rc=$?
   set -e
   if [ "$rc" -eq 3 ]; then
-    _die "$tool" "unsupported-lint-platform ($TARGET_OS/$TARGET_ARCH)"
+    local unsupported_version sys_unsupported
+    unsupported_version="$("$PY" -c 'import json,sys; print(json.load(open(sys.argv[1]))["tools"][sys.argv[2]]["version"])' \
+      "$LINT_MANIFEST" "$tool" 2>/dev/null || true)"
+    sys_unsupported="$(command -v "$tool" 2>/dev/null || true)"
+    if [ -n "$sys_unsupported" ] && [ -n "$unsupported_version" ] \
+       && _version_token_match "$("$sys_unsupported" --version 2>&1 || true)" "$unsupported_version"; then
+      printf 'provision-lint-tools: %s: reused pre-provisioned %s (%s) from the runner image\n' \
+        "$tool" "$sys_unsupported" "$unsupported_version"
+      return 0
+    fi
+    printf 'provision-lint-tools: %s: unsupported-lint-platform (%s/%s); continuing without provisioning this tool\n' \
+      "$tool" "$TARGET_OS" "$TARGET_ARCH" >&2
+    printf '::warning::provision-lint-tools: %s: unsupported-lint-platform (%s/%s) and no pre-provisioned %s at pinned version %s on PATH; continuing without provisioning this tool\n' \
+      "$tool" "$TARGET_OS" "$TARGET_ARCH" "$tool" "${unsupported_version:-unknown}" >&2
+    return 0
   elif [ "$rc" -ne 0 ]; then
     _die "$tool" "manifest resolution failed: $plan"
   fi
@@ -133,6 +152,21 @@ _provision_one() {
     cached_ver="$("$dest" --version 2>&1 || true)"
     if _version_token_match "$cached_ver" "$version"; then
       printf 'provision-lint-tools: %s: reused verified install (%s, key %s)\n' "$tool" "$version" "$cache_key"
+      return 0
+    fi
+  fi
+
+  # Pre-provisioned-runner reuse: a tool already on PATH (not $dest, so this never
+  # substitutes for the cache-restore check above) at the pinned version is trusted
+  # like the runner's own curl/python3/shell — version-verified, not digest-verified.
+  # Skipped when LINTPROV_SKIP_PATH_REUSE=1 so the download path stays exercised.
+  if [ "${LINTPROV_SKIP_PATH_REUSE:-}" != "1" ]; then
+    local sys
+    sys="$(command -v "$tool" 2>/dev/null || true)"
+    if [ -n "$sys" ] && [ "$sys" != "$dest" ] \
+       && _version_token_match "$("$sys" --version 2>&1 || true)" "$version"; then
+      printf 'provision-lint-tools: %s: reused pre-provisioned %s (%s) from the runner image\n' \
+        "$tool" "$sys" "$version"
       return 0
     fi
   fi

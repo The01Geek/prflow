@@ -1294,9 +1294,10 @@ three shipped workflows pass tested modes:
   executable version (whole-token) before treating the tool as ready, and
   **fails closed** — before the model runs — on any readiness or verification
   failure (`install-state-missing`, `digest-mismatch`, `component-missing`,
-  `manifest-missing`, an unsupported OS/arch, a checksum/archive/version
-  mismatch, a network failure, or an unwritable target, each naming the tool).
-  The toolchain is cached via `actions/cache` keyed on `{OS, arch, manifest +
+  `manifest-missing`, a checksum/archive/version mismatch, a network failure,
+  or an unwritable target, each naming the tool). An unsupported OS/arch tuple
+  degrades instead: it reuses a version-matching tool already on PATH, else
+  warns and continues unprovisioned. The toolchain is cached via `actions/cache` keyed on `{OS, arch, manifest +
   marker hash}`; a cache-restored binary is re-verified under that key before
   use. The closed OS/arch → artifact + trusted-download-URL mapping lives in the
   trusted Python helpers (`scripts/lint_provision.py`), never in

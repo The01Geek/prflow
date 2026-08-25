@@ -253,7 +253,9 @@ runs:
     # lint-tool work and validates no manifest; `provision` installs the
     # manifest's ShellCheck/Ruff set run-local (no sudo), digest and version
     # verified, and fails CLOSED before the model runs on any readiness or
-    # verification failure. A cache-restored toolchain is re-verified under the
+    # verification failure — except an unsupported OS/arch tuple, which reuses
+    # a version-matching pre-provisioned tool on PATH or else warns and
+    # continues unprovisioned. A cache-restored toolchain is re-verified under the
     # cache key before use. An unknown lint_mode is refused. The closed-ID mapping
     # (os/arch → artifact, trusted download URL) lives in the trusted Python
     # helpers, never in manifest-supplied strings.

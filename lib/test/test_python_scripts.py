@@ -36161,19 +36161,35 @@ def _mk_manifest_1388(digest, *, version="9.9.9"):
 
 
 def _run_helper_1388(root, *, tools="shellcheck", os_name="linux", arch="x86_64",
-                     archive=None, curl_rc=0, dest_bin=None, extra_env=None):
+                     archive=None, curl_rc=0, dest_bin=None, extra_env=None,
+                     curl_marker=None, path_tools=None):
     """Run provision-lint-tools.sh in fixture `root` with a fake curl that copies
-    `archive` (or exits `curl_rc`). Returns (returncode, stderr+stdout)."""
+    `archive` (or exits `curl_rc`) and, when `curl_marker` is given, touches that
+    path so a test can assert the downloader was (not) invoked. `path_tools`, a
+    {name: version_report} dict, materializes fake PATH executables in a
+    directory prepended to PATH ahead of the real inherited PATH. Returns
+    (returncode, stderr+stdout)."""
     fakecurl = root / "fakecurl.sh"
+    marker_line = f'touch "{curl_marker}"\n' if curl_marker else ""
     if curl_rc != 0:
-        fakecurl.write_text(f"#!/bin/sh\nexit {curl_rc}\n", encoding="utf-8")
+        fakecurl.write_text(f"#!/bin/sh\n{marker_line}exit {curl_rc}\n", encoding="utf-8")
     else:
         fakecurl.write_text(
-            '#!/bin/sh\nout=""\nwhile [ $# -gt 0 ]; do case "$1" in -o) out="$2"; shift 2;; *) shift;; esac; done\n'
+            '#!/bin/sh\n' + marker_line +
+            'out=""\nwhile [ $# -gt 0 ]; do case "$1" in -o) out="$2"; shift 2;; *) shift;; esac; done\n'
             f'cp "{archive}" "$out"\n', encoding="utf-8")
     fakecurl.chmod(0o755)
     env = dict(os.environ)
     env.pop("GITHUB_PATH", None)
+    path_prefix = ""
+    if path_tools:
+        pathdir = root / "pathtools"
+        pathdir.mkdir(exist_ok=True)
+        for name, version_report in path_tools.items():
+            exe = pathdir / name
+            exe.write_text(f"#!/bin/sh\necho '{name} {version_report}'\n", encoding="utf-8")
+            exe.chmod(0o755)
+        path_prefix = str(pathdir) + os.pathsep
     env.update({
         "LINT_MANIFEST": ".prflow/lint-manifest.json",
         "INSTALL_STATE": ".prflow/install-state.json",
@@ -36182,6 +36198,7 @@ def _run_helper_1388(root, *, tools="shellcheck", os_name="linux", arch="x86_64"
         "SCRIPTS_DIR": str(SCRIPTS),
         "TOOLS": tools,
         "LINTPROV_CURL": str(fakecurl),
+        "PATH": path_prefix + env.get("PATH", ""),
     })
     if extra_env:
         env.update(extra_env)
@@ -36215,11 +36232,26 @@ try:
     assert_eq("#1388 helper: reports version-verified install", True, "version-verified" in _out)
     assert_eq("#1388 helper: installed the executable run-local", True, (_repo / "bin" / "shellcheck").exists())
 
-    # unsupported-lint-platform: no artifact for the requested (os,arch).
-    _rc, _out = _run_helper_1388(_repo, archive=_arc, arch="arm64")
-    assert_eq("#1388 helper: unsupported tuple fails closed", 1, _rc)
+    # unsupported-lint-platform: no artifact for the requested (os,arch), and no
+    # pre-provisioned tool on PATH -> degrade (warn + continue), not fail closed.
+    _um1 = _d1388b / "unsupported-nopath.marker"
+    _rc, _out = _run_helper_1388(_repo, archive=_arc, arch="arm64", curl_marker=_um1)
+    assert_eq("#1388 helper: unsupported tuple degrades (rc 0)", 0, _rc)
     assert_eq("#1388 helper: unsupported names the tool + reason", True,
               "shellcheck: unsupported-lint-platform" in _out)
+    assert_eq("#1388 helper: unsupported emits a GitHub warning annotation", True,
+              "::warning::" in _out)
+    assert_eq("#1388 helper: unsupported degrade never invoked the downloader", False, _um1.exists())
+
+    # unsupported-lint-platform + a pre-provisioned tool on PATH at the pinned
+    # version -> reused, no download.
+    _um2 = _d1388b / "unsupported-path.marker"
+    _rc, _out = _run_helper_1388(_repo, archive=_arc, arch="arm64", curl_marker=_um2,
+                                  path_tools={"shellcheck": "9.9.9"})
+    assert_eq("#1388 helper: unsupported + PATH tool at pinned version reuses (rc 0)", 0, _rc)
+    assert_eq("#1388 helper: unsupported PATH reuse reports reused pre-provisioned", True,
+              "reused pre-provisioned" in _out)
+    assert_eq("#1388 helper: unsupported PATH reuse never invoked the downloader", False, _um2.exists())
 
     # not-ready: corrupt a bound component so readiness refuses BEFORE any tool work.
     _repo_nr = _mk_repo_1388(_d1388b / "nr", _mk_manifest_1388(_dig))
@@ -36317,6 +36349,45 @@ try:
     else:
         assert_eq("#1388 helper: extract-zip without unzip fails closed on the primitive", 1, _rc)
         assert_eq("#1388 helper: missing unzip primitive named", True, "installer primitive not found" in _out)
+
+    # Established plan + a pre-provisioned tool on PATH at the pinned version -> reused,
+    # downloader never invoked.
+    _pp_repo = _mk_repo_1388(_d1388d / "pp", _mk_manifest_1388(_ok_dig))
+    _pp_marker = _d1388d / "pp.marker"
+    _rc, _out = _run_helper_1388(_pp_repo, archive=_ok_arc, curl_marker=_pp_marker,
+                                  path_tools={"shellcheck": "9.9.9"})
+    assert_eq("#1388 helper: established + matching PATH tool reuses (rc 0)", 0, _rc)
+    assert_eq("#1388 helper: established PATH reuse reports reused pre-provisioned", True,
+              "reused pre-provisioned" in _out)
+    assert_eq("#1388 helper: established PATH reuse never invoked the downloader", False, _pp_marker.exists())
+
+    # Established plan + a PATH tool at the WRONG version -> download path taken.
+    _wp_repo = _mk_repo_1388(_d1388d / "wp", _mk_manifest_1388(_ok_dig))
+    _wp_marker = _d1388d / "wp.marker"
+    _rc, _out = _run_helper_1388(_wp_repo, archive=_ok_arc, curl_marker=_wp_marker,
+                                  path_tools={"shellcheck": "1.1.1"})
+    assert_eq("#1388 helper: established + wrong-version PATH tool still installs (rc 0)", 0, _rc)
+    assert_eq("#1388 helper: wrong-version PATH tool triggers the download path", True, _wp_marker.exists())
+
+    # LINTPROV_SKIP_PATH_REUSE=1 + a matching PATH tool on an established plan -> the
+    # rung is skipped and the download path is taken anyway.
+    _sk_repo = _mk_repo_1388(_d1388d / "sk", _mk_manifest_1388(_ok_dig))
+    _sk_marker = _d1388d / "sk.marker"
+    _rc, _out = _run_helper_1388(_sk_repo, archive=_ok_arc, curl_marker=_sk_marker,
+                                  path_tools={"shellcheck": "9.9.9"},
+                                  extra_env={"LINTPROV_SKIP_PATH_REUSE": "1"})
+    assert_eq("#1388 helper: LINTPROV_SKIP_PATH_REUSE=1 forces the download path (rc 0)", 0, _rc)
+    assert_eq("#1388 helper: LINTPROV_SKIP_PATH_REUSE=1 invoked the downloader", True, _sk_marker.exists())
+
+    # Version-token guard: a PATH tool reporting 0.10.01 must NOT satisfy pinned 0.10.0
+    # (whole-token match, not a substring/prefix match).
+    _vt_man = _mk_manifest_1388(_ok_dig, version="0.10.0")
+    _vt_repo = _mk_repo_1388(_d1388d / "vt", _vt_man)
+    _vt_marker = _d1388d / "vt.marker"
+    _rc, _out = _run_helper_1388(_vt_repo, archive=_ok_arc, curl_marker=_vt_marker,
+                                  path_tools={"shellcheck": "0.10.01"})
+    assert_eq("#1388 helper: 0.10.01 does not satisfy pinned 0.10.0 (download path taken)", True,
+              _vt_marker.exists())
 finally:
     shutil.rmtree(_d1388d, ignore_errors=True)
 
