@@ -43535,9 +43535,9 @@ unset _I1219_IMPL_YML _I1219_CMD_YML _I1219_MUT
 # blocking-gate skip branch; the install is monolith-only (issue #1830), and
 # lib/test/run-shard.sh now FAILS any shard whose log shows that CLI-absence skip, so
 # dropping this step reddens the shard rather than retiring the validation silently.
-# Scope note: the PyYAML frontmatter and JSON manifest
-# gates sit OUTSIDE that `command -v claude` branch and keep running regardless — only
-# the strict plugin-tree layer is disarmed.
+# Scope note: the PyYAML frontmatter and JSON manifest gates sit OUTSIDE that
+# `command -v claude` branch and keep running regardless — only the strict
+# plugin-tree layer is disarmed.
 # Two lines are pinned because they fail independently: the installer fetches the binary,
 # and the GITHUB_PATH append is what actually puts it on PATH for later steps — an
 # install whose PATH export was dropped leaves the gate skipping just as surely. Matching
@@ -43728,6 +43728,17 @@ assert_eq "#1830 run-shard: an unrelated #434 blocking-gate skip does NOT fail t
 assert_eq "#1830 run-shard: a clean log passes the monolith shard" "zero" \
   "$(cd "$CGA_TREE" && CGA_CASE=clean DEVFLOW_SHARD_TALLY_DIR="$CGA_TREE/t-clean" bash lib/test/run-shard.sh monolith >/dev/null 2>&1 && echo zero || echo nonzero)"
 rm -rf "$CGA_TREE"
+# Coupling pin: the run-shard.sh backstop regex and run.sh's own #671 skip() lines are a
+# coupled pair (issue #1830) — a reword of either that drifts them apart silently disarms
+# the backstop, the exact silent-revert #1830 closes. Pin both ends against one canonical
+# pattern, so a drift on either side goes RED and the editor is forced to update the other.
+CGA_PAT='#671 claude plugin validate --strict.*blocking-gate.*claude CLI not on PATH'
+# structural-pin-ok: cross-file-phase-contract -- run-shard.sh must key its backstop on this exact pattern; a drifted regex stops matching run.sh's skip lines and reverts the gate silently
+assert_eq "#1830 coupling: run-shard.sh's backstop greps the canonical CLI-absence pattern" "yes" \
+  "$(grep -qF -- "$CGA_PAT" "$LIB/test/run-shard.sh" && echo yes || echo no)"
+# structural-pin-ok: cross-file-phase-contract -- run.sh's #671 skip() calls must match that pattern; a reworded skip name/reason silently stops the backstop from firing (the `skip "` anchor excludes this file's own fixture log lines)
+assert_eq "#1830 coupling: run.sh's #671 CLI-absence skip() calls match that same pattern" "yes" \
+  "$(grep -Eq -- "skip \"$CGA_PAT" "$LIB/test/run.sh" && echo yes || echo no)"
 #
 # ── scripts/assert-cli-version.sh: every arm of the extracted version check ──
 # The decision this helper makes used to be inline workflow shell, which no assertion
