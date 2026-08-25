@@ -17094,11 +17094,23 @@ CTX_CLEAN_SZ='{"pr":42,"kind":"implementation","issue_number":40,"merged_at":"20
 ESZ="$(echo "$CTX_CLEAN_SZ" | jq -c -f "$LIB/clean-entry.jq")"
 assert_eq "#1827 clean-entry additions survives"      "120"      "$(echo "$ESZ" | jq -r .additions)"
 assert_eq "#1827 clean-entry deletions survives"      "34"       "$(echo "$ESZ" | jq -r .deletions)"
-assert_eq "#1827 clean-entry changed_files survives"  "2"        "$(echo "$ESZ" | jq '.changed_files|length')"
+# changed_files survives verbatim (contents + order), not merely by length — a reorder/dedupe/rewrite must fail.
+assert_eq "#1827 clean-entry changed_files survives verbatim" '["lib/a.sh","lib/b.jq"]' "$(echo "$ESZ" | jq -c '.changed_files')"
 # The size-field-less CTX_CLEAN cleans without error and defaults the fields to null.
 assert_eq "#1827 clean-entry additions null when absent"     "null" "$(echo "$E" | jq -r .additions)"
 assert_eq "#1827 clean-entry deletions null when absent"     "null" "$(echo "$E" | jq -r .deletions)"
 assert_eq "#1827 clean-entry changed_files null when absent" "null" "$(echo "$E" | jq -r .changed_files)"
+# schema_version 3 always emits the keys (present even when null), so a reader can distinguish a v3
+# entry that lacked size data from a v2 entry that never had the fields — has() pins that contract.
+assert_eq "#1827 clean-entry additions key present when absent"     "true" "$(echo "$E" | jq 'has("additions")')"
+assert_eq "#1827 clean-entry changed_files key present when absent" "true" "$(echo "$E" | jq 'has("changed_files")')"
+# Valid-falsy passthrough: a real 0 / [] must survive (jq's // treats 0 and [] as truthy), so a
+# future naive `if .additions then` rewrite that nulls a real 0 would go RED here.
+CTX_CLEAN_FALSY='{"pr":42,"kind":"implementation","additions":0,"deletions":0,"changed_files":[],"signals":{"review_comments_count":0,"post_bot_commits":0,"ci_failures_during_pr":0,"workpad_final_status":"Complete","review_reject_outstanding":false}}'
+EFALSY="$(echo "$CTX_CLEAN_FALSY" | jq -c -f "$LIB/clean-entry.jq")"
+assert_eq "#1827 clean-entry additions 0 survives (not nulled)"       "0"  "$(echo "$EFALSY" | jq -r .additions)"
+assert_eq "#1827 clean-entry changed_files [] survives (not nulled)"  "0"  "$(echo "$EFALSY" | jq '.changed_files|length')"
+assert_eq "#1827 clean-entry changed_files [] is an array not null"   "array" "$(echo "$EFALSY" | jq -r '.changed_files|type')"
 # #152: audit-entry.jq is pruned along with the audit-intervention path.
 assert_eq "#152: audit-entry.jq is removed" "true" \
   "$([ ! -f "$LIB/audit-entry.jq" ] && echo true || echo false)"
