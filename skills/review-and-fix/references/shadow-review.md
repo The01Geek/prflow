@@ -34,6 +34,11 @@ Iteration accounting (early trigger). As at convergence time: the early shadow *
 
 #### Run the shadow fan-out
 
+Record the shadow-entry event (best-effort; the helper always exits 0 and never blocks):
+```bash
+.prflow/vendor/prflow/scripts/verification-flight.py event phase3-shadow-entry
+```
+
 Dispatch barrier. Every subagent dispatch described here is bound by the dispatch-collection requirement in the engine-ground-truth block injected into this run's prompt — read it there (if your prompt carries no such block, collect every dispatch before the turn ends anyway).
 
 Run the shadow as its own engine subagent under Step 1's capability check — invoke the `/prflow:review` engine inside a fresh **Agent-tool subagent** that resolves the engine directory and `Read`s its `SKILL.md` in full under Step 1's resolution steps 3 and 4 — carried verbatim into that subagent's prompt by the parent, since that fresh context holds none of Step 1 — and runs Phases 0 through 4.3 with the Phase 3 roster fanned out from its own context, so no shadow reviewer receives a prior-findings handoff. On `dispatch_mode: unavailable` the parent instead runs those phases inline — bind the bundle to the located `<engine-dir>`, `Read` its `SKILL.md` in full under Step 1's completeness predicate, and execute its phases with the prior-findings handoff *withheld* (see "Blind every shadow reviewer prompt" below). Either way, do NOT flatten the shadow into one `general-purpose` self-check, which returns a false clean verdict. Stop before Phase 4.4 (no `gh pr review` / `gh pr comment` — the loop posts no verdict to GitHub). Reuse /prflow:review's Phase 3.1 launch list and per-agent prompts verbatim — see the expected-roster rule below.

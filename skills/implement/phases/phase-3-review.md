@@ -191,6 +191,11 @@ The run continues regardless of the assignment outcome — assignment is best-ef
 
 ### 3.2 Self-Review with /simplify
 
+Record the phase-boundary event (best-effort; the helper always exits 0 and never blocks the run):
+```bash
+.prflow/vendor/prflow/scripts/verification-flight.py event phase3-simplify-start
+```
+
 Invoke the Skill tool with `skill: simplify` — this runs the built-in Claude Code `/simplify` slash-command, not a DevFlow plugin skill (so there's no `devflow:` prefix and nothing to install). It ships with Claude Code and is always present; do not treat it as a missing skill or skip this phase.
 
 `/simplify` runs the code-review engine over the current diff in quality-only mode — the reuse / simplification / efficiency / altitude cleanup angles — and applies the fixes directly instead of stopping at a report (skipping any whose fix would change intended behavior). By its own charter it does not hunt for bugs; use `/code-review` for that.
@@ -209,6 +214,11 @@ After the skill completes, commit any fixes and push:
 git add -A
 git commit -m "refactor: address /simplify findings for issue #$ARGUMENTS"
 git push
+```
+
+Record the phase-boundary event (best-effort; the helper always exits 0 and never blocks the run):
+```bash
+.prflow/vendor/prflow/scripts/verification-flight.py event phase3-simplify-end
 ```
 
 If `/simplify` reported the code was already clean and made no changes, skip the commit and continue.
