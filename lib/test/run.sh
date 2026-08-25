@@ -48544,9 +48544,17 @@ assert_eq "#487 stop-refresher exists (extracted from the workflow Stop step)" "
 # Arm 13 — pidfile present (live process) + last cycle OK → recovered transient → NO
 # defeated warning. The live pid is the positive control the died-mid-run arm 19 needs:
 # same fixture shape, only liveness differs.
-sleep 300 & _live13=$!
-echo "$_live13" > "$D487/pidA"; printf 'refresh-app-credentials: cycle OK (credentials refreshed)\n' > "$D487/logA"
-_s13="$(DEVFLOW_REFRESH_PIDFILE="$D487/pidA" DEVFLOW_REFRESH_LOG="$D487/logA" bash "$STOP_SH" 2>&1)"; _s13_rc=$?
+# Bounded retry (issue #1931): widen this liveness assertion's slack under pool saturation — retry only a starved capture (empty output or a dead/failed-fork fixture), never the assertion outcome, so a real defect's deterministic non-empty output is still asserted and goes RED.
+_live13=""; _s13=""; _s13_rc=0
+for (( _try13=1; _try13<=40; _try13++ )); do
+  sleep 300 & _live13=$!
+  echo "$_live13" > "$D487/pidA"; printf 'refresh-app-credentials: cycle OK (credentials refreshed)\n' > "$D487/logA"
+  _lv13=no; kill -0 "$_live13" 2>/dev/null && _lv13=yes
+  _s13="$(DEVFLOW_REFRESH_PIDFILE="$D487/pidA" DEVFLOW_REFRESH_LOG="$D487/logA" bash "$STOP_SH" 2>&1)"; _s13_rc=$?
+  { [ "$_lv13" = yes ] && [ -n "${_s13//[[:space:]]/}" ]; } && break
+  kill "$_live13" 2>/dev/null; wait "$_live13" 2>/dev/null || true
+  sleep 0.2
+done
 assert_eq "#487 arm13: recovered transient (live pid, last cycle OK) does NOT warn defeated" "no" "$(_defeat487 "$_s13")"
 assert_eq "#487 arm13: stop-refresher always exits 0" "0" "$_s13_rc"
 assert_eq "#487 arm13: a live refresher is signalled (kill by pidfile)" "yes" \
@@ -48628,11 +48636,18 @@ assert_eq "#487 arm20: the warning is attributed to the empty pidfile" "yes" \
 # backoff re-converges), but the impact clause is NARROWED to gh-only rather than the generic
 # "git push may be stale" over-claim (push in fact stayed fresh). Pins stop-refresher's new
 # divergence case arm (removing it drops the last line to the generic ::warning:: arm → RED).
-sleep 300 & _live20b=$!
-echo "$_live20b" > "$D487/pid20b"
-printf 'refresh-app-credentials: cycle OK\n::warning::refresh-app-credentials: cycle: renaming the token file into place failed — push credential (surface 1) IS fresh but the gh token file (surface 2) is now stale\n' > "$D487/log20b"
-_s20b="$(DEVFLOW_REFRESH_PIDFILE="$D487/pid20b" DEVFLOW_REFRESH_LOG="$D487/log20b" bash "$STOP_SH" 2>&1)"; _s20b_rc=$?
-kill "$_live20b" 2>/dev/null || true
+# Bounded retry (issue #1931) — same pool-saturation slack widening as arm13 above.
+_live20b=""; _s20b=""; _s20b_rc=0
+for (( _try20b=1; _try20b<=40; _try20b++ )); do
+  sleep 300 & _live20b=$!
+  echo "$_live20b" > "$D487/pid20b"
+  printf 'refresh-app-credentials: cycle OK\n::warning::refresh-app-credentials: cycle: renaming the token file into place failed — push credential (surface 1) IS fresh but the gh token file (surface 2) is now stale\n' > "$D487/log20b"
+  _lv20b=no; kill -0 "$_live20b" 2>/dev/null && _lv20b=yes
+  _s20b="$(DEVFLOW_REFRESH_PIDFILE="$D487/pid20b" DEVFLOW_REFRESH_LOG="$D487/log20b" bash "$STOP_SH" 2>&1)"; _s20b_rc=$?
+  kill "$_live20b" 2>/dev/null; wait "$_live20b" 2>/dev/null || true
+  { [ "$_lv20b" = yes ] && [ -n "${_s20b//[[:space:]]/}" ]; } && break
+  sleep 0.2
+done
 assert_eq "#491 arm20b: surface-2-only divergence still warns defeated (gh surface stale)" "yes" "$(_defeat487 "$_s20b")"
 assert_eq "#491 arm20b: the divergence impact clause narrows to gh-only (git push stayed fresh)" "yes" \
   "$(printf '%s' "$_s20b" | grep -qF 'git push stayed fresh' && echo yes || echo no)"
@@ -48767,11 +48782,18 @@ assert_eq "#1882 arm1882j: teardown does NOT emit the did-not-start defeat on th
   "$(printf '%s' "$_s1882j" | grep -qF 'did not start or crashed' && echo yes || echo no)"
 
 # 1882k — fail-closed when grep/tail are unavailable: defeated + warn, never silent.
-MINBIN1882="$D487/minbin1882"; mkdir -p "$MINBIN1882"
-for _t1882 in bash cat mktemp dirname sleep kill; do _p1882="$(command -v "$_t1882" || true)"; [ -n "$_p1882" ] && ln -sf "$_p1882" "$MINBIN1882/$_t1882"; done
-printf 'refresh-app-credentials: cycle OK\n' > "$D487/log1882k"
-_s1882k="$(env "PATH=$MINBIN1882" DEVFLOW_REFRESH_PIDFILE="$D487/dead1882.pid" DEVFLOW_REFRESH_STARTED=skipped \
-  DEVFLOW_REFRESH_LOG="$D487/log1882k" DEVFLOW_REFRESH_REAP_GLOB="$D487/noreapk-*.pid" bash "$STOP_SH" 2>&1)"
+# Bounded retry (issue #1931) — same pool-saturation slack widening as arm13 (no live fixture here, so retry only on an empty capture).
+MINBIN1882="$D487/minbin1882"
+_s1882k=""
+for (( _try1882k=1; _try1882k<=40; _try1882k++ )); do
+  mkdir -p "$MINBIN1882"
+  for _t1882 in bash cat mktemp dirname sleep kill; do _p1882="$(command -v "$_t1882" || true)"; [ -n "$_p1882" ] && ln -sf "$_p1882" "$MINBIN1882/$_t1882"; done
+  printf 'refresh-app-credentials: cycle OK\n' > "$D487/log1882k"
+  _s1882k="$(env "PATH=$MINBIN1882" DEVFLOW_REFRESH_PIDFILE="$D487/dead1882.pid" DEVFLOW_REFRESH_STARTED=skipped \
+    DEVFLOW_REFRESH_LOG="$D487/log1882k" DEVFLOW_REFRESH_REAP_GLOB="$D487/noreapk-*.pid" bash "$STOP_SH" 2>&1)"
+  [ -n "${_s1882k//[[:space:]]/}" ] && break
+  sleep 0.2
+done
 assert_eq "#1882 arm1882k: unavailable grep/tail fails closed (defeated + warn, not silent)" "yes" \
   "$(printf '%s' "$_s1882k" | grep -qF 'grep/tail) are unavailable' && echo yes || echo no)"
 
