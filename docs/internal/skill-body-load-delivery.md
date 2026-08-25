@@ -527,7 +527,7 @@ lacks the file's last non-empty line (tail lost); it lacks the distinctive inter
 offered one (an interior loss); or it carries a truncation/cap notice (`showing lines X-Y of Z`, `cap 25000`). Any
 of these makes the verdict `short-delivery`.
 
-**What makes a row `unestablished`**, in the order the helper evaluates them — exactly these six
+**What makes a row `unestablished`**, in the order the helper evaluates them — exactly these seven
 arms, complete by construction:
 
 1. the execution transcript was unreadable, unparseable, or only partly parseable;
@@ -537,7 +537,14 @@ arms, complete by construction:
 3. the matching load had no paired `tool_result`, so nothing was delivered to measure;
 4. the load returned an error `tool_result` — the abort mode, not a truncation;
 5. no body record following that load named the root's own directory;
-6. the on-disk controls could not be read, so the delivered body could not be checked against them.
+6. more than one body record in that load's window named it, so no single delivered body could be
+   selected — the same refusal as arm 2, one stage lower, and for the same reason: measuring one of
+   several would make the verdict depend on record order;
+7. the on-disk controls could not be read, so the delivered body could not be checked against them.
+
+Arms 2 and 6 are the two selection stages, and each collects every match rather than keeping the
+first. That symmetry is the point: a probe whose answer depended on which record came first would be
+reporting record order, not delivery.
 
 ### Delivery geometry this probe can and cannot distinguish (AC)
 

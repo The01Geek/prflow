@@ -47,8 +47,9 @@ Degraded arms come FIRST and every per-root degraded outcome is `unestablished`,
 file unreadable, unparseable or only partly parseable; the root not resolving to exactly
 one recorded load (none matched its name, or several did — one arm, two causes, and the
 reason says which); a matching load with no paired result; a load that returned an error;
-no following body record naming the root's own directory; and the on-disk controls
-unreadable. Each is unknown, not whole. The process exits 0 on every
+no following body record naming the root's own directory; more than one such body record,
+the same refusal one stage lower; and the on-disk controls unreadable. Each is unknown,
+not whole. The process exits 0 on every
 execution-file outcome (a red verdict on a degraded run is exactly what this probe
 exists to characterize); only the no-roots usage error exits non-zero.
 """
