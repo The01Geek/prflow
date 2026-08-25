@@ -35549,7 +35549,7 @@ assert_eq("#1740 refusal names the unknown pass",
           True, any("pass 4" in _o for _o in _unk_res["offending"]))
 
 # Cardinality (2.3.7): multiple absent passes are all named, in charter order; multiple
-# unknown passes are sorted; a duplicated pass line collapses to one pass (dedup).
+# unknown passes are sorted; a duplicated pass line fails closed (see the duplicate case below).
 _multi_ok, _multi_res = validate_ica.validate_record(_ica_record(drop=(1, 5)))
 assert_eq("#1740 two absent passes are both non-conforming", False, _multi_ok)
 assert_eq("#1740 both absent passes classify absent", ("absent", "absent"),
