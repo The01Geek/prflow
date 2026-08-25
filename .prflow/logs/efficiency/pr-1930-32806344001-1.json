@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "slug": "pr-1930",
+  "generated_at": "2026-08-25T04:03:00Z",
+  "source": null,
+  "synthesized": true,
+  "iterations": 0,
+  "per_iteration": [],
+  "telemetry": [],
+  "harness_cost": {
+    "cost_source": "execution-file",
+    "engine_version": "2.34.13",
+    "workflow": "The01Geek/prflow/.github/workflows/devflow.yml@refs/heads/main",
+    "command": "review",
+    "scope": "whole-job",
+    "cost_usd": 12.739018749999998,
+    "tokens": {
+      "input_tokens": 64,
+      "output_tokens": 51208,
+      "cache_read_input_tokens": 6359546,
+      "cache_creation_input_tokens": 285112,
+      "total_tokens": null
+    },
+    "model_usage": {
+      "claude-opus-4-8": {
+        "inputTokens": 128,
+        "outputTokens": 87599,
+        "cacheReadInputTokens": 8138552,
+        "cacheCreationInputTokens": 836903,
+        "webSearchRequests": 0,
+        "costUSD": 12.559704749999998,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-opus-4-8",
+        "provider": "firstParty"
+      },
+      "claude-sonnet-5": {
+        "inputTokens": 2,
+        "outputTokens": 6356,
+        "cacheReadInputTokens": 0,
+        "cacheCreationInputTokens": 46300,
+        "webSearchRequests": 0,
+        "costUSD": 0.179314,
+        "contextWindow": 1000000,
+        "maxOutputTokens": 64000,
+        "canonicalModel": "claude-sonnet-5",
+        "provider": "firstParty"
+      }
+    },
+    "num_turns": 52,
+    "duration_ms": 976349
+  },
+  "permission_denials": {
+    "count": 3,
+    "tool_names": [
+      "Bash"
+    ],
+    "commands_state": "present",
+    "commands": [
+      "git status --porcelain; echo \"---ENV---\"; echo \"RUN_ID=${GITHUB_RUN_ID:-} ATTEMPT=${GITHUB_RUN_ATTEMPT:-1}\"",
+      "mkdir -p .prflow/tmp\nrm -f .prflow/tmp/review-dirty-tree-before .prflow/tmp/review-dirty-tree-disabled 2>/dev/null &&\ngit status --porcelain -z > .prflow/tmp/review-dirty-tree-before &&\n[ -f .prflow/tmp/review-dirty-tree-before ] &&\n[ ! -L .prflow/tmp/review-dirty-tree-before ] &&\ngit hash-object .prflow/tmp/review-dirty-tree-before",
+      "echo \"=== workflows: no job-wide publication (expect 0 each) ===\"; for wf in devflow-implement devflow; do printf '%s: ' \"$wf\"; git show 77dc3aeabe35a9cc834d17fb8e142128192d7d30:.github/workflows/$wf.yml | grep -vE '^[[:space:]]*#' | grep -cF 'echo \"DEVFLOW_REFRESH_SELFTEST_FAILED='; done\necho \"=== workflows: Stop step self-derives export (expect 1 each) ===\"; for wf in devflow-implement devflow; do printf '%s: ' \"$wf\"; git show 77dc3aeabe35a9cc834d17fb8e142128192d7d30:.github/workflows/$wf.yml  …[per-command-truncated]"
+    ],
+    "total": 3,
+    "truncated": false,
+    "commands_field_enabled": true,
+    "scrub": {
+      "applied": true,
+      "blocklist_incomplete": true,
+      "shapes": "GitHub tokens/PATs, Anthropic keys, Bearer Authorization headers, and basic Authorization headers"
+    }
+  }
+}
